@@ -38,14 +38,20 @@ describe("resident release holds", () => {
     const report = await readResidentReleaseHolds({
       dataDir: root, releaseRoots: ["/old", "/new"], platform: "linux", architecture: "x64",
       verify: async executable => { checked.push(executable); if (executable.includes("old")) throw new Error("missing"); },
-      run: async (executable, arguments_) => {
-        calls.push([executable, ...arguments_]);
+      run: async (command, arguments_) => {
+        calls.push([command.executable, command.entry, ...arguments_]);
         return { code: 0, stdout: JSON.stringify({ schema: "a1-resident-release-holds-v1", complete: true, releaseRoots: ["/new"], uncertain: [] }) };
       },
     });
     expect(report).toEqual({ complete: true, releaseRoots: ["/new"], uncertain: [] });
     expect(checked).toHaveLength(2);
-    expect(calls).toEqual([[checked[1], "release-holds", "--data-dir", root]]);
+    expect(calls).toEqual([[
+      process.execPath,
+      expect.stringMatching(/new[\\/]dist[\\/]foundation[\\/]resident-tabs[\\/]host-entry\.js$/u),
+      "release-holds",
+      "--data-dir",
+      root,
+    ]]);
   });
 
   it("is incomplete without a verified host, on a failed inspection, or on a malformed report", async () => {

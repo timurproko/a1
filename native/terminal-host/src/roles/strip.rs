@@ -116,11 +116,16 @@ fn status_glyph_at(status: &str, elapsed_ms: u128) -> String {
         }
         "needs-input" => "? ".into(),
         "unresponsive" | "stalled" | "degraded" => "! ".into(),
-        "done-unseen" => "✓ ".into(),
+        "done" | "done-unseen" => "✓ ".into(),
         "restarting" => "↻ ".into(),
-        "crashed" | "failed" | "ended" => "✗ ".into(),
+        "aborted" | "error" | "crashed" | "failed" | "ended" => "✗ ".into(),
         _ => String::new(),
     }
+}
+
+/// Whether a status shows a glyph before the chip title.
+pub fn status_has_glyph(status: &str) -> bool {
+    !status_glyph_at(status, 0).is_empty()
 }
 
 fn status_glyph(status: &str) -> String {
@@ -137,8 +142,8 @@ fn accent(status: &str, value: Option<&str>) -> &'static str {
     if status != "working" {
         return match status {
             "needs-input" | "unresponsive" | "stalled" | "degraded" => "\x1b[38;2;224;175;70m",
-            "done-unseen" => "\x1b[38;2;90;190;120m",
-            "crashed" | "failed" | "ended" => "\x1b[38;2;225;90;90m",
+            "done" | "done-unseen" => "\x1b[38;2;90;190;120m",
+            "aborted" | "error" | "crashed" | "failed" | "ended" => "\x1b[38;2;225;90;90m",
             _ => "\x1b[38;2;170;170;170m",
         };
     }
@@ -153,6 +158,8 @@ fn accent(status: &str, value: Option<&str>) -> &'static str {
 }
 
 const SETTLED_FG: Rgb = Rgb(170, 170, 170);
+const STRIP_ROW_BACKGROUND: &str = "\x1b[48;2;20;20;20m";
+const STRIP_ROW_BACKGROUND_PALETTE: &str = "\x1b[48;5;233m";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rgb(pub u8, pub u8, pub u8);
@@ -484,7 +491,8 @@ fn render_frame(
     let chip = |tab: &StripTab, active: bool, hovered: bool| {
         chip(tab, active, hovered, now, truecolor, rename)
     };
-    let clock = (!tabs.is_empty()).then(|| clock_text(time_format));
+    // Invariant: the clock stays visible with no tabs, beside the lone `+`.
+    let clock = Some(clock_text(time_format));
     let clock_width = clock.as_deref().map_or(0, UnicodeWidthStr::width);
     let clock_reserve = if clock.is_some() { clock_width + 1 } else { 0 };
     let available = usize::from(columns).saturating_sub(clock_reserve);
@@ -543,7 +551,7 @@ fn render_frame(
         .filter(|tab| !selected.iter().any(|visible| visible.id == tab.id))
         .map(|tab| tab.id.clone())
         .collect::<Vec<_>>();
-    let mut bytes = String::from("\x1b[1;1H");
+    let mut bytes = format!("\x1b[1;1H{STRIP_ROW_BACKGROUND}");
     let mut hits = Vec::new();
     let mut column = 0u16;
     for tab in selected {
@@ -586,8 +594,13 @@ fn render_frame(
         bytes.push_str(&clock);
         bytes.push_str("\x1b[0m ");
     }
+    // Invariant: every strip cell outside a chip carries the fixed row background, so neither the
+    // child's default-background sync nor stale cells can show through to the right of `+`.
+    bytes = bytes.replace("\x1b[0m", &format!("\x1b[0m{STRIP_ROW_BACKGROUND}"));
+    bytes.push_str("\x1b[0m");
     if !truecolor {
         for (rgb, palette) in [
+            (STRIP_ROW_BACKGROUND, STRIP_ROW_BACKGROUND_PALETTE),
             ("\x1b[48;2;38;38;38m", "\x1b[48;5;235m"),
             ("\x1b[48;2;48;48;48m", "\x1b[48;5;236m"),
             ("\x1b[48;2;55;55;55m", "\x1b[48;5;237m"),
@@ -604,9 +617,15 @@ fn render_frame(
     }
 }
 
-fn palette_fallback_requested() -> bool {
+/// Whether host chrome uses the 256-color palette instead of direct RGB.
+pub fn palette_fallback_requested() -> bool {
     if std::env::var("TERMINAL_HOST_COLOR_MODE").is_ok_and(|value| value == "palette") {
         return true;
+    }
+    // Platform: Windows Terminal renders direct RGB but does not export COLORTERM; the owned UI
+    // recognizes it by WT_SESSION, so host chrome must too or menus fall back to palette grays.
+    if std::env::var_os("WT_SESSION").is_some() {
+        return false;
     }
     std::env::var("TERM").is_ok_and(|term| term.contains("256color"))
         && std::env::var("COLORTERM").map_or(true, |value| {
@@ -1071,7 +1090,13 @@ mod tests {
     #[test]
     fn empty_strip_contains_only_the_new_tab_control() {
         let frame = render(&[], None, 80);
-        assert_eq!(plain(&frame.bytes).trim(), "+");
+        let text = plain(&frame.bytes);
+        assert!(text.trim_start().starts_with('+'));
+        assert!(
+            text.trim_end().ends_with('M'),
+            "the clock stays visible: {text:?}"
+        );
+        assert_eq!(UnicodeWidthStr::width(text.as_str()), 80);
         assert_eq!(frame.hits, vec![(0, 3, StripHit::New)]);
     }
 
@@ -1093,6 +1118,34 @@ mod tests {
             );
             assert!(plain(&frame.bytes).ends_with(' '));
             assert_eq!(UnicodeWidthStr::width(plain(&frame.bytes).as_str()), 80);
+        }
+    }
+
+    #[test]
+    fn strip_row_cells_outside_chips_carry_the_dark_row_background() {
+        for truecolor in [true, false] {
+            let background = if truecolor {
+                STRIP_ROW_BACKGROUND
+            } else {
+                STRIP_ROW_BACKGROUND_PALETTE
+            };
+            let frame = render_frame(
+                &[tab("one", "agent")],
+                Some("one"),
+                80,
+                None,
+                TimeFormat::Twelve,
+                None,
+                Instant::now(),
+                truecolor,
+            );
+            assert!(frame.bytes.starts_with(&format!("\x1b[1;1H{background}")));
+            // Invariant: Every reset inside the row re-establishes the row background before more cells.
+            let body = frame.bytes.strip_suffix("\x1b[0m").expect("row ends reset");
+            for (offset, _) in body.match_indices("\x1b[0m") {
+                assert!(body[offset + 4..].starts_with(background));
+            }
+            assert!(!frame.bytes.contains("\x1b[49m"));
         }
     }
 
@@ -1124,6 +1177,12 @@ mod tests {
         assert_eq!(status_glyph_at("done-unseen", 0), "✓ ");
         assert_eq!(status_glyph_at("failed", 0), "✗ ");
         assert_eq!(status_glyph_at("suspended", 0), "");
+        assert_eq!(status_glyph_at("done", 0), "✓ ");
+        assert_eq!(accent("done", None), "\x1b[38;2;90;190;120m");
+        for marker in ["aborted", "error"] {
+            assert_eq!(status_glyph_at(marker, 0), "✗ ");
+            assert_eq!(accent(marker, None), "\x1b[38;2;225;90;90m");
+        }
         for old in ["◐", "◓", "◑", "◒", "…"] {
             assert!(!status_glyph_at("working", 0).contains(old));
             assert!(!status_glyph_at("starting", 0).contains(old));

@@ -3,8 +3,11 @@ import { dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRIVATE_LAUNCH_CONTRACT, readLaunchContext } from "../../../src/foundation/launch-context/index.js";
+import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 import { CohortStateStore, certifyMaterializedRelease, materializeRelease, runBootstrap, startSupervisor, warmMaterializedRelease, type MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { readUpdateRecoveryCapsule } from "../../../src/foundation/release/update-recovery.js";
+import { ControlStore } from "../../../src/foundation/storage/index.js";
+import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
@@ -121,5 +124,45 @@ describe("private-contract negotiation across an upgrade", () => {
     const { createReleaseIdentity } = await import("../../../src/foundation/release/release.js");
     const wrong = createReleaseIdentity(manifest.packageRoot, manifest.packageVersion, manifest.files, manifest.dependencyLayers, "different-contract");
     expect(wrong.contentDigest).not.toBe(manifest.contentDigest);
+  });
+
+  it("repairs a missing certified file before reusing a live approved release", async () => {
+    const value = await fixture(PRIVATE_LAUNCH_CONTRACT);
+    const release = await materializeRelease(value.packageRoot, value.dataDir);
+    const state = new CohortStateStore(value.dataDir);
+    await state.recordCandidate(release);
+    await state.approve(release.releaseId, await certifyMaterializedRelease(release, value.dataDir));
+    await state.activate(release.releaseId);
+    const environment = {
+      A1_CONFIG_DIR: resolve(value.root, "config"),
+      A1_DATA_DIR: value.dataDir,
+      A1_RUNTIME_DIR: resolve(value.root, "runtime"),
+      A1_DATABASE_PATH: resolve(value.root, "control.sqlite3"),
+    };
+    const paths = resolveProductPaths(environment);
+    const cohort = resolveCohortEndpoint(paths, release.releaseId, environment);
+    const control = new ControlStore(":memory:", "bootstrap-repair");
+    const server = new SupervisorServer(
+      control,
+      { ...paths, endpoint: cohort.endpoint, endpointMetadataPath: cohort.endpointMetadataPath },
+      release,
+      "00000000-0000-4000-8000-000000000001",
+      () => {},
+    );
+    await server.listen();
+    try {
+      const missing = resolve(release.releaseRoot, "bin/warmup.js");
+      const expected = await readFile(resolve(value.packageRoot, "bin/warmup.js"), "utf8");
+      await rm(missing);
+      await expect(runBootstrap({
+        packageRoot: value.packageRoot,
+        environment,
+        interactiveTerminal: false,
+        scheduleMaintenance: async () => {},
+      })).resolves.toBe(0);
+      await expect(readFile(missing, "utf8")).resolves.toBe(expected);
+    } finally {
+      await server.close();
+    }
   });
 });

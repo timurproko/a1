@@ -49,7 +49,6 @@ describe("owned UI setting declarations", () => {
       "promptSuggestions",
       "skillsPresentation",
       "promptImageLimit",
-      "tabsMax",
       "tabsAutoName",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "timeFormat")).toMatchObject({
@@ -101,13 +100,7 @@ describe("owned UI setting declarations", () => {
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptSuggestions")?.description)
       .toContain("one background request, plus one bounded recovery request when needed");
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "residentTabs")).toBeNull();
-    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMax")).toMatchObject({
-      label: "Maximum tabs",
-      section: { id: "tabs", title: "Tabs" },
-      application: "live",
-      defaultValue: 10,
-      allowedValues: Array.from({ length: 50 }, (_, index) => index + 1),
-    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMax")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsAutoName")).toMatchObject({
       label: "Auto name",
       section: { id: "tabs", title: "Tabs" },
@@ -421,7 +414,7 @@ describe("owned UI settings migrations", () => {
     expect(resolved.settings.find(setting => setting.declaration.id === "residentTabs")).toBeUndefined();
   });
 
-  it("replaces the configurable start limit with tab limit and auto-name settings", () => {
+  it("replaces configurable resident limits with internal policy and auto naming", () => {
     expect(OWNED_UI_SETTINGS_MIGRATIONS[13]).toMatchObject({ to: 15 });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[14]).toMatchObject({ to: 16 });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[15]).toMatchObject({ to: 17 });
@@ -435,8 +428,6 @@ describe("owned UI settings migrations", () => {
       document: { version: 15, values: { residentTabs: true, tabsMaxConcurrentStarts: 8 } },
     });
     expect(resolved).toMatchObject({ version: OWNED_UI_SETTINGS_VERSION, migrated: true, notices: [] });
-    expect(resolved.settings.find(setting => setting.declaration.id === "tabsMax"))
-      .toMatchObject({ value: 10, source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "tabsAutoName"))
       .toMatchObject({ value: true, source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "timeFormat"))

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { buildManifest, sessionLockLibraryName, terminalHostExecutableName, verifyVersionReport, type TerminalHostVersionReport } from "../../scripts/development/build-terminal-host.mjs";
+import { buildManifest, TERMINAL_HOST_ADDON, TERMINAL_HOST_ENTRY, verifyVersionReport, type TerminalHostVersionReport } from "../../scripts/development/build-terminal-host.mjs";
 import { licenseAllowed, renderTerminalHostNotices, type CargoMetadata, type NoticeReader } from "../../scripts/release/generate-terminal-host-notices.mjs";
 
 const report: TerminalHostVersionReport = {
@@ -20,7 +20,7 @@ function crate(name: string, license: string | null, kind = "lib") {
 
 function graph(): CargoMetadata {
   return {
-    packages: [crate("terminal-host", null, "bin"), crate("alpha", "MIT OR Apache-2.0"), crate("beta", "Apache-2.0 WITH LLVM-exception OR MIT"), crate("macro", "MIT", "proc-macro"), crate("hidden", "AGPL-3.0"), crate("tooling", "GPL-3.0")],
+    packages: [crate("terminal-host", null, "cdylib"), crate("alpha", "MIT OR Apache-2.0"), crate("beta", "Apache-2.0 WITH LLVM-exception OR MIT"), crate("macro", "MIT", "proc-macro"), crate("hidden", "AGPL-3.0"), crate("tooling", "GPL-3.0")],
     resolve: {
       root: "terminal-host 1.0.0",
       nodes: [
@@ -109,20 +109,17 @@ describe("terminal-host third-party notices", () => {
 });
 
 describe("terminal-host release build", () => {
-  it("names the executable from product identity and the addon per platform", () => {
-    expect(terminalHostExecutableName({ artifacts: { nativeExecutable: "terminal-host" } }, "win32")).toBe("terminal-host.exe");
-    expect(terminalHostExecutableName({ artifacts: { nativeExecutable: "terminal-host" } }, "darwin")).toBe("terminal-host");
-    expect(sessionLockLibraryName("win32")).toBe("terminal_host_contracts.dll");
-    expect(sessionLockLibraryName("darwin")).toBe("libterminal_host_contracts.dylib");
-    expect(sessionLockLibraryName("linux")).toBe("libterminal_host_contracts.so");
+  it("names the single addon and fixed Node role entry", () => {
+    expect(TERMINAL_HOST_ADDON).toBe("terminal-host.node");
+    expect(TERMINAL_HOST_ENTRY).toBe("dist/foundation/resident-tabs/host-entry.js");
   });
 
-  it("refuses a binary whose identity or features differ from a release build", () => {
+  it("refuses an addon whose identity or features differ from a release build", () => {
     expect(verifyVersionReport(report, "0.1.0-dev")).toEqual([]);
     expect(verifyVersionReport({ ...report, generation: 2 }, "0.1.0-dev")).toContain("generation 2 is not 1");
     expect(verifyVersionReport(report, "0.2.0")).toContain("crate version 0.1.0-dev is not 0.2.0");
-    expect(verifyVersionReport({ ...report, features: { faultInjection: true, residentFixtures: false } }, "0.1.0-dev")).toContain("release binary must not include fault injection");
-    expect(verifyVersionReport({ ...report, features: { faultInjection: false, residentFixtures: true } }, "0.1.0-dev")).toContain("release binary must not include resident fixtures");
+    expect(verifyVersionReport({ ...report, features: { faultInjection: true, residentFixtures: false } }, "0.1.0-dev")).toContain("release addon must not include fault injection");
+    expect(verifyVersionReport({ ...report, features: { faultInjection: false, residentFixtures: true } }, "0.1.0-dev")).toContain("release addon must not include resident fixtures");
     expect(verifyVersionReport({ ...report, libghosttyVtCommit: "other" }, "0.1.0-dev")).toContain("libghostty-vt commit does not match the pinned source");
   });
 
@@ -134,8 +131,8 @@ describe("terminal-host release build", () => {
       triple: "x86_64-unknown-linux-gnu",
       crateVersion: "0.1.0-dev",
       report,
-      executable: file("terminal-host"),
-      sessionLock: file("a1_session_lock.node"),
+      artifact: file("terminal-host.node"),
+      entry: file("dist/foundation/resident-tabs/host-entry.js"),
       notices: file("terminal-host-THIRD-PARTY-NOTICES.txt"),
       cargoLockSha256: "b".repeat(64),
       rustVersion: "rustc 1.98.1",
@@ -143,15 +140,17 @@ describe("terminal-host release build", () => {
       builtAt: "2026-10-14T00:00:00.000Z",
     });
     expect(manifest).toMatchObject({
-      schema: "a1-terminal-host-artifact-v1",
+      schema: "a1-terminal-host-artifact-v2",
+      kind: "node-addon",
+      nodeApi: 9,
       protocolVersion: 1,
       generation: 1,
       platform: "linux",
       architecture: "x64",
       target: "x86_64-unknown-linux-gnu",
       capability: "supported",
-      artifact: { filename: "terminal-host" },
-      sessionLock: { filename: "a1_session_lock.node" },
+      artifact: { filename: "terminal-host.node" },
+      entry: { filename: "dist/foundation/resident-tabs/host-entry.js" },
       notices: { filename: "terminal-host-THIRD-PARTY-NOTICES.txt" },
       provenance: { libghosttyVtCommit: report.libghosttyVtCommit, cargoLockSha256: "b".repeat(64), signatureStatus: "ci-attestation-required" },
     });

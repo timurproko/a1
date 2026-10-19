@@ -31,6 +31,7 @@ export const PROHIBITED_STARTUP_ENTRIES = new Set([
   "src/features/prompt-suggestions/index.ts",
   "src/foundation/lifecycle/index.ts",
   "src/foundation/release/index.ts",
+  "src/foundation/resident-tabs/index.ts",
   "src/foundation/startup/index.ts",
   "src/foundation/terminal-cleanup/index.ts",
   "src/integrations/pi/components/index.ts",

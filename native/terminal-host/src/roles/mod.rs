@@ -1,10 +1,17 @@
 pub mod attach;
 mod child_containment;
+pub mod child_input;
 pub mod counters;
 pub mod credentials;
 pub mod diagnostics;
+pub mod entry;
+mod fixture_control;
 pub mod holder;
 pub mod maintain;
+pub mod outer_input;
+pub mod presentation;
+pub mod progress_observation;
+pub mod quit_outro;
 pub mod recovery_artifacts;
 pub mod registry;
 pub mod release_holds;

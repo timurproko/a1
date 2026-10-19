@@ -36,7 +36,7 @@ The native terminal host SHALL create its local endpoints so that only the creat
 - **THEN** endpoint creation SHALL fail without binding inside it
 
 ### Requirement: Resident roles launch outside terminal containment through a fixed path
-The native terminal host SHALL start resident roles only through a launch primitive that accepts the canonical profile and a role from a fixed enum and resolves the currently running verified terminal-host artifact itself. The primitive SHALL accept no executable or free-form argv, SHALL use a fixed role argument grammar, explicit allowlisted environment and cwd, and non-inherited handles, and SHALL refuse an unverified profile, role, artifact, or result before spawning or reporting readiness. The launched process SHALL run outside the launching terminal's containment: outside the caller's kill-on-close job on Windows, using WMI when that job forbids direct breakaway, and after double-fork and `setsid` without a controlling terminal on Linux and macOS, remaining in the caller's per-user bootstrap namespace on macOS. The primitive SHALL verify launched process identity and containment, report its observed mode, and signal cleanup only for an exact verified identity. Ordinary descendants SHALL gain no generic escape path.
+The native terminal host SHALL start resident roles only through a launch primitive that accepts the canonical profile and a role from a fixed enum and resolves the hosting Node runtime executable and the release's fixed role entry itself, as recorded when the addon was loaded. The primitive SHALL accept no executable or free-form argv, SHALL use a fixed role argument grammar, explicit allowlisted environment and cwd, and non-inherited handles, and SHALL refuse an unverified profile, role, artifact, or result before spawning or reporting readiness. The launched process SHALL run outside the launching terminal's containment: outside the caller's kill-on-close job on Windows, using WMI when that job forbids direct breakaway, and after double-fork and `setsid` without a controlling terminal on Linux and macOS, remaining in the caller's per-user bootstrap namespace on macOS. The primitive SHALL verify launched process identity and containment, report its observed mode, and signal cleanup only for an exact verified identity. Ordinary descendants SHALL gain no generic escape path.
 
 #### Scenario: Launching tree is killed
 - **WHEN** a fixed resident fixture role was verified and its launching process tree is then killed, or on Linux and macOS its session is hung up
@@ -46,9 +46,14 @@ The native terminal host SHALL start resident roles only through a launch primit
 - **WHEN** a launch request supplies an executable, free-form argument, role, profile, or artifact outside the fixed contract
 - **THEN** the primitive SHALL refuse it without spawning a process
 
+#### Scenario: Launched role is the hosting runtime
+- **WHEN** the primitive spawns a server or holder role
+- **THEN** the spawned process image SHALL be the Node runtime that loaded the addon and its program SHALL be the release's fixed role entry
+- **AND** no terminal-host executable SHALL be resolved or started
+
 #### Scenario: Windows job forbids direct breakaway
 - **WHEN** the verified launcher runs inside a synthetic kill-on-close Windows job that denies direct breakaway
-- **THEN** it SHALL use the bounded WMI mode with the fixed artifact and arguments and SHALL report readiness only after identity and job-containment verification
+- **THEN** it SHALL use the bounded WMI mode with the fixed runtime, entry, and arguments and SHALL report readiness only after identity and job-containment verification
 
 #### Scenario: Ordinary child stays contained
 - **WHEN** an ordinary child of the launching tree attempts to outlive that tree and the tree is killed
@@ -212,11 +217,21 @@ Pseudoterminal output, child input, retained terminal state, input encoding, com
 - **THEN** the outer terminal SHALL receive no bell
 
 ### Requirement: Reattach renders from retained terminal state
-Viewing a tab SHALL deliver a complete retained surface of cells, attributes, hyperlinks, cursor, and modes, followed by patches against its revision. Output produced while no client viewed the tab SHALL be present because the holder's model absorbed it. Logs or replayed byte streams SHALL NOT be used to reconstruct a screen. The server SHALL forward surface updates to the attached client through a single-slot render lane in which a newer update replaces an unsent one, and SHALL NOT block the holder on the client.
+Viewing a tab SHALL deliver a complete committed retained surface of cells, attributes, hyperlinks, cursor, and modes, followed by either newer complete surfaces or negotiated patches against an explicitly matching base. Output produced while no client viewed the tab SHALL be present because the holder's model absorbed it. Logs or replayed byte streams SHALL NOT be used to reconstruct a screen. The server SHALL forward replaceable complete state through a bounded latest-value lane, SHALL require full resynchronization for unavailable patch bases, and SHALL NOT block the holder on the client. Subscriber ownership SHALL account for every client viewing the tab; metadata and retained progress SHALL remain independent of body delivery.
 
 #### Scenario: Reattach after hours detached
 - **WHEN** a client views the tab after it produced output for hours while detached
-- **THEN** it SHALL render the tab's current screen immediately without replaying the history
+- **THEN** it SHALL render the tab's current committed screen without replaying the history
+
+#### Scenario: One of two viewers disconnects
+- **WHEN** two clients view a tab and one disconnects or selects another tab
+- **THEN** the remaining client's fresh complete state and subsequent updates SHALL continue
+- **AND** losing the final viewer SHALL suppress only unnecessary external body delivery, not child rendering or retained progress
+
+#### Scenario: Stale cached state is offered repeatedly
+- **WHEN** a requested view receives repeated cached stale surfaces while awaiting its fresh commit
+- **THEN** the bounded fallback deadline SHALL remain anchored to the request rather than restarting for every offer
+- **AND** re-offering a cached revision SHALL not count as child-render progress
 
 ### Requirement: The tab registry is durable and lease-protected
 The server SHALL write the per-profile registry only while holding the owner-only OS-exclusive registry-writer lease and the current durable epoch. Every mutation SHALL recheck that authority and SHALL commit through milestone 1's durable atomic replacement before it is acknowledged. The registry SHALL record the tab's identity, kind, display name and name source, order, cwd, session location, desired state, lifecycle, incarnation, verified holder identity and release, last exit, registry revision, epoch, and boot identity. It SHALL NOT store credentials, environment values, prompt text, or terminal content. A failed write SHALL NOT be acknowledged and SHALL NOT stop the running tab.
@@ -353,37 +368,50 @@ Each A1 tab process SHALL receive a derived per-tab/per-incarnation credential a
 - **THEN** it SHALL contain no prompt text, transcript text, terminal bytes, or credentials
 
 ### Requirement: Resident resources are bounded and observable
-During a resident bare-A1 launch, A1 SHALL expose only `tabsMax` and `tabsAutoName` as tab controls in Settings > Tabs. `tabsMax` SHALL appear with default 10 and range 1–50, and `tabsAutoName` SHALL appear defaulted on. A1 SHALL expose no `residentTabs` or enable/disable toggle. During `a1 solo`, the complete Tabs settings section SHALL be absent. Out-of-range `tabsMax` SHALL clamp with one notice. Unresponsive restart and stall-notice timing SHALL not be user-facing controls and SHALL use internal values of 120 and 300 seconds respectively. Concurrent starts SHALL use internal default 2 and hard cap 8; prewarm SHALL use internal count and hard cap 1. One hidden prewarmed standby MAY load Pi, settings, and extensions but SHALL own no session or writer lease before exact cwd/environment-matched promotion and SHALL start only when no visible start is pending. Every open tab SHALL retain its process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs, clients, holders, or standby. Logs SHALL rotate and exclude terminal content, prompt text, and credentials. Cold launch, warm creation, reattach paint/input, input-to-process, and output-to-present SHALL be measured separately on Windows x64, macOS arm64, and Linux x64 against declared budgets, recording every miss.
+During a resident bare-A1 launch, A1 SHALL expose only `tabsAutoName` as an Agent-tab control in Settings > Tabs; it SHALL NOT expose or enforce `tabsMax`, a resident enable/disable toggle, or another user tab-count quota. During `a1 solo`, the complete Tabs settings section SHALL be absent. A legacy stored `tabsMax` property SHALL be ignored while remaining preserved by forward-compatible settings writes. Completed tab count SHALL be constrained only by successfully acquired process, persistence, containment, protocol, memory, and operating-system resources. Concurrent starts SHALL remain independently bounded by internal default 2 and hard cap 8, and prewarm SHALL use internal count and hard cap 1. One hidden prewarmed Agent MAY load Pi, settings, and extensions but SHALL own no session or writer lease before exact cwd/environment-matched promotion and SHALL start only when no visible start is pending. Every open Agent and the singleton Settings utility SHALL retain its process until explicit close; A1 SHALL provide no idle-suspension setting, timer, lifecycle, or glyph. The server SHALL exit only after ten minutes with no running tabs, clients, holders, or standby. Logs SHALL rotate and exclude terminal content, prompt text, and credentials. Cold launch, warm creation, Settings creation, reattach paint/input, input-to-process, and output-to-present SHALL be measured separately on Windows x64, macOS arm64, and Linux x64 against declared budgets, recording every miss.
 
 #### Scenario: Bare A1 uses tabs
 - **WHEN** bare `a1` launches on a supported platform
 - **THEN** A1 SHALL use the resident host and present the tab strip
+
+#### Scenario: Resident Settings omits a tab quota
+- **WHEN** the user opens the resident Settings utility
+- **THEN** Settings > Tabs SHALL expose automatic naming without a maximum-tabs entry
+- **AND** no stored legacy value SHALL limit creation
+
+#### Scenario: Stored tab limit above cap
+- **WHEN** a profile retains a legacy `tabsMax` value such as 80
+- **THEN** A1 SHALL ignore it for creation and preserve it as unknown compatibility data
+- **AND** no clamp or tab-limit notice SHALL appear
 
 #### Scenario: Solo mode omits tab settings
 - **WHEN** the user runs `a1 solo` and opens Settings
 - **THEN** A1 SHALL use the direct path without a tab strip
 - **AND** Settings SHALL contain no Tabs section
 
-#### Scenario: Stored tab limit above cap
-- **WHEN** stored `tabsMax` is 80
-- **THEN** A1 SHALL apply 50 and report the clamp once
+#### Scenario: Many completed tabs remain open
+- **WHEN** sequential tab starts continue to acquire all real required resources
+- **THEN** the resident server SHALL retain every explicitly open tab without applying a configured or hard count refusal
+
+#### Scenario: Concurrent starts remain bounded
+- **WHEN** many creation requests arrive together
+- **THEN** start work SHALL remain within the internal concurrent-start cap while completed tabs remain free of a count quota
 
 #### Scenario: Prewarmed tab is promoted
-- **WHEN** a standby exactly matches cwd and environment
+- **WHEN** a standby exactly matches an Agent request's cwd and environment
 - **THEN** it SHALL reserve and commit a new session identity before accepting input and then become visible
 
 #### Scenario: Open tab remains resident
-- **WHEN** an open idle tab remains unviewed for any duration
-- **THEN** its holder and A1 process SHALL remain running until explicit close
+- **WHEN** an open idle Agent or Settings tab remains unviewed for any duration
+- **THEN** its holder and child process SHALL remain running until explicit close
 
 #### Scenario: Performance budget missed
 - **WHEN** one platform exceeds a declared budget
 - **THEN** evidence SHALL record that value and miss without inference from another platform
 
 #### Scenario: Latency sample is matched to its own input
-- **WHEN** the fixture echoes a processed-input line for a token before that token's measured send, such as from a late in-band standby-promotion marker
-- **THEN** the measurement SHALL ignore that earlier line and time only a line stamped at or after the send
-- **AND** a negative or non-numeric recorded latency SHALL fail its metric instead of being dropped from the p95 sample set
+- **WHEN** a fixture echo predates its measured token send or a latency is negative or non-numeric
+- **THEN** the earlier echo SHALL be ignored and the invalid metric SHALL fail rather than entering the p95 sample
 
 ### Requirement: Updates retain the active resident cohort
 Installing or activating a release SHALL NOT terminate the server, holders, or tab processes. Resident binaries and tab processes SHALL run from immutable release directories, and every release used by a live verified resident process SHALL be retained; when a recorded resident identity cannot be verified or read, its release SHALL be retained. In this version a same-generation newer client MAY attach with unsupported optional operations disabled, while the existing resident cohort remains on its release until all tabs stop. A generation mismatch SHALL report that the host must be stopped explicitly with `a1 tabs host stop`, SHALL use the direct single-agent path for that launch, and SHALL NOT kill or recycle tabs. Automatic endpoint handoff and idle release recycling require a later change.
@@ -530,3 +558,268 @@ Recovery SHALL rehydrate image chips only from validated attachment sidecars ava
 - **THEN** the editor SHALL preserve the remaining recoverable text and attachments
 - **AND** it SHALL remove every unresolved image token instead of presenting it as an attached screenshot
 - **AND** A1 SHALL wait for an explicit user submission
+
+### Requirement: Resident terminal transport preserves semantic input events
+The attach, server, and holder path SHALL preserve the key identity, modifiers, text, paste boundary, focus, mouse gesture, and resize represented by each accepted outer-terminal event until the viewed child consumes it. Transport and controller handoff SHALL deliver accepted events exactly once in order or reject them visibly before any partial delivery.
+
+#### Scenario: Forward supported modified input
+- **WHEN** the outer terminal reports a supported Ctrl, Alt, Shift, navigation, function, text/IME, focus, mouse, or resize event not owned by the tab shell
+- **THEN** the child SHALL observe the same effective event that direct A1 observes on that platform
+
+#### Scenario: Preserve one paste transaction
+- **WHEN** the outer terminal reports a bounded paste whose payload spans transport frames
+- **THEN** the holder SHALL admit and expose one complete child paste in order or reject the whole payload before delivering a prefix
+
+#### Scenario: Transfer control during input
+- **WHEN** a view change or focus claim occurs while prior and new input are in flight
+- **THEN** no accepted event SHALL be duplicated, reordered, attributed to the wrong tab, or silently dropped
+
+### Requirement: Resident terminal transport preserves child controls and modes
+The resident path SHALL reproduce every supported child terminal effect needed for direct A1 parity, including clipboard writes, hyperlink targets and IDs, cursor visibility/shape/blink, styling, and Unicode cell widths. Styles SHALL preserve default/indexed/RGB colors, intensity, underline kind/color, italic, inverse, conceal, strike, overline, and supported blink. Child focus, mouse, paste, keyboard, alternate-screen and synchronization modes SHALL retain their semantic behavior while attach preserves ownership of outer input modes and holder encodes input against child modes. Replayable visual state SHALL be distinct from bounded ordered foreground one-shot effects, whose identity SHALL include incarnation and an independent sequence rather than a visual revision alone. Retained snapshots SHALL not replay historical effects.
+
+#### Scenario: Child writes the terminal clipboard
+- **WHEN** viewed A1 emits a supported clipboard control for selected or copied content
+- **THEN** the outer terminal SHALL receive one bounded equivalent control for the user's clipboard without exposing it as visible cells or diagnostic content
+
+#### Scenario: Child changes terminal interaction modes
+- **WHEN** viewed A1 changes a supported cursor, focus, mouse, keyboard, hyperlink, alternate-screen, or presentation mode
+- **THEN** the resident path SHALL preserve the equivalent semantic effect without surrendering attach-owned outer mode handling
+- **AND** detach or failure SHALL restore every attach-owned mode
+
+#### Scenario: Hidden child emits terminal controls
+- **WHEN** an unviewed child emits a control whose effect is meaningful only while presented
+- **THEN** the holder SHALL retain the child's current semantic state without applying that hidden tab's one-shot effect to the outer terminal
+- **AND** later subscription SHALL not replay the suppressed effect
+
+#### Scenario: Two effects share a visual revision
+- **WHEN** two valid foreground clipboard writes occur before the next visual commit or obsolete visual states are replaced
+- **THEN** both writes SHALL retain their separate ordered once-only identity rather than being deduplicated or replayed by visual revision
+
+#### Scenario: An obsolete holder delivers an effect
+- **WHEN** an effect arrives from an old incarnation or superseded foreground authority
+- **THEN** it SHALL not be applied to the current outer view
+
+#### Scenario: Link label remains unchanged
+- **WHEN** a retained hyperlink's target or explicit identity changes while its label text stays the same
+- **THEN** the new semantics SHALL survive reconstruction and damage output
+- **AND** hyperlink/style state SHALL not leak into the strip or host overlay
+
+### Requirement: Resident presentation commits coherent current state
+The attach client SHALL present one coherent state derived from a committed tab topology, viewed identity, complete current child surface, strip, host overlay, terminal modes, and cursor. A create, close, switch, resize, status change, recovery, or overlay transition SHALL NOT expose a new strip state over stale child content, a blank intermediate frame, or a superseded later repaint. Presentation identity SHALL include the tab, process incarnation, revision, and geometry, with response fencing for superseded view/resize requests. Geometry identity SHALL remain distinct from server epoch and input-controller generation. Old geometry SHALL NOT be replayed as unbounded cursor-addressed content into a differently sized viewport; the prior coherent state MAY remain safely fitted until the matching replacement arrives. Revision ordering SHALL remain scoped to its tab and incarnation.
+
+#### Scenario: Create and select a tab
+- **WHEN** a new tab becomes the requested view
+- **THEN** the prior coherent frame SHALL remain until the new topology and complete target surface can be committed together without flashing the old child under the new chip
+
+#### Scenario: Close the viewed tab
+- **WHEN** the active tab closes and a survivor becomes viewed
+- **THEN** the removal, successor selection, complete successor surface, host overlays, and final cursor SHALL become visible coherently
+
+#### Scenario: Update strip and child together
+- **WHEN** status, title, hover, clock, child output, or an attach-owned prompt changes during another presentation update
+- **THEN** equivalent updates SHALL coalesce to current state and no separately visible clear, strip-only, notice-only, or stale-cursor frame SHALL appear
+
+#### Scenario: Terminal ignores synchronized output
+- **WHEN** the outer terminal does not implement synchronized-update controls
+- **THEN** each emitted presentation SHALL still be ordered and complete enough to avoid an attach-induced blank or contradictory intermediate frame
+
+#### Scenario: Resize while an old frame is in flight
+- **WHEN** the outer terminal shrinks or grows while a previous-size child frame is pending
+- **THEN** presentation SHALL not wrap or overwrite unrelated cells by replaying that old frame at new geometry
+- **AND** the matching new child surface, overlays, and cursor SHALL commit coherently without waiting for another model token
+
+#### Scenario: Resize clears the parser synchronization mode
+- **WHEN** resizing the retained parser clears synchronized-output mode before the child completes its new-size repaint
+- **THEN** that mode reset SHALL not be treated as a completed child visual transaction
+- **AND** any fitted prior screen SHALL remain explicitly provisional until a compatible replacement or bounded recovery is available
+
+#### Scenario: A view or incarnation is superseded
+- **WHEN** A-to-B-to-A switching, child restart, or repeated shrink/grow requests leave delayed responses in flight
+- **THEN** stale request, incarnation, or geometry responses SHALL not overwrite the latest compatible committed view even when tab ID or final dimensions match
+
+#### Scenario: Two clients view one child at different dimensions
+- **WHEN** a controller and a differently sized spectator view the same tab
+- **THEN** child geometry SHALL retain controller authority and the spectator SHALL safely fit its presentation without repeatedly resizing the shared child
+
+### Requirement: Resident hot paths remain independent and bounded
+Input routing, holder PTY draining, child render progress, and viewed-surface delivery SHALL use independent bounded work paths that do not wait on tab lifecycle operations or another tab's rendering. Ingress and pending work SHALL be bounded by declared message and byte limits, and sustained output SHALL yield to input, control, other tabs, and animation deadlines within bounded work rounds. Coalescing MAY replace unpublished presentation states but SHALL preserve the latest complete state and SHALL NOT delay an isolated input or output behind a pacing poll. Hidden output SHALL not require continuously shipping full-screen snapshots to shared routing state in order for the child to continue or for a later view to obtain current content. Expensive surface serialization and blocking operations SHALL NOT hold shared routing authority needed by unrelated tabs.
+
+#### Scenario: All tabs produce high-rate output
+- **WHEN** multiple children concurrently emit high-rate streamed output
+- **THEN** every holder SHALL continue draining its own PTY and updating retained state within bounded resources while the viewed tab remains responsive
+
+#### Scenario: Lifecycle operation stalls
+- **WHEN** process spawn, termination, registry persistence, or another lifecycle operation reaches its deadline
+- **THEN** unrelated input, PTY draining, tab switching, and presentation SHALL continue and the lifecycle failure SHALL remain isolated
+
+#### Scenario: Rapidly switch among working tabs
+- **WHEN** the user rapidly changes the requested view while several tabs stream
+- **THEN** obsolete requested surfaces MAY be skipped, but the eventually committed view SHALL promptly receive one complete newest surface and subsequent live updates
+
+#### Scenario: Server reconnect overlaps child output
+- **WHEN** the server is unavailable and a holder is retrying its connection while the child continues output
+- **THEN** the holder SHALL continue bounded PTY parsing, terminal query replies, and retained-state progress without waiting for reconnect completion
+- **AND** a later connection SHALL receive current committed state rather than a raw-output replay backlog
+
+#### Scenario: A terminal or socket writer is blocked
+- **WHEN** a client's output writer cannot complete a write while input and other tabs have pending work
+- **THEN** blocked output SHALL remain isolated from input processing and shared routing authority within declared resource bounds
+- **AND** shutdown or connection failure SHALL not leak writer ownership or claim an incomplete paint succeeded
+
+#### Scenario: Render ingress never becomes empty
+- **WHEN** visual updates continuously arrive while input and animation work are pending
+- **THEN** rendering SHALL yield within its bounded work round and input, control, and animation SHALL not wait for the render queue to become empty
+- **AND** obsolete visual updates MAY be replaced but admitted user input SHALL remain ordered and exactly once
+
+### Requirement: Interaction parity is certified across the complete resident boundary
+Resident fidelity SHALL be demonstrated by driving equivalent sanitized interaction scripts through exact built direct and resident candidates on every supported platform and comparing semantic child outcomes, terminal presentation, clipboard/control effects, and responsiveness. Isolated encoder, parser, model, or final-snapshot probes SHALL NOT alone establish parity.
+
+#### Scenario: Compare the parity matrix
+- **WHEN** certification exercises prompt editing, effective shortcuts, completion, history, selection, copy, paste, mouse, dialogs, extension text UI, attachments, focus, resize, streaming, and detach
+- **THEN** each interaction SHALL match direct A1 except for the explicitly declared resident-only differences
+
+#### Scenario: Compare concurrent resident behavior
+- **WHEN** certification runs several independently streaming tabs with rapid switching, lifecycle operations, paste, selection, resize, and slow-client pressure
+- **THEN** it SHALL detect delayed background rendering, input stalls, stale surfaces, duplicate or missing events, and cross-tab interference rather than relying only on settled snapshots
+
+#### Scenario: Record a platform-specific divergence
+- **WHEN** exact-artifact evidence finds a resident/direct mismatch on one supported platform
+- **THEN** that platform's parity verdict SHALL fail with the interaction and boundary named and SHALL NOT be inferred from another platform's result
+
+### Requirement: Resident attach only reads the profile settings document
+The attach client SHALL treat the profile settings document it is given as a file it only reads. It SHALL start whether or not that document exists and SHALL NOT create, replace, or change it.
+
+#### Scenario: Start with an existing settings document
+- **WHEN** bare `a1` starts the attach client for a profile whose settings document exists
+- **THEN** the attach client SHALL start, read the time format from that document, and leave it a regular file
+
+#### Scenario: Start without a settings document
+- **WHEN** bare `a1` starts the attach client for a profile with no settings document
+- **THEN** the attach client SHALL start with the default time format and SHALL NOT create anything at the settings path
+
+### Requirement: The holder retains complete current terminal surfaces
+Each holder SHALL drain its child PTY and update retained terminal state independently of view. A complete `Surface` SHALL contain all current rows, modes, and final cursor, never only dirty rows. Hidden tabs MAY suppress client delivery, but selection and other commit boundaries SHALL request the newest complete surface. Viewed output MAY coalesce superseded frames but SHALL continue presenting complete partial-reply states before settlement.
+
+#### Scenario: Select a hidden streaming Agent
+- **WHEN** an Agent streamed while hidden and is selected before its turn settles
+- **THEN** its holder SHALL immediately emit a complete current surface containing the newest partial reply
+- **AND** subsequent streamed output SHALL continue to update the viewed body
+
+#### Scenario: Repaint after a status-only change
+- **WHEN** attach must repaint an overlay or strip after the latest child output changed only some rows
+- **THEN** its cached body SHALL still contain every current child row rather than only the last dirty rows
+
+#### Scenario: Several holders drain together
+- **WHEN** several Agents produce high-rate output concurrently
+- **THEN** each holder SHALL drain and retain its own PTY without sharing another holder's revision, wake, render slot, or backpressure
+
+#### Scenario: Slow client replaces frames
+- **WHEN** a client cannot consume every complete frame
+- **THEN** only that client's single pending frame SHALL be replaced with the newest complete state
+- **AND** no holder or other client SHALL block or replay every skipped state
+
+### Requirement: Resident clipboard delivery reaches the active user's standard clipboard
+
+Resident A1 SHALL preserve the same standard-clipboard result as direct solo A1 for every admitted copy from the viewed tab. A valid bounded clipboard effect from the viewed child SHALL be forwarded exactly once to the outer terminal even when the child process cannot identify that route from Node TTY metadata. Clipboard effects from hidden, stale, switched-away, detached, failed, or replaced child revisions SHALL NOT change the user's clipboard. Internal route failures SHALL NOT be rendered into the child session as clipboard-unavailable status, warning, error, or notice text.
+
+#### Scenario: Viewed tab copies selected text
+- **WHEN** the active resident child admits automatic or explicit selection copy
+- **THEN** the selected payload SHALL reach the outer user's standard clipboard exactly once
+- **AND** resident transport SHALL NOT expose the control as visible cells or diagnostic content
+
+#### Scenario: Process TTY classification hides the resident route
+- **WHEN** a viewed child runs behind a pseudoterminal or pipe whose Node `stdout` metadata does not advertise asynchronous terminal output
+- **THEN** the owned terminal-host contract SHALL still expose the certified clipboard submission route
+- **AND** the triggering copy SHALL NOT fall back to a generic unavailable result
+
+#### Scenario: Tab visibility changes during copy
+- **WHEN** a clipboard effect belongs to a child revision that is hidden, switched away, detached, failed, or replaced before delivery authority is established
+- **THEN** resident fencing SHALL refuse that stale effect
+- **AND** SHALL NOT duplicate it when another tab becomes visible
+
+### Requirement: Resident publication respects child visual transactions
+A valid child synchronized-output transaction SHALL not become visible as separate clear, partial repaint, and final repaint states merely because its bytes arrive in separate transport reads. Retained parsing and terminal query responses SHALL continue during the transaction, while normal presentation uses the previous committed visual state until completion. Subscription and reconnect SHALL observe committed state rather than a half-written transaction. A malformed or unfinished transaction SHALL have bounded local recovery that does not block another tab. The final outer presentation SHALL have one synchronization envelope whose end follows all child, overlay, mode, and cursor changes; nested mode markers SHALL NOT end it early.
+
+#### Scenario: Child paint arrives in installments
+- **WHEN** a synchronized clear-and-repaint is split across reads, including splits inside its control sequences
+- **THEN** the previous committed screen SHALL remain presented until the replacement transaction is complete
+- **AND** the clear or partially repainted child SHALL NOT be published as a completed normal frame
+
+#### Scenario: End and next begin share a read
+- **WHEN** one transport read completes a child transaction and starts another unfinished transaction
+- **THEN** the completed transaction SHALL remain available as a committed surface independently of the final synchronized-output mode
+- **AND** the unfinished transaction SHALL not replace it merely because both arrived in one read
+
+#### Scenario: Subscribe during an open transaction
+- **WHEN** a client requests a tab while that child is halfway through a synchronized repaint
+- **THEN** the response SHALL use a committed surface or preserve the prior coherent view until the new committed surface is available
+- **AND** terminal query responses and other tabs SHALL continue independently
+
+#### Scenario: Transaction never ends
+- **WHEN** a child's synchronized transaction remains unfinished beyond the declared recovery bound
+- **THEN** recovery SHALL remain local and bounded, SHALL be distinguishable from a normally completed frame, and SHALL not suppress valid subsequent output indefinitely
+- **AND** additional bytes, repeated begin controls, and repeated subscriptions SHALL not extend the original recovery deadline
+
+#### Scenario: Compose an overlay and cursor over child damage
+- **WHEN** one outer frame changes the child, a host overlay, and the final cursor
+- **THEN** no inner synchronization end SHALL make part of that frame visible before its final outer end
+
+### Requirement: Resident live painting is damage proportional
+Complete retained visual state SHALL remain available for activation, reconnection, overlay restoration, and resynchronization. Ordinary same-geometry live updates SHALL paint only changed content and required cursor or mode effects rather than repainting the entire child viewport. Equivalent visual state SHALL produce no redundant body paint. Coalescing SHALL preserve the latest complete state, and any incremental update with an unavailable or mismatched base SHALL require resynchronization rather than being mistaken for a complete body.
+
+#### Scenario: Type one character in a stable prompt
+- **WHEN** an ordinary prompt edit changes only a bounded subset of child rows at unchanged geometry
+- **THEN** unchanged transcript rows SHALL not be repainted merely because the host retains a complete snapshot
+
+#### Scenario: Animate the strip while the child is unchanged
+- **WHEN** only a tab title, progress icon, clock, or hover decoration changes
+- **THEN** presentation SHALL repaint only the affected host damage and restore the child's cursor without rewriting its unchanged body
+
+#### Scenario: Drop obsolete visual updates
+- **WHEN** a slow client cannot present every intermediate update
+- **THEN** it SHALL receive a coherent latest state without replaying every obsolete frame or applying a patch to an unavailable base
+
+#### Scenario: Remove an overlay over unchanged content
+- **WHEN** an overlay closes after several child updates were coalesced
+- **THEN** its damaged cells SHALL be restored from the newest complete retained state without a blank repair frame
+
+#### Scenario: Frame waits behind a slow terminal writer
+- **WHEN** a composed frame is queued but not completely written to the outer terminal
+- **THEN** it SHALL not advance the actually painted baseline used for subsequent damage
+- **AND** replacement or partial-write failure SHALL not leave later damage based on a frame the terminal never received
+
+#### Scenario: Only cursor or visual attributes change
+- **WHEN** cursor state, hyperlink target, palette, or cell attributes change without changing the displayed text
+- **THEN** the changed semantics SHALL reach presentation without forcing unchanged body content to repaint
+
+### Requirement: Concurrent presentation has independently measured progress
+Resident concurrency evidence SHALL exercise at least three real owned A1 children with deterministic overlapping streamed turns, child animations, and all first-responder orders. It SHALL separately establish engine-event progress, child-render progress, terminal-state progress, and selected outer-presentation progress before settlement. It SHALL include hidden and detached intervals, switching, typing, resize, lifecycle pressure, and a slow client. Per-tab missing progress or excessive stalls SHALL NOT be concealed by aggregate percentiles, final snapshots, static status icons, or eventual token presence. Existing controlled-workload p95 budgets SHALL remain input-to-process 16 ms, committed-output-to-present 33 ms, retained activation paint 300 ms, and activation first accepted input 400 ms; engine-to-render delay and worst per-tab gaps SHALL also be reported separately.
+
+#### Scenario: One frozen Agent among two fast Agents
+- **WHEN** two Agents keep rendering but the third stops producing intermediate engine, renderer, retained, or presentation checkpoints during an otherwise advancing deterministic workload
+- **THEN** concurrency evidence SHALL fail for that Agent and boundary even if pooled latency and final text would pass
+
+#### Scenario: Small terminal fixture passes
+- **WHEN** a key recorder or small counter fixture passes but the real A1 streaming workload has not exercised child rendering and animation
+- **THEN** that fixture SHALL remain component evidence and SHALL NOT establish real-Agent parallel presentation parity
+
+#### Scenario: Observation cannot establish a duration
+- **WHEN** expected stage observations are missing, duplicated, stale, or timed with incompatible clock origins
+- **THEN** evidence SHALL report an instrumentation failure instead of dropping the sample or reporting a passing latency
+- **AND** forced rendering or pooled samples from other tabs SHALL not replace actual progress at the missing boundary
+
+#### Scenario: Platform evidence differs
+- **WHEN** exact built artifacts pass on one platform but another platform is unrun or divergent
+- **THEN** each platform SHALL retain its own verdict and no successful platform SHALL certify another
+
+### Requirement: Resident presentation capabilities are negotiated and bounded
+Structured complete surfaces SHALL be negotiated independently on holder-to-server and server-to-attach connections. Generation-1 changes SHALL remain additive and respect existing encoded-frame, nesting, collection, input, and declared decoded-memory limits. Peers without the capability SHALL retain a complete legacy-surface route with an explicit fidelity limitation rather than interpreting structured state as legacy ANSI or automatically restarting live tabs. Invalid or oversized state SHALL fail locally with a typed outcome and SHALL not silently truncate the screen or allocate without bounds.
+
+#### Scenario: New attach connects through an old resident cohort
+- **WHEN** attach supports structured surfaces but its server or a holder does not
+- **THEN** the affected connection SHALL use its negotiated complete legacy route or a typed incompatibility outcome
+- **AND** it SHALL not claim repaired parity or terminate existing tabs to upgrade them
+
+#### Scenario: Snapshot exceeds a declared bound
+- **WHEN** dimensions, cells, attributes, links, or encoded data exceed the negotiated representation's bounds
+- **THEN** validation SHALL reject the state before the corresponding unbounded allocation and preserve the last coherent view or an explicit bounded failure state

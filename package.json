@@ -23,7 +23,9 @@
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
-    "build": "node scripts/development/check-environment.mjs && npm run clean && tsc -p tsconfig.build.json && node scripts/release/generate-release-notes-resource.mjs && node scripts/pi/build-pi-settings-metadata.mjs && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
+    "build": "node scripts/development/check-environment.mjs && npm run build:managed && node scripts/development/prepare-local-terminal-host.mjs && node scripts/release/generate-runtime-payload-inventory.mjs",
+    "build:core": "node scripts/development/check-environment.mjs && npm run build:managed && node scripts/release/generate-runtime-payload-inventory.mjs",
+    "build:managed": "npm run clean && tsc -p tsconfig.build.json && node scripts/release/generate-release-notes-resource.mjs && node scripts/pi/build-pi-settings-metadata.mjs && node scripts/pi/build-startup-public.mjs && node scripts/development/build-process-guardian.mjs",
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
     "build:terminal-host": "node scripts/development/build-terminal-host.mjs",
     "typecheck": "tsgo -p tsconfig.json --noEmit && tsgo -p tsconfig.bin.json",
@@ -51,6 +53,7 @@
     "test:full": "node scripts/release/run-validation-tier.mjs full-release",
     "test:release": "node scripts/release/run-release-gates.mjs",
     "test:terminal-host": "node scripts/development/run-terminal-host-probe.mjs",
+    "test:resident-parallel-progress": "node scripts/development/verify-resident-parallel-progress.mjs",
     "test:resident-chaos": "node scripts/development/run-resident-chaos.mjs --build",
     "test:pi-engine-conformance": "vitest run test/integrations/pi/engine/conformance.test.ts test/integrations/pi/engine/runtime-integration.test.ts test/integrations/pi/engine/session-integration.test.ts",
     "report:pi-engine-conformance": "npm run build --silent && node scripts/pi/run-pi-engine-conformance.mjs",
@@ -65,7 +68,7 @@
     "start:pi": "npm run build && node scripts/development/dev-launch.mjs pi",
     "prepack": "node scripts/release/validate-packaged-release-note.mjs && node scripts/release/prepack-gate.mjs",
     "prepublishOnly": "npm run test:release",
-    "prepare": "npm run build",
+    "prepare": "npm run build:core",
     "typecheck:bin": "tsgo -p tsconfig.bin.json"
   },
   "dependencies": {

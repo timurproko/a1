@@ -9,13 +9,15 @@ import type { QuitOutroEffect } from "./quit-outro-effects.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
 import { piCanvasBackgroundAnsi } from "../../integrations/pi/components/theme.js";
+import { residentFixtureControl } from "../../foundation/resident-tabs/fixture-control.js";
+import { residentProgressObserver } from "../../foundation/resident-tabs/progress-observation.js";
 import {
   DamageAwareTerminalAdapter,
   type PiTuiDamageDecision,
   type PiTuiDamageFrameDescriptor,
   type PiTuiDamageFrameSafety,
 } from "../../integrations/pi/tui-runtime/damage-aware-terminal.js";
-import { PiTuiRuntimeAdapter } from "../../integrations/pi/tui-runtime/adapter.js";
+import { PiTuiRuntimeAdapter, legacyKeyInput } from "../../integrations/pi/tui-runtime/adapter.js";
 import { classifyPiTuiInput } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
 import type { PiTuiInputSurfaceKind } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
 import type {
@@ -156,6 +158,8 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     this.#customViewport = options.layout === "custom-viewport";
     this.#quitOutro = options.quitOutro;
     const input = options.input;
+    const fixtureControl = residentFixtureControl();
+    const progressObserver = residentProgressObserver();
     let damageTerminal: DamageAwareTerminalAdapter | undefined;
     const surface: PiTuiComponentPort = {
       render: width => this.#active?.render(width) ?? [],
@@ -181,6 +185,14 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
             inspectHyperlinks: readVisibleHyperlinks,
             onResize: () => this.#active?.noteImmediatePresentation(),
             onHyperlinkCleanupRequired: () => this.runtime?.requestRender(true),
+            ...(fixtureControl === null ? {} : {
+              allowWrite: () => !fixtureControl.stopped("child-render-write"),
+              writeChunks: data => fixtureControl.fragmentChildWrite(data),
+            }),
+            ...(progressObserver === null ? {} : {
+              onWrite: ({ bytes, fragments, transaction, frameId, cause }) =>
+                progressObserver.childRenderWrite(bytes, fragments, transaction, frameId, cause),
+            }),
           });
           return damageTerminal;
         },
@@ -431,7 +443,8 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
       if (notify) callbacks.closed(rendered);
     };
     removeInterruptWatch = runtime.addInputListener(data => {
-      if (!attached() || !data.includes(INTERRUPT)) return undefined;
+      // Compatibility: a kitty-keyboard child reports Ctrl+C as a CSI-u sequence rather than the byte.
+      if (!attached() || !data.includes(INTERRUPT) && legacyKeyInput(data) !== INTERRUPT) return undefined;
       // Protocol: route hosts decide whether one interrupt closes their app. Raw-input forwarding
       // is required because Pi handles Ctrl+C before the fullscreen overlay receives normal input.
       const consumedBySurface = surface.handleInput(INTERRUPT);
@@ -482,7 +495,9 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
       handleInput: (data: string) => {
         const { events, rest } = parseMouseInput(data);
         for (const event of events) surface.handleMouse(event);
-        if (rest.length > 0) surface.handleInput(rest);
+        // Invariant: owned screens see legacy key bytes whether the terminal reports legacy or kitty keys.
+        const key = rest.length > 0 ? legacyKeyInput(rest) : "";
+        if (key.length > 0) surface.handleInput(key);
         if (surface.isClosed()) {
           closeSurface(true);
           return;

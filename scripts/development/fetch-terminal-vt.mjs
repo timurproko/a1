@@ -47,17 +47,33 @@ function findRun(branch, platform) {
       "api", `repos/{owner}/{repo}/actions/runs/${run.databaseId}/artifacts`, "--jq", ".artifacts",
     ]));
     const artifact = terminalVtArtifact(artifacts, platform);
-    if (artifact) return { runId: String(run.databaseId), headSha: run.headSha, artifact };
+    if (artifact) return { runId: String(run.databaseId), headSha: run.headSha, artifact, branch };
   }
-  throw new Error(`no recent CI run on ${branch} published terminal-vt-${platform}; dispatch one with: gh workflow run ci.yml --ref ${branch}`);
+  return null;
 }
 
-function main() {
-  const platform = `${process.platform}-${process.arch}`;
+/** Download the newest terminal library from the first candidate branch that published one. */
+export function fetchTerminalVt({
+  branches,
+  platform = `${process.platform}-${process.arch}`,
+  target = resolve(TERMINAL_VT_DIRECTORY),
+  log = () => {},
+  includeMergedDevelop = false,
+} = {}) {
   if (!TERMINAL_VT_PLATFORMS.includes(platform)) throw new Error(`no CI terminal library is published for ${platform}`);
-  const branch = argument("--branch") ?? capture("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
-  const selected = findRun(branch, platform);
-  const target = resolve(TERMINAL_VT_DIRECTORY);
+  const requested = branches?.filter(Boolean) ?? [capture("git", ["rev-parse", "--abbrev-ref", "HEAD"])];
+  // Security: a fallback artifact must come from a pull request already integrated into develop;
+  // arbitrary open or closed-unmerged branches can run modified native build code.
+  const merged = includeMergedDevelop ? mergedDevelopmentBranches() : [];
+  const candidates = [...new Set([...requested, ...merged])];
+  let selected = null;
+  for (const branch of candidates) {
+    selected = findRun(branch, platform);
+    if (selected) break;
+  }
+  if (!selected) {
+    throw new Error(`no recent trusted CI run published terminal-vt-${platform}; dispatch one with: gh workflow run ci.yml --ref ${requested[0]}`);
+  }
   const partial = `${target}.partial`;
   rmSync(partial, { recursive: true, force: true });
   capture("gh", ["run", "download", selected.runId, "-n", selected.artifact, "-D", partial]);
@@ -65,8 +81,24 @@ function main() {
   // Invariant: the previous library is replaced only by a complete download.
   rmSync(target, { recursive: true, force: true });
   renameSync(partial, target);
-  console.log(`fetched ${selected.artifact} from run ${selected.runId} (${selected.headSha.slice(0, 8)} on ${branch}) into ${TERMINAL_VT_DIRECTORY}`);
-  console.log(`link it with TERMINAL_HOST_LOCAL_BUILD=1 and TERMINAL_HOST_PREBUILT_VT=${target}`);
+  log(`fetched ${selected.artifact} from run ${selected.runId} (${selected.headSha.slice(0, 8)} on ${selected.branch}) into ${target}`);
+  return { ...selected, target };
+}
+
+function mergedDevelopmentBranches() {
+  const pullRequests = JSON.parse(capture("gh", [
+    "pr", "list", "--state", "merged", "--base", "develop", "--limit", "50", "--json", "headRefName,mergedAt",
+  ]));
+  return pullRequests
+    .filter(entry => typeof entry?.headRefName === "string" && typeof entry?.mergedAt === "string")
+    .sort((left, right) => right.mergedAt.localeCompare(left.mergedAt))
+    .map(entry => entry.headRefName);
+}
+
+function main() {
+  const branch = argument("--branch") ?? capture("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
+  const selected = fetchTerminalVt({ branches: [branch], log: message => console.log(message) });
+  console.log(`link it with TERMINAL_HOST_LOCAL_BUILD=1 and TERMINAL_HOST_PREBUILT_VT=${selected.target}`);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) main();

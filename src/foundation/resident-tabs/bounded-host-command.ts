@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { TerminalHostCommand } from "./ensure-terminal-host.js";
 
 export interface BoundedHostCommandResult {
   readonly code: number;
@@ -11,6 +12,7 @@ export interface BoundedHostCommandLimits {
   readonly timeoutMs: number;
   /** Names the exchange in the timeout error. */
   readonly label: string;
+  readonly environment?: NodeJS.ProcessEnv;
 }
 
 /**
@@ -18,12 +20,16 @@ export interface BoundedHostCommandLimits {
  * reports a failed exchange; a command that outlives its deadline is killed and rejected.
  */
 export async function runBoundedHostCommand(
-  executable: string,
+  command: TerminalHostCommand,
   arguments_: readonly string[],
   limits: BoundedHostCommandLimits,
 ): Promise<BoundedHostCommandResult> {
   return await new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(executable, [...arguments_], { windowsHide: true, stdio: ["ignore", "pipe", "ignore"] });
+    const child = spawn(command.executable, [command.entry, ...arguments_], {
+      env: limits.environment,
+      windowsHide: true,
+      stdio: ["ignore", "pipe", "ignore"],
+    });
     const stdout: Buffer[] = [];
     let size = 0;
     let overflowed = false;

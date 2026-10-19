@@ -1,6 +1,8 @@
 import { MAX_COPY_ROWS, MAX_COPY_SOURCE_UNITS, selectionCopyRowText } from "../../ui/components/index.js";
 import { COPY_CHUNK_UNITS, MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES, type CopyHelperInput, type CopyHelperOutput, type CopyResult } from "./response-copy-protocol.js";
 
+const NATIVE_RETRY_DELAYS_MS = [20, 60] as const;
+
 // Security: this isolated executor never inherits the UI terminal and never logs clipboard contents.
 let header: Extract<CopyHelperInput, { kind: "begin" }> | undefined;
 let fragments: string[] = [];
@@ -21,6 +23,17 @@ function nextOutput(): void {
 }
 
 function send(message: CopyHelperOutput): void { process.send?.(message); }
+
+function transientClipboardError(error: unknown): boolean {
+  const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+  const message = error instanceof Error ? error.message : String(error);
+  return /^(?:EAGAIN|EBUSY)$/iu.test(code) || /(?:busy|locked|contention|temporar|try again)/iu.test(message);
+}
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
 function finish(result: CopyResult, control?: string): void {
   if (finished) return;
   finished = true;
@@ -72,8 +85,14 @@ async function receive(message: CopyHelperInput): Promise<void> {
     try { native = await import("@mariozechner/clipboard"); }
     catch { finish({ outcome: "failed", failure: "unavailable" }); return; }
     send({ kind: "phase", phase: "submitting", bytes });
-    try { await native.setText(text); finish({ outcome: "delivered" }); }
-    catch { finish({ outcome: "failed", failure: "denied" }); }
+    for (let attempt = 0; attempt <= NATIVE_RETRY_DELAYS_MS.length; attempt++) {
+      try { await native.setText(text); finish({ outcome: "delivered" }); return; }
+      catch (error) {
+        if (!transientClipboardError(error) || attempt === NATIVE_RETRY_DELAYS_MS.length) break;
+        await delay(NATIVE_RETRY_DELAYS_MS[attempt]!);
+      }
+    }
+    finish({ outcome: "failed", failure: "denied" });
     return;
   } else throw new Error("protocol");
   send({ kind: "ready" });

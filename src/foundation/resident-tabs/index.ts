@@ -1,5 +1,5 @@
-export { ensureTerminalHost, resolveTerminalHostPath } from "./ensure-terminal-host.js";
-export type { EnsureTerminalHostOptions, EnsureTerminalHostResult, TerminalHostFallbackReason } from "./ensure-terminal-host.js";
+export { ensureTerminalHost, resolveTerminalHostEntryPath, resolveTerminalHostPath } from "./ensure-terminal-host.js";
+export type { EnsureTerminalHostOptions, EnsureTerminalHostResult, TerminalHostCommand, TerminalHostFallbackReason } from "./ensure-terminal-host.js";
 export { readResidentTabLaunchSettings } from "./settings.js";
 export type { ResidentTabLaunchSettings } from "./settings.js";
 export { selectResidentHost } from "./routing.js";

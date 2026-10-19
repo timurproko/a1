@@ -204,6 +204,25 @@ export class OwnedSettingsManager {
     this.#notify();
   }
 
+  /**
+   * Adopts values another process stored in the shared document. Notifies only when a
+   * resolved value differs, so a peer's own write echo stays silent. Restart-bound values
+   * keep their session-start effect and surface as pending instead.
+   */
+  refresh(): boolean {
+    const next = this.read();
+    if (resolvedValuesKey(next) === resolvedValuesKey(this.#resolution)) return false;
+    this.#resolution = next;
+    for (const setting of next.settings) {
+      const id = setting.declaration.id;
+      if (!this.#restartEffective.has(id)) continue;
+      if (setting.value === this.#restartEffective.get(id)) this.#pending.delete(id);
+      else this.#pending.set(id, setting.value);
+    }
+    this.#notify();
+    return true;
+  }
+
   sections(): readonly OwnedUiSettingsSection[] {
     const resolution = this.#hiddenOwnedSettingIds.size === 0
       ? this.#resolution
@@ -354,6 +373,10 @@ async function snapshotOf(agent: AgentSettingsPort, hidden: ReadonlySet<string>)
   } catch (error) {
     return { descriptors: [], writeAdvertised: false, failure: describe(error) };
   }
+}
+
+function resolvedValuesKey(resolution: OwnedUiSettingsResolution): string {
+  return JSON.stringify(resolution.settings.map(setting => [setting.declaration.id, setting.value]));
 }
 
 function failed(failure: string): OwnedUiSettingsChangeOutcome {

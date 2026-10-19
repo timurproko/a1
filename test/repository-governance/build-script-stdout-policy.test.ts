@@ -7,14 +7,16 @@ import { parseNpmPackOutput } from "../../scripts/release/npm-pack-metadata.mjs"
 describe("build script stdout discipline", () => {
   it("keeps every script in the build chain silent on stdout unless explicitly verbose", async () => {
     const manifest = JSON.parse(await readFile("package.json", "utf8"));
-    const chain = [...String(manifest.scripts.build).matchAll(/node (scripts\/[^\s&]+\.mjs)/gu)].map(match => match[1] ?? "");
+    const scripts = [String(manifest.scripts.build), String(manifest.scripts["build:managed"])];
+    const chain = scripts.flatMap(script => [...script.matchAll(/node (scripts\/[^\s&]+\.mjs)/gu)].map(match => match[1] ?? ""));
     expect(chain).toEqual([
       "scripts/development/check-environment.mjs",
+      "scripts/development/prepare-local-terminal-host.mjs",
+      "scripts/release/generate-runtime-payload-inventory.mjs",
       "scripts/release/generate-release-notes-resource.mjs",
       "scripts/pi/build-pi-settings-metadata.mjs",
       "scripts/pi/build-startup-public.mjs",
       "scripts/development/build-process-guardian.mjs",
-      "scripts/release/generate-runtime-payload-inventory.mjs",
     ]);
     const clean = String(manifest.scripts.clean).match(/node (scripts\/[^\s&]+\.mjs)/u)?.[1];
     expect(clean).toBe("scripts/clean.mjs");

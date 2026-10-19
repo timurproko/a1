@@ -98,6 +98,26 @@ describe("resident tab composition bridge", () => {
     expect(JSON.stringify(value.bridge.status.mock.calls)).not.toContain("queued prompt");
   });
 
+  it.each([
+    { settled: { successful: true, aborted: false }, status: "done" },
+    { settled: { successful: false, aborted: true }, status: "aborted" },
+    { settled: { successful: false, aborted: false }, status: "error" },
+  ])("reports a $status settlement until the next turn starts", async ({ settled, status }) => {
+    const value = fixture();
+    await bindResidentTabBridge(value.bridge as never, value.backend as never);
+    value.event({ type: "session-lifecycle", lifecycle: "busy" });
+    value.event({ type: "agent-run-settled", ...settled });
+    value.event({ type: "session-lifecycle", lifecycle: "idle" });
+    expect(value.bridge.status).toHaveBeenLastCalledWith(status, false, 0, 0);
+    // Invariant: viewing or re-rendering the tab keeps the marker; only a new turn replaces it.
+    value.event({ type: "session-view" });
+    expect(value.bridge.status).toHaveBeenLastCalledWith(status, false, 0, 0);
+    value.event({ type: "session-lifecycle", lifecycle: "busy" });
+    expect(value.bridge.status).toHaveBeenLastCalledWith("working", false, 0, 0);
+    value.event({ type: "session-lifecycle", lifecycle: "idle" });
+    expect(value.bridge.status).toHaveBeenLastCalledWith("idle", false, 0, 0);
+  });
+
   it("settles post-ready correlation immediately but leaves busy correlation active", async () => {
     const ready = fixture();
     const readyRecovery = { correlated: vi.fn(async () => {}), settled: vi.fn(async () => {}) };
@@ -156,6 +176,42 @@ describe("resident tab composition bridge", () => {
     value.event({ type: "agent-run-settled", successful: true, aborted: false });
     await Promise.resolve();
     expect(value.backend.generateResidentTabName).toHaveBeenCalledOnce();
+  });
+
+  it("reports a generated name the session normalizes as automatic so the strip animates it", async () => {
+    const value = fixture();
+    await bindResidentTabBridge(value.bridge as never, value.backend as never, null, { autoName: true });
+    value.rename("Agent");
+    value.backend.workflows.executeWorkflow.mockImplementationOnce(async () => {
+      // Invariant: The session stores a normalized form and announces it while the workflow runs.
+      value.rename("fix-login");
+      value.event({ type: "session-view" });
+      return { outcome: "completed" };
+    });
+    value.event({ type: "session-lifecycle", lifecycle: "busy" });
+    value.event({ type: "agent-run-started" });
+    await vi.waitFor(() => expect(value.backend.workflows.executeWorkflow).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "fix-login", "auto"));
+    expect(value.bridge.session).not.toHaveBeenCalledWith(expect.anything(), "fix-login", "user");
+  });
+
+  it("treats a name the session announces after the rename resolves as automatic", async () => {
+    const value = fixture();
+    await bindResidentTabBridge(value.bridge as never, value.backend as never, null, { autoName: true });
+    value.rename("Agent");
+    value.event({ type: "session-lifecycle", lifecycle: "busy" });
+    value.event({ type: "agent-run-started" });
+    await vi.waitFor(() => expect(value.backend.workflows.executeWorkflow).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "fix-login-please", "auto"));
+    // Provenance: observed, the session stores its own form and announces it only afterwards.
+    value.rename("russian");
+    value.event({ type: "session-view" });
+    expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "russian", "auto");
+    expect(value.bridge.session).not.toHaveBeenCalledWith(expect.anything(), "russian", "user");
+    // Invariant: A later manual rename is still the user's.
+    value.rename("my-own");
+    value.event({ type: "session-view" });
+    expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "my-own", "user");
   });
 
   it("waits for the run's projected prompt and ignores busy states outside an agent run", async () => {

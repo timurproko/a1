@@ -21,8 +21,10 @@ import { spawn } from "node:child_process";
 vi.mock("node:child_process", () => ({ spawn: vi.fn() }));
 vi.mock("../../../src/foundation/release/release-store.js", async importOriginal => ({
   ...await importOriginal<typeof import("../../../src/foundation/release/release-store.js")>(),
+  assertCertifiedFilesPresent: vi.fn(async () => {}),
   materializeRelease: vi.fn(),
   readCertifiedReleaseManifest: vi.fn(),
+  repairMaterializedRelease: vi.fn(),
   resolveReleaseEntryPoint: vi.fn(async (release: MaterializedRelease, entry: string) => resolve(release.releaseRoot, entry)),
 }));
 

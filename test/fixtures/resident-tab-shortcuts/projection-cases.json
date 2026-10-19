@@ -1,0 +1,71 @@
+{
+  "schema": "a1-resident-tab-shortcut-projection-cases-v1",
+  "cases": [
+    {
+      "name": "defaults when nothing is configured or reserved",
+      "configured": {},
+      "reserved": {},
+      "assignments": {
+        "tabs.new": "alt+a", "tabs.close": "alt+w", "tabs.rename": "f2", "tabs.settings": "alt+,",
+        "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": "alt+3", "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
+        "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
+        "tabs.next": null, "tabs.previous": null, "tabs.moveRight": null, "tabs.moveLeft": null
+      }
+    },
+    {
+      "name": "customized keys replace defaults and the first free alternative wins",
+      "configured": { "tabs.next": "Alt+]", "tabs.close": ["alt+x", "alt+w"], "tabs.jump3": null },
+      "reserved": {},
+      "assignments": {
+        "tabs.new": "alt+a", "tabs.close": "alt+x", "tabs.rename": "f2", "tabs.settings": "alt+,",
+        "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": null, "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
+        "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
+        "tabs.next": "alt+]", "tabs.previous": null, "tabs.moveRight": null, "tabs.moveLeft": null
+      }
+    },
+    {
+      "name": "a key the user gave an A1 action disables the tab action",
+      "configured": { "tabs.close": "ctrl+x", "tui.editor.deleteToLineEnd": "ctrl+x" },
+      "reserved": {},
+      "assignments": {
+        "tabs.new": "alt+a", "tabs.close": null, "tabs.rename": "f2", "tabs.settings": "alt+,",
+        "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": "alt+3", "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
+        "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
+        "tabs.next": null, "tabs.previous": null, "tabs.moveRight": null, "tabs.moveLeft": null
+      }
+    },
+    {
+      "name": "an effective A1 default key stays with A1",
+      "configured": { "tabs.new": "ctrl+c" },
+      "reserved": { "app.clear": "ctrl+c", "app.exit": ["ctrl+d"] },
+      "assignments": {
+        "tabs.new": null, "tabs.close": "alt+w", "tabs.rename": "f2", "tabs.settings": "alt+,",
+        "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": "alt+3", "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
+        "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
+        "tabs.next": null, "tabs.previous": null, "tabs.moveRight": null, "tabs.moveLeft": null
+      }
+    },
+    {
+      "name": "a reserved key the user moved elsewhere becomes free",
+      "configured": { "app.clear": "ctrl+q", "tabs.new": "ctrl+c" },
+      "reserved": { "app.clear": "ctrl+c" },
+      "assignments": {
+        "tabs.new": "ctrl+c", "tabs.close": "alt+w", "tabs.rename": "f2", "tabs.settings": "alt+,",
+        "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": "alt+3", "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
+        "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
+        "tabs.next": null, "tabs.previous": null, "tabs.moveRight": null, "tabs.moveLeft": null
+      }
+    },
+    {
+      "name": "a key two tab actions share stays with the earlier declaration",
+      "configured": { "tabs.rename": "alt+a", "tabs.moveLeft": "alt+1" },
+      "reserved": {},
+      "assignments": {
+        "tabs.new": "alt+a", "tabs.close": "alt+w", "tabs.rename": null, "tabs.settings": "alt+,",
+        "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": "alt+3", "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
+        "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
+        "tabs.next": null, "tabs.previous": null, "tabs.moveRight": null, "tabs.moveLeft": null
+      }
+    }
+  ]
+}

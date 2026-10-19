@@ -14,7 +14,7 @@ export interface DoctorOptions {
   readonly stateDir: string;
   readonly hostStatus: MaintenanceReport;
   readonly releaseRoots: readonly string[];
-  readonly settings: { readonly tabsMax: number; readonly tabsAutoName: boolean };
+  readonly settings: { readonly tabsAutoName: boolean };
   readonly home?: string;
   readonly platform?: NodeJS.Platform;
   readonly architecture?: string;
@@ -57,7 +57,7 @@ export async function writeDoctorBundle(options: DoctorOptions): Promise<DoctorB
       node: process.version,
       detachmentMode: (options.hostStatus.result as { detachmentMode?: unknown } | undefined)?.detachmentMode ?? null,
     }),
-    json("settings.json", { tabsMax: options.settings.tabsMax, tabsAutoName: options.settings.tabsAutoName }),
+    json("settings.json", { tabsAutoName: options.settings.tabsAutoName }),
   ];
   const crashes: ZipEntry[] = [];
   for (const name of names.filter(name => CRASH_NAME.test(name)).sort()) {
@@ -179,11 +179,11 @@ async function redactedMarker(path: string, redact: (value: string) => string): 
 async function artifactFacts(roots: readonly string[], platform: NodeJS.Platform, architecture: string, redact: (value: string) => string): Promise<unknown> {
   const facts = [];
   for (const root of roots) {
-    const executable = resolveTerminalHostPath(root, {}, platform, architecture);
-    const manifest = await readFile(resolve(dirname(executable), TERMINAL_HOST_MANIFEST_FILENAME), "utf8")
+    const addon = resolveTerminalHostPath(root, {}, platform, architecture);
+    const manifest = await readFile(resolve(dirname(addon), TERMINAL_HOST_MANIFEST_FILENAME), "utf8")
       .then(text => JSON.parse(text) as unknown)
       .catch(() => null);
-    const verification = await verifyTerminalHostArtifact(executable, platform, architecture)
+    const verification = await verifyTerminalHostArtifact(addon, platform, architecture)
       .then(() => "verified")
       .catch((error: unknown) => error instanceof Error && "code" in error ? String(error.code) : "failed");
     facts.push({ releaseRoot: redact(root), verification, manifest });

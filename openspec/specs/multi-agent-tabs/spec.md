@@ -6,7 +6,7 @@ Defines the opt-in resident-tab path that keeps bare A1 running independently of
 ## Requirements
 
 ### Requirement: Bare A1 runs one resident tab when opted in
-On Windows x64, macOS, and Linux, when the A1 setting `residentTabs` is enabled, bare `a1` without a session selection SHALL ensure the profile's resident server before the launch guardian starts, then run the native attach client as the launch instance's root instead of the direct owned UI. With no tab, the server SHALL create one A1 tab running `bin/ui.js --tab` in the client's launch cwd; with an existing tab, the client SHALL view it. Each tab process SHALL receive its own launch runtime identity, distinct from every other tab incarnation and launch instance. The attach client SHALL draw a one-row strip with the tab's status glyph and name above the tab's surface. While one client is attached, another bare `a1` of the same profile SHALL be refused with a message naming the other terminal and SHALL NOT start a direct session. When the terminal host is missing, the platform is unsupported, resident survival cannot be verified, or the server is incompatible, blocked, or cannot start, bare `a1` SHALL run the direct single-agent owned UI and show one notice naming the reason. With the setting at its default `false`, bare `a1` SHALL behave exactly as without this capability. `a1 pi` and `a1 --session` SHALL keep their direct behavior.
+On Windows x64, macOS, and Linux, when the A1 setting `residentTabs` is enabled, bare `a1` without a session selection SHALL ensure the profile's resident server before the launch guardian starts, then run the terminal host's attach role, hosted by the Node runtime through the release's fixed role entry, as the launch instance's root instead of the direct owned UI. With no tab, the server SHALL create one A1 tab running `bin/ui.js --tab` in the client's launch cwd; with an existing tab, the client SHALL view it. Each tab process SHALL receive its own launch runtime identity, distinct from every other tab incarnation and launch instance. The attach client SHALL draw a one-row strip with the tab's status glyph and name above the tab's surface. While one client is attached, another bare `a1` of the same profile SHALL be refused with a message naming the other terminal and SHALL NOT start a direct session. When the terminal host is missing, the platform is unsupported, resident survival cannot be verified, or the server is incompatible, blocked, or cannot start, bare `a1` SHALL run the direct single-agent owned UI and show one notice naming the reason. With the setting at its default `false`, bare `a1` SHALL behave exactly as without this capability. `a1 pi` and `a1 --session` SHALL keep their direct behavior.
 
 #### Scenario: First launch with resident tabs enabled
 - **WHEN** the user enables `residentTabs` and runs bare `a1` with no resident tab
@@ -27,6 +27,10 @@ On Windows x64, macOS, and Linux, when the A1 setting `residentTabs` is enabled,
 #### Scenario: Tab runtime identity
 - **WHEN** a resident tab runs beside a direct `a1` instance in the same repository
 - **THEN** each SHALL have a distinct launch runtime identity and their worktree claims SHALL NOT collide
+
+#### Scenario: Attach client process image
+- **WHEN** bare `a1` attaches to a resident tab
+- **THEN** the attach client's process image SHALL be the Node runtime running the fixed role entry and SHALL load the verified terminal-host addon
 
 ### Requirement: Quitting bare A1 detaches from resident tabs
 Pressing `Ctrl+C` twice within the existing clear/exit interval SHALL detach the local attach client from the tab. The attach client SHALL forward the first `Ctrl+C` to the tab unchanged and SHALL consume a second `Ctrl+C` inside the interval as the detach request without forwarding it, so a single `Ctrl+C` keeps its ordinary meaning in the tab and a double press never ends the tab's process. Inside the A1 tab, `/quit` and `Ctrl+D` on an empty editor SHALL request detach through the tab bridge for the attachment that was current when the command was admitted, and the server SHALL honor the request only while that attachment is still current. When the bridge is unavailable, the tab SHALL remain running and SHALL direct the user to `Ctrl+C` twice. Detaching SHALL restore the outer terminal's screen and input modes and leave the tab running, and the parent terminal SHALL show a dim `1 tab still running · run a1 to return`.
@@ -130,7 +134,7 @@ Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal 
 - **THEN** no tab strip, resident server, holder, or tab bridge SHALL be involved
 
 ### Requirement: Tab chips reproduce the approved v2 strip
-The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible, remaining tabs SHALL collapse into a keyboard-navigable `…` menu, and a trailing `+` SHALL always be reserved. The strip SHALL NOT wrap. With tabs present, the right edge SHALL show local time in the active owned time format followed by one blank terminal cell; with no tabs, no clock or wallpaper text SHALL render.
+The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible, remaining tabs SHALL collapse into a keyboard-navigable `…` menu, and a trailing `+` SHALL always be reserved. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
 
 #### Scenario: Wide names are clipped by display width
 - **WHEN** a tab name contains CJK characters or emoji wider than the chip allows
@@ -146,25 +150,47 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **AND** clicking anywhere in the chip SHALL invoke only its ordinary view or drag behavior
 
 #### Scenario: Render the strip clock in twelve-hour form
-- **WHEN** `timeFormat` is `8:00 PM` and tabs are present
+- **WHEN** `timeFormat` is `8:00 PM`
 - **THEN** the right-aligned clock SHALL use a non-padded 12-hour hour and uppercase `AM` or `PM`
 - **AND** one blank cell SHALL remain between the clock's final glyph and the terminal's right edge
 
 #### Scenario: Render the strip clock in twenty-four-hour form
-- **WHEN** `timeFormat` is `20:00` and tabs are present
+- **WHEN** `timeFormat` is `20:00`
 - **THEN** the right-aligned clock SHALL use zero-padded 24-hour `HH:mm`
 - **AND** one blank cell SHALL remain between the clock's final digit and the terminal's right edge
 
+#### Scenario: Clock with no tabs
+- **WHEN** every tab has been closed
+- **THEN** the strip SHALL show `+` and the right-aligned clock
+
 ### Requirement: Tab status comes from the tab bridge, not the screen
-Each chip SHALL show structured status: v2's ordered Braille progress frames `⠋`, `⠙`, `⠹`, `⠸`, `⠼`, `⠴`, `⠦`, `⠧`, `⠇`, and `⠏` at an 80 ms cadence while working, yellow `?` while an extension, trust, or permission request awaits the user, `✓` when a turn settled while no client viewed the tab and it has not been viewed since, `✗` when the last turn errored or the tab crashed or failed, the same progress frames in the dim lifecycle color while starting or restoring, and no glyph when idle. Working frames SHALL use the resolved A1 accent reported by that specific tab. Status SHALL derive from sequenced engine events through the authenticated tab bridge, never terminal output, rendered cells, titles, or timing. A missing bridge SHALL degrade to process-level states and the launch accent. Viewing a tab in any client SHALL clear its `✓` everywhere. Open tabs SHALL have no suspended state or `◌` glyph.
+Each chip SHALL show structured status:
+- v2's ordered Braille progress frames `⠋`, `⠙`, `⠹`, `⠸`, `⠼`, `⠴`, `⠦`, `⠧`, `⠇`, and `⠏` at an 80 ms cadence while working.
+- Yellow `?` while an extension, trust, or permission request awaits the user.
+- Green `✓` when the last turn finished successfully.
+- Red `✗` when the last turn was aborted or errored, or the tab crashed or failed.
+- The same progress frames in the dim lifecycle color while starting or restoring.
+- No glyph when idle with no settled turn.
+
+A `✓` or `✗` settlement marker SHALL remain on the chip, including after any client views the tab, until that tab's next turn starts. Working frames SHALL use the resolved A1 accent reported by that specific tab. Status SHALL derive from sequenced engine events through the authenticated tab bridge, never terminal output, rendered cells, titles, or timing. A missing bridge SHALL degrade to process-level states and the launch accent. Open tabs SHALL have no suspended state or `◌` glyph.
 
 #### Scenario: Background tab needs input
 - **WHEN** an extension in a background tab requests confirmation
 - **THEN** that chip SHALL show yellow `?` until the request is answered
 
 #### Scenario: Background tab finishes
-- **WHEN** a background tab's agent completes a turn
-- **THEN** its chip SHALL show `✓` until any client views it, then clear everywhere
+- **WHEN** an Agent's turn completes successfully, whether or not its tab is viewed
+- **THEN** its chip SHALL show green `✓`
+- **AND** the `✓` SHALL remain after the tab is viewed until that Agent starts another turn
+
+#### Scenario: Agent is aborted
+- **WHEN** the user aborts an Agent's running turn
+- **THEN** its chip SHALL show red `✗` rather than returning to no glyph
+- **AND** the `✗` SHALL remain after the tab is viewed until that Agent starts another turn
+
+#### Scenario: Next turn replaces the marker
+- **WHEN** a tab showing `✓` or `✗` starts a new turn
+- **THEN** its chip SHALL show working progress frames instead of the marker
 
 #### Scenario: Working tabs have independent accents
 - **WHEN** two working tabs report different resolved A1 accents
@@ -194,59 +220,69 @@ Background attention SHALL be conveyed only by chip status icons. A1 SHALL NOT e
 - **THEN** the outer terminal SHALL NOT receive it
 
 ### Requirement: Tabs are managed from the strip, mouse, and assignable actions
-A1 SHALL create a new A1 tab in the client's launch cwd from `Alt+A`; clicking `+` SHALL instead open a v2-style launcher containing `+ Agent`, a disabled separator, and `Settings`. Agent SHALL use the same creation flow. Settings SHALL open the owned Settings route in the viewed resident tab without injecting command text, or first create and view an Agent tab when the strip is empty. `Alt+1` through `Alt+9` SHALL view those tabs and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click on a tab SHALL view it. Right click on a visible tab SHALL open a stable two-row context menu anchored beneath the pointer and clamped to the terminal, with `Close` first and `Rename` second; each row SHALL show its active shortcut right-aligned, producing `Close  Alt+W` and `Rename  F2` under default bindings. Popup menus SHALL use v2's neutral normal background `38,38,38`, hover background `48,48,48`, white labels, muted shortcuts, one-cell horizontal padding, and palette fallback. The pointed enabled row SHALL highlight and left click SHALL invoke it for the originally targeted tab; disabled separators SHALL never highlight or activate. Escape, a click elsewhere, a tab switch, or target removal SHALL dismiss a menu without action. Dragging a chip after 250 ms or one column of movement SHALL calculate insertion from chip midpoints, preview only a real move with a v2 `│` marker, and issue one reorder with the captured expected revision on release; release away from the strip SHALL cancel. No `/new-tab`, `/close`, `/tabs`, `/quit-all`, or `/restart-tab` command SHALL be exposed. At `tabsMax`, creation SHALL do nothing and state the limit. A matching prewarmed standby SHALL be used when available. Each client SHALL keep its own viewed tab.
+A1 SHALL create a new Agent tab in the client's launch cwd from `Alt+A`; clicking `+` SHALL open a v2-style launcher containing `+ Agent`, a disabled separator, and `Settings` with the effective Settings shortcut right-aligned. Agent SHALL use the same creation flow. Settings SHALL create or show the singleton global Settings utility tab; its default `Alt+,` action SHALL do the same from another tab and SHALL hide the Settings tab while it is viewed. `Alt+1` through `Alt+9` SHALL view those positions and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click on a tab SHALL view it. Right click on a visible Agent tab SHALL open a stable two-row context menu anchored beneath the pointer and clamped to the terminal, with `Close` first and `Rename` second; a Settings tab SHALL expose Close but SHALL NOT be renameable. Popup labels SHALL use effective shortcut assignments. Escape, a click elsewhere, a tab switch, or target removal SHALL dismiss a menu without action. Dragging an Agent chip after 250 ms or one column of movement SHALL calculate insertion from chip midpoints, preview only a real move with a v2 `│` marker, and issue one reorder with the captured expected revision on release; release away from the strip SHALL cancel. No tab-management slash command SHALL be exposed. A1 SHALL impose no configured or hard user tab count and SHALL never return a `tab-limit` refusal; only a concrete launch, persistence, containment, protocol, or operating-system resource failure MAY refuse creation. Each client SHALL keep its own viewed tab.
 
 #### Scenario: Create from keyboard
 - **WHEN** the user presses `Alt+A`
-- **THEN** a new default-named tab SHALL appear after the last tab and become viewed with an empty editor
+- **THEN** a new default-named Agent SHALL appear with its first complete surface and become viewed
 
 #### Scenario: Create from strip
 - **WHEN** the user clicks `+`
-- **THEN** a popup SHALL show `+ Agent`, a separator line, and `Settings` in that order
-- **AND** Agent and Settings SHALL be visually separated and independently selectable
+- **THEN** a persistent popup SHALL show `+ Agent`, a separator line, and `Settings` in that order
+- **AND** Agent and Settings SHALL be independently hoverable and clickable
 
 #### Scenario: Create from the grouped launcher
 - **WHEN** the user selects `+ Agent`
 - **THEN** the same creation flow as `Alt+A` SHALL run
 
 #### Scenario: Open Settings from the grouped launcher
-- **WHEN** the user selects `Settings` while a tab is viewed
-- **THEN** that tab SHALL open the owned Settings route without visible `/settings` input
-- **AND** selecting Settings on an empty strip SHALL first create an Agent tab and open the route after its first complete surface
+- **WHEN** the user selects Settings with or without existing Agent tabs
+- **THEN** A1 SHALL create or activate the singleton Settings tab without visible command input
+
+#### Scenario: Open Settings from its action
+- **WHEN** the user invokes `tabs.settings` under its default binding while another tab is viewed
+- **THEN** A1 SHALL perform the same singleton Settings action as the launcher
+- **AND** the presented shortcut label SHALL be `Alt+,`
 
 #### Scenario: Hover strip controls
-- **WHEN** the pointer rests over a non-viewed tab chip, the overflow chip, or the `+` control
-- **THEN** that complete control SHALL use its v2 hover background until the pointer leaves or its geometry disappears
-- **AND** clock ticks, status animation, registry refreshes, and child surface updates SHALL NOT clear a still-valid hover state
+- **WHEN** the pointer rests over a non-viewed tab chip, overflow, or `+`
+- **THEN** the complete control SHALL retain v2 hover styling until the pointer leaves or its geometry disappears
+- **AND** unrelated clock, status, registry, and child updates SHALL NOT clear it
 
 #### Scenario: Open and use the default context menu
-- **WHEN** the user right-clicks a visible tab under default bindings
+- **WHEN** the user right-clicks a visible Agent tab under default bindings
 - **THEN** a menu beneath the strip SHALL show only `Close  Alt+W` and `Rename  F2` in that order
-- **AND** moving between its rows SHALL highlight the pointed row
-- **AND** left-clicking a row SHALL invoke that action for the right-clicked tab
-- **AND** no right-click instruction or action prompt SHALL replace text in the strip
+- **AND** moving and clicking SHALL highlight and invoke the pointed row for the originally targeted tab
 
 #### Scenario: Cancel the context menu
 - **WHEN** the context menu is open and the user presses Escape or clicks outside it
-- **THEN** it SHALL close without renaming, closing, switching, or forwarding that input to the child
-- **AND** the latest child surface SHALL be restored beneath it
+- **THEN** it SHALL close without an action or child input
+- **AND** the latest complete child surface SHALL remain visible
 
 #### Scenario: Jump beyond count
 - **WHEN** the user presses `Alt+7` with three tabs
-- **THEN** view SHALL not change and the key SHALL not reach the tab
+- **THEN** view SHALL not change and the key SHALL not reach the child
 
 #### Scenario: Preview and commit a drag reorder
-- **WHEN** the user holds a pressed tab for 250 ms or moves it at least one column across another chip midpoint
-- **THEN** a `│` insertion marker SHALL appear only at a destination that changes order
-- **AND** release on the strip SHALL send one reorder while release away from the strip SHALL send none
+- **WHEN** the user holds a pressed Agent chip for 250 ms or crosses a chip midpoint
+- **THEN** `│` SHALL preview only a real move and release on the strip SHALL send one reorder
+- **AND** release away from the strip SHALL cancel
 
 #### Scenario: Concurrent reorder
 - **WHEN** two clients reorder from the same registry revision
 - **THEN** exactly one SHALL apply and both SHALL converge
 
 #### Scenario: Tab limit reached
-- **WHEN** tab count equals `tabsMax` and creation is requested
-- **THEN** no tab SHALL be created and the strip SHALL state the limit
+- **WHEN** tab count exceeds every historical configured or hard count and another creation can acquire real resources
+- **THEN** creation SHALL proceed because no user tab limit exists
+
+#### Scenario: Create beyond the former limit
+- **WHEN** more Agent tabs are requested than the former `tabsMax` value or hard count of 50 and each sequential launch can obtain real resources
+- **THEN** A1 SHALL continue creating tabs without a quota notice or silent recycling
+
+#### Scenario: Real start failure
+- **WHEN** a new process cannot start or its required durable registry commit fails
+- **THEN** no tab SHALL be claimed as created and one concise actionable failure MAY appear without mentioning a tab limit
 
 ### Requirement: Tabs are renamed inline and names are Pi session names
 `F2`, the chip menu, and existing `/name <name>` SHALL rename a tab. Inline rename SHALL use `Enter` to commit and `Esc` or click elsewhere to cancel. Names SHALL be trimmed, control-free, nonempty, and at most 64 characters; invalid input SHALL retain the editor with a concise reason. A committed name SHALL become the Pi session name, appear in every client, and be user-provided. Defaults SHALL be `agent` or the smallest free `agent N`. With `tabsAutoName` on by default, A1 SHALL start proposing a lowercase hyphenated name of at most 16 characters when the first agent run begins, without waiting for that turn to settle. Naming SHALL use bounded model work that permits reasoning models to produce the short answer, SHALL fall back deterministically, and SHALL never override a user name. An automatic rename SHALL reproduce v2's title transition: 600 ms moving per-character rainbow over the old title, the new title typed at 45 ms per character, and a 300 ms settle to foreground gray while preserving the wider endpoint width; terminals without truecolor SHALL use the plain typewriter phase. Manual renames SHALL not animate.
@@ -344,23 +380,27 @@ Each tab SHALL have at most one input-controller client and monotonic revision. 
 - **THEN** only that attach client SHALL exit and print `2 agents still running run a1 to return.` while both agents and the other client continue
 
 ### Requirement: Tab shortcuts are declared, configurable, and conflict-checked
-Tab actions SHALL have stable identities, accept `keybindings.json` assignments, be checked against A1 and Pi bindings, and appear under Tabs in `/hotkeys`. Conflicts SHALL disable and report the assigned tab binding. The attach client SHALL consume matched actions before encoding and forward unmatched input. Defaults SHALL be `Alt+A` new, `Alt+W` close, `F2` rename, `Alt+1`…`Alt+0` jump, plus failed-banner `r` retry and `f` fresh. `tabs.next`, `tabs.previous`, `tabs.moveRight`, and `tabs.moveLeft` SHALL be unbound by default but assignable. Double `Ctrl+C` SHALL remain fixed: first press forwarded, second within A1's clear/exit interval consumed as local detach.
+Tab actions SHALL have stable identities, accept `keybindings.json` assignments, be checked against A1 and Pi bindings, and appear under Tabs in Keyboard Shortcuts. Conflicts SHALL disable and report the assigned tab binding. The attach client SHALL consume matched actions before encoding and forward unmatched input. Defaults SHALL be `Alt+A` new Agent, `Alt+Period` Settings, `Alt+W` close, `F2` rename, `Alt+1`…`Alt+0` jump, plus failed-banner `r` retry and `f` fresh. `tabs.next`, `tabs.previous`, `tabs.moveRight`, and `tabs.moveLeft` SHALL be unbound by default but assignable. Double `Ctrl+C` SHALL remain fixed: first press forwarded, second within A1's clear/exit interval consumed as local detach.
 
 #### Scenario: Hotkeys listing
-- **WHEN** `/hotkeys` opens inside a tab
-- **THEN** assigned tab shortcuts SHALL be listed and unbound actions SHALL remain discoverable as assignable
+- **WHEN** Keyboard Shortcuts opens inside a resident tab
+- **THEN** assigned Agent, Settings, close, rename, and jump actions SHALL be listed and unbound actions SHALL remain discoverable
+
+#### Scenario: Rebind Settings
+- **WHEN** `tabs.settings` receives a free custom assignment
+- **THEN** that key SHALL create or activate the Settings tab and the launcher SHALL show the effective label
 
 #### Scenario: User assigns next tab
 - **WHEN** `tabs.next` receives a free key assignment
-- **THEN** that key SHALL switch tabs and `/hotkeys` SHALL show it
+- **THEN** that key SHALL switch tabs and Keyboard Shortcuts SHALL show it
 
 #### Scenario: Collision
 - **WHEN** a tab action is assigned to an existing editor binding
-- **THEN** launch SHALL report and disable the conflict
+- **THEN** launch SHALL report and disable the conflict rather than dispatching both actions
 
 #### Scenario: Leave with Ctrl+C twice
 - **WHEN** the user presses `Ctrl+C` twice within the interval
-- **THEN** the tab SHALL receive exactly one press, the local attach client SHALL exit, and the tab process SHALL continue
+- **THEN** the child SHALL receive exactly one press, the attach client SHALL exit, and every tab process SHALL continue
 
 ### Requirement: Resident routing requires an interactive terminal
 A bare or session-selected A1 launch SHALL take the resident route only when its standard input and standard output are both terminals. Otherwise it SHALL run the direct owned UI with the resident fallback reason `no interactive terminal`, and SHALL neither probe nor start the resident host.
@@ -409,37 +449,34 @@ After resolving tab-owned actions, bare A1's resident attach client SHALL forwar
 - **THEN** the attach client SHALL invoke that tab action without also forwarding the key to the child prompt
 
 ### Requirement: Resident strip transitions present one stable current frame
-The attach client SHALL present strip topology, active selection, current child surface, host overlays, pointer state, and cursor restoration as one current frame. Create, close, switch, rename, reorder, clock, status, and streamed-surface updates SHALL NOT expose an intermediate blank, stale, contradictory, or partially composed frame. Unchanged topology SHALL NOT be repainted merely because a repeated list snapshot arrived.
+The attach client SHALL present strip topology, active selection, current complete child surface, host overlays, pointer state, terminal modes, and cursor restoration as one current frame. A holder surface used as a committed body SHALL contain a complete retained child presentation rather than only the most recently dirty rows. Create, close, switch, rename, reorder, clock, status, and streamed-surface updates SHALL NOT expose an intermediate blank, stale, contradictory, stopped, or partially composed frame. Unchanged topology or status SHALL NOT repaint. An intentional close SHALL suppress late output and failure events from the closing incarnation.
 
 #### Scenario: Create a tab while another tab is visible
-- **WHEN** tab creation is accepted and the new tab's first complete surface becomes available
-- **THEN** the new topology, active chip, and new child surface SHALL become visible together
-- **AND** existing chips SHALL NOT disappear and reappear during the transition
-- **AND** the old child surface SHALL NOT appear under the new active chip
+- **WHEN** creation is accepted and the new tab's first complete surface becomes available
+- **THEN** the new topology, active chip, and body SHALL become visible together once
+- **AND** existing chips SHALL NOT disappear, flash, or show the old body beneath the new active chip
 
 #### Scenario: Close the viewed tab
 - **WHEN** the viewed tab closes and a survivor is selected
 - **THEN** the closed chip SHALL be removed once and the survivor's active chip and complete surface SHALL become visible together
-- **AND** surviving chips SHALL NOT disappear, reorder spuriously, or show the closed tab's surface
+- **AND** late close-incarnation status, surface, and exit events SHALL NOT resurrect a failed-looking chip or snapshot
 
 #### Scenario: Stream while a host overlay is open
-- **WHEN** the viewed child emits surface updates while a context menu, rename editor, overflow chooser, confirmation, or failure notice is open
-- **THEN** each presented frame SHALL retain that overlay above the newest child surface
-- **AND** child output SHALL NOT erase, interleave with, or leak through the overlay
-- **AND** overlay painting SHALL preserve the child's cursor position
+- **WHEN** the viewed child emits complete current surfaces while a popup, rename editor, or confirmation is open
+- **THEN** each presented frame SHALL retain that overlay above the newest child surface without stale rows or cursor movement
 
 #### Scenario: Dismiss an overlay
-- **WHEN** a host overlay is cancelled, completed, or displaced by another tab
-- **THEN** the obscured cells SHALL be restored from the current complete child surface in the same presentation
-- **AND** no instructional residue, blank repair frame, or stale child text SHALL remain
+- **WHEN** a host overlay closes, completes, or is displaced by another tab
+- **THEN** its cells SHALL be restored from the current complete child surface in the same presentation
+- **AND** no residue, blank repair frame, or stale child text SHALL remain
 
 #### Scenario: Receive an unchanged registry snapshot
-- **WHEN** a periodic tab list contains the same ordered tabs, metadata, and active selection as the presented frame
-- **THEN** the attach client SHALL retain the existing strip cells and hover state without emitting a redundant topology repaint
+- **WHEN** a registry, status, or complete-surface snapshot is equivalent to the presented state
+- **THEN** the attach client SHALL emit no redundant presentation write
 
 #### Scenario: Terminal does not honor synchronized updates
-- **WHEN** the outer terminal ignores synchronized-update control sequences
-- **THEN** each logical resident frame SHALL still be emitted as one bounded output write with no separately exposed clear-only or strip-only transition
+- **WHEN** the outer terminal ignores synchronized-update controls
+- **THEN** ordered bounded writes and row damage SHALL still avoid a clear-only, strip-only, notice-only, or stale-body intermediate frame
 
 ### Requirement: Inline tab rename matches v2
 F2 and the Rename context action SHALL edit the targeted name directly inside its tab chip using settled chip geometry. The editor SHALL support cursor movement, Home, End, Backspace, Delete, Ctrl+A replacement, Enter commit, and Escape cancel. A valid manual name SHALL appear immediately, persist through the registry and child session, and SHALL NOT trigger automatic-name animation.
@@ -460,3 +497,334 @@ An automatic `nameSource=auto` change SHALL use a 600 ms moving rainbow over the
 - **WHEN** a default-named tab receives a different title from the automatic naming flow
 - **THEN** the v2 rainbow, typewriter, and settle phases SHALL render in order with stable geometry
 - **AND** a manual rename, restored title, or unchanged refresh SHALL not start or restart that transition
+
+### Requirement: Viewed resident A1 matches direct A1 interaction semantics
+Except for declared resident-tab controls and lifecycle differences, a viewed resident A1 child SHALL produce the same semantic action and visible child result as `a1 solo` for equivalent keyboard, text/IME, paste, focus, mouse, resize, dialog, extension text-UI, completion, history, command, and attachment input on the same platform and effective profile.
+
+#### Scenario: Edit an ordinary prompt
+- **WHEN** equivalent typing, Unicode, multiline, cursor, word-motion, Home/End, deletion, undo/redo, history, and completion inputs are sent to an ordinary prompt in resident and solo A1
+- **THEN** the prompt text, cursor, selection, completion state, and invoked actions SHALL be equivalent after accounting for the resident strip row
+
+#### Scenario: Interact with a modal or extension surface
+- **WHEN** a built-in dialog, trust or permission prompt, replacement editor, or certified extension text UI owns input in resident A1
+- **THEN** its keys, paste, pointer behavior, cancellation, focus, and resulting presentation SHALL match the same surface in solo A1
+
+#### Scenario: Send the first input after switching tabs
+- **WHEN** the user switches to a resident tab and immediately sends a key, paste, click, focus event, or resize
+- **THEN** that input SHALL reach the newly viewed child exactly once in order and SHALL NOT visibly wait for a takeover gesture
+
+### Requirement: Resident selection and clipboard behavior matches direct A1
+Every child row and surface SHALL retain the same selectable or non-selectable ownership as `a1 solo`. Equivalent prompt, transcript, status/footer, dialog, and extension gestures SHALL produce equivalent selection paint and copied text, while resident strip cells SHALL remain attach-owned controls and SHALL NOT enter child selection or clipboard content.
+
+#### Scenario: Select and copy child content
+- **WHEN** the user performs an equivalent drag, reverse drag, double click, triple click, selection extension, or scrolling selection over viewed child content in resident and solo A1
+- **THEN** resident A1 SHALL paint the same child cells and copy the same semantic text without strip content, padding, controls, or stale rows
+
+#### Scenario: Copy with Ctrl+C
+- **WHEN** a copyable prompt or response selection owns `Ctrl+C` in a resident tab
+- **THEN** the first `Ctrl+C` SHALL invoke the same copy and selection-clearing behavior as solo A1 and SHALL leave the attach client connected
+
+#### Scenario: Paste with Ctrl+V on first use
+- **WHEN** the ordinary prompt owns the first `Ctrl+V` after resident startup and the supported clipboard contains readable content
+- **THEN** resident A1 SHALL insert that content exactly once under the same bounded acquisition and preparation behavior as solo A1 without requiring a prior clipboard or focus action
+
+#### Scenario: Receive terminal-provided paste
+- **WHEN** the outer terminal supplies a bracketed, right-click, multiline, or Unicode paste
+- **THEN** the viewed child SHALL receive one complete paste with the same normalization, ownership, insertion, feedback, and capacity behavior as solo A1
+
+### Requirement: Resident shortcuts use the effective A1 shortcut contract
+After resolving active tab actions, resident A1 SHALL preserve every supported effective A1 key identity and modifier and SHALL invoke the same action as `a1 solo`. Shortcut help, hints, dialogs, and `/hotkeys` SHALL derive child actions from the same effective declarations, with tab actions listed separately and consumed only in their active scope.
+
+#### Scenario: Use default prompt shortcuts
+- **WHEN** the user invokes any supported default A1 prompt or viewport shortcut in a resident tab
+- **THEN** the same child action SHALL run exactly once as in solo A1 and no encoded key fragment SHALL enter the prompt
+
+#### Scenario: Use customized shortcuts
+- **WHEN** `keybindings.json` changes an A1 or tab action without a conflict
+- **THEN** resident dispatch and every shortcut presentation SHALL show and invoke the effective assignment exactly as solo dispatch plus the separately resolved tab actions
+
+#### Scenario: Tab action wins only in tab scope
+- **WHEN** an input resolves to an active resident tab action
+- **THEN** the attach client SHALL invoke that action without forwarding the input, while unmatched and disabled tab bindings SHALL continue unchanged to the child
+
+### Requirement: Resident tabs make independent concurrent progress
+Every resident Agent SHALL continue engine work, render scheduling, child animation state, PTY draining, retained terminal-state updates, and switch-time complete-surface production independently of which tab is viewed and independently of another tab's first response, input, rendering, lifecycle work, revision number, or slow client. Hidden Agents MAY suppress external surface delivery, but their children SHALL continue their normal render scheduling and their holders SHALL retain every output update in current terminal state. Selecting any working Agent SHALL expose a complete frame containing its newest committed partial reply and current animation phase, then continue presenting later partial frames and animation changes without waiting for that turn or another turn to settle. Selection SHALL NOT be required to resume execution or restart an animation. Execution, child rendering, and viewed presentation SHALL each make independently observable progress; one advancing status icon or a final answer SHALL NOT substitute for the other stages.
+
+#### Scenario: Several agents stream simultaneously
+- **WHEN** at least three resident Agents generate streamed replies at the same time and the user repeatedly switches before any reply settles
+- **THEN** every selected Agent SHALL show successive partial reply states and live animation changes and continue advancing
+- **AND** no Agent SHALL remain on its pre-run frame and then jump directly to final content
+
+#### Scenario: Later Agent has a lower revision
+- **WHEN** the first Agent has emitted more surface revisions than a later-created Agent
+- **THEN** selecting the later Agent SHALL commit and continue its own revision sequence rather than discarding it as globally stale
+
+#### Scenario: Lifecycle work overlaps active input
+- **WHEN** tab create, close, Settings startup, restart, rename, reorder, recovery, or registry persistence overlaps input and streaming in another Agent
+- **THEN** the unrelated Agent SHALL retain solo-equivalent input and presentation responsiveness
+
+#### Scenario: One attached client is slow
+- **WHEN** one client's replaceable surface lane cannot drain while multiple Agents continue working
+- **THEN** no child, holder, other client, or lifecycle-independent input path SHALL wait for that client
+- **AND** the slow lane SHALL eventually receive one newest complete surface rather than replaying a catch-up burst
+
+#### Scenario: First response order does not select the only live Agent
+- **WHEN** three Agents begin overlapping turns and any one of them produces its first response before the other two
+- **THEN** each Agent SHALL continue independent engine and child-render progress regardless of response order
+- **AND** activating either later responder SHALL show its current unfinished response and ongoing updates without waiting for the first Agent to finish
+
+#### Scenario: Hidden animation remains current
+- **WHEN** a working Agent remains hidden while other Agents stream and its normal child animations advance
+- **THEN** its engine, renderer, and retained terminal state SHALL keep advancing
+- **AND** selecting it SHALL present its current animation phase and continue animation rather than replaying old frames or restarting a frozen phase
+
+#### Scenario: No viewer remains attached
+- **WHEN** every attach client disconnects while several Agents have unfinished turns
+- **THEN** all Agents SHALL continue engine work, child rendering, and retained-state updates
+- **AND** reattachment SHALL reveal current committed content without a catch-up replay or an execution-resume action
+
+#### Scenario: Type while another Agent floods output
+- **WHEN** one Agent emits high-rate output while the user activates another working Agent and types into its prompt
+- **THEN** the input SHALL be delivered exactly once to the activated Agent and its visible echo and animations SHALL progress without waiting for the flood to finish
+
+#### Scenario: Requested target changes while first input waits
+- **WHEN** first input is pending behind a controller handoff and the requested target is cancelled, fails, or is superseded
+- **THEN** admitted input SHALL retain its original target and controller identity or receive the established explicit rejection or uncertain-delivery outcome
+- **AND** it SHALL not be silently retargeted to the previously visible Agent or replayed into a surviving tab
+
+#### Scenario: Server reconnects while no viewer is attached
+- **WHEN** all viewers are detached and a server reconnect overlaps unfinished turns
+- **THEN** each child SHALL continue engine/render progress and its holder SHALL continue parsing and retaining committed content during reconnect
+- **AND** a later viewer SHALL obtain current partial content and live continuation without restarting the Agent
+
+### Requirement: Double Ctrl+C reliably detaches the resident interface
+The attach client SHALL recognize the semantic outer-terminal `Ctrl+C` event across supported terminal encodings before representation can obscure its identity. The first press SHALL reach the child exactly once. A second press inside the clear/exit interval SHALL detach without reaching or terminating any child, whichever tab is viewed, including Settings. When the owned `quitAnimation` setting is on (the default), detach SHALL first play bare A1's fall quit animation over the presented screen, bounded in duration, and then restore the parent terminal.
+
+#### Scenario: Leave resident A1 from an ordinary prompt
+- **WHEN** the user presses `Ctrl+C` twice inside the clear/exit interval
+- **THEN** the first press SHALL retain its solo A1 clear, copy, or interrupt meaning, the second SHALL close the attached A1 interface, and every resident agent SHALL keep running
+
+#### Scenario: Leave from the Settings tab with the quit animation
+- **WHEN** the Settings tab or any Agent tab is viewed and the user presses `Ctrl+C` twice inside the clear/exit interval
+- **THEN** the fall quit animation SHALL play over the presented screen and the parent terminal SHALL be restored with a visible cursor
+
+#### Scenario: Quit animation is off
+- **WHEN** `quitAnimation` is off and the user detaches with double `Ctrl+C`
+- **THEN** the parent terminal SHALL be restored immediately without an animation
+
+#### Scenario: Return after detach
+- **WHEN** the user detaches with double `Ctrl+C` and later runs bare `a1`
+- **THEN** A1 SHALL reattach to the same running tabs with their work and retained presentations advanced during the absence
+
+#### Scenario: Press Ctrl+C outside the interval
+- **WHEN** two `Ctrl+C` presses are separated by at least the clear/exit interval or by another completed input sequence
+- **THEN** both presses SHALL reach the child independently and the attach client SHALL remain connected
+
+### Requirement: Resident Settings is one global utility tab
+Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Settings`. It SHALL render the owned global settings without owning an Agent session. A Settings route delivered before the child presenter has started SHALL be retained and presented once it starts. The launcher SHALL create or activate that singleton. The `tabs.settings` action SHALL toggle it: while Settings is viewed it SHALL hide that tab from the strip, keep its process running, and show the previous tab, and otherwise it SHALL show the singleton. To open Settings without a startup delay, the attach client SHALL start a hidden Settings tab in the background when tabs exist without one; a Settings tab joins the strip only once it is viewed. Closing its tab SHALL remove it. Settings are shared: every running resident tab SHALL reread the shared settings document when it changes and apply each changed live setting, such as the accent color, without a restart. Its screen is the tab, so it SHALL offer no screen-level Esc close or Esc close hint, and one Ctrl+C SHALL NOT dismiss it. Resident Agents SHALL not advertise or execute `/settings`; `a1 solo` and `a1 pi` SHALL retain their existing command behavior.
+
+#### Scenario: Open Settings from the launcher
+- **WHEN** a resident Agent is viewed and the user chooses Settings from `+`
+- **THEN** one tab titled `Settings` SHALL appear and show the owned Settings screen
+- **AND** the Agent tab's editor, transcript, session, and surface SHALL remain unchanged
+
+#### Scenario: Settings route arrives before startup completes
+- **WHEN** the server delivers the Settings route before the Settings child's presenter is running
+- **THEN** the Settings screen SHALL be shown once the presenter starts rather than an empty body
+
+#### Scenario: Open Settings with the shortcut
+- **WHEN** the user presses the default `Alt+,` Settings action
+- **THEN** the same singleton Settings tab SHALL be created or activated
+- **AND** no `/settings` text or equivalent bytes SHALL enter an Agent editor
+
+#### Scenario: Reuse global Settings
+- **WHEN** the Settings tab already exists but is not viewed and the menu or shortcut requests Settings again
+- **THEN** A1 SHALL activate that exact tab without creating another Settings process or tab
+
+#### Scenario: Toggle Settings hidden with the shortcut
+- **WHEN** the Settings tab is viewed and the user presses the Settings shortcut
+- **THEN** the Settings chip SHALL leave the strip and the previously selected tab SHALL become visible
+- **AND** pressing the shortcut again SHALL show Settings without starting another process
+
+#### Scenario: Hidden Settings never opens by itself
+- **WHEN** Settings is hidden and the user closes the last visible tab
+- **THEN** the hidden Settings tab SHALL close too and the strip SHALL show only `+` and the clock
+- **AND** a closed viewed tab SHALL never be replaced by the hidden Settings tab
+
+#### Scenario: Settings opens without a startup delay
+- **WHEN** Agent tabs have been open for a few seconds and the user first presses the Settings shortcut
+- **THEN** the already running hidden Settings tab SHALL be shown without waiting for a new process
+
+#### Scenario: A setting change reaches every running tab
+- **WHEN** Agent tabs are running and the user changes the accent color in Settings
+- **THEN** every running Agent tab SHALL switch to the new accent without being reopened
+
+#### Scenario: Esc inside the Settings tab
+- **WHEN** the Settings tab is viewed with no search or value menu open and the user presses Esc
+- **THEN** the Settings tab SHALL remain open and its standing hint SHALL NOT offer Esc close
+
+#### Scenario: Close Settings
+- **WHEN** the user closes the Settings tab
+- **THEN** the Settings utility tab SHALL be removed
+- **AND** the previously selected surviving tab SHALL become visible with its unchanged complete surface
+
+#### Scenario: Discover commands in a resident Agent
+- **WHEN** resident Agent slash-command autocomplete or execution resolves built-in commands
+- **THEN** `settings` SHALL be absent and `/settings` SHALL NOT open a route
+- **AND** `a1 solo` and `a1 pi` SHALL retain their existing Settings commands
+
+### Requirement: Resident lifecycle mechanics remain invisible
+The resident attach client SHALL keep controller, subscription, and intentional-stop mechanics invisible:
+- Input during automatic transfer SHALL be delivered once after acknowledgement, or refused before any prefix.
+- Pointer motion and focus reports SHALL never consume the input budget of a pending view or cause key or paste input to be refused.
+- The attach client SHALL NOT render an input-delivery notice row such as `Input was not sent; try again.` beneath the strip.
+- Successful create and close SHALL commit only complete final topology states.
+- A newly created Agent SHALL become visible only with its first drawn frame, or after a bounded fallback when the child never draws. The prior view SHALL remain until then and no cursor SHALL show.
+- When no tabs remain, the terminal SHALL show only hoverable `+` and the strip clock, with the child cursor hidden.
+- A tab switch or creation SHALL repaint the strip and body in place without first clearing the screen.
+
+#### Scenario: Type immediately after switching
+- **WHEN** the user switches tabs and immediately types, pastes, or clicks the child surface before controller acknowledgement
+- **THEN** the input SHALL reach the new tab exactly once after ownership is acknowledged
+- **AND** no read-only notice or takeover prompt SHALL appear
+
+#### Scenario: Move the pointer while a new Agent starts
+- **WHEN** the user chooses `+ Agent`, moves the pointer across the body many times, and types before the new Agent has drawn
+- **THEN** every typed key SHALL reach the new Agent exactly once after it becomes input-ready
+- **AND** no `Input was not sent` or other notice row SHALL appear
+
+#### Scenario: Close an Agent normally
+- **WHEN** an idle or confirmed-busy Agent tab is intentionally closed
+- **THEN** its chip SHALL disappear once without displaying `✗`, `X`, `read-only-viewer`, or its retained body as a failed surface
+
+#### Scenario: Close the last tab
+- **WHEN** the final Agent or Settings tab closes
+- **THEN** A1 SHALL clear the prior surface once and render only `+` and the strip clock
+- **AND** no notice background, text cursor, child cursor, stale cell, or instruction SHALL remain
+
+#### Scenario: Switch or create without a blank strip
+- **WHEN** the viewed tab changes to another tab or a newly created tab
+- **THEN** no presented frame SHALL clear the screen or blank tab names before the new tab's content is painted
+
+#### Scenario: Create a tab normally
+- **WHEN** a new Agent reaches its first input-ready complete surface
+- **THEN** its chip, body, status bar, and editor SHALL appear together without a provisional flashing chip, blank body, stray cursor, or clear-only frame
+
+### Requirement: Popup gestures preserve a usable v2 menu
+Every strip popup SHALL remain open through its opening pointer gesture. Motion SHALL hover enabled rows, a primary click SHALL invoke one row once, separators SHALL remain inert, and an outside press SHALL dismiss without child input. Releases alone SHALL not dismiss. Popup rows SHALL use v2's dark normal/hover colors, white labels, muted shortcuts, and padding; palette output SHALL remain dark without reverse video.
+
+#### Scenario: Release after opening the add menu
+- **WHEN** the user presses `+` and releases the primary mouse button without another action
+- **THEN** the launcher SHALL remain visible and usable
+
+#### Scenario: Hover and choose Settings
+- **WHEN** the launcher is open and the pointer moves onto Settings then clicks it
+- **THEN** the Settings row SHALL show hover styling and the singleton Settings action SHALL run exactly once
+
+#### Scenario: Cross a separator
+- **WHEN** pointer motion or keyboard navigation reaches the launcher separator
+- **THEN** the separator SHALL neither highlight nor activate and keyboard navigation SHALL skip it
+
+#### Scenario: Render without direct RGB
+- **WHEN** the terminal uses the supported palette path
+- **THEN** popup rows SHALL remain dark and readable without a light reverse-video panel
+
+### Requirement: Inline rename supports word motion
+The resident inline tab-name editor SHALL retain grapheme-safe character editing. It SHALL support these keys:
+- Ctrl+Left or Ctrl+Right moves to the preceding or following word boundary.
+- Ctrl+Backspace deletes to the preceding word boundary.
+- Ctrl+Delete deletes to the following word boundary.
+- Ctrl+Z undoes the last edit and Ctrl+Y or Ctrl+Shift+Z redoes it.
+
+Control- or Alt-modified letters SHALL never be inserted as text. Word operations SHALL never split a Unicode grapheme and SHALL preserve the selection rules, chip geometry, and manual-rename semantics.
+
+#### Scenario: Move across words while renaming
+- **WHEN** the user renames `fix login flow` and presses Ctrl+Left or Ctrl+Right
+- **THEN** the caret SHALL move by one semantic word boundary in the requested direction without changing the name
+
+#### Scenario: Delete a whole word
+- **WHEN** the caret is before `login` in `fix login flow` and the user presses Ctrl+Delete
+- **THEN** the name SHALL become `fix flow` with the caret at the same position
+
+#### Scenario: Undo and redo a rename edit
+- **WHEN** the user types characters, presses Ctrl+Z, then Ctrl+Y
+- **THEN** Ctrl+Z SHALL restore the name and caret before the typed run and Ctrl+Y SHALL reapply it
+- **AND** no `z` or `y` character SHALL be inserted
+
+#### Scenario: Move across Unicode text
+- **WHEN** a rename contains combining characters or emoji and the user alternates character and word movement or deletion
+- **THEN** every caret position SHALL remain on a grapheme boundary
+
+### Requirement: The normal repository build produces a resident-ready local application
+
+On a supported development platform, `npm run build` SHALL produce the managed runtime, process guardian, and a verified release-profile terminal-host addon for the current platform, including its manifest and notices, so a subsequent bare `./scripts/dev` launch can take the resident multi-agent route without deployment or a separate tabs-specific build command. The build SHALL fail with an actionable prerequisite diagnostic when it cannot produce or verify that complete local artifact set; it SHALL NOT report success and defer discovery of the incomplete build to the launch-time single-agent fallback.
+
+#### Scenario: Developer builds and launches bare A1
+
+- **WHEN** a developer runs `npm run build` successfully on a supported platform and then launches bare `./scripts/dev` from an interactive terminal
+- **THEN** the local release SHALL contain a verified terminal host for that platform
+- **AND** resident startup SHALL be available without publishing, installing, or running another build command
+
+#### Scenario: Native prerequisite is unavailable
+
+- **WHEN** the normal build cannot obtain or verify the current platform's terminal-library prerequisite
+- **THEN** the build SHALL fail with a diagnostic naming how to obtain that prerequisite
+- **AND** it SHALL NOT claim to have produced the normal runnable application
+
+#### Scenario: Manual Git Bash handoff
+
+- **WHEN** an implementation candidate is handed off for interactive testing on Windows Git Bash
+- **THEN** the handoff SHALL provide one copy-pasteable line that changes to the exact worktree, runs `npm run build`, and launches `./scripts/dev`
+- **AND** it SHALL NOT invoke the direct Node launcher or require a tabs-specific build command
+
+### Requirement: Open strip popups stay stable while tabs stream
+An open context, overflow, or launcher popup SHALL be presented with each outer cell written once per frame with its final content. Child output beneath or beside the popup SHALL NOT clear, blank, or rewrite popup cells, and SHALL repaint only changed child cells outside the popup. Dismissing a popup SHALL restore the newest child content beneath it. On the legacy raw-byte fallback, the popup SHALL be repainted after the child bytes within the same synchronized frame.
+
+#### Scenario: Menu open while the Agent streams
+- **WHEN** the tab context menu or `+` launcher is open over a tab whose Agent is streaming output
+- **THEN** no presented frame SHALL blank or rewrite the popup's cells
+- **AND** the popup SHALL remain visually stable until dismissed
+
+#### Scenario: Dismiss over changed content
+- **WHEN** the child changed rows beneath the popup while it was open and the popup is dismissed
+- **THEN** those rows SHALL show the child's newest content
+
+### Requirement: The strip row has a solid dark background
+The strip row SHALL be painted across its full width with a fixed dark background, RGB `20,20,20` with a palette fallback. That background SHALL appear behind padding, the space after `+`, and the clock, and chips SHALL keep their own v2 backgrounds. The row SHALL NOT inherit a child-controlled default background or retain child output.
+
+#### Scenario: Strip with tabs
+- **WHEN** tabs are present
+- **THEN** every strip cell outside chips, overflow, and `+` SHALL carry the dark row background
+
+#### Scenario: Child output cannot reach the strip
+- **WHEN** a child changes the terminal default background or writes content that would reach the first row
+- **THEN** the strip row SHALL keep the dark background and show only strip content
+
+### Requirement: Resident tabs keep the outer terminal theme for unset colors
+The resident presentation SHALL publish a child's default foreground, default background, or palette entry to the outer terminal only when the child set that color. Colors a child left at the emulator's initial values SHALL be reset to the outer terminal's own theme rather than replaced with emulator defaults.
+
+#### Scenario: New Agent without explicit colors
+- **WHEN** a newly created Agent has not set its default background
+- **THEN** its body SHALL show the outer terminal's own background, not black
+
+#### Scenario: Child sets its own background
+- **WHEN** a child sets its default background with OSC 11
+- **THEN** the outer terminal SHALL show that background while the tab is viewed
+
+### Requirement: Resident dialogs receive keys like solo
+Owned full-screen dialogs and screens in a resident tab, including Changelog and Settings, SHALL respond to the same navigation, close, and interrupt keys as in `a1 solo`, whether the child terminal reports keys in legacy or kitty keyboard encoding. A lone Esc SHALL reach the child immediately rather than being held for a possible controller-boundary sequence.
+
+#### Scenario: Scroll and close Changelog in a tab
+- **WHEN** the Changelog dialog is open in a resident Agent and the user presses Up, Down, then Esc
+- **THEN** the dialog SHALL scroll and then close, matching `a1 solo`
+
+#### Scenario: Esc alone is not delayed
+- **WHEN** the user presses only Esc in a resident Agent
+- **THEN** the child SHALL receive Esc without waiting for another key
+
+### Requirement: Resident presentation preserves footer hyperlinks
+Hyperlinks written by a resident child, including the footer pull-request reference, SHALL reach the outer terminal as the same OSC 8 hyperlink targets on every resident presentation path. They SHALL NOT be reduced to plain styled text.
+
+#### Scenario: Footer pull request link
+- **WHEN** the viewed Agent's footer shows a pull-request number linked to its URL
+- **THEN** the outer terminal SHALL receive that number as an OSC 8 hyperlink to the same URL, matching `a1 solo`

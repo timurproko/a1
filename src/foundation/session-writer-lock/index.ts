@@ -40,16 +40,17 @@ export interface SessionWriterHandle {
 let backendOverride: LockBackend | undefined;
 let cachedBackend: LockBackend | undefined;
 
-/** Development-only override naming a native lock addon to load first. */
-export const SESSION_LOCK_OVERRIDE_ENVIRONMENT = "A1_SESSION_LOCK_PATH";
-
-/** Security: a release that carries its own lock never loads an addon chosen by the environment or cwd. */
+/** Security: a release that carries its own terminal-host addon never loads one chosen by cwd. */
 export function nativeCandidates(moduleUrl = import.meta.url, env = process.env, cwd = process.cwd(), exists = existsSync): string[] {
-  const addon = "a1_session_lock.node";
+  const addon = `${PRODUCT_IDENTITY.artifacts.terminalHostAddon}.node`;
   // Invariant: this module sits at dist/foundation/session-writer-lock/ inside the release root.
   const own = resolve(fileURLToPath(new URL("../../../", moduleUrl)), "dist", "native", `${process.platform}-${process.arch}`, addon);
-  const override = env[PRODUCT_IDENTITY.environment.developmentInstanceId] ? env[SESSION_LOCK_OVERRIDE_ENVIRONMENT]?.trim() || undefined : undefined;
-  const local = exists(own) ? [own] : [resolve(cwd, "dist", "native", `${process.platform}-${process.arch}`, addon), resolve(cwd, ".artifacts", "terminal-host", addon)];
+  const override = env[PRODUCT_IDENTITY.environment.developmentInstanceId]
+    ? env[PRODUCT_IDENTITY.environment.terminalHostPath]?.trim() || undefined
+    : undefined;
+  const local = exists(own)
+    ? [own]
+    : [resolve(cwd, "dist", "native", `${process.platform}-${process.arch}`, addon), resolve(cwd, ".artifacts", "terminal-host", addon)];
   return override ? [override, ...local] : local;
 }
 

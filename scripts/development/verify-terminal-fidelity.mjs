@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { resolve } from "node:path";
 import process from "node:process";
+
+const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
 
 function argument(name) {
   const index = process.argv.indexOf(name);
@@ -8,7 +11,12 @@ function argument(name) {
 }
 
 function run(host, flag) {
-  const result = spawnSync(host, [flag], { encoding: "utf8", windowsHide: true, timeout: 30_000 });
+  const result = spawnSync(process.execPath, [hostEntry, flag], {
+    encoding: "utf8",
+    env: { ...process.env, A1_DEV_INSTANCE_ID: process.env.A1_DEV_INSTANCE_ID ?? "terminal-host-validation", A1_TERMINAL_HOST_PATH: resolve(host) },
+    windowsHide: true,
+    timeout: 30_000,
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${flag} failed (${result.status}): ${result.stderr || result.stdout}`);
   return result.stdout.trim().split(/\r?\n/u).filter(Boolean);
@@ -16,7 +24,7 @@ function run(host, flag) {
 
 const host = argument("--host") ?? process.env.A1_TERMINAL_HOST_PATH;
 if (!host) {
-  console.error("usage: node scripts/development/verify-terminal-fidelity.mjs --host <a1-terminal-host>");
+  console.error("usage: node scripts/development/verify-terminal-fidelity.mjs --host <terminal-host.node>");
   process.exitCode = 2;
 } else {
   const fidelityLines = run(host, "--probe-input");
@@ -25,7 +33,8 @@ if (!host) {
   const selection = selectionLines.some(line => line.includes('"probe":"selection-passed"'));
   const required = [
     "keyEncoding", "kittyKeys", "textImeEncoding", "mouseEncoding", "paneRelativeMouse",
-    "bracketedPaste", "clipboardOsc52", "hyperlinkOsc8", "cursorShape",
+    "bracketedPaste", "clipboardOsc52", "syntheticClipboardEffect", "hyperlinkTargetAndId",
+    "semanticAttributes", "paletteAndDefaultColors", "cursorShapeAndBlink", "interactionModes",
     "wideCombiningUnicode", "alternateScreen", "imageTextFallback", "faintIntensity",
   ];
   const missing = required.filter(key => fidelity[key] !== true);

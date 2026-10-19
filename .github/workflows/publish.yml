@@ -518,6 +518,8 @@ jobs:
           shared-key: terminal-host-release
           workspaces: native/terminal-host
       - run: npm ci --ignore-scripts
+      - name: Compile the terminal host entry
+        run: node node_modules/typescript/bin/tsc -p tsconfig.build.json
       - name: Build, verify, and record the release terminal host
         run: npm run build:terminal-host
       # Rationale: see the guardians job; the x64 host's identity is read through Rosetta 2 when the
@@ -994,9 +996,12 @@ jobs:
           VALIDATION_CANDIDATE_TARBALL: ${{ github.workspace }}/.artifacts/release/candidate.tgz
           VALIDATION_PACKAGE_RECEIPT: ${{ github.workspace }}/.artifacts/release/candidate.receipt.json
           VALIDATION_PACKAGE_SOURCE_IDENTITY: ${{ github.workspace }}/.artifacts/release/candidate-identity.json
+        # Invariant: preparation plans the same shard its consumer runs, so the handoff names exactly
+        # that shard's exact-package consumers.
         run: >-
           node scripts/release/run-validation-tier.mjs
           --prepare-exact-package
+          --full-shard "${{ matrix.shard }}"
           --handoff .artifacts/validation/exact-package-handoff.json
       - name: Enable Defender real-time protection for startup acceptance
         if: matrix.shard == 'package'
@@ -1176,7 +1181,7 @@ jobs:
     needs: [plan, package, documentation, validate]
     if: always() && needs.plan.outputs.mode != 'candidate' && (needs.plan.outputs.build == 'true' || needs.plan.outputs.installer_build == 'true') && needs.package.result == 'success' && (needs.documentation.result == 'success' || needs.documentation.result == 'skipped') && (needs.validate.result == 'success' || (needs.plan.outputs.mode == 'stable' && needs.validate.result == 'skipped'))
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     environment: npm-publish
     permissions:
       contents: read

@@ -8,7 +8,7 @@ Define explicit planning approval, same-PR implementation and finalization, manu
 ### Requirement: Specification approval precedes implementation
 A new implementation-bound OpenSpec change SHALL begin as planning artifacts in one normally named draft pull request. Every newly authored version-3 OpenSpec delivery PR SHALL use one human-readable structure: `## Proposal` as its first nonblank content with one or two sentences explaining intent, `## Implementation` with concrete delivery details, final `## Acceptance` outcomes when complete, and last `## Automation` with required machine linkage in a clearly explained collapsed disclosure. The body SHALL NOT add a quoted `Phase: Proposal` or `Phase: Implementation` line. GitHub draft/ready state, the visible sections, and explicit maintainer authorization SHALL communicate delivery posture without a redundant phase banner. After merge, verification SHALL derive `Archived` without editing the accepted PR body. The body SHALL omit routine validation command listings. A request to prepare, write, design, or update a specification SHALL authorize only planning, not implementation. Implementation SHALL begin only after the maintainer approves the plan and explicitly requests implementation; the planning PR SHALL NOT need to merge first. Approved implementation SHALL continue in the same worktree, branch, commit history, and pull request, including its related documentation.
 
-After implementation and required task/evidence preparation are complete, the same branch SHALL be finalized by conservatively synchronizing its deltas, staging its dated archive and conditional delivery record, and removing its active-change copy. The PR SHALL remain draft until that final candidate is ready for exact-head CI and review. One ordinary exact-head workflow SHALL validate both the finalized record and all applicable product/governance scopes and SHALL expose the stable protected check when they succeed. Applicable scopes SHALL be selected by the same impact classification as any other pull request; the implementation association SHALL disable only the documentation-only and version-only shortcuts and SHALL NOT force complete conservative coverage. The finalized PR SHALL integrate only after required validation and an authorized maintainer manually merges it; that manual merge SHALL be the final implementation acceptance and merge authorization. No manual body-phase promotion or second phase-only workflow run SHALL be required.
+After implementation and required task/evidence preparation are complete, the same branch SHALL be finalized by conservatively synchronizing its deltas, staging its dated archive and conditional delivery record, and removing its active-change copy. The PR SHALL remain draft until that final candidate is ready for exact-head CI and review. One ordinary exact-head workflow SHALL validate both the finalized record and all applicable product/governance scopes and SHALL expose the stable protected check when they succeed. Applicable scopes SHALL be selected by the same impact classification as any other pull request; the implementation association SHALL disable only the documentation-only and version-only shortcuts and SHALL NOT force complete conservative coverage. The finalized PR SHALL integrate only after required validation and an authorized maintainer chooses that exact candidate by directly merging it, personally arming native auto-merge, or explicitly requesting the active agent's protected expected-head merge while the candidate is currently eligible. That exact-candidate decision SHALL be the final implementation acceptance and merge authorization. No manual body-phase promotion or second phase-only workflow run SHALL be required.
 
 Approved refinements SHALL update the affected planning artifacts coherently before corresponding implementation edits in that same PR. New unimplemented deltas SHALL NOT be synchronized into canonical specs on `develop` during planning. Standalone revisions to existing merged planning artifacts SHALL remain OpenSpec-only unless specification and implementation refinement together is explicitly authorized in an existing implementation PR.
 
@@ -49,16 +49,16 @@ Approved refinements SHALL update the affected planning artifacts coherently bef
 #### Scenario: Completed implementation is finalized
 - **WHEN** implementation and its required evidence are complete
 - **THEN** the same branch SHALL stage conservative spec synchronization, the dated archive, and its conditional delivery record before the PR becomes ready
-- **AND** the finalized body SHALL present `Proposal`, `Implementation`, `Acceptance`, then collapsed `Automation` sections without a quoted phase line through validation, review, and manual merge
+- **AND** the finalized body SHALL present `Proposal`, `Implementation`, `Acceptance`, then collapsed `Automation` sections without a quoted phase line through validation, review, and authorized integration
 - **AND** no acceptance-only, spec-only, archive-only, or phase-promotion follow-up SHALL be required for that delivery
 
 #### Scenario: Required tests pass
 - **WHEN** every required exact-head product, governance, and finalized-delivery check passes for the implementation candidate
 - **THEN** the stable protected check SHALL succeed without a body lifecycle edit or second workflow run
-- **AND** the agent SHALL hand off the unchanged candidate for maintainer review and authorized manual merge
+- **AND** the agent SHALL hand off the unchanged candidate for maintainer review and an authorized integration decision
 
 #### Scenario: Integrated delivery is verified
-- **WHEN** authorized manual merge integrates the accepted candidate and trusted verification confirms its archive and synchronized specs on current `develop`
+- **WHEN** authorized exact-candidate integration merges the accepted candidate and trusted verification confirms its archive and synchronized specs on current `develop`
 - **THEN** the derived delivery state SHALL be `Archived`
 - **AND** the accepted merged PR body SHALL remain unchanged
 
@@ -161,17 +161,19 @@ For an eligible documentation pull request, automation MAY arm auto-merge while 
 - **AND** documentation integration SHALL proceed behind required validation
 
 ### Requirement: Code integration requires local maintainer acceptance
-Every code/operational pull request SHALL remain open after automated validation until an authorized maintainer chooses its integration. The agent SHALL provide exact applicable local run or inspection instructions and SHALL NOT invoke or arm auto-merge. CI success SHALL NOT count as human acceptance. Manual validation SHALL remain the maintainer's optional choice and SHALL NOT be a prerequisite for finalization or integration.
+Every code/operational pull request SHALL remain open after automated validation until an authorized maintainer chooses its integration. The agent SHALL provide exact applicable local run or inspection instructions and SHALL NOT infer acceptance from CI success. Manual validation SHALL remain the maintainer's optional choice and SHALL NOT be a prerequisite for finalization or integration.
 
-For a finalized single-PR OpenSpec delivery, the pull request SHALL present one to three implementation-specific acceptance scenarios as plain bullets. The maintainer SHALL NOT need to check boxes or perform a separate acceptance edit: manually merging the exact current head after review, or personally enabling native auto-merge for that unchanged head, SHALL mean the maintainer accepts the listed scenarios and explicitly authorizes protected integration after current-head CI. Any new commit or acceptance-list change SHALL require renewed current-head CI and a new maintainer integration decision.
+For a finalized single-PR OpenSpec delivery, the pull request SHALL present one to three implementation-specific acceptance scenarios as plain bullets. The maintainer SHALL NOT need to check boxes or perform a separate acceptance edit: manually merging the exact current head after review, personally enabling native auto-merge for that unchanged head, or explicitly instructing the active agent to merge that identified currently mergeable head SHALL mean the maintainer accepts the listed scenarios and authorizes protected integration. A delegated agent SHALL refresh authoritative state immediately before merging, require the instructed exact head, current target, finalized binding, successful required exact-head validation, positive mergeability, and an authorized human GitHub principal, and SHALL use a protected expected-head squash merge without administrative bypass. Any new commit, acceptance-list change, target advance, failed or pending gate, ambiguous request, or unavailable state SHALL cancel that authority and require a fresh maintainer integration decision.
+
+An agent SHALL NOT treat implementation approval, green CI, a standing preference, or an earlier merge request for another candidate as integration authority. It SHALL NOT wait for pending validation, arm auto-merge, use merge queue, use an App/bot or workflow identity, bypass protection, or retry against a changed candidate. Repository automation SHALL remain unable to merge an implementation-bound pull request through this delegated route.
 
 #### Scenario: Code pull request passes CI
-- **WHEN** all required automated checks pass for a code/operational pull request without a valid maintainer arm
+- **WHEN** all required automated checks pass for a code/operational pull request without a valid maintainer integration decision
 - **THEN** the pull request SHALL remain open
 - **AND** the agent SHALL report that an authorized integration choice is still required and that manual validation is optional
 
 #### Scenario: Maintainer has not accepted locally
-- **WHEN** the maintainer has neither manually merged nor personally armed native auto-merge for the exact candidate
+- **WHEN** the maintainer has neither manually merged, personally armed native auto-merge, nor explicitly requested an agent merge for the exact candidate
 - **THEN** neither the agent nor repository automation SHALL merge it or record human acceptance
 
 #### Scenario: Maintainer accepts and authorizes merge
@@ -184,14 +186,24 @@ For a finalized single-PR OpenSpec delivery, the pull request SHALL present one 
 - **THEN** the arm SHALL constitute acceptance of the listed scenarios for that exact candidate
 - **AND** GitHub MAY integrate it only after required current-head validation succeeds
 
+#### Scenario: Maintainer requests an agent merge
+- **WHEN** an authorized maintainer explicitly instructs the active agent to merge one identified finalized candidate that is currently green and mergeable
+- **THEN** the agent SHALL re-read the candidate and MAY perform a protected squash merge only for the instructed exact head using expected-head enforcement and the authorized human GitHub credential
+- **AND** that instruction and resulting direct merge SHALL constitute the maintainer's acceptance of the listed scenarios
+
+#### Scenario: Requested candidate is not currently eligible
+- **WHEN** the instructed PR is draft, stale, behind, conflicted, blocked, pending or failed, ambiguously identified, bound to another finalized head, or cannot be authoritatively read
+- **THEN** the agent SHALL leave it unmerged and report the blocker
+- **AND** SHALL NOT wait, watch, arm auto-merge, bypass protection, or retain standing authority
+
 #### Scenario: Maintainer integrates without manual validation
-- **WHEN** an authorized maintainer merges or arms a finalized current-head candidate without having manually tested it
+- **WHEN** an authorized maintainer directly merges, arms, or requests an agent merge for a finalized current-head candidate without having manually tested it
 - **THEN** that integration choice SHALL be as valid as one made after manual testing
 - **AND** no policy, check, or checkbox SHALL require evidence of manual validation
 
 #### Scenario: Candidate changes after review
-- **WHEN** a new commit or acceptance-list edit changes the pull-request candidate
-- **THEN** prior CI and any earlier human arm SHALL NOT authorize the new candidate
+- **WHEN** a new commit, acceptance-list edit, target advance, or finalization update changes the pull-request candidate
+- **THEN** prior CI and any earlier human arm or agent-merge instruction SHALL NOT authorize the new candidate
 - **AND** the maintainer SHALL make a new integration decision after renewed current-head validation
 
 ### Requirement: Automatic archival uses explicit implementation and acceptance evidence
@@ -729,7 +741,7 @@ A live-session editing claim SHALL be identified by the owning runtime and the a
 
 ### Requirement: Implementation progress is visible without changing acceptance semantics
 
-Every newly authored version-3 implementation-bound pull request SHALL present its approved scope under `Implementation` as two to ten distinct Markdown task-list items. Each item SHALL describe a delivered implementation outcome at a useful review granularity and SHALL remain separate from the detailed OpenSpec task ledger. Generic CI, review, approval, acceptance, merge, or archive steps SHALL NOT be represented as implementation-progress items, and no item SHALL name running, verifying, validating, recording evidence for, or manually testing work.
+Every newly authored version-3 implementation-bound pull request SHALL present its approved scope under `Implementation` as one or more distinct Markdown task-list items, with no fixed maximum item count. Each item SHALL describe a delivered implementation outcome at a useful review granularity and SHALL remain separate from the detailed OpenSpec task ledger. Generic CI, review, approval, acceptance, merge, or archive steps SHALL NOT be represented as implementation-progress items, and no item SHALL name running, verifying, validating, recording evidence for, or manually testing work.
 
 The agent SHALL leave each item unchecked during planning and SHALL change only its checkbox marker to checked after the associated code and its tests are written and detailed task bookkeeping is complete. Executing tests SHALL belong to CI after readiness, and manual validation SHALL NOT gate a checkbox. Adding, removing, reordering, or changing item wording after approval SHALL be an implementation-scope refinement requiring explicit maintainer approval and coherent planning-artifact reconciliation; affected scope SHALL remain unchecked until complete.
 
@@ -738,8 +750,21 @@ A pull request using Implementation task-list syntax SHALL NOT become ready or f
 #### Scenario: Draft exposes approved implementation scope
 
 - **WHEN** an agent creates a new version-3 draft delivery PR
-- **THEN** its `Implementation` section SHALL contain two to ten unchecked implementation-specific task items derived from the proposed scope
+- **THEN** its `Implementation` section SHALL contain at least one unchecked implementation-specific task item derived from the proposed scope
+- **AND** it SHALL permit additional distinct outcome-sized items without a fixed item-count maximum
 - **AND** GitHub's native task progress SHALL expose the completed and total implementation item counts
+
+#### Scenario: Focused change has one implementation outcome
+
+- **WHEN** the approved scope contains one independently understandable delivered code outcome
+- **THEN** the draft SHALL represent that scope with one Implementation item
+- **AND** it SHALL NOT invent or split scope merely to meet a minimum count above one
+
+#### Scenario: Large change has more than ten implementation outcomes
+
+- **WHEN** the approved scope contains more than ten independently completable delivered code outcomes
+- **THEN** the draft SHALL permit each outcome to remain a separate Implementation item
+- **AND** it SHALL NOT combine unrelated outcomes merely to meet a maximum item count
 
 #### Scenario: Agent completes one scope item
 
@@ -911,3 +936,36 @@ Before pushing implementation commits to the draft pull request, agents SHALL ru
 - **WHEN** CI has reported a specific failure and the agent needs to investigate it
 - **THEN** the agent MAY run the matching broader local command for that failure
 - **AND** that run SHALL NOT become a precondition for later pushes
+
+### Requirement: Claude Code sessions link the task worktree by name through the repository hook
+The repository SHALL provide Claude Code `WorktreeCreate` and `WorktreeRemove` command hooks under `scripts/governance/`, wired in the tracked `.claude/settings.json` through the session root variable, so that a fresh clone carries them. The create hook SHALL resolve the primary checkout from the hook input, SHALL accept only names made of letters, digits, dots, underscores, and dashes, SHALL create `.worktrees/<name>` detached at freshly fetched `origin/develop` when that path is not yet registered, SHALL print the registered path when it already exists, and SHALL fail for an unregistered directory at that path. The remove hook SHALL decline every removal and name `local-worktree-cleanup.mjs`. A Claude Code session SHALL link its task worktree with `EnterWorktree` by name, then create the `<type>/<short-description>` branch inside it, and SHALL use `EnterWorktree` by path only for a worktree created by hand, from the primary checkout, before any shell command in that session.
+
+#### Scenario: Session enters a new task worktree by name
+- **WHEN** a Claude Code session calls `EnterWorktree` with a task name that has no worktree yet
+- **THEN** the hook SHALL create `{working-dir}/.worktrees/<name>` detached at fresh `origin/develop` and Claude Code SHALL anchor the session there without an approval prompt
+- **AND** the agent SHALL create the task branch inside that worktree before editing
+
+#### Scenario: Session resumes an existing task worktree by name
+- **WHEN** `.worktrees/<name>` is already a registered worktree of the repository
+- **THEN** the hook SHALL print that path so the session re-enters the same worktree, branch, and history
+
+#### Scenario: Hook receives an unsafe name or an unregistered directory
+- **WHEN** the requested name contains a path separator or parent reference, or `.worktrees/<name>` exists without being registered
+- **THEN** the hook SHALL fail and Claude Code SHALL NOT enter any worktree
+
+#### Scenario: Claude Code asks to remove a worktree
+- **WHEN** `ExitWorktree(remove)` or the exit prompt requests removal
+- **THEN** the remove hook SHALL decline and the worktree SHALL remain until `local-worktree-cleanup.mjs` removes it with verified evidence
+
+### Requirement: Trusted automation re-promotes a complete finalized draft
+When a finalized version-3 pull request is returned to draft with every Implementation item still checked, trusted finalization SHALL run on that conversion and SHALL mark it ready again once its body fence names the exact head as finalized and the tree holds exactly that archived form with no active change. It SHALL keep every other promotion check and SHALL NOT write the branch while promoting.
+
+#### Scenario: Finalized pull request returned to draft
+- **WHEN** a maintainer or agent converts a finalized, fully checked pull request to draft
+- **THEN** trusted automation SHALL mark it ready again
+- **AND** the following reconciliation SHALL find it already finalized and change nothing
+
+#### Scenario: Fence no longer matches the tree
+- **WHEN** the body fence names the head as finalized but the tree lacks that archive or holds the active change again
+- **THEN** trusted automation SHALL leave the pull request draft
+- **AND** the finalization run SHALL fail with the stable reason `draft-finalization-redraft-form`

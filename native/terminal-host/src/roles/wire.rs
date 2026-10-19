@@ -108,16 +108,35 @@ fn default_unresponsive_restart_seconds() -> u64 {
     120
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Surface {
     #[serde(default)]
     pub tab_id: String,
+    #[serde(default)]
+    pub incarnation: u64,
     pub revision: u64,
+    /// The client's generation for the view request this response answers. The server stamps it
+    /// per destination; holder-produced live surfaces leave it zero.
+    #[serde(default)]
+    pub request_generation: u64,
+    #[serde(with = "protocol::bytes")]
     pub bytes: Vec<u8>,
+    /// Present only when both hops negotiated `structured-surface`. `bytes` remains the complete
+    /// legacy fallback and is empty on a structured-only delivery.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub structured: Option<protocol::StructuredSurface>,
     pub status: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub accent: Option<String>,
+    /// True when the server re-offers a retained surface that the holder produced earlier; a
+    /// view switch commits a stale surface only after its bounded fresh-frame wait expires.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub stale: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub modes: Option<protocol::TerminalModes>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor: Option<protocol::SurfaceCursor>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -132,6 +151,21 @@ pub struct TabStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SurfaceSubscription {
     pub enabled: bool,
+    /// True only while the input controller for this tab negotiated one-shot terminal effects.
+    /// Read-only viewers and visual subscriptions never grant clipboard authority.
+    #[serde(default)]
+    pub effects: bool,
+    /// True only when holder/server and every currently interested server/attach route support
+    /// complete row/cell snapshots. A legacy viewer keeps the complete ANSI fallback available.
+    #[serde(default)]
+    pub structured: bool,
+    /// A complete ANSI fallback is required while any interested route lacks structured support.
+    #[serde(default = "default_true")]
+    pub legacy: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,6 +184,13 @@ pub struct TabCreate {
 #[serde(rename_all = "camelCase")]
 pub struct TabTarget {
     pub tab_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewTarget {
+    pub tab_id: String,
+    #[serde(default)]
+    pub request_generation: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -190,8 +231,9 @@ pub struct PasteStart {
     pub epoch: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Input {
+    #[serde(with = "protocol::bytes")]
     pub bytes: Vec<u8>,
     #[serde(default)]
     pub paste: bool,
@@ -199,12 +241,17 @@ pub struct Input {
     pub epoch: u64,
 }
 
+pub type SemanticInput = protocol::SemanticInput;
+pub type TerminalEffect = protocol::TerminalEffect;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Resize {
     pub columns: u16,
     pub rows: u16,
     #[serde(default)]
     pub epoch: u64,
+    #[serde(default)]
+    pub geometry_generation: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -229,10 +276,13 @@ pub type HolderRespawn = protocol::HolderRespawn;
 pub type HolderSnapshot = protocol::HolderSnapshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BridgeSession {
     pub file: Option<String>,
     pub name: Option<String>,
-    #[serde(default)]
+    /// Protocol: the child sends `nameSource`; without it every name defaulted to `user`, so
+    /// generated names never ran the strip's automatic title transition.
+    #[serde(default, alias = "name_source")]
     pub name_source: Option<String>,
 }
 

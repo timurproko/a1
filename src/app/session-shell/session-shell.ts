@@ -1,5 +1,5 @@
 import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
-import { createResponseCopyExecutor, hasAsyncClipboardOutput, responseCopyDestination, type OwnedResponseCopyExecutor } from "./response-copy-transport.js";
+import { createResponseCopyExecutor, responseCopyDestination, type OwnedResponseCopyExecutor } from "./response-copy-transport.js";
 import { MAX_COPY_CONTROL_BYTES, type CopyResult } from "./response-copy-protocol.js";
 import { PromptHistoryController } from "./prompt-history-controller.js";
 import type { PromptHistoryImageSidecarPort, PromptHistoryKind } from "../../contracts/owned-ui/index.js";
@@ -228,29 +228,23 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     // throw releases them in reverse, so a shell that never finished constructing holds nothing.
     const constructed: (() => void)[] = [() => host.disconnect(this)];
     try {
-      const terminalCopy = terminal !== undefined || hasAsyncClipboardOutput();
       this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
         execute: responseCopy?.execute ?? (this.#copyExecutor = createResponseCopyExecutor({
           ...(sharedClipboard === undefined ? {} : { pool: sharedClipboard.copy }),
           ...(terminal === undefined && clipboard === undefined ? {} : { destination: "terminal" }),
           ...(clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => clipboard!.writeText!(text, signal) }),
-          ...(terminalCopy ? { terminal: { submit: async (control, signal) => {
-            if (signal.aborted || this.#disposed || !this.#terminal.running) throw new Error("Copy canceled");
+          // Invariant: the owned host is the route contract. Resident and pseudoterminal children must not infer
+          // clipboard reachability from Node's view of stdout, and inactive presenters are fenced here.
+          terminal: { submit: async (control, signal) => {
+            if (signal.aborted || this.#disposed || !this.#terminal.running || !this.#terminal.attached) throw new Error("Copy canceled");
             // Performance: never grow the real terminal's pending buffer with another clipboard payload.
             if (terminal === undefined && process.stdout.writableLength + control.length > MAX_COPY_CONTROL_BYTES) {
               throw new Error("Clipboard terminal is busy");
             }
             this.#terminal.writeControl(control);
-          } } } : {}),
+          } },
         })),
         ...(responseCopy?.onEvent === undefined ? {} : { onEvent: responseCopy.onEvent }),
-        onFailure: result => {
-          if (this.#disposed || !this.#terminal.running) return;
-          this.root.appendWorkflowStatus(result.outcome === "timed-out" ? "Copy timed out; the clipboard did not respond."
-            : result.failure === "size" ? "Selection exceeds this clipboard route's size limit."
-            : "Could not copy the selection; the clipboard is unavailable.");
-          this.#terminal.requestRender();
-        },
       }) : null;
       constructed.push(() => { this.#responseCopy?.dispose(); this.#copyExecutor?.dispose(); });
       const readClipboard =async (signal: AbortSignal): Promise<PiShellClipboardContent | null> => {
@@ -281,6 +275,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         }),
         enableDockInputReuse: inputPresentation?.viewportReuse !== false,
         footerSessionName: this.#residentTabOptions === undefined,
+        hideSettingsCommand: this.#residentTabOptions !== undefined,
         persistentHistory: this.#customViewport && promptHistory !== undefined,
         ...(promptHistory === undefined ? {} : { historyEditor: promptHistory.editor }),
         onSubmit: text => { void this.submit(text).catch(() => this.#reportSubmissionError()); },
@@ -1430,6 +1425,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       return { outcome: "completed", diagnostic: null };
     }
     if (request.command === "settings" && request.selection === undefined && request.confirmed === undefined) {
+      if (this.#residentTabOptions !== undefined) return rejected("Settings is available from the global Settings tab.");
       this.showSettingsSelector();
       return { outcome: "completed", diagnostic: null };
     }
@@ -1784,6 +1780,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         }
         if (rendered) {
           try { void onClosed?.()?.catch(() => undefined); } catch { /* Rationale: a failed acknowledgement stays pending. */ }
+          this.#residentTabOptions?.closeOwnedRoute?.(route);
         }
       },
     });
@@ -1830,6 +1827,20 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#dialogId = dialog.id;
   }
 
+  openOwnedRoute(route: string): void {
+    if (this.#disposed) return;
+    // Invariant: a route requested before the runtime runs (the resident Settings bridge route arrives
+    // before start()) is retained, latest wins, and presented through the startup-route path once started.
+    if (!this.#terminal.running) {
+      this.#startupRoute = { route };
+      return;
+    }
+    const result = this.#openOwnedRoute(route);
+    if (result.outcome !== "completed" && result.diagnostic !== null) {
+      this.root.appendWorkflowMessage({ kind: "warning", message: result.diagnostic });
+    }
+  }
+
   hotkeysPresentation(): PiShellHotkeysPresentation {
     const presentation = this.root.hotkeysPresentation();
     return this.#residentTabOptions === undefined ? presentation : { ...presentation, residentTabs: true };
@@ -1840,6 +1851,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const separator = body.search(/\s/);
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
+    if (name === "settings" && this.#residentTabOptions !== undefined) {
+      return rejected("Settings is available from the global Settings tab.");
+    }
     if (this.#routeHost?.claims(name)) return this.#openOwnedRoute(name);
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {

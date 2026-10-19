@@ -41,7 +41,7 @@ export class ClipboardDiagnosticCapture {
     // Security: project only declared scalar fields. Never serialize the supplied event object or raw errors.
     this.#records.push({ source, phase: event.phase, atMs: scalar(event.atMs), request: event.request !== undefined && event.request < 0 ? -scalar(-event.request) : scalar(event.request), pending: scalar(event.pending), bytes: scalar(event.bytes), elapsedMs: scalar(event.elapsedMs),
       sourceUnits: scalar(event.sourceUnits), pendingBytes,
-      transport: ["native", "terminal", "provided", "injected"].includes(event.transport ?? "") ? event.transport! : "none",
+      transport: ["native", "terminal", "platform", "provided", "injected"].includes(event.transport ?? "") ? event.transport! : "none",
       outcome: ["ready", "failed", "canceled", "delivered", "submitted-unverified", "timed-out", "superseded"].includes(event.outcome ?? "") ? event.outcome! : "none" });
     if (this.#records.length > 128) this.#records.shift();
     this.#pending = JSON.stringify({ schema: "clipboard-diagnostics-v1", records: this.#records });

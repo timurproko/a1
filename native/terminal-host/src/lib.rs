@@ -13,6 +13,7 @@ pub mod identity;
 pub mod launch;
 pub mod protocol;
 pub mod roles;
+pub mod semantic_keys;
 pub mod session_lock;
 pub mod shell;
 

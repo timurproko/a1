@@ -242,13 +242,14 @@ async function captureReadyLaunch(
     throw new Error(`exact ${profileId} launch did not become input-ready within 15000ms: ${stderr}`);
   }, `launch-exit-${profileId}-${launchKind}`, async () => {
     // Rationale: Ctrl+D is the empty-editor exit. Ctrl+C only clears the editor,
-    // so forcing the wrapper tree immediately afterward can strand the supervisor's
-    // launch instance in uncertain reconciliation on Defender-enabled Windows.
+    // and loaded Defender runners can need more than two seconds to drain a graceful exit.
+    // Forcing the wrapper tree before that completes can strand the supervisor's launch
+    // instance in uncertain reconciliation.
     child.stdin?.write("\u0004");
     if (child.exitCode === null) {
       await Promise.race([
         new Promise<void>(resolvePromise => child.once("close", () => resolvePromise())),
-        new Promise<void>(resolvePromise => setTimeout(resolvePromise, 2_000)),
+        new Promise<void>(resolvePromise => setTimeout(resolvePromise, 5_000)),
       ]);
     }
     if (child.exitCode === null && child.pid) crossSpawn.sync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });
@@ -299,7 +300,9 @@ async function stopPackagedSupervisor(
   dataDir: string,
   releaseVerifiedIdleOwner: typeof import("../../../src/foundation/release/index.js")["releaseVerifiedIdleOwner"],
 ): Promise<void> {
-  const deadline = Date.now() + 5_000;
+  // Rationale: a force-stopped guardian is reconciled on the supervisor liveness cadence, which can
+  // consume almost five seconds on a loaded Defender runner before the verified idle check succeeds.
+  const deadline = Date.now() + 10_000;
   let owner: Parameters<typeof releaseVerifiedIdleOwner>[0] | null = null;
   while (Date.now() < deadline) {
     owner = JSON.parse(await readFile(endpointMetadataPath, "utf8")) as Parameters<typeof releaseVerifiedIdleOwner>[0];

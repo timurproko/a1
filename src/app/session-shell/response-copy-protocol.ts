@@ -17,7 +17,7 @@ export interface ResponseCopyEvent {
   readonly pending: number;
   readonly sourceUnits: number;
   readonly bytes?: number;
-  readonly transport?: "native" | "terminal" | "injected";
+  readonly transport?: "native" | "terminal" | "platform" | "injected";
   readonly outcome?: CopyOutcome;
 }
 /** One request per helper lifetime. Each source fragment is acknowledged before the next is sent. */
