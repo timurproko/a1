@@ -1741,7 +1741,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         structured: None,
         legacy_body: latest_surface.clone(),
         overlay: None,
-        cursor: None,
+        // Invariant: the launch frame hides the cursor until the first child surface places it.
+        cursor: Some(FinalCursor::Hidden),
         modes: None,
         columns,
         outer_rows,
@@ -1765,7 +1766,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut registry_revision = 0u64;
     let mut drag: Option<TabDrag> = None;
     let mut latest_modes: Option<TerminalModes> = None;
-    let mut latest_cursor: Option<FinalCursor> = None;
+    // Invariant: no cursor shows until a committed child surface places one.
+    let mut latest_cursor: Option<FinalCursor> = Some(FinalCursor::Hidden);
     let mut bindings = TabBindings::load(options.profile);
     // Concurrency: a shortcut can arrive after the server created a tab but before its registry
     // snapshot reaches this client; retain the requested ordinal until that snapshot arrives.
@@ -2309,7 +2311,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 latest_geometry_generation = 0;
                                 pending_terminal_effects.clear();
                                 latest_modes = None;
-                                latest_cursor = None;
+                                latest_cursor = Some(FinalCursor::Hidden);
                                 close_fallback = None;
                                 paint_current!(true);
                             } else if changed {

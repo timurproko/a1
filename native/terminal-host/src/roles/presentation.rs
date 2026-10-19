@@ -226,13 +226,15 @@ impl ViewModel {
         }
         // Invariant: from an empty strip too, the created tab waits for its first drawn frame, so
         // its body, status bar, and editor appear together without a bare cursor.
+        // The first view of a session, such as the tab attached at launch, waits the same way.
+        let first_view = self.committed_revision.is_none();
         if requested
-            && self.first_draw.as_deref() == Some(surface.tab_id.as_str())
+            && (first_view || self.first_draw.as_deref() == Some(surface.tab_id.as_str()))
             && surface_is_blank(&surface)
         {
             let deadline = self
                 .request_started
-                .unwrap_or(now)
+                .get_or_insert(now)
                 .checked_add(FIRST_DRAW_WAIT)
                 .unwrap_or(now);
             self.stale_candidate = Some((surface, deadline));
@@ -1175,8 +1177,32 @@ mod tests {
             }
         ));
 
+        // The tab attached at launch also waits for its first drawn frame.
+        let mut launch = ViewModel::new(None);
+        let mut launch_blank = blank.clone();
+        launch_blank.tab_id = "e".into();
+        assert_eq!(launch.offer(launch_blank.clone(), now, true), Offer::Parked);
+        assert_eq!(
+            launch.offer(launch_blank.clone(), now + Duration::from_millis(500), true),
+            Offer::Parked
+        );
+        assert!(
+            matches!(
+                launch.expire(now + FIRST_DRAW_WAIT, |_| true),
+                Some(Offer::Commit {
+                    requested: true,
+                    ..
+                })
+            ),
+            "the launch wait is bounded from the first offer, not renewed by each blank frame"
+        );
+
         // Switching to an existing tab is not delayed by a blank body.
         let mut switch = ViewModel::new(Some("a".into()));
+        assert!(matches!(
+            switch.offer(surface("a", 3, false), now, true),
+            Offer::Commit { .. }
+        ));
         switch.request_at("b", now);
         assert!(matches!(
             switch.offer(blank, now, true),
