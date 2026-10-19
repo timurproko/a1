@@ -318,6 +318,26 @@ typedef enum GHOSTTY_ENUM_TYPED {
 } GhosttyTerminalCursorStyle;
 
 /**
+ * A synchronized-output transition reached while processing VT input.
+ *
+ * @ingroup terminal
+ */
+typedef enum GHOSTTY_ENUM_TYPED {
+  /** No synchronized-output transition was reached. */
+  GHOSTTY_TERMINAL_VT_BOUNDARY_NONE = 0,
+
+  /** DEC synchronized output mode became active. */
+  GHOSTTY_TERMINAL_VT_BOUNDARY_SYNCHRONIZED_OUTPUT_BEGIN = 1,
+
+  /** DEC synchronized output mode became inactive through an explicit mode change. */
+  GHOSTTY_TERMINAL_VT_BOUNDARY_SYNCHRONIZED_OUTPUT_END = 2,
+
+  /** DEC synchronized output mode became inactive because the terminal was reset. */
+  GHOSTTY_TERMINAL_VT_BOUNDARY_SYNCHRONIZED_OUTPUT_RESET = 3,
+  GHOSTTY_TERMINAL_VT_BOUNDARY_MAX_VALUE = GHOSTTY_ENUM_MAX_VALUE,
+} GhosttyTerminalVtBoundary;
+
+/**
  * Scrollbar state for the terminal viewport.
  *
  * Represents the scrollable area dimensions needed to render a scrollbar.
@@ -1314,6 +1334,33 @@ GHOSTTY_API GhosttyResult ghostty_terminal_set(GhosttyTerminal terminal,
 GHOSTTY_API void ghostty_terminal_vt_write(GhosttyTerminal terminal,
                                 const uint8_t* data,
                                 size_t len);
+
+/**
+ * Write VT-encoded data through at most one synchronized-output transition.
+ *
+ * This uses the terminal's native VT parser as the sole authority for DEC
+ * synchronized-output mode. It may consume fewer than `len` bytes when a
+ * begin, end, or reset transition is reached, allowing an embedder to capture the
+ * terminal state before processing later bytes from the same transport read.
+ * If no transition is reached, all bytes are consumed. A successful call
+ * with non-empty input always consumes at least one byte.
+ *
+ * @param terminal The terminal handle (NULL returns GHOSTTY_INVALID_VALUE)
+ * @param data Pointer to the data to write
+ * @param len Length of the data in bytes
+ * @param[out] out_consumed Number of input bytes processed
+ * @param[out] out_boundary Transition reached, or NONE
+ * @return GHOSTTY_SUCCESS on success, or GHOSTTY_INVALID_VALUE if an output
+ *         pointer or terminal is NULL
+ *
+ * @ingroup terminal
+ */
+GHOSTTY_API GhosttyResult ghostty_terminal_vt_write_until_sync_boundary(
+    GhosttyTerminal terminal,
+    const uint8_t* data,
+    size_t len,
+    size_t* out_consumed,
+    GhosttyTerminalVtBoundary* out_boundary);
 
 /**
  * Scroll the terminal viewport.

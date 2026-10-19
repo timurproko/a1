@@ -106,6 +106,46 @@
       "semantics": "Development-only validated PR footer fixture; retain pending exposure review"
     },
     {
+      "role": "residentFixtureControlDir",
+      "key": "A1_RESIDENT_FIXTURE_CONTROL_DIR",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/fixture-control.ts",
+      "evidence": "test/foundation/resident-tabs/fixture-control.test.ts",
+      "semantics": "Isolated exact-artifact fault-control markers, scrubbed before extensions or tools inherit the child environment"
+    },
+    {
+      "role": "residentProgressObservationDir",
+      "key": "A1_RESIDENT_PROGRESS_OBSERVATION_DIR",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/progress-observation.ts",
+      "evidence": "test/foundation/resident-tabs/progress-observations.test.ts",
+      "semantics": "Opt-in exact-artifact progress observation destination, scrubbed before tools inherit the child environment"
+    },
+    {
+      "role": "residentProgressRunId",
+      "key": "A1_RESIDENT_PROGRESS_RUN_ID",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/progress-observation.ts",
+      "evidence": "test/foundation/resident-tabs/progress-observations.test.ts",
+      "semantics": "Bounded causal run identity for opt-in progress observations, scrubbed before tools inherit the child environment"
+    },
+    {
+      "role": "residentProgressTabId",
+      "key": "A1_RESIDENT_PROGRESS_TAB_ID",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/progress-observation.ts",
+      "evidence": "test/foundation/resident-tabs/progress-observations.test.ts",
+      "semantics": "Resident child observation identity retained after launch credentials are consumed, then scrubbed before tools run"
+    },
+    {
+      "role": "residentProgressTabIncarnation",
+      "key": "A1_RESIDENT_PROGRESS_TAB_INCARNATION",
+      "exposure": "integration",
+      "owner": "src/foundation/resident-tabs/progress-observation.ts",
+      "evidence": "test/foundation/resident-tabs/progress-observations.test.ts",
+      "semantics": "Resident child observation incarnation retained after launch credentials are consumed, then scrubbed before tools run"
+    },
+    {
       "role": "clipboardDiagnostics",
       "key": "A1_CLIPBOARD_DIAGNOSTICS",
       "exposure": "review",

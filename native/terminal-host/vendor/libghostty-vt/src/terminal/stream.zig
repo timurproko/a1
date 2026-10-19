@@ -510,6 +510,13 @@ pub fn Stream(comptime H: type) type {
             self.handler.deinit();
         }
 
+        /// Whether the VT parser is between control sequences. Embedders that segment writes at
+        /// semantic boundaries may use this only as an optimization; the parser remains the sole
+        /// authority for whether processing changes terminal state.
+        pub inline fn isGround(self: *const Self) bool {
+            return self.parser.state == .ground;
+        }
+
         /// Process a string of characters.
         pub inline fn nextSlice(self: *Self, input: []const u8) void {
             // Disable SIMD optimizations if build requests it or if our

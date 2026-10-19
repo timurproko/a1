@@ -94,7 +94,6 @@ setInterval(() => {}, 1000);
         "{}",
         competing.output_text()
     );
-    competing.write(b"read-only-input\r");
     competing.write(b"\x03\x03");
     assert!(competing.wait(Duration::from_secs(8)).success());
     drop(competing);
@@ -465,7 +464,7 @@ fn blocked_registry_sync_times_out_without_stalling_server_progress() {
 }
 
 #[test]
-fn input_reaches_the_viewed_tab_while_its_terminal_waits_for_a_start_slot() {
+fn input_waits_for_its_requested_tab_while_that_tab_waits_for_a_start_slot() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
@@ -549,14 +548,14 @@ setInterval(() => {}, 1000);
     attach.write(b"\x1ba");
     std::thread::sleep(Duration::from_millis(300));
 
-    let typed_at = Instant::now();
+    // Invariant: input after New Agent belongs to that requested target. It must not leak to the
+    // old viewed child while the lifecycle slot is occupied, and is delivered once the target runs.
     attach.write(b"while-starting\n");
     assert!(
-        attach.output_containing("echo:while-starting", Duration::from_secs(4)),
-        "input waited behind the tab start: {}",
+        !attach.output_containing("echo:while-starting", Duration::from_secs(4)),
+        "input reached the old viewed tab before the requested tab existed: {}",
         attach.output_text()
     );
-    assert!(typed_at.elapsed() < Duration::from_secs(4));
 
     let occupying = occupying
         .wait_with_output()
@@ -565,6 +564,11 @@ setInterval(() => {}, 1000);
         occupying.status.success(),
         "{}",
         String::from_utf8_lossy(&occupying.stderr)
+    );
+    assert!(
+        attach.output_containing("echo:while-starting", Duration::from_secs(30)),
+        "deferred input did not reach the requested tab: {}",
+        attach.output_text()
     );
     let deadline = Instant::now() + Duration::from_secs(40);
     loop {

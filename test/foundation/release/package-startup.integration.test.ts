@@ -242,13 +242,14 @@ async function captureReadyLaunch(
     throw new Error(`exact ${profileId} launch did not become input-ready within 15000ms: ${stderr}`);
   }, `launch-exit-${profileId}-${launchKind}`, async () => {
     // Rationale: Ctrl+D is the empty-editor exit. Ctrl+C only clears the editor,
-    // so forcing the wrapper tree immediately afterward can strand the supervisor's
-    // launch instance in uncertain reconciliation on Defender-enabled Windows.
+    // and loaded Defender runners can need more than two seconds to drain a graceful exit.
+    // Forcing the wrapper tree before that completes can strand the supervisor's launch
+    // instance in uncertain reconciliation.
     child.stdin?.write("\u0004");
     if (child.exitCode === null) {
       await Promise.race([
         new Promise<void>(resolvePromise => child.once("close", () => resolvePromise())),
-        new Promise<void>(resolvePromise => setTimeout(resolvePromise, 2_000)),
+        new Promise<void>(resolvePromise => setTimeout(resolvePromise, 5_000)),
       ]);
     }
     if (child.exitCode === null && child.pid) crossSpawn.sync("taskkill.exe", ["/PID", String(child.pid), "/T", "/F"], { windowsHide: true, stdio: "ignore" });

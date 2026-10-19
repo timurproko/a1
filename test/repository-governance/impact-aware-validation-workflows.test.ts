@@ -148,7 +148,7 @@ describe("impact-aware validation workflows", () => {
     expect(summary.env.PARTITION_SLUG).toBe("${{ matrix.partitionSlug || '' }}");
     expect(summary.run).toContain("${process.env.PARTITION_SLUG ? `-${process.env.PARTITION_SLUG}` : \"\"}-attempt-");
     // Invariant: certification, fuzzing, and host uploads stay with the build-and-probe job.
-    for (const name of ["Certify terminal fidelity and resident latency", "Run bounded terminal-host decoder fuzzing", "Upload terminal host contract artifacts", "Upload linked terminal library"]) {
+    for (const name of ["Run vendored Ghostty VT tests", "Certify terminal fidelity and resident latency", "Run bounded terminal-host decoder fuzzing", "Upload terminal host contract artifacts", "Upload linked terminal library"]) {
       expect(modular.steps.find((step: any) => step.name === name).if, name).toContain("matrix.terminalHost");
     }
     // Rationale: the role suite warmed every resident launch path before certification; one unmeasured pass
@@ -163,6 +163,9 @@ describe("impact-aware validation workflows", () => {
     const parity = certify.indexOf("verify-interaction-parity.mjs");
     expect(parity).toBeGreaterThan(certify.indexOf("verify-terminal-fidelity.mjs"));
     expect(parity).toBeLessThan(certify.indexOf(warmUp));
+    const parallel = certify.indexOf("verify-resident-parallel-progress.mjs");
+    expect(parallel).toBeGreaterThan(parity);
+    expect(parallel).toBeLessThan(certify.indexOf(warmUp));
     expect(certify.indexOf(warmUp)).toBeLessThan(certify.indexOf(measured));
     expect(certify.split("measure-resident-tabs.mjs")).toHaveLength(3);
     // Invariant: the warm-up's leftover host processes are stopped before the measured pass starts.
@@ -178,6 +181,7 @@ describe("impact-aware validation workflows", () => {
     expect(certify.endsWith(`${measured}\n`) || certify.endsWith(measured)).toBe(true);
     const upload = modular.steps.find((step: any) => step.name === "Upload terminal host contract artifacts");
     expect(upload.with.path).toContain(".artifacts/terminal-host/${{ matrix.terminalHostAddon }}");
+    expect(upload.with.path).toContain("parallel-progress-${{ matrix.platform }}-${{ matrix.architecture }}.json");
     expect(upload.with.path).not.toContain("a1_session_lock.node");
   });
 

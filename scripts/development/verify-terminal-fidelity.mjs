@@ -33,7 +33,8 @@ if (!host) {
   const selection = selectionLines.some(line => line.includes('"probe":"selection-passed"'));
   const required = [
     "keyEncoding", "kittyKeys", "textImeEncoding", "mouseEncoding", "paneRelativeMouse",
-    "bracketedPaste", "clipboardOsc52", "hyperlinkOsc8", "cursorShape",
+    "bracketedPaste", "clipboardOsc52", "syntheticClipboardEffect", "hyperlinkTargetAndId",
+    "semanticAttributes", "paletteAndDefaultColors", "cursorShapeAndBlink", "interactionModes",
     "wideCombiningUnicode", "alternateScreen", "imageTextFallback", "faintIntensity",
   ];
   const missing = required.filter(key => fidelity[key] !== true);

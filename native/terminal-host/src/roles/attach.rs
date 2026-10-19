@@ -1,7 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{Write, stdout};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+    mpsc,
+};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -20,17 +24,31 @@ use crate::protocol::{
 };
 use crate::roles::credentials::ProfileCredentials;
 use crate::roles::outer_input::{self, InputChannel, Outgoing};
-use crate::roles::presentation::{FinalCursor, Frame, Offer, TopologyAction, ViewModel};
+#[cfg(test)]
+use crate::roles::presentation::Frame;
+use crate::roles::presentation::{
+    DesiredPresentation, FinalCursor, Offer, PresentationComposer, TopologyAction, ViewModel,
+};
+use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
 use crate::roles::wire::{
     self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList,
-    TabRename, TabReorder, TabStatus, TabTarget,
+    TabRename, TabReorder, TabStatus, TabTarget, ViewTarget,
 };
 
 pub const ENTER_OUTER_MODES: &[u8] =
     b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h";
 pub const RESTORE_OUTER_MODES: &[u8] =
     b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+pub const RESET_OUTER_COLORS: &[u8] = b"\x1b]104\x07\x1b]110\x07\x1b]111\x07\x1b]112\x07";
+const ATTACH_SERVER_QUEUE_BYTES: usize = 4 * 1024 * 1024;
+const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
+const ATTACH_INGRESS_BYTES: usize = 4 * 1024 * 1024;
+const ATTACH_INGRESS_FRAMES: usize = 8;
+const DEFERRED_INPUT_BYTES: usize = 4 * 1024 * 1024;
+const DEFERRED_INPUT_FRAMES: usize = 64;
+const OUTER_EFFECT_QUEUE_BYTES: usize = 4 * 1024 * 1024;
+const OUTER_CONTROL_QUEUE_FRAMES: usize = 8;
 #[cfg(test)]
 const BEGIN_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026h";
 #[cfg(test)]
@@ -1004,6 +1022,26 @@ pub fn without_bell(bytes: &[u8]) -> Vec<u8> {
     }
     output
 }
+
+fn admit_terminal_effect(
+    applied: &mut HashMap<(String, u64), u64>,
+    effect: &TerminalEffect,
+) -> bool {
+    let sequence = if effect.sequence == 0 {
+        effect.revision
+    } else {
+        effect.sequence
+    };
+    let last = applied
+        .entry((effect.tab_id.clone(), effect.incarnation))
+        .or_default();
+    if sequence <= *last {
+        return false;
+    }
+    *last = sequence;
+    true
+}
+
 pub fn tab_rows(outer_rows: u16) -> Result<u16, &'static str> {
     outer_rows
         .checked_sub(1)
@@ -1012,6 +1050,178 @@ pub fn tab_rows(outer_rows: u16) -> Result<u16, &'static str> {
 }
 pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
     outer_row.checked_sub(1)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum DeferredInputTarget {
+    Tab(String),
+    NextCreated,
+}
+
+#[derive(Debug, Default)]
+struct DeferredInput {
+    frames: VecDeque<(DeferredInputTarget, Vec<u8>)>,
+    bytes: usize,
+}
+
+impl DeferredInput {
+    fn push(
+        &mut self,
+        target: DeferredInputTarget,
+        frames: Vec<Vec<u8>>,
+    ) -> Result<(), &'static str> {
+        let added_bytes = frames
+            .iter()
+            .try_fold(0usize, |total, frame| total.checked_add(frame.len()))
+            .ok_or("deferred input byte limit reached")?;
+        let next_bytes = self
+            .bytes
+            .checked_add(added_bytes)
+            .filter(|bytes| *bytes <= DEFERRED_INPUT_BYTES)
+            .ok_or("deferred input byte limit reached")?;
+        if self.frames.len().saturating_add(frames.len()) > DEFERRED_INPUT_FRAMES {
+            return Err("deferred input frame limit reached");
+        }
+        self.bytes = next_bytes;
+        self.frames
+            .extend(frames.into_iter().map(|frame| (target.clone(), frame)));
+        Ok(())
+    }
+
+    fn retarget_created(&mut self, target: &str) {
+        for (frame_target, _) in &mut self.frames {
+            if *frame_target == DeferredInputTarget::NextCreated {
+                *frame_target = DeferredInputTarget::Tab(target.to_owned());
+            }
+        }
+    }
+
+    fn resolve(&mut self, target: &str) -> (Vec<Vec<u8>>, bool) {
+        let selected_target = DeferredInputTarget::Tab(target.to_owned());
+        let mut selected = Vec::new();
+        let mut dropped = false;
+        while let Some((frame_target, frame)) = self.frames.pop_front() {
+            if frame_target == selected_target {
+                selected.push(frame);
+            } else {
+                dropped = true;
+            }
+        }
+        self.bytes = 0;
+        (selected, dropped)
+    }
+
+    fn discard_tab(&mut self, target: &str) -> bool {
+        self.discard(&DeferredInputTarget::Tab(target.to_owned()))
+    }
+
+    fn discard_created(&mut self) -> bool {
+        self.discard(&DeferredInputTarget::NextCreated)
+    }
+
+    fn discard(&mut self, target: &DeferredInputTarget) -> bool {
+        let before = self.frames.len();
+        self.frames
+            .retain(|(frame_target, _)| frame_target != target);
+        self.bytes = self.frames.iter().map(|(_, frame)| frame.len()).sum();
+        self.frames.len() != before
+    }
+}
+
+struct AttachServerWriter {
+    sender: mpsc::SyncSender<Vec<u8>>,
+    reserved_bytes: Arc<AtomicUsize>,
+    failed: Arc<Mutex<Option<String>>>,
+}
+
+impl AttachServerWriter {
+    fn start(mut stream: endpoint::EndpointStream) -> Self {
+        let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(ATTACH_SERVER_QUEUE_FRAMES);
+        let reserved_bytes = Arc::new(AtomicUsize::new(0));
+        let failed = Arc::new(Mutex::new(None));
+        let writer_bytes = reserved_bytes.clone();
+        let writer_failed = failed.clone();
+        thread::spawn(move || {
+            while let Ok(frame) = receiver.recv() {
+                let result = stream
+                    .write_all(&frame)
+                    .and_then(|()| stream.flush())
+                    .map_err(|error| format!("write resident frame: {error}"));
+                writer_bytes.fetch_sub(frame.len(), Ordering::SeqCst);
+                if let Err(error) = result {
+                    if let Ok(mut failed) = writer_failed.lock() {
+                        *failed = Some(error);
+                    }
+                    return;
+                }
+            }
+        });
+        Self {
+            sender,
+            reserved_bytes,
+            failed,
+        }
+    }
+
+    fn failure(&self) -> Option<String> {
+        self.failed.lock().ok().and_then(|value| value.clone())
+    }
+}
+
+impl Write for AttachServerWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        if let Some(error) = self.failure() {
+            return Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, error));
+        }
+        self.reserved_bytes
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |reserved| {
+                reserved
+                    .checked_add(bytes.len())
+                    .filter(|next| *next <= ATTACH_SERVER_QUEUE_BYTES)
+            })
+            .map_err(|_| {
+                std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "resident server writer byte limit reached",
+                )
+            })?;
+        match self.sender.try_send(bytes.to_vec()) {
+            Ok(()) => Ok(bytes.len()),
+            Err(error) => {
+                self.reserved_bytes.fetch_sub(bytes.len(), Ordering::SeqCst);
+                Err(std::io::Error::new(
+                    if matches!(error, mpsc::TrySendError::Full(_)) {
+                        std::io::ErrorKind::WouldBlock
+                    } else {
+                        std::io::ErrorKind::BrokenPipe
+                    },
+                    "resident server writer queue is unavailable",
+                ))
+            }
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.failure().map_or(Ok(()), |error| {
+            Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, error))
+        })
+    }
+}
+
+enum ServerIngress {
+    Frame(Vec<u8>),
+    Failed(String),
+}
+
+struct IngressReservation {
+    bytes: Arc<AtomicUsize>,
+    len: usize,
+}
+
+impl Drop for IngressReservation {
+    fn drop(&mut self) {
+        self.bytes.fetch_sub(self.len, Ordering::SeqCst);
+    }
 }
 
 pub struct AttachOptions<'a> {
@@ -1056,6 +1266,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 "double-ctrl-c".into(),
                 protocol::FEATURE_SEMANTIC_INPUT.into(),
                 protocol::FEATURE_TERMINAL_EFFECTS.into(),
+                protocol::FEATURE_STRUCTURED_SURFACE.into(),
             ],
             token: credentials.client_token.to_vec(),
             tab_id: options.view_tab.map(str::to_owned),
@@ -1080,6 +1291,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         protocol::FEATURE_SEMANTIC_INPUT,
     ));
     let apply_effects = protocol::negotiated(&welcome.features, protocol::FEATURE_TERMINAL_EFFECTS);
+    let mut request_generation = 1u64;
     let attachment = wire::read_payload(&mut stream)?
         .ok_or_else(|| "server closed before attach admission".to_owned())?;
     match wire::kind(&attachment)?.message_type.as_str() {
@@ -1089,7 +1301,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         "refused" => return Err("a1 is attached in another terminal".to_owned()),
         message => return Err(format!("unexpected attach admission message: {message}")),
     }
-    let (mut columns, outer_rows) = outer_size()?;
+    let (mut columns, mut outer_rows) = outer_size()?;
+    let mut geometry_generation = 0u64;
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let environment = std::env::vars().collect::<Vec<_>>();
     let mut create = TabCreate {
@@ -1118,12 +1331,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         },
     )?;
     if let Some(tab_id) = options.view_tab {
+        request_generation = request_generation.saturating_add(1);
         wire::send(
             &mut stream,
             "tab.view",
             None,
-            TabTarget {
+            ViewTarget {
                 tab_id: tab_id.into(),
+                request_generation,
             },
         )?;
     }
@@ -1140,24 +1355,55 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut reader = stream
         .try_clone()
         .map_err(|error| format!("clone attach stream: {error}"))?;
-    let (message_tx, message_rx) = mpsc::channel::<Vec<u8>>();
+    let mut stream = AttachServerWriter::start(stream);
+    let (message_tx, message_rx) = mpsc::sync_channel::<ServerIngress>(ATTACH_INGRESS_FRAMES);
+    let ingress_bytes = Arc::new(AtomicUsize::new(0));
     // Performance: server frames and outer input both wake the loop directly, so neither waits
     // out the other side's idle poll; capacity one keeps wakes coalesced.
     let (wake_tx, wake_rx) = mpsc::sync_channel::<()>(1);
     let reader_wake = wake_tx.clone();
+    let reader_ingress_bytes = ingress_bytes.clone();
     thread::spawn(move || {
-        while let Ok(Some(payload)) = wire::read_payload(&mut reader) {
-            if message_tx.send(payload).is_err() {
+        loop {
+            let payload = match wire::read_payload(&mut reader) {
+                Ok(Some(payload)) => payload,
+                Ok(None) => {
+                    let _ = message_tx.send(ServerIngress::Failed(
+                        "resident server connection closed".into(),
+                    ));
+                    let _ = reader_wake.try_send(());
+                    return;
+                }
+                Err(error) => {
+                    let _ = message_tx.send(ServerIngress::Failed(error));
+                    let _ = reader_wake.try_send(());
+                    return;
+                }
+            };
+            let reserved =
+                reader_ingress_bytes.try_update(Ordering::SeqCst, Ordering::SeqCst, |current| {
+                    current
+                        .checked_add(payload.len())
+                        .filter(|next| *next <= ATTACH_INGRESS_BYTES)
+                });
+            if reserved.is_err() {
+                let _ = message_tx.send(ServerIngress::Failed(
+                    "resident server ingress byte limit reached".into(),
+                ));
+                let _ = reader_wake.try_send(());
+                return;
+            }
+            let len = payload.len();
+            if message_tx.send(ServerIngress::Frame(payload)).is_err() {
+                reader_ingress_bytes.fetch_sub(len, Ordering::SeqCst);
                 return;
             }
             let _ = reader_wake.try_send(());
         }
-        let _ = message_tx.send(Vec::new());
-        let _ = reader_wake.try_send(());
     });
 
     let mut terminal = OuterTerminal::enter()?;
-    let (input_tx, input_rx) = mpsc::channel::<Result<Event, String>>();
+    let (input_tx, input_rx) = mpsc::sync_channel::<Result<Event, String>>(1024);
     thread::spawn(move || {
         loop {
             let event = event::read().map_err(|error| format!("read outer terminal: {error}"));
@@ -1173,6 +1419,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     });
     let mut tabs = Vec::<StripTab>::new();
     let mut view = ViewModel::new(options.view_tab.map(str::to_owned));
+    view.expect_request_generation(request_generation);
     let mut hovered: Option<StripHover> = None;
     let mut time_format = TimeFormatWatch::new(options.settings_file);
     let mut strip_frame = strip::render_configured(
@@ -1183,17 +1430,27 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         time_format.value,
     );
     let mut latest_surface = Vec::<u8>::new();
-    if let Some(bytes) = (Frame {
-        strip: &strip_frame.bytes,
-        body: Some(&latest_surface),
+    let mut latest_structured = None;
+    let mut latest_incarnation = 0u64;
+    let mut latest_revision = 0u64;
+    let mut latest_geometry_generation = 0u64;
+    let mut pending_terminal_effects = VecDeque::<TerminalEffect>::new();
+    let mut applied_terminal_effects = HashMap::<(String, u64), u64>::new();
+    terminal.present(DesiredPresentation {
+        tab_id: view.viewed.clone(),
+        incarnation: latest_incarnation,
+        revision: latest_revision,
+        geometry_generation: latest_geometry_generation,
+        strip: strip_frame.bytes.clone(),
+        structured: None,
+        legacy_body: latest_surface.clone(),
         overlay: None,
         cursor: None,
+        modes: None,
+        columns,
+        outer_rows,
         clear: true,
-    })
-    .compose()
-    {
-        terminal.write(&bytes)?;
-    }
+    })?;
     let started = Instant::now();
     let mut last_strip_frame = Instant::now();
     let mut displayed_clock_minute = clock_minute();
@@ -1214,20 +1471,67 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut latest_modes: Option<TerminalModes> = None;
     let mut latest_cursor: Option<FinalCursor> = None;
     let mut bindings = TabBindings::load(options.profile);
+    // Concurrency: a shortcut can arrive after the server created a tab but before its registry
+    // snapshot reaches this client; retain the requested ordinal until that snapshot arrives.
+    let mut pending_jump = None::<(usize, u64)>;
+    let mut pending_created_activation = false;
+    let mut deferred_input = DeferredInput::default();
+    macro_rules! send_child_frames {
+        ($frames:expr) => {{
+            let frames: Vec<Vec<u8>> = $frames;
+            let deferred = if let Some(target) = view.requested.as_deref() {
+                Some(DeferredInputTarget::Tab(target.to_owned()))
+            } else if pending_created_activation {
+                Some(DeferredInputTarget::NextCreated)
+            } else {
+                None
+            };
+            if let Some(target) = deferred {
+                if deferred_input.push(target, frames).is_err() {
+                    user_input_pending = false;
+                    transient_notice = Some("Input was not sent; try again.".into());
+                    paint_current!(false);
+                }
+            } else {
+                for frame in frames {
+                    stream
+                        .write_all(&frame)
+                        .map_err(|error| format!("queue resident frame: {error}"))?;
+                }
+            }
+        }};
+    }
     macro_rules! send_input {
         ($event:expr, $legacy:expr) => {{
-            match channel.outgoing($event, $legacy) {
-                Some(Outgoing::Semantic(input)) => {
-                    wire::send(&mut stream, "input.event", None, input)?;
-                }
-                Some(Outgoing::Legacy(input)) => wire::send(&mut stream, "input", None, input)?,
-                None => {}
+            let frame = match channel.outgoing($event, $legacy) {
+                Some(Outgoing::Semantic(input)) => Some(wire::frame("input.event", None, input)?),
+                Some(Outgoing::Legacy(input)) => Some(wire::frame("input", None, input)?),
+                None => None,
+            };
+            if let Some(frame) = frame {
+                send_child_frames!(vec![frame]);
             }
+        }};
+    }
+    macro_rules! request_view {
+        ($tab_id:expr) => {{
+            let tab_id: String = $tab_id;
+            request_generation = request_generation.saturating_add(1);
+            view.request(&tab_id);
+            view.expect_request_generation(request_generation);
+            wire::send(
+                &mut stream,
+                "tab.view",
+                None,
+                ViewTarget {
+                    tab_id,
+                    request_generation,
+                },
+            )?;
         }};
     }
     macro_rules! paint_current {
         ($clear:expr) => {{
-            terminal.apply_cursor_style(latest_modes.as_ref())?;
             let rename_display = rename.as_ref().map(RenameEditor::display);
             strip_frame = strip::render_interactive(
                 &tabs,
@@ -1276,50 +1580,28 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             } else {
                 None
             };
-            let frame = Frame {
-                strip: &strip_frame.bytes,
-                body: Some(&latest_surface),
-                overlay: overlay.as_deref(),
+            terminal.present(DesiredPresentation {
+                tab_id: view.viewed.clone(),
+                incarnation: latest_incarnation,
+                revision: latest_revision,
+                geometry_generation: latest_geometry_generation,
+                strip: strip_frame.bytes.clone(),
+                structured: latest_structured.clone(),
+                legacy_body: latest_surface.clone(),
+                overlay,
                 cursor: latest_cursor,
+                modes: latest_modes.clone(),
+                columns,
+                outer_rows,
                 clear: $clear,
-            };
-            if let Some(bytes) = frame.compose() {
-                terminal.write(&bytes)?;
-            }
+            })?;
         }};
     }
-    // Performance: hover, clock, and title-animation damage repaints the strip alone and
-    // restores the committed child's cursor; without a known cursor or with an overlay that
-    // touches the body it falls back to the complete frame, so it never contradicts the view.
+    // Invariant: the composer compares the complete desired state, so strip-only damage is inferred without
+    // omitting the retained body from a replaceable queued update.
     macro_rules! paint_strip {
         () => {{
-            if latest_cursor.is_some()
-                && popup.is_none()
-                && drag.is_none()
-                && transient_notice.is_none()
-            {
-                let rename_display = rename.as_ref().map(RenameEditor::display);
-                strip_frame = strip::render_interactive(
-                    &tabs,
-                    view.viewed.as_deref(),
-                    columns,
-                    hovered.as_ref(),
-                    time_format.value,
-                    rename_display.as_ref(),
-                );
-                let frame = Frame {
-                    strip: &strip_frame.bytes,
-                    body: None,
-                    overlay: None,
-                    cursor: latest_cursor,
-                    clear: false,
-                };
-                if let Some(bytes) = frame.compose() {
-                    terminal.write(&bytes)?;
-                }
-            } else {
-                paint_current!(false);
-            }
+            paint_current!(false);
         }};
     }
     macro_rules! invoke_popup_action {
@@ -1342,14 +1624,27 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     }
                 }
                 PopupAction::NewAgent => {
+                    pending_created_activation = true;
                     wire::send(&mut stream, "tab.create", None, create.clone())?;
                 }
                 PopupAction::Settings => {
+                    pending_created_activation = true;
                     wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
                 }
                 PopupAction::View(tab_id) => {
-                    view.requested = Some(tab_id.clone());
-                    wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                    request_view!(tab_id);
+                }
+            }
+        }};
+    }
+    macro_rules! apply_terminal_effect {
+        ($effect:expr) => {{
+            let effect: &TerminalEffect = $effect;
+            if admit_terminal_effect(&mut applied_terminal_effects, effect) {
+                match &effect.effect {
+                    EffectKind::ClipboardWrite { location, data, .. } => {
+                        terminal.write(&outer_input::osc52(*location, data))?;
+                    }
                 }
             }
         }};
@@ -1371,6 +1666,22 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     popup = None;
                     prompt_view = view.viewed.clone();
                 }
+                // Protocol: input typed after a view request remains bound to that target and is
+                // released only after its coherent surface commits and its holder is routable.
+                let (frames, mut dropped) = deferred_input.resolve(&surface.tab_id);
+                if surface.status == "failed" {
+                    dropped |= !frames.is_empty();
+                } else {
+                    for frame in frames {
+                        stream
+                            .write_all(&frame)
+                            .map_err(|error| format!("queue deferred resident input: {error}"))?;
+                    }
+                }
+                if dropped {
+                    user_input_pending = false;
+                    transient_notice = Some("Input was not sent; try again.".into());
+                }
             }
             if surface.status == "failed" {
                 failed_tab = Some(surface.tab_id.clone());
@@ -1382,24 +1693,88 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 tab.accent = surface.accent.clone();
             }
             latest_surface = without_bell(&surface.bytes);
+            latest_structured = surface.structured.clone();
+            latest_incarnation = surface.incarnation;
+            latest_revision = surface.revision;
+            latest_geometry_generation = surface
+                .structured
+                .as_ref()
+                .map_or(latest_geometry_generation, |structured| {
+                    structured.geometry_generation
+                });
             latest_modes = surface.modes.clone();
             latest_cursor = surface
                 .cursor
                 .map(FinalCursor::At)
                 .or_else(|| surface.modes.as_ref().map(|_| FinalCursor::Hidden));
+            let mut deferred = VecDeque::new();
+            while let Some(effect) = pending_terminal_effects.pop_front() {
+                if effect.tab_id != surface.tab_id || effect.incarnation != surface.incarnation {
+                    continue;
+                }
+                if effect.revision <= surface.revision {
+                    apply_terminal_effect!(&effect);
+                } else {
+                    deferred.push_back(effect);
+                }
+            }
+            pending_terminal_effects = deferred;
             paint_current!(false);
         }};
     }
     loop {
         watchdog.bump();
-        while let Ok(payload) = message_rx.try_recv() {
-            if payload.is_empty() {
-                return Err("resident server connection closed".to_owned());
-            }
+        if let Some(error) = stream.failure() {
+            return Err(error);
+        }
+        let server_round_started = Instant::now();
+        let mut server_round_bytes = 0usize;
+        for _ in 0..8 {
+            let Ok(message) = message_rx.try_recv() else {
+                break;
+            };
+            let payload = match message {
+                ServerIngress::Frame(payload) => payload,
+                ServerIngress::Failed(error) => return Err(error),
+            };
+            let _reservation = IngressReservation {
+                bytes: ingress_bytes.clone(),
+                len: payload.len(),
+            };
+            server_round_bytes = server_round_bytes.saturating_add(payload.len());
             let kind = wire::kind(&payload)?;
             match kind.message_type.as_str() {
                 "surface" => {
                     let (_, surface): (_, Surface) = wire::body(&payload)?;
+                    if let Some(structured) = surface.structured.as_ref()
+                        && (structured.validate().is_err()
+                            || (view.viewed.as_deref() == Some(surface.tab_id.as_str())
+                                && surface.incarnation == latest_incarnation
+                                && structured.geometry_generation < latest_geometry_generation))
+                    {
+                        continue;
+                    }
+                    crate::roles::fixture_control::delay(
+                        "attach-receipt",
+                        &surface.tab_id,
+                        Duration::from_millis(35),
+                    );
+                    progress_observation::observe(
+                        "attach",
+                        "attach-receipt",
+                        ProgressMetadata {
+                            tab_id: Some(&surface.tab_id),
+                            incarnation: surface.incarnation,
+                            revision: surface.revision,
+                            geometry_generation: surface
+                                .structured
+                                .as_ref()
+                                .map_or(0, |structured| structured.geometry_generation),
+                            bytes: payload.len(),
+                            count: 1,
+                            ..ProgressMetadata::default()
+                        },
+                    );
                     let listed = tabs.iter().any(|tab| tab.id == surface.tab_id);
                     if let Offer::Commit {
                         surface,
@@ -1424,14 +1799,20 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "terminal.effect" => {
                     let (_, effect): (_, TerminalEffect) = wire::body(&payload)?;
-                    // Invariant: only the committed view's effects reach the outer terminal, and
-                    // each one is applied exactly once without entering any visible frame.
+                    // Concurrency: the control lane may overtake a replaceable surface slot. Defer the effect
+                    // until its coherent revision is committed, then deduplicate by incarnation
+                    // and sequence; reconstruction and stale re-offers can never replay it.
                     if apply_effects
                         && view.viewed.as_deref() == Some(effect.tab_id.as_str())
                         && protocol::validate_effect(&effect.effect).is_ok()
                     {
-                        let EffectKind::ClipboardWrite { location, data, .. } = effect.effect;
-                        terminal.write(&outer_input::osc52(location, &data))?;
+                        if effect.incarnation == latest_incarnation
+                            && effect.revision <= latest_revision
+                        {
+                            apply_terminal_effect!(&effect);
+                        } else if pending_terminal_effects.len() < 256 {
+                            pending_terminal_effects.push_back(effect);
+                        }
                     }
                 }
                 "tab.status" => {
@@ -1455,7 +1836,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.list" => {
                     let (_, list): (_, TabList) = wire::body(&payload)?;
-                    registry_revision = list.revision;
+                    let list_revision = list.revision;
+                    registry_revision = list_revision;
                     let previous_tabs = view.staged_tabs().unwrap_or(&tabs);
                     let pending_name_confirmed =
                         pending_manual_name.as_ref().is_some_and(|(id, name)| {
@@ -1497,13 +1879,31 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     if pending_name_confirmed {
                         pending_manual_name = None;
                     }
+                    if let Some((index, requested_revision)) = pending_jump {
+                        if let Some(tab_id) = next_tabs.get(index).map(|tab| tab.id.clone()) {
+                            pending_jump = None;
+                            request_view!(tab_id);
+                        } else if list_revision > requested_revision {
+                            // Protocol: a newer authoritative registry still lacking the ordinal
+                            // proves this was not an in-flight tab creation.
+                            pending_jump = None;
+                        }
+                    }
                     let outcome = view.topology(&tabs, next_tabs, |candidates| {
                         close_fallback
                             .as_ref()
                             .and_then(|fallback| fallback.resolve(candidates))
                     });
+                    if outcome
+                        .dropped_request
+                        .as_deref()
+                        .is_some_and(|target| deferred_input.discard_tab(target))
+                    {
+                        user_input_pending = false;
+                        transient_notice = Some("Input was not sent; try again.".into());
+                    }
                     if let Some(tab_id) = outcome.view_request {
-                        wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                        request_view!(tab_id);
                     }
                     match outcome.action {
                         TopologyAction::Commit {
@@ -1551,6 +1951,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             if tabs.is_empty() {
                                 view.clear();
                                 latest_surface.clear();
+                                latest_structured = None;
+                                latest_incarnation = 0;
+                                latest_revision = 0;
+                                latest_geometry_generation = 0;
+                                pending_terminal_effects.clear();
                                 latest_modes = None;
                                 latest_cursor = None;
                                 close_fallback = None;
@@ -1563,8 +1968,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.created" | "tab.selected" => {
                     let (_, target): (_, TabTarget) = wire::body(&payload)?;
-                    view.requested = Some(target.tab_id.clone());
-                    wire::send(&mut stream, "tab.view", None, target)?;
+                    pending_created_activation = false;
+                    deferred_input.retarget_created(&target.tab_id);
+                    request_view!(target.tab_id);
                     wire::send(
                         &mut stream,
                         "tab.list",
@@ -1577,7 +1983,13 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.create-failed" | "tab.create-refused" => {
                     let (_, result): (_, wire::ResultBody) = wire::body(&payload)?;
+                    if let Some(target) = view.requested.as_deref() {
+                        deferred_input.discard_tab(target);
+                    }
+                    deferred_input.discard_created();
+                    pending_created_activation = false;
                     view.cancel_request();
+                    user_input_pending = false;
                     transient_notice = Some(tab_create_failure_notice(result.message.as_deref()));
                     paint_current!(false);
                 }
@@ -1725,6 +2137,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     let _: (Option<u64>, BridgeAttachment) = wire::body(&payload)?;
                 }
                 _ => {}
+            }
+            if server_round_bytes >= 64 * 1024
+                || server_round_started.elapsed() >= Duration::from_millis(2)
+            {
+                break;
             }
         }
         if let Some(Offer::Commit {
@@ -1896,9 +2313,13 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 if let Some(action) = bindings.action(&key) {
                     match action {
-                        "tabs.new" => wire::send(&mut stream, "tab.create", None, create.clone())?,
+                        "tabs.new" => {
+                            pending_created_activation = true;
+                            wire::send(&mut stream, "tab.create", None, create.clone())?;
+                        }
                         "tabs.settings" => {
-                            wire::send(&mut stream, "tab.open-settings", None, create.clone())?
+                            pending_created_activation = true;
+                            wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
                         }
                         "tabs.close" => {
                             if let Some(tab_id) = view.viewed.clone() {
@@ -1934,8 +2355,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     (current + tabs.len() - 1) % tabs.len()
                                 };
                                 let tab_id = tabs[index].id.clone();
-                                view.requested = Some(tab_id.clone());
-                                wire::send(&mut stream, "tab.view", None, TabTarget { tab_id })?;
+                                request_view!(tab_id);
                             }
                         }
                         "tabs.moveRight" | "tabs.moveLeft" => {
@@ -1966,15 +2386,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 .unwrap_or(1)
                                 .saturating_sub(1);
                             if let Some(tab) = tabs.get(index) {
-                                view.requested = Some(tab.id.clone());
-                                wire::send(
-                                    &mut stream,
-                                    "tab.view",
-                                    None,
-                                    TabTarget {
-                                        tab_id: tab.id.clone(),
-                                    },
-                                )?;
+                                pending_jump = None;
+                                request_view!(tab.id.clone());
+                            } else {
+                                pending_jump = Some((index, registry_revision));
                             }
                         }
                         _ => {}
@@ -2055,18 +2470,16 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 chord.reset();
                 let bytes = text.into_bytes();
                 user_input_pending = true;
-                wire::send(
-                    &mut stream,
+                let mut frames = vec![wire::frame(
                     "paste.start",
                     None,
                     PasteStart {
                         bytes: bytes.len(),
                         epoch: 0,
                     },
-                )?;
+                )?];
                 for chunk in bytes.chunks(MAX_INPUT_BYTES) {
-                    wire::send(
-                        &mut stream,
+                    frames.push(wire::frame(
                         "input",
                         None,
                         Input {
@@ -2074,28 +2487,35 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             paste: true,
                             epoch: 0,
                         },
-                    )?;
+                    )?);
                 }
+                send_child_frames!(frames);
             }
             Event::Resize(cols, rows) => {
-                let rows = tab_rows(rows).map_err(str::to_owned)?;
+                outer_rows = rows;
+                let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
+                geometry_generation = geometry_generation.saturating_add(1);
                 columns = cols;
                 create.columns = cols;
                 create.rows = rows;
                 if let Some(menu) = popup.as_mut() {
                     menu.resize(columns);
                 }
+                // Invariant: the old viewport is never combined with new strip/overlay coordinates.
+                latest_surface.clear();
+                latest_structured = None;
+                latest_cursor = Some(FinalCursor::Hidden);
                 paint_current!(true);
-                wire::send(
-                    &mut stream,
+                send_child_frames!(vec![wire::frame(
                     "resize",
                     None,
                     Resize {
                         columns: cols,
                         rows,
                         epoch: 0,
+                        geometry_generation,
                     },
-                )?;
+                )?]);
             }
             Event::FocusGained if !failed => {
                 wire::send(
@@ -2235,13 +2655,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     expected_revision: registry_revision,
                                 });
                                 if view.viewed.as_deref() != Some(tab_id.as_str()) {
-                                    view.requested = Some(tab_id.clone());
-                                    wire::send(
-                                        &mut stream,
-                                        "tab.view",
-                                        None,
-                                        TabTarget { tab_id },
-                                    )?;
+                                    request_view!(tab_id);
                                 }
                             }
                             Some(StripHit::New) => {
@@ -2415,59 +2829,204 @@ fn kitty_query_answered(bytes: &[u8]) -> bool {
     })
 }
 
+enum OuterWrite {
+    Wake,
+    Bytes(Vec<u8>),
+    Finish(Vec<u8>, mpsc::SyncSender<Result<(), String>>),
+}
+
+struct OuterWriter {
+    control: mpsc::SyncSender<OuterWrite>,
+    latest: Arc<Mutex<Option<DesiredPresentation>>>,
+    signaled: Arc<AtomicBool>,
+    effect_bytes: Arc<AtomicUsize>,
+    failed: Arc<Mutex<Option<String>>>,
+}
+
+impl OuterWriter {
+    fn start() -> Self {
+        let (control, receiver) = mpsc::sync_channel::<OuterWrite>(OUTER_CONTROL_QUEUE_FRAMES);
+        let latest = Arc::new(Mutex::new(None::<DesiredPresentation>));
+        let signaled = Arc::new(AtomicBool::new(false));
+        let effect_bytes = Arc::new(AtomicUsize::new(0));
+        let failed = Arc::new(Mutex::new(None));
+        let thread_latest = latest.clone();
+        let thread_signaled = signaled.clone();
+        let thread_effect_bytes = effect_bytes.clone();
+        let thread_failed = failed.clone();
+        thread::spawn(move || {
+            let mut composer = PresentationComposer::default();
+            let mut out = stdout().lock();
+            loop {
+                let command = receiver.recv_timeout(Duration::from_millis(8));
+                let result = match command {
+                    Ok(OuterWrite::Bytes(bytes)) => {
+                        let len = bytes.len();
+                        let result = out
+                            .write_all(&bytes)
+                            .and_then(|()| out.flush())
+                            .map_err(|error| format!("write outer terminal: {error}"));
+                        thread_effect_bytes.fetch_sub(len, Ordering::SeqCst);
+                        result
+                    }
+                    Ok(OuterWrite::Finish(bytes, done)) => {
+                        let result = out
+                            .write_all(&bytes)
+                            .and_then(|()| out.flush())
+                            .map_err(|error| format!("restore outer terminal: {error}"));
+                        let _ = done.send(result.clone());
+                        return;
+                    }
+                    Ok(OuterWrite::Wake) | Err(mpsc::RecvTimeoutError::Timeout) => Ok(()),
+                    Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                };
+                if let Err(error) = result {
+                    if let Ok(mut failed) = thread_failed.lock() {
+                        *failed = Some(error);
+                    }
+                    return;
+                }
+                thread_signaled.store(false, Ordering::SeqCst);
+                let desired = thread_latest.lock().ok().and_then(|mut slot| slot.take());
+                if let Some(desired) = desired {
+                    if desired.tab_id.as_deref().is_some_and(|tab_id| {
+                        crate::roles::fixture_control::stopped("outer-paint", tab_id)
+                    }) {
+                        continue;
+                    }
+                    match composer.prepare(&desired) {
+                        Ok(Some(prepared)) => {
+                            let result = out
+                                .write_all(&prepared.bytes)
+                                .and_then(|()| out.flush())
+                                .map_err(|error| format!("write outer presentation: {error}"));
+                            if let Err(error) = result {
+                                if let Ok(mut failed) = thread_failed.lock() {
+                                    *failed = Some(error);
+                                }
+                                return;
+                            }
+                            if let Some(tab_id) = prepared.tab_id.as_deref() {
+                                progress_observation::observe(
+                                    "attach",
+                                    "outer-paint",
+                                    ProgressMetadata {
+                                        tab_id: Some(tab_id),
+                                        incarnation: prepared.incarnation,
+                                        revision: prepared.revision,
+                                        geometry_generation: prepared.geometry_generation,
+                                        bytes: prepared.bytes.len(),
+                                        count: 1,
+                                        ..ProgressMetadata::default()
+                                    },
+                                );
+                            }
+                            prepared.acknowledge(&mut composer);
+                        }
+                        Ok(None) => {}
+                        Err(error) => {
+                            if let Ok(mut failed) = thread_failed.lock() {
+                                *failed = Some(error);
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+        });
+        Self {
+            control,
+            latest,
+            signaled,
+            effect_bytes,
+            failed,
+        }
+    }
+
+    fn check(&self) -> Result<(), String> {
+        if let Some(error) = self.failed.lock().ok().and_then(|error| error.clone()) {
+            Err(error)
+        } else {
+            Ok(())
+        }
+    }
+
+    fn offer(&self, desired: DesiredPresentation) -> Result<(), String> {
+        self.check()?;
+        if let Ok(mut latest) = self.latest.lock() {
+            *latest = Some(desired);
+        }
+        if !self.signaled.swap(true, Ordering::SeqCst) {
+            let _ = self.control.try_send(OuterWrite::Wake);
+        }
+        Ok(())
+    }
+
+    fn bytes(&self, bytes: &[u8]) -> Result<(), String> {
+        self.check()?;
+        self.effect_bytes
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |reserved| {
+                reserved
+                    .checked_add(bytes.len())
+                    .filter(|next| *next <= OUTER_EFFECT_QUEUE_BYTES)
+            })
+            .map_err(|_| "outer terminal effect byte limit reached".to_owned())?;
+        match self.control.try_send(OuterWrite::Bytes(bytes.to_vec())) {
+            Ok(()) => Ok(()),
+            Err(_) => {
+                self.effect_bytes.fetch_sub(bytes.len(), Ordering::SeqCst);
+                Err("outer terminal writer queue is unavailable".into())
+            }
+        }
+    }
+
+    fn finish(&self, bytes: Vec<u8>) -> Result<(), String> {
+        self.check()?;
+        let (done, completed) = mpsc::sync_channel(1);
+        self.control
+            .send(OuterWrite::Finish(bytes, done))
+            .map_err(|_| "outer terminal writer stopped".to_owned())?;
+        completed
+            .recv()
+            .map_err(|_| "outer terminal writer stopped before restore".to_owned())?
+    }
+}
+
 struct OuterTerminal {
     restored: bool,
     kitty_keyboard: bool,
-    /// The child cursor style and blink currently mirrored on the outer terminal.
-    cursor_style: Option<(String, bool)>,
+    writer: OuterWriter,
 }
 impl OuterTerminal {
     fn enter() -> Result<Self, String> {
         enable_raw_mode().map_err(|error| format!("enable outer raw mode: {error}"))?;
         let kitty_keyboard = query_kitty_keyboard(Duration::from_millis(200)).unwrap_or(false);
-        let mut value = Self {
+        let mut initial = Vec::from(ENTER_OUTER_MODES);
+        if kitty_keyboard {
+            initial.extend_from_slice(KITTY_ENABLE);
+        }
+        {
+            let mut out = stdout().lock();
+            out.write_all(&initial)
+                .and_then(|()| out.flush())
+                .map_err(|error| format!("enter outer terminal: {error}"))?;
+        }
+        Ok(Self {
             restored: false,
             kitty_keyboard,
-            cursor_style: None,
-        };
-        value.write(ENTER_OUTER_MODES)?;
-        if kitty_keyboard {
-            value.write(KITTY_ENABLE)?;
-        }
-        Ok(value)
+            writer: OuterWriter::start(),
+        })
     }
-    fn write(&mut self, bytes: &[u8]) -> Result<(), String> {
-        let mut out = stdout().lock();
-        out.write_all(bytes)
-            .and_then(|()| out.flush())
-            .map_err(|error| format!("write outer terminal: {error}"))
+    fn write(&self, bytes: &[u8]) -> Result<(), String> {
+        self.writer.bytes(bytes)
     }
-    /// Mirrors the viewed child's cursor shape; `None` returns the outer default once.
-    ///
-    /// Invariant: a block cursor is the terminal model's default, so it is left to the outer
-    /// terminal's own default exactly as direct A1 leaves it; only a shape the child chose is
-    /// mirrored and later reset.
-    fn apply_cursor_style(&mut self, modes: Option<&TerminalModes>) -> Result<(), String> {
-        let next = modes
-            .filter(|modes| modes.cursor_style != "block")
-            .map(|modes| (modes.cursor_style.clone(), modes.cursor_blink));
-        if next == self.cursor_style {
-            return Ok(());
-        }
-        match next.as_ref() {
-            Some((style, blink)) => {
-                self.write(outer_input::cursor_style_sequence(style, *blink))?;
-            }
-            None => self.write(outer_input::RESET_CURSOR_STYLE)?,
-        }
-        self.cursor_style = next;
-        Ok(())
+    fn present(&self, desired: DesiredPresentation) -> Result<(), String> {
+        self.writer.offer(desired)
     }
     fn restore_sequence(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        if self.cursor_style.is_some() {
-            bytes.extend_from_slice(outer_input::RESET_CURSOR_STYLE);
-        }
+        bytes.extend_from_slice(outer_input::RESET_CURSOR_STYLE);
+        bytes.extend_from_slice(RESET_OUTER_COLORS);
         if self.kitty_keyboard {
             bytes.extend_from_slice(KITTY_RESTORE);
         }
@@ -2479,10 +3038,11 @@ impl OuterTerminal {
             return Ok(());
         }
         let sequence = self.restore_sequence();
-        self.write(&sequence)?;
-        disable_raw_mode().map_err(|error| format!("restore cooked input: {error}"))?;
+        let write_result = self.writer.finish(sequence);
+        let mode_result =
+            disable_raw_mode().map_err(|error| format!("restore cooked input: {error}"));
         self.restored = true;
-        Ok(())
+        write_result.and(mode_result)
     }
 }
 impl Drop for OuterTerminal {
@@ -2631,6 +3191,54 @@ mod tests {
         assert!(is_ctrl_c_bytes(b"\x03"));
         assert!(is_ctrl_c_bytes(b"\x1b[99;5u"));
         assert!(is_ctrl_c_console('C', true, true));
+    }
+    #[test]
+    fn deferred_input_is_atomic_bounded_and_bound_to_the_requested_tab() {
+        let mut deferred = DeferredInput::default();
+        deferred
+            .push(
+                DeferredInputTarget::Tab("tab-b".into()),
+                vec![vec![1, 2], vec![3]],
+            )
+            .expect("defer input");
+        deferred
+            .push(DeferredInputTarget::Tab("tab-c".into()), vec![vec![4]])
+            .expect("defer superseding input");
+        let (selected, dropped) = deferred.resolve("tab-c");
+        assert_eq!(selected, vec![vec![4]]);
+        assert!(dropped);
+        assert_eq!(deferred.bytes, 0);
+        assert!(deferred.frames.is_empty());
+
+        let mut full = DeferredInput::default();
+        assert_eq!(
+            full.push(
+                DeferredInputTarget::Tab("tab-a".into()),
+                vec![vec![0; DEFERRED_INPUT_BYTES + 1]],
+            ),
+            Err("deferred input byte limit reached")
+        );
+        assert!(
+            full.frames.is_empty(),
+            "an oversized paste admitted no prefix"
+        );
+
+        let pending_frames = vec![vec![10], vec![20], vec![30], vec![40], vec![50]];
+        let mut settings_activation = DeferredInput::default();
+        settings_activation
+            .push(DeferredInputTarget::NextCreated, pending_frames.clone())
+            .expect("defer key, paste, focus, mouse, and resize frames");
+        settings_activation.retarget_created("settings-a");
+        assert_eq!(
+            settings_activation.resolve("settings-a"),
+            (pending_frames, false)
+        );
+        let mut failed_creation = DeferredInput::default();
+        failed_creation
+            .push(DeferredInputTarget::NextCreated, vec![vec![1]])
+            .expect("defer failed target input");
+        assert!(failed_creation.discard_created());
+        assert!(failed_creation.frames.is_empty());
     }
     #[test]
     fn outer_contract_offsets_rows_and_never_forwards_bell() {
@@ -3195,6 +3803,27 @@ mod tests {
     }
 
     #[test]
+    fn terminal_effect_sequences_reject_duplicates_and_restart_per_incarnation() {
+        let effect = |incarnation, sequence, revision| TerminalEffect {
+            tab_id: "tab-1".into(),
+            incarnation,
+            sequence,
+            revision,
+            effect: EffectKind::ClipboardWrite {
+                location: protocol::ClipboardLocation::Standard,
+                mime: "text/plain".into(),
+                data: b"safe".to_vec(),
+            },
+        };
+        let mut applied = HashMap::new();
+        assert!(admit_terminal_effect(&mut applied, &effect(2, 1, 9)));
+        assert!(!admit_terminal_effect(&mut applied, &effect(2, 1, 10)));
+        assert!(!admit_terminal_effect(&mut applied, &effect(2, 0, 1)));
+        assert!(admit_terminal_effect(&mut applied, &effect(2, 2, 9)));
+        assert!(admit_terminal_effect(&mut applied, &effect(3, 1, 1)));
+    }
+
+    #[test]
     fn mode_restore_disables_every_enabled_outer_mode() {
         for mode in ["1049", "2004", "1004", "1000", "1003", "1006"] {
             assert!(String::from_utf8_lossy(ENTER_OUTER_MODES).contains(&format!("?{mode}h")));
@@ -3204,6 +3833,18 @@ mod tests {
         assert_eq!(END_SYNCHRONIZED_UPDATE, b"\x1b[?2026l");
         assert_eq!(KITTY_ENABLE, b"\x1b[>1u");
         assert_eq!(KITTY_RESTORE, b"\x1b[<1u");
+        for reset in [
+            b"\x1b]104\x07".as_slice(),
+            b"\x1b]110\x07",
+            b"\x1b]111\x07",
+            b"\x1b]112\x07",
+        ] {
+            assert!(
+                RESET_OUTER_COLORS
+                    .windows(reset.len())
+                    .any(|window| window == reset)
+            );
+        }
         assert!(kitty_query_answered(b"noise\x1b[?3u\x1b[?1;2c"));
         assert!(!kitty_query_answered(b"\x1b[?1;2c"));
         assert!(!kitty_query_answered(b"\x1b[?u"));
