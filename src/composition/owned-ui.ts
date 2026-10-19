@@ -515,11 +515,16 @@ export async function bindResidentTabBridge(
   tabBridge.status("starting");
   const currentSessionFile = () => currentBackendSessionFile(backend);
   let pendingAutoName: string | null = null;
+  // Invariant: while a generated name is being applied, the session name it produces is automatic
+  // even if the session normalizes it; reporting it as `user` would block the strip's title
+  // animation and every later automatic rename.
+  let applyingAutoName = false;
   const isDefaultName = (name: string | null | undefined) => name == null || /^agent(?: \d+)?$/i.test(name);
   const currentSessionName = () => backend.session.view().status.footer?.sessionName ?? null;
   const announceSession = () => {
     const name = currentSessionName();
-    const nameSource = name === pendingAutoName ? "auto" : isDefaultName(name) ? "default" : "user";
+    const automatic = name === pendingAutoName || (applyingAutoName && !isDefaultName(name));
+    const nameSource = automatic ? "auto" : isDefaultName(name) ? "default" : "user";
     tabBridge.session(currentSessionFile(), name, nameSource);
   };
   let working = false;
@@ -541,10 +546,16 @@ export async function bindResidentTabBridge(
       // Invariant: a manual rename made while generation was pending owns both the session and the tab.
       if (!isDefaultName(currentSessionName())) return;
       pendingAutoName = name;
-      const result = await backend.workflows.executeWorkflow({ command: "name", argument: name });
-      if (result.outcome === "completed") tabBridge.session(currentSessionFile(), name, "auto");
-      else if (pendingAutoName === name) pendingAutoName = null;
-    }).catch(() => { pendingAutoName = null; });
+      applyingAutoName = true;
+      const result = await backend.workflows.executeWorkflow({ command: "name", argument: name })
+        .finally(() => { applyingAutoName = false; });
+      if (result.outcome === "completed") {
+        const current = currentSessionName();
+        const applied = current !== null && !isDefaultName(current) ? current : name;
+        pendingAutoName = applied;
+        tabBridge.session(currentSessionFile(), applied, "auto");
+      } else if (pendingAutoName === name) pendingAutoName = null;
+    }).catch(() => { pendingAutoName = null; applyingAutoName = false; });
   };
   const reportStatus = (lifecycle?: string) => {
     const view = backend.session.view();

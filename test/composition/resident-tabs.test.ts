@@ -178,6 +178,23 @@ describe("resident tab composition bridge", () => {
     expect(value.backend.generateResidentTabName).toHaveBeenCalledOnce();
   });
 
+  it("reports a generated name the session normalizes as automatic so the strip animates it", async () => {
+    const value = fixture();
+    await bindResidentTabBridge(value.bridge as never, value.backend as never, null, { autoName: true });
+    value.rename("Agent");
+    value.backend.workflows.executeWorkflow.mockImplementationOnce(async () => {
+      // The session stores a normalized form and announces it while the workflow runs.
+      value.rename("fix-login");
+      value.event({ type: "session-view" });
+      return { outcome: "completed" };
+    });
+    value.event({ type: "session-lifecycle", lifecycle: "busy" });
+    value.event({ type: "agent-run-started" });
+    await vi.waitFor(() => expect(value.backend.workflows.executeWorkflow).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "fix-login", "auto"));
+    expect(value.bridge.session).not.toHaveBeenCalledWith(expect.anything(), "fix-login", "user");
+  });
+
   it("waits for the run's projected prompt and ignores busy states outside an agent run", async () => {
     const value = fixture();
     value.setTranscript([]);
