@@ -1321,6 +1321,38 @@ fn debounce_starting_glyphs(
     }
 }
 
+/// How long a chip keeps its last glyph when its status momentarily reports none.
+const GLYPH_SWAP_HOLD: Duration = Duration::from_millis(300);
+
+/// Keeps a chip's previous glyph while its status briefly has none, such as the idle report
+/// between a working spinner and the finished checkmark, so glyphs swap in place and the title
+/// never shifts. Returns when the earliest active hold expires, so the strip repaints then.
+fn hold_status_glyphs(
+    shown: &mut [StripTab],
+    held: &mut HashMap<String, (String, Instant)>,
+    now: Instant,
+) -> Option<Instant> {
+    held.retain(|id, _| shown.iter().any(|tab| &tab.id == id));
+    let mut expires: Option<Instant> = None;
+    for tab in shown.iter_mut() {
+        if strip::status_has_glyph(&tab.status) {
+            held.insert(tab.id.clone(), (tab.status.clone(), now));
+            continue;
+        }
+        let Some((status, seen)) = held.get(&tab.id).cloned() else {
+            continue;
+        };
+        let until = seen + GLYPH_SWAP_HOLD;
+        if now < until {
+            tab.status = status;
+            expires = Some(expires.map_or(until, |earliest| earliest.min(until)));
+        } else {
+            held.remove(&tab.id);
+        }
+    }
+    expires
+}
+
 /// Maps an insertion index among shown tabs to the registry index the server reorders by.
 fn registry_index(shown: &[StripTab], tabs: &[StripTab], shown_index: usize) -> usize {
     shown
@@ -1779,6 +1811,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut settings_prewarm_pending = false;
     let mut settings_absent_since: Option<Instant> = None;
     let mut starting_since = HashMap::<String, Instant>::new();
+    let mut held_glyphs = HashMap::<String, (String, Instant)>::new();
+    let mut glyph_hold_expires: Option<Instant> = None;
     let mut deferred_input = DeferredInput::default();
     macro_rules! send_child_frames {
         ($frames:expr) => {{
@@ -1844,6 +1878,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             let rename_display = rename.as_ref().map(RenameEditor::display);
             let mut shown = shown!();
             debounce_starting_glyphs(&mut shown, &mut starting_since, Instant::now());
+            glyph_hold_expires = hold_status_glyphs(&mut shown, &mut held_glyphs, Instant::now());
             strip_frame = strip::render_interactive(
                 &shown,
                 view.viewed.as_deref(),
@@ -2545,6 +2580,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             last_strip_frame = Instant::now();
         }
         if time_format.refresh() {
+            paint_strip!();
+        }
+        // A held glyph that no status replaced is released once its hold ends.
+        if glyph_hold_expires.is_some_and(|until| Instant::now() >= until) {
             paint_strip!();
         }
         let current_clock_minute = clock_minute();
@@ -3812,6 +3851,36 @@ mod tests {
         }
         deferred.retarget_created("tab-new");
         assert_eq!(deferred.resolve("tab-new"), (keys, false));
+    }
+    #[test]
+    fn glyphs_swap_in_place_without_a_glyphless_gap() {
+        let tab = |status: &str| StripTab {
+            id: "tab-1".into(),
+            name: "Agent".into(),
+            name_source: "default".into(),
+            status: status.into(),
+            accent: None,
+            title_animation: None,
+        };
+        let mut held = HashMap::new();
+        let start = Instant::now();
+        let mut working = vec![tab("working")];
+        assert_eq!(hold_status_glyphs(&mut working, &mut held, start), None);
+
+        // The momentary idle between the spinner and the checkmark keeps the spinner.
+        let mut gap = vec![tab("idle")];
+        let expires = hold_status_glyphs(&mut gap, &mut held, start + Duration::from_millis(20));
+        assert_eq!(gap[0].status, "working");
+        assert_eq!(expires, Some(start + GLYPH_SWAP_HOLD));
+        let mut done = vec![tab("done")];
+        hold_status_glyphs(&mut done, &mut held, start + Duration::from_millis(40));
+        assert_eq!(done[0].status, "done");
+
+        // A glyph that really goes away is released after the hold.
+        let mut idle = vec![tab("idle")];
+        let late = start + Duration::from_millis(40) + GLYPH_SWAP_HOLD;
+        assert_eq!(hold_status_glyphs(&mut idle, &mut held, late), None);
+        assert_eq!(idle[0].status, "idle");
     }
     #[test]
     fn a_quick_start_never_flashes_the_starting_spinner() {

@@ -123,6 +123,11 @@ fn status_glyph_at(status: &str, elapsed_ms: u128) -> String {
     }
 }
 
+/// Whether a status shows a glyph before the chip title.
+pub fn status_has_glyph(status: &str) -> bool {
+    !status_glyph_at(status, 0).is_empty()
+}
+
 fn status_glyph(status: &str) -> String {
     status_glyph_at(
         status,
