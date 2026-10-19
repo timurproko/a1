@@ -224,8 +224,9 @@ impl ViewModel {
             self.stale_candidate = Some((surface, deadline));
             return Offer::Parked;
         }
+        // Invariant: from an empty strip too, the created tab waits for its first drawn frame, so
+        // its body, status bar, and editor appear together without a bare cursor.
         if requested
-            && self.viewed.is_some()
             && self.first_draw.as_deref() == Some(surface.tab_id.as_str())
             && surface_is_blank(&surface)
         {
@@ -1154,6 +1155,24 @@ mod tests {
                 requested: true,
                 ..
             })
+        ));
+
+        // Creating the first tab from an empty strip waits for its drawn frame as well.
+        let mut first = ViewModel::new(None);
+        first.request_at("d", now);
+        first.await_first_draw("d");
+        let mut undrawn = blank.clone();
+        undrawn.tab_id = "d".into();
+        assert_eq!(first.offer(undrawn, now, true), Offer::Parked);
+        assert_eq!(first.viewed, None);
+        let mut drawn = surface("d", 9, false);
+        drawn.tab_id = "d".into();
+        assert!(matches!(
+            first.offer(drawn, now, true),
+            Offer::Commit {
+                requested: true,
+                ..
+            }
         ));
 
         // Switching to an existing tab is not delayed by a blank body.
