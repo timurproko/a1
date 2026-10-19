@@ -276,10 +276,13 @@ pub type HolderRespawn = protocol::HolderRespawn;
 pub type HolderSnapshot = protocol::HolderSnapshot;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BridgeSession {
     pub file: Option<String>,
     pub name: Option<String>,
-    #[serde(default)]
+    /// Protocol: the child sends `nameSource`; without it every name defaulted to `user`, so
+    /// generated names never ran the strip's automatic title transition.
+    #[serde(default, alias = "name_source")]
     pub name_source: Option<String>,
 }
 

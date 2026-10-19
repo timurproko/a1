@@ -5919,6 +5919,24 @@ mod tests {
     }
 
     #[test]
+    fn bridge_session_reads_the_child_name_source() {
+        // The child bridge client sends camelCase `nameSource`.
+        let child: BridgeSession =
+            serde_json::from_str(r#"{"file":"D:/s.jsonl","name":"ask-100","nameSource":"auto"}"#)
+                .unwrap();
+        assert_eq!(child.name_source.as_deref(), Some("auto"));
+        let legacy: BridgeSession =
+            serde_json::from_str(r#"{"file":null,"name":"x","name_source":"default"}"#).unwrap();
+        assert_eq!(legacy.name_source.as_deref(), Some("default"));
+        let encoded = rmp_serde::to_vec_named(&serde_json::json!({
+            "file": null, "name": "ask-100", "nameSource": "auto",
+        }))
+        .unwrap();
+        let decoded: BridgeSession = rmp_serde::from_slice(&encoded).unwrap();
+        assert_eq!(decoded.name_source.as_deref(), Some("auto"));
+    }
+
+    #[test]
     fn bridge_status_rejects_stale_sequences_and_tracks_unseen_completion() {
         assert!(accepts_bridge_sequence(None, 2, 1));
         assert!(!accepts_bridge_sequence(Some((2, 4)), 2, 4));
