@@ -134,6 +134,29 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 - **THEN** `settings` SHALL be absent and `/settings` SHALL NOT open a route
 - **AND** `a1 solo` and `a1 pi` SHALL retain their existing Settings commands
 
+### Requirement: Double Ctrl+C reliably detaches the resident interface
+The attach client SHALL recognize the semantic outer-terminal `Ctrl+C` event across supported terminal encodings before representation can obscure its identity. The first press SHALL reach the child exactly once. A second press inside the clear/exit interval SHALL detach without reaching or terminating any child, whichever tab is viewed, including Settings. When the owned `quitAnimation` setting is on (the default), detach SHALL first play bare A1's fall quit animation over the presented screen, bounded in duration, and then restore the parent terminal.
+
+#### Scenario: Leave resident A1 from an ordinary prompt
+- **WHEN** the user presses `Ctrl+C` twice inside the clear/exit interval
+- **THEN** the first press SHALL retain its solo A1 clear, copy, or interrupt meaning, the second SHALL close the attached A1 interface, and every resident agent SHALL keep running
+
+#### Scenario: Leave from the Settings tab with the quit animation
+- **WHEN** the Settings tab or any Agent tab is viewed and the user presses `Ctrl+C` twice inside the clear/exit interval
+- **THEN** the fall quit animation SHALL play over the presented screen and the parent terminal SHALL be restored with a visible cursor
+
+#### Scenario: Quit animation is off
+- **WHEN** `quitAnimation` is off and the user detaches with double `Ctrl+C`
+- **THEN** the parent terminal SHALL be restored immediately without an animation
+
+#### Scenario: Return after detach
+- **WHEN** the user detaches with double `Ctrl+C` and later runs bare `a1`
+- **THEN** A1 SHALL reattach to the same running tabs with their work and retained presentations advanced during the absence
+
+#### Scenario: Press Ctrl+C outside the interval
+- **WHEN** two `Ctrl+C` presses are separated by at least the clear/exit interval or by another completed input sequence
+- **THEN** both presses SHALL reach the child independently and the attach client SHALL remain connected
+
 ## ADDED Requirements
 
 ### Requirement: Open strip popups stay stable while tabs stream

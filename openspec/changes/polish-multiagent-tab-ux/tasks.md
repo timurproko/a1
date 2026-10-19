@@ -62,6 +62,10 @@ Markers report current implementation progress. Native Rust tests run in CI. Bef
 
 - [x] 9a.1 `npm run build` stops A1 processes running this checkout's own `dist/` or `bin/` code before cleaning `dist/`. On Windows a running resident host locks the native addon and `clean` failed with EPERM. CI and other checkouts are never touched. Selection is covered by `test/repository-governance/stop-checkout-processes.test.ts`.
 
+## 9b. Quit animation on double Ctrl+C (maintainer request, 2026-10-19)
+
+- [x] 9b.1 Port bare A1's `fall` quit-outro plan and bounded player to the attach client (`roles/quit_outro.rs`; its seeded generator matches the TypeScript output). On a double-Ctrl+C detach from any tab, drop any pending repaint, play the outro over the presented strip and child rows when `a1.quitAnimation` is on (the default), show the cursor, then restore. Rust tests cover the generator, plan coverage and order, synchronized blocks ending blank, bounded playback, write failure, row widths, and the setting.
+
 ## 10. Pre-ready delivery bookkeeping
 
 - [ ] 10.1 Write `implementation-evidence.md` with delivered behavior, local checks run and gaps. Reconcile and push current `origin/develop`, add plain Acceptance, and pass `check-delivery-body.mjs --final` before checking the final Implementation item.

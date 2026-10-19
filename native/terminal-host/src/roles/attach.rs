@@ -454,6 +454,22 @@ fn read_time_format(path: &Path) -> TimeFormat {
     )
 }
 
+/// Reads the owned `quitAnimation` setting, which defaults to on, from the canonical profile.
+fn read_quit_animation(path: &Path) -> bool {
+    std::fs::metadata(path)
+        .ok()
+        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
+        .and_then(|_| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|document| {
+            document
+                .get("a1")
+                .and_then(|value| value.get("quitAnimation"))
+                .and_then(serde_json::Value::as_bool)
+        })
+        .unwrap_or(true)
+}
+
 #[derive(Debug)]
 struct TimeFormatWatch {
     path: PathBuf,
@@ -2586,6 +2602,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             message: None,
                         },
                     )?;
+                    // Invariant: double Ctrl+C leaves from any tab with solo's quit animation
+                    // when it is enabled; restoration follows whether or not it played.
+                    if read_quit_animation(options.settings_file) {
+                        terminal.play_quit_outro(&crate::roles::quit_outro::presented_row_widths(
+                            columns,
+                            outer_rows,
+                            latest_structured.as_ref(),
+                        ));
+                    }
                     terminal.restore()?;
                     print_hint(tabs.len());
                     return Ok(());
@@ -3143,6 +3168,13 @@ impl OuterWriter {
         Ok(())
     }
 
+    /// Drops a presentation not yet written, so nothing repaints over a quit outro.
+    fn discard_presentation(&self) {
+        if let Ok(mut latest) = self.latest.lock() {
+            *latest = None;
+        }
+    }
+
     fn bytes(&self, bytes: &[u8]) -> Result<(), String> {
         self.check()?;
         self.effect_bytes
@@ -3203,6 +3235,15 @@ impl OuterTerminal {
     }
     fn present(&self, desired: DesiredPresentation) -> Result<(), String> {
         self.writer.offer(desired)
+    }
+    /// Plays bare A1's fall outro over the screen this client presented, before restoration.
+    fn play_quit_outro(&self, row_widths: &[usize]) {
+        self.writer.discard_presentation();
+        let seed = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |elapsed| elapsed.subsec_nanos());
+        crate::roles::quit_outro::play(row_widths, seed, |bytes| self.write(bytes).is_ok());
+        let _ = self.write(b"\x1b[?25h");
     }
     fn restore_sequence(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
@@ -4044,6 +4085,19 @@ mod tests {
         assert_eq!(drag_marker_column(&drag, &tabs, &frame), Some(last_end));
         assert!(update_drag(&mut drag, last_end, false, &tabs, &frame));
         assert_eq!(drag.drop_index, None);
+    }
+
+    #[test]
+    fn quit_animation_follows_the_owned_setting_and_defaults_on() {
+        let profile = tempfile::tempdir().unwrap();
+        let file = profile.path().join("settings.json");
+        assert!(read_quit_animation(&file));
+        std::fs::write(&file, br#"{"a1":{"quitAnimation":false}}"#).unwrap();
+        assert!(!read_quit_animation(&file));
+        std::fs::write(&file, br#"{"a1":{"quitAnimation":true}}"#).unwrap();
+        assert!(read_quit_animation(&file));
+        std::fs::write(&file, b"not json").unwrap();
+        assert!(read_quit_animation(&file));
     }
 
     #[test]
