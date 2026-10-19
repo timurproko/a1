@@ -611,9 +611,15 @@ fn render_frame(
     }
 }
 
-fn palette_fallback_requested() -> bool {
+/// Whether host chrome uses the 256-color palette instead of direct RGB.
+pub fn palette_fallback_requested() -> bool {
     if std::env::var("TERMINAL_HOST_COLOR_MODE").is_ok_and(|value| value == "palette") {
         return true;
+    }
+    // Platform: Windows Terminal renders direct RGB but does not export COLORTERM; the owned UI
+    // recognizes it by WT_SESSION, so host chrome must too or menus fall back to palette grays.
+    if std::env::var_os("WT_SESSION").is_some() {
+        return false;
     }
     std::env::var("TERM").is_ok_and(|term| term.contains("256color"))
         && std::env::var("COLORTERM").map_or(true, |value| {

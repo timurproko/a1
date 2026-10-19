@@ -496,11 +496,42 @@ fn read_quit_animation(path: &Path) -> bool {
         .unwrap_or(true)
 }
 
+/// The owned theme's dark `selectedBg` for each A1 accent, derived by
+/// `derivePiAccentProjection(accent, "dark")`; popups hover with it like owned menus.
+fn accent_selected_background(accent: Option<&str>) -> [u8; 3] {
+    match accent {
+        Some("blue") => [52, 57, 69],
+        Some("cyan") => [48, 60, 61],
+        Some("green") => [50, 60, 54],
+        Some("orange") => [67, 54, 48],
+        Some("pink") => [65, 53, 62],
+        _ => [58, 56, 66],
+    }
+}
+
+/// Reads the owned accent's popup hover background, defaulting to the purple accent's.
+fn read_accent_hover(path: &Path) -> [u8; 3] {
+    let accent = std::fs::metadata(path)
+        .ok()
+        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
+        .and_then(|_| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|document| {
+            document
+                .get("a1")
+                .and_then(|value| value.get("accentColor"))
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_owned)
+        });
+    accent_selected_background(accent.as_deref())
+}
+
 #[derive(Debug)]
 struct TimeFormatWatch {
     path: PathBuf,
     signature: Option<(std::time::SystemTime, u64)>,
     value: TimeFormat,
+    accent_hover: [u8; 3],
     checked_at: Instant,
 }
 
@@ -510,10 +541,12 @@ impl TimeFormatWatch {
             path: path.to_owned(),
             signature: settings_signature(path),
             value: read_time_format(path),
+            accent_hover: read_accent_hover(path),
             checked_at: Instant::now(),
         }
     }
 
+    /// Re-reads the settings document after it changed; true when the strip format changed.
     fn refresh(&mut self) -> bool {
         if self.checked_at.elapsed() < SETTINGS_POLL_INTERVAL {
             return false;
@@ -524,6 +557,7 @@ impl TimeFormatWatch {
             return false;
         }
         self.signature = signature;
+        self.accent_hover = read_accent_hover(&self.path);
         let value = read_time_format(&self.path);
         if value == self.value {
             return false;
@@ -545,6 +579,9 @@ fn settings_signature(path: &Path) -> Option<(std::time::SystemTime, u64)> {
     let metadata = std::fs::metadata(path).ok()?;
     Some((metadata.modified().ok()?, metadata.len()))
 }
+
+/// The v2 neutral hover background, used where no accent applies.
+const POPUP_HOVER_NEUTRAL: [u8; 3] = [48, 48, 48];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum PopupKind {
@@ -759,14 +796,21 @@ impl PopupMenu {
     }
 
     fn render_with_color(&self, truecolor: bool) -> String {
+        self.render_styled(truecolor, POPUP_HOVER_NEUTRAL)
+    }
+
+    /// Renders with `hover` as the hovered row's truecolor background, the accent's
+    /// `selectedBg` in live use so popups hover like owned menus.
+    fn render_styled(&self, truecolor: bool, hover: [u8; 3]) -> String {
         let inner = usize::from(self.width).saturating_sub(2);
         let mut output = String::from("\x1b[s");
         for (index, item) in self.items.iter().enumerate() {
             let row = index + 2;
             output.push_str(&format!("\x1b[{row};{}H", self.column.saturating_add(1)));
             if truecolor {
+                let hovered_background = format!("{};{};{}", hover[0], hover[1], hover[2]);
                 let background = if self.hovered == Some(index) && item.action.is_some() {
-                    "48;48;48"
+                    hovered_background.as_str()
                 } else {
                     "38;38;38"
                 };
@@ -820,13 +864,7 @@ impl PopupMenu {
 }
 
 fn palette_fallback_requested() -> bool {
-    if std::env::var("TERMINAL_HOST_COLOR_MODE").is_ok_and(|value| value == "palette") {
-        return true;
-    }
-    std::env::var("TERM").is_ok_and(|term| term.contains("256color"))
-        && std::env::var("COLORTERM").map_or(true, |value| {
-            !matches!(value.as_str(), "truecolor" | "24bit")
-        })
+    strip::palette_fallback_requested()
 }
 
 const RENAME_HISTORY_LIMIT: usize = 100;
@@ -1769,7 +1807,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     }
                 });
             let overlay = if let Some(menu) = popup.as_ref() {
-                Some(menu.render())
+                Some(menu.render_styled(!palette_fallback_requested(), time_format.accent_hover))
             } else if let Some(column) = drag
                 .as_ref()
                 .and_then(|drag| drag_marker_column(drag, &tabs, &strip_frame))
@@ -4216,6 +4254,25 @@ mod tests {
         assert_eq!(drag_marker_column(&drag, &tabs, &frame), Some(last_end));
         assert!(update_drag(&mut drag, last_end, false, &tabs, &frame));
         assert_eq!(drag.drop_index, None);
+    }
+
+    #[test]
+    fn popup_hover_uses_the_owned_accent_selected_background() {
+        let profile = tempfile::tempdir().unwrap();
+        let file = profile.path().join("settings.json");
+        assert_eq!(
+            read_accent_hover(&file),
+            [58, 56, 66],
+            "purple is the default accent"
+        );
+        std::fs::write(&file, br#"{"a1":{"accentColor":"cyan"}}"#).unwrap();
+        assert_eq!(read_accent_hover(&file), [48, 60, 61]);
+        let bindings = TabBindings::load(profile.path());
+        let mut menu = PopupMenu::add(0, 80, &bindings);
+        menu.hovered = Some(0);
+        let rendered = menu.render_styled(true, read_accent_hover(&file));
+        assert!(rendered.contains("\x1b[48;2;48;60;61m"));
+        assert!(!rendered.contains("\x1b[48;2;48;48;48m"));
     }
 
     #[test]
