@@ -335,6 +335,7 @@ impl ViewModel {
                 self.requested = None;
                 self.request_started = None;
                 self.staged_tabs = None;
+                self.first_draw = None;
                 self.committed_revision = Some(surface.revision);
                 return Topology {
                     dropped_request,
