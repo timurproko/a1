@@ -1828,7 +1828,17 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   openOwnedRoute(route: string): void {
-    this.#openOwnedRoute(route);
+    if (this.#disposed) return;
+    // Invariant: a route requested before the runtime runs (the resident Settings bridge route arrives
+    // before start()) is retained, latest wins, and presented through the startup-route path once started.
+    if (!this.#terminal.running) {
+      this.#startupRoute = { route };
+      return;
+    }
+    const result = this.#openOwnedRoute(route);
+    if (result.outcome !== "completed" && result.diagnostic !== null) {
+      this.root.appendWorkflowMessage({ kind: "warning", message: result.diagnostic });
+    }
   }
 
   hotkeysPresentation(): PiShellHotkeysPresentation {

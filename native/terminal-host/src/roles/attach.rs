@@ -46,7 +46,7 @@ const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
 const ATTACH_INGRESS_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_INGRESS_FRAMES: usize = 8;
 const DEFERRED_INPUT_BYTES: usize = 4 * 1024 * 1024;
-const DEFERRED_INPUT_FRAMES: usize = 64;
+const DEFERRED_INPUT_FRAMES: usize = 1024;
 const OUTER_EFFECT_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const OUTER_CONTROL_QUEUE_FRAMES: usize = 8;
 #[cfg(test)]
@@ -782,12 +782,30 @@ fn palette_fallback_requested() -> bool {
         })
 }
 
+const RENAME_HISTORY_LIMIT: usize = 100;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RenameSnapshot {
+    text: String,
+    cursor: usize,
+    selection_anchor: Option<usize>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RenameEdit {
+    Typing,
+    Other,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RenameEditor {
     tab_id: String,
     text: String,
     cursor: usize,
     selection_anchor: Option<usize>,
+    undo: Vec<RenameSnapshot>,
+    redo: Vec<RenameSnapshot>,
+    last_edit: Option<RenameEdit>,
 }
 
 impl RenameEditor {
@@ -798,7 +816,68 @@ impl RenameEditor {
             text,
             cursor,
             selection_anchor: None,
+            undo: Vec::new(),
+            redo: Vec::new(),
+            last_edit: None,
         }
+    }
+
+    fn snapshot(&self) -> RenameSnapshot {
+        RenameSnapshot {
+            text: self.text.clone(),
+            cursor: self.cursor,
+            selection_anchor: self.selection_anchor,
+        }
+    }
+
+    fn restore(&mut self, snapshot: RenameSnapshot) {
+        self.text = snapshot.text;
+        self.cursor = snapshot.cursor;
+        self.selection_anchor = snapshot.selection_anchor;
+    }
+
+    /// Records the state before an edit; consecutive typed characters share one undo step.
+    fn record(&mut self, edit: RenameEdit) {
+        if edit == RenameEdit::Typing && self.last_edit == Some(RenameEdit::Typing) {
+            return;
+        }
+        self.undo.push(self.snapshot());
+        if self.undo.len() > RENAME_HISTORY_LIMIT {
+            self.undo.remove(0);
+        }
+        self.redo.clear();
+        self.last_edit = Some(edit);
+    }
+
+    /// Applies an edit and keeps it in history only when it changed the text.
+    fn edit(&mut self, kind: RenameEdit, change: impl FnOnce(&mut Self)) {
+        let before = self.snapshot();
+        let last_edit = self.last_edit;
+        let undo_len = self.undo.len();
+        let redo = self.redo.clone();
+        self.record(kind);
+        change(self);
+        if self.text == before.text {
+            self.undo.truncate(undo_len);
+            self.redo = redo;
+            self.last_edit = last_edit;
+        }
+    }
+
+    fn undo(&mut self) {
+        if let Some(snapshot) = self.undo.pop() {
+            self.redo.push(self.snapshot());
+            self.restore(snapshot);
+        }
+        self.last_edit = None;
+    }
+
+    fn redo(&mut self) {
+        if let Some(snapshot) = self.redo.pop() {
+            self.undo.push(self.snapshot());
+            self.restore(snapshot);
+        }
+        self.last_edit = None;
     }
 
     fn len(&self) -> usize {
@@ -840,40 +919,70 @@ impl RenameEditor {
     }
 
     fn insert(&mut self, value: char) {
-        self.delete_selection();
-        if self.len() >= 64 {
-            return;
-        }
-        let offset = self.byte_offset(self.cursor);
-        self.text.insert(offset, value);
-        self.cursor += 1;
+        self.edit(RenameEdit::Typing, |editor| {
+            editor.delete_selection();
+            if editor.len() >= 64 {
+                return;
+            }
+            let offset = editor.byte_offset(editor.cursor);
+            editor.text.insert(offset, value);
+            editor.cursor += 1;
+        });
     }
 
     fn backspace(&mut self) {
-        if self.delete_selection() || self.cursor == 0 {
-            return;
-        }
-        let start = self.byte_offset(self.cursor - 1);
-        let end = self.byte_offset(self.cursor);
-        self.text.replace_range(start..end, "");
-        self.cursor -= 1;
+        self.edit(RenameEdit::Other, |editor| {
+            if editor.delete_selection() || editor.cursor == 0 {
+                return;
+            }
+            let start = editor.byte_offset(editor.cursor - 1);
+            let end = editor.byte_offset(editor.cursor);
+            editor.text.replace_range(start..end, "");
+            editor.cursor -= 1;
+        });
     }
 
     fn delete(&mut self) {
-        if self.delete_selection() || self.cursor >= self.len() {
-            return;
-        }
-        let start = self.byte_offset(self.cursor);
-        let end = self.byte_offset(self.cursor + 1);
-        self.text.replace_range(start..end, "");
+        self.edit(RenameEdit::Other, |editor| {
+            if editor.delete_selection() || editor.cursor >= editor.len() {
+                return;
+            }
+            let start = editor.byte_offset(editor.cursor);
+            let end = editor.byte_offset(editor.cursor + 1);
+            editor.text.replace_range(start..end, "");
+        });
+    }
+
+    fn delete_word_left(&mut self) {
+        self.edit(RenameEdit::Other, |editor| {
+            if editor.delete_selection() {
+                return;
+            }
+            let start = editor.word_left_boundary();
+            let (from, to) = (editor.byte_offset(start), editor.byte_offset(editor.cursor));
+            editor.text.replace_range(from..to, "");
+            editor.cursor = start;
+        });
+    }
+
+    fn delete_word_right(&mut self) {
+        self.edit(RenameEdit::Other, |editor| {
+            if editor.delete_selection() {
+                return;
+            }
+            let end = editor.word_right_boundary();
+            let (from, to) = (editor.byte_offset(editor.cursor), editor.byte_offset(end));
+            editor.text.replace_range(from..to, "");
+        });
     }
 
     fn move_cursor(&mut self, cursor: usize) {
         self.cursor = cursor.min(self.len());
         self.selection_anchor = None;
+        self.last_edit = None;
     }
 
-    fn move_word_left(&mut self) {
+    fn word_left_boundary(&self) -> usize {
         let graphemes = self.text.graphemes(true).collect::<Vec<_>>();
         let mut cursor = self.cursor.min(graphemes.len());
         while cursor > 0 && graphemes[cursor - 1].chars().all(char::is_whitespace) {
@@ -882,10 +991,10 @@ impl RenameEditor {
         while cursor > 0 && !graphemes[cursor - 1].chars().all(char::is_whitespace) {
             cursor -= 1;
         }
-        self.move_cursor(cursor);
+        cursor
     }
 
-    fn move_word_right(&mut self) {
+    fn word_right_boundary(&self) -> usize {
         let graphemes = self.text.graphemes(true).collect::<Vec<_>>();
         let mut cursor = self.cursor.min(graphemes.len());
         while cursor < graphemes.len() && !graphemes[cursor].chars().all(char::is_whitespace) {
@@ -894,13 +1003,43 @@ impl RenameEditor {
         while cursor < graphemes.len() && graphemes[cursor].chars().all(char::is_whitespace) {
             cursor += 1;
         }
-        self.move_cursor(cursor);
+        cursor
+    }
+
+    fn move_word_left(&mut self) {
+        self.move_cursor(self.word_left_boundary());
+    }
+
+    fn move_word_right(&mut self) {
+        self.move_cursor(self.word_right_boundary());
     }
 
     fn select_all(&mut self) {
         self.selection_anchor = Some(0);
         self.cursor = self.len();
+        self.last_edit = None;
     }
+}
+
+/// Handles the rename editor's control-key edits; returns `false` for keys it does not own.
+/// Terminals report Ctrl+Backspace as Backspace with Ctrl, Ctrl+H, or Ctrl+W.
+fn apply_rename_control_key(
+    editor: &mut RenameEditor,
+    code: KeyCode,
+    modifiers: KeyModifiers,
+) -> bool {
+    if !modifiers.contains(KeyModifiers::CONTROL) {
+        return false;
+    }
+    match code {
+        KeyCode::Backspace | KeyCode::Char('h' | 'H' | 'w' | 'W') => editor.delete_word_left(),
+        KeyCode::Delete => editor.delete_word_right(),
+        KeyCode::Char('a' | 'A') => editor.select_all(),
+        KeyCode::Char('z') if !modifiers.contains(KeyModifiers::SHIFT) => editor.undo(),
+        KeyCode::Char('Z') | KeyCode::Char('z') | KeyCode::Char('y' | 'Y') => editor.redo(),
+        _ => return false,
+    }
+    true
 }
 
 #[derive(Debug, Clone)]
@@ -1050,6 +1189,19 @@ pub fn tab_rows(outer_rows: u16) -> Result<u16, &'static str> {
 }
 pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
     outer_row.checked_sub(1)
+}
+
+/// Decides whether buttonless pointer motion over the body reaches the child. Motion is never
+/// deferred behind a pending view, where it would exhaust the budget that typed input needs,
+/// and is dropped when the child's reported modes show it does not track the mouse.
+fn forward_pointer_motion(view_pending: bool, modes: Option<&TerminalModes>) -> bool {
+    !view_pending && modes.is_none_or(|modes| modes.mouse_tracking)
+}
+
+/// A holder's first surface carries a provisional `idle` before the tab bridge reports; it must
+/// not flip a starting chip to idle and back. Bridge status and registry snapshots still apply.
+fn holder_idle_precedes_bridge(chip: &str, surface: &str) -> bool {
+    surface == "idle" && matches!(chip, "starting" | "restoring")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1487,10 +1639,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 None
             };
             if let Some(target) = deferred {
+                // Invariant: an over-budget frame is refused whole, before any prefix reaches a
+                // child, and without a notice row over the pending tab.
                 if deferred_input.push(target, frames).is_err() {
                     user_input_pending = false;
-                    transient_notice = Some("Input was not sent; try again.".into());
-                    paint_current!(false);
                 }
             } else {
                 for frame in frames {
@@ -1680,7 +1832,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 if dropped {
                     user_input_pending = false;
-                    transient_notice = Some("Input was not sent; try again.".into());
                 }
             }
             if surface.status == "failed" {
@@ -1689,7 +1840,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 failed_tab = None;
             }
             if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
-                tab.status = surface.status.clone();
+                if !holder_idle_precedes_bridge(&tab.status, &surface.status) {
+                    tab.status = surface.status.clone();
+                }
                 tab.accent = surface.accent.clone();
             }
             latest_surface = without_bell(&surface.bytes);
@@ -1900,7 +2053,6 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         .is_some_and(|target| deferred_input.discard_tab(target))
                     {
                         user_input_pending = false;
-                        transient_notice = Some("Input was not sent; try again.".into());
                     }
                     if let Some(tab_id) = outcome.view_request {
                         request_view!(tab_id);
@@ -1970,7 +2122,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     let (_, target): (_, TabTarget) = wire::body(&payload)?;
                     pending_created_activation = false;
                     deferred_input.retarget_created(&target.tab_id);
+                    let created = kind.message_type == "tab.created";
+                    let tab_id = target.tab_id.clone();
                     request_view!(target.tab_id);
+                    if created {
+                        view.await_first_draw(&tab_id);
+                    }
                     wire::send(
                         &mut stream,
                         "tab.list",
@@ -2111,14 +2268,26 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         }
                         continue;
                     }
+                    if kind.message_type == "input.rejected"
+                        && result.message.as_deref()
+                            == Some(crate::roles::server::INPUT_REJECTED_READ_ONLY)
+                    {
+                        // Invariant: controller handoff stays invisible; this terminal re-claims
+                        // its viewed tab instead of painting a delivery notice over the child.
+                        user_input_pending = false;
+                        wire::send(
+                            &mut stream,
+                            "tab.claimInput",
+                            None,
+                            wire::ResultBody {
+                                accepted: true,
+                                message: None,
+                            },
+                        )?;
+                        continue;
+                    }
                     let message = if kind.message_type == "input.rejected" {
-                        let message = match result.message.as_deref() {
-                            Some(crate::roles::server::INPUT_REJECTED_READ_ONLY) => {
-                                Some("Input was not sent; try again.".into())
-                            }
-                            _ => result.message,
-                        };
-                        rejection_notice(&mut user_input_pending, message)
+                        rejection_notice(&mut user_input_pending, result.message)
                     } else {
                         result.message
                     };
@@ -2228,6 +2397,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     submit = Some((editor.tab_id.clone(), name));
                                 }
                             }
+                            _ if apply_rename_control_key(editor, key.code, key.modifiers) => {}
                             KeyCode::Backspace => editor.backspace(),
                             KeyCode::Delete => editor.delete(),
                             KeyCode::Left if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -2242,11 +2412,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             }
                             KeyCode::Home => editor.move_cursor(0),
                             KeyCode::End => editor.move_cursor(editor.len()),
-                            KeyCode::Char('a' | 'A')
-                                if key.modifiers.contains(KeyModifiers::CONTROL) =>
-                            {
-                                editor.select_all();
-                            }
+                            KeyCode::Char(_)
+                                if key
+                                    .modifiers
+                                    .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => {}
                             KeyCode::Char(ch) if !ch.is_control() => editor.insert(ch),
                             _ => {
                                 cancel = true;
@@ -2517,6 +2686,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     },
                 )?]);
             }
+            // Invariant: focus reports are state, not intent; while a view is pending they would
+            // only consume the deferred-input budget, and the next report carries current focus.
+            Event::FocusGained | Event::FocusLost
+                if view.requested.is_some() || pending_created_activation => {}
             Event::FocusGained if !failed => {
                 wire::send(
                     &mut stream,
@@ -2681,6 +2854,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 if hovered.take().is_some() {
                     paint_current!(false);
+                }
+                if matches!(mouse.kind, MouseEventKind::Moved)
+                    && !forward_pointer_motion(
+                        view.requested.is_some() || pending_created_activation,
+                        latest_modes.as_ref(),
+                    )
+                {
+                    continue;
                 }
                 let event = outer_input::normalize_mouse(
                     mouse.kind,
@@ -3239,6 +3420,129 @@ mod tests {
             .expect("defer failed target input");
         assert!(failed_creation.discard_created());
         assert!(failed_creation.frames.is_empty());
+    }
+    #[test]
+    fn pointer_motion_never_consumes_a_pending_creation_budget() {
+        let tracking = TerminalModes {
+            mouse_tracking: true,
+            ..TerminalModes::default()
+        };
+        let untracked = TerminalModes::default();
+        assert!(!forward_pointer_motion(true, Some(&tracking)));
+        assert!(!forward_pointer_motion(true, None));
+        assert!(!forward_pointer_motion(false, Some(&untracked)));
+        assert!(forward_pointer_motion(false, Some(&tracking)));
+        assert!(forward_pointer_motion(false, None));
+
+        // Keys typed while a new Agent starts keep their place even after heavy pointer motion,
+        // because motion is no longer deferred.
+        let mut deferred = DeferredInput::default();
+        for _ in 0..500 {
+            if forward_pointer_motion(true, Some(&tracking)) {
+                deferred
+                    .push(
+                        DeferredInputTarget::NextCreated,
+                        vec![b"\x1b[<35;1;2M".to_vec()],
+                    )
+                    .expect("defer motion");
+            }
+        }
+        let keys = (0..200u8).map(|value| vec![value]).collect::<Vec<_>>();
+        for key in &keys {
+            deferred
+                .push(DeferredInputTarget::NextCreated, vec![key.clone()])
+                .expect("typed keys fit the pending budget");
+        }
+        deferred.retarget_created("tab-new");
+        assert_eq!(deferred.resolve("tab-new"), (keys, false));
+    }
+    #[test]
+    fn provisional_holder_idle_never_flips_a_starting_chip() {
+        assert!(holder_idle_precedes_bridge("starting", "idle"));
+        assert!(holder_idle_precedes_bridge("restoring", "idle"));
+        assert!(!holder_idle_precedes_bridge("starting", "working"));
+        assert!(!holder_idle_precedes_bridge("working", "idle"));
+        assert!(!holder_idle_precedes_bridge("done", "idle"));
+    }
+    #[test]
+    fn notices_never_report_undelivered_input() {
+        let source = include_str!("attach.rs");
+        let phrase = ["Input was not sent", "; try again."].concat();
+        assert!(!source.contains(&phrase));
+    }
+    #[test]
+    fn rename_deletes_whole_words_and_ignores_control_letters() {
+        let mut editor = RenameEditor::new("tab-a".into(), "fix login flow".into());
+        editor.move_cursor(4);
+        assert!(apply_rename_control_key(
+            &mut editor,
+            KeyCode::Delete,
+            KeyModifiers::CONTROL
+        ));
+        assert_eq!(editor.text, "fix flow");
+        assert_eq!(editor.cursor, 4);
+        editor.move_cursor(editor.len());
+        assert!(apply_rename_control_key(
+            &mut editor,
+            KeyCode::Backspace,
+            KeyModifiers::CONTROL
+        ));
+        assert_eq!(editor.text, "fix ");
+        assert!(apply_rename_control_key(
+            &mut editor,
+            KeyCode::Char('w'),
+            KeyModifiers::CONTROL
+        ));
+        assert_eq!(editor.text, "");
+        assert!(!apply_rename_control_key(
+            &mut editor,
+            KeyCode::Delete,
+            KeyModifiers::NONE
+        ));
+
+        let mut unicode = RenameEditor::new("tab-a".into(), "e\u{301}clair 👩‍💻 build".into());
+        unicode.move_cursor(0);
+        unicode.delete_word_right();
+        assert_eq!(unicode.text, "👩‍💻 build");
+        unicode.move_cursor(unicode.len());
+        unicode.delete_word_left();
+        assert_eq!(unicode.text, "👩‍💻 ");
+        assert_eq!(unicode.cursor, 2);
+    }
+    #[test]
+    fn rename_undo_and_redo_restore_text_and_caret() {
+        let mut editor = RenameEditor::new("tab-a".into(), "agent".into());
+        for value in " one".chars() {
+            editor.insert(value);
+        }
+        editor.delete_word_left();
+        assert_eq!(editor.text, "agent ");
+        assert!(apply_rename_control_key(
+            &mut editor,
+            KeyCode::Char('z'),
+            KeyModifiers::CONTROL
+        ));
+        assert_eq!((editor.text.as_str(), editor.cursor), ("agent one", 9));
+        apply_rename_control_key(&mut editor, KeyCode::Char('z'), KeyModifiers::CONTROL);
+        assert_eq!((editor.text.as_str(), editor.cursor), ("agent", 5));
+        apply_rename_control_key(&mut editor, KeyCode::Char('y'), KeyModifiers::CONTROL);
+        assert_eq!(editor.text, "agent one");
+        apply_rename_control_key(
+            &mut editor,
+            KeyCode::Char('Z'),
+            KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+        );
+        assert_eq!(editor.text, "agent ");
+
+        // A new edit after undo discards the redo branch, and no-op edits add no history.
+        editor.undo();
+        editor.insert('!');
+        editor.redo();
+        assert_eq!(editor.text, "agent one!");
+        editor.move_cursor(0);
+        editor.backspace();
+        editor.undo();
+        assert_eq!(editor.text, "agent one");
     }
     #[test]
     fn outer_contract_offsets_rows_and_never_forwards_bell() {

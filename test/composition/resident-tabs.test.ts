@@ -98,6 +98,26 @@ describe("resident tab composition bridge", () => {
     expect(JSON.stringify(value.bridge.status.mock.calls)).not.toContain("queued prompt");
   });
 
+  it.each([
+    { settled: { successful: true, aborted: false }, status: "done" },
+    { settled: { successful: false, aborted: true }, status: "aborted" },
+    { settled: { successful: false, aborted: false }, status: "error" },
+  ])("reports a $status settlement until the next turn starts", async ({ settled, status }) => {
+    const value = fixture();
+    await bindResidentTabBridge(value.bridge as never, value.backend as never);
+    value.event({ type: "session-lifecycle", lifecycle: "busy" });
+    value.event({ type: "agent-run-settled", ...settled });
+    value.event({ type: "session-lifecycle", lifecycle: "idle" });
+    expect(value.bridge.status).toHaveBeenLastCalledWith(status, false, 0, 0);
+    // Invariant: viewing or re-rendering the tab keeps the marker; only a new turn replaces it.
+    value.event({ type: "session-view" });
+    expect(value.bridge.status).toHaveBeenLastCalledWith(status, false, 0, 0);
+    value.event({ type: "session-lifecycle", lifecycle: "busy" });
+    expect(value.bridge.status).toHaveBeenLastCalledWith("working", false, 0, 0);
+    value.event({ type: "session-lifecycle", lifecycle: "idle" });
+    expect(value.bridge.status).toHaveBeenLastCalledWith("idle", false, 0, 0);
+  });
+
   it("settles post-ready correlation immediately but leaves busy correlation active", async () => {
     const ready = fixture();
     const readyRecovery = { correlated: vi.fn(async () => {}), settled: vi.fn(async () => {}) };

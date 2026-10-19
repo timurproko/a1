@@ -5,6 +5,9 @@ import {
   TuiAltScreen,
   TuiMainScreen,
   VStack,
+  decodeKittyPrintable,
+  isKeyRelease,
+  parseKey,
   type Component,
   type Focusable,
   type OverlayHandle,
@@ -39,6 +42,31 @@ import type {
 } from "./contracts.js";
 
 type PiTuiTerminal = PiTuiTerminalPort & { setProgramStatus(status: ProgramStatus): void };
+
+// Protocol: the legacy bytes owned screens and their key tables compare against.
+const LEGACY_KEY_BYTES: Readonly<Record<string, string>> = {
+  escape: "\u001b", up: "\u001b[A", down: "\u001b[B", right: "\u001b[C", left: "\u001b[D",
+  "shift+up": "\u001b[1;2A", "shift+down": "\u001b[1;2B", pageUp: "\u001b[5~", pageDown: "\u001b[6~",
+  home: "\u001b[H", end: "\u001b[F", "ctrl+home": "\u001b[1;5H", "ctrl+end": "\u001b[1;5F",
+  enter: "\r", tab: "\t", "shift+tab": "\u001b[Z", backspace: "\u007f", delete: "\u001b[3~",
+  space: " ", "ctrl+c": "\u0003", "ctrl+z": "\u001a",
+};
+
+/**
+ * Re-encodes one key report decoded by pi-tui in the legacy form, so a kitty-keyboard child
+ * (resident tabs) and a legacy terminal produce the same owned-screen action. Releases decode
+ * to nothing; mouse reports, paste, and unknown sequences pass through unchanged.
+ */
+export function legacyKeyInput(data: string): string {
+  if (data.length <= 1 || !data.startsWith("\u001b")) return data;
+  const key = parseKey(data);
+  if (key === undefined) return data;
+  if (isKeyRelease(data)) return "";
+  const legacy = LEGACY_KEY_BYTES[key];
+  if (legacy !== undefined) return legacy;
+  const printable = decodeKittyPrintable(data);
+  return printable !== undefined && printable >= " " && printable !== "\u007f" ? printable : data;
+}
 
 export type PiTuiRuntimeErrorStage = "construction" | "start" | "input-drain" | "restoration";
 

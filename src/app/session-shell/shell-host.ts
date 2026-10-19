@@ -17,7 +17,7 @@ import {
   type PiTuiDamageFrameDescriptor,
   type PiTuiDamageFrameSafety,
 } from "../../integrations/pi/tui-runtime/damage-aware-terminal.js";
-import { PiTuiRuntimeAdapter } from "../../integrations/pi/tui-runtime/adapter.js";
+import { PiTuiRuntimeAdapter, legacyKeyInput } from "../../integrations/pi/tui-runtime/adapter.js";
 import { classifyPiTuiInput } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
 import type { PiTuiInputSurfaceKind } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
 import type {
@@ -443,7 +443,8 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
       if (notify) callbacks.closed(rendered);
     };
     removeInterruptWatch = runtime.addInputListener(data => {
-      if (!attached() || !data.includes(INTERRUPT)) return undefined;
+      // Compatibility: a kitty-keyboard child reports Ctrl+C as a CSI-u sequence rather than the byte.
+      if (!attached() || !data.includes(INTERRUPT) && legacyKeyInput(data) !== INTERRUPT) return undefined;
       // Protocol: route hosts decide whether one interrupt closes their app. Raw-input forwarding
       // is required because Pi handles Ctrl+C before the fullscreen overlay receives normal input.
       const consumedBySurface = surface.handleInput(INTERRUPT);
@@ -494,7 +495,9 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
       handleInput: (data: string) => {
         const { events, rest } = parseMouseInput(data);
         for (const event of events) surface.handleMouse(event);
-        if (rest.length > 0) surface.handleInput(rest);
+        // Invariant: owned screens see legacy key bytes whether the terminal reports legacy or kitty keys.
+        const key = rest.length > 0 ? legacyKeyInput(rest) : "";
+        if (key.length > 0) surface.handleInput(key);
         if (surface.isClosed()) {
           closeSurface(true);
           return;

@@ -1613,14 +1613,56 @@ impl GhosttyTerminal {
                     },
                     "read row cells",
                 )?;
+                // Invariant: legacy viewers receive the same OSC 8 targets the structured path
+                // carries, so links such as the footer pull-request number stay clickable.
+                let mut active_link: Option<SurfaceLink> = None;
+                let mut column: u16 = 0;
                 while unsafe { ghostty_render_state_row_cells_next(cells) } {
                     trace("next cell");
+                    let mut raw = 0u64;
+                    let mut has_link = false;
+                    let flagged = unsafe {
+                        ghostty_render_state_row_cells_get(
+                            cells,
+                            CELLS_DATA_RAW,
+                            &mut raw as *mut u64 as *mut c_void,
+                        ) == GHOSTTY_SUCCESS
+                            && ghostty_cell_get(
+                                raw,
+                                CELL_DATA_HAS_HYPERLINK,
+                                &mut has_link as *mut bool as *mut c_void,
+                            ) == GHOSTTY_SUCCESS
+                    };
+                    let link = (flagged && has_link)
+                        .then(|| u16::try_from(row_index).ok())
+                        .flatten()
+                        .and_then(|row| self.hyperlink_at(column, row).ok().flatten());
+                    if link != active_link {
+                        if active_link.is_some() {
+                            out.push_str("\u{1b}]8;;\u{1b}\\");
+                        }
+                        if let Some(link) = link.as_ref() {
+                            out.push_str("\u{1b}]8;");
+                            if let Some(id) = link.id.as_deref() {
+                                out.push_str("id=");
+                                out.push_str(id);
+                            }
+                            out.push(';');
+                            out.push_str(&link.uri);
+                            out.push_str("\u{1b}\\");
+                        }
+                        active_link = link;
+                    }
                     let style = cell_style(cells, &colors)?;
                     if active != Some(style) {
                         write_style(&mut out, style);
                         active = Some(style);
                     }
                     out.push_str(&cell_text(cells)?);
+                    column = column.saturating_add(1);
+                }
+                if active_link.is_some() {
+                    out.push_str("\u{1b}]8;;\u{1b}\\");
                 }
                 let clean = false;
                 check(
@@ -2570,5 +2612,21 @@ mod retained_tests {
             .expect("second capture");
         assert!(Arc::ptr_eq(&unchanged, &second.row_data[1]));
         assert!(!Arc::ptr_eq(&first.row_data[0], &second.row_data[0]));
+    }
+
+    #[test]
+    fn legacy_frames_keep_hyperlink_targets() {
+        let mut terminal = GhosttyTerminal::new(12, 2).expect("terminal");
+        terminal.write(
+            b"\x1b[2;1Hpr \x1b]8;id=pr;https://github.com/o/r/pull/805\x1b\\#805\x1b]8;;\x1b\\ x",
+        );
+        let frame = terminal.frame().expect("legacy frame");
+        let opened = frame
+            .find("\x1b]8;id=pr;https://github.com/o/r/pull/805\x1b\\")
+            .expect("link opened before its text");
+        let text = frame[opened..].find("#805").expect("linked text") + opened;
+        let closed = frame[text..].find("\x1b]8;;\x1b\\").expect("link closed") + text;
+        assert!(frame[closed..].contains(" x"));
+        assert!(!frame[..opened].contains("#805"));
     }
 }

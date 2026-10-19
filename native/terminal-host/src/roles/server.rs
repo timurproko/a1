@@ -1632,8 +1632,9 @@ fn bridge_surface_status(
     viewed: bool,
 ) -> String {
     let reported = match reported.as_str() {
-        "starting" | "restoring" | "working" | "needs-input" | "idle" | "done-unseen" | "error"
-        | "failed" | "crashed" | "restarting" | "unresponsive" | "stalled" | "ended" => reported,
+        "starting" | "restoring" | "working" | "needs-input" | "idle" | "done" | "aborted"
+        | "done-unseen" | "error" | "failed" | "crashed" | "restarting" | "unresponsive"
+        | "stalled" | "ended" => reported,
         _ => "idle".into(),
     };
     let mut next = if degraded {
@@ -5974,6 +5975,21 @@ mod tests {
             bridge_surface_status("idle", "suspended".into(), 0, 0, false, false),
             "idle"
         );
+        // Settlement markers reported by the child persist while viewed until the next turn.
+        for settled in ["done", "aborted", "failed"] {
+            assert_eq!(
+                bridge_surface_status("working", settled.into(), 0, 0, false, true),
+                settled
+            );
+            assert_eq!(
+                bridge_surface_status(settled, settled.into(), 0, 0, false, true),
+                settled
+            );
+            assert_eq!(
+                bridge_surface_status(settled, "working".into(), 0, 0, false, true),
+                "working"
+            );
+        }
         let mut attention = u64::MAX;
         mark_attention(&mut attention);
         assert_eq!(attention, u64::MAX);

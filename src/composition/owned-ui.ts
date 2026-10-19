@@ -43,7 +43,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
-import { deriveResidentTabStatus } from "../features/resident-tab/status-deriver.js";
+import { deriveResidentTabStatus, type ResidentTabTurnSettlement } from "../features/resident-tab/status-deriver.js";
 
 /**
  * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
@@ -521,7 +521,8 @@ export async function bindResidentTabBridge(
     tabBridge.session(currentSessionFile(), name, nameSource);
   };
   let working = false;
-  let lastTurnFailed = false;
+  // Invariant: the last turn's settlement stays reported until the next turn starts.
+  let lastTurn: ResidentTabTurnSettlement | undefined;
   let autoNameAttempted = false;
   let autoNameArmed = false;
   // Invariant: naming launches once per tab during an agent run, as soon as its prompt is projected,
@@ -551,7 +552,7 @@ export async function bindResidentTabBridge(
       lifecycle: lifecycle ?? view.lifecycle,
       pendingRequests,
       queuedInput,
-      ...(lastTurnFailed ? { stopReason: "error" } : {}),
+      ...(lastTurn === undefined ? {} : { lastTurn }),
     }), false, pendingRequests, queuedInput);
   };
   announceSession();
@@ -571,7 +572,7 @@ export async function bindResidentTabBridge(
     if (event.type === "session-lifecycle") {
       const wasWorking = working;
       working = event.lifecycle === "busy";
-      if (working) lastTurnFailed = false;
+      if (working) lastTurn = undefined;
       reportStatus(event.lifecycle);
       if (wasWorking && !working && recovery !== null) {
         void recovery.settled(currentSessionFile()).catch(() => tabBridge.degraded(true));
@@ -586,7 +587,7 @@ export async function bindResidentTabBridge(
     if (event.type === "agent-run-settled") {
       launchAutoName();
       autoNameArmed = false;
-      lastTurnFailed = !event.successful && !event.aborted;
+      lastTurn = event.aborted ? "aborted" : event.successful ? "done" : "error";
       tabBridge.prompt(event.aborted);
       reportStatus();
     }

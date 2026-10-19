@@ -262,11 +262,12 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 | `idle` | settled idle | none |
 | `working` | agent or turn start, tool execution, compaction | shared progress frames |
 | `needs-input` | an extension UI, trust, or permission request is pending | yellow `?` (warning) |
-| `done-unseen` | the turn settled while no client viewed the tab | `âœ“` success |
-| `error` | the last turn's `stopReason` was error | `âœ—` error |
-| `crashed` / `restarting` / `failed` | holder or child exit | `âœ—` error plus a banner |
+| `done` | the last turn finished successfully | green `✓` success |
+| `aborted` | the last turn was aborted | red `✗` error |
+| `error` | the last turn ended with an error | red `✗` error |
+| `crashed` / `restarting` / `failed` | holder or child exit, or a failed tab lifecycle (never a failed turn) | `âœ—` error plus a banner |
 
-- `seen` is tracked server-side, so viewing a tab in any client clears `âœ“` everywhere.
+- A `done`, `aborted`, or `error` marker stays on the chip, including after any client views the tab, until that tab's next turn starts.
 - A tab with a broken bridge shows only process-level states.
 - Future CLI tabs will derive status from process state, and may use BEL or OSC 9/777 from the program as an attention input.
 - The glyph set is the same in every client. A working spinner uses the resolved A1 accent reported by that specific tab.

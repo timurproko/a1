@@ -54,11 +54,16 @@ describe("resident tab auto naming", () => {
 });
 
 describe("resident tab status", () => {
-  it("prioritizes failures, requests, work, and unseen completion", () => {
-    expect(deriveResidentTabStatus({ lifecycle: "failed", pendingRequests: 1, queuedInput: 1 })).toBe("failed");
-    expect(deriveResidentTabStatus({ lifecycle: "idle", pendingRequests: 1, queuedInput: 0 })).toBe("needs-input");
-    expect(deriveResidentTabStatus({ lifecycle: "idle", pendingRequests: 0, queuedInput: 1 })).toBe("working");
-    expect(deriveResidentTabStatus({ lifecycle: "idle", pendingRequests: 0, queuedInput: 0, settledUnseen: true })).toBe("done-unseen");
+  it("prioritizes failures, requests, work, and the last turn's settlement", () => {
+    expect(deriveResidentTabStatus({ lifecycle: "failed", pendingRequests: 1, queuedInput: 1, lastTurn: "error" })).toBe("failed");
+    expect(deriveResidentTabStatus({ lifecycle: "idle", pendingRequests: 1, queuedInput: 0, lastTurn: "done" })).toBe("needs-input");
+    expect(deriveResidentTabStatus({ lifecycle: "idle", pendingRequests: 0, queuedInput: 1, lastTurn: "done" })).toBe("working");
+    expect(deriveResidentTabStatus({ lifecycle: "busy", pendingRequests: 0, queuedInput: 0, lastTurn: "aborted" })).toBe("working");
+    expect(deriveResidentTabStatus({ lifecycle: "idle", pendingRequests: 0, queuedInput: 0 })).toBe("idle");
+  });
+
+  it.each(["done", "aborted", "error"] as const)("reports a settled %s turn while idle", settlement => {
+    expect(deriveResidentTabStatus({ lifecycle: "idle", pendingRequests: 0, queuedInput: 0, lastTurn: settlement })).toBe(settlement);
   });
 });
 

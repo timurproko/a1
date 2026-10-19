@@ -205,6 +205,14 @@ describe("resident tab launch contracts", () => {
       type: "bridge.boundary",
       body: { generation: 8, nonce: Array(16).fill(7) },
     });
+    // Invariant: a lone Esc reaches the child at once rather than waiting for the next key.
+    expect(bridge.consumeControllerBoundaryInput("\x1b")).toBe("\x1b");
+    expect(bridge.consumeControllerBoundaryInput("x")).toBe("x");
+    expect(bridge.consumeControllerBoundaryInput("a\x1b")).toBe("a\x1b");
+    const boundaries = transport.sent.filter(envelope => envelope.type === "bridge.boundary").length;
+    expect(bridge.consumeControllerBoundaryInput(`k${marker.slice(0, 2)}`)).toBe("k");
+    expect(bridge.consumeControllerBoundaryInput(marker.slice(2))).toBe("");
+    expect(transport.sent.filter(envelope => envelope.type === "bridge.boundary")).toHaveLength(boundaries + 1);
     bridge.close();
   });
 
