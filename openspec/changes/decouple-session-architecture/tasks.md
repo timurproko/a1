@@ -19,10 +19,10 @@ Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19).
 
 ## 3. Native server registry and fan-out helpers
 
-- [ ] 3.1 Add `RegistryTxn` to `native/terminal-host/src/roles/registry.rs` (lock, apply closure, bump revision, clone, release, commit) and replace all 25 bump-and-commit sites in `roles/server.rs`; one `poisoned()` helper replaces the 57 inline poison expressions. Tests: unit tests for a poisoned lock, a failing commit, and revision monotonicity.
-- [ ] 3.2 Add `fanout_to_viewers(locked, tab_id, frame)` in `roles/server.rs` replacing the 15 `viewed_tab == tab_id` filters, and `attach_frames_for(tab_id)` replacing the duplicated subscription, visibility, and attachment pushes.
-- [ ] 3.3 Add `respawn_holder(state, tab_id, reason)` and `restart_budget(record, now)` in `roles/server.rs` replacing the duplicated respawn dispatches and the two `decide_restart` blocks; the explicit-restart bodies in `handle_lifecycle` and `serve_bridge` call one `request_child_restart`. Tests: `tests/role_integration.rs` unchanged and green; new unit tests for budget exhaustion and respawn failure release.
-- [ ] 3.4 Add `reply_result(peer, request, accepted, message)` replacing the 23 inline `ResultBody` frames across the handlers.
+- [x] 3.1 Add `lock_state` (one poisoned-lock error, replacing the 55 inline `.lock().map_err(...)` expressions), `bump_registry_revision` (the 25 bump sites), `registry_snapshot` (the 13 store-and-document clones), and `commit_staged` (the staged-commit blocks) to `roles/server.rs`, keeping every lock scope unchanged. Tests: unit tests for a poisoned lock, revision saturation, and an empty staged commit.
+- [x] 3.2 Add `viewers` and `is_viewed` in `roles/server.rs` replacing the 12 single-condition `viewed_tab == tab_id` filters, and `offer_bridge_visibility` plus the existing `refresh_surface_subscription` replacing the duplicated visibility and subscription pushes in the attach and view handlers.
+- [x] 3.3 Add `apply_restart_budget(record, now)` replacing the two `decide_restart` blocks, `holder_respawn` replacing the three respawn-order constructions, and `request_child_restart` replacing the explicit-restart bodies in `handle_lifecycle` and `serve_bridge`. Tests: `tests/role_integration.rs` unchanged and green in CI; new unit tests for budget exhaustion, window reset, and respawn tokens.
+- [x] 3.4 Add `ResultBody::ok`, `accepted`, and `refused` in `roles/wire.rs` replacing 19 of the inline `ResultBody` literals; literals with a computed `accepted` stay explicit.
 
 ## 4. Transcript document
 

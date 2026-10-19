@@ -140,43 +140,40 @@
       "lines": 111
     },
     "native/terminal-host/src/roles/server.rs::claim_client_control": {
-      "lines": 133
+      "lines": 129
     },
     "native/terminal-host/src/roles/server.rs::handle_lifecycle": {
-      "lines": 315
+      "lines": 247
     },
     "native/terminal-host/src/roles/server.rs::holder_lost": {
-      "lines": 151
+      "lines": 120
     },
     "native/terminal-host/src/roles/server.rs::promote_standby": {
-      "lines": 117
+      "lines": 106
     },
     "native/terminal-host/src/roles/server.rs::run_server_child": {
       "lines": 339
     },
     "native/terminal-host/src/roles/server.rs::serve_attach": {
-      "lines": 573
+      "lines": 496
     },
     "native/terminal-host/src/roles/server.rs::serve_bridge": {
-      "lines": 468
+      "lines": 395
     },
     "native/terminal-host/src/roles/server.rs::serve_holder": {
-      "lines": 745
-    },
-    "native/terminal-host/src/roles/server.rs::serve_maintain": {
-      "lines": 104
+      "lines": 645
     },
     "native/terminal-host/src/roles/server.rs::serve_peer": {
-      "lines": 273
+      "lines": 262
     },
     "native/terminal-host/src/roles/server.rs::start_holder": {
-      "lines": 201
+      "lines": 197
     },
     "native/terminal-host/src/roles/server.rs::stop_tabs": {
-      "lines": 163
+      "lines": 157
     },
     "native/terminal-host/src/roles/server.rs::supervise_holders": {
-      "lines": 168
+      "lines": 158
     },
     "native/terminal-host/src/roles/strip.rs::render_frame": {
       "lines": 138

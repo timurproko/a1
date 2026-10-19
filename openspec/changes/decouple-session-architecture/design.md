@@ -108,7 +108,9 @@ Mode precedence is one `match` on `(mode, event)`. The `prompt_view`, pending-ju
 
 ### 8. The server is split by role and its per-tab state moves into the core
 
-`roles/server/mod.rs` keeps `RuntimeState` with peers, slots, gates, config, and the `core::server::State`; the per-tab fields (`surfaces`, `launches`, `holders_terminating`, `holders_starting`, `bridge_status_sequences`, `status_persist_*`) move into `core::server::TabState`. `attach.rs`, `holder.rs`, `bridge.rs`, `lifecycle.rs`, `standby.rs`, `controller.rs` (controller transfers and boundaries), and `registry.rs` hold their handlers. `RegistryTxn` (added in `roles/registry.rs` by the helper step) takes the lock, applies a closure, bumps the revision, clones, releases, and commits; the 25 sites become `txn.apply(|r| ...)`. `fanout_to_viewers(tab_id, frame)` replaces the 15 filters. `respawn_holder` and `restart_budget` replace the three duplicated blocks each. The recovery-slot wait and restart delay become `Effect::ArmTimer` from the core, so holder and bridge reader threads never sleep.
+`roles/server/mod.rs` keeps `RuntimeState` with peers, slots, gates, config, and the `core::server::State`; the per-tab fields (`surfaces`, `launches`, `holders_terminating`, `holders_starting`, `bridge_status_sequences`, `status_persist_*`) move into `core::server::TabState`. `attach.rs`, `holder.rs`, `bridge.rs`, `lifecycle.rs`, `standby.rs`, `controller.rs` (controller transfers and boundaries), and `registry.rs` hold their handlers. The helper step already routes every registry change through `bump_registry_revision`, `registry_snapshot` (taken under the lock), and `commit_staged`/`commit_registry` (after it is released), every viewer lookup through `viewers`/`is_viewed`, the lock through `lock_state`, restarts through `apply_restart_budget` and `request_child_restart`, and respawn orders through `holder_respawn`; the split moves those helpers with their handlers.
+
+**Deviation recorded in the helper step:** the plan proposed a closure-based `RegistryTxn` that takes the lock itself. Most of the 25 sites stage the commit in the middle of other locked work (collecting peers, fanning out frames, updating core state), so a closure would have moved those operations out of or into the critical section. One bump, one snapshot, and one commit path keep every lock scope exactly as it was while still giving each step a single implementation. The recovery-slot wait and restart delay become `Effect::ArmTimer` from the core, so holder and bridge reader threads never sleep.
 
 ### 9. Composition constructs and returns
 
@@ -127,7 +129,7 @@ The ratchet lands first, recording the counts on the branch's reconciled `develo
 - **Regressions in behavior the tests do not pin.** Mitigation: every step is one commit; each extracted unit gains a focused test before the old code is deleted; the existing 56 session-shell test files, 34 engine test files, and the native role integration suite run in CI on every push.
 - **Native validation is CI-only here.** Mitigation: native steps are ordered after the TypeScript dedupe so their CI runs are not blocked on unrelated failures, and each native commit is pushed separately.
 - **The handlers bag tempts new callbacks.** Mitigation: invariant 6 and a focused test that counts the bag's keys.
-- **Lock reordering in the server.** `RegistryTxn` keeps the exact current order: mutate under lock, clone, release, commit. The helper has a test with a poisoned lock and a failing commit.
+- **Lock reordering in the server.** The registry helpers keep the exact current order at every site: mutate under lock, bump, snapshot, release, commit. Unit tests cover a poisoned lock, revision saturation, and an empty staged commit.
 
 ## Sequencing
 
@@ -140,6 +142,6 @@ Because the resident-tab code is still being fixed often, each native step (3, 5
 - Decisions 1, 2: `test/app/session-shell/session-shell*.test.ts`, new `test/app/session-shell/{dialog-coordinator,prompt-submission,workflow-router,resident-tab-coordinator,session-lifecycle}.test.ts`.
 - Decisions 3, 4, 5: `test/app/session-shell/session-bottom-hover.test.ts`, `test/features/owned-ui/pi-*-parity-fixture.ts`, new `transcript-document.test.ts` and `shell-layout.test.ts`.
 - Decision 6: `test/integrations/pi/engine/*`, new `ports.test.ts` and `view-state.test.ts`.
-- Decisions 7, 8: `native/terminal-host/src/core/sim`, `tests/role_integration.rs`, new `core/attach.rs` unit tests, `RegistryTxn` tests.
+- Decisions 7, 8: `native/terminal-host/src/core/sim`, `tests/role_integration.rs`, new `core/attach.rs` unit tests, registry, restart-budget, and respawn helper tests in `roles/server.rs`.
 - Decision 9: `test/composition/*`, new `session-runtime-registry.test.ts`.
 - Decision 10: new `test/repository-governance/size-ratchet.test.ts`, and `check-architecture.mjs` green at every later step.
