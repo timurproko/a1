@@ -1,5 +1,4 @@
 import type {
-  OwnedUiJsonValue,
   OwnedUiSessionSettingKey,
   OwnedUiSessionSettingsPort,
   OwnedUiSessionSettingsSnapshot,
@@ -22,16 +21,51 @@ interface SettingBinding {
   /** The owner that binds the live effect; null for a value applied only from the initial snapshot. */
   readonly owner: OwnedUiSettingOwner | null;
   readonly key: OwnedUiSessionSettingKey;
-  /** Rejects an invalid value with the message the owner reports; absent for an effect-free binding. */
-  readonly invalid?: string;
-  readonly accepts?: (value: OwnedUiJsonValue) => boolean;
-  /** Installs a validated value; also applied once to the initial snapshot. */
-  readonly apply: (value: never) => void;
-  readonly initial: boolean;
+  /** Validates and installs one live value, throwing the owner's message for an invalid one. */
+  live(value: unknown): void;
+  /** Installs this setting's value from the initial snapshot, when it applies one. */
+  seed?(snapshot: OwnedUiSessionSettingsSnapshot): void;
 }
 
-const isBoolean = (value: OwnedUiJsonValue) => typeof value === "boolean";
-const isNumber = (value: OwnedUiJsonValue) => typeof value === "number";
+const isBoolean = (value: unknown): value is boolean => typeof value === "boolean";
+const isNumber = (value: unknown): value is number => typeof value === "number";
+const isOutputPad = (value: unknown): value is 0 | 1 => value === 0 || value === 1;
+const isMermaidMode = (value: unknown): value is "off" | "final" | "streaming" =>
+  value === "off" || value === "final" || value === "streaming";
+const isImageWidth = (value: unknown): value is number =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 1;
+const isWheelDistance = (value: unknown): value is "auto" | number =>
+  value === "auto" || typeof value === "number" && Number.isSafeInteger(value) && value >= 1 && value <= 100;
+
+function snapshotValue(snapshot: OwnedUiSessionSettingsSnapshot, key: OwnedUiSessionSettingKey): unknown {
+  const values: Readonly<Partial<Record<OwnedUiSessionSettingKey, unknown>>> = snapshot;
+  return values[key];
+}
+
+/** One validated setting; `seeded` also installs the snapshot's value at bind time. */
+function setting<T>(
+  owner: OwnedUiSettingOwner,
+  key: OwnedUiSessionSettingKey,
+  invalid: string,
+  accepts: (value: unknown) => value is T,
+  apply: (value: T) => void,
+  seeded = true,
+): SettingBinding {
+  return {
+    owner,
+    key,
+    live: value => {
+      if (!accepts(value)) throw new TypeError(invalid);
+      apply(value);
+    },
+    ...(seeded ? {
+      seed: (snapshot: OwnedUiSessionSettingsSnapshot) => {
+        const value = snapshotValue(snapshot, key);
+        if (accepts(value)) apply(value);
+      },
+    } : {}),
+  };
+}
 
 function settingBindings(
   targets: SessionSettingsTargets,
@@ -43,40 +77,32 @@ function settingBindings(
   let showImages = snapshot.showImages;
   let imageWidthCells = snapshot.imageWidthCells;
   const presentImages = () => root.setImagePresentation(showImages, imageWidthCells);
-  const bindings: SettingBinding[] = [
+  return [
     // Invariant: bare A1 prints only the resume hint at exit, so the pinned exit-output
     // choice is hidden there and cannot be bound; the comparison profile binds and honors it.
-    ...(bare ? [] : [{ owner: "shutdown" as const, key: "fullscreenExitOutput" as const, apply: () => {}, initial: false }]),
-    { owner: "terminal", key: "showHardwareCursor", invalid: "Hardware cursor setting is invalid", accepts: isBoolean, apply: (value: boolean) => terminal.setHardwareCursor(value), initial: true },
-    { owner: "terminal", key: "clearOnShrink", invalid: "Clear-on-shrink setting is invalid", accepts: isBoolean, apply: (value: boolean) => terminal.setClearOnShrink(value), initial: true },
-    { owner: "terminal", key: "showTerminalProgress", invalid: "Terminal progress setting is invalid", accepts: isBoolean, apply: (value: boolean) => targets.setTerminalProgress(value), initial: true },
-    { owner: "shell", key: "editorPaddingX", invalid: "Editor padding is invalid", accepts: isNumber, apply: (value: number) => root.setEditorPaddingX(value), initial: true },
-    { owner: "shell", key: "autocompleteMaxVisible", invalid: "Autocomplete maximum is invalid", accepts: isNumber, apply: (value: number) => root.setAutocompleteMaxVisible(value), initial: true },
-    { owner: "shell", key: "outputPad", invalid: "Output padding is invalid", accepts: value => value === 0 || value === 1, apply: (value: 0 | 1) => root.setOutputPad(value), initial: true },
-    { owner: "shell", key: "hideThinkingBlock", invalid: "Thinking-block visibility is invalid", accepts: isBoolean, apply: (value: boolean) => root.setHideThinkingBlock(value), initial: true },
-    {
-      owner: "shell", key: "mermaidRenderingMode", invalid: "Mermaid mode is invalid",
-      accepts: value => value === "off" || value === "final" || value === "streaming",
-      apply: (value: "off" | "final" | "streaming") => root.setMermaidRenderingMode(value), initial: true,
-    },
-    { owner: "shell", key: "showImages", invalid: "Image visibility is invalid", accepts: isBoolean, apply: (value: boolean) => { showImages = value; presentImages(); }, initial: false },
-    {
-      owner: "shell", key: "imageWidthCells", invalid: "Image width is invalid",
-      accepts: value => typeof value === "number" && Number.isSafeInteger(value) && value >= 1,
-      apply: (value: number) => { imageWidthCells = value; presentImages(); }, initial: false,
-    },
-    { owner: null, key: "imageWidthCells", apply: presentImages, initial: true },
+    ...(bare ? [] : [{ owner: "shutdown" as const, key: "fullscreenExitOutput" as const, live: () => {} }]),
+    setting("terminal", "showHardwareCursor", "Hardware cursor setting is invalid", isBoolean, value => terminal.setHardwareCursor(value)),
+    setting("terminal", "clearOnShrink", "Clear-on-shrink setting is invalid", isBoolean, value => terminal.setClearOnShrink(value)),
+    setting("terminal", "showTerminalProgress", "Terminal progress setting is invalid", isBoolean, value => targets.setTerminalProgress(value)),
+    setting("shell", "editorPaddingX", "Editor padding is invalid", isNumber, value => root.setEditorPaddingX(value)),
+    setting("shell", "autocompleteMaxVisible", "Autocomplete maximum is invalid", isNumber, value => root.setAutocompleteMaxVisible(value)),
+    setting("shell", "outputPad", "Output padding is invalid", isOutputPad, value => root.setOutputPad(value)),
+    setting("shell", "hideThinkingBlock", "Thinking-block visibility is invalid", isBoolean, value => root.setHideThinkingBlock(value)),
+    setting("shell", "mermaidRenderingMode", "Mermaid mode is invalid", isMermaidMode, value => root.setMermaidRenderingMode(value)),
+    setting("shell", "showImages", "Image visibility is invalid", isBoolean, value => { showImages = value; presentImages(); }, false),
+    setting("shell", "imageWidthCells", "Image width is invalid", isImageWidth, value => { imageWidthCells = value; presentImages(); }, false),
+    { owner: null, key: "imageWidthCells", live: () => {}, seed: presentImages },
     // Invariant: the custom viewport owns copy-on-select; the pinned comparison profile keeps Pi's wheel distance.
     customViewport
-      ? { owner: "shell", key: "fullscreenCopyOnSelect", invalid: "Fullscreen copy-on-select setting is invalid", accepts: isBoolean, apply: (value: boolean) => root.setFullscreenCopyOnSelect(value), initial: true }
-      : {
-          owner: "shell", key: "fullscreenWheelScrollLines", invalid: "Fullscreen wheel-scroll distance is invalid",
-          accepts: value => value === "auto" || typeof value === "number" && Number.isSafeInteger(value) && value >= 1 && value <= 100,
-          apply: (value: "auto" | number) => terminal.setWheelScrollLines(value), initial: false,
-        },
-    ...(customViewport ? [] : [{ owner: null, key: "fullscreenCopyOnSelect" as const, apply: (value: boolean) => root.setFullscreenCopyOnSelect(value), initial: true }]),
+      ? setting("shell", "fullscreenCopyOnSelect", "Fullscreen copy-on-select setting is invalid", isBoolean, value => root.setFullscreenCopyOnSelect(value))
+      : setting("shell", "fullscreenWheelScrollLines", "Fullscreen wheel-scroll distance is invalid", isWheelDistance, value => terminal.setWheelScrollLines(value), false),
+    ...(customViewport ? [] : [{
+      owner: null,
+      key: "fullscreenCopyOnSelect" as const,
+      live: () => {},
+      seed: (initial: OwnedUiSessionSettingsSnapshot) => root.setFullscreenCopyOnSelect(initial.fullscreenCopyOnSelect),
+    }]),
   ];
-  return bindings;
 }
 
 /**
@@ -91,9 +117,7 @@ export function bindSessionSettings(
   options: { readonly customViewport: boolean },
 ): () => void {
   const bindings = settingBindings(targets, snapshot, options.customViewport, settings.productMode === "bare");
-  for (const binding of bindings) {
-    if (binding.initial) binding.apply(snapshot[binding.key as keyof OwnedUiSessionSettingsSnapshot] as never);
-  }
+  for (const binding of bindings) binding.seed?.(snapshot);
   const owners = [...new Set(bindings.flatMap(binding => binding.owner === null ? [] : [binding.owner]))];
   const releases: (() => void)[] = [];
   const release = () => {
@@ -103,12 +127,7 @@ export function bindSessionSettings(
     for (const owner of owners) {
       const handlers: OwnedUiSettingOwnerHandlers = {};
       for (const binding of bindings.filter(candidate => candidate.owner === owner)) {
-        handlers[binding.key] = {
-          apply: value => {
-            if (binding.accepts !== undefined && !binding.accepts(value)) throw new TypeError(binding.invalid);
-            binding.apply(value as never);
-          },
-        };
+        handlers[binding.key] = { apply: value => binding.live(value) };
       }
       releases.push(settings.bindOwner(owner, handlers));
     }
