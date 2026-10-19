@@ -383,6 +383,67 @@ pub fn vt_write(
 ) callconv(lib.calling_conv) void {
     const wrapper = terminal_ orelse return;
     wrapper.stream.nextSlice(ptr[0..len]);
+    // The legacy bulk API does not report boundaries. Do not let one leak into a later call to
+    // the boundary-aware API on the same terminal.
+    _ = wrapper.stream.handler.takeSynchronizedOutputBoundary();
+}
+
+/// A synchronized-output transition reached by vt_write_until_sync_boundary.
+pub const VtBoundary = enum(c_int) {
+    none = 0,
+    synchronized_output_begin = 1,
+    synchronized_output_end = 2,
+    synchronized_output_reset = 3,
+    _,
+};
+
+/// Process no more than one native synchronized-output transition. The stream parser remains the
+/// semantic authority: scanning for introducer bytes only preserves the normal bulk fast path
+/// while the parser is in its ground state.
+pub fn vt_write_until_sync_boundary(
+    terminal_: Terminal,
+    ptr: [*]const u8,
+    len: usize,
+    out_consumed_: ?*usize,
+    out_boundary_: ?*VtBoundary,
+) callconv(lib.calling_conv) Result {
+    const wrapper = terminal_ orelse return .invalid_value;
+    const out_consumed = out_consumed_ orelse return .invalid_value;
+    const out_boundary = out_boundary_ orelse return .invalid_value;
+    const input = ptr[0..len];
+    var consumed: usize = 0;
+    out_boundary.* = .none;
+    _ = wrapper.stream.handler.takeSynchronizedOutputBoundary();
+
+    while (consumed < input.len) {
+        if (wrapper.stream.isGround()) {
+            const remaining = input[consumed..];
+            const candidate = std.mem.indexOfAny(u8, remaining, "\x1b\x9b") orelse {
+                wrapper.stream.nextSlice(remaining);
+                consumed = input.len;
+                break;
+            };
+            if (candidate > 0) {
+                wrapper.stream.nextSlice(remaining[0..candidate]);
+                consumed += candidate;
+                continue;
+            }
+        }
+
+        wrapper.stream.nextSlice(input[consumed .. consumed + 1]);
+        consumed += 1;
+        if (wrapper.stream.handler.takeSynchronizedOutputBoundary()) |boundary| {
+            out_boundary.* = switch (boundary) {
+                .begin => .synchronized_output_begin,
+                .end => .synchronized_output_end,
+                .reset => .synchronized_output_reset,
+            };
+            break;
+        }
+    }
+
+    out_consumed.* = consumed;
+    return .success;
 }
 
 pub fn compression_activity(
@@ -2337,6 +2398,91 @@ test "point_from_grid_ref null node" {
 
     const ref: grid_ref_c.CGridRef = .{};
     try testing.expectEqual(Result.invalid_value, point_from_grid_ref(t, &ref, .active, null));
+}
+
+test "vt write stops at every synchronized output transition" {
+    var t: Terminal = null;
+    try testing.expectEqual(Result.success, new(
+        &lib.alloc.test_allocator,
+        &t,
+        .{ .cols = 80, .rows = 24, .max_scrollback = 0 },
+    ));
+    defer free(t);
+
+    const input = "before\x1b[?2026hinside\x1b[?2026l\x1b[?2026hnext\x1bc";
+    var offset: usize = 0;
+    var boundaries: [4]VtBoundary = undefined;
+    var boundary_count: usize = 0;
+    while (offset < input.len) {
+        var consumed: usize = 0;
+        var boundary: VtBoundary = .none;
+        try testing.expectEqual(Result.success, vt_write_until_sync_boundary(
+            t,
+            input.ptr + offset,
+            input.len - offset,
+            &consumed,
+            &boundary,
+        ));
+        try testing.expect(consumed > 0);
+        offset += consumed;
+        if (boundary != .none) {
+            boundaries[boundary_count] = boundary;
+            boundary_count += 1;
+        }
+    }
+    try testing.expectEqual(@as(usize, 4), boundary_count);
+    try testing.expectEqualSlices(VtBoundary, &.{
+        .synchronized_output_begin,
+        .synchronized_output_end,
+        .synchronized_output_begin,
+        .synchronized_output_reset,
+    }, boundaries[0..boundary_count]);
+}
+
+test "vt write boundary parser ignores control-like valid string payloads" {
+    var t: Terminal = null;
+    try testing.expectEqual(Result.success, new(
+        &lib.alloc.test_allocator,
+        &t,
+        .{ .cols = 80, .rows = 24, .max_scrollback = 0 },
+    ));
+    defer free(t);
+
+    const input = "\x1b]0;[?2026h-not-a-mode\x07\x1bPpayload[?2026h-still-dcs\x1b\\";
+    var consumed: usize = 0;
+    var boundary: VtBoundary = .none;
+    try testing.expectEqual(Result.success, vt_write_until_sync_boundary(
+        t,
+        input.ptr,
+        input.len,
+        &consumed,
+        &boundary,
+    ));
+    try testing.expectEqual(input.len, consumed);
+    try testing.expectEqual(VtBoundary.none, boundary);
+}
+
+test "vt write boundary parser owns malformed string abort semantics" {
+    var t: Terminal = null;
+    try testing.expectEqual(Result.success, new(
+        &lib.alloc.test_allocator,
+        &t,
+        .{ .cols = 80, .rows = 24, .max_scrollback = 0 },
+    ));
+    defer free(t);
+
+    const input = "\x1b]0;unterminated\x1b[?2026hinside";
+    var consumed: usize = 0;
+    var boundary: VtBoundary = .none;
+    try testing.expectEqual(Result.success, vt_write_until_sync_boundary(
+        t,
+        input.ptr,
+        input.len,
+        &consumed,
+        &boundary,
+    ));
+    try testing.expect(consumed < input.len);
+    try testing.expectEqual(VtBoundary.synchronized_output_begin, boundary);
 }
 
 test "set write_pty callback" {

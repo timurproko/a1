@@ -8,7 +8,9 @@
 
 use std::time::{Duration, Instant};
 
-use crate::protocol::SurfaceCursor;
+use crate::protocol::{
+    StructuredSurface, SurfaceColor, SurfaceCursor, SurfaceRow, SurfaceStyle, TerminalModes,
+};
 use crate::roles::strip::StripTab;
 use crate::roles::wire::Surface;
 
@@ -68,6 +70,8 @@ pub struct ViewModel {
     staged_tabs: Option<Vec<StripTab>>,
     pending_surface: Option<Surface>,
     committed_revision: Option<u64>,
+    expected_request_generation: u64,
+    request_started: Option<Instant>,
     stale_candidate: Option<(Surface, Instant)>,
 }
 
@@ -81,7 +85,18 @@ impl ViewModel {
     }
 
     pub fn request(&mut self, tab_id: &str) {
+        self.request_at(tab_id, Instant::now());
+    }
+
+    fn request_at(&mut self, tab_id: &str, now: Instant) {
         self.requested = Some(tab_id.to_owned());
+        self.request_started = Some(now);
+        self.pending_surface = None;
+        self.stale_candidate = None;
+    }
+
+    pub fn expect_request_generation(&mut self, generation: u64) {
+        self.expected_request_generation = self.expected_request_generation.max(generation);
     }
 
     /// The topology a pending commit will install, if any; status updates patch it too.
@@ -102,6 +117,7 @@ impl ViewModel {
         self.requested = None;
         self.staged_tabs = None;
         self.pending_surface = None;
+        self.request_started = None;
         self.stale_candidate = None;
     }
 
@@ -124,13 +140,26 @@ impl ViewModel {
 
     /// Decides whether an offered surface commits now, waits, or is discarded.
     pub fn offer(&mut self, surface: Surface, now: Instant, listed: bool) -> Offer {
+        if surface.request_generation != 0
+            && surface.request_generation < self.expected_request_generation
+        {
+            return Offer::Dropped;
+        }
+        self.expected_request_generation = self
+            .expected_request_generation
+            .max(surface.request_generation);
         self.adopt_initial(&surface.tab_id);
         let requested = self.is_requested(&surface.tab_id);
         // Protocol: a retained re-offer may commit a requested view only after the bounded wait
         // for the holder's fresh frame, so the old coherent frame stays visible instead of a
         // surface that predates the switch.
         if requested && surface.stale && self.viewed.is_some() {
-            self.stale_candidate = Some((surface, now + STALE_SURFACE_WAIT));
+            let deadline = self
+                .request_started
+                .unwrap_or(now)
+                .checked_add(STALE_SURFACE_WAIT)
+                .unwrap_or(now);
+            self.stale_candidate = Some((surface, deadline));
             return Offer::Parked;
         }
         if requested {
@@ -150,6 +179,7 @@ impl ViewModel {
             tabs = self.staged_tabs.take();
             self.viewed = Some(surface.tab_id.clone());
             self.requested = None;
+            self.request_started = None;
         } else if self.viewed.as_deref() != Some(surface.tab_id.as_str()) {
             return Offer::Dropped;
         } else if self
@@ -200,6 +230,7 @@ impl ViewModel {
             .is_some_and(|requested| !listed(requested))
         {
             dropped_request = self.requested.take();
+            self.request_started = None;
             self.staged_tabs = None;
             self.pending_surface = None;
             self.stale_candidate = None;
@@ -210,7 +241,7 @@ impl ViewModel {
             let target =
                 fallback(&next_tabs).or_else(|| next_tabs.first().map(|tab| tab.id.clone()));
             if let Some(tab_id) = target {
-                self.requested = Some(tab_id.clone());
+                self.request_at(&tab_id, Instant::now());
                 view_request = Some(tab_id);
             }
         }
@@ -226,6 +257,7 @@ impl ViewModel {
             {
                 self.viewed = Some(target);
                 self.requested = None;
+                self.request_started = None;
                 self.staged_tabs = None;
                 self.committed_revision = Some(surface.revision);
                 return Topology {
@@ -263,6 +295,460 @@ pub enum FinalCursor {
     Hidden,
     /// Zero-based child coordinates; the strip row is added when the frame is composed.
     At(SurfaceCursor),
+}
+
+/// Complete desired presentation offered to the sole outer writer. Replacement is safe because
+/// this contains the complete retained child state and all host chrome, not an incremental patch.
+#[derive(Debug, Clone)]
+pub struct DesiredPresentation {
+    pub tab_id: Option<String>,
+    pub incarnation: u64,
+    pub revision: u64,
+    pub geometry_generation: u64,
+    pub strip: String,
+    pub structured: Option<StructuredSurface>,
+    pub legacy_body: Vec<u8>,
+    pub overlay: Option<String>,
+    pub cursor: Option<FinalCursor>,
+    pub modes: Option<TerminalModes>,
+    pub columns: u16,
+    pub outer_rows: u16,
+    pub clear: bool,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct PresentationComposer {
+    valid: bool,
+    columns: u16,
+    outer_rows: u16,
+    tab_id: Option<String>,
+    incarnation: u64,
+    strip: String,
+    structured: Option<StructuredSurface>,
+    legacy_body: Vec<u8>,
+    overlay: Option<String>,
+    cursor: Option<FinalCursor>,
+    cursor_style: Option<(String, bool)>,
+    modes: Option<TerminalModes>,
+}
+
+#[derive(Debug)]
+pub struct PreparedPresentation {
+    pub bytes: Vec<u8>,
+    pub tab_id: Option<String>,
+    pub incarnation: u64,
+    pub revision: u64,
+    pub geometry_generation: u64,
+    next: PresentationComposer,
+}
+
+impl PreparedPresentation {
+    /// Advance the baseline only after the writer completed the whole output operation.
+    pub fn acknowledge(self, composer: &mut PresentationComposer) {
+        *composer = self.next;
+    }
+}
+
+impl PresentationComposer {
+    pub fn prepare(
+        &self,
+        desired: &DesiredPresentation,
+    ) -> Result<Option<PreparedPresentation>, String> {
+        if let Some(surface) = desired.structured.as_ref() {
+            surface.validate()?;
+        }
+        let identity_changed =
+            self.tab_id != desired.tab_id || self.incarnation != desired.incarnation;
+        let geometry_changed =
+            self.columns != desired.columns || self.outer_rows != desired.outer_rows;
+        let structured_base_invalid = match (&self.structured, &desired.structured) {
+            (Some(previous), Some(next)) => {
+                previous.geometry_generation != next.geometry_generation
+                    || previous.columns != next.columns
+                    || previous.rows != next.rows
+            }
+            (None, None) => false,
+            _ => true,
+        };
+        let force = !self.valid
+            || desired.clear
+            || identity_changed
+            || geometry_changed
+            || structured_base_invalid;
+        let mut output = Vec::new();
+        let mut body_changed = false;
+        let mut overlay_damage = std::collections::BTreeSet::<usize>::new();
+        if self.overlay != desired.overlay {
+            if let Some(previous) = self.overlay.as_deref() {
+                overlay_damage.extend(overlay_child_rows(previous.as_bytes(), desired.outer_rows));
+            }
+            if let Some(next) = desired.overlay.as_deref() {
+                overlay_damage.extend(overlay_child_rows(next.as_bytes(), desired.outer_rows));
+            }
+        }
+
+        if force {
+            output.extend_from_slice(b"\x1b[2J\x1b[H");
+        }
+        if force || self.strip != desired.strip {
+            output.extend_from_slice(desired.strip.as_bytes());
+        }
+
+        if let Some(surface) = desired.structured.as_ref() {
+            let prior = (!force).then_some(self.structured.as_ref()).flatten();
+            render_palette_damage(&mut output, prior, surface, force);
+            let visible_rows =
+                usize::from(surface.rows).min(usize::from(desired.outer_rows.saturating_sub(1)));
+            for row_index in 0..visible_rows {
+                let changed = prior.and_then(|previous| previous.row_data.get(row_index))
+                    != surface.row_data.get(row_index);
+                if force || changed || overlay_damage.contains(&row_index) {
+                    let row = surface
+                        .row_data
+                        .get(row_index)
+                        .ok_or_else(|| "structured surface row is missing".to_owned())?;
+                    render_surface_row(
+                        &mut output,
+                        row,
+                        row_index,
+                        desired.columns,
+                        &surface.styles,
+                        &surface.links,
+                    )?;
+                    body_changed = true;
+                }
+            }
+        } else if force || self.legacy_body != desired.legacy_body || !overlay_damage.is_empty() {
+            output.extend_from_slice(&sanitize_legacy_body(&desired.legacy_body));
+            body_changed = !desired.legacy_body.is_empty();
+        }
+
+        let overlay_changed = self.overlay != desired.overlay;
+        if let Some(overlay) = desired.overlay.as_deref()
+            && (force || overlay_changed || body_changed)
+        {
+            output.extend_from_slice(overlay.as_bytes());
+        }
+        let cursor = match desired.cursor {
+            Some(FinalCursor::At(cursor))
+                if cursor.column < desired.columns
+                    && cursor.row < desired.outer_rows.saturating_sub(1) =>
+            {
+                Some(FinalCursor::At(cursor))
+            }
+            Some(_) => Some(FinalCursor::Hidden),
+            None => None,
+        };
+        let cursor_style = desired
+            .modes
+            .as_ref()
+            .map(|modes| (modes.cursor_style.clone(), modes.cursor_blink));
+        let cursor_style_changed = self.cursor_style != cursor_style;
+        if cursor_style_changed {
+            if let Some((style, blink)) = cursor_style.as_ref() {
+                output.extend_from_slice(super::outer_input::cursor_style_sequence(style, *blink));
+            } else {
+                output.extend_from_slice(super::outer_input::RESET_CURSOR_STYLE);
+            }
+        }
+        let cursor_changed = self.cursor != cursor;
+        if force || !output.is_empty() || cursor_changed || desired.modes != self.modes {
+            match cursor {
+                Some(FinalCursor::Hidden) => output.extend_from_slice(b"\x1b[?25l"),
+                Some(FinalCursor::At(cursor)) => output.extend_from_slice(
+                    format!(
+                        "\x1b[{};{}H\x1b[?25h",
+                        u32::from(cursor.row) + 2,
+                        u32::from(cursor.column) + 1
+                    )
+                    .as_bytes(),
+                ),
+                None => {}
+            }
+        }
+        if output.is_empty() {
+            return Ok(None);
+        }
+        let mut bytes = Vec::with_capacity(output.len() + 16);
+        bytes.extend_from_slice(BEGIN_SYNCHRONIZED_UPDATE);
+        bytes.extend_from_slice(&output);
+        bytes.extend_from_slice(END_SYNCHRONIZED_UPDATE);
+        let next = PresentationComposer {
+            valid: true,
+            columns: desired.columns,
+            outer_rows: desired.outer_rows,
+            tab_id: desired.tab_id.clone(),
+            incarnation: desired.incarnation,
+            strip: desired.strip.clone(),
+            structured: desired.structured.clone(),
+            legacy_body: desired.legacy_body.clone(),
+            overlay: desired.overlay.clone(),
+            cursor,
+            cursor_style,
+            modes: desired.modes.clone(),
+        };
+        Ok(Some(PreparedPresentation {
+            bytes,
+            tab_id: desired.tab_id.clone(),
+            incarnation: desired.incarnation,
+            revision: desired.revision,
+            geometry_generation: desired.geometry_generation,
+            next,
+        }))
+    }
+
+    pub fn invalidate(&mut self) {
+        self.valid = false;
+    }
+}
+
+fn sanitize_legacy_body(bytes: &[u8]) -> Vec<u8> {
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index..].starts_with(BEGIN_SYNCHRONIZED_UPDATE) {
+            index += BEGIN_SYNCHRONIZED_UPDATE.len();
+        } else if bytes[index..].starts_with(END_SYNCHRONIZED_UPDATE) {
+            index += END_SYNCHRONIZED_UPDATE.len();
+        } else if bytes[index] == 0x07 {
+            index += 1;
+        } else {
+            output.push(bytes[index]);
+            index += 1;
+        }
+    }
+    output
+}
+
+fn render_palette_damage(
+    output: &mut Vec<u8>,
+    previous: Option<&StructuredSurface>,
+    next: &StructuredSurface,
+    force: bool,
+) {
+    if next.palette.len() != 256 {
+        return;
+    }
+    if force
+        || previous.is_none_or(|surface| {
+            surface.palette.len() != 256 || surface.default_foreground != next.default_foreground
+        })
+    {
+        push_osc_rgb(output, 10, None, next.default_foreground);
+    }
+    if force
+        || previous.is_none_or(|surface| {
+            surface.palette.len() != 256 || surface.default_background != next.default_background
+        })
+    {
+        push_osc_rgb(output, 11, None, next.default_background);
+    }
+    if force || previous.is_none_or(|surface| surface.cursor_color != next.cursor_color) {
+        if let Some(color) = next.cursor_color {
+            push_osc_rgb(output, 12, None, color);
+        } else {
+            output.extend_from_slice(b"\x1b]112\x1b\\");
+        }
+    }
+    for (index, color) in next.palette.iter().copied().enumerate() {
+        if force
+            || previous.is_none_or(|surface| surface.palette.get(index).copied() != Some(color))
+        {
+            push_osc_rgb(output, 4, Some(index), color);
+        }
+    }
+}
+
+fn push_osc_rgb(output: &mut Vec<u8>, command: u8, index: Option<usize>, color: [u8; 3]) {
+    output.extend_from_slice(format!("\x1b]{command};").as_bytes());
+    if let Some(index) = index {
+        output.extend_from_slice(format!("{index};").as_bytes());
+    }
+    output.extend_from_slice(
+        format!(
+            "rgb:{:02x}/{:02x}/{:02x}\x1b\\",
+            color[0], color[1], color[2]
+        )
+        .as_bytes(),
+    );
+}
+
+/// Reconstructs a complete positioned ANSI fallback from one coherent structured commit. This is
+/// used only for negotiated legacy peers and never introduces synchronized-output delimiters.
+pub(crate) fn complete_surface_bytes(surface: &StructuredSurface) -> Result<Vec<u8>, String> {
+    surface.validate()?;
+    let mut output = Vec::new();
+    render_palette_damage(&mut output, None, surface, true);
+    for (row_index, row) in surface.row_data.iter().enumerate() {
+        render_surface_row(
+            &mut output,
+            row,
+            row_index,
+            surface.columns,
+            &surface.styles,
+            &surface.links,
+        )?;
+    }
+    Ok(output)
+}
+
+fn render_surface_row(
+    output: &mut Vec<u8>,
+    row: &SurfaceRow,
+    row_index: usize,
+    columns: u16,
+    styles: &[SurfaceStyle],
+    links: &[crate::protocol::SurfaceLink],
+) -> Result<(), String> {
+    output.extend_from_slice(format!("\x1b[{};1H", row_index + 2).as_bytes());
+    let mut active_style: Option<u16> = None;
+    let mut active_link: Option<u16> = None;
+    let visible = usize::from(columns).min(row.cells.len());
+    for (column, cell) in row.cells[..visible].iter().enumerate() {
+        if cell.width == 0 {
+            continue;
+        }
+        if cell.width == 2 && column + 1 >= visible {
+            close_link(output, &mut active_link);
+            set_style(output, styles, cell.style, &mut active_style)?;
+            output.push(b' ');
+            continue;
+        }
+        if cell.link != active_link {
+            close_link(output, &mut active_link);
+            if let Some(index) = cell.link {
+                let link = links
+                    .get(usize::from(index))
+                    .ok_or_else(|| "surface hyperlink index is invalid".to_owned())?;
+                output.extend_from_slice(b"\x1b]8;");
+                if let Some(id) = link.id.as_deref() {
+                    output.extend_from_slice(b"id=");
+                    output.extend_from_slice(id.as_bytes());
+                }
+                output.push(b';');
+                output.extend_from_slice(link.uri.as_bytes());
+                output.extend_from_slice(b"\x1b\\");
+                active_link = Some(index);
+            }
+        }
+        set_style(output, styles, cell.style, &mut active_style)?;
+        output.extend_from_slice(cell.text.as_bytes());
+    }
+    close_link(output, &mut active_link);
+    if active_style.is_some() {
+        output.extend_from_slice(b"\x1b[0m");
+    }
+    // Invariant: a spectator may be wider than the controller-owned child geometry, and a row may replace
+    // previously wider content. Erasing after the complete retained row prevents stale suffixes
+    // without dropping styled blanks inside the child surface.
+    if visible < usize::from(columns) {
+        output.extend_from_slice(b"\x1b[K");
+    }
+    Ok(())
+}
+
+fn close_link(output: &mut Vec<u8>, active: &mut Option<u16>) {
+    if active.take().is_some() {
+        output.extend_from_slice(b"\x1b]8;;\x1b\\");
+    }
+}
+
+fn set_style(
+    output: &mut Vec<u8>,
+    styles: &[SurfaceStyle],
+    index: u16,
+    active: &mut Option<u16>,
+) -> Result<(), String> {
+    if *active == Some(index) {
+        return Ok(());
+    }
+    let style = styles
+        .get(usize::from(index))
+        .ok_or_else(|| "surface style index is invalid".to_owned())?;
+    output.extend_from_slice(b"\x1b[0m");
+    let mut parameters = Vec::<String>::new();
+    if style.bold {
+        parameters.push("1".into());
+    }
+    if style.faint {
+        parameters.push("2".into());
+    }
+    if style.italic {
+        parameters.push("3".into());
+    }
+    match style.underline {
+        1 => parameters.push("4".into()),
+        value @ 2..=5 => parameters.push(format!("4:{value}")),
+        _ => {}
+    }
+    if style.blink {
+        parameters.push("5".into());
+    }
+    if style.inverse || style.selected {
+        parameters.push("7".into());
+    }
+    if style.conceal {
+        parameters.push("8".into());
+    }
+    if style.strikethrough {
+        parameters.push("9".into());
+    }
+    if style.overline {
+        parameters.push("53".into());
+    }
+    push_color(&mut parameters, 38, style.foreground);
+    push_color(&mut parameters, 48, style.background);
+    push_color(&mut parameters, 58, style.underline_color);
+    if !parameters.is_empty() {
+        output.extend_from_slice(format!("\x1b[{}m", parameters.join(";")).as_bytes());
+    }
+    *active = Some(index);
+    Ok(())
+}
+
+fn push_color(parameters: &mut Vec<String>, base: u8, color: SurfaceColor) {
+    match color {
+        SurfaceColor::Default => parameters.push((base + 1).to_string()),
+        SurfaceColor::Palette(index) => parameters.push(format!("{base};5;{index}")),
+        SurfaceColor::Rgb([red, green, blue]) => {
+            parameters.push(format!("{base};2;{red};{green};{blue}"));
+        }
+    }
+}
+
+fn overlay_child_rows(bytes: &[u8], outer_rows: u16) -> std::collections::BTreeSet<usize> {
+    let mut rows = std::collections::BTreeSet::new();
+    let mut current = 0usize;
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index..].starts_with(b"\x1b[") {
+            let start = index + 2;
+            if let Some(end) = bytes[start..]
+                .iter()
+                .position(|byte| (0x40..=0x7e).contains(byte))
+                .map(|offset| start + offset)
+            {
+                if bytes[end] == b'H' {
+                    let row = std::str::from_utf8(&bytes[start..end])
+                        .ok()
+                        .and_then(|parameters| parameters.split(';').next())
+                        .and_then(|value| value.parse::<usize>().ok())
+                        .unwrap_or(1)
+                        .saturating_sub(1);
+                    current = row;
+                }
+                index = end + 1;
+                continue;
+            }
+        }
+        if bytes[index] == b'\n' {
+            current = current.saturating_add(1);
+        } else if bytes[index] >= 0x20 && current > 0 && current < usize::from(outer_rows) {
+            rows.insert(current - 1);
+        }
+        index += 1;
+    }
+    rows
 }
 
 /// One logical frame: strip, complete or omitted body, host overlay, final cursor, and whether
@@ -338,8 +824,11 @@ mod tests {
     fn surface(tab_id: &str, revision: u64, stale: bool) -> Surface {
         Surface {
             tab_id: tab_id.into(),
+            incarnation: 1,
             revision,
+            request_generation: 0,
             bytes: format!("{tab_id}:{revision}").into_bytes(),
+            structured: None,
             status: "idle".into(),
             accent: None,
             stale,
@@ -430,7 +919,7 @@ mod tests {
     fn stale_reoffers_wait_for_a_fresh_frame_then_commit_on_expiry() {
         let mut view = ViewModel::new(Some("a".into()));
         let now = Instant::now();
-        view.request("b");
+        view.request_at("b", now);
         assert_eq!(view.offer(surface("b", 3, true), now, true), Offer::Parked);
         assert_eq!(view.viewed.as_deref(), Some("a"));
         assert_eq!(view.expire(now + Duration::from_millis(10), |_| true), None);
@@ -448,9 +937,17 @@ mod tests {
         );
 
         let mut waiting = ViewModel::new(Some("a".into()));
-        waiting.request("b");
+        waiting.request_at("b", now);
         assert_eq!(
             waiting.offer(surface("b", 3, true), now, true),
+            Offer::Parked
+        );
+        assert_eq!(
+            waiting.offer(
+                surface("b", 4, true),
+                now + Duration::from_millis(100),
+                true
+            ),
             Offer::Parked
         );
         assert!(matches!(
@@ -573,6 +1070,320 @@ mod tests {
             "200 switches took {:?}",
             started.elapsed()
         );
+    }
+
+    fn structured_fixture() -> StructuredSurface {
+        StructuredSurface {
+            columns: 3,
+            rows: 2,
+            geometry_generation: 4,
+            commit_kind: crate::protocol::SurfaceCommitKind::Complete,
+            row_data: vec![
+                SurfaceRow {
+                    cells: vec![
+                        crate::protocol::SurfaceCell {
+                            text: "A".into(),
+                            width: 1,
+                            style: 1,
+                            link: Some(0),
+                        },
+                        crate::protocol::SurfaceCell {
+                            text: "界".into(),
+                            width: 2,
+                            style: 0,
+                            link: None,
+                        },
+                        crate::protocol::SurfaceCell {
+                            text: String::new(),
+                            width: 0,
+                            style: 0,
+                            link: None,
+                        },
+                    ],
+                },
+                SurfaceRow {
+                    cells: vec![
+                        crate::protocol::SurfaceCell {
+                            text: "B".into(),
+                            ..Default::default()
+                        },
+                        crate::protocol::SurfaceCell {
+                            text: " ".into(),
+                            ..Default::default()
+                        },
+                        crate::protocol::SurfaceCell {
+                            text: " ".into(),
+                            ..Default::default()
+                        },
+                    ],
+                },
+            ],
+            styles: vec![
+                SurfaceStyle::default(),
+                SurfaceStyle {
+                    foreground: SurfaceColor::Rgb([1, 2, 3]),
+                    background: SurfaceColor::Palette(4),
+                    underline_color: SurfaceColor::Palette(5),
+                    bold: true,
+                    italic: true,
+                    underline: 3,
+                    strikethrough: true,
+                    ..Default::default()
+                },
+            ],
+            links: vec![crate::protocol::SurfaceLink {
+                id: Some("link-1".into()),
+                uri: "https://example.test/path".into(),
+            }],
+            palette: vec![[0, 0, 0]; 256],
+            default_foreground: [240, 240, 240],
+            default_background: [10, 10, 10],
+            cursor_color: Some([20, 30, 40]),
+        }
+    }
+
+    fn desired(surface: Option<StructuredSurface>, legacy_body: Vec<u8>) -> DesiredPresentation {
+        DesiredPresentation {
+            tab_id: Some("a".into()),
+            incarnation: 2,
+            revision: 1,
+            geometry_generation: surface
+                .as_ref()
+                .map_or(0, |value| value.geometry_generation),
+            strip: "\x1b[1;1HSTRIP".into(),
+            structured: surface,
+            legacy_body,
+            overlay: None,
+            cursor: Some(FinalCursor::Hidden),
+            modes: Some(TerminalModes {
+                cursor_style: "bar".into(),
+                ..Default::default()
+            }),
+            columns: 3,
+            outer_rows: 3,
+            clear: false,
+        }
+    }
+
+    #[test]
+    fn structured_composition_preserves_fidelity_and_repaints_only_damaged_rows() {
+        let mut composer = PresentationComposer::default();
+        let surface = structured_fixture();
+        let first = composer
+            .prepare(&desired(Some(surface.clone()), Vec::new()))
+            .unwrap()
+            .expect("first paint");
+        assert_eq!(
+            first
+                .bytes
+                .windows(BEGIN_SYNCHRONIZED_UPDATE.len())
+                .filter(|window| *window == BEGIN_SYNCHRONIZED_UPDATE)
+                .count(),
+            1
+        );
+        assert_eq!(
+            first
+                .bytes
+                .windows(END_SYNCHRONIZED_UPDATE.len())
+                .filter(|window| *window == END_SYNCHRONIZED_UPDATE)
+                .count(),
+            1
+        );
+        assert!(
+            first
+                .bytes
+                .windows(13)
+                .any(|window| window == b"\x1b]8;id=link-1")
+        );
+        assert!(
+            first
+                .bytes
+                .windows(25)
+                .any(|window| window == b"https://example.test/path")
+        );
+        assert!(
+            first
+                .bytes
+                .windows(10)
+                .any(|window| window == b"38;2;1;2;3")
+        );
+        assert!(
+            first
+                .bytes
+                .windows("界".len())
+                .any(|window| window == "界".as_bytes())
+        );
+        first.acknowledge(&mut composer);
+        assert!(
+            composer
+                .prepare(&desired(Some(surface.clone()), Vec::new()))
+                .unwrap()
+                .is_none(),
+            "unchanged state should not repaint"
+        );
+
+        let mut palette_changed = surface;
+        palette_changed.palette[4] = [9, 8, 7];
+        let palette_damage = composer
+            .prepare(&desired(Some(palette_changed.clone()), Vec::new()))
+            .unwrap()
+            .expect("palette damage");
+        assert!(
+            palette_damage
+                .bytes
+                .windows(9)
+                .any(|window| window == b"\x1b]4;4;rgb")
+        );
+        assert!(
+            !palette_damage
+                .bytes
+                .windows(6)
+                .any(|window| window == b"\x1b[2;1H")
+        );
+        assert!(
+            !palette_damage
+                .bytes
+                .windows(6)
+                .any(|window| window == b"\x1b[3;1H")
+        );
+        palette_damage.acknowledge(&mut composer);
+
+        let mut changed = palette_changed;
+        changed.row_data[1].cells[0].text = "C".into();
+        let damage = composer
+            .prepare(&desired(Some(changed), Vec::new()))
+            .unwrap()
+            .expect("row damage");
+        assert!(damage.bytes.windows(6).any(|window| window == b"\x1b[3;1H"));
+        assert!(!damage.bytes.windows(6).any(|window| window == b"\x1b[2;1H"));
+    }
+
+    #[test]
+    fn geometry_identity_invalidates_the_base_and_wider_spectators_erase_suffixes() {
+        let mut composer = PresentationComposer::default();
+        let first_surface = structured_fixture();
+        composer
+            .prepare(&desired(Some(first_surface.clone()), Vec::new()))
+            .unwrap()
+            .expect("first paint")
+            .acknowledge(&mut composer);
+
+        let mut next_generation = first_surface;
+        next_generation.geometry_generation += 1;
+        let repaint = composer
+            .prepare(&desired(Some(next_generation), Vec::new()))
+            .unwrap()
+            .expect("geometry repaint");
+        assert!(repaint.bytes.windows(4).any(|window| window == b"\x1b[2J"));
+        repaint.acknowledge(&mut composer);
+
+        let mut narrower = structured_fixture();
+        narrower.geometry_generation += 2;
+        narrower.columns = 2;
+        for row in &mut narrower.row_data {
+            row.cells.truncate(2);
+        }
+        narrower.row_data[0].cells[0].width = 1;
+        narrower.row_data[0].cells[1] = crate::protocol::SurfaceCell::default();
+        let fitted = composer
+            .prepare(&desired(Some(narrower), Vec::new()))
+            .unwrap()
+            .expect("spectator fit");
+        assert!(
+            fitted.bytes.windows(3).any(|window| window == b"\x1b[K"),
+            "a wider spectator must erase content beyond the child row"
+        );
+    }
+
+    #[test]
+    fn overlay_dismissal_restores_the_newest_underlying_row_and_clips_cursor() {
+        let mut composer = PresentationComposer::default();
+        let mut initial = desired(Some(structured_fixture()), Vec::new());
+        initial.overlay = Some("\x1b[2;1HOVER".into());
+        composer
+            .prepare(&initial)
+            .unwrap()
+            .expect("overlay paint")
+            .acknowledge(&mut composer);
+
+        let mut updated_surface = structured_fixture();
+        updated_surface.row_data[0].cells[0].text = "N".into();
+        let mut updated = desired(Some(updated_surface.clone()), Vec::new());
+        updated.overlay = initial.overlay.clone();
+        composer
+            .prepare(&updated)
+            .unwrap()
+            .expect("covered body update")
+            .acknowledge(&mut composer);
+
+        let mut dismissed = desired(Some(updated_surface), Vec::new());
+        dismissed.cursor = Some(FinalCursor::At(SurfaceCursor {
+            column: 99,
+            row: 99,
+        }));
+        let restored = composer
+            .prepare(&dismissed)
+            .unwrap()
+            .expect("overlay dismissal");
+        assert!(restored.bytes.contains(&b'N'));
+        assert!(
+            restored
+                .bytes
+                .windows(6)
+                .any(|window| window == b"\x1b[?25l"),
+            "an out-of-bounds child cursor must be hidden"
+        );
+    }
+
+    #[test]
+    fn legacy_fallback_cannot_nest_sync_or_replay_bell() {
+        let composer = PresentationComposer::default();
+        let legacy = [
+            BEGIN_SYNCHRONIZED_UPDATE,
+            b"body\x07",
+            END_SYNCHRONIZED_UPDATE,
+        ]
+        .concat();
+        let prepared = composer
+            .prepare(&desired(None, legacy))
+            .unwrap()
+            .expect("legacy paint");
+        assert_eq!(
+            prepared
+                .bytes
+                .windows(BEGIN_SYNCHRONIZED_UPDATE.len())
+                .filter(|window| *window == BEGIN_SYNCHRONIZED_UPDATE)
+                .count(),
+            1
+        );
+        assert_eq!(
+            prepared
+                .bytes
+                .windows(END_SYNCHRONIZED_UPDATE.len())
+                .filter(|window| *window == END_SYNCHRONIZED_UPDATE)
+                .count(),
+            1
+        );
+        assert!(!prepared.bytes.contains(&0x07));
+    }
+
+    #[test]
+    fn superseded_request_generations_do_not_commit_after_a_round_trip() {
+        let mut view = ViewModel::new(Some("b".into()));
+        view.request("a");
+        view.expect_request_generation(4);
+        let mut late = surface("a", 8, false);
+        late.request_generation = 2;
+        assert_eq!(view.offer(late, Instant::now(), true), Offer::Dropped);
+        let mut current = surface("a", 7, false);
+        current.request_generation = 4;
+        assert!(matches!(
+            view.offer(current, Instant::now(), true),
+            Offer::Commit {
+                requested: true,
+                ..
+            }
+        ));
     }
 
     #[test]

@@ -695,4 +695,61 @@ describe("A1-owned damage-aware terminal adapter", () => {
     absent.adapter.write(reflowed);
     expect(absent.adapter.lastDecision).toMatchObject({ transformed: true, paintedRows: [1, 6] });
   });
+
+  it("keeps the physical baseline and observation unchanged while the exact-artifact renderer stage is stopped", () => {
+    const terminal = new RecordingTerminal();
+    const observed: number[] = [];
+    let allowed = false;
+    const adapter = new DamageAwareTerminalAdapter(terminal, {
+      regionalScroll: true,
+      inspectHyperlinks: readVisibleHyperlinks,
+      allowWrite: () => allowed,
+      onWrite: value => observed.push(value.bytes),
+    });
+    const write = fullscreenWrite(initialRows);
+    adapter.arm(descriptor(7), SAFE);
+    adapter.write(write);
+    expect(terminal.writes).toEqual([]);
+    expect(observed).toEqual([]);
+
+    allowed = true;
+    adapter.arm(descriptor(8), SAFE);
+    adapter.write(write);
+    expect(terminal.writes).toEqual([write]);
+    expect(observed).toEqual([Buffer.byteLength(write)]);
+  });
+
+  it("reports one completed renderer write after bounded exact-artifact fragmentation", () => {
+    const terminal = new RecordingTerminal();
+    const fragments: number[] = [];
+    const adapter = new DamageAwareTerminalAdapter(terminal, {
+      regionalScroll: true,
+      inspectHyperlinks: readVisibleHyperlinks,
+      writeChunks: data => [data.slice(0, 3), data.slice(3)],
+      onWrite: value => fragments.push(value.fragments),
+    });
+    const write = fullscreenWrite(initialRows);
+    adapter.arm(descriptor(7), SAFE);
+    adapter.write(write);
+    expect(terminal.writes.join("")).toBe(write);
+    expect(terminal.writes).toHaveLength(2);
+    expect(fragments).toEqual([2]);
+  });
+
+  it("observes only completed forwarded writes with frame identity and cause", () => {
+    const terminal = new RecordingTerminal();
+    const observed: { bytes: number; frameId?: number; cause?: string }[] = [];
+    const adapter = new DamageAwareTerminalAdapter(terminal, {
+      regionalScroll: true,
+      inspectHyperlinks: readVisibleHyperlinks,
+      onWrite: value => observed.push(value),
+    });
+    const write = fullscreenWrite(initialRows);
+    adapter.arm(descriptor(7), SAFE);
+    adapter.write(write);
+
+    expect(terminal.writes).toEqual([write]);
+    expect(observed).toEqual([{ bytes: Buffer.byteLength(write), fragments: 1,
+      transaction: "synchronized-output", frameId: 7, cause: "initial" }]);
+  });
 });

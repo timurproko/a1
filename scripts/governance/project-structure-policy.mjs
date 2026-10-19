@@ -7,7 +7,7 @@ export const PROJECT_OWNERS = Object.freeze({
   composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "release", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters", "session-shell", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch", "resident-tabs", "resident-tab"]),
   "session-shell": owner("session-shell", "app", "src/app/session-shell", "test/app/session-shell", [
     "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "ui-components", "ui-apps", "owned-ui-settings",
-    "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "terminal-cleanup", "owned-ui", "prompt-history", "prompt-suggestions", "launch",
+    "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "terminal-cleanup", "owned-ui", "prompt-history", "prompt-suggestions", "launch", "resident-tabs",
   ]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle"]),
   "resident-tab": owner("resident-tab", "feature", "src/features/resident-tab", "test/features/resident-tab", ["ui-components"]),
@@ -33,7 +33,7 @@ export const PROJECT_OWNERS = Object.freeze({
   "owned-ui-settings": owner("owned-ui-settings", "foundation", "src/ui/settings", "test/ui/settings", ["agent-engine-contracts", "owned-ui-contracts"]),
   "agent-engine-contracts": owner("agent-engine-contracts", "foundation", "src/contracts/agent-engine", "test/contracts/agent-engine", []),
   "presentation-contracts": owner("presentation-contracts", "foundation", "src/contracts/presentation", "test/contracts/presentation", []),
-  "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/integrations/pi/engine", "test/integrations/pi/engine", ["owned-ui-contracts", "agent-engine-contracts", "startup", "session-writer-lock"]),
+  "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/integrations/pi/engine", "test/integrations/pi/engine", ["owned-ui-contracts", "agent-engine-contracts", "startup", "session-writer-lock", "resident-tabs"]),
   "pi-component-adapter": owner("pi-component-adapter", "foundation", "src/integrations/pi/components", "test/integrations/pi/components", ["owned-ui-contracts", "presentation-contracts", "resident-tab"]),
   "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/integrations/pi/tui-runtime", "test/integrations/pi/tui-runtime", ["presentation-contracts", "terminal-cleanup"]),
   "pi-session-presenters": owner("pi-session-presenters", "foundation", "src/integrations/pi/session-presenters", "test/integrations/pi/session-presenters", [

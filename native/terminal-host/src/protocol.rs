@@ -17,6 +17,22 @@ pub const FEATURE_SEMANTIC_INPUT: &str = "semantic-input";
 /// Generation-1 feature advertised by a peer that forwards or applies typed child terminal
 /// effects (`terminal.effect`) and presentation modes on surfaces.
 pub const FEATURE_TERMINAL_EFFECTS: &str = "terminal-effects";
+/// Generation-1 feature for complete bounded row/cell snapshots. It is negotiated separately on
+/// holder/server and server/attach links; peers without it keep the complete legacy ANSI route.
+pub const FEATURE_STRUCTURED_SURFACE: &str = "structured-surface";
+/// Largest supported retained viewport. Bounds are checked before multiplying dimensions and
+/// before a decoded snapshot can replace the last coherent surface.
+pub const MAX_SURFACE_COLUMNS: usize = 512;
+pub const MAX_SURFACE_ROWS: usize = 256;
+pub const MAX_SURFACE_CELLS: usize = 65_536;
+pub const MAX_SURFACE_STYLES: usize = 4_096;
+pub const MAX_SURFACE_LINKS: usize = 4_096;
+pub const MAX_CELL_TEXT_BYTES: usize = 64;
+pub const MAX_LINK_ID_BYTES: usize = 256;
+pub const MAX_LINK_URI_BYTES: usize = 4_096;
+/// Maximum retained heap represented by one decoded surface, independent of the encoded 2 MiB
+/// frame ceiling. This includes collection elements and owned string payloads.
+pub const MAX_SURFACE_DECODED_BYTES: usize = 8 * 1024 * 1024;
 /// Largest clipboard payload one typed effect may carry across the resident boundary.
 pub const MAX_CLIPBOARD_BYTES: usize = 256 * 1024;
 /// Longest key name or key text one normalized key event may carry.
@@ -395,6 +411,252 @@ pub struct SurfaceCursor {
     pub row: u16,
 }
 
+/// A color retains whether the child selected the outer default, a palette entry, or exact RGB.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(tag = "kind", content = "value", rename_all = "kebab-case")]
+pub enum SurfaceColor {
+    #[default]
+    Default,
+    Palette(u8),
+    Rgb([u8; 3]),
+}
+
+/// Complete semantics shared by cells that reference this interned style.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceStyle {
+    #[serde(default)]
+    pub foreground: SurfaceColor,
+    #[serde(default)]
+    pub background: SurfaceColor,
+    #[serde(default)]
+    pub underline_color: SurfaceColor,
+    #[serde(default)]
+    pub bold: bool,
+    #[serde(default)]
+    pub faint: bool,
+    #[serde(default)]
+    pub italic: bool,
+    #[serde(default)]
+    pub blink: bool,
+    #[serde(default)]
+    pub inverse: bool,
+    #[serde(default)]
+    pub conceal: bool,
+    #[serde(default)]
+    pub strikethrough: bool,
+    #[serde(default)]
+    pub overline: bool,
+    /// Ghostty's SGR underline value: 0 none, 1 single, 2 double, 3 curly, 4 dotted, 5 dashed.
+    #[serde(default)]
+    pub underline: u8,
+    #[serde(default)]
+    pub selected: bool,
+}
+
+/// One interned OSC 8 target. `id` preserves explicit identity independently of the URI.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceLink {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    pub uri: String,
+}
+
+/// One viewport cell. Wide spacer tails carry width zero and no text; ordinary and wide heads
+/// carry width one or two. Style and link indexes refer to the snapshot's bounded intern tables.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceCell {
+    #[serde(default = "default_cell_text")]
+    pub text: String,
+    #[serde(default = "default_cell_width")]
+    pub width: u8,
+    #[serde(default)]
+    pub style: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub link: Option<u16>,
+}
+
+fn default_cell_text() -> String {
+    " ".into()
+}
+
+fn default_cell_width() -> u8 {
+    1
+}
+
+impl Default for SurfaceCell {
+    fn default() -> Self {
+        Self {
+            text: default_cell_text(),
+            width: 1,
+            style: 0,
+            link: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceRow {
+    #[serde(default)]
+    pub cells: Vec<SurfaceCell>,
+}
+
+/// Why this immutable complete state became publishable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum SurfaceCommitKind {
+    #[default]
+    Complete,
+    /// A malformed synchronized update exceeded its non-renewable local deadline.
+    Recovery,
+    /// Geometry changed and the child had not yet repainted before the local bound.
+    ProvisionalGeometry,
+}
+
+/// A complete immutable viewport. Rows are full retained state even though the holder shares
+/// unchanged rows in memory and attach later paints only rows that differ from completed output.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct StructuredSurface {
+    pub columns: u16,
+    pub rows: u16,
+    #[serde(default)]
+    pub geometry_generation: u64,
+    #[serde(default)]
+    pub commit_kind: SurfaceCommitKind,
+    #[serde(default)]
+    pub row_data: Vec<SurfaceRow>,
+    #[serde(default)]
+    pub styles: Vec<SurfaceStyle>,
+    #[serde(default)]
+    pub links: Vec<SurfaceLink>,
+    /// The child terminal's effective defaults and 256-entry palette. Empty entries are accepted
+    /// only as the additive legacy form; native structured producers always publish all entries.
+    #[serde(default)]
+    pub palette: Vec<[u8; 3]>,
+    #[serde(default)]
+    pub default_foreground: [u8; 3],
+    #[serde(default)]
+    pub default_background: [u8; 3],
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cursor_color: Option<[u8; 3]>,
+}
+
+impl StructuredSurface {
+    /// Reject malformed or oversized decoded state before it becomes authoritative. The frame
+    /// decoder already caps encoded memory at 2 MiB; these checks cap dimensions, collections,
+    /// index references, and per-cell/link expansion inside that frame.
+    pub fn validate(&self) -> Result<(), String> {
+        let columns = usize::from(self.columns);
+        let rows = usize::from(self.rows);
+        if columns == 0 || columns > MAX_SURFACE_COLUMNS {
+            return Err("surface columns are out of bounds".into());
+        }
+        if rows == 0 || rows > MAX_SURFACE_ROWS {
+            return Err("surface rows are out of bounds".into());
+        }
+        let expected = columns
+            .checked_mul(rows)
+            .filter(|cells| *cells <= MAX_SURFACE_CELLS)
+            .ok_or_else(|| "surface cell count is out of bounds".to_owned())?;
+        if self.row_data.len() != rows || self.row_data.iter().any(|row| row.cells.len() != columns)
+        {
+            return Err("surface dimensions do not match its rows".into());
+        }
+        if self.styles.is_empty() || self.styles.len() > MAX_SURFACE_STYLES {
+            return Err("surface style table is out of bounds".into());
+        }
+        if self.links.len() > MAX_SURFACE_LINKS {
+            return Err("surface link table is out of bounds".into());
+        }
+        if !self.palette.is_empty() && self.palette.len() != 256 {
+            return Err("surface palette must be empty or complete".into());
+        }
+        let mut decoded_bytes = expected
+            .checked_mul(std::mem::size_of::<SurfaceCell>())
+            .and_then(|value| {
+                value.checked_add(rows.saturating_mul(std::mem::size_of::<SurfaceRow>()))
+            })
+            .and_then(|value| {
+                value.checked_add(
+                    self.styles
+                        .len()
+                        .saturating_mul(std::mem::size_of::<SurfaceStyle>()),
+                )
+            })
+            .and_then(|value| {
+                value.checked_add(
+                    self.links
+                        .len()
+                        .saturating_mul(std::mem::size_of::<SurfaceLink>()),
+                )
+            })
+            .and_then(|value| value.checked_add(self.palette.len().saturating_mul(3)))
+            .filter(|value| *value <= MAX_SURFACE_DECODED_BYTES)
+            .ok_or_else(|| "surface decoded memory is out of bounds".to_owned())?;
+        let mut counted = 0usize;
+        for row in &self.row_data {
+            for cell in &row.cells {
+                counted = counted.saturating_add(1);
+                decoded_bytes = decoded_bytes
+                    .checked_add(cell.text.len())
+                    .filter(|value| *value <= MAX_SURFACE_DECODED_BYTES)
+                    .ok_or_else(|| "surface decoded memory is out of bounds".to_owned())?;
+                if cell.text.len() > MAX_CELL_TEXT_BYTES
+                    || cell.text.chars().any(char::is_control)
+                    || !matches!(cell.width, 0..=2)
+                    || (cell.width == 0 && !cell.text.is_empty())
+                    || (cell.width > 0 && cell.text.is_empty())
+                    || usize::from(cell.style) >= self.styles.len()
+                    || cell
+                        .link
+                        .is_some_and(|link| usize::from(link) >= self.links.len())
+                {
+                    return Err("surface cell is out of bounds".into());
+                }
+            }
+        }
+        if counted != expected {
+            return Err("surface cell count does not match its geometry".into());
+        }
+        for row in &self.row_data {
+            for (column, cell) in row.cells.iter().enumerate() {
+                if cell.width == 2 && row.cells.get(column + 1).is_none_or(|tail| tail.width != 0) {
+                    return Err("wide surface cell has no spacer tail".into());
+                }
+            }
+        }
+        for style in &self.styles {
+            if style.underline > 5 {
+                return Err("surface underline style is out of bounds".into());
+            }
+        }
+        for link in &self.links {
+            decoded_bytes = decoded_bytes
+                .checked_add(link.uri.len())
+                .and_then(|value| value.checked_add(link.id.as_ref().map_or(0, String::len)))
+                .filter(|value| *value <= MAX_SURFACE_DECODED_BYTES)
+                .ok_or_else(|| "surface decoded memory is out of bounds".to_owned())?;
+            if link.uri.is_empty()
+                || link.uri.len() > MAX_LINK_URI_BYTES
+                || link.uri.chars().any(char::is_control)
+                || link.id.as_ref().is_some_and(|id| {
+                    id.len() > MAX_LINK_ID_BYTES
+                        || id.is_empty()
+                        || id.chars().any(char::is_control)
+                        || id.bytes().any(|byte| matches!(byte, b':' | b';'))
+                })
+            {
+                return Err("surface hyperlink is out of bounds".into());
+            }
+        }
+        Ok(())
+    }
+}
+
 /// A typed terminal side effect consumed by retained parsing whose direct effect belongs to the
 /// outer terminal. Only the holder of the committed viewed tab may produce one that is applied.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -402,6 +664,10 @@ pub struct SurfaceCursor {
 pub struct TerminalEffect {
     #[serde(default)]
     pub tab_id: String,
+    #[serde(default)]
+    pub incarnation: u64,
+    #[serde(default)]
+    pub sequence: u64,
     #[serde(default)]
     pub revision: u64,
     pub effect: EffectKind,
@@ -891,6 +1157,8 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                 request_id: None,
                 body: TerminalEffect {
                     tab_id: "tab-1".to_owned(),
+                    incarnation: 2,
+                    sequence: 4,
                     revision: 9,
                     effect: EffectKind::ClipboardWrite {
                         location: ClipboardLocation::Standard,
@@ -928,6 +1196,47 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                     kitty_keyboard_flags: 1,
                     alternate_screen: false,
                     synchronized_output: false,
+                },
+            })?,
+        ),
+        (
+            "structured-surface.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "structured.surface".to_owned(),
+                request_id: None,
+                body: StructuredSurface {
+                    columns: 2,
+                    rows: 1,
+                    geometry_generation: 3,
+                    commit_kind: SurfaceCommitKind::Complete,
+                    row_data: vec![SurfaceRow {
+                        cells: vec![
+                            SurfaceCell {
+                                text: "界".into(),
+                                width: 2,
+                                style: 0,
+                                link: Some(0),
+                            },
+                            SurfaceCell {
+                                text: String::new(),
+                                width: 0,
+                                ..Default::default()
+                            },
+                        ],
+                    }],
+                    styles: vec![SurfaceStyle {
+                        foreground: SurfaceColor::Rgb([1, 2, 3]),
+                        underline: 3,
+                        ..Default::default()
+                    }],
+                    links: vec![SurfaceLink {
+                        id: Some("link-1".into()),
+                        uri: "https://example.test".into(),
+                    }],
+                    palette: vec![[0, 0, 0]; 256],
+                    default_foreground: [255, 255, 255],
+                    default_background: [0, 0, 0],
+                    cursor_color: Some([4, 5, 6]),
                 },
             })?,
         ),
@@ -1233,6 +1542,10 @@ mod tests {
             } else if name.starts_with("terminal-modes") {
                 let decoded: Envelope<TerminalModes> = decode_frame(&bytes).expect(&name);
                 assert_eq!(decoded.body.kitty_keyboard_flags, 1);
+            } else if name.starts_with("structured-surface") {
+                let decoded: Envelope<StructuredSurface> = decode_frame(&bytes).expect(&name);
+                assert_eq!(decoded.message_type, "structured.surface");
+                decoded.body.validate().expect(&name);
             }
         }
         let minimal = rmp_serde::to_vec_named(&serde_json::json!({
@@ -1333,6 +1646,70 @@ mod tests {
         assert!(validate_effect(&clipboard("", 1)).is_err());
         assert!(validate_effect(&clipboard("text;plain", 1)).is_err());
         assert!(validate_effect(&clipboard("text/pl\u{1b}ain", 1)).is_err());
+    }
+
+    #[test]
+    fn structured_surfaces_fail_closed_on_dimensions_indexes_and_control_injection() {
+        let valid = StructuredSurface {
+            columns: 2,
+            rows: 1,
+            geometry_generation: 3,
+            commit_kind: SurfaceCommitKind::Complete,
+            row_data: vec![SurfaceRow {
+                cells: vec![
+                    SurfaceCell {
+                        text: "界".into(),
+                        width: 2,
+                        style: 0,
+                        link: Some(0),
+                    },
+                    SurfaceCell {
+                        text: String::new(),
+                        width: 0,
+                        ..Default::default()
+                    },
+                ],
+            }],
+            styles: vec![SurfaceStyle::default()],
+            links: vec![SurfaceLink {
+                id: Some("link-1".into()),
+                uri: "https://example.test".into(),
+            }],
+            palette: vec![[0, 0, 0]; 256],
+            default_foreground: [255, 255, 255],
+            default_background: [0, 0, 0],
+            cursor_color: None,
+        };
+        assert!(valid.validate().is_ok());
+        for malformed in [
+            {
+                let mut value = valid.clone();
+                value.columns = MAX_SURFACE_COLUMNS.saturating_add(1) as u16;
+                value
+            },
+            {
+                let mut value = valid.clone();
+                value.row_data[0].cells[0].style = 1;
+                value
+            },
+            {
+                let mut value = valid.clone();
+                value.row_data[0].cells[0].text = "\u{1b}[2J".into();
+                value
+            },
+            {
+                let mut value = valid.clone();
+                value.row_data[0].cells[1].width = 1;
+                value
+            },
+            {
+                let mut value = valid.clone();
+                value.links[0].id = Some("bad;id".into());
+                value
+            },
+        ] {
+            assert!(malformed.validate().is_err(), "malformed surface accepted");
+        }
     }
 
     #[test]

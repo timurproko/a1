@@ -65,6 +65,12 @@ export interface DamageAwareTerminalOptions {
   };
   readonly onResize?: () => void;
   readonly onHyperlinkCleanupRequired?: () => void;
+  /** Exact-artifact fault controls evaluated before physical writes; absent in ordinary sessions. */
+  readonly allowWrite?: () => boolean;
+  readonly writeChunks?: (data: string) => readonly string[];
+  /** Optional payload-free observation after a terminal write returns. */
+  readonly onWrite?: (metadata: { readonly bytes: number; readonly fragments: number;
+    readonly transaction: "synchronized-output" | "ordinary"; readonly frameId?: number; readonly cause?: string }) => void;
 }
 
 interface ArmedFrame {
@@ -256,7 +262,28 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     const forwarded = this.#canvasBackgroundAnsi === null
       ? output
       : paintTerminalCanvasFrame(output, this.#canvasBackgroundAnsi);
-    this.inner.write(forwarded);
+    let writeAllowed = true;
+    try { writeAllowed = this.options.allowWrite?.() ?? true; } catch { /* Invariant: fixture controls fail open. */ }
+    if (!writeAllowed) return;
+    let chunks: readonly string[] = [forwarded];
+    try {
+      const controlled = this.options.writeChunks?.(forwarded);
+      if (controlled !== undefined && controlled.length > 0 && controlled.length <= 4_096
+        && controlled.join("") === forwarded) chunks = controlled;
+    } catch { /* Invariant: fixture controls fail open without corrupting the renderer write. */ }
+    for (const chunk of chunks) this.inner.write(chunk);
+    try {
+      this.options.onWrite?.({
+        bytes: Buffer.byteLength(forwarded),
+        fragments: chunks.length,
+        transaction: forwarded.startsWith(BEGIN_SYNCHRONIZED_OUTPUT) && forwarded.endsWith(END_SYNCHRONIZED_OUTPUT)
+          ? "synchronized-output" : "ordinary",
+        ...(armed === undefined ? {} : {
+          frameId: armed.descriptor.frameId,
+          cause: armed.descriptor.cause,
+        }),
+      });
+    } catch { /* Invariant: observation never changes rendering or write completion. */ }
     if (epoch !== this.#epoch
       || (armed !== undefined && this.#lastConsumedFrameId !== armed.descriptor.frameId)) return;
     // Invariant: cache invalidation follows forwarded bytes, not a suppressed clear.
