@@ -1276,6 +1276,12 @@ pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
     outer_row.checked_sub(1)
 }
 
+/// The Settings shortcut toggles: on the viewed Settings tab it closes that tab, returning to the
+/// previous tab; anywhere else it opens or activates the singleton Settings tab.
+fn settings_toggle_closes(viewed: Option<&str>) -> Option<&str> {
+    viewed.filter(|id| id.starts_with("settings-"))
+}
+
 /// Decides whether buttonless pointer motion over the body reaches the child. Motion is never
 /// deferred behind a pending view, where it would exhaust the budget that typed input needs,
 /// and is dropped when the child's reported modes show it does not track the mouse.
@@ -2620,8 +2626,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             wire::send(&mut stream, "tab.create", None, create.clone())?;
                         }
                         "tabs.settings" => {
-                            pending_created_activation = true;
-                            wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
+                            if let Some(tab_id) = settings_toggle_closes(view.viewed.as_deref()) {
+                                close_fallback =
+                                    close_fallback_for(&tabs, view.viewed.as_deref(), tab_id);
+                                let tab_id = tab_id.to_owned();
+                                wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
+                            } else {
+                                pending_created_activation = true;
+                                wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
+                            }
                         }
                         "tabs.close" => {
                             if let Some(tab_id) = view.viewed.clone() {
@@ -3618,6 +3631,15 @@ mod tests {
         }
         deferred.retarget_created("tab-new");
         assert_eq!(deferred.resolve("tab-new"), (keys, false));
+    }
+    #[test]
+    fn settings_shortcut_toggles_the_viewed_settings_tab() {
+        assert_eq!(
+            settings_toggle_closes(Some("settings-1a")),
+            Some("settings-1a")
+        );
+        assert_eq!(settings_toggle_closes(Some("tab-1")), None);
+        assert_eq!(settings_toggle_closes(None), None);
     }
     #[test]
     fn provisional_holder_idle_never_flips_a_starting_chip() {

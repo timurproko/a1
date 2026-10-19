@@ -1,5 +1,35 @@
 ## MODIFIED Requirements
 
+### Requirement: Tab chips reproduce the approved v2 strip
+The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible, remaining tabs SHALL collapse into a keyboard-navigable `…` menu, and a trailing `+` SHALL always be reserved. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
+
+#### Scenario: Wide names are clipped by display width
+- **WHEN** a tab name contains CJK characters or emoji wider than the chip allows
+- **THEN** its name SHALL clip with `…` at a grapheme boundary while the complete chip remains within 20 columns
+
+#### Scenario: More tabs than fit
+- **WHEN** the terminal cannot fit every chip
+- **THEN** the viewed chip SHALL remain visible, `…` SHALL list hidden tabs, and assigned navigation or jump keys SHALL still reach them
+
+#### Scenario: Close button is always present
+- **WHEN** any visible tab chip is rendered or clicked after the legacy close-button behavior is removed
+- **THEN** it SHALL contain no `×`, `X`, or separately clickable close region
+- **AND** clicking anywhere in the chip SHALL invoke only its ordinary view or drag behavior
+
+#### Scenario: Render the strip clock in twelve-hour form
+- **WHEN** `timeFormat` is `8:00 PM`
+- **THEN** the right-aligned clock SHALL use a non-padded 12-hour hour and uppercase `AM` or `PM`
+- **AND** one blank cell SHALL remain between the clock's final glyph and the terminal's right edge
+
+#### Scenario: Render the strip clock in twenty-four-hour form
+- **WHEN** `timeFormat` is `20:00`
+- **THEN** the right-aligned clock SHALL use zero-padded 24-hour `HH:mm`
+- **AND** one blank cell SHALL remain between the clock's final digit and the terminal's right edge
+
+#### Scenario: Clock with no tabs
+- **WHEN** every tab has been closed
+- **THEN** the strip SHALL show `+` and the right-aligned clock
+
 ### Requirement: Tab status comes from the tab bridge, not the screen
 Each chip SHALL show structured status:
 - v2's ordered Braille progress frames `⠋`, `⠙`, `⠹`, `⠸`, `⠼`, `⠴`, `⠦`, `⠧`, `⠇`, and `⠏` at an 80 ms cadence while working.
@@ -52,7 +82,8 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - The attach client SHALL NOT render an input-delivery notice row such as `Input was not sent; try again.` beneath the strip.
 - Successful create and close SHALL commit only complete final topology states.
 - A newly created Agent SHALL become visible only with its first drawn frame, or after a bounded fallback when the child never draws. The prior view SHALL remain until then and no cursor SHALL show.
-- When no tabs remain, the terminal SHALL show only hoverable `+` with the child cursor hidden.
+- When no tabs remain, the terminal SHALL show only hoverable `+` and the strip clock, with the child cursor hidden.
+- A tab switch or creation SHALL repaint the strip and body in place without first clearing the screen.
 
 #### Scenario: Type immediately after switching
 - **WHEN** the user switches tabs and immediately types, pastes, or clicks the child surface before controller acknowledgement
@@ -70,8 +101,12 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 
 #### Scenario: Close the last tab
 - **WHEN** the final Agent or Settings tab closes
-- **THEN** A1 SHALL clear the prior surface once and render only `+`
-- **AND** no clock, notice background, text cursor, child cursor, stale cell, or instruction SHALL remain
+- **THEN** A1 SHALL clear the prior surface once and render only `+` and the strip clock
+- **AND** no notice background, text cursor, child cursor, stale cell, or instruction SHALL remain
+
+#### Scenario: Switch or create without a blank strip
+- **WHEN** the viewed tab changes to another tab or a newly created tab
+- **THEN** no presented frame SHALL clear the screen or blank tab names before the new tab's content is painted
 
 #### Scenario: Create a tab normally
 - **WHEN** a new Agent reaches its first input-ready complete surface
@@ -104,7 +139,7 @@ Control- or Alt-modified letters SHALL never be inserted as text. Word operation
 - **THEN** every caret position SHALL remain on a grapheme boundary
 
 ### Requirement: Resident Settings is one global utility tab
-Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Settings`. It SHALL render the owned global settings without owning an Agent session. A Settings route delivered before the child presenter has started SHALL be retained and presented once it starts. The launcher and `tabs.settings` action SHALL create or activate that singleton, and closing its screen or tab SHALL remove it. Resident Agents SHALL not advertise or execute `/settings`; `a1 solo` and `a1 pi` SHALL retain their existing command behavior.
+Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Settings`. It SHALL render the owned global settings without owning an Agent session. A Settings route delivered before the child presenter has started SHALL be retained and presented once it starts. The launcher SHALL create or activate that singleton. The `tabs.settings` action SHALL toggle it: while Settings is viewed it SHALL close that tab and show the previous tab, and otherwise it SHALL create or activate the singleton. Closing its tab SHALL remove it. Its screen is the tab, so it SHALL offer no screen-level Esc close or Esc close hint, and one Ctrl+C SHALL NOT dismiss it. Resident Agents SHALL not advertise or execute `/settings`; `a1 solo` and `a1 pi` SHALL retain their existing command behavior.
 
 #### Scenario: Open Settings from the launcher
 - **WHEN** a resident Agent is viewed and the user chooses Settings from `+`
@@ -121,11 +156,19 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 - **AND** no `/settings` text or equivalent bytes SHALL enter an Agent editor
 
 #### Scenario: Reuse global Settings
-- **WHEN** the Settings tab already exists and the menu or shortcut requests Settings again
+- **WHEN** the Settings tab already exists but is not viewed and the menu or shortcut requests Settings again
 - **THEN** A1 SHALL activate that exact tab without creating another Settings process or tab
 
+#### Scenario: Toggle Settings closed with the shortcut
+- **WHEN** the Settings tab is viewed and the user presses the Settings shortcut
+- **THEN** the Settings tab SHALL close and the previously selected surviving tab SHALL become visible
+
+#### Scenario: Esc inside the Settings tab
+- **WHEN** the Settings tab is viewed with no search or value menu open and the user presses Esc
+- **THEN** the Settings tab SHALL remain open and its standing hint SHALL NOT offer Esc close
+
 #### Scenario: Close Settings
-- **WHEN** the user closes the Settings screen or its tab
+- **WHEN** the user closes the Settings tab
 - **THEN** the Settings utility tab SHALL be removed
 - **AND** the previously selected surviving tab SHALL become visible with its unchanged complete surface
 
