@@ -2,6 +2,14 @@ import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
 import { createResponseCopyExecutor, responseCopyDestination, type OwnedResponseCopyExecutor } from "./response-copy-transport.js";
 import { MAX_COPY_CONTROL_BYTES, type CopyResult } from "./response-copy-protocol.js";
 import { PromptHistoryController } from "./prompt-history-controller.js";
+import { SessionDialogCoordinator } from "./dialog-coordinator.js";
+import { bindSessionSettings } from "./settings-bindings.js";
+import {
+  promptSuggestionSurface,
+  routeResponseToSuggestions,
+  suggestionModelKey,
+  suggestionPresentationBlockReason,
+} from "./suggestion-surface.js";
 import type { PromptHistoryImageSidecarPort, PromptHistoryKind } from "../../contracts/owned-ui/index.js";
 import { PRODUCT_TEXT } from "../../product-identity.js";
 import { CLEAR_EXIT_INTERVAL_MS, boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
@@ -10,7 +18,6 @@ import { assertPromptImages, ImageAttachmentError } from "../../contracts/owned-
 import type {
   OwnedUiCommand,
   OwnedUiCommandResult,
-  OwnedUiDialog,
   OwnedUiDialogHost,
   OwnedUiEvent,
   OwnedUiPromptSuggestionIdentity,
@@ -27,7 +34,6 @@ import type {
   OwnedUiWorkflowRoute,
   SuggestionDecision,
 } from "../../contracts/owned-ui/index.js";
-import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
 import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
 import { workflowCommandNames } from "../../integrations/pi/engine/workflows.js";
@@ -44,11 +50,9 @@ import {
 } from "../../integrations/pi/components/skills-command.js";
 import {
   createPiShellAuthProviderSelector,
-  createPiShellDialog,
   createPiShellExtensionSelector,
   createPiShellLoginDialog,
   createPiShellReloadBox,
-  createPiShellSelector,
   createPiShellSkillsSelector,
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
@@ -73,6 +77,7 @@ import type {
 } from "../../integrations/pi/tui-runtime/contracts.js";
 import {
   OwnedUiTerminalHost,
+  componentRuntime,
   sessionTerminalHostOptions,
   type OwnedUiHostedPresenter,
   type OwnedUiPresenterRelease,
@@ -144,15 +149,10 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #extensionBridge: PiExtensionUiBridge;
   readonly #stopped: Promise<void>;
   #resolveStopped: (() => void) | undefined;
-  #dialogId: string | undefined;
-  #dialogSource: "route" | "local" | "backend" | undefined;
-  readonly #routeHost: UiRouteHost | null;
-  #startupRoute: NonNullable<OwnedUiSessionShellOptions["engine"]["startupRoute"]> | undefined;
-  #startupRouteTimer: ReturnType<typeof setTimeout> | undefined;
+  readonly #dialogs: SessionDialogCoordinator;
   #residentProgressTimer: ReturnType<typeof setTimeout> | undefined;
   #residentWorking = false;
   #residentStalled = false;
-  #dialogHandle: { hide(): void } | undefined;
   #sequence = 0;
   #editorRevision = 0;
   #started = false;
@@ -176,13 +176,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #streamPresentation: StreamPresentationCoalescer;
   readonly #inputCoordination: boolean;
   readonly #unsubscribeSettings: () => void;
-  readonly #unbindPiSettings: () => void;
-  readonly #unbindTerminalSettings: () => void;
-  readonly #unbindShutdownSettings: () => void;
+  readonly #unbindSessionSettings: () => void;
   #terminalProgressEnabled = false;
   readonly #programStatus: ProgramStatusReporter;
-  #showImages = true;
-  #imageWidthCells = 80;
   #fullscreenExitOutput: "transcript" | "resume-hint" = "transcript";
   readonly #waitingImages = new Map<string, { controller: AbortController; result: Promise<OwnedUiCommandResult> }>();
   #lastClearTime = 0;
@@ -205,11 +201,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#presenters = options.presenters;
     this.#sessionGeneration = this.backend.identity.sessionGeneration;
     this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
-    this.#suggestionModelKey = modelKey(this.backend.session.view());
+    this.#suggestionModelKey = suggestionModelKey(this.backend.session.view());
     this.#cwd = cwd;
     this.#residentTabOptions = options.engine.residentTab;
-    this.#routeHost = routeHost ?? null;
-    this.#startupRoute = options.engine.startupRoute;
     this.#customViewport = sessionLayout === "custom-viewport";
     this.#inputCoordination = inputPresentation?.coordination !== false;
     this.#host = host;
@@ -354,6 +348,17 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       // Invariant: the presenter owns its root (theme subscription and helper clients) and disposes it once the
       // terminal no longer renders it.
       constructed.push(() => this.root.dispose());
+      const startupRoute = options.engine.startupRoute;
+      this.#dialogs = new SessionDialogCoordinator({
+        terminal: this.#terminal,
+        root: this.root,
+        routeHost: routeHost ?? null,
+        disposed: () => this.#disposed,
+        exit: () => { void this.shutdown(); },
+        routeClosed: route => this.#residentTabOptions?.closeOwnedRoute?.(route),
+        ...(startupRoute === undefined ? {} : { startupRoute }),
+      });
+      constructed.push(() => this.#dialogs.dispose());
       this.#restoreResidentInput(options.history?.imageSidecar);
       const initialPiSettings = this.backend.settings.snapshot();
       this.#programStatus = new ProgramStatusReporter(
@@ -375,17 +380,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         generator: promptSuggestionOptions.generator,
         enabled: promptSuggestionOptions.enabled(),
         ...(promptSuggestionOptions.diagnostics === undefined ? {} : { diagnostics: promptSuggestionOptions.diagnostics }),
-        surface: {
-          canPresent: identity => this.#promptSuggestionPresentationBlockReason(identity) === null,
-          presentationBlockReason: identity => this.#promptSuggestionPresentationBlockReason(identity),
-          present: text => {
-            if (!this.root.canPresentPromptSuggestion()) return false;
-            this.root.setPromptSuggestion(text);
-            return true;
-          },
-          clear: () => this.root.setPromptSuggestion(null),
-          requestRender: () => this.#terminal.requestRender(),
-        },
+        surface: promptSuggestionSurface(
+          this.root,
+          identity => this.#promptSuggestionPresentationBlockReason(identity),
+          () => this.#terminal.requestRender(),
+        ),
       });
       this.#promptSuggestions = promptSuggestionController;
       constructed.push(() => this.#promptSuggestions?.dispose());
@@ -406,32 +405,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         this.#terminal.requestRender();
       });
       constructed.push(this.#unsubscribeSkills);
-      this.#terminal.setHardwareCursor(initialPiSettings.showHardwareCursor);
-      this.#terminal.setClearOnShrink(initialPiSettings.clearOnShrink);
-      this.#terminalProgressEnabled = initialPiSettings.showTerminalProgress;
       this.#fullscreenExitOutput = initialPiSettings.fullscreenExitOutput;
-      // Invariant: bare A1 prints only the resume hint at exit, so the pinned exit-output
-      // choice is hidden there and cannot be bound; the comparison profile binds and honors it.
-      this.#unbindShutdownSettings = this.backend.settings.productMode === "bare" ? () => {} : this.backend.settings.bindOwner("shutdown", {
-        fullscreenExitOutput: { apply() {} },
-      });
-      constructed.push(this.#unbindShutdownSettings);
-      this.#unbindTerminalSettings = this.backend.settings.bindOwner("terminal", {
-        showHardwareCursor: { apply: value => {
-          if (typeof value !== "boolean") throw new TypeError("Hardware cursor setting is invalid");
-          this.#terminal.setHardwareCursor(value);
-        } },
-        clearOnShrink: { apply: value => {
-          if (typeof value !== "boolean") throw new TypeError("Clear-on-shrink setting is invalid");
-          this.#terminal.setClearOnShrink(value);
-        } },
-        showTerminalProgress: { apply: value => {
-          if (typeof value !== "boolean") throw new TypeError("Terminal progress setting is invalid");
-          this.#terminalProgressEnabled = value;
-          this.#syncTerminalProgress(this.view());
-        } },
-      });
-      constructed.push(this.#unbindTerminalSettings);
       const applyViewportSettings = () => {
         const snapshot = viewportSettings?.snapshot();
         this.root.setViewportConfig(snapshot ?? {
@@ -445,59 +419,15 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
         : () => {};
       constructed.push(this.#unsubscribeSettings);
-      this.root.setEditorPaddingX(initialPiSettings.editorPaddingX);
-      this.root.setAutocompleteMaxVisible(initialPiSettings.autocompleteMaxVisible);
-      this.root.setOutputPad(initialPiSettings.outputPad);
-      this.root.setFullscreenCopyOnSelect(initialPiSettings.fullscreenCopyOnSelect);
-      this.root.setHideThinkingBlock(initialPiSettings.hideThinkingBlock);
-      this.root.setMermaidRenderingMode(initialPiSettings.mermaidRenderingMode);
-      this.#showImages = initialPiSettings.showImages;
-      this.#imageWidthCells = initialPiSettings.imageWidthCells;
-      this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
-      this.#unbindPiSettings = this.backend.settings.bindOwner("shell", {
-        editorPaddingX: { apply: value => {
-          if (typeof value !== "number") throw new TypeError("Editor padding is invalid");
-          this.root.setEditorPaddingX(value);
-        } },
-        autocompleteMaxVisible: { apply: value => {
-          if (typeof value !== "number") throw new TypeError("Autocomplete maximum is invalid");
-          this.root.setAutocompleteMaxVisible(value);
-        } },
-        outputPad: { apply: value => {
-          if (value !== 0 && value !== 1) throw new TypeError("Output padding is invalid");
-          this.root.setOutputPad(value);
-        } },
-        hideThinkingBlock: { apply: value => {
-          if (typeof value !== "boolean") throw new TypeError("Thinking-block visibility is invalid");
-          this.root.setHideThinkingBlock(value);
-        } },
-        mermaidRenderingMode: { apply: value => {
-          if (value !== "off" && value !== "final" && value !== "streaming") throw new TypeError("Mermaid mode is invalid");
-          this.root.setMermaidRenderingMode(value);
-        } },
-        showImages: { apply: value => {
-          if (typeof value !== "boolean") throw new TypeError("Image visibility is invalid");
-          this.#showImages = value;
-          this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
-        } },
-        imageWidthCells: { apply: value => {
-          if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) throw new TypeError("Image width is invalid");
-          this.#imageWidthCells = value;
-          this.root.setImagePresentation(this.#showImages, this.#imageWidthCells);
-        } },
-        ...(this.#customViewport ? { fullscreenCopyOnSelect: { apply: (value: unknown) => {
-          if (typeof value !== "boolean") throw new TypeError("Fullscreen copy-on-select setting is invalid");
-          this.root.setFullscreenCopyOnSelect(value);
-        } } } : {
-          fullscreenWheelScrollLines: { apply: (value: unknown) => {
-            if (value !== "auto" && (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1 || value > 100)) {
-              throw new TypeError("Fullscreen wheel-scroll distance is invalid");
-            }
-            this.#terminal.setWheelScrollLines(value);
-          } },
-        }),
-      });
-      constructed.push(this.#unbindPiSettings);
+      this.#unbindSessionSettings = bindSessionSettings(this.backend.settings, initialPiSettings, {
+        terminal: this.#terminal,
+        root: this.root,
+        setTerminalProgress: enabled => {
+          this.#terminalProgressEnabled = enabled;
+          if (this.#terminal.running) this.#syncTerminalProgress(this.view());
+        },
+      }, { customViewport: this.#customViewport });
+      constructed.push(this.#unbindSessionSettings);
       if (this.#customViewport && promptHistory !== undefined) {
         this.#promptHistoryImageSidecar = promptHistory.imageSidecar;
         const sidecar = this.#promptHistoryImageSidecar;
@@ -513,11 +443,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         constructed.push(() => { void this.#promptHistory?.close().catch(() => false); });
       }
       this.#extensionBridge = createPiExtensionUiBridge({
-        runtime: {
-          getColumns: () => this.#terminal.viewport().columns,
-          getRows: () => this.#terminal.viewport().rows,
-          requestRender: () => this.#terminal.requestRender(),
-        },
+        runtime: componentRuntime(this.#terminal),
         agentDir: this.backend.identity.agentDir,
         setInputSurface: component => this.root.setInputSurface(component, true, "opaque"),
         setProgramStatusBlocked: status => this.#programStatus.setBlocked("extension-dialog", status),
@@ -574,27 +500,14 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         }
         if (event.type === "assistant-message-completed") {
           this.root.noteCompletedAssistantMessage();
-          const identity = {
-            sessionId: event.sessionId,
-            sessionGeneration: event.sessionGeneration,
-            runSequence: event.runSequence,
-            responseSequence: event.responseSequence,
-            model: event.model,
-          };
-          if (event.model === null) this.#promptSuggestions?.skip(identity, "no-model");
-          else this.#promptSuggestions?.consider({ ...identity, model: event.model },
-            !event.successful ? "failed-response"
-              : event.toolContinuation || event.stopReason === "toolUse" ? "tool-continuation"
-              : event.stopReason !== "stop" ? "incomplete-response"
-              : event.assistantMessageCount < 2 ? "early-conversation"
-              : this.root.promptSuggestionPrepareBlockReason());
+          routeResponseToSuggestions(this.#promptSuggestions, event, () => this.root.promptSuggestionPrepareBlockReason());
         }
         const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
         const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.identity.sessionGeneration
           ? this.#syncBlock(event.block)
           : semanticOnly ? this.view() : this.#syncView();
         this.#syncTerminalProgress(view);
-        const currentModelKey = modelKey(view);
+        const currentModelKey = suggestionModelKey(view);
         if (this.backend.identity.sessionGeneration !== this.#sessionGeneration || currentModelKey !== this.#suggestionModelKey) {
           this.#promptSuggestions?.invalidate();
           this.#suggestionModelKey = currentModelKey;
@@ -603,20 +516,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           this.#promptSuggestions?.invalidate();
         }
         if (event.type === "agent-run-settled") {
-          const identity = {
-            sessionId: event.sessionId,
-            sessionGeneration: event.sessionGeneration,
-            runSequence: event.runSequence,
-            responseSequence: event.responseSequence,
-            model: event.model,
-          };
-          if (event.model === null) this.#promptSuggestions?.skip(identity, "no-model");
-          else this.#promptSuggestions?.settle({ ...identity, model: event.model },
-            !event.successful ? "failed-response"
-              : event.toolContinuation || event.stopReason === "toolUse" ? "tool-continuation"
-              : event.stopReason !== "stop" ? "incomplete-response"
-              : event.assistantMessageCount < 2 ? "early-conversation"
-              : this.root.promptSuggestionPrepareBlockReason());
+          routeResponseToSuggestions(this.#promptSuggestions, event, () => this.root.promptSuggestionPrepareBlockReason());
         }
         if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#settleStoppedLifecycle();
       });
@@ -728,11 +628,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   #promptSuggestionPresentationBlockReason(identity: OwnedUiPromptSuggestionIdentity): SuggestionDecision {
-    const view = this.view();
-    if (this.#disposed) return "disposed";
-    if (identity.sessionId !== view.sessionId || identity.sessionGeneration !== this.backend.identity.sessionGeneration
-      || modelKey(view) !== `${identity.model.providerId}/${identity.model.modelId}`) return "stale-identity";
-    return this.root.promptSuggestionPresentationBlockReason();
+    return suggestionPresentationBlockReason(
+      identity,
+      { disposed: this.#disposed, view: this.view(), sessionGeneration: this.backend.identity.sessionGeneration },
+      () => this.root.promptSuggestionPresentationBlockReason(),
+    );
   }
 
   start(): void {
@@ -746,7 +646,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     // Performance: the spare clipboard helpers fork after the first frame is out, so startup never waits on them.
     setImmediate(() => {
       if (this.#disposed || !this.#customViewport) return;
-      this.#presentStartupRoute();
+      this.#dialogs.presentStartupRoute();
       void this.#loadLazySelectors().then(selectors => selectors.prepare()).catch(() => {});
       this.root.warmPastePreparation();
       this.#copyExecutor?.warm();
@@ -1027,33 +927,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     onSelect: (id: string) => void,
     onCancel?: () => void,
   ): PiTuiOverlayHandle {
-    this.#dialogHandle?.hide();
-    this.#dialogSource = "local";
-    this.#dialogId = undefined;
-    const component = createPiShellSelector({
-      title,
-      options,
-      onSelect: id => {
-        onSelect(id);
-        this.#dialogHandle?.hide();
-        this.#dialogHandle = undefined;
-        this.#dialogSource = undefined;
-      },
-      onCancel: () => {
-        this.#dialogHandle?.hide();
-        this.#dialogHandle = undefined;
-        this.#dialogSource = undefined;
-        onCancel?.();
-      },
-    });
-    const handle = this.#terminal.showOverlay(component, {
-      width: "70%",
-      maxHeight: "80%",
-      anchor: "center",
-      inputCoordination: "owned",
-    });
-    this.#dialogHandle = handle;
-    return handle;
+    return this.#dialogs.showSelector(title, options, onSelect, onCancel);
   }
 
   // Rationale: presenters see the shell only as a dialog host; selectors open in the input dock and run choices as workflows.
@@ -1122,10 +996,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   /** The Skills dialog: a replacement input like the model selector, applying the chosen skill through the prompt path. */
   showSkillsSelector(skills: readonly PiShellSkillSummary[] = this.#skillSummaries()): void {
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.#terminal.requestRender();
-    };
+    const close = this.#dialogs.closeInputSurface;
     const component = createPiShellSkillsSelector({
       skills,
       onSelect: name => {
@@ -1149,10 +1020,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#terminal.requestRender();
       return;
     }
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.#terminal.requestRender();
-    };
+    const close = this.#dialogs.closeInputSurface;
     const component = createPiShellUserMessageSelector(options, selection => {
       close();
       void this.runWorkflow({ command: "fork", argument: "", selection });
@@ -1179,10 +1047,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#terminal.requestRender();
       return;
     }
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.#terminal.requestRender();
-    };
+    const close = this.#dialogs.closeInputSurface;
     const component = createPiShellAuthProviderSelector("logout", options, selection => {
       close();
       void this.runWorkflow({ command: "logout", argument: "", selection });
@@ -1202,10 +1067,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       if (selection) void this.runWorkflow({ command: "login", argument: "", selection });
       return;
     }
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.#terminal.requestRender();
-    };
+    const close = this.#dialogs.closeInputSurface;
     const labels = method.options.map(option => option.label);
     const component = createPiShellExtensionSelector(method.title, labels, label => {
       const selection = method.options.find(option => option.label === label)?.id;
@@ -1224,10 +1086,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   showLoginAuthTypeSelector(): void {
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.#terminal.requestRender();
-    };
+    const close = this.#dialogs.closeInputSurface;
     const labels = ["Sign in with an account", "Sign in with an API key"];
     const component = createPiShellExtensionSelector(
       "Select authentication method:",
@@ -1249,10 +1108,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#terminal.requestRender();
       return;
     }
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.#terminal.requestRender();
-    };
+    const close = this.#dialogs.closeInputSurface;
     const component = createPiShellAuthProviderSelector("login", options, id => {
       close();
       void this.runWorkflow({ command: "login", argument: "", selection: id });
@@ -1385,15 +1241,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     if (request.command === "login" && request.selection !== undefined) {
       const setup = this.backend.catalog.pinnedAmbientAuthentication(request.selection);
       if (setup) {
-        const close = () => {
-          this.root.setInputSurface(null);
-          this.#terminal.requestRender();
-        };
-        const dialog = createPiShellLoginDialog({
-          getColumns: () => this.#terminal.viewport().columns,
-          getRows: () => this.#terminal.viewport().rows,
-          requestRender: () => this.#terminal.requestRender(),
-        }, setup.providerId, close, setup.providerName, setup.title);
+        const close = this.#dialogs.closeInputSurface;
+        const dialog = createPiShellLoginDialog(componentRuntime(this.#terminal), setup.providerId, close, setup.providerName, setup.title);
         dialog.showInfo(setup.message, [], true);
         this.root.setInputSurface(dialog);
         this.#terminal.requestRender();
@@ -1459,11 +1308,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       ? await import("./share-operation.js")
       : undefined;
     const shareSurface = shareDialog === undefined ? undefined
-      : (this.#customViewport ? shareDialog.createPiShellShareOperationDialog : shareDialog.createPiShellOperationLoader)({
-        getColumns: () => this.#terminal.viewport().columns,
-        getRows: () => this.#terminal.viewport().rows,
-        requestRender: () => this.#terminal.requestRender(),
-      }, "Creating gist…");
+      : (this.#customViewport ? shareDialog.createPiShellShareOperationDialog : shareDialog.createPiShellOperationLoader)(componentRuntime(this.#terminal), "Creating gist…");
     const operationSurface = shareSurface ?? (request.command === "reload" ? createPiShellReloadBox() : undefined);
     const now = this.#reloadPresentation?.now ?? Date.now;
     const shownAt = now();
@@ -1543,10 +1388,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   showTrustSelector(): void {
     const context = this.backend.catalog.pinnedProjectTrustContext();
-    const close = () => {
-      this.root.setInputSurface(null);
-      this.#terminal.requestRender();
-    };
+    const close = this.#dialogs.closeInputSurface;
     const component = createPiShellTrustSelector({
       ...context,
       onSelect: selection => {
@@ -1613,8 +1455,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     attempt(() => this.root.clearViewportPointerState());
     attempt(() => this.#streamPresentation.dispose());
     attempt(() => {
-      if (this.#startupRouteTimer !== undefined) clearTimeout(this.#startupRouteTimer);
-      this.#startupRouteTimer = undefined;
       if (this.#residentProgressTimer !== undefined) clearTimeout(this.#residentProgressTimer);
       this.#residentProgressTimer = undefined;
     });
@@ -1635,11 +1475,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         : [this.root.exitTranscript(terminal.columns), resumeHint].filter(Boolean).join("\n\n");
     });
     attempt(() => this.#unbindClipboardWriter());
-    attempt(() => this.#unbindPiSettings());
-    attempt(() => this.#unbindTerminalSettings());
-    attempt(() => this.#unbindShutdownSettings());
+    attempt(() => this.#unbindSessionSettings());
     attempt(() => this.backend.workflows.setWorkflowInteractionHost(DETACHED_WORKFLOW_INTERACTION));
-    attempt(() => this.#dialogHandle?.hide());
+    attempt(() => this.#dialogs.dispose());
     attempt(() => this.#extensionBridge.dispose());
     attempt(() => this.#programStatus.clear());
     // Invariant: the host settles a presenter only once the terminal is restored, so these never stall it.
@@ -1721,16 +1559,13 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#extensionBridge.reset();
       // Invariant: a replaced session takes its transient viewport and owned-route state with it.
       this.root.resetViewport();
-      this.#dialogHandle?.hide();
-      this.#dialogHandle = undefined;
-      this.#dialogId = undefined;
-      this.#dialogSource = undefined;
+      this.#dialogs.onSessionReplaced();
       this.root.setInputSurface(null);
       this.root.resetExtensionUi();
       this.root.resetWorkflowPresentation();
     }
     this.root.update(view);
-    this.#syncDialog(view.dialog);
+    this.#dialogs.syncBackend(view.dialog);
     this.#presentStartupTrustWarning(view);
     this.#terminal.requestRender();
     for (const listener of this.#listeners) listener(view);
@@ -1747,95 +1582,15 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.root.appendWorkflowMessage({ kind: "warning", message: diagnostic.message });
   }
 
-  #presentStartupRoute(): void {
-    const pending = this.#startupRoute;
-    if (pending === undefined || this.#disposed || !this.#terminal.running) return;
-    if (this.#terminal.hasOverlay() || !this.root.usesDefaultInputSurface()) {
-      this.#startupRouteTimer = setTimeout(() => {
-        this.#startupRouteTimer = undefined;
-        this.#presentStartupRoute();
-      }, 25);
-      this.#startupRouteTimer.unref?.();
-      return;
-    }
-    this.#startupRoute = undefined;
-    this.#openOwnedRoute(pending.route, pending.input, pending.onClosed);
-  }
-
-  #openOwnedRoute(route: string, input?: UiRouteInput, onClosed?: () => void | Promise<void>): OwnedUiCommandResult {
-    const surface = this.#routeHost?.open(route, input) ?? null;
-    if (surface === null) return { outcome: "failed", diagnostic: `route is unavailable: ${route}` };
-    if (!this.#terminal.running) return { outcome: "failed", diagnostic: "runtime is not active" };
-
-    this.root.dismissNotice();
-    this.#dialogHandle?.hide();
-    this.#dialogSource = "route";
-    const handle = this.#terminal.openRoute(surface, {
-      exit: () => { void this.shutdown(); },
-      closed: rendered => {
-        if (this.#dialogHandle === handle) {
-          this.#dialogHandle = undefined;
-          this.#dialogId = undefined;
-          this.#dialogSource = undefined;
-        }
-        if (rendered) {
-          try { void onClosed?.()?.catch(() => undefined); } catch { /* Rationale: a failed acknowledgement stays pending. */ }
-          this.#residentTabOptions?.closeOwnedRoute?.(route);
-        }
-      },
-    });
-    this.#dialogHandle = handle;
-    this.#dialogId = surface.id;
-    return { outcome: "completed", diagnostic: null };
-  }
-
-  #syncDialog(dialog: OwnedUiDialog | null): void {
-    if (!this.#terminal.running) return;
-    if (dialog === null) {
-      // Invariant: locally owned routes (notably /settings) are independent of backend
-      // lifecycle/status events and remain open while an agent is working.
-      if (this.#dialogSource !== "backend") return;
-      this.#dialogHandle?.hide();
-      this.#dialogHandle = undefined;
-      this.#dialogId = undefined;
-      this.#dialogSource = undefined;
-      return;
-    }
-    if (this.#dialogSource === "backend" && this.#dialogId === dialog.id) return;
-    this.#dialogHandle?.hide();
-    this.#dialogSource = "backend";
-    const component = createPiShellDialog(dialog, {
-      onSelect: () => {
-        this.#dialogHandle?.hide();
-        this.#dialogHandle = undefined;
-        this.#dialogId = undefined;
-        this.#dialogSource = undefined;
-      },
-      onCancel: () => {
-        this.#dialogHandle?.hide();
-        this.#dialogHandle = undefined;
-        this.#dialogId = undefined;
-        this.#dialogSource = undefined;
-      },
-    });
-    this.#dialogHandle = this.#terminal.showOverlay(component, {
-      width: "70%",
-      maxHeight: "80%",
-      anchor: "center",
-      inputCoordination: "owned",
-    });
-    this.#dialogId = dialog.id;
-  }
-
   openOwnedRoute(route: string): void {
     if (this.#disposed) return;
     // Invariant: a route requested before the runtime runs (the resident Settings bridge route arrives
     // before start()) is retained, latest wins, and presented through the startup-route path once started.
     if (!this.#terminal.running) {
-      this.#startupRoute = { route };
+      this.#dialogs.retainStartupRoute(route);
       return;
     }
-    const result = this.#openOwnedRoute(route);
+    const result = this.#dialogs.openRoute(route);
     if (result.outcome !== "completed" && result.diagnostic !== null) {
       this.root.appendWorkflowMessage({ kind: "warning", message: result.diagnostic });
     }
@@ -1854,7 +1609,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     if (name === "settings" && this.#residentTabOptions !== undefined) {
       return rejected("Settings is available from the global Settings tab.");
     }
-    if (this.#routeHost?.claims(name)) return this.#openOwnedRoute(name);
+    if (this.#dialogs.claimsRoute(name)) return this.#dialogs.openRoute(name);
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {
       if (name === SKILLS_COMMAND_NAME) return this.#runSkillsCommand(text, argument);
@@ -1969,11 +1724,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   #startWorkflowLogin(request: OwnedUiWorkflowLoginStart): void {
     this.#finishWorkflowLogin();
-    const dialog = createPiShellLoginDialog({
-      getColumns: () => this.#terminal.viewport().columns,
-      getRows: () => this.#terminal.viewport().rows,
-      requestRender: () => this.#terminal.requestRender(),
-    }, request.providerId, success => {
+    const dialog = createPiShellLoginDialog(componentRuntime(this.#terminal), request.providerId, success => {
       if (!success) this.#finishWorkflowLogin();
     }, request.providerName);
     this.#activeLoginDialog = dialog;
@@ -2163,10 +1914,6 @@ function dim(value: string): string {
 
 function rejected(diagnostic: string): OwnedUiCommandResult {
   return { outcome: "rejected", diagnostic };
-}
-
-function modelKey(view: OwnedUiSessionViewModel): string {
-  return view.activeModel === null ? "" : `${view.activeModel.providerId}/${view.activeModel.modelId}`;
 }
 
 function workflowAdapterResult(result: OwnedUiWorkflowResult): OwnedUiCommandResult {

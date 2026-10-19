@@ -12,10 +12,10 @@ Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19).
 
 ## 2. Presenter dedupe
 
-- [ ] 2.1 Add `src/app/session-shell/dialog-coordinator.ts` owning dialog id, source, handle, the single `close` closure, `showSelector`, `#syncDialog`, `#openOwnedRoute`, and `#presentStartupRoute`; replace the seven inline reset copies and ten close copies in `session-shell.ts` with calls to it. Test: `test/app/session-shell/dialog-coordinator.test.ts` covers route, local, and backend sources, startup-route timing, and reset on session replacement.
-- [ ] 2.2 Add `src/app/session-shell/suggestion-surface.ts` with one reason classifier replacing the two inline ladders and the inline controller adapter in `session-shell.ts`. Test: `test/app/session-shell/suggestion-surface.test.ts` covers every block reason and the identity literal.
-- [ ] 2.3 Add `src/app/session-shell/settings-bindings.ts` expressing the terminal, shell, and shutdown owner appliers as a table from setting key to root setter, bound by one function; `session-shell.ts` calls it from the constructor. Test: `test/app/session-shell/settings-bindings.test.ts` covers every key, unbind order, and that no applier runs after release.
-- [ ] 2.4 Collapse the `{getColumns, getRows, requestRender}` literals in `session-shell.ts` into one `componentRuntime(terminal)` helper in `shell-host.ts`.
+- [x] 2.1 Add `src/app/session-shell/dialog-coordinator.ts` owning dialog id, source, handle, the single `close` closure, `showSelector`, `#syncDialog`, `#openOwnedRoute`, and `#presentStartupRoute`; replace the seven inline reset copies and ten close copies in `session-shell.ts` with calls to it. Test: `test/app/session-shell/dialog-coordinator.test.ts` covers route, local, and backend sources, startup-route timing, and reset on session replacement.
+- [x] 2.2 Add `src/app/session-shell/suggestion-surface.ts` with one reason classifier replacing the two inline ladders and the inline controller adapter in `session-shell.ts`. Test: `test/app/session-shell/suggestion-surface.test.ts` covers every block reason and the identity literal.
+- [x] 2.3 Add `src/app/session-shell/settings-bindings.ts` expressing the terminal, shell, and shutdown owner appliers as a table from setting key to root setter, bound by one function; `session-shell.ts` calls it from the constructor. Test: `test/app/session-shell/settings-bindings.test.ts` covers every key, unbind order, and that no applier runs after release.
+- [x] 2.4 Collapse the `{getColumns, getRows, requestRender}` literals in `session-shell.ts` into one `componentRuntime(terminal)` helper in `shell-host.ts`.
 
 ## 3. Native server registry and fan-out helpers
 

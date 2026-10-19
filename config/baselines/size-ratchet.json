@@ -19,8 +19,8 @@
       "fields": 60
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter": {
-      "methods": 97,
-      "fields": 67
+      "methods": 94,
+      "fields": 58
     },
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController": {
       "methods": 34,
@@ -191,10 +191,10 @@
       "lines": 130
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.constructor": {
-      "lines": 444
+      "lines": 348
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.runWorkflow": {
-      "lines": 164
+      "lines": 153
     },
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController.handlePreInput": {
       "lines": 325
