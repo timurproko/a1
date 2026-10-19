@@ -258,7 +258,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
     const { adapter, engine, terminal, shell } = await fixture(messages, [], true);
     try {
       terminal.resize(80, 30);
-      adapter.announceReleaseUpdate({ version: "0.2.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.2.1" });
+      adapter.extensions.announceReleaseUpdate({ version: "0.2.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.2.1" });
       await shell.backend.session.flushEvents();
       const idleRows = shell.root.render(80).map(row => stripTerminalSequences(row));
       const idleEditorBorderRow = idleRows.findIndex((row, index) => index > 0 && /^─+$/.test(row.trim()));

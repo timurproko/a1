@@ -43,7 +43,7 @@ const startupFlushed = new Promise<void>((resolve, reject) => {
   rejectStartupFlush = reject;
 });
 const application = {
-  get disposed() { return adapter.disposed; },
+  get disposed() { return adapter.identity.disposed; },
   start: () => shell.start(),
   flush: async () => {
     try {
@@ -80,7 +80,7 @@ process.stdout.write(`${JSON.stringify({
   exitCode,
   terminalActive: terminal.active,
   runtimeState: shell.runtime.state,
-  backendDisposed: adapter.disposed,
+  backendDisposed: adapter.identity.disposed,
   altScreenRestored: controls.includes("\u001b[?1049l"),
   mouseReportingDisabled: controls.includes("\u001b[?1003l") && controls.includes("\u001b[?1006l"),
   parentShellContinuation: "parent-shell-ready",

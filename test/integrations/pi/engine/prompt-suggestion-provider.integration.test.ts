@@ -96,7 +96,7 @@ describe.skipIf(!enabled)("contextual prompt suggestion real-provider comparison
             const started = Date.now();
             let timeout!: ReturnType<typeof setTimeout>;
             const request = adapter.generate({
-              identity: { sessionId: adapter.sessionId, sessionGeneration: adapter.sessionGeneration, runSequence: 0, responseSequence: 0, model: model! },
+              identity: { sessionId: adapter.identity.sessionId, sessionGeneration: adapter.identity.sessionGeneration, runSequence: 0, responseSequence: 0, model: model! },
               signal: abort.signal,
             });
             const result = await Promise.race([request, new Promise<null>(resolve => {

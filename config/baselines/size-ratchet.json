@@ -59,8 +59,8 @@
       "fields": 12
     },
     "src/integrations/pi/engine/adapter.ts::PiEngineAdapter": {
-      "methods": 83,
-      "fields": 29
+      "methods": 43,
+      "fields": 21
     },
     "src/integrations/pi/engine/session-runtime.ts::PiEngineRuntime": {
       "methods": 28,
@@ -231,9 +231,6 @@
     },
     "src/integrations/pi/components/shell-presenters-transcript.ts::createPiShellTranscriptComponent": {
       "lines": 107
-    },
-    "src/integrations/pi/engine/adapter.ts::PiEngineAdapter.constructor": {
-      "lines": 102
     },
     "src/integrations/pi/engine/session-events.ts::PiSessionEvents.#applyPiEvent": {
       "lines": 149

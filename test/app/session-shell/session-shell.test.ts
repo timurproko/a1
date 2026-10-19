@@ -965,7 +965,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     await vi.waitFor(() => {
       expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
     });
-    adapter.announceReleaseUpdate({ version: "0.3.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.3.1" });
+    adapter.extensions.announceReleaseUpdate({ version: "0.3.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.3.1" });
     const terminal = new TestPresentationTerminal();
     const shell = new OwnedUiSessionShell({
       presenters: createPiSessionPresenters(adapter),
@@ -1001,7 +1001,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     terminal.input("draft prompt");
     expect(shell.root.render(100).join("\n")).not.toContain("Update Available");
 
-    adapter.announceReleaseUpdate({ version: "0.3.1-dev.652", command: "a1 update --develop", changelogUrl: null });
+    adapter.extensions.announceReleaseUpdate({ version: "0.3.1-dev.652", command: "a1 update --develop", changelogUrl: null });
     await vi.waitFor(() => {
       expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("New version 0.3.1-dev.652 is available. Run a1 update --develop");
     });

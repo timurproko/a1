@@ -109,9 +109,9 @@ describe("Pi engine host", () => {
     const first = await host.create({ cwd: "D:/work" });
     const second = await host.create({ cwd: "D:/other" });
 
-    expect([first.sessionId, second.sessionId]).toEqual(["owned-session-1", "owned-session-2"]);
+    expect([first.identity.sessionId, second.identity.sessionId]).toEqual(["owned-session-1", "owned-session-2"]);
     expect(host.liveSessionIds()).toEqual(["owned-session-1", "owned-session-2"]);
-    expect([first.cwd, second.cwd]).toEqual(["D:/work", "D:/other"]);
+    expect([first.identity.cwd, second.identity.cwd]).toEqual(["D:/work", "D:/other"]);
     expect(installed).toEqual([30_000]);
     expect(host.httpPolicy()).toEqual({ timeoutMs: 30_000, sessionId: "owned-session-1", origin: "startup" });
     expect(theme).toEqual(["border:true", "accent:blue", "base:dark"]);
@@ -128,7 +128,7 @@ describe("Pi engine host", () => {
     expect(theme.at(-1)).toBe("accent:green");
     await host.dispose();
     expect(host.signal.aborted).toBe(true);
-    expect([first.disposed, second.disposed]).toEqual([true, true]);
+    expect([first.identity.disposed, second.identity.disposed]).toEqual([true, true]);
     expect(host.liveSessionIds()).toEqual([]);
     await expect(host.create({ cwd: "D:/work" })).rejects.toThrow("disposed");
   });
@@ -151,7 +151,7 @@ describe("Pi engine host", () => {
     const host = createPiEngineHost(options);
     const session = await host.create({ cwd: "D:/work" });
     expect(theme).toEqual(["border:false", "accent:purple", "base:light/dark"]);
-    expect(session.settingsProductMode).toBe("comparison");
+    expect(session.settings.productMode).toBe("comparison");
     expect(session.view().diagnostics.map(diagnostic => diagnostic.code)).not.toContain("changelog-collapsed");
     await host.dispose();
   });
@@ -166,8 +166,8 @@ describe("Pi engine host", () => {
     expect(again).not.toBe(tab);
     const taken = await host.create({ cwd: "D:/work", sessionId: "owned-session-1" });
     const generated = await host.create({ cwd: "D:/work" });
-    expect(generated.sessionId).toBe("owned-session-2");
-    expect(host.liveSessionIds()).toEqual(["tab-1", taken.sessionId, "owned-session-2"]);
+    expect(generated.identity.sessionId).toBe("owned-session-2");
+    expect(host.liveSessionIds()).toEqual(["tab-1", taken.identity.sessionId, "owned-session-2"]);
     await host.dispose();
   });
 
@@ -197,7 +197,7 @@ describe("Pi engine host", () => {
     expect(host.liveSessionIds()).toEqual([]);
     fail = false;
     const session = await host.create({ cwd: "D:/work", sessionId: "tab-1" });
-    expect(session.sessionId).toBe("tab-1");
+    expect(session.identity.sessionId).toBe("tab-1");
     await host.dispose();
   });
 });

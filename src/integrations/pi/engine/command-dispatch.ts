@@ -1,5 +1,7 @@
 import { assertOwnedUiCommand, type OwnedUiCommand, type OwnedUiCommandOutcome, type OwnedUiCommandResult, type OwnedUiDiagnostics } from "../../../contracts/owned-ui/index.js";
 import type { PiEmittedEvent } from "./event-delivery.js";
+import type { PiEngineRuntime } from "./session-runtime.js";
+import type { EngineViewState } from "./view-state.js";
 
 export type AdapterCommandResult = OwnedUiCommandResult;
 
@@ -141,4 +143,86 @@ export class PiCommandDispatch {
     });
     return { outcome, diagnostic };
   }
+}
+
+/** What carrying out a command reaches: the running engine, the view state it updates, and disposal. */
+export interface EngineCommandContext {
+  readonly engine: Pick<PiEngineRuntime, "runtime" | "session" | "generation" | "sessionCommands">;
+  readonly state: Pick<EngineViewState, "activeModel" | "thinkingLevel" | "setTerminal" | "terminal">;
+  /** False while delivery is overloaded or admission is stopped; a late model change then stays unpublished. */
+  admissionOpen(): boolean;
+  emit(value: PiEmittedEvent): void;
+  dispose(): Promise<void>;
+}
+
+type EngineRuntime = NonNullable<PiEngineRuntime["runtime"]>;
+type EngineSession = NonNullable<PiEngineRuntime["session"]>;
+// Invariant: several command types share one union member, so a type selects every member whose `type` overlaps it.
+type CommandOf<T extends OwnedUiCommand["type"]> = OwnedUiCommand extends infer C
+  ? C extends { readonly type: infer K } ? ([Extract<K, T>] extends [never] ? never : C) : never
+  : never;
+interface EngineCommandTarget { readonly runtime: EngineRuntime; readonly session: EngineSession; readonly generation: number }
+type EngineCommandHandler<T extends OwnedUiCommand["type"]> =
+  (command: CommandOf<T>, context: EngineCommandContext, target: EngineCommandTarget) => Promise<void> | void;
+
+// Invariant: prompt input and session controls run through the engine's own session commands, which own queuing and images.
+async function runSessionCommand(
+  request: Parameters<NonNullable<PiEngineRuntime["sessionCommands"]>["execute"]>[0],
+  context: EngineCommandContext,
+): Promise<void> {
+  const result = await context.engine.sessionCommands?.execute(request);
+  if (!result || result.outcome === "rejected" || result.outcome === "failed") {
+    throw new Error(request.type === "retry" ? "no previous prompt is available to retry" : `Pi session command failed: ${request.type}`);
+  }
+}
+
+function runPromptCommand(command: CommandOf<"prompt" | "steer" | "follow-up">, context: EngineCommandContext): Promise<void> {
+  return runSessionCommand({
+    type: command.type,
+    text: command.text,
+    ...(command.images === undefined ? {} : { images: [...command.images] }),
+  }, context);
+}
+
+const ownedUiStateCommand = (): never => {
+  throw new Error("owned UI state commands belong to the owned UI layer, not the Pi engine adapter");
+};
+
+// Invariant: one handler per command type; the table is exhaustive, so a new command type cannot be silently ignored.
+const ENGINE_COMMANDS: { readonly [T in OwnedUiCommand["type"]]: EngineCommandHandler<T> } = {
+  "prompt": (command, context) => runPromptCommand(command, context),
+  "steer": (command, context) => runPromptCommand(command, context),
+  "follow-up": (command, context) => runPromptCommand(command, context),
+  "abort": (_command, context) => runSessionCommand({ type: "abort" }, context),
+  "retry": (_command, context) => runSessionCommand({ type: "retry" }, context),
+  "compact": (_command, context) => runSessionCommand({ type: "compact" }, context),
+  "set-model": async (command, context, { runtime, session, generation }) => {
+    const model = runtime.services.modelRuntime.getModel(command.model.providerId, command.model.modelId);
+    if (!model) throw new Error(`model is unavailable: ${command.model.providerId}/${command.model.modelId}`);
+    await session.setModel(model);
+    if (generation === context.engine.generation && context.admissionOpen()) context.state.activeModel = { ...command.model };
+  },
+  "set-thinking-level": (command, context, { session }) => {
+    session.setThinkingLevel(command.thinkingLevel);
+    context.state.thinkingLevel = command.thinkingLevel;
+  },
+  "new-session": async (_command, _context, { runtime }) => { await runtime.newSession(); },
+  "resume-session": async (command, _context, { runtime }) => { await runtime.switchSession(command.sessionPath); },
+  "resize-surface": (command, context) => {
+    context.state.setTerminal(command.surface);
+    context.emit({ type: "terminal-surface", surface: context.state.terminal });
+  },
+  "shutdown": (_command, context) => context.dispose(),
+  "set-setting": ownedUiStateCommand,
+  "apply-customization": ownedUiStateCommand,
+  "remove-customization": ownedUiStateCommand,
+};
+
+/** Carries out one admitted command against the running engine; throws when no session runs or the command fails. */
+export async function performEngineCommand(command: OwnedUiCommand, context: EngineCommandContext): Promise<void> {
+  const { runtime, session, generation } = context.engine;
+  if (!runtime || !session) throw new Error("engine session is unavailable");
+  // Invariant: the table maps each type to the handler for exactly that command, so the command fits its own handler.
+  const handler = ENGINE_COMMANDS[command.type] as (command: OwnedUiCommand, context: EngineCommandContext, target: EngineCommandTarget) => Promise<void> | void;
+  await handler(command, context, { runtime, session, generation });
 }

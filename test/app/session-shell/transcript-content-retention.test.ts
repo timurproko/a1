@@ -163,7 +163,7 @@ describe("transcript content retention across renderer boundaries", () => {
     await emit({ type: "turn_end", message, toolResults: [] });
     expect(backend.view().transcript.find(block => block.id === result.id)).toBe(result);
     expect(backend.view().transcript.map(block => block.id)).toEqual(order);
-    expect(backend.resolveTranscriptImage(result.imageReferences![0]!.assetId)).not.toBeNull();
+    expect(backend.extensions.resolveTranscriptImage(result.imageReferences![0]!.assetId)).not.toBeNull();
   });
 
   it("rejects post-result partials in both the engine and a shell preempted by a full view", async () => {
