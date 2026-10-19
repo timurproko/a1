@@ -198,7 +198,7 @@ mod tests {
         for point in super::CRASH_POINTS {
             assert!(seen.insert(*point), "{point} is declared twice");
         }
-        let source = ["src", "src/roles", "src/core"]
+        let source = ["src", "src/roles", "src/roles/server", "src/core"]
             .iter()
             .flat_map(|directory| {
                 std::fs::read_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(directory))

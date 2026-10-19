@@ -50,7 +50,7 @@ Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19).
 
 ## 8. Server split and per-tab core state
 
-- [ ] 8.1 Split `native/terminal-host/src/roles/server.rs` into `roles/server/{mod,attach,holder,bridge,lifecycle,standby,controller,registry}.rs` with no logic change; `mod.rs` keeps `RuntimeState`, `run_server_child`, `serve_peer`, and supervision; `controller.rs` takes `PendingControllerTransfer`, `complete_controller_transfer`, and `expire_controller_boundaries`. Tests: `tests/role_integration.rs` unchanged and green.
+- [x] 8.1 Split `native/terminal-host/src/roles/server.rs` into `roles/server/{mod,attach,holder,bridge,lifecycle,standby,controller,registry}.rs` with no logic change: each role's functions and constants move to its module, while `mod.rs` keeps every type, `RuntimeState`, `run_server_child`, `serve_peer`, supervision, the shared helpers, and the unit tests, so sibling modules keep reaching struct fields without visibility changes. Tests: native unit tests green locally; `tests/role_integration.rs` unchanged and green in CI.
 - [ ] 8.2 Move `surfaces`, `launches`, `holders_terminating`, `holders_starting`, `bridge_status_sequences`, `status_persist_pending`, and `status_last_persist` into `core::server::TabState`; handlers read them through `locked.core`. Tests: `core/sim` green; `core/server.rs` unit tests cover the moved fields.
 - [ ] 8.3 Replace `thread::sleep` and the blocking recovery-slot wait in the holder and bridge handlers with `Effect::ArmTimer` from `core::server::step`, handled by the supervision tick. Tests: role integration restart and recovery cases green; new unit test that a reader thread processes input during a restart delay.
 

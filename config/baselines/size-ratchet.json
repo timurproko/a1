@@ -139,40 +139,40 @@
     "native/terminal-host/src/roles/quit_outro.rs::fall_plan": {
       "lines": 111
     },
-    "native/terminal-host/src/roles/server.rs::claim_client_control": {
+    "native/terminal-host/src/roles/server/controller.rs::claim_client_control": {
       "lines": 129
     },
-    "native/terminal-host/src/roles/server.rs::handle_lifecycle": {
+    "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
       "lines": 247
     },
-    "native/terminal-host/src/roles/server.rs::holder_lost": {
+    "native/terminal-host/src/roles/server/holder.rs::holder_lost": {
       "lines": 120
     },
-    "native/terminal-host/src/roles/server.rs::promote_standby": {
+    "native/terminal-host/src/roles/server/standby.rs::promote_standby": {
       "lines": 106
     },
-    "native/terminal-host/src/roles/server.rs::run_server_child": {
+    "native/terminal-host/src/roles/server/mod.rs::run_server_child": {
       "lines": 339
     },
-    "native/terminal-host/src/roles/server.rs::serve_attach": {
+    "native/terminal-host/src/roles/server/attach.rs::serve_attach": {
       "lines": 496
     },
-    "native/terminal-host/src/roles/server.rs::serve_bridge": {
+    "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
       "lines": 395
     },
-    "native/terminal-host/src/roles/server.rs::serve_holder": {
+    "native/terminal-host/src/roles/server/holder.rs::serve_holder": {
       "lines": 645
     },
-    "native/terminal-host/src/roles/server.rs::serve_peer": {
+    "native/terminal-host/src/roles/server/mod.rs::serve_peer": {
       "lines": 262
     },
-    "native/terminal-host/src/roles/server.rs::start_holder": {
+    "native/terminal-host/src/roles/server/holder.rs::start_holder": {
       "lines": 197
     },
-    "native/terminal-host/src/roles/server.rs::stop_tabs": {
+    "native/terminal-host/src/roles/server/lifecycle.rs::stop_tabs": {
       "lines": 157
     },
-    "native/terminal-host/src/roles/server.rs::supervise_holders": {
+    "native/terminal-host/src/roles/server/mod.rs::supervise_holders": {
       "lines": 158
     },
     "native/terminal-host/src/roles/strip.rs::render_frame": {
