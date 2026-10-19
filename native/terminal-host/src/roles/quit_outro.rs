@@ -176,32 +176,51 @@ fn cursor_at(row: usize, col: usize) -> String {
     format!("\x1b[{};{}H", row + 1, col + 1)
 }
 
-/// Builds every synchronized block the outro writes, one per tick, from a clock in progress units.
-/// The last block always clears the screen so the leave never reveals a half-cleared frame.
+/// The playback cursor over a plan: how many sparkles and clears earlier ticks already wrote.
+#[derive(Debug, Default)]
+pub struct OutroCursor {
+    sparkle: usize,
+    clear: usize,
+}
+
+/// Builds one synchronized tick block at `progress`, advancing `cursor`. Returns the block and
+/// whether playback is finished; a finished block, including a `force_finish` one, clears the
+/// screen so the leave never reveals a half-cleared frame.
+pub fn outro_block(
+    plan: &OutroPlan,
+    cursor: &mut OutroCursor,
+    progress: f64,
+    force_finish: bool,
+) -> (String, bool) {
+    let mut output = String::from("\x1b[?2026h\x1b[?25l\x1b[0m");
+    while cursor.sparkle < plan.sparkles.len() && plan.sparkles[cursor.sparkle].start <= progress {
+        let cell = &plan.sparkles[cursor.sparkle];
+        output.push_str(&cursor_at(cell.row, cell.col));
+        output.push_str(WHITE);
+        output.push_str(cell.glyph);
+        cursor.sparkle += 1;
+    }
+    while cursor.clear < plan.clears.len() && plan.clears[cursor.clear].end <= progress {
+        let cell = &plan.clears[cursor.clear];
+        output.push_str(&cursor_at(cell.row, cell.col));
+        output.push_str("\x1b[0m ");
+        cursor.clear += 1;
+    }
+    let finished = force_finish || cursor.clear >= plan.clears.len() || progress >= 1.0;
+    if finished {
+        output.push_str("\x1b[2J\x1b[H");
+    }
+    output.push_str("\x1b[0m\x1b[?2026l");
+    (output, finished)
+}
+
+/// Builds the blocks for a sequence of tick progress values, finishing at the last one.
 pub fn outro_blocks(plan: &OutroPlan, ticks: &[f64]) -> Vec<String> {
+    let mut cursor = OutroCursor::default();
     let mut blocks = Vec::new();
-    let (mut sparkle, mut clear) = (0usize, 0usize);
     for (index, progress) in ticks.iter().copied().enumerate() {
-        let mut output = String::from("\x1b[?2026h\x1b[?25l\x1b[0m");
-        while sparkle < plan.sparkles.len() && plan.sparkles[sparkle].start <= progress {
-            let cell = &plan.sparkles[sparkle];
-            output.push_str(&cursor_at(cell.row, cell.col));
-            output.push_str(WHITE);
-            output.push_str(cell.glyph);
-            sparkle += 1;
-        }
-        while clear < plan.clears.len() && plan.clears[clear].end <= progress {
-            let cell = &plan.clears[clear];
-            output.push_str(&cursor_at(cell.row, cell.col));
-            output.push_str("\x1b[0m ");
-            clear += 1;
-        }
-        let finished = clear >= plan.clears.len() || progress >= 1.0 || index + 1 == ticks.len();
-        if finished {
-            output.push_str("\x1b[2J\x1b[H");
-        }
-        output.push_str("\x1b[0m\x1b[?2026l");
-        blocks.push(output);
+        let (block, finished) = outro_block(plan, &mut cursor, progress, index + 1 == ticks.len());
+        blocks.push(block);
         if finished {
             break;
         }
@@ -217,28 +236,12 @@ pub fn play(row_widths: &[usize], seed: u32, mut write: impl FnMut(&[u8]) -> boo
         return;
     }
     let started = Instant::now();
-    let (mut sparkle, mut clear) = (0usize, 0usize);
+    let mut cursor = OutroCursor::default();
     for tick in 0..MAX_TICKS {
         let elapsed = started.elapsed();
         let progress = (elapsed.as_secs_f64() / QUIT_OUTRO_DURATION.as_secs_f64()).min(1.0);
-        let last = elapsed > QUIT_OUTRO_DURATION + QUIT_OUTRO_GUARD || tick + 1 == MAX_TICKS;
-        let partial = OutroPlan {
-            sparkles: plan.sparkles[sparkle..].to_vec(),
-            clears: plan.clears[clear..].to_vec(),
-        };
-        let ticks = if last { vec![1.0] } else { vec![progress] };
-        let block = outro_blocks(&partial, &ticks).pop().unwrap_or_default();
-        sparkle += partial
-            .sparkles
-            .iter()
-            .take_while(|cell| cell.start <= ticks[0])
-            .count();
-        clear += partial
-            .clears
-            .iter()
-            .take_while(|cell| cell.end <= ticks[0])
-            .count();
-        let finished = block.contains("\x1b[2J");
+        let overdue = elapsed > QUIT_OUTRO_DURATION + QUIT_OUTRO_GUARD || tick + 1 == MAX_TICKS;
+        let (block, finished) = outro_block(&plan, &mut cursor, progress, overdue);
         if !write(block.as_bytes()) || finished {
             return;
         }
@@ -350,8 +353,31 @@ mod tests {
             writes.push(String::from_utf8_lossy(bytes).into_owned());
             true
         });
-        assert!(started.elapsed() < QUIT_OUTRO_DURATION + QUIT_OUTRO_GUARD + FRAME * 4);
+        let elapsed = started.elapsed();
+        assert!(elapsed < QUIT_OUTRO_DURATION + QUIT_OUTRO_GUARD + FRAME * 4);
+        assert!(
+            elapsed >= QUIT_OUTRO_DURATION - FRAME * 2,
+            "the animation plays for its duration, not one frame: {elapsed:?}"
+        );
+        assert!(
+            writes.len() >= 15,
+            "only {} frames were written",
+            writes.len()
+        );
+        assert_eq!(
+            writes
+                .iter()
+                .filter(|block| block.contains("\x1b[2J"))
+                .count(),
+            1,
+            "only the final block clears the screen"
+        );
         assert!(writes.last().unwrap().contains("\x1b[2J"));
+        assert!(
+            writes[..writes.len() - 1]
+                .iter()
+                .any(|block| block.contains(WHITE))
+        );
         let mut stopped = 0;
         play(&[20, 20], 11, |_| {
             stopped += 1;
