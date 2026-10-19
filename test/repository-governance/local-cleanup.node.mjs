@@ -860,7 +860,10 @@ test("concurrent state sessions preserve disjoint candidate transitions", async 
   assert.deepEqual(state.entries.filter(entry => [f.entry.id, second.id].includes(entry.id)).map(entry => entry.step), ["remove-intent", "remove-intent"]);
 });
 
-test("a paused candidate does not block disjoint cleanup", { timeout: 30000 }, async t => {
+// Rationale: a blocked disjoint pass hangs, so the 30 s bound covers only that pass while the candidate is
+// paused; fixture setup and the released pass share the suite's hang detector like every concurrent case.
+const DISJOINT_PASS_BOUND_MS = 30000;
+test("a paused candidate does not block disjoint cleanup", async t => {
   const f = await fixture(t, false, true), secondPath = join(f.identity.root, "second"); await f.store.enable();
   await mkdir(join(f.path, "node_modules")); await writeFile(join(f.path, "node_modules", "generated"), "fixture");
   await f.store.locked(async (state, save) => { state.entries.find(entry => entry.id === f.entry.id).disposable = ["node_modules"]; await save(state); });
@@ -883,7 +886,11 @@ test("a paused candidate does not block disjoint cleanup", { timeout: 30000 }, a
   };
   const slow = f.pass({ preview: false, entryIds: [f.entry.id], includeUnmanaged: false, purge: slowPurge });
   await entered;
-  const fast = await f.pass({ preview: false, entryIds: [second.id], includeUnmanaged: false });
+  let bound;
+  const fast = await Promise.race([
+    f.pass({ preview: false, entryIds: [second.id], includeUnmanaged: false }),
+    new Promise((_, reject) => { bound = setTimeout(() => reject(Error("disjoint cleanup blocked by the paused candidate")), DISJOINT_PASS_BOUND_MS); }),
+  ]).finally(() => clearTimeout(bound));
   assert.equal(fast.results[0].disposition, "removed", JSON.stringify(fast));
   assert.equal(await exists(secondPath), false); assert.equal(await exists(f.path), true);
   releaseSlow();

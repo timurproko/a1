@@ -4,7 +4,9 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- **What failed:** one node test inside `local-cleanup.test.ts`, `a paused candidate does not block disjoint cleanup`, hit its own `{ timeout: 30000 }` after 30.86 s (`testTimeoutFailure`); every other local-cleanup case passed. The child run failed, so `fast-resource-sensitive` failed, and `Complete regression required` saw incomplete lane evidence.
+- **Why:** environmental. The suite runs its cases four at a time (`describe(..., { concurrency: 4 })`), and this was the only case with a test-level wall-clock bound. That bound also covered the shared-runner cost of creating two Git worktree fixtures and the released purge pass. On this run the same child took 183 s, against 67–121 s on the three previous nightly runs, and its untimed neighbors took 25–40 s each (`sweep defers a held candidate` 39.7 s). No suspect commit touches the local-cleanup scripts or tests. Locally on `dc61c51` the case passes in 9.6 s.
+- **Fix:** the case keeps a 30 s bound, now only on the disjoint pass that runs while the candidate is paused. A blocking regression hangs exactly there and still fails, with the named error `disjoint cleanup blocked by the paused candidate`. Fixture setup and the released pass fall under the suite's 240 s child hang detector, like every other concurrent case. Assertions, the bound's value, concurrency, and coverage are unchanged.
 
 ## Evidence
 
@@ -89,3 +91,7 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
     - `f370434` feature: copy prompt and status selections (#793)
     - `ee097cf` chore(ci): cut the CI critical path (#789)
     - `0b6ef5e` fix: send image prompts in resident tabs (#790)
+- Focused implementation evidence on Windows with the fix (Node 22), before finalization:
+  - `node --test` over the three local-cleanup node files passed four times (112 pass, 0 fail, 176–178 s each), so the full concurrent load matches the failed CI child (183 s).
+  - The CI wrapper `npx vitest run test/repository-governance/local-cleanup.test.ts --testTimeout=30000` passed three of four runs (183–184 s). The first run failed without its output being captured, so its cause is a known gap left to the exact-head PR Full regression.
+  - `git log 2148ffa..dc61c51` over `scripts/governance/local-cleanup-*.mjs`, `scripts/governance/local-worktree-cleanup.mjs`, and `test/repository-governance/local-cleanup*` is empty. The 30 s case bound dates from `51a30d4` (#725).
