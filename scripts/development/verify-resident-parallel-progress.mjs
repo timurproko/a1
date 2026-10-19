@@ -1072,8 +1072,10 @@ async function main() {
   const host = argument("--host") ?? process.env.A1_TERMINAL_HOST_PATH;
   if (!host) throw new Error("usage: verify-resident-parallel-progress.mjs --host <terminal-host.node>");
   const report = await collect(resolve(host));
-  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  if (!report.passed) process.exitCode = 1;
+  phase(report.passed ? "passed" : "failed");
+  // Platform: Windows ConPTY handles of the stopped attach and direct fixtures can keep the event loop
+  // alive after cleanup, so the harness exits once its report is flushed instead of idling to the watchdog.
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`, () => process.exit(report.passed ? 0 : 1));
 }
 
 if (process.argv[1]?.endsWith("verify-resident-parallel-progress.mjs")) await main();
