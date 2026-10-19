@@ -282,7 +282,7 @@ The attach client SHALL recognize the semantic outer-terminal `Ctrl+C` event acr
 ## ADDED Requirements
 
 ### Requirement: Open strip popups stay stable while tabs stream
-An open context, overflow, or launcher popup SHALL be presented with each outer cell written once per frame with its final content. Child output beneath or beside the popup SHALL NOT clear, blank, or rewrite popup cells, and SHALL repaint only changed child cells outside the popup. Dismissing a popup SHALL restore the newest child content beneath it.
+An open context, overflow, or launcher popup SHALL be presented with each outer cell written once per frame with its final content. Child output beneath or beside the popup SHALL NOT clear, blank, or rewrite popup cells, and SHALL repaint only changed child cells outside the popup. Dismissing a popup SHALL restore the newest child content beneath it. On the legacy raw-byte fallback, the popup SHALL be repainted after the child bytes within the same synchronized frame.
 
 #### Scenario: Menu open while the Agent streams
 - **WHEN** the tab context menu or `+` launcher is open over a tab whose Agent is streaming output

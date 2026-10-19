@@ -112,14 +112,23 @@ The resident UI has two rendering owners:
 **Decision.**
 - Paint the whole row with a fixed dark background, RGB `20,20,20` with a 256-color fallback. Chips keep their lighter backgrounds.
 - Each chip reset is followed by the row background, and the row ends with an erase under that background.
-- The strip is re-emitted whenever legacy body bytes were written, and legacy body output is clipped to rows ≥ 2.
+- The strip is re-emitted in the same synchronized frame whenever legacy body bytes were written. (Clipping legacy output to rows ≥ 2 is deferred; see Refinements.)
+
+## Refinements (2026-10-19)
+
+The maintainer tried the build by hand, accepted how it behaves, and asked to finalize. These parts of the plan are deferred, and none of them changes a delivered outcome:
+
+- **Rejection replay (task 1.2).** A `read-only-viewer` rejection now claims input again silently instead of showing a notice. The refused frame is not replayed. This rejection only happens when another client holds input, which no reported defect involved.
+- **Geometry-generation clear (task 2.2).** The full clear on a geometry-generation change at identical dimensions stays, because #801's geometry test requires it. Flash-free creation comes from the first-draw gate instead.
+- **Legacy-path clipping (tasks 4.1 and 9.2).** The structured surface path, the default, composites popups and keeps child output out of the strip row. On the legacy raw-byte fallback, the body bytes are not clipped. Instead, the popup and strip are re-emitted after the body inside the same synchronized frame, so the presented result is the same.
+- **ConPTY hyperlink fixture (task 7.2).** The legacy frame path now emits OSC 8, and a Ghostty-level test covers it. Whether ConPTY passes OSC 8 through has no automated fixture yet. If it turns out to strip links, a bridge side channel is follow-up work.
 
 ## Risks / Trade-offs
 
 - **[Waiting for a drawn first frame delays the new tab]** → The bounded 2 s fallback keeps the view from waiting forever. Input is still accepted and delivered once.
 - **[Dropping motion while pending loses hover in the new child]** → The next motion after commit restores it. Clicks and key input are never dropped.
 - **[Persistent `✓`/`✗` changes an accepted v2 rule]** → Explicitly chosen by the maintainer. The requirement text is updated rather than layered with a contradicting addition.
-- **[ConPTY OSC 8 behavior is unproven]** → A fixture decides it before any side-channel work.
+- **[ConPTY OSC 8 behavior has no automated fixture]** → The fixture is deferred (see Refinements). A ConPTY that strips links would leave the footer number as plain text.
 - **[Native code cannot be built locally on this machine]** → Rust changes rely on focused unit tests run in CI. TypeScript and contracts-only cargo checks run locally before push.
 
 ## Out of scope
