@@ -523,7 +523,13 @@ export async function bindResidentTabBridge(
   const currentSessionName = () => backend.session.view().status.footer?.sessionName ?? null;
   const announceSession = () => {
     const name = currentSessionName();
-    const automatic = name === pendingAutoName || (applyingAutoName && !isDefaultName(name));
+    // Invariant: the session may announce the applied name after the workflow resolves; the
+    // first non-default name announced for a pending auto-name is that automatic name.
+    if (applyingAutoName && !isDefaultName(name)) {
+      pendingAutoName = name;
+      applyingAutoName = false;
+    }
+    const automatic = name === pendingAutoName;
     const nameSource = automatic ? "auto" : isDefaultName(name) ? "default" : "user";
     tabBridge.session(currentSessionFile(), name, nameSource);
   };
@@ -547,14 +553,22 @@ export async function bindResidentTabBridge(
       if (!isDefaultName(currentSessionName())) return;
       pendingAutoName = name;
       applyingAutoName = true;
-      const result = await backend.workflows.executeWorkflow({ command: "name", argument: name })
-        .finally(() => { applyingAutoName = false; });
-      if (result.outcome === "completed") {
-        const current = currentSessionName();
-        const applied = current !== null && !isDefaultName(current) ? current : name;
-        pendingAutoName = applied;
-        tabBridge.session(currentSessionFile(), applied, "auto");
-      } else if (pendingAutoName === name) pendingAutoName = null;
+      const result = await backend.workflows.executeWorkflow({ command: "name", argument: name });
+      if (result.outcome !== "completed") {
+        applyingAutoName = false;
+        if (pendingAutoName === name) pendingAutoName = null;
+        return;
+      }
+      const current = currentSessionName();
+      if (current !== null && !isDefaultName(current)) {
+        // The session already holds the applied name; report it as automatic now.
+        pendingAutoName = current;
+        applyingAutoName = false;
+        tabBridge.session(currentSessionFile(), current, "auto");
+      } else {
+        // The session announces later; show the generated name meanwhile, still automatic.
+        tabBridge.session(currentSessionFile(), name, "auto");
+      }
     }).catch(() => { pendingAutoName = null; applyingAutoName = false; });
   };
   const reportStatus = (lifecycle?: string) => {

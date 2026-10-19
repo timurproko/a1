@@ -195,6 +195,25 @@ describe("resident tab composition bridge", () => {
     expect(value.bridge.session).not.toHaveBeenCalledWith(expect.anything(), "fix-login", "user");
   });
 
+  it("treats a name the session announces after the rename resolves as automatic", async () => {
+    const value = fixture();
+    await bindResidentTabBridge(value.bridge as never, value.backend as never, null, { autoName: true });
+    value.rename("Agent");
+    value.event({ type: "session-lifecycle", lifecycle: "busy" });
+    value.event({ type: "agent-run-started" });
+    await vi.waitFor(() => expect(value.backend.workflows.executeWorkflow).toHaveBeenCalledOnce());
+    await vi.waitFor(() => expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "fix-login-please", "auto"));
+    // Observed: the session stores its own form and announces it only afterwards.
+    value.rename("russian");
+    value.event({ type: "session-view" });
+    expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "russian", "auto");
+    expect(value.bridge.session).not.toHaveBeenCalledWith(expect.anything(), "russian", "user");
+    // A later manual rename is still the user's.
+    value.rename("my-own");
+    value.event({ type: "session-view" });
+    expect(value.bridge.session).toHaveBeenLastCalledWith("D:/sessions/one.jsonl", "my-own", "user");
+  });
+
   it("waits for the run's projected prompt and ignores busy states outside an agent run", async () => {
     const value = fixture();
     value.setTranscript([]);
