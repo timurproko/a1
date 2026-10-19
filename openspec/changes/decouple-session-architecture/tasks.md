@@ -26,8 +26,8 @@ Counts and names below were re-measured on `develop` at `a7d7fe85` (2026-10-19).
 
 ## 4. Transcript document
 
-- [ ] 4.1 Add `src/app/session-shell/transcript-document.ts` owning blocks, order, per-block render cache, per-width document layouts, the submitted-prompt composer, and the render count, with `apply`, `reset`, `layout`, `invalidate(reason)`, `mountOrder`, and `exitRows`; `session-shell-root.ts` routes every former cache-clearing site through `invalidate` with a named reason. Test: `test/app/session-shell/transcript-document.test.ts` covers block replacement, width eviction to two entries, workflow anchors, live tail start, and every invalidate reason.
-- [ ] 4.2 Move `#renderDocumentLayout` and `#blockRows` from the root into the document, keeping `shell-presenters-transcript.ts` as the renderer. Tests: `test/features/owned-ui/pi-static-parity-fixture.ts` and `pi-startup-fixture.ts` unchanged and green.
+- [x] 4.1 Add `src/app/session-shell/transcript-document.ts` owning blocks, order, anchored workflow output, the per-block render cache, the per-width document layouts, and the render count, with `apply`, `sync`, `appendAnchored`, `removeAnchored`, `blockChanged`, `invalidate(reason)`, `reset`, and `dispose`; `session-shell-root.ts` routes every former cache-clearing site through a named `TranscriptInvalidation` reason, and layout-only reasons keep each block's rendered rows. Test: `test/app/session-shell/transcript-document.test.ts` covers block replacement, width eviction to two entries, workflow anchors, live tail start, and every invalidate reason.
+- [x] 4.2 Move `#renderDocumentLayout`, `#blockRows`, and the exit transcript from the root into the document as `layout`, its notice rows, and `exitTranscript`, keeping `shell-presenters-transcript.ts` as the renderer and reading the header, diagnostics, and theme through a `TranscriptDocumentChrome` port. Tests: `test/features/owned-ui/pi-static-parity-fixture.ts` and `pi-startup-fixture.ts` unchanged and green.
 
 ## 5. Attach client core
 

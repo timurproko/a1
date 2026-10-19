@@ -78,7 +78,7 @@ The presenter keeps the hosted-presenter port methods, view projection, and cons
 
 ### 4. The transcript document is the only cache owner
 
-`transcript-document.ts` owns `#transcript`, `#blocksById`, `#transcriptOrder`, `#renderedRows`, `#documentLayouts`, `#submittedPromptComposer`, and the block render count. Its API is `apply(block)`, `reset()`, `layout(width)`, `invalidate(reason)`, `mountOrder()`, and `exitRows()`. Every current clearing site becomes an `invalidate` call with a named reason, which makes the fifteen sites reviewable.
+`transcript-document.ts` owns `#transcript`, `#blocksById`, `#transcriptOrder`, the workflow-status anchors that order depends on, `#renderedRows`, `#documentLayouts`, and the block render count. Its API is `apply(block)`, `sync(blocks)`, `appendAnchored`/`removeAnchored`, `blockChanged(id)`, `invalidate(reason)`, `layout(width)`, `exitTranscript(width)`, `reset()`, and `dispose()`. It reads the header, diagnostics, thinking visibility, and time format through a small chrome port, and mounts components through the root's mount callback, so the submitted-prompt composer stays with the root that builds components. Every current clearing site becomes an `invalidate` call with a named reason, which makes the fifteen sites reviewable; layout-only reasons keep per-block rows.
 
 ### 5. Root chrome and surfaces become components the root composes
 

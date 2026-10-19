@@ -1,4 +1,4 @@
-import { acceptsTranscriptUpdate, ImageAttachmentError } from "../../contracts/owned-ui/index.js";
+import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type {
   OwnedUiBackgroundSettingsPort,
   OwnedUiExtensionResourceSummary,
@@ -22,7 +22,6 @@ import { caretCell } from "../../ui/components/line-input.js";
 import { PromptInput, promptArrow } from "../../ui/components/prompt-input.js";
 import {
   composeSubmittedPromptRows,
-  formatSubmittedPromptTime,
   submittedPromptLayout,
 } from "../../ui/components/submitted-prompt.js";
 import {
@@ -30,10 +29,9 @@ import {
   heldNativeHyperlinkStyle,
   hyperlinkSgrSpan,
   nativeHyperlinkStyle,
-  overlaySpan,
 } from "../../ui/components/spans.js";
 import { progressStatusFrame, progressStatusText } from "../../ui/components/progress-status.js";
-import { displayWidth, faint, stripAnsi } from "../../ui/components/text.js";
+import { faint, stripAnsi } from "../../ui/components/text.js";
 import type {
   TranscriptPromptAnchor,
   TranscriptViewportFrame,
@@ -56,23 +54,16 @@ import {
 } from "../../integrations/pi/components/shell-selectors-dialogs.js";
 import {
   createPiShellChangelog,
-  createPiShellCollapsedChangelog,
   createPiShellHotkeys,
   createPiShellSessionInfo,
   renderPiShellCommandMessage,
-  renderPiShellPackageUpdateNotice,
   renderPiShellReleaseUpdateBanner,
-  renderPiShellReleaseUpdateNotice,
   renderPiShellStatusText,
   type PiShellReleaseUpdateBanner,
   type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
 import {
   createPiShellTranscriptComponent,
-  isPiPromptStyleCompaction,
-  paintPiSubmittedPromptTimestamp,
-  renderPiShellStartupDiagnostic,
-  renderPiShellTranscriptBlock,
   type PiShellSubmittedPromptComposer,
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
 import { onPiThemeChange, PINNED_PI_LAYOUT, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
@@ -114,6 +105,7 @@ import type { ResponseCopyExecutor } from "./response-copy-transport.js";
 import type { ResponseCopyEvent } from "./response-copy-protocol.js";
 import type { PasteEvent, PasteSource } from "./paste-protocol.js";
 import { canPreparePasteInline } from "./paste-text-preparation.js";
+import { nativeTranscriptLinkColor, parseReleaseUpdateDiagnostic, TranscriptDocument } from "./transcript-document.js";
 import type { StreamPresentationScheduler } from "./stream-presentation-coalescer.js";
 
 export type OwnedUiTerminalPort = PiTuiTerminalPort;
@@ -287,13 +279,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly header: PiShellHeaderPort;
   readonly resources: PiShellLoadedResourcesPort;
   readonly #cwd: string;
-  readonly #transcript = new Map<string, PiShellTranscriptComponentPort>();
-  readonly #blocksById = new Map<string, OwnedUiSessionViewModel["transcript"][number]>();
-  readonly #renderedRows = new Map<string, Map<number, { readonly revision: number; readonly presentationRevision: number; readonly rows: readonly string[] }>>();
-  // Performance: document layouts are shared by wheel, rail, jump, and selection frames.
-  readonly #documentLayouts = new Map<number, { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[]; readonly liveTailStartRow: number | undefined }>();
+  readonly #document: TranscriptDocument;
   readonly #themeUnsubscribe: () => void;
-  #transcriptOrder: string[] = [];
   #view: OwnedUiSessionViewModel;
   readonly #status: PiShellStatusPort;
   readonly #footer: PiShellViewComponentPort;
@@ -324,7 +311,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   #imageWidthCells = 80;
   #outputPad: 0 | 1 = 1;
   #workflowTranscriptSequence = 0;
-  readonly #workflowStatusAnchors = new Map<string, number>();
   readonly #workflowStatusMessages = new Map<string, string>();
   #lastWorkflowStatusId: string | undefined;
   // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
@@ -358,7 +344,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   } | undefined;
   #fullViewportCompositions = 0;
   #dockOnlyViewportCompositions = 0;
-  #transcriptBlockRenders = 0;
   #extensionHeader: PiShellComponentPort | null = null;
   #extensionFooter: PiShellComponentPort | null = null;
   readonly #extensionWidgets = new Map<string, { readonly component: PiShellComponentPort; readonly placement: "aboveEditor" | "belowEditor" }>();
@@ -423,19 +408,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       ...(handlers.pasteDiagnostics === undefined ? {} : { onEvent: handlers.pasteDiagnostics }),
       ...(handlers.pastePreparation === undefined ? {} : { preparation: handlers.pastePreparation }),
       ...(handlers.promptImageLimit === undefined ? {} : { imageLimit: handlers.promptImageLimit }) });
-    this.#submittedPromptComposer = this.#customViewport
-      ? {
-          layout: (width, source) => submittedPromptLayout(width, source, this.#viewportController.config.timeFormat ?? "8:00 PM"),
-          compose: (rows, width, source, style) => composeSubmittedPromptRows(
-            rows,
-            width,
-            source,
-            { ...style, prefix: text => promptArrow(text, piTheme()) },
-            this.#viewportController.config.timeFormat ?? "8:00 PM",
-          ).map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor)),
-        }
-      : undefined;
+    this.#submittedPromptComposer = this.#customViewport ? this.#createSubmittedPromptComposer() : undefined;
     this.#cwd = cwd;
+    this.#document = this.#createDocument(cwd);
     this.#extensionRenderers = extensionRenderers;
     this.#imageAssets = imageAssets;
     this.#componentRuntime = handlers;
@@ -599,7 +574,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     for (const block of view.transcript) {
       if (block.kind === "user") this.editor.addToHistory(block.text);
     }
-    this.#syncTranscript(view.transcript);
+    this.#document.sync(view.transcript);
     // Invariant: colours come from the active theme, so rendered rows outlive their revision only
     // until the theme under them changes.
     this.#themeUnsubscribe = onPiThemeChange(() => {
@@ -608,9 +583,40 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     });
   }
 
+  // Invariant: the document reads the shell's chrome lazily, so it may be built before the header and viewport.
+  #createDocument(cwd: string): TranscriptDocument {
+    return new TranscriptDocument({
+      customViewport: this.#customViewport,
+      cwd,
+      mount: block => this.#mountTranscript(block),
+      chrome: {
+        diagnostics: () => this.#view.diagnostics,
+        headerRows: width => this.#extensionHeader !== null ? this.#extensionHeader.render(width)
+          : this.#customViewport ? [] : this.header.render(width),
+        resourceRows: width => this.#customViewport ? [] : this.resources.render(width),
+        hasExtensionHeader: () => this.#extensionHeader !== null,
+        thinkingVisible: () => this.#thinkingVisible,
+        timeFormat: () => this.#viewportController.config.timeFormat,
+      },
+    });
+  }
+
+  #createSubmittedPromptComposer(): PiShellSubmittedPromptComposer {
+    return {
+      layout: (width, source) => submittedPromptLayout(width, source, this.#viewportController.config.timeFormat ?? "8:00 PM"),
+      compose: (rows, width, source, style) => composeSubmittedPromptRows(
+        rows,
+        width,
+        source,
+        { ...style, prefix: text => promptArrow(text, piTheme()) },
+        this.#viewportController.config.timeFormat ?? "8:00 PM",
+      ).map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor)),
+    };
+  }
+
   setEditorPaddingX(padding: number): void {
     this.editor.setPaddingX(padding);
-    this.#documentLayouts.clear();
+    this.#document.invalidate("editor-padding");
   }
 
   setAutocompleteMaxVisible(maxVisible: number): void {
@@ -621,21 +627,21 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (this.#outputPad === padding) return;
     this.#outputPad = padding;
     this.#status.setOutputPad(padding);
-    for (const component of this.#transcript.values()) component.setOutputPad(padding);
+    for (const component of this.#document.components()) component.setOutputPad(padding);
     this.#invalidateTranscriptPresentation();
   }
 
   setHideThinkingBlock(hidden: boolean): void {
     if (this.#thinkingVisible === !hidden) return;
     this.#thinkingVisible = !hidden;
-    for (const component of this.#transcript.values()) component.setHideThinkingBlock(hidden);
+    for (const component of this.#document.components()) component.setHideThinkingBlock(hidden);
     this.#invalidateTranscriptPresentation();
   }
 
   setMermaidRenderingMode(mode: "off" | "final" | "streaming"): void {
     if (this.#mermaidRenderingMode === mode) return;
     this.#mermaidRenderingMode = mode;
-    for (const component of this.#transcript.values()) component.setMermaidRenderingMode(mode);
+    for (const component of this.#document.components()) component.setMermaidRenderingMode(mode);
     this.#invalidateTranscriptPresentation();
   }
 
@@ -643,7 +649,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     if (this.#showImages === showImages && this.#imageWidthCells === imageWidthCells) return;
     this.#showImages = showImages;
     this.#imageWidthCells = imageWidthCells;
-    for (const component of this.#transcript.values()) component.setImagePresentation(showImages, imageWidthCells);
+    for (const component of this.#document.components()) component.setImagePresentation(showImages, imageWidthCells);
     this.#invalidateTranscriptPresentation();
   }
 
@@ -719,7 +725,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const becameReady = this.#view.lifecycle !== "ready" && view.lifecycle === "ready";
     if (view.diagnostics.length !== this.#view.diagnostics.length
       || view.diagnostics.some((diagnostic, index) => diagnostic.sequence !== this.#view.diagnostics[index]?.sequence)) {
-      this.#documentLayouts.clear();
+      this.#document.invalidate("diagnostics");
     }
     const promptAccepted = this.#view.lifecycle !== "busy" && view.lifecycle === "busy";
     this.#view = view;
@@ -733,7 +739,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#status.update(view);
     this.#footer.update(this.#viewWithExtensionStatuses(view));
     this.#queued.update(view.editor.queuedSubmissions);
-    this.#syncTranscript(view.transcript);
+    this.#document.sync(view.transcript);
     this.editor.setSubmitEnabled(view.lifecycle !== "stopping" && view.lifecycle !== "stopped" && view.lifecycle !== "failed");
     this.editor.setThinkingLevel(view.thinkingLevel);
     // Performance: semantic updates already invalidate affected transcript blocks. Chrome is a separate authority.
@@ -747,22 +753,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
    * walk of the whole transcript.
    */
   applyTranscriptBlock(block: OwnedUiSessionViewModel["transcript"][number]): void {
-    const current = this.#blocksById.get(block.id);
-    // Invariant: a full-view/final presentation may preempt queued partials. Never revive an older revision.
-    if (current !== undefined && !acceptsTranscriptUpdate(current, block)) return;
-    this.#blocksById.set(block.id, block);
-    const component = this.#transcript.get(block.id);
-    if (component === undefined) {
-      const created = this.#mountTranscript(block);
-      this.#transcript.set(block.id, created);
-      this.#transcriptOrder.push(block.id);
-    } else if (component.revision !== block.revision) {
-      component.update(block);
-    }
-    // Performance: one chunk touches one block, and the updated component tracks its own dirtiness.
-    // Invalidating the whole shell here would re-wrap the entire transcript per chunk.
-    this.#renderedRows.delete(block.id);
-    this.#documentLayouts.clear();
+    this.#document.apply(block);
   }
 
   #mountTranscript(block: OwnedUiSessionViewModel["transcript"][number]): PiShellTranscriptComponentPort {
@@ -774,9 +765,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
       this.#showImages, this.#imageWidthCells, this.#imageAssets,
       { ...this.#componentRuntime, changed: () => {
-        if (this.#transcript.get(block.id) !== created) return;
-        this.#renderedRows.delete(block.id);
-        this.#documentLayouts.clear();
+        if (this.#document.component(block.id) !== created) return;
+        this.#document.blockChanged(block.id);
         this.#visibleViewportSnapshot = undefined;
         this.#dockInputCandidate = false;
         this.#dockInputRevision = undefined;
@@ -801,7 +791,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     const documentWidth = this.#viewportController.config.scrollbarAppearance === "hidden"
       ? width
       : Math.max(1, width - 1);
-    const document = this.#renderDocumentLayout(documentWidth);
+    const document = this.#document.layout(documentWidth);
     const steeringRows = this.#renderQueued(documentWidth);
     const releaseBanner = this.#renderReleaseBanner(documentWidth);
     // Rationale: the release notice rides the bottom-aligned tail directly above Working, so it
@@ -953,8 +943,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   setViewportConfig(config: OwnedUiViewportSettings): void {
     if (this.#viewportController.setConfig(config)) {
-      this.#renderedRows.clear();
-      this.#documentLayouts.clear();
+      this.#document.invalidate("viewport-config");
       this.#visibleViewportSnapshot = undefined;
     }
   }
@@ -989,12 +978,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   /** A new session binding owns new mounts even when it reuses semantic invocation ids. */
   resetTranscript(): void {
-    for (const component of this.#transcript.values()) component.dispose?.();
-    this.#transcript.clear();
-    this.#blocksById.clear();
-    this.#transcriptOrder = [];
-    this.#renderedRows.clear();
-    this.#documentLayouts.clear();
+    this.#document.reset();
   }
 
   resetViewport(): void {
@@ -1139,160 +1123,15 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderDocument(width: number): readonly string[] {
-    return this.#renderDocumentLayout(width).rows;
-  }
-
-  #renderDocumentLayout(width: number): { readonly rows: readonly string[]; readonly promptAnchors: readonly TranscriptPromptAnchor[]; readonly liveTailStartRow: number | undefined } {
-    // Performance: extension headers may animate independently of transcript revisions, so
-    // only the stable built-in document participates in this frame cache.
-    const cached = this.#extensionHeader === null ? this.#documentLayouts.get(width) : undefined;
-    if (cached !== undefined) return cached;
-    const diagnostics = this.#view.diagnostics;
-    const startupRows = diagnostics
-      // Compatibility: the pinned route keeps trust failures with Pi-style startup diagnostics;
-      // bare A1 presents them in its prompt-adjacent notice dock instead.
-      .filter(diagnostic => diagnostic.code === "engine-startup"
-        || !this.#customViewport && diagnostic.code === "project-trust")
-      .flatMap(diagnostic => renderPiShellStartupDiagnostic(diagnostic, width));
-    const resourceRows = this.#customViewport ? [] : [...this.resources.render(width)];
-    if (resourceRows.at(-1) === "") resourceRows.pop();
-    const headerRows = this.#extensionHeader !== null
-      ? this.#extensionHeader.render(width)
-      : this.#customViewport ? [] : this.header.render(width);
-    const rows: string[] = [
-      ...startupRows,
-      ...headerRows,
-      ...resourceRows,
-    ];
-    const promptAnchors: TranscriptPromptAnchor[] = [];
-    // Rationale: a block that is still streaming re-renders every row it owns, so the frame
-    // reports where its rows begin. Damage-aware painting uses that to tell a live block's
-    // own reflow apart from a repaint that reaches settled rows.
-    let liveTailStartRow: number | undefined;
-    for (let index = 0; index < this.#transcriptOrder.length; index += 1) {
-      const id = this.#transcriptOrder[index]!;
-      const block = this.#blocksById.get(id);
-      if (!this.#thinkingVisible && block?.kind === "thinking") continue;
-      const promptLike = block !== undefined
-        && (block.kind === "user" || this.#customViewport && isPiPromptStyleCompaction(block));
-      // Invariant: the custom viewport has already removed its rail gutter from this width.
-      // Prompt-like and ordinary blocks therefore share one right content edge.
-      const blockWidth = width;
-      const blockRows = this.#blockRows(id, block, blockWidth);
-      if (promptLike) {
-        // Compatibility: the first natural prompt gets one breathing row at the document top.
-        // Once scrolling advances, the prompt itself reaches row zero and then
-        // becomes sticky there, so the spacer is never pinned with it.
-        if (this.#customViewport && index === 0) rows.push("");
-        else if (index > 0) rows.push("");
-      }
-      const firstRow = rows.length;
-      if (liveTailStartRow === undefined && block !== undefined && block.status !== "finalized") {
-        liveTailStartRow = firstRow;
-      }
-      rows.push(...blockRows);
-      if (promptLike && blockRows[0] !== undefined) {
-        const source = pinnedPromptSource(block, blockRows[0], blockWidth, this.#viewportController.config.timeFormat);
-        promptAnchors.push({
-          id: block.id,
-          firstRow,
-          lastRow: Math.max(firstRow, rows.length - 1),
-          sourceRow: source.row,
-          copySuffixWidth: source.copySuffixWidth,
-          prominentSourceRow: blockRows[0],
-        });
-      }
-    }
-    // Invariant: the A1 release notice precedes the extension-package notice, matching pinned Pi's order.
-    // Bare A1 docks it in the viewport tail instead of the document.
-    rows.push(...diagnostics
-      .filter(diagnostic => !this.#customViewport && diagnostic.code === "release-update")
-      .flatMap(diagnostic => {
-        const release = parseReleaseUpdateDiagnostic(diagnostic.message);
-        return release === null ? [] : renderPiShellReleaseUpdateNotice(release, width);
-      }));
-    rows.push(...diagnostics
-      .filter(diagnostic => diagnostic.code === "package-updates")
-      .flatMap(diagnostic => renderPiShellPackageUpdateNotice(
-        diagnostic.message.split("\n").filter(line => line.startsWith("- ")).map(line => line.slice(2)),
-        width,
-      )));
-    rows.push(...diagnostics
-      .filter(diagnostic => diagnostic.code === "changelog-collapsed" || diagnostic.code === "changelog-expanded")
-      // Rationale: bare A1 translates either startup diagnostic into transient dock chrome;
-      // the pinned layout retains Pi's collapsed hint or expanded document.
-      .flatMap(diagnostic => this.#customViewport
-        ? []
-        : diagnostic.code === "changelog-collapsed"
-          ? createPiShellCollapsedChangelog().render(width)
-          : createPiShellChangelog(diagnostic.message).render(width)));
-    rows.push(...diagnostics
-      .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "project-trust"
-        && diagnostic.code !== "release-update"
-        && diagnostic.code !== "package-updates" && diagnostic.code !== "changelog-collapsed"
-        && diagnostic.code !== "changelog-expanded")
-      .slice(-3)
-      .flatMap(diagnostic =>
-        renderPiShellTranscriptBlock({
-          id: `diagnostic-${diagnostic.sequence}`,
-          kind: diagnostic.severity === "error" ? "error" : "system",
-          status: "finalized",
-          revision: diagnostic.sequence,
-          title: diagnostic.code,
-          text: diagnostic.message,
-          payload: {},
-        }, width, this.#cwd)));
-    const layout = { rows: Object.freeze(rows), promptAnchors: Object.freeze(promptAnchors), liveTailStartRow };
-    if (this.#extensionHeader === null) {
-      this.#documentLayouts.set(width, layout);
-      // Performance: the custom viewport commonly probes full width and reserved-rail width.
-      while (this.#documentLayouts.size > 2) this.#documentLayouts.delete(this.#documentLayouts.keys().next().value!);
-    }
-    return layout;
-  }
-
-  // Performance: finalized blocks cache by revision and width; live blocks always render.
-  #blockRows(id: string, block: OwnedUiSessionViewModel["transcript"][number] | undefined, width: number): readonly string[] {
-    const component = this.#transcript.get(id);
-    if (component === undefined) return [];
-    const render = (): readonly string[] => {
-      this.#transcriptBlockRenders += 1;
-      const rows = component.render(width);
-      if (!this.#customViewport || block?.kind === "user") return rows;
-      return rows.map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor));
-    };
-    if (block === undefined || block.status !== "finalized") return render();
-
-    let byWidth = this.#renderedRows.get(id);
-    const cached = byWidth?.get(width);
-    const presentationRevision = component.presentationRevision ?? 0;
-    if (cached?.revision === block.revision && cached.presentationRevision === presentationRevision) return cached.rows;
-    const rows = render();
-    if (byWidth === undefined) {
-      byWidth = new Map();
-      this.#renderedRows.set(id, byWidth);
-    }
-    byWidth.set(width, { revision: block.revision, presentationRevision, rows });
-    // Invariant: bare A1 probes full width before reserving the overflowing rail column;
-    // retain both widths without turning resize history into an unbounded cache.
-    while (byWidth.size > 2) byWidth.delete(byWidth.keys().next().value!);
-    return rows;
+    return this.#document.layout(width).rows;
   }
 
   transcriptComponent(id: string): PiShellTranscriptComponentPort | undefined {
-    return this.#transcript.get(id);
+    return this.#document.component(id);
   }
 
   exitTranscript(width: number): string {
-    const rows: string[] = [];
-    for (const id of this.#transcriptOrder) {
-      const block = this.#blocksById.get(id);
-      if (block === undefined || (!this.#thinkingVisible && block.kind === "thinking")) continue;
-      if (rows.length > 0 && (block.kind === "user" || this.#customViewport && isPiPromptStyleCompaction(block))) rows.push("");
-      rows.push(...this.#blockRows(id, block, width).map(sanitizeExitTranscriptRow));
-    }
-    while (rows.at(-1) === "") rows.pop();
-    return rows.join("\n");
+    return this.#document.exitTranscript(width);
   }
 
   appendWorkflowStatus(message: string): void {
@@ -1306,10 +1145,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     }
     const previousId = this.#lastWorkflowStatusId;
     if (previousId !== undefined
-      && this.#transcriptOrder.at(-1) === previousId
-      && this.#workflowStatusAnchors.get(previousId) === this.#view.transcript.length) {
+      && this.#document.lastId === previousId
+      && this.#document.anchorOf(previousId) === this.#view.transcript.length) {
       this.#workflowStatusMessages.set(previousId, message);
-      this.#documentLayouts.clear();
+      this.#document.invalidate("workflow-status");
       this.invalidate();
       return;
     }
@@ -1437,7 +1276,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   setExtensionHeader(component: PiShellComponentPort | null): void {
     if (this.#extensionHeader !== component) this.#extensionHeader?.dispose?.();
     this.#extensionHeader = component;
-    this.#documentLayouts.clear();
+    this.#document.invalidate("extension-header");
     this.invalidate();
   }
 
@@ -1493,15 +1332,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   resetWorkflowPresentation(): void {
     this.#dockNotice = undefined;
     this.#clearCopyAcknowledgement(false);
-    for (const id of this.#workflowStatusAnchors.keys()) {
-      this.#transcript.get(id)?.dispose?.();
-      this.#transcript.delete(id);
-    }
-    this.#workflowStatusAnchors.clear();
+    this.#document.removeAnchored();
     this.#workflowStatusMessages.clear();
-    this.#transcriptOrder = this.#transcriptOrder.filter(id => !id.startsWith("workflow-status-"));
     this.#lastWorkflowStatusId = undefined;
-    this.#documentLayouts.clear();
     this.invalidate();
   }
 
@@ -1517,8 +1350,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#syncWorkingOverride();
     this.#footer.update(this.#viewWithExtensionStatuses(this.#view));
     // Invariant: an extension renderer may have drawn transcript blocks that are now unrendered by it.
-    this.#renderedRows.clear();
-    this.#documentLayouts.clear();
+    this.#document.invalidate("extension-renderers");
     this.invalidate();
   }
 
@@ -1552,7 +1384,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   transcriptRenderCount(): number {
-    return this.#transcriptBlockRenders;
+    return this.#document.renderCount;
   }
 
   setFooterLevel(visible: boolean): void { this.#footerLevel = visible; }
@@ -1592,9 +1424,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   invalidate(): void {
-    this.#renderedRows.clear();
-    this.#documentLayouts.clear();
-    for (const component of this.#transcript.values()) component.invalidate();
+    this.#document.invalidate("repaint");
     this.#invalidateChrome();
   }
 
@@ -1620,10 +1450,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#themeUnsubscribe();
     this.header.dispose?.();
     this.resources.dispose?.();
-    for (const component of this.#transcript.values()) component.dispose?.();
-    this.#transcript.clear();
-    this.#renderedRows.clear();
-    this.#documentLayouts.clear();
+    this.#document.dispose();
     this.#visibleViewportSnapshot = undefined;
     this.#dockInputCandidate = false;
     this.#dockInputRevision = undefined;
@@ -1639,50 +1466,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #invalidateTranscriptPresentation(): void {
-    this.#renderedRows.clear();
-    this.#documentLayouts.clear();
+    this.#document.invalidate("block-presentation");
     this.invalidate();
-  }
-
-  #syncTranscript(blocks: OwnedUiSessionViewModel["transcript"]): void {
-    const previousIds = this.#transcriptOrder.filter(id => !id.startsWith("workflow-status-"));
-    const transcriptChanged = previousIds.length !== blocks.length || blocks.some((block, index) => {
-      const previous = this.#blocksById.get(block.id);
-      return previousIds[index] !== block.id || previous?.revision !== block.revision;
-    });
-    if (transcriptChanged) this.#documentLayouts.clear();
-    this.#blocksById.clear();
-    for (const block of blocks) this.#blocksById.set(block.id, block);
-    const nextIds = new Set(blocks.map(block => block.id));
-    for (const [id, component] of this.#transcript) {
-      if (id.startsWith("workflow-status-") || nextIds.has(id)) continue;
-      component.dispose?.();
-      this.#transcript.delete(id);
-      this.#renderedRows.delete(id);
-    }
-    for (const block of blocks) {
-      const component = this.#transcript.get(block.id);
-      if (component === undefined) {
-        const created = this.#mountTranscript(block);
-        this.#transcript.set(block.id, created);
-      } else if (component.revision !== block.revision) {
-        component.update(block);
-      }
-    }
-    const statusIds = [...this.#workflowStatusAnchors.keys()];
-    const order: string[] = [];
-    for (let index = 0; index <= blocks.length; index += 1) {
-      for (const statusId of statusIds) {
-        if (this.#workflowStatusAnchors.get(statusId) === index) order.push(statusId);
-      }
-      const block = blocks[index];
-      if (block !== undefined) order.push(block.id);
-    }
-    const placed = new Set(order);
-    for (const statusId of statusIds) {
-      if (!placed.has(statusId)) order.push(statusId);
-    }
-    this.#transcriptOrder = order;
   }
 
   #appendAnchoredWorkflowComponent(render: (width: number) => readonly string[], dispose?: () => void): string {
@@ -1704,10 +1489,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       setImagePresentation() {},
       ...(dispose === undefined ? {} : { dispose }),
     };
-    this.#transcript.set(id, component);
-    this.#workflowStatusAnchors.set(id, this.#view.transcript.length);
-    this.#transcriptOrder.push(id);
-    this.#documentLayouts.clear();
+    this.#document.appendAnchored(id, component, this.#view.transcript.length);
     this.invalidate();
     return id;
   }
@@ -1756,56 +1538,21 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#toolsExpanded = expanded;
     this.header.setExpanded(expanded);
     this.resources.setExpanded(expanded);
-    for (const component of this.#transcript.values()) component.setExpanded(expanded);
+    for (const component of this.#document.components()) component.setExpanded(expanded);
     // Invariant: expansion changes what a block draws without changing its revision.
-    this.#renderedRows.clear();
-    this.#documentLayouts.clear();
+    this.#document.invalidate("tools-expanded");
     this.invalidate();
   }
 }
 
 const COPY_ACKNOWLEDGEMENT_DURATION_MS = 1_000;
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
-const KITTY_IMAGE_CONTROL = /\u001b_G[\s\S]*?\u001b\\/g;
-const ITERM_IMAGE_CONTROL = /\u001b]1337;File=[^\u0007]*(?:\u0007|\u001b\\)/g;
 
-/** Keep semantic SGR/OSC styling while excluding non-replayable image payloads. */
-function sanitizeExitTranscriptRow(row: string): string {
-  return row.replace(KITTY_IMAGE_CONTROL, "").replace(ITERM_IMAGE_CONTROL, "");
-}
 const TERMINAL_BACKGROUND = /\u001b\[(?:4[0-9]|10[0-7]|48(?:[;:][0-9;:]*)?)m/g;
-
-/** Web URLs use link blue; file targets retain A1's cyan interactive accent. */
-function nativeTranscriptLinkColor(text: string, target: string): string {
-  return piTheme().fg(/^file:/iu.test(target) ? "accent" : "mdLink", text);
-}
 
 /** Repaint a source prompt with viewport chrome while preserving text, links, and foreground roles. */
 function withoutTerminalBackground(text: string): string {
   return text.replace(TERMINAL_BACKGROUND, "");
-}
-
-/** Preserve the stable metadata-grey foreground for every pinned timestamp state. */
-function pinnedPromptSource(
-  block: OwnedUiSessionViewModel["transcript"][number],
-  sourceRow: string,
-  width: number,
-  timeFormat: OwnedUiViewportSettings["timeFormat"],
-): { readonly row: string; readonly copySuffixWidth: number } {
-  const unchanged = { row: sourceRow, copySuffixWidth: 0 };
-  if (typeof block.payload !== "object" || block.payload === null) return unchanged;
-  const value = (block.payload as Record<string, unknown>).timestamp;
-  if (typeof value !== "number" || !Number.isFinite(value)) return unchanged;
-  const format = timeFormat ?? "8:00 PM";
-  const timestamp = formatSubmittedPromptTime(value, format);
-  if (timestamp === null || submittedPromptLayout(width, value, format).timestamp === null) return unchanged;
-  const rowWidth = displayWidth(sourceRow);
-  const timestampWidth = displayWidth(timestamp);
-  if (rowWidth < timestampWidth) return unchanged;
-  return {
-    row: overlaySpan(sourceRow, rowWidth - timestampWidth, rowWidth, paintPiSubmittedPromptTimestamp(timestamp)),
-    copySuffixWidth: timestampWidth,
-  };
 }
 
 export type PinnedLayoutPart = "document" | "queued" | "aboveWidgets" | "status" | "editor" | "belowWidgets" | "footer";
@@ -2024,15 +1771,6 @@ function transientRowsSignature(
   statusRows: readonly string[],
 ): string {
   return `${steeringRows.length}\u0000${steeringRows.join("\u0000")}\u0001${statusRows.length}\u0000${statusRows.join("\u0000")}`;
-}
-
-/** The release, command, and optional changelog carried by the adapter's `release-update` diagnostic. */
-function parseReleaseUpdateDiagnostic(message: string): { version: string; command: string; changelogUrl: string | null } | null {
-  const [instruction, changelog] = message.split("\n");
-  const match = /^New version (\S+) is available\. Run (.+)$/.exec(instruction ?? "");
-  if (match === null) return null;
-  const url = changelog === undefined ? null : /^Changelog: (\S+)$/.exec(changelog)?.[1] ?? null;
-  return { version: match[1]!, command: match[2]!, changelogUrl: url };
 }
 
 /** "Share URL: <url>" with the URL made clickable; other share wordings pass through unchanged. */

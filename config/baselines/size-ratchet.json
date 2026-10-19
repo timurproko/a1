@@ -15,8 +15,8 @@
       "fields": 13
     },
     "src/app/session-shell/session-shell-root.ts::OwnedUiSessionShellRoot": {
-      "methods": 95,
-      "fields": 60
+      "methods": 94,
+      "fields": 54
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter": {
       "methods": 94,
@@ -182,7 +182,7 @@
       "lines": 122
     },
     "src/app/session-shell/session-shell-root.ts::OwnedUiSessionShellRoot.constructor": {
-      "lines": 240
+      "lines": 230
     },
     "src/app/session-shell/session-shell-root.ts::OwnedUiSessionShellRoot.render": {
       "lines": 130
