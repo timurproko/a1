@@ -640,8 +640,9 @@ impl PopupMenu {
             vec![
                 PopupItem::action("+ Agent", bindings.label("tabs.new"), PopupAction::NewAgent),
                 PopupItem::separator(),
+                // Invariant: labels align after the `+ ` marker, so Settings starts under Agent.
                 PopupItem::action(
-                    "Settings",
+                    "  Settings",
                     bindings.label("tabs.settings"),
                     PopupAction::Settings,
                 ),
@@ -801,7 +802,11 @@ impl PopupMenu {
                 } else {
                     let (mut label, gap, shortcut) = menu_text_parts(item, inner);
                     label.push_str(&" ".repeat(gap));
-                    label.push_str(&shortcut);
+                    if !shortcut.is_empty() {
+                        // The palette counterpart of the truecolor muted shortcut.
+                        label.push_str("\x1b[38;5;242m");
+                        label.push_str(&shortcut);
+                    }
                     label
                 };
                 output.push_str(&format!(
@@ -4074,8 +4079,21 @@ mod tests {
         assert_eq!(add.hovered, Some(2));
         let add_rendered = add.render();
         assert!(add_rendered.contains("+ Agent"));
-        assert!(add_rendered.contains("Settings"));
+        assert!(add_rendered.contains("  Settings"));
         assert!(add_rendered.contains("Alt+."));
+        for rendered in [add.render_with_color(true), add.render_with_color(false)] {
+            let plain = rendered
+                .split('\x1b')
+                .map(|part| part.split_once('m').map_or(part, |(_, text)| text))
+                .collect::<String>();
+            let agent = plain.find("Agent").expect("agent label");
+            let settings = plain.find("Settings").expect("settings label");
+            let agent_row = plain[..agent].rfind('H').unwrap();
+            let settings_row = plain[..settings].rfind('H').unwrap();
+            assert_eq!(agent - agent_row, settings - settings_row, "{plain:?}");
+        }
+        let palette_add = add.render_with_color(false);
+        assert!(palette_add.contains("\x1b[38;5;242mAlt+."));
         assert!(add_rendered.contains('─'));
         let settings = PopupMenu::context("settings-1".into(), 0, 80, &bindings);
         assert_eq!(settings.items.len(), 1);
