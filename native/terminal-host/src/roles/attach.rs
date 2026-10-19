@@ -454,6 +454,22 @@ fn read_time_format(path: &Path) -> TimeFormat {
     )
 }
 
+/// Development diagnostics: when `A1_ATTACH_KEY_TRACE` names a file, the attach client appends
+/// every outer key event and each detach-chord decision, so a terminal's key reporting can be
+/// compared with what the chord expects. Key codes only; never pasted text or child output.
+fn key_trace(path: Option<&Path>, line: &str) {
+    let Some(path) = path else {
+        return;
+    };
+    if let Ok(mut file) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+    {
+        let _ = writeln!(file, "{line}");
+    }
+}
+
 /// Reads the owned `quitAnimation` setting, which defaults to on, from the canonical profile.
 fn read_quit_animation(path: &Path) -> bool {
     std::fs::metadata(path)
@@ -1571,6 +1587,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     });
 
     let mut terminal = OuterTerminal::enter()?;
+    let key_trace_path = std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from);
     let (input_tx, input_rx) = mpsc::sync_channel::<Result<Event, String>>(1024);
     thread::spawn(move || {
         loop {
@@ -2385,6 +2402,32 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
         };
         let next = admit_alt_code_input(cfg!(windows), &mut pressed_chars, next);
+        if let Event::Key(key) = &next
+            && key_trace_path.is_some()
+        {
+            // Privacy: ordinary typed characters are recorded only as `Char(_)`.
+            let code = match key.code {
+                KeyCode::Char(character)
+                    if !character.is_control()
+                        && !key
+                            .modifiers
+                            .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+                {
+                    "Char(_)".to_owned()
+                }
+                code => format!("{code:?}"),
+            };
+            key_trace(
+                key_trace_path.as_deref(),
+                &format!(
+                    "{} key kind={:?} code={code} mods={:?} state={:?}",
+                    started.elapsed().as_millis(),
+                    key.kind,
+                    key.modifiers,
+                    key.state
+                ),
+            );
+        }
         // Invariant: a prompt belongs to the view it was opened in; a strip click, shortcut, or
         // tab removal that changes the view.viewed tab cancels it instead of letting it swallow the
         // new tab's keys.
@@ -2592,7 +2635,12 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 // particular terminal protocol produced for it.
                 let ctrl_c = event.as_ref().is_some_and(outer_input::is_ctrl_c_event)
                     || (event.is_none() && is_ctrl_c_bytes(&bytes));
-                if chord.admit(now, ctrl_c) == CtrlCDisposition::Detach {
+                let disposition = chord.admit(now, ctrl_c);
+                key_trace(
+                    key_trace_path.as_deref(),
+                    &format!("{now} chord ctrl_c={ctrl_c} -> {disposition:?}"),
+                );
+                if disposition == CtrlCDisposition::Detach {
                     wire::send(
                         &mut stream,
                         "detach",
