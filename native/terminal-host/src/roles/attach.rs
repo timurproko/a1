@@ -581,6 +581,7 @@ fn settings_signature(path: &Path) -> Option<(std::time::SystemTime, u64)> {
 }
 
 /// The v2 neutral hover background, used where no accent applies.
+#[cfg(test)]
 const POPUP_HOVER_NEUTRAL: [u8; 3] = [48, 48, 48];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -791,10 +792,12 @@ impl PopupMenu {
         self.hovered = Some(selectable[next]);
     }
 
+    #[cfg(test)]
     fn render(&self) -> String {
         self.render_with_color(!palette_fallback_requested())
     }
 
+    #[cfg(test)]
     fn render_with_color(&self, truecolor: bool) -> String {
         self.render_styled(truecolor, POPUP_HOVER_NEUTRAL)
     }
@@ -1276,10 +1279,39 @@ pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
     outer_row.checked_sub(1)
 }
 
-/// The Settings shortcut toggles: on the viewed Settings tab it closes that tab, returning to the
-/// previous tab; anywhere else it opens or activates the singleton Settings tab.
+/// The Settings shortcut toggles: on the viewed Settings tab it hides that tab, returning to the
+/// previous tab; anywhere else it shows the singleton Settings tab.
 fn settings_toggle_closes(viewed: Option<&str>) -> Option<&str> {
     viewed.filter(|id| id.starts_with("settings-"))
+}
+
+/// How long the client waits, with tabs present and no Settings tab, before starting a hidden one
+/// so the Settings shortcut opens instantly.
+const SETTINGS_PREWARM_DELAY: Duration = Duration::from_secs(2);
+
+/// The tabs the strip, jumps, and drags present. A running Settings tab stays hidden until it is
+/// viewed in this session, and after the Settings shortcut hides it, so its process can be reused
+/// instantly instead of starting a new one.
+fn shown_tabs(tabs: &[StripTab], viewed: Option<&str>, settings_shown: bool) -> Vec<StripTab> {
+    tabs.iter()
+        .filter(|tab| {
+            !tab.id.starts_with("settings-") || settings_shown || viewed == Some(tab.id.as_str())
+        })
+        .cloned()
+        .collect()
+}
+
+/// Maps an insertion index among shown tabs to the registry index the server reorders by.
+fn registry_index(shown: &[StripTab], tabs: &[StripTab], shown_index: usize) -> usize {
+    shown
+        .get(shown_index)
+        .and_then(|target| tabs.iter().position(|tab| tab.id == target.id))
+        .unwrap_or_else(|| {
+            shown
+                .last()
+                .and_then(|last| tabs.iter().position(|tab| tab.id == last.id))
+                .map_or(tabs.len(), |index| index + 1)
+        })
 }
 
 /// Decides whether buttonless pointer motion over the body reaches the child. Motion is never
@@ -1719,6 +1751,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     // snapshot reaches this client; retain the requested ordinal until that snapshot arrives.
     let mut pending_jump = None::<(usize, u64)>;
     let mut pending_created_activation = false;
+    // Invariant: a Settings tab joins the strip only once viewed in this session; the Settings
+    // shortcut hides it again while its process keeps running for an instant reopen.
+    let mut settings_shown = false;
+    let mut settings_prewarm_pending = false;
+    let mut settings_absent_since: Option<Instant> = None;
     let mut deferred_input = DeferredInput::default();
     macro_rules! send_child_frames {
         ($frames:expr) => {{
@@ -1774,11 +1811,17 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             )?;
         }};
     }
+    macro_rules! shown {
+        () => {
+            shown_tabs(&tabs, view.viewed.as_deref(), settings_shown)
+        };
+    }
     macro_rules! paint_current {
         ($clear:expr) => {{
             let rename_display = rename.as_ref().map(RenameEditor::display);
+            let shown = shown!();
             strip_frame = strip::render_interactive(
-                &tabs,
+                &shown,
                 view.viewed.as_deref(),
                 columns,
                 hovered.as_ref(),
@@ -1791,7 +1834,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             {
                 hovered = None;
                 strip_frame = strip::render_interactive(
-                    &tabs,
+                    &shown,
                     view.viewed.as_deref(),
                     columns,
                     None,
@@ -1816,7 +1859,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 Some(menu.render_styled(!palette_fallback_requested(), time_format.accent_hover))
             } else if let Some(column) = drag
                 .as_ref()
-                .and_then(|drag| drag_marker_column(drag, &tabs, &strip_frame))
+                .and_then(|drag| drag_marker_column(drag, &shown, &strip_frame))
             {
                 Some(render_drag_marker(column, columns))
             } else if let Some(notice) = transient_notice.as_deref().or(status_notice.as_deref()) {
@@ -1863,7 +1906,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 PopupAction::Close => {
                     if let Some(tab_id) = $menu.tab_id.clone() {
-                        close_fallback = close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
+                        close_fallback =
+                            close_fallback_for(&shown!(), view.viewed.as_deref(), &tab_id);
                         wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                     }
                 }
@@ -1872,8 +1916,18 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     wire::send(&mut stream, "tab.create", None, create.clone())?;
                 }
                 PopupAction::Settings => {
-                    pending_created_activation = true;
-                    wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
+                    settings_prewarm_pending = false;
+                    // Invariant: a running hidden Settings tab is reused instantly.
+                    if let Some(tab_id) = tabs
+                        .iter()
+                        .find(|tab| tab.id.starts_with("settings-"))
+                        .map(|tab| tab.id.clone())
+                    {
+                        request_view!(tab_id);
+                    } else {
+                        pending_created_activation = true;
+                        wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
+                    }
                 }
                 PopupAction::View(tab_id) => {
                     request_view!(tab_id);
@@ -1903,6 +1957,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 tabs = next;
             }
             if $requested {
+                if surface.tab_id.starts_with("settings-") {
+                    settings_shown = true;
+                }
                 close_fallback = None;
                 transient_notice = None;
                 if prompt_view != view.viewed {
@@ -2212,6 +2269,21 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 }
                 "tab.created" | "tab.selected" => {
                     let (_, target): (_, TabTarget) = wire::body(&payload)?;
+                    if settings_prewarm_pending && target.tab_id.starts_with("settings-") {
+                        // Invariant: a prewarmed Settings tab starts hidden and never takes the
+                        // view or a pending Agent creation's input.
+                        settings_prewarm_pending = false;
+                        wire::send(
+                            &mut stream,
+                            "tab.list",
+                            None,
+                            wire::ResultBody {
+                                accepted: true,
+                                message: None,
+                            },
+                        )?;
+                        continue;
+                    }
                     pending_created_activation = false;
                     deferred_input.retarget_created(&target.tab_id);
                     let created = kind.message_type == "tab.created";
@@ -2427,6 +2499,27 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             displayed_clock_minute = current_clock_minute;
             paint_strip!();
         }
+        // Rationale: Settings opens in its own process; starting it hidden ahead of time makes the
+        // Settings shortcut as immediate as solo's in-process Settings screen.
+        let settings_exists = tabs.iter().any(|tab| tab.id.starts_with("settings-"));
+        if settings_exists || tabs.is_empty() {
+            settings_absent_since = None;
+            if !settings_exists {
+                settings_shown = false;
+            }
+        } else if !settings_prewarm_pending
+            && !pending_created_activation
+            && view.requested.is_none()
+            && view.viewed.is_some()
+        {
+            let since = *settings_absent_since.get_or_insert_with(Instant::now);
+            if since.elapsed() >= SETTINGS_PREWARM_DELAY {
+                settings_absent_since = None;
+                settings_shown = false;
+                settings_prewarm_pending = true;
+                wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
+            }
+        }
         if last_list.elapsed() >= Duration::from_millis(500) {
             wire::send(
                 &mut stream,
@@ -2444,7 +2537,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             && current_drag.started_at.elapsed() >= Duration::from_millis(250)
         {
             let column = current_drag.start_column;
-            if update_drag(current_drag, column, true, &tabs, &strip_frame) {
+            if update_drag(current_drag, column, true, &shown!(), &strip_frame) {
                 paint_current!(false);
             }
         }
@@ -2626,11 +2719,37 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             wire::send(&mut stream, "tab.create", None, create.clone())?;
                         }
                         "tabs.settings" => {
+                            settings_prewarm_pending = false;
                             if let Some(tab_id) = settings_toggle_closes(view.viewed.as_deref()) {
-                                close_fallback =
-                                    close_fallback_for(&tabs, view.viewed.as_deref(), tab_id);
                                 let tab_id = tab_id.to_owned();
-                                wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
+                                let shown = shown!();
+                                let survivors = shown
+                                    .iter()
+                                    .filter(|tab| tab.id != tab_id)
+                                    .cloned()
+                                    .collect::<Vec<_>>();
+                                let previous =
+                                    close_fallback_for(&shown, view.viewed.as_deref(), &tab_id)
+                                        .and_then(|fallback| fallback.resolve(&survivors));
+                                if let Some(previous) = previous {
+                                    // Invariant: hiding keeps the Settings process for reuse.
+                                    settings_shown = false;
+                                    request_view!(previous);
+                                } else {
+                                    close_fallback = None;
+                                    wire::send(
+                                        &mut stream,
+                                        "tab.close",
+                                        None,
+                                        TabTarget { tab_id },
+                                    )?;
+                                }
+                            } else if let Some(tab_id) = tabs
+                                .iter()
+                                .find(|tab| tab.id.starts_with("settings-"))
+                                .map(|tab| tab.id.clone())
+                            {
+                                request_view!(tab_id);
                             } else {
                                 pending_created_activation = true;
                                 wire::send(&mut stream, "tab.open-settings", None, create.clone())?;
@@ -2639,7 +2758,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         "tabs.close" => {
                             if let Some(tab_id) = view.viewed.clone() {
                                 close_fallback =
-                                    close_fallback_for(&tabs, view.viewed.as_deref(), &tab_id);
+                                    close_fallback_for(&shown!(), view.viewed.as_deref(), &tab_id);
                                 wire::send(&mut stream, "tab.close", None, TabTarget { tab_id })?;
                             }
                         }
@@ -2658,18 +2777,19 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             }
                         }
                         "tabs.next" | "tabs.previous" => {
-                            if !tabs.is_empty() {
+                            let shown = shown!();
+                            if !shown.is_empty() {
                                 let current = view
                                     .viewed
                                     .as_ref()
-                                    .and_then(|id| tabs.iter().position(|tab| &tab.id == id))
+                                    .and_then(|id| shown.iter().position(|tab| &tab.id == id))
                                     .unwrap_or(0);
                                 let index = if action == "tabs.next" {
-                                    (current + 1) % tabs.len()
+                                    (current + 1) % shown.len()
                                 } else {
-                                    (current + tabs.len() - 1) % tabs.len()
+                                    (current + shown.len() - 1) % shown.len()
                                 };
-                                let tab_id = tabs[index].id.clone();
+                                let tab_id = shown[index].id.clone();
                                 request_view!(tab_id);
                             }
                         }
@@ -2700,9 +2820,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 .parse::<usize>()
                                 .unwrap_or(1)
                                 .saturating_sub(1);
-                            if let Some(tab) = tabs.get(index) {
+                            if let Some(tab_id) = shown!().get(index).map(|tab| tab.id.clone()) {
                                 pending_jump = None;
-                                request_view!(tab.id.clone());
+                                request_view!(tab_id);
                             } else {
                                 pending_jump = Some((index, registry_revision));
                             }
@@ -2920,7 +3040,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                         current_drag,
                         mouse.column,
                         mouse.row == 0,
-                        &tabs,
+                        &shown!(),
                         &strip_frame,
                     ) {
                         paint_current!(false);
@@ -2930,14 +3050,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 if matches!(mouse.kind, MouseEventKind::Up(MouseButton::Left))
                     && let Some(mut completed) = drag.take()
                 {
+                    let shown = shown!();
                     update_drag(
                         &mut completed,
                         mouse.column,
                         mouse.row == 0,
-                        &tabs,
+                        &shown,
                         &strip_frame,
                     );
-                    let from = tabs.iter().position(|tab| tab.id == completed.tab_id);
+                    let from = shown.iter().position(|tab| tab.id == completed.tab_id);
                     if mouse.row == 0
                         && completed.shown
                         && let Some(target_index) = completed.drop_index
@@ -2949,7 +3070,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                             None,
                             TabReorder {
                                 tab_id: completed.tab_id,
-                                target_index,
+                                target_index: registry_index(&shown, &tabs, target_index),
                                 expected_revision: completed.expected_revision,
                             },
                         )?;
@@ -2984,7 +3105,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     start_column: mouse.column,
                                     started_at: Instant::now(),
                                     shown: false,
-                                    drop_index: tabs.iter().position(|tab| tab.id == tab_id),
+                                    drop_index: shown!().iter().position(|tab| tab.id == tab_id),
                                     expected_revision: registry_revision,
                                 });
                                 if view.viewed.as_deref() != Some(tab_id.as_str()) {
@@ -3631,6 +3752,37 @@ mod tests {
         }
         deferred.retarget_created("tab-new");
         assert_eq!(deferred.resolve("tab-new"), (keys, false));
+    }
+    #[test]
+    fn hidden_settings_tab_stays_out_of_the_strip_until_viewed_or_shown() {
+        let tab = |id: &str| StripTab {
+            id: id.into(),
+            name: id.into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
+        };
+        let tabs = vec![tab("tab-1"), tab("settings-1"), tab("tab-2")];
+        let ids = |shown: Vec<StripTab>| shown.into_iter().map(|tab| tab.id).collect::<Vec<_>>();
+        assert_eq!(
+            ids(shown_tabs(&tabs, Some("tab-1"), false)),
+            ["tab-1", "tab-2"]
+        );
+        assert_eq!(
+            ids(shown_tabs(&tabs, Some("settings-1"), false)),
+            ["tab-1", "settings-1", "tab-2"]
+        );
+        assert_eq!(
+            ids(shown_tabs(&tabs, Some("tab-2"), true)),
+            ["tab-1", "settings-1", "tab-2"]
+        );
+
+        // A drop among shown tabs maps to the registry position the server reorders by.
+        let shown = shown_tabs(&tabs, Some("tab-1"), false);
+        assert_eq!(registry_index(&shown, &tabs, 0), 0);
+        assert_eq!(registry_index(&shown, &tabs, 1), 2);
+        assert_eq!(registry_index(&shown, &tabs, 2), 3);
     }
     #[test]
     fn settings_shortcut_toggles_the_viewed_settings_tab() {

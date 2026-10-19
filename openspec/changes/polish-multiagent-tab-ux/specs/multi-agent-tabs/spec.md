@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Tabs are managed from the strip, mouse, and assignable actions
-A1 SHALL create a new Agent tab in the client's launch cwd from `Alt+A`; clicking `+` SHALL open a v2-style launcher containing `+ Agent`, a disabled separator, and `Settings` with the effective Settings shortcut right-aligned. Agent SHALL use the same creation flow. Settings SHALL create or activate the singleton global Settings utility tab; its default `Alt+,` action SHALL do the same from another tab and SHALL close the Settings tab while it is viewed. `Alt+1` through `Alt+9` SHALL view those positions and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click on a tab SHALL view it. Right click on a visible Agent tab SHALL open a stable two-row context menu anchored beneath the pointer and clamped to the terminal, with `Close` first and `Rename` second; a Settings tab SHALL expose Close but SHALL NOT be renameable. Popup labels SHALL use effective shortcut assignments. Escape, a click elsewhere, a tab switch, or target removal SHALL dismiss a menu without action. Dragging an Agent chip after 250 ms or one column of movement SHALL calculate insertion from chip midpoints, preview only a real move with a v2 `│` marker, and issue one reorder with the captured expected revision on release; release away from the strip SHALL cancel. No tab-management slash command SHALL be exposed. A1 SHALL impose no configured or hard user tab count and SHALL never return a `tab-limit` refusal; only a concrete launch, persistence, containment, protocol, or operating-system resource failure MAY refuse creation. Each client SHALL keep its own viewed tab.
+A1 SHALL create a new Agent tab in the client's launch cwd from `Alt+A`; clicking `+` SHALL open a v2-style launcher containing `+ Agent`, a disabled separator, and `Settings` with the effective Settings shortcut right-aligned. Agent SHALL use the same creation flow. Settings SHALL create or show the singleton global Settings utility tab; its default `Alt+,` action SHALL do the same from another tab and SHALL hide the Settings tab while it is viewed. `Alt+1` through `Alt+9` SHALL view those positions and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click on a tab SHALL view it. Right click on a visible Agent tab SHALL open a stable two-row context menu anchored beneath the pointer and clamped to the terminal, with `Close` first and `Rename` second; a Settings tab SHALL expose Close but SHALL NOT be renameable. Popup labels SHALL use effective shortcut assignments. Escape, a click elsewhere, a tab switch, or target removal SHALL dismiss a menu without action. Dragging an Agent chip after 250 ms or one column of movement SHALL calculate insertion from chip midpoints, preview only a real move with a v2 `│` marker, and issue one reorder with the captured expected revision on release; release away from the strip SHALL cancel. No tab-management slash command SHALL be exposed. A1 SHALL impose no configured or hard user tab count and SHALL never return a `tab-limit` refusal; only a concrete launch, persistence, containment, protocol, or operating-system resource failure MAY refuse creation. Each client SHALL keep its own viewed tab.
 
 #### Scenario: Create from keyboard
 - **WHEN** the user presses `Alt+A`
@@ -204,7 +204,7 @@ Control- or Alt-modified letters SHALL never be inserted as text. Word operation
 - **THEN** every caret position SHALL remain on a grapheme boundary
 
 ### Requirement: Resident Settings is one global utility tab
-Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Settings`. It SHALL render the owned global settings without owning an Agent session. A Settings route delivered before the child presenter has started SHALL be retained and presented once it starts. The launcher SHALL create or activate that singleton. The `tabs.settings` action SHALL toggle it: while Settings is viewed it SHALL close that tab and show the previous tab, and otherwise it SHALL create or activate the singleton. Closing its tab SHALL remove it. Its screen is the tab, so it SHALL offer no screen-level Esc close or Esc close hint, and one Ctrl+C SHALL NOT dismiss it. Resident Agents SHALL not advertise or execute `/settings`; `a1 solo` and `a1 pi` SHALL retain their existing command behavior.
+Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Settings`. It SHALL render the owned global settings without owning an Agent session. A Settings route delivered before the child presenter has started SHALL be retained and presented once it starts. The launcher SHALL create or activate that singleton. The `tabs.settings` action SHALL toggle it: while Settings is viewed it SHALL hide that tab from the strip, keep its process running, and show the previous tab, and otherwise it SHALL show the singleton. To open Settings without a startup delay, the attach client SHALL start a hidden Settings tab in the background when tabs exist without one; a Settings tab joins the strip only once it is viewed. Closing its tab SHALL remove it. Its screen is the tab, so it SHALL offer no screen-level Esc close or Esc close hint, and one Ctrl+C SHALL NOT dismiss it. Resident Agents SHALL not advertise or execute `/settings`; `a1 solo` and `a1 pi` SHALL retain their existing command behavior.
 
 #### Scenario: Open Settings from the launcher
 - **WHEN** a resident Agent is viewed and the user chooses Settings from `+`
@@ -224,9 +224,14 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 - **WHEN** the Settings tab already exists but is not viewed and the menu or shortcut requests Settings again
 - **THEN** A1 SHALL activate that exact tab without creating another Settings process or tab
 
-#### Scenario: Toggle Settings closed with the shortcut
+#### Scenario: Toggle Settings hidden with the shortcut
 - **WHEN** the Settings tab is viewed and the user presses the Settings shortcut
-- **THEN** the Settings tab SHALL close and the previously selected surviving tab SHALL become visible
+- **THEN** the Settings chip SHALL leave the strip and the previously selected tab SHALL become visible
+- **AND** pressing the shortcut again SHALL show Settings without starting another process
+
+#### Scenario: Settings opens without a startup delay
+- **WHEN** Agent tabs have been open for a few seconds and the user first presses the Settings shortcut
+- **THEN** the already running hidden Settings tab SHALL be shown without waiting for a new process
 
 #### Scenario: Esc inside the Settings tab
 - **WHEN** the Settings tab is viewed with no search or value menu open and the user presses Esc
