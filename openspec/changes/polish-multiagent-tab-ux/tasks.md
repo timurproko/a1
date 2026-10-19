@@ -58,6 +58,10 @@ Markers report current implementation progress. Native Rust tests run in CI. Bef
 - [x] 9.3 Rust tests: every strip cell outside chips carries the row background, and no child cell survives in row 1 after legacy body writes.
 - [x] 9.4 Found in manual test on 2026-10-19: new Agents painted a black body because the emulator's initial default background was published with OSC 11. Holders now report which default colors and palette entries still hold the emulator's initial values (`inheritedColors`), and attach resets those to the outer theme (OSC 110/111/104) instead. A Rust test covers inherited, explicit and later-set colors.
 
+## 9a. Local rebuild while testing (maintainer request, 2026-10-19)
+
+- [x] 9a.1 `npm run build` stops A1 processes running this checkout's own `dist/` or `bin/` code before cleaning `dist/`. On Windows a running resident host locks the native addon and `clean` failed with EPERM. CI and other checkouts are never touched. Selection is covered by `test/repository-governance/stop-checkout-processes.test.ts`.
+
 ## 10. Pre-ready delivery bookkeeping
 
 - [ ] 10.1 Write `implementation-evidence.md` with delivered behavior, local checks run and gaps. Reconcile and push current `origin/develop`, add plain Acceptance, and pass `check-delivery-body.mjs --final` before checking the final Implementation item.
