@@ -265,9 +265,17 @@ pub fn presented_row_widths(
             let Some(width) = widths.get_mut(index + 1) else {
                 break;
             };
+            // Invariant: solo measures each presented line including its painted padding, so a
+            // cell counts when it shows a glyph or a background of its own.
             let mut visible = 0usize;
             for (column, cell) in row.cells.iter().enumerate() {
-                if !cell.text.trim().is_empty() {
+                let painted = surface
+                    .styles
+                    .get(usize::from(cell.style))
+                    .is_some_and(|style| {
+                        style.inverse || style.background != crate::protocol::SurfaceColor::Default
+                    });
+                if painted || !cell.text.trim().is_empty() {
                     visible = column + usize::from(cell.width.max(1));
                 }
             }
@@ -409,6 +417,17 @@ mod tests {
             },
         ];
         assert_eq!(presented_row_widths(6, 4, Some(&surface)), vec![6, 2, 0, 0]);
+
+        // A highlighted row with blank padding dissolves across its painted width, as in solo.
+        surface.styles = vec![
+            crate::protocol::SurfaceStyle::default(),
+            crate::protocol::SurfaceStyle {
+                background: crate::protocol::SurfaceColor::Rgb([40, 40, 40]),
+                ..Default::default()
+            },
+        ];
+        surface.row_data[1].cells[1].style = 1;
+        assert_eq!(presented_row_widths(6, 4, Some(&surface)), vec![6, 2, 2, 0]);
         assert_eq!(presented_row_widths(6, 2, None), vec![6, 0]);
     }
 }
