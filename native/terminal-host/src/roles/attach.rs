@@ -2417,6 +2417,26 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             }
         };
         let next = admit_alt_code_input(cfg!(windows), &mut pressed_chars, next);
+        if let Event::Mouse(mouse) = &next
+            && key_trace_path.is_some()
+            && !matches!(mouse.kind, MouseEventKind::Moved)
+        {
+            key_trace(
+                key_trace_path.as_deref(),
+                &format!(
+                    "{} {} mouse kind={:?} row={} column={} mods={:?} viewed={:?}",
+                    started.elapsed().as_millis(),
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map_or(0, |elapsed| elapsed.as_micros()),
+                    mouse.kind,
+                    mouse.row,
+                    mouse.column,
+                    mouse.modifiers,
+                    view.viewed
+                ),
+            );
+        }
         if let Event::Key(key) = &next
             && key_trace_path.is_some()
         {
@@ -2435,8 +2455,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             key_trace(
                 key_trace_path.as_deref(),
                 &format!(
-                    "{} key kind={:?} code={code} mods={:?} state={:?}",
+                    "{} {} key kind={:?} code={code} mods={:?} state={:?}",
                     started.elapsed().as_millis(),
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .map_or(0, |elapsed| elapsed.as_micros()),
                     key.kind,
                     key.modifiers,
                     key.state
