@@ -16,7 +16,7 @@ Each numbered section is one Implementation item and one commit, landed in order
 
 ## 4. Simulator attach driver
 
-- [ ] 4.1 Add an attach driver to `native/terminal-host/src/core/sim/mod.rs` that feeds seeded server messages and input and asserts one mode at a time, a paint after every state change, and no send after exit.
+- [x] 4.1 Add an attach driver to `native/terminal-host/src/core/sim/mod.rs` that feeds seeded server messages and input and asserts one mode at a time, a paint after every state change, and no send after exit.
 
 ## 5. Per-tab server state in the core
 

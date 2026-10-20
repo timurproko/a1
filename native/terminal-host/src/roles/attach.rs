@@ -1693,12 +1693,14 @@ impl Client {
             "terminal.effect" => self.terminal_effect(payload)?,
             "tab.list" => self.tab_list(core, payload)?,
             "detach" => {
+                core.exit();
                 wire::send(&mut self.stream, "detach", None, wire::ResultBody::ok())?;
                 self.terminal.restore()?;
                 print_hint(running_agent_count(&self.tabs));
                 return Ok(true);
             }
             "refused" => {
+                core.exit();
                 self.terminal.restore()?;
                 return Err("a1 is attached in another terminal".to_owned());
             }
@@ -2104,6 +2106,7 @@ impl Client {
             &format!("{now} chord ctrl_c={ctrl_c} -> {disposition:?}"),
         );
         if disposition == CtrlCDisposition::Detach {
+            core.exit();
             self.detach()?;
             return Ok(true);
         }

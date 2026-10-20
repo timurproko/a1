@@ -107,6 +107,8 @@ pub struct State {
     pub pending_manual_name: Option<(String, String)>,
     pub deferred: DeferredInput,
     pub columns: u16,
+    /// Invariant: an exited client sends, views, and paints nothing more.
+    pub exited: bool,
 }
 
 /// What the role presents while a step runs.
@@ -276,6 +278,9 @@ impl State {
         now: Duration,
     ) -> Vec<Effect> {
         let mut effects = Vec::new();
+        if self.exited {
+            return effects;
+        }
         match event {
             Event::Server(server) => self.server(context, server, &mut effects),
             Event::Tick => self.tick(context, now, &mut effects),
@@ -300,6 +305,12 @@ impl State {
             }
         }
         effects
+    }
+
+    /// Ends the session: the client detached or the server refused it.
+    pub fn exit(&mut self) {
+        self.exited = true;
+        self.mode = Mode::Idle;
     }
 
     fn sync_prompt(&mut self, viewed: Option<&str>) {
