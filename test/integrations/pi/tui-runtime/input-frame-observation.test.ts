@@ -76,7 +76,7 @@ async function capture(observe: boolean, order: "stream-first" | "input-first") 
       semantics: phases.filter(event => event.phase === "semantic-end").map(event => event.revision) };
   } finally {
     recorder = undefined; terminal.onWrite = undefined;
-    await shell.dispose(); if (!adapter.disposed) await adapter.dispose();
+    await shell.dispose(); if (!adapter.identity.disposed) await adapter.dispose();
     vi.useRealTimers();
   }
 }

@@ -254,7 +254,7 @@ async function fixture(workflowHost = host(), configure?: (runtime: WorkflowRunt
       const handlers = Object.fromEntries(Object.entries(PI_SETTING_EFFECTS)
         .filter(([, definition]) => definition.owner === owner)
         .map(([key]) => [key, { apply(value: unknown) { runtime.session.calls.push(`setting:${key}:${String(value)}`); } }])) as PiSettingOwnerHandlers;
-      adapter.bindSettingsOwner(owner, handlers);
+      adapter.settings.bindOwner(owner, handlers);
     }
   }
   return { runtime, adapter };
@@ -275,11 +275,11 @@ describe("pinned Pi command and input workflows", () => {
     const copyText = vi.fn(async () => {});
     const { adapter } = await fixture(host({ copyText }));
     const writer = vi.fn(async () => false);
-    const unbind = adapter.bindClipboardWriter(writer);
+    const unbind = adapter.extensions.bindClipboardWriter(writer);
     try {
       await expect(adapter.executeWorkflow({ command: "copy", argument: "" })).resolves.toMatchObject({ outcome: "completed", message: "Submitted last agent message to clipboard" });
       expect(writer).toHaveBeenCalledWith("last answer");
-      await expect(adapter.copyWorkflowText("selected tree text")).resolves.toBe(false);
+      await expect(adapter.workflows.copyWorkflowText("selected tree text")).resolves.toBe(false);
       expect(copyText).not.toHaveBeenCalled();
       unbind();
       await expect(adapter.executeWorkflow({ command: "copy", argument: "" })).resolves.toMatchObject({ outcome: "completed", message: "Copied last agent message to clipboard" });
@@ -402,12 +402,12 @@ describe("pinned Pi command and input workflows", () => {
     const { adapter, runtime } = await fixture();
     expect(adapter.pinnedSettingsSnapshot().availableThemes.length).toBeGreaterThan(0);
     expect(adapter.presentationSource().pinnedModelSelectorContext().modelRuntime).toBeDefined();
-    expect(adapter.pinnedScopedModelsContext().models.length).toBeGreaterThan(0);
-    expect(adapter.pinnedForkOptions().length).toBeGreaterThan(0);
+    expect(adapter.catalog.pinnedScopedModelsContext().models.length).toBeGreaterThan(0);
+    expect(adapter.catalog.pinnedForkOptions().length).toBeGreaterThan(0);
     expect(adapter.presentationSource().pinnedTreeSelectorContext().tree).toBeInstanceOf(Array);
-    expect(adapter.pinnedProjectTrustContext().trustOptions.length).toBeGreaterThan(0);
-    expect(adapter.pinnedLoginOptions().length).toBeGreaterThan(0);
-    expect((await adapter.pinnedLogoutOptions()).length).toBeGreaterThan(0);
+    expect(adapter.catalog.pinnedProjectTrustContext().trustOptions.length).toBeGreaterThan(0);
+    expect(adapter.catalog.pinnedLoginOptions().length).toBeGreaterThan(0);
+    expect((await adapter.catalog.pinnedLogoutOptions()).length).toBeGreaterThan(0);
     expect(adapter.presentationSource().pinnedSessionSelectorContext().loadCurrentSessions).toBeTypeOf("function");
     for (const command of ["settings", "model", "scoped-models", "fork", "tree", "trust", "login", "logout", "resume"] as const) {
       await expect(adapter.executeWorkflow({ command, argument: "" })).resolves.toMatchObject({
@@ -479,10 +479,10 @@ describe("pinned Pi command and input workflows", () => {
     expect(runtime.settingsValues.get("ShowCacheMissNotices")).toBe(true);
     expect(runtime.settingsValues.get("Warnings")).toEqual({ anthropicExtraUsage: false });
 
-    expect(adapter.workflowAutocompleteCommands().some(command => command.name === "skill:review")).toBe(true);
+    expect(adapter.workflows.workflowAutocompleteCommands().some(command => command.name === "skill:review")).toBe(true);
     await expect(port!.writeSetting("enableSkillCommands", false)).resolves.toMatchObject({ status: "applied" });
-    expect(adapter.workflowAutocompleteCommands().some(command => command.name === "skill:review")).toBe(false);
-    expect(adapter.workflowAutocompleteCommands().some(command => command.name === "plan")).toBe(true);
+    expect(adapter.workflows.workflowAutocompleteCommands().some(command => command.name === "skill:review")).toBe(false);
+    expect(adapter.workflows.workflowAutocompleteCommands().some(command => command.name === "plan")).toBe(true);
 
     await port!.writeSetting("doubleEscapeAction", "none");
     await port!.writeSetting("treeFilterMode", "all");
@@ -492,17 +492,17 @@ describe("pinned Pi command and input workflows", () => {
 
   it("covers resource autocomplete, bash context modes, model controls, queue restoration, and contained failures", async () => {
     const { adapter, runtime } = await fixture(host({ copyText: async () => { throw new Error("clipboard denied"); } }));
-    expect(adapter.workflowAutocompleteCommands()).toEqual(expect.arrayContaining([
+    expect(adapter.workflows.workflowAutocompleteCommands()).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: "model", source: "builtin", argumentOptions: expect.any(Array) }),
       expect.objectContaining({ name: "login", source: "builtin", argumentOptions: expect.any(Array) }),
       { name: "plan", description: "Plan work", argumentHint: "<goal>", source: "prompt" },
       { name: "skill:review", description: "Review code", source: "skill" },
     ]));
-    await expect(adapter.executeBashWorkflow("pwd", false)).resolves.toMatchObject({ output: "bash output", excludeFromContext: false });
-    await expect(adapter.executeBashWorkflow("pwd", true)).resolves.toMatchObject({ excludeFromContext: true });
-    await expect(adapter.cycleModelWorkflow("forward")).resolves.toMatchObject({ outcome: "completed", message: "Switched to Claude" });
+    await expect(adapter.workflows.executeBashWorkflow("pwd", false)).resolves.toMatchObject({ output: "bash output", excludeFromContext: false });
+    await expect(adapter.workflows.executeBashWorkflow("pwd", true)).resolves.toMatchObject({ excludeFromContext: true });
+    await expect(adapter.workflows.cycleModelWorkflow("forward")).resolves.toMatchObject({ outcome: "completed", message: "Switched to Claude" });
     runtime.session.cycleResult = undefined;
-    await expect(adapter.cycleModelWorkflow("forward")).resolves.toMatchObject({ outcome: "completed", message: "Only one model available" });
+    await expect(adapter.workflows.cycleModelWorkflow("forward")).resolves.toMatchObject({ outcome: "completed", message: "Only one model available" });
     expect(adapter.clearQueuedWorkflows()).toEqual(["steer", "follow"]);
     adapter.abortBashWorkflow();
     await expect(adapter.executeWorkflow({ command: "copy", argument: "" })).resolves.toMatchObject({ outcome: "failed", message: "clipboard denied" });
@@ -606,7 +606,7 @@ describe("pinned Pi command and input workflows", () => {
     expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([
       { provider: "openai", id: "gpt-5", name: "GPT-5" },
     ]);
-    expect(adapter.pinnedLoginOptions("oauth")).toEqual([{
+    expect(adapter.catalog.pinnedLoginOptions("oauth")).toEqual([{
       id: "oauth:openai",
       providerId: "openai",
       label: "OpenAI",
@@ -614,7 +614,7 @@ describe("pinned Pi command and input workflows", () => {
       authType: "oauth",
       status: { type: "oauth", source: "stored" },
     }]);
-    await expect(adapter.pinnedLogoutOptions()).resolves.toEqual([{
+    await expect(adapter.catalog.pinnedLogoutOptions()).resolves.toEqual([{
       id: "oauth:openai",
       providerId: "openai",
       label: "OpenAI Codex",
@@ -626,14 +626,14 @@ describe("pinned Pi command and input workflows", () => {
     runtime.providerAuthStatus.set("openai", { configured: false });
     runtime.credentialTypes.delete("openai");
     expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([]);
-    expect(adapter.pinnedLoginOptions("oauth")).toEqual([{
+    expect(adapter.catalog.pinnedLoginOptions("oauth")).toEqual([{
       id: "oauth:openai",
       providerId: "openai",
       label: "OpenAI",
       description: "Account / OAuth",
       authType: "oauth",
     }]);
-    await expect(adapter.pinnedLogoutOptions()).resolves.toEqual([]);
+    await expect(adapter.catalog.pinnedLogoutOptions()).resolves.toEqual([]);
     await adapter.dispose();
   });
 
@@ -686,10 +686,10 @@ describe("pinned Pi command and input workflows", () => {
       runtime.providerAuthStatus.set("openai", state.status);
       if (state.credentialType === undefined) runtime.credentialTypes.delete("openai");
       else runtime.credentialTypes.set("openai", state.credentialType);
-      const option = adapter.pinnedLoginOptions("oauth")[0];
+      const option = adapter.catalog.pinnedLoginOptions("oauth")[0];
       expect(option?.status, state.name).toEqual(state.expectedStatus);
       expect(runtime.modelRuntime.getAvailableSnapshot(), state.name).toHaveLength(state.expectedModels);
-      await expect(adapter.pinnedLogoutOptions(), state.name).resolves.toHaveLength(state.expectedLogout);
+      await expect(adapter.catalog.pinnedLogoutOptions(), state.name).resolves.toHaveLength(state.expectedLogout);
     }
     await adapter.dispose();
   });
@@ -712,27 +712,27 @@ describe("pinned Pi command and input workflows", () => {
     expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([]);
 
     await expect(adapter.executeWorkflow({ command: "login", argument: "", selection: "oauth:openai" })).resolves.toMatchObject({ outcome: "completed" });
-    expect(adapter.pinnedLoginOptions("oauth")[0]?.status).toEqual({ type: "oauth", source: "stored" });
+    expect(adapter.catalog.pinnedLoginOptions("oauth")[0]?.status).toEqual({ type: "oauth", source: "stored" });
     expect(runtime.modelRuntime.getAvailableSnapshot()).toHaveLength(1);
     expect(adapter.view().activeModel).toMatchObject({ providerId: "openai", modelId: "gpt-5" });
     expect(adapter.view().status.footer?.availableProviderCount).toBe(1);
-    expect(adapter.pinnedScopedModelsContext().models).toHaveLength(1);
-    await expect(adapter.pinnedLogoutOptions()).resolves.toHaveLength(1);
+    expect(adapter.catalog.pinnedScopedModelsContext().models).toHaveLength(1);
+    await expect(adapter.catalog.pinnedLogoutOptions()).resolves.toHaveLength(1);
 
     await expect(adapter.executeWorkflow({ command: "logout", argument: "", selection: "oauth:openai" })).resolves.toMatchObject({ outcome: "completed" });
-    expect(adapter.pinnedLoginOptions("oauth")[0]?.status).toBeUndefined();
+    expect(adapter.catalog.pinnedLoginOptions("oauth")[0]?.status).toBeUndefined();
     expect(runtime.modelRuntime.getAvailableSnapshot()).toEqual([]);
     expect(adapter.view().activeModel).toBeNull();
     expect(adapter.view().status.footer?.availableProviderCount).toBe(0);
     expect(adapter.presentationSource().pinnedModelSelectorContext().currentModel).toBeUndefined();
-    expect(adapter.pinnedScopedModelsContext().models).toEqual([]);
-    await expect(adapter.pinnedLogoutOptions()).resolves.toEqual([]);
+    expect(adapter.catalog.pinnedScopedModelsContext().models).toEqual([]);
+    await expect(adapter.catalog.pinnedLogoutOptions()).resolves.toEqual([]);
     await adapter.dispose();
   });
 
   it("preserves the provider-specific authentication-type level before login", async () => {
     const { adapter } = await fixture();
-    expect(adapter.pinnedLoginMethodOptions("openai")).toEqual({
+    expect(adapter.catalog.pinnedLoginMethodOptions("openai")).toEqual({
       title: "Select authentication method for OpenAI Codex:",
       options: [
         { id: "oauth:openai", label: "Sign in with an account", description: "Account / OAuth" },
@@ -1118,7 +1118,7 @@ describe("bare-A1 unified models route", () => {
     const { adapter } = await bareFixture(runtime => {
       runtime.resourceLoader.getPrompts = () => ({ prompts: [{ name: "model", description: "A prompt named model", argumentHint: "<text>" }, { name: "models", description: "Shadowed", argumentHint: "<text>" }], diagnostics: [] });
     });
-    const commands = adapter.workflowAutocompleteCommands();
+    const commands = adapter.workflows.workflowAutocompleteCommands();
     expect(commands).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: "models", source: "builtin", argumentOptions: expect.any(Array) }),
       { name: "model", description: "A prompt named model", argumentHint: "<text>", source: "prompt" },
@@ -1145,7 +1145,7 @@ describe("bare-A1 unified models route", () => {
         { provider: "anthropic", id: "claude", name: "Claude" },
       ];
     });
-    expect(adapter.modelsContext()).toEqual({
+    expect(adapter.catalog.modelsContext()).toEqual({
       models: [{ provider: "openai", id: "gpt-5", name: "GPT-5" }, { provider: "openai", id: "gpt-5-mini", name: "GPT-5 Mini" }],
       activeModelId: "openai/gpt-5",
       sessionScopeIds: [],
@@ -1153,32 +1153,32 @@ describe("bare-A1 unified models route", () => {
     });
     runtime.settingsValues.set("EnabledModels", ["openai/gpt-5-mini:high", "anthropic/*", "missing/pattern", "openai/gpt-5"]);
     // Invariant: unmatched patterns, including an unauthenticated provider wildcard, stay verbatim and ordered.
-    expect(adapter.modelsContext().persistedScopeIds).toEqual(["openai/gpt-5-mini", "anthropic/*", "missing/pattern", "openai/gpt-5"]);
+    expect(adapter.catalog.modelsContext().persistedScopeIds).toEqual(["openai/gpt-5-mini", "anthropic/*", "missing/pattern", "openai/gpt-5"]);
     runtime.settingsValues.set("EnabledModels", ["openai/*"]);
-    expect(adapter.modelsContext().persistedScopeIds).toEqual(["openai/gpt-5", "openai/gpt-5-mini"]);
+    expect(adapter.catalog.modelsContext().persistedScopeIds).toEqual(["openai/gpt-5", "openai/gpt-5-mini"]);
 
-    adapter.setSessionModelScope(["openai/gpt-5-mini", "missing/pattern", "openai/gpt-5"]);
+    adapter.catalog.setSessionModelScope(["openai/gpt-5-mini", "missing/pattern", "openai/gpt-5"]);
     expect(runtime.session.calls.at(-1)).toBe("scoped:2");
-    adapter.setSessionModelScope([]);
+    adapter.catalog.setSessionModelScope([]);
     expect(runtime.session.calls.at(-1)).toBe("scoped:0");
 
-    adapter.persistModelScope(["openai/gpt-5-mini", "openai/gpt-5"]);
+    adapter.catalog.persistModelScope(["openai/gpt-5-mini", "openai/gpt-5"]);
     expect(runtime.settingsValues.get("EnabledModels")).toEqual(["openai/gpt-5-mini", "openai/gpt-5"]);
-    adapter.persistModelScope(["openai/gpt-5", "openai/gpt-5-mini"]);
+    adapter.catalog.persistModelScope(["openai/gpt-5", "openai/gpt-5-mini"]);
     expect(runtime.settingsValues.get("EnabledModels")).toEqual(["openai/gpt-5", "openai/gpt-5-mini"]);
-    adapter.persistModelScope([]);
+    adapter.catalog.persistModelScope([]);
     expect(runtime.settingsValues.get("EnabledModels")).toBeUndefined();
 
     runtime.modelRefreshModels = [{ provider: "openai", id: "gpt-6", name: "GPT-6" }];
-    await expect(adapter.refreshModels(new AbortController().signal)).resolves.toEqual({
+    await expect(adapter.catalog.refreshModels(new AbortController().signal)).resolves.toEqual({
       models: [{ provider: "openai", id: "gpt-6", name: "GPT-6" }],
       status: "Model catalogs refreshed.",
       statusKind: "success",
     });
     runtime.modelRefreshResult = { aborted: true, errors: new Map() };
-    await expect(adapter.refreshModels(new AbortController().signal)).resolves.toMatchObject({ status: "Model refresh timed out; showing cached models.", statusKind: "warning" });
+    await expect(adapter.catalog.refreshModels(new AbortController().signal)).resolves.toMatchObject({ status: "Model refresh timed out; showing cached models.", statusKind: "warning" });
     runtime.modelRefreshResult = { aborted: false, errors: new Map([["openai", new Error("offline")]]) };
-    await expect(adapter.refreshModels(new AbortController().signal)).resolves.toMatchObject({ status: "Could not refresh openai; showing cached models.", statusKind: "warning" });
+    await expect(adapter.catalog.refreshModels(new AbortController().signal)).resolves.toMatchObject({ status: "Could not refresh openai; showing cached models.", statusKind: "warning" });
     await adapter.dispose();
   });
 

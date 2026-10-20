@@ -6,6 +6,7 @@ import { inspectBaselinePaths } from "./baseline-paths-policy.mjs";
 import { inspectModuleGraph } from "./module-graph-policy.mjs";
 import { PRINTABLE_HELPER_PATH, isExactPrintableHelper, readPinnedKeySource } from "./history-editor-source-policy.mjs";
 import { inspectStartupReachability, validateStartupReachabilityBaseline } from "./startup-graph-policy.mjs";
+import { inspectSizeRatchet, measureSizeRatchet } from "./size-ratchet-policy.mjs";
 
 const rootArgument = process.argv.indexOf("--root");
 const allowPartialLayout = process.argv.includes("--allow-partial-layout");
@@ -215,6 +216,12 @@ if (rootArgument < 0) {
     errors.push(`architecture allowlist is missing or invalid: ${error instanceof Error ? error.message : String(error)}`);
   }
   if (architectureAllowlist !== null) errors.push(...await inspectModuleGraph(root, architectureAllowlist, sourceFiles));
+  try {
+    const sizeBaseline = JSON.parse(await readFile(resolve(root, "config", "baselines", "size-ratchet.json"), "utf8"));
+    errors.push(...inspectSizeRatchet(await measureSizeRatchet(root), sizeBaseline));
+  } catch (error) {
+    errors.push(`size ratchet baseline is missing or invalid: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 await inspectRepositoryStructure();
 await inspectReleasePolicy();

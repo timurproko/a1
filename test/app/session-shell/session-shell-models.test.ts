@@ -81,7 +81,7 @@ describe("bare-A1 unified Models dialog", () => {
   it("routes /models, argument seeding, and the explicit shortcut to the dialog while the removed names become prompt input", async () => {
     const { engine, shell, adapter } = await fixture([], [], true);
     try {
-      expect(adapter.workflowAutocompleteCommands().find(command => command.source === "builtin" && command.name.startsWith("model"))?.name).toBe("models");
+      expect(adapter.workflows.workflowAutocompleteCommands().find(command => command.source === "builtin" && command.name.startsWith("model"))?.name).toBe("models");
       await shell.submit("/model");
       await shell.submit("/scoped-models openai/gpt-5");
       expect(engine.session.calls).toContain("prompt:/model");

@@ -87,6 +87,6 @@ export async function transcriptLifecycleFixture(options: {
       rebind?.(next);
       await backend.flushEvents();
     },
-    async dispose() { await shell.dispose(); if (!backend.disposed) await backend.dispose(); },
+    async dispose() { await shell.dispose(); if (!backend.identity.disposed) await backend.dispose(); },
   };
 }

@@ -251,7 +251,7 @@ describe("Pi engine adapter", () => {
 
     await adapter.execute(command("shutdown", "shutdown-1"));
     expect(runtime.calls).toContain("dispose");
-    expect(adapter.disposed).toBe(true);
+    expect(adapter.identity.disposed).toBe(true);
     expect(adapter.view().lifecycle).toBe("stopped");
   });
 
@@ -292,7 +292,7 @@ describe("Pi engine adapter", () => {
     ];
     const { adapter } = await adapterWithRuntime(new FakeRuntime(session));
 
-    expect(adapter.workflowAutocompleteCommands().filter(command => command.source === "extension")).toEqual([
+    expect(adapter.workflows.workflowAutocompleteCommands().filter(command => command.source === "extension")).toEqual([
       { name: "mcp", description: "Show MCP server status", source: "extension" },
       { name: "mcp-auth", description: "Authenticate with an MCP server", source: "extension" },
     ]);
@@ -405,8 +405,8 @@ describe("Pi engine adapter", () => {
     const { adapter } = await adapterWithRuntime(runtime);
     const before = JSON.stringify(session.messages);
     const identity = {
-      sessionId: adapter.sessionId,
-      sessionGeneration: adapter.sessionGeneration,
+      sessionId: adapter.identity.sessionId,
+      sessionGeneration: adapter.identity.sessionGeneration,
       runSequence: 0,
       responseSequence: 0,
       model: adapter.view().activeModel!,
@@ -433,7 +433,7 @@ describe("Pi engine adapter", () => {
     runtime.suggestionResponse = { content: fixture.expected === null ? [] : [{ type: "text", text: fixture.expected }] };
     const { adapter } = await adapterWithRuntime(runtime);
     try {
-      const identity = { sessionId: adapter.sessionId, sessionGeneration: adapter.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
+      const identity = { sessionId: adapter.identity.sessionId, sessionGeneration: adapter.identity.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
       const result = await adapter.generate({ identity, signal: new AbortController().signal });
       expect(result).toMatchObject({ outcome: fixture.expected === null ? "empty" : "candidate", text: fixture.expected });
       expect(runtime.suggestionCalls[0]?.context).toMatchObject({ messages: [
@@ -459,7 +459,7 @@ describe("Pi engine adapter", () => {
     const runtime = new FakeRuntime(session);
     const { adapter } = await adapterWithRuntime(runtime);
     try {
-      const identity = { sessionId: adapter.sessionId, sessionGeneration: adapter.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
+      const identity = { sessionId: adapter.identity.sessionId, sessionGeneration: adapter.identity.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
       expect(adapter.suggestionReasoningPolicy()).toBe(policy);
       for (const stopReason of ["stop", "error", "aborted"]) {
         runtime.suggestionResponse = { stopReason, content: [{ type: "text", text: "archive it" }] };
@@ -502,7 +502,7 @@ describe("Pi engine adapter", () => {
     const runtime = new FakeRuntime(session);
     const { adapter } = await adapterWithRuntime(runtime);
     try {
-      const identity = { sessionId: adapter.sessionId, sessionGeneration: adapter.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
+      const identity = { sessionId: adapter.identity.sessionId, sessionGeneration: adapter.identity.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
       const signal = new AbortController().signal;
       await expect(adapter.generate({ identity, signal })).resolves.toMatchObject({ outcome: "candidate", text: "run the tests" });
       expect(transformCalls).toEqual([conversation]);
@@ -542,7 +542,7 @@ describe("Pi engine adapter", () => {
     const { adapter } = await adapterWithRuntime(runtime);
     try {
       const before = JSON.stringify(adapter.view().transcript);
-      const identity = { sessionId: adapter.sessionId, sessionGeneration: adapter.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
+      const identity = { sessionId: adapter.identity.sessionId, sessionGeneration: adapter.identity.sessionGeneration, runSequence: 0, responseSequence: 0, model: adapter.view().activeModel! };
       expect(await adapter.generate({ identity, signal: new AbortController().signal })).toEqual({ identity, outcome, text: null });
       expect(JSON.stringify(adapter.view().transcript)).toBe(before);
       expect(session.agent.state.messages).toEqual([]);
@@ -556,8 +556,8 @@ describe("Pi engine adapter", () => {
     const runtime = new FakeRuntime(session);
     const { adapter } = await adapterWithRuntime(runtime);
     const identity = {
-      sessionId: adapter.sessionId,
-      sessionGeneration: adapter.sessionGeneration,
+      sessionId: adapter.identity.sessionId,
+      sessionGeneration: adapter.identity.sessionGeneration,
       runSequence: 0,
       responseSequence: 0,
       model: adapter.view().activeModel!,
@@ -635,7 +635,7 @@ describe("Pi engine adapter", () => {
       expect.objectContaining({ assetId: expect.stringMatching(/^image-/), mimeType: "image/png", source: "user" }),
     ]);
     const imageAssetId = transcript[0]?.imageReferences?.[0]?.assetId;
-    expect(imageAssetId === undefined ? null : adapter.resolveTranscriptImage(imageAssetId)).toEqual({
+    expect(imageAssetId === undefined ? null : adapter.extensions.resolveTranscriptImage(imageAssetId)).toEqual({
       type: "image", data: "secret-image-bytes", mimeType: "image/png",
     });
     expect(transcript[1]?.payload).toMatchObject({
@@ -688,7 +688,7 @@ describe("Pi engine adapter", () => {
     expect(events.filter(event => event.type === "transcript-block").length).toBe(4);
     expect(events.filter(event => event.type === "assistant-message-completed")).toEqual([
       expect.objectContaining({
-        sessionGeneration: adapter.sessionGeneration,
+        sessionGeneration: adapter.identity.sessionGeneration,
         runSequence: 0,
         responseSequence: 1,
         successful: true,
@@ -797,9 +797,9 @@ describe("Pi engine adapter", () => {
     session.isCompacting = true;
     session.emit({ type: "compaction_start", reason: "manual" });
     await adapter.flushEvents();
-    await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.sessionId, text: "first", images: [image] });
-    await adapter.execute({ type: "steer", correlationId: "s2", sessionId: adapter.sessionId, text: "second" });
-    await adapter.execute({ type: "follow-up", correlationId: "f1", sessionId: adapter.sessionId, text: "third" });
+    await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.identity.sessionId, text: "first", images: [image] });
+    await adapter.execute({ type: "steer", correlationId: "s2", sessionId: adapter.identity.sessionId, text: "second" });
+    await adapter.execute({ type: "follow-up", correlationId: "f1", sessionId: adapter.identity.sessionId, text: "third" });
     await adapter.flushEvents();
     expect(session.calls.filter(call => call.startsWith("prompt:"))).toEqual([]);
     expect(adapter.view().editor.queuedSubmissions).toEqual(["first", "second", "third"]);
@@ -822,7 +822,7 @@ describe("Pi engine adapter", () => {
     session.emit({ type: "agent_start" });
     session.emit({ type: "compaction_start", reason: "threshold" });
     await adapter.flushEvents();
-    await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.sessionId, text: "held" });
+    await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.identity.sessionId, text: "held" });
     session.isCompacting = false;
     session.emit({ type: "compaction_end", reason: "threshold", aborted: false, willRetry: false });
     await adapter.flushEvents();
@@ -838,7 +838,7 @@ describe("Pi engine adapter", () => {
     session.isCompacting = true;
     session.emit({ type: "compaction_start", reason: "manual" });
     await adapter.flushEvents();
-    await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.sessionId, text: "first" });
+    await adapter.execute({ type: "steer", correlationId: "s1", sessionId: adapter.identity.sessionId, text: "first" });
     session.isCompacting = false;
     session.prompt = async () => {
       throw new Error("No model selected");
@@ -1055,14 +1055,14 @@ describe("Pi engine adapter", () => {
     };
     const { adapter } = await adapterWithRuntime(runtime);
 
-    expect(adapter.nonVisualResources()).toEqual(expect.arrayContaining([
+    expect(adapter.extensions.nonVisualResources()).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "skill", label: "review", sourcePath: "skills/review.md" }),
       expect.objectContaining({ kind: "skill", diagnostic: "skills/bad.md: bad skill" }),
       expect.objectContaining({ kind: "prompt-template", label: "handoff" }),
       expect.objectContaining({ kind: "agent-context", sourcePath: "AGENTS.md" }),
       expect.objectContaining({ kind: "system-prompt", sourcePath: "system.md" }),
     ]));
-    expect(adapter.extensionResources()).toEqual(expect.arrayContaining([
+    expect(adapter.extensions.extensionResources()).toEqual(expect.arrayContaining([
       expect.objectContaining({
         kind: "extension",
         sourcePath: "D:/agent/npm/node_modules/@example/statusline/dist/index.ts",
@@ -1080,7 +1080,7 @@ describe("Pi engine adapter", () => {
       expect.objectContaining({ loaded: false, diagnostic: expect.stringContaining("malformed extension metadata") }),
       expect.objectContaining({ loaded: false, diagnostic: expect.stringContaining("malformed error metadata") }),
     ]));
-    expect(adapter.visualExtensionSupport()).toMatchObject({
+    expect(adapter.extensions.visualExtensionSupport()).toMatchObject({
       available: false,
       contractComplete: true,
       contractVersion: 1,
@@ -1096,15 +1096,15 @@ describe("Pi engine adapter", () => {
     const runtime = new FakeRuntime(new FakeSession("pi-session-1"));
     const { adapter } = await adapterWithRuntime(runtime);
     const shutdown = vi.fn();
-    await adapter.bindExtensionUi(completeExtensionUiPort(), shutdown);
+    await adapter.extensions.bindExtensionUi(completeExtensionUiPort(), shutdown);
     expect(runtime.session.calls).toContain("bindExtensions");
     expect(runtime.session.extensionBindings).toMatchObject({ mode: "tui", shutdownHandler: expect.any(Function), onError: expect.any(Function) });
-    expect(adapter.visualExtensionSupport()).toMatchObject({ available: true, binding: "bound" });
+    expect(adapter.extensions.visualExtensionSupport()).toMatchObject({ available: true, binding: "bound" });
 
     await adapter.execute(command("new-session", "extension-session-switch"));
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(runtime.session.calls).toContain("bindExtensions");
-    expect(adapter.visualExtensionSupport()).toMatchObject({ available: true, binding: "bound" });
+    expect(adapter.extensions.visualExtensionSupport()).toMatchObject({ available: true, binding: "bound" });
 
     const binding = runtime.session.extensionBindings as { shutdownHandler: () => void; onError: (error: unknown) => void };
     binding.shutdownHandler();
@@ -1115,8 +1115,8 @@ describe("Pi engine adapter", () => {
       expect.objectContaining({ code: "extension-ui", message: "isolated extension failure", recoverable: true }),
     ]));
 
-    await adapter.unbindExtensionUi();
-    expect(adapter.visualExtensionSupport()).toMatchObject({ available: false, binding: "unbound" });
+    await adapter.extensions.unbindExtensionUi();
+    expect(adapter.extensions.visualExtensionSupport()).toMatchObject({ available: false, binding: "unbound" });
     await adapter.dispose();
   });
 
@@ -1133,12 +1133,12 @@ describe("Pi engine adapter", () => {
     (runtime.services as { resourceLoader?: unknown }).resourceLoader = loader;
     const { adapter } = await adapterWithRuntime(runtime);
 
-    expect(adapter.extensionResources()).toEqual([
+    expect(adapter.extensions.extensionResources()).toEqual([
       expect.objectContaining({ loaded: false, diagnostic: "Extension discovery failed: extension loader crashed" }),
     ]);
 
     loader.getExtensions = () => ({ extensions: "invalid", errors: null });
-    expect(adapter.extensionResources()).toEqual([
+    expect(adapter.extensions.extensionResources()).toEqual([
       expect.objectContaining({ diagnostic: expect.stringContaining("malformed extensions collection") }),
       expect.objectContaining({ diagnostic: expect.stringContaining("malformed errors collection") }),
     ]);

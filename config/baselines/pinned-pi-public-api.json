@@ -44,6 +44,7 @@
             "src/integrations/pi/engine/adapter.ts",
             "src/integrations/pi/engine/compaction-progress.ts",
             "src/integrations/pi/engine/extension-ui-binding.ts",
+            "src/integrations/pi/engine/ports.ts",
             "src/integrations/pi/engine/prompt-suggestions.ts",
             "src/integrations/pi/engine/provider-authentication.ts",
             "src/integrations/pi/engine/resource-catalog.ts",

@@ -68,7 +68,7 @@ describe("Development validation job resolution", () => {
     const owners = await loadIntegrationOwners();
     const coreSelection = { schema: "a1-pr-core-selection-v1" as const, mode: "impact" as const, exemption: null, policyId: "e".repeat(64), mandatoryTests: [], tests: [], resourceTests: [],
       owners: [], integrationOwners: [], invalidators: [], unknown: [] };
-    for (const path of ["native/terminal-host/src/roles/server.rs", "scripts/development/run-resident-chaos.mjs"]) {
+    for (const path of ["native/terminal-host/src/roles/server/mod.rs", "scripts/development/run-resident-chaos.mjs"]) {
       const integration = classifyIntegrationImpact({ baseId: base, headId: head, changes: [{ status: "M", path }], owners, coreSelection });
       const matrix = selectDevelopmentValidationMatrix({ impact: { base, head, selectionId, prCore: { tests: [], resourceTests: [] }, integration }, registry: { owners } });
       const groups = matrix.include.map(entry => `${entry.group}:${entry.platform}`);

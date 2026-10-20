@@ -510,7 +510,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     expect(rows).toContain("commands");
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(engine.session.calls).toContain("bindExtensions");
-    expect(adapter.visualExtensionSupport()).toMatchObject({ available: true, binding: "bound" });
+    expect(adapter.extensions.visualExtensionSupport()).toMatchObject({ available: true, binding: "bound" });
 
     const handle = shell.showSelector("Choose", [{ id: "one", label: "One" }], () => {});
     shell.runtime.renderNow();

@@ -395,12 +395,12 @@ Every queue, buffer, file, and collection the resident roles keep has a declared
 | Structured complete surface | 512 × 256 geometry, 65,536 cells, 4,096 styles, 4,096 links, and 8 MiB decoded state | `protocol.rs` `StructuredSurface::validate` | `structured_surfaces_fail_closed_on_dimensions_indexes_and_control_injection` |
 | Input per message and holder input queue | 1 MiB | `protocol.rs`, `core/holder.rs`, `roles/holder.rs` | `over_capacity_paste_delivers_no_prefix` |
 | Holder PTY ingress and work round | 64 × 16 KiB lossless chunks; at most 256 KiB or 2 ms before yielding | `roles/holder.rs` | `verify-resident-parallel-progress.mjs` concurrent and stopped-stage cases |
-| Per-client control lane | 1,024 frames and 4 MiB | `roles/server.rs` | `control_lane_is_bounded_by_frames_and_bytes` |
-| Per-client render slot | one pending full surface; a newer one replaces it | `roles/server.rs` `Peer::offer_surface` | `stalled_client_gets_one_full_current_surface` |
-| Concurrent endpoint connections | 128 | `roles/server.rs` `admit_connection` | `connections_beyond_the_cap_are_refused_and_released_slots_are_reused` |
-| Attached viewing clients | 16 | `roles/server.rs` `client_slot_available` | `attached_clients_are_capped` |
+| Per-client control lane | 1,024 frames and 4 MiB | `roles/server/mod.rs` | `control_lane_is_bounded_by_frames_and_bytes` |
+| Per-client render slot | one pending full surface; a newer one replaces it | `roles/server/mod.rs` `Peer::offer_surface` | `stalled_client_gets_one_full_current_surface` |
+| Concurrent endpoint connections | 128 | `roles/server/mod.rs` `admit_connection` | `connections_beyond_the_cap_are_refused_and_released_slots_are_reused` |
+| Attached viewing clients | 16 | `roles/server/mod.rs` `client_slot_available` | `attached_clients_are_capped` |
 | Concurrent holder starts | default 2, hard 8 | `core/server.rs` | `limits_starts_and_drops_stale_completion` |
-| Stopped tab records | 16, oldest dropped first | `roles/server.rs` `prune_stopped_records` | `stopped_records_are_bounded_oldest_first_and_live_tabs_are_kept` |
+| Stopped tab records | 16, oldest dropped first | `roles/server/mod.rs` `prune_stopped_records` | `stopped_records_are_bounded_oldest_first_and_live_tabs_are_kept` |
 | Prior tab-set archives | bounded history | `roles/registry.rs` | `prior_tab_sets_are_bounded` |
 | Abandoned blocking workers | 8 | `shell/workers.rs` | `fails_fast_after_eight_abandoned_workers` |
 | Diagnostic logs | 5 MiB × 3 generations per role | `roles/diagnostics.rs` | `logs_rotate_at_their_cap_and_keep_a_bounded_number_of_generations` |

@@ -44,7 +44,7 @@ async function fixture() {
     };
     const adapter = await createPiEngineAdapter({ sessionId: "owned-test",cwd, agentDir, createRuntime: async () => runtime as unknown as AgentSessionRuntime });
     adapters.push(adapter);
-    return { adapter, value: adapter.pinnedProjectTrustContext(), settings, load };
+    return { adapter, value: adapter.catalog.pinnedProjectTrustContext(), settings, load };
   }
   return { home, target, alias, agentDir, canonical, store, context };
 }
@@ -141,7 +141,7 @@ describe("canonical project trust context", () => {
     if (action === "parent") f.store.set(f.canonical, false);
     const before = await readFile(join(f.agentDir, "trust.json"), "utf8");
     const { adapter, value, settings, load } = await f.context();
-    const persist = vi.fn((selection: { updates: readonly { path: string; decision: boolean | null }[] }) => adapter.persistProjectTrust(selection.updates));
+    const persist = vi.fn((selection: { updates: readonly { path: string; decision: boolean | null }[] }) => adapter.catalog.persistProjectTrust(selection.updates));
     const cancel = vi.fn();
     const selector = new TrustSelectorComponent({ ...value, onSelect: persist, onCancel: cancel });
     // Rationale: start at the top regardless of which saved option is selected.
@@ -160,7 +160,7 @@ describe("canonical project trust context", () => {
       expect(f.store.get(dirname(f.alias))).toBeNull();
     }
     expect(settings.isProjectTrusted()).toBe(false);
-    expect(adapter.pinnedProjectTrustContext().projectTrusted).toBe(false);
+    expect(adapter.catalog.pinnedProjectTrustContext().projectTrusted).toBe(false);
     expect(load).not.toHaveBeenCalled();
   });
 });

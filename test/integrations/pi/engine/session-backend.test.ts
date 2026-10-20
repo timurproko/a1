@@ -72,7 +72,7 @@ describe("Pi engine adapter as the owned-UI session backend", () => {
     const adapter = new PiEngineAdapter({ cwd: "D:/work", agentDir: "D:/agent", sessionId: "backend-contract" });
     const identity = adapter.identity;
     expect(identity).toMatchObject({ sessionId: "backend-contract", agentDir: "D:/agent", cwd: "D:/work", disposed: false });
-    expect(identity.sessionGeneration).toBe(adapter.sessionGeneration);
+    expect(identity.sessionGeneration).toBe(adapter.identity.sessionGeneration);
     await adapter.session.dispose();
     expect(identity.disposed).toBe(true);
     expect(adapter.session.view().lifecycle).toBe("stopped");

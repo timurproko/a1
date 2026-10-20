@@ -130,7 +130,7 @@ async function runOwned(request: InputProducerRequest): Promise<InputProducerRes
     frameRecorder = undefined;
     terminal.onWrite = undefined;
     await shell.dispose();
-    if (!adapter.disposed) await adapter.dispose();
+    if (!adapter.identity.disposed) await adapter.dispose();
   }
   return result(request, phases, terminal, checkpoints);
 }
