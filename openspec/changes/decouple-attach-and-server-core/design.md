@@ -28,15 +28,15 @@ The popup menu, rename editor, and tab drag depend on crossterm `KeyCode`/`KeyMo
 
 ```text
 pub enum Mode { Idle, Popup(PopupMenu), Rename(RenameEditor), Drag(TabDrag) }
-pub enum ViewTransition { Settled, Requested { tab_id, staged: Option<Vec<StripTab>>, pending_surface: Option<Surface>, deferred: DeferredInput } }
-pub struct View { viewed, prompt_view, settings_shown, pending_jump, transition }
-pub struct State { tabs, view, mode, hovered, failed_tab, close_fallback, notice, user_input_pending, registry_revision, pending_manual_name, glyph_hold, ... }
-pub enum Event { Server(ServerMessage), Key(AttachKey), Mouse(AttachMouse), Paste(String), Resize, FocusGained, FocusLost, Tick(now) }
-pub enum Effect { Send(Message), Paint { clear: bool }, RestoreAndExit { hint_tabs: usize }, Fail(String) }
-pub fn step(state: &mut State, event: Event, now: Duration) -> Vec<Effect>
+pub struct View { prompt_view, settings_shown, settings_prewarm_pending, settings_absent_since, pending_jump, pending_created_activation }
+pub struct State { mode, view, hovered, failed_tab, close_fallback, notice, user_input_pending, registry_revision, pending_manual_name, deferred, columns }
+pub struct Context<'a, T: TabView> { tabs, viewed, requested, strip: &StripSnapshot, shortcuts: &dyn ShortcutLabels, mouse_tracking }
+pub enum Event { Key { key, action }, Mouse(AttachMouse), Paste(String), Resize { columns }, Focus { gained }, Server(ServerEvent), Tick }
+pub enum Effect { Send(Request), View(tab_id), AwaitFirstDraw, CancelViewRequest, Renamed, Write(frames), ForwardKey, ForwardMouse, ForwardPaste, ForwardFocus, Paint { clear } }
+impl State { pub fn step(&mut self, context: &Context<T>, event: Event, now: Duration) -> Vec<Effect> }
 ```
 
-Mode precedence is one `match` on `(mode, event)`. `roles/attach.rs` keeps the handshake, the reader threads, `OuterTerminal`, `OuterWriter`, `AttachServerWriter`, `TabBindings`, `TimeFormatWatch`, presentation composition, and the encoders, and runs a loop of receive, step, apply effects; the nine local macros become effect handlers or core functions.
+`Mode` is one enum, so a popup, a rename prompt, and a drag never coexist; opening one replaces the other, and a view change closes a popup or prompt but not the drag whose click requested it. The coherent view transition (the requested tab, staged topology, and pending surface) stays with the role's presentation `ViewModel`, which owns the surfaces; `View` holds only the client's own intent. Tab shortcuts are resolved by the role's `TabBindings` and arrive as the key's `action`. Key, mouse, and paste encoding and the Ctrl+C chord stay in the role: a key that reaches the child returns `ForwardKey`, and the role then asks `State::forward_key` whether the stalled and failed-tab rules restart, map, or drop it. `roles/attach.rs` keeps the handshake, the reader threads, `OuterTerminal`, `OuterWriter`, `AttachServerWriter`, `TabBindings`, `TimeFormatWatch`, presentation composition, and the encoders; a `Client` applies each step's effects in order, replacing the nine local macros.
 
 **Alternative considered:** helper functions over a struct of the same locals. Rejected because it keeps implicit modes and does not make the client simulable.
 

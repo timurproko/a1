@@ -12,7 +12,7 @@ Each numbered section is one Implementation item and one commit, landed in order
 
 ## 3. Attach state machine
 
-- [ ] 3.1 Add `State`, `View`, `Mode`, `ViewTransition`, `Event`, `Effect`, and `step` to `core::attach`, and reduce `run_attach` to handshake, reader threads, `OuterTerminal`, `OuterWriter`, `AttachServerWriter`, `TabBindings`, `TimeFormatWatch`, presentation composition, and a loop of receive, `step`, apply effects; delete the nine local macros. Tests: unit tests for every server message arm, key, mouse, paste, resize, and focus event, the settings tab, pending jump, deferred input, and mode exclusivity; `tests/role_integration.rs` unchanged and green.
+- [x] 3.1 Add `State`, `View`, `Mode`, `ViewTransition`, `Event`, `Effect`, and `step` to `core::attach`, and reduce `run_attach` to handshake, reader threads, `OuterTerminal`, `OuterWriter`, `AttachServerWriter`, `TabBindings`, `TimeFormatWatch`, presentation composition, and a loop of receive, `step`, apply effects; delete the nine local macros. Tests: unit tests for every server message arm, key, mouse, paste, resize, and focus event, the settings tab, pending jump, deferred input, and mode exclusivity; `tests/role_integration.rs` unchanged and green.
 
 ## 4. Simulator attach driver
 

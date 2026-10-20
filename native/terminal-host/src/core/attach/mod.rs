@@ -8,6 +8,10 @@ use std::time::Duration;
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
+mod machine;
+
+pub use machine::*;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyCode {
     Char(char),
@@ -269,7 +273,7 @@ impl PopupMenu {
         tab_id: String,
         column: u16,
         columns: u16,
-        shortcuts: &impl ShortcutLabels,
+        shortcuts: &(impl ShortcutLabels + ?Sized),
     ) -> Self {
         let mut items = vec![PopupItem::action(
             "Close",
@@ -286,7 +290,7 @@ impl PopupMenu {
         Self::new(PopupKind::Context, Some(tab_id), column, columns, items)
     }
 
-    pub fn add(column: u16, columns: u16, shortcuts: &impl ShortcutLabels) -> Self {
+    pub fn add(column: u16, columns: u16, shortcuts: &(impl ShortcutLabels + ?Sized)) -> Self {
         Self::new(
             PopupKind::Add,
             None,
