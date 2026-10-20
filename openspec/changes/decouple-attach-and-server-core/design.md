@@ -42,7 +42,7 @@ impl State { pub fn step(&mut self, context: &Context<T>, event: Event, now: Dur
 
 ### 3. Per-tab server state moves into `core::server::TabState`
 
-`surfaces`, `launches`, `holders_terminating`, `holders_starting`, `bridge_status_sequences`, `status_persist_pending`, and `status_last_persist` become fields of the core's per-tab state; handlers read them through `locked.core`.
+`holders_starting`, `holders_terminating`, `bridge_status_sequences`, `status_persist_pending`, and `status_last_persist` become one `core::server::TabRuntime` record per tab, owned by the core server `State` beside its supervised `TabState`s; handlers read and change them through `locked.core` (`set_starting`, `is_terminating`, `bridge_status_sequence`, `plan_status_persist`, ...), and the last-persist time moves to the server core clock. The record is kept apart from `TabState` because a new, Settings, or standby tab is starting before supervision knows it, and an entry is dropped once it returns to the default. `surfaces` and `launches` stay in the role: they hold wire `Surface` and `AttachStart` payloads, and the core never depends on role or wire types.
 
 ### 4. Recovery waits are timer effects
 

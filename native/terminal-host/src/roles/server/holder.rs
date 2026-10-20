@@ -360,8 +360,8 @@ pub(super) fn serve_holder(
             .tabs
             .iter()
             .any(|record| record.tab_id == tab_id && record.desired == "stopped");
-        locked.holders_terminating.remove(&tab_id);
-        locked.holders_starting.remove(&tab_id);
+        locked.core.set_terminating(&tab_id, false);
+        locked.core.set_starting(&tab_id, false);
         locked.last_activity = std::time::Instant::now();
         drop(locked);
         commit_staged(registry_commit)?;
@@ -429,8 +429,8 @@ pub(super) fn serve_holder(
                         {
                             None
                         } else {
-                            if locked.bridge_status_sequences.get(&tab_id).is_some_and(
-                                |(seen_incarnation, _)| *seen_incarnation == connection_incarnation,
+                            if locked.core.bridge_status_sequence(&tab_id).is_some_and(
+                                |(seen_incarnation, _)| seen_incarnation == connection_incarnation,
                             ) && let Some(existing) = locked.surfaces.get(&tab_id)
                             {
                                 surface.status = existing.status.clone();
@@ -530,7 +530,7 @@ pub(super) fn serve_holder(
                         },
                         now,
                     );
-                    locked.holders_terminating.remove(&tab_id);
+                    locked.core.set_terminating(&tab_id, false);
                     let changed = if ready.tab_id == tab_id {
                         if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
                             record.tab_id == tab_id
@@ -932,8 +932,8 @@ pub(super) fn holder_lost(
         },
         now,
     );
-    locked.holders_terminating.remove(tab_id);
-    locked.holders_starting.remove(tab_id);
+    locked.core.set_terminating(tab_id, false);
+    locked.core.set_starting(tab_id, false);
     locked.surfaces.remove(tab_id);
     locked.last_activity = std::time::Instant::now();
     let now_epoch = SystemTime::now()
@@ -1057,7 +1057,7 @@ pub(super) fn expire_unadmitted_holder(state: &Arc<Mutex<RuntimeState>>, tab_id:
     let Ok(locked) = state.lock() else {
         return;
     };
-    if locked.holders.contains_key(tab_id) || !locked.holders_starting.contains(tab_id) {
+    if locked.holders.contains_key(tab_id) || !locked.core.is_starting(tab_id) {
         return;
     }
     let recorded = locked
@@ -1117,8 +1117,8 @@ pub(super) fn reconcile_unconnected_holders(state: &Arc<Mutex<RuntimeState>>) {
                 .iter()
                 .filter(|record| {
                     !locked.holders.contains_key(&record.tab_id)
-                        && !locked.holders_starting.contains(&record.tab_id)
-                        && !locked.holders_terminating.contains(&record.tab_id)
+                        && !locked.core.is_starting(&record.tab_id)
+                        && !locked.core.is_terminating(&record.tab_id)
                 })
                 .filter_map(|record| {
                     Some((
@@ -1160,7 +1160,7 @@ pub(super) fn reconcile_unconnected_holders(state: &Arc<Mutex<RuntimeState>>) {
                     return;
                 };
                 let still_unconnected = !locked.holders.contains_key(&tab_id)
-                    && !locked.holders_starting.contains(&tab_id)
+                    && !locked.core.is_starting(&tab_id)
                     && locked.registry.tabs.iter().any(|record| {
                         record.tab_id == tab_id && record.holder_pid == Some(identity.pid)
                     });

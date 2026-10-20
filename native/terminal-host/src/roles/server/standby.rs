@@ -221,7 +221,7 @@ pub(super) fn launch_standby(
         if locked.standby.is_some() {
             return Ok(());
         }
-        if !locked.holders_starting.is_empty() || locked.active_starts > 0 {
+        if locked.core.starting_tabs().next().is_some() || locked.active_starts > 0 {
             drop(locked);
             if std::time::Instant::now() >= deadline {
                 return Err("standby launch remained blocked by an active start".into());

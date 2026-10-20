@@ -161,7 +161,7 @@
       "lines": 157
     },
     "native/terminal-host/src/roles/server/mod.rs::run_server_child": {
-      "lines": 339
+      "lines": 336
     },
     "native/terminal-host/src/roles/server/mod.rs::serve_peer": {
       "lines": 262

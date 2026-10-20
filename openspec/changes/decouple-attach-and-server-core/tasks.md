@@ -20,7 +20,7 @@ Each numbered section is one Implementation item and one commit, landed in order
 
 ## 5. Per-tab server state in the core
 
-- [ ] 5.1 Move `surfaces`, `launches`, `holders_terminating`, `holders_starting`, `bridge_status_sequences`, `status_persist_pending`, and `status_last_persist` into `core::server::TabState`; handlers read them through `locked.core`. Tests: `core/sim` green; `core/server.rs` unit tests cover the moved fields.
+- [x] 5.1 Move `holders_terminating`, `holders_starting`, `bridge_status_sequences`, `status_persist_pending`, and `status_last_persist` into a per-tab `core::server::TabRuntime` beside `core::server::TabState`; handlers read them through `locked.core`. `surfaces` and `launches` stay role-owned because they hold wire payloads the core must not depend on. Tests: `core/sim` green; `core/server.rs` unit tests cover the moved fields.
 
 ## 6. Timer-driven recovery waits
 
