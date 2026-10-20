@@ -159,6 +159,8 @@ pub struct TabRuntime {
     pub status_persist_pending: bool,
     /// When a bridge status was last persisted, on the server core clock.
     pub status_last_persist: Option<Duration>,
+    /// When the scheduled holder respawn is due, on the server core clock.
+    pub respawn_due_at: Option<Duration>,
 }
 
 #[derive(Debug)]
@@ -274,6 +276,31 @@ impl State {
             runtime.status_persist_pending = false;
             runtime.status_last_persist = Some(now);
         });
+    }
+
+    /// Schedules a holder respawn `delay` from `now`, superseding any earlier one for the tab;
+    /// returns the timer the role arms. Rationale: the restart delay is a timer, never a sleep on
+    /// the holder's reader thread, which keeps processing its peer's frames meanwhile.
+    pub fn schedule_respawn(&mut self, tab_id: &str, now: Duration, delay: Duration) -> Effect {
+        self.update_runtime(tab_id, |runtime| {
+            runtime.respawn_due_at = Some(now.saturating_add(delay));
+        });
+        Effect::ArmTimer {
+            timer: Timer::Respawn(tab_id.to_owned()),
+            after: delay,
+        }
+    }
+
+    /// Completes an armed respawn timer; returns `true` only for the respawn still scheduled,
+    /// so a superseded timer delivers nothing.
+    pub fn respawn_fired(&mut self, tab_id: &str, now: Duration) -> bool {
+        self.update_runtime(tab_id, |runtime| {
+            let due = runtime.respawn_due_at.is_some_and(|due| now >= due);
+            if due {
+                runtime.respawn_due_at = None;
+            }
+            due
+        })
     }
 }
 
@@ -1141,6 +1168,40 @@ mod tests {
         assert_eq!(
             state.plan_status_persist("tab", start + Duration::from_secs(5), spacing),
             Some(Duration::ZERO)
+        );
+    }
+
+    #[test]
+    fn a_respawn_is_a_timer_and_only_the_newest_schedule_delivers() {
+        let mut state = State::new(1, 2);
+        let start = Duration::from_secs(10);
+        assert_eq!(
+            state.schedule_respawn("tab", start, Duration::from_secs(4)),
+            Effect::ArmTimer {
+                timer: Timer::Respawn("tab".into()),
+                after: Duration::from_secs(4)
+            }
+        );
+        assert!(
+            !state.respawn_fired("tab", start + Duration::from_secs(3)),
+            "an early wake delivers nothing"
+        );
+        // Invariant: a later schedule supersedes the first; the first timer finds it not due.
+        state.schedule_respawn(
+            "tab",
+            start + Duration::from_secs(1),
+            Duration::from_secs(8),
+        );
+        assert!(!state.respawn_fired("tab", start + Duration::from_secs(4)));
+        assert!(state.respawn_fired("tab", start + Duration::from_secs(9)));
+        assert!(
+            !state.respawn_fired("tab", start + Duration::from_secs(20)),
+            "a fired respawn delivers once"
+        );
+        assert!(state.runtime("tab").is_none());
+        assert!(
+            !state.tabs.contains_key("tab"),
+            "scheduling never creates a supervised tab"
         );
     }
 }

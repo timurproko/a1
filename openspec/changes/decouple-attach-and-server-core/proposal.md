@@ -14,8 +14,8 @@ Both units are recorded in the size ratchet, so they cannot grow meanwhile.
 
 - Give the attach client a pure `core::attach` state machine with an explicit `Mode` enum (idle, popup, rename, drag) and a view sub-state that owns the requested view, pending jump, deferred input, and the settings tab. The core gets its own key, mouse, and strip-hit types first, because today's popup, rename, and drag state depend on crossterm and strip rendering from the role layer.
 - Reduce `run_attach` to the handshake, reader threads, outer terminal, bindings, settings observation, encoding, and a loop of receive, step, and apply effects; add an attach driver to the simulator.
-- Move the per-tab runtime fields into `core::server::TabState`.
-- Replace reader-thread sleeps and the blocking recovery-slot wait with `Effect::ArmTimer` from the server core, completed by supervision.
+- Move the per-tab runtime fields into the server core beside `core::server::TabState`, as one `TabRuntime` record per tab; the wire payload caches (`surfaces`, `launches`) stay in the role.
+- Replace reader-thread sleeps and the blocking recovery-slot wait with `Effect::ArmTimer` from the server core, completed off the reader thread.
 
 Every step is behavior-preserving for users; the resident wire protocol does not change.
 
@@ -31,6 +31,6 @@ Every step is behavior-preserving for users; the resident wire protocol does not
 
 ## Impact
 
-- **Native host:** new `native/terminal-host/src/core/attach.rs`; `roles/attach.rs` shrinks; `core/server.rs` gains per-tab fields; `roles/server/{holder,bridge,mod}.rs` stop sleeping; `core/sim` gains attach coverage.
+- **Native host:** new `native/terminal-host/src/core/attach/`; `roles/attach.rs` shrinks; `core/server.rs` gains per-tab runtime; `roles/server/holder.rs` stops sleeping and waiting on its reader thread; `core/sim` gains attach coverage.
 - **Tests:** native unit tests and `tests/role_integration.rs` stay green in CI; new core unit tests and simulator coverage. Each step also needs manual testing of tab switching, menus, rename, drag, paste, and restart.
 - **Protocols and dependencies:** none change.

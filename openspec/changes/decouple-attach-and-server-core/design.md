@@ -46,7 +46,7 @@ impl State { pub fn step(&mut self, context: &Context<T>, event: Event, now: Dur
 
 ### 4. Recovery waits are timer effects
 
-The restart delay and the recovery-slot wait become `Effect::ArmTimer` from `core::server::step`, completed by the supervision tick, so holder and bridge reader threads keep processing their peer's frames.
+A holder respawn is scheduled with `core::server::State::schedule_respawn`, which records when it is due and returns `Effect::ArmTimer { timer: Timer::Respawn(tab_id), after: delay }`. The role arms it with a one-shot timer thread; when it fires, `respawn_fired` confirms it is still the newest schedule for the tab, and only then does that thread run the session-writer check, wait for a recovery start slot, and send `holder.respawn`. The holder's reader thread never sleeps or blocks on any of these, so it keeps processing its peer's frames. The server's supervision tick is not used because it runs only after a second without a new connection, which would add latency and could starve under connection churn. A start gate that never opens now marks the tab failed instead of ending the holder connection. Bridge reader threads already had no recovery wait; the bridge status persist delay already ran on its own thread.
 
 ## Risks
 

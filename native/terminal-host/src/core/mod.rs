@@ -48,6 +48,8 @@ pub enum Timer {
     Reconcile,
     HolderHeartbeat(String),
     EffectDeadline(u64),
+    /// A holder respawn waits out its restart delay.
+    Respawn(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

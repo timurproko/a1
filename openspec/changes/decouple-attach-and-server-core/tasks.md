@@ -24,4 +24,4 @@ Each numbered section is one Implementation item and one commit, landed in order
 
 ## 6. Timer-driven recovery waits
 
-- [ ] 6.1 Replace `thread::sleep` and the blocking recovery-slot wait in the holder and bridge handlers with `Effect::ArmTimer` from `core::server::step`, handled by the supervision tick. Tests: role integration restart and recovery cases green; new unit test that a reader thread processes input during a restart delay.
+- [x] 6.1 Replace `thread::sleep` and the blocking recovery-slot wait in the holder and bridge handlers with `Effect::ArmTimer` from the server core (`schedule_respawn` / `respawn_fired`), armed by a one-shot timer thread that delivers the respawn off the reader thread. Tests: role integration restart and recovery cases green; new unit test that a reader thread processes input during a restart delay.

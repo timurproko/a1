@@ -1689,6 +1689,29 @@ impl Drop for InteractiveStartWaiter<'_> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn a_reader_thread_processes_input_during_a_restart_delay() {
+        let (reader_tx, reader_rx) = mpsc::channel::<&str>();
+        let (respawn_tx, respawn_rx) = mpsc::channel::<std::time::Instant>();
+        let delay = std::time::Duration::from_millis(300);
+        let scheduled = std::time::Instant::now();
+        // Invariant: scheduling the respawn returns at once; the reader goes on to its next frame.
+        after_delay(delay, move || {
+            let _ = respawn_tx.send(std::time::Instant::now());
+        });
+        reader_tx.send("holder frame").unwrap();
+        assert_eq!(
+            reader_rx.recv_timeout(delay / 3).as_deref(),
+            Ok("holder frame"),
+            "the reader handled a frame inside the restart delay"
+        );
+        assert!(scheduled.elapsed() < delay);
+        let delivered = respawn_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("the respawn runs once the delay elapses");
+        assert!(delivered.duration_since(scheduled) >= delay);
+    }
+
     fn retained_surface(incarnation: u64, revision: u64, bytes: &[u8]) -> Surface {
         Surface {
             tab_id: "tab".into(),

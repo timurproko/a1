@@ -149,7 +149,7 @@
       "lines": 120
     },
     "native/terminal-host/src/roles/server/holder.rs::serve_holder": {
-      "lines": 645
+      "lines": 575
     },
     "native/terminal-host/src/roles/server/holder.rs::start_holder": {
       "lines": 197
