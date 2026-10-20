@@ -17,6 +17,7 @@ use crossterm::event::{
 };
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
+use crate::core::attach as core_attach;
 use crate::endpoint;
 use crate::protocol::{
     self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, TerminalEffect, TerminalModes,
@@ -1548,6 +1549,123 @@ struct IngressReservation {
 impl Drop for IngressReservation {
     fn drop(&mut self) {
         self.bytes.fetch_sub(self.len, Ordering::SeqCst);
+    }
+}
+
+impl From<KeyModifiers> for core_attach::Modifiers {
+    fn from(modifiers: KeyModifiers) -> Self {
+        Self {
+            shift: modifiers.contains(KeyModifiers::SHIFT),
+            control: modifiers.contains(KeyModifiers::CONTROL),
+            alt: modifiers.contains(KeyModifiers::ALT),
+            other: modifiers
+                .intersects(KeyModifiers::SUPER | KeyModifiers::HYPER | KeyModifiers::META),
+        }
+    }
+}
+
+impl From<KeyCode> for core_attach::KeyCode {
+    fn from(code: KeyCode) -> Self {
+        match code {
+            KeyCode::Char(character) => Self::Char(character),
+            KeyCode::F(number) => Self::F(number),
+            KeyCode::Enter => Self::Enter,
+            KeyCode::Tab => Self::Tab,
+            KeyCode::BackTab => Self::BackTab,
+            KeyCode::Backspace => Self::Backspace,
+            KeyCode::Esc => Self::Esc,
+            KeyCode::Delete => Self::Delete,
+            KeyCode::Insert => Self::Insert,
+            KeyCode::Up => Self::Up,
+            KeyCode::Down => Self::Down,
+            KeyCode::Left => Self::Left,
+            KeyCode::Right => Self::Right,
+            KeyCode::Home => Self::Home,
+            KeyCode::End => Self::End,
+            KeyCode::PageUp => Self::PageUp,
+            KeyCode::PageDown => Self::PageDown,
+            _ => Self::Other,
+        }
+    }
+}
+
+impl From<&crossterm::event::KeyEvent> for core_attach::AttachKey {
+    fn from(key: &crossterm::event::KeyEvent) -> Self {
+        Self {
+            code: key.code.into(),
+            modifiers: key.modifiers.into(),
+            kind: match key.kind {
+                KeyEventKind::Press => core_attach::KeyKind::Press,
+                KeyEventKind::Repeat => core_attach::KeyKind::Repeat,
+                KeyEventKind::Release => core_attach::KeyKind::Release,
+            },
+        }
+    }
+}
+
+impl From<MouseButton> for core_attach::MouseButton {
+    fn from(button: MouseButton) -> Self {
+        match button {
+            MouseButton::Left => Self::Left,
+            MouseButton::Right => Self::Right,
+            MouseButton::Middle => Self::Middle,
+        }
+    }
+}
+
+impl From<&crossterm::event::MouseEvent> for core_attach::AttachMouse {
+    fn from(mouse: &crossterm::event::MouseEvent) -> Self {
+        use core_attach::MouseKind;
+        Self {
+            kind: match mouse.kind {
+                MouseEventKind::Down(button) => MouseKind::Down(button.into()),
+                MouseEventKind::Up(button) => MouseKind::Up(button.into()),
+                MouseEventKind::Drag(button) => MouseKind::Drag(button.into()),
+                MouseEventKind::Moved => MouseKind::Moved,
+                MouseEventKind::ScrollDown => MouseKind::ScrollDown,
+                MouseEventKind::ScrollUp => MouseKind::ScrollUp,
+                MouseEventKind::ScrollLeft => MouseKind::ScrollLeft,
+                MouseEventKind::ScrollRight => MouseKind::ScrollRight,
+            },
+            column: mouse.column,
+            row: mouse.row,
+            modifiers: mouse.modifiers.into(),
+        }
+    }
+}
+
+impl From<&StripHit> for core_attach::StripHitKind {
+    fn from(hit: &StripHit) -> Self {
+        match hit {
+            StripHit::View(id) => Self::View(id.clone()),
+            StripHit::Overflow => Self::Overflow,
+            StripHit::New => Self::New,
+        }
+    }
+}
+
+impl From<&strip::StripFrame> for core_attach::StripSnapshot {
+    fn from(frame: &strip::StripFrame) -> Self {
+        Self {
+            hits: frame
+                .hits
+                .iter()
+                .map(|(start, end, hit)| (*start, *end, hit.into()))
+                .collect(),
+            hidden_tabs: frame.hidden_tabs.clone(),
+        }
+    }
+}
+
+impl From<&StripTab> for core_attach::AttachTab {
+    fn from(tab: &StripTab) -> Self {
+        Self {
+            id: tab.id.clone(),
+            name: tab.name.clone(),
+            name_source: tab.name_source.clone(),
+            status: tab.status.clone(),
+            accent: tab.accent.clone(),
+        }
     }
 }
 
@@ -4720,5 +4838,175 @@ mod tests {
         assert!(kitty_query_answered(b"noise\x1b[?3u\x1b[?1;2c"));
         assert!(!kitty_query_answered(b"\x1b[?1;2c"));
         assert!(!kitty_query_answered(b"\x1b[?u"));
+    }
+
+    #[test]
+    fn key_events_convert_to_core_keys() {
+        use core_attach::{AttachKey, KeyKind, Modifiers};
+        let cases = [
+            (KeyCode::Char('x'), core_attach::KeyCode::Char('x')),
+            (KeyCode::F(5), core_attach::KeyCode::F(5)),
+            (KeyCode::Enter, core_attach::KeyCode::Enter),
+            (KeyCode::Tab, core_attach::KeyCode::Tab),
+            (KeyCode::BackTab, core_attach::KeyCode::BackTab),
+            (KeyCode::Backspace, core_attach::KeyCode::Backspace),
+            (KeyCode::Esc, core_attach::KeyCode::Esc),
+            (KeyCode::Delete, core_attach::KeyCode::Delete),
+            (KeyCode::Insert, core_attach::KeyCode::Insert),
+            (KeyCode::Up, core_attach::KeyCode::Up),
+            (KeyCode::Down, core_attach::KeyCode::Down),
+            (KeyCode::Left, core_attach::KeyCode::Left),
+            (KeyCode::Right, core_attach::KeyCode::Right),
+            (KeyCode::Home, core_attach::KeyCode::Home),
+            (KeyCode::End, core_attach::KeyCode::End),
+            (KeyCode::PageUp, core_attach::KeyCode::PageUp),
+            (KeyCode::PageDown, core_attach::KeyCode::PageDown),
+            (KeyCode::Null, core_attach::KeyCode::Other),
+            (KeyCode::CapsLock, core_attach::KeyCode::Other),
+        ];
+        for (code, expected) in cases {
+            assert_eq!(core_attach::KeyCode::from(code), expected, "{code:?}");
+        }
+
+        assert_eq!(Modifiers::from(KeyModifiers::NONE), Modifiers::NONE);
+        assert_eq!(
+            Modifiers::from(KeyModifiers::SHIFT | KeyModifiers::CONTROL | KeyModifiers::ALT),
+            Modifiers {
+                shift: true,
+                control: true,
+                alt: true,
+                other: false,
+            }
+        );
+        for extra in [KeyModifiers::SUPER, KeyModifiers::HYPER, KeyModifiers::META] {
+            assert_eq!(
+                Modifiers::from(extra),
+                Modifiers {
+                    other: true,
+                    ..Modifiers::NONE
+                }
+            );
+        }
+
+        for (kind, expected) in [
+            (KeyEventKind::Press, KeyKind::Press),
+            (KeyEventKind::Repeat, KeyKind::Repeat),
+            (KeyEventKind::Release, KeyKind::Release),
+        ] {
+            let event = crossterm::event::KeyEvent::new_with_kind(
+                KeyCode::Char('r'),
+                KeyModifiers::ALT,
+                kind,
+            );
+            assert_eq!(
+                AttachKey::from(&event),
+                AttachKey {
+                    code: core_attach::KeyCode::Char('r'),
+                    modifiers: Modifiers {
+                        alt: true,
+                        ..Modifiers::NONE
+                    },
+                    kind: expected,
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn mouse_events_convert_to_core_mouse() {
+        use core_attach::{AttachMouse, Modifiers, MouseKind};
+        let buttons = [
+            (MouseButton::Left, core_attach::MouseButton::Left),
+            (MouseButton::Right, core_attach::MouseButton::Right),
+            (MouseButton::Middle, core_attach::MouseButton::Middle),
+        ];
+        let mut cases = vec![
+            (MouseEventKind::Moved, MouseKind::Moved),
+            (MouseEventKind::ScrollDown, MouseKind::ScrollDown),
+            (MouseEventKind::ScrollUp, MouseKind::ScrollUp),
+            (MouseEventKind::ScrollLeft, MouseKind::ScrollLeft),
+            (MouseEventKind::ScrollRight, MouseKind::ScrollRight),
+        ];
+        for (button, core_button) in buttons {
+            cases.push((MouseEventKind::Down(button), MouseKind::Down(core_button)));
+            cases.push((MouseEventKind::Up(button), MouseKind::Up(core_button)));
+            cases.push((MouseEventKind::Drag(button), MouseKind::Drag(core_button)));
+        }
+        for (kind, expected) in cases {
+            let event = crossterm::event::MouseEvent {
+                kind,
+                column: 7,
+                row: 3,
+                modifiers: KeyModifiers::SHIFT,
+            };
+            assert_eq!(
+                AttachMouse::from(&event),
+                AttachMouse {
+                    kind: expected,
+                    column: 7,
+                    row: 3,
+                    modifiers: Modifiers {
+                        shift: true,
+                        ..Modifiers::NONE
+                    },
+                },
+                "{kind:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn strip_values_convert_to_core_snapshots() {
+        use core_attach::{AttachTab, StripHitKind, StripSnapshot};
+        let frame = strip::StripFrame {
+            bytes: "rendered".into(),
+            hits: vec![
+                (0, 5, StripHit::View("tab-a".into())),
+                (5, 7, StripHit::Overflow),
+                (7, 9, StripHit::New),
+            ],
+            hidden_tabs: vec!["tab-b".into()],
+        };
+        let snapshot = StripSnapshot::from(&frame);
+        assert_eq!(
+            snapshot,
+            StripSnapshot {
+                hits: vec![
+                    (0, 5, StripHitKind::View("tab-a".into())),
+                    (5, 7, StripHitKind::Overflow),
+                    (7, 9, StripHitKind::New),
+                ],
+                hidden_tabs: vec!["tab-b".into()],
+            }
+        );
+        for column in 0..10 {
+            assert_eq!(
+                snapshot.hit(column),
+                strip::hit(&frame, column).map(StripHitKind::from).as_ref(),
+                "column {column}"
+            );
+        }
+
+        let tab = StripTab {
+            id: "tab-a".into(),
+            name: "Agent".into(),
+            name_source: "manual".into(),
+            status: "working".into(),
+            accent: Some("blue".into()),
+            title_animation: Some(strip::TitleAnimation {
+                from: "Old".into(),
+                started_at: Instant::now(),
+            }),
+        };
+        assert_eq!(
+            AttachTab::from(&tab),
+            AttachTab {
+                id: "tab-a".into(),
+                name: "Agent".into(),
+                name_source: "manual".into(),
+                status: "working".into(),
+                accent: Some("blue".into()),
+            }
+        );
     }
 }

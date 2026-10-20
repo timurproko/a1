@@ -4,7 +4,7 @@ Each numbered section is one Implementation item and one commit, landed in order
 
 ## 1. Core attach input types
 
-- [ ] 1.1 Add `native/terminal-host/src/core/attach.rs` with sans-IO key, mouse, strip-hit, and strip-snapshot types, and conversions from crossterm and `roles::strip` in `roles/attach.rs`; no behavior change. Tests: unit tests for every conversion.
+- [x] 1.1 Add `native/terminal-host/src/core/attach.rs` with sans-IO key, mouse, strip-hit, and strip-snapshot types, and conversions from crossterm and `roles::strip` in `roles/attach.rs`; no behavior change. Tests: unit tests for every conversion.
 
 ## 2. Attach interaction state into the core
 
