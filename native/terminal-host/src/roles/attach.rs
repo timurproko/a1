@@ -1239,7 +1239,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         clear: true,
     })?;
     let started = Instant::now();
-    // The attach client's monotonic clock, which core attach state is timed against.
+    // Invariant: core attach state is timed against this one monotonic clock.
     let now = move || started.elapsed();
     let mut last_strip_frame = Instant::now();
     let mut displayed_clock_minute = clock_minute();

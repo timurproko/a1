@@ -464,7 +464,7 @@ impl RenameEditor {
         self.selection_anchor = snapshot.selection_anchor;
     }
 
-    // Records the state before an edit; consecutive typed characters share one undo step.
+    /// Records the state before an edit; consecutive typed characters share one undo step.
     fn record(&mut self, edit: RenameEdit) {
         if edit == RenameEdit::Typing && self.last_edit == Some(RenameEdit::Typing) {
             return;
@@ -477,7 +477,7 @@ impl RenameEditor {
         self.last_edit = Some(edit);
     }
 
-    // Applies an edit and keeps it in history only when it changed the text.
+    /// Applies an edit and keeps it in history only when it changed the text.
     fn edit(&mut self, kind: RenameEdit, change: impl FnOnce(&mut Self)) {
         let before = self.snapshot();
         let last_edit = self.last_edit;
