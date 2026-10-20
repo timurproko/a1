@@ -17,7 +17,14 @@ use crossterm::event::{
 };
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
-use crate::core::attach as core_attach;
+use crate::core::attach::{
+    self as core_attach, CloseFallback, DeferredInput, DeferredInputTarget, PopupAction, PopupItem,
+    PopupKind, PopupMenu, RenameEditor, ShortcutLabels, StripLayout, StripSnapshot, TabDrag,
+    TabView, apply_rename_control_key, close_fallback_for, debounce_starting_glyphs,
+    drag_marker_column, failure_applies, forward_pointer_motion, hold_status_glyphs,
+    holder_idle_precedes_bridge, registry_index, rejection_notice, settings_toggle_closes,
+    shown_tabs, update_drag,
+};
 use crate::endpoint;
 use crate::protocol::{
     self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, TerminalEffect, TerminalModes,
@@ -46,8 +53,6 @@ const ATTACH_SERVER_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
 const ATTACH_INGRESS_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_INGRESS_FRAMES: usize = 8;
-const DEFERRED_INPUT_BYTES: usize = 4 * 1024 * 1024;
-const DEFERRED_INPUT_FRAMES: usize = 1024;
 const OUTER_EFFECT_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const OUTER_CONTROL_QUEUE_FRAMES: usize = 8;
 #[cfg(test)]
@@ -392,19 +397,6 @@ fn admit_alt_code_input(
     Event::Key(key)
 }
 
-/// True when the failed tab's restricted input rules apply: only while that tab is viewed.
-pub fn failure_applies(failed_tab: Option<&str>, viewed: Option<&str>) -> bool {
-    failed_tab.is_some() && failed_tab == viewed
-}
-
-/// Invariant: a rejection notice answers input the person typed, pasted, or clicked. Focus
-/// traffic is forwarded too, and terminals such as ConPTY synthesize it on attach, so its
-/// rejection stays silent and a read-only viewer's first frame keeps the child's top row.
-fn rejection_notice(user_input_pending: &mut bool, message: Option<String>) -> Option<String> {
-    let armed = std::mem::replace(user_input_pending, false);
-    message.filter(|_| armed)
-}
-
 fn render_drag_marker(column: u16, columns: u16) -> String {
     render_drag_marker_configured(column, columns, !palette_fallback_requested())
 }
@@ -585,214 +577,7 @@ fn settings_signature(path: &Path) -> Option<(std::time::SystemTime, u64)> {
 #[cfg(test)]
 const POPUP_HOVER_NEUTRAL: [u8; 3] = [48, 48, 48];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum PopupKind {
-    Context,
-    Add,
-    Overflow,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum PopupAction {
-    Close,
-    Rename,
-    NewAgent,
-    Settings,
-    View(String),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct PopupItem {
-    label: String,
-    shortcut: String,
-    action: Option<PopupAction>,
-    separator: bool,
-}
-
-impl PopupItem {
-    fn action(label: impl Into<String>, shortcut: String, action: PopupAction) -> Self {
-        Self {
-            label: label.into(),
-            shortcut,
-            action: Some(action),
-            separator: false,
-        }
-    }
-
-    fn separator() -> Self {
-        Self {
-            label: String::new(),
-            shortcut: String::new(),
-            action: None,
-            separator: true,
-        }
-    }
-
-    fn width(&self) -> usize {
-        if self.separator {
-            8
-        } else {
-            UnicodeWidthStr::width(self.label.as_str())
-                + if self.shortcut.is_empty() {
-                    0
-                } else {
-                    2 + UnicodeWidthStr::width(self.shortcut.as_str())
-                }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct PopupMenu {
-    kind: PopupKind,
-    tab_id: Option<String>,
-    anchor_column: u16,
-    column: u16,
-    width: u16,
-    hovered: Option<usize>,
-    items: Vec<PopupItem>,
-}
-
 impl PopupMenu {
-    fn context(tab_id: String, column: u16, columns: u16, bindings: &TabBindings) -> Self {
-        let mut items = vec![PopupItem::action(
-            "Close",
-            bindings.label("tabs.close"),
-            PopupAction::Close,
-        )];
-        if !tab_id.starts_with("settings-") {
-            items.push(PopupItem::action(
-                "Rename",
-                bindings.label("tabs.rename"),
-                PopupAction::Rename,
-            ));
-        }
-        Self::new(PopupKind::Context, Some(tab_id), column, columns, items)
-    }
-
-    fn add(column: u16, columns: u16, bindings: &TabBindings) -> Self {
-        Self::new(
-            PopupKind::Add,
-            None,
-            column,
-            columns,
-            vec![
-                PopupItem::action("+ Agent", bindings.label("tabs.new"), PopupAction::NewAgent),
-                PopupItem::separator(),
-                // Invariant: labels align after the `+ ` marker, so Settings starts under Agent.
-                PopupItem::action(
-                    "  Settings",
-                    bindings.label("tabs.settings"),
-                    PopupAction::Settings,
-                ),
-            ],
-        )
-    }
-
-    fn overflow(
-        column: u16,
-        columns: u16,
-        hidden_tabs: &[String],
-        tabs: &[StripTab],
-        viewed: Option<&str>,
-    ) -> Self {
-        let items = hidden_tabs
-            .iter()
-            .filter_map(|id| tabs.iter().find(|tab| &tab.id == id))
-            .map(|tab| {
-                let marker = if viewed == Some(tab.id.as_str()) {
-                    "✓"
-                } else {
-                    " "
-                };
-                PopupItem::action(
-                    format!("{marker} {}", tab.name),
-                    String::new(),
-                    PopupAction::View(tab.id.clone()),
-                )
-            })
-            .collect();
-        Self::new(PopupKind::Overflow, None, column, columns, items)
-    }
-
-    fn new(
-        kind: PopupKind,
-        tab_id: Option<String>,
-        anchor_column: u16,
-        columns: u16,
-        items: Vec<PopupItem>,
-    ) -> Self {
-        let width = items
-            .iter()
-            .map(PopupItem::width)
-            .max()
-            .unwrap_or(1)
-            .saturating_add(2)
-            .min(usize::from(columns)) as u16;
-        let column = anchor_column.min(columns.saturating_sub(width));
-        Self {
-            kind,
-            tab_id,
-            anchor_column,
-            column,
-            width,
-            hovered: None,
-            items,
-        }
-    }
-
-    fn resize(&mut self, columns: u16) {
-        self.width = self
-            .items
-            .iter()
-            .map(PopupItem::width)
-            .max()
-            .unwrap_or(1)
-            .saturating_add(2)
-            .min(usize::from(columns)) as u16;
-        self.column = self.anchor_column.min(columns.saturating_sub(self.width));
-    }
-
-    fn row_at(&self, column: u16, row: u16) -> Option<usize> {
-        if column < self.column || column >= self.column.saturating_add(self.width) || row == 0 {
-            return None;
-        }
-        let index = usize::from(row - 1);
-        self.items.get(index).map(|_| index)
-    }
-
-    fn index_at(&self, column: u16, row: u16) -> Option<usize> {
-        self.row_at(column, row)
-            .filter(|index| self.items[*index].action.is_some())
-    }
-
-    fn action_at(&self, column: u16, row: u16) -> Option<PopupAction> {
-        self.index_at(column, row)
-            .and_then(|index| self.items[index].action.clone())
-    }
-
-    fn move_hover(&mut self, delta: isize) {
-        let selectable = self
-            .items
-            .iter()
-            .enumerate()
-            .filter_map(|(index, item)| item.action.as_ref().map(|_| index))
-            .collect::<Vec<_>>();
-        if selectable.is_empty() {
-            self.hovered = None;
-            return;
-        }
-        let current = self
-            .hovered
-            .and_then(|index| selectable.iter().position(|candidate| *candidate == index));
-        let next = match current {
-            Some(index) => (index as isize + delta).rem_euclid(selectable.len() as isize) as usize,
-            None if delta < 0 => selectable.len() - 1,
-            None => 0,
-        };
-        self.hovered = Some(selectable[next]);
-    }
-
     #[cfg(test)]
     fn render(&self) -> String {
         self.render_with_color(!palette_fallback_requested())
@@ -871,114 +656,7 @@ fn palette_fallback_requested() -> bool {
     strip::palette_fallback_requested()
 }
 
-const RENAME_HISTORY_LIMIT: usize = 100;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct RenameSnapshot {
-    text: String,
-    cursor: usize,
-    selection_anchor: Option<usize>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RenameEdit {
-    Typing,
-    Other,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct RenameEditor {
-    tab_id: String,
-    text: String,
-    cursor: usize,
-    selection_anchor: Option<usize>,
-    undo: Vec<RenameSnapshot>,
-    redo: Vec<RenameSnapshot>,
-    last_edit: Option<RenameEdit>,
-}
-
 impl RenameEditor {
-    fn new(tab_id: String, text: String) -> Self {
-        let cursor = text.graphemes(true).count();
-        Self {
-            tab_id,
-            text,
-            cursor,
-            selection_anchor: None,
-            undo: Vec::new(),
-            redo: Vec::new(),
-            last_edit: None,
-        }
-    }
-
-    fn snapshot(&self) -> RenameSnapshot {
-        RenameSnapshot {
-            text: self.text.clone(),
-            cursor: self.cursor,
-            selection_anchor: self.selection_anchor,
-        }
-    }
-
-    fn restore(&mut self, snapshot: RenameSnapshot) {
-        self.text = snapshot.text;
-        self.cursor = snapshot.cursor;
-        self.selection_anchor = snapshot.selection_anchor;
-    }
-
-    /// Records the state before an edit; consecutive typed characters share one undo step.
-    fn record(&mut self, edit: RenameEdit) {
-        if edit == RenameEdit::Typing && self.last_edit == Some(RenameEdit::Typing) {
-            return;
-        }
-        self.undo.push(self.snapshot());
-        if self.undo.len() > RENAME_HISTORY_LIMIT {
-            self.undo.remove(0);
-        }
-        self.redo.clear();
-        self.last_edit = Some(edit);
-    }
-
-    /// Applies an edit and keeps it in history only when it changed the text.
-    fn edit(&mut self, kind: RenameEdit, change: impl FnOnce(&mut Self)) {
-        let before = self.snapshot();
-        let last_edit = self.last_edit;
-        let undo_len = self.undo.len();
-        let redo = self.redo.clone();
-        self.record(kind);
-        change(self);
-        if self.text == before.text {
-            self.undo.truncate(undo_len);
-            self.redo = redo;
-            self.last_edit = last_edit;
-        }
-    }
-
-    fn undo(&mut self) {
-        if let Some(snapshot) = self.undo.pop() {
-            self.redo.push(self.snapshot());
-            self.restore(snapshot);
-        }
-        self.last_edit = None;
-    }
-
-    fn redo(&mut self) {
-        if let Some(snapshot) = self.redo.pop() {
-            self.undo.push(self.snapshot());
-            self.restore(snapshot);
-        }
-        self.last_edit = None;
-    }
-
-    fn len(&self) -> usize {
-        self.text.graphemes(true).count()
-    }
-
-    fn selection(&self) -> Option<(usize, usize)> {
-        self.selection_anchor
-            .filter(|anchor| *anchor != self.cursor)
-            .map(|anchor| (anchor, self.cursor))
-    }
-
     fn display(&self) -> strip::StripRename {
         strip::StripRename {
             tab_id: self.tab_id.clone(),
@@ -987,230 +665,6 @@ impl RenameEditor {
             selection: self.selection(),
         }
     }
-
-    fn byte_offset(&self, grapheme: usize) -> usize {
-        self.text
-            .grapheme_indices(true)
-            .nth(grapheme)
-            .map_or(self.text.len(), |(offset, _)| offset)
-    }
-
-    fn delete_selection(&mut self) -> bool {
-        let Some((left, right)) = self.selection().map(|(a, b)| (a.min(b), a.max(b))) else {
-            return false;
-        };
-        let start = self.byte_offset(left);
-        let end = self.byte_offset(right);
-        self.text.replace_range(start..end, "");
-        self.cursor = left;
-        self.selection_anchor = None;
-        true
-    }
-
-    fn insert(&mut self, value: char) {
-        self.edit(RenameEdit::Typing, |editor| {
-            editor.delete_selection();
-            if editor.len() >= 64 {
-                return;
-            }
-            let offset = editor.byte_offset(editor.cursor);
-            editor.text.insert(offset, value);
-            editor.cursor += 1;
-        });
-    }
-
-    fn backspace(&mut self) {
-        self.edit(RenameEdit::Other, |editor| {
-            if editor.delete_selection() || editor.cursor == 0 {
-                return;
-            }
-            let start = editor.byte_offset(editor.cursor - 1);
-            let end = editor.byte_offset(editor.cursor);
-            editor.text.replace_range(start..end, "");
-            editor.cursor -= 1;
-        });
-    }
-
-    fn delete(&mut self) {
-        self.edit(RenameEdit::Other, |editor| {
-            if editor.delete_selection() || editor.cursor >= editor.len() {
-                return;
-            }
-            let start = editor.byte_offset(editor.cursor);
-            let end = editor.byte_offset(editor.cursor + 1);
-            editor.text.replace_range(start..end, "");
-        });
-    }
-
-    fn delete_word_left(&mut self) {
-        self.edit(RenameEdit::Other, |editor| {
-            if editor.delete_selection() {
-                return;
-            }
-            let start = editor.word_left_boundary();
-            let (from, to) = (editor.byte_offset(start), editor.byte_offset(editor.cursor));
-            editor.text.replace_range(from..to, "");
-            editor.cursor = start;
-        });
-    }
-
-    fn delete_word_right(&mut self) {
-        self.edit(RenameEdit::Other, |editor| {
-            if editor.delete_selection() {
-                return;
-            }
-            let end = editor.word_right_boundary();
-            let (from, to) = (editor.byte_offset(editor.cursor), editor.byte_offset(end));
-            editor.text.replace_range(from..to, "");
-        });
-    }
-
-    fn move_cursor(&mut self, cursor: usize) {
-        self.cursor = cursor.min(self.len());
-        self.selection_anchor = None;
-        self.last_edit = None;
-    }
-
-    fn word_left_boundary(&self) -> usize {
-        let graphemes = self.text.graphemes(true).collect::<Vec<_>>();
-        let mut cursor = self.cursor.min(graphemes.len());
-        while cursor > 0 && graphemes[cursor - 1].chars().all(char::is_whitespace) {
-            cursor -= 1;
-        }
-        while cursor > 0 && !graphemes[cursor - 1].chars().all(char::is_whitespace) {
-            cursor -= 1;
-        }
-        cursor
-    }
-
-    fn word_right_boundary(&self) -> usize {
-        let graphemes = self.text.graphemes(true).collect::<Vec<_>>();
-        let mut cursor = self.cursor.min(graphemes.len());
-        while cursor < graphemes.len() && !graphemes[cursor].chars().all(char::is_whitespace) {
-            cursor += 1;
-        }
-        while cursor < graphemes.len() && graphemes[cursor].chars().all(char::is_whitespace) {
-            cursor += 1;
-        }
-        cursor
-    }
-
-    fn move_word_left(&mut self) {
-        self.move_cursor(self.word_left_boundary());
-    }
-
-    fn move_word_right(&mut self) {
-        self.move_cursor(self.word_right_boundary());
-    }
-
-    fn select_all(&mut self) {
-        self.selection_anchor = Some(0);
-        self.cursor = self.len();
-        self.last_edit = None;
-    }
-}
-
-/// Handles the rename editor's control-key edits; returns `false` for keys it does not own.
-/// Terminals report Ctrl+Backspace as Backspace with Ctrl, Ctrl+H, or Ctrl+W.
-fn apply_rename_control_key(
-    editor: &mut RenameEditor,
-    code: KeyCode,
-    modifiers: KeyModifiers,
-) -> bool {
-    if !modifiers.contains(KeyModifiers::CONTROL) {
-        return false;
-    }
-    match code {
-        KeyCode::Backspace | KeyCode::Char('h' | 'H' | 'w' | 'W') => editor.delete_word_left(),
-        KeyCode::Delete => editor.delete_word_right(),
-        KeyCode::Char('a' | 'A') => editor.select_all(),
-        KeyCode::Char('z') if !modifiers.contains(KeyModifiers::SHIFT) => editor.undo(),
-        KeyCode::Char('Z') | KeyCode::Char('z') | KeyCode::Char('y' | 'Y') => editor.redo(),
-        _ => return false,
-    }
-    true
-}
-
-#[derive(Debug, Clone)]
-struct TabDrag {
-    tab_id: String,
-    start_column: u16,
-    started_at: Instant,
-    shown: bool,
-    drop_index: Option<usize>,
-    expected_revision: u64,
-}
-
-fn drag_destination(
-    column: u16,
-    on_strip: bool,
-    tabs: &[StripTab],
-    frame: &strip::StripFrame,
-    tab_id: &str,
-) -> Option<usize> {
-    if !on_strip || tabs.len() < 2 {
-        return None;
-    }
-    let from = tabs.iter().position(|tab| tab.id == tab_id)?;
-    let visible = frame
-        .hits
-        .iter()
-        .filter_map(|(start, end, hit)| match hit {
-            StripHit::View(id) => Some((*start, *end, id)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    let last = visible.last()?;
-    let boundary = visible
-        .iter()
-        .find(|(start, end, _)| column <= start.saturating_add(*end).saturating_div(2))
-        .and_then(|(_, _, id)| tabs.iter().position(|tab| &tab.id == *id))
-        .unwrap_or_else(|| {
-            tabs.iter()
-                .position(|tab| &tab.id == last.2)
-                .map_or(tabs.len(), |index| index + 1)
-        });
-    Some(
-        if boundary > from {
-            boundary - 1
-        } else {
-            boundary
-        }
-        .min(tabs.len().saturating_sub(1)),
-    )
-}
-
-fn update_drag(
-    drag: &mut TabDrag,
-    column: u16,
-    on_strip: bool,
-    tabs: &[StripTab],
-    frame: &strip::StripFrame,
-) -> bool {
-    let previous = (drag.shown, drag.drop_index);
-    if !drag.shown
-        && (column != drag.start_column || drag.started_at.elapsed() >= Duration::from_millis(250))
-    {
-        drag.shown = true;
-    }
-    drag.drop_index = drag
-        .shown
-        .then(|| drag_destination(column, on_strip, tabs, frame, &drag.tab_id))
-        .flatten();
-    previous != (drag.shown, drag.drop_index)
-}
-
-fn drag_marker_column(drag: &TabDrag, tabs: &[StripTab], frame: &strip::StripFrame) -> Option<u16> {
-    let from = tabs.iter().position(|tab| tab.id == drag.tab_id)?;
-    let to = drag.drop_index?;
-    if !drag.shown || from == to {
-        return None;
-    }
-    let target = tabs.get(to)?;
-    frame.hits.iter().find_map(|(start, end, hit)| match hit {
-        StripHit::View(id) if id == &target.id => Some(if to < from { *start } else { *end }),
-        _ => None,
-    })
 }
 
 /// BEL is attention data and never reaches the outer terminal. Other bytes, including OSC 8/52
@@ -1280,181 +734,9 @@ pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
     outer_row.checked_sub(1)
 }
 
-/// The Settings shortcut toggles: on the viewed Settings tab it hides that tab, returning to the
-/// previous tab; anywhere else it shows the singleton Settings tab.
-fn settings_toggle_closes(viewed: Option<&str>) -> Option<&str> {
-    viewed.filter(|id| id.starts_with("settings-"))
-}
-
 /// How long the client waits, with tabs present and no Settings tab, before starting a hidden one
 /// so the Settings shortcut opens instantly.
 const SETTINGS_PREWARM_DELAY: Duration = Duration::from_secs(2);
-
-/// The tabs the strip, jumps, and drags present. A running Settings tab stays hidden until it is
-/// viewed in this session, and after the Settings shortcut hides it, so its process can be reused
-/// instantly instead of starting a new one.
-fn shown_tabs(tabs: &[StripTab], viewed: Option<&str>, settings_shown: bool) -> Vec<StripTab> {
-    tabs.iter()
-        .filter(|tab| {
-            !tab.id.starts_with("settings-") || settings_shown || viewed == Some(tab.id.as_str())
-        })
-        .cloned()
-        .collect()
-}
-
-/// How long a tab must stay starting or restoring before its chip shows the lifecycle spinner.
-const STARTING_GLYPH_DELAY: Duration = Duration::from_millis(500);
-
-/// Hides a starting chip's spinner for its first moments. A tab that becomes ready quickly
-/// otherwise shows a spinner that vanishes at once and shifts its title: a visible flash.
-fn debounce_starting_glyphs(
-    shown: &mut [StripTab],
-    since: &mut HashMap<String, Instant>,
-    now: Instant,
-) {
-    let starting = |tab: &StripTab| matches!(tab.status.as_str(), "starting" | "restoring");
-    since.retain(|id, _| shown.iter().any(|tab| &tab.id == id && starting(tab)));
-    for tab in shown.iter_mut().filter(|tab| starting(tab)) {
-        let began = *since.entry(tab.id.clone()).or_insert(now);
-        if now.saturating_duration_since(began) < STARTING_GLYPH_DELAY {
-            tab.status = "idle".into();
-        }
-    }
-}
-
-/// How long a chip keeps its last glyph when its status momentarily reports none.
-const GLYPH_SWAP_HOLD: Duration = Duration::from_millis(300);
-
-/// Keeps a chip's previous glyph while its status briefly has none, such as the idle report
-/// between a working spinner and the finished checkmark, so glyphs swap in place and the title
-/// never shifts. Returns when the earliest active hold expires, so the strip repaints then.
-fn hold_status_glyphs(
-    shown: &mut [StripTab],
-    held: &mut HashMap<String, (String, Instant)>,
-    now: Instant,
-) -> Option<Instant> {
-    held.retain(|id, _| shown.iter().any(|tab| &tab.id == id));
-    let mut expires: Option<Instant> = None;
-    for tab in shown.iter_mut() {
-        if strip::status_has_glyph(&tab.status) {
-            held.insert(tab.id.clone(), (tab.status.clone(), now));
-            continue;
-        }
-        let Some((status, seen)) = held.get(&tab.id).cloned() else {
-            continue;
-        };
-        let until = seen + GLYPH_SWAP_HOLD;
-        if now < until {
-            tab.status = status;
-            expires = Some(expires.map_or(until, |earliest| earliest.min(until)));
-        } else {
-            held.remove(&tab.id);
-        }
-    }
-    expires
-}
-
-/// Maps an insertion index among shown tabs to the registry index the server reorders by.
-fn registry_index(shown: &[StripTab], tabs: &[StripTab], shown_index: usize) -> usize {
-    shown
-        .get(shown_index)
-        .and_then(|target| tabs.iter().position(|tab| tab.id == target.id))
-        .unwrap_or_else(|| {
-            shown
-                .last()
-                .and_then(|last| tabs.iter().position(|tab| tab.id == last.id))
-                .map_or(tabs.len(), |index| index + 1)
-        })
-}
-
-/// Decides whether buttonless pointer motion over the body reaches the child. Motion is never
-/// deferred behind a pending view, where it would exhaust the budget that typed input needs,
-/// and is dropped when the child's reported modes show it does not track the mouse.
-fn forward_pointer_motion(view_pending: bool, modes: Option<&TerminalModes>) -> bool {
-    !view_pending && modes.is_none_or(|modes| modes.mouse_tracking)
-}
-
-/// A holder's first surface carries a provisional `idle` before the tab bridge reports; it must
-/// not flip a starting chip to idle and back. Bridge status and registry snapshots still apply.
-fn holder_idle_precedes_bridge(chip: &str, surface: &str) -> bool {
-    surface == "idle" && matches!(chip, "starting" | "restoring")
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum DeferredInputTarget {
-    Tab(String),
-    NextCreated,
-}
-
-#[derive(Debug, Default)]
-struct DeferredInput {
-    frames: VecDeque<(DeferredInputTarget, Vec<u8>)>,
-    bytes: usize,
-}
-
-impl DeferredInput {
-    fn push(
-        &mut self,
-        target: DeferredInputTarget,
-        frames: Vec<Vec<u8>>,
-    ) -> Result<(), &'static str> {
-        let added_bytes = frames
-            .iter()
-            .try_fold(0usize, |total, frame| total.checked_add(frame.len()))
-            .ok_or("deferred input byte limit reached")?;
-        let next_bytes = self
-            .bytes
-            .checked_add(added_bytes)
-            .filter(|bytes| *bytes <= DEFERRED_INPUT_BYTES)
-            .ok_or("deferred input byte limit reached")?;
-        if self.frames.len().saturating_add(frames.len()) > DEFERRED_INPUT_FRAMES {
-            return Err("deferred input frame limit reached");
-        }
-        self.bytes = next_bytes;
-        self.frames
-            .extend(frames.into_iter().map(|frame| (target.clone(), frame)));
-        Ok(())
-    }
-
-    fn retarget_created(&mut self, target: &str) {
-        for (frame_target, _) in &mut self.frames {
-            if *frame_target == DeferredInputTarget::NextCreated {
-                *frame_target = DeferredInputTarget::Tab(target.to_owned());
-            }
-        }
-    }
-
-    fn resolve(&mut self, target: &str) -> (Vec<Vec<u8>>, bool) {
-        let selected_target = DeferredInputTarget::Tab(target.to_owned());
-        let mut selected = Vec::new();
-        let mut dropped = false;
-        while let Some((frame_target, frame)) = self.frames.pop_front() {
-            if frame_target == selected_target {
-                selected.push(frame);
-            } else {
-                dropped = true;
-            }
-        }
-        self.bytes = 0;
-        (selected, dropped)
-    }
-
-    fn discard_tab(&mut self, target: &str) -> bool {
-        self.discard(&DeferredInputTarget::Tab(target.to_owned()))
-    }
-
-    fn discard_created(&mut self) -> bool {
-        self.discard(&DeferredInputTarget::NextCreated)
-    }
-
-    fn discard(&mut self, target: &DeferredInputTarget) -> bool {
-        let before = self.frames.len();
-        self.frames
-            .retain(|(frame_target, _)| frame_target != target);
-        self.bytes = self.frames.iter().map(|(_, frame)| frame.len()).sum();
-        self.frames.len() != before
-    }
-}
 
 struct AttachServerWriter {
     sender: mpsc::SyncSender<Vec<u8>>,
@@ -1655,6 +937,64 @@ impl From<&strip::StripFrame> for core_attach::StripSnapshot {
             hidden_tabs: frame.hidden_tabs.clone(),
         }
     }
+}
+
+impl TabView for StripTab {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn status(&self) -> &str {
+        &self.status
+    }
+
+    fn set_status(&mut self, status: String) {
+        self.status = status;
+    }
+}
+
+impl StripLayout for strip::StripFrame {
+    fn tab_spans(&self) -> Vec<(u16, u16, &str)> {
+        self.hits
+            .iter()
+            .filter_map(|(start, end, hit)| match hit {
+                StripHit::View(id) => Some((*start, *end, id.as_str())),
+                _ => None,
+            })
+            .collect()
+    }
+}
+
+impl ShortcutLabels for TabBindings {
+    fn label(&self, action: &str) -> String {
+        TabBindings::label(self, action)
+    }
+}
+
+fn hold_glyphs(
+    shown: &mut [StripTab],
+    held: &mut HashMap<String, (String, Duration)>,
+    now: Duration,
+) -> Option<Duration> {
+    hold_status_glyphs(shown, held, now, strip::status_has_glyph)
+}
+
+fn drag_over(
+    drag: &mut TabDrag,
+    mouse: &crossterm::event::MouseEvent,
+    tabs: &[StripTab],
+    frame: &strip::StripFrame,
+    now: Duration,
+) -> bool {
+    update_drag(drag, mouse.column, mouse.row == 0, tabs, frame, now)
+}
+
+fn rename_control_key(editor: &mut RenameEditor, key: &crossterm::event::KeyEvent) -> bool {
+    apply_rename_control_key(editor, key.code.into(), key.modifiers.into())
 }
 
 impl From<&StripTab> for core_attach::AttachTab {
@@ -1899,6 +1239,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         clear: true,
     })?;
     let started = Instant::now();
+    // The attach client's monotonic clock, which core attach state is timed against.
+    let now = move || started.elapsed();
     let mut last_strip_frame = Instant::now();
     let mut displayed_clock_minute = clock_minute();
     let mut last_list = Instant::now();
@@ -1928,9 +1270,9 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let mut settings_shown = false;
     let mut settings_prewarm_pending = false;
     let mut settings_absent_since: Option<Instant> = None;
-    let mut starting_since = HashMap::<String, Instant>::new();
-    let mut held_glyphs = HashMap::<String, (String, Instant)>::new();
-    let mut glyph_hold_expires: Option<Instant> = None;
+    let mut starting_since = HashMap::<String, Duration>::new();
+    let mut held_glyphs = HashMap::<String, (String, Duration)>::new();
+    let mut glyph_hold_expires: Option<Duration> = None;
     let mut deferred_input = DeferredInput::default();
     macro_rules! send_child_frames {
         ($frames:expr) => {{
@@ -1995,8 +1337,8 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         ($clear:expr) => {{
             let rename_display = rename.as_ref().map(RenameEditor::display);
             let mut shown = shown!();
-            debounce_starting_glyphs(&mut shown, &mut starting_since, Instant::now());
-            glyph_hold_expires = hold_status_glyphs(&mut shown, &mut held_glyphs, Instant::now());
+            debounce_starting_glyphs(&mut shown, &mut starting_since, now());
+            glyph_hold_expires = hold_glyphs(&mut shown, &mut held_glyphs, now());
             strip_frame = strip::render_interactive(
                 &shown,
                 view.viewed.as_deref(),
@@ -2701,7 +2043,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
             paint_strip!();
         }
         // Invariant: A held glyph that no status replaced is released once its hold ends.
-        if glyph_hold_expires.is_some_and(|until| Instant::now() >= until) {
+        if glyph_hold_expires.is_some_and(|until| now() >= until) {
             paint_strip!();
         }
         let current_clock_minute = clock_minute();
@@ -2744,10 +2086,10 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         }
         if let Some(current_drag) = drag.as_mut()
             && !current_drag.shown
-            && current_drag.started_at.elapsed() >= Duration::from_millis(250)
+            && now().saturating_sub(current_drag.started_at) >= core_attach::DRAG_HOLD
         {
             let column = current_drag.start_column;
-            if update_drag(current_drag, column, true, &shown!(), &strip_frame) {
+            if update_drag(current_drag, column, true, &shown!(), &strip_frame, now()) {
                 paint_current!(false);
             }
         }
@@ -2839,7 +2181,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                     submit = Some((editor.tab_id.clone(), name));
                                 }
                             }
-                            _ if apply_rename_control_key(editor, key.code, key.modifiers) => {}
+                            _ if rename_control_key(editor, &key) => {}
                             KeyCode::Backspace => editor.backspace(),
                             KeyCode::Delete => editor.delete(),
                             KeyCode::Left if key.modifiers.contains(KeyModifiers::CONTROL) => {
@@ -3246,13 +2588,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 if let Some(current_drag) = drag.as_mut()
                     && matches!(mouse.kind, MouseEventKind::Drag(MouseButton::Left))
                 {
-                    if update_drag(
-                        current_drag,
-                        mouse.column,
-                        mouse.row == 0,
-                        &shown!(),
-                        &strip_frame,
-                    ) {
+                    if drag_over(current_drag, &mouse, &shown!(), &strip_frame, now()) {
                         paint_current!(false);
                     }
                     continue;
@@ -3261,13 +2597,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                     && let Some(mut completed) = drag.take()
                 {
                     let shown = shown!();
-                    update_drag(
-                        &mut completed,
-                        mouse.column,
-                        mouse.row == 0,
-                        &shown,
-                        &strip_frame,
-                    );
+                    drag_over(&mut completed, &mouse, &shown, &strip_frame, now());
                     let from = shown.iter().position(|tab| tab.id == completed.tab_id);
                     if mouse.row == 0
                         && completed.shown
@@ -3313,7 +2643,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                                 drag = Some(TabDrag {
                                     tab_id: tab_id.clone(),
                                     start_column: mouse.column,
-                                    started_at: Instant::now(),
+                                    started_at: now(),
                                     shown: false,
                                     drop_index: shown!().iter().position(|tab| tab.id == tab_id),
                                     expected_revision: registry_revision,
@@ -3349,7 +2679,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
                 if matches!(mouse.kind, MouseEventKind::Moved)
                     && !forward_pointer_motion(
                         view.requested.is_some() || pending_created_activation,
-                        latest_modes.as_ref(),
+                        latest_modes.as_ref().map(|modes| modes.mouse_tracking),
                     )
                 {
                     continue;
@@ -3380,41 +2710,6 @@ fn strip_hover_present(frame: &strip::StripFrame, hovered: &StripHover) -> bool 
         (StripHover::Overflow, StripHit::Overflow) | (StripHover::New, StripHit::New) => true,
         _ => false,
     })
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct CloseFallback {
-    candidates: Vec<String>,
-}
-
-impl CloseFallback {
-    fn resolve(&self, survivors: &[StripTab]) -> Option<String> {
-        self.candidates
-            .iter()
-            .find(|id| survivors.iter().any(|tab| &tab.id == *id))
-            .cloned()
-    }
-}
-
-fn close_fallback_for(
-    tabs: &[StripTab],
-    viewed: Option<&str>,
-    closing: &str,
-) -> Option<CloseFallback> {
-    if viewed != Some(closing) {
-        return None;
-    }
-    let index = tabs.iter().position(|tab| tab.id == closing)?;
-    let mut candidates = Vec::with_capacity(tabs.len().saturating_sub(1));
-    for distance in 1..tabs.len() {
-        if let Some(left) = index.checked_sub(distance).and_then(|left| tabs.get(left)) {
-            candidates.push(left.id.clone());
-        }
-        if let Some(right) = tabs.get(index + distance) {
-            candidates.push(right.id.clone());
-        }
-    }
-    Some(CloseFallback { candidates })
 }
 
 fn outer_size() -> Result<(u16, u16), String> {
@@ -3888,270 +3183,10 @@ mod tests {
         assert!(is_ctrl_c_console('C', true, true));
     }
     #[test]
-    fn deferred_input_is_atomic_bounded_and_bound_to_the_requested_tab() {
-        let mut deferred = DeferredInput::default();
-        deferred
-            .push(
-                DeferredInputTarget::Tab("tab-b".into()),
-                vec![vec![1, 2], vec![3]],
-            )
-            .expect("defer input");
-        deferred
-            .push(DeferredInputTarget::Tab("tab-c".into()), vec![vec![4]])
-            .expect("defer superseding input");
-        let (selected, dropped) = deferred.resolve("tab-c");
-        assert_eq!(selected, vec![vec![4]]);
-        assert!(dropped);
-        assert_eq!(deferred.bytes, 0);
-        assert!(deferred.frames.is_empty());
-
-        let mut full = DeferredInput::default();
-        assert_eq!(
-            full.push(
-                DeferredInputTarget::Tab("tab-a".into()),
-                vec![vec![0; DEFERRED_INPUT_BYTES + 1]],
-            ),
-            Err("deferred input byte limit reached")
-        );
-        assert!(
-            full.frames.is_empty(),
-            "an oversized paste admitted no prefix"
-        );
-
-        let pending_frames = vec![vec![10], vec![20], vec![30], vec![40], vec![50]];
-        let mut settings_activation = DeferredInput::default();
-        settings_activation
-            .push(DeferredInputTarget::NextCreated, pending_frames.clone())
-            .expect("defer key, paste, focus, mouse, and resize frames");
-        settings_activation.retarget_created("settings-a");
-        assert_eq!(
-            settings_activation.resolve("settings-a"),
-            (pending_frames, false)
-        );
-        let mut failed_creation = DeferredInput::default();
-        failed_creation
-            .push(DeferredInputTarget::NextCreated, vec![vec![1]])
-            .expect("defer failed target input");
-        assert!(failed_creation.discard_created());
-        assert!(failed_creation.frames.is_empty());
-    }
-    #[test]
-    fn pointer_motion_never_consumes_a_pending_creation_budget() {
-        let tracking = TerminalModes {
-            mouse_tracking: true,
-            ..TerminalModes::default()
-        };
-        let untracked = TerminalModes::default();
-        assert!(!forward_pointer_motion(true, Some(&tracking)));
-        assert!(!forward_pointer_motion(true, None));
-        assert!(!forward_pointer_motion(false, Some(&untracked)));
-        assert!(forward_pointer_motion(false, Some(&tracking)));
-        assert!(forward_pointer_motion(false, None));
-
-        // Invariant: Keys typed while a new Agent starts keep their place even after heavy pointer motion,
-        // because motion is no longer deferred.
-        let mut deferred = DeferredInput::default();
-        for _ in 0..500 {
-            if forward_pointer_motion(true, Some(&tracking)) {
-                deferred
-                    .push(
-                        DeferredInputTarget::NextCreated,
-                        vec![b"\x1b[<35;1;2M".to_vec()],
-                    )
-                    .expect("defer motion");
-            }
-        }
-        let keys = (0..200u8).map(|value| vec![value]).collect::<Vec<_>>();
-        for key in &keys {
-            deferred
-                .push(DeferredInputTarget::NextCreated, vec![key.clone()])
-                .expect("typed keys fit the pending budget");
-        }
-        deferred.retarget_created("tab-new");
-        assert_eq!(deferred.resolve("tab-new"), (keys, false));
-    }
-    #[test]
-    fn glyphs_swap_in_place_without_a_glyphless_gap() {
-        let tab = |status: &str| StripTab {
-            id: "tab-1".into(),
-            name: "Agent".into(),
-            name_source: "default".into(),
-            status: status.into(),
-            accent: None,
-            title_animation: None,
-        };
-        let mut held = HashMap::new();
-        let start = Instant::now();
-        let mut working = vec![tab("working")];
-        assert_eq!(hold_status_glyphs(&mut working, &mut held, start), None);
-
-        // Invariant: The momentary idle between the spinner and the checkmark keeps the spinner.
-        let mut gap = vec![tab("idle")];
-        let expires = hold_status_glyphs(&mut gap, &mut held, start + Duration::from_millis(20));
-        assert_eq!(gap[0].status, "working");
-        assert_eq!(expires, Some(start + GLYPH_SWAP_HOLD));
-        let mut done = vec![tab("done")];
-        hold_status_glyphs(&mut done, &mut held, start + Duration::from_millis(40));
-        assert_eq!(done[0].status, "done");
-
-        // Invariant: A glyph that really goes away is released after the hold.
-        let mut idle = vec![tab("idle")];
-        let late = start + Duration::from_millis(40) + GLYPH_SWAP_HOLD;
-        assert_eq!(hold_status_glyphs(&mut idle, &mut held, late), None);
-        assert_eq!(idle[0].status, "idle");
-    }
-    #[test]
-    fn a_quick_start_never_flashes_the_starting_spinner() {
-        let tab = |status: &str| StripTab {
-            id: "tab-2".into(),
-            name: "agent 2".into(),
-            name_source: "default".into(),
-            status: status.into(),
-            accent: None,
-            title_animation: None,
-        };
-        let mut since = HashMap::new();
-        let start = Instant::now();
-        let mut shown = vec![tab("starting")];
-        debounce_starting_glyphs(&mut shown, &mut since, start);
-        assert_eq!(shown[0].status, "idle", "no spinner in the first moments");
-        let mut later = vec![tab("starting")];
-        debounce_starting_glyphs(&mut later, &mut since, start + STARTING_GLYPH_DELAY);
-        assert_eq!(
-            later[0].status, "starting",
-            "a slow start still shows progress"
-        );
-        let mut ready = vec![tab("idle")];
-        debounce_starting_glyphs(&mut ready, &mut since, start + STARTING_GLYPH_DELAY);
-        assert!(since.is_empty());
-    }
-    #[test]
-    fn hidden_settings_tab_stays_out_of_the_strip_until_viewed_or_shown() {
-        let tab = |id: &str| StripTab {
-            id: id.into(),
-            name: id.into(),
-            name_source: "default".into(),
-            status: "idle".into(),
-            accent: None,
-            title_animation: None,
-        };
-        let tabs = vec![tab("tab-1"), tab("settings-1"), tab("tab-2")];
-        let ids = |shown: Vec<StripTab>| shown.into_iter().map(|tab| tab.id).collect::<Vec<_>>();
-        assert_eq!(
-            ids(shown_tabs(&tabs, Some("tab-1"), false)),
-            ["tab-1", "tab-2"]
-        );
-        assert_eq!(
-            ids(shown_tabs(&tabs, Some("settings-1"), false)),
-            ["tab-1", "settings-1", "tab-2"]
-        );
-        assert_eq!(
-            ids(shown_tabs(&tabs, Some("tab-2"), true)),
-            ["tab-1", "settings-1", "tab-2"]
-        );
-
-        // Invariant: A drop among shown tabs maps to the registry position the server reorders by.
-        let shown = shown_tabs(&tabs, Some("tab-1"), false);
-        assert_eq!(registry_index(&shown, &tabs, 0), 0);
-        assert_eq!(registry_index(&shown, &tabs, 1), 2);
-        assert_eq!(registry_index(&shown, &tabs, 2), 3);
-    }
-    #[test]
-    fn settings_shortcut_toggles_the_viewed_settings_tab() {
-        assert_eq!(
-            settings_toggle_closes(Some("settings-1a")),
-            Some("settings-1a")
-        );
-        assert_eq!(settings_toggle_closes(Some("tab-1")), None);
-        assert_eq!(settings_toggle_closes(None), None);
-    }
-    #[test]
-    fn provisional_holder_idle_never_flips_a_starting_chip() {
-        assert!(holder_idle_precedes_bridge("starting", "idle"));
-        assert!(holder_idle_precedes_bridge("restoring", "idle"));
-        assert!(!holder_idle_precedes_bridge("starting", "working"));
-        assert!(!holder_idle_precedes_bridge("working", "idle"));
-        assert!(!holder_idle_precedes_bridge("done", "idle"));
-    }
-    #[test]
     fn notices_never_report_undelivered_input() {
         let source = include_str!("attach.rs");
         let phrase = ["Input was not sent", "; try again."].concat();
         assert!(!source.contains(&phrase));
-    }
-    #[test]
-    fn rename_deletes_whole_words_and_ignores_control_letters() {
-        let mut editor = RenameEditor::new("tab-a".into(), "fix login flow".into());
-        editor.move_cursor(4);
-        assert!(apply_rename_control_key(
-            &mut editor,
-            KeyCode::Delete,
-            KeyModifiers::CONTROL
-        ));
-        assert_eq!(editor.text, "fix flow");
-        assert_eq!(editor.cursor, 4);
-        editor.move_cursor(editor.len());
-        assert!(apply_rename_control_key(
-            &mut editor,
-            KeyCode::Backspace,
-            KeyModifiers::CONTROL
-        ));
-        assert_eq!(editor.text, "fix ");
-        assert!(apply_rename_control_key(
-            &mut editor,
-            KeyCode::Char('w'),
-            KeyModifiers::CONTROL
-        ));
-        assert_eq!(editor.text, "");
-        assert!(!apply_rename_control_key(
-            &mut editor,
-            KeyCode::Delete,
-            KeyModifiers::NONE
-        ));
-
-        let mut unicode = RenameEditor::new("tab-a".into(), "e\u{301}clair 👩‍💻 build".into());
-        unicode.move_cursor(0);
-        unicode.delete_word_right();
-        assert_eq!(unicode.text, "👩‍💻 build");
-        unicode.move_cursor(unicode.len());
-        unicode.delete_word_left();
-        assert_eq!(unicode.text, "👩‍💻 ");
-        assert_eq!(unicode.cursor, 2);
-    }
-    #[test]
-    fn rename_undo_and_redo_restore_text_and_caret() {
-        let mut editor = RenameEditor::new("tab-a".into(), "agent".into());
-        for value in " one".chars() {
-            editor.insert(value);
-        }
-        editor.delete_word_left();
-        assert_eq!(editor.text, "agent ");
-        assert!(apply_rename_control_key(
-            &mut editor,
-            KeyCode::Char('z'),
-            KeyModifiers::CONTROL
-        ));
-        assert_eq!((editor.text.as_str(), editor.cursor), ("agent one", 9));
-        apply_rename_control_key(&mut editor, KeyCode::Char('z'), KeyModifiers::CONTROL);
-        assert_eq!((editor.text.as_str(), editor.cursor), ("agent", 5));
-        apply_rename_control_key(&mut editor, KeyCode::Char('y'), KeyModifiers::CONTROL);
-        assert_eq!(editor.text, "agent one");
-        apply_rename_control_key(
-            &mut editor,
-            KeyCode::Char('Z'),
-            KeyModifiers::CONTROL | KeyModifiers::SHIFT,
-        );
-        assert_eq!(editor.text, "agent ");
-
-        // Invariant: A new edit after undo discards the redo branch, and no-op edits add no history.
-        editor.undo();
-        editor.insert('!');
-        editor.redo();
-        assert_eq!(editor.text, "agent one!");
-        editor.move_cursor(0);
-        editor.backspace();
-        editor.undo();
-        assert_eq!(editor.text, "agent one");
     }
     #[test]
     fn outer_contract_offsets_rows_and_never_forwards_bell() {
@@ -4348,14 +3383,6 @@ mod tests {
     }
 
     #[test]
-    fn failure_input_rules_apply_only_to_the_viewed_failed_tab() {
-        assert!(failure_applies(Some("tab-a"), Some("tab-a")));
-        assert!(!failure_applies(Some("tab-a"), Some("tab-b")));
-        assert!(!failure_applies(None, Some("tab-a")));
-        assert!(!failure_applies(None, None));
-    }
-
-    #[test]
     fn windows_shifted_uppercase_ctrl_c_is_a_plain_ctrl_c_and_arms_the_chord() {
         // Platform: Windows Terminal reports `Char('C')` with Shift and Control for a plain Ctrl+C.
         let reported = Event::Key(crossterm::event::KeyEvent::new_with_kind(
@@ -4451,70 +3478,6 @@ mod tests {
             )),
             KeyEventKind::Release,
             "other platforms keep ignoring releases"
-        );
-    }
-
-    #[test]
-    fn rejection_notices_answer_only_user_input() {
-        let mut pending = false;
-        assert_eq!(
-            rejection_notice(&mut pending, Some("read-only-viewer".into())),
-            None
-        );
-
-        pending = true;
-        assert_eq!(
-            rejection_notice(&mut pending, Some("read-only-viewer".into())).as_deref(),
-            Some("read-only-viewer")
-        );
-        assert!(!pending);
-        assert_eq!(
-            rejection_notice(&mut pending, Some("read-only-viewer".into())),
-            None
-        );
-    }
-
-    #[test]
-    fn active_close_prefers_the_immediate_predecessor_then_next_survivor() {
-        let tab = |id: &str| StripTab {
-            id: id.into(),
-            name: id.into(),
-            name_source: "default".into(),
-            status: "idle".into(),
-            accent: None,
-            title_animation: None,
-        };
-        let tabs = vec![tab("a"), tab("b"), tab("c"), tab("d")];
-        let ids = |fallback: Option<CloseFallback>| fallback.unwrap().candidates;
-        assert_eq!(
-            ids(close_fallback_for(&tabs, Some("b"), "b")),
-            ["a", "c", "d"]
-        );
-        assert_eq!(
-            ids(close_fallback_for(&tabs, Some("a"), "a")),
-            ["b", "c", "d"]
-        );
-        assert_eq!(
-            ids(close_fallback_for(&tabs, Some("d"), "d")),
-            ["c", "b", "a"]
-        );
-        assert_eq!(close_fallback_for(&tabs, Some("a"), "b"), None);
-
-        let fallback = close_fallback_for(&tabs, Some("c"), "c").unwrap();
-        assert_eq!(
-            fallback.resolve(&[tab("a"), tab("b"), tab("d")]).as_deref(),
-            Some("b")
-        );
-        assert_eq!(
-            fallback.resolve(&[tab("a"), tab("d")]).as_deref(),
-            Some("d")
-        );
-        assert_eq!(fallback.resolve(&[]), None);
-        assert_eq!(
-            close_fallback_for(&[tab("a")], Some("a"), "a")
-                .unwrap()
-                .resolve(&[]),
-            None
         );
     }
 
@@ -4623,37 +3586,6 @@ mod tests {
     }
 
     #[test]
-    fn rename_editor_supports_selection_cursor_and_grapheme_edits() {
-        let mut editor = RenameEditor::new("tab-1".into(), "Agent 🚀".into());
-        editor.select_all();
-        assert_eq!(editor.selection(), Some((0, 7)));
-        editor.insert('d');
-        editor.insert('o');
-        editor.insert('c');
-        editor.insert('s');
-        assert_eq!(editor.text, "docs");
-        editor.move_cursor(0);
-        editor.delete();
-        assert_eq!(editor.text, "ocs");
-        editor.move_cursor(editor.len());
-        editor.backspace();
-        assert_eq!(editor.text, "oc");
-        assert_eq!(editor.display().cursor, 2);
-
-        let mut words = RenameEditor::new("tab-1".into(), "alpha  beta 🚀".into());
-        words.move_word_left();
-        assert_eq!(words.cursor, 12);
-        words.move_word_left();
-        assert_eq!(words.cursor, 7);
-        words.move_word_left();
-        assert_eq!(words.cursor, 0);
-        words.move_word_right();
-        assert_eq!(words.cursor, 7);
-        words.move_word_right();
-        assert_eq!(words.cursor, 12);
-    }
-
-    #[test]
     fn drag_uses_v2_threshold_destinations_and_no_op_suppression() {
         let tab = |id: &str| StripTab {
             id: id.into(),
@@ -4665,6 +3597,8 @@ mod tests {
         };
         let tabs = vec![tab("a"), tab("b"), tab("c")];
         let frame = strip::render(&tabs, Some("a"), 80);
+        let snapshot = StripSnapshot::from(&frame);
+        let now = Duration::from_secs(10);
         let last_end = frame
             .hits
             .iter()
@@ -4675,7 +3609,7 @@ mod tests {
         let mut drag = TabDrag {
             tab_id: "a".into(),
             start_column: 1,
-            started_at: Instant::now(),
+            started_at: now,
             shown: false,
             drop_index: Some(0),
             expected_revision: 9,
@@ -4683,20 +3617,24 @@ mod tests {
         let mut held = TabDrag {
             tab_id: "a".into(),
             start_column: 1,
-            started_at: Instant::now() - Duration::from_millis(250),
+            started_at: now - core_attach::DRAG_HOLD,
             shown: false,
             drop_index: Some(0),
             expected_revision: 9,
         };
-        assert!(update_drag(&mut held, 1, true, &tabs, &frame));
+        assert!(update_drag(&mut held, 1, true, &tabs, &snapshot, now));
         assert!(held.shown);
-        assert_eq!(drag_marker_column(&held, &tabs, &frame), None);
+        assert_eq!(drag_marker_column(&held, &tabs, &snapshot), None);
 
-        assert!(update_drag(&mut drag, last_end, true, &tabs, &frame));
+        assert!(update_drag(
+            &mut drag, last_end, true, &tabs, &snapshot, now
+        ));
         assert!(drag.shown);
         assert_eq!(drag.drop_index, Some(2));
-        assert_eq!(drag_marker_column(&drag, &tabs, &frame), Some(last_end));
-        assert!(update_drag(&mut drag, last_end, false, &tabs, &frame));
+        assert_eq!(drag_marker_column(&drag, &tabs, &snapshot), Some(last_end));
+        assert!(update_drag(
+            &mut drag, last_end, false, &tabs, &snapshot, now
+        ));
         assert_eq!(drag.drop_index, None);
     }
 

@@ -8,7 +8,7 @@ Each numbered section is one Implementation item and one commit, landed in order
 
 ## 2. Attach interaction state into the core
 
-- [ ] 2.1 Move `PopupMenu`, `PopupItem`, `RenameEditor`, `TabDrag`, `CloseFallback`, `DeferredInput`, and the pure helpers (`failure_applies`, `rejection_notice`, `close_fallback_for`, `settings_toggle_closes`, `shown_tabs`, `debounce_starting_glyphs`, `hold_status_glyphs`, `registry_index`, `drag_destination`, `update_drag`, `forward_pointer_motion`, `holder_idle_precedes_bridge`) into `core::attach` over the core types. Tests: the existing `roles/attach.rs` unit tests pass against the core.
+- [x] 2.1 Move `PopupMenu`, `PopupItem`, `RenameEditor`, `TabDrag`, `CloseFallback`, `DeferredInput`, and the pure helpers (`failure_applies`, `rejection_notice`, `close_fallback_for`, `settings_toggle_closes`, `shown_tabs`, `debounce_starting_glyphs`, `hold_status_glyphs`, `registry_index`, `drag_destination`, `update_drag`, `forward_pointer_motion`, `holder_idle_precedes_bridge`) into `core::attach` over the core types. Tests: the existing `roles/attach.rs` unit tests pass against the core.
 
 ## 3. Attach state machine
 
