@@ -67,19 +67,10 @@ pub(super) fn plan_status_persist(
     locked: &mut RuntimeState,
     tab_id: &str,
 ) -> Option<std::time::Duration> {
-    if !locked.status_persist_pending.insert(tab_id.to_owned()) {
-        return None;
-    }
-    let now = std::time::Instant::now();
-    Some(
-        locked
-            .status_last_persist
-            .get(tab_id)
-            .and_then(|last| last.checked_add(std::time::Duration::from_secs(1)))
-            .map_or(std::time::Duration::ZERO, |due| {
-                due.saturating_duration_since(now)
-            }),
-    )
+    let now = locked.core_started.elapsed();
+    locked
+        .core
+        .plan_status_persist(tab_id, now, std::time::Duration::from_secs(1))
 }
 
 pub(super) fn persist_status_after(
@@ -92,10 +83,8 @@ pub(super) fn persist_status_after(
             thread::sleep(delay);
         }
         let commit = state.lock().ok().map(|mut locked| {
-            locked.status_persist_pending.remove(&tab_id);
-            locked
-                .status_last_persist
-                .insert(tab_id, std::time::Instant::now());
+            let now = locked.core_started.elapsed();
+            locked.core.status_persisted(&tab_id, now);
             registry_snapshot(&locked)
         });
         if let Some((store, document)) = commit {
@@ -223,15 +212,15 @@ pub(super) fn serve_bridge(
             let (_, status): (_, BridgeStatus) = wire::body(&payload)?;
             let mut locked = lock_state(&state)?;
             if !accepts_bridge_sequence(
-                locked.bridge_status_sequences.get(&tab_id).copied(),
+                locked.core.bridge_status_sequence(&tab_id),
                 incarnation,
                 status.seq,
             ) {
                 continue;
             }
             locked
-                .bridge_status_sequences
-                .insert(tab_id.clone(), (incarnation, status.seq));
+                .core
+                .set_bridge_status_sequence(&tab_id, Some((incarnation, status.seq)));
             let viewed = is_viewed(&locked, &tab_id);
             let (updated, attention_changed) = if let Some(entry) = locked.surfaces.get_mut(&tab_id)
             {
@@ -441,11 +430,11 @@ pub(super) fn serve_bridge(
             counters::record(CounterEvent::BridgeDegraded);
         }
         if locked
-            .bridge_status_sequences
-            .get(&tab_id)
-            .is_some_and(|(seen_incarnation, _)| *seen_incarnation == incarnation)
+            .core
+            .bridge_status_sequence(&tab_id)
+            .is_some_and(|(seen_incarnation, _)| seen_incarnation == incarnation)
         {
-            locked.bridge_status_sequences.remove(&tab_id);
+            locked.core.set_bridge_status_sequence(&tab_id, None);
         }
         if heartbeat_supported {
             let now = locked.core_started.elapsed();

@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+pub mod attach;
 pub mod holder;
 pub mod server;
 pub mod sim;
@@ -47,6 +48,8 @@ pub enum Timer {
     Reconcile,
     HolderHeartbeat(String),
     EffectDeadline(u64),
+    /// A holder respawn waits out its restart delay.
+    Respawn(String),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

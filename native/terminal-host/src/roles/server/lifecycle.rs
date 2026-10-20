@@ -70,7 +70,7 @@ pub(super) fn stop_tabs(
                     // Invariant: a tab whose holder has not started has no process to stop; its
                     // pending start sees the tab is no longer wanted and never launches one.
                     locked.holders.contains_key(*tab_id)
-                        || (locked.holders_starting.contains(*tab_id)
+                        || (locked.core.is_starting(*tab_id)
                             && locked.registry.tabs.iter().any(|record| {
                                 &record.tab_id == *tab_id && record.holder_pid.is_some()
                             }))
@@ -131,7 +131,7 @@ pub(super) fn stop_tabs(
                 if let Ok(mut locked) = state.lock()
                     && !locked.holders.contains_key(tab_id)
                 {
-                    locked.holders_starting.remove(tab_id);
+                    locked.core.set_starting(tab_id, false);
                 }
             }
         }
@@ -250,8 +250,8 @@ pub(super) fn release_gone_tab(
         return Ok(false);
     }
     locked.holders.remove(tab_id);
-    locked.holders_starting.remove(tab_id);
-    locked.holders_terminating.remove(tab_id);
+    locked.core.set_starting(tab_id, false);
+    locked.core.set_terminating(tab_id, false);
     release_recovery_slot(&mut locked, tab_id);
     let diagnostics_root = locked.diagnostics_root.clone();
     drop(locked);
@@ -626,12 +626,12 @@ pub(super) fn handle_lifecycle(
                     (tab.tab_id.clone(), false)
                 } else if selected.is_some() && !locked.registry.tabs.is_empty() {
                     let tab_id = format!("tab-{:016x}", rand::random::<u64>());
-                    let start = locked.holders_starting.insert(tab_id.clone());
+                    let start = locked.core.set_starting(&tab_id, true);
                     (tab_id, start)
                 } else {
                     let tab_id = locked.default_tab();
-                    let start = locked.registry.tabs.is_empty()
-                        && locked.holders_starting.insert(tab_id.clone());
+                    let start =
+                        locked.registry.tabs.is_empty() && locked.core.set_starting(&tab_id, true);
                     (tab_id, start)
                 }
             };
@@ -639,7 +639,7 @@ pub(super) fn handle_lifecycle(
                 && let Err(error) = start_holder(&profile, &state, tab_id.clone(), start)
             {
                 if let Ok(mut locked) = state.lock() {
-                    locked.holders_starting.remove(&tab_id);
+                    locked.core.set_starting(&tab_id, false);
                 }
                 return Err(error);
             }
@@ -689,7 +689,7 @@ pub(super) fn handle_lifecycle(
                 }
             }
             let tab_id = format!("tab-{:016x}", rand::random::<u64>());
-            lock_state(&state)?.holders_starting.insert(tab_id.clone());
+            lock_state(&state)?.core.set_starting(&tab_id, true);
             match start_holder(&profile, &state, tab_id.clone(), start) {
                 Ok(()) => {
                     tx.offer_control(wire::frame(
@@ -701,7 +701,7 @@ pub(super) fn handle_lifecycle(
                 }
                 Err(error) => {
                     if let Ok(mut locked) = state.lock() {
-                        locked.holders_starting.remove(&tab_id);
+                        locked.core.set_starting(&tab_id, false);
                     }
                     tx.offer_control(wire::frame(
                         "tab.create-failed",

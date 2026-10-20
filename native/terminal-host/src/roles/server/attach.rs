@@ -182,16 +182,16 @@ pub(super) fn serve_attach(
                         .map(|tab| tab.tab_id.clone())
                         .or_else(|| {
                             locked
-                                .holders_starting
-                                .iter()
+                                .core
+                                .starting_tabs()
                                 .find(|tab_id| is_settings_tab_id(tab_id))
-                                .cloned()
+                                .map(str::to_owned)
                         });
                     if let Some(tab_id) = existing {
                         (tab_id, false)
                     } else {
                         let tab_id = format!("{SETTINGS_TAB_PREFIX}{:016x}", rand::random::<u64>());
-                        let inserted = locked.holders_starting.insert(tab_id.clone());
+                        let inserted = locked.core.set_starting(&tab_id, true);
                         (tab_id, inserted)
                     }
                 };
@@ -213,7 +213,7 @@ pub(super) fn serve_attach(
                         start_holder(&profile, &state, settings_tab_id.clone(), start)
                     {
                         if let Ok(mut locked) = state.lock() {
-                            locked.holders_starting.remove(&settings_tab_id);
+                            locked.core.set_starting(&settings_tab_id, false);
                         }
                         return Err(error);
                     }

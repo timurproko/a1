@@ -360,8 +360,8 @@ pub(super) fn serve_holder(
             .tabs
             .iter()
             .any(|record| record.tab_id == tab_id && record.desired == "stopped");
-        locked.holders_terminating.remove(&tab_id);
-        locked.holders_starting.remove(&tab_id);
+        locked.core.set_terminating(&tab_id, false);
+        locked.core.set_starting(&tab_id, false);
         locked.last_activity = std::time::Instant::now();
         drop(locked);
         commit_staged(registry_commit)?;
@@ -374,15 +374,16 @@ pub(super) fn serve_holder(
                 },
             )?);
         } else if let Some(respawn) = pending_respawn {
-            if !acquire_recovery_slot(&state, &tab_id, std::time::Duration::from_secs(40)) {
-                return Err("resident restart start gate timed out".into());
-            }
-            if let Err(error) =
-                holder_peer.offer_control(wire::frame("holder.respawn", None, respawn)?)
-            {
-                release_recovery_slot_of(&state, &tab_id);
-                return Err(error.to_owned());
-            }
+            schedule_respawn(
+                &state,
+                &tab_id,
+                std::time::Duration::ZERO,
+                RespawnDelivery {
+                    respawn,
+                    target: RespawnTarget::Peer(holder_peer.clone()),
+                    session_check: SessionCheck::Skip,
+                },
+            )?;
         }
     }
     let mut last_exit = None;
@@ -429,8 +430,8 @@ pub(super) fn serve_holder(
                         {
                             None
                         } else {
-                            if locked.bridge_status_sequences.get(&tab_id).is_some_and(
-                                |(seen_incarnation, _)| *seen_incarnation == connection_incarnation,
+                            if locked.core.bridge_status_sequence(&tab_id).is_some_and(
+                                |(seen_incarnation, _)| seen_incarnation == connection_incarnation,
                             ) && let Some(existing) = locked.surfaces.get(&tab_id)
                             {
                                 surface.status = existing.status.clone();
@@ -530,7 +531,7 @@ pub(super) fn serve_holder(
                         },
                         now,
                     );
-                    locked.holders_terminating.remove(&tab_id);
+                    locked.core.set_terminating(&tab_id, false);
                     let changed = if ready.tab_id == tab_id {
                         if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
                             record.tab_id == tab_id
@@ -634,46 +635,16 @@ pub(super) fn serve_holder(
                     commit_registry(store, document)?;
                     if let Some(peer) = peer {
                         if let Some(respawn) = respawn {
-                            let session_ok =
-                                respawn.session_file.as_deref().map_or(Ok(()), |file| {
-                                    verify_session_writer_released(
-                                        Path::new(file),
-                                        std::time::Duration::from_secs(5),
-                                    )
-                                });
-                            if let Err(error) = session_ok {
-                                let commit = {
-                                    let mut locked = lock_state(&state)?;
-                                    if let Some(record) = locked
-                                        .registry
-                                        .tabs
-                                        .iter_mut()
-                                        .find(|record| record.tab_id == tab_id)
-                                    {
-                                        record.lifecycle = "failed".into();
-                                        record.last_exit = Some(error);
-                                    }
-                                    bump_registry_revision(&mut locked.registry);
-                                    registry_snapshot(&locked)
-                                };
-                                commit_registry(commit.0, commit.1)?;
-                            } else {
-                                if !acquire_recovery_slot(
-                                    &state,
-                                    &tab_id,
-                                    std::time::Duration::from_secs(40),
-                                ) {
-                                    return Err("resident restart start gate timed out".into());
-                                }
-                                if let Err(error) = peer.offer_control(wire::frame(
-                                    "holder.respawn",
-                                    None,
+                            schedule_respawn(
+                                &state,
+                                &tab_id,
+                                std::time::Duration::ZERO,
+                                RespawnDelivery {
                                     respawn,
-                                )?) {
-                                    release_recovery_slot_of(&state, &tab_id);
-                                    return Err(error.to_owned());
-                                }
-                            }
+                                    target: RespawnTarget::Peer(peer),
+                                    session_check: SessionCheck::AnyRecord,
+                                },
+                            )?;
                         } else {
                             peer.offer_control(wire::frame(
                                 "shutdown",
@@ -823,58 +794,17 @@ pub(super) fn serve_holder(
                         );
                     }
                     if let Some((delay, respawn)) = respawn {
-                        thread::sleep(std::time::Duration::from_secs(delay));
-                        let session_check =
-                            respawn.session_file.as_deref().map_or(Ok(()), |file| {
-                                verify_session_writer_released(
-                                    Path::new(file),
-                                    std::time::Duration::from_secs(5),
-                                )
-                            });
-                        if let Err(error) = session_check {
-                            let commit = {
-                                let mut locked = lock_state(&state)?;
-                                if let Some(record) =
-                                    locked.registry.tabs.iter_mut().find(|record| {
-                                        record.tab_id == tab_id
-                                            && record.incarnation == respawn.incarnation
-                                    })
-                                {
-                                    record.lifecycle = "failed".into();
-                                    record.last_exit = Some(error);
-                                }
-                                bump_registry_revision(&mut locked.registry);
-                                registry_snapshot(&locked)
-                            };
-                            commit_registry(commit.0, commit.1)?;
-                        } else {
-                            let peer = state.lock().ok().and_then(|locked| {
-                                locked
-                                    .holders
-                                    .get(&tab_id)
-                                    .filter(|holder| holder.connection_id == connection_id)
-                                    .map(|holder| holder.peer.clone())
-                            });
-                            if !acquire_recovery_slot(
-                                &state,
-                                &tab_id,
-                                std::time::Duration::from_secs(40),
-                            ) {
-                                return Err("resident restart start gate timed out".into());
-                            }
-                            if let Some(peer) = peer {
-                                if let Err(error) = peer.offer_control(wire::frame(
-                                    "holder.respawn",
-                                    None,
-                                    respawn,
-                                )?) {
-                                    release_recovery_slot_of(&state, &tab_id);
-                                    return Err(error.to_owned());
-                                }
-                            } else {
-                                release_recovery_slot_of(&state, &tab_id);
-                            }
-                        }
+                        let session_check = SessionCheck::Incarnation(respawn.incarnation);
+                        schedule_respawn(
+                            &state,
+                            &tab_id,
+                            std::time::Duration::from_secs(delay),
+                            RespawnDelivery {
+                                respawn,
+                                target: RespawnTarget::Connection(connection_id),
+                                session_check,
+                            },
+                        )?;
                     }
                 }
                 _ => {}
@@ -932,8 +862,8 @@ pub(super) fn holder_lost(
         },
         now,
     );
-    locked.holders_terminating.remove(tab_id);
-    locked.holders_starting.remove(tab_id);
+    locked.core.set_terminating(tab_id, false);
+    locked.core.set_starting(tab_id, false);
     locked.surfaces.remove(tab_id);
     locked.last_activity = std::time::Instant::now();
     let now_epoch = SystemTime::now()
@@ -1057,7 +987,7 @@ pub(super) fn expire_unadmitted_holder(state: &Arc<Mutex<RuntimeState>>, tab_id:
     let Ok(locked) = state.lock() else {
         return;
     };
-    if locked.holders.contains_key(tab_id) || !locked.holders_starting.contains(tab_id) {
+    if locked.holders.contains_key(tab_id) || !locked.core.is_starting(tab_id) {
         return;
     }
     let recorded = locked
@@ -1117,8 +1047,8 @@ pub(super) fn reconcile_unconnected_holders(state: &Arc<Mutex<RuntimeState>>) {
                 .iter()
                 .filter(|record| {
                     !locked.holders.contains_key(&record.tab_id)
-                        && !locked.holders_starting.contains(&record.tab_id)
-                        && !locked.holders_terminating.contains(&record.tab_id)
+                        && !locked.core.is_starting(&record.tab_id)
+                        && !locked.core.is_terminating(&record.tab_id)
                 })
                 .filter_map(|record| {
                     Some((
@@ -1160,7 +1090,7 @@ pub(super) fn reconcile_unconnected_holders(state: &Arc<Mutex<RuntimeState>>) {
                     return;
                 };
                 let still_unconnected = !locked.holders.contains_key(&tab_id)
-                    && !locked.holders_starting.contains(&tab_id)
+                    && !locked.core.is_starting(&tab_id)
                     && locked.registry.tabs.iter().any(|record| {
                         record.tab_id == tab_id && record.holder_pid == Some(identity.pid)
                     });
@@ -1194,4 +1124,144 @@ pub(super) fn peer_refusal_event(error: &str) -> Option<&'static str> {
         }
         _ => return None,
     })
+}
+
+/// Where a scheduled respawn is delivered.
+pub(super) enum RespawnTarget {
+    /// The holder connection that reported its child's exit, if it is still connected.
+    Connection(u64),
+    Peer(Peer),
+}
+
+/// Which registry record a respawn's failed session check marks failed.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum SessionCheck {
+    Skip,
+    AnyRecord,
+    Incarnation(u64),
+}
+
+pub(super) struct RespawnDelivery {
+    pub(super) respawn: wire::HolderRespawn,
+    pub(super) target: RespawnTarget,
+    pub(super) session_check: SessionCheck,
+}
+
+/// Runs `job` after `delay` on its own thread, so the caller never sleeps.
+pub(super) fn after_delay(delay: std::time::Duration, job: impl FnOnce() + Send + 'static) {
+    thread::spawn(move || {
+        if !delay.is_zero() {
+            thread::sleep(delay);
+        }
+        job();
+    });
+}
+
+/// Schedules a holder respawn through the server core's restart timer and delivers it off the
+/// holder's reader thread.
+///
+/// Invariant: the reader keeps processing its holder's frames through the restart delay, the
+/// session-writer check, and the start-gate wait; a newer schedule for the tab supersedes this one.
+pub(super) fn schedule_respawn(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    delay: std::time::Duration,
+    delivery: RespawnDelivery,
+) -> Result<(), String> {
+    let after = {
+        let mut locked = lock_state(state)?;
+        let now = locked.core_started.elapsed();
+        match locked.core.schedule_respawn(tab_id, now, delay) {
+            crate::core::Effect::ArmTimer { after, .. } => after,
+            _ => delay,
+        }
+    };
+    let state = state.clone();
+    let tab_id = tab_id.to_owned();
+    after_delay(after, move || {
+        let current = state.lock().ok().is_some_and(|mut locked| {
+            let now = locked.core_started.elapsed();
+            locked.core.respawn_fired(&tab_id, now)
+        });
+        if current && deliver_respawn(&state, &tab_id, delivery).is_err() {
+            let root = state
+                .lock()
+                .ok()
+                .map(|locked| locked.diagnostics_root.clone());
+            if let Some(root) = root {
+                let _ = crate::roles::diagnostics::append_log(&root, "server", "respawn-failed");
+            }
+        }
+    });
+    Ok(())
+}
+
+/// Verifies the previous session writer released its session, takes a recovery start slot, and
+/// sends the respawn; a failed check or a start gate that never opens marks the tab failed.
+fn deliver_respawn(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    delivery: RespawnDelivery,
+) -> Result<(), String> {
+    if delivery.session_check != SessionCheck::Skip {
+        let released = delivery
+            .respawn
+            .session_file
+            .as_deref()
+            .map_or(Ok(()), |file| {
+                verify_session_writer_released(Path::new(file), std::time::Duration::from_secs(5))
+            });
+        if let Err(error) = released {
+            let incarnation = match delivery.session_check {
+                SessionCheck::Incarnation(incarnation) => Some(incarnation),
+                _ => None,
+            };
+            return mark_restart_failed(state, tab_id, incarnation, error);
+        }
+    }
+    let peer = match delivery.target {
+        RespawnTarget::Peer(peer) => Some(peer),
+        RespawnTarget::Connection(connection_id) => state.lock().ok().and_then(|locked| {
+            locked
+                .holders
+                .get(tab_id)
+                .filter(|holder| holder.connection_id == connection_id)
+                .map(|holder| holder.peer.clone())
+        }),
+    };
+    if !acquire_recovery_slot(state, tab_id, std::time::Duration::from_secs(40)) {
+        let reason = "resident restart start gate timed out".to_owned();
+        mark_restart_failed(state, tab_id, None, reason.clone())?;
+        return Err(reason);
+    }
+    let Some(peer) = peer else {
+        release_recovery_slot_of(state, tab_id);
+        return Ok(());
+    };
+    if let Err(error) = peer.offer_control(wire::frame("holder.respawn", None, delivery.respawn)?) {
+        release_recovery_slot_of(state, tab_id);
+        return Err(error.to_owned());
+    }
+    Ok(())
+}
+
+/// Marks a tab's restart failed with `reason`; `incarnation` limits it to that record.
+fn mark_restart_failed(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    incarnation: Option<u64>,
+    reason: String,
+) -> Result<(), String> {
+    let (store, document) = {
+        let mut locked = lock_state(state)?;
+        if let Some(record) = locked.registry.tabs.iter_mut().find(|record| {
+            record.tab_id == tab_id && incarnation.is_none_or(|value| record.incarnation == value)
+        }) {
+            record.lifecycle = "failed".into();
+            record.last_exit = Some(reason);
+        }
+        bump_registry_revision(&mut locked.registry);
+        registry_snapshot(&locked)
+    };
+    commit_registry(store, document)
 }

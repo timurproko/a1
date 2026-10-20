@@ -145,6 +145,24 @@ impl TabState {
     }
 }
 
+/// The server's per-tab runtime bookkeeping. It is kept apart from the supervised `tabs`
+/// because a tab is starting, terminating, or reporting bridge status before supervision knows
+/// it (a new, Settings, or standby tab) and after supervision forgets it.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct TabRuntime {
+    /// A holder start was claimed and its holder has not connected or failed yet.
+    pub starting: bool,
+    /// A hung holder's termination was requested and has not completed.
+    pub terminating: bool,
+    /// The newest accepted bridge status `(incarnation, sequence)`.
+    pub bridge_status_sequence: Option<(u64, u64)>,
+    pub status_persist_pending: bool,
+    /// When a bridge status was last persisted, on the server core clock.
+    pub status_last_persist: Option<Duration>,
+    /// When the scheduled holder respawn is due, on the server core clock.
+    pub respawn_due_at: Option<Duration>,
+}
+
 #[derive(Debug)]
 pub struct State {
     pub epoch: u64,
@@ -157,6 +175,7 @@ pub struct State {
     pub unresponsive_notice_after: Duration,
     pub unresponsive_restart_after: Duration,
     start_queue: VecDeque<String>,
+    runtime: HashMap<String, TabRuntime>,
 }
 impl State {
     pub fn new(epoch: u64, max_concurrent_starts: usize) -> Self {
@@ -171,7 +190,117 @@ impl State {
             unresponsive_notice_after: CHILD_UNRESPONSIVE_NOTICE,
             unresponsive_restart_after: Duration::from_secs(120),
             start_queue: VecDeque::new(),
+            runtime: HashMap::new(),
         }
+    }
+
+    pub fn runtime(&self, tab_id: &str) -> Option<&TabRuntime> {
+        self.runtime.get(tab_id)
+    }
+
+    /// Changes one tab's runtime; an entry that returns to the default is dropped.
+    pub fn update_runtime<R>(
+        &mut self,
+        tab_id: &str,
+        change: impl FnOnce(&mut TabRuntime) -> R,
+    ) -> R {
+        let entry = self.runtime.entry(tab_id.to_owned()).or_default();
+        let result = change(entry);
+        if *entry == TabRuntime::default() {
+            self.runtime.remove(tab_id);
+        }
+        result
+    }
+
+    pub fn is_starting(&self, tab_id: &str) -> bool {
+        self.runtime(tab_id).is_some_and(|runtime| runtime.starting)
+    }
+
+    /// Marks or clears a claimed holder start; returns whether the mark changed.
+    pub fn set_starting(&mut self, tab_id: &str, starting: bool) -> bool {
+        self.update_runtime(tab_id, |runtime| {
+            std::mem::replace(&mut runtime.starting, starting) != starting
+        })
+    }
+
+    pub fn starting_tabs(&self) -> impl Iterator<Item = &str> {
+        self.runtime
+            .iter()
+            .filter(|(_, runtime)| runtime.starting)
+            .map(|(tab_id, _)| tab_id.as_str())
+    }
+
+    pub fn is_terminating(&self, tab_id: &str) -> bool {
+        self.runtime(tab_id)
+            .is_some_and(|runtime| runtime.terminating)
+    }
+
+    /// Marks or clears a requested hung-holder termination; returns whether the mark changed.
+    pub fn set_terminating(&mut self, tab_id: &str, terminating: bool) -> bool {
+        self.update_runtime(tab_id, |runtime| {
+            std::mem::replace(&mut runtime.terminating, terminating) != terminating
+        })
+    }
+
+    pub fn bridge_status_sequence(&self, tab_id: &str) -> Option<(u64, u64)> {
+        self.runtime(tab_id)
+            .and_then(|runtime| runtime.bridge_status_sequence)
+    }
+
+    pub fn set_bridge_status_sequence(&mut self, tab_id: &str, sequence: Option<(u64, u64)>) {
+        self.update_runtime(tab_id, |runtime| {
+            runtime.bridge_status_sequence = sequence;
+        });
+    }
+
+    /// Claims the one pending status persist for a tab; returns the delay that keeps persists at
+    /// least `spacing` apart, or `None` when a persist is already pending.
+    pub fn plan_status_persist(
+        &mut self,
+        tab_id: &str,
+        now: Duration,
+        spacing: Duration,
+    ) -> Option<Duration> {
+        self.update_runtime(tab_id, |runtime| {
+            if std::mem::replace(&mut runtime.status_persist_pending, true) {
+                return None;
+            }
+            Some(runtime.status_last_persist.map_or(Duration::ZERO, |last| {
+                last.saturating_add(spacing).saturating_sub(now)
+            }))
+        })
+    }
+
+    pub fn status_persisted(&mut self, tab_id: &str, now: Duration) {
+        self.update_runtime(tab_id, |runtime| {
+            runtime.status_persist_pending = false;
+            runtime.status_last_persist = Some(now);
+        });
+    }
+
+    /// Schedules a holder respawn `delay` from `now`, superseding any earlier one for the tab;
+    /// returns the timer the role arms. Rationale: the restart delay is a timer, never a sleep on
+    /// the holder's reader thread, which keeps processing its peer's frames meanwhile.
+    pub fn schedule_respawn(&mut self, tab_id: &str, now: Duration, delay: Duration) -> Effect {
+        self.update_runtime(tab_id, |runtime| {
+            runtime.respawn_due_at = Some(now.saturating_add(delay));
+        });
+        Effect::ArmTimer {
+            timer: Timer::Respawn(tab_id.to_owned()),
+            after: delay,
+        }
+    }
+
+    /// Completes an armed respawn timer; returns `true` only for the respawn still scheduled,
+    /// so a superseded timer delivers nothing.
+    pub fn respawn_fired(&mut self, tab_id: &str, now: Duration) -> bool {
+        self.update_runtime(tab_id, |runtime| {
+            let due = runtime.respawn_due_at.is_some_and(|due| now >= due);
+            if due {
+                runtime.respawn_due_at = None;
+            }
+            due
+        })
     }
 }
 
@@ -982,5 +1111,97 @@ mod tests {
             );
         }
         assert_eq!(state.tabs["tab"].lifecycle, Lifecycle::Running);
+    }
+
+    #[test]
+    fn tab_runtime_marks_report_changes_and_leave_no_empty_entries() {
+        let mut state = State::new(1, 2);
+        assert!(
+            state.set_starting("standby", true),
+            "a new claim changes the mark"
+        );
+        assert!(
+            !state.set_starting("standby", true),
+            "a second claim is refused"
+        );
+        assert!(state.is_starting("standby"));
+        assert!(
+            !state.tabs.contains_key("standby"),
+            "runtime never creates a supervised tab"
+        );
+        assert!(state.set_terminating("tab", true));
+        assert_eq!(state.starting_tabs().collect::<Vec<_>>(), ["standby"]);
+        assert!(state.set_starting("standby", false));
+        assert!(!state.set_starting("standby", false));
+        assert!(state.set_terminating("tab", false));
+        assert!(state.runtime("standby").is_none() && state.runtime("tab").is_none());
+        assert_eq!(state.starting_tabs().count(), 0);
+    }
+
+    #[test]
+    fn bridge_status_sequences_and_persist_spacing_live_per_tab() {
+        let mut state = State::new(1, 2);
+        assert_eq!(state.bridge_status_sequence("tab"), None);
+        state.set_bridge_status_sequence("tab", Some((3, 7)));
+        assert_eq!(state.bridge_status_sequence("tab"), Some((3, 7)));
+        state.set_bridge_status_sequence("tab", None);
+        assert!(state.runtime("tab").is_none());
+
+        let spacing = Duration::from_secs(1);
+        let start = Duration::from_secs(10);
+        assert_eq!(
+            state.plan_status_persist("tab", start, spacing),
+            Some(Duration::ZERO),
+            "the first persist runs at once"
+        );
+        assert_eq!(
+            state.plan_status_persist("tab", start, spacing),
+            None,
+            "one persist is pending at a time"
+        );
+        state.status_persisted("tab", start);
+        assert_eq!(
+            state.plan_status_persist("tab", start + Duration::from_millis(300), spacing),
+            Some(Duration::from_millis(700))
+        );
+        state.status_persisted("tab", start + Duration::from_secs(1));
+        assert_eq!(
+            state.plan_status_persist("tab", start + Duration::from_secs(5), spacing),
+            Some(Duration::ZERO)
+        );
+    }
+
+    #[test]
+    fn a_respawn_is_a_timer_and_only_the_newest_schedule_delivers() {
+        let mut state = State::new(1, 2);
+        let start = Duration::from_secs(10);
+        assert_eq!(
+            state.schedule_respawn("tab", start, Duration::from_secs(4)),
+            Effect::ArmTimer {
+                timer: Timer::Respawn("tab".into()),
+                after: Duration::from_secs(4)
+            }
+        );
+        assert!(
+            !state.respawn_fired("tab", start + Duration::from_secs(3)),
+            "an early wake delivers nothing"
+        );
+        // Invariant: a later schedule supersedes the first; the first timer finds it not due.
+        state.schedule_respawn(
+            "tab",
+            start + Duration::from_secs(1),
+            Duration::from_secs(8),
+        );
+        assert!(!state.respawn_fired("tab", start + Duration::from_secs(4)));
+        assert!(state.respawn_fired("tab", start + Duration::from_secs(9)));
+        assert!(
+            !state.respawn_fired("tab", start + Duration::from_secs(20)),
+            "a fired respawn delivers once"
+        );
+        assert!(state.runtime("tab").is_none());
+        assert!(
+            !state.tabs.contains_key("tab"),
+            "scheduling never creates a supervised tab"
+        );
     }
 }

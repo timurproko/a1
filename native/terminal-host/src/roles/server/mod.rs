@@ -398,16 +398,11 @@ struct RuntimeState {
     attachment: AttachmentState,
     clients: HashMap<String, ClientSession>,
     bridges: HashMap<String, BridgePeer>,
-    bridge_status_sequences: HashMap<String, (u64, u64)>,
-    status_persist_pending: std::collections::HashSet<String>,
-    status_last_persist: HashMap<String, std::time::Instant>,
     pending_controller_transfers: HashMap<String, PendingControllerTransfer>,
     standby: Option<StandbyTab>,
     holders: HashMap<String, HolderSession>,
     launches: HashMap<String, AttachStart>,
-    holders_terminating: std::collections::HashSet<String>,
     surfaces: HashMap<String, Arc<Surface>>,
-    holders_starting: std::collections::HashSet<String>,
     max_concurrent_starts: usize,
     active_starts: usize,
     /// The start-gate slot each recovering tab holds, by a token unique to that acquisition.
@@ -444,9 +439,9 @@ impl RuntimeState {
                 .filter(|tab_id| Some(tab_id.as_str()) != standby)
                 .count(),
             starting_holders: self
-                .holders_starting
-                .iter()
-                .filter(|tab_id| Some(tab_id.as_str()) != standby)
+                .core
+                .starting_tabs()
+                .filter(|tab_id| Some(*tab_id) != standby)
                 .count(),
             since_activity: self.last_activity.elapsed(),
         })
@@ -822,7 +817,6 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     let endpoint_address = endpoint.path().to_string_lossy().into_owned();
     #[cfg(windows)]
     let endpoint_address = endpoint.name().to_owned();
-    let starting_tabs = adopting_holders.clone();
     let _ = crate::roles::diagnostics::append_log(&diagnostics_root, "server", "started");
     let watchdog = crate::shell::watchdog::start(
         "server",
@@ -853,6 +847,9 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         core_tab.restarts = tab.restarts;
         core_tab.last_exit = tab.last_exit.clone();
         core.tabs.insert(tab.tab_id.clone(), core_tab);
+    }
+    for tab_id in &adopting_holders {
+        core.set_starting(tab_id, true);
     }
     let mut recovered_environment = std::env::vars().collect::<Vec<_>>();
     sanitize_tab_environment(&mut recovered_environment);
@@ -887,16 +884,11 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         attachment: AttachmentState::default(),
         clients: HashMap::new(),
         bridges: HashMap::new(),
-        bridge_status_sequences: HashMap::new(),
-        status_persist_pending: std::collections::HashSet::new(),
-        status_last_persist: HashMap::new(),
         pending_controller_transfers: HashMap::new(),
         standby: None,
         holders: HashMap::new(),
         launches,
-        holders_terminating: std::collections::HashSet::new(),
         surfaces: HashMap::new(),
-        holders_starting: starting_tabs,
         max_concurrent_starts: config.max_concurrent_starts.clamp(1, 8),
         active_starts: 0,
         recovery_slots: HashMap::new(),
@@ -1223,13 +1215,13 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
             .holders
             .iter()
             .filter(|(tab_id, holder)| {
-                pids.contains(&holder.identity.pid) && !locked.holders_terminating.contains(*tab_id)
+                pids.contains(&holder.identity.pid) && !locked.core.is_terminating(*tab_id)
             })
             .map(|(tab_id, holder)| (tab_id.clone(), holder.identity.clone()))
             .collect::<Vec<_>>();
         for (tab_id, _) in &stale {
             counters::record(CounterEvent::HolderHangRecovery);
-            locked.holders_terminating.insert(tab_id.clone());
+            locked.core.set_terminating(&tab_id, true);
         }
         let commit = registry_changed.then(|| registry_snapshot(&locked));
         (stale, commit, deliveries)
@@ -1676,7 +1668,7 @@ impl Drop for StartPermit {
     fn drop(&mut self) {
         if let Ok(mut locked) = self.state.lock() {
             locked.active_starts = locked.active_starts.saturating_sub(1);
-            locked.holders_starting.remove(&self.tab_id);
+            locked.core.set_starting(&self.tab_id, false);
         }
     }
 }
@@ -1696,6 +1688,29 @@ impl Drop for InteractiveStartWaiter<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_reader_thread_processes_input_during_a_restart_delay() {
+        let (reader_tx, reader_rx) = mpsc::channel::<&str>();
+        let (respawn_tx, respawn_rx) = mpsc::channel::<std::time::Instant>();
+        let delay = std::time::Duration::from_millis(300);
+        let scheduled = std::time::Instant::now();
+        // Invariant: scheduling the respawn returns at once; the reader goes on to its next frame.
+        after_delay(delay, move || {
+            let _ = respawn_tx.send(std::time::Instant::now());
+        });
+        reader_tx.send("holder frame").unwrap();
+        assert_eq!(
+            reader_rx.recv_timeout(delay / 3).as_deref(),
+            Ok("holder frame"),
+            "the reader handled a frame inside the restart delay"
+        );
+        assert!(scheduled.elapsed() < delay);
+        let delivered = respawn_rx
+            .recv_timeout(std::time::Duration::from_secs(5))
+            .expect("the respawn runs once the delay elapses");
+        assert!(delivered.duration_since(scheduled) >= delay);
+    }
 
     fn retained_surface(incarnation: u64, revision: u64, bytes: &[u8]) -> Surface {
         Surface {

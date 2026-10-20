@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
+pub mod attach;
+
 use super::holder;
 use super::server::{self, Event, IdleObservation, Lifecycle, State};
 use crate::controller::{ControllerCore, ControllerError};
