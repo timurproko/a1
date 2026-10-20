@@ -31,10 +31,10 @@ describe("OwnedUiSessionShell prompt history", () => {
     try {
       await shell.submit("local survivor"); shell.root.editor.setText("draft");
       await adapter.flushEvents();
-      const binding = adapter.sessionBindingGeneration;
+      const binding = adapter.identity.sessionBindingGeneration;
       for (let index = 0; index < 2048; index++) engine.session.emit({ type: "agent_start" });
       await expect(adapter.flushEvents()).rejects.toThrow("Engine delivery did not complete");
-      expect(adapter.sessionBindingGeneration).toBe(binding);
+      expect(adapter.identity.sessionBindingGeneration).toBe(binding);
       expect(shell.root.editor.getText()).toBe("draft");
       terminal.input("\u001b[A"); terminal.input("\u001b[A");
       await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("local survivor"));
@@ -84,7 +84,7 @@ describe("OwnedUiSessionShell prompt history", () => {
     const { shell, engine, adapter } = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,
       { store: history.store, limit: 100 });
     try {
-      await adapter.execute({ type: "prompt", correlationId: "generated-input", sessionId: adapter.sessionId, text: "generated input" });
+      await adapter.execute({ type: "prompt", correlationId: "generated-input", sessionId: adapter.identity.sessionId, text: "generated input" });
       expect(history.submitted).toHaveLength(0);
       engine.session.emit({ type: "agent_start" }); await adapter.flushEvents();
       await shell.submit("streaming steer");

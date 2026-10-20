@@ -167,7 +167,7 @@ class ProcessPiEngineHost implements PiEngineHost {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#abort.abort();
-    const live = [...this.#sessions.values()].filter(session => !session.disposed);
+    const live = [...this.#sessions.values()].filter(session => !session.identity.disposed);
     this.#sessions.clear();
     await Promise.all(live.map(session => session.dispose()));
   }
@@ -186,7 +186,7 @@ class ProcessPiEngineHost implements PiEngineHost {
   }
 
   #forgetDisposedSessions(): void {
-    for (const [sessionId, session] of this.#sessions) if (session.disposed) this.#sessions.delete(sessionId);
+    for (const [sessionId, session] of this.#sessions) if (session.identity.disposed) this.#sessions.delete(sessionId);
   }
 
   // Rationale: the profile's timeout is installed once, by whichever session loads it first; a written

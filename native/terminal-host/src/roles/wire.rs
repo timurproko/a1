@@ -293,6 +293,32 @@ pub struct ResultBody {
     pub message: Option<String>,
 }
 
+impl ResultBody {
+    /// Accepted with nothing to report.
+    pub fn ok() -> Self {
+        Self {
+            accepted: true,
+            message: None,
+        }
+    }
+
+    /// Accepted with a message for the peer.
+    pub fn accepted(message: String) -> Self {
+        Self {
+            accepted: true,
+            message: Some(message),
+        }
+    }
+
+    /// Refused with the reason the peer reports.
+    pub fn refused(message: String) -> Self {
+        Self {
+            accepted: false,
+            message: Some(message),
+        }
+    }
+}
+
 pub fn read_payload(stream: &mut endpoint::EndpointStream) -> Result<Option<Vec<u8>>, String> {
     #[cfg(windows)]
     if !wait_for_pipe_data(stream)? {

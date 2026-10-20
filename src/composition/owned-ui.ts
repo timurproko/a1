@@ -1,5 +1,4 @@
 import { unwatchFile, watchFile } from "node:fs";
-import { readFile } from "node:fs/promises";
 import { SuggestionDiagnosticCapture } from "../features/prompt-suggestions/diagnostics.js";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
 import { PromptHistoryService } from "../features/prompt-history/service.js";
@@ -11,15 +10,13 @@ import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation
 import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
-import { createPiEngineHost, type PiEngineHostOptions, type PiEngineSessionRequest } from "../integrations/pi/engine/host.js";
-import { createPiSessionPresenters, type PiSessionPresenterBackend } from "../integrations/pi/session-presenters/index.js";
+import { createPiEngineHost, type PiEngineHostOptions } from "../integrations/pi/engine/host.js";
+import { createPiSessionPresenters } from "../integrations/pi/session-presenters/index.js";
 import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/project-trust-preflight.js";
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
 import { createOwnedUiClipboardServices } from "../app/session-shell/clipboard-services.js";
-import { createPiKeybindingsHost, type PiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
-import { projectResidentTabShortcuts } from "../features/resident-tab/shortcut-projection.js";
-import { readShortcutBindingsFile } from "../features/resident-tab/shortcut-bindings-file.js";
+import { createPiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 import {
   OwnedUiSessionPresenter,
   OwnedUiTerminalHost,
@@ -29,14 +26,11 @@ import {
 import { OwnedSettingsManager } from "../ui/settings/manager.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
-import type { AgentSettingsPort } from "../contracts/agent-engine/index.js";
 import type {
   OwnedUiBackgroundSettingsPort,
-  OwnedUiPromptSuggestionGeneratorPort,
   OwnedUiQuitOutroSettings,
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
-  UiAccentColor,
 } from "../contracts/owned-ui/index.js";
 import { createOwnedRouteHost, type OwnedReferenceProviders } from "./settings-route-host.js";
 import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
@@ -44,24 +38,13 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
-import { deriveResidentTabStatus, type ResidentTabTurnSettlement } from "../features/resident-tab/status-deriver.js";
+import { bindResidentTabBridge, correlateResidentTabSubmission, currentBackendSessionFile, residentTabKeybindings } from "./resident-tab-bridge.js";
+import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
+import { SessionRuntimeRegistry } from "./session-runtime-registry.js";
+import { readPackageVersion, StartupReleaseNote } from "./startup-route.js";
 
-/**
- * The session backend composition wires: the owned-UI port, the prompt-suggestion generator, and
- * the agent settings port. `settingsPort` stays outside the owned-UI contract because its type
- * belongs to the agent-engine contracts, which the owned-UI contract may not import.
- */
-export interface ComposedSessionBackend extends PiSessionPresenterBackend, OwnedUiPromptSuggestionGeneratorPort {
-  settingsPort(): AgentSettingsPort | null;
-  generateResidentTabName(instruction: string, maxTokens: number, signal: AbortSignal): Promise<string | null>;
-}
-
-/** The process-level engine host as composition drives it: sessions, the live accent, and disposal. */
-export interface ComposedEngineHost {
-  create(request: PiEngineSessionRequest): Promise<ComposedSessionBackend>;
-  setAccentColor(color: UiAccentColor): void;
-  dispose(): Promise<void>;
-}
+export type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
+export { bindResidentTabBridge, correlateResidentTabSubmission } from "./resident-tab-bridge.js";
 
 export interface OwnedUiCompositionOptions {
   readonly cwd?: string;
@@ -108,8 +91,6 @@ export interface OwnedUiComposition {
   readonly settings: OwnedSettingsManager | null;
 }
 
-const SESSION_RUNTIME_REFRESH_MS = 30_000;
-
 export function residentStartupPresentation(resident: boolean, fallbackNotice?: string): {
   readonly startup?: { readonly quiet?: boolean; readonly notices?: readonly [{ readonly kind: "warning"; readonly message: string }] };
 } {
@@ -124,56 +105,10 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
 export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiComposition> {
   const cwd = options.cwd ?? process.cwd();
   const ownedSurfaces = options.ownedSurfaces !== "off";
-  const sessionRuntimeId = ownedSurfaces ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined;
-  const inspectSessionProcess = options.inspectProcess;
-  let sessionRuntimeIdentity: Promise<NativeProcessIdentity | null> | null = null;
-  // Invariant: one entry per agent of this runtime; each agent holds its own claim, and the runtime's exit releases all.
-  const activeSessionIdentities = new Map<string | undefined, { readonly sessionId: string; readonly sessionFile: string }>();
-  let sessionRuntimeRefreshTimer: NodeJS.Timeout | null = null;
-  let sessionRuntimeRefresh = Promise.resolve();
-  let sessionRuntimeDisposed = false;
-  const runtimeIdentity = async (): Promise<NativeProcessIdentity | null> => {
-    if (sessionRuntimeId === undefined || inspectSessionProcess === undefined) return null;
-    sessionRuntimeIdentity ??= inspectSessionProcess(process.pid).catch(() => null);
-    return await sessionRuntimeIdentity;
-  };
-  const queueSessionRuntimeRefresh = (): void => {
-    if (sessionRuntimeDisposed || activeSessionIdentities.size === 0 || sessionRuntimeId === undefined || inspectSessionProcess === undefined) return;
-    sessionRuntimeRefresh = sessionRuntimeRefresh.then(async () => {
-      if (sessionRuntimeDisposed) return;
-      const owner = await runtimeIdentity();
-      if (owner === null) return;
-      const { registerSessionRepositoryRuntime } = await import("../foundation/lifecycle/session-repository-context.js");
-      for (const [agentId, identity] of activeSessionIdentities) {
-        if (sessionRuntimeDisposed) return;
-        await registerSessionRepositoryRuntime(identity, sessionRuntimeId, owner, {
-          inspectProcess: inspectSessionProcess,
-          ...(agentId === undefined ? {} : { agentId }),
-        }).catch(() => undefined);
-      }
-    }).catch(() => undefined);
-  };
-  /** The repository context reader for one agent; undefined names the primary agent, the only one composed today. */
-  const repositoryContextReaderFor = (agentId: string | undefined) =>
-    async (sessionId: string, sessionFile: string, signal: AbortSignal) => {
-      const owner = await runtimeIdentity();
-      if (owner === null || sessionRuntimeId === undefined || inspectSessionProcess === undefined) return null;
-      const identity = { sessionId, sessionFile };
-      activeSessionIdentities.set(agentId, identity);
-      const { activateSessionRepositoryContext } = await import("../foundation/lifecycle/session-repository-context.js");
-      const context = await activateSessionRepositoryContext(identity, sessionRuntimeId, owner, {
-        signal,
-        inspectProcess: inspectSessionProcess,
-        ...(agentId === undefined ? {} : { agentId }),
-      });
-      armSessionRuntimeRefresh();
-      return context;
-    };
-  const armSessionRuntimeRefresh = (): void => {
-    if (sessionRuntimeRefreshTimer !== null) return;
-    sessionRuntimeRefreshTimer = setInterval(queueSessionRuntimeRefresh, SESSION_RUNTIME_REFRESH_MS);
-    sessionRuntimeRefreshTimer.unref();
-  };
+  const sessionRuntimes = new SessionRuntimeRegistry({
+    runtimeId: ownedSurfaces ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined,
+    inspectProcess: options.inspectProcess,
+  });
   const productPaths = resolveProductPaths();
   const profilePaths = resolveLaunchProfilePaths();
   // Rationale: the manager reads the engine's settings port lazily, after the session exists.
@@ -229,7 +164,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   try {
     backend = await host.create({
       cwd,
-      ...(ownedSurfaces ? { repositoryContextReader: repositoryContextReaderFor(undefined) } : {}),
+      ...(ownedSurfaces ? { repositoryContextReader: sessionRuntimes.readerFor(undefined) } : {}),
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
       ...(sessionForkPrompt === undefined ? {} : { sessionForkPrompt }),
@@ -254,23 +189,13 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   if (tabBridge !== null && settings !== null && ownedSurfaces) tabBridge.accent(settings.value("accentColor"));
   let removeControllerBoundaryInput = () => {};
   let unsubscribeTabBridge = () => {};
-  let releaseNotes: ReleaseNoteCatalog | null = null;
-  let releaseNotesFailure: unknown;
-  if (ownedSurfaces) {
-    try {
-      releaseNotes = options.releaseNotes
-        ?? await import("../features/owned-ui/release-notes.js").then(module => module.readPackagedReleaseNotes());
-    } catch (error) { releaseNotesFailure = error; }
-  }
-  const packageVersion = ownedSurfaces
-    ? options.packageVersion ?? await readPackageVersion()
-    : null;
-  const currentReleaseNote = packageVersion === null ? null : releaseNotes?.current(packageVersion) ?? null;
-  const releaseNoteClaim = currentReleaseNote === null || options.profileId === undefined
-    ? null
-    : await import("../features/owned-ui/release-note-state.js").then(module => module.claimReleaseNote({
-      configDir: productPaths.configDir, profileId: options.profileId!, version: currentReleaseNote.version,
-    }));
+  const releaseNote = await StartupReleaseNote.load({
+    ownedSurfaces,
+    configDir: productPaths.configDir,
+    ...(options.releaseNotes === undefined ? {} : { releaseNotes: options.releaseNotes }),
+    ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
+    ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
+  });
   const unsubscribeAccentChange = settings === null || !ownedSurfaces
     ? () => {}
     : settings.onChange(current => {
@@ -288,8 +213,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {
     changelog: async input => {
-      if (input?.document === undefined && releaseNotesFailure !== undefined) throw releaseNotesFailure;
-      const markdown = input?.document ?? releaseNotes?.completeMarkdown ?? "No A1 release notes found.";
+      if (input?.document === undefined && releaseNote.failure !== undefined) throw releaseNote.failure;
+      const markdown = input?.document ?? releaseNote.catalog?.completeMarkdown ?? "No A1 release notes found.";
       return { rows: width => renderPiShellChangelogLines(markdown, width).map(row => nativeHyperlinkStyle(row)) };
     },
     hotkeys: async () => {
@@ -348,22 +273,11 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // Invariant: process-wide services are created once here and borrowed by every session shell. The
   // keybinding registry is applied before any presenter is built, so none of them reads Pi's defaults.
   const keybindingsHost = createPiKeybindingsHost({ profile: ownedSurfaces ? "a1" : "pi", agentDir: backend.identity.agentDir });
-  // Invariant: the resident host dispatches and labels the tab shortcuts this child projects
-  // from its effective declarations, so a customization reload republishes the projection.
-  const publishTabShortcuts = () => tabBridge?.shortcuts(projectResidentTabShortcuts({
-    configured: readShortcutBindingsFile(backend.identity.agentDir),
-    reserved: keybindingsHost.manager.getEffectiveConfig(),
-  }).assignments);
-  const keybindings: PiKeybindingsHost = tabBridge === null ? keybindingsHost : {
-    ...keybindingsHost,
-    reload: () => { keybindingsHost.reload(); publishTabShortcuts(); },
-  };
-  publishTabShortcuts();
+  const keybindings = residentTabKeybindings(tabBridge, backend.identity.agentDir, keybindingsHost);
   const clipboardServices = ownedSurfaces ? createOwnedUiClipboardServices() : null;
   let createdTerminalHost: OwnedUiTerminalHost | undefined;
   let terminalHost: OwnedUiTerminalHost;
   let presenter: OwnedUiSessionPresenter;
-  let releaseNoteAcknowledgement: Promise<void> | null = null;
   try {
     const presenterOptions: OwnedUiSessionShellOptions = {
       presenters: createPiSessionPresenters(backend),
@@ -371,16 +285,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         backend,
         cwd: backend.identity.cwd,
         ...(routeHost === null ? {} : { routeHost }),
-        ...(currentReleaseNote === null || releaseNoteClaim === null ? {} : {
-          startupRoute: {
-            route: "changelog",
-            input: { document: currentReleaseNote.markdown },
-            onClosed: () => {
-              releaseNoteAcknowledgement ??= releaseNoteClaim.acknowledge();
-              return releaseNoteAcknowledgement;
-            },
-          },
-        }),
+        ...(releaseNote.startupRoute === undefined ? {} : { startupRoute: releaseNote.startupRoute }),
         ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
         ...(tabBridge === null || tabRecovery === null ? {} : { residentTab: {
           requestDetach: () => tabBridge.requestDetach(),
@@ -445,7 +350,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   } catch (error) {
     await createdTerminalHost?.dispose().catch(() => undefined);
     unsubscribeAccent();
-    await releaseNoteClaim?.release();
+    await releaseNote.releaseClaim();
     clipboardDiagnostics?.dispose(); suggestionDiagnostics?.dispose(); clipboardServices?.dispose();
     await host.dispose();
     throw error;
@@ -457,7 +362,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     const check: (input: StartupReleaseCheckOptions) => Promise<AvailableRelease | null> = options.checkForNewerRelease
       ?? (await import("../foundation/release/latest-release.js")).checkForNewerRelease;
     const release = await check({
-      runningVersion: packageVersion ?? await readPackageVersion(),
+      runningVersion: releaseNote.packageVersion ?? await readPackageVersion(),
       configDir: productPaths.configDir,
       interactive: process.stdout.isTTY === true,
       ...(settings === null || !ownedSurfaces ? {} : { settingEnabled: settings.value("updateCheck") }),
@@ -484,23 +389,14 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         await terminalHost.dispose();
         // Invariant: cleared only once the terminal is restored; a failed dispose leaves it armed.
         (await exitNotice)?.clear();
-        await releaseNoteAcknowledgement?.catch(() => undefined);
+        await releaseNote.settleAcknowledgement();
       } finally {
         // Invariant: the shared spares outlive every shell and stop only after the last one is disposed.
         clipboardServices?.dispose();
         removeControllerBoundaryInput();
         unsubscribeAccent();
-        sessionRuntimeDisposed = true;
-        if (sessionRuntimeRefreshTimer !== null) clearInterval(sessionRuntimeRefreshTimer);
-        sessionRuntimeRefreshTimer = null;
-        await sessionRuntimeRefresh;
-        const owner = await runtimeIdentity();
-        if (sessionRuntimeId !== undefined && owner !== null) {
-          await import("../foundation/lifecycle/session-repository-context.js")
-            .then(module => module.releaseSessionRepositoryRuntime(sessionRuntimeId, owner))
-            .catch(() => undefined);
-        }
-        await releaseNoteClaim?.release();
+        await sessionRuntimes.dispose();
+        await releaseNote.releaseClaim();
         suggestionDiagnostics?.dispose(); clipboardDiagnostics?.dispose();
         unsubscribeTabBridge();
         tabBridge?.close();
@@ -510,150 +406,6 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
   };
   return { application, settings };
-}
-
-export async function bindResidentTabBridge(
-  tabBridge: TabBridgeClient,
-  backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows" | "generateResidentTabName">,
-  recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
-  options: { readonly autoName?: boolean; readonly openRoute?: (route: "settings") => void } = {},
-): Promise<() => void> {
-  await tabBridge.start().catch(() => false);
-  tabBridge.status("starting");
-  const currentSessionFile = () => currentBackendSessionFile(backend);
-  let pendingAutoName: string | null = null;
-  // Invariant: while a generated name is being applied, the session name it produces is automatic
-  // even if the session normalizes it; reporting it as `user` would block the strip's title
-  // animation and every later automatic rename.
-  let applyingAutoName = false;
-  const isDefaultName = (name: string | null | undefined) => name == null || /^agent(?: \d+)?$/i.test(name);
-  const currentSessionName = () => backend.session.view().status.footer?.sessionName ?? null;
-  const announceSession = () => {
-    const name = currentSessionName();
-    // Invariant: the session may announce the applied name after the workflow resolves; the
-    // first non-default name announced for a pending auto-name is that automatic name.
-    if (applyingAutoName && !isDefaultName(name)) {
-      pendingAutoName = name;
-      applyingAutoName = false;
-    }
-    const automatic = name === pendingAutoName;
-    const nameSource = automatic ? "auto" : isDefaultName(name) ? "default" : "user";
-    tabBridge.session(currentSessionFile(), name, nameSource);
-  };
-  let working = false;
-  // Invariant: the last turn's settlement stays reported until the next turn starts.
-  let lastTurn: ResidentTabTurnSettlement | undefined;
-  let autoNameAttempted = false;
-  let autoNameArmed = false;
-  // Invariant: naming launches once per tab during an agent run, as soon as its prompt is projected,
-  // and runs beside the turn instead of waiting for it to settle.
-  const launchAutoName = () => {
-    if (!autoNameArmed || autoNameAttempted || options.autoName !== true || !isDefaultName(currentSessionName())) return;
-    const prompt = backend.session.view().transcript.find(block => block.kind === "user")?.text.trim();
-    if (!prompt) return;
-    autoNameAttempted = true;
-    void import("../features/resident-tab/index.js").then(({ generateAutoName }) => generateAutoName(
-      prompt,
-      request => backend.generateResidentTabName(request.prompt, request.maxTokens, request.signal),
-    )).then(async name => {
-      // Invariant: a manual rename made while generation was pending owns both the session and the tab.
-      if (!isDefaultName(currentSessionName())) return;
-      pendingAutoName = name;
-      applyingAutoName = true;
-      const result = await backend.workflows.executeWorkflow({ command: "name", argument: name });
-      if (result.outcome !== "completed") {
-        applyingAutoName = false;
-        if (pendingAutoName === name) pendingAutoName = null;
-        return;
-      }
-      const current = currentSessionName();
-      if (current !== null && !isDefaultName(current)) {
-        // Invariant: The session already holds the applied name; report it as automatic now.
-        pendingAutoName = current;
-        applyingAutoName = false;
-        tabBridge.session(currentSessionFile(), current, "auto");
-      } else {
-        // Invariant: The session announces later; show the generated name meanwhile, still automatic.
-        tabBridge.session(currentSessionFile(), name, "auto");
-      }
-    }).catch(() => { pendingAutoName = null; applyingAutoName = false; });
-  };
-  const reportStatus = (lifecycle?: string) => {
-    const view = backend.session.view();
-    const pendingRequests = view.dialog == null ? 0 : 1;
-    const queuedInput = view.editor?.queuedSubmissions.length ?? 0;
-    tabBridge.status(deriveResidentTabStatus({
-      lifecycle: lifecycle ?? view.lifecycle,
-      pendingRequests,
-      queuedInput,
-      ...(lastTurn === undefined ? {} : { lastTurn }),
-    }), false, pendingRequests, queuedInput);
-  };
-  announceSession();
-  const unsubscribeCommands = typeof tabBridge.onCommand === "function" ? tabBridge.onCommand(command => {
-    // Invariant: visibility stays decoded for generation-1 peers but never pauses rendering; a hidden tab
-    // keeps its resident terminal current while the holder withholds only its client surfaces.
-    if (command.type === "rename") {
-      void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
-    } else if (command.type === "route") {
-      if (options.openRoute !== undefined) options.openRoute(command.route);
-      else void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
-    } else if (command.type === "stop") {
-      void backend.session.dispose().catch(() => {});
-    }
-  }) : () => {};
-  const unsubscribeEvents = backend.session.onEvent(event => {
-    if (event.type === "session-lifecycle") {
-      const wasWorking = working;
-      working = event.lifecycle === "busy";
-      if (working) lastTurn = undefined;
-      reportStatus(event.lifecycle);
-      if (wasWorking && !working && recovery !== null) {
-        void recovery.settled(currentSessionFile()).catch(() => tabBridge.degraded(true));
-      }
-    }
-    if (event.type === "agent-run-started") {
-      autoNameArmed = true;
-      launchAutoName();
-    }
-    // Rationale: Pi starts the run before it projects the user message, so the prompt may arrive later.
-    if (event.type === "transcript-block" || event.type === "session-view") launchAutoName();
-    if (event.type === "agent-run-settled") {
-      launchAutoName();
-      autoNameArmed = false;
-      lastTurn = event.aborted ? "aborted" : event.successful ? "done" : "error";
-      tabBridge.prompt(event.aborted);
-      reportStatus();
-    }
-    if (event.type === "session-view") {
-      announceSession();
-      reportStatus();
-    }
-  });
-  return () => {
-    unsubscribeCommands();
-    unsubscribeEvents();
-  };
-}
-
-export async function correlateResidentTabSubmission(
-  recovery: Pick<ResidentTabRecovery, "correlated" | "settled">,
-  backend: Pick<ComposedSessionBackend, "identity" | "session">,
-  submissionId: string,
-  entryId: string,
-): Promise<void> {
-  await recovery.correlated(submissionId, entryId);
-  // Concurrency: a normal prompt command can resolve after the ready transition already fired.
-  // Re-read lifecycle only after correlation is active; a concurrent ready observer and this path
-  // safely race because recovery consumes the active entry once and retirement is idempotent.
-  if (backend.session.view().lifecycle !== "busy") await recovery.settled(currentBackendSessionFile(backend));
-}
-
-function currentBackendSessionFile(backend: Pick<ComposedSessionBackend, "identity">): string | null {
-  const direct = backend.identity.currentSessionFile?.();
-  if (direct !== undefined && direct !== null) return direct;
-  const resume = backend.identity.currentSessionResumeMetadata();
-  return resume === null ? null : `${resume.sessionDir}/${resume.sessionId}`;
 }
 
 const SHARED_SETTINGS_POLL_MS = 250;
@@ -668,13 +420,6 @@ export function watchSharedSettings(settings: Pick<OwnedSettingsManager, "file" 
   };
   watchFile(file, { interval: SHARED_SETTINGS_POLL_MS, persistent: false }, listener);
   return () => unwatchFile(file, listener);
-}
-
-async function readPackageVersion(): Promise<string> {
-  const manifest: unknown = JSON.parse(await readFile(new URL("../../package.json", import.meta.url), "utf8"));
-  const version = (manifest as { version?: unknown })?.version;
-  if (typeof version !== "string") throw new Error("A1 package version is unavailable");
-  return version;
 }
 
 function quitOutroSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiQuitOutroSettings {

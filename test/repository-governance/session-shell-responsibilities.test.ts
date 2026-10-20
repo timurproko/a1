@@ -3,13 +3,15 @@ import { describe, expect, it } from "vitest";
 
 const rootPath = "src/app/session-shell/session-shell-root.ts";
 const controllerPath = "src/app/session-shell/session-viewport-controller.ts";
+const viewportLayoutPath = "src/app/session-shell/viewport-layout.ts";
 
 /** Structural guard for the behavior-preserving shell decomposition. */
 describe("session shell responsibility boundaries", () => {
-  it("keeps stateful viewport input policy out of the shell render root", async () => {
-    const [root, controller] = await Promise.all([
+  it("keeps stateful viewport input policy out of the shell render root and its viewport layout", async () => {
+    const [root, controller, layout] = await Promise.all([
       readFile(rootPath, "utf8"),
       readFile(controllerPath, "utf8"),
+      readFile(viewportLayoutPath, "utf8"),
     ]);
 
     for (const owner of [
@@ -23,10 +25,13 @@ describe("session shell responsibility boundaries", () => {
       "scrollForThumbRow(",
     ]) {
       expect(root, `${owner} returned to ${rootPath}`).not.toContain(owner);
+      expect(layout, `${owner} moved into ${viewportLayoutPath}`).not.toContain(owner);
       expect(controller, `${owner} is absent from ${controllerPath}`).toContain(owner);
     }
     expect(root).toContain("new SessionViewportController(");
-    expect(root).toContain("this.#viewportController.compose({");
+    // Invariant: the root constructs the controller; its custom-viewport layout asks it to compose.
+    expect(root).toContain("new ViewportLayout(");
+    expect(layout).toContain("viewport.compose({");
   });
 
   it("declares app routes in the neutral app owner and nowhere in the Pi shell", async () => {

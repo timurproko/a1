@@ -109,7 +109,7 @@ async function runOwned(
     };
   } finally {
     await shell.dispose();
-    if (!adapter.disposed) await adapter.dispose();
+    if (!adapter.identity.disposed) await adapter.dispose();
   }
 }
 

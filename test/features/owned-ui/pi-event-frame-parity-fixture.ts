@@ -169,7 +169,7 @@ async function captureEventFrames(options: EventFrameCaptureOptions, clock: Even
     return { states, frames };
   } finally {
     try { await clock.settle("dispose-shell", async () => { await ownedShell?.dispose(); }); }
-    finally { if (!adapter.disposed) await clock.settle("dispose-adapter", () => adapter.dispose(), () => adapter.deliveryDiagnostics()); }
+    finally { if (!adapter.identity.disposed) await clock.settle("dispose-adapter", () => adapter.dispose(), () => adapter.deliveryDiagnostics()); }
   }
 }
 

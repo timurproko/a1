@@ -44,6 +44,20 @@ The JavaScript product path has no PTY or terminal-emulator dependency. Reintrod
 
 `scripts/governance/check-architecture.mjs` enforces the structural parts of these boundaries. Cross-cutting rationale belongs here; implementation history belongs in Git and archived OpenSpec changes.
 
+## Session shell composition
+
+The session presenter (`src/app/session-shell/session-shell.ts`) coordinates; it does not own per-concern state. Each concern implements `SessionConcern` (`session-concern.ts`): it resets its own state in `onSessionReplaced` and releases it in `dispose`, and the presenter lists its concerns once, in reset order, in `#createConcerns`. New submission, routing, dialog, login, or resident-tab behavior goes into the concern that owns it, or a new concern added to that list. The render root (`session-shell-root.ts`) likewise picks one `ShellLayout` at construction and delegates transcript caching to `TranscriptDocument`, dock chrome to `DockChrome`, workflow output to `WorkflowOutput`, extension surfaces to `ExtensionSurface`, and the dock's input surface to `InputSurfaceSwitch`. The engine adapter serves the shell through the ports built in `src/integrations/pi/engine/ports.ts`, and the composition root delegates runtime claims, the startup release note, and the resident-tab bridge to their own modules under `src/composition/`.
+
+## Unit size ratchet
+
+Module boundaries do not stop one class or function inside a module from absorbing every feature. The architecture gate therefore measures every production TypeScript class under `src/` (methods and fields) and every TypeScript or Rust function under `src/` and `native/<crate>/src/` (inclusive lines), excluding vendored sources and Rust `#[cfg(test)]` code. A unit with more than 20 methods, 15 fields, or 100 function lines must be recorded in `config/baselines/size-ratchet.json`, and its recorded counts can only shrink:
+
+- A recorded count that grows fails the gate. Split the unit instead. If growth is truly unavoidable, raise the entry by hand in the same pull request and say why in its description, so the growth is reviewed rather than silent.
+- An unrecorded unit over a threshold fails the gate; split it before it lands.
+- A count that shrinks, or a unit that falls below every threshold, fails until `node scripts/governance/update-size-ratchet.mjs` lowers or removes the entry. That script never adds or raises an entry; `--check` reports without writing.
+
+The measurement in `scripts/governance/size-ratchet-policy.mjs` masks strings, comments, and regular expressions and counts braces, so it needs no build; a file whose braces do not balance is reported rather than mismeasured. Keys are `<path>::<Class>`, `<path>::<Class>.<method>`, or `<path>::<Type>::<fn>`, so moving or renaming a unit means moving its entry.
+
 ## Multi-session limits of the pinned engine
 
 The engine host removes A1's own obstacles to several Pi sessions in one process, but three remain in the pinned Pi SDK and must be planned around, not discovered:

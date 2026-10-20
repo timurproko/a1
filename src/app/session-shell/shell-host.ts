@@ -114,6 +114,19 @@ export interface OwnedUiTerminalHostOptions {
   readonly quitOutro?: OwnedUiShellPresentationOptions["quitOutro"];
 }
 
+/** The size and render request a Pi component reads from the terminal it is shown on, read on every call. */
+export function componentRuntime(terminal: Pick<OwnedUiPresenterTerminal, "viewport" | "requestRender">): {
+  getColumns(): number;
+  getRows(): number;
+  requestRender(): void;
+} {
+  return {
+    getColumns: () => terminal.viewport().columns,
+    getRows: () => terminal.viewport().rows,
+    requestRender: () => terminal.requestRender(),
+  };
+}
+
 /** The terminal a session's shell options call for: its layout, TUI mode, cursor, and presentation seams. */
 export function sessionTerminalHostOptions(options: OwnedUiSessionShellOptions): OwnedUiTerminalHostOptions {
   const { backend, sessionLayout } = options.engine;
