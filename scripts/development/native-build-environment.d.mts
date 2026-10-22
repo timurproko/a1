@@ -1,4 +1,5 @@
 export const MSVC_COMPONENT: "Microsoft.VisualStudio.Component.VC.Tools.x86.x64";
+export const MSVC_ENVIRONMENT_TIMEOUT_MS: 60000;
 export const VCVARS_SENTINEL: "__A1_VCVARS_ENVIRONMENT__";
 
 export interface NativeToolResolution {

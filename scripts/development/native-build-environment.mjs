@@ -9,6 +9,7 @@ import { win32 } from "node:path";
 import { locateExecutable, PROBE_TIMEOUT_MS } from "./environment-probe.mjs";
 
 export const MSVC_COMPONENT = "Microsoft.VisualStudio.Component.VC.Tools.x86.x64";
+export const MSVC_ENVIRONMENT_TIMEOUT_MS = 60000;
 export const VCVARS_SENTINEL = "__A1_VCVARS_ENVIRONMENT__";
 
 function environmentValue(environment, name) {
@@ -185,7 +186,7 @@ export function resolveWindowsMsvc(environment, {
   }
   const result = spawn(commandInterpreter, ["/d", "/u", "/s", "/c", command], {
     encoding: "utf16le", windowsHide: true, windowsVerbatimArguments: true,
-    timeout: PROBE_TIMEOUT_MS, env: environment,
+    timeout: MSVC_ENVIRONMENT_TIMEOUT_MS, env: environment,
   });
   if (result.error || result.status !== 0) {
     const probeStatus = result.error?.code === "ETIMEDOUT" ? "timeout" : result.error ? "spawn-error" : "exit";

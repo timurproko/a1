@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildStages, runBuild } from "../../scripts/development/run-build.mjs";
 import {
   inspectMsvcEnvironment,
+  MSVC_ENVIRONMENT_TIMEOUT_MS,
   parseVcvarsEnvironment,
   requireNativeBuildEnvironment,
   resolveNativeBuildEnvironment,
@@ -110,7 +111,9 @@ describe("Windows native build environment", () => {
     expect(calls[0]?.arguments_).toContain("Microsoft.VisualStudio.Component.VC.Tools.x86.x64");
     expect(calls[0]?.arguments_).not.toContain("-prerelease");
     expect(calls[1]?.arguments_.join(" ")).toContain("vcvars64.bat");
-    expect(calls[1]?.options).toMatchObject({ windowsVerbatimArguments: true, encoding: "utf16le" });
+    expect(calls[1]?.options).toMatchObject({
+      windowsVerbatimArguments: true, encoding: "utf16le", timeout: MSVC_ENVIRONMENT_TIMEOUT_MS,
+    });
     expect(JSON.stringify(result.msvc)).not.toContain("must-not-appear-in-diagnostics");
   });
 
