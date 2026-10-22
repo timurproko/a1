@@ -2767,6 +2767,31 @@ mod retained_tests {
     }
 
     #[test]
+    fn semantic_prompt_start_retains_its_real_fresh_line_behavior() {
+        let mut terminal = GhosttyTerminal::new(24, 4).expect("terminal");
+        terminal.write(b"prefix\x1b]133;A\x07prompt");
+        let surface = terminal
+            .capture_retained_surface(
+                &mut RetainedSurfaceBuilder::default(),
+                1,
+                SurfaceCommitKind::Complete,
+            )
+            .unwrap()
+            .structured()
+            .unwrap();
+        let text = |row: usize| {
+            surface.row_data[row]
+                .cells
+                .iter()
+                .map(|cell| cell.text.as_str())
+                .collect::<String>()
+        };
+        assert!(text(0).starts_with("prefix"));
+        assert!(text(1).starts_with("prompt"));
+        assert_eq!(terminal.cursor_cell().unwrap(), Some((6, 1)));
+    }
+
+    #[test]
     fn legacy_frames_keep_hyperlink_targets() {
         let mut terminal = GhosttyTerminal::new(12, 2).expect("terminal");
         terminal.write(

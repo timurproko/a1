@@ -315,7 +315,7 @@ pub fn reconcile_title_animation(
 }
 
 fn chip_fixed_width(tab: &StripTab) -> usize {
-    2 + if status_glyph(&tab.status).is_empty() {
+    1 + if status_glyph(&tab.status).is_empty() {
         0
     } else {
         2
@@ -431,7 +431,7 @@ fn chip(
         "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m"
     };
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
-    let text = format!("{background} {glyph_color}{glyph}\x1b[39m{name} \x1b[0m");
+    let text = format!("{background}{glyph_color}{glyph}\x1b[39m{name} \x1b[0m");
     (text, width)
 }
 
@@ -945,7 +945,7 @@ mod tests {
             now,
             true,
         );
-        assert!(plain(&frame.bytes).contains(" auth-fix "));
+        assert!(plain(&frame.bytes).starts_with("auth-fix "));
         assert!(!plain(&frame.bytes).contains('×'));
         assert_eq!(truecolor_runs(&frame.bytes), 4);
     }
@@ -1044,7 +1044,7 @@ mod tests {
             start + Duration::from_secs(5),
             true,
         );
-        assert!(plain(&settled.bytes).contains(" auth-fix "));
+        assert!(plain(&settled.bytes).starts_with("auth-fix "));
         assert_eq!(settled.hits, reference.hits);
     }
 
@@ -1150,6 +1150,36 @@ mod tests {
     }
 
     #[test]
+    fn chips_have_no_left_padding_but_keep_the_icon_name_separator() {
+        for status in [
+            "working",
+            "starting",
+            "needs-input",
+            "done",
+            "failed",
+            "idle",
+        ] {
+            let mut value = tab("one", "agent");
+            value.status = status.into();
+            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None);
+            let text = plain(&bytes);
+            assert!(!text.starts_with(' '), "status={status}");
+            let glyph = status_glyph_at(status, 0);
+            if !glyph.is_empty() {
+                assert_eq!(
+                    text.chars().nth(1),
+                    Some(' '),
+                    "icon/name separator: {status}"
+                );
+                assert_eq!(text.chars().nth(2), Some('a'), "name: {status}");
+            } else {
+                assert!(text.starts_with("agent"));
+            }
+            assert_eq!(width, UnicodeWidthStr::width(text.as_str()));
+        }
+    }
+
+    #[test]
     fn uses_v2_progress_frames_at_eighty_millisecond_cadence() {
         assert_eq!(
             TAB_SPINNER_FRAMES,
@@ -1220,7 +1250,7 @@ mod tests {
                 .any(|glyph| frame.bytes.contains(glyph))
         );
         assert!(frame.hits.iter().any(|(start, end, hit)| {
-            end - start == 9 && matches!(hit, StripHit::View(id) if id == "blue")
+            end - start == 8 && matches!(hit, StripHit::View(id) if id == "blue")
         }));
     }
 

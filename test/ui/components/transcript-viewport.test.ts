@@ -12,7 +12,7 @@ const rows = (count: number) => Array.from({ length: count }, (_, index) => `row
 const overflowingRows = (value: readonly string[]) => value.map(row => stripAnsi(row).trimEnd());
 
 describe("transcript viewport", () => {
-  it("returns an exact-height transcript-above-dock frame and leaves one line above the rail", () => {
+  it("returns an exact-height frame with one boundary row above and below the rail", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
     const frame = viewport.compose({ documentRows: rows(10), dockRows: ["editor", "footer"], promptAnchors: [], width: 30, height: 6, now: 100 });
@@ -20,7 +20,8 @@ describe("transcript viewport", () => {
     expect(frame.rows).toHaveLength(6);
     expect(stripAnsi(frame.rows[0] ?? "")).not.toContain("│");
     expect(stripAnsi(frame.rows[1] ?? "")).toContain("│");
-    expect(frame.hits.rail).toMatchObject({ rowStart: 2, trackHeight: 3 });
+    expect(frame.hits.rail).toMatchObject({ rowStart: 2, trackHeight: 2 });
+    expect(stripAnsi(frame.rows[3] ?? "")).not.toMatch(/[│┃]/u);
     expect(frame.rows.slice(-2).map(row => row.trimEnd())).toEqual(["editor", "footer"]);
   });
 

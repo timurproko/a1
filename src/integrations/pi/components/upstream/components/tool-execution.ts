@@ -17,7 +17,6 @@ import { createReadToolDefinition, createBashToolDefinition, createEditToolDefin
 import { renderPiModalShortcutHints } from "../../theme.js";
 import { isPiAccentProjectionEnabled, piTheme } from "../theme/theme.js";
 import { ToolImagePresentation } from "../../tool-image-presentation.js";
-import { rebaseTerminalDefaultBackground } from "../../../tui-runtime/index.js";
 
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderCall"]>>[2];
 type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResult"]>>[0] & {
@@ -47,16 +46,25 @@ function enclosingToolBackground(
 	theme: ReturnType<typeof piTheme>,
 	role: "toolPendingBg" | "toolErrorBg" | "toolSuccessBg",
 ): (text: string) => string {
-	const marker = "\u0000";
-	const sample = theme.bg(role, marker);
-	const markerIndex = sample.indexOf(marker);
-	// Invariant: nested renderers may reset their own background, but the default inside this
-	// shell is its state background until the Box closes the complete padded row.
-	const backgroundAnsi = markerIndex < 0 ? "" : sample.slice(0, markerIndex);
-	return (text: string) => theme.bg(
-		role,
-		backgroundAnsi.length === 0 ? text : rebaseTerminalDefaultBackground(text, backgroundAnsi),
-	);
+	const background = theme.bg(role, "\u0000").split("\u0000")[0]!;
+	// Invariant: child defaults return to the enclosing shell, not the terminal canvas.
+	return text => theme.bg(role, text.replace(/\u001b\[([0-9:;]*)m/gu, (ansi, parameters: string) => {
+		const values = parameters.split(";");
+		let restore = false;
+		for (let index = 0; index < values.length; index++) {
+			const token = values[index]!, code = Number(token.split(":", 1)[0] || "0");
+			if (code === 0 || code === 49) restore = true;
+			else if (code >= 40 && code <= 47 || code >= 100 && code <= 107) restore = false;
+			else if (code === 38 || code === 48 || code === 58) {
+				if (code === 48) restore = false;
+				if (!token.includes(":")) {
+					const mode = Number(values[index + 1]);
+					index += mode === 2 ? 4 : mode === 5 ? 2 : 1;
+				}
+			}
+		}
+		return restore ? ansi + background : ansi;
+	}));
 }
 
 export function mergeBuiltInRenderers(definition: ToolRendererInput | undefined, builtIn: ToolRendererInput | undefined): ToolRenderers | undefined {
@@ -104,7 +112,6 @@ export interface ToolExecutionOptions {
 export class ToolExecutionComponent extends Container {
 	private contentBox: Box;
 	private contentText: Text;
-	private contentTextRegion: MouseRegion;
 	private selfRenderContainer: Container;
 	private selfRenderHeight = 0;
 	private callRendererComponent: Component | undefined;
@@ -163,28 +170,15 @@ export class ToolExecutionComponent extends Container {
 
 		this.contentBox = new Box(1, 1, enclosingToolBackground(piTheme(), "toolPendingBg"));
 		this.contentText = new Text("", 1, 1, enclosingToolBackground(piTheme(), "toolPendingBg"));
-		this.contentTextRegion = this.createResultRegion(this.contentText);
 		this.selfRenderContainer = new Container();
 
-		if (this.hasRendererDefinition()) {
+		if (this.toolDefinition !== undefined) {
 			this.addChild(this.getRenderShell() === "self" ? this.selfRenderContainer : this.contentBox);
 		} else {
-			this.addChild(this.contentTextRegion);
+			this.addChild(this.createResultRegion(this.contentText));
 		}
 
 		this.updateDisplay();
-	}
-
-	private getCallRenderer(): ToolDefinition<any, any>["renderCall"] | undefined {
-		return this.toolDefinition?.renderCall;
-	}
-
-	private getResultRenderer(): ToolDefinition<any, any>["renderResult"] | undefined {
-		return this.toolDefinition?.renderResult;
-	}
-
-	private hasRendererDefinition(): boolean {
-		return this.toolDefinition !== undefined;
 	}
 
 	private getRenderShell(): "default" | "self" {
@@ -221,9 +215,7 @@ export class ToolExecutionComponent extends Container {
 	private createResultFallback(): Component | undefined {
     const theme = piTheme();
 		const output = this.getTextOutput();
-		if (!output) {
-			return undefined;
-		}
+		if (!output) return undefined;
 
 		const lines = output.split("\n");
 		const displayLines = this.expanded ? lines : lines.slice(0, FALLBACK_PREVIEW_LINES);
@@ -311,7 +303,7 @@ export class ToolExecutionComponent extends Container {
 			return [];
 		}
 
-		if (this.hasRendererDefinition() && this.getRenderShell() === "self") {
+		if (this.toolDefinition !== undefined && this.getRenderShell() === "self") {
 			const contentLines = this.selfRenderContainer.render(width);
 			this.selfRenderHeight = contentLines.length;
 			if (contentLines.length === 0 && this.imageComponents.length === 0) {
@@ -340,7 +332,7 @@ export class ToolExecutionComponent extends Container {
 	}
 
 	override handleMouse(event: TuiMouseEvent): ReturnType<Container["handleMouse"]> {
-		if (!this.hasRendererDefinition() || this.getRenderShell() !== "self") return super.handleMouse(event);
+		if (this.toolDefinition === undefined || this.getRenderShell() !== "self") return super.handleMouse(event);
 		if (event.y <= 0 || event.y > this.selfRenderHeight) return undefined;
 		return this.selfRenderContainer.handleMouse({
 			...event,
@@ -355,17 +347,38 @@ export class ToolExecutionComponent extends Container {
     try { this.composeDisplay(); } finally { this.updatingDisplay = false; }
   }
 
+  private callTheme(theme: ReturnType<typeof piTheme>, renderer: ToolRenderers["renderCall"]): ReturnType<typeof piTheme> {
+    if (this.toolName !== "read" || renderer !== this.builtInToolDefinition?.renderCall || !isPiAccentProjectionEnabled) return theme;
+    return new Proxy(theme, { get(target, property) {
+      if (property === "fg") return (...args: Parameters<typeof target.fg>) => target.fg(args[0] === "warning" ? "mdHeading" : args[0], args[1]);
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+  }
+
+  private appendRenderer(container: Pick<Container, "addChild">, field: "callRendererComponent" | "resultRendererComponent",
+    render: ((context: ToolRenderContext) => Component) | undefined, fallback: () => Component | undefined, builtIn: boolean): boolean {
+    if (render) {
+      try {
+        const component = render(this.getRenderContext(this[field]));
+        this[field] = component;
+        container.addChild(this.createResultRegion(builtIn ? withConciseExpandHint(component) : component));
+        return true;
+      } catch { this[field] = undefined; }
+    }
+    const component = fallback();
+    if (component) container.addChild(this.createResultRegion(component));
+    return component !== undefined;
+  }
+
   private composeDisplay(): void {
     const theme = piTheme();
-		const bgFn = this.isPartial
-			? enclosingToolBackground(theme, "toolPendingBg")
-			: this.result?.isError
-				? enclosingToolBackground(theme, "toolErrorBg")
-				: enclosingToolBackground(theme, "toolSuccessBg");
+		const bgFn = enclosingToolBackground(theme, this.isPartial ? "toolPendingBg"
+      : this.result?.isError ? "toolErrorBg" : "toolSuccessBg");
 
 		let hasContent = false;
 		this.hideComponent = false;
-		if (this.hasRendererDefinition()) {
+		if (this.toolDefinition !== undefined) {
 			const renderContainer = this.getRenderShell() === "self" ? this.selfRenderContainer : this.contentBox;
 			if (renderContainer instanceof Box) {
 				renderContainer.setBgFn(bgFn);
@@ -373,66 +386,18 @@ export class ToolExecutionComponent extends Container {
 			}
 			renderContainer.clear();
 
-			const callRenderer = this.getCallRenderer();
-			if (!callRenderer) {
-				renderContainer.addChild(this.createResultRegion(this.createCallFallback()));
-				hasContent = true;
-			} else {
-				try {
-					const component = callRenderer(this.args,
-            this.toolName === "read" && callRenderer === this.builtInToolDefinition?.renderCall && isPiAccentProjectionEnabled
-              ? new Proxy(theme, {
-                get(target, property) {
-                  if (property === "fg") {
-                    return (...args: Parameters<typeof target.fg>) => target.fg(args[0] === "warning" ? "mdHeading" : args[0], args[1]);
-                  }
-                  const value: unknown = Reflect.get(target, property, target);
-                  return typeof value === "function" ? value.bind(target) : value;
-                },
-              })
-              : theme,
-            this.getRenderContext(this.callRendererComponent));
-					this.callRendererComponent = component;
-					renderContainer.addChild(this.createResultRegion(callRenderer === this.builtInToolDefinition?.renderCall
-						? withConciseExpandHint(component) : component));
-					hasContent = true;
-				} catch {
-					this.callRendererComponent = undefined;
-					renderContainer.addChild(this.createResultRegion(this.createCallFallback()));
-					hasContent = true;
-				}
-			}
-
-			if (this.result) {
-				const resultRenderer = this.getResultRenderer();
-				if (!resultRenderer) {
-					const component = this.createResultFallback();
-					if (component) {
-						renderContainer.addChild(this.createResultRegion(component));
-						hasContent = true;
-					}
-				} else {
-					try {
-						const component = resultRenderer(
-							{ content: this.result.content, details: this.result.details },
-							{ expanded: this.expanded, isPartial: this.isPartial },
-							theme,
-							this.getRenderContext(this.resultRendererComponent),
-						);
-						this.resultRendererComponent = component;
-						renderContainer.addChild(this.createResultRegion(resultRenderer === this.builtInToolDefinition?.renderResult
-							? withConciseExpandHint(component) : component));
-						hasContent = true;
-					} catch {
-						this.resultRendererComponent = undefined;
-						const component = this.createResultFallback();
-						if (component) {
-							renderContainer.addChild(this.createResultRegion(component));
-							hasContent = true;
-						}
-					}
-				}
-			}
+      const call = this.toolDefinition?.renderCall;
+      hasContent = this.appendRenderer(renderContainer, "callRendererComponent",
+        call ? context => call(this.args, this.callTheme(theme, call), context) : undefined,
+        () => this.createCallFallback(), call === this.builtInToolDefinition?.renderCall);
+      const result = this.result;
+      if (result) {
+        const render = this.toolDefinition?.renderResult;
+        hasContent = this.appendRenderer(renderContainer, "resultRendererComponent",
+          render ? context => render({ content: result.content, details: result.details },
+            { expanded: this.expanded, isPartial: this.isPartial }, theme, context) : undefined,
+          () => this.createResultFallback(), render === this.builtInToolDefinition?.renderResult) || hasContent;
+      }
 		} else {
 			this.contentText.setCustomBgFn(bgFn);
 			this.contentText.setPaddingX(this.outputPad);
@@ -440,14 +405,9 @@ export class ToolExecutionComponent extends Container {
 			hasContent = true;
 		}
 
-		for (const img of this.imageComponents) {
-			this.removeChild(img);
-		}
-		this.imageComponents = [];
-		for (const spacer of this.imageSpacers) {
-			this.removeChild(spacer);
-		}
-		this.imageSpacers = [];
+    for (const child of [...this.imageComponents, ...this.imageSpacers]) this.removeChild(child);
+    this.imageComponents = [];
+    this.imageSpacers = [];
 
     this.images.update(this.result?.content ?? [], this.showImages);
     for (const imageComponent of this.images.components(this.imageWidthCells)) {
@@ -458,7 +418,7 @@ export class ToolExecutionComponent extends Container {
       this.addChild(imageComponent);
     }
 
-		if (this.hasRendererDefinition() && !hasContent && this.imageComponents.length === 0) {
+		if (this.toolDefinition !== undefined && !hasContent && this.imageComponents.length === 0) {
 			this.hideComponent = true;
 		}
 	}
@@ -466,10 +426,7 @@ export class ToolExecutionComponent extends Container {
 	private getTextOutput(): string {
     if (!this.result) return "";
     const text = this.result.content.filter(part => part.type === "text").map(part =>
-      Array.from(stripVTControlCharacters(part.text ?? "")).filter(char => {
-        const code = char.codePointAt(0)!;
-        return code === 9 || code === 10 || code > 31 && (code < 0xfff9 || code > 0xfffb);
-      }).join("")).join("\n");
+      stripVTControlCharacters(part.text ?? "").replace(/[\u0000-\u0008\u000b-\u001f\ufff9-\ufffb]/gu, "")).join("\n");
     if (getCapabilities().images && this.showImages) return text;
     const indicators = this.result.content.filter(part => part.type === "image").map(part => imageFallback(
       part.mimeType ?? "image/unknown",
@@ -482,13 +439,9 @@ export class ToolExecutionComponent extends Container {
     const theme = piTheme();
 		let text = theme.fg("toolTitle", theme.bold(this.toolName));
 		const content = JSON.stringify(this.args, null, 2);
-		if (content) {
-			text += `\n\n${content}`;
-		}
+		if (content) text += `\n\n${content}`;
 		const output = this.getTextOutput();
-		if (output) {
-			text += `\n${output}`;
-		}
+		if (output) text += `\n${output}`;
 		return text;
 	}
 }

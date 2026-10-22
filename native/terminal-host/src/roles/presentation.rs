@@ -491,30 +491,10 @@ impl PresentationComposer {
         if let Some(surface) = desired.structured.as_ref() {
             let prior = (!force).then_some(self.structured.as_ref()).flatten();
             render_palette_damage(&mut output, prior, surface, force);
-            // Invariant: dictionary indexes belong to one surface, not to the protocol as a whole.
-            // Monotonic holder tables keep the cheap row comparison; rebuilt dictionaries must
-            // also compare the referenced values or equal indexes can conceal changed styling/links.
-            let dictionaries_preserved = prior.is_some_and(|previous| {
-                surface.styles.starts_with(&previous.styles)
-                    && surface.links.starts_with(&previous.links)
-            });
             let visible_rows =
                 usize::from(surface.rows).min(usize::from(desired.outer_rows.saturating_sub(1)));
-            for row_index in 0..visible_rows {
-                let changed = prior.is_none_or(|previous| {
-                    previous.row_data.get(row_index) != surface.row_data.get(row_index)
-                        || (!dictionaries_preserved
-                            && surface.row_data.get(row_index).is_some_and(|row| {
-                                row.cells.iter().any(|cell| {
-                                    previous.styles.get(usize::from(cell.style))
-                                        != surface.styles.get(usize::from(cell.style))
-                                        || cell.link.is_some_and(|index| {
-                                            previous.links.get(usize::from(index))
-                                                != surface.links.get(usize::from(index))
-                                        })
-                                })
-                            }))
-                });
+            let damage = surface_row_damage(prior, surface).take(visible_rows);
+            for (row_index, changed) in damage.enumerate() {
                 if force || changed || overlay_damage.contains(&row_index) {
                     let row = surface
                         .row_data
@@ -645,6 +625,30 @@ fn sanitize_legacy_body(bytes: &[u8]) -> Vec<u8> {
         }
     }
     output
+}
+
+/// Compares frame-local row references while retaining the monotonic-table fast path.
+fn surface_row_damage<'a>(
+    previous: Option<&'a StructuredSurface>,
+    next: &'a StructuredSurface,
+) -> impl Iterator<Item = bool> + 'a {
+    let dictionaries_preserved = previous.is_some_and(|surface| {
+        next.styles.starts_with(&surface.styles) && next.links.starts_with(&surface.links)
+    });
+    next.row_data.iter().enumerate().map(move |(index, row)| {
+        previous.is_none_or(|surface| {
+            surface.row_data.get(index) != Some(row)
+                || (!dictionaries_preserved
+                    && row.cells.iter().any(|cell| {
+                        surface.styles.get(usize::from(cell.style))
+                            != next.styles.get(usize::from(cell.style))
+                            || cell.link.is_some_and(|link| {
+                                surface.links.get(usize::from(link))
+                                    != next.links.get(usize::from(link))
+                            })
+                    }))
+        })
+    })
 }
 
 fn render_palette_damage(
@@ -833,10 +837,27 @@ fn render_surface_row_clipped(
     if active_style.is_some() {
         output.extend_from_slice(b"\x1b[0m");
     }
-    // Invariant: a spectator may be wider than the controller-owned child geometry, and a row may replace
-    // previously wider content. Erasing after the complete retained row prevents stale suffixes
-    // without dropping styled blanks inside the child surface.
-    if visible < usize::from(columns) {
+    erase_surface_row_suffix(
+        output,
+        row_index,
+        visible,
+        usize::from(columns),
+        clip,
+        reposition,
+    );
+    Ok(())
+}
+
+/// Erases a spectator's wider suffix without changing styled child blanks or overlay cells.
+fn erase_surface_row_suffix(
+    output: &mut Vec<u8>,
+    row_index: usize,
+    visible: usize,
+    columns: usize,
+    clip: Option<(usize, usize)>,
+    reposition: bool,
+) {
+    if visible < columns {
         match clip.filter(|(_, right)| *right > visible) {
             None => {
                 if reposition {
@@ -848,7 +869,6 @@ fn render_surface_row_clipped(
             }
             Some((left, right)) => {
                 // Invariant: The suffix contains the overlay, so erase explicitly around it.
-                let columns = usize::from(columns);
                 let before = left.clamp(visible, columns);
                 if before > visible {
                     output.extend_from_slice(
@@ -864,7 +884,6 @@ fn render_surface_row_clipped(
             }
         }
     }
-    Ok(())
 }
 
 /// Finds, per child row, the half-open column span an overlay paints, by following its cursor

@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-22T09:15:12.603Z",
+  "recordedAt": "2026-10-22T15:14:19.363Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "71023aec1546d6d677a65669c5665c0927ce0dd0",
@@ -2767,7 +2767,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. Restore the enclosing default-shell background after nested renderer resets. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "f3539e4bae9519211c2d7125c374c1548ecd321ad279651ff477983e3c475f62",
+      "localSha256": "e29d560d52c754cb9b7c1a9c6fb2707307f49908ab26be9695d302f495d377cf",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",

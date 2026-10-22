@@ -32,7 +32,7 @@ Two generic lossy boundaries now have failing-before/passing-after regressions:
 
 `native/terminal-host/src/roles/presentation/parity_tests.rs` compares every semantic cell, width, style, and link through retained capture, MessagePack round-trip, differential presentation, and parsing of the resulting outer bytes. Its sustained sequence runs 103 frames at each of four widths (24, 80, 132, 192), without forcing or refreshing the source baseline between captures. It covers erases, RGB/palette blank fills, regional scroll in both directions, line insertion/deletion, moving/relabeling/removing bottom controls and status rows, rail changes, wide and combining glyphs, links, attributes, explicit palette/default/cursor colors, and seven-byte fragmentation through UTF-8 and escape sequences. Separate cases cover resize/tab reselection, dictionary replacement, structured fallback, and the legacy renderer.
 
-A Windows-only fixture launches the test binary as a real ConPTY child, answers the startup cursor query, and compares its transformed PTY output against the same solo source frames. It has bounded child/output waits and no Node or shell dependency. These sequences preserve control movement without duplicates. They do not claim an independently reproduced exact cause for the maintainer's screenshot's duplicate label; the regression contract is complete-frame convergence rather than text matching.
+A Windows-only fixture launches the test binary as a real ConPTY child, answers the startup cursor query, and compares its transformed PTY output against the same solo source frames. It has bounded child/output waits and no Node or shell dependency. These earlier sequences preserved control movement without duplicates but did not independently reproduce the screenshot's duplicate label. The residual refinement below establishes that missing cause with actual fullscreen source output and a separate parser oracle.
 
 ### Current focused validation
 
@@ -58,6 +58,24 @@ A Windows-only fixture launches the test binary as a real ConPTY child, answers 
 - Current `origin/develop` remained the branch merge-base and the implementation head was pushed before completion.
 - At the earlier implementation stage, local native tests were blocked by absent Cargo. The subsequent Windows-native-bootstrap change made focused native execution available; current results are recorded above.
 
+## Residual screenshot repair
+
+The maintainer's subsequent screenshots still showed duplicate old/current badges, shifted gutter cells, repeated live headings, and transcript fragments below the current content edge. Comparing solo and resident geometry confirmed the intended contract: the child receives outer height minus one, and resident presentation adds exactly one row. That offset was not the reproduced first divergence.
+
+The actual source rows still carried upstream OSC 133 A/B/C semantic-zone annotations. Styling/padding and span replay moved those annotations away from the row prefix Pi strips, including into the gutter. A direct terminal ignored them, but Ghostty correctly implements OSC 133 A as a fresh-line operation. ConPTY compacted positioned source paints into cursor-forward/erase/CRLF output; the leaked markers then caused extra virtual line advances. An independent xterm replay of that exact ConPTY output matched the solo source while the resident parser displaced rows into the dock. Synthetic terminal-generated cells and marker-free all-CUP sequences did not expose this interaction.
+
+The custom viewport now removes only its internal A/B/C zones, for BEL and ST terminators, from final composed rows and dock-only output. Semantic prompt anchors remain authoritative, and genuine shell OSC 133 behavior is unchanged. The source/TUI/ConPTY reproduction then had matching visible rows; ConPTY's differing foreground attribute on inkless padding was not misreported as a remaining layout mismatch.
+
+Additional delivered changes:
+
+- Track/thumb glyphs remain in the reserved gutter column with one empty rail-boundary row above and below. Paint geometry and hit geometry share the shortened track.
+- Tab chips have no left padding; icon/name separation remains one space, and measured widths and hit regions shrink accordingly.
+- The new real-shell fullscreen regression checks every physical row, including the dock/footer, at three child heights through 40 transitions each. It exercises wheel scrolling, editor growth/shrinkage, badge relabeling, live-status changes, content replacement, and return-to-bottom. Disabling the annotation removal makes all three new cases fail; restoring it passes.
+- A gutter regression covers styled, empty, and annotated rows through five dock heights. Native coverage retains actual OSC 133 fresh-line behavior and exercises real ConPTY for both raw child output and resident output with its additional strip row, with captures after 1-, 7-, and 4096-byte fragments.
+- CI's fixture-key and seven architecture failures are repaired without bypasses: the fixture uses a non-branded test key, component background scoping stays in its owning adapter, duplicate fallback handling is shared locally, the dock-only frame derives unchanged fields from its established frame, and native damage/suffix/sequence helpers are split. The size ratchet is lowered; startup and function-size limits are not raised.
+
+Current focused validation passed: 196 viewport/shell/terminal-replay tests, 86 tool/runtime/image tests, 24 native presentation tests, 26 native strip tests, 7 native capture/parser tests, typecheck, the complete architecture command, changed-file code-documentation governance, and the full naming audit (zero violations). The full managed/native checkout build also passed with exit code zero. Reproduction payloads are synthetic ignored scratch; permanent regressions depend on no artifact file.
+
 ## Manual local test
 
 Build and launch from Windows Git Bash:
@@ -70,7 +88,8 @@ cd /d/Git/a1/.worktrees/first-trust-startup-cleanup && npm run build && ./script
 2. Ask the Agent to run a command that produces short lines, long wrapped lines, colored output, and a hyperlink. Verify each pending/success/error tool block keeps one continuous background through the right content edge while the scrollbar remains confined to its rail.
 3. Scroll upward, allow one or more messages to complete, and grow then shrink the editor with multiline input. Verify exactly one current `Jump to bottom` or counted `new message` badge appears and the former row is restored when it moves.
 4. Return to the end, start and settle another operation, and verify only one live `Working` row appears and no stale status or control remains above the editor.
-5. Repeat the background and bottom-row checks after resizing the terminal and while the scrollbar is active.
+5. Repeat the background and bottom-row checks after resizing the terminal and while the scrollbar is active. Verify rail glyphs stay in one gutter column and leave a clear rail boundary cell above and below the track; the dock/footer must not retain transcript rows.
+6. Check working, completed, and input-needed tab chips: no padding precedes the lifecycle icon, and exactly one space separates it from the name.
 
 The maintainer's screenshots on the prior candidate showed resident degradation despite correct solo output and motivated the comprehensive refinement above. There is no manual result for the new repair head yet. Manual observations remain optional and do not gate implementation completion.
 

@@ -86,6 +86,35 @@ fn terminal_generated_blank_colors_survive_capture_and_legacy_replay() {
 }
 
 #[test]
+fn retained_rows_follow_natural_linefeed_scrolling() {
+    for alternate in [false, true] {
+        let mut source = GhosttyTerminal::new(24, 6).unwrap();
+        let mut builder = RetainedSurfaceBuilder::default();
+        let initial = format!(
+            "{}\x1b[2J\x1b[Hrow0\r\nrow1\r\nrow2\r\nrow3\r\nrow4\r\nrow5",
+            if alternate { "\x1b[?1049h" } else { "" }
+        );
+        source.write(initial.as_bytes());
+        capture(&mut source, &mut builder);
+        let mut all = initial.into_bytes();
+        for index in 0..16 {
+            let next = format!("\x1b[6;1H\r\nnew{index}");
+            all.extend_from_slice(next.as_bytes());
+            source.write(next.as_bytes());
+            let retained = capture(&mut source, &mut builder);
+            let mut fresh = GhosttyTerminal::new(24, 6).unwrap();
+            fresh.write(&all);
+            let direct = capture(&mut fresh, &mut RetainedSurfaceBuilder::default());
+            assert_eq!(
+                cells(&retained, 0),
+                cells(&direct, 0),
+                "linefeed={index} alternate={alternate}"
+            );
+        }
+    }
+}
+
+#[test]
 fn resident_content_converges_after_resize_and_tab_reselection() {
     let mut source = GhosttyTerminal::new(80, 12).unwrap();
     let mut outer = GhosttyTerminal::new(80, 13).unwrap();
@@ -176,19 +205,53 @@ fn conpty_frames() -> Vec<Vec<u8>> {
         "\x1b[?1049h\x1b[2J\x1b[H\x1b[48;2;12;34;56m\x1b[2Ktool output\x1b[2;1H\x1b[2K\x1b[0m\x1b[9;3HJump to bottom\x1b[10;1HWorking\x1b[12;3H> ",
         "\x1b[9;1H\x1b[2K\x1b[10;1H\x1b[2K\x1b[8;3HJump to bottom\x1b[3;1H\x1b[48;5;4m\x1b[2Knext tool\x1b[0m\x1b[8;40H│\x1b[12;3H> ",
         "\x1b[8;1H\x1b[2K\x1b[7;3H3 new messages\x1b[4;1H\x1b[1;3m界 e\u{301}\x1b[0m\x1b[12;3H> ",
-    ].iter().map(|body| format!("\x1b[?2026h{body}\x1b[?2026l").into_bytes()).collect()
+    ].iter().map(|body| format!("\x1b[?2026h{body}\x1b[12;1H{}\x1b[0m\x1b[12;3H\x1b[?2026l", " ".repeat(40)).into_bytes()).collect()
 }
 
 // Rationale: the test binary doubles as the PTY child, avoiding a Node/shell/toolchain dependency.
 #[cfg(windows)]
 #[test]
 fn conpty_parity_child() {
-    if std::env::var("A1_CONPTY_PARITY_CHILD").as_deref() != Ok("1") {
+    let mode = std::env::var("TERMINAL_HOST_CONPTY_PARITY_CHILD").unwrap_or_default();
+    if mode.is_empty() {
         return;
     }
     use std::io::Write;
-    for frame in conpty_frames() {
-        std::io::stdout().write_all(&frame).unwrap();
+    let mut source = GhosttyTerminal::new(40, 12).unwrap();
+    let mut builder = RetainedSurfaceBuilder::default();
+    let mut composer = PresentationComposer::default();
+    if mode == "resident" {
+        std::io::stdout().write_all(b"\x1b[?1049h").unwrap();
+    }
+    for (revision, frame) in conpty_frames().into_iter().enumerate() {
+        let output = if mode == "resident" {
+            source.write(&frame);
+            let next = DesiredPresentation {
+                tab_id: Some("parity".into()),
+                incarnation: 1,
+                revision: revision as u64 + 1,
+                geometry_generation: 1,
+                strip: "\x1b[1;1HSTRIP".into(),
+                structured: Some(capture(&mut source, &mut builder)),
+                legacy_body: Vec::new(),
+                overlay: None,
+                cursor: source
+                    .cursor_cell()
+                    .unwrap()
+                    .map(|(column, row)| FinalCursor::At(SurfaceCursor { column, row })),
+                modes: None,
+                columns: 40,
+                outer_rows: 13,
+                clear: false,
+            };
+            let prepared = composer.prepare(&next).unwrap().unwrap();
+            let output = prepared.bytes.clone();
+            prepared.acknowledge(&mut composer);
+            output
+        } else {
+            frame
+        };
+        std::io::stdout().write_all(&output).unwrap();
         std::io::stdout().flush().unwrap();
         std::thread::sleep(std::time::Duration::from_millis(80));
     }
@@ -199,12 +262,20 @@ fn conpty_parity_child() {
 #[cfg(windows)]
 #[test]
 fn conpty_output_preserves_solo_content_before_resident_replay() {
+    conpty_content_parity(false);
+    conpty_content_parity(true);
+}
+
+#[cfg(windows)]
+fn conpty_output(resident_output: bool) -> Vec<u8> {
+    let columns = 40;
+    let rows = 12;
     use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
     use std::io::{Read, Write};
     let pair = NativePtySystem::default()
         .openpty(PtySize {
-            rows: 12,
-            cols: 40,
+            rows: rows + u16::from(resident_output),
+            cols: columns,
             pixel_width: 0,
             pixel_height: 0,
         })
@@ -215,7 +286,10 @@ fn conpty_output_preserves_solo_content_before_resident_replay() {
         "roles::presentation::parity_tests::conpty_parity_child",
         "--nocapture",
     ]);
-    command.env("A1_CONPTY_PARITY_CHILD", "1");
+    command.env(
+        "TERMINAL_HOST_CONPTY_PARITY_CHILD",
+        if resident_output { "resident" } else { "1" },
+    );
     let mut child = pair.slave.spawn_command(command).unwrap();
     drop(pair.slave);
     let mut reader = pair.master.try_clone_reader().unwrap();
@@ -263,32 +337,43 @@ fn conpty_output_preserves_solo_content_before_resident_replay() {
         .recv_timeout(std::time::Duration::from_secs(10))
         .expect("PTY output completed");
     result.unwrap();
-    let mut solo = GhosttyTerminal::new(40, 12).unwrap();
+    bytes
+}
+
+#[cfg(windows)]
+fn conpty_content_parity(resident_output: bool) {
+    let columns = 40;
+    let rows = 12;
+    let bytes = conpty_output(resident_output);
+    let mut solo = GhosttyTerminal::new(columns, rows).unwrap();
     for frame in conpty_frames() {
         solo.write(&frame);
     }
-    let mut resident = GhosttyTerminal::new(40, 12).unwrap();
-    resident.write(&bytes);
     let direct = capture(&mut solo, &mut RetainedSurfaceBuilder::default());
-    let through_pty = capture(&mut resident, &mut RetainedSurfaceBuilder::default());
-    assert_eq!(
-        cells(&direct, 0),
-        cells(&through_pty, 0),
-        "ConPTY must preserve the child frame before capture/replay"
-    );
+    for chunk_size in [1, 7, 4096] {
+        let mut resident =
+            GhosttyTerminal::new(columns, rows + u16::from(resident_output)).unwrap();
+        let mut builder = RetainedSurfaceBuilder::default();
+        let mut through_pty = None;
+        for chunk in bytes.chunks(chunk_size) {
+            resident.write(chunk);
+            through_pty = Some(capture(&mut resident, &mut builder));
+        }
+        let expected = cells(&direct, 0);
+        let actual = cells(&through_pty.unwrap(), usize::from(resident_output));
+        for (y, (a, b)) in expected.iter().zip(&actual).enumerate() {
+            for (x, (e, g)) in a.iter().zip(b).enumerate() {
+                assert_eq!(
+                    e, g,
+                    "ConPTY mismatch at {y}:{x} chunks={chunk_size} resident={resident_output}"
+                );
+            }
+        }
+    }
 }
 
-#[test]
-fn solo_and_resident_cells_converge_across_frame_sequences() {
-    for columns in [24u16, 80, 132, 192] {
-        let rows = 12u16;
-        let mut source = GhosttyTerminal::new(columns, rows).unwrap();
-        let mut outer = GhosttyTerminal::new(columns, rows + 1).unwrap();
-        let mut retained = RetainedSurfaceBuilder::default();
-        let mut presented = RetainedSurfaceBuilder::default();
-        let mut composer = PresentationComposer::default();
-        let mut stream = Vec::new();
-        let mut sequences = vec![
+fn parity_frames(columns: u16) -> Vec<String> {
+    let mut sequences = vec![
             format!("\x1b[?1049h\x1b[2J\x1b[H\x1b[48;2;12;34;56m{}\x1b[0m\x1b[10;3HJump to bottom\x1b[11;1HWorking\x1b[12;1H> ", " ".repeat(usize::from(columns))),
             "\x1b[10;1H\x1b[2K\x1b[9;3HJump to bottom\x1b[11;1H\x1b[2K\x1b[4;1H\x1b[48;5;4mtool\x1b[K\x1b[0m".into(),
             "\x1b[2;10r\x1b[2;1H\x1b[2S\x1b[r\x1b[9;1H\x1b[2K\x1b[8;3H3 new messages".into(),
@@ -296,103 +381,120 @@ fn solo_and_resident_cells_converge_across_frame_sequences() {
             "\x1b[2;1H\x1b[3L\x1b[5;1H\x1b[2M\x1b[10;1H\x1b[2K\x1b[7;1H\x1b[48;5;2m\x1b[K\x1b[0m".into(),
             "\x1b[0m\x1b[2J\x1b[Hshort\x1b[12;3H\x1b[?25h".into(),
         ];
-        sequences.push("\x1b]4;4;rgb:12/34/56\x1b\\\x1b]10;rgb:ab/cd/ef\x1b\\\x1b]11;rgb:11/22/33\x1b\\\x1b]12;rgb:44/55/66\x1b\\\x1b[2;1H\x1b[48;5;4m\x1b[2K\x1b[0m".into());
-        // Invariant: exercise sustained differential damage without a full/mark-dirty capture healing the
-        // source cache between frames. Controls, rail cells and status rows move independently.
-        let mut seed = 0x811u32;
-        for revision in 0..96 {
-            seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
-            let row = 2 + seed % 8;
-            let operation = match revision % 8 {
-                0 => format!(
-                    "\x1b[{row};1H\x1b[48;2;12;34;56m\x1b[2Ktool {revision}\x1b[0m\x1b[{row};{columns}H│"
-                ),
-                1 => format!(
-                    "\x1b[10;1H\x1b[2K\x1b[{row};3HJump to bottom\x1b[11;1H\x1b[2KWorking {revision}"
-                ),
-                2 => "\x1b[2;10r\x1b[1S\x1b[r".into(),
-                3 => format!("\x1b[{row};1H\x1b[48;5;4m\x1b[K\x1b[0m\x1b[11;1H\x1b[2K"),
-                4 => "\x1b[2;10r\x1b[1T\x1b[r".into(),
-                5 => format!("\x1b[{row};1H\x1b[2K\x1b[1;3;7m界\x1b[0m replacement"),
-                6 => format!("\x1b[{row};1H\x1b[1L\x1b[9;1H\x1b[1M"),
-                _ => format!("\x1b[{row};1H\x1b[2K\x1b[10;1H\x1b[2K\x1b[12;3H> {revision}"),
-            };
-            sequences.push(operation);
+    sequences.push("\x1b]4;4;rgb:12/34/56\x1b\\\x1b]10;rgb:ab/cd/ef\x1b\\\x1b]11;rgb:11/22/33\x1b\\\x1b]12;rgb:44/55/66\x1b\\\x1b[2;1H\x1b[48;5;4m\x1b[2K\x1b[0m".into());
+    // Invariant: exercise sustained differential damage without a full/mark-dirty capture healing the
+    // source cache between frames. Controls, rail cells and status rows move independently.
+    let mut seed = 0x811u32;
+    for revision in 0..96 {
+        seed = seed.wrapping_mul(1664525).wrapping_add(1013904223);
+        let row = 2 + seed % 8;
+        let operation = match revision % 8 {
+            0 => format!(
+                "\x1b[{row};1H\x1b[48;2;12;34;56m\x1b[2Ktool {revision}\x1b[0m\x1b[{row};{columns}H│"
+            ),
+            1 => format!(
+                "\x1b[10;1H\x1b[2K\x1b[{row};3HJump to bottom\x1b[11;1H\x1b[2KWorking {revision}"
+            ),
+            2 => "\x1b[2;10r\x1b[1S\x1b[r".into(),
+            3 => format!("\x1b[{row};1H\x1b[48;5;4m\x1b[K\x1b[0m\x1b[11;1H\x1b[2K"),
+            4 => "\x1b[2;10r\x1b[1T\x1b[r".into(),
+            5 => format!("\x1b[{row};1H\x1b[2K\x1b[1;3;7m界\x1b[0m replacement"),
+            6 => format!("\x1b[{row};1H\x1b[1L\x1b[9;1H\x1b[1M"),
+            _ => format!("\x1b[{row};1H\x1b[2K\x1b[10;1H\x1b[2K\x1b[12;3H> {revision}"),
+        };
+        sequences.push(operation);
+    }
+    sequences
+}
+
+fn assert_parity_sequence(columns: u16) {
+    let rows = 12u16;
+    let mut source = GhosttyTerminal::new(columns, rows).unwrap();
+    let mut outer = GhosttyTerminal::new(columns, rows + 1).unwrap();
+    let mut retained = RetainedSurfaceBuilder::default();
+    let mut presented = RetainedSurfaceBuilder::default();
+    let mut composer = PresentationComposer::default();
+    let mut stream = Vec::new();
+    for (frame_index, body) in parity_frames(columns).iter().enumerate() {
+        let frame = format!("\x1b[?2026h{body}\x1b[?2026l");
+        stream.extend_from_slice(frame.as_bytes());
+        // Invariant: fragment at arbitrary byte boundaries, including inside UTF-8, CSI and OSC.
+        for chunk in frame.as_bytes().chunks(7) {
+            let mut offset = 0;
+            while offset < chunk.len() {
+                let (consumed, _) = source.write_until_sync_boundary(&chunk[offset..]).unwrap();
+                offset += consumed;
+            }
         }
-        for (frame_index, body) in sequences.iter().enumerate() {
-            let frame = format!("\x1b[?2026h{body}\x1b[?2026l");
-            stream.extend_from_slice(frame.as_bytes());
-            // Invariant: fragment at arbitrary byte boundaries, including inside UTF-8, CSI and OSC.
-            for chunk in frame.as_bytes().chunks(7) {
-                let mut offset = 0;
-                while offset < chunk.len() {
-                    let (consumed, _) = source.write_until_sync_boundary(&chunk[offset..]).unwrap();
-                    offset += consumed;
-                }
-            }
-            let incremental = capture(&mut source, &mut retained);
-            // Invariant: independent solo execution never consumes render damage between frames.
-            let mut solo = GhosttyTerminal::new(columns, rows).unwrap();
-            solo.write(&stream);
-            let direct = capture(&mut solo, &mut RetainedSurfaceBuilder::default());
-            assert_eq!(
-                cells(&incremental, 0),
-                cells(&direct, 0),
-                "fragmentation: width={columns} frame={frame_index}"
-            );
-            let next = DesiredPresentation {
-                tab_id: Some("parity".into()),
-                incarnation: 1,
-                revision: frame_index as u64 + 1,
-                geometry_generation: 1,
-                strip: "\x1b[1;1HSTRIP".into(),
-                structured: Some(incremental.clone()),
-                legacy_body: Vec::new(),
-                overlay: None,
-                cursor: source
-                    .cursor_cell()
-                    .unwrap()
-                    .map(|(column, row)| FinalCursor::At(SurfaceCursor { column, row })),
-                modes: None,
-                columns,
-                outer_rows: rows + 1,
-                clear: false,
-            };
-            if let Some(prepared) = composer.prepare(&next).unwrap() {
-                outer.write(&prepared.bytes);
-                prepared.acknowledge(&mut composer);
-            }
-            let replay = capture(&mut outer, &mut presented);
-            assert_eq!(
-                cells(&direct, 0),
-                cells(&replay, 1),
-                "resident replay: width={columns} frame={frame_index}"
-            );
-            assert_eq!(
-                direct.palette, replay.palette,
-                "palette: frame={frame_index}"
-            );
-            assert_eq!(
-                direct.default_foreground, replay.default_foreground,
-                "foreground: frame={frame_index}"
-            );
-            assert_eq!(
-                direct.default_background, replay.default_background,
-                "background: frame={frame_index}"
-            );
-            assert_eq!(
-                direct.cursor_color, replay.cursor_color,
-                "cursor color: frame={frame_index}"
-            );
-            let expected_cursor = source
+        let incremental = capture(&mut source, &mut retained);
+        // Invariant: independent solo execution never consumes render damage between frames.
+        let mut solo = GhosttyTerminal::new(columns, rows).unwrap();
+        solo.write(&stream);
+        let direct = capture(&mut solo, &mut RetainedSurfaceBuilder::default());
+        assert_eq!(
+            cells(&incremental, 0),
+            cells(&direct, 0),
+            "fragmentation: width={columns} frame={frame_index}"
+        );
+        let next = DesiredPresentation {
+            tab_id: Some("parity".into()),
+            incarnation: 1,
+            revision: frame_index as u64 + 1,
+            geometry_generation: 1,
+            strip: "\x1b[1;1HSTRIP".into(),
+            structured: Some(incremental.clone()),
+            legacy_body: Vec::new(),
+            overlay: None,
+            cursor: source
                 .cursor_cell()
                 .unwrap()
-                .map(|(column, row)| (column, row + 1));
-            assert_eq!(
-                outer.cursor_cell().unwrap(),
-                expected_cursor,
-                "cursor: frame={frame_index}"
-            );
+                .map(|(column, row)| FinalCursor::At(SurfaceCursor { column, row })),
+            modes: None,
+            columns,
+            outer_rows: rows + 1,
+            clear: false,
+        };
+        if let Some(prepared) = composer.prepare(&next).unwrap() {
+            outer.write(&prepared.bytes);
+            prepared.acknowledge(&mut composer);
         }
+        let replay = capture(&mut outer, &mut presented);
+        assert_eq!(
+            cells(&direct, 0),
+            cells(&replay, 1),
+            "resident replay: width={columns} frame={frame_index}"
+        );
+        assert_eq!(
+            direct.palette, replay.palette,
+            "palette: frame={frame_index}"
+        );
+        assert_eq!(
+            direct.default_foreground, replay.default_foreground,
+            "foreground: frame={frame_index}"
+        );
+        assert_eq!(
+            direct.default_background, replay.default_background,
+            "background: frame={frame_index}"
+        );
+        assert_eq!(
+            direct.cursor_color, replay.cursor_color,
+            "cursor color: frame={frame_index}"
+        );
+        let expected_cursor = source
+            .cursor_cell()
+            .unwrap()
+            .map(|(column, row)| (column, row + 1));
+        assert_eq!(
+            outer.cursor_cell().unwrap(),
+            expected_cursor,
+            "cursor: frame={frame_index}"
+        );
+    }
+}
+
+#[test]
+fn solo_and_resident_cells_converge_across_frame_sequences() {
+    for columns in [24u16, 80, 132, 192] {
+        assert_parity_sequence(columns);
     }
 }

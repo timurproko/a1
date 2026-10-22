@@ -33,6 +33,13 @@
 - [x] 7.3 Add capture-to-wire-to-replay parity sequences covering all cells, attributes, links, wide glyphs, scrolling, rail/control movement, shrinking content, and synchronized write fragmentation.
 - [x] 7.4 Run focused native/TypeScript tests and typecheck, document root causes and bounded evidence, reconcile current develop, and complete delivery bookkeeping.
 
+## 8. Screenshot-driven residual repair
+
+- [x] 8.1 Reproduce stale controls, shifted rail cells, and duplicate live rows through incremental PTY/chunk capture rather than final-only parser snapshots; repair the first divergent boundary.
+- [x] 8.2 Keep the scrollbar within one fixed gutter column and reserve one empty boundary row above and below its track through scrolling and dock changes.
+- [x] 8.3 Remove tab-chip left padding while retaining exactly one separator between each lifecycle icon and name; update hit/width contracts.
+- [x] 8.4 Repair the CI-reported fixture environment key, cross-adapter import, startup-graph bounds, and oversized functions without relaxing policy; run focused regression, native, architecture, naming, typecheck, and build checks.
+
 ## 6. Validation and delivery record
 
 - [x] 6.1 Run focused TypeScript tests, typecheck, strict OpenSpec validation, changed-file governance checks, and available native checks; record Cargo unavailability rather than claiming native execution when it remains absent.
