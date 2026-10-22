@@ -11,6 +11,8 @@ import {
   satisfiesRange,
 } from "../../scripts/development/environment-prerequisites.mjs";
 
+const readyMsvc = { status: "ready", source: "discovered", compiler: "cl.exe", linker: "link.exe", ready: true };
+
 const ready = {
   platform: "linux",
   node: "v24.4.0",
@@ -84,7 +86,7 @@ describe("build environment prerequisites", () => {
   ])("offers the %s install command when cargo is absent", (platform, remedy) => {
     const check = checkFor({ platform, cargo: null }, "cargo");
     expect(check).toMatchObject({ satisfied: false, severity: "required" });
-    expect(check?.detail).toContain("native/process-guardian");
+    expect(check?.detail).toContain("native addons");
     expect(check?.remedy).toContain(remedy);
   });
 
@@ -102,14 +104,43 @@ describe("build environment prerequisites", () => {
   });
 
   it("points a machine with no Rust at one toolchain install for both tools", () => {
-    const checks = evaluatePrerequisites({ ...ready, platform: "win32", cargo: null, rustc: null });
-    const remedies = blockingFailures(checks).map(check => check.remedy);
+    const checks = evaluatePrerequisites({ ...ready, platform: "win32", cargo: null, rustc: null, msvc: readyMsvc });
+    const remedies = blockingFailures(checks).filter(check => ["cargo", "rustc"].includes(check.id)).map(check => check.remedy);
     expect(new Set(remedies).size).toBe(1);
     expect(remedies[0]).toContain("winget install Rustlang.Rustup");
   });
 
+  it("reports automatically initialized Rust and Microsoft tools as ready", () => {
+    const checks = evaluatePrerequisites({
+      ...ready, platform: "win32", cargoSource: "rustup", rustcSource: "rustup", msvc: readyMsvc,
+    });
+    expect(checks.find(check => check.id === "cargo")?.detail).toContain("canonical Rustup location");
+    expect(checks.find(check => check.id === "msvc")?.detail).toContain("initialized automatically");
+    expect(blockingFailures(checks)).toEqual([]);
+  });
+
+  it.each([
+    ["missing-workload", "Desktop development with C++ workload"],
+    ["missing-installation", "Visual Studio Code is not the required compiler"],
+    ["probe-failed", "Visual Studio discovery failed"],
+    ["initialization-failed", "could not be initialized"],
+  ])("blocks before compilation when MSVC is %s", (status, detail) => {
+    const check = checkFor({ platform: "win32", msvc: { status, source: "vswhere", probeStatus: "timeout" } }, "msvc");
+    expect(check).toMatchObject({ satisfied: false, severity: "required" });
+    expect(check?.detail).toContain(detail);
+    expect(check?.remedy).toContain("npm run build");
+    expect(JSON.stringify(check)).not.toContain("must-not-appear-in-diagnostics");
+  });
+
+  it("fails an invalid explicit Rust override by name", () => {
+    expect(checkFor({ cargo: null, cargoResolution: "invalid-override" }, "cargo")).toMatchObject({
+      detail: "the explicit CARGO executable does not exist or cannot be resolved",
+      remedy: "fix or remove CARGO, then rerun `npm run build`",
+    });
+  });
+
   it("reports an absent GitHub CLI without blocking the build that does not need it", () => {
-    const checks = evaluatePrerequisites({ ...ready, platform: "win32", githubCli: null });
+    const checks = evaluatePrerequisites({ ...ready, platform: "win32", githubCli: null, msvc: readyMsvc });
     expect(blockingFailures(checks)).toEqual([]);
     expect(advisories(checks)).toMatchObject([{ id: "gh", remedy: "winget install GitHub.cli, then run gh auth login" }]);
   });
@@ -130,11 +161,13 @@ describe("build environment prerequisites", () => {
     expect(checkFor({ npm: null }, "npm")).toMatchObject({ satisfied: true });
   });
 
-  it("states every unmet blocker and its fix, then points at the full report", () => {
-    const checks = evaluatePrerequisites({ ...ready, cargo: null, node: "v26.1.0", platform: "win32" });
+  it("states every unmet blocker and the ordered Windows setup sequence", () => {
+    const checks = evaluatePrerequisites({ ...ready, cargo: null, node: "v26.1.0", platform: "win32", msvc: { status: "missing-workload", source: "vswhere" } });
     const failures = formatFailures(checks);
-    expect(failures).toContain("Rust toolchain: cargo is not on PATH");
-    expect(failures).toContain("fix: winget install Rustlang.Rustup");
+    expect(failures).toContain("Rust toolchain: cargo was not found");
+    expect(failures).toContain("fix: install Rustup with `winget install Rustlang.Rustup`");
+    expect(failures).toContain("Windows native setup order:");
+    expect(failures).toContain("3. Rerun `npm run build` from the same shell.");
     expect(failures).toContain("npm run doctor");
     expect(failures).not.toContain("outside the declared engine contract");
   });
@@ -148,14 +181,20 @@ describe("build environment prerequisites", () => {
 });
 
 describe("environment prerequisite wiring", () => {
-  it("checks the environment before any build step and exposes a standalone report command", async () => {
+  it("checks the environment through dependency-free orchestration and exposes a standalone report command", async () => {
     const manifest = JSON.parse(await readFile("package.json", "utf8"));
-    expect(String(manifest.scripts.build).startsWith("node scripts/development/check-environment.mjs && ")).toBe(true);
+    expect(manifest.scripts.build).toBe("node scripts/development/run-build.mjs");
+    expect(manifest.scripts["build:core"]).toBe("node scripts/development/run-build.mjs --core");
     expect(manifest.scripts.doctor).toBe("node scripts/development/check-environment.mjs --report");
   });
 
   it("keeps the check usable before node_modules exists", async () => {
-    for (const path of ["scripts/development/check-environment.mjs", "scripts/development/environment-prerequisites.mjs"]) {
+    for (const path of [
+      "scripts/development/check-environment.mjs",
+      "scripts/development/environment-prerequisites.mjs",
+      "scripts/development/native-build-environment.mjs",
+      "scripts/development/run-build.mjs",
+    ]) {
       const source = await readFile(path, "utf8");
       for (const specifier of [...source.matchAll(/^import .*? from "([^"]+)";$/gmu)].map(match => match[1])) {
         expect(specifier, `${path} imports ${specifier}`).toMatch(/^(?:node:|\.\/)/u);

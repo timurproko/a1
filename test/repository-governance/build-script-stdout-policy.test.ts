@@ -10,9 +10,7 @@ describe("build script stdout discipline", () => {
     const scripts = [String(manifest.scripts.build), String(manifest.scripts["build:managed"])];
     const chain = scripts.flatMap(script => [...script.matchAll(/node (scripts\/[^\s&]+\.mjs)/gu)].map(match => match[1] ?? ""));
     expect(chain).toEqual([
-      "scripts/development/check-environment.mjs",
-      "scripts/development/prepare-local-terminal-host.mjs",
-      "scripts/release/generate-runtime-payload-inventory.mjs",
+      "scripts/development/run-build.mjs",
       "scripts/release/generate-release-notes-resource.mjs",
       "scripts/pi/build-pi-settings-metadata.mjs",
       "scripts/pi/build-startup-public.mjs",
@@ -20,7 +18,12 @@ describe("build script stdout discipline", () => {
     ]);
     const clean = String(manifest.scripts.clean).match(/node (scripts\/[^\s&]+\.mjs)/u)?.[1];
     expect(clean).toBe("scripts/clean.mjs");
-    for (const path of [clean ?? "", ...chain]) {
+    const orchestrated = [
+      "scripts/development/check-environment.mjs",
+      "scripts/development/prepare-local-terminal-host.mjs",
+      "scripts/release/generate-runtime-payload-inventory.mjs",
+    ];
+    for (const path of [clean ?? "", ...chain, ...orchestrated]) {
       const source = await readFile(path, "utf8");
       const lines = source.split(/\r?\n/u);
       for (const [index, line] of lines.entries()) {
