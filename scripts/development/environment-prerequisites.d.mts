@@ -1,4 +1,5 @@
 import type { VersionProbeResult } from "./environment-probe.mjs";
+import type { MsvcResolution } from "./native-build-environment.mjs";
 
 export type PrerequisiteSeverity = "required" | "advisory";
 export interface PrerequisiteCheck {
@@ -25,6 +26,11 @@ export interface EnvironmentObservation {
   readonly githubCli?: string | null;
   readonly cargo?: string | null;
   readonly rustc?: string | null;
+  readonly cargoSource?: string;
+  readonly rustcSource?: string;
+  readonly cargoResolution?: string;
+  readonly rustcResolution?: string;
+  readonly msvc?: MsvcResolution;
   readonly dependencies?: DependencyObservation;
   readonly probes?: Readonly<Record<string, VersionProbeResult>>;
 }

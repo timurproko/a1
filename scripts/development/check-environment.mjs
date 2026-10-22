@@ -9,21 +9,26 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { advisories, blockingFailures, evaluatePrerequisites, formatFailures, formatReport } from "./environment-prerequisites.mjs";
-import { probeVersion } from "./environment-probe.mjs";
+import { locateExecutable, probeVersion } from "./environment-probe.mjs";
+import { resolveNativeBuildEnvironment } from "./native-build-environment.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const verbose = process.argv.includes("--report") || process.env.A1_BUILD_VERBOSE === "1";
+const resolved = resolveNativeBuildEnvironment();
+const environment = resolved.environment;
+const verbose = process.argv.includes("--report") || environment.A1_BUILD_VERBOSE === "1";
 
 const probes = {};
-function probe(command) {
-  probes[command] = probeVersion(command);
+function probe(command, executable = command) {
+  probes[command] = probeVersion(executable, {
+    locate: candidate => locateExecutable(candidate, { platform: process.platform, env: environment }),
+  });
   return probes[command].version;
 }
 
 // Rationale: npm runs this script, so its own banner is already in the environment; spawning the
 // shim would cost a shell on Windows to learn something the caller has stated.
 function npmVersion() {
-  return /\bnpm\/(\d+\.\d+\.\d+)/u.exec(process.env.npm_config_user_agent ?? "")?.[1] ?? probe("npm");
+  return /\bnpm\/(\d+\.\d+\.\d+)/u.exec(environment.npm_config_user_agent ?? "")?.[1] ?? probe("npm");
 }
 
 function inspectDependencies(manifest) {
@@ -58,8 +63,13 @@ const checks = evaluatePrerequisites({
   npm: npmVersion(),
   git: probe("git"),
   githubCli: probe("gh"),
-  cargo: probe("cargo"),
-  rustc: probe("rustc"),
+  cargo: probe("cargo", environment.CARGO ?? "cargo"),
+  rustc: probe("rustc", environment.RUSTC ?? "rustc"),
+  cargoSource: resolved.cargo.source,
+  rustcSource: resolved.rustc.source,
+  cargoResolution: resolved.cargo.status,
+  rustcResolution: resolved.rustc.status,
+  msvc: resolved.msvc,
   dependencies: inspectDependencies(manifest),
   probes,
 });

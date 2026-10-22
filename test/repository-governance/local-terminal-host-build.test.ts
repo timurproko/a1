@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { terminalHostZigVersion } from "../../scripts/development/build-terminal-host.mjs";
+import { buildStages } from "../../scripts/development/run-build.mjs";
 import {
   expectedTerminalVtIdentity,
   selectLocalTerminalVt,
@@ -13,12 +14,13 @@ import { preflightSteps } from "../../scripts/development/run-preflight.mjs";
 describe("resident-ready normal build", () => {
   it("keeps the public build complete and npm lifecycle plus preflight explicitly core-only", async () => {
     const manifest = JSON.parse(await readFile("package.json", "utf8"));
-    const build = String(manifest.scripts.build);
-    expect(build).toContain("npm run build:managed");
-    expect(build).toContain("node scripts/development/prepare-local-terminal-host.mjs");
-    expect(build.indexOf("prepare-local-terminal-host.mjs")).toBeLessThan(build.indexOf("generate-runtime-payload-inventory.mjs"));
+    expect(manifest.scripts.build).toBe("node scripts/development/run-build.mjs");
+    const full = buildStages({ core: false, npmCli: "npm-cli.js" }).map(stage => stage.arguments.join(" "));
+    expect(full).toEqual(expect.arrayContaining(["npm-cli.js run build:managed", expect.stringContaining("prepare-local-terminal-host.mjs")]));
+    expect(full.findIndex(stage => stage.includes("prepare-local-terminal-host.mjs")))
+      .toBeLessThan(full.findIndex(stage => stage.includes("generate-runtime-payload-inventory.mjs")));
     expect(manifest.scripts.prepare).toBe("npm run build:core");
-    expect(String(manifest.scripts["build:core"])).not.toContain("terminal-host");
+    expect(manifest.scripts["build:core"]).toBe("node scripts/development/run-build.mjs --core");
     const selection = { docsOnly: false, versionOnly: false, openspecTouched: false, documentation: { required: false }, naming: { required: false }, prCore: { tests: [] } };
     expect(preflightSteps(selection)[0]).toMatchObject({ id: "build", executable: "npm", arguments: ["run", "build:core"] });
   });

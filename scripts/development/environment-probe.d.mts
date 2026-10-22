@@ -15,7 +15,7 @@ export interface VersionProbeProcessResult {
 }
 export function locateExecutable(command: string, options?: {
   platform?: string;
-  env?: { PATH?: string; PATHEXT?: string };
+  env?: NodeJS.ProcessEnv;
   exists?: (path: string) => boolean;
 }): string | null;
 export function probeVersion(command: string, options?: {
