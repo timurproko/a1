@@ -1,8 +1,8 @@
 # Implementation evidence
 
-Implementation continued in the linked `D:/Git/a1/.worktrees/first-trust-startup-cleanup` worktree and draft PR #811 after the maintainer approved the plan and requested implementation.
+The startup-handoff outcome was implemented in the linked `D:/Git/a1/.worktrees/first-trust-startup-cleanup` worktree and PR #811 after the maintainer approved that original plan. The later content-rendering refinement is planned in the same change but is not yet implemented or evidenced.
 
-## Results
+## Completed startup results
 
 - The attach presentation state recognizes a blank starting surface that follows already drawn startup content for the same tab and child incarnation.
 - Consecutive blank revisions keep that handoff active, while the next drawn surface, another lifecycle state, a different child, or body clearing ends it.
@@ -18,6 +18,12 @@ Implementation continued in the linked `D:/Git/a1/.worktrees/first-trust-startup
 - `git diff --check` passed.
 - The two focused Rust tests were not run locally because this machine has no Cargo/Rust toolchain; exact native compilation and execution remain owned by pull-request CI.
 
+## Pending refined outcomes
+
+- Full-width tool-state background composition through nested ANSI resets and the reserved rail.
+- Coherent replacement of moved or removed jump-to-bottom controls and bottom-aligned live-status rows through resident structured replay.
+- Focused automated evidence and a local manual test checklist for those rendering transitions.
+
 ## Known gaps
 
-None in the approved behavior. Local native-test execution is an environment limitation rather than a delivered behavior gap.
+None in the completed startup behavior. Local native-test execution is an environment limitation rather than a delivered behavior gap. The refined rendering outcomes remain intentionally pending maintainer approval and implementation.

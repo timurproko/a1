@@ -1,0 +1,33 @@
+## 1. Quiet startup handoff state
+
+- [x] 1.1 Track a viewed tab's drawn-startup to blank-starting transition in attach presentation state, keep the classification across consecutive blank revisions, and verify focused native state tests distinguish it from an initially blank or ordinarily idle surface.
+- [x] 1.2 End the handoff classification on the next drawn surface or non-starting lifecycle and verify normal cursor and status projection return immediately.
+
+## 2. Cursor and strip presentation
+
+- [x] 2.1 Force the final cursor hidden during the quiet handoff and verify structured and legacy blank surfaces cannot expose a cursor below the strip.
+- [x] 2.2 Suppress the viewed chip's starting glyph during the quiet handoff, clear held/debounced glyph state, and verify working, input-needed, settlement, restart, restoration outside the handoff, crash, and failure indicators remain unchanged.
+
+## 3. Completed startup regression record
+
+- [x] 3.1 Add a focused native sequence test covering a drawn trust frame, repeated blank starting frames, and the first drawn shell frame; verify the blank interval has neither lifecycle glyph nor cursor and the shell frame restores normal presentation.
+- [x] 3.2 Record the delivered trust-handoff behavior, focused-check results, and local Cargo availability in implementation evidence.
+
+## 4. Full-width tool background composition
+
+- [ ] 4.1 Add focused tool-shell fixtures that expose nested SGR full/background resets inside pending, successful, and failed rows, including short text, links, wrapped output, collapse hints, and explicit nested backgrounds.
+- [ ] 4.2 Scope nested renderer styling to the enclosing tool-shell background so every available content cell returns to the tool state background without changing text, foreground roles, links, wrapping, or `a1 pi` comparison output.
+- [ ] 4.3 Verify content padding and hidden/visible scrollbar modes preserve one continuous component background while the reserved rail remains a separately painted overlay.
+
+## 5. Coherent transient bottom rows
+
+- [ ] 5.1 Add custom-viewport transition tests for a jump-to-bottom control that moves, changes between generic and counted labels, changes hover state, and disappears as dock height, follow state, or content changes; assert the former row is restored and exactly one current control remains.
+- [ ] 5.2 Add transition coverage for bottom-aligned live-status rows appearing, changing height, and disappearing without leaving duplicate `Working` rows.
+- [ ] 5.3 Trace those transitions through the Pi fullscreen damage writer and resident structured capture/replay, repair the first divergent row-damage boundary, and verify cleared, replacement, and styled trailing blank cells converge to the newest complete frame.
+- [ ] 5.4 Preserve row-bounded differential rendering, popup clipping, cursor placement, hyperlinks, selection, and successful-write baseline acknowledgement while repairing stale-row replacement.
+
+## 6. Validation and delivery record
+
+- [ ] 6.1 Run focused TypeScript tests, typecheck, strict OpenSpec validation, changed-file governance checks, and available native checks; record Cargo unavailability rather than claiming native execution when it remains absent.
+- [ ] 6.2 Publish one copy-pasteable Windows Git Bash worktree build/launch command and a manual checklist covering first trust, short and internally styled tool rows, active scrollbar, detached control relabel/movement, and live-status removal; record reported observations when available without making manual validation a completion gate.
+- [ ] 6.3 Update implementation evidence and the plain PR acceptance outcomes, resolve every pre-ready task or record a maintainer-approved known gap, reconcile and push current `origin/develop`, and verify the implementation-bound body before completing the final implementation outcome.
