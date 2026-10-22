@@ -192,7 +192,7 @@ describe("native build orchestration", () => {
     const calls: Array<{ arguments_: string[]; environment: NodeJS.ProcessEnv | undefined }> = [];
     const status = runBuild({
       environment: { npm_execpath: "npm-cli.js" },
-      resolveEnvironment: () => ({ environment: { npm_execpath: "npm-cli.js", A1_EFFECTIVE_NATIVE_ENV: "ready" } }),
+      resolveEnvironment: () => ({ environment: { npm_execpath: "npm-cli.js", EFFECTIVE_NATIVE_ENV: "ready" } }),
       spawn: (_executable: string, arguments_: string[], options: { env?: NodeJS.ProcessEnv }) => {
         calls.push({ arguments_, environment: options.env });
         return { status: calls.length === 2 ? 7 : 0 };
@@ -200,7 +200,7 @@ describe("native build orchestration", () => {
     });
     expect(status).toBe(7);
     expect(calls).toHaveLength(2);
-    expect(calls.every(call => call.environment?.A1_EFFECTIVE_NATIVE_ENV === "ready")).toBe(true);
+    expect(calls.every(call => call.environment?.EFFECTIVE_NATIVE_ENV === "ready")).toBe(true);
     expect(calls[0]?.arguments_.join(" ")).toContain("check-environment.mjs");
     expect(calls[1]?.arguments_).toEqual(["npm-cli.js", "run", "build:managed"]);
   });

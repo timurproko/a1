@@ -10,15 +10,15 @@ import { addonLibraryName, observeAddonIdentity, resolveBuildTarget } from "./na
 // macOS x64 this way on the arm64 runner instead of on a slower Intel runner.
 const target = resolveBuildTarget({ argv: process.argv.slice(2) });
 const { platform, architecture } = target;
-const nativeEnvironment = requireNativeBuildEnvironment(resolveNativeBuildEnvironment());
-const cargo = nativeEnvironment.CARGO ?? "cargo";
+const environment = requireNativeBuildEnvironment(resolveNativeBuildEnvironment());
+const cargo = environment.CARGO ?? "cargo";
 const manifestPath = resolve("native/process-guardian/Cargo.toml");
 // Rationale: a build that worked has nothing to say. Its output is kept and shown only when
 // it failed, or when the reader asked for it with A1_BUILD_VERBOSE=1.
-const verbose = nativeEnvironment.A1_BUILD_VERBOSE === "1";
+const verbose = environment.A1_BUILD_VERBOSE === "1";
 const build = crossSpawn.sync(cargo, ["build", "--release", "--locked", ...target.cargoArguments, "--manifest-path", manifestPath], {
   stdio: verbose ? "inherit" : ["ignore", "pipe", "pipe"],
-  env: nativeEnvironment,
+  env: environment,
   windowsHide: true,
 });
 if (build.status !== 0) {
@@ -48,7 +48,7 @@ const observed = observeAddonIdentity({
   addon: artifact,
   arguments_: loaderArguments,
   target,
-  execute: (path, arguments_) => crossSpawn.sync(path, arguments_, { encoding: "utf8", env: nativeEnvironment, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }),
+  execute: (path, arguments_) => crossSpawn.sync(path, arguments_, { encoding: "utf8", env: environment, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }),
   readBytes: path => readFileSync(path),
 });
 if (observed.check === "executed") {
