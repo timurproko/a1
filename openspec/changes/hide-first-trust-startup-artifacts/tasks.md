@@ -30,4 +30,4 @@
 
 - [x] 6.1 Run focused TypeScript tests, typecheck, strict OpenSpec validation, changed-file governance checks, and available native checks; record Cargo unavailability rather than claiming native execution when it remains absent.
 - [x] 6.2 Publish one copy-pasteable Windows Git Bash worktree build/launch command and a manual checklist covering first trust, short and internally styled tool rows, active scrollbar, detached control relabel/movement, and live-status removal; record reported observations when available without making manual validation a completion gate.
-- [ ] 6.3 Update implementation evidence and the plain PR acceptance outcomes, resolve every pre-ready task or record a maintainer-approved known gap, reconcile and push current `origin/develop`, and verify the implementation-bound body before completing the final implementation outcome.
+- [x] 6.3 Update implementation evidence and the plain PR acceptance outcomes, resolve every pre-ready task or record a maintainer-approved known gap, reconcile and push current `origin/develop`, and verify the implementation-bound body before completing the final implementation outcome.

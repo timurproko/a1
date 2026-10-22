@@ -29,6 +29,8 @@ Implementation continued in the linked `D:/Git/a1/.worktrees/first-trust-startup
 - `npm run check:code-documentation:changed` passed.
 - `node D:/Git/a1/node_modules/@fission-ai/openspec/bin/openspec.js validate hide-first-trust-startup-artifacts --strict` passed.
 - `git diff --check` passed.
+- `node scripts/governance/check-delivery-body.mjs --body-file .artifacts/agent/pr-body.md --final` passed for the intended completed body.
+- Current `origin/develop` remained the branch merge-base and the implementation head was pushed before completion.
 - Rust tests were not run locally because this machine has no Cargo/Rust toolchain; exact native compilation and execution remain owned by pull-request CI.
 
 ## Manual local test
