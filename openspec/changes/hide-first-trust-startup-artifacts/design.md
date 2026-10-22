@@ -99,4 +99,12 @@ The maintainer also identifies a track endpoint regression: the shell already pr
 
 ## Migration Plan
 
-No state, setting, or protocol migration is required. The changes affect row composition and retained presentation only. They can be rolled back without changing sessions, registries, trust decisions, transcript data, or user configuration.
+No state, setting, or protocol migration is required. The changes affect row composition, retained presentation, and outer terminal byte output. They can be rolled back without changing sessions, registries, trust decisions, transcript data, or user configuration.
+
+## Remaining badge-row displacement investigation
+
+The latest screenshot still showed a rail fragment one column left near the centered control. Prior no-wrap and endpoint repairs did not establish this case was fixed. The running dev artifact was verified against the checkout build. A real resident app with a synthetic loopback provider reproduces the displacement while moving the pointer from the badge onto the rail: retained column 120 is correct, but the outer VT stream paints its glyph in column 119. Returning to the badge repairs that row. Direct solo/source comparisons and isolated fixed-row tests did not exercise this output shape.
+
+The divergence is in Windows outer output. Rust stdout routes console writes through UTF-16 conversion and buffering; ConPTY can compact a long blank suffix into a clamped cursor-forward move, then backspace before its edge glyph. Adding a final-cell cursor address passed the original size but failed a wider return-to-bottom case, so that workaround was discarded. The outer writer now uses UTF-8 `WriteFile` bytes, preserving the VT byte-stream contract without changing any row, style, damage decision, or synchronization marker. Its stdout lock preserves single-writer ordering. For a console handle it selects UTF-8 and restores the original output code page when the writer drops; redirected handles do not change console encoding. Non-Windows output retains the existing stdout implementation.
+
+A sanitized, run-length-encoded fixture models complete retained surfaces from the local fake-provider completion, badge hover, and rail hover. The native ConPTY regression fails with the old writer at row 19, column 118 and passes with the production byte writer. It checks every cell's text, width and background at widths 100, 120, 121 and 132 through 1-, 7- and 4096-byte replay fragments, and checks code-page restoration. Real-app checks additionally compare every physical content cell with the current retained source through badge and rail hover and Ctrl+End at four outer geometries. The existing rail extent, strip offset, and differential rendering remain unchanged.

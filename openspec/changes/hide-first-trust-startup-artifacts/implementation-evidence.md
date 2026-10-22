@@ -92,6 +92,16 @@ The real owned-shell fullscreen regression now routes wheel and Ctrl+End input t
 
 The requested rail endpoint is restored down by one cell: the track spans the last transcript row, and the shell's existing spacing remains outside it. The previous additional final-transcript gap was unnecessary. Targeted validation passed: 98 fullscreen/scroll tests, 25 native presentation/ConPTY tests, 25 native attach tests, typecheck, the complete architecture command, and changed-file documentation governance. The full checkout rebuild passed with exit code zero, as did strict OpenSpec/body validation and the naming audit with zero violations. A fresh dev attach is required to pick up the changed entry modes.
 
+## Remaining badge-row displacement repair
+
+The running dev native artifact matched the rebuilt checkout; stale binaries were not assumed. Independent solo/source and isolated ConPTY prefix comparisons had no glyph differences, but a real resident app with a local synthetic provider reproduced the screenshot's displaced rail during badge-to-rail hover. The retained source put the glyph in column 120; the outer VT stream put it in column 119. The malformed output contained a clamped cursor-forward move followed by a backspace before the glyph. A cursor-anchor workaround passed the original geometry but failed a wider Ctrl+End case and was discarded.
+
+The repair changes Windows outer output from Rust's console stdout conversion to UTF-8 `WriteFile` bytes under the existing stdout lock. Console output encoding is selected for that writer's lifetime and restored on drop; redirected output does not change console encoding, and non-Windows output is unchanged. Source rows, colors, hyperlinks, synchronized-output markers, and differential damage remain intact.
+
+A permanent sanitized synthetic viewport fixture is checked in under `native/terminal-host/tests/fixtures/viewport-hover.json`; tests read no ignored scratch. With the former writer, its native regression fails at row 19, column 118: expected blank, actual rail glyph. The production byte writer passes all three badge-visible states at widths 100, 120, 121 and 132 with 1-, 7- and 4096-byte replay fragments, checking text, widths, backgrounds, and console-code-page restoration. The existing strict style/link and Unicode parity cases remain unchanged.
+
+Current targeted results: 26 native presentation tests and 25 native attach tests pass. Real-app loopback-provider runs pass 15 physical/source comparisons at each of 100x30, 120x32, 121x32 and 132x36 outer geometry: 60 snapshots with zero cell-text/width mismatches, including completion, repeated badge/rail hover and return-to-bottom. These comparisons do not claim screenshot confirmation or exact physical foreground attributes. The full managed/native checkout rebuild, typecheck, complete architecture command, changed-file documentation governance, strict OpenSpec validation and full naming audit also pass. The final body and finalization inspection complete the delivery record; exact-head CI remains the post-push authority.
+
 ## Manual local test
 
 Build and launch from Windows Git Bash:
@@ -107,6 +117,7 @@ cd /d/Git/a1/.worktrees/first-trust-startup-cleanup && npm run build && ./script
 5. Repeat the background and bottom-row checks after resizing the terminal and while the scrollbar is active. Verify rail glyphs stay in one gutter column through the final transcript row, retain their top gap, and stop outside the shell-owned dock spacing; the dock/footer must not retain transcript rows.
 6. Check working, completed, and input-needed tab chips: exactly one space precedes the lifecycle icon and exactly one space separates it from the name. Icon-less chips retain one leading space.
 7. In a freshly launched dev session, stream a long Cyrillic quiz, wheel away from the end, and grow/shrink the editor. Verify the current badge and rail stay aligned, the track reaches the final content row without entering the dock, and Ctrl+End removes the badge. Detaching must restore normal shell wrapping.
+8. While detached from the end, move the pointer repeatedly between the centered badge and the right rail, then press Ctrl+End. Repeat at a narrow and wide window size; no rail fragment should move into the neighboring content cell.
 
 The maintainer's screenshots on the prior candidate showed resident degradation despite correct solo output and motivated the comprehensive refinement above. There is no manual result for the new repair head yet. Manual observations remain optional and do not gate implementation completion.
 

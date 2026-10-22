@@ -50,6 +50,12 @@ When a viewed resident child publishes a complete structured frame, A1 SHALL pre
 - **THEN** automatic line wrapping SHALL remain disabled for the outer fullscreen session so writing the final column cannot move content into another row
 - **AND** leaving the outer session SHALL restore normal wrapping without changing the child terminal's own wrapping semantics
 
+#### Scenario: Preserve Windows outer VT byte output
+- **WHEN** resident replay writes full-width rows through a Windows console, including repeated badge and rail hover updates
+- **THEN** the outer writer SHALL preserve UTF-8 VT byte output without routing the frame through stdout's UTF-16 console conversion
+- **AND** edge glyphs and styled blanks SHALL remain in their retained columns without disabling differential rendering
+- **AND** the writer SHALL restore the original console output encoding on exit and SHALL NOT change console encoding for redirected output
+
 #### Scenario: Keep differential presentation coherent
 - **WHEN** unchanged rows are reused while one or more rows are cleared, restyled, or replaced
 - **THEN** A1 SHALL repaint the changed rows in one coherent presentation and acknowledge the new baseline only after the complete outer write succeeds

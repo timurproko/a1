@@ -1,6 +1,8 @@
 //! Compare terminal-generated frames, not hand-authored surface rows, across every replay boundary.
 use super::*;
 use crate::ghostty::{GhosttyTerminal, RetainedSurfaceBuilder};
+#[cfg(windows)]
+use crate::protocol::SurfaceCell;
 use crate::protocol::{SurfaceCommitKind, SurfaceLink};
 
 fn capture(
@@ -237,6 +239,57 @@ fn conpty_frames() -> Vec<Vec<u8>> {
     ].iter().map(|body| format!("\x1b[?2026h{body}\x1b[12;1H{}\x1b[0m\x1b[12;3H\x1b[?2026l", " ".repeat(40)).into_bytes()).collect()
 }
 
+#[cfg(windows)]
+fn conpty_hover_frames(columns: u16) -> Vec<StructuredSurface> {
+    let fixture: serde_json::Value =
+        serde_json::from_str(include_str!("../../../tests/fixtures/viewport-hover.json")).unwrap();
+    let base: StructuredSurface = serde_json::from_value(fixture["base"].clone()).unwrap();
+    fixture["frames"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|frame| {
+            let mut surface = base.clone();
+            surface.styles = serde_json::from_value(frame["styles"].clone()).unwrap();
+            surface.row_data = frame["rows"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|runs| SurfaceRow {
+                    cells: runs
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .flat_map(|run| {
+                            let style = run[0].as_u64().unwrap() as u16;
+                            run[1]
+                                .as_str()
+                                .unwrap()
+                                .chars()
+                                .map(move |text| SurfaceCell {
+                                    text: text.to_string(),
+                                    style,
+                                    ..SurfaceCell::default()
+                                })
+                        })
+                        .collect(),
+                })
+                .collect();
+            if columns != surface.columns {
+                for row in &mut surface.row_data {
+                    let edge = row.cells.pop().unwrap();
+                    row.cells
+                        .resize(usize::from(columns - 1), SurfaceCell::default());
+                    row.cells.push(edge);
+                }
+                surface.columns = columns;
+            }
+            surface.validate().unwrap();
+            surface
+        })
+        .collect()
+}
+
 // Rationale: the test binary doubles as the PTY child, avoiding a Node/shell/toolchain dependency.
 #[cfg(windows)]
 #[test]
@@ -246,33 +299,62 @@ fn conpty_parity_child() {
         return;
     }
     use std::io::Write;
-    let mut source = GhosttyTerminal::new(40, 12).unwrap();
+    use windows_sys::Win32::System::Console::GetConsoleOutputCP;
+    let original_code_page = unsafe { GetConsoleOutputCP() };
+    let mut terminal_output = crate::roles::terminal_output::TerminalOutput::new();
+    let resident_output = mode.starts_with("resident:");
+    let hover_case = mode.contains(":hover:");
+    let frame_limit = mode.rsplit(':').next().unwrap().parse::<usize>().unwrap();
+    let columns = mode.split(':').nth(2).unwrap().parse::<u16>().unwrap();
+    let rows = if hover_case { 31 } else { 12 };
+    let mut source = GhosttyTerminal::new(columns, rows).unwrap();
     let mut builder = RetainedSurfaceBuilder::default();
     let mut composer = PresentationComposer::default();
-    if mode == "resident" {
-        std::io::stdout()
+    if resident_output {
+        terminal_output
             .write_all(crate::roles::attach::ENTER_OUTER_MODES)
             .unwrap();
     }
-    for (revision, frame) in conpty_frames().into_iter().enumerate() {
-        let output = if mode == "resident" {
+    let hover = if hover_case {
+        conpty_hover_frames(columns)
+    } else {
+        Vec::new()
+    };
+    let frames = if hover_case {
+        vec![Vec::new(); hover.len()]
+    } else {
+        conpty_frames()
+    };
+    for (revision, frame) in frames.into_iter().take(frame_limit).enumerate() {
+        let output = if resident_output {
             source.write(&frame);
+            let surface = if hover_case {
+                hover[revision].clone()
+            } else {
+                capture(&mut source, &mut builder)
+            };
             let next = DesiredPresentation {
                 tab_id: Some("parity".into()),
                 incarnation: 1,
                 revision: revision as u64 + 1,
                 geometry_generation: 1,
                 strip: "\x1b[1;1HSTRIP".into(),
-                structured: Some(capture(&mut source, &mut builder)),
+                structured: Some(surface),
                 legacy_body: Vec::new(),
                 overlay: None,
-                cursor: source
-                    .cursor_cell()
-                    .unwrap()
-                    .map(|(column, row)| FinalCursor::At(SurfaceCursor { column, row })),
+                cursor: Some(if hover_case {
+                    FinalCursor::Hidden
+                } else {
+                    source
+                        .cursor_cell()
+                        .unwrap()
+                        .map_or(FinalCursor::Hidden, |(column, row)| {
+                            FinalCursor::At(SurfaceCursor { column, row })
+                        })
+                }),
                 modes: None,
-                columns: 40,
-                outer_rows: 13,
+                columns,
+                outer_rows: rows + 1,
                 clear: false,
             };
             let prepared = composer.prepare(&next).unwrap().unwrap();
@@ -282,25 +364,31 @@ fn conpty_parity_child() {
         } else {
             frame
         };
-        std::io::stdout().write_all(&output).unwrap();
-        std::io::stdout().flush().unwrap();
+        terminal_output.write_all(&output).unwrap();
+        terminal_output.flush().unwrap();
         std::thread::sleep(std::time::Duration::from_millis(80));
     }
     std::thread::sleep(std::time::Duration::from_millis(150));
+    drop(terminal_output);
+    assert_eq!(unsafe { GetConsoleOutputCP() }, original_code_page);
     std::process::exit(0);
 }
 
 #[cfg(windows)]
 #[test]
 fn conpty_output_preserves_solo_content_before_resident_replay() {
-    conpty_content_parity(false);
-    conpty_content_parity(true);
+    conpty_content_parity(false, false, conpty_frames().len(), 40);
+    conpty_content_parity(true, false, conpty_frames().len(), 40);
 }
 
 #[cfg(windows)]
-fn conpty_output(resident_output: bool) -> Vec<u8> {
-    let columns = 40;
-    let rows = 12;
+fn conpty_output(
+    resident_output: bool,
+    hover_case: bool,
+    frame_limit: usize,
+    columns: u16,
+) -> Vec<u8> {
+    let rows = if hover_case { 31 } else { 12 };
     use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
     use std::io::{Read, Write};
     let pair = NativePtySystem::default()
@@ -319,7 +407,11 @@ fn conpty_output(resident_output: bool) -> Vec<u8> {
     ]);
     command.env(
         "TERMINAL_HOST_CONPTY_PARITY_CHILD",
-        if resident_output { "resident" } else { "1" },
+        format!(
+            "{}:{}:{columns}:{frame_limit}",
+            if resident_output { "resident" } else { "solo" },
+            if hover_case { "hover" } else { "base" }
+        ),
     );
     let mut child = pair.slave.spawn_command(command).unwrap();
     drop(pair.slave);
@@ -372,15 +464,23 @@ fn conpty_output(resident_output: bool) -> Vec<u8> {
 }
 
 #[cfg(windows)]
-fn conpty_content_parity(resident_output: bool) {
-    let columns = 40;
-    let rows = 12;
-    let bytes = conpty_output(resident_output);
+fn conpty_content_parity(
+    resident_output: bool,
+    hover_case: bool,
+    frame_limit: usize,
+    columns: u16,
+) {
+    let rows = if hover_case { 31 } else { 12 };
+    let bytes = conpty_output(resident_output, hover_case, frame_limit, columns);
     let mut solo = GhosttyTerminal::new(columns, rows).unwrap();
-    for frame in conpty_frames() {
+    for frame in conpty_frames().into_iter().take(frame_limit) {
         solo.write(&frame);
     }
-    let direct = capture(&mut solo, &mut RetainedSurfaceBuilder::default());
+    let direct = if hover_case {
+        conpty_hover_frames(columns)[frame_limit - 1].clone()
+    } else {
+        capture(&mut solo, &mut RetainedSurfaceBuilder::default())
+    };
     for chunk_size in [1, 7, 4096] {
         let mut resident =
             GhosttyTerminal::new(columns, rows + u16::from(resident_output)).unwrap();
@@ -400,11 +500,31 @@ fn conpty_content_parity(resident_output: bool) {
         let actual = cells(&through_pty.unwrap(), usize::from(resident_output));
         for (y, (a, b)) in expected.iter().zip(&actual).enumerate() {
             for (x, (e, g)) in a.iter().zip(b).enumerate() {
+                if hover_case {
+                    // Compatibility: ConPTY may resolve a default foreground into explicit RGB. Cell positions and
+                    // backgrounds, including styled blanks, must still survive the replay exactly.
+                    assert_eq!(
+                        (&e.0, e.1, &e.2.background),
+                        (&g.0, g.1, &g.2.background),
+                        "hover cell at {y}:{x} phase={frame_limit} width={columns} chunks={chunk_size}"
+                    );
+                    continue;
+                }
                 assert_eq!(
                     e, g,
-                    "ConPTY mismatch at {y}:{x} chunks={chunk_size} resident={resident_output}"
+                    "ConPTY mismatch at {y}:{x} chunks={chunk_size} resident={resident_output} hover={hover_case} phase={frame_limit}"
                 );
             }
+        }
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn conpty_hover_replay_keeps_the_rail_in_its_fixed_column() {
+    for columns in [100, 120, 121, 132] {
+        for frame_limit in 1..=conpty_hover_frames(columns).len() {
+            conpty_content_parity(true, true, frame_limit, columns);
         }
     }
 }

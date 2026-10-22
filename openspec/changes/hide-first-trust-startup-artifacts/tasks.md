@@ -51,3 +51,9 @@
 - [x] 6.1 Run focused TypeScript tests, typecheck, strict OpenSpec validation, changed-file governance checks, and available native checks; record Cargo unavailability rather than claiming native execution when it remains absent.
 - [x] 6.2 Publish one copy-pasteable Windows Git Bash worktree build/launch command and a manual checklist covering first trust, short and internally styled tool rows, active scrollbar, detached control relabel/movement, and live-status removal; record reported observations when available without making manual validation a completion gate.
 - [x] 6.3 Update implementation evidence and the plain PR acceptance outcomes, resolve every pre-ready task or record a maintainer-approved known gap, reconcile and push current `origin/develop`, and verify the implementation-bound body before completing the final implementation outcome.
+
+## 10. Remaining badge-row rail displacement
+
+- [x] 10.1 Compare solo and nested resident output at every badge-visible frame, including markdown tables and the exact centered control. Verify the running dev artifact identity before attributing the failure to source.
+- [x] 10.2 Reproduce the displaced rail in a deterministic regression and repair the owning capture/replay boundary without masking cells, disabling differential output, or changing the correct rail geometry.
+- [x] 10.3 Complete touched tests, typecheck, evidence, baseline reconciliation and delivery bookkeeping for the repaired candidate.

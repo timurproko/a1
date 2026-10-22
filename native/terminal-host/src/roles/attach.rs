@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use std::io::{Write, stdout};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{
     Arc, Mutex,
@@ -38,6 +38,7 @@ use crate::roles::presentation::{
 };
 use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
+use crate::roles::terminal_output::TerminalOutput;
 use crate::roles::wire::{
     self, AttachStart, Input, PasteStart, Resize, RoleHello, Surface, TabCreate, TabList,
     TabRename, TabReorder, TabStatus, TabTarget, ViewTarget,
@@ -2319,7 +2320,7 @@ fn outer_size() -> Result<(u16, u16), String> {
 #[cfg(unix)]
 fn query_kitty_keyboard(timeout: Duration) -> Result<bool, String> {
     use std::os::fd::AsRawFd;
-    let mut output = stdout().lock();
+    let mut output = TerminalOutput::new();
     output
         .write_all(KITTY_QUERY)
         .and_then(|()| output.flush())
@@ -2411,7 +2412,7 @@ impl OuterWriter {
         let thread_failed = failed.clone();
         thread::spawn(move || {
             let mut composer = PresentationComposer::default();
-            let mut out = stdout().lock();
+            let mut out = TerminalOutput::new();
             loop {
                 let command = receiver.recv_timeout(Duration::from_millis(8));
                 let result = match command {
@@ -2568,7 +2569,7 @@ impl OuterTerminal {
             initial.extend_from_slice(KITTY_ENABLE);
         }
         {
-            let mut out = stdout().lock();
+            let mut out = TerminalOutput::new();
             out.write_all(&initial)
                 .and_then(|()| out.flush())
                 .map_err(|error| format!("enter outer terminal: {error}"))?;
