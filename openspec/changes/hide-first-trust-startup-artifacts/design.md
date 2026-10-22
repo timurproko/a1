@@ -75,6 +75,12 @@ The handoff will also include one copy-pasteable worktree build/launch command a
 - **[Scrollbar modes regress]** → Cover hidden, auto/visible, and reserved-rail composition at narrow and wide widths.
 - **[Native tests cannot run in the current checkout]** → Record Cargo absence, run all available TypeScript/OpenSpec checks locally, and rely on required native CI without claiming local native execution.
 
+## Comprehensive parity refinement
+
+Maintainer testing showed that the prior isolated tests did not establish solo/resident parity. For identical child geometry and source bytes, resident capture, wire serialization, and replay must preserve all cells (including styled blanks), attributes, links, cursor placement, and scrolling across successive frames. Only the host strip is additional UI.
+
+Ghostty can encode a blank cell's background in its raw content tag independently of its style record. Capture and legacy rendering must preserve that source as well as ordinary style colors, retaining palette indexes rather than freezing resolved RGB values. Separately, a structured frame's style/link dictionaries are frame-local: equal row indexes do not prove equal referenced values when a producer rebuilds those tables. The presenter retains its cheap row comparison for monotonically extended tables, and checks referenced dictionary values for otherwise numerically equal rows when tables change. Only genuinely changed rows repaint. Parity tests must use terminal-generated cells from realistic fullscreen/differential output, not only synthetic `SurfaceRow` values or spaces written under SGR. Compare complete and incremental captures, then replay into a second terminal and compare semantic cells after each transition, including scrolling, shrinking content, moved controls, rail changes, explicit erases, wide glyphs, links, and fragmented synchronized writes. Repair each first divergent boundary; do not infer correctness from the disappearance of one label or mask duplicates by text matching.
+
 ## Migration Plan
 
 No state, setting, or protocol migration is required. The changes affect row composition and retained presentation only. They can be rolled back without changing sessions, registries, trust decisions, transcript data, or user configuration.

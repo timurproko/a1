@@ -10,7 +10,8 @@ Interactive testing of the same resident surface also exposed two presentation-f
 - Keep pending, successful, and failed tool-shell backgrounds active through nested renderer background resets and every available content cell.
 - Compose the reserved scrollbar rail over the completed row background without letting the rail split, extend, or substitute for the content background.
 - Ensure moved, relabeled, or removed scroll-to-bottom controls and bottom-aligned live-status rows replace their former cells so only the newest content remains visible.
-- Add focused source-frame and resident structured-presentation regression coverage plus a copy-pasteable local manual test checklist.
+- Make resident content cell-for-cell equivalent to solo output at the same child geometry, including blank-cell colors, attributes, links, wide characters, cursor placement, scrolling, and transient row replacement.
+- Add pipeline parity coverage comparing authoritative terminal input with retained capture, wire transport, and differential resident replay, rather than relying on isolated synthetic style/row tests.
 
 ## Capabilities
 

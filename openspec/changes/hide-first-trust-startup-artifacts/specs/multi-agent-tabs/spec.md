@@ -28,6 +28,11 @@ When a viewed resident child publishes a complete structured frame, A1 SHALL pre
 - **THEN** retained capture and outer presentation SHALL preserve that background through the final intended cell
 - **AND** a separately painted scrollbar rail SHALL NOT cause an intervening default-background gap
 
+#### Scenario: Preserve solo content through the full resident pipeline
+- **WHEN** solo and resident children receive identical terminal output at identical content geometry, including erased colored blanks, regional scrolling, links, wide glyphs, and moved overlays
+- **THEN** retained capture, wire transport, and differential resident replay SHALL preserve the same semantic cells, styles, links, and child cursor position after each complete frame
+- **AND** splitting a synchronized frame across transport reads SHALL NOT change its final content
+
 #### Scenario: Keep differential presentation coherent
 - **WHEN** unchanged rows are reused while one or more rows are cleared, restyled, or replaced
 - **THEN** A1 SHALL repaint the changed rows in one coherent presentation and acknowledge the new baseline only after the complete outer write succeeds

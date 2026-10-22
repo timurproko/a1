@@ -26,6 +26,13 @@
 - [x] 5.3 Trace those transitions through the Pi fullscreen damage writer and resident structured capture/replay, repair the first divergent row-damage boundary, and verify cleared, replacement, and styled trailing blank cells converge to the newest complete frame.
 - [x] 5.4 Preserve row-bounded differential rendering, popup clipping, cursor placement, hyperlinks, selection, and successful-write baseline acknowledgement while repairing stale-row replacement.
 
+## 7. Comprehensive solo/resident parity repair
+
+- [x] 7.1 Reproduce cell loss with terminal-generated blank backgrounds, erases, and scrolling; distinguish raw cell content colors from ordinary style colors.
+- [x] 7.2 Repair capture and any divergent retained damage/replay boundary without changing solo source rendering or introducing whole-screen repaint as a workaround.
+- [x] 7.3 Add capture-to-wire-to-replay parity sequences covering all cells, attributes, links, wide glyphs, scrolling, rail/control movement, shrinking content, and synchronized write fragmentation.
+- [x] 7.4 Run focused native/TypeScript tests and typecheck, document root causes and bounded evidence, reconcile current develop, and complete delivery bookkeeping.
+
 ## 6. Validation and delivery record
 
 - [x] 6.1 Run focused TypeScript tests, typecheck, strict OpenSpec validation, changed-file governance checks, and available native checks; record Cargo unavailability rather than claiming native execution when it remains absent.

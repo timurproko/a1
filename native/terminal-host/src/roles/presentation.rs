@@ -491,11 +491,30 @@ impl PresentationComposer {
         if let Some(surface) = desired.structured.as_ref() {
             let prior = (!force).then_some(self.structured.as_ref()).flatten();
             render_palette_damage(&mut output, prior, surface, force);
+            // Invariant: dictionary indexes belong to one surface, not to the protocol as a whole.
+            // Monotonic holder tables keep the cheap row comparison; rebuilt dictionaries must
+            // also compare the referenced values or equal indexes can conceal changed styling/links.
+            let dictionaries_preserved = prior.is_some_and(|previous| {
+                surface.styles.starts_with(&previous.styles)
+                    && surface.links.starts_with(&previous.links)
+            });
             let visible_rows =
                 usize::from(surface.rows).min(usize::from(desired.outer_rows.saturating_sub(1)));
             for row_index in 0..visible_rows {
-                let changed = prior.and_then(|previous| previous.row_data.get(row_index))
-                    != surface.row_data.get(row_index);
+                let changed = prior.is_none_or(|previous| {
+                    previous.row_data.get(row_index) != surface.row_data.get(row_index)
+                        || (!dictionaries_preserved
+                            && surface.row_data.get(row_index).is_some_and(|row| {
+                                row.cells.iter().any(|cell| {
+                                    previous.styles.get(usize::from(cell.style))
+                                        != surface.styles.get(usize::from(cell.style))
+                                        || cell.link.is_some_and(|index| {
+                                            previous.links.get(usize::from(index))
+                                                != surface.links.get(usize::from(index))
+                                        })
+                                })
+                            }))
+                });
                 if force || changed || overlay_damage.contains(&row_index) {
                     let row = surface
                         .row_data
@@ -1050,6 +1069,9 @@ impl Frame<'_> {
         Some(output)
     }
 }
+
+#[cfg(test)]
+mod parity_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1612,7 +1634,12 @@ mod tests {
             .prepare(&desired(Some(cleared.clone()), Vec::new()))
             .unwrap()
             .expect("cleared control");
-        assert!(blank.bytes.windows(14).any(|window| window == b"\x1b[3;1H\x1b[0m\x1b[2K"));
+        assert!(
+            blank
+                .bytes
+                .windows(14)
+                .any(|window| window == b"\x1b[3;1H\x1b[0m\x1b[2K")
+        );
         blank.acknowledge(&mut composer);
 
         for cell in &mut cleared.row_data[1].cells {
