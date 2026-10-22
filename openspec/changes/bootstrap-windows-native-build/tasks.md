@@ -17,4 +17,4 @@
 
 ## 4. Delivery evidence
 
-- [ ] 4.1 Record focused prerequisite/resolver/build-entry results, typecheck and governance results, strict OpenSpec validation, and Windows native build evidence in `implementation-evidence.md`; reconcile current `origin/develop` and update the implementation pull request before readiness.
+- [x] 4.1 Record focused prerequisite/resolver/build-entry results, typecheck and governance results, strict OpenSpec validation, and Windows native build evidence in `implementation-evidence.md`; reconcile current `origin/develop` and update the implementation pull request before readiness.
