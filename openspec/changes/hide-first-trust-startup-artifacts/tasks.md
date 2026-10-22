@@ -11,4 +11,4 @@
 ## 3. Regression coverage and delivery record
 
 - [x] 3.1 Add a focused native sequence test covering a drawn trust frame, repeated blank starting frames, and the first drawn shell frame; verify the blank interval has neither lifecycle glyph nor cursor and the shell frame restores normal presentation.
-- [ ] 3.2 Record delivered behavior, focused-check results, and known-gap disposition in implementation evidence; reconcile current `origin/develop` and verify the final delivery body before completing implementation.
+- [x] 3.2 Record delivered behavior, focused-check results, and known-gap disposition in implementation evidence; reconcile current `origin/develop` and verify the final delivery body before completing implementation.
