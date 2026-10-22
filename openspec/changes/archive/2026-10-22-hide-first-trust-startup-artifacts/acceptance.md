@@ -18,7 +18,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-22-hide-first-trust-startup-artifacts/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-22-hide-first-trust-startup-artifacts/acceptance.md",
   "finalizedDate": "2026-10-22",
-  "specBaseSha": "8791e02d5ae5567117ecd84513f68a2a74fa70c9",
+  "specBaseSha": "ad06d9176c13306772425858a4f67d5ab540b881",
   "acceptanceScenarios": [
     "After a project-trust choice, the blank resident startup handoff shows neither a tab lifecycle glyph nor a body cursor.",
     "The first drawn owned-shell frame restores normal cursor and status presentation.",
@@ -27,7 +27,7 @@ The maintainer integration decision accepts these scenarios:
     "A moved, relabeled, or removed jump-to-bottom control or live-status row leaves exactly the newest content in the frame, with no stale second copy near the dock."
   ],
   "archiveDigest": "96658f06f5acce81a2c2743da969a6926cef8d992fe29e41fc0e30c3b61e5aeb",
-  "specDigest": "da54b58f52bfd54bb736b408e1ca7f54ffb05c73d2ef2eb8c3aca5fc7418ae45",
+  "specDigest": "385e20e1b3831a078affd691ef760bcd0a2e441242c4a3fc39a047ecbfb1e90f",
   "tasksDigest": "de0ca0e9595c1053ed164ca2f13d924f5f3635b8e1b1078e9b2d5d2ef4a67afc",
   "evidenceDigest": "4dd997596d1bfa73c542b48ebfb19c7c7d2890aae03250245fcf40d1022b2e1b",
   "knownGaps": []
