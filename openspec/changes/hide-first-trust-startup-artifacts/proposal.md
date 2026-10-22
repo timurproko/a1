@@ -8,8 +8,9 @@ Interactive testing of the same resident surface also exposed two presentation-f
 
 - Preserve the completed suppression of the starting lifecycle glyph and child cursor during the blank project-trust-to-shell handoff.
 - Keep pending, successful, and failed tool-shell backgrounds active through nested renderer background resets and every available content cell.
-- Compose the reserved scrollbar rail over the completed row background without letting the rail split, extend, or substitute for the content background; keep its gutter column fixed with one empty rail-boundary row above and below.
+- Compose the reserved scrollbar rail over the completed row background without letting the rail split, extend, or substitute for the content background; keep its gutter column fixed, preserve its top gap, and extend it through the final transcript row without consuming the shell-owned dock gap.
 - Remove internal OSC 133 prompt-zone annotations from final custom-viewport rows so terminal parsing cannot turn metadata into extra line advances below the tab strip.
+- Match solo fullscreen entry by disabling outer auto-wrap during positioned-cell presentation and restoring wrapping when the outer session exits.
 - Give tab chips one leading space and one space between lifecycle icons and their names, with matching width and hit geometry.
 - Ensure moved, relabeled, or removed scroll-to-bottom controls and bottom-aligned live-status rows replace their former cells so only the newest content remains visible.
 - Make resident content cell-for-cell equivalent to solo output at the same child geometry, including blank-cell colors, attributes, links, wide characters, cursor placement, scrolling, and transient row replacement.

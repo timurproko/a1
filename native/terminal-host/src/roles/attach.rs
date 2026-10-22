@@ -43,10 +43,11 @@ use crate::roles::wire::{
     TabRename, TabReorder, TabStatus, TabTarget, ViewTarget,
 };
 
+// Protocol: match solo fullscreen's fixed-cell grid; wrapping must not advance outer rows.
 pub const ENTER_OUTER_MODES: &[u8] =
-    b"\x1b[?1049h\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h";
+    b"\x1b[?1049h\x1b[?7l\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h";
 pub const RESTORE_OUTER_MODES: &[u8] =
-    b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?1049l";
+    b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?1049l";
 pub const RESET_OUTER_COLORS: &[u8] = b"\x1b]104\x07\x1b]110\x07\x1b]111\x07\x1b]112\x07";
 const ATTACH_SERVER_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
@@ -2778,7 +2779,11 @@ mod tests {
                 rows: 1,
                 row_data: vec![protocol::SurfaceRow {
                     cells: vec![protocol::SurfaceCell {
-                        text: if text.is_empty() { " ".into() } else { text.into() },
+                        text: if text.is_empty() {
+                            " ".into()
+                        } else {
+                            text.into()
+                        },
                         ..protocol::SurfaceCell::default()
                     }],
                 }],
@@ -2799,11 +2804,17 @@ mod tests {
     fn trust_startup_handoff_hides_only_blank_transition_artifacts() {
         for structured in [false, true] {
             let mut presented = Presented::new();
-            let cursor = Some(FinalCursor::At(protocol::SurfaceCursor { column: 3, row: 0 }));
+            let cursor = Some(FinalCursor::At(protocol::SurfaceCursor {
+                column: 3,
+                row: 0,
+            }));
 
             presented.install(&startup_surface(1, "", structured), "starting");
             assert!(!presented.quiet_startup_handoff);
-            assert_eq!(presented.cursor, cursor, "an initially blank surface is not a handoff");
+            assert_eq!(
+                presented.cursor, cursor,
+                "an initially blank surface is not a handoff"
+            );
 
             presented.install(
                 &startup_surface(2, "Trust project folder?", structured),
@@ -2817,16 +2828,25 @@ mod tests {
             assert_eq!(presented.cursor, Some(FinalCursor::Hidden));
 
             presented.install(&startup_surface(4, "", structured), "starting");
-            assert!(presented.quiet_startup_handoff, "consecutive blank revisions stay quiet");
+            assert!(
+                presented.quiet_startup_handoff,
+                "consecutive blank revisions stay quiet"
+            );
             assert_eq!(presented.cursor, Some(FinalCursor::Hidden));
 
             presented.install(&startup_surface(5, "owned shell", structured), "starting");
             assert!(!presented.quiet_startup_handoff);
-            assert_eq!(presented.cursor, cursor, "the first shell frame restores its cursor");
+            assert_eq!(
+                presented.cursor, cursor,
+                "the first shell frame restores its cursor"
+            );
 
             presented.install(&startup_surface(6, "", structured), "idle");
             assert!(!presented.quiet_startup_handoff);
-            assert_eq!(presented.cursor, cursor, "ordinary blank surfaces keep their cursor");
+            assert_eq!(
+                presented.cursor, cursor,
+                "ordinary blank surfaces keep their cursor"
+            );
         }
     }
 
@@ -2860,8 +2880,12 @@ mod tests {
         ];
         let mut glyphs = GlyphState::default();
         glyphs.starting_since.insert("tab-1".into(), Duration::ZERO);
-        glyphs.held.insert("tab-1".into(), ("starting".into(), Duration::ZERO));
-        glyphs.held.insert("tab-2".into(), ("working".into(), Duration::ZERO));
+        glyphs
+            .held
+            .insert("tab-1".into(), ("starting".into(), Duration::ZERO));
+        glyphs
+            .held
+            .insert("tab-2".into(), ("working".into(), Duration::ZERO));
 
         glyphs.suppress_quiet_startup_handoff(&mut shown, Some("tab-1"), true);
 
@@ -3491,11 +3515,40 @@ mod tests {
     }
 
     #[test]
-    fn mode_restore_disables_every_enabled_outer_mode() {
+    fn outer_wrap_mode_paints_fixed_cells_and_restores_shell_wrapping() {
+        use crate::ghostty::{GhosttyTerminal, RetainedSurfaceBuilder};
+        let mut terminal = GhosttyTerminal::new(10, 3).unwrap();
+        terminal.write(ENTER_OUTER_MODES);
+        terminal.write(b"\x1b[1;10HAB");
+        let capture = |terminal: &mut GhosttyTerminal| {
+            terminal
+                .capture_retained_surface(
+                    &mut RetainedSurfaceBuilder::default(),
+                    1,
+                    protocol::SurfaceCommitKind::Complete,
+                )
+                .unwrap()
+                .structured()
+                .unwrap()
+        };
+        let grid = capture(&mut terminal);
+        assert_eq!(grid.row_data[0].cells[9].text, "B");
+        assert!(grid.row_data[1].cells.iter().all(|cell| cell.text == " "));
+        terminal.write(RESTORE_OUTER_MODES);
+        terminal.write(b"\x1b[1;10HAB");
+        let restored = capture(&mut terminal);
+        assert_eq!(restored.row_data[0].cells[9].text, "A");
+        assert_eq!(restored.row_data[1].cells[0].text, "B");
+    }
+
+    #[test]
+    fn mode_restore_reverses_every_outer_mode_change() {
         for mode in ["1049", "2004", "1004", "1000", "1003", "1006"] {
             assert!(String::from_utf8_lossy(ENTER_OUTER_MODES).contains(&format!("?{mode}h")));
             assert!(String::from_utf8_lossy(RESTORE_OUTER_MODES).contains(&format!("?{mode}l")));
         }
+        assert!(String::from_utf8_lossy(ENTER_OUTER_MODES).contains("?7l"));
+        assert!(String::from_utf8_lossy(RESTORE_OUTER_MODES).contains("?7h"));
         assert_eq!(BEGIN_SYNCHRONIZED_UPDATE, b"\x1b[?2026h");
         assert_eq!(END_SYNCHRONIZED_UPDATE, b"\x1b[?2026l");
         assert_eq!(KITTY_ENABLE, b"\x1b[>1u");

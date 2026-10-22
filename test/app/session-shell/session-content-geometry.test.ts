@@ -12,6 +12,7 @@ class ContentTerminal implements PiTuiTerminalPort {
   readonly kittyProtocolActive = false;
   readonly writes: string[] = [];
   readonly pending: Promise<void>[] = [];
+  input: ((data: string) => void) | undefined;
   readonly screen: HeadlessXterm.Terminal;
   readonly columns: number;
   readonly rows: number;
@@ -20,8 +21,8 @@ class ContentTerminal implements PiTuiTerminalPort {
     this.rows = rows;
     this.screen = new HeadlessXterm.Terminal({ cols: columns, rows, allowProposedApi: true, scrollback: 0 });
   }
-  start(): void {}
-  stop(): void {}
+  start(onInput: (data: string) => void): void { this.input = onInput; }
+  stop(): void { this.input = undefined; }
   async drainInput(): Promise<void> {}
   write(data: string): void {
     this.writes.push(data);
@@ -73,6 +74,7 @@ function fixture(childRows: number) {
       invalidate: () => root.invalidate(), handleInput: data => root.handleInput(data) },
     terminal: damage, mode: "fullscreen", mouse: false,
   });
+  runtime.addPreInputListener(data => root.handleViewportPreInput(data) ? { consume: true } : undefined);
   return { terminal, root, view, runtime, composed: () => composed };
 }
 
@@ -92,7 +94,7 @@ async function assertCurrentGrid(f: ReturnType<typeof fixture>): Promise<void> {
       if (!/[│┃]/u.test(f.terminal.screen.buffer.active.getLine(row)!.getCell(column)!.getChars())) continue;
       expect(column).toBe(f.terminal.columns - 1);
       expect(row).toBeGreaterThan(transcript.rowStart - 1);
-      expect(row).toBeLessThan(transcript.rowEnd - 1);
+      expect(row).toBeLessThan(transcript.rowEnd);
     }
   }
   expect(controls).toBeLessThanOrEqual(1);
@@ -100,18 +102,58 @@ async function assertCurrentGrid(f: ReturnType<typeof fixture>): Promise<void> {
 
 function transition(f: ReturnType<typeof fixture>, index: number): void {
   switch (index % 8) {
-    case 0: f.root.handleViewportPreInput("\u001b[<64;1;10M"); break;
+    case 0: f.terminal.input?.("\u001b[<64;1;10M"); break;
     case 1: f.root.editor.setText("one\ntwo\nthree"); break;
     case 2: f.root.editor.setText(""); f.root.noteCompletedAssistantMessage(); break;
     case 3: f.root.update({ ...f.view, lifecycle: "busy", status: { ...f.view.status, workingMessage: "Working" } }); break;
-    case 4: f.root.handleViewportPreInput("\u001b[<65;1;10M"); break;
+    case 4: f.terminal.input?.("\u001b[<65;1;10M"); break;
     case 5: f.root.update({ ...f.view, lifecycle: "ready" }); break;
     case 6: f.root.applyTranscriptBlock({ ...f.view.transcript[25]!, revision: index + 2, text: "changed content\n\nmore output" }); break;
-    case 7: f.root.handleViewportPreInput("\u001b[1;5F"); break;
+    case 7: f.terminal.input?.("\u001b[1;5F"); break;
   }
 }
 
 describe("real fullscreen child content geometry", () => {
+  it("keeps the detached badge and rail aligned while Cyrillic content streams through wheel input", async () => {
+    setPiAccentColor("purple");
+    applyPiTheme("dark", false, "truecolor");
+    const f = fixture(29);
+    let text = "### Личност\n\n";
+    const block = (revision: number, finalized = false): OwnedUiSessionViewModel["transcript"][number] => ({
+      id: "quiz-stream", kind: "assistant", status: finalized ? "finalized" : "live", revision,
+      title: null, text, payload: {},
+    });
+    try {
+      f.runtime.start();
+      f.root.applyTranscriptBlock(block(1));
+      await assertCurrentGrid(f);
+      const before = f.root.viewportPresentationEvidence().scrollTop;
+      f.terminal.input!("\u001b[<64;1;10M");
+      await assertCurrentGrid(f);
+      expect(f.root.viewportPresentationEvidence().scrollTop).toBeLessThan(before);
+      expect(f.composed().join("")).toContain("Jump to bottom");
+      for (let index = 1; index <= 64; index++) {
+        text += `${index}. Личност: Как би описал характера си? Ще ти задам въпроси.\n\n`;
+        f.root.applyTranscriptBlock(block(index + 1));
+        if (index % 4 === 0) f.terminal.input!("\u001b[<64;1;10M");
+        if (index % 6 === 0) f.terminal.input!("\u001b[<65;1;10M");
+        f.root.editor.setText(index % 3 === 0 ? "one\ntwo\nthree" : "");
+        await assertCurrentGrid(f);
+      }
+      f.root.applyTranscriptBlock(block(66, true));
+      f.root.noteCompletedAssistantMessage();
+      await assertCurrentGrid(f);
+      expect(f.composed().join("")).toContain("1 new message");
+      f.terminal.input!("\u001b[1;5F");
+      await assertCurrentGrid(f);
+      expect(f.composed().join("")).not.toMatch(/Jump to bottom|new messages? \(Ctrl/u);
+      expect(f.composed().join("")).toContain("Личност");
+    } finally {
+      f.runtime.stop();
+      f.root.dispose();
+      f.terminal.screen.dispose();
+    }
+  });
   it.each([24, 30, 34])("preserves the solo grid at outer height %i with exactly one reserved strip row", async outerRows => {
     setPiAccentColor("purple");
     applyPiTheme("dark", false, "truecolor");

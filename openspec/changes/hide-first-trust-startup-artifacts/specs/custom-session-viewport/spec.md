@@ -9,11 +9,11 @@ The custom viewport SHALL remove its internal upstream OSC 133 A/B/C prompt-zone
 - **AND** the resident parser SHALL preserve the same content and dock rows as solo mode without duplicate prior controls
 
 ### Requirement: Scrollbar track keeps fixed horizontal and vertical bounds
-The viewport SHALL paint every scrollbar track and thumb cell in its one reserved gutter column and SHALL leave one empty boundary row above and below the track. Scrolling, editor/dock height changes, and transient control movement SHALL NOT shift a rail cell horizontally or retain it outside those bounds.
+The viewport SHALL paint every scrollbar track and thumb cell in its one reserved gutter column, leave its top boundary row clear, and continue the track through the final transcript row. It SHALL NOT add an extra bottom gap beyond the shell-owned dock spacing or paint rail glyphs in the dock. Scrolling, editor/dock height changes, and transient control movement SHALL NOT shift a rail cell horizontally or retain it outside those bounds.
 
 #### Scenario: Update the content and dock
 - **WHEN** scrolling or a changed dock height changes the visible content rectangle
-- **THEN** the current track SHALL remain in the same gutter column between the two empty boundary rows
+- **THEN** the current track SHALL remain in the same gutter column from the second transcript row through the final transcript row
 - **AND** old track cells outside the new rectangle SHALL be replaced by current content
 
 

@@ -562,8 +562,8 @@ export class TranscriptViewport {
       contentLength: documentRows.length,
       viewportHeight,
       scroll: this.#scrollTop,
-      // Invariant: the rail leaves one untouched boundary row above and below its track.
-      trackHeight: Math.max(0, viewportHeight - 2),
+      // Invariant: the rail keeps its top gap; the shell owns the spacing above the dock.
+      trackHeight: Math.max(0, viewportHeight - 1),
     });
     const presentation = scrollbarPresentation({
       geometry,
@@ -737,7 +737,7 @@ export class TranscriptViewport {
       // Invariant: paint the rail after selection over the gutter's continued row
       // background. Source content and selection still end at the preceding cell.
       let railCell = "";
-      if (row > 0 && row < viewportHeight - 1 && presentation.visible && geometry !== null) {
+      if (row > 0 && row < viewportHeight && presentation.visible && geometry !== null) {
         const trackRow = row - 1;
         const thumb = isThumbRow(geometry, trackRow);
         const glyph = thumb ? presentation.thumbGlyph : presentation.trackGlyph;
@@ -847,7 +847,7 @@ export class TranscriptViewport {
       rail: geometry === null || this.#config.scrollbarAppearance === "hidden" ? null : {
         column: width,
         rowStart: 2,
-        trackHeight: Math.max(0, viewportHeight - 2),
+        trackHeight: Math.max(0, viewportHeight - 1),
         geometry,
       },
       sticky: stickyActive ? { row: 1, target: governing.firstRow, width: contentWidth } : null,

@@ -45,6 +45,11 @@ When a viewed resident child publishes a complete structured frame, A1 SHALL pre
 - **THEN** the child SHALL receive the reduced height and use child-local cursor and scrolling coordinates
 - **AND** presentation SHALL apply exactly one row offset without shifting, duplicating, or retaining content at the bottom edge
 
+#### Scenario: Match solo fullscreen wrapping behavior
+- **WHEN** the outer resident presenter paints complete retained rows as positioned cells
+- **THEN** automatic line wrapping SHALL remain disabled for the outer fullscreen session so writing the final column cannot move content into another row
+- **AND** leaving the outer session SHALL restore normal wrapping without changing the child terminal's own wrapping semantics
+
 #### Scenario: Keep differential presentation coherent
 - **WHEN** unchanged rows are reused while one or more rows are cleared, restyled, or replaced
 - **THEN** A1 SHALL repaint the changed rows in one coherent presentation and acknowledge the new baseline only after the complete outer write succeeds

@@ -86,6 +86,34 @@ fn terminal_generated_blank_colors_survive_capture_and_legacy_replay() {
 }
 
 #[test]
+fn cyrillic_continuation_bytes_are_not_control_boundaries() {
+    let bytes = "\x1b[?1049h\x1b[?7l\x1b[2J\x1b[?2026h\x1b[1;1H### 1. Личност\x1b[2;1H1. Как би описал характера си?\x1b[3;1HśЛ Ще ти задам въпроси\x1b[8;1HJump to bottom ↓\x1b[?2026l".as_bytes();
+    let mut solo = GhosttyTerminal::new(40, 10).unwrap();
+    solo.write(bytes);
+    let expected = capture(&mut solo, &mut RetainedSurfaceBuilder::default());
+    for size in [1, 2, 3, 7, 64, 4096] {
+        let mut resident = GhosttyTerminal::new(40, 10).unwrap();
+        let mut builder = RetainedSurfaceBuilder::default();
+        for chunk in bytes.chunks(size) {
+            let mut offset = 0;
+            while offset < chunk.len() {
+                let (count, _) = resident
+                    .write_until_sync_boundary(&chunk[offset..])
+                    .unwrap();
+                offset += count;
+                capture(&mut resident, &mut builder);
+            }
+        }
+        let actual = capture(&mut resident, &mut builder);
+        assert_eq!(
+            cells(&expected, 0),
+            cells(&actual, 0),
+            "UTF-8 control-like bytes, chunk={size}"
+        );
+    }
+}
+
+#[test]
 fn retained_rows_follow_natural_linefeed_scrolling() {
     for alternate in [false, true] {
         let mut source = GhosttyTerminal::new(24, 6).unwrap();
@@ -202,9 +230,10 @@ fn resident_damage_compares_referenced_style_and_link_values() {
 #[cfg(windows)]
 fn conpty_frames() -> Vec<Vec<u8>> {
     [
-        "\x1b[?1049h\x1b[2J\x1b[H\x1b[48;2;12;34;56m\x1b[2Ktool output\x1b[2;1H\x1b[2K\x1b[0m\x1b[9;3HJump to bottom\x1b[10;1HWorking\x1b[12;3H> ",
-        "\x1b[9;1H\x1b[2K\x1b[10;1H\x1b[2K\x1b[8;3HJump to bottom\x1b[3;1H\x1b[48;5;4m\x1b[2Knext tool\x1b[0m\x1b[8;40H│\x1b[12;3H> ",
-        "\x1b[8;1H\x1b[2K\x1b[7;3H3 new messages\x1b[4;1H\x1b[1;3m界 e\u{301}\x1b[0m\x1b[12;3H> ",
+        "\x1b[?1049h\x1b[?7l\x1b[2J\x1b[H\x1b[48;2;12;34;56m\x1b[2KЛичност ś tool output\x1b[2;1H\x1b[2K\x1b[0m\x1b[9;3HJump to bottom ↓\x1b[10;1HWorking\x1b[12;3H> ",
+        "\x1b[9;1H\x1b[2K\x1b[10;1H\x1b[2K\x1b[8;3HJump to bottom ↓\x1b[3;1H\x1b[48;5;4m\x1b[2Knext tool\x1b[0m\x1b[8;40H│\x1b[12;3H> ",
+        "\x1b[8;1H\x1b[2K\x1b[7;3H3 new messages ↓\x1b[4;1H\x1b[1;3m界 e\u{301} Личност\x1b[0m\x1b[5;1H1. Как би описал характера си?\x1b[12;3H> ",
+        "\x1b[7;1H\x1b[2K\x1b[8;40H \x1b[12;3H> ",
     ].iter().map(|body| format!("\x1b[?2026h{body}\x1b[12;1H{}\x1b[0m\x1b[12;3H\x1b[?2026l", " ".repeat(40)).into_bytes()).collect()
 }
 
@@ -221,7 +250,9 @@ fn conpty_parity_child() {
     let mut builder = RetainedSurfaceBuilder::default();
     let mut composer = PresentationComposer::default();
     if mode == "resident" {
-        std::io::stdout().write_all(b"\x1b[?1049h").unwrap();
+        std::io::stdout()
+            .write_all(crate::roles::attach::ENTER_OUTER_MODES)
+            .unwrap();
     }
     for (revision, frame) in conpty_frames().into_iter().enumerate() {
         let output = if mode == "resident" {
@@ -356,8 +387,14 @@ fn conpty_content_parity(resident_output: bool) {
         let mut builder = RetainedSurfaceBuilder::default();
         let mut through_pty = None;
         for chunk in bytes.chunks(chunk_size) {
-            resident.write(chunk);
-            through_pty = Some(capture(&mut resident, &mut builder));
+            let mut offset = 0;
+            while offset < chunk.len() {
+                let (count, _) = resident
+                    .write_until_sync_boundary(&chunk[offset..])
+                    .unwrap();
+                offset += count;
+                through_pty = Some(capture(&mut resident, &mut builder));
+            }
         }
         let expected = cells(&direct, 0);
         let actual = cells(&through_pty.unwrap(), usize::from(resident_output));

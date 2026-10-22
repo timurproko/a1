@@ -32,7 +32,7 @@ function fixture(width: number, appearance: "auto" | "always" | "hidden", style:
 }
 
 describe("truthful selection beside the scrollbar gutter", () => {
-  it("keeps annotated and blank rows in one fixed gutter between both boundary gaps", async () => {
+  it("keeps annotated and blank rows in one fixed gutter through the final content row", async () => {
     const width = 60, height = 12;
     const viewport = new TranscriptViewport();
     viewport.setConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin" });
@@ -44,7 +44,7 @@ describe("truthful selection beside the scrollbar gutter", () => {
         const frame = viewport.compose({ documentRows, dockRows: Array.from({ length: dockHeight }, () => "dock"),
           promptAnchors: [], width, height, theme, now: 100 });
         const viewportHeight = height - dockHeight;
-        expect(frame.hits.rail).toMatchObject({ column: width, rowStart: 2, trackHeight: viewportHeight - 2 });
+        expect(frame.hits.rail).toMatchObject({ column: width, rowStart: 2, trackHeight: viewportHeight - 1 });
         expect(frame.rows.join("")).not.toMatch(/\u001b\]133;[ABC]/u);
         const data = frame.rows.map((row, index) => `\u001b[${index + 1};1H\u001b[0m\u001b[2K${row}`).join("");
         await new Promise<void>(resolve => terminal.write(data, resolve));
@@ -52,7 +52,7 @@ describe("truthful selection beside the scrollbar gutter", () => {
           const line = terminal.buffer.active.getLine(row)!;
           const railColumns = Array.from({ length: width }, (_, column) => column)
             .filter(column => /[│┃]/u.test(line.getCell(column)!.getChars()));
-          expect(railColumns, `row ${row}, dock ${dockHeight}`).toEqual(row > 0 && row < viewportHeight - 1 ? [width - 1] : []);
+          expect(railColumns, `row ${row}, dock ${dockHeight}`).toEqual(row > 0 && row < viewportHeight ? [width - 1] : []);
         }
       }
     } finally { terminal.dispose(); }
@@ -209,7 +209,7 @@ describe("truthful selection beside the scrollbar gutter", () => {
           expect(control.getBgColor()).toBe(hovered ? CONTROL_HOVER : CONTROL);
           expect(gutter.isBgDefault()).toBe(!selected);
           if (selected) expect(gutter.getBgColor()).toBe(SELECTED);
-          expect(gutter.getChars() || " ").toBe(" ");
+          expect(gutter.getChars() || " ").toBe(appearance === "always" ? "│" : " ");
           const track = terminal.buffer.active.getLine(hit.row - 2)!.getCell(width - 1)!;
           expect(track.getChars() || " ").toBe(appearance === "always" ? "│" : " ");
         } finally { terminal.dispose(); }
