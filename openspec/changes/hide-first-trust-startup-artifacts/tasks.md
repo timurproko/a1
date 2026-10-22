@@ -37,7 +37,7 @@
 
 - [x] 8.1 Reproduce stale controls, shifted rail cells, and duplicate live rows through incremental PTY/chunk capture rather than final-only parser snapshots; repair the first divergent boundary.
 - [x] 8.2 Keep the scrollbar within one fixed gutter column and reserve one empty boundary row above and below its track through scrolling and dock changes.
-- [x] 8.3 Remove tab-chip left padding while retaining exactly one separator between each lifecycle icon and name; update hit/width contracts.
+- [x] 8.3 Give tab chips one leading space and one icon/name separator, including animated and icon-less states; update exact spacing and hit/width regressions.
 - [x] 8.4 Repair the CI-reported fixture environment key, cross-adapter import, startup-graph bounds, and oversized functions without relaxing policy; run focused regression, native, architecture, naming, typecheck, and build checks.
 
 ## 6. Validation and delivery record

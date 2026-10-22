@@ -69,12 +69,16 @@ The custom viewport now removes only its internal A/B/C zones, for BEL and ST te
 Additional delivered changes:
 
 - Track/thumb glyphs remain in the reserved gutter column with one empty rail-boundary row above and below. Paint geometry and hit geometry share the shortened track.
-- Tab chips have no left padding; icon/name separation remains one space, and measured widths and hit regions shrink accordingly.
+- The final maintainer refinement keeps both gaps: tab chips start with one space and separate the lifecycle icon from its name with one space. Icon-less chips keep the leading space. Widths and hit regions include exactly the painted padding and separator cells.
 - The new real-shell fullscreen regression checks every physical row, including the dock/footer, at three child heights through 40 transitions each. It exercises wheel scrolling, editor growth/shrinkage, badge relabeling, live-status changes, content replacement, and return-to-bottom. Disabling the annotation removal makes all three new cases fail; restoring it passes.
 - A gutter regression covers styled, empty, and annotated rows through five dock heights. Native coverage retains actual OSC 133 fresh-line behavior and exercises real ConPTY for both raw child output and resident output with its additional strip row, with captures after 1-, 7-, and 4096-byte fragments.
 - CI's fixture-key and seven architecture failures are repaired without bypasses: the fixture uses a non-branded test key, component background scoping stays in its owning adapter, duplicate fallback handling is shared locally, the dock-only frame derives unchanged fields from its established frame, and native damage/suffix/sequence helpers are split. The size ratchet is lowered; startup and function-size limits are not raised.
 
 Current focused validation passed: 196 viewport/shell/terminal-replay tests, 86 tool/runtime/image tests, 24 native presentation tests, 26 native strip tests, 7 native capture/parser tests, typecheck, the complete architecture command, changed-file code-documentation governance, and the full naming audit (zero violations). The full managed/native checkout build also passed with exit code zero. Reproduction payloads are synthetic ignored scratch; permanent regressions depend on no artifact file.
+
+## Final tab-spacing refinement
+
+The maintainer's final request retains both gaps: one leading cell before the icon and one separating cell before the name. Status-glyph helpers return only the glyph; chip composition owns the separator, omitting it for icon-less chips. Painted width and hit width include the exact leading, glyph, separator, and trailing cells. The focused 26-test strip suite, typecheck, architecture boundaries, changed-file code-documentation check, strict OpenSpec validation, and full managed/native build passed for this refinement.
 
 ## Manual local test
 
@@ -89,7 +93,7 @@ cd /d/Git/a1/.worktrees/first-trust-startup-cleanup && npm run build && ./script
 3. Scroll upward, allow one or more messages to complete, and grow then shrink the editor with multiline input. Verify exactly one current `Jump to bottom` or counted `new message` badge appears and the former row is restored when it moves.
 4. Return to the end, start and settle another operation, and verify only one live `Working` row appears and no stale status or control remains above the editor.
 5. Repeat the background and bottom-row checks after resizing the terminal and while the scrollbar is active. Verify rail glyphs stay in one gutter column and leave a clear rail boundary cell above and below the track; the dock/footer must not retain transcript rows.
-6. Check working, completed, and input-needed tab chips: no padding precedes the lifecycle icon, and exactly one space separates it from the name.
+6. Check working, completed, and input-needed tab chips: exactly one space precedes the lifecycle icon and exactly one space separates it from the name. Icon-less chips retain one leading space.
 
 The maintainer's screenshots on the prior candidate showed resident degradation despite correct solo output and motivated the comprehensive refinement above. There is no manual result for the new repair head yet. Manual observations remain optional and do not gate implementation completion.
 

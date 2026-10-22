@@ -15,12 +15,12 @@ When a viewed resident Agent confirms its startup project-trust decision, A1 SHA
 - **WHEN** the same or another tab works, needs input, settles, crashes, restarts, restores outside the blank trust handoff, or fails
 - **THEN** its applicable status indicator SHALL remain visible according to the ordinary resident-tab status contract
 
-### Requirement: Tab chips have no leading padding
-A1 SHALL paint each tab chip without a leading padding cell while retaining one space between an applicable lifecycle icon and its name. Width calculations and hit regions SHALL match the painted cells.
+### Requirement: Tab chips pad before the icon and separate it from the name
+A1 SHALL paint one leading padding cell in each tab chip and one separating space between an applicable lifecycle icon and its name. Icon-less chips SHALL retain the leading padding cell. Width calculations and hit regions SHALL match the painted cells.
 
 #### Scenario: Paint a chip with an icon
 - **WHEN** a tab chip displays a lifecycle icon and a name
-- **THEN** its first cell SHALL contain the icon, followed by one separating space and the name
+- **THEN** its first cell SHALL be a space, followed by the icon, one separating space, and the name
 
 ### Requirement: Resident structured replay converges to the newest child frame
 When a viewed resident child publishes a complete structured frame, A1 SHALL present the newest value of every child cell and SHALL remove content that occupied a cell only in the prior frame. Explicit backgrounds on trailing blank cells SHALL remain part of the child frame through retained capture and outer presentation. Differential repainting, overlays, and row reuse SHALL NOT retain an obsolete scroll control, live-status row, glyph, background, or text after the authoritative child frame replaces or clears it.
