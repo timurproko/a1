@@ -2670,6 +2670,27 @@ mod retained_tests {
     }
 
     #[test]
+    fn retained_capture_keeps_styled_blanks_and_observes_cleared_rows() {
+        let mut terminal = GhosttyTerminal::new(8, 2).expect("terminal");
+        let mut builder = RetainedSurfaceBuilder::default();
+        terminal.write(b"\x1b[2;1HJump");
+        let first = terminal
+            .capture_retained_surface(&mut builder, 1, SurfaceCommitKind::Complete)
+            .expect("painted capture");
+
+        terminal.write(b"\x1b[2;1H\x1b[0m\x1b[2K\x1b[1;1H\x1b[48;2;1;2;3mX       \x1b[0m");
+        let second = terminal
+            .capture_retained_surface(&mut builder, 1, SurfaceCommitKind::Complete)
+            .expect("replacement capture");
+        let structured = second.structured().expect("wire surface");
+        assert!(!Arc::ptr_eq(&first.row_data[1], &second.row_data[1]));
+        assert!(structured.row_data[1].cells.iter().all(|cell| cell.text == " "));
+        assert!(structured.row_data[0].cells.iter().all(|cell| {
+            structured.styles[usize::from(cell.style)].background == SurfaceColor::Rgb([1, 2, 3])
+        }));
+    }
+
+    #[test]
     fn legacy_frames_keep_hyperlink_targets() {
         let mut terminal = GhosttyTerminal::new(12, 2).expect("terminal");
         terminal.write(

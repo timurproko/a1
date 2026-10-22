@@ -15,19 +15,19 @@
 
 ## 4. Full-width tool background composition
 
-- [ ] 4.1 Add focused tool-shell fixtures that expose nested SGR full/background resets inside pending, successful, and failed rows, including short text, links, wrapped output, collapse hints, and explicit nested backgrounds.
-- [ ] 4.2 Scope nested renderer styling to the enclosing tool-shell background so every available content cell returns to the tool state background without changing text, foreground roles, links, wrapping, or `a1 pi` comparison output.
-- [ ] 4.3 Verify content padding and hidden/visible scrollbar modes preserve one continuous component background while the reserved rail remains a separately painted overlay.
+- [x] 4.1 Add focused tool-shell fixtures that expose nested SGR full/background resets inside pending, successful, and failed rows, including short text, links, wrapped output, collapse hints, and explicit nested backgrounds.
+- [x] 4.2 Scope nested renderer styling to the enclosing tool-shell background so every available content cell returns to the tool state background without changing text, foreground roles, links, wrapping, or `a1 pi` comparison output.
+- [x] 4.3 Verify content padding and hidden/visible scrollbar modes preserve one continuous component background while the reserved rail remains a separately painted overlay.
 
 ## 5. Coherent transient bottom rows
 
-- [ ] 5.1 Add custom-viewport transition tests for a jump-to-bottom control that moves, changes between generic and counted labels, changes hover state, and disappears as dock height, follow state, or content changes; assert the former row is restored and exactly one current control remains.
-- [ ] 5.2 Add transition coverage for bottom-aligned live-status rows appearing, changing height, and disappearing without leaving duplicate `Working` rows.
-- [ ] 5.3 Trace those transitions through the Pi fullscreen damage writer and resident structured capture/replay, repair the first divergent row-damage boundary, and verify cleared, replacement, and styled trailing blank cells converge to the newest complete frame.
-- [ ] 5.4 Preserve row-bounded differential rendering, popup clipping, cursor placement, hyperlinks, selection, and successful-write baseline acknowledgement while repairing stale-row replacement.
+- [x] 5.1 Add custom-viewport transition tests for a jump-to-bottom control that moves, changes between generic and counted labels, changes hover state, and disappears as dock height, follow state, or content changes; assert the former row is restored and exactly one current control remains.
+- [x] 5.2 Add transition coverage for bottom-aligned live-status rows appearing, changing height, and disappearing without leaving duplicate `Working` rows.
+- [x] 5.3 Trace those transitions through the Pi fullscreen damage writer and resident structured capture/replay, repair the first divergent row-damage boundary, and verify cleared, replacement, and styled trailing blank cells converge to the newest complete frame.
+- [x] 5.4 Preserve row-bounded differential rendering, popup clipping, cursor placement, hyperlinks, selection, and successful-write baseline acknowledgement while repairing stale-row replacement.
 
 ## 6. Validation and delivery record
 
-- [ ] 6.1 Run focused TypeScript tests, typecheck, strict OpenSpec validation, changed-file governance checks, and available native checks; record Cargo unavailability rather than claiming native execution when it remains absent.
-- [ ] 6.2 Publish one copy-pasteable Windows Git Bash worktree build/launch command and a manual checklist covering first trust, short and internally styled tool rows, active scrollbar, detached control relabel/movement, and live-status removal; record reported observations when available without making manual validation a completion gate.
+- [x] 6.1 Run focused TypeScript tests, typecheck, strict OpenSpec validation, changed-file governance checks, and available native checks; record Cargo unavailability rather than claiming native execution when it remains absent.
+- [x] 6.2 Publish one copy-pasteable Windows Git Bash worktree build/launch command and a manual checklist covering first trust, short and internally styled tool rows, active scrollbar, detached control relabel/movement, and live-status removal; record reported observations when available without making manual validation a completion gate.
 - [ ] 6.3 Update implementation evidence and the plain PR acceptance outcomes, resolve every pre-ready task or record a maintainer-approved known gap, reconcile and push current `origin/develop`, and verify the implementation-bound body before completing the final implementation outcome.

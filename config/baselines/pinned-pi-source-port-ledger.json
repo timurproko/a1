@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-16T15:56:41.858Z",
+  "recordedAt": "2026-10-22T09:15:12.603Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "71023aec1546d6d677a65669c5665c0927ce0dd0",
@@ -2765,9 +2765,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tool-execution.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. See docs/architecture/tool-image-presentation.md.",
+      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. Restore the enclosing default-shell background after nested renderer resets. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "2366fe38bf390f0910aa90c54229ded7f306c2c577beb14f4648f298722e820b",
+      "localSha256": "f3539e4bae9519211c2d7125c374c1548ecd321ad279651ff477983e3c475f62",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2785,6 +2785,12 @@
           "id": "concise-tool-expand-shortcut-hint",
           "reason": "User-approved expand-shortcut-hint change and refinement: generic and package built-in collapsed tool output should use the same concise semantic key/action presentation as bare-A1 dialogs.",
           "upstreamBehavior": "The explicit a1 pi comparison keeps pinned lowercase connective wording; bare A1 adapts generic and internally selected built-in expansion hints to the effective display-cased binding and distinct key/action roles without changing renderer or expansion behavior.",
+          "acceptanceTest": "test/integrations/pi/components/tool-shell-parity.test.ts"
+        },
+        {
+          "id": "default-shell-background-reset-scoping",
+          "reason": "User-approved resident rendering repair: nested tool renderers must not cancel the enclosing pending, success, or error background before the padded row ends.",
+          "upstreamBehavior": "The explicit a1 pi comparison keeps pinned terminal-control bytes; bare A1 only restores its enclosing default-shell background after a nested full or default-background reset while preserving explicit nested backgrounds and all visible content.",
           "acceptanceTest": "test/integrations/pi/components/tool-shell-parity.test.ts"
         }
       ],

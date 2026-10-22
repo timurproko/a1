@@ -753,6 +753,12 @@ fn render_surface_row_clipped(
     clip: Option<(usize, usize)>,
 ) -> Result<(), String> {
     output.extend_from_slice(format!("\x1b[{};1H", row_index + 2).as_bytes());
+    if clip.is_none() {
+        // Invariant: a changed retained row replaces its former terminal cells before repainting.
+        // Explicit cell writes then restore styled blanks, while a cleared control/status row cannot
+        // survive because of terminal-specific blank-cell or wrap behavior.
+        output.extend_from_slice(b"\x1b[0m\x1b[2K");
+    }
     let mut active_style: Option<u16> = None;
     let mut active_link: Option<u16> = None;
     let visible = usize::from(columns).min(row.cells.len());
@@ -1585,6 +1591,43 @@ mod tests {
             .expect("row damage");
         assert!(damage.bytes.windows(6).any(|window| window == b"\x1b[3;1H"));
         assert!(!damage.bytes.windows(6).any(|window| window == b"\x1b[2;1H"));
+    }
+
+    #[test]
+    fn changed_rows_clear_stale_cells_and_restore_styled_trailing_blanks() {
+        let mut composer = PresentationComposer::default();
+        let mut initial = structured_fixture();
+        initial.row_data[1].cells[0].text = "J".into();
+        composer
+            .prepare(&desired(Some(initial.clone()), Vec::new()))
+            .unwrap()
+            .expect("initial control")
+            .acknowledge(&mut composer);
+
+        let mut cleared = initial;
+        cleared.row_data[1] = SurfaceRow {
+            cells: vec![crate::protocol::SurfaceCell::default(); 3],
+        };
+        let blank = composer
+            .prepare(&desired(Some(cleared.clone()), Vec::new()))
+            .unwrap()
+            .expect("cleared control");
+        assert!(blank.bytes.windows(14).any(|window| window == b"\x1b[3;1H\x1b[0m\x1b[2K"));
+        blank.acknowledge(&mut composer);
+
+        for cell in &mut cleared.row_data[1].cells {
+            cell.style = 1;
+        }
+        cleared.row_data[1].cells[0].text = "X".into();
+        let styled = composer
+            .prepare(&desired(Some(cleared), Vec::new()))
+            .unwrap()
+            .expect("styled blanks");
+        let bytes = String::from_utf8(styled.bytes).unwrap();
+        let row = bytes.split("\x1b[3;1H").nth(1).expect("changed row");
+        assert!(row.starts_with("\x1b[0m\x1b[2K"));
+        assert!(row.contains("48;5;4"));
+        assert!(row.contains("X  "), "{row:?}");
     }
 
     #[test]

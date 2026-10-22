@@ -3,9 +3,10 @@
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell/public renderers. Own image conversion; replace private APIs with
  * public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut
- * hints. See docs/architecture/tool-image-presentation.md.
+ * hints. Restore the enclosing default-shell background after nested renderer resets. See
+ * docs/architecture/tool-image-presentation.md.
  * Deviations: current-tool-image-conversion-ownership, read-range-secondary-accent,
- * concise-tool-expand-shortcut-hint.
+ * concise-tool-expand-shortcut-hint, default-shell-background-reset-scoping.
  */
 import { stripVTControlCharacters } from "node:util";
 import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
@@ -16,6 +17,7 @@ import { createReadToolDefinition, createBashToolDefinition, createEditToolDefin
 import { renderPiModalShortcutHints } from "../../theme.js";
 import { isPiAccentProjectionEnabled, piTheme } from "../theme/theme.js";
 import { ToolImagePresentation } from "../../tool-image-presentation.js";
+import { rebaseTerminalDefaultBackground } from "../../../tui-runtime/index.js";
 
 type ToolRenderContext = Parameters<NonNullable<ToolDefinition["renderCall"]>>[2];
 type ToolPresentationResult = Parameters<NonNullable<ToolDefinition["renderResult"]>>[0] & {
@@ -39,6 +41,22 @@ function withConciseExpandHint(component: Component): Component {
 		const value: unknown = Reflect.get(target, property, target);
 		return typeof value === "function" ? value.bind(target) : value;
 	} });
+}
+
+function enclosingToolBackground(
+	theme: ReturnType<typeof piTheme>,
+	role: "toolPendingBg" | "toolErrorBg" | "toolSuccessBg",
+): (text: string) => string {
+	const marker = "\u0000";
+	const sample = theme.bg(role, marker);
+	const markerIndex = sample.indexOf(marker);
+	// Invariant: nested renderers may reset their own background, but the default inside this
+	// shell is its state background until the Box closes the complete padded row.
+	const backgroundAnsi = markerIndex < 0 ? "" : sample.slice(0, markerIndex);
+	return (text: string) => theme.bg(
+		role,
+		backgroundAnsi.length === 0 ? text : rebaseTerminalDefaultBackground(text, backgroundAnsi),
+	);
 }
 
 export function mergeBuiltInRenderers(definition: ToolRendererInput | undefined, builtIn: ToolRendererInput | undefined): ToolRenderers | undefined {
@@ -143,8 +161,8 @@ export class ToolExecutionComponent extends Container {
 
 		this.addChild(new Spacer(1));
 
-		this.contentBox = new Box(1, 1, (text: string) => piTheme().bg("toolPendingBg", text));
-		this.contentText = new Text("", 1, 1, (text: string) => piTheme().bg("toolPendingBg", text));
+		this.contentBox = new Box(1, 1, enclosingToolBackground(piTheme(), "toolPendingBg"));
+		this.contentText = new Text("", 1, 1, enclosingToolBackground(piTheme(), "toolPendingBg"));
 		this.contentTextRegion = this.createResultRegion(this.contentText);
 		this.selfRenderContainer = new Container();
 
@@ -340,10 +358,10 @@ export class ToolExecutionComponent extends Container {
   private composeDisplay(): void {
     const theme = piTheme();
 		const bgFn = this.isPartial
-			? (text: string) => theme.bg("toolPendingBg", text)
+			? enclosingToolBackground(theme, "toolPendingBg")
 			: this.result?.isError
-				? (text: string) => theme.bg("toolErrorBg", text)
-				: (text: string) => theme.bg("toolSuccessBg", text);
+				? enclosingToolBackground(theme, "toolErrorBg")
+				: enclosingToolBackground(theme, "toolSuccessBg");
 
 		let hasContent = false;
 		this.hideComponent = false;
