@@ -5,6 +5,7 @@ import { copyFile, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { hostTriple, NOTICES_FILENAME, writeTerminalHostNotices } from "../release/generate-terminal-host-notices.mjs";
+import { requireNativeBuildEnvironment, resolveNativeBuildEnvironment } from "./native-build-environment.mjs";
 import { addonLibraryName, observeAddonIdentity, resolveBuildTarget, targetIdentity, ZIG_BASELINE_CPU } from "./native-target.mjs";
 
 export const TERMINAL_HOST_MANIFEST = "terminal-host.manifest.json";
@@ -69,11 +70,12 @@ async function fileRecord(path, filename = path.split(/[\\/]/).at(-1)) {
 }
 
 function run(executable, arguments_, verbose, options = {}) {
+  const { environment = process.env, ...spawnOptions } = options;
   const result = crossSpawn.sync(executable, arguments_, {
     stdio: verbose ? "inherit" : ["ignore", "pipe", "pipe"],
-    env: process.env,
+    env: environment,
     windowsHide: true,
-    ...options,
+    ...spawnOptions,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
@@ -97,8 +99,9 @@ async function main() {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   const target = resolveBuildTarget({ argv: process.argv.slice(2) });
   const { platform, architecture } = target;
-  const cargo = process.env.CARGO ?? "cargo";
-  const verbose = process.env.A1_BUILD_VERBOSE === "1";
+  const environment = requireNativeBuildEnvironment(resolveNativeBuildEnvironment());
+  const cargo = environment.CARGO ?? "cargo";
+  const verbose = environment.A1_BUILD_VERBOSE === "1";
   const cargoManifest = resolve(repositoryRoot, "native/terminal-host/Cargo.toml");
   const crateVersion = (await readFile(cargoManifest, "utf8")).match(/^version\s*=\s*"([^"]+)"/m)?.[1];
   if (!crateVersion) throw new Error("terminal host Cargo manifest has no package version");
@@ -106,7 +109,7 @@ async function main() {
   const targetDirectory = resolve(repositoryRoot, "dist/native", `${platform}-${architecture}`);
   await mkdir(targetDirectory, { recursive: true });
 
-  run(cargo, ["build", "--release", "--locked", ...target.cargoArguments, "--manifest-path", cargoManifest, "--lib", "--features", "node-addon"], verbose);
+  run(cargo, ["build", "--release", "--locked", ...target.cargoArguments, "--manifest-path", cargoManifest, "--lib", "--features", "node-addon"], verbose, { environment });
   const artifactPath = resolve(targetDirectory, TERMINAL_HOST_ADDON);
   await copyFile(resolve(releaseDirectory, addonLibraryName("terminal_host_contracts", platform)), artifactPath);
 
@@ -119,7 +122,7 @@ async function main() {
     addon: artifactPath,
     arguments_: loaderArguments,
     target,
-    execute: (executable, arguments_) => crossSpawn.sync(executable, arguments_, { encoding: "utf8", windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }),
+    execute: (executable, arguments_) => crossSpawn.sync(executable, arguments_, { encoding: "utf8", env: environment, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] }),
     readBytes: path => readFileSync(path),
   });
   const triple = target.triple ?? hostTriple();
@@ -145,8 +148,8 @@ async function main() {
     entry: await fileRecord(entryPath, TERMINAL_HOST_ENTRY),
     notices: await fileRecord(resolve(targetDirectory, NOTICES_FILENAME)),
     cargoLockSha256: createHash("sha256").update(await readFile(resolve(repositoryRoot, "native/terminal-host/Cargo.lock"))).digest("hex"),
-    rustVersion: run(process.env.RUSTC ?? "rustc", ["--version"], false, { encoding: "utf8" }).trim(),
-    zigVersion: terminalHostZigVersion(process.env, () => run(process.env.ZIG ?? "zig", ["version"], false, { encoding: "utf8" }).trim()),
+    rustVersion: run(environment.RUSTC ?? "rustc", ["--version"], false, { encoding: "utf8", environment }).trim(),
+    zigVersion: terminalHostZigVersion(environment, () => run(environment.ZIG ?? "zig", ["version"], false, { encoding: "utf8", environment }).trim()),
     builtAt: new Date().toISOString(),
     identityCheck: observed.check,
   });

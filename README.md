@@ -185,13 +185,15 @@ a1 update npm:pi-mcp-adapter
 
 ## Develop
 
+A source build needs Node.js, npm, git, and Rustup. Windows additionally needs Visual Studio or Visual Studio Build Tools with the **Desktop development with C++** workload, MSVC x64/x86 tools, and a Windows SDK; Visual Studio Code is not required. A1 discovers installed Rustup and Visual Studio tools and initializes them for build children, so Git Bash and ordinary PowerShell do not need manual `PATH` or developer-shell setup. It never installs these tools or accepts their licenses automatically.
+
 Install exact locked dependencies:
 
 ```text
 npm ci
 ```
 
-Compile TypeScript and the process guardian into `dist`:
+Compile TypeScript and the native addons into `dist`:
 
 ```text
 npm run build
@@ -221,7 +223,7 @@ Complete non-physical suite:
 npm run test:full
 ```
 
-Report Node, npm, git, Rust, and dependency readiness:
+Report Node, npm, git, Rust, dependency, and Windows C++ readiness. Missing Windows tools are listed in setup order; after installing them, rerun the same build command:
 
 ```text
 npm run doctor

@@ -1,17 +1,26 @@
 /** Dependency-free executable probes that preserve failure identity without exposing subprocess output. */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { extname, isAbsolute, resolve, win32 } from "node:path";
 
 export const PROBE_TIMEOUT_MS = 15000;
 
 /** Resolve Windows shims with PATHEXT before spawning; Node does not resolve them like a shell. */
 export function locateExecutable(command, { platform = process.platform, env = process.env, exists = existsSync } = {}) {
-  const extensions = platform === "win32" ? (env.PATHEXT ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [""];
-  for (const entry of (env.PATH ?? "").split(platform === "win32" ? ";" : ":").filter(Boolean)) {
+  const windows = platform === "win32";
+  const value = name => {
+    const key = Object.keys(env).find(candidate => windows ? candidate.toLowerCase() === name.toLowerCase() : candidate === name);
+    return key ? env[key] : undefined;
+  };
+  const extensions = windows ? (value("PATHEXT") ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [""];
+  const path = windows ? win32 : { resolve, isAbsolute, extname };
+  const hasDirectory = path.isAbsolute(command) || /[\\/]/u.test(command);
+  const directories = hasDirectory ? [""] : (value("PATH") ?? "").split(windows ? ";" : ":").filter(Boolean);
+  const suffixes = windows && path.extname(command) ? [""] : extensions;
+  for (const entry of directories) {
     const directory = entry.replace(/^"|"$/gu, "");
-    for (const extension of extensions) {
-      const candidate = resolve(directory, `${command}${extension}`);
+    for (const extension of suffixes) {
+      const candidate = hasDirectory ? path.resolve(`${command}${extension}`) : path.resolve(directory, `${command}${extension}`);
       if (exists(candidate)) return candidate;
     }
   }
