@@ -34,6 +34,7 @@ use crate::roles::outer_input::{self, InputChannel, Outgoing};
 use crate::roles::presentation::Frame;
 use crate::roles::presentation::{
     DesiredPresentation, FinalCursor, Offer, PresentationComposer, TopologyAction, ViewModel,
+    surface_is_blank,
 };
 use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
@@ -1254,11 +1255,14 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
 struct Presented {
     surface: Vec<u8>,
     structured: Option<protocol::StructuredSurface>,
+    tab_id: Option<String>,
     incarnation: u64,
     revision: u64,
     geometry_generation: u64,
     modes: Option<TerminalModes>,
     cursor: Option<FinalCursor>,
+    startup_drew_content: bool,
+    quiet_startup_handoff: bool,
 }
 
 impl Presented {
@@ -1267,17 +1271,41 @@ impl Presented {
         Self {
             surface: Vec::new(),
             structured: None,
+            tab_id: None,
             incarnation: 0,
             revision: 0,
             geometry_generation: 0,
             modes: None,
             cursor: Some(FinalCursor::Hidden),
+            startup_drew_content: false,
+            quiet_startup_handoff: false,
         }
     }
 
-    fn install(&mut self, surface: &Surface) {
+    fn install(&mut self, surface: &Surface, effective_status: &str) {
+        let same_child = self.tab_id.as_deref() == Some(surface.tab_id.as_str())
+            && self.incarnation == surface.incarnation;
+        if !same_child {
+            self.startup_drew_content = false;
+            self.quiet_startup_handoff = false;
+        }
+        let blank = surface_is_blank(surface);
+        if effective_status == "starting" {
+            if blank {
+                self.quiet_startup_handoff =
+                    self.quiet_startup_handoff || self.startup_drew_content;
+            } else {
+                self.startup_drew_content = true;
+                self.quiet_startup_handoff = false;
+            }
+        } else {
+            self.startup_drew_content = false;
+            self.quiet_startup_handoff = false;
+        }
+
         self.surface = without_bell(&surface.bytes);
         self.structured = surface.structured.clone();
+        self.tab_id = Some(surface.tab_id.clone());
         self.incarnation = surface.incarnation;
         self.revision = surface.revision;
         self.geometry_generation = surface
@@ -1287,17 +1315,24 @@ impl Presented {
                 structured.geometry_generation
             });
         self.modes = surface.modes.clone();
-        self.cursor = surface
-            .cursor
-            .map(FinalCursor::At)
-            .or_else(|| surface.modes.as_ref().map(|_| FinalCursor::Hidden));
+        self.cursor = if self.quiet_startup_handoff {
+            Some(FinalCursor::Hidden)
+        } else {
+            surface
+                .cursor
+                .map(FinalCursor::At)
+                .or_else(|| surface.modes.as_ref().map(|_| FinalCursor::Hidden))
+        };
     }
 
     /// Invariant: the old viewport is never combined with new strip/overlay coordinates.
     fn clear_body(&mut self) {
         self.surface.clear();
         self.structured = None;
+        self.tab_id = None;
         self.cursor = Some(FinalCursor::Hidden);
+        self.startup_drew_content = false;
+        self.quiet_startup_handoff = false;
     }
 }
 
@@ -1306,6 +1341,37 @@ struct GlyphState {
     starting_since: HashMap<String, Duration>,
     held: HashMap<String, (String, Duration)>,
     expires: Option<Duration>,
+}
+
+impl GlyphState {
+    /// A blank surface after drawn startup content is a handoff, not user-visible work.
+    fn suppress_quiet_startup_handoff(
+        &mut self,
+        shown: &mut [StripTab],
+        viewed: Option<&str>,
+        quiet: bool,
+    ) {
+        if !quiet {
+            return;
+        }
+        let Some(tab_id) = viewed else {
+            return;
+        };
+        let Some(tab) = shown.iter_mut().find(|tab| tab.id == tab_id) else {
+            return;
+        };
+        if tab.status == "starting" {
+            tab.status = "idle".into();
+        }
+        self.starting_since.remove(tab_id);
+        if self
+            .held
+            .get(tab_id)
+            .is_some_and(|(status, _)| status == "starting")
+        {
+            self.held.remove(tab_id);
+        }
+    }
 }
 
 /// The attach role's side of a session: the server connection, the outer terminal, and what it
@@ -1525,6 +1591,11 @@ impl Client {
             core.view.settings_shown,
         );
         let now = self.now();
+        self.glyphs.suppress_quiet_startup_handoff(
+            &mut shown,
+            self.view.viewed.as_deref(),
+            self.presented.quiet_startup_handoff,
+        );
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
         let render = |hovered: Option<&StripHover>| {
@@ -1631,13 +1702,15 @@ impl Client {
                 requested,
             }),
         )?;
+        let mut effective_status = surface.status.clone();
         if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == surface.tab_id) {
             if !holder_idle_precedes_bridge(&tab.status, &surface.status) {
                 tab.status = surface.status.clone();
             }
             tab.accent = surface.accent.clone();
+            effective_status.clone_from(&tab.status);
         }
-        self.presented.install(&surface);
+        self.presented.install(&surface, &effective_status);
         let mut deferred = VecDeque::new();
         for effect in std::mem::take(&mut self.pending_terminal_effects) {
             if effect.tab_id != surface.tab_id || effect.incarnation != surface.incarnation {
@@ -2686,6 +2759,157 @@ fn encode_mouse(kind: MouseEventKind, column: u16, outer_row: u16) -> Option<Vec
 mod tests {
     use super::*;
     use crate::core::attach::{PopupAction, TabDrag, update_drag};
+
+    fn startup_surface(revision: u64, text: &str, structured: bool) -> Surface {
+        Surface {
+            tab_id: "tab-1".into(),
+            incarnation: 1,
+            revision,
+            request_generation: 0,
+            bytes: if structured {
+                Vec::new()
+            } else if text.is_empty() {
+                b"\x1b[2J\x1b[H".to_vec()
+            } else {
+                text.as_bytes().to_vec()
+            },
+            structured: structured.then(|| protocol::StructuredSurface {
+                columns: 80,
+                rows: 1,
+                row_data: vec![protocol::SurfaceRow {
+                    cells: vec![protocol::SurfaceCell {
+                        text: if text.is_empty() { " ".into() } else { text.into() },
+                        ..protocol::SurfaceCell::default()
+                    }],
+                }],
+                ..protocol::StructuredSurface::default()
+            }),
+            status: "idle".into(),
+            accent: None,
+            stale: false,
+            modes: Some(TerminalModes {
+                cursor_visible: true,
+                ..TerminalModes::default()
+            }),
+            cursor: Some(protocol::SurfaceCursor { column: 3, row: 0 }),
+        }
+    }
+
+    #[test]
+    fn trust_startup_handoff_hides_only_blank_transition_artifacts() {
+        for structured in [false, true] {
+            let mut presented = Presented::new();
+            let cursor = Some(FinalCursor::At(protocol::SurfaceCursor { column: 3, row: 0 }));
+
+            presented.install(&startup_surface(1, "", structured), "starting");
+            assert!(!presented.quiet_startup_handoff);
+            assert_eq!(presented.cursor, cursor, "an initially blank surface is not a handoff");
+
+            presented.install(
+                &startup_surface(2, "Trust project folder?", structured),
+                "starting",
+            );
+            assert!(!presented.quiet_startup_handoff);
+            assert_eq!(presented.cursor, cursor);
+
+            presented.install(&startup_surface(3, "", structured), "starting");
+            assert!(presented.quiet_startup_handoff);
+            assert_eq!(presented.cursor, Some(FinalCursor::Hidden));
+
+            presented.install(&startup_surface(4, "", structured), "starting");
+            assert!(presented.quiet_startup_handoff, "consecutive blank revisions stay quiet");
+            assert_eq!(presented.cursor, Some(FinalCursor::Hidden));
+
+            presented.install(&startup_surface(5, "owned shell", structured), "starting");
+            assert!(!presented.quiet_startup_handoff);
+            assert_eq!(presented.cursor, cursor, "the first shell frame restores its cursor");
+
+            presented.install(&startup_surface(6, "", structured), "idle");
+            assert!(!presented.quiet_startup_handoff);
+            assert_eq!(presented.cursor, cursor, "ordinary blank surfaces keep their cursor");
+        }
+    }
+
+    #[test]
+    fn quiet_startup_handoff_removes_only_the_viewed_starting_glyph() {
+        let mut shown = [
+            StripTab {
+                id: "tab-1".into(),
+                name: "agent".into(),
+                name_source: "default".into(),
+                status: "starting".into(),
+                accent: None,
+                title_animation: None,
+            },
+            StripTab {
+                id: "tab-2".into(),
+                name: "working".into(),
+                name_source: "default".into(),
+                status: "working".into(),
+                accent: Some("blue".into()),
+                title_animation: None,
+            },
+            StripTab {
+                id: "tab-3".into(),
+                name: "restoring".into(),
+                name_source: "default".into(),
+                status: "restoring".into(),
+                accent: None,
+                title_animation: None,
+            },
+        ];
+        let mut glyphs = GlyphState::default();
+        glyphs.starting_since.insert("tab-1".into(), Duration::ZERO);
+        glyphs.held.insert("tab-1".into(), ("starting".into(), Duration::ZERO));
+        glyphs.held.insert("tab-2".into(), ("working".into(), Duration::ZERO));
+
+        glyphs.suppress_quiet_startup_handoff(&mut shown, Some("tab-1"), true);
+
+        assert_eq!(shown[0].status, "idle");
+        assert_eq!(shown[1].status, "working");
+        assert_eq!(shown[2].status, "restoring");
+        assert!(!glyphs.starting_since.contains_key("tab-1"));
+        assert!(!glyphs.held.contains_key("tab-1"));
+        assert!(glyphs.held.contains_key("tab-2"));
+
+        glyphs
+            .held
+            .insert("tab-1".into(), ("starting".into(), Duration::ZERO));
+        glyphs.suppress_quiet_startup_handoff(&mut shown, Some("tab-1"), true);
+        assert!(
+            !glyphs.held.contains_key("tab-1"),
+            "an idle status cannot revive a held starting glyph"
+        );
+
+        for status in [
+            "working",
+            "needs-input",
+            "done",
+            "aborted",
+            "error",
+            "crashed",
+            "restarting",
+            "restoring",
+            "failed",
+        ] {
+            let mut meaningful = [StripTab {
+                id: "tab-1".into(),
+                name: "agent".into(),
+                name_source: "default".into(),
+                status: status.into(),
+                accent: None,
+                title_animation: None,
+            }];
+            GlyphState::default().suppress_quiet_startup_handoff(
+                &mut meaningful,
+                Some("tab-1"),
+                true,
+            );
+            assert_eq!(meaningful[0].status, status);
+            assert!(strip::status_has_glyph(status));
+        }
+    }
+
     #[test]
     fn fast_double_ctrl_c_forwards_once_then_detaches() {
         let mut chord = DoubleCtrlC::new(500);
