@@ -480,7 +480,7 @@ The v2 daemon was unreliable for structural reasons, and a forensic pass over it
 
 - Holder heartbeat: a Rust main-loop tick every 5 s seen by the server; three missed ticks over an otherwise healthy supervision path plus one heartbeat of grace trigger verified holder recovery. The grace keeps external termination behind the holder's 15-second process-local watchdog so its own crash evidence wins despite scheduler jitter.
 - A1 heartbeat: the child's Node event loop, seen through the bridge. After 30 s it shows `unresponsive`; after `tabsUnresponsiveRestartSeconds` (default 120) the tab restarts from its session with its journal and last screen preserved. A missing server or bridge transport degrades status, not proof of a child event-loop stall; reacquire liveness evidence before destructive recovery.
-- Agent progress: model or tool events. After `tabsStallNoticeSeconds` (default 300) it shows `stalled` with interrupt and restart actions. It is never auto-killed, because a legitimate tool can run for a long time.
+- Agent progress: model or tool events. After `tabsStallNoticeSeconds` (default 300) the strip shows `stalled` and the attach client opens a centered `Agent stalled` dialog with `Restart` and `Close` over the dimmed tab; `Esc` dismisses it for that stall, and nothing is appended to the transcript. It is never auto-killed, because a legitimate tool can run for a long time.
 
 **Data-loss envelope.** Distinguish process termination, power loss, and loss of both holder and child:
 

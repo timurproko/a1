@@ -67,7 +67,11 @@ export class ResidentTabCoordinator implements SessionConcern {
     }
   }
 
-  /** Tracks working, idle, and stalled status from session events and arms the stall notice. */
+  /**
+   * Tracks working, idle, and stalled status from session events and arms the stall timer. A
+   * stall reaches the strip glyph and the attach client's dialog only; nothing is appended to the
+   * transcript.
+   */
   observeProgress(event: OwnedUiEvent): void {
     const resident = this.#options;
     const seconds = resident?.stallNoticeSeconds;
@@ -93,8 +97,6 @@ export class ResidentTabCoordinator implements SessionConcern {
       if (this.#ports.disposed() || !this.#working) return;
       this.#stalled = true;
       resident.reportStatus?.("stalled");
-      const minutes = Math.max(1, Math.round(seconds / 60));
-      this.#ports.root.appendWorkflowStatus(`No progress for ${minutes} min — Esc interrupts · use the tab restart action to restart`);
       this.#ports.terminal.requestRender();
     }, seconds * 1_000);
     this.#progressTimer.unref?.();

@@ -4,7 +4,7 @@ import { ResidentTabCoordinator, type ResidentTabOptions } from "../../../src/ap
 
 afterEach(() => { vi.useRealTimers(); });
 
-function harness(options: Partial<ResidentTabOptions> | undefined) {
+function harness(options: Partial<ResidentTabOptions> | undefined, requestRender = vi.fn()) {
   const statuses: string[] = [];
   const root = {
     appendWorkflowStatus: vi.fn((message: string) => statuses.push(message)),
@@ -14,7 +14,7 @@ function harness(options: Partial<ResidentTabOptions> | undefined) {
   let disposed = false;
   const coordinator = new ResidentTabCoordinator(
     options === undefined ? undefined : { requestDetach: async () => true, ...options },
-    { root: root as never, terminal: { requestRender: vi.fn() }, disposed: () => disposed },
+    { root: root as never, terminal: { requestRender }, disposed: () => disposed },
   );
   return { coordinator, root, statuses, dispose: () => { disposed = true; } };
 }
@@ -34,10 +34,11 @@ describe("ResidentTabCoordinator", () => {
     coordinator.dispose();
   });
 
-  it("reports working, stalled, and idle, and posts one stall notice per stall", () => {
+  it("reports working, stalled, and idle without a transcript notice", () => {
     vi.useFakeTimers();
     const reportStatus = vi.fn();
-    const { coordinator, statuses } = harness({ stallNoticeSeconds: 120, reportStatus });
+    const requestRender = vi.fn();
+    const { coordinator, statuses } = harness({ stallNoticeSeconds: 120, reportStatus }, requestRender);
     coordinator.observeProgress(block);
     vi.advanceTimersByTime(200_000);
     expect(statuses).toEqual([]);
@@ -48,13 +49,14 @@ describe("ResidentTabCoordinator", () => {
     expect(reportStatus).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1_000);
     expect(reportStatus).toHaveBeenLastCalledWith("stalled");
-    expect(statuses).toEqual(["No progress for 2 min — Esc interrupts · use the tab restart action to restart"]);
+    expect(requestRender).toHaveBeenCalledOnce();
+    expect(statuses).toEqual([]);
     coordinator.observeProgress(block);
     expect(reportStatus).toHaveBeenLastCalledWith("working");
     coordinator.observeProgress(lifecycle("ready"));
     expect(reportStatus).toHaveBeenLastCalledWith("idle");
     vi.advanceTimersByTime(500_000);
-    expect(statuses).toHaveLength(1);
+    expect(statuses).toEqual([]);
   });
 
   it("never posts a stall after disposal", () => {

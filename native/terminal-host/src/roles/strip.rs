@@ -454,9 +454,11 @@ pub fn render_configured(
     hovered: Option<&StripHover>,
     time_format: TimeFormat,
 ) -> StripFrame {
-    render_interactive(tabs, viewed, columns, hovered, time_format, None)
+    render_interactive(tabs, viewed, columns, hovered, time_format, None, false)
 }
 
+/// Renders the strip with hover, the inline rename, and `dim`, which routes every colour through
+/// the presentation's dim helper while a modal dialog is open; hit tables never change with it.
 pub fn render_interactive(
     tabs: &[StripTab],
     viewed: Option<&str>,
@@ -464,6 +466,7 @@ pub fn render_interactive(
     hovered: Option<&StripHover>,
     time_format: TimeFormat,
     rename: Option<&StripRename>,
+    dim: bool,
 ) -> StripFrame {
     render_frame(
         tabs,
@@ -474,9 +477,11 @@ pub fn render_interactive(
         rename,
         Instant::now(),
         !palette_fallback_requested(),
+        dim,
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_frame(
     tabs: &[StripTab],
     viewed: Option<&str>,
@@ -486,6 +491,7 @@ fn render_frame(
     rename: Option<&StripRename>,
     now: Instant,
     truecolor: bool,
+    dim: bool,
 ) -> StripFrame {
     let chip = |tab: &StripTab, active: bool, hovered: bool| {
         chip(tab, active, hovered, now, truecolor, rename)
@@ -593,6 +599,17 @@ fn render_frame(
         bytes.push_str(&clock);
         bytes.push_str("\x1b[0m ");
     }
+    StripFrame {
+        bytes: finish_strip_bytes(bytes, truecolor, dim),
+        hits,
+        hidden_tabs,
+    }
+}
+
+/// Finishes a rendered strip row: every reset re-establishes the row background, the palette
+/// fallback replaces the truecolor sequences, and `dim` routes every colour through the
+/// presentation's dim helper.
+fn finish_strip_bytes(mut bytes: String, truecolor: bool, dim: bool) -> String {
     // Invariant: every strip cell outside a chip carries the fixed row background, so neither the
     // child's default-background sync nor stale cells can show through to the right of `+`.
     bytes = bytes.replace("\x1b[0m", &format!("\x1b[0m{STRIP_ROW_BACKGROUND}"));
@@ -609,11 +626,11 @@ fn render_frame(
             bytes = bytes.replace(rgb, palette);
         }
     }
-    StripFrame {
-        bytes,
-        hits,
-        hidden_tabs,
+    if dim {
+        // Invariant: dimming rewrites SGR parameters only; chip geometry and hits are unchanged.
+        bytes = crate::roles::presentation::dim_sgr(&bytes);
     }
+    bytes
 }
 
 /// Whether host chrome uses the 256-color palette instead of direct RGB.
@@ -943,6 +960,7 @@ mod tests {
             None,
             now,
             true,
+            false,
         );
         assert!(plain(&frame.bytes).starts_with(" auth-fix "));
         assert!(!plain(&frame.bytes).contains('×'));
@@ -965,6 +983,7 @@ mod tests {
             None,
             TimeFormat::Twelve,
             Some(&selected),
+            false,
         );
         assert!(frame.bytes.contains("\x1b[7m"));
         assert!(plain(&frame.bytes).contains("文档-helper"));
@@ -984,6 +1003,7 @@ mod tests {
             None,
             TimeFormat::Twelve,
             Some(&cursor),
+            false,
         );
         assert!(frame.bytes.contains("\x1b[7m \x1b[27m"));
         assert_eq!(frame.hidden_tabs, Vec::<String>::new());
@@ -1007,6 +1027,7 @@ mod tests {
             None,
             start,
             true,
+            false,
         );
         for elapsed in [
             0,
@@ -1026,7 +1047,8 @@ mod tests {
                         TimeFormat::Twelve,
                         None,
                         at,
-                        truecolor
+                        truecolor,
+                        false
                     )
                     .hits,
                     reference.hits
@@ -1042,6 +1064,7 @@ mod tests {
             None,
             start + Duration::from_secs(5),
             true,
+            false,
         );
         assert!(plain(&settled.bytes).starts_with(" auth-fix "));
         assert_eq!(settled.hits, reference.hits);
@@ -1087,6 +1110,50 @@ mod tests {
     }
 
     #[test]
+    fn dimming_restyles_every_strip_colour_without_changing_hits() {
+        let tabs = (0..10)
+            .map(|index| tab(&format!("tab-{index}"), &format!("long agent {index}")))
+            .collect::<Vec<_>>();
+        let hover = StripHover::Tab("tab-0".into());
+        for truecolor in [true, false] {
+            let now = Instant::now();
+            let bright = render_frame(
+                &tabs,
+                Some("tab-1"),
+                40,
+                Some(&hover),
+                TimeFormat::Twelve,
+                None,
+                now,
+                truecolor,
+                false,
+            );
+            let dimmed = render_frame(
+                &tabs,
+                Some("tab-1"),
+                40,
+                Some(&hover),
+                TimeFormat::Twelve,
+                None,
+                now,
+                truecolor,
+                true,
+            );
+            assert_eq!(bright.hits, dimmed.hits);
+            assert_eq!(bright.hidden_tabs, dimmed.hidden_tabs);
+            assert_eq!(plain(&bright.bytes), plain(&dimmed.bytes));
+            assert_ne!(bright.bytes, dimmed.bytes);
+            if truecolor {
+                assert!(bright.bytes.contains("38;2;170;170;170"));
+                assert!(!dimmed.bytes.contains("38;2;170;170;170"));
+                assert!(dimmed.bytes.contains("38;2;88;88;88"));
+            } else {
+                assert!(dimmed.bytes.contains("48;5;233;2m"));
+            }
+        }
+    }
+
+    #[test]
     fn empty_strip_contains_only_the_new_tab_control() {
         let frame = render(&[], None, 80);
         let text = plain(&frame.bytes);
@@ -1114,6 +1181,7 @@ mod tests {
                 None,
                 Instant::now(),
                 true,
+                false,
             );
             assert!(plain(&frame.bytes).ends_with(' '));
             assert_eq!(UnicodeWidthStr::width(plain(&frame.bytes).as_str()), 80);
@@ -1137,6 +1205,7 @@ mod tests {
                 None,
                 Instant::now(),
                 truecolor,
+                false,
             );
             assert!(frame.bytes.starts_with(&format!("\x1b[1;1H{background}")));
             // Invariant: Every reset inside the row re-establishes the row background before more cells.

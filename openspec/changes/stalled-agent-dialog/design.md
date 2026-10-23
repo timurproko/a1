@@ -18,7 +18,7 @@ Closing: the dialog closes when its tab's status leaves `stalled`/`unresponsive`
 
 Dismissal: `Esc` closes the dialog and records `(tab id, status)` as dismissed, so the dialog does not reopen for the same stall. It reopens when the status leaves and returns, or when the user views the tab again after viewing another one. `Esc` is consumed by the dialog; it is not forwarded to the child. A second `Esc` reaches the child and interrupts the turn as before.
 
-Keys: `Up`/`Down` move the selection; `Enter` runs the selected option; every other key is swallowed, except the tab actions resolved by `TabBindings` (for example `Alt+W` close, `Alt+1` jump), which keep working as they do over a popup. Mouse: hover over an option selects it, a click on an option runs it, a click elsewhere does nothing. Paste is dropped while the dialog is open.
+Keys: `Up`/`Down` move the selection; `Enter` runs the selected option; every other key is swallowed, except the tab actions resolved by `TabBindings` (for example `Alt+W` close, `Alt+1` jump), which keep working as they do over a popup, and `Ctrl+C`, which still reaches the role's detach-chord judgement so double `Ctrl+C` leaves from a stalled tab. Mouse: hover over an option selects it, a click on an option runs it, a click elsewhere does nothing. Paste is dropped while the dialog is open.
 
 Actions: `Restart` emits `Effect::Send(Request::Restart(tab))`, the same request the `R` key sent. `Close` runs the existing `close` path (`Request::Close` with the close fallback), the same as the context menu's Close, so a working stalled tab still gets the busy-close confirmation.
 

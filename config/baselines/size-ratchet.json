@@ -131,7 +131,7 @@
       "lines": 787
     },
     "native/terminal-host/src/roles/presentation.rs::PresentationComposer::prepare": {
-      "lines": 173
+      "lines": 163
     },
     "native/terminal-host/src/roles/quit_outro.rs::fall_plan": {
       "lines": 111
@@ -173,7 +173,7 @@
       "lines": 106
     },
     "native/terminal-host/src/roles/strip.rs::render_frame": {
-      "lines": 138
+      "lines": 123
     },
     "src/app/session-shell/paste-executor.ts::startPasteExecutor": {
       "lines": 122

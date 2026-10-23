@@ -6,11 +6,11 @@
 use std::time::Duration;
 
 use super::{
-    AttachKey, AttachMouse, CloseFallback, DRAG_HOLD, DeferredInput, DeferredInputTarget, KeyCode,
-    MouseButton, MouseKind, PopupAction, PopupKind, PopupMenu, RenameEditor, ShortcutLabels,
-    StripHitKind, StripSnapshot, TabDrag, TabView, apply_rename_control_key, close_fallback_for,
-    failure_applies, forward_pointer_motion, registry_index, rejection_notice,
-    settings_toggle_closes, shown_tabs, update_drag,
+    ActionDialog, AttachKey, AttachMouse, CloseFallback, DRAG_HOLD, DeferredInput,
+    DeferredInputTarget, DialogOption, KeyCode, MouseButton, MouseKind, PopupAction, PopupKind,
+    PopupMenu, RenameEditor, ShortcutLabels, StripHitKind, StripSnapshot, TabDrag, TabView,
+    apply_rename_control_key, close_fallback_for, failure_applies, forward_pointer_motion,
+    registry_index, rejection_notice, settings_toggle_closes, shown_tabs, update_drag,
 };
 
 /// How long the client waits, with tabs present and no Settings tab, before starting a hidden one
@@ -33,12 +33,21 @@ pub enum Mode {
     Popup(PopupMenu),
     Rename(RenameEditor),
     Drag(TabDrag),
+    /// The centered Restart/Close dialog over a stalled or unresponsive viewed tab.
+    Dialog(ActionDialog),
 }
 
 impl Mode {
     pub fn popup(&self) -> Option<&PopupMenu> {
         match self {
             Self::Popup(menu) => Some(menu),
+            _ => None,
+        }
+    }
+
+    pub fn dialog(&self) -> Option<&ActionDialog> {
+        match self {
+            Self::Dialog(dialog) => Some(dialog),
             _ => None,
         }
     }
@@ -68,10 +77,10 @@ impl Mode {
         }
     }
 
-    /// Invariant: a popup or rename prompt belongs to the view it opened in; a drag outlives the
-    /// view change its own click requests.
+    /// Invariant: a popup, rename prompt, or dialog belongs to the view it opened in; a drag
+    /// outlives the view change its own click requests.
     fn cancel_prompt(&mut self) {
-        if matches!(self, Self::Popup(_) | Self::Rename(_)) {
+        if matches!(self, Self::Popup(_) | Self::Rename(_) | Self::Dialog(_)) {
             *self = Self::Idle;
         }
     }
@@ -107,6 +116,10 @@ pub struct State {
     pub pending_manual_name: Option<(String, String)>,
     pub deferred: DeferredInput,
     pub columns: u16,
+    pub rows: u16,
+    /// The `(tab id, status)` stall whose dialog the user dismissed or answered; it does not
+    /// reopen until the status leaves and returns or the user views the tab again.
+    pub dismissed: Option<(String, String)>,
     /// Invariant: an exited client sends, views, and paints nothing more.
     pub exited: bool,
 }
@@ -177,7 +190,6 @@ pub enum KeyForward {
         name: String,
         byte: u8,
     },
-    Restart(String),
 }
 
 /// Server messages after the role decoded them and applied their presentation side.
@@ -247,6 +259,8 @@ pub enum Event {
     Paste(String),
     Resize {
         columns: u16,
+        /// Outer terminal rows, including the strip row.
+        rows: u16,
     },
     Focus {
         gained: bool,
@@ -260,13 +274,14 @@ fn is_settings(id: &str) -> bool {
 }
 
 impl State {
-    pub fn new(viewed: Option<String>, columns: u16) -> Self {
+    pub fn new(viewed: Option<String>, columns: u16, rows: u16) -> Self {
         Self {
             view: View {
                 prompt_view: viewed,
                 ..View::default()
             },
             columns,
+            rows,
             ..Self::default()
         }
     }
@@ -292,8 +307,9 @@ impl State {
                     }
                     Event::Mouse(mouse) => self.mouse(context, mouse, now, &mut effects),
                     Event::Paste(text) => self.paste(context, text, &mut effects),
-                    Event::Resize { columns } => {
+                    Event::Resize { columns, rows } => {
                         self.columns = columns;
+                        self.rows = rows;
                         if let Mode::Popup(menu) = &mut self.mode {
                             menu.resize(columns);
                         }
@@ -304,7 +320,76 @@ impl State {
                 }
             }
         }
+        self.reconcile_dialog(context, &mut effects);
         effects
+    }
+
+    /// Invariant: a stalled or unresponsive viewed tab is answered by the dialog whenever the
+    /// client is idle and this stall was not dismissed; the dialog never outlives the stall, the
+    /// view, or the tab it answers.
+    fn reconcile_dialog<T: TabView>(
+        &mut self,
+        context: &Context<'_, T>,
+        effects: &mut Vec<Effect>,
+    ) {
+        let stalled = context
+            .viewed
+            .and_then(|id| context.tabs.iter().find(|tab| tab.id() == id))
+            .filter(|tab| matches!(tab.status(), "stalled" | "unresponsive"))
+            .map(|tab| (tab.id().to_owned(), tab.status().to_owned()));
+        if self.dismissed.as_ref().is_some_and(|(id, status)| {
+            !context
+                .tabs
+                .iter()
+                .any(|tab| tab.id() == id && tab.status() == status)
+        }) {
+            self.dismissed = None;
+        }
+        let mut changed = false;
+        if let Mode::Dialog(dialog) = &self.mode
+            && stalled.as_ref() != Some(&(dialog.tab_id.clone(), dialog.status.clone()))
+        {
+            self.mode = Mode::Idle;
+            changed = true;
+        }
+        if matches!(self.mode, Mode::Idle)
+            && let Some((tab_id, status)) = stalled
+            && self.dismissed.as_ref() != Some(&(tab_id.clone(), status.clone()))
+        {
+            // Invariant: the dialog belongs to the view it opened over, even when that view
+            // arrived without an input event, so the next key does not cancel it.
+            self.view.prompt_view = context.viewed.map(str::to_owned);
+            self.mode = Mode::Dialog(ActionDialog::stalled(tab_id, &status));
+            changed = true;
+        }
+        if changed
+            && !effects
+                .iter()
+                .any(|effect| matches!(effect, Effect::Paint { .. }))
+        {
+            effects.push(Effect::Paint { clear: false });
+        }
+    }
+
+    /// Runs the selected dialog option and closes the dialog. The stall counts as dismissed so
+    /// the dialog does not reopen before the server answers.
+    fn answer_dialog<T: TabView + Clone>(
+        &mut self,
+        context: &Context<'_, T>,
+        effects: &mut Vec<Effect>,
+    ) {
+        let Mode::Dialog(dialog) = std::mem::take(&mut self.mode) else {
+            return;
+        };
+        self.dismissed = Some((dialog.tab_id.clone(), dialog.status.clone()));
+        match dialog.selected() {
+            Some(DialogOption::Restart) => {
+                effects.push(Effect::Send(Request::Restart(dialog.tab_id)));
+            }
+            Some(DialogOption::Close) => self.close(context, dialog.tab_id, effects),
+            None => {}
+        }
+        effects.push(Effect::Paint { clear: false });
     }
 
     /// Ends the session: the client detached or the server refused it.
@@ -316,6 +401,7 @@ impl State {
     fn sync_prompt(&mut self, viewed: Option<&str>) {
         if self.view.prompt_view.as_deref() != viewed {
             self.mode.cancel_prompt();
+            self.dismissed = None;
             self.view.prompt_view = viewed.map(str::to_owned);
         }
     }
@@ -358,6 +444,10 @@ impl State {
         effects: &mut Vec<Effect>,
     ) {
         self.notice = None;
+        if matches!(self.mode, Mode::Dialog(_)) {
+            self.dialog_key(context, key, action, effects);
+            return;
+        }
         if matches!(self.mode, Mode::Rename(_)) && self.rename_key(key, effects) {
             return;
         }
@@ -400,6 +490,41 @@ impl State {
             return;
         }
         effects.push(Effect::ForwardKey);
+    }
+
+    /// Answers the open dialog: assigned tab actions keep working, `Esc` dismisses this stall,
+    /// `Up`/`Down` move the selection, `Enter` runs it, the Ctrl+C chord still reaches the detach
+    /// judgement, and every other key is swallowed.
+    fn dialog_key<T: TabView + Clone>(
+        &mut self,
+        context: &Context<'_, T>,
+        key: AttachKey,
+        action: Option<&str>,
+        effects: &mut Vec<Effect>,
+    ) {
+        if let Some(action) = action {
+            self.shortcut(context, action, effects);
+            effects.push(Effect::Paint { clear: false });
+            return;
+        }
+        match key.code {
+            KeyCode::Esc => {
+                if let Mode::Dialog(dialog) = std::mem::take(&mut self.mode) {
+                    self.dismissed = Some((dialog.tab_id, dialog.status));
+                }
+                effects.push(Effect::Paint { clear: false });
+            }
+            KeyCode::Up | KeyCode::Down => {
+                if let Mode::Dialog(dialog) = &mut self.mode {
+                    dialog.move_selection(if key.code == KeyCode::Up { -1 } else { 1 });
+                }
+                effects.push(Effect::Paint { clear: false });
+            }
+            KeyCode::Enter => self.answer_dialog(context, effects),
+            // Invariant: host chrome never swallows the detach chord.
+            KeyCode::Char('c' | 'C') if key.modifiers.control => effects.push(Effect::ForwardKey),
+            _ => {}
+        }
     }
 
     /// Edits the open rename prompt; returns `false` when the key cancels it and continues.
@@ -618,15 +743,6 @@ impl State {
         context: &Context<'_, T>,
         key: AttachKey,
     ) -> Option<KeyForward> {
-        let viewed = context
-            .viewed
-            .and_then(|id| context.tabs.iter().find(|tab| tab.id() == id));
-        if viewed.is_some_and(|tab| matches!(tab.status(), "stalled" | "unresponsive"))
-            && matches!(key.code, KeyCode::Char('r' | 'R'))
-            && key.modifiers.is_empty()
-        {
-            return viewed.map(|tab| KeyForward::Restart(tab.id().to_owned()));
-        }
         let forward = if self.failed(context.viewed) {
             match key.code {
                 KeyCode::Char(value @ ('r' | 'R' | 'f' | 'F')) if key.modifiers.is_empty() => {
@@ -661,7 +777,7 @@ impl State {
             effects.push(Effect::Paint { clear: false });
             return;
         }
-        if self.failed(context.viewed) || matches!(self.mode, Mode::Popup(_)) {
+        if self.failed(context.viewed) || matches!(self.mode, Mode::Popup(_) | Mode::Dialog(_)) {
             return;
         }
         self.user_input_pending = true;
@@ -700,6 +816,25 @@ impl State {
             mouse.kind,
             MouseKind::Down(_) | MouseKind::ScrollDown | MouseKind::ScrollUp
         );
+        if let Mode::Dialog(dialog) = &mut self.mode {
+            // Invariant: the dialog owns the pointer; hovering an option selects it, a click on
+            // an option runs it, and a click anywhere else does nothing.
+            let target = dialog
+                .layout(self.columns, self.rows)
+                .option_at(mouse.column, mouse.row);
+            match (mouse.kind, target) {
+                (MouseKind::Moved, Some(index)) if dialog.selected != index => {
+                    dialog.selected = index;
+                    effects.push(Effect::Paint { clear: false });
+                }
+                (MouseKind::Down(MouseButton::Left), Some(index)) => {
+                    dialog.selected = index;
+                    self.answer_dialog(context, effects);
+                }
+                _ => {}
+            }
+            return;
+        }
         if matches!(self.mode, Mode::Rename(_)) && activation {
             self.mode = Mode::Idle;
             effects.push(Effect::Paint { clear: false });
@@ -1137,6 +1272,7 @@ impl State {
                     || (changed && menu.kind == PopupKind::Overflow)
             }
             Mode::Rename(editor) => !listed(&editor.tab_id),
+            Mode::Dialog(dialog) => !listed(&dialog.tab_id),
             _ => false,
         };
         if stale {
@@ -1232,7 +1368,7 @@ mod tests {
         }
 
         fn state(&self) -> State {
-            State::new(self.viewed.clone(), 80)
+            State::new(self.viewed.clone(), 80, 24)
         }
 
         fn step(&self, state: &mut State, event: Event) -> Vec<Effect> {
@@ -1489,13 +1625,14 @@ mod tests {
         );
         assert!(state.user_input_pending);
 
+        // Invariant: a stalled tab no longer turns a bare `R` into a restart; the dialog answers.
         fixture.tabs[0].status = "stalled".into();
         state.user_input_pending = false;
         assert_eq!(
             state.forward_key(&fixture.context(), r),
-            Some(KeyForward::Restart("a".into()))
+            Some(KeyForward::Typed)
         );
-        assert!(!state.user_input_pending, "a restart is not typed input");
+        assert!(state.user_input_pending);
 
         fixture.tabs[0].status = "failed".into();
         state.failed_tab = Some("a".into());
@@ -1683,10 +1820,16 @@ mod tests {
         let mut state = fixture.state();
         state.mode = Mode::Popup(PopupMenu::add(70, 80, &Labels));
         assert_eq!(
-            fixture.step(&mut state, Event::Resize { columns: 20 }),
+            fixture.step(
+                &mut state,
+                Event::Resize {
+                    columns: 20,
+                    rows: 10
+                }
+            ),
             [Effect::Paint { clear: true }]
         );
-        assert_eq!(state.columns, 20);
+        assert_eq!((state.columns, state.rows), (20, 10));
         let menu = state.mode.popup().expect("menu survives a resize");
         assert!(menu.column + menu.width <= 20);
     }
@@ -1983,6 +2126,175 @@ mod tests {
         assert!(matches!(state.mode, Mode::Idle));
     }
 
+    fn status(tab_id: &str, status: &str) -> Event {
+        server(ServerEvent::Status {
+            tab_id: tab_id.into(),
+            status: status.into(),
+        })
+    }
+
+    #[test]
+    fn a_stalled_viewed_tab_opens_the_dialog_which_answers_dismisses_and_closes() {
+        use crate::core::attach::{DialogOption, DialogRow};
+        let mut fixture = Fixture::new(&["a", "b"], "a");
+        let mut state = fixture.state();
+        // Rationale: the role installs a status before stepping the core.
+        fixture.tabs[0].status = "stalled".into();
+        assert_eq!(fixture.step(&mut state, status("a", "stalled")), [PAINT]);
+        let dialog = state.mode.dialog().expect("the stall opens the dialog");
+        assert_eq!(
+            (
+                dialog.tab_id.as_str(),
+                dialog.status.as_str(),
+                dialog.selected()
+            ),
+            ("a", "stalled", Some(DialogOption::Restart))
+        );
+
+        // Invariant: Up/Down move the selection, other keys and paste are swallowed, and tab
+        // actions keep working.
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Down)), [PAINT]);
+        assert_eq!(state.mode.dialog().map(|dialog| dialog.selected), Some(1));
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Up)), [PAINT]);
+        assert_eq!(state.mode.dialog().map(|dialog| dialog.selected), Some(0));
+        assert!(fixture.step(&mut state, key(KeyCode::Char('R'))).is_empty());
+        assert!(
+            fixture
+                .step(&mut state, Event::Paste("text".into()))
+                .is_empty()
+        );
+        let ctrl_c = press(
+            KeyCode::Char('c'),
+            Modifiers {
+                control: true,
+                ..Modifiers::NONE
+            },
+        );
+        assert_eq!(
+            fixture.step(&mut state, ctrl_c),
+            [Effect::ForwardKey],
+            "the detach chord is never swallowed"
+        );
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.jump2")),
+            [Effect::View("b".into()), PAINT]
+        );
+        assert!(
+            state.mode.dialog().is_some(),
+            "the dialog stays until the view changes"
+        );
+
+        // Invariant: Enter restarts once and closes the dialog; the same stall does not reopen it.
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Enter)),
+            [Effect::Send(Request::Restart("a".into())), PAINT]
+        );
+        assert!(matches!(state.mode, Mode::Idle));
+        assert!(fixture.step(&mut state, Event::Tick).is_empty());
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Char('x'))),
+            [Effect::ForwardKey]
+        );
+        assert!(matches!(state.mode, Mode::Idle));
+
+        // Invariant: recovery forgets the answered stall; a new stall reopens the dialog.
+        fixture.tabs[0].status = "working".into();
+        assert_eq!(fixture.step(&mut state, status("a", "working")), [PAINT]);
+        fixture.tabs[0].status = "stalled".into();
+        assert_eq!(fixture.step(&mut state, status("a", "stalled")), [PAINT]);
+        assert!(state.mode.dialog().is_some());
+
+        // Invariant: Esc dismisses without reaching the child; the next Esc reaches it.
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Esc)), [PAINT]);
+        assert!(matches!(state.mode, Mode::Idle));
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Esc)),
+            [Effect::ForwardKey]
+        );
+        assert!(
+            matches!(state.mode, Mode::Idle),
+            "a dismissed stall stays dismissed"
+        );
+
+        // Invariant: heartbeat loss is another stall of the same tab; the dialog reopens for it.
+        fixture.tabs[0].status = "unresponsive".into();
+        assert_eq!(
+            fixture.step(&mut state, status("a", "unresponsive")),
+            [PAINT]
+        );
+        assert_eq!(
+            state.mode.dialog().map(|dialog| dialog.status.as_str()),
+            Some("unresponsive")
+        );
+
+        // Invariant: recovery while open closes the dialog without input.
+        fixture.tabs[0].status = "idle".into();
+        assert_eq!(fixture.step(&mut state, status("a", "idle")), [PAINT]);
+        assert!(matches!(state.mode, Mode::Idle));
+
+        // Invariant: the strip is blocked, hovering an option selects it, and a click runs it.
+        fixture.tabs[0].status = "stalled".into();
+        fixture.step(&mut state, status("a", "stalled"));
+        let layout = state.mode.dialog().expect("reopened").layout(80, 24);
+        let close_row = layout.top
+            + layout
+                .rows
+                .iter()
+                .position(|row| *row == DialogRow::Option(1))
+                .expect("close option row") as u16;
+        assert!(fixture.step(&mut state, mouse(RIGHT, 12, 0)).is_empty());
+        assert!(fixture.step(&mut state, mouse(LEFT, 5, 5)).is_empty());
+        assert!(state.mode.dialog().is_some());
+        let over_close = mouse(MouseKind::Moved, layout.column + 3, close_row);
+        assert_eq!(fixture.step(&mut state, over_close), [PAINT]);
+        assert_eq!(state.mode.dialog().map(|dialog| dialog.selected), Some(1));
+        assert_eq!(
+            fixture.step(&mut state, mouse(LEFT, layout.column + 3, close_row)),
+            [Effect::Send(Request::Close("a".into())), PAINT]
+        );
+        assert!(
+            state.close_fallback.is_some(),
+            "Close runs the context menu's close path"
+        );
+        assert!(matches!(state.mode, Mode::Idle));
+
+        // Invariant: viewing another tab forgets the answered stall; viewing the stalled tab
+        // again reopens the dialog, even when that view arrived without an input event, and the
+        // next key does not cancel it. Viewing another tab while it is open closes it.
+        assert!(fixture.step(&mut state, Event::Tick).is_empty());
+        let mut away = Fixture::new(&["a", "b"], "b");
+        away.tabs[0].status = "stalled".into();
+        assert_eq!(
+            away.step(&mut state, key(KeyCode::Char('x'))),
+            [Effect::ForwardKey]
+        );
+        assert!(matches!(state.mode, Mode::Idle));
+        let mut back = Fixture::new(&["a", "b"], "a");
+        back.tabs[0].status = "stalled".into();
+        assert_eq!(back.step(&mut state, Event::Tick), [PAINT]);
+        assert!(state.mode.dialog().is_some());
+        assert!(back.step(&mut state, key(KeyCode::Char('x'))).is_empty());
+        assert!(
+            state.mode.dialog().is_some(),
+            "the next key does not cancel it"
+        );
+        assert_eq!(
+            away.step(&mut state, key(KeyCode::Char('x'))),
+            [Effect::ForwardKey]
+        );
+        assert!(
+            matches!(state.mode, Mode::Idle),
+            "a view change closes the dialog"
+        );
+
+        // Invariant: one mode at a time; a rename shortcut replaces the dialog, which returns
+        // once the rename ends while the stall persists.
+        back.step(&mut state, shortcut("tabs.rename"));
+        assert!(state.mode.rename().is_some() && state.mode.dialog().is_none());
+        assert_eq!(back.step(&mut state, key(KeyCode::Esc)), [PAINT]);
+        assert!(state.mode.dialog().is_some());
+    }
+
     #[test]
     fn an_installed_registry_clears_prompts_and_names_for_vanished_tabs() {
         let mut state = State {
@@ -1994,6 +2306,12 @@ mod tests {
         state.installed(&[tab("a")], false);
         assert!(matches!(state.mode, Mode::Idle));
         assert!(state.pending_manual_name.is_none() && state.failed_tab.is_none());
+        state.mode = Mode::Dialog(ActionDialog::stalled("gone".into(), "stalled"));
+        state.installed(&[tab("a")], false);
+        assert!(
+            matches!(state.mode, Mode::Idle),
+            "a removed tab closes its dialog"
+        );
 
         state.mode = Mode::Popup(PopupMenu::overflow(0, 80, &[], &[tab("a")], None));
         state.installed(&[tab("a")], false);

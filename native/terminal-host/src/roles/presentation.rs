@@ -394,6 +394,8 @@ pub struct DesiredPresentation {
     pub columns: u16,
     pub outer_rows: u16,
     pub clear: bool,
+    /// Dims the strip and body beneath a modal overlay; the overlay itself is painted undimmed.
+    pub dim: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -410,6 +412,106 @@ pub struct PresentationComposer {
     cursor: Option<FinalCursor>,
     cursor_style: Option<(String, bool)>,
     modes: Option<TerminalModes>,
+    dim: bool,
+}
+
+/// The dark base every dimmed RGB colour is blended toward: the strip row background.
+pub const DIM_BASE: [u8; 3] = [20, 20, 20];
+
+/// How far a dimmed RGB colour moves toward `DIM_BASE`, in percent.
+const DIM_BLEND_PERCENT: i32 = 55;
+
+/// Blends one RGB colour toward the dark base.
+pub fn dim_rgb(color: [u8; 3]) -> [u8; 3] {
+    let blend = |value: u8, base: u8| {
+        let value = i32::from(value);
+        (value + (i32::from(base) - value) * DIM_BLEND_PERCENT / 100).clamp(0, 255) as u8
+    };
+    [
+        blend(color[0], DIM_BASE[0]),
+        blend(color[1], DIM_BASE[1]),
+        blend(color[2], DIM_BASE[2]),
+    ]
+}
+
+/// The colour a cell shows while the surface is dimmed and whether the cell adds SGR 2: an RGB
+/// colour is blended toward the dark base, while palette and default colours are kept and the
+/// cell is painted faint, since their resolved values are the outer terminal's.
+pub fn dim_color(color: SurfaceColor) -> (SurfaceColor, bool) {
+    match color {
+        SurfaceColor::Rgb(value) => (SurfaceColor::Rgb(dim_rgb(value)), false),
+        other => (other, true),
+    }
+}
+
+/// Routes every SGR colour in rendered host chrome through `dim_color`, leaving cursor
+/// positioning and the text untouched so cell geometry and hit tables do not change.
+pub fn dim_sgr(text: &str) -> String {
+    let mut output = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(start) = rest.find("\x1b[") {
+        output.push_str(&rest[..start]);
+        let parameters = &rest[start + 2..];
+        let Some(end) = parameters.find(|value: char| ('\x40'..='\x7e').contains(&value)) else {
+            output.push_str(&rest[start..]);
+            return output;
+        };
+        if parameters.as_bytes()[end] == b'm' {
+            output.push_str("\x1b[");
+            output.push_str(&dim_sgr_parameters(&parameters[..end]));
+            output.push('m');
+        } else {
+            output.push_str(&rest[start..start + 2 + end + 1]);
+        }
+        rest = &parameters[end + 1..];
+    }
+    output.push_str(rest);
+    output
+}
+
+fn dim_sgr_parameters(parameters: &str) -> String {
+    if parameters.is_empty() {
+        return String::new();
+    }
+    let values = parameters.split(';').collect::<Vec<_>>();
+    let mut output = Vec::<String>::new();
+    let mut faint = false;
+    let mut index = 0;
+    while index < values.len() {
+        let value = values[index];
+        let is_color_base = matches!(value, "38" | "48" | "58");
+        if is_color_base && values.get(index + 1) == Some(&"2") && index + 4 < values.len() {
+            let channel = |offset: usize| values[index + offset].parse::<u8>().unwrap_or(0);
+            let (color, _) = dim_color(SurfaceColor::Rgb([channel(2), channel(3), channel(4)]));
+            if let SurfaceColor::Rgb([red, green, blue]) = color {
+                output.push(format!("{value};2;{red};{green};{blue}"));
+            }
+            index += 5;
+        } else if is_color_base && values.get(index + 1) == Some(&"5") && index + 2 < values.len() {
+            let palette = values[index + 2].parse::<u8>().unwrap_or(0);
+            let (_, add_faint) = dim_color(SurfaceColor::Palette(palette));
+            faint |= add_faint;
+            output.push(format!("{value};5;{palette}"));
+            index += 3;
+        } else {
+            if value == "2" {
+                faint = true;
+            } else if value
+                .parse::<u16>()
+                .is_ok_and(|code| matches!(code, 30..=37 | 39 | 40..=47 | 49 | 90..=97 | 100..=107))
+            {
+                faint |= dim_color(SurfaceColor::Default).1;
+            }
+            if value != "2" {
+                output.push(value.to_owned());
+            }
+            index += 1;
+        }
+    }
+    if faint {
+        output.push("2".into());
+    }
+    output.join(";")
 }
 
 #[derive(Debug)]
@@ -437,24 +539,7 @@ impl PresentationComposer {
         if let Some(surface) = desired.structured.as_ref() {
             surface.validate()?;
         }
-        let identity_changed =
-            self.tab_id != desired.tab_id || self.incarnation != desired.incarnation;
-        let geometry_changed =
-            self.columns != desired.columns || self.outer_rows != desired.outer_rows;
-        let structured_base_invalid = match (&self.structured, &desired.structured) {
-            (Some(previous), Some(next)) => {
-                previous.geometry_generation != next.geometry_generation
-                    || previous.columns != next.columns
-                    || previous.rows != next.rows
-            }
-            (None, None) => false,
-            _ => true,
-        };
-        let force = !self.valid
-            || desired.clear
-            || identity_changed
-            || geometry_changed
-            || structured_base_invalid;
+        let force = self.repaints_everything(desired);
         let mut output = Vec::new();
         let mut body_changed = false;
         let mut overlay_damage = std::collections::BTreeSet::<usize>::new();
@@ -508,6 +593,7 @@ impl PresentationComposer {
                         &surface.styles,
                         &surface.links,
                         overlay_clip.get(&row_index).copied(),
+                        desired.dim,
                     )?;
                 }
             }
@@ -520,6 +606,11 @@ impl PresentationComposer {
                 }
             }
         } else if force || self.legacy_body != desired.legacy_body || !overlay_damage.is_empty() {
+            if desired.dim && !desired.legacy_body.is_empty() {
+                // Compatibility: raw bytes carry no cell styles, so the whole body is painted
+                // faint, the same approximation the fallback accepts for popups.
+                output.extend_from_slice(b"\x1b[2m");
+            }
             output.extend_from_slice(&sanitize_legacy_body(&desired.legacy_body));
             body_changed = !desired.legacy_body.is_empty();
             legacy_written = body_changed;
@@ -593,6 +684,7 @@ impl PresentationComposer {
             cursor,
             cursor_style,
             modes: desired.modes.clone(),
+            dim: desired.dim,
         };
         Ok(Some(PreparedPresentation {
             bytes,
@@ -606,6 +698,31 @@ impl PresentationComposer {
 
     pub fn invalidate(&mut self) {
         self.valid = false;
+    }
+
+    /// Whether every outer cell must be rewritten: a first paint, an explicit clear, another
+    /// child or geometry, an incompatible structured base, or a dim change, which restyles every
+    /// cell.
+    fn repaints_everything(&self, desired: &DesiredPresentation) -> bool {
+        let identity_changed =
+            self.tab_id != desired.tab_id || self.incarnation != desired.incarnation;
+        let geometry_changed =
+            self.columns != desired.columns || self.outer_rows != desired.outer_rows;
+        let structured_base_invalid = match (&self.structured, &desired.structured) {
+            (Some(previous), Some(next)) => {
+                previous.geometry_generation != next.geometry_generation
+                    || previous.columns != next.columns
+                    || previous.rows != next.rows
+            }
+            (None, None) => false,
+            _ => true,
+        };
+        !self.valid
+            || desired.clear
+            || identity_changed
+            || geometry_changed
+            || structured_base_invalid
+            || self.dim != desired.dim
     }
 }
 
@@ -762,10 +879,12 @@ fn render_surface_row(
     styles: &[SurfaceStyle],
     links: &[crate::protocol::SurfaceLink],
 ) -> Result<(), String> {
-    render_surface_row_clipped(output, row, row_index, columns, styles, links, None)
+    render_surface_row_clipped(output, row, row_index, columns, styles, links, None, false)
 }
 
-/// Renders one child row, leaving the half-open column span `clip` untouched for a host overlay.
+/// Renders one child row, leaving the half-open column span `clip` untouched for a host overlay
+/// and passing every colour through `dim_color` while `dim` is set.
+#[allow(clippy::too_many_arguments)]
 fn render_surface_row_clipped(
     output: &mut Vec<u8>,
     row: &SurfaceRow,
@@ -774,6 +893,7 @@ fn render_surface_row_clipped(
     styles: &[SurfaceStyle],
     links: &[crate::protocol::SurfaceLink],
     clip: Option<(usize, usize)>,
+    dim: bool,
 ) -> Result<(), String> {
     output.extend_from_slice(format!("\x1b[{};1H", row_index + 2).as_bytes());
     if clip.is_none() {
@@ -809,7 +929,7 @@ fn render_surface_row_clipped(
         }
         if cell.width == 2 && column + 1 >= visible {
             close_link(output, &mut active_link);
-            set_style(output, styles, cell.style, &mut active_style)?;
+            set_style(output, styles, cell.style, &mut active_style, dim)?;
             output.push(b' ');
             continue;
         }
@@ -830,7 +950,7 @@ fn render_surface_row_clipped(
                 active_link = Some(index);
             }
         }
-        set_style(output, styles, cell.style, &mut active_style)?;
+        set_style(output, styles, cell.style, &mut active_style, dim)?;
         output.extend_from_slice(cell.text.as_bytes());
     }
     close_link(output, &mut active_link);
@@ -888,7 +1008,7 @@ fn erase_surface_row_suffix(
 
 /// Finds, per child row, the half-open column span an overlay paints, by following its cursor
 /// positioning and the display width of the text it writes.
-fn overlay_child_spans(
+pub(crate) fn overlay_child_spans(
     bytes: &[u8],
     outer_rows: u16,
 ) -> std::collections::BTreeMap<usize, (usize, usize)> {
@@ -941,6 +1061,7 @@ fn set_style(
     styles: &[SurfaceStyle],
     index: u16,
     active: &mut Option<u16>,
+    dim: bool,
 ) -> Result<(), String> {
     if *active == Some(index) {
         return Ok(());
@@ -948,12 +1069,30 @@ fn set_style(
     let style = styles
         .get(usize::from(index))
         .ok_or_else(|| "surface style index is invalid".to_owned())?;
+    let (foreground, background, underline_color, faint) = if dim {
+        let (foreground, faint_foreground) = dim_color(style.foreground);
+        let (background, faint_background) = dim_color(style.background);
+        let (underline_color, _) = dim_color(style.underline_color);
+        (
+            foreground,
+            background,
+            underline_color,
+            style.faint || faint_foreground || faint_background,
+        )
+    } else {
+        (
+            style.foreground,
+            style.background,
+            style.underline_color,
+            style.faint,
+        )
+    };
     output.extend_from_slice(b"\x1b[0m");
     let mut parameters = Vec::<String>::new();
     if style.bold {
         parameters.push("1".into());
     }
-    if style.faint {
+    if faint {
         parameters.push("2".into());
     }
     if style.italic {
@@ -979,9 +1118,9 @@ fn set_style(
     if style.overline {
         parameters.push("53".into());
     }
-    push_color(&mut parameters, 38, style.foreground);
-    push_color(&mut parameters, 48, style.background);
-    push_color(&mut parameters, 58, style.underline_color);
+    push_color(&mut parameters, 38, foreground);
+    push_color(&mut parameters, 48, background);
+    push_color(&mut parameters, 58, underline_color);
     if !parameters.is_empty() {
         output.extend_from_slice(format!("\x1b[{}m", parameters.join(";")).as_bytes());
     }
@@ -1538,7 +1677,100 @@ mod tests {
             columns: 3,
             outer_rows: 3,
             clear: false,
+            dim: false,
         }
+    }
+
+    #[test]
+    fn a_dim_frame_restyles_every_row_beneath_an_undimmed_overlay_and_restores_on_clear() {
+        let mut composer = PresentationComposer::default();
+        let mut surface = structured_fixture();
+        surface.styles[0].foreground = SurfaceColor::Rgb([255, 255, 255]);
+        let first = composer
+            .prepare(&desired(Some(surface.clone()), Vec::new()))
+            .unwrap()
+            .expect("first paint");
+        let plain = String::from_utf8(first.bytes.clone()).unwrap();
+        assert!(plain.contains("38;2;1;2;3"));
+        assert!(plain.contains("38;2;255;255;255"));
+        first.acknowledge(&mut composer);
+
+        let mut dimmed = desired(Some(surface.clone()), Vec::new());
+        dimmed.dim = true;
+        dimmed.overlay = Some("\x1b[3;3H\x1b[38;2;255;255;255mOVER".into());
+        let frame = composer
+            .prepare(&dimmed)
+            .unwrap()
+            .expect("dim repaints every row");
+        let text = String::from_utf8(frame.bytes.clone()).unwrap();
+        assert!(
+            text.contains("38;2;11;11;12"),
+            "RGB blends toward the base: {text:?}"
+        );
+        assert!(
+            text.contains("38;2;126;126;126"),
+            "white blends to grey: {text:?}"
+        );
+        assert!(
+            text.contains("\x1b[1;2;3;4:3;9;38;2;11;11;12;48;5;4;58;5;5m"),
+            "a palette colour keeps its index and the cell adds faint: {text:?}"
+        );
+        assert!(!text.contains("38;2;1;2;3"));
+        assert!(text.contains("\x1b[3;1H"), "the second row repaints too");
+        let overlay_at = text.find("OVER").expect("overlay painted after the rows");
+        assert!(
+            text[..overlay_at].ends_with("\x1b[3;3H\x1b[38;2;255;255;255m"),
+            "the overlay keeps its own colours: {text:?}"
+        );
+        frame.acknowledge(&mut composer);
+
+        let restored = composer
+            .prepare(&desired(Some(surface), Vec::new()))
+            .unwrap()
+            .expect("clearing dim repaints the original styles");
+        let text = String::from_utf8(restored.bytes).unwrap();
+        assert!(text.contains("38;2;1;2;3") && text.contains("38;2;255;255;255"));
+        assert!(!text.contains("38;2;11;11;12"));
+        assert!(!text.contains("OVER"));
+
+        // Compatibility: the raw legacy body has no cell styles, so it is painted faint whole.
+        let mut legacy = desired(None, b"body".to_vec());
+        legacy.dim = true;
+        let frame = PresentationComposer::default()
+            .prepare(&legacy)
+            .unwrap()
+            .expect("legacy paint");
+        let text = String::from_utf8(frame.bytes).unwrap();
+        assert!(text.find("\x1b[2m").unwrap() < text.find("body").unwrap());
+    }
+
+    #[test]
+    fn dim_colors_blend_rgb_and_mark_palette_and_default_faint() {
+        assert_eq!(dim_rgb([255, 255, 255]), [126, 126, 126]);
+        assert_eq!(dim_rgb([20, 20, 20]), [20, 20, 20]);
+        assert_eq!(dim_rgb([0, 0, 0]), [11, 11, 11]);
+        assert_eq!(
+            dim_color(SurfaceColor::Rgb([170, 170, 170])),
+            (SurfaceColor::Rgb([88, 88, 88]), false)
+        );
+        assert_eq!(
+            dim_color(SurfaceColor::Palette(7)),
+            (SurfaceColor::Palette(7), true)
+        );
+        assert_eq!(
+            dim_color(SurfaceColor::Default),
+            (SurfaceColor::Default, true)
+        );
+        assert_eq!(
+            dim_sgr("\x1b[1;1H\x1b[0m\x1b[48;2;20;20;20m\x1b[38;2;170;170;170mab\x1b[0m"),
+            "\x1b[1;1H\x1b[0m\x1b[48;2;20;20;20m\x1b[38;2;88;88;88mab\x1b[0m"
+        );
+        assert_eq!(
+            dim_sgr("\x1b[0;48;5;235;38;5;15m x \x1b[31m"),
+            "\x1b[0;48;5;235;38;5;15;2m x \x1b[31;2m"
+        );
+        assert_eq!(dim_sgr("\x1b[2;38;2;0;0;0m"), "\x1b[38;2;11;11;11;2m");
+        assert_eq!(dim_sgr("plain\x1b[?25l"), "plain\x1b[?25l");
     }
 
     #[test]

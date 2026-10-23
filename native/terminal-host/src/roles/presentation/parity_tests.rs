@@ -175,6 +175,7 @@ fn resident_content_converges_after_resize_and_tab_reselection() {
             columns,
             outer_rows: rows + 1,
             clear: false,
+            dim: false,
         };
         let prepared = composer
             .prepare(&next)
@@ -215,6 +216,7 @@ fn resident_damage_compares_referenced_style_and_link_values() {
             columns: 24,
             outer_rows: 5,
             clear: false,
+            dim: false,
         };
         if let Some(prepared) = composer.prepare(&next).unwrap() {
             outer.write(&prepared.bytes);
@@ -356,6 +358,7 @@ fn conpty_parity_child() {
                 columns,
                 outer_rows: rows + 1,
                 clear: false,
+                dim: false,
             };
             let prepared = composer.prepare(&next).unwrap().unwrap();
             let output = prepared.bytes.clone();
@@ -610,6 +613,7 @@ fn assert_parity_sequence(columns: u16) {
             columns,
             outer_rows: rows + 1,
             clear: false,
+            dim: false,
         };
         if let Some(prepared) = composer.prepare(&next).unwrap() {
             outer.write(&prepared.bytes);

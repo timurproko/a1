@@ -414,6 +414,176 @@ impl PopupMenu {
     }
 }
 
+/// One answer the stalled-Agent dialog offers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DialogOption {
+    Restart,
+    Close,
+}
+
+impl DialogOption {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Restart => "Restart",
+            Self::Close => "Close",
+        }
+    }
+}
+
+/// The smallest width of the stalled-Agent dialog frame, before clamping to the terminal.
+pub const DIALOG_MIN_WIDTH: u16 = 44;
+
+/// The dialog footer's key and action names, in order.
+pub const DIALOG_FOOTER_HINTS: [(&str, &str); 3] =
+    [("↑↓", "navigate"), ("Enter", "select"), ("Esc", "close")];
+
+/// The footer as plain text, used for width.
+pub const DIALOG_FOOTER: &str = "↑↓ navigate  Enter select  Esc close";
+
+/// The centered modal dialog that answers a stalled or unresponsive viewed tab. Pure data: the
+/// role renders it and the state machine moves its selection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ActionDialog {
+    pub tab_id: String,
+    /// The tab status the dialog answers, `stalled` or `unresponsive`.
+    pub status: String,
+    pub title: String,
+    pub message: String,
+    pub options: Vec<DialogOption>,
+    pub selected: usize,
+}
+
+/// One row of the laid-out dialog frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DialogRow {
+    Rule,
+    Title,
+    Blank,
+    Message,
+    Option(usize),
+    Footer,
+}
+
+/// The dialog frame placed on the outer terminal: the zero-based column and row of its top-left
+/// cell (row 0 is the strip), its width, and the rows that fit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DialogLayout {
+    pub column: u16,
+    pub top: u16,
+    pub width: u16,
+    pub rows: Vec<DialogRow>,
+}
+
+impl DialogLayout {
+    /// The option under an outer-terminal cell.
+    pub fn option_at(&self, column: u16, row: u16) -> Option<usize> {
+        if column < self.column || column >= self.column.saturating_add(self.width) {
+            return None;
+        }
+        let index = usize::from(row.checked_sub(self.top)?);
+        match self.rows.get(index) {
+            Some(DialogRow::Option(option)) => Some(*option),
+            _ => None,
+        }
+    }
+}
+
+impl ActionDialog {
+    /// The dialog for a tab whose status is `stalled` or `unresponsive`, with Restart selected.
+    pub fn stalled(tab_id: String, status: &str) -> Self {
+        let message = if status == "unresponsive" {
+            "The Agent stopped answering heartbeats."
+        } else {
+            "No progress has been reported for a while."
+        };
+        Self {
+            tab_id,
+            status: status.to_owned(),
+            title: "Agent stalled".into(),
+            message: message.into(),
+            options: vec![DialogOption::Restart, DialogOption::Close],
+            selected: 0,
+        }
+    }
+
+    pub fn selected(&self) -> Option<DialogOption> {
+        self.options.get(self.selected).copied()
+    }
+
+    pub fn move_selection(&mut self, delta: isize) {
+        if self.options.is_empty() {
+            return;
+        }
+        let count = self.options.len() as isize;
+        self.selected = (self.selected as isize + delta).rem_euclid(count) as usize;
+    }
+
+    /// The display width of the widest content row plus the one-cell inset on each side.
+    fn content_width(&self) -> usize {
+        let option_width = self
+            .options
+            .iter()
+            .map(|option| 2 + UnicodeWidthStr::width(option.label()))
+            .max()
+            .unwrap_or(0);
+        [
+            UnicodeWidthStr::width(self.title.as_str()),
+            UnicodeWidthStr::width(self.message.as_str()),
+            option_width,
+            UnicodeWidthStr::width(DIALOG_FOOTER),
+        ]
+        .into_iter()
+        .max()
+        .unwrap_or(0)
+            + 2
+    }
+
+    /// Centers the frame in the child rows below the strip. The width is the larger of the
+    /// content and `DIALOG_MIN_WIDTH`, clamped to the terminal width minus two. On a terminal too
+    /// short for the frame, rows are dropped from the message outward; the options and footer
+    /// stay.
+    pub fn layout(&self, columns: u16, outer_rows: u16) -> DialogLayout {
+        let width = (self.content_width() as u16)
+            .max(DIALOG_MIN_WIDTH)
+            .min(columns.saturating_sub(2))
+            .max(1);
+        let child_rows = usize::from(outer_rows.saturating_sub(1));
+        // Rationale: a higher priority value is dropped first; options and the footer never drop.
+        let mut rows = vec![
+            (DialogRow::Rule, 1u8),
+            (DialogRow::Title, 3),
+            (DialogRow::Blank, 5),
+            (DialogRow::Message, 6),
+            (DialogRow::Blank, 7),
+        ];
+        rows.extend((0..self.options.len()).map(|index| (DialogRow::Option(index), 0)));
+        rows.extend([
+            (DialogRow::Blank, 4),
+            (DialogRow::Footer, 0),
+            (DialogRow::Rule, 2),
+        ]);
+        while rows.len() > child_rows {
+            let Some((position, _)) = rows
+                .iter()
+                .enumerate()
+                .filter(|(_, (_, priority))| *priority > 0)
+                .max_by_key(|(_, (_, priority))| *priority)
+            else {
+                break;
+            };
+            rows.remove(position);
+        }
+        rows.truncate(child_rows);
+        let top = (child_rows.saturating_sub(rows.len()) / 2) as u16 + 1;
+        DialogLayout {
+            column: columns.saturating_sub(width) / 2,
+            top,
+            width,
+            rows: rows.into_iter().map(|(row, _)| row).collect(),
+        }
+    }
+}
+
 const RENAME_HISTORY_LIMIT: usize = 100;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -980,6 +1150,67 @@ mod tests {
         control: true,
         ..Modifiers::NONE
     };
+
+    #[test]
+    fn the_dialog_layout_centers_clamps_and_keeps_options_and_footer_on_short_terminals() {
+        let dialog = ActionDialog::stalled("a".into(), "stalled");
+        assert_eq!(dialog.title, "Agent stalled");
+        assert_eq!(dialog.message, "No progress has been reported for a while.");
+        assert_eq!(
+            ActionDialog::stalled("a".into(), "unresponsive").message,
+            "The Agent stopped answering heartbeats."
+        );
+        let layout = dialog.layout(80, 24);
+        assert_eq!((layout.width, layout.column, layout.top), (44, 18, 7));
+        assert_eq!(
+            layout.rows,
+            [
+                DialogRow::Rule,
+                DialogRow::Title,
+                DialogRow::Blank,
+                DialogRow::Message,
+                DialogRow::Blank,
+                DialogRow::Option(0),
+                DialogRow::Option(1),
+                DialogRow::Blank,
+                DialogRow::Footer,
+                DialogRow::Rule,
+            ]
+        );
+        assert_eq!(layout.option_at(18, 12), Some(0));
+        assert_eq!(layout.option_at(61, 13), Some(1));
+        assert_eq!(layout.option_at(62, 13), None);
+        assert_eq!(layout.option_at(17, 12), None);
+        assert_eq!(layout.option_at(20, 11), None);
+        assert_eq!(layout.option_at(20, 0), None);
+
+        let narrow = dialog.layout(30, 24);
+        assert_eq!((narrow.width, narrow.column), (28, 1));
+        let short = dialog.layout(80, 6);
+        assert_eq!(
+            short.rows,
+            [
+                DialogRow::Rule,
+                DialogRow::Option(0),
+                DialogRow::Option(1),
+                DialogRow::Footer,
+                DialogRow::Rule,
+            ]
+        );
+        assert_eq!(short.top, 1);
+        assert_eq!(
+            dialog.layout(80, 3).rows,
+            [DialogRow::Option(0), DialogRow::Option(1)]
+        );
+
+        let mut moved = dialog.clone();
+        moved.move_selection(1);
+        assert_eq!(moved.selected(), Some(DialogOption::Close));
+        moved.move_selection(1);
+        assert_eq!(moved.selected(), Some(DialogOption::Restart));
+        moved.move_selection(-1);
+        assert_eq!(moved.selected(), Some(DialogOption::Close));
+    }
     const CONTROL_SHIFT: Modifiers = Modifiers {
         shift: true,
         control: true,

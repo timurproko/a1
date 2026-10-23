@@ -56,7 +56,7 @@ describe("resident session recovery admission", () => {
     await shell.dispose();
   });
 
-  it("shows a non-destructive stall notice and clears stalled status on progress", async () => {
+  it("reports a stall without a transcript line and clears stalled status on progress", async () => {
     const reportStatus = vi.fn();
     const { engine, adapter, shell } = await residentFixture({
       requestDetach: async () => true,
@@ -67,7 +67,7 @@ describe("resident session recovery admission", () => {
     await adapter.flushEvents();
     await new Promise(resolve => setTimeout(resolve, 25));
     expect(reportStatus).toHaveBeenCalledWith("stalled");
-    expect(shell.root.render(100).join("\n")).toContain("No progress for 1 min");
+    expect(shell.root.render(100).join("\n")).not.toContain("No progress");
     engine.session.emit({
       type: "message_update",
       message: { role: "assistant", content: [{ type: "text", text: "next" }], timestamp: 1 },

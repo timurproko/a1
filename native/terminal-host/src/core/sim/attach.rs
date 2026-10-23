@@ -111,6 +111,7 @@ fn presented(state: &State) -> String {
         }
         Mode::Drag(drag) if drag.shown => format!("drag {:?}", drag.drop_index),
         Mode::Drag(_) => String::new(),
+        Mode::Dialog(dialog) => format!("{dialog:?}"),
     };
     format!("{mode} | {:?}", state.hovered)
 }
@@ -145,7 +146,7 @@ fn execute(seed: u64, steps: usize, events: &mut Vec<String>) -> Result<(), Simu
         seed,
         random: seed | 1,
         now: Duration::ZERO,
-        state: State::new(model.viewed.clone(), 80),
+        state: State::new(model.viewed.clone(), 80, 24),
         model,
         events,
     };
@@ -174,6 +175,7 @@ impl Run<'_> {
                 "resize",
                 Event::Resize {
                     columns: 40 + self.pick(80) as u16,
+                    rows: 4 + self.pick(40) as u16,
                 },
             ),
             10 => (
@@ -258,10 +260,16 @@ impl Run<'_> {
             2 if !self.model.creating.is_empty() => ServerEvent::CreateFailed {
                 notice: "limit".into(),
             },
-            3 if some_tab.is_some() => ServerEvent::Status {
-                tab_id: some_tab.unwrap_or_default(),
-                status: STATUSES[self.pick(STATUSES.len())].into(),
-            },
+            3 if some_tab.is_some() => {
+                // Rationale: the role installs a status before stepping the core, so the model
+                // tab carries it when the dialog rule reads the viewed tab.
+                let status = STATUSES[self.pick(STATUSES.len())].to_owned();
+                let tab_id = some_tab.unwrap_or_default();
+                if let Some(tab) = self.model.tabs.iter_mut().find(|tab| tab.id == tab_id) {
+                    tab.status = status.clone();
+                }
+                ServerEvent::Status { tab_id, status }
+            }
             4 => ServerEvent::Failure { message: None },
             5 => ServerEvent::InputRejected {
                 message: Some("rejected".into()),
@@ -463,6 +471,7 @@ impl Run<'_> {
         let named = match &self.state.mode {
             Mode::Rename(editor) => Some(editor.tab_id.clone()),
             Mode::Popup(menu) => menu.tab_id.clone(),
+            Mode::Dialog(dialog) => Some(dialog.tab_id.clone()),
             _ => None,
         };
         if named.is_some_and(|id| !self.model.listed(&id)) {
@@ -483,6 +492,7 @@ fn mode_name(mode: &Mode) -> Option<&'static str> {
         Mode::Rename(_) => Some("mode-rename"),
         Mode::Drag(drag) if drag.shown => Some("mode-drag-shown"),
         Mode::Drag(_) => Some("mode-drag"),
+        Mode::Dialog(_) => Some("mode-dialog"),
     }
 }
 
@@ -508,6 +518,7 @@ mod tests {
             "mode-rename",
             "mode-drag",
             "mode-drag-shown",
+            "mode-dialog",
             "commit",
             "created",
             "server",

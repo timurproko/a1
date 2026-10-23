@@ -18,10 +18,10 @@ use crossterm::event::{
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use crate::core::attach::{
-    self as core_attach, Context, Effect, Hover, KeyForward, PopupItem, PopupMenu, RenameEditor,
-    Request, ServerEvent, ShortcutLabels, State, StripLayout, StripSnapshot, TabView,
-    debounce_starting_glyphs, drag_marker_column, hold_status_glyphs, holder_idle_precedes_bridge,
-    shown_tabs,
+    self as core_attach, ActionDialog, Context, DIALOG_FOOTER_HINTS, DialogRow, Effect, Hover,
+    KeyForward, PopupItem, PopupMenu, RenameEditor, Request, ServerEvent, ShortcutLabels, State,
+    StripLayout, StripSnapshot, TabView, debounce_starting_glyphs, drag_marker_column,
+    hold_status_glyphs, holder_idle_precedes_bridge, shown_tabs,
 };
 use crate::endpoint;
 use crate::protocol::{
@@ -657,6 +657,133 @@ fn palette_fallback_requested() -> bool {
     strip::palette_fallback_requested()
 }
 
+/// The fixed tones of the dialog frame beside the popup palette: the attach client has no theme
+/// channel, so the surface, selection, text, border, muted, and dim colours are constant.
+struct DialogPalette {
+    surface: String,
+    selected: String,
+    text: String,
+    border: &'static str,
+    muted: &'static str,
+    dim: &'static str,
+}
+
+impl DialogPalette {
+    fn new(truecolor: bool, selected_background: [u8; 3]) -> Self {
+        if truecolor {
+            Self {
+                surface: "\x1b[48;2;38;38;38m".into(),
+                selected: format!(
+                    "\x1b[48;2;{};{};{}m",
+                    selected_background[0], selected_background[1], selected_background[2]
+                ),
+                text: "\x1b[38;2;255;255;255m".into(),
+                border: "\x1b[38;2;110;110;110m",
+                muted: "\x1b[38;2;170;170;170m",
+                dim: "\x1b[38;2;110;110;110m",
+            }
+        } else {
+            Self {
+                surface: "\x1b[48;5;235m".into(),
+                selected: "\x1b[48;5;236m".into(),
+                text: "\x1b[38;5;15m".into(),
+                border: "\x1b[38;5;242m",
+                muted: "\x1b[38;5;248m",
+                dim: "\x1b[38;5;242m",
+            }
+        }
+    }
+}
+
+/// Clips `text` to `width` cells and pads it with spaces to exactly that width.
+fn pad_cells(text: &str, width: usize) -> String {
+    let clipped = clip_cells(text, width);
+    let used = UnicodeWidthStr::width(clipped.as_str());
+    format!("{clipped}{}", " ".repeat(width.saturating_sub(used)))
+}
+
+/// Renders the stalled-Agent dialog as a centered positioned overlay in A1's modal frame: rules
+/// in the border tone, the bold title, the muted message, `→`-marked options with the selection
+/// background, and the dim-key/muted-name footer, with no shortcut labels.
+fn render_dialog(
+    dialog: &ActionDialog,
+    columns: u16,
+    outer_rows: u16,
+    truecolor: bool,
+    selected_background: [u8; 3],
+) -> String {
+    if columns == 0 || outer_rows < 2 {
+        return String::new();
+    }
+    let palette = DialogPalette::new(truecolor, selected_background);
+    let layout = dialog.layout(columns, outer_rows);
+    let width = usize::from(layout.width);
+    let mut output = String::from("\x1b[s");
+    for (index, row) in layout.rows.iter().enumerate() {
+        output.push_str(&format!(
+            "\x1b[{};{}H\x1b[0m{}",
+            usize::from(layout.top) + index + 1,
+            usize::from(layout.column) + 1,
+            palette.surface
+        ));
+        match row {
+            DialogRow::Rule => {
+                output.push_str(palette.border);
+                output.push_str(&"─".repeat(width));
+            }
+            DialogRow::Title => {
+                output.push_str("\x1b[1m");
+                output.push_str(&palette.text);
+                output.push_str(&pad_cells(&format!(" {}", dialog.title), width));
+            }
+            DialogRow::Blank => output.push_str(&" ".repeat(width)),
+            DialogRow::Message => {
+                output.push_str(palette.muted);
+                output.push_str(&pad_cells(&format!(" {}", dialog.message), width));
+            }
+            DialogRow::Option(option) => {
+                let label = dialog
+                    .options
+                    .get(*option)
+                    .map_or("", |option| option.label());
+                if dialog.selected == *option {
+                    output.push_str(&palette.selected);
+                    output.push_str(&palette.text);
+                    output.push_str(&pad_cells(&format!(" → {label}"), width));
+                } else {
+                    output.push_str(&palette.text);
+                    output.push_str(&pad_cells(&format!("   {label}"), width));
+                }
+            }
+            DialogRow::Footer => {
+                let mut used = 1usize.min(width);
+                output.push_str(&" ".repeat(used));
+                for (position, (key, action)) in DIALOG_FOOTER_HINTS.iter().enumerate() {
+                    let gap = if position == 0 { "" } else { "  " };
+                    let hint_width = UnicodeWidthStr::width(gap)
+                        + UnicodeWidthStr::width(*key)
+                        + 1
+                        + UnicodeWidthStr::width(*action);
+                    if used + hint_width > width {
+                        break;
+                    }
+                    output.push_str(gap);
+                    output.push_str(palette.dim);
+                    output.push_str(key);
+                    output.push_str(palette.muted);
+                    output.push(' ');
+                    output.push_str(action);
+                    used += hint_width;
+                }
+                output.push_str(&" ".repeat(width - used));
+            }
+        }
+        output.push_str("\x1b[0m");
+    }
+    output.push_str("\x1b[u");
+    output
+}
+
 impl RenameEditor {
     fn display(&self) -> strip::StripRename {
         strip::StripRename {
@@ -1226,7 +1353,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let (message_rx, ingress_bytes) = spawn_server_reader(reader, wake_tx.clone());
     let terminal = OuterTerminal::enter()?;
     let input_rx = spawn_input_reader(wake_tx);
-    let mut core = State::new(options.view_tab.map(str::to_owned), handshake.columns);
+    let mut core = State::new(
+        options.view_tab.map(str::to_owned),
+        handshake.columns,
+        handshake.outer_rows,
+    );
     let mut client = Client::start(&options, handshake, terminal)?;
     loop {
         watchdog.bump();
@@ -1452,7 +1583,7 @@ impl Client {
             settings_file: options.settings_file.to_owned(),
         };
         // Invariant: the launch frame hides the cursor until the first child surface places it.
-        client.present(None, true)?;
+        client.present(None, false, true)?;
         Ok(client)
     }
 
@@ -1600,6 +1731,8 @@ impl Client {
         );
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
+        // Invariant: the whole presented surface dims together while the dialog is open.
+        let dim = core.mode.dialog().is_some();
         let render = |hovered: Option<&StripHover>| {
             strip::render_interactive(
                 &shown,
@@ -1608,6 +1741,7 @@ impl Client {
                 hovered,
                 self.time_format.value,
                 rename.as_ref(),
+                dim,
             )
         };
         let hovered = core.hovered.as_ref().map(StripHover::from);
@@ -1621,7 +1755,7 @@ impl Client {
         }
         self.strip_frame = strip_frame;
         let overlay = self.overlay(core, &shown);
-        self.present(overlay, clear)
+        self.present(overlay, dim, clear)
     }
 
     fn overlay(&self, core: &State, shown: &[StripTab]) -> Option<String> {
@@ -1631,15 +1765,21 @@ impl Client {
             .as_ref()
             .and_then(|id| self.tabs.iter().find(|tab| &tab.id == id))
             .and_then(|tab| {
-                if matches!(tab.status.as_str(), "stalled" | "unresponsive") {
-                    Some("Agent stalled · R restart · Alt+W close".to_owned())
-                } else if tab.status == "failed" {
+                if tab.status == "failed" {
                     Some("Tab failed · R retry · F start fresh · Alt+W close".to_owned())
                 } else {
                     None
                 }
             });
-        if let Some(menu) = core.mode.popup() {
+        if let Some(dialog) = core.mode.dialog() {
+            Some(render_dialog(
+                dialog,
+                self.columns,
+                self.outer_rows,
+                !palette_fallback_requested(),
+                self.time_format.accent_hover,
+            ))
+        } else if let Some(menu) = core.mode.popup() {
             Some(menu.render_styled(!palette_fallback_requested(), self.time_format.accent_hover))
         } else if let Some(column) = core
             .mode
@@ -1655,7 +1795,7 @@ impl Client {
         }
     }
 
-    fn present(&self, overlay: Option<String>, clear: bool) -> Result<(), String> {
+    fn present(&self, overlay: Option<String>, dim: bool, clear: bool) -> Result<(), String> {
         self.terminal.present(DesiredPresentation {
             tab_id: self.view.viewed.clone(),
             incarnation: self.presented.incarnation,
@@ -1670,6 +1810,7 @@ impl Client {
             columns: self.columns,
             outer_rows: self.outer_rows,
             clear,
+            dim,
         })
     }
 
@@ -2187,7 +2328,6 @@ impl Client {
         }
         match self.with_context(|context| core.forward_key(context, (&key).into())) {
             None => {}
-            Some(KeyForward::Restart(tab_id)) => self.send(Request::Restart(tab_id))?,
             Some(KeyForward::Typed) => self.send_input(core, event, bytes)?,
             Some(KeyForward::Plain { name, byte }) => {
                 self.send_input(core, Some(outer_input::plain_key(&name)), vec![byte])?
@@ -2268,7 +2408,13 @@ impl Client {
         self.create.columns = columns;
         self.create.rows = rows;
         self.presented.clear_body();
-        self.run(core, core_attach::Event::Resize { columns })?;
+        self.run(
+            core,
+            core_attach::Event::Resize {
+                columns,
+                rows: outer_rows,
+            },
+        )?;
         let resize = wire::frame(
             "resize",
             None,
@@ -3400,6 +3546,94 @@ mod tests {
             &mut drag, last_end, false, &tabs, &snapshot, now
         ));
         assert_eq!(drag.drop_index, None);
+    }
+
+    fn plain_overlay(rendered: &str) -> String {
+        rendered
+            .split('\x1b')
+            .map(|part| match part.strip_prefix('[') {
+                Some(sequence) => sequence
+                    .split_once(|value: char| ('\x40'..='\x7e').contains(&value))
+                    .map_or("", |(_, text)| text),
+                None => part,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_stalled_dialog_renders_the_modal_frame_without_shortcut_labels() {
+        use crate::roles::presentation::overlay_child_spans;
+        let mut dialog = ActionDialog::stalled("tab-1".into(), "stalled");
+        for truecolor in [true, false] {
+            let rendered = render_dialog(&dialog, 80, 24, truecolor, [58, 56, 66]);
+            let text = plain_overlay(&rendered);
+            assert!(text.contains(" Agent stalled"));
+            assert!(text.contains(" No progress has been reported for a while."));
+            assert!(text.contains(" → Restart"));
+            assert!(text.contains("   Close"));
+            assert!(text.contains(" ↑↓ navigate  Enter select  Esc close"));
+            assert!(!text.contains("Alt+W") && !text.contains("R restart"));
+            assert!(text.contains(&"─".repeat(44)));
+            assert!(rendered.contains("\x1b[1m"), "the title is bold");
+            assert!(
+                rendered.starts_with("\x1b[s\x1b[8;19H"),
+                "ten rows centered in 23 child rows start at terminal row 8: {rendered:?}"
+            );
+            assert!(rendered.ends_with("\x1b[u"));
+            let spans = overlay_child_spans(rendered.as_bytes(), 24);
+            assert_eq!(spans.len(), 10);
+            assert!(spans.values().all(|span| *span == (18, 62)), "{spans:?}");
+            if truecolor {
+                assert!(
+                    rendered.contains("\x1b[48;2;58;56;66m"),
+                    "selection background"
+                );
+                assert!(rendered.contains("\x1b[48;2;38;38;38m"));
+                assert!(rendered.contains("\x1b[38;2;110;110;110m"));
+                assert!(rendered.contains("\x1b[38;2;170;170;170m"));
+            } else {
+                assert!(rendered.contains("\x1b[48;5;236m"));
+                assert!(rendered.contains("\x1b[48;5;235m"));
+                assert!(rendered.contains("\x1b[38;5;242m"));
+                assert!(!rendered.contains(";2;"));
+            }
+        }
+
+        dialog.selected = 1;
+        let text = plain_overlay(&render_dialog(&dialog, 80, 24, true, [58, 56, 66]));
+        assert!(text.contains("   Restart") && text.contains(" → Close"));
+
+        // Invariant: narrow and short terminals clamp the frame; the options and footer stay.
+        let narrow = render_dialog(&dialog, 20, 24, true, [58, 56, 66]);
+        let spans = overlay_child_spans(narrow.as_bytes(), 24);
+        assert_eq!(spans.len(), 10);
+        assert!(spans.values().all(|span| *span == (1, 19)), "{spans:?}");
+        assert!(plain_overlay(&narrow).contains("→ Close"));
+        let short = render_dialog(&dialog, 80, 6, true, [58, 56, 66]);
+        let text = plain_overlay(&short);
+        assert_eq!(overlay_child_spans(short.as_bytes(), 6).len(), 5);
+        assert!(text.contains("Restart") && text.contains("Close") && text.contains("Esc close"));
+        assert!(!text.contains("No progress") && !text.contains("Agent stalled"));
+        assert_eq!(
+            render_dialog(
+                &ActionDialog::stalled("tab-1".into(), "unresponsive"),
+                0,
+                24,
+                true,
+                [0; 3]
+            ),
+            ""
+        );
+        assert!(
+            plain_overlay(&render_dialog(
+                &ActionDialog::stalled("tab-1".into(), "unresponsive"),
+                80,
+                24,
+                true,
+                [0; 3]
+            ))
+            .contains("stopped answering heartbeats")
+        );
     }
 
     #[test]
