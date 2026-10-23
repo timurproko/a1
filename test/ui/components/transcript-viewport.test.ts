@@ -437,6 +437,40 @@ describe("transcript viewport", () => {
     expect(viewport.selectedText()).toBe(["w 22", ...rows(40).slice(23)].join("\n"));
   });
 
+  it("keeps a held drag's press row when streaming restyles the live tail during edge auto-scroll", () => {
+    const viewport = new TranscriptViewport();
+    let count = 30;
+    const input = () => {
+      const documentRows = ["❯ ask", "", ...Array.from({ length: count }, (_, index) =>
+        count >= 36 ? `${String(index + 1).padStart(3)}. q${index + 1}` : `${index + 1}. q${index + 1}`)];
+      return {
+        documentRows, liveTailStartRow: 1, selectableDocumentRowCount: documentRows.length,
+        promptAnchors: [{ id: "p", firstRow: 0, lastRow: 0, sourceRow: "❯ ask" }],
+        dockRows: ["", "editor", "footer"], width: 40, height: 12,
+      };
+    };
+    viewport.compose(input());
+    viewport.scrollTo(3);
+    viewport.compose(input());
+    viewport.pressSelection(1, 3, 100);
+    viewport.extendSelection(40, 11, 101, false);
+    viewport.compose(input());
+    expect(viewport.selectedText()?.split("\n")[0]).toBe("4. q4");
+
+    for (let tick = 0; tick < 10; tick += 1) {
+      count += 1;
+      viewport.compose(input());
+      viewport.scrollBy(1);
+      viewport.extendSelection(40, 11, undefined, false);
+      viewport.compose(input());
+      expect(viewport.selectionActive).toBe(true);
+    }
+    viewport.releaseSelection();
+    const copied = viewport.selectedText()?.split("\n").map(row => row.trim()) ?? [];
+    expect(copied[0]).toBe("4. q4");
+    expect(copied.at(-1)).toBe(`${viewport.scrollTop + 7}. q${viewport.scrollTop + 7}`);
+  });
+
   describe("with a pinned sticky prompt", () => {
     const SELECTED = "\u001b[45m";
     const input = {

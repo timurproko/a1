@@ -1031,7 +1031,7 @@ export class TranscriptViewport {
     const selection = this.#selection;
     const anchors = this.#selectionAnchors;
     if (selection === undefined || anchors === undefined) return;
-    const project = (anchor: SelectionRowAnchor): { readonly line: number; readonly anchor: SelectionRowAnchor } | undefined => {
+    const project = (anchor: SelectionRowAnchor, moving: boolean): { readonly line: number; readonly anchor: SelectionRowAnchor } | undefined => {
       if (anchor.kind === "dock") {
         const dockIndex = dockRows.length - anchor.fromBottom - 1;
         return dockIndex < 0 || dockIndex >= dockRows.length
@@ -1074,7 +1074,7 @@ export class TranscriptViewport {
       // Concurrency: a streaming chunk may replace or reflow the pointer's current live-tail
       // row before the next motion report. During the held gesture only, retain its distance
       // from the persistent tail; release restores identity-only projection.
-      if (selection.selecting && anchor.liveFromBottom !== undefined && this.#liveTailStartRow !== undefined) {
+      if (selection.selecting && moving && anchor.liveFromBottom !== undefined && this.#liveTailStartRow !== undefined) {
         const documentRow = this.#selectableDocumentRowCount - anchor.liveFromBottom - 1;
         if (documentRow >= this.#liveTailStartRow && documentRow < this.#selectableDocumentRowCount) {
           const visible = this.#selectionRowAnchors.findIndex(candidate =>
@@ -1087,10 +1087,18 @@ export class TranscriptViewport {
           }
         }
       }
+      // Concurrency: streaming may restyle a held endpoint's row; it keeps its document index.
+      // Following the tail would drag the press row toward the newest output.
+      if (selection.selecting && anchor.row >= 0 && anchor.row < documentRows.length) {
+        return {
+          line: anchor.row - this.#scrollTop,
+          anchor: documentSelectionAnchor(anchor.row, documentRows[anchor.row] ?? "", anchor.liveFromBottom),
+        };
+      }
       return undefined;
     };
-    const projectedAnchor = project(anchors.anchor);
-    const projectedHead = project(anchors.head);
+    const projectedAnchor = project(anchors.anchor, false);
+    const projectedHead = project(anchors.head, true);
     if (projectedAnchor === undefined || projectedHead === undefined) {
       this.clearSelection();
       return;

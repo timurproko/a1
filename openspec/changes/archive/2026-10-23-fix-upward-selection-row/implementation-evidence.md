@@ -6,6 +6,7 @@
 - Focus loss clears resident child-drag ownership; strip-originated gestures remain owned by the resident tab surface.
 - Copy of a visible transcript selection includes document rows past either viewport edge and the text beneath the jump-to-bottom control, so an upward drag auto-scrolled beyond one screen copies from the pointer row through the press anchor; paint stays clipped to visible rows.
 - A downward content drag held below a detached viewport stays on the last content row at the pointer column while auto-scroll advances, and enters the dock only once the transcript end is shown.
+- During a held gesture, an endpoint whose row streaming restyled keeps its document row; only the moving head may first retain its live-tail distance, so the press anchor no longer drifts toward new output or clears the selection.
 
 ## Focused validation
 
