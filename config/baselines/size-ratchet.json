@@ -224,7 +224,7 @@
       "lines": 273
     },
     "src/integrations/pi/components/shell-extension-ui.ts::createPiExtensionUiBridge": {
-      "lines": 249
+      "lines": 231
     },
     "src/integrations/pi/components/shell-presenters-transcript.ts::createPiShellTranscriptComponent": {
       "lines": 107

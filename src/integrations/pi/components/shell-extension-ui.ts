@@ -78,20 +78,8 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
   const keybindings = KeybindingsManager.create(host.agentDir);
   const disposers = new Set<() => void>();
   let customEditorFactory: PiEditorFactory | undefined;
-  let activeSurface: PiShellComponentPort | undefined;
-  let activeCancel: (() => void) | undefined;
-  const closeSurface = (surface?: PiShellComponentPort) => {
-    if (surface !== undefined && activeSurface !== surface) return;
-    activeSurface = undefined;
-    host.setInputSurface(null);
-    host.runtime.requestRender();
-  };
-  const mountSurface = (surface: PiShellComponentPort) => {
-    if (activeSurface !== undefined && activeSurface !== surface) activeSurface.dispose?.();
-    activeSurface = surface;
-    host.setInputSurface(surface);
-    host.runtime.requestRender();
-  };
+  const dialogs = createExtensionDialogStack(host);
+  const overlayCancels = new Set<() => void>();
   const trackAbort = (signal: AbortSignal | undefined, cancel: () => void) => {
     if (signal === undefined) return () => {};
     if (signal.aborted) {
@@ -114,27 +102,26 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
   ) =>
     new Promise<T>(resolve => {
       let settled = false;
-      let surface: PiShellComponentPort;
+      let surface: PiShellComponentPort | undefined;
       let untrack = () => {};
       const finish = (value: T) => {
         if (settled) return;
         settled = true;
-        if (activeCancel === cancel) activeCancel = undefined;
         untrack();
-        const ownedSurface = activeSurface === surface;
-        if (retainSurfaceOnSettle && ownedSurface) activeSurface = undefined;
-        else closeSurface(surface);
-        if (ownedSurface) host.setProgramStatusBlocked(undefined);
+        if (surface !== undefined) {
+          const retained = retainSurfaceOnSettle && dialogs.isOnly(surface);
+          // Rationale: like pinned Pi, a settled dialog is disposed so its countdown stops, unless it stays painted.
+          if (!retained) surface.dispose?.();
+          dialogs.remove(surface, retained);
+        }
         resolve(value);
       };
       const cancel = () => finish(undefined as T);
-      surface = create(finish, cancel);
+      const created = create(finish, cancel);
+      surface = created;
       untrack = trackAbort(options?.signal, cancel);
-      if (!settled) {
-        activeCancel = cancel;
-        mountSurface(surface);
-        host.setProgramStatusBlocked(blocked);
-      }
+      if (!settled) dialogs.push({ surface: created, blocked, cancel });
+      else created.dispose?.();
     });
   const createFactoryComponent = (factory: unknown, ...arguments_: unknown[]): PiShellComponentPort => {
     if (typeof factory !== "function") throw new TypeError("extension component factory must be a function");
@@ -209,22 +196,20 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       let settled = false;
       let surface: PiShellComponentPort | undefined;
       let overlay: OwnedUiExtensionOverlayHandle | undefined;
-      const done = (value: T) => {
+      const close = (settle: () => void) => {
         if (settled) return;
         settled = true;
-        if (activeCancel === cancelCustom) activeCancel = undefined;
-        overlay?.hide();
-        if (surface !== undefined) closeSurface(surface);
-        resolve(value);
+        overlayCancels.delete(cancelCustom);
+        // Invariant: remove this dialog or overlay, not the topmost one; another may have opened above it.
+        if (overlay !== undefined) overlay.hide();
+        else if (surface !== undefined) dialogs.remove(surface);
+        settle();
+        if (overlay === undefined) {
+          try { surface?.dispose?.(); } catch { /* Rationale: a settled dialog's dispose failure must not leak. */ }
+        }
       };
-      const cancelCustom = () => {
-        if (settled) return;
-        settled = true;
-        if (activeCancel === cancelCustom) activeCancel = undefined;
-        overlay?.hide();
-        if (surface !== undefined) closeSurface(surface);
-        Reflect.apply(resolve, undefined, []);
-      };
+      const done = (value: T) => close(() => resolve(value));
+      const cancelCustom = () => close(() => Reflect.apply(resolve, undefined, []));
       let created: unknown;
       try {
         created = Reflect.apply(factory, undefined, [tui, piTheme(), keybindings, done]);
@@ -239,15 +224,15 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
           return;
         }
         surface = withPiDialogCancel(componentPort(component), cancelCustom);
-        activeCancel = cancelCustom;
         if (options?.overlay) {
           const overlayOptions = typeof options.overlayOptions === "function" ? options.overlayOptions() : options.overlayOptions;
+          overlayCancels.add(cancelCustom);
           overlay = host.showOverlay(surface, overlayOptions);
           options.onHandle?.(publicOverlayHandle(overlay));
-        } else mountSurface(surface);
+        } else dialogs.push({ surface, blocked: undefined, cancel: cancelCustom });
       }).catch(error => {
-        if (activeCancel === cancelCustom) activeCancel = undefined;
-        if (surface !== undefined) closeSurface(surface);
+        overlayCancels.delete(cancelCustom);
+        if (surface !== undefined && overlay === undefined) dialogs.remove(surface);
         reject(error);
       });
     }),
@@ -294,11 +279,8 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
     setToolsExpanded: expanded => host.setToolsExpanded(expanded),
   };
   const reset = () => {
-    const cancel = activeCancel;
-    activeCancel = undefined;
-    cancel?.();
-    activeSurface?.dispose?.();
-    activeSurface = undefined;
+    dialogs.cancelAll();
+    for (const cancel of [...overlayCancels]) cancel();
     host.setInputSurface(null);
     host.setProgramStatusBlocked(undefined);
   };
@@ -317,6 +299,48 @@ export function createPiExtensionUiBridge(host: PiExtensionUiBridgeHost): PiExte
       disposers.clear();
       host.replaceHeader(null);
       host.replaceFooter(null);
+    },
+  };
+}
+
+interface ExtensionDialog {
+  readonly surface: PiShellComponentPort;
+  readonly blocked: ProgramStatusBlocked | undefined;
+  readonly cancel: () => void;
+}
+
+/**
+ * Pinned Pi's extension dialog stack over the shell's single input slot. The last entry is visible; closing it shows
+ * the previous one with its program status, and a covered dialog stays answerable, so no dialog promise is left pending.
+ */
+function createExtensionDialogStack(host: Pick<PiExtensionUiBridgeHost, "runtime" | "setInputSurface" | "setProgramStatusBlocked">) {
+  const dialogs: ExtensionDialog[] = [];
+  const showTop = () => {
+    const top = dialogs.at(-1);
+    host.setInputSurface(top?.surface ?? null);
+    host.setProgramStatusBlocked(top?.blocked);
+    host.runtime.requestRender();
+  };
+  return {
+    push(dialog: ExtensionDialog): void {
+      dialogs.push(dialog);
+      showTop();
+    },
+    /** Only removing the visible dialog changes the slot; a retained last surface stays painted without its status. */
+    remove(surface: PiShellComponentPort, retainSurface = false): void {
+      const index = dialogs.findIndex(dialog => dialog.surface === surface);
+      if (index === -1) return;
+      dialogs.splice(index, 1);
+      if (index !== dialogs.length) return;
+      if (!retainSurface || dialogs.length > 0) return showTop();
+      host.setProgramStatusBlocked(undefined);
+      host.runtime.requestRender();
+    },
+    isOnly: (surface: PiShellComponentPort) => dialogs.length === 1 && dialogs[0]!.surface === surface,
+    /** Rationale: unlike pinned Pi, which drops stacked dialogs unresolved, A1 settles each as cancelled, top first. */
+    cancelAll(): void {
+      for (const dialog of [...dialogs].reverse()) dialog.cancel();
+      for (const dialog of dialogs.splice(0)) dialog.surface.dispose?.();
     },
   };
 }

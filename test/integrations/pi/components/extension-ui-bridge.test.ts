@@ -118,6 +118,60 @@ describe("pinned extension UI bridge", () => {
     value.bridge.dispose();
   });
 
+  it("stacks extension dialogs like pinned Pi so covered dialogs stay answerable and reappear", async () => {
+    const value = fixture();
+    const visible = () => stripTerminalSequences(value.inputSurface!.render(60).join("\n"));
+    const selection = value.bridge.context.select("Choose", ["alpha", "beta"]);
+    const confirmation = value.bridge.context.confirm("Permission", "Allow this operation?");
+    expect(visible()).toContain("Allow this operation?");
+    expect(value.blockedStatuses.at(-1)).toEqual({ kind: "permission", message: "Permission" });
+    value.inputSurface!.handleInput?.("\r");
+    await expect(confirmation).resolves.toBe(true);
+    expect(visible()).toContain("alpha");
+    expect(value.blockedStatuses.at(-1)).toEqual({ kind: "question", message: "Choose" });
+    value.inputSurface!.handleInput?.("\r");
+    await expect(selection).resolves.toBe("alpha");
+    expect(value.inputSurface).toBeNull();
+    expect(value.blockedStatuses.at(-1)).toBeUndefined();
+
+    const controller = new AbortController();
+    const covered = value.bridge.context.select("Covered", ["one"], { signal: controller.signal });
+    const top = value.bridge.context.input("Top", "placeholder");
+    const topSurface = value.inputSurface;
+    controller.abort();
+    await expect(covered).resolves.toBeUndefined();
+    expect(value.inputSurface).toBe(topSurface);
+    expect(value.blockedStatuses.at(-1)).toEqual({ kind: "question", message: "Top" });
+    value.inputSurface!.handleInput?.("\r");
+    await expect(top).resolves.toBe("");
+    expect(value.inputSurface).toBeNull();
+
+    const disposeCustom = vi.fn();
+    const nested = (value.bridge.context as unknown as ExtensionUIContext).custom<boolean>((_tui, _theme, _keys, finish) => ({
+      render: () => ["custom host"],
+      invalidate() {},
+      handleInput: () => { void value.bridge.context.confirm("Nested", "Inside custom?").then(finish); },
+      dispose: disposeCustom,
+    }));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(visible()).toContain("custom host");
+    value.inputSurface!.handleInput?.("x");
+    expect(visible()).toContain("Inside custom?");
+    value.inputSurface!.handleInput?.("\r");
+    await expect(nested).resolves.toBe(true);
+    expect(disposeCustom).toHaveBeenCalledTimes(1);
+    expect(value.inputSurface).toBeNull();
+
+    const lower = value.bridge.context.select("Lower", ["one"]);
+    const upper = value.bridge.context.editor("Upper", "draft");
+    value.bridge.reset();
+    await expect(upper).resolves.toBeUndefined();
+    await expect(lower).resolves.toBeUndefined();
+    expect(value.inputSurface).toBeNull();
+    expect(value.blockedStatuses.at(-1)).toBeUndefined();
+    value.bridge.dispose();
+  });
+
   it("binds widgets, statuses, editor state, input hooks, themes, and failure isolation", () => {
     const value = fixture();
     value.bridge.context.setWidget("rows", ["one", "two"]);

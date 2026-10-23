@@ -3,8 +3,8 @@
   "change": "build-owned-pi-ui-foundation",
   "task": "7.26",
   "pinned": {
-    "version": "1.3.0",
-    "commit": "71023aec1546d6d677a65669c5665c0927ce0dd0"
+    "version": "1.4.0",
+    "commit": "4a080252f06caf63a525d7873c5d94d3c23887e0"
   },
   "policy": {
     "scope": "Every root, nested, replacement, and overlay node plus every source-reachable transition from InteractiveMode, nested components, and public extension UI is mandatory.",
@@ -1623,7 +1623,7 @@
       "id": "extension.overlay",
       "source": "interactive",
       "sourceAnchors": [
-        "this.ui.showOverlay(component, resolveOptions())"
+        "this.ui.showOverlay(c, resolveOptions())"
       ],
       "heading": "extension-owned overlay",
       "body": "extension-owned overlay component",
@@ -3027,10 +3027,10 @@
         "showExtensionSelector(title, options, opts)"
       ],
       "trigger": "extension ui.select",
-      "stateMutation": "bind abort/timeout and extension options",
+      "stateMutation": "push onto the extension dialog stack, hiding any visible dialog; bind abort/timeout and extension options",
       "replacement": "ExtensionSelectorComponent",
       "result": "active selector",
-      "restoration": "select/cancel/abort returns editor",
+      "restoration": "select/cancel/abort returns the previous stacked dialog or editor",
       "acceptance": "modal-edge:extension.select.open",
       "acceptanceEvidence": [
         "terminal:extension-modal-completion-chain",
@@ -3047,10 +3047,10 @@
         "showExtensionConfirm(title, message, opts)"
       ],
       "trigger": "extension ui.confirm",
-      "stateMutation": "compose title/message and Yes/No",
+      "stateMutation": "push onto the extension dialog stack, hiding any visible dialog; compose title/message and Yes/No",
       "replacement": "ExtensionSelectorComponent",
       "result": "active confirmation",
-      "restoration": "boolean result and editor",
+      "restoration": "boolean result, then the previous stacked dialog or editor",
       "acceptance": "modal-edge:extension.confirm.open",
       "acceptanceEvidence": [
         "terminal:extension-modal-completion-chain",
@@ -3067,10 +3067,10 @@
         "showExtensionInput(title, placeholder, opts)"
       ],
       "trigger": "extension ui.input",
-      "stateMutation": "bind abort/timeout/input callbacks",
+      "stateMutation": "push onto the extension dialog stack, hiding any visible dialog; bind abort/timeout/input callbacks",
       "replacement": "ExtensionInputComponent",
       "result": "active input",
-      "restoration": "value/undefined then editor",
+      "restoration": "value/undefined, then the previous stacked dialog or editor",
       "acceptance": "modal-edge:extension.input.open",
       "acceptanceEvidence": [
         "terminal:extension-modal-completion-chain",
@@ -3087,10 +3087,10 @@
         "showExtensionEditor(title, prefill)"
       ],
       "trigger": "extension ui.editor",
-      "stateMutation": "create multiline editor with external-editor command",
+      "stateMutation": "push onto the extension dialog stack, hiding any visible dialog; create multiline editor with external-editor command",
       "replacement": "ExtensionEditorComponent",
       "result": "active editor",
-      "restoration": "value/undefined then editor",
+      "restoration": "value/undefined, then the previous stacked dialog or editor",
       "acceptance": "modal-edge:extension.editor.open",
       "acceptanceEvidence": [
         "terminal:extension-modal-completion-chain",
@@ -3127,10 +3127,10 @@
         "showExtensionCustom(factory, options)"
       ],
       "trigger": "extension ui.custom without overlay",
-      "stateMutation": "save editor text and create close callback",
+      "stateMutation": "push onto the extension dialog stack, hiding any visible dialog; save editor text and create close callback",
       "replacement": "focused custom component",
       "result": "active custom replacement",
-      "restoration": "close/failure restores editor text/focus and disposes",
+      "restoration": "close/failure removes the dialog, restores editor text, shows the previous stacked dialog or editor, and disposes",
       "acceptance": "modal-edge:extension.custom.open",
       "acceptanceEvidence": [
         "terminal:extension-modal-completion-chain",
@@ -3144,7 +3144,7 @@
       "to": "extension.overlay",
       "source": "interactive",
       "sourceAnchors": [
-        "this.ui.showOverlay(component, resolveOptions())"
+        "this.ui.showOverlay(c, resolveOptions())"
       ],
       "trigger": "extension ui.custom with overlay",
       "stateMutation": "create overlay and expose handle",
@@ -3744,13 +3744,13 @@
       "to": "editor.root",
       "source": "interactive",
       "sourceAnchors": [
-        "hideExtensionSelector()"
+        "this.removeExtensionDialog(selector)"
       ],
       "trigger": "select/cancel/abort",
-      "stateMutation": "dispose selector/listener",
-      "replacement": "ordinary editor",
+      "stateMutation": "remove from the dialog stack and dispose selector/listener",
+      "replacement": "previous stacked extension dialog or ordinary editor",
       "result": "option/undefined",
-      "restoration": "focus editor",
+      "restoration": "show and focus the previous stacked extension dialog, otherwise the editor",
       "acceptance": "modal-edge:extension.select.close",
       "acceptanceEvidence": [
         "terminal:extension-modal-completion-chain",
@@ -3768,9 +3768,9 @@
       ],
       "trigger": "Yes/No/cancel",
       "stateMutation": "resolve boolean",
-      "replacement": "ordinary editor",
+      "replacement": "previous stacked extension dialog or ordinary editor",
       "result": "true/false",
-      "restoration": "focus editor",
+      "restoration": "show and focus the previous stacked extension dialog, otherwise the editor",
       "acceptance": "modal-edge:extension.confirm.close",
       "acceptanceEvidence": [
         "terminal:extension-modal-completion-chain",
@@ -3784,13 +3784,13 @@
       "to": "editor.root",
       "source": "interactive",
       "sourceAnchors": [
-        "hideExtensionInput()"
+        "this.removeExtensionDialog(input)"
       ],
       "trigger": "submit/cancel/abort",
-      "stateMutation": "dispose input/listener",
-      "replacement": "ordinary editor",
+      "stateMutation": "remove from the dialog stack and dispose input/listener",
+      "replacement": "previous stacked extension dialog or ordinary editor",
       "result": "value/undefined",
-      "restoration": "focus editor",
+      "restoration": "show and focus the previous stacked extension dialog, otherwise the editor",
       "acceptance": "modal-edge:extension.input.close",
       "acceptanceEvidence": [
         "terminal:extension-modal-completion-chain",
@@ -3804,13 +3804,13 @@
       "to": "editor.root",
       "source": "interactive",
       "sourceAnchors": [
-        "hideExtensionEditor()"
+        "this.removeExtensionDialog(editor)"
       ],
       "trigger": "submit/cancel",
-      "stateMutation": "clear extension editor",
-      "replacement": "ordinary editor",
+      "stateMutation": "remove from the dialog stack and clear extension editor",
+      "replacement": "previous stacked extension dialog or ordinary editor",
       "result": "value/undefined",
-      "restoration": "focus editor",
+      "restoration": "show and focus the previous stacked extension dialog, otherwise the editor",
       "acceptance": "modal-edge:extension.editor.close",
       "acceptanceEvidence": [
         "terminal:extension-modal-completion-chain",
@@ -3848,9 +3848,9 @@
       ],
       "trigger": "close/failure",
       "stateMutation": "restore text/dispose",
-      "replacement": "ordinary editor",
+      "replacement": "previous stacked extension dialog or ordinary editor",
       "result": "result/error",
-      "restoration": "focus editor",
+      "restoration": "show and focus the previous stacked extension dialog, otherwise the editor",
       "acceptance": "modal-edge:extension.custom.close",
       "acceptanceEvidence": [
         "terminal:extension-modal-completion-chain",

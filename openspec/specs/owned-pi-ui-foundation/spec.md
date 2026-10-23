@@ -7,7 +7,7 @@ Defines A1's independently owned Pi shell with vanilla-default regular main-scre
 ## Requirements
 
 ### Requirement: The owned shell presents the complete pinned Pi interactive UI
-The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `1.3.0` at commit `71023aec1546d6d677a65669c5665c0927ce0dd0`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
+The A1-owned UI SHALL reproduce the complete visible and interactive behavior of pinned Pi `1.4.0` at commit `4a080252f06caf63a525d7873c5d94d3c23887e0`. The baseline SHALL include startup composition, themes, colors, spacing, layout, editor, autocomplete, keybindings, commands, prompt execution, transcript, streaming, tools, selectors, dialogs, settings, sessions, models, thinking, status/footer state, clipboard, resize, errors, and shutdown. A1 SHALL NOT substitute approximate layouts, colors, controllers, or workflows for covered pinned behavior. After parity acceptance a route MAY be superseded by a declared A1-owned replacement; the pinned behavior of a superseded route SHALL remain provable through `a1 pi`, and every capability the pinned route exposed SHALL remain reachable from its replacement.
 
 #### Scenario: Start an owned Pi session
 - **WHEN** the user starts the owned UI in an equivalent terminal and session state
@@ -180,6 +180,12 @@ The owned UI SHALL support the visible behavior exposed by pinned Pi extensions,
 #### Scenario: Extension contributes a visible surface
 - **WHEN** a compatible pinned Pi extension registers a supported visible contribution
 - **THEN** the owned UI SHALL present and update that contribution with equivalent focus, input, rendering, cancellation, and cleanup behavior
+
+#### Scenario: Extension dialogs overlap
+- **WHEN** an extension opens a select, confirm, input, editor, or inline custom dialog while another extension dialog is visible
+- **THEN** the new dialog SHALL cover the visible one, and every covered dialog SHALL remain answerable
+- **AND** closing the visible dialog SHALL show and focus the previous dialog with its program status, or the editor when none remains
+- **AND** a session reset SHALL settle every stacked dialog as cancelled rather than leaving its promise pending
 
 #### Scenario: Extension surface fails
 - **WHEN** one extension renderer, input handler, or lifecycle callback throws or returns malformed data

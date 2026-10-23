@@ -2,7 +2,7 @@
   "schema": "a1-startup-graph-baseline-v1",
   "ownedReachability": {
     "maximumFiles": 199,
-    "maximumSourceBytes": 1822627,
+    "maximumSourceBytes": 1824964,
     "optionalModules": [
       "src/features/owned-ui/settings-app.ts",
       "src/features/owned-ui/reference-screen-app.ts",
@@ -17,8 +17,8 @@
     ]
   },
   "piPublicArtifact": {
-    "maximumLoadedFiles": 2101,
-    "maximumEvaluatedBytes": 10025075
+    "maximumLoadedFiles": 2107,
+    "maximumEvaluatedBytes": 10053785
   },
   "pinnedDynamicImports": [
     {

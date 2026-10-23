@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.3.0 (MIT), commit 71023aec1546d6d677a65669c5665c0927ce0dd0,
+ * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
  * packages/coding-agent/src/core/keybindings.ts.
  * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
  * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model

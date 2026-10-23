@@ -46,6 +46,22 @@ function platformClipboardCommands(): readonly { readonly command: string; reado
   ];
 }
 
+/**
+ * Spawn options for one operating-system clipboard writer.
+ * Platform: on POSIX the writer is detached into its own process group, as pinned Pi 1.4 does, so a writer
+ * that daemonizes to keep serving the clipboard is not stopped when Ctrl+Z sends SIGTSTP to the shell's group.
+ */
+export function platformClipboardWriteOptions(signal: AbortSignal, platform: NodeJS.Platform = process.platform) {
+  return {
+    signal,
+    windowsHide: true,
+    timeout: PLATFORM_WRITE_TIMEOUT_MS,
+    killSignal: "SIGKILL" as const,
+    maxBuffer: 1_024,
+    detached: platform !== "win32",
+  };
+}
+
 async function writePlatformClipboardText(text: string, signal: AbortSignal): Promise<boolean> {
   for (const route of platformClipboardCommands()) {
     if (signal.aborted) return false;
@@ -56,13 +72,7 @@ async function writePlatformClipboardText(text: string, signal: AbortSignal): Pr
         settled = true;
         resolve(value);
       };
-      const child = execFile(route.command, [...route.args], {
-        signal,
-        windowsHide: true,
-        timeout: PLATFORM_WRITE_TIMEOUT_MS,
-        killSignal: "SIGKILL",
-        maxBuffer: 1_024,
-      }, error => done(error === null));
+      const child = execFile(route.command, [...route.args], platformClipboardWriteOptions(signal), error => done(error === null));
       child.once("error", () => done(false));
       if (child.stdin === null) { child.kill("SIGKILL"); done(false); return; }
       child.stdin.once("error", () => { child.kill("SIGKILL"); done(false); });

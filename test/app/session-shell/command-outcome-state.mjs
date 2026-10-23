@@ -79,7 +79,7 @@ export function createCommandOutcomeState(home, entry, api) {
     agent: { transport: "sse", state: { systemPrompt: "synthetic", messages: [], tools: [] } },
     // Rationale: 0.85.1's share reads the system prompt and tool list from the session state when exporting.
     state: { systemPrompt: "synthetic", tools: [] },
-    // Rationale: 1.3.0's share reads its upload destination from the session settings.
+    // Rationale: since Pi 1.3, share reads its upload destination from the session settings.
     sessionManager: manager, settingsManager, modelRuntime,
     subscribe: () => () => {}, dispose() {}, prompt: async () => { throw new Error("Provider execution forbidden"); },
     setModel: async model => { calls.push("set-model"); if (condition === "selection-failure") throw failure(); session.model = model; },
