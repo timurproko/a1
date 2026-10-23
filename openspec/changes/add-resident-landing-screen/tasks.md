@@ -26,4 +26,4 @@ Each numbered section is one Implementation item. Every section starts by mergin
 
 ## 5. Architecture record
 
-- [ ] 5.1 Record the landing and the seed-file delivery under Decision 11 in `docs/architecture/resident-tabs.md` and cross-reference the bridge no-content rule.
+- [x] 5.1 Record the landing and the seed-file delivery under Decision 11 in `docs/architecture/resident-tabs.md` and cross-reference the bridge no-content rule.
