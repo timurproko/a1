@@ -35,6 +35,13 @@ When a viewed resident child publishes a complete structured frame, A1 SHALL pre
 - **THEN** retained capture and outer presentation SHALL preserve that background through the final intended cell
 - **AND** a separately painted scrollbar rail SHALL NOT cause an intervening default-background gap
 
+#### Scenario: Publish only complete relayed frames
+- **WHEN** the child's pseudoterminal re-renders a synchronized frame on its own schedule and relays the frame's begin and end markers before or between the re-rendered cells, including during continuous wheel or scrollbar-drag motion
+- **THEN** the holder SHALL NOT publish the cells rendered between the markers or the state at the end marker as a frame
+- **AND** it SHALL publish once the re-rendered cells following the end marker have arrived and settled, or after a bounded wait when no further cells arrive
+- **AND** a begin marker arriving before that render pass SHALL NOT publish the torn state
+- **AND** a pseudoterminal that relays the child's bytes verbatim SHALL keep publishing exactly at each end marker
+
 #### Scenario: Preserve solo content through the full resident pipeline
 - **WHEN** solo and resident children receive identical terminal output at identical content geometry, including erased colored blanks, regional scrolling, links, wide glyphs, and moved overlays
 - **THEN** retained capture, wire transport, and differential resident replay SHALL preserve the same semantic cells, styles, links, and child cursor position after each complete frame

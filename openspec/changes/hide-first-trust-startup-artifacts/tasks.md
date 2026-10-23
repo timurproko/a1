@@ -57,3 +57,9 @@
 - [x] 10.1 Compare solo and nested resident output at every badge-visible frame, including markdown tables and the exact centered control. Verify the running dev artifact identity before attributing the failure to source.
 - [x] 10.2 Reproduce the displaced rail in a deterministic regression and repair the owning capture/replay boundary without masking cells, disabling differential output, or changing the correct rail geometry.
 - [x] 10.3 Complete touched tests, typecheck, evidence, baseline reconciliation and delivery bookkeeping for the repaired candidate.
+
+## 11. Solid scrolling and persistent overlays
+
+- [x] 11.1 Reproduce continuous wheel and scrollbar-drag output against the solo path, observing intermediate visible frames and the stationary bottom-control overlay, not only settled snapshots.
+- [x] 11.2 Repair the first divergent frame/output boundary so the rail stays in its gutter and the bottom overlay remains solid during content motion, preserving differential rendering and the existing geometry.
+- [x] 11.3 Complete the deterministic regressions, targeted checks, evidence and same-PR delivery bookkeeping for the solid-scroll repair.
