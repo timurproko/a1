@@ -6,8 +6,8 @@ fn attach_admission(
     client_id: &str,
     revision: u64,
 ) -> BridgeAttachment {
-    // An empty registry has only a provisional default. Let the first real surface choose the
-    // view after attach.start creates the tab instead of pinning an absent tab in the client.
+    // Invariant: an empty registry has only a provisional default. Let the first real surface
+    // choose the view after attach.start creates the tab instead of pinning an absent tab.
     if tabs.iter().any(|tab| tab.tab_id == viewed_tab) {
         BridgeAttachment::selected(client_id, revision, viewed_tab.to_owned())
     } else {
