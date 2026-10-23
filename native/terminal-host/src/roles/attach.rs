@@ -891,6 +891,16 @@ impl TabBarPosition {
         }
     }
 
+    /// Maps a child-owned pointer sequence across the strip to the nearest child edge row.
+    fn forwarded_child_mouse_row(self, outer_row: u16, outer_rows: u16) -> Option<u16> {
+        self.child_mouse_row(outer_row, outer_rows).or_else(|| {
+            (outer_row == self.strip_row(outer_rows)).then(|| match self {
+                Self::Top => 0,
+                Self::Bottom => outer_rows.saturating_sub(2),
+            })
+        })
+    }
+
     fn logical_mouse_row(self, outer_row: u16, outer_rows: u16) -> u16 {
         if outer_row == self.strip_row(outer_rows) {
             0
@@ -2553,7 +2563,9 @@ impl Client {
         if !forwarded.contains(&Effect::ForwardMouse) {
             return Ok(());
         }
-        let child_row = position.child_mouse_row(mouse.row, self.outer_rows);
+        // Invariant: a child-owned drag crossing either strip position clamps to the nearest
+        // child edge, so selection reaches content without addressing the strip.
+        let child_row = position.forwarded_child_mouse_row(mouse.row, self.outer_rows);
         let event = child_row.and_then(|row| {
             outer_input::normalize_child_mouse(mouse.kind, mouse.column, row, mouse.modifiers)
         });
@@ -3398,6 +3410,11 @@ mod tests {
             encode_mouse(MouseEventKind::Down(MouseButton::Left), 2, 8),
             Some(b"\x1b[<0;3;8M".to_vec())
         );
+        assert_eq!(
+            encode_mouse(MouseEventKind::Drag(MouseButton::Left), 4, 1),
+            Some(b"\x1b[<32;5;1M".to_vec()),
+            "a child-owned drag clamped from the strip addresses the first child row"
+        );
         assert_eq!(without_bell(b"a\x07b"), b"ab");
         assert_eq!(
             without_bell(b"a\x1b]9;notify\x07b\x1b]777;alert\x1b\\c"),
@@ -3908,6 +3925,7 @@ mod tests {
         assert_eq!(TabBarPosition::Top.child_row_offset(), 1);
         assert_eq!(TabBarPosition::Top.child_mouse_row(0, 2), None);
         assert_eq!(TabBarPosition::Top.child_mouse_row(1, 2), Some(0));
+        assert_eq!(TabBarPosition::Top.forwarded_child_mouse_row(0, 2), Some(0));
         assert_eq!(TabBarPosition::Top.logical_mouse_row(0, 2), 0);
         assert_eq!(TabBarPosition::Top.logical_mouse_row(1, 2), 1);
 
@@ -3916,6 +3934,10 @@ mod tests {
         assert_eq!(TabBarPosition::Bottom.child_row_offset(), 0);
         assert_eq!(TabBarPosition::Bottom.child_mouse_row(0, 2), Some(0));
         assert_eq!(TabBarPosition::Bottom.child_mouse_row(1, 2), None);
+        assert_eq!(
+            TabBarPosition::Bottom.forwarded_child_mouse_row(1, 2),
+            Some(0)
+        );
         assert_eq!(TabBarPosition::Bottom.logical_mouse_row(0, 2), 1);
         assert_eq!(TabBarPosition::Bottom.logical_mouse_row(1, 2), 0);
         assert_eq!(TabBarPosition::Bottom.logical_mouse_row(2, 2), u16::MAX);
