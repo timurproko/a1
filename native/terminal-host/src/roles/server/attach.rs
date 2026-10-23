@@ -217,7 +217,7 @@ pub(super) fn serve_attach(
                 tx.offer_control(wire::frame("tab.list", kind.request_id, list)?)
                     .map_err(str::to_owned)?;
             }
-            "tab.open-settings" => {
+            "tab.open-settings" | "tab.prewarm-settings" => {
                 let (_, create): (_, TabCreate) = wire::body(&payload)?;
                 let (settings_tab_id, should_start) = {
                     let mut locked = lock_state(&state)?;

@@ -58,6 +58,11 @@ impl SemanticEncoder {
             } => {
                 let code = semantic_keys::key_code(key)
                     .ok_or_else(|| "input rejected; unknown key identity".to_owned())?;
+                // Protocol: owned prompt navigation consumes the legacy modified-arrow form.
+                // Normalize it even if a child's keyboard mode would encode the key differently.
+                if let Some(bytes) = prompt_navigation_arrow(key, *mods) {
+                    return Ok(bytes);
+                }
                 // Compatibility: without the kitty keyboard protocol a modified Enter, Tab,
                 // Backspace, or Escape reaches direct A1 as the bytes its terminal sends, such as
                 // the LF ConPTY reports for Ctrl+Enter; only an enhanced child gets libghostty's form.
@@ -129,6 +134,20 @@ impl SemanticEncoder {
             }
         }
     }
+}
+
+fn prompt_navigation_arrow(key: &str, mods: u8) -> Option<Vec<u8>> {
+    let parameter = match mods {
+        MOD_SHIFT => 2,
+        MOD_CTRL => 5,
+        _ => return None,
+    };
+    let letter = match key {
+        "arrow-up" => 'A',
+        "arrow-down" => 'B',
+        _ => return None,
+    };
+    Some(format!("\x1b[1;{parameter}{letter}").into_bytes())
 }
 
 /// The bytes direct A1 observes for a modified Enter, Tab, Backspace, or Escape that the legacy

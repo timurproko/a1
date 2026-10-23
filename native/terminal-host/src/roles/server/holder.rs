@@ -1,5 +1,24 @@
 use super::*;
 
+pub(super) fn insert_new_tab(registry: &mut RegistryDocument, tab: TabRecord) {
+    // Invariant: newly created Agent tabs precede a trailing Settings tab by default; a
+    // Settings tab the user dragged elsewhere keeps its durable position.
+    let at = if !is_settings_tab_id(&tab.tab_id)
+        && registry
+            .tabs
+            .last()
+            .is_some_and(|last| is_settings_tab_id(&last.tab_id))
+    {
+        registry.tabs.len() - 1
+    } else {
+        registry.tabs.len()
+    };
+    registry.tabs.insert(at, tab);
+    for (index, tab) in registry.tabs.iter_mut().enumerate() {
+        tab.order = index as u32;
+    }
+}
+
 pub(super) fn start_holder(
     profile: &Path,
     state: &Arc<Mutex<RuntimeState>>,
@@ -48,7 +67,6 @@ pub(super) fn start_holder(
             .credentials
             .derive("bridge", &tab_id, incarnation)
             .to_vec();
-        let order = locked.registry.tabs.len() as u32;
         let display_name = if is_settings_tab_id(&tab_id) {
             "Settings".into()
         } else {
@@ -62,42 +80,44 @@ pub(super) fn start_holder(
         locked.launches.insert(tab_id.clone(), start.clone());
         locked.registry.tabs.retain(|tab| tab.tab_id != tab_id);
         prune_stopped_records(&mut locked.registry.tabs);
-        locked.registry.tabs.push(TabRecord {
-            tab_id: tab_id.clone(),
-            kind: if is_settings_tab_id(&tab_id) {
-                "settings"
-            } else {
-                "agent"
-            }
-            .into(),
-            created_at,
-            display_name,
-            name_source: if is_settings_tab_id(&tab_id) {
-                "system"
-            } else {
-                "default"
-            }
-            .into(),
-            order,
-            cwd: start.cwd.clone(),
-            session_file: start.session_file.clone(),
-            session_dir: start.session_dir.clone(),
-            desired: "running".into(),
-            lifecycle: "starting".into(),
-            incarnation,
-            holder_pid: None,
-            holder_start_identity: None,
-            child_pid: None,
-            child_start_identity: None,
-            release: start.release_root.clone(),
-            last_exit: None,
-            restarts: 0,
-            restart_window_start: None,
-            requested_restart: false,
-            attention_seq: 0,
-            seen_seq: 0,
-        });
-        place_settings_last(&mut locked.registry);
+        insert_new_tab(
+            &mut locked.registry,
+            TabRecord {
+                tab_id: tab_id.clone(),
+                kind: if is_settings_tab_id(&tab_id) {
+                    "settings"
+                } else {
+                    "agent"
+                }
+                .into(),
+                created_at,
+                display_name,
+                name_source: if is_settings_tab_id(&tab_id) {
+                    "system"
+                } else {
+                    "default"
+                }
+                .into(),
+                order: 0,
+                cwd: start.cwd.clone(),
+                session_file: start.session_file.clone(),
+                session_dir: start.session_dir.clone(),
+                desired: "running".into(),
+                lifecycle: "starting".into(),
+                incarnation,
+                holder_pid: None,
+                holder_start_identity: None,
+                child_pid: None,
+                child_start_identity: None,
+                release: start.release_root.clone(),
+                last_exit: None,
+                restarts: 0,
+                restart_window_start: None,
+                requested_restart: false,
+                attention_seq: 0,
+                seen_seq: 0,
+            },
+        );
         bump_registry_revision(&mut locked.registry);
         let document = locked.registry.clone();
         (

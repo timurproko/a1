@@ -53,17 +53,6 @@ fn is_settings_tab_id(tab_id: &str) -> bool {
     tab_id.starts_with(SETTINGS_TAB_PREFIX)
 }
 
-fn place_settings_last(registry: &mut RegistryDocument) {
-    // Invariant: hidden prewarmed Settings must not become the first visible tab when reopened,
-    // and a newly created Agent belongs before it. Keep the durable order and vector aligned.
-    registry
-        .tabs
-        .sort_by_key(|tab| (is_settings_tab_id(&tab.tab_id), tab.order));
-    for (index, tab) in registry.tabs.iter_mut().enumerate() {
-        tab.order = index as u32;
-    }
-}
-
 /// One non-blocking render slot per attached client. Replacing an unsent update forces the
 /// next delivery to use the supplied full surface so skipped revisions cannot corrupt state.
 #[derive(Debug, Default)]
@@ -808,7 +797,6 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
             tab.child_start_identity = None;
         }
     }
-    place_settings_last(&mut registry);
     bump_registry_revision(&mut registry);
     let registry_store =
         RegistryStore::new(root.join("registry.json"), epoch, Arc::new(HeldAuthority));
@@ -1876,18 +1864,18 @@ mod tests {
     }
 
     #[test]
-    fn settings_remains_last_when_agents_start_and_reorder() {
+    fn settings_starts_last_and_drag_order_survives_later_opens() {
         let mut settings = record("settings-1", 1, "running", None);
         settings.kind = "settings".into();
-        settings.order = 0;
+        settings.order = 1;
         let mut first = record("agent-1", 2, "running", None);
-        first.order = 1;
+        first.order = 0;
         let mut registry = RegistryDocument {
             registry_revision: 4,
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
-            tabs: vec![settings, first],
+            tabs: vec![first, settings],
         };
         let names = |registry: &RegistryDocument| {
             registry
@@ -1896,12 +1884,10 @@ mod tests {
                 .map(|tab| tab.tab_id.clone())
                 .collect::<Vec<_>>()
         };
-        place_settings_last(&mut registry);
         assert_eq!(names(&registry), ["agent-1", "settings-1"]);
         let mut second = record("agent-2", 3, "running", None);
         second.order = 2;
-        registry.tabs.push(second);
-        place_settings_last(&mut registry);
+        insert_new_tab(&mut registry, second);
         assert_eq!(names(&registry), ["agent-1", "agent-2", "settings-1"]);
         assert_eq!(
             registry
@@ -1914,20 +1900,18 @@ mod tests {
         assert!(lifecycle::reorder_registry(
             &mut registry,
             &wire::TabReorder {
-                tab_id: "agent-1".into(),
-                target_index: 2,
+                tab_id: "settings-1".into(),
+                target_index: 0,
                 expected_revision: 4,
             }
         ));
-        assert_eq!(names(&registry), ["agent-2", "agent-1", "settings-1"]);
-        assert!(!lifecycle::reorder_registry(
-            &mut registry,
-            &wire::TabReorder {
-                tab_id: "settings-1".into(),
-                target_index: 0,
-                expected_revision: 5,
-            }
-        ));
+        assert_eq!(names(&registry), ["settings-1", "agent-1", "agent-2"]);
+        assert_eq!(registry.tabs[0].order, 0, "dragged placement stays durable");
+        insert_new_tab(&mut registry, record("agent-3", 4, "running", None));
+        assert_eq!(
+            names(&registry),
+            ["settings-1", "agent-1", "agent-2", "agent-3"]
+        );
     }
 
     #[test]

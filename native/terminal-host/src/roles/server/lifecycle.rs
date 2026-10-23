@@ -607,16 +607,9 @@ pub(super) fn reorder_registry(
     else {
         return false;
     };
-    if is_settings_tab_id(&reorder.tab_id) {
-        return false;
-    }
-    let target = reorder.target_index.min(
-        registry
-            .tabs
-            .iter()
-            .rposition(|tab| !is_settings_tab_id(&tab.tab_id))
-            .unwrap_or(0),
-    );
+    let target = reorder
+        .target_index
+        .min(registry.tabs.len().saturating_sub(1));
     if target == from {
         return false;
     }

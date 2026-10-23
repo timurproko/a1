@@ -470,6 +470,7 @@ const SETTINGS_POLL_INTERVAL: Duration = Duration::from_millis(250);
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PresentationSettings {
     time_format: TimeFormat,
+    accent_color: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
 }
@@ -478,6 +479,7 @@ impl Default for PresentationSettings {
     fn default() -> Self {
         Self {
             time_format: TimeFormat::Twelve,
+            accent_color: None,
             accent_hover: accent_selected_background(None),
             tab_bar_position: TabBarPosition::Top,
         }
@@ -499,6 +501,10 @@ fn read_presentation_settings(path: &Path) -> PresentationSettings {
                 .get("timeFormat")
                 .and_then(serde_json::Value::as_str),
         ),
+        accent_color: owned_settings
+            .get("accentColor")
+            .and_then(serde_json::Value::as_str)
+            .and_then(known_accent),
         accent_hover: accent_selected_background(
             owned_settings
                 .get("accentColor")
@@ -551,6 +557,18 @@ fn read_quit_animation(path: &Path) -> bool {
 
 /// The owned theme's dark `selectedBg` for each A1 accent, derived by
 /// `derivePiAccentProjection(accent, "dark")`; popups hover with it like owned menus.
+fn known_accent(accent: &str) -> Option<&'static str> {
+    match accent {
+        "blue" => Some("blue"),
+        "cyan" => Some("cyan"),
+        "green" => Some("green"),
+        "orange" => Some("orange"),
+        "pink" => Some("pink"),
+        "purple" => Some("purple"),
+        _ => None,
+    }
+}
+
 fn accent_selected_background(accent: Option<&str>) -> [u8; 3] {
     match accent {
         Some("blue") => [52, 57, 69],
@@ -577,6 +595,7 @@ struct TimeFormatWatch {
     path: PathBuf,
     signature: Option<(std::time::SystemTime, u64)>,
     value: TimeFormat,
+    accent_color: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
     checked_at: Instant,
@@ -589,6 +608,7 @@ impl TimeFormatWatch {
             path: path.to_owned(),
             signature: settings_signature(path),
             value: settings.time_format,
+            accent_color: settings.accent_color,
             accent_hover: settings.accent_hover,
             tab_bar_position: settings.tab_bar_position,
             checked_at: Instant::now(),
@@ -608,9 +628,11 @@ impl TimeFormatWatch {
         self.signature = signature;
         let settings = read_presentation_settings(&self.path);
         let changed = settings.time_format != self.value
+            || settings.accent_color != self.accent_color
             || settings.accent_hover != self.accent_hover
             || settings.tab_bar_position != self.tab_bar_position;
         self.value = settings.time_format;
+        self.accent_color = settings.accent_color;
         self.accent_hover = settings.accent_hover;
         self.tab_bar_position = settings.tab_bar_position;
         changed
@@ -1537,15 +1559,16 @@ impl GlyphState {
 
 /// The attach role's side of a session: the server connection, the outer terminal, and what it
 /// presents. Core attach state decides; the client applies its effects.
-fn should_paint_strip(tabs: &[StripTab], has_shown_tabs: bool, notice: bool) -> bool {
-    !tabs.is_empty() || has_shown_tabs || notice
+fn should_paint_strip(has_surface: bool, has_shown_tabs: bool, notice: bool) -> bool {
+    has_surface || has_shown_tabs || notice
 }
 
-fn cold_staged_tabs(view: &ViewModel, visible: &[StripTab]) -> Option<Vec<StripTab>> {
-    if !visible.is_empty() {
-        return None;
+fn apply_owned_accent(tabs: &mut [StripTab], color: Option<&str>) {
+    for tab in tabs {
+        if tab.id.starts_with("settings-") || tab.accent.is_none() {
+            tab.accent = color.map(str::to_owned);
+        }
     }
-    view.staged_tabs().filter(|tabs| !tabs.is_empty()).cloned()
 }
 
 struct Client {
@@ -1698,6 +1721,9 @@ impl Client {
             Request::OpenSettings => {
                 wire::send(stream, "tab.open-settings", None, self.create.clone())
             }
+            Request::PrewarmSettings => {
+                wire::send(stream, "tab.prewarm-settings", None, self.create.clone())
+            }
             Request::Close(tab_id) => wire::send(stream, "tab.close", None, TabTarget { tab_id }),
             Request::Restart(tab_id) => {
                 wire::send(stream, "tab.restart", None, TabTarget { tab_id })
@@ -1767,9 +1793,13 @@ impl Client {
     }
 
     fn paint(&mut self, core: &mut State, clear: bool) -> Result<(), String> {
-        // Invariant: cold attach never shows a provisional `+` strip while the first tab's
-        // registry and surface are still arriving. Closing a previously shown last tab may.
-        if !should_paint_strip(&self.tabs, self.has_shown_tabs, core.notice.is_some()) {
+        // Invariant: first strip and complete child body enter the alternate screen together.
+        // A failed launch notice and closing a previously shown last tab still paint.
+        if !should_paint_strip(
+            self.presented.tab_id.is_some(),
+            self.has_shown_tabs,
+            core.notice.is_some(),
+        ) {
             return Ok(());
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
@@ -1779,6 +1809,7 @@ impl Client {
             self.view.viewed.as_deref(),
             core.view.settings_shown,
         );
+        apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
             &mut shown,
@@ -2219,16 +2250,7 @@ impl Client {
             TopologyAction::Commit { surface, tabs } => {
                 self.apply_commit(core, surface, Some(tabs), true)
             }
-            TopologyAction::Staged => {
-                // Invariant: keep the child body staged, but paint actual registry tab names
-                // immediately on cold attach instead of an empty provisional strip.
-                if let Some(tabs) = cold_staged_tabs(&self.view, &self.tabs) {
-                    self.tabs = tabs;
-                    core.installed(&self.tabs, true);
-                    self.paint(core, false)?;
-                }
-                Ok(())
-            }
+            TopologyAction::Staged => Ok(()),
             TopologyAction::Install { tabs, changed } => {
                 self.tabs = tabs;
                 core.installed(&self.tabs, changed);
@@ -3025,7 +3047,17 @@ mod tests {
     use crate::core::attach::{PopupAction, update_drag};
 
     #[test]
-    fn cold_attach_does_not_paint_an_empty_strip_before_tab_names_arrive() {
+    fn cold_attach_waits_for_the_first_surface_before_paint() {
+        assert!(!should_paint_strip(false, false, false));
+        assert!(should_paint_strip(true, false, false));
+        assert!(
+            should_paint_strip(false, true, false),
+            "last-tab close still repaints the strip"
+        );
+        assert!(
+            should_paint_strip(false, false, true),
+            "create failure remains visible"
+        );
         let first = StripTab {
             id: "tab-1".into(),
             name: "Existing Agent".into(),
@@ -3034,33 +3066,45 @@ mod tests {
             accent: None,
             title_animation: None,
         };
-        assert!(!should_paint_strip(&[], false, false));
-        assert!(should_paint_strip(&[first.clone()], false, false));
-        assert!(
-            should_paint_strip(&[], true, false),
-            "last-tab close still repaints the strip"
-        );
-        assert!(
-            should_paint_strip(&[], false, true),
-            "create failure remains visible"
-        );
-
         let mut view = ViewModel::new(Some("tab-2".into()));
         view.request("tab-1");
         assert_eq!(
-            view.topology(&[], vec![first.clone()], |_| None).action,
+            view.topology(&[], vec![first], |_| None).action,
             TopologyAction::Staged
         );
-        let early = cold_staged_tabs(&view, &[]).expect("staged registry can show names");
-        assert_eq!(early, [first]);
         assert!(
-            strip::render(&early, Some("tab-1"), 80)
-                .bytes
-                .contains("Existing Agent")
+            !should_paint_strip(false, false, false),
+            "a staged registry alone must not enter the screen"
         );
+    }
+
+    #[test]
+    fn settings_chip_uses_configured_accent_before_and_after_its_surface() {
+        let mut tabs = [
+            StripTab {
+                id: "settings-1".into(),
+                name: "Settings".into(),
+                name_source: "system".into(),
+                status: "starting".into(),
+                accent: Some("purple".into()),
+                title_animation: None,
+            },
+            StripTab {
+                id: "agent-1".into(),
+                name: "Agent".into(),
+                name_source: "default".into(),
+                status: "working".into(),
+                accent: Some("pink".into()),
+                title_animation: None,
+            },
+        ];
+        apply_owned_accent(&mut tabs, Some("cyan"));
+        assert_eq!(tabs[0].accent.as_deref(), Some("cyan"));
+        assert_eq!(tabs[1].accent.as_deref(), Some("pink"));
+        let frame = strip::render(&tabs, Some("settings-1"), 80);
         assert!(
-            cold_staged_tabs(&view, &early).is_none(),
-            "later switches stay staged"
+            frame.bytes.contains("\x1b[48;2;59;83;88m"),
+            "Settings is cyan on its first frame"
         );
     }
 
@@ -3608,7 +3652,7 @@ mod tests {
         menu.resize(80);
         assert_eq!(menu.column + menu.width, 80);
 
-        let mut add = PopupMenu::add(0, 80, &bindings);
+        let mut add = PopupMenu::add(0, 80, &bindings, false);
         assert_eq!(add.action_at(add.column, 1), Some(PopupAction::NewAgent));
         assert_eq!(add.action_at(add.column, 2), None);
         assert_eq!(add.action_at(add.column, 3), Some(PopupAction::Settings));
@@ -3620,6 +3664,9 @@ mod tests {
         assert!(add_rendered.contains("+ Agent"));
         assert!(add_rendered.contains("  Settings"));
         assert!(add_rendered.contains("Alt+,"));
+        let checked = PopupMenu::add(0, 80, &bindings, true);
+        assert!(checked.render().contains("✓ Settings"));
+        assert_eq!(checked.width, add.width);
         for rendered in [add.render_with_color(true), add.render_with_color(false)] {
             let plain = rendered
                 .split('\x1b')
@@ -3750,7 +3797,7 @@ mod tests {
         std::fs::write(&file, br#"{"a1":{"accentColor":"cyan"}}"#).unwrap();
         assert_eq!(read_accent_hover(&file), [48, 60, 61]);
         let bindings = TabBindings::load(profile.path());
-        let mut menu = PopupMenu::add(0, 80, &bindings);
+        let mut menu = PopupMenu::add(0, 80, &bindings, false);
         menu.hovered = Some(0);
         let rendered = menu.render_styled(true, read_accent_hover(&file));
         assert!(rendered.contains("\x1b[48;2;48;60;61m"));
@@ -3821,6 +3868,15 @@ mod tests {
 
         std::fs::write(
             &file,
+            br#"{"a1":{"accentColor":"cyan","tabsPosition":"bottom"}}"#,
+        )
+        .unwrap();
+        watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
+        assert!(watch.refresh());
+        assert_eq!(watch.accent_color, Some("cyan"));
+
+        std::fs::write(
+            &file,
             br#"{"a1":{"timeFormat":"invalid","accentColor":"invalid","tabsPosition":"side"}}"#,
         )
         .unwrap();
@@ -3831,6 +3887,7 @@ mod tests {
         watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
         assert!(watch.refresh());
         assert_eq!(watch.value, TimeFormat::Twelve);
+        assert_eq!(watch.accent_color, None);
         assert_eq!(watch.accent_hover, accent_selected_background(None));
         assert_eq!(watch.tab_bar_position, TabBarPosition::Top);
 

@@ -56,6 +56,13 @@ fn cold_attach_enters_the_screen_with_a_named_tab_not_an_empty_strip() {
             .is_some_and(|name| output.find(" + ").is_some_and(|plus| name < plus)),
         "first strip must already have its tab name: {output}"
     );
+    let name = output.find("Agent").expect("first tab name");
+    let body = output.find("fake-a1-ready").expect("first child surface");
+    assert!(name < body, "the first tab is named before its child draws");
+    assert!(
+        !output[name..body].contains("\x1b[?2026l"),
+        "the first strip and child surface must be one synchronized frame"
+    );
     attach.write(b"\x1b[1;2A");
     assert!(
         attach.output_containing("key:1b5b313b3241", Duration::from_secs(5)),

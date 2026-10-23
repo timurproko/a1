@@ -290,7 +290,12 @@ impl PopupMenu {
         Self::new(PopupKind::Context, Some(tab_id), column, columns, items)
     }
 
-    pub fn add(column: u16, columns: u16, shortcuts: &(impl ShortcutLabels + ?Sized)) -> Self {
+    pub fn add(
+        column: u16,
+        columns: u16,
+        shortcuts: &(impl ShortcutLabels + ?Sized),
+        settings_shown: bool,
+    ) -> Self {
         Self::new(
             PopupKind::Add,
             None,
@@ -305,7 +310,11 @@ impl PopupMenu {
                 PopupItem::separator(),
                 // Invariant: labels align after the `+ ` marker, so Settings starts under Agent.
                 PopupItem::action(
-                    "  Settings",
+                    if settings_shown {
+                        "✓ Settings"
+                    } else {
+                        "  Settings"
+                    },
                     shortcuts.label("tabs.settings"),
                     PopupAction::Settings,
                 ),
@@ -770,8 +779,7 @@ pub fn drag_marker_column<T: TabView>(drag: &TabDrag, tabs: &[T]) -> Option<u16>
     }
 }
 
-/// The Settings shortcut toggles: on the viewed Settings tab it hides that tab, returning to the
-/// previous tab; anywhere else it shows the singleton Settings tab.
+/// The viewed Settings tab is the close target when its shortcut toggles it off.
 pub fn settings_toggle_closes(viewed: Option<&str>) -> Option<&str> {
     viewed.filter(|id| id.starts_with("settings-"))
 }
