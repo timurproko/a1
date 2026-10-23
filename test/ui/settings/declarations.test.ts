@@ -50,6 +50,7 @@ describe("owned UI setting declarations", () => {
       "skillsPresentation",
       "promptImageLimit",
       "tabsAutoName",
+      "tabsPosition",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "timeFormat")).toMatchObject({
       label: "Time format",
@@ -107,6 +108,13 @@ describe("owned UI setting declarations", () => {
       application: "live",
       defaultValue: true,
       allowedValues: [true, false],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsPosition")).toMatchObject({
+      label: "Tab bar position",
+      section: { id: "tabs", title: "Tabs" },
+      application: "live",
+      defaultValue: "top",
+      allowedValues: ["top", "bottom"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMaxConcurrentStarts")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsUnresponsiveRestartSeconds")).toBeNull();
@@ -234,7 +242,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(16);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(17);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -418,7 +426,9 @@ describe("owned UI settings migrations", () => {
     expect(OWNED_UI_SETTINGS_MIGRATIONS[13]).toMatchObject({ to: 15 });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[14]).toMatchObject({ to: 16 });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[15]).toMatchObject({ to: 17 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[16]).toMatchObject({ to: 18 });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[15]?.migrate({ future: true })).toEqual({ future: true });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[16]?.migrate({ future: true })).toEqual({ future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[14]?.migrate({
       residentTabs: true, tabsMaxConcurrentStarts: 8, tabsUnresponsiveRestartSeconds: 600,
       tabsStallNoticeSeconds: 1800, future: true,
@@ -432,6 +442,8 @@ describe("owned UI settings migrations", () => {
       .toMatchObject({ value: true, source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "timeFormat"))
       .toMatchObject({ value: "8:00 PM", source: "default" });
+    expect(resolved.settings.find(setting => setting.declaration.id === "tabsPosition"))
+      .toMatchObject({ value: "top", source: "default" });
     expect(resolved.preserved).not.toHaveProperty("tabsMaxConcurrentStarts");
   });
 

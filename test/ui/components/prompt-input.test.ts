@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LineInput, PLAIN_THEME, PromptInput, displayWidth, promptArrow, promptRule, renderInputRow, stripAnsi } from "../../../src/ui/components/index.js";
+import { LineInput, PLAIN_THEME, PromptInput, displayWidth, promptRule, renderInputRow, stripAnsi } from "../../../src/ui/components/index.js";
 
 import { cellStyle } from "../../support/ansi-cell-style.js";
 
@@ -24,13 +24,13 @@ describe("shared prompt input presentation", () => {
     expect(input.render(0, () => ({ rows: ["ignored"] }))).toEqual([]);
   });
 
-  it("shares the search frame, prefix, caret, and quiet placeholder without dimming chrome", () => {
-    const search = renderInputRow(new LineInput(""), 30, { placeholder: "Search settings", theme }).lines;
+  it("shares the marker-free search frame, caret, and quiet placeholder without dimming chrome", () => {
+    const search = renderInputRow(new LineInput(""), 30, { placeholder: "Search settings", promptGlyph: "", theme }).lines;
     expect(search[0]).toBe(promptRule(30, theme));
     expect(search[2]).toBe(promptRule(30, theme));
     expect(search[1]).toContain("\u001b[7mS\u001b[27m");
-    expect(cellStyle(search[1]!, "❯")).toEqual(cellStyle(promptArrow("❯", theme), "❯"));
-    expect(cellStyle(search[1]!, "❯").faint).toBe(false);
+    expect(stripAnsi(search[1] ?? "")).not.toContain("❯");
+    expect(stripAnsi(search[1] ?? "")).not.toContain(">");
     expect(cellStyle(search[1]!, "e").faint).toBe(true);
     expect(cellStyle(search[2]!, "─")).toEqual({ foreground: "201;202;203", faint: false });
     expect(renderInputRow(new LineInput("hello"), 20, { ruled: false, theme }).lines).toHaveLength(1);
@@ -40,7 +40,7 @@ describe("shared prompt input presentation", () => {
   it("retains semantic annotations and aligns continuation and menu rows", () => {
     const input = new PromptInput(theme);
     const rendered = input.render(20, innerWidth => {
-      expect(innerWidth).toBe(18);
+      expect(innerWidth).toBe(17);
       return {
         rows: ["first", "second"],
         topRule: `${input.styleRule("─── ")}${theme.fg("muted", "1/3 ")}${input.styleRule("─")}`,
@@ -50,18 +50,18 @@ describe("shared prompt input presentation", () => {
     });
     const rows = rendered.map(stripAnsi);
     expect(rows[0]).toBe("─── 1/3 ────────────");
-    expect(rows[1]?.trimEnd()).toBe("❯ first");
-    expect(rows[2]?.trimEnd()).toBe("  second");
+    expect(rows[1]?.trimEnd()).toBe(" ❯ first");
+    expect(rows[2]?.trimEnd()).toBe("   second");
     expect(rows[3]).toContain("↓ 2");
-    expect(rows[4]?.trimEnd()).toBe("  menu");
+    expect(rows[4]?.trimEnd()).toBe("   menu");
     expect(cellStyle(rendered[0]!, "1")).toEqual(cellStyle(theme.fg("muted", "1"), "1"));
     expect(cellStyle(rendered[0]!, "─")).toEqual(cellStyle(promptRule(1, theme), "─"));
     expect(rendered[0]?.endsWith(promptRule(11, theme))).toBe(true);
     const shiftedAfter = input.render(20, () => ({ rows: ["body"], after: ["menu"], afterIndent: 1 })).map(stripAnsi);
-    expect(shiftedAfter[1]?.trimEnd()).toBe("❯ body");
+    expect(shiftedAfter[1]?.trimEnd()).toBe(" ❯ body");
     expect(shiftedAfter[3]?.trimEnd()).toBe(" menu");
     expect(shiftedAfter.every(row => displayWidth(row) === 20)).toBe(true);
-    expect(input.geometry(10, 2)).toEqual({ prefixWidth: 2, innerWidth: 8, paddingX: 2, contentWidth: 4, layoutWidth: 4 });
+    expect(input.geometry(10, 2)).toEqual({ prefixWidth: 3, innerWidth: 7, paddingX: 2, contentWidth: 3, layoutWidth: 3 });
     expect(input.geometry(2, 3).contentWidth).toBe(3);
   });
 });

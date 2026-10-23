@@ -39,10 +39,7 @@ pub(super) fn serve_attach(
         tx.offer_control(wire::frame(
             "attached",
             None,
-            BridgeAttachment {
-                client_id: client_id.clone(),
-                controller_revision: revision,
-            },
+            BridgeAttachment::selected(client_id.clone(), revision, viewed_tab.clone()),
         )?)
         .map_err(str::to_owned)?;
         locked.clients.insert(
@@ -67,10 +64,7 @@ pub(super) fn serve_attach(
             let _ = bridge.peer.offer_control(wire::frame(
                 "attachment",
                 None,
-                BridgeAttachment {
-                    client_id: client_id.clone(),
-                    controller_revision: revision,
-                },
+                BridgeAttachment::new(client_id.clone(), revision),
             )?);
         }
         let startup_notice = locked
@@ -325,10 +319,7 @@ pub(super) fn serve_attach(
                     let _ = bridge.peer.offer_control(wire::frame(
                         "attachment",
                         None,
-                        BridgeAttachment {
-                            client_id: client_id.clone(),
-                            controller_revision,
-                        },
+                        BridgeAttachment::new(client_id.clone(), controller_revision),
                     )?);
                 }
                 drop(locked);

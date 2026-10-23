@@ -592,6 +592,36 @@ pub(super) fn lifecycle_status(
     serde_json::json!({ "pending": pending, "oldestMs": oldest_ms })
 }
 
+/// Applies one revision-guarded durable tab move; no-op and stale requests leave no mutation.
+pub(super) fn reorder_registry(
+    registry: &mut RegistryDocument,
+    reorder: &wire::TabReorder,
+) -> bool {
+    if registry.registry_revision != reorder.expected_revision {
+        return false;
+    }
+    let Some(from) = registry
+        .tabs
+        .iter()
+        .position(|tab| tab.tab_id == reorder.tab_id)
+    else {
+        return false;
+    };
+    let target = reorder
+        .target_index
+        .min(registry.tabs.len().saturating_sub(1));
+    if target == from {
+        return false;
+    }
+    let tab = registry.tabs.remove(from);
+    registry.tabs.insert(target.min(registry.tabs.len()), tab);
+    for (index, tab) in registry.tabs.iter_mut().enumerate() {
+        tab.order = index as u32;
+    }
+    bump_registry_revision(registry);
+    true
+}
+
 /// Runs one lifecycle request from an attached client on that client's lifecycle worker.
 pub(super) fn handle_lifecycle(
     state: &Arc<Mutex<RuntimeState>>,
@@ -716,25 +746,7 @@ pub(super) fn handle_lifecycle(
             let (_, reorder): (_, wire::TabReorder) = wire::body(payload)?;
             let commit = {
                 let mut locked = lock_state(&state)?;
-                if locked.registry.registry_revision != reorder.expected_revision {
-                    None
-                } else if let Some(from) = locked
-                    .registry
-                    .tabs
-                    .iter()
-                    .position(|tab| tab.tab_id == reorder.tab_id)
-                {
-                    let tab = locked.registry.tabs.remove(from);
-                    let target = reorder.target_index.min(locked.registry.tabs.len());
-                    locked.registry.tabs.insert(target, tab);
-                    for (index, tab) in locked.registry.tabs.iter_mut().enumerate() {
-                        tab.order = index as u32;
-                    }
-                    bump_registry_revision(&mut locked.registry);
-                    Some(registry_snapshot(&locked))
-                } else {
-                    None
-                }
+                reorder_registry(&mut locked.registry, &reorder).then(|| registry_snapshot(&locked))
             };
             let accepted = commit.is_some();
             commit_staged(commit)?;

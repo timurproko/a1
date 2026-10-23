@@ -46,3 +46,27 @@ Bare A1 SHALL expose one resident tab-bar position with allowed values `top` and
 #### Scenario: Present overlays and cursor at either edge
 - **WHEN** host overlays or the child cursor are visible and the tab-bar position changes
 - **THEN** each SHALL remain aligned to the same semantic child cells and host controls at the newly configured edge
+
+### Requirement: Resident tabs reorder through stable drag-and-drop
+A resident tab drag SHALL show a stable insertion marker within the tab strip after left-button movement or the established hold threshold. Pointer motion SHALL preview only and SHALL NOT mutate durable order. Releasing the left button over a changed valid destination SHALL request exactly one reorder using the registry revision captured at drag start. Releasing at the original slot, outside the strip, after the source tab disappears, or against stale registry state SHALL leave durable order unchanged. The behavior SHALL apply at both configured strip edges.
+
+#### Scenario: Preview a changed destination
+- **WHEN** the user presses a visible tab and drags across another visible tab
+- **THEN** the strip SHALL show one insertion line at the resulting boundary
+- **AND** ordinary strip repaints SHALL NOT make the line flash or disappear
+- **AND** tab order SHALL remain unchanged until release
+
+#### Scenario: Commit on release
+- **WHEN** the user releases over a valid destination different from the source slot
+- **THEN** the client SHALL send exactly one reorder request for that destination
+- **AND** the strip SHALL remove the insertion line while the durable order update is applied
+
+#### Scenario: Suppress a no-op or cancelled drag
+- **WHEN** the user releases at the source slot, outside the strip, after the source disappears, or after the registry revision becomes stale
+- **THEN** no durable reorder SHALL occur
+- **AND** no insertion line SHALL remain visible
+
+#### Scenario: Drag with a bottom strip
+- **WHEN** the tab bar is at the bottom and the user drags a visible tab
+- **THEN** press, preview, release, and hit testing SHALL use the final outer row
+- **AND** the child SHALL receive none of those strip-owned pointer reports

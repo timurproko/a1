@@ -4,7 +4,7 @@ See `proposal.md` for motivation and the delta specs for observable behavior.
 
 The requested work crosses two presentation owners. TypeScript owns the shared prompt/input chrome and A1 settings declarations. The native attach client owns resident fullscreen entry, initial tab selection, the one-row strip, host overlays, child-to-outer coordinate mapping, pointer routing, and final cursor placement.
 
-Current input composition has one default prefix (`❯ `) used by both the multiline user editor and A1 single-line inputs. Current resident composition assumes the strip is outer row 1 throughout strip rendering, structured child replay, legacy fallback bytes, overlays, mouse normalization, and cursor restoration. The attach server already chooses the first durable tab when no explicit target is supplied, but that choice is not returned to the client handshake, so the client's first tab-list frame can have no active identity. Fullscreen entry also leaves the terminal cursor visible until the asynchronous first presentation hides it.
+Current input composition has one default prefix (`❯ `) used by both the multiline user editor and A1 single-line inputs. Current resident composition assumes the strip is outer row 1 throughout strip rendering, structured child replay, legacy fallback bytes, overlays, mouse normalization, and cursor restoration. Drag state already computes a destination and sends a reorder on release, but its insertion marker is a separate host overlay; ordinary strip repaints can overwrite that unchanged overlay, making feedback flash or disappear while the pointer is still dragging. The attach server already chooses the first durable tab when no explicit target is supplied, but that choice is not returned to the client handshake, so the client's first tab-list frame can have no active identity. Fullscreen entry also leaves the terminal cursor visible until the asynchronous first presentation hides it.
 
 The interpretation used by this plan is that the main user prompt keeps its chevron and gains one leading cell, while auxiliary Agent and Settings text inputs lose their marker. Extension-owned editors and `a1 pi` remain outside this customization.
 
@@ -17,10 +17,12 @@ The interpretation used by this plan is that the main user prompt keeps its chev
 - Preserve the child's terminal dimensions and semantic coordinates when the strip moves.
 - Make an existing server-selected tab active before the first topology paint without weakening the first-draw gate for a newly created tab.
 - Apply tab position live from the shared profile settings document.
+- Make drag insertion feedback stable and keep reorder semantics release-only, no-op safe, and durable.
 
 **Non-Goals:**
 
-- Changing tab ordering, active-tab persistence between clients, Agent lifecycle, or session recovery.
+- Changing active-tab persistence between clients, Agent lifecycle, or session recovery.
+- Adding keyboard reorder behavior beyond the existing shortcuts or changing durable order semantics.
 - Moving or changing the child's own footer, editor, transcript, or scrollbar geometry.
 - Changing pinned Pi, extension-provided custom editors, or nonresident launches.
 - Adding more strip positions, sizes, or per-client persisted choices.
@@ -83,9 +85,17 @@ When the effective edge changes, the composer will force replacement of both the
 
 Incrementally moving only the strip was rejected because the old child origin, cursor, or overlay could remain visible for one frame on terminals that expose ordered writes.
 
-### 8. Tests compare semantic geometry and exact terminal bytes
+### 8. Drag feedback is composed into the strip frame
 
-TypeScript tests will cover default prompt prefix width, marker-free auxiliary rows, suggestion wrapping, and setting declaration/resolution/persistence. Native tests will cover immediate cursor hiding/restoration, optional initial selected-tab metadata, first topology highlighting, top and bottom row mapping, live position changes, strip hits, child mouse coordinates, overlays, final cursor coordinates, and structured plus legacy presentation.
+The drag state machine will continue to begin from a left press, become visible after pointer movement or the established hold threshold, compute insertion by tab midpoints, and send one reorder only on left-button release over a changed strip destination. The renderer will compose the insertion line into the same strip frame as chips, hover, overflow, add control, and clock instead of publishing it as a separate overlay.
+
+This follows the proven legacy v2 behavior supplied by the maintainer: the marker is stable through strip repaints, the tab order remains unchanged during preview, current-slot previews are suppressed, and release commits exactly one move. Leaving the strip, releasing at the original slot, losing the tab, or receiving stale reorder state cancels without mutating order.
+
+Keeping the marker as an independent overlay was rejected because an unchanged overlay is not automatically replayed when only the strip bytes change. Reordering continuously during pointer motion was rejected because it makes hit geometry move under the pointer and produces jitter instead of a predictable insertion preview.
+
+### 9. Tests compare semantic geometry and exact terminal bytes
+
+TypeScript tests will cover default prompt prefix width, marker-free auxiliary rows, suggestion wrapping, and setting declaration/resolution/persistence. Native tests will cover immediate cursor hiding/restoration, optional initial selected-tab metadata, first topology highlighting, top and bottom row mapping, live position changes, strip hits, child mouse coordinates, overlays, final cursor coordinates, structured plus legacy presentation, stable drag preview, no-op suppression, release-only reorder, cancellation, and stale revision refusal.
 
 The tests will retain top-position exact-byte fixtures where possible and add bottom-position fixtures rather than weakening existing assertions.
 
@@ -93,10 +103,19 @@ The tests will retain top-position exact-byte fixtures where possible and add bo
 
 - **[A missed hard-coded row offset leaves stale cells or misroutes input]** → Centralize every transform in one geometry helper and search for all direct `+ 1`, `+ 2`, row-1, and row-2 strip assumptions during implementation.
 - **[Live movement exposes an intermediate frame]** → Invalidate the complete coordinate-dependent presentation and emit strip, child, overlay, modes, and cursor in one synchronized presentation.
-- **[Legacy ANSI translation handles an unexpected sequence]** → Translate only the bounded absolute cursor-position sequences emitted by the resident encoder, fail closed to top positioning for malformed fallback bytes, and cover generated legacy frames rather than arbitrary child streams.
+- **[Legacy ANSI translation handles an unexpected sequence]** → Translate only the bounded absolute cursor-position sequences emitted by the resident encoder, fail closed instead of emitting malformed fallback bytes, and cover generated legacy frames rather than arbitrary child streams.
 - **[Handshake field affects same-generation compatibility]** → Make the field optional with a default; older peers ignore it and newer clients retain the existing surface-adoption path when absent.
+- **[Drag preview flickers or reorders against moving geometry]** → Paint the marker inside the strip frame and defer the single durable reorder until release against the original registry revision.
 - **[The phrase “all inputs in agent” includes an extension-owned editor]** → Keep the implementation to A1-owned auxiliary Agent inputs as specified; extension-owned custom editors and pinned Pi are explicitly unchanged.
 
 ## Migration Plan
 
 No destructive data or protocol migration is required. Existing profiles omit `tabsPosition` and resolve to `top`. Setting persistence stores only a non-default `bottom` value and removes it when returned to `top`. The attach handshake addition is optional. Rolling back the release leaves an unknown A1 settings property preserved by forward-compatible settings writes, while older behavior continues to place the strip at the top.
+
+## Implementation Evidence
+
+- Shared prompt, dialog, Settings search, autocomplete, history, shell, settings declaration, persistence, direct-launch hiding, and session-selection coverage exercises the new prefix and tab-position behavior.
+- Native contract tests compile with the optional attach selection, synchronous cursor modes, top/bottom geometry, structured and legacy presentation, popup/notice/cursor/outro placement, stable strip-integrated drag markers, cancellation, release-only reorder, and revision-guarded durable order cases.
+- `npm run typecheck`, the focused Settings application suite, `npm run test:fast`, contracts-only `cargo check --tests`, architecture governance, formatting, and strict OpenSpec validation passed locally.
+- Full native test execution remains environment-gated because the local checkout has no linkable Ghostty VT artifact or Zig toolchain; contracts-only compilation covers the test code and normal CI owns executable native validation.
+- Known gaps: none.

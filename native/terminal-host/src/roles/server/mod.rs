@@ -448,13 +448,21 @@ impl RuntimeState {
     }
 
     fn default_tab(&self) -> String {
-        self.registry
-            .tabs
-            .iter()
-            .min_by_key(|tab| tab.order)
-            .map(|tab| tab.tab_id.clone())
-            .unwrap_or_else(|| "tab-1".into())
+        default_tab(&self.registry.tabs)
     }
+}
+
+fn default_tab(tabs: &[TabRecord]) -> String {
+    tabs.iter()
+        .filter(|tab| tab.desired != "stopped" && tab.kind == "agent")
+        .min_by_key(|tab| tab.order)
+        .or_else(|| {
+            tabs.iter()
+                .filter(|tab| tab.desired != "stopped")
+                .min_by_key(|tab| tab.order)
+        })
+        .map(|tab| tab.tab_id.clone())
+        .unwrap_or_else(|| "tab-1".into())
 }
 
 struct HeldAuthority;
@@ -1834,6 +1842,76 @@ mod tests {
             attention_seq: 0,
             seen_seq: 0,
         }
+    }
+
+    #[test]
+    fn default_attach_selects_the_first_ordered_running_agent() {
+        let mut settings = record("settings-1", 1, "running", None);
+        settings.kind = "settings".into();
+        settings.order = 0;
+        let mut second = record("tab-2", 2, "running", None);
+        second.order = 2;
+        let mut first = record("tab-1", 3, "running", None);
+        first.order = 1;
+        let mut stopped = record("tab-stopped", 4, "stopped", None);
+        stopped.order = 0;
+        assert_eq!(default_tab(&[settings, second, first, stopped]), "tab-1");
+    }
+
+    #[test]
+    fn reorder_registry_is_revision_guarded_and_no_op_safe() {
+        let tabs = ["a", "b", "c"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, id)| {
+                let mut tab = record(id, index as u64, "running", None);
+                tab.order = index as u32;
+                tab
+            })
+            .collect::<Vec<_>>();
+        let mut registry = RegistryDocument {
+            registry_revision: 4,
+            epoch: 1,
+            boot_id: "boot".into(),
+            os_session_id: "session".into(),
+            tabs,
+        };
+        let original = registry.clone();
+        assert!(!lifecycle::reorder_registry(
+            &mut registry,
+            &wire::TabReorder {
+                tab_id: "a".into(),
+                target_index: 2,
+                expected_revision: 3,
+            }
+        ));
+        assert_eq!(registry, original);
+        assert!(!lifecycle::reorder_registry(
+            &mut registry,
+            &wire::TabReorder {
+                tab_id: "b".into(),
+                target_index: 1,
+                expected_revision: 4,
+            }
+        ));
+        assert_eq!(registry, original);
+        assert!(lifecycle::reorder_registry(
+            &mut registry,
+            &wire::TabReorder {
+                tab_id: "a".into(),
+                target_index: 2,
+                expected_revision: 4,
+            }
+        ));
+        assert_eq!(
+            registry
+                .tabs
+                .iter()
+                .map(|tab| (tab.tab_id.as_str(), tab.order))
+                .collect::<Vec<_>>(),
+            [("b", 0), ("c", 1), ("a", 2)]
+        );
+        assert_eq!(registry.registry_revision, 5);
     }
 
     #[test]

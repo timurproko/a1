@@ -1,8 +1,8 @@
 import { displayWidth, truncateToWidth } from "./text.js";
 import { PLAIN_THEME, type UiTheme } from "./theme.js";
 
-export const PROMPT_GLYPH = "❯ ";
-export const PROMPT_PREFIX_WIDTH = 2;
+export const PROMPT_GLYPH = " ❯ ";
+export const PROMPT_PREFIX_WIDTH = 3;
 
 type RuleTheme = Pick<UiTheme, "fg">;
 

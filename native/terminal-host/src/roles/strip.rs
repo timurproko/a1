@@ -465,7 +465,19 @@ pub fn render_interactive(
     time_format: TimeFormat,
     rename: Option<&StripRename>,
 ) -> StripFrame {
-    render_frame(
+    render_interactive_at(tabs, viewed, columns, hovered, time_format, rename, 1)
+}
+
+pub fn render_interactive_at(
+    tabs: &[StripTab],
+    viewed: Option<&str>,
+    columns: u16,
+    hovered: Option<&StripHover>,
+    time_format: TimeFormat,
+    rename: Option<&StripRename>,
+    row: u16,
+) -> StripFrame {
+    let mut frame = render_frame(
         tabs,
         viewed,
         columns,
@@ -474,7 +486,13 @@ pub fn render_interactive(
         rename,
         Instant::now(),
         !palette_fallback_requested(),
-    )
+    );
+    if row != 1 {
+        frame.bytes = frame
+            .bytes
+            .replacen("\x1b[1;1H", &format!("\x1b[{};1H", row.max(1)), 1);
+    }
+    frame
 }
 
 fn render_frame(
@@ -754,6 +772,13 @@ mod tests {
         assert_eq!(hsl_to_rgb(120.0, 100.0, 50.0), Rgb(0, 255, 0));
         assert_eq!(hsl_to_rgb(240.0, 100.0, 50.0), Rgb(0, 0, 255));
         assert_eq!(hsl_to_rgb(-120.0, 100.0, 50.0), Rgb(0, 0, 255));
+    }
+
+    #[test]
+    fn configured_row_positions_the_complete_strip() {
+        let frame = render_interactive_at(&[], None, 20, None, TimeFormat::Twelve, None, 24);
+        assert!(frame.bytes.starts_with("\x1b[24;1H"));
+        assert_eq!(plain(&frame.bytes).chars().count(), 20);
     }
 
     #[test]

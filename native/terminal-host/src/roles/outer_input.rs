@@ -94,7 +94,20 @@ pub fn normalize_mouse(
     outer_row: u16,
     modifiers: KeyModifiers,
 ) -> Option<InputEvent> {
-    let row = super::attach::child_mouse_row(outer_row)?;
+    normalize_child_mouse(
+        kind,
+        column,
+        super::attach::child_mouse_row(outer_row)?,
+        modifiers,
+    )
+}
+
+pub fn normalize_child_mouse(
+    kind: MouseEventKind,
+    column: u16,
+    row: u16,
+    modifiers: KeyModifiers,
+) -> Option<InputEvent> {
     let button_number = |button: MouseButton| match button {
         MouseButton::Left => 1,
         MouseButton::Right => 2,

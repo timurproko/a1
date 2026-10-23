@@ -144,6 +144,13 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return { ...values };
     },
   }),
+  Object.freeze({
+    to: 18,
+    description: "Introduce the top resident tab-bar position default.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return { ...values };
+    },
+  }),
 ]);
 
 export interface OwnedUiSettingsCompatibilityResult {

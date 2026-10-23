@@ -222,7 +222,7 @@ describe("Pi shell public component adapters", () => {
     editor.setPromptSuggestion("go ahead and merge it");
     const ghost = editor.render(40).join("\n");
     expect(stripTerminalSequences(ghost)).toContain("❯ go ahead and merge it");
-    expect(ghost).toContain(piTheme().fg("muted", "❯ "));
+    expect(cellStyle(ghost, "❯")).toEqual(cellStyle(piTheme().fg("muted", "❯"), "❯"));
     expect(ghost).toContain("\u001b[2m");
     expect(editor.getText()).toBe("");
 

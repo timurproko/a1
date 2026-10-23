@@ -110,7 +110,7 @@
       "lines": 112
     },
     "native/terminal-host/src/protocol.rs::fixture_set": {
-      "lines": 370
+      "lines": 367
     },
     "native/terminal-host/src/roles/entry.rs::controller_boundary_child": {
       "lines": 109
@@ -131,19 +131,19 @@
       "lines": 787
     },
     "native/terminal-host/src/roles/presentation.rs::PresentationComposer::prepare": {
-      "lines": 173
+      "lines": 126
     },
     "native/terminal-host/src/roles/quit_outro.rs::fall_plan": {
       "lines": 111
     },
     "native/terminal-host/src/roles/server/attach.rs::serve_attach": {
-      "lines": 496
+      "lines": 487
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
-      "lines": 395
+      "lines": 392
     },
     "native/terminal-host/src/roles/server/controller.rs::claim_client_control": {
-      "lines": 129
+      "lines": 126
     },
     "native/terminal-host/src/roles/server/holder.rs::holder_lost": {
       "lines": 120
@@ -155,7 +155,7 @@
       "lines": 197
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
-      "lines": 247
+      "lines": 229
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::stop_tabs": {
       "lines": 157

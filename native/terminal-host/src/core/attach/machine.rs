@@ -1611,6 +1611,34 @@ mod tests {
         // Invariant: a drop in place sends nothing.
         fixture.step(&mut state, mouse(LEFT, 2, 0));
         assert_eq!(fixture.step(&mut state, mouse(RELEASE, 2, 0)), [PAINT]);
+
+        // Invariant: Leaving clears the preview, re-entering restores it, and releasing outside cancels.
+        fixture.step(&mut state, mouse(LEFT, 2, 0));
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0)),
+            [PAINT]
+        );
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 1)),
+            [PAINT]
+        );
+        assert!(
+            state
+                .mode
+                .drag()
+                .is_some_and(|drag| drag.drop_index.is_none())
+        );
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0)),
+            [PAINT]
+        );
+        assert_eq!(fixture.step(&mut state, mouse(RELEASE, 29, 1)), [PAINT]);
+
+        // Invariant: A source removed during the gesture cannot produce a reorder.
+        fixture.step(&mut state, mouse(LEFT, 2, 0));
+        fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
+        fixture.tabs.remove(0);
+        assert_eq!(fixture.step(&mut state, mouse(RELEASE, 29, 0)), [PAINT]);
     }
 
     #[test]

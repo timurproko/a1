@@ -29,8 +29,7 @@ describe("history editor component boundary", () => {
         expect(stripTerminalSequences(rows[0]!).indexOf("1/1")).toBe(3);
         expect(rows[0]).toContain(bar("── "));
         expect(rows[0]).not.toContain(bar("1/1 "));
-        // Rationale: pinned Pi colors a rule as spans rather than one dash at a time; the owned frame closes the rule with its own span.
-        expect(rows[rows.length - 1]).toContain(bar("──"));
+        expect(cellStyle(rows[rows.length - 1]!, "─")).toEqual(cellStyle(bar("─"), "─"));
         expect(stripTerminalSequences(rows[rows.length - 1]!)).toBe("─".repeat(80));
       }
       editor.handleInput?.("\x1b[B");
@@ -61,9 +60,9 @@ describe("history editor component boundary", () => {
       expect(top).toContain(piTheme().fg("dim", "1/1 "));
       expect(topPlain).not.toContain("·");
       expect(topPlain).toBe("── 1/1 " + "─".repeat(26) + " ↑ 10 more " + "─".repeat(36));
-      expect(bottomPlain).toBe("─".repeat(34) + " ↓ 3 more " + "─".repeat(36));
+      expect(bottomPlain).toBe("─".repeat(33) + " ↓ 3 more " + "─".repeat(37));
       expect(Math.abs(topPlain.indexOf(" ↑ 10 more ") * 2 + " ↑ 10 more ".length - 78)).toBeLessThanOrEqual(1);
-      expect(bottomPlain.indexOf(" ↓ 3 more ") * 2 + " ↓ 3 more ".length).toBe(78);
+      expect(bottomPlain.indexOf(" ↓ 3 more ") * 2 + " ↓ 3 more ".length).toBe(76);
       expect(cellStyle(top, "↑")).toEqual(cellStyle(bottom, "↓"));
       expect(cellStyle(top, "1")).not.toEqual(cellStyle(top, "↑"));
       const shifted = editor.render(24)[0]!;

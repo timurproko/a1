@@ -195,6 +195,29 @@ pub struct ControllerBoundary {
 pub struct BridgeAttachment {
     pub client_id: String,
     pub controller_revision: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_tab: Option<String>,
+}
+
+impl BridgeAttachment {
+    pub fn new(client_id: impl Into<String>, controller_revision: u64) -> Self {
+        Self {
+            client_id: client_id.into(),
+            controller_revision,
+            selected_tab: None,
+        }
+    }
+
+    pub fn selected(
+        client_id: impl Into<String>,
+        controller_revision: u64,
+        tab_id: String,
+    ) -> Self {
+        Self {
+            selected_tab: Some(tab_id),
+            ..Self::new(client_id, controller_revision)
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -994,10 +1017,7 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
             encode_frame(&Envelope {
                 message_type: "attachment".to_owned(),
                 request_id: None,
-                body: BridgeAttachment {
-                    client_id: "client-1".to_owned(),
-                    controller_revision: 7,
-                },
+                body: BridgeAttachment::new("client-1", 7),
             })?,
         ),
         (
@@ -1511,6 +1531,33 @@ mod tests {
         let frame = encode_frame(&envelope).expect("encode");
         let decoded: Envelope<Hello> = decode_frame(&frame).expect("decode");
         assert_eq!(decoded, envelope);
+    }
+
+    #[test]
+    fn bridge_attachment_selected_tab_is_optional_and_round_trips() {
+        #[derive(Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct LegacyAttachment<'a> {
+            client_id: &'a str,
+            controller_revision: u64,
+        }
+
+        let legacy = rmp_serde::to_vec_named(&LegacyAttachment {
+            client_id: "client-1",
+            controller_revision: 7,
+        })
+        .expect("legacy attachment");
+        assert_eq!(
+            rmp_serde::from_slice::<BridgeAttachment>(&legacy).expect("decode legacy"),
+            BridgeAttachment::new("client-1", 7)
+        );
+
+        let selected = BridgeAttachment::selected("client-1", 7, "tab-2".into());
+        let encoded = rmp_serde::to_vec_named(&selected).expect("selected attachment");
+        assert_eq!(
+            rmp_serde::from_slice::<BridgeAttachment>(&encoded).expect("decode selected"),
+            selected
+        );
     }
 
     #[test]
