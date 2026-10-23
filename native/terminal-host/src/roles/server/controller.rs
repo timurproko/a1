@@ -23,10 +23,7 @@ pub(super) fn complete_controller_transfer(
         let _ = bridge.peer.offer_control(wire::frame(
             "attachment",
             None,
-            BridgeAttachment {
-                client_id: pending.client_id,
-                controller_revision: pending.revision,
-            },
+            BridgeAttachment::new(pending.client_id, pending.revision),
         )?);
     }
     refresh_surface_subscription(locked, tab_id)?;
@@ -172,10 +169,7 @@ pub(super) fn claim_client_control(
         attachment: locked.bridges.get(&viewed_tab).map(|bridge| {
             (
                 bridge.peer.clone(),
-                BridgeAttachment {
-                    client_id: client_id.to_owned(),
-                    controller_revision: revision,
-                },
+                BridgeAttachment::new(client_id, revision),
             )
         }),
         pending: false,
@@ -210,10 +204,7 @@ pub(super) fn cancel_controller_transfer(
             let _ = bridge.peer.offer_control(wire::frame(
                 "attachment",
                 None,
-                BridgeAttachment {
-                    client_id: previous,
-                    controller_revision: revision,
-                },
+                BridgeAttachment::new(previous, revision),
             )?);
         }
     } else {

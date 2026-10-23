@@ -405,7 +405,8 @@ export class TranscriptViewport {
             : row;
           return selectionCopyLineContent(copyRow, first ? "first" : "continuation");
         }
-        return dock?.prompt !== undefined ? selectionCopyLineContent(row, dock.prompt) : usefulTextLineContent(row);
+        // Invariant: the dock editor has no prefix; transcript prompts still carry chrome.
+        return dock?.prompt !== undefined ? usefulTextLineContent(row, 1) : usefulTextLineContent(row);
       },
       line => included.has(line),
     );

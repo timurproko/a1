@@ -399,13 +399,13 @@ describe("the settings screen", () => {
     for (const query of ["Agent", "Prompt suggestions"]) {
       target.onInput?.("/", HOST);
       for (const letter of query) target.onInput?.(letter, HOST);
-      expect(screen(target).filter(line => line.trim() === "Agent")).toHaveLength(1);
-      expect(screen(target).filter(line => line.includes("Prompt suggestions") && !line.includes("❯"))).toHaveLength(1);
+      expect(screen(target).filter(line => line === " Agent")).toHaveLength(1);
+      expect(screen(target).filter(line => line.includes("Prompt suggestions") && line.trimStart().startsWith("→"))).toHaveLength(1);
       expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→/);
       if (query === "Agent") target.onInput?.(ESC, HOST);
     }
     const lines = screen(target);
-    const row = lines.findIndex(line => line.includes("Prompt suggestions") && !line.includes("❯"));
+    const row = lines.findIndex(line => line.includes("Prompt suggestions") && line.trimStart().startsWith("→"));
     const column = lines[row]!.lastIndexOf("no") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column }, HOST);
     const menu = screen(target);
@@ -420,16 +420,16 @@ describe("the settings screen", () => {
     target.onInput?.("/", HOST);
     for (const letter of "Prompt suggestions") target.onInput?.(letter, HOST);
     expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*yes/);
-    expect(screen(target).filter(line => line.includes("Prompt suggestions") && !line.includes("❯"))).toHaveLength(1);
+    expect(screen(target).filter(line => line.includes("Prompt suggestions") && line.trimStart().startsWith("→"))).toHaveLength(1);
     target.onInput?.(ESC, HOST);
 
     // Invariant: the Skills row is the same kind of owned Agent control: search finds it, Enter cycles it, nothing reaches the engine.
     target.onInput?.("/", HOST);
     for (const letter of "Skills") target.onInput?.(letter, HOST);
-    expect(screen(target).filter(line => line.trim() === "Agent")).toHaveLength(1);
+    expect(screen(target).filter(line => line === " Agent")).toHaveLength(1);
     expect(find(target, "Skills").trimStart()).toMatch(/^→.*collapse/);
     const skills = screen(target);
-    const skillsRow = skills.findIndex(line => line.includes("Skills") && !line.includes("❯"));
+    const skillsRow = skills.findIndex(line => line.includes("Skills") && line.trimStart().startsWith("→"));
     target.onMouse?.({ kind: "press", button: 0, row: skillsRow + 1, column: skills[skillsRow]!.indexOf("collapse") + 1 }, HOST);
     const skillsMenu = screen(target);
     const expandRow = skillsMenu.findIndex(line => /\bexpand\b/.test(line));
@@ -437,7 +437,7 @@ describe("the settings screen", () => {
     await session.load();
     expect(session.value("skillsPresentation")).toBe("expand");
     expect(find(target, "Skills").trimStart()).toMatch(/^→.*expand/);
-    expect(screen(target).filter(line => line.includes("Skills") && !line.includes("❯"))).toHaveLength(1);
+    expect(screen(target).filter(line => line.includes("Skills") && line.trimStart().startsWith("→"))).toHaveLength(1);
     target.onInput?.(ESC, HOST);
 
     target.onInput?.("/", HOST);
@@ -451,6 +451,24 @@ describe("the settings screen", () => {
     target.onInput?.("/", HOST);
     for (const letter of "Prompt image limit") target.onInput?.(letter, HOST);
     expect(find(target, "Prompt image limit").trimStart()).toMatch(/^→.*9/);
+    expect(writes).toEqual([]);
+  });
+
+  it("changes the resident tab-bar position live and persists it", async () => {
+    const { app: target, session, writes } = await app();
+    selectRow(target, "Position");
+    const rows = screen(target);
+    const positionRow = rows.findIndex(line => /^→?\s*Position\s+top\b/.test(line.trimStart()));
+    expect(positionRow).toBeGreaterThan(0);
+    expect(rows[positionRow - 1]?.trimStart()).toMatch(/^Tabs\b/u);
+    expect(rows[positionRow + 1]).toContain("Auto name");
+    expect(find(target, "Position").trimStart()).toMatch(/^→.*top/);
+
+    target.onInput?.(`${ESC}[C`, HOST);
+    await settleChanges();
+    await session.load();
+    expect(session.value("tabsPosition")).toBe("bottom");
+    expect(find(target, "Position").trimStart()).toMatch(/^→.*bottom/);
     expect(writes).toEqual([]);
   });
 
@@ -470,7 +488,7 @@ describe("the settings screen", () => {
     target.onInput?.("/", HOST);
     for (const letter of "Agent") target.onInput?.(letter, HOST);
     const shown = screen(target);
-    expect(shown.filter(line => line.trim() === "Agent")).toHaveLength(1);
+    expect(shown.filter(line => line === " Agent")).toHaveLength(1);
     expect(shown.filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
     expect(shown.join("\n")).not.toContain("unavailable");
     expect(shown.some(line => line.includes("Thinking level"))).toBe(false);
@@ -908,11 +926,10 @@ describe("the settings screen", () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
     target.onInput?.("t", HOST);
-    const before = find(target, "❯").replace(/\s+$/, "");
-
     target.onInput?.(DOWN, HOST);
     const after = screen(target);
-    expect(after.find(line => line.includes("❯"))?.replace(/\s+$/, "")).toBe(before);
+    expect(after.some(line => line.trimEnd() === "t")).toBe(true);
+    expect(after.join("\n")).not.toContain("❯");
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
@@ -1050,11 +1067,9 @@ describe("the settings screen", () => {
   it("jumps a section from the search, as the arrows move through it", async () => {
     const { app: target } = await app();
     target.onInput?.("/", HOST);
-    const before = find(target, "❯").replace(/s+$/, "");
-
     target.onInput?.(`${ESC}[1;2B`, HOST);
     const after = screen(target);
-    expect(after.find(line => line.includes("❯"))?.replace(/s+$/, "")).toBe(before);
+    expect(after.join("\n")).not.toContain("❯");
     expect(after.some(line => line.trimStart().startsWith("→"))).toBe(true);
   });
 
@@ -1075,7 +1090,7 @@ describe("the settings screen", () => {
     for (const letter of "zzzz") target.onInput?.(letter, HOST);
     target.onInput?.(DOWN, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
-    expect(find(target, "❯")).toContain("zzzz");
+    expect(screen(target).some(line => line.trimEnd() === "zzzz")).toBe(true);
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
     expect(screen(target).join("\n")).toContain("No settings found.");
     expect(screen(target).join("\n")).not.toContain("Loading settings");
@@ -1269,7 +1284,8 @@ describe("the input row and status line behind the screen", () => {
     const visible = painted.map(line => line.replace(STYLE, "").trimEnd());
     const searchRow = visible.findIndex(line => line.includes("search settings"));
     expect(painted[searchRow]).toContain(String.fromCharCode(27) + "[7m");
-    expect(visible[searchRow]?.startsWith("❯ search settings")).toBe(true);
+    expect(visible[searchRow]?.startsWith("search settings")).toBe(true);
+    expect(visible[searchRow]).not.toContain("❯");
     expect(visible[searchRow - 1]).toMatch(/^─+$/u);
     expect(visible[searchRow + 1]).toMatch(/^─+$/u);
     expect(searchRow).toBe(visible.length - 3);
@@ -1315,10 +1331,10 @@ describe("the input row and status line behind the screen", () => {
     // Invariant: Esc still leaves search inside the pinned screen.
     pinned.onInput?.("/", host);
     expect(pinned.render({ width: 200, height: 24 }, host).map(line => line.replace(STYLE, "")).join("\n"))
-      .toContain("❯ search settings");
+      .toContain("search settings");
     pinned.onInput?.("\u001b", host);
     expect(pinned.render({ width: 200, height: 24 }, host).map(line => line.replace(STYLE, "")).join("\n"))
-      .not.toContain("❯ search settings");
+      .not.toContain("search settings");
 
     const { app: ordinary } = await app();
     ordinary.onInput?.("\u001b", host);

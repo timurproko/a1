@@ -393,6 +393,8 @@ pub struct DesiredPresentation {
     pub modes: Option<TerminalModes>,
     pub columns: u16,
     pub outer_rows: u16,
+    /// Number of outer rows before child row zero: one for a top strip, zero for a bottom strip.
+    pub child_row_offset: u16,
     pub clear: bool,
 }
 
@@ -401,6 +403,7 @@ pub struct PresentationComposer {
     valid: bool,
     columns: u16,
     outer_rows: u16,
+    child_row_offset: u16,
     tab_id: Option<String>,
     incarnation: u64,
     strip: String,
@@ -439,8 +442,9 @@ impl PresentationComposer {
         }
         let identity_changed =
             self.tab_id != desired.tab_id || self.incarnation != desired.incarnation;
-        let geometry_changed =
-            self.columns != desired.columns || self.outer_rows != desired.outer_rows;
+        let geometry_changed = self.columns != desired.columns
+            || self.outer_rows != desired.outer_rows
+            || self.child_row_offset != desired.child_row_offset;
         let structured_base_invalid = match (&self.structured, &desired.structured) {
             (Some(previous), Some(next)) => {
                 previous.geometry_generation != next.geometry_generation
@@ -456,16 +460,7 @@ impl PresentationComposer {
             || geometry_changed
             || structured_base_invalid;
         let mut output = Vec::new();
-        let mut body_changed = false;
-        let mut overlay_damage = std::collections::BTreeSet::<usize>::new();
-        if self.overlay != desired.overlay {
-            if let Some(previous) = self.overlay.as_deref() {
-                overlay_damage.extend(overlay_child_rows(previous.as_bytes(), desired.outer_rows));
-            }
-            if let Some(next) = desired.overlay.as_deref() {
-                overlay_damage.extend(overlay_child_rows(next.as_bytes(), desired.outer_rows));
-            }
-        }
+        let overlay_damage = changed_overlay_rows(self, desired);
 
         // Invariant: a complete structured repaint overwrites every outer cell in place, so a tab
         // switch or creation never shows a cleared screen (and a blank strip) on terminals that
@@ -480,55 +475,15 @@ impl PresentationComposer {
             output.extend_from_slice(desired.strip.as_bytes());
         }
 
-        // Invariant: child rows beneath an open host overlay skip the overlay's cells, so a
-        // streaming child never blanks and repaints a popup; each outer cell is written once.
-        let overlay_clip = desired
-            .overlay
-            .as_deref()
-            .map(|overlay| overlay_child_spans(overlay.as_bytes(), desired.outer_rows))
-            .unwrap_or_default();
-        let mut legacy_written = false;
-        if let Some(surface) = desired.structured.as_ref() {
-            let prior = (!force).then_some(self.structured.as_ref()).flatten();
-            render_palette_damage(&mut output, prior, surface, force);
-            let visible_rows =
-                usize::from(surface.rows).min(usize::from(desired.outer_rows.saturating_sub(1)));
-            let damage = surface_row_damage(prior, surface).take(visible_rows);
-            for (row_index, changed) in damage.enumerate() {
-                if force || changed || overlay_damage.contains(&row_index) {
-                    let row = surface
-                        .row_data
-                        .get(row_index)
-                        .ok_or_else(|| "structured surface row is missing".to_owned())?;
-                    render_surface_row_clipped(
-                        &mut output,
-                        row,
-                        row_index,
-                        desired.columns,
-                        &surface.styles,
-                        &surface.links,
-                        overlay_clip.get(&row_index).copied(),
-                    )?;
-                }
-            }
-            // Invariant: Without a screen clear, rows below a shorter surface still hold the previous view.
-            if force && !clear_screen {
-                for row_index in visible_rows..usize::from(desired.outer_rows.saturating_sub(1)) {
-                    output.extend_from_slice(
-                        format!("\x1b[{};1H\x1b[0m\x1b[K", row_index + 2).as_bytes(),
-                    );
-                }
-            }
-        } else if force || self.legacy_body != desired.legacy_body || !overlay_damage.is_empty() {
-            output.extend_from_slice(&sanitize_legacy_body(&desired.legacy_body));
-            body_changed = !desired.legacy_body.is_empty();
-            legacy_written = body_changed;
-        }
-        // Invariant: raw legacy bytes may scroll or move into the first row; the strip is
-        // restored after them so child content never remains in the strip row.
-        if legacy_written && !strip_changed {
-            output.extend_from_slice(desired.strip.as_bytes());
-        }
+        let body_changed = render_body(
+            self,
+            desired,
+            force,
+            clear_screen,
+            strip_changed,
+            &overlay_damage,
+            &mut output,
+        )?;
 
         let overlay_changed = self.overlay != desired.overlay;
         if let Some(overlay) = desired.overlay.as_deref()
@@ -565,7 +520,7 @@ impl PresentationComposer {
                 Some(FinalCursor::At(cursor)) => output.extend_from_slice(
                     format!(
                         "\x1b[{};{}H\x1b[?25h",
-                        u32::from(cursor.row) + 2,
+                        u32::from(cursor.row) + 1 + u32::from(desired.child_row_offset),
                         u32::from(cursor.column) + 1
                     )
                     .as_bytes(),
@@ -584,6 +539,7 @@ impl PresentationComposer {
             valid: true,
             columns: desired.columns,
             outer_rows: desired.outer_rows,
+            child_row_offset: desired.child_row_offset,
             tab_id: desired.tab_id.clone(),
             incarnation: desired.incarnation,
             strip: desired.strip.clone(),
@@ -607,6 +563,148 @@ impl PresentationComposer {
     pub fn invalidate(&mut self) {
         self.valid = false;
     }
+}
+
+fn changed_overlay_rows(
+    current: &PresentationComposer,
+    desired: &DesiredPresentation,
+) -> std::collections::BTreeSet<usize> {
+    let mut rows = std::collections::BTreeSet::new();
+    if current.overlay == desired.overlay {
+        return rows;
+    }
+    if let Some(overlay) = current.overlay.as_deref() {
+        rows.extend(overlay_child_rows(
+            overlay.as_bytes(),
+            desired.outer_rows,
+            current.child_row_offset,
+        ));
+    }
+    if let Some(overlay) = desired.overlay.as_deref() {
+        rows.extend(overlay_child_rows(
+            overlay.as_bytes(),
+            desired.outer_rows,
+            desired.child_row_offset,
+        ));
+    }
+    rows
+}
+
+fn render_body(
+    current: &PresentationComposer,
+    desired: &DesiredPresentation,
+    force: bool,
+    clear_screen: bool,
+    strip_changed: bool,
+    overlay_damage: &std::collections::BTreeSet<usize>,
+    output: &mut Vec<u8>,
+) -> Result<bool, String> {
+    let Some(surface) = desired.structured.as_ref() else {
+        if force || current.legacy_body != desired.legacy_body || !overlay_damage.is_empty() {
+            output.extend_from_slice(&relocate_legacy_body(
+                &sanitize_legacy_body(&desired.legacy_body),
+                desired.child_row_offset,
+            )?);
+            if !desired.legacy_body.is_empty() && !strip_changed {
+                output.extend_from_slice(desired.strip.as_bytes());
+            }
+            return Ok(!desired.legacy_body.is_empty());
+        }
+        return Ok(false);
+    };
+    let prior = (!force).then_some(current.structured.as_ref()).flatten();
+    render_palette_damage(output, prior, surface, force);
+    let visible_rows =
+        usize::from(surface.rows).min(usize::from(desired.outer_rows.saturating_sub(1)));
+    let overlay_clip = desired
+        .overlay
+        .as_deref()
+        .map(|overlay| {
+            overlay_child_spans(
+                overlay.as_bytes(),
+                desired.outer_rows,
+                desired.child_row_offset,
+            )
+        })
+        .unwrap_or_default();
+    for (row_index, changed) in surface_row_damage(prior, surface)
+        .take(visible_rows)
+        .enumerate()
+    {
+        if force || changed || overlay_damage.contains(&row_index) {
+            let row = surface
+                .row_data
+                .get(row_index)
+                .ok_or_else(|| "structured surface row is missing".to_owned())?;
+            render_surface_row_clipped(
+                output,
+                row,
+                row_index,
+                desired.columns,
+                &surface.styles,
+                &surface.links,
+                overlay_clip.get(&row_index).copied(),
+                desired.child_row_offset,
+            )?;
+        }
+    }
+    if force && !clear_screen {
+        for row_index in visible_rows..usize::from(desired.outer_rows.saturating_sub(1)) {
+            let row = row_index + 1 + usize::from(desired.child_row_offset);
+            output.extend_from_slice(format!("\x1b[{row};1H\x1b[0m\x1b[K").as_bytes());
+        }
+    }
+    Ok(false)
+}
+
+fn relocate_legacy_body(bytes: &[u8], child_row_offset: u16) -> Result<Vec<u8>, String> {
+    if child_row_offset != 0 {
+        return Ok(bytes.to_vec());
+    }
+    let mut output = Vec::with_capacity(bytes.len());
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if !bytes[index..].starts_with(b"\x1b[") {
+            output.push(bytes[index]);
+            index += 1;
+            continue;
+        }
+        let start = index + 2;
+        let end = bytes[start..]
+            .iter()
+            .position(|byte| (0x40..=0x7e).contains(byte))
+            .map(|offset| start + offset)
+            .ok_or_else(|| "malformed legacy surface: incomplete CSI".to_owned())?;
+        if !matches!(bytes[end], b'H' | b'f') {
+            output.extend_from_slice(&bytes[index..=end]);
+            index = end + 1;
+            continue;
+        }
+        let parameters = std::str::from_utf8(&bytes[start..end])
+            .map_err(|_| "malformed legacy surface: invalid cursor position".to_owned())?;
+        let mut values = parameters.split(';');
+        let row = match values.next().unwrap_or_default() {
+            "" => 1,
+            value => value
+                .parse::<u16>()
+                .map_err(|_| "malformed legacy surface: invalid cursor row".to_owned())?,
+        };
+        let column = values.next();
+        if values.next().is_some()
+            || column.is_some_and(|value| !value.is_empty() && value.parse::<u16>().is_err())
+        {
+            return Err("malformed legacy surface: invalid cursor position".to_owned());
+        }
+        output.extend_from_slice(b"\x1b[");
+        output.extend_from_slice(row.saturating_sub(1).max(1).to_string().as_bytes());
+        if let Some(column) = column {
+            output.push(b';');
+            output.extend_from_slice(column.as_bytes());
+        }
+        output.push(bytes[end]);
+        index = end + 1;
+    }
+    Ok(output)
 }
 
 fn sanitize_legacy_body(bytes: &[u8]) -> Vec<u8> {
@@ -762,7 +860,7 @@ fn render_surface_row(
     styles: &[SurfaceStyle],
     links: &[crate::protocol::SurfaceLink],
 ) -> Result<(), String> {
-    render_surface_row_clipped(output, row, row_index, columns, styles, links, None)
+    render_surface_row_clipped(output, row, row_index, columns, styles, links, None, 1)
 }
 
 /// Renders one child row, leaving the half-open column span `clip` untouched for a host overlay.
@@ -774,8 +872,10 @@ fn render_surface_row_clipped(
     styles: &[SurfaceStyle],
     links: &[crate::protocol::SurfaceLink],
     clip: Option<(usize, usize)>,
+    child_row_offset: u16,
 ) -> Result<(), String> {
-    output.extend_from_slice(format!("\x1b[{};1H", row_index + 2).as_bytes());
+    let terminal_row = row_index + 1 + usize::from(child_row_offset);
+    output.extend_from_slice(format!("\x1b[{terminal_row};1H").as_bytes());
     if clip.is_none() {
         // Invariant: a changed retained row replaces its former terminal cells before repainting.
         // Explicit cell writes then restore styled blanks, while a cleared control/status row cannot
@@ -804,7 +904,7 @@ fn render_surface_row_clipped(
             continue;
         }
         if reposition {
-            output.extend_from_slice(format!("\x1b[{};{}H", row_index + 2, column + 1).as_bytes());
+            output.extend_from_slice(format!("\x1b[{terminal_row};{}H", column + 1).as_bytes());
             reposition = false;
         }
         if cell.width == 2 && column + 1 >= visible {
@@ -844,6 +944,7 @@ fn render_surface_row_clipped(
         usize::from(columns),
         clip,
         reposition,
+        child_row_offset,
     );
     Ok(())
 }
@@ -856,13 +957,15 @@ fn erase_surface_row_suffix(
     columns: usize,
     clip: Option<(usize, usize)>,
     reposition: bool,
+    child_row_offset: u16,
 ) {
+    let terminal_row = row_index + 1 + usize::from(child_row_offset);
     if visible < columns {
         match clip.filter(|(_, right)| *right > visible) {
             None => {
                 if reposition {
                     output.extend_from_slice(
-                        format!("\x1b[{};{}H", row_index + 2, visible + 1).as_bytes(),
+                        format!("\x1b[{terminal_row};{}H", visible + 1).as_bytes(),
                     );
                 }
                 output.extend_from_slice(b"\x1b[K");
@@ -872,13 +975,13 @@ fn erase_surface_row_suffix(
                 let before = left.clamp(visible, columns);
                 if before > visible {
                     output.extend_from_slice(
-                        format!("\x1b[{};{}H", row_index + 2, visible + 1).as_bytes(),
+                        format!("\x1b[{terminal_row};{}H", visible + 1).as_bytes(),
                     );
                     output.extend_from_slice(" ".repeat(before - visible).as_bytes());
                 }
                 if right < columns {
                     output.extend_from_slice(
-                        format!("\x1b[{};{}H\x1b[K", row_index + 2, right + 1).as_bytes(),
+                        format!("\x1b[{terminal_row};{}H\x1b[K", right + 1).as_bytes(),
                     );
                 }
             }
@@ -891,6 +994,7 @@ fn erase_surface_row_suffix(
 fn overlay_child_spans(
     bytes: &[u8],
     outer_rows: u16,
+    child_row_offset: u16,
 ) -> std::collections::BTreeMap<usize, (usize, usize)> {
     let mut spans = std::collections::BTreeMap::<usize, (usize, usize)>::new();
     let Ok(text) = std::str::from_utf8(bytes) else {
@@ -920,8 +1024,14 @@ fn overlay_child_spans(
             continue;
         }
         let width = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
-        if width > 0 && row > 0 && row < usize::from(outer_rows) {
-            let span = spans.entry(row - 1).or_insert((column, column + width));
+        let child_row = row.checked_sub(usize::from(child_row_offset));
+        if width > 0
+            && row < usize::from(outer_rows)
+            && child_row.is_some_and(|value| value < usize::from(outer_rows.saturating_sub(1)))
+        {
+            let span = spans
+                .entry(child_row.expect("validated child row"))
+                .or_insert((column, column + width));
             span.0 = span.0.min(column);
             span.1 = span.1.max(column + width);
         }
@@ -999,7 +1109,11 @@ fn push_color(parameters: &mut Vec<String>, base: u8, color: SurfaceColor) {
     }
 }
 
-fn overlay_child_rows(bytes: &[u8], outer_rows: u16) -> std::collections::BTreeSet<usize> {
+fn overlay_child_rows(
+    bytes: &[u8],
+    outer_rows: u16,
+    child_row_offset: u16,
+) -> std::collections::BTreeSet<usize> {
     let mut rows = std::collections::BTreeSet::new();
     let mut current = 0usize;
     let mut index = 0usize;
@@ -1026,8 +1140,12 @@ fn overlay_child_rows(bytes: &[u8], outer_rows: u16) -> std::collections::BTreeS
         }
         if bytes[index] == b'\n' {
             current = current.saturating_add(1);
-        } else if bytes[index] >= 0x20 && current > 0 && current < usize::from(outer_rows) {
-            rows.insert(current - 1);
+        } else if bytes[index] >= 0x20 && current < usize::from(outer_rows) {
+            if let Some(child_row) = current.checked_sub(usize::from(child_row_offset))
+                && child_row < usize::from(outer_rows.saturating_sub(1))
+            {
+                rows.insert(child_row);
+            }
         }
         index += 1;
     }
@@ -1121,6 +1239,22 @@ mod tests {
             modes: None,
             cursor: None,
         }
+    }
+
+    #[test]
+    fn admission_selected_existing_tab_installs_without_an_inactive_topology() {
+        let mut view = ViewModel::new(Some("b".into()));
+        let topology = view.topology(&[], vec![tab("a"), tab("b")], |_| None);
+        assert!(matches!(
+            topology.action,
+            TopologyAction::Install {
+                ref tabs,
+                changed: true
+            } if tabs.len() == 2
+        ));
+        assert_eq!(view.viewed.as_deref(), Some("b"));
+        assert_eq!(view.requested.as_deref(), Some("b"));
+        assert!(!view.has_staged_tabs());
     }
 
     #[test]
@@ -1537,8 +1671,42 @@ mod tests {
             }),
             columns: 3,
             outer_rows: 3,
+            child_row_offset: 1,
             clear: false,
         }
+    }
+
+    #[test]
+    fn explicit_resume_clear_repaints_an_unchanged_cached_surface() {
+        let surface = structured_fixture();
+        let mut composer = PresentationComposer::default();
+        composer
+            .prepare(&desired(Some(surface.clone()), Vec::new()))
+            .unwrap()
+            .unwrap()
+            .acknowledge(&mut composer);
+        assert!(
+            composer
+                .prepare(&desired(Some(surface.clone()), Vec::new()))
+                .unwrap()
+                .is_none()
+        );
+        let mut refresh = desired(Some(surface), Vec::new());
+        refresh.clear = true;
+        let frame = composer.prepare(&refresh).unwrap().expect("forced repaint");
+        assert!(
+            frame
+                .bytes
+                .windows(7)
+                .any(|bytes| bytes == b"\x1b[2J\x1b[H")
+        );
+        assert!(frame.bytes.windows(5).any(|bytes| bytes == b"STRIP"));
+        assert!(
+            frame
+                .bytes
+                .windows("界".len())
+                .any(|bytes| bytes == "界".as_bytes())
+        );
     }
 
     #[test]
@@ -1724,6 +1892,61 @@ mod tests {
     }
 
     #[test]
+    fn bottom_strip_maps_child_rows_overlays_and_cursor_to_the_remaining_geometry() {
+        let composer = PresentationComposer::default();
+        let mut bottom = desired(Some(structured_fixture()), Vec::new());
+        bottom.strip = "\x1b[3;1HSTRIP".into();
+        bottom.child_row_offset = 0;
+        bottom.overlay = Some("\x1b[2;1HNOTICE".into());
+        bottom.cursor = Some(FinalCursor::At(SurfaceCursor { column: 1, row: 0 }));
+        let frame = composer.prepare(&bottom).unwrap().expect("bottom paint");
+        for row in [b"\x1b[1;1H", b"\x1b[2;1H", b"\x1b[3;1H"] {
+            assert!(frame.bytes.windows(6).any(|window| window == row));
+        }
+        assert!(
+            frame
+                .bytes
+                .windows(12)
+                .any(|window| window == b"\x1b[1;2H\x1b[?25h")
+        );
+    }
+
+    #[test]
+    fn live_strip_edge_change_repaints_the_complete_geometry_without_clearing() {
+        let mut composer = PresentationComposer::default();
+        let mut top = desired(Some(structured_fixture()), Vec::new());
+        top.overlay = Some("\x1b[2;1HTOP OVERLAY".into());
+        composer
+            .prepare(&top)
+            .unwrap()
+            .expect("top paint")
+            .acknowledge(&mut composer);
+
+        let mut bottom = desired(Some(structured_fixture()), Vec::new());
+        bottom.strip = "\x1b[3;1HSTRIP".into();
+        bottom.child_row_offset = 0;
+        bottom.overlay = Some("\x1b[1;1HBOTTOM OVERLAY".into());
+        bottom.cursor = Some(FinalCursor::At(SurfaceCursor { column: 1, row: 0 }));
+        let moved = composer.prepare(&bottom).unwrap().expect("edge move");
+        assert!(!moved.bytes.windows(4).any(|window| window == b"\x1b[2J"));
+        for row in [b"\x1b[1;1H", b"\x1b[2;1H", b"\x1b[3;1H"] {
+            assert!(moved.bytes.windows(6).any(|window| window == row));
+        }
+        assert!(
+            moved
+                .bytes
+                .windows(14)
+                .any(|window| window == b"BOTTOM OVERLAY")
+        );
+        assert!(
+            moved
+                .bytes
+                .windows(12)
+                .any(|window| window == b"\x1b[1;2H\x1b[?25h")
+        );
+    }
+
+    #[test]
     fn overlay_dismissal_restores_the_newest_underlying_row_and_clips_cursor() {
         let mut composer = PresentationComposer::default();
         let mut initial = desired(Some(structured_fixture()), Vec::new());
@@ -1832,7 +2055,7 @@ mod tests {
             prepared.acknowledge(&mut composer);
         }
         assert_eq!(
-            overlay_child_spans(overlay.as_bytes(), 3).get(&0),
+            overlay_child_spans(overlay.as_bytes(), 3, 1).get(&0),
             Some(&(1, 2))
         );
     }
@@ -1906,6 +2129,38 @@ mod tests {
         let leak = bytes.find("leak").expect("body written");
         let strip = bytes.rfind("STRIP").expect("strip restored");
         assert!(strip > leak);
+    }
+
+    #[test]
+    fn bottom_strip_relocates_complete_legacy_child_rows() {
+        let composer = PresentationComposer::default();
+        let mut bottom = desired(None, b"\x1b[2;1Hfirst\x1b[3;1Hsecond".to_vec());
+        bottom.strip = "\x1b[3;1HSTRIP".into();
+        bottom.child_row_offset = 0;
+        let bytes = String::from_utf8(
+            composer
+                .prepare(&bottom)
+                .unwrap()
+                .expect("bottom legacy paint")
+                .bytes,
+        )
+        .unwrap();
+        assert!(bytes.contains("\x1b[1;1Hfirst"));
+        assert!(bytes.contains("\x1b[2;1Hsecond"));
+        assert!(bytes.contains("\x1b[3;1HSTRIP"));
+    }
+
+    #[test]
+    fn bottom_legacy_translation_fails_closed_on_malformed_cursor_addressing() {
+        let composer = PresentationComposer::default();
+        for legacy in [b"body\x1b[".to_vec(), b"\x1b[1:2;1Hbody".to_vec()] {
+            let mut bottom = desired(None, legacy);
+            bottom.child_row_offset = 0;
+            assert!(
+                composer.prepare(&bottom).is_err(),
+                "malformed bottom fallback must not be emitted"
+            );
+        }
     }
 
     #[test]

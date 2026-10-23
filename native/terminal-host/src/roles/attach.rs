@@ -19,7 +19,7 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use crate::core::attach::{
     self as core_attach, Context, Effect, Hover, KeyForward, PopupItem, PopupMenu, RenameEditor,
-    Request, ServerEvent, ShortcutLabels, State, StripLayout, StripSnapshot, TabView,
+    Request, ServerEvent, ShortcutLabels, State, StripLayout, StripSnapshot, TabDrag, TabView,
     debounce_starting_glyphs, drag_marker_column, hold_status_glyphs, holder_idle_precedes_bridge,
     shown_tabs,
 };
@@ -46,9 +46,9 @@ use crate::roles::wire::{
 
 // Protocol: match solo fullscreen's fixed-cell grid; wrapping must not advance outer rows.
 pub const ENTER_OUTER_MODES: &[u8] =
-    b"\x1b[?1049h\x1b[?7l\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h";
+    b"\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?2004h\x1b[?1004h\x1b[?1000h\x1b[?1003h\x1b[?1006h";
 pub const RESTORE_OUTER_MODES: &[u8] =
-    b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?1049l";
+    b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l";
 pub const RESET_OUTER_COLORS: &[u8] = b"\x1b]104\x07\x1b]110\x07\x1b]111\x07\x1b]112\x07";
 const ATTACH_SERVER_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
@@ -398,11 +398,35 @@ fn admit_alt_code_input(
     Event::Key(key)
 }
 
-fn render_drag_marker(column: u16, columns: u16) -> String {
-    render_drag_marker_configured(column, columns, !palette_fallback_requested())
+fn append_drag_marker<T: TabView>(
+    frame: &mut strip::StripFrame,
+    drag: Option<&TabDrag>,
+    tabs: &[T],
+    columns: u16,
+    row: u16,
+) {
+    if let Some(column) = drag.and_then(|drag| drag_marker_column(drag, tabs)) {
+        frame
+            .bytes
+            .push_str(&render_drag_marker_at(column, columns, row));
+    }
 }
 
+fn render_drag_marker_at(column: u16, columns: u16, row: u16) -> String {
+    render_drag_marker_configured_at(column, columns, row, !palette_fallback_requested())
+}
+
+#[cfg(test)]
 fn render_drag_marker_configured(column: u16, columns: u16, truecolor: bool) -> String {
+    render_drag_marker_configured_at(column, columns, 1, truecolor)
+}
+
+fn render_drag_marker_configured_at(
+    column: u16,
+    columns: u16,
+    row: u16,
+    truecolor: bool,
+) -> String {
     if columns == 0 {
         return String::new();
     }
@@ -412,12 +436,17 @@ fn render_drag_marker_configured(column: u16, columns: u16, truecolor: bool) -> 
         "\x1b[0m\x1b[48;5;235m\x1b[38;5;15m"
     };
     format!(
-        "\x1b[s\x1b[1;{}H{style}│\x1b[0m\x1b[u",
+        "\x1b[s\x1b[{};{}H{style}│\x1b[0m\x1b[u",
+        row.max(1),
         column.min(columns - 1) + 1
     )
 }
 
 pub fn render_notice(message: &str, columns: u16) -> String {
+    render_notice_at(message, columns, 2)
+}
+
+fn render_notice_at(message: &str, columns: u16, row: u16) -> String {
     let mut notice = format!(" ! {message} ");
     notice.retain(|value| !value.is_control());
     let maximum = usize::from(columns);
@@ -429,33 +458,70 @@ pub fn render_notice(message: &str, columns: u16) -> String {
             + "…";
     }
     format!(
-        "\x1b[s\x1b[2;1H\x1b[48;2;38;38;38m\x1b[38;2;220;220;220m{notice:<width$}\x1b[0m\x1b[u",
+        "\x1b[s\x1b[{};1H\x1b[48;2;38;38;38m\x1b[38;2;220;220;220m{notice:<width$}\x1b[0m\x1b[u",
+        row.max(1),
         width = maximum
     )
 }
 
 const MAX_SETTINGS_BYTES: u64 = 256 * 1024;
 const SETTINGS_POLL_INTERVAL: Duration = Duration::from_millis(250);
+const OUTER_RESUME_GAP: Duration = Duration::from_secs(5);
 
-fn read_time_format(path: &Path) -> TimeFormat {
-    let Ok(metadata) = std::fs::metadata(path) else {
-        return TimeFormat::Twelve;
-    };
-    if metadata.len() > MAX_SETTINGS_BYTES {
-        return TimeFormat::Twelve;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PresentationSettings {
+    time_format: TimeFormat,
+    accent_color: Option<&'static str>,
+    accent_hover: [u8; 3],
+    tab_bar_position: TabBarPosition,
+}
+
+impl Default for PresentationSettings {
+    fn default() -> Self {
+        Self {
+            time_format: TimeFormat::Twelve,
+            accent_color: None,
+            accent_hover: accent_selected_background(None),
+            tab_bar_position: TabBarPosition::Top,
+        }
     }
-    let Ok(bytes) = std::fs::read(path) else {
-        return TimeFormat::Twelve;
+}
+
+fn read_presentation_settings(path: &Path) -> PresentationSettings {
+    let document = std::fs::metadata(path)
+        .ok()
+        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
+        .and_then(|_| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
+    let Some(owned_settings) = document.as_ref().and_then(|value| value.get("a1")) else {
+        return PresentationSettings::default();
     };
-    let Ok(document) = serde_json::from_slice::<serde_json::Value>(&bytes) else {
-        return TimeFormat::Twelve;
-    };
-    TimeFormat::from_setting(
-        document
-            .get("a1")
-            .and_then(|value| value.get("timeFormat"))
-            .and_then(serde_json::Value::as_str),
-    )
+    PresentationSettings {
+        time_format: TimeFormat::from_setting(
+            owned_settings
+                .get("timeFormat")
+                .and_then(serde_json::Value::as_str),
+        ),
+        accent_color: owned_settings
+            .get("accentColor")
+            .and_then(serde_json::Value::as_str)
+            .and_then(known_accent),
+        accent_hover: accent_selected_background(
+            owned_settings
+                .get("accentColor")
+                .and_then(serde_json::Value::as_str),
+        ),
+        tab_bar_position: TabBarPosition::from_setting(
+            owned_settings
+                .get("tabsPosition")
+                .and_then(serde_json::Value::as_str),
+        ),
+    }
+}
+
+#[cfg(test)]
+fn read_time_format(path: &Path) -> TimeFormat {
+    read_presentation_settings(path).time_format
 }
 
 /// Development diagnostics: when `A1_ATTACH_KEY_TRACE` names a file, the attach client appends
@@ -492,6 +558,18 @@ fn read_quit_animation(path: &Path) -> bool {
 
 /// The owned theme's dark `selectedBg` for each A1 accent, derived by
 /// `derivePiAccentProjection(accent, "dark")`; popups hover with it like owned menus.
+fn known_accent(accent: &str) -> Option<&'static str> {
+    match accent {
+        "blue" => Some("blue"),
+        "cyan" => Some("cyan"),
+        "green" => Some("green"),
+        "orange" => Some("orange"),
+        "pink" => Some("pink"),
+        "purple" => Some("purple"),
+        _ => None,
+    }
+}
+
 fn accent_selected_background(accent: Option<&str>) -> [u8; 3] {
     match accent {
         Some("blue") => [52, 57, 69],
@@ -503,21 +581,14 @@ fn accent_selected_background(accent: Option<&str>) -> [u8; 3] {
     }
 }
 
-/// Reads the owned accent's popup hover background, defaulting to the purple accent's.
+#[cfg(test)]
+fn read_tab_bar_position(path: &Path) -> TabBarPosition {
+    read_presentation_settings(path).tab_bar_position
+}
+
+#[cfg(test)]
 fn read_accent_hover(path: &Path) -> [u8; 3] {
-    let accent = std::fs::metadata(path)
-        .ok()
-        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
-        .and_then(|_| std::fs::read(path).ok())
-        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-        .and_then(|document| {
-            document
-                .get("a1")
-                .and_then(|value| value.get("accentColor"))
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned)
-        });
-    accent_selected_background(accent.as_deref())
+    read_presentation_settings(path).accent_hover
 }
 
 #[derive(Debug)]
@@ -525,17 +596,22 @@ struct TimeFormatWatch {
     path: PathBuf,
     signature: Option<(std::time::SystemTime, u64)>,
     value: TimeFormat,
+    accent_color: Option<&'static str>,
     accent_hover: [u8; 3],
+    tab_bar_position: TabBarPosition,
     checked_at: Instant,
 }
 
 impl TimeFormatWatch {
     fn new(path: &Path) -> Self {
+        let settings = read_presentation_settings(path);
         Self {
             path: path.to_owned(),
             signature: settings_signature(path),
-            value: read_time_format(path),
-            accent_hover: read_accent_hover(path),
+            value: settings.time_format,
+            accent_color: settings.accent_color,
+            accent_hover: settings.accent_hover,
+            tab_bar_position: settings.tab_bar_position,
             checked_at: Instant::now(),
         }
     }
@@ -551,14 +627,22 @@ impl TimeFormatWatch {
             return false;
         }
         self.signature = signature;
-        self.accent_hover = read_accent_hover(&self.path);
-        let value = read_time_format(&self.path);
-        if value == self.value {
-            return false;
-        }
-        self.value = value;
-        true
+        let settings = read_presentation_settings(&self.path);
+        let changed = settings.time_format != self.value
+            || settings.accent_color != self.accent_color
+            || settings.accent_hover != self.accent_hover
+            || settings.tab_bar_position != self.tab_bar_position;
+        self.value = settings.time_format;
+        self.accent_color = settings.accent_color;
+        self.accent_hover = settings.accent_hover;
+        self.tab_bar_position = settings.tab_bar_position;
+        changed
     }
+}
+
+fn resumed_after_gap(previous: SystemTime, now: SystemTime) -> bool {
+    now.duration_since(previous)
+        .is_ok_and(|elapsed| elapsed >= OUTER_RESUME_GAP)
 }
 
 fn clock_minute() -> u64 {
@@ -589,13 +673,30 @@ impl PopupMenu {
         self.render_styled(truecolor, POPUP_HOVER_NEUTRAL)
     }
 
+    #[cfg(test)]
+    fn render_styled(&self, truecolor: bool, hover: [u8; 3]) -> String {
+        self.render_styled_at(truecolor, hover, TabBarPosition::Top, u16::MAX)
+    }
+
     /// Renders with `hover` as the hovered row's truecolor background, the accent's
     /// `selectedBg` in live use so popups hover like owned menus.
-    fn render_styled(&self, truecolor: bool, hover: [u8; 3]) -> String {
+    fn render_styled_at(
+        &self,
+        truecolor: bool,
+        hover: [u8; 3],
+        position: TabBarPosition,
+        outer_rows: u16,
+    ) -> String {
         let inner = usize::from(self.width).saturating_sub(2);
         let mut output = String::from("\x1b[s");
         for (index, item) in self.items.iter().enumerate() {
-            let row = index + 2;
+            let row = match position {
+                TabBarPosition::Top => index + 2,
+                TabBarPosition::Bottom => usize::from(outer_rows)
+                    .saturating_sub(self.items.len())
+                    .saturating_add(index),
+            };
+            let row = row.max(1);
             output.push_str(&format!("\x1b[{row};{}H", self.column.saturating_add(1)));
             if truecolor {
                 let hovered_background = format!("{};{};{}", hover[0], hover[1], hover[2]);
@@ -731,8 +832,69 @@ pub fn tab_rows(outer_rows: u16) -> Result<u16, &'static str> {
         .filter(|rows| *rows > 0)
         .ok_or("resident attach requires at least two rows")
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TabBarPosition {
+    Top,
+    Bottom,
+}
+
+impl TabBarPosition {
+    fn from_setting(value: Option<&str>) -> Self {
+        if value == Some("bottom") {
+            Self::Bottom
+        } else {
+            Self::Top
+        }
+    }
+
+    fn strip_row(self, outer_rows: u16) -> u16 {
+        match self {
+            Self::Top => 0,
+            Self::Bottom => outer_rows.saturating_sub(1),
+        }
+    }
+
+    fn strip_terminal_row(self, outer_rows: u16) -> u16 {
+        self.strip_row(outer_rows).saturating_add(1)
+    }
+
+    fn child_row_offset(self) -> u16 {
+        match self {
+            Self::Top => 1,
+            Self::Bottom => 0,
+        }
+    }
+
+    fn child_mouse_row(self, outer_row: u16, outer_rows: u16) -> Option<u16> {
+        if outer_row == self.strip_row(outer_rows) {
+            return None;
+        }
+        match self {
+            Self::Top => outer_row.checked_sub(1),
+            Self::Bottom => (outer_row < outer_rows.saturating_sub(1)).then_some(outer_row),
+        }
+    }
+
+    fn logical_mouse_row(self, outer_row: u16, outer_rows: u16) -> u16 {
+        if outer_row == self.strip_row(outer_rows) {
+            0
+        } else {
+            self.child_mouse_row(outer_row, outer_rows)
+                .map_or(u16::MAX, |row| row.saturating_add(1))
+        }
+    }
+
+    fn adjacent_child_terminal_row(self, outer_rows: u16) -> u16 {
+        match self {
+            Self::Top => 2,
+            Self::Bottom => outer_rows.saturating_sub(1).max(1),
+        }
+    }
+}
+
 pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
-    outer_row.checked_sub(1)
+    TabBarPosition::Top.child_mouse_row(outer_row, u16::MAX)
 }
 
 struct AttachServerWriter {
@@ -1013,6 +1175,8 @@ struct Handshake {
     channel: InputChannel,
     apply_effects: bool,
     request_generation: u64,
+    selected_tab: Option<String>,
+    initial_tabs: Option<TabList>,
     columns: u16,
     outer_rows: u16,
     create: TabCreate,
@@ -1066,12 +1230,12 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
     let attachment = wire::read_payload(&mut stream)?
         .ok_or_else(|| "server closed before attach admission".to_owned())?;
     match wire::kind(&attachment)?.message_type.as_str() {
-        "attached" => {
-            let _: (Option<u64>, BridgeAttachment) = wire::body(&attachment)?;
-        }
+        "attached" => {}
+
         "refused" => return Err("a1 is attached in another terminal".to_owned()),
         message => return Err(format!("unexpected attach admission message: {message}")),
     }
+    let (_, admission): (Option<u64>, BridgeAttachment) = wire::body(&attachment)?;
     let (columns, outer_rows) = outer_size()?;
     let request_generation = start_session(&mut stream, options, columns, outer_rows)?;
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
@@ -1088,6 +1252,21 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
         channel,
         apply_effects,
         request_generation,
+        selected_tab: admission.selected_tab,
+        initial_tabs: admission.initial_tabs.map(|initial| TabList {
+            revision: initial.revision,
+            tabs: initial
+                .tabs
+                .into_iter()
+                .map(|tab| wire::TabSummary {
+                    tab_id: tab.tab_id,
+                    name: tab.name,
+                    name_source: tab.name_source,
+                    lifecycle: tab.lifecycle,
+                    cwd: tab.cwd,
+                })
+                .collect(),
+        }),
         columns,
         outer_rows,
         create,
@@ -1226,8 +1405,16 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     let (message_rx, ingress_bytes) = spawn_server_reader(reader, wake_tx.clone());
     let terminal = OuterTerminal::enter()?;
     let input_rx = spawn_input_reader(wake_tx);
-    let mut core = State::new(options.view_tab.map(str::to_owned), handshake.columns);
+    let initial_view = handshake
+        .selected_tab
+        .clone()
+        .or_else(|| options.view_tab.map(str::to_owned));
+    let mut core = State::new(initial_view, handshake.columns);
+    let initial_tabs = handshake.initial_tabs.clone();
     let mut client = Client::start(&options, handshake, terminal)?;
+    if let Some(list) = initial_tabs {
+        client.install_tab_list(&mut core, list)?;
+    }
     loop {
         watchdog.bump();
         if let Some(error) = client.stream.failure() {
@@ -1378,6 +1565,18 @@ impl GlyphState {
 
 /// The attach role's side of a session: the server connection, the outer terminal, and what it
 /// presents. Core attach state decides; the client applies its effects.
+fn should_paint_strip(has_surface: bool, has_shown_tabs: bool, notice: bool) -> bool {
+    has_surface || has_shown_tabs || notice
+}
+
+fn apply_owned_accent(tabs: &mut [StripTab], color: Option<&str>) {
+    for tab in tabs {
+        if tab.id.starts_with("settings-") || tab.accent.is_none() {
+            tab.accent = color.map(str::to_owned);
+        }
+    }
+}
+
 struct Client {
     stream: AttachServerWriter,
     terminal: OuterTerminal,
@@ -1394,12 +1593,14 @@ struct Client {
     time_format: TimeFormatWatch,
     strip_frame: strip::StripFrame,
     presented: Presented,
+    has_shown_tabs: bool,
     apply_effects: bool,
     pending_terminal_effects: VecDeque<TerminalEffect>,
     applied_terminal_effects: HashMap<(String, u64), u64>,
     glyphs: GlyphState,
     started: Instant,
     last_strip_frame: Instant,
+    last_tick_wall: SystemTime,
     displayed_clock_minute: u64,
     last_list: Instant,
     pressed_chars: std::collections::HashSet<char>,
@@ -1413,15 +1614,24 @@ impl Client {
         handshake: Handshake,
         terminal: OuterTerminal,
     ) -> Result<Self, String> {
-        let mut view = ViewModel::new(options.view_tab.map(str::to_owned));
+        let mut view = ViewModel::new(
+            handshake
+                .selected_tab
+                .clone()
+                .or_else(|| options.view_tab.map(str::to_owned)),
+        );
         view.expect_request_generation(handshake.request_generation);
         let time_format = TimeFormatWatch::new(options.settings_file);
-        let strip_frame = strip::render_configured(
+        let strip_frame = strip::render_interactive_at(
             &[],
             view.viewed.as_deref(),
             handshake.columns,
             None,
             time_format.value,
+            None,
+            time_format
+                .tab_bar_position
+                .strip_terminal_row(handshake.outer_rows),
         );
         let client = Self {
             stream: AttachServerWriter::start(handshake.stream),
@@ -1439,20 +1649,22 @@ impl Client {
             time_format,
             strip_frame,
             presented: Presented::new(),
+            has_shown_tabs: false,
             apply_effects: handshake.apply_effects,
             pending_terminal_effects: VecDeque::new(),
             applied_terminal_effects: HashMap::new(),
             glyphs: GlyphState::default(),
             started: Instant::now(),
             last_strip_frame: Instant::now(),
+            last_tick_wall: SystemTime::now(),
             displayed_clock_minute: clock_minute(),
             last_list: Instant::now(),
             pressed_chars: std::collections::HashSet::new(),
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
         };
-        // Invariant: the launch frame hides the cursor until the first child surface places it.
-        client.present(None, true)?;
+        // Rationale: attach.start precedes the first tab.list. Wait for a committed child
+        // surface before presenting that list and the body as one first frame.
         Ok(client)
     }
 
@@ -1516,6 +1728,9 @@ impl Client {
             Request::Create => wire::send(stream, "tab.create", None, self.create.clone()),
             Request::OpenSettings => {
                 wire::send(stream, "tab.open-settings", None, self.create.clone())
+            }
+            Request::PrewarmSettings => {
+                wire::send(stream, "tab.prewarm-settings", None, self.create.clone())
             }
             Request::Close(tab_id) => wire::send(stream, "tab.close", None, TabTarget { tab_id }),
             Request::Restart(tab_id) => {
@@ -1586,12 +1801,23 @@ impl Client {
     }
 
     fn paint(&mut self, core: &mut State, clear: bool) -> Result<(), String> {
+        // Invariant: first strip and complete child body enter the alternate screen together.
+        // A failed launch notice and closing a previously shown last tab still paint.
+        if !should_paint_strip(
+            self.presented.tab_id.is_some(),
+            self.has_shown_tabs,
+            core.notice.is_some(),
+        ) {
+            return Ok(());
+        }
+        self.has_shown_tabs |= !self.tabs.is_empty();
         let rename = core.mode.rename().map(RenameEditor::display);
         let mut shown = shown_tabs(
             &self.tabs,
             self.view.viewed.as_deref(),
             core.view.settings_shown,
         );
+        apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
             &mut shown,
@@ -1600,15 +1826,29 @@ impl Client {
         );
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
+        let drag = core.mode.drag().cloned();
         let render = |hovered: Option<&StripHover>| {
-            strip::render_interactive(
+            let mut frame = strip::render_interactive_at(
                 &shown,
                 self.view.viewed.as_deref(),
                 self.columns,
                 hovered,
                 self.time_format.value,
                 rename.as_ref(),
-            )
+                self.time_format
+                    .tab_bar_position
+                    .strip_terminal_row(self.outer_rows),
+            );
+            append_drag_marker(
+                &mut frame,
+                drag.as_ref(),
+                &shown,
+                self.columns,
+                self.time_format
+                    .tab_bar_position
+                    .strip_terminal_row(self.outer_rows),
+            );
+            frame
         };
         let hovered = core.hovered.as_ref().map(StripHover::from);
         let mut strip_frame = render(hovered.as_ref());
@@ -1620,11 +1860,11 @@ impl Client {
             strip_frame = render(None);
         }
         self.strip_frame = strip_frame;
-        let overlay = self.overlay(core, &shown);
+        let overlay = self.overlay(core);
         self.present(overlay, clear)
     }
 
-    fn overlay(&self, core: &State, shown: &[StripTab]) -> Option<String> {
+    fn overlay(&self, core: &State) -> Option<String> {
         let status_notice = self
             .view
             .viewed
@@ -1640,22 +1880,29 @@ impl Client {
                 }
             });
         if let Some(menu) = core.mode.popup() {
-            Some(menu.render_styled(!palette_fallback_requested(), self.time_format.accent_hover))
-        } else if let Some(column) = core
-            .mode
-            .drag()
-            .and_then(|drag| drag_marker_column(drag, shown, &self.strip_frame))
-        {
-            Some(render_drag_marker(column, self.columns))
+            Some(menu.render_styled_at(
+                !palette_fallback_requested(),
+                self.time_format.accent_hover,
+                self.time_format.tab_bar_position,
+                self.outer_rows,
+            ))
         } else {
             core.notice
                 .as_deref()
                 .or(status_notice.as_deref())
-                .map(|notice| render_notice(notice, self.columns))
+                .map(|notice| {
+                    render_notice_at(
+                        notice,
+                        self.columns,
+                        self.time_format
+                            .tab_bar_position
+                            .adjacent_child_terminal_row(self.outer_rows),
+                    )
+                })
         }
     }
 
-    fn present(&self, overlay: Option<String>, clear: bool) -> Result<(), String> {
+    fn present(&mut self, overlay: Option<String>, clear: bool) -> Result<(), String> {
         self.terminal.present(DesiredPresentation {
             tab_id: self.view.viewed.clone(),
             incarnation: self.presented.incarnation,
@@ -1669,6 +1916,7 @@ impl Client {
             modes: self.presented.modes.clone(),
             columns: self.columns,
             outer_rows: self.outer_rows,
+            child_row_offset: self.time_format.tab_bar_position.child_row_offset(),
             clear,
         })
     }
@@ -1966,6 +2214,14 @@ impl Client {
 
     fn tab_list(&mut self, core: &mut State, payload: &[u8]) -> Result<(), String> {
         let (_, list): (_, TabList) = wire::body(payload)?;
+        self.install_tab_list(core, list)
+    }
+
+    fn install_tab_list(&mut self, core: &mut State, list: TabList) -> Result<(), String> {
+        // Concurrency: a newer queued registry update must not be overwritten by admission data.
+        if list.revision < core.registry_revision {
+            return Ok(());
+        }
         let revision = list.revision;
         core.registry_revision = revision;
         let name_confirmed = core.pending_manual_name.as_ref().is_some_and(|(id, name)| {
@@ -2053,6 +2309,9 @@ impl Client {
     }
 
     fn tick(&mut self, core: &mut State) -> Result<(), String> {
+        let wall_now = SystemTime::now();
+        let resumed = resumed_after_gap(self.last_tick_wall, wall_now);
+        self.last_tick_wall = wall_now;
         if let Some(Offer::Commit {
             surface,
             tabs,
@@ -2061,6 +2320,11 @@ impl Client {
             self.tabs.iter().any(|tab| tab.id == id)
         }) {
             self.apply_commit(core, surface, tabs, requested)?;
+        }
+        if resumed {
+            // Platform: after suspend, ConPTY may have discarded its last painted cells while
+            // the writer still considers them current. Overwrite the full cached frame once.
+            self.paint(core, true)?;
         }
         if strip::animations_active(&self.tabs)
             && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs)
@@ -2205,6 +2469,7 @@ impl Client {
                 .play_quit_outro(&crate::roles::quit_outro::presented_row_widths(
                     self.columns,
                     self.outer_rows,
+                    self.time_format.tab_bar_position.child_row_offset(),
                     self.presented.structured.as_ref(),
                 ));
         }
@@ -2218,16 +2483,37 @@ impl Client {
         core: &mut State,
         mouse: crossterm::event::MouseEvent,
     ) -> Result<(), String> {
-        let forwarded = self.run(core, core_attach::Event::Mouse((&mouse).into()))?;
+        let position = self.time_format.tab_bar_position;
+        let mut normalized: core_attach::AttachMouse = (&mouse).into();
+        normalized.row = if position == TabBarPosition::Bottom {
+            core.mode
+                .popup()
+                .and_then(|menu| {
+                    let start = self
+                        .outer_rows
+                        .saturating_sub(1)
+                        .saturating_sub(menu.items.len() as u16);
+                    (mouse.row >= start && mouse.row < self.outer_rows.saturating_sub(1))
+                        .then_some(mouse.row.saturating_sub(start).saturating_add(1))
+                })
+                .unwrap_or_else(|| position.logical_mouse_row(mouse.row, self.outer_rows))
+        } else {
+            position.logical_mouse_row(mouse.row, self.outer_rows)
+        };
+        let forwarded = self.run(core, core_attach::Event::Mouse(normalized))?;
         if !forwarded.contains(&Effect::ForwardMouse) {
             return Ok(());
         }
-        let event =
-            outer_input::normalize_mouse(mouse.kind, mouse.column, mouse.row, mouse.modifiers);
+        let child_row = position.child_mouse_row(mouse.row, self.outer_rows);
+        let event = child_row.and_then(|row| {
+            outer_input::normalize_child_mouse(mouse.kind, mouse.column, row, mouse.modifiers)
+        });
         if event.as_ref().is_some_and(outer_input::resets_chord) {
             self.chord.reset();
         }
-        let bytes = encode_mouse(mouse.kind, mouse.column, mouse.row).unwrap_or_default();
+        let bytes = child_row
+            .and_then(|row| encode_child_mouse(mouse.kind, mouse.column, row))
+            .unwrap_or_default();
         if event.is_some() || !bytes.is_empty() {
             core.user_input_pending = true;
             self.send_input(core, event, bytes)?;
@@ -2557,6 +2843,7 @@ impl OuterWriter {
 
 struct OuterTerminal {
     restored: bool,
+    entered: bool,
     kitty_keyboard: bool,
     writer: OuterWriter,
 }
@@ -2564,18 +2851,11 @@ impl OuterTerminal {
     fn enter() -> Result<Self, String> {
         enable_raw_mode().map_err(|error| format!("enable outer raw mode: {error}"))?;
         let kitty_keyboard = query_kitty_keyboard(Duration::from_millis(200)).unwrap_or(false);
-        let mut initial = Vec::from(ENTER_OUTER_MODES);
-        if kitty_keyboard {
-            initial.extend_from_slice(KITTY_ENABLE);
-        }
-        {
-            let mut out = TerminalOutput::new();
-            out.write_all(&initial)
-                .and_then(|()| out.flush())
-                .map_err(|error| format!("enter outer terminal: {error}"))?;
-        }
+        // Invariant: negotiating input does not clear the user's terminal before there is a
+        // real tab frame to show. The first presentation enters the alternate screen.
         Ok(Self {
             restored: false,
+            entered: false,
             kitty_keyboard,
             writer: OuterWriter::start(),
         })
@@ -2583,11 +2863,24 @@ impl OuterTerminal {
     fn write(&self, bytes: &[u8]) -> Result<(), String> {
         self.writer.bytes(bytes)
     }
-    fn present(&self, desired: DesiredPresentation) -> Result<(), String> {
+    fn present(&mut self, desired: DesiredPresentation) -> Result<(), String> {
+        if !self.entered {
+            self.entered = true;
+            let mut initial = Vec::from(ENTER_OUTER_MODES);
+            if self.kitty_keyboard {
+                initial.extend_from_slice(KITTY_ENABLE);
+            }
+            // Concurrency: the writer owns stdout for its lifetime. Queue the screen switch
+            // before the first presentation rather than taking its stdout lock on this thread.
+            self.writer.bytes(&initial)?;
+        }
         self.writer.offer(desired)
     }
     /// Plays bare A1's fall outro over the screen this client presented, before restoration.
     fn play_quit_outro(&self, row_widths: &[usize]) {
+        if !self.entered {
+            return;
+        }
         self.writer.discard_presentation();
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -2596,6 +2889,9 @@ impl OuterTerminal {
         let _ = self.write(b"\x1b[?25h");
     }
     fn restore_sequence(&self) -> Vec<u8> {
+        if !self.entered {
+            return Vec::new();
+        }
         let mut bytes = Vec::new();
         bytes.extend_from_slice(outer_input::RESET_CURSOR_STYLE);
         bytes.extend_from_slice(RESET_OUTER_COLORS);
@@ -2739,8 +3035,12 @@ fn encode_key(code: KeyCode, modifiers: KeyModifiers) -> Vec<u8> {
         _ => Vec::new(),
     }
 }
+#[cfg(test)]
 fn encode_mouse(kind: MouseEventKind, column: u16, outer_row: u16) -> Option<Vec<u8>> {
-    let row = child_mouse_row(outer_row)?;
+    encode_child_mouse(kind, column, child_mouse_row(outer_row)?)
+}
+
+fn encode_child_mouse(kind: MouseEventKind, column: u16, row: u16) -> Option<Vec<u8>> {
     let (code, suffix) = match kind {
         MouseEventKind::Down(MouseButton::Left) => (0, 'M'),
         MouseEventKind::Down(MouseButton::Middle) => (1, 'M'),
@@ -2760,7 +3060,85 @@ fn encode_mouse(kind: MouseEventKind, column: u16, outer_row: u16) -> Option<Vec
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::attach::{PopupAction, TabDrag, update_drag};
+    use crate::core::attach::{PopupAction, update_drag};
+
+    #[test]
+    fn wake_gap_detects_suspend_without_repainting_during_ordinary_idle() {
+        let before = UNIX_EPOCH + Duration::from_secs(10);
+        assert!(!resumed_after_gap(
+            before,
+            before + Duration::from_millis(500)
+        ));
+        assert!(!resumed_after_gap(before, before - Duration::from_secs(1)));
+        assert!(resumed_after_gap(before, before + OUTER_RESUME_GAP));
+    }
+
+    #[test]
+    fn cold_attach_waits_for_the_first_surface_before_paint() {
+        assert!(!should_paint_strip(false, false, false));
+        assert!(should_paint_strip(true, false, false));
+        assert!(
+            should_paint_strip(false, true, false),
+            "last-tab close still repaints the strip"
+        );
+        assert!(
+            should_paint_strip(false, false, true),
+            "create failure remains visible"
+        );
+        let first = StripTab {
+            id: "tab-1".into(),
+            name: "Existing Agent".into(),
+            name_source: "user".into(),
+            status: "running".into(),
+            accent: None,
+            title_animation: None,
+        };
+        let mut view = ViewModel::new(Some("tab-2".into()));
+        view.request("tab-1");
+        assert_eq!(
+            view.topology(&[], vec![first], |_| None).action,
+            TopologyAction::Staged
+        );
+        assert!(
+            !should_paint_strip(false, false, false),
+            "a staged registry alone must not enter the screen"
+        );
+    }
+
+    #[test]
+    fn settings_chip_uses_configured_accent_before_and_after_its_surface() {
+        let mut tabs = [
+            StripTab {
+                id: "settings-1".into(),
+                name: "Settings".into(),
+                name_source: "system".into(),
+                status: "starting".into(),
+                accent: Some("purple".into()),
+                title_animation: None,
+            },
+            StripTab {
+                id: "agent-1".into(),
+                name: "Agent".into(),
+                name_source: "default".into(),
+                status: "working".into(),
+                accent: Some("pink".into()),
+                title_animation: None,
+            },
+        ];
+        apply_owned_accent(&mut tabs, Some("cyan"));
+        assert_eq!(tabs[0].accent.as_deref(), Some("cyan"));
+        assert_eq!(tabs[1].accent.as_deref(), Some("pink"));
+        let frame = strip::render(&tabs, Some("settings-1"), 80);
+        let cyan = if strip::palette_fallback_requested() {
+            "\x1b[48;5;23m"
+        } else {
+            "\x1b[48;2;59;83;88m"
+        };
+        assert!(
+            frame.bytes.contains(cyan),
+            "Settings is cyan on its first frame"
+        );
+    }
 
     fn startup_surface(revision: u64, text: &str, structured: bool) -> Surface {
         Surface {
@@ -2957,6 +3335,11 @@ mod tests {
         assert_eq!(tab_rows(24), Ok(23));
         assert_eq!(child_mouse_row(0), None);
         assert_eq!(child_mouse_row(1), Some(0));
+        assert_eq!(TabBarPosition::Bottom.strip_row(24), 23);
+        assert_eq!(TabBarPosition::Bottom.child_mouse_row(0, 24), Some(0));
+        assert_eq!(TabBarPosition::Bottom.child_mouse_row(23, 24), None);
+        assert_eq!(TabBarPosition::Bottom.logical_mouse_row(23, 24), 0);
+        assert_eq!(TabBarPosition::Bottom.logical_mouse_row(0, 24), 1);
         assert_eq!(encode_mouse(MouseEventKind::Moved, 4, 0), None);
         assert_eq!(
             encode_mouse(MouseEventKind::Moved, 4, 1),
@@ -3301,7 +3684,7 @@ mod tests {
         menu.resize(80);
         assert_eq!(menu.column + menu.width, 80);
 
-        let mut add = PopupMenu::add(0, 80, &bindings);
+        let mut add = PopupMenu::add(0, 80, &bindings, false);
         assert_eq!(add.action_at(add.column, 1), Some(PopupAction::NewAgent));
         assert_eq!(add.action_at(add.column, 2), None);
         assert_eq!(add.action_at(add.column, 3), Some(PopupAction::Settings));
@@ -3313,6 +3696,9 @@ mod tests {
         assert!(add_rendered.contains("+ Agent"));
         assert!(add_rendered.contains("  Settings"));
         assert!(add_rendered.contains("Alt+,"));
+        let checked = PopupMenu::add(0, 80, &bindings, true);
+        assert!(checked.render().contains("✓ Settings"));
+        assert_eq!(checked.width, add.width);
         for rendered in [add.render_with_color(true), add.render_with_color(false)] {
             let plain = rendered
                 .split('\x1b')
@@ -3327,6 +3713,14 @@ mod tests {
         let palette_add = add.render_with_color(false);
         assert!(palette_add.contains("\x1b[38;5;242mAlt+,"));
         assert!(add_rendered.contains('─'));
+        let bottom_add =
+            add.render_styled_at(true, POPUP_HOVER_NEUTRAL, TabBarPosition::Bottom, 24);
+        let first_bottom_row = 24usize.saturating_sub(add.items.len());
+        assert!(bottom_add.contains(&format!("\x1b[{first_bottom_row};")));
+        assert!(
+            !bottom_add.contains("\x1b[24;"),
+            "popup stays above bottom strip"
+        );
         let settings = PopupMenu::context("settings-1".into(), 0, 80, &bindings);
         assert_eq!(settings.items.len(), 1);
         assert_eq!(
@@ -3376,7 +3770,8 @@ mod tests {
             started_at: now,
             shown: false,
             drop_index: Some(0),
-            expected_revision: 9,
+            marker_column: None,
+            initial_order: vec!["a".into(), "b".into(), "c".into()],
         };
         let mut held = TabDrag {
             tab_id: "a".into(),
@@ -3384,22 +3779,42 @@ mod tests {
             started_at: now - core_attach::DRAG_HOLD,
             shown: false,
             drop_index: Some(0),
-            expected_revision: 9,
+            marker_column: None,
+            initial_order: vec!["a".into(), "b".into(), "c".into()],
         };
-        assert!(update_drag(&mut held, 1, true, &tabs, &snapshot, now));
+        assert!(update_drag(&mut held, 1, &tabs, &snapshot, now));
         assert!(held.shown);
-        assert_eq!(drag_marker_column(&held, &tabs, &snapshot), None);
+        assert_eq!(drag_marker_column(&held, &tabs), None);
 
-        assert!(update_drag(
-            &mut drag, last_end, true, &tabs, &snapshot, now
-        ));
+        assert!(update_drag(&mut drag, last_end, &tabs, &snapshot, now));
         assert!(drag.shown);
         assert_eq!(drag.drop_index, Some(2));
-        assert_eq!(drag_marker_column(&drag, &tabs, &snapshot), Some(last_end));
-        assert!(update_drag(
-            &mut drag, last_end, false, &tabs, &snapshot, now
-        ));
-        assert_eq!(drag.drop_index, None);
+        assert_eq!(drag_marker_column(&drag, &tabs), Some(last_end));
+        let mut top = strip::render(&tabs, Some("a"), 80);
+        append_drag_marker(&mut top, Some(&drag), &tabs, 80, 1);
+        assert!(top.bytes.contains(&format!("\x1b[1;{}H", last_end + 1)));
+        assert!(top.bytes.contains('│'));
+        let mut repainted_tabs = tabs.clone();
+        repainted_tabs[1].status = "working".into();
+        let mut repainted = strip::render(&repainted_tabs, Some("a"), 80);
+        append_drag_marker(&mut repainted, Some(&drag), &repainted_tabs, 80, 1);
+        assert!(
+            repainted
+                .bytes
+                .contains(&format!("\x1b[1;{}H", last_end + 1)),
+            "a status-driven strip repaint retains unchanged drag feedback"
+        );
+        let mut bottom =
+            strip::render_interactive_at(&tabs, Some("a"), 80, None, TimeFormat::Twelve, None, 24);
+        append_drag_marker(&mut bottom, Some(&drag), &tabs, 80, 24);
+        assert!(bottom.bytes.contains(&format!("\x1b[24;{}H", last_end + 1)));
+        assert!(bottom.bytes.contains('│'));
+
+        assert!(!update_drag(&mut drag, last_end, &tabs, &snapshot, now));
+        assert_eq!(drag.drop_index, Some(2));
+        let mut outside = strip::render(&tabs, Some("a"), 80);
+        append_drag_marker(&mut outside, Some(&drag), &tabs, 80, 1);
+        assert!(outside.bytes.contains('│'));
     }
 
     #[test]
@@ -3414,7 +3829,7 @@ mod tests {
         std::fs::write(&file, br#"{"a1":{"accentColor":"cyan"}}"#).unwrap();
         assert_eq!(read_accent_hover(&file), [48, 60, 61]);
         let bindings = TabBindings::load(profile.path());
-        let mut menu = PopupMenu::add(0, 80, &bindings);
+        let mut menu = PopupMenu::add(0, 80, &bindings, false);
         menu.hovered = Some(0);
         let rendered = menu.render_styled(true, read_accent_hover(&file));
         assert!(rendered.contains("\x1b[48;2;48;60;61m"));
@@ -3435,6 +3850,29 @@ mod tests {
     }
 
     #[test]
+    fn tab_bar_geometry_maps_minimum_top_and_bottom_terminals() {
+        assert_eq!(tab_rows(2), Ok(1));
+        assert!(tab_rows(1).is_err());
+
+        assert_eq!(TabBarPosition::Top.strip_row(2), 0);
+        assert_eq!(TabBarPosition::Top.strip_terminal_row(2), 1);
+        assert_eq!(TabBarPosition::Top.child_row_offset(), 1);
+        assert_eq!(TabBarPosition::Top.child_mouse_row(0, 2), None);
+        assert_eq!(TabBarPosition::Top.child_mouse_row(1, 2), Some(0));
+        assert_eq!(TabBarPosition::Top.logical_mouse_row(0, 2), 0);
+        assert_eq!(TabBarPosition::Top.logical_mouse_row(1, 2), 1);
+
+        assert_eq!(TabBarPosition::Bottom.strip_row(2), 1);
+        assert_eq!(TabBarPosition::Bottom.strip_terminal_row(2), 2);
+        assert_eq!(TabBarPosition::Bottom.child_row_offset(), 0);
+        assert_eq!(TabBarPosition::Bottom.child_mouse_row(0, 2), Some(0));
+        assert_eq!(TabBarPosition::Bottom.child_mouse_row(1, 2), None);
+        assert_eq!(TabBarPosition::Bottom.logical_mouse_row(0, 2), 1);
+        assert_eq!(TabBarPosition::Bottom.logical_mouse_row(1, 2), 0);
+        assert_eq!(TabBarPosition::Bottom.logical_mouse_row(2, 2), u16::MAX);
+    }
+
+    #[test]
     fn settings_time_format_is_bounded_and_observed_live() {
         let profile = tempfile::tempdir().unwrap();
         let file = profile.path().join("settings.json");
@@ -3442,15 +3880,59 @@ mod tests {
         std::fs::write(&file, br#"{"a1":{"timeFormat":"20:00"}}"#).unwrap();
         assert_eq!(read_time_format(&file), TimeFormat::TwentyFour);
         let mut watch = TimeFormatWatch::new(&file);
+        watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
+        assert!(!watch.refresh(), "an unchanged document does not repaint");
+
         std::fs::write(&file, br#"{"a1":{"timeFormat":"8:00 PM"}}"#).unwrap();
         watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
         assert!(watch.refresh());
         assert_eq!(watch.value, TimeFormat::Twelve);
 
-        std::fs::write(&file, br#"{"a1":{"timeFormat":"invalid"}}"#).unwrap();
-        assert_eq!(read_time_format(&file), TimeFormat::Twelve);
+        std::fs::write(
+            &file,
+            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom"}}"#,
+        )
+        .unwrap();
+        watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
+        assert!(watch.refresh());
+        assert_eq!(watch.tab_bar_position, TabBarPosition::Bottom);
+        assert_eq!(read_tab_bar_position(&file), TabBarPosition::Bottom);
+
+        std::fs::write(
+            &file,
+            br#"{"a1":{"accentColor":"cyan","tabsPosition":"bottom"}}"#,
+        )
+        .unwrap();
+        watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
+        assert!(watch.refresh());
+        assert_eq!(watch.accent_color, Some("cyan"));
+
+        std::fs::write(
+            &file,
+            br#"{"a1":{"timeFormat":"invalid","accentColor":"invalid","tabsPosition":"side"}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            read_presentation_settings(&file),
+            PresentationSettings::default()
+        );
+        watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
+        assert!(watch.refresh());
+        assert_eq!(watch.value, TimeFormat::Twelve);
+        assert_eq!(watch.accent_color, None);
+        assert_eq!(watch.accent_hover, accent_selected_background(None));
+        assert_eq!(watch.tab_bar_position, TabBarPosition::Top);
+
+        std::fs::write(&file, b"not json").unwrap();
+        assert_eq!(
+            read_presentation_settings(&file),
+            PresentationSettings::default()
+        );
         std::fs::write(&file, vec![b'x'; MAX_SETTINGS_BYTES as usize + 1]).unwrap();
-        assert_eq!(read_time_format(&file), TimeFormat::Twelve);
+        assert_eq!(
+            read_presentation_settings(&file),
+            PresentationSettings::default()
+        );
     }
 
     #[test]
@@ -3550,6 +4032,8 @@ mod tests {
         }
         assert!(String::from_utf8_lossy(ENTER_OUTER_MODES).contains("?7l"));
         assert!(String::from_utf8_lossy(RESTORE_OUTER_MODES).contains("?7h"));
+        assert!(String::from_utf8_lossy(ENTER_OUTER_MODES).contains("?25l"));
+        assert!(String::from_utf8_lossy(RESTORE_OUTER_MODES).contains("?25h"));
         assert_eq!(BEGIN_SYNCHRONIZED_UPDATE, b"\x1b[?2026h");
         assert_eq!(END_SYNCHRONIZED_UPDATE, b"\x1b[?2026l");
         assert_eq!(KITTY_ENABLE, b"\x1b[>1u");
