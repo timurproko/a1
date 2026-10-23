@@ -1,7 +1,7 @@
 /** Dependency-free executable probes that preserve failure identity without exposing subprocess output. */
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { extname, isAbsolute, resolve, win32 } from "node:path";
+import { posix, win32 } from "node:path";
 
 export const PROBE_TIMEOUT_MS = 15000;
 
@@ -13,7 +13,8 @@ export function locateExecutable(command, { platform = process.platform, env = p
     return key ? env[key] : undefined;
   };
   const extensions = windows ? (value("PATHEXT") ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [""];
-  const path = windows ? win32 : { resolve, isAbsolute, extname };
+  // Path semantics follow the requested platform, never the host, so an injected platform resolves identically everywhere.
+  const path = windows ? win32 : posix;
   const hasDirectory = path.isAbsolute(command) || /[\\/]/u.test(command);
   const directories = hasDirectory ? [""] : (value("PATH") ?? "").split(windows ? ";" : ":").filter(Boolean);
   const suffixes = windows && path.extname(command) ? [""] : extensions;

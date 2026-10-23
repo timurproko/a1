@@ -4,7 +4,9 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- **What failed:** one case in `environment-probe.test.ts`, `resolves quoted Windows PATH entries and PATHEXT without invoking a shell`, returned `null` on macos-15 and ubuntu-24.04; Windows passed. The `vitest-full-without-isolated` child therefore exited 1, every owner scope it carries failed together, and `Complete regression required` saw incomplete lane evidence. The `Cannot find module …/exit-watcher.js` stderr line is pre-existing noise that also appears in the last green run (#70) and is not a failure.
+- **Why:** introduced by `ad06d91` (#812). `locateExecutable` started resolving with `path.win32` whenever the requested platform is `win32`, but the test still built its PATH directory and expected executable with the host's `resolve`. On a POSIX host the expected value is `/…/fixture tool/rustc.EXE` while the probe correctly tries `\…\fixture tool\rustc.EXE`, so the injected `exists` never matches. Windows hosts hide the mismatch because both flavors agree there, and #812's bounded PR validation did not run the POSIX Full lanes. The non-Windows branch had the mirror defect: it used the host's `resolve`, so an injected POSIX platform resolved with Windows semantics on a Windows host.
+- **Fix:** path semantics now follow the requested platform in both directions (`win32` for Windows, `posix` otherwise). On real hosts the default platform equals the host, so runtime behavior is unchanged. The Windows case now uses a Windows-absolute fixture and expects a `win32`-joined path, keeping quoted PATH entries and PATHEXT ordering under test on every host. A new POSIX case proves host-independent POSIX resolution, including skipping a missing PATH entry. No assertion, budget, timeout, or coverage was reduced, and no requirement changed, so `skip_specs` stays.
 
 ## Evidence
 
@@ -52,3 +54,9 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
   - Last successful Full regression run: [#70](https://github.com/timurproko/a1/actions/runs/39708423610) on `8791e02`; 1 `develop` commit since:
     - `ad06d91` build(windows): bootstrap native prerequisites (#812)
+- Focused implementation evidence on Windows with the fix (Node 24), before finalization:
+  - The run #71 failed-job log contains exactly one failing test on both POSIX lanes (`Test Files 1 failed | 447 passed | 4 skipped`): the Windows PATH case above.
+  - Reproduction: `path.win32.resolve` of the test's POSIX directory yields a backslash path, while the test expects the `path.posix` form, so the probe returns `null`. The mirror POSIX case returns `null` with the `ad06d91` probe on this Windows host and the expected path with the fix.
+  - `npx vitest run` over `environment-probe`, `environment-prerequisites`, and `native-build-environment` passed (83 tests). `naming-inspection`, `code-documentation`, and `build-script-stdout-policy` passed (74 tests). `npm run typecheck` passed.
+- Pre-finalization PR Full regression observations: none, because generated repair drafts run no Development suites before finalization.
+- Known gap: no local macOS or Linux run. The finalized-head PR Full regression lanes provide the POSIX evidence and must pass before handoff.

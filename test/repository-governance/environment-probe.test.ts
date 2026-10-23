@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { posix, resolve, win32 } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import { locateExecutable, probeVersion, PROBE_TIMEOUT_MS } from "../../scripts/development/environment-probe.mjs";
@@ -11,10 +11,18 @@ const locate = () => executable;
 
 describe("build prerequisite executable probes", () => {
   it("resolves quoted Windows PATH entries and PATHEXT without invoking a shell", () => {
-    const directory = resolve("fixture tool");
+    const directory = win32.resolve("C:\\fixture tool");
+    const expected = win32.join(directory, "rustc.EXE");
     const found = locateExecutable("rustc", { platform: "win32", env: { PATH: `"${directory}"`, PATHEXT: ".CMD;.EXE" },
-      exists: (path: string) => path === executable });
-    expect(found).toBe(executable);
+      exists: (path: string) => path === expected });
+    expect(found).toBe(expected);
+  });
+
+  it("resolves POSIX PATH entries with POSIX semantics regardless of the host", () => {
+    const expected = posix.join("/opt/fixture tool", "rustc");
+    const found = locateExecutable("rustc", { platform: "linux", env: { PATH: "/usr/missing:/opt/fixture tool" },
+      exists: (path: string) => path === expected });
+    expect(found).toBe(expected);
   });
 
   it("does not spawn when the executable is missing", () => {
