@@ -37,6 +37,8 @@ An accepted ordinary frame drag SHALL use ordered display-column boundaries that
 
 An upward drag within transcript content SHALL map its moving endpoint to the content row under the pointer without a one-row downward offset. The top endpoint row SHALL begin at the pointed grapheme and continue toward the lower anchor using standard reverse-selection semantics; it SHALL NOT select an additional row beyond the pointer or convert the endpoint row into a full-width interior row. Prompt/editor rows outside the addressed transcript content SHALL remain excluded.
 
+When held-edge auto-scroll grows a transcript drag beyond one screen, copy SHALL include every selected transcript row from the pointed endpoint to the press anchor, including rows scrolled past either viewport edge and transcript text beneath the floating jump-to-bottom control. Paint SHALL remain clipped to visible rows, and a selection with no visible row SHALL copy nothing.
+
 Double-click SHALL select the visible word at the pointed cell and triple-click SHALL select the useful visible content of that frame row. Once a distinct drag is active, returning to the anchor cell SHALL retain the anchor grapheme, and motion across row or region boundaries SHALL not create an empty intermediate range.
 
 #### Scenario: Drag one grapheme in dock content
@@ -63,6 +65,11 @@ Double-click SHALL select the visible word at the pointed cell and triple-click 
 - **WHEN** a reverse drag stops on a transcript content row adjacent to prompt-owned chrome
 - **THEN** selection SHALL include that pointed content row from the pointer grapheme toward the lower anchor
 - **AND** it SHALL NOT omit that row, select a row above the pointer, or paint the adjacent prompt row
+
+#### Scenario: Auto-scroll an upward drag past one screen
+- **WHEN** a reverse transcript drag holds the pointer at the top edge until the press anchor scrolls below the viewport
+- **THEN** copy SHALL contain the pointed row from the pointer grapheme through every row down to the press anchor
+- **AND** no selected row SHALL be dropped or replaced by jump-to-bottom chrome
 
 ### Requirement: Copy output matches selected visible text
 
