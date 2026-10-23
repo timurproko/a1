@@ -119,8 +119,7 @@ export interface OwnedUiShellEngineOptions {
   readonly residentTab?: {
     requestDetach(): Promise<boolean>;
     closeOwnedRoute?(route: string): void;
-    reportStatus?(status: "working" | "idle" | "stalled"): void;
-    readonly stallNoticeSeconds?: number;
+    reportStatus?(status: "working" | "idle"): void;
     admit?(input: {
       readonly sessionId: string;
       readonly sessionFile: string | null;

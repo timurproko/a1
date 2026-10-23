@@ -32,7 +32,6 @@ describe("resident tab launch contracts", () => {
       maxConcurrentStarts: 2,
       prewarmCount: 1,
       unresponsiveRestartSeconds: 120,
-      stallNoticeSeconds: 300,
     };
     await writeFile(join(root.path, "settings.json"), JSON.stringify({ theme: "dark", [namespace]: { residentTabs: false } }));
     expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual(defaults);
@@ -259,7 +258,7 @@ describe("resident tab launch contracts", () => {
     await expect(start).resolves.toBe(true);
     transport.emit("data", encodeResidentFrame({ type: "attachment", body: { clientId: "client", controllerRevision: 7 } }));
     bridge.status("working");
-    bridge.status("stalled", true);
+    bridge.status("unresponsive", true);
     await expect(bridge.requestRestart()).resolves.toBe(false);
     expect(heartbeatScheduled).toBe(false);
     expect(transport.sent.filter(message => message.type === "bridge.status")).toEqual([

@@ -1,7 +1,7 @@
 import { connect, type Socket } from "node:net";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "./protocol.js";
 
-export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "done" | "aborted" | "error" | "idle" | "unresponsive" | "stalled" | "crashed" | "restarting" | "failed";
+export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "done" | "aborted" | "error" | "idle" | "unresponsive" | "crashed" | "restarting" | "failed";
 export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string }
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
 export type TabBridgeCommand =
@@ -100,7 +100,7 @@ export class TabBridgeClient {
 
   status(state: ResidentTabStatus, degraded = false, pendingRequests = 0, queuedInput = 0): void {
     this.#latestStatus = { state, degraded, accent: this.#accent, pendingRequests, queuedInput };
-    const recoveryState = state === "unresponsive" || state === "stalled" || state === "crashed" || state === "restarting" || state === "failed";
+    const recoveryState = state === "unresponsive" || state === "crashed" || state === "restarting" || state === "failed";
     if (recoveryState && !this.#supports("recovery-status")) return;
     this.#send("bridge.status", {
       seq: ++this.#sequence,

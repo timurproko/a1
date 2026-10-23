@@ -31,7 +31,7 @@ pub(super) fn bridge_surface_status(
     let reported = match reported.as_str() {
         "starting" | "restoring" | "working" | "needs-input" | "idle" | "done" | "aborted"
         | "done-unseen" | "error" | "failed" | "crashed" | "restarting" | "unresponsive"
-        | "stalled" | "ended" => reported,
+        | "ended" => reported,
         _ => "idle".into(),
     };
     let mut next = if degraded {
@@ -237,12 +237,8 @@ pub(super) fn serve_bridge(
                         status.degraded,
                         viewed,
                     );
-                    if surface.status != previous {
-                        match surface.status.as_str() {
-                            "stalled" => counters::record(CounterEvent::StalledTransition),
-                            "degraded" => counters::record(CounterEvent::CheckpointDegraded),
-                            _ => {}
-                        }
+                    if surface.status != previous && surface.status == "degraded" {
+                        counters::record(CounterEvent::CheckpointDegraded);
                     }
                     if status.accent.is_some() {
                         surface.accent = status.accent;

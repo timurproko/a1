@@ -294,7 +294,6 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
             if (tabBridge.tabId.startsWith("settings-") && route === "settings") void tabBridge.requestClose();
           },
           reportStatus: status => tabBridge.status(status),
-          stallNoticeSeconds: 300,
           admit: input => tabRecovery.admit({ ...input, incarnation: options.tab!.incarnation }),
           dispatched: () => tabRecovery.dispatched(),
           correlated: (submissionId, entryId) => correlateResidentTabSubmission(tabRecovery, backend, submissionId, entryId),
