@@ -387,6 +387,30 @@ describe("transcript viewport", () => {
     expect(clipped.rows.every(row => !row.includes("\u001b[47m"))).toBe(true);
   });
 
+  it("copies from the pointer row to the press point while edge auto-scroll grows an upward drag", () => {
+    const viewport = new TranscriptViewport();
+    const input = { documentRows: rows(40), promptAnchors: [], dockRows: ["editor", "footer"], width: 30, height: 10 };
+    viewport.compose(input);
+    viewport.scrollTo(20);
+    viewport.compose(input);
+    viewport.pressSelection(6, 6, 100);
+    viewport.extendSelection(3, 1, 101, false);
+    viewport.compose(input);
+    expect(viewport.selectedText()).toBe("w 20\nrow 21\nrow 22\nrow 23\nrow 24\nrow 25");
+
+    // Concurrency: mirrors the shell's edge auto-scroll tick; the pointer stays on row 1 while content moves.
+    for (let tick = 0; tick < 6; tick += 1) {
+      viewport.scrollBy(-1);
+      viewport.extendSelection(3, 1, undefined, false);
+      viewport.compose(input);
+    }
+    viewport.releaseSelection();
+    const frame = viewport.compose(input);
+    expect(stripAnsi(frame.rows[0] ?? "")).toContain("row 14");
+    expect(frame.rows.some(row => stripAnsi(row).includes("Jump to bottom"))).toBe(true);
+    expect(viewport.selectedText()).toBe(["w 14", ...rows(26).slice(15)].join("\n"));
+  });
+
   describe("with a pinned sticky prompt", () => {
     const SELECTED = "\u001b[45m";
     const input = {
@@ -446,7 +470,7 @@ describe("transcript viewport", () => {
       expect(viewport.selectedText()).toBe("prompt");
     });
 
-    it.each(["above", "below"] as const)("lets a selection shrink and disappear as its source scrolls %s", direction => {
+    it.each(["above", "below"] as const)("clips paint, keeps copy, and disappears as its source scrolls %s", direction => {
       const viewport = pinned();
       viewport.pressSelection(1, 2, 100);
       viewport.extendSelection(20, 3, 101, false);
@@ -457,7 +481,7 @@ describe("transcript viewport", () => {
       viewport.scrollBy(direction === "above" ? 1 : -1);
       const shrunk = viewport.compose(input);
       expect(paintedRows(shrunk)).toEqual(direction === "above" ? [1] : [2, 3]);
-      expect(viewport.selectedText()).toBe(direction === "above" ? "row 4" : "row 3\nrow 4");
+      expect(viewport.selectedText()).toBe("row 3\nrow 4");
 
       viewport.scrollBy(direction === "above" ? 1 : -3);
       const gone = viewport.compose(input);

@@ -7,6 +7,7 @@
 
 - [x] 2.1 Cover forward and reverse gestures over identical transcript cells and assert matching inclusive grapheme bounds, partial endpoint-row paint, and copied text.
 - [x] 2.2 Preserve held-edge auto-scroll, sticky-row clipping, prompt/editor clicks and selection, controls, overlays, regular-mode ownership, and `a1 pi` isolation through focused regression coverage.
+- [x] 2.3 Copy every selected transcript row when held-edge auto-scroll grows an upward drag beyond one screen, including rows past either viewport edge and beneath the jump-to-bottom control, with paint still clipped to visible rows.
 
 ## 3. Delivery evidence
 

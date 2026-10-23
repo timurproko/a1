@@ -213,6 +213,11 @@ interface SelectionAnchors {
   readonly head: SelectionRowAnchor;
 }
 
+interface OffscreenDocumentRows {
+  readonly from: number;
+  readonly to: number;
+}
+
 const DEFAULT_CONFIG: TranscriptViewportConfig = {
   scrollbarAppearance: "auto",
   scrollbarStyle: "thin",
@@ -343,9 +348,8 @@ export class TranscriptViewport {
     if (autoScroll && frameRow > frameHeight) this.scrollBy(1, now);
     else if (autoScroll && frameRow <= 1 && this.#scrollTop > 0) this.scrollBy(-1, now);
     const pointerLine = clamp(frameRow - 1, 0, this.#selectionRows.length - 1);
-    // A pinned prompt alias is presentation chrome, not the document row hidden beneath it.
-    // When an upward drag reaches that edge, retain the pointer column on the first visible
-    // content row instead of copying hidden text or turning the row into a full-width interior.
+    // Invariant: a pinned prompt alias is chrome; an upward drag reaching it keeps the pointer
+    // column on the first visible content row.
     const line = pointerLine < this.#firstSelectableRow && pointerLine < selection.anchor.line
       ? this.#firstSelectableRow
       : pointerLine;
@@ -364,8 +368,7 @@ export class TranscriptViewport {
       this.clearSelection();
       return true;
     }
-    // Edge auto-scroll keeps the pointer on one terminal cell while the document row beneath it
-    // changes. That semantic motion must advance the endpoint even when its frame point is equal.
+    // Invariant: edge auto-scroll changes the document row under a still pointer; that advances the head.
     if (next !== selection || !sameSelectionRowAnchor(this.#selectionAnchors.head, headAnchor)) {
       this.#selection = next;
       this.#selectionAnchors = { ...this.#selectionAnchors, head: headAnchor };
@@ -394,29 +397,60 @@ export class TranscriptViewport {
   }
 
   selectedText(): string | null {
-    const selection = this.#visibleSelection();
-    if (selection === undefined) return null;
+    const visible = this.#visibleSelection();
+    if (visible === undefined) return null;
+    const offscreen = offscreenSelectionRows(this.#selection, this.#selectionAnchors, this.#scrollTop, this.#firstSelectableRow, this.#viewportHeight);
+    // Rationale: edge auto-scroll grows a drag beyond one screen. Paint stays clipped to the
+    // frame, while copy reads the selected document rows past either viewport edge and beneath
+    // the floating bottom control.
+    const selectionRows: string[] = [];
+    const rowAnchors: (SelectionRowAnchor | undefined)[] = [];
+    const controlLine = (this.#frame?.hits.bottom?.row ?? 0) - 1;
+    const pushDocumentRow = (row: number): void => {
+      const source = this.#documentRows[row] ?? "";
+      selectionRows.push(truncateToWidth(source, this.#contentWidth));
+      rowAnchors.push(documentSelectionAnchor(row, source));
+    };
+    for (let row = offscreen.above?.from ?? 0; row <= (offscreen.above?.to ?? -1); row += 1) pushDocumentRow(row);
+    for (let line = visible.start.line; line <= visible.end.line; line += 1) {
+      const anchor = this.#selectionRowAnchors[line];
+      if (line === controlLine && anchor?.kind === "document") pushDocumentRow(anchor.row);
+      else {
+        selectionRows.push(this.#selectionRows[line] ?? "");
+        rowAnchors.push(anchor);
+      }
+    }
+    for (let row = offscreen.below?.from ?? 0; row <= (offscreen.below?.to ?? -1); row += 1) pushDocumentRow(row);
+    const ordered = orderedTextSelection(this.#selection);
+    const selection: OrderedTextSelection = {
+      ...visible,
+      start: { line: 0, column: offscreen.above === undefined ? visible.start.column : ordered?.start.column ?? 0 },
+      end: {
+        line: selectionRows.length - 1,
+        column: offscreen.below === undefined ? visible.end.column : ordered?.end.column ?? Number.MAX_SAFE_INTEGER,
+      },
+    };
     const copiedLines = Array.from(
       { length: Math.max(0, selection.end.line - selection.start.line + 1) },
       (_value, index) => selection.start.line + index,
     ).filter(line => {
-      const anchor = this.#selectionRowAnchors[line];
+      const anchor = rowAnchors[line];
       return anchor?.kind === "document" && anchor.row < this.#selectableDocumentRowCount
         || anchor?.kind === "dock" && this.#copyableDockRows.has(anchor.fromBottom);
     });
     if (copiedLines.length === 0) return null;
-    const transcriptLines = copiedLines.filter(line => this.#selectionRowAnchors[line]?.kind === "document");
+    const transcriptLines = copiedLines.filter(line => rowAnchors[line]?.kind === "document");
     const prompt = transcriptLines.length === 0 ? undefined : this.#promptAnchors.find(candidate => transcriptLines.every(line => {
-      const anchor = this.#selectionRowAnchors[line];
+      const anchor = rowAnchors[line];
       return anchor?.kind === "document" && anchor.row >= candidate.firstRow && anchor.row <= candidate.lastRow;
     }));
     const included = new Set(copiedLines);
     const text = textSelectionText(
       selection,
-      this.#selectionRows,
+      selectionRows,
       line => {
-        const row = this.#selectionRows[line] ?? "";
-        const anchor = this.#selectionRowAnchors[line];
+        const row = selectionRows[line] ?? "";
+        const anchor = rowAnchors[line];
         const dock = anchor?.kind === "dock" ? this.#copyableDockRows.get(anchor.fromBottom) : undefined;
         if (prompt !== undefined && anchor?.kind === "document") {
           const first = anchor.row === prompt.firstRow;
@@ -433,7 +467,7 @@ export class TranscriptViewport {
     return text.length === 0 ? null : text;
   }
 
-  /** Captures visible selected text, not off-screen history. */
+  /** Captures selected text, including document rows of a visible selection scrolled off-screen. */
   captureSelectedText(): SelectionCopySnapshot | null {
     if (!this.#copyableSelection) return null;
     const started = performance.now();
@@ -700,7 +734,7 @@ export class TranscriptViewport {
         const bottomHovered = pointer !== undefined && pointer.row === bottomHit.row
           && pointer.column >= bottomHit.columnStart && pointer.column <= bottomHit.columnEnd;
         control = { row, left, text: `${CONTROL_STYLE_RESET}${theme.bottomControl(label, bottomHovered)}` };
-        // Invariant: the control floats above selection; its cells are never selected or copied.
+        // Invariant: the control floats above selection; copy restores the text beneath it.
         selectionRows[row] = overlaySpan(
           padRowPreservingBackground(selectionRows[row] ?? "", width),
           left,
@@ -929,8 +963,7 @@ export class TranscriptViewport {
       cause: "dock-input",
     };
     assertTranscriptViewportFrameDescriptor(descriptor);
-    this.#selectionRows = [...this.#selectionRows.slice(0, viewportHeight), ...dock].slice(0, boundedHeight);
-    this.#copyableDockRows = copyableDockRowsBySuffix(dockRows, copyableDockRows);
+    this.#selectionRows = [...this.#selectionRows.slice(0, viewportHeight), ...dock].slice(0, boundedHeight);    this.#copyableDockRows = copyableDockRowsBySuffix(dockRows, copyableDockRows);
     const frame: TranscriptViewportFrame = {
       ...previous,
       rows: [...previous.rows.slice(0, viewportHeight), ...dock.map(row => row.replace(VIEWPORT_PROMPT_ZONES, ""))].slice(0, boundedHeight),
@@ -1077,8 +1110,40 @@ export class TranscriptViewport {
   }
 
   #updateCopyableSelection(): void {
-    this.#copyableSelection = this.selectedText() !== null;
+    // Performance: off-screen rows count as copyable by range alone; capture trims whitespace later.
+    const offscreen = offscreenSelectionRows(this.#selection, this.#selectionAnchors, this.#scrollTop, this.#firstSelectableRow, this.#viewportHeight);
+    const selectable = [offscreen.above, offscreen.below]
+      .some(range => range !== undefined && range.from < this.#selectableDocumentRowCount);
+    this.#copyableSelection = selectable && this.#visibleSelection() !== undefined || this.selectedText() !== null;
   }
+}
+
+/** Document rows of a selection whose endpoints lie beyond the visible viewport edges. */
+function offscreenSelectionRows(
+  selection: TextSelection | undefined,
+  anchors: SelectionAnchors | undefined,
+  scrollTop: number,
+  firstSelectableRow: number,
+  viewportHeight: number,
+): { readonly above?: OffscreenDocumentRows; readonly below?: OffscreenDocumentRows } {
+  const ordered = orderedTextSelection(selection);
+  if (selection === undefined || ordered === undefined || anchors === undefined) return {};
+  const anchorFirst = selection.anchor.line <= selection.head.line;
+  const top = anchorFirst ? anchors.anchor : anchors.head;
+  const bottom = anchorFirst ? anchors.head : anchors.anchor;
+  const firstVisibleRow = scrollTop + firstSelectableRow;
+  const pastVisibleRow = scrollTop + viewportHeight;
+  return {
+    ...(top.kind === "document" && top.row < firstVisibleRow && ordered.start.line < firstSelectableRow
+      ? { above: { from: top.row, to: firstVisibleRow - 1 } }
+      : {}),
+    // Invariant: a dock endpoint orders the range by frame row, so only document-only ranges
+    // continue below the viewport.
+    ...(top.kind === "document" && bottom.kind === "document" && bottom.row >= pastVisibleRow
+      && ordered.end.line >= viewportHeight
+      ? { below: { from: pastVisibleRow, to: bottom.row } }
+      : {}),
+  };
 }
 
 function visibleTextSelection(

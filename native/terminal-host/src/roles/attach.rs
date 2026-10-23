@@ -2514,8 +2514,8 @@ impl Client {
         if !forwarded.contains(&Effect::ForwardMouse) {
             return Ok(());
         }
-        // A child-owned drag may cross either resident-strip position. Clamp that chrome row to
-        // the nearest child edge so selection reaches content without addressing the strip.
+        // Invariant: a child-owned drag crossing either strip position clamps to the nearest
+        // child edge, so selection reaches content without addressing the strip.
         let child_row = position.forwarded_child_mouse_row(mouse.row, self.outer_rows);
         let event = child_row.and_then(|row| {
             outer_input::normalize_child_mouse(mouse.kind, mouse.column, row, mouse.modifiers)

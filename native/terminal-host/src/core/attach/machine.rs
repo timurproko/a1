@@ -1821,7 +1821,7 @@ mod tests {
         assert!(!state.child_primary_drag);
 
         fixture.step(&mut state, mouse(LEFT, 8, 4));
-        fixture.step(&mut state, Event::Focus(false));
+        fixture.step(&mut state, Event::Focus { gained: false });
         assert!(!state.child_primary_drag);
 
         assert!(
