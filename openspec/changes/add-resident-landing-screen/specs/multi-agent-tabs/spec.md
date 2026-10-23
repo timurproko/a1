@@ -3,12 +3,12 @@
 ## ADDED Requirements
 
 ### Requirement: The empty resident shell presents the a1 landing
-While the attach client has no tab to show and no view request pending, it SHALL present the a1 landing in the body below the unchanged strip: a three-row half-block `a1` wordmark in the profile's accent color (plain `a1` text where half-block glyphs are unsupported), one ruled prompt box that mirrors the owned editor (rules in the accent-derived border color, the owned prompt prefix in muted, the dim placeholder `Ask anything…` when empty), the shortened launch cwd at the box's left edge, and the effective `New A1 tab` and `Open Settings tab` shortcuts as owned key-and-action hints at its right edge, centred vertically and horizontally at `min(columns - 4, 72)` columns. The wordmark and then the hint row SHALL be dropped when rows run out, and the box alone SHALL render below three body rows. The box SHALL accept printable keys, paste including line breaks, the inline-rename editing controls, and `Esc` to clear; it SHALL show up to six wrapped rows and keep the cursor row visible; one `Ctrl+C` SHALL clear it and a second inside the detach window SHALL detach as today. Its text SHALL be bounded to 64 KiB, with a notice on refusal. `Enter` with non-blank text SHALL create one Agent in the launch cwd whose first prompt is that text, keep the text visible behind the accent progress spinner while creation is pending, ignore edits until the Agent's first drawn frame commits, and then present the Agent through the ordinary tab UI; `Enter` on blank text SHALL do nothing; a refused creation SHALL restore the editable text and show the existing creation failure notice. Tab shortcuts, the `+` launcher and its popups, strip hover, and strip mouse input SHALL behave exactly as with tabs; mouse input on the landing body SHALL be ignored. The landing SHALL render no child cursor and SHALL never be shown while a tab is viewed or requested.
+While the attach client has no tab to show and no view request pending, it SHALL draw no tab strip and SHALL present the a1 landing over the whole terminal: a three-row half-block `a1` wordmark in the profile's accent color (plain `a1` text where half-block glyphs are unsupported), one ruled prompt box that mirrors the owned editor (rules in the accent-derived border color, the owned prompt prefix in muted, the dim placeholder `Ask anything…` when empty, and the owned editor's caret: the cell under the cursor reversed, with the hardware cursor hidden), the shortened launch cwd at the box's left edge, and the effective `New A1 tab` and `Open Settings tab` shortcuts as owned key-and-action hints at its right edge, centred vertically and horizontally at `min(columns - 4, 72)` columns. The wordmark and then the hint row SHALL be dropped when rows run out, and the box alone SHALL render below three rows. The box SHALL accept printable keys, paste including line breaks, the inline-rename editing controls, and `Esc` to clear; it SHALL show up to six wrapped rows and keep the cursor row visible; one `Ctrl+C` SHALL clear it and a second inside the detach window SHALL detach as today. Its text SHALL be bounded to 64 KiB, with a notice on refusal. `Enter` with non-blank text SHALL create one Agent in the launch cwd whose first prompt is that text, keep the text visible behind the accent progress spinner while creation is pending, ignore edits until the Agent's first drawn frame commits, and then present the Agent through the ordinary tab UI; `Enter` on blank text SHALL do nothing; a refused creation SHALL restore the editable text and show the existing creation failure notice. Tab shortcuts SHALL behave exactly as with tabs; mouse input SHALL be ignored, and a strip menu open when the last tab closes SHALL close with it. The landing SHALL render no hardware or child cursor and SHALL never be shown while a tab is viewed or requested.
 
 #### Scenario: Last tab closes into the landing
 - **WHEN** the final Agent or Settings tab closes while the attach client stays open
-- **THEN** the strip SHALL show `+` and the clock and the body SHALL show the wordmark, the empty prompt box with its placeholder, the launch cwd, and the two shortcut hints
-- **AND** the text cursor SHALL rest at the start of the box
+- **THEN** no tab strip SHALL be drawn and the terminal SHALL show the wordmark, the empty prompt box with its placeholder, the launch cwd, and the two shortcut hints
+- **AND** the caret SHALL be drawn on the placeholder's first cell with the hardware cursor hidden
 
 #### Scenario: Ask from the landing
 - **WHEN** the user types `What does this repository build?` into the landing box and presses `Enter`
@@ -24,7 +24,7 @@ While the attach client has no tab to show and no view request pending, it SHALL
 - **AND** the seeded prompt SHALL be dispatched nowhere
 
 #### Scenario: Shortcuts still work on the landing
-- **WHEN** the user presses the `New A1 tab` shortcut or chooses `+ Agent` from the launcher while text sits in the landing box
+- **WHEN** the user presses the `New A1 tab` shortcut while text sits in the landing box
 - **THEN** an Agent SHALL be created without a seeded prompt and the landing text SHALL be discarded with the landing
 
 #### Scenario: Clear the landing
@@ -43,7 +43,7 @@ While the attach client has no tab to show and no view request pending, it SHALL
 ## MODIFIED Requirements
 
 ### Requirement: Bare A1 presents resident A1 sessions as tabs
-Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal and the viewed tab's terminal surface in all remaining rows. Each tab SHALL be an independent resident terminal session running the complete A1 owned UI with its own Pi agent session, extensions, transcript, editor, queue, model, thinking level, notices, and cwd. Only the viewed tab SHALL receive keyboard, paste, focus, and surface mouse input. Surface mouse reports SHALL remove the one-row tab-strip offset exactly once so the viewed child receives coordinates matching its visible rows, while mouse input on the strip SHALL remain attach-owned and SHALL NOT reach the child. The strip SHALL be present even when a single tab exists. When no tab exists, the strip SHALL keep its `+` control and clock and the surface below it SHALL show the a1 landing. The tab chip SHALL be the resident session name's visible location, and the viewed resident shell SHALL NOT repeat that name in its inner footer; direct single-agent and comparison launches without a tab strip SHALL retain their existing footer session name. Extension components using the certified text-terminal contract SHALL behave as in direct single-agent bare A1 on Windows x64, macOS arm64, and Linux x64; inline image protocols SHALL use the text fallback. `a1 solo` and `a1 pi` SHALL NOT present a tab strip.
+Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal and the viewed tab's terminal surface in all remaining rows. Each tab SHALL be an independent resident terminal session running the complete A1 owned UI with its own Pi agent session, extensions, transcript, editor, queue, model, thinking level, notices, and cwd. Only the viewed tab SHALL receive keyboard, paste, focus, and surface mouse input. Surface mouse reports SHALL remove the one-row tab-strip offset exactly once so the viewed child receives coordinates matching its visible rows, while mouse input on the strip SHALL remain attach-owned and SHALL NOT reach the child. The strip SHALL be present even when a single tab exists. When no tab exists, no strip SHALL be drawn and the whole terminal SHALL show the a1 landing. The tab chip SHALL be the resident session name's visible location, and the viewed resident shell SHALL NOT repeat that name in its inner footer; direct single-agent and comparison launches without a tab strip SHALL retain their existing footer session name. Extension components using the certified text-terminal contract SHALL behave as in direct single-agent bare A1 on Windows x64, macOS arm64, and Linux x64; inline image protocols SHALL use the text fallback. `a1 solo` and `a1 pi` SHALL NOT present a tab strip.
 
 #### Scenario: Explicit solo launch
 - **WHEN** the user runs `a1 solo`
@@ -55,8 +55,8 @@ Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal 
 
 #### Scenario: Last tab closes
 - **WHEN** the final resident tab is removed while the attach client remains open
-- **THEN** the strip SHALL show `+` and the clock and the body SHALL show the landing
-- **AND** no detach hint, status notice, prior child surface, or child cursor SHALL remain
+- **THEN** no strip SHALL be drawn and the terminal SHALL show the landing
+- **AND** no detach hint, status notice, prior strip, prior child surface, or child cursor SHALL remain
 
 #### Scenario: Resident session name is not duplicated
 - **WHEN** a named resident tab is viewed and its inner footer renders repository, branch, or pull-request context
@@ -122,7 +122,7 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 
 #### Scenario: Hidden Settings never opens by itself
 - **WHEN** Settings is hidden and the user closes the last visible tab
-- **THEN** the hidden Settings tab SHALL close too and the strip SHALL show only `+` and the clock above the landing
+- **THEN** the hidden Settings tab SHALL close too and the landing SHALL fill the terminal with no strip
 - **AND** a closed viewed tab SHALL never be replaced by the hidden Settings tab
 
 #### Scenario: Settings opens without a startup delay
@@ -154,7 +154,7 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - The attach client SHALL NOT render an input-delivery notice row such as `Input was not sent; try again.` beneath the strip.
 - Successful create and close SHALL commit only complete final topology states.
 - A newly created Agent SHALL become visible only with its first drawn frame, or after a bounded fallback when the child never draws. The prior view SHALL remain until then and no cursor SHALL show.
-- When no tabs remain, the strip SHALL show hoverable `+` and the clock, the body SHALL show the landing with its own text cursor, and no child cursor SHALL show.
+- When no tabs remain, no strip SHALL be drawn, the landing SHALL fill the terminal with its own drawn caret, and no hardware or child cursor SHALL show.
 - A tab switch or creation SHALL repaint the strip and body in place without first clearing the screen.
 
 #### Scenario: Type immediately after switching
@@ -173,8 +173,8 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 
 #### Scenario: Close the last tab
 - **WHEN** the final Agent or Settings tab closes
-- **THEN** A1 SHALL clear the prior surface once and render `+`, the strip clock, and the landing
-- **AND** no notice background, child cursor, stale cell, or child text SHALL remain
+- **THEN** A1 SHALL clear the prior strip and surface once and render the landing over the whole terminal
+- **AND** no notice background, strip, child cursor, stale cell, or child text SHALL remain
 
 #### Scenario: Switch or create without a blank strip
 - **WHEN** the viewed tab changes to another tab or a newly created tab

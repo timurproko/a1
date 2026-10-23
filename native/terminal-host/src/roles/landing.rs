@@ -199,6 +199,33 @@ fn cursor_cell(text: &str, rows: &[WrappedRow], cursor: usize) -> (usize, usize)
     (row, column)
 }
 
+/// Styles one prompt row and, when `caret` names a cell column, reverses the cell under it the
+/// way the owned editor draws its caret: a block in whatever theme is in use, past the text a
+/// reversed space. The hardware cursor stays hidden, as in the owned editor by default.
+fn with_caret(text: &str, color: &str, caret: Option<usize>) -> String {
+    let Some(column) = caret else {
+        return format!("{color}{text}\x1b[0m");
+    };
+    let mut before = String::new();
+    let mut under = None;
+    let mut after = String::new();
+    let mut used = 0usize;
+    for grapheme in text.graphemes(true) {
+        if under.is_some() {
+            after.push_str(grapheme);
+        } else if used >= column {
+            under = Some(grapheme);
+        } else {
+            before.push_str(grapheme);
+            used += UnicodeWidthStr::width(grapheme);
+        }
+    }
+    format!(
+        "{color}{before}\x1b[7m{}\x1b[27m{after}\x1b[0m",
+        under.unwrap_or(" ")
+    )
+}
+
 fn clip(value: &str, width: usize) -> String {
     let mut output = String::new();
     let mut used = 0usize;
@@ -351,17 +378,14 @@ pub fn render(input: &LandingInput<'_>) -> LandingFrame {
         } else {
             format!("{}{PROMPT_PREFIX}\x1b[0m", fg(MUTED))
         };
+        let caret = (index == cursor_row && input.spinner.is_none()).then_some(cursor_column);
         let body = if input.text.is_empty() {
-            format!(
-                "{}{}\x1b[0m",
-                fg(DIM),
-                clip(LANDING_PLACEHOLDER, content_width)
-            )
+            with_caret(&clip(LANDING_PLACEHOLDER, content_width), &fg(DIM), caret)
         } else {
             let color = if input.spinner.is_some() { MUTED } else { TEXT };
-            format!("{}{}\x1b[0m", fg(color), clip(&visual.text, content_width))
+            with_caret(&clip(&visual.text, content_width), &fg(color), caret)
         };
-        if index == cursor_row && input.spinner.is_none() {
+        if caret.is_some() {
             cursor = Some(SurfaceCursor {
                 column: (left + 2 + cursor_column).min(columns.saturating_sub(1)) as u16,
                 row: row as u16,
@@ -671,65 +695,108 @@ mod tests {
     }
 
     #[test]
-    fn the_landing_composes_as_the_body_under_either_strip_position_and_popups() {
+    fn the_landing_composes_as_the_whole_screen_with_no_strip_or_hardware_cursor() {
         use crate::roles::presentation::{DesiredPresentation, FinalCursor, PresentationComposer};
         let hints = hints();
-        let frame = render(&input(80, 23, &hints));
-        let cursor = frame.cursor.unwrap();
-        let desired = |offset: u16, overlay: Option<String>| DesiredPresentation {
+        let frame = render(&input(80, 24, &hints));
+        let desired = |overlay: Option<String>| DesiredPresentation {
             tab_id: None,
             incarnation: 0,
             revision: 0,
             geometry_generation: 0,
-            strip: "\x1b[1;1Hstrip".into(),
+            strip: String::new(),
             structured: None,
             legacy_body: frame.bytes.clone(),
             overlay,
-            cursor: Some(FinalCursor::At(cursor)),
+            cursor: Some(FinalCursor::Hidden),
             modes: None,
             columns: 80,
             outer_rows: 24,
-            child_row_offset: offset,
+            child_row_offset: 0,
             clear: false,
         };
         let composer = PresentationComposer::default();
-        let top = composer.prepare(&desired(1, None)).unwrap().unwrap();
-        let top = String::from_utf8(top.bytes).unwrap();
+        let first = composer.prepare(&desired(None)).unwrap().unwrap();
+        let first = String::from_utf8(first.bytes).unwrap();
         assert!(
-            top.contains("\x1b[2J"),
-            "the last-tab close clears the prior surface once"
+            first.contains("\x1b[2J"),
+            "the last-tab close clears the prior strip and surface once"
         );
         assert!(
-            top.contains("\x1b[2;1H\x1b[0m\x1b[2K"),
-            "every body row is overwritten"
+            first.contains("\x1b[1;1H\x1b[0m\x1b[2K"),
+            "the landing starts on the top row where the strip was"
         );
-        assert!(top.ends_with(&format!("\x1b[{};7H\x1b[?25h\x1b[?2026l", cursor.row + 2)));
-        let bottom = composer.prepare(&desired(0, None)).unwrap().unwrap();
-        let bottom = String::from_utf8(bottom.bytes).unwrap();
         assert!(
-            bottom.contains("\x1b[1;1H\x1b[0m\x1b[2K"),
-            "a bottom strip moves the body up"
+            first.contains("\x1b[24;1H\x1b[0m\x1b[2K"),
+            "and covers the last row"
         );
-        assert!(bottom.contains(&format!("\x1b[{};7H\x1b[?25h", cursor.row + 1)));
+        assert!(
+            first.ends_with("\x1b[?25l\x1b[?2026l"),
+            "the hardware cursor stays hidden"
+        );
+        assert!(
+            first.contains("\x1b[7mA\x1b[27m"),
+            "the drawn caret is the only cursor"
+        );
 
         let mut presented = PresentationComposer::default();
         presented
-            .prepare(&desired(1, None))
+            .prepare(&desired(None))
             .unwrap()
             .unwrap()
             .acknowledge(&mut presented);
-        let popup = presented
-            .prepare(&desired(1, Some("\x1b[s\x1b[2;1Hmenu\x1b[u".into())))
+        let notice = presented
+            .prepare(&desired(Some("\x1b[s\x1b[1;1Hnotice\x1b[u".into())))
             .unwrap()
             .unwrap();
-        let popup = String::from_utf8(popup.bytes).unwrap();
+        let notice = String::from_utf8(notice.bytes).unwrap();
         assert!(
-            !popup.contains("\x1b[2J"),
-            "a popup over the landing never clears it"
+            !notice.contains("\x1b[2J"),
+            "a notice over the landing never clears it"
         );
-        assert!(popup.contains("menu"));
+        assert!(notice.contains("notice"));
     }
 
+    #[test]
+    fn the_caret_reverses_the_cell_under_the_cursor_like_the_owned_editor() {
+        let hints = hints();
+        let text = |cursor: usize| {
+            String::from_utf8(
+                render(&LandingInput {
+                    text: "hello",
+                    cursor,
+                    ..input(80, 24, &hints)
+                })
+                .bytes,
+            )
+            .unwrap()
+        };
+        assert!(text(1).contains("h\x1b[7me\x1b[27mllo"));
+        assert!(text(0).contains("\x1b[7mh\x1b[27mello"));
+        assert!(
+            text(5).contains("hello\x1b[7m \x1b[27m"),
+            "past the text a reversed space"
+        );
+        let placeholder = String::from_utf8(render(&input(80, 24, &hints)).bytes).unwrap();
+        assert!(
+            placeholder.contains("\x1b[7mA\x1b[27msk anything…"),
+            "an empty box carries the caret on the placeholder's first cell"
+        );
+        let pending = String::from_utf8(
+            render(&LandingInput {
+                text: "hello",
+                cursor: 5,
+                spinner: Some("⠋"),
+                ..input(80, 24, &hints)
+            })
+            .bytes,
+        )
+        .unwrap();
+        assert!(
+            !pending.contains("\x1b[7m"),
+            "a pending prompt draws no caret"
+        );
+    }
     #[test]
     fn cwd_is_written_under_home_and_clipped_from_the_left() {
         assert_eq!(display_cwd("/home/me/src/a1", Some("/home/me")), "~/src/a1");

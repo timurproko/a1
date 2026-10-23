@@ -1912,7 +1912,7 @@ impl Client {
         ];
         Some(landing::render(&landing::LandingInput {
             columns: self.columns,
-            body_rows: self.outer_rows.saturating_sub(1),
+            body_rows: self.outer_rows,
             accent: self.time_format.accent_color,
             truecolor: !palette_fallback_requested(),
             half_blocks: landing::half_blocks_supported(),
@@ -1954,9 +1954,13 @@ impl Client {
                     render_notice_at(
                         notice,
                         self.columns,
-                        self.time_format
-                            .tab_bar_position
-                            .adjacent_child_terminal_row(self.outer_rows),
+                        if self.landing_shown() {
+                            1
+                        } else {
+                            self.time_format
+                                .tab_bar_position
+                                .adjacent_child_terminal_row(self.outer_rows)
+                        },
                     )
                 })
         }
@@ -1969,20 +1973,22 @@ impl Client {
         clear: bool,
     ) -> Result<(), String> {
         if let Some(landing) = landing {
+            // Invariant: the landing owns the whole screen. No strip is drawn, its body starts at
+            // the top row, and its caret is a drawn cell with the hardware cursor hidden.
             return self.terminal.present(DesiredPresentation {
                 tab_id: None,
                 incarnation: 0,
                 revision: 0,
                 geometry_generation: self.presented.geometry_generation,
-                strip: self.strip_frame.bytes.clone(),
+                strip: String::new(),
                 structured: None,
                 legacy_body: landing.bytes,
                 overlay,
-                cursor: Some(landing.cursor.map_or(FinalCursor::Hidden, FinalCursor::At)),
+                cursor: Some(FinalCursor::Hidden),
                 modes: None,
                 columns: self.columns,
                 outer_rows: self.outer_rows,
-                child_row_offset: self.time_format.tab_bar_position.child_row_offset(),
+                child_row_offset: 0,
                 clear,
             });
         }
@@ -2586,6 +2592,10 @@ impl Client {
         core: &mut State,
         mouse: crossterm::event::MouseEvent,
     ) -> Result<(), String> {
+        // Invariant: the landing draws no strip and its body has no mouse targets.
+        if self.landing_shown() {
+            return Ok(());
+        }
         let position = self.time_format.tab_bar_position;
         let mut normalized: core_attach::AttachMouse = (&mouse).into();
         normalized.row = if position == TabBarPosition::Bottom {
