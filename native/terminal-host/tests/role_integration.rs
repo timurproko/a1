@@ -1313,7 +1313,7 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
 
     let default_tab = holders_before_client_loss
         .iter()
-        .find(|(tab, _, _)| tab != &second_tab)
+        .find(|(tab, _, _)| tab != &second_tab && !tab.starts_with("settings-"))
         .expect("default tab")
         .0
         .clone();
