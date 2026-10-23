@@ -1915,6 +1915,31 @@ mod tests {
     }
 
     #[test]
+    fn stopped_records_do_not_push_new_agents_after_hidden_settings() {
+        let mut settings = record("settings-1", 2, "running", None);
+        settings.kind = "settings".into();
+        settings.order = 1;
+        let mut stopped = record("closed-agent", 3, "stopped", None);
+        stopped.order = 2;
+        let mut registry = RegistryDocument {
+            registry_revision: 4,
+            epoch: 1,
+            boot_id: "boot".into(),
+            os_session_id: "session".into(),
+            tabs: vec![record("agent-1", 1, "running", None), settings, stopped],
+        };
+        insert_new_tab(&mut registry, record("agent-2", 4, "running", None));
+        let visible = registry
+            .tabs
+            .iter()
+            .filter(|tab| tab.desired != "stopped")
+            .map(|tab| (tab.tab_id.as_str(), tab.order))
+            .collect::<Vec<_>>();
+        assert_eq!(visible, [("agent-1", 0), ("agent-2", 1), ("settings-1", 2)]);
+        assert_eq!(registry.tabs.last().unwrap().desired, "stopped");
+    }
+
+    #[test]
     fn reorder_registry_is_revision_guarded_and_no_op_safe() {
         let tabs = ["a", "b", "c"]
             .into_iter()

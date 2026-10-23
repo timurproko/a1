@@ -4,12 +4,15 @@ pub(super) fn insert_new_tab(registry: &mut RegistryDocument, tab: TabRecord) {
     // Invariant: newly created Agent tabs precede a trailing Settings tab by default; a
     // Settings tab the user dragged elsewhere keeps its durable position.
     let at = if !is_settings_tab_id(&tab.tab_id)
-        && registry
+        && let Some(last_live) = registry
             .tabs
-            .last()
-            .is_some_and(|last| is_settings_tab_id(&last.tab_id))
+            .iter()
+            .rposition(|last| last.desired != "stopped")
+        && is_settings_tab_id(&registry.tabs[last_live].tab_id)
     {
-        registry.tabs.len() - 1
+        // Invariant: stopped records can trail a hidden Settings tab. They must not make
+        // newly created Agents appear after Settings when it is opened later.
+        last_live
     } else {
         registry.tabs.len()
     };
