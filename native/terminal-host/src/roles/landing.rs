@@ -86,6 +86,8 @@ pub struct LandingInput<'a> {
     pub truecolor: bool,
     pub half_blocks: bool,
     pub cwd: &'a str,
+    /// How far a new Agent's wipe has run, from 0 to 1, while that Agent starts.
+    pub wipe: Option<f32>,
 }
 
 /// Whether the terminal draws half-block glyphs as solid cells. Apple Terminal leaves seams
@@ -195,6 +197,38 @@ fn foreground(rgb: [u8; 3], truecolor: bool) -> String {
     }
 }
 
+/// The wordmark row the Agent caret takes when a tab opens.
+const CARET_ROW: usize = 1;
+
+/// One wordmark row. While a new Agent starts, the accent cells wipe away from the right and the
+/// caret cell turns white, so the wordmark hands over to the Agent's cursor in the same cell.
+fn wordmark_row(
+    line: &str,
+    offset: usize,
+    wipe: Option<f32>,
+    accent: &str,
+    white: &str,
+    columns: usize,
+) -> String {
+    let Some(progress) = wipe else {
+        return format!("{accent}{}[0m", clip(line, columns));
+    };
+    let cells = line.graphemes(true).collect::<Vec<_>>();
+    let kept = ((1.0 - progress.clamp(0.0, 1.0)) * cells.len() as f32).ceil() as usize;
+    let mut output = String::from(accent);
+    for (column, cell) in cells.iter().enumerate().take(columns) {
+        if offset == CARET_ROW && column == 0 {
+            output.push_str(&format!("{white}{cell}{accent}"));
+        } else if column < kept {
+            output.push_str(cell);
+        } else {
+            output.push(' ');
+        }
+    }
+    output.push_str("[0m");
+    output
+}
+
 /// The landing body, addressed as rows below a top strip. Every row is cleared; the launch cwd
 /// sits on the second-to-last body row, flush left, with `a1 v<version>` below it and the
 /// wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
@@ -233,9 +267,13 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     }
     if input.half_blocks && cwd_row >= WORDMARK.len() {
         let accent = fg(accent_colors(input.accent).accent);
+        let white = fg(TEXT);
         for (offset, line) in WORDMARK.iter().enumerate() {
             let row = cwd_row - WORDMARK.len() + offset;
-            place(row, format!("{accent}{}\x1b[0m", clip(line, columns)));
+            place(
+                row,
+                wordmark_row(line, offset, input.wipe, &accent, &white, columns),
+            );
         }
     }
 
@@ -292,7 +330,43 @@ mod tests {
             truecolor: true,
             half_blocks: true,
             cwd: "~/src/a1",
+            wipe: None,
         }
+    }
+
+    #[test]
+    fn the_wordmark_wipes_from_the_right_into_a_white_caret_cell() {
+        let frame = |wipe: f32| {
+            render(&LandingInput {
+                wipe: Some(wipe),
+                ..input(80, 23)
+            })
+        };
+        let start = cells(&frame(0.0), 80, 23);
+        assert_eq!(
+            start[18..21],
+            cells(&render(&input(80, 23)), 80, 23)[18..21]
+        );
+        let half = cells(&frame(0.5), 80, 23);
+        assert_eq!(half[18], " ▀▀▀▄", "the right cells go first");
+        assert_eq!(half[19], "█▀▀▀█");
+        let done = cells(&frame(1.0), 80, 23);
+        assert!(done[18].is_empty() && done[20].is_empty(), "{done:#?}");
+        assert_eq!(done[19], "█", "only the caret cell remains");
+        assert_eq!(
+            cells(&frame(3.0), 80, 23)[19],
+            "█",
+            "it holds until the Agent draws"
+        );
+        let colored = String::from_utf8(frame(1.0)).unwrap();
+        assert!(
+            colored.contains("\x1b[38;2;230;230;230m█"),
+            "the caret cell turns white like the Agent caret"
+        );
+        assert_eq!(
+            done[21], "~/src/a1",
+            "the cwd stays where the footer shows it"
+        );
     }
 
     #[test]

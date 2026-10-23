@@ -57,6 +57,29 @@ pub struct AttachStart {
     pub session_dir: Option<String>,
 }
 
+/// The launch intent `attach.start` carries beside its [`AttachStart`] fields: whether a profile
+/// with no Agent starts its first one. Compatibility: an older client omits it and keeps that
+/// behavior; bare `a1` opens the landing instead.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AttachIntent {
+    #[serde(default = "default_start_agent")]
+    pub start_agent: bool,
+}
+
+fn default_start_agent() -> bool {
+    true
+}
+
+/// The `attach.start` request an attach client sends.
+#[derive(Debug, Clone, Serialize)]
+pub struct AttachStartRequest {
+    #[serde(flatten)]
+    pub start: AttachStart,
+    #[serde(flatten)]
+    pub intent: AttachIntent,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HolderLaunchConfig {
