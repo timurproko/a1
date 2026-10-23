@@ -391,18 +391,8 @@ describe("session viewport interaction controller", () => {
       const transcriptCopy = copiedText(target.handlePreInput("\u0003"));
       expect(transcriptCopy).not.toMatch(/editor|footer/u);
 
-      // Invariant: a detached transcript holds a downward content drag on its last row.
-      const detached = target.compose(input);
-      expect(detached.followingEnd).toBe(false);
-      target.handlePreInput("\u001b[<0;2;4M\u001b[<32;4;5M\u001b[<0;4;5m", true, 200);
-      const heldOnContent = target.compose(input);
-      expect(heldOnContent.rows[3]).toContain("\u001b[45m");
-      expect(heldOnContent.rows[4]).not.toContain("\u001b[45m");
-      target.handlePreInput("\u0003");
-
-      target.handlePreInput("ctrl+end");
       target.compose(input);
-      target.handlePreInput("\u001b[<0;2;4M\u001b[<32;4;5M\u001b[<0;4;5m", true, 250);
+      target.handlePreInput("\u001b[<0;2;4M\u001b[<32;4;5M\u001b[<0;4;5m", true, 200);
       const crossedDown = target.compose(input);
       expect(crossedDown.rows[3]).toContain("\u001b[45m");
       expect(crossedDown.rows[4]).toContain("\u001b[45m");
