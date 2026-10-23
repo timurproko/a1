@@ -888,6 +888,9 @@ pub(super) fn holder_lost(
     );
     locked.core.set_terminating(tab_id, false);
     locked.core.set_starting(tab_id, false);
+    // Invariant: a seed outlives nothing; a tab that fails before its child consumed it never
+    // replays the prompt into a replacement child.
+    locked.seeds.discard(tab_id);
     locked.surfaces.remove(tab_id);
     locked.last_activity = std::time::Instant::now();
     let now_epoch = SystemTime::now()

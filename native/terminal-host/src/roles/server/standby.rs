@@ -83,6 +83,7 @@ pub(super) fn same_standby_context(standby: &AttachStart, requested: &AttachStar
 pub(super) fn promote_standby(
     state: &Arc<Mutex<RuntimeState>>,
     start: AttachStart,
+    seed: Option<&str>,
 ) -> Result<Option<String>, String> {
     let promotion = {
         let mut locked = lock_state(&state)?;
@@ -102,6 +103,11 @@ pub(super) fn promote_standby(
             .get(&standby.tab_id)
             .cloned()
             .ok_or_else(|| "standby holder disappeared".to_owned())?;
+        // Invariant: the seed file exists before the standby is announced as this tab; a seed
+        // that cannot be written refuses the creation and keeps the standby.
+        if let Some(text) = seed {
+            locked.seeds.write(&standby.tab_id, text)?;
+        }
         locked.standby = None;
         let order = locked.registry.tabs.len() as u32;
         let display_name = DEFAULT_AGENT_TAB_NAME.to_owned();
@@ -153,6 +159,9 @@ pub(super) fn promote_standby(
             if locked.registry.registry_revision == document.registry_revision {
                 locked.registry = previous;
             }
+            if seed.is_some() {
+                locked.seeds.remove(&standby.tab_id);
+            }
             locked.standby = Some(standby);
         }
         return Err(error);
@@ -184,6 +193,13 @@ pub(super) fn promote_standby(
         .peer
         .offer_control(wire::frame("holder.promote", None, wire::ResultBody::ok())?)
         .map_err(str::to_owned)?;
+    if seed.is_some() {
+        // Protocol: the standby's bridge connected before this promotion, so its admission
+        // notice cannot announce the seed; it is told now.
+        let mut locked = lock_state(&state)?;
+        locked.seeds.mark(&standby.tab_id);
+        notify_seed(&locked, &standby.tab_id)?;
+    }
     Ok(Some(standby.tab_id))
 }
 

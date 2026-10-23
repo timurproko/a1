@@ -287,6 +287,15 @@ pub struct BridgeVisibility {
     pub visible: bool,
 }
 
+/// Server to child: the tab's private seed file holds a first prompt to submit. Security: it
+/// carries no text; the child reads the prompt only from that file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct BridgeSeed {}
+
+/// Child to server: the seed file was read and deleted, so no seed remains pending.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct BridgeSeedConsumed {}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BridgeRename {
@@ -1139,6 +1148,22 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                     name: "user-name".to_owned(),
                     name_source: "user".to_owned(),
                 },
+            })?,
+        ),
+        (
+            "bridge-seed.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.seed".to_owned(),
+                request_id: None,
+                body: BridgeSeed {},
+            })?,
+        ),
+        (
+            "bridge-seed-consumed.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.seed-consumed".to_owned(),
+                request_id: None,
+                body: BridgeSeedConsumed {},
             })?,
         ),
         (

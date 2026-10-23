@@ -164,6 +164,7 @@ pub(super) fn serve_bridge(
             )?)
             .map_err(str::to_owned)?;
         }
+        notify_seed(&locked, &tab_id)?;
     }
     crate::fault_injection::crash_at("bridge-after-admit");
     while let Some(payload) = wire::read_payload(&mut stream)? {
@@ -189,6 +190,10 @@ pub(super) fn serve_bridge(
                     now,
                 );
             }
+        } else if kind.message_type == "bridge.seed-consumed" {
+            let (_, _consumed): (_, protocol::BridgeSeedConsumed) = wire::body(&payload)?;
+            // Invariant: the child deleted the file; a leftover from a failed delete goes too.
+            lock_state(&state)?.seeds.discard(&tab_id);
         } else if kind.message_type == "bridge.shortcuts" {
             // Protocol: the newest projection any child publishes is the effective one; it is
             // validated, retained for later clients, and relayed to every attached client.
