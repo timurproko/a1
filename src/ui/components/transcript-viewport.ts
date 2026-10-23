@@ -185,6 +185,18 @@ function documentSelectionAnchor(row: number, source: string, liveFromBottom?: n
   return { kind: "document", row, source, identity: stripAnsi(source).trimEnd(), liveFromBottom };
 }
 
+function sameSelectionRowAnchor(left: SelectionRowAnchor, right: SelectionRowAnchor): boolean {
+  if (left.kind !== right.kind) return false;
+  if (left.kind === "document" && right.kind === "document") {
+    return left.row === right.row && left.source === right.source && left.liveFromBottom === right.liveFromBottom;
+  }
+  if (left.kind === "screen" && right.kind === "screen") {
+    return left.row === right.row && left.source === right.source;
+  }
+  if (left.kind === "transient" && right.kind === "transient") return left.fromBottom === right.fromBottom;
+  return left.kind === "dock" && right.kind === "dock" && left.fromBottom === right.fromBottom;
+}
+
 function viewportSelectionAnchor(
   row: number,
   source: string,
@@ -347,12 +359,14 @@ export class TranscriptViewport {
       ? { line, column: targetColumn }
       : textSelectionPointAt(line, targetColumn, this.#selectionRows[line] ?? "");
     const next = extendTextSelection(selection, point);
-    if (next !== selection) {
-      const headAnchor = this.#selectionAnchorAt(line);
-      if (headAnchor === undefined || this.#selectionAnchors === undefined) {
-        this.clearSelection();
-        return true;
-      }
+    const headAnchor = this.#selectionAnchorAt(line);
+    if (headAnchor === undefined || this.#selectionAnchors === undefined) {
+      this.clearSelection();
+      return true;
+    }
+    // Edge auto-scroll keeps the pointer on one terminal cell while the document row beneath it
+    // changes. That semantic motion must advance the endpoint even when its frame point is equal.
+    if (next !== selection || !sameSelectionRowAnchor(this.#selectionAnchors.head, headAnchor)) {
       this.#selection = next;
       this.#selectionAnchors = { ...this.#selectionAnchors, head: headAnchor };
       this.#selectionRevision += 1;

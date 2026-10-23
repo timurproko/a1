@@ -423,11 +423,18 @@ describe("transcript viewport", () => {
 
       viewport.pressSelection(3, 3, 101);
       viewport.extendSelection(4, 1, 102, false);
-      viewport.releaseSelection();
       const crossed = viewport.compose(input);
       expect(viewport.selectedText()).toBe(" 3\nrow");
       expect(paintedRows(crossed)).toEqual([1, 2]);
       expect(crossed.rows[1]).toContain(`row${SELECTED} 3`);
+
+      viewport.scrollBy(-1, 103);
+      viewport.extendSelection(4, 1, 104, false);
+      const scrolled = viewport.compose(input);
+      expect(viewport.selectedText()).toBe(" 2\nrow 3\nrow");
+      expect(paintedRows(scrolled)).toEqual([1, 2, 3]);
+      expect(scrolled.rows[1]).toContain(`row${SELECTED} 2`);
+      viewport.releaseSelection();
 
       viewport.clearSelection();
       viewport.scrollTo(0);

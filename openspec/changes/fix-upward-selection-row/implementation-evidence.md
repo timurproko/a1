@@ -2,6 +2,7 @@
 
 - Resident host retains primary-pointer ownership when a child-originated drag crosses a top or bottom tab strip and forwards strip motion/release at the nearest child edge row.
 - Transcript selection maps an upward endpoint on pinned prompt chrome to the first visible content row while retaining the pointer column, so the top row selects from cursor to row end.
+- Repeated edge-scroll ticks advance the semantic document-row endpoint even while the pointer remains on the same terminal cell, so every newly revealed row joins the active range.
 - Focus loss clears resident child-drag ownership; strip-originated gestures remain owned by the resident tab surface.
 
 ## Focused validation
