@@ -416,7 +416,7 @@ describe("transcript viewport", () => {
     const paintedRows = (frame: { readonly rows: readonly string[] }) =>
       frame.rows.flatMap((row, index) => row.includes(SELECTED) ? [index] : []);
 
-    it("excludes the pinned alias while keeping the prompt selectable at its document row", () => {
+    it("maps an upward edge drag to visible content while keeping the prompt selectable at its document row", () => {
       const viewport = pinned();
       expect(viewport.pressSelection(2, 1, 100)).toBe(false);
       expect(viewport.hasSelection).toBe(false);
@@ -425,8 +425,9 @@ describe("transcript viewport", () => {
       viewport.extendSelection(4, 1, 102, false);
       viewport.releaseSelection();
       const crossed = viewport.compose(input);
-      expect(viewport.selectedText()).toBe("row 3\nrow");
+      expect(viewport.selectedText()).toBe(" 3\nrow");
       expect(paintedRows(crossed)).toEqual([1, 2]);
+      expect(crossed.rows[1]).toContain(`row${SELECTED} 3`);
 
       viewport.clearSelection();
       viewport.scrollTo(0);

@@ -330,7 +330,13 @@ export class TranscriptViewport {
     // owns edge scrolling. Selection itself remains in visible-frame coordinates.
     if (autoScroll && frameRow > frameHeight) this.scrollBy(1, now);
     else if (autoScroll && frameRow <= 1 && this.#scrollTop > 0) this.scrollBy(-1, now);
-    const line = clamp(frameRow - 1, 0, this.#selectionRows.length - 1);
+    const pointerLine = clamp(frameRow - 1, 0, this.#selectionRows.length - 1);
+    // A pinned prompt alias is presentation chrome, not the document row hidden beneath it.
+    // When an upward drag reaches that edge, retain the pointer column on the first visible
+    // content row instead of copying hidden text or turning the row into a full-width interior.
+    const line = pointerLine < this.#firstSelectableRow && pointerLine < selection.anchor.line
+      ? this.#firstSelectableRow
+      : pointerLine;
     const selectionWidth = line < (this.#frame?.hits.viewportHeight ?? 0)
       ? this.#contentWidth
       : this.#selectionWidth;

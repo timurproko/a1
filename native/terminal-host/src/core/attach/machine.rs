@@ -106,6 +106,8 @@ pub struct State {
     pub registry_revision: u64,
     pub pending_manual_name: Option<(String, String)>,
     pub deferred: DeferredInput,
+    /// Pointer ownership that began in the child remains there across the resident tab strip.
+    child_primary_drag: bool,
     pub columns: u16,
     /// Invariant: an exited client sends, views, and paints nothing more.
     pub exited: bool,
@@ -676,6 +678,9 @@ impl State {
         gained: bool,
         effects: &mut Vec<Effect>,
     ) {
+        if !gained {
+            self.child_primary_drag = false;
+        }
         if context.requested.is_some()
             || self.view.pending_created_activation
             || self.failed(context.viewed)
@@ -714,6 +719,21 @@ impl State {
         if self.drag_mouse(context, mouse, now, effects) {
             return;
         }
+        if self.child_primary_drag {
+            match mouse.kind {
+                MouseKind::Drag(MouseButton::Left) | MouseKind::Moved => {
+                    effects.push(Effect::ForwardMouse);
+                    return;
+                }
+                MouseKind::Up(MouseButton::Left) => {
+                    self.child_primary_drag = false;
+                    effects.push(Effect::ForwardMouse);
+                    return;
+                }
+                MouseKind::Down(_) => self.child_primary_drag = false,
+                _ => {}
+            }
+        }
         if mouse.row == 0 {
             self.strip_mouse(context, mouse, now, effects);
             return;
@@ -728,6 +748,9 @@ impl State {
             )
         {
             return;
+        }
+        if mouse.kind == MouseKind::Down(MouseButton::Left) {
+            self.child_primary_drag = true;
         }
         effects.push(Effect::ForwardMouse);
     }
@@ -1640,6 +1663,37 @@ mod tests {
             fixture
                 .step(&mut state, mouse(MouseKind::Moved, 3, 4))
                 .is_empty()
+        );
+    }
+
+    #[test]
+    fn child_primary_drag_keeps_ownership_across_the_strip() {
+        let fixture = Fixture::new(&["a"], "a");
+        let mut state = fixture.state();
+        assert_eq!(
+            fixture.step(&mut state, mouse(LEFT, 8, 4)),
+            [Effect::ForwardMouse]
+        );
+        assert!(state.child_primary_drag);
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 6, 0),),
+            [Effect::ForwardMouse]
+        );
+        assert_eq!(
+            fixture.step(&mut state, mouse(RELEASE, 6, 0)),
+            [Effect::ForwardMouse]
+        );
+        assert!(!state.child_primary_drag);
+
+        fixture.step(&mut state, mouse(LEFT, 8, 4));
+        fixture.step(&mut state, Event::Focus(false));
+        assert!(!state.child_primary_drag);
+
+        assert!(
+            fixture
+                .step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 6, 0),)
+                .is_empty(),
+            "strip motion without child ownership stays resident-host owned"
         );
     }
 

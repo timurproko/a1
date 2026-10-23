@@ -2222,12 +2222,15 @@ impl Client {
         if !forwarded.contains(&Effect::ForwardMouse) {
             return Ok(());
         }
+        // A child-owned drag may cross the resident strip. Clamp that chrome row to the child's
+        // top edge so selection reaches its first content row without addressing the strip.
+        let forwarded_row = mouse.row.max(1);
         let event =
-            outer_input::normalize_mouse(mouse.kind, mouse.column, mouse.row, mouse.modifiers);
+            outer_input::normalize_mouse(mouse.kind, mouse.column, forwarded_row, mouse.modifiers);
         if event.as_ref().is_some_and(outer_input::resets_chord) {
             self.chord.reset();
         }
-        let bytes = encode_mouse(mouse.kind, mouse.column, mouse.row).unwrap_or_default();
+        let bytes = encode_mouse(mouse.kind, mouse.column, forwarded_row).unwrap_or_default();
         if event.is_some() || !bytes.is_empty() {
             core.user_input_pending = true;
             self.send_input(core, event, bytes)?;
@@ -2965,6 +2968,11 @@ mod tests {
         assert_eq!(
             encode_mouse(MouseEventKind::Down(MouseButton::Left), 2, 8),
             Some(b"\x1b[<0;3;8M".to_vec())
+        );
+        assert_eq!(
+            encode_mouse(MouseEventKind::Drag(MouseButton::Left), 4, 1),
+            Some(b"\x1b[<32;5;1M".to_vec()),
+            "a child-owned drag clamped from the strip addresses the first child row"
         );
         assert_eq!(without_bell(b"a\x07b"), b"ab");
         assert_eq!(
