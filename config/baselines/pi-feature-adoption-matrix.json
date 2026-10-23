@@ -2780,7 +2780,8 @@
       "version": "1.4.0",
       "summary": "parallel scripts and in-process subagents queue instead of failing, and `PI_CODEMODE_MAX_WORKERS` raises the limit.",
       "since": "1.4.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Worker queuing and the PI_CODEMODE_MAX_WORKERS limit live in the pinned built-in codemode extension, which A1 sessions load through the public service factory; A1 launch preparation passes the variable through unchanged."
     },
     {
       "id": "changelog:1.4.0:image-input-for-classifiers",
@@ -2789,7 +2790,8 @@
       "version": "1.4.0",
       "summary": "codemode `models.classify()` accepts `images` for TypeSafe's Jev and Cloudflare's Clef models on `typesafe`, `cloudflare-workers-ai`, and OpenRouter.",
       "since": "1.4.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Classifier image input comes from the pinned codemode models API and model runtime, which A1 consumes through the public service factory without a separate model catalog."
     },
     {
       "id": "changelog:1.4.0:models-configuration-reference",
@@ -2798,7 +2800,8 @@
       "version": "1.4.0",
       "summary": "every provider, model, model override, and compatibility field of `models.json`, generated from its schema.",
       "since": "1.4.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "The generated reference ships in the pinned coding-agent package docs and describes the models.json that A1 reads through the public Pi model registry; A1 keeps no separate models configuration format."
     },
     {
       "id": "changelog:1.4.0:rex-terminal-support",
@@ -2807,7 +2810,8 @@
       "version": "1.4.0",
       "summary": "OSC 8 hyperlinks, truecolor, and inline images.",
       "since": "1.4.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Rex detection is in public pi-tui getCapabilities, which A1 hyperlink and tool-image presenters read; A1 does not use Kitty Unicode placeholders, so Rex partial Kitty support suffices."
     },
     {
       "id": "changelog:1.4.0:summaries-without-a-fixed-output-cap",
@@ -2816,7 +2820,8 @@
       "version": "1.4.0",
       "summary": "compaction and branch summaries use the model's output limit, so long reasoning no longer makes them fail.",
       "since": "1.4.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Compaction and branch summaries are produced by the pinned AgentSession, which A1 drives through the public session API; A1 does not call the summary generators directly."
     }
   ]
 }

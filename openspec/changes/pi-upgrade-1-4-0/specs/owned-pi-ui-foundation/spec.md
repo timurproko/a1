@@ -167,3 +167,24 @@ The A1-owned UI SHALL reproduce the complete visible and interactive behavior of
 - **THEN** every source-reachable built-in and extension modal node and every transition edge SHALL have a mapped specialized controller and independent pinned-versus-A1 evidence
 - **AND** removing a nested node, transition, style, instruction, ownership region, or restoration edge SHALL make the gate fail
 - **AND** top-level open/cancel snapshots alone SHALL NOT establish modal completeness
+
+### Requirement: Visible Pi extension UI is part of the 1:1 baseline
+The owned UI SHALL support the visible behavior exposed by pinned Pi extensions, including widgets, custom editors and inputs, selectors, dialogs, notifications, status and footer contributions, custom message and tool renderers, terminal input hooks, working indicators, and lifecycle cleanup. Extension UI behavior SHALL cross A1-owned versioned boundaries and SHALL NOT require mutation of installed Pi code or private interactive state.
+
+#### Scenario: Extension contributes a visible surface
+- **WHEN** a compatible pinned Pi extension registers a supported visible contribution
+- **THEN** the owned UI SHALL present and update that contribution with equivalent focus, input, rendering, cancellation, and cleanup behavior
+
+#### Scenario: Extension dialogs overlap
+- **WHEN** an extension opens a select, confirm, input, editor, or inline custom dialog while another extension dialog is visible
+- **THEN** the new dialog SHALL cover the visible one, and every covered dialog SHALL remain answerable
+- **AND** closing the visible dialog SHALL show and focus the previous dialog with its program status, or the editor when none remains
+- **AND** a session reset SHALL settle every stacked dialog as cancelled rather than leaving its promise pending
+
+#### Scenario: Extension surface fails
+- **WHEN** one extension renderer, input handler, or lifecycle callback throws or returns malformed data
+- **THEN** A1 SHALL isolate the failure, restore the baseline editor and focus, report the error, and preserve the rest of the session
+
+#### Scenario: Extension requests an unmapped visual capability
+- **WHEN** a pinned visible extension capability is not yet bridged through an A1-owned boundary
+- **THEN** the parity gate SHALL fail rather than silently omitting the surface or reporting complete extension support

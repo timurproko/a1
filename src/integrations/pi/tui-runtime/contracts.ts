@@ -44,6 +44,11 @@ export interface PiTuiTerminalPort {
   setProgress(active: boolean): void;
   /** Optional for neutral test/decorator ports; the Pi-facing adapter always supplies it. */
   setProgramStatus?(status: ProgramStatus): void;
+  /**
+   * Optional synchronous last-resort mode restore that Pi TUI invokes from a process `exit` handler when
+   * `stop()` did not run; the runtime adapter binds it to the undecorated terminal, so decorators need not forward it.
+   */
+  restoreOnExit?(before: string, after: string): void;
 }
 
 export type PiTuiSizeValue = number | `${number}%`;

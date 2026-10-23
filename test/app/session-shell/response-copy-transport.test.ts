@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createResponseCopyExecutor, responseCopyDestination } from "../../../src/app/session-shell/response-copy-transport.js";
+import { createResponseCopyExecutor, platformClipboardWriteOptions, responseCopyDestination } from "../../../src/app/session-shell/response-copy-transport.js";
 import { MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES } from "../../../src/app/session-shell/response-copy-protocol.js";
 import type { SelectionCopySnapshot } from "../../../src/ui/components/selection-copy.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
@@ -13,6 +13,13 @@ function source(text = "hello 界 e\u0301 👩‍💻"): SelectionCopySnapshot {
 describe("response-copy transport isolation", () => {
   it.each([{}, { [PRODUCT_IDENTITY.environment.tabId]: "resident" }, { SSH_TTY: "tty" }, { SSH_CONNECTION: "remote" }, { TMUX: "mux" }, { STY: "screen" }, { WSL_DISTRO_NAME: "distro" }])("routes destination for %j", env => {
     expect(responseCopyDestination(env)).toBe(Object.keys(env).length ? "terminal" : "native");
+  });
+
+  it.each([["linux", true], ["darwin", true], ["win32", false]] as const)("detaches %s clipboard writers from the suspendable process group: %s", (platform, detached) => {
+    const signal = new AbortController().signal;
+    expect(platformClipboardWriteOptions(signal, platform)).toEqual({
+      signal, windowsHide: true, timeout: 1_500, killSignal: "SIGKILL", maxBuffer: 1_024, detached,
+    });
   });
 
   it("prepares exact Unicode in a cold child while parent timers progress", async () => {

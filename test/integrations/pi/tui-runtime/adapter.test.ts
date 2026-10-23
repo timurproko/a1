@@ -1,6 +1,7 @@
 import { StdinBuffer } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
 import {
+  DamageAwareTerminalAdapter,
   PiTuiRuntimeAdapter,
   PiTuiRuntimeError,
   classifyPiTuiInput,
@@ -207,6 +208,41 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(afterControl).toContain("\x1b[?1049l");
     expect(afterControl).not.toContain("after");
     expect(afterControl).not.toContain("\r\x1b[2K");
+  });
+
+  it("forwards Pi's exit-time mode restore through every decorator while the presentation is frozen", async () => {
+    const restores: Array<{ before: string; after: string }> = [];
+    const terminal = Object.assign(new TestTerminal(), {
+      restoreOnExit: (before: string, after: string) => { restores.push({ before, after }); },
+    });
+    const listenersBefore = new Set(process.listeners("exit"));
+    const runtime = new PiTuiRuntimeAdapter({
+      root: new TestComponent(["root"]),
+      terminal,
+      mode: "fullscreen",
+      mouse: false,
+      inputCoordination: { classify: (data, overlay) => classifyPiTuiInput(data, overlay ?? "editor") },
+      inputDiagnostics: { onEvent: () => {} },
+      decorateTerminal: inner => new DamageAwareTerminalAdapter(inner, {
+        regionalScroll: false,
+        inspectHyperlinks: () => ({ ranges: [], hasExplicitLink: false, signature: "", replaySafe: true, width: 0 }),
+      }),
+    });
+    runtime.start();
+    runtime.renderNow(true);
+    const exitRestore = process.listeners("exit").filter(listener => !listenersBefore.has(listener));
+    expect(exitRestore).toHaveLength(1);
+
+    runtime.freezePresentation();
+    exitRestore[0]!(0);
+    expect(restores).toHaveLength(1);
+    expect(restores[0]!.before).toContain("\x1b[?25h");
+    expect(restores[0]!.after).toContain("\x1b[?1049l");
+
+    await runtime.stop({ drainInput: false, preserveScreen: true });
+    expect(process.listeners("exit")).not.toContain(exitRestore[0]);
+    exitRestore[0]!(0);
+    expect(restores).toHaveLength(1);
   });
 
   it("holds asynchronous replacement frames until the final forced repaint", async () => {

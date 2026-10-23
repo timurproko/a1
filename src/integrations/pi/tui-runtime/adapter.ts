@@ -246,6 +246,10 @@ export class PiTuiRuntimeAdapter {
           sink => { this.#inputSink = sink; },
           this.#overlayGeometry !== undefined,
         );
+    // Invariant: Pi TUI's exit-time restore reaches the undecorated terminal directly. Decorators only shape
+    // presentation, and the frozen gate must not swallow the last-resort mode reset when the process exits.
+    const exitTerminal = this.#terminal;
+    this.#tuiTerminal.restoreOnExit = (before, after) => exitTerminal.restoreOnExit?.(before, after);
     this.#layoutRoot = options.layoutRoot;
     this.#logDirectory = options.logDirectory;
     this.#rootBridge = new ComponentBridge(options.root, options.inputDiagnostics === undefined
