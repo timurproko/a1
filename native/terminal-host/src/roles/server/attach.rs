@@ -1,5 +1,40 @@
 use super::*;
 
+fn attach_admission(
+    tabs: &[TabRecord],
+    viewed_tab: &str,
+    client_id: &str,
+    revision: u64,
+) -> BridgeAttachment {
+    // An empty registry has only a provisional default. Let the first real surface choose the
+    // view after attach.start creates the tab instead of pinning an absent tab in the client.
+    if tabs.iter().any(|tab| tab.tab_id == viewed_tab) {
+        BridgeAttachment::selected(client_id, revision, viewed_tab.to_owned())
+    } else {
+        BridgeAttachment::new(client_id, revision)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn admission_selects_only_a_registered_tab() {
+        assert_eq!(
+            attach_admission(&[], "tab-1", "client", 1).selected_tab,
+            None
+        );
+        let tab = super::super::tests::record("tab-1", 1, "running", None);
+        assert_eq!(
+            attach_admission(&[tab], "tab-1", "client", 1)
+                .selected_tab
+                .as_deref(),
+            Some("tab-1")
+        );
+    }
+}
+
 pub(super) fn serve_attach(
     mut stream: endpoint::EndpointStream,
     tx: Peer,
@@ -36,12 +71,9 @@ pub(super) fn serve_attach(
             };
         // Protocol: admission must precede every surface or notice; queue it before the client
         // becomes visible to holders whose surface offers wake this writer immediately.
-        tx.offer_control(wire::frame(
-            "attached",
-            None,
-            BridgeAttachment::selected(client_id.clone(), revision, viewed_tab.clone()),
-        )?)
-        .map_err(str::to_owned)?;
+        let admission = attach_admission(&locked.registry.tabs, &viewed_tab, &client_id, revision);
+        tx.offer_control(wire::frame("attached", None, admission)?)
+            .map_err(str::to_owned)?;
         locked.clients.insert(
             client_id.clone(),
             ClientSession {

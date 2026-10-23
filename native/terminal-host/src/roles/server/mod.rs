@@ -1812,7 +1812,12 @@ mod tests {
         assert!(!path.exists());
     }
 
-    fn record(tab_id: &str, created_at: u64, desired: &str, holder_pid: Option<u32>) -> TabRecord {
+    pub(super) fn record(
+        tab_id: &str,
+        created_at: u64,
+        desired: &str,
+        holder_pid: Option<u32>,
+    ) -> TabRecord {
         TabRecord {
             tab_id: tab_id.into(),
             kind: "agent".into(),

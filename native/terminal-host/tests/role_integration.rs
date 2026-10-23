@@ -1130,7 +1130,11 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         fake_tab,
         None,
     );
-    assert!(first.output_containing("fake-tab-ready", Duration::from_secs(15)));
+    assert!(
+        first.output_containing("fake-tab-ready", Duration::from_secs(15)),
+        "{}",
+        first.output_text()
+    );
     first.write(b"first-tab\r");
     assert!(first.output_containing("echo:first-tab", Duration::from_secs(10)));
 
@@ -2363,7 +2367,11 @@ fn an_unviewed_tab_keeps_its_terminal_current_and_presents_it_in_full_when_viewe
         fake_tab,
         None,
     );
-    assert!(viewer.output_containing("fake-tab-ready", Duration::from_secs(15)));
+    assert!(
+        viewer.output_containing("fake-tab-ready", Duration::from_secs(15)),
+        "{}",
+        viewer.output_text()
+    );
 
     let created = Command::new(&executable)
         .args([
