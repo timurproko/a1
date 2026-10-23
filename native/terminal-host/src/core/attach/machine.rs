@@ -1250,11 +1250,6 @@ impl State {
         }
         if tabs.is_empty() {
             self.close_fallback = None;
-            // Invariant: the landing draws no strip, so no strip menu survives the last tab.
-            if matches!(self.mode, Mode::Popup(_) | Mode::Drag(_)) {
-                self.mode = Mode::Idle;
-                self.hovered = None;
-            }
             // Invariant: a seeded Agent that left before its first frame returns the text.
             if !self.view.pending_created_activation {
                 self.landing.restore();
@@ -2493,7 +2488,7 @@ mod tests {
     }
 
     #[test]
-    fn landing_keeps_tab_shortcuts_and_closes_strip_menus() {
+    fn landing_keeps_tab_shortcuts_the_launcher_and_strip_mouse() {
         let fixture = landing_fixture();
         let mut state = fixture.state();
         type_text(&fixture, &mut state, "discard me");
@@ -2525,18 +2520,9 @@ mod tests {
             "the landing text left with the landing"
         );
 
-        // Invariant: the landing draws no strip, so a strip menu open when the last tab closes
-        // closes with it.
-        let tabs = Fixture::new(&["a"], "a");
-        let mut state = tabs.state();
-        tabs.step(&mut state, mouse(LEFT, 10, 0));
-        assert!(
-            matches!(state.mode, Mode::Popup(_)),
-            "+ opened the launcher"
-        );
-        state.installed::<AttachTab>(&[], true);
-        assert!(matches!(state.mode, Mode::Idle));
-        assert_eq!(state.hovered, None);
+        let mut state = fixture.state();
+        fixture.step(&mut state, mouse(LEFT, 0, 0));
+        assert!(matches!(state.mode, Mode::Popup(_)), "+ opens the launcher");
         let mut state = fixture.state();
         assert_eq!(fixture.step(&mut state, mouse(LEFT, 10, 5)), []);
         assert_eq!(fixture.step(&mut state, mouse(MouseKind::Moved, 10, 5)), []);

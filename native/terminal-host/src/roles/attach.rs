@@ -550,6 +550,20 @@ fn key_trace(path: Option<&Path>, line: &str) {
     }
 }
 
+/// The `version` the release root's `package.json` records, for the landing header.
+fn read_release_version(release_root: &Path) -> Option<String> {
+    let path = release_root.join("package.json");
+    std::fs::metadata(&path)
+        .ok()
+        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
+        .and_then(|_| std::fs::read(&path).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|document| document.get("version")?.as_str().map(str::to_owned))
+        .filter(|version| {
+            !version.is_empty() && version.len() <= 64 && !version.chars().any(char::is_control)
+        })
+}
+
 /// Reads the owned `quitAnimation` setting, which defaults to on, from the canonical profile.
 fn read_quit_animation(path: &Path) -> bool {
     std::fs::metadata(path)
@@ -1617,6 +1631,8 @@ struct Client {
     pressed_chars: std::collections::HashSet<char>,
     key_trace_path: Option<PathBuf>,
     settings_file: PathBuf,
+    /// The running a1 package version the landing header names, when the release records one.
+    version: Option<String>,
 }
 
 impl Client {
@@ -1673,6 +1689,7 @@ impl Client {
             pressed_chars: std::collections::HashSet::new(),
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
+            version: read_release_version(Path::new(options.release_root)),
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
         // surface before presenting that list and the body as one first frame.
@@ -1912,7 +1929,8 @@ impl Client {
         ];
         Some(landing::render(&landing::LandingInput {
             columns: self.columns,
-            body_rows: self.outer_rows,
+            body_rows: self.outer_rows.saturating_sub(1),
+            version: self.version.as_deref(),
             accent: self.time_format.accent_color,
             truecolor: !palette_fallback_requested(),
             half_blocks: landing::half_blocks_supported(),
@@ -1954,13 +1972,9 @@ impl Client {
                     render_notice_at(
                         notice,
                         self.columns,
-                        if self.landing_shown() {
-                            1
-                        } else {
-                            self.time_format
-                                .tab_bar_position
-                                .adjacent_child_terminal_row(self.outer_rows)
-                        },
+                        self.time_format
+                            .tab_bar_position
+                            .adjacent_child_terminal_row(self.outer_rows),
                     )
                 })
         }
@@ -1973,14 +1987,14 @@ impl Client {
         clear: bool,
     ) -> Result<(), String> {
         if let Some(landing) = landing {
-            // Invariant: the landing owns the whole screen. No strip is drawn, its body starts at
-            // the top row, and its caret is a drawn cell with the hardware cursor hidden.
+            // Invariant: the landing is the body below the strip; its caret is a drawn cell, so the
+            // hardware cursor stays hidden as in the owned editor.
             return self.terminal.present(DesiredPresentation {
                 tab_id: None,
                 incarnation: 0,
                 revision: 0,
                 geometry_generation: self.presented.geometry_generation,
-                strip: String::new(),
+                strip: self.strip_frame.bytes.clone(),
                 structured: None,
                 legacy_body: landing.bytes,
                 overlay,
@@ -1988,7 +2002,7 @@ impl Client {
                 modes: None,
                 columns: self.columns,
                 outer_rows: self.outer_rows,
-                child_row_offset: 0,
+                child_row_offset: self.time_format.tab_bar_position.child_row_offset(),
                 clear,
             });
         }
@@ -2592,10 +2606,6 @@ impl Client {
         core: &mut State,
         mouse: crossterm::event::MouseEvent,
     ) -> Result<(), String> {
-        // Invariant: the landing draws no strip and its body has no mouse targets.
-        if self.landing_shown() {
-            return Ok(());
-        }
         let position = self.time_format.tab_bar_position;
         let mut normalized: core_attach::AttachMouse = (&mouse).into();
         normalized.row = if position == TabBarPosition::Bottom {
@@ -4067,6 +4077,28 @@ mod tests {
         assert!(text.find(" + ").unwrap() < text.find("SURFACE").unwrap());
         assert!(text.find("SURFACE").unwrap() < text.find("OVERLAY").unwrap());
         assert!(text.find("OVERLAY").unwrap() < text.find("\x1b[?25l").unwrap());
+    }
+
+    #[test]
+    fn the_landing_header_reads_the_release_version_or_none() {
+        let root = std::env::temp_dir().join(format!(
+            "a1-release-version-{}-{}",
+            std::process::id(),
+            rand::random::<u32>()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        assert_eq!(read_release_version(&root), None, "no package.json");
+        std::fs::write(root.join("package.json"), br#"{"version":"0.2.7-dev"}"#).unwrap();
+        assert_eq!(read_release_version(&root).as_deref(), Some("0.2.7-dev"));
+        std::fs::write(root.join("package.json"), br#"{"version":"bad\u0007"}"#).unwrap();
+        assert_eq!(
+            read_release_version(&root),
+            None,
+            "control text is never shown"
+        );
+        std::fs::write(root.join("package.json"), b"{").unwrap();
+        assert_eq!(read_release_version(&root), None);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

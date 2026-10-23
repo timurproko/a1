@@ -1,21 +1,20 @@
-//! The a1 landing the attach client shows while it has no tab: the wordmark, one ruled prompt
-//! box that mirrors the owned editor, the launch cwd, and the tab shortcuts that start work.
-//! Rendering is pure; the attach role owns the editor state and presents the bytes as the
-//! frame's body with the returned cursor.
+//! The a1 landing the attach client shows below the strip while it has no tab: a top-left header
+//! with the wordmark, the a1 version, and the launch cwd, and at the bottom one ruled prompt box
+//! that mirrors the flush-left owned editor, above the tab shortcuts that start work. Rendering
+//! is pure; the attach role owns the editor state and presents the bytes as the frame's body.
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::protocol::SurfaceCursor;
 
-/// Widest landing box, in cells, matching the owned editor's comfortable measure.
-pub const LANDING_MAX_WIDTH: u16 = 72;
 /// Most prompt rows the box shows before it scrolls to keep the cursor row visible.
 pub const LANDING_MAX_ROWS: usize = 6;
 pub const LANDING_PLACEHOLDER: &str = "Ask anything…";
-const PROMPT_PREFIX: &str = "❯ ";
 const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "▄▀▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
-const WORDMARK_TEXT: [&str; 3] = ["", "a1", ""];
+/// The header's rows below one margin row, and its left margin in cells.
+const HEADER_ROWS: usize = 3;
+const HEADER_MARGIN: usize = 1;
 
 /// The owned dark theme's `muted` and `dim` foregrounds.
 const MUTED: [u8; 3] = [157, 165, 169];
@@ -93,6 +92,8 @@ pub struct LandingInput<'a> {
     pub accent: Option<&'a str>,
     pub truecolor: bool,
     pub half_blocks: bool,
+    /// The running a1 package version, shown after the name in the header.
+    pub version: Option<&'a str>,
     pub cwd: &'a str,
     /// Key label and action for each bound shortcut, in display order.
     pub hints: &'a [(String, &'a str)],
@@ -101,7 +102,7 @@ pub struct LandingInput<'a> {
     pub spinner: Option<&'a str>,
 }
 
-/// The landing body, addressed as child rows below a top strip, and its text cursor.
+/// The landing body, addressed as child rows below a top strip, and its caret cell.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LandingFrame {
     pub bytes: Vec<u8>,
@@ -306,16 +307,13 @@ fn foreground(rgb: [u8; 3], truecolor: bool) -> String {
 pub fn render(input: &LandingInput<'_>) -> LandingFrame {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
-    let width = if columns > 8 {
-        (columns - 4).min(usize::from(LANDING_MAX_WIDTH))
-    } else {
-        columns
-    };
-    let left = columns.saturating_sub(width) / 2;
-    let content_width = width.saturating_sub(2).max(1);
     let colors = accent_colors(input.accent);
     let fg = |rgb| foreground(rgb, input.truecolor);
 
+    // Invariant: the box mirrors the flush-left owned editor, so its text starts at column zero;
+    // a pending creation's spinner takes the first two cells.
+    let spinner_width = if input.spinner.is_some() { 2 } else { 0 };
+    let content_width = columns.saturating_sub(spinner_width).max(1);
     let wrapped = wrap(input.text, content_width);
     let (cursor_row, cursor_column) = cursor_cell(input.text, &wrapped, input.cursor);
     let ruled = body_rows >= 3;
@@ -325,58 +323,72 @@ pub fn render(input: &LandingInput<'_>) -> LandingFrame {
         .min(if ruled { body_rows - 2 } else { body_rows })
         .max(1);
     let box_rows = content_rows + if ruled { 2 } else { 0 };
-    let with_hints = box_rows + 1 <= body_rows;
-    let with_wordmark = box_rows + 1 + 4 <= body_rows;
-    let total = box_rows + usize::from(with_hints) + if with_wordmark { 4 } else { 0 };
-    let top = body_rows.saturating_sub(total) / 2;
+    let with_hints = box_rows < body_rows;
+    let with_header = box_rows + usize::from(with_hints) + HEADER_ROWS + 1 <= body_rows;
 
-    let mut rows: Vec<Option<(usize, String)>> = vec![None; body_rows];
+    let mut rows: Vec<Vec<(usize, String)>> = vec![Vec::new(); body_rows];
     let mut place = |row: usize, column: usize, content: String| {
         if let Some(slot) = rows.get_mut(row) {
-            *slot = Some((column, content));
+            slot.push((column, content));
         }
     };
-    let mut row = top;
-    if with_wordmark {
-        let lines = if input.half_blocks {
-            WORDMARK
-        } else {
-            WORDMARK_TEXT
-        };
-        let wordmark_width = UnicodeWidthStr::width(WORDMARK[0]);
-        for line in lines {
-            if !line.is_empty() {
-                let shown = clip(line, columns);
-                let column = if input.half_blocks {
-                    columns.saturating_sub(wordmark_width) / 2
-                } else {
-                    columns.saturating_sub(UnicodeWidthStr::width(line)) / 2
-                };
+    if with_header {
+        let text_column = if input.half_blocks {
+            for (offset, line) in WORDMARK.iter().enumerate() {
                 place(
-                    row,
-                    column,
-                    format!("\x1b[1m{}{shown}\x1b[0m", fg(colors.accent)),
+                    1 + offset,
+                    HEADER_MARGIN,
+                    format!(
+                        "{}{}\x1b[0m",
+                        fg(colors.accent),
+                        clip(line, columns.saturating_sub(HEADER_MARGIN))
+                    ),
                 );
             }
-            row += 1;
-        }
-        row += 1;
+            HEADER_MARGIN + UnicodeWidthStr::width(WORDMARK[0]) + 2
+        } else {
+            HEADER_MARGIN
+        };
+        let room = columns.saturating_sub(text_column);
+        let version = input
+            .version
+            .filter(|version| !version.is_empty())
+            .map(|version| format!(" v{version}"))
+            .unwrap_or_default();
+        place(
+            1,
+            text_column,
+            format!(
+                "\x1b[1m{}{}\x1b[0m{}{}\x1b[0m",
+                fg(TEXT),
+                clip("a1", room),
+                fg(MUTED),
+                clip(&version, room.saturating_sub(2))
+            ),
+        );
+        place(
+            2,
+            text_column,
+            format!("{}{}\x1b[0m", fg(MUTED), clip_left(input.cwd, room)),
+        );
     }
-    let rule = format!("{}{}\x1b[0m", fg(colors.border), "─".repeat(width));
+
+    // Invariant: the box sits at the bottom, where the new Agent's editor appears, and grows
+    // upward as the prompt wraps.
+    let mut row = body_rows.saturating_sub(box_rows + usize::from(with_hints));
+    let rule = format!("{}{}\x1b[0m", fg(colors.border), "─".repeat(columns));
     if ruled {
-        place(row, left, rule.clone());
+        place(row, 0, rule.clone());
         row += 1;
     }
     let first = cursor_row.saturating_sub(content_rows - 1);
     let mut cursor = None;
     for (offset, visual) in wrapped.iter().skip(first).take(content_rows).enumerate() {
         let index = first + offset;
-        let prefix = if index != 0 {
-            "  ".to_owned()
-        } else if let Some(frame) = input.spinner {
-            format!("{}{frame} \x1b[0m", fg(colors.accent))
-        } else {
-            format!("{}{PROMPT_PREFIX}\x1b[0m", fg(MUTED))
+        let prefix = match input.spinner {
+            Some(frame) if index == 0 => format!("{}{frame} \x1b[0m", fg(colors.accent)),
+            Some(_) => "  ".to_owned(),
+            None => String::new(),
         };
         let caret = (index == cursor_row && input.spinner.is_none()).then_some(cursor_column);
         let body = if input.text.is_empty() {
@@ -387,62 +399,51 @@ pub fn render(input: &LandingInput<'_>) -> LandingFrame {
         };
         if caret.is_some() {
             cursor = Some(SurfaceCursor {
-                column: (left + 2 + cursor_column).min(columns.saturating_sub(1)) as u16,
+                column: cursor_column.min(columns.saturating_sub(1)) as u16,
                 row: row as u16,
             });
         }
-        place(row, left, format!("{prefix}{body}"));
+        place(row, 0, format!("{prefix}{body}"));
         row += 1;
     }
     if ruled {
-        place(row, left, rule);
+        place(row, 0, rule);
         row += 1;
     }
     if with_hints {
-        let hints = input
-            .hints
-            .iter()
-            .filter(|(key, _)| !key.is_empty())
-            .map(|(key, action)| (key.to_lowercase(), *action))
-            .collect::<Vec<_>>();
         let separator = " · ";
-        let hints_width = hints
-            .iter()
-            .map(|(key, action)| {
-                UnicodeWidthStr::width(key.as_str()) + 1 + UnicodeWidthStr::width(*action)
-            })
-            .sum::<usize>()
-            + UnicodeWidthStr::width(separator) * hints.len().saturating_sub(1);
-        let show_hints = !hints.is_empty() && hints_width <= width;
-        let cwd_room = if show_hints {
-            width.saturating_sub(hints_width + 2)
-        } else {
-            width
-        };
-        let cwd = clip_left(input.cwd, cwd_room);
-        let mut line = format!("{}{cwd}\x1b[0m", fg(MUTED));
-        if show_hints {
-            let gap = width - UnicodeWidthStr::width(cwd.as_str()) - hints_width;
-            line.push_str(&" ".repeat(gap));
-            for (index, (key, action)) in hints.iter().enumerate() {
-                if index > 0 {
-                    line.push_str(&format!("{}{separator}\x1b[0m", fg(DIM)));
-                }
-                line.push_str(&format!(
-                    "{}{key}\x1b[0m {}{action}\x1b[0m",
-                    fg(TEXT),
-                    fg(MUTED)
-                ));
+        let mut line = String::new();
+        let mut used = 0usize;
+        for (key, action) in input.hints.iter().filter(|(key, _)| !key.is_empty()) {
+            let key = key.to_lowercase();
+            let gap = if used == 0 {
+                0
+            } else {
+                UnicodeWidthStr::width(separator)
+            };
+            let cells =
+                gap + UnicodeWidthStr::width(key.as_str()) + 1 + UnicodeWidthStr::width(*action);
+            if used + cells > columns {
+                break;
             }
+            if used > 0 {
+                line.push_str(&format!("{}{separator}\x1b[0m", fg(DIM)));
+            }
+            line.push_str(&format!(
+                "{}{key}\x1b[0m {}{action}\x1b[0m",
+                fg(TEXT),
+                fg(MUTED)
+            ));
+            used += cells;
         }
-        place(row, left, line);
+        place(row, 0, line);
     }
 
     let mut bytes = String::new();
     for (index, slot) in rows.iter().enumerate() {
         let terminal_row = index + 2;
         bytes.push_str(&format!("\x1b[{terminal_row};1H\x1b[0m\x1b[2K"));
-        if let Some((column, content)) = slot {
+        for (column, content) in slot {
             bytes.push_str(&format!("\x1b[{terminal_row};{}H{content}", column + 1));
         }
     }
@@ -463,7 +464,7 @@ mod tests {
         let text = String::from_utf8(frame.bytes.clone()).unwrap();
         let (mut row, mut column) = (0usize, 0usize);
         let mut rest = text.as_str();
-        while let Some(character) = rest.chars().next() {
+        while !rest.is_empty() {
             if let Some(sequence) = rest.strip_prefix("\x1b[") {
                 let end = sequence
                     .find(|value: char| ('\x40'..='\x7e').contains(&value))
@@ -489,7 +490,6 @@ mod tests {
             }
             column += cells;
             rest = &rest[grapheme.len()..];
-            let _ = character;
         }
         grid.into_iter()
             .map(|row| row.concat().trim_end().to_owned())
@@ -503,6 +503,7 @@ mod tests {
             accent: None,
             truecolor: true,
             half_blocks: true,
+            version: Some("0.2.7"),
             cwd: "~/src/a1",
             hints,
             text: "",
@@ -518,46 +519,38 @@ mod tests {
         ]
     }
 
-    #[test]
-    fn full_landing_centres_wordmark_box_cwd_and_hints_at_80x24() {
-        let hints = hints();
-        let frame = render(&input(80, 23, &hints));
-        let grid = cells(&frame, 80, 23);
-        assert_eq!(grid.len(), 23);
-        let top = grid.iter().position(|row| !row.is_empty()).unwrap();
-        assert_eq!(top, (23 - 9) / 2, "the nine landing rows are centred");
-        assert_eq!(grid[top].trim(), WORDMARK[0].trim_end().trim_start());
-        assert!(grid[top + 1].contains("▄▀▀▀█  █"));
-        assert!(
-            grid[top + 3].is_empty(),
-            "one blank row follows the wordmark"
-        );
-        assert_eq!(grid[top + 4], format!("    {}", "─".repeat(72)));
-        assert_eq!(grid[top + 5], format!("    ❯ {LANDING_PLACEHOLDER}"));
-        assert_eq!(grid[top + 6], format!("    {}", "─".repeat(72)));
-        assert!(grid[top + 7].starts_with("    ~/src/a1"));
-        assert!(grid[top + 7].ends_with("alt+a new agent · alt+, settings"));
-        assert_eq!(grid[top + 7].chars().count(), 76);
-        assert_eq!(
-            frame.cursor,
-            Some(SurfaceCursor {
-                column: 6,
-                row: (top + 5) as u16
-            })
-        );
+    fn bytes(frame: LandingFrame) -> String {
+        String::from_utf8(frame.bytes).unwrap()
     }
 
     #[test]
-    fn rows_run_out_wordmark_first_then_hints_then_rules() {
+    fn the_header_sits_top_left_and_the_box_at_the_bottom_at_80x24() {
+        let hints = hints();
+        let frame = render(&input(80, 23, &hints));
+        let grid = cells(&frame, 80, 23);
+        assert!(grid[0].is_empty(), "one margin row above the header");
+        assert_eq!(grid[1], format!(" {}  a1 v0.2.7", WORDMARK[0]));
+        assert_eq!(grid[2], format!(" {}  ~/src/a1", WORDMARK[1]));
+        assert_eq!(grid[3], format!(" {}", WORDMARK[2]));
+        assert!(grid[4..19].iter().all(String::is_empty), "{grid:#?}");
+        assert_eq!(grid[19], "─".repeat(80));
+        assert_eq!(grid[20], LANDING_PLACEHOLDER);
+        assert_eq!(grid[21], "─".repeat(80));
+        assert_eq!(grid[22], "alt+a new agent · alt+, settings");
+        assert_eq!(frame.cursor, Some(SurfaceCursor { column: 0, row: 20 }));
+    }
+
+    #[test]
+    fn rows_run_out_header_first_then_hints_then_rules() {
         let hints = hints();
         let small = cells(&render(&input(40, 7, &hints)), 40, 7);
-        assert!(small.iter().all(|row| !row.contains('▀')), "{small:#?}");
-        assert!(small.iter().any(|row| row.contains("alt+a")));
-        let narrow = cells(&render(&input(20, 5, &hints)), 20, 5);
-        assert!(narrow.iter().all(|row| !row.contains("alt+a")));
-        assert!(narrow.iter().any(|row| row.contains("~/src/a1")));
-        let three = cells(&render(&input(20, 3, &hints)), 20, 3);
-        assert_eq!(three[1].trim(), "❯ Ask anything…");
+        assert!(small.iter().all(|row| !row.contains("a1 v")), "{small:#?}");
+        assert_eq!(small[6], "alt+a new agent · alt+, settings");
+        let tight = cells(&render(&input(20, 3, &hints)), 20, 3);
+        assert_eq!(
+            tight,
+            ["─".repeat(20), LANDING_PLACEHOLDER.into(), "─".repeat(20)]
+        );
         let two = render(&input(20, 2, &hints));
         let two_cells = cells(&two, 20, 2);
         assert!(two_cells.iter().all(|row| !row.contains('─')));
@@ -565,19 +558,24 @@ mod tests {
             two.cursor.is_some(),
             "the box stays usable below three rows"
         );
+        let narrow = cells(&render(&input(20, 6, &hints)), 20, 6);
+        assert_eq!(
+            narrow[5], "alt+a new agent",
+            "hints that do not fit are dropped whole"
+        );
     }
 
     #[test]
-    fn wide_terminals_cap_the_box_at_seventy_two_columns() {
+    fn rules_span_the_whole_terminal_like_the_owned_editor() {
         let hints = hints();
         let grid = cells(&render(&input(200, 59, &hints)), 200, 59);
         let rule = grid.iter().find(|row| row.contains('─')).unwrap();
-        assert_eq!(rule.trim().chars().count(), 72);
-        assert_eq!(rule.find('─'), Some(64));
+        assert_eq!(rule.chars().count(), 200);
+        assert!(rule.starts_with('─'));
     }
 
     #[test]
-    fn typed_text_wraps_and_the_cursor_row_stays_visible() {
+    fn typed_text_wraps_upward_and_the_cursor_row_stays_visible() {
         let hints = hints();
         let text = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight";
         let frame = render(&LandingInput {
@@ -586,41 +584,49 @@ mod tests {
             ..input(40, 23, &hints)
         });
         let grid = cells(&frame, 40, 23);
-        let content = grid
-            .iter()
-            .filter(|row| !row.contains('─') && !row.is_empty())
-            .filter(|row| !row.contains('▀') && !row.contains("alt+"))
-            .map(|row| row.trim().to_owned())
-            .collect::<Vec<_>>();
-        assert_eq!(content, ["three", "four", "five", "six", "seven", "eight"]);
-        let cursor = frame.cursor.unwrap();
-        assert_eq!(grid[usize::from(cursor.row)].trim(), "eight");
-        assert_eq!(cursor.column, 2 + 2 + 5);
-
-        let long = "x".repeat(40);
-        let wrapped = render(&LandingInput {
-            text: &long,
-            cursor: 40,
-            ..input(40, 23, &hints)
-        });
-        let grid = cells(&wrapped, 40, 23);
-        assert!(
-            grid.iter()
-                .any(|row| row.trim() == format!("❯ {}", "x".repeat(34)))
+        assert_eq!(
+            grid[14..22],
+            [
+                "─".repeat(40),
+                "three".into(),
+                "four".into(),
+                "five".into(),
+                "six".into(),
+                "seven".into(),
+                "eight".into(),
+                "─".repeat(40)
+            ]
         );
-        assert!(grid.iter().any(|row| row.trim() == "x".repeat(6)));
+        let cursor = frame.cursor.unwrap();
+        assert_eq!((cursor.row, cursor.column), (20, 5));
 
-        let top = render(&LandingInput {
-            text,
-            cursor: 0,
-            ..input(40, 23, &hints)
-        });
-        let grid = cells(&top, 40, 23);
-        assert!(grid.iter().any(|row| row.trim() == "❯ one"));
+        let long = "x".repeat(50);
+        let wrapped = cells(
+            &render(&LandingInput {
+                text: &long,
+                cursor: 50,
+                ..input(40, 23, &hints)
+            }),
+            40,
+            23,
+        );
+        assert_eq!(wrapped[19], "x".repeat(40));
+        assert_eq!(wrapped[20], "x".repeat(10));
+
+        let top = cells(
+            &render(&LandingInput {
+                text,
+                cursor: 0,
+                ..input(40, 23, &hints)
+            }),
+            40,
+            23,
+        );
+        assert!(top.iter().any(|row| row == "one"));
     }
 
     #[test]
-    fn pending_creation_shows_the_spinner_and_no_cursor() {
+    fn pending_creation_shows_the_spinner_and_no_caret() {
         let hints = hints();
         let frame = render(&LandingInput {
             text: "What does this repository build?",
@@ -630,35 +636,47 @@ mod tests {
         });
         assert_eq!(frame.cursor, None);
         let grid = cells(&frame, 80, 23);
-        assert!(
-            grid.iter()
-                .any(|row| row.trim() == "⠋ What does this repository build?")
-        );
-        let text = String::from_utf8(frame.bytes).unwrap();
+        assert_eq!(grid[20], "⠋ What does this repository build?");
+        let text = bytes(frame);
         assert!(text.contains("\x1b[38;2;167;152;215m⠋"), "accent spinner");
+        assert!(!text.contains("\x1b[7m"), "a pending prompt draws no caret");
     }
 
     #[test]
-    fn accents_palette_fallback_and_text_wordmark() {
+    fn the_caret_reverses_the_cell_under_the_cursor_like_the_owned_editor() {
         let hints = hints();
-        let blue = String::from_utf8(
-            render(&LandingInput {
-                accent: Some("blue"),
-                ..input(80, 23, &hints)
-            })
-            .bytes,
-        )
-        .unwrap();
-        assert!(blue.contains("\x1b[38;2;130;160;241m"));
+        let text = |cursor: usize| {
+            bytes(render(&LandingInput {
+                text: "hello",
+                cursor,
+                ..input(80, 24, &hints)
+            }))
+        };
+        assert!(text(1).contains("h\x1b[7me\x1b[27mllo"));
+        assert!(text(0).contains("\x1b[7mh\x1b[27mello"));
+        assert!(
+            text(5).contains("hello\x1b[7m \x1b[27m"),
+            "past the text a reversed space"
+        );
+        assert!(
+            bytes(render(&input(80, 24, &hints))).contains("\x1b[7mA\x1b[27msk anything…"),
+            "an empty box carries the caret on the placeholder's first cell"
+        );
+    }
+
+    #[test]
+    fn accents_palette_fallback_text_wordmark_and_missing_version() {
+        let hints = hints();
+        let blue = bytes(render(&LandingInput {
+            accent: Some("blue"),
+            ..input(80, 23, &hints)
+        }));
+        assert!(blue.contains("\x1b[38;2;130;160;241m ▀▀▀▄"));
         assert!(blue.contains("\x1b[38;2;116;102;197m─"));
-        let palette = String::from_utf8(
-            render(&LandingInput {
-                truecolor: false,
-                ..input(80, 23, &hints)
-            })
-            .bytes,
-        )
-        .unwrap();
+        let palette = bytes(render(&LandingInput {
+            truecolor: false,
+            ..input(80, 23, &hints)
+        }));
         assert!(!palette.contains("38;2;"));
         assert!(palette.contains(&format!("\x1b[38;5;{}m", palette_index([167, 152, 215]))));
         assert_eq!(palette_index([0, 0, 0]), 16);
@@ -674,7 +692,17 @@ mod tests {
             23,
         );
         assert!(plain.iter().all(|row| !row.contains('▀')));
-        assert!(plain.iter().any(|row| row.trim() == "a1"));
+        assert_eq!(plain[1], " a1 v0.2.7");
+        assert_eq!(plain[2], " ~/src/a1");
+        let unversioned = cells(
+            &render(&LandingInput {
+                version: None,
+                ..input(80, 23, &hints)
+            }),
+            80,
+            23,
+        );
+        assert!(unversioned[1].ends_with("  a1"));
     }
 
     #[test]
@@ -695,16 +723,16 @@ mod tests {
     }
 
     #[test]
-    fn the_landing_composes_as_the_whole_screen_with_no_strip_or_hardware_cursor() {
+    fn the_landing_composes_under_either_strip_with_a_hidden_hardware_cursor() {
         use crate::roles::presentation::{DesiredPresentation, FinalCursor, PresentationComposer};
         let hints = hints();
-        let frame = render(&input(80, 24, &hints));
-        let desired = |overlay: Option<String>| DesiredPresentation {
+        let frame = render(&input(80, 23, &hints));
+        let desired = |offset: u16, overlay: Option<String>| DesiredPresentation {
             tab_id: None,
             incarnation: 0,
             revision: 0,
             geometry_generation: 0,
-            strip: String::new(),
+            strip: "\x1b[1;1Hstrip".into(),
             structured: None,
             legacy_body: frame.bytes.clone(),
             overlay,
@@ -712,91 +740,54 @@ mod tests {
             modes: None,
             columns: 80,
             outer_rows: 24,
-            child_row_offset: 0,
+            child_row_offset: offset,
             clear: false,
         };
         let composer = PresentationComposer::default();
-        let first = composer.prepare(&desired(None)).unwrap().unwrap();
-        let first = String::from_utf8(first.bytes).unwrap();
+        let top = bytes_of(composer.prepare(&desired(1, None)).unwrap().unwrap().bytes);
         assert!(
-            first.contains("\x1b[2J"),
-            "the last-tab close clears the prior strip and surface once"
+            top.contains("\x1b[2J"),
+            "the last-tab close clears the prior surface once"
+        );
+        assert!(top.contains("strip"), "the strip stays above the landing");
+        assert!(
+            top.contains("\x1b[2;1H\x1b[0m\x1b[2K"),
+            "every body row is overwritten"
         );
         assert!(
-            first.contains("\x1b[1;1H\x1b[0m\x1b[2K"),
-            "the landing starts on the top row where the strip was"
-        );
-        assert!(
-            first.contains("\x1b[24;1H\x1b[0m\x1b[2K"),
-            "and covers the last row"
-        );
-        assert!(
-            first.ends_with("\x1b[?25l\x1b[?2026l"),
+            top.ends_with("\x1b[?25l\x1b[?2026l"),
             "the hardware cursor stays hidden"
         );
+        let bottom = bytes_of(composer.prepare(&desired(0, None)).unwrap().unwrap().bytes);
         assert!(
-            first.contains("\x1b[7mA\x1b[27m"),
-            "the drawn caret is the only cursor"
+            bottom.contains("\x1b[1;1H\x1b[0m\x1b[2K"),
+            "a bottom strip moves the body up"
         );
 
         let mut presented = PresentationComposer::default();
         presented
-            .prepare(&desired(None))
+            .prepare(&desired(1, None))
             .unwrap()
             .unwrap()
             .acknowledge(&mut presented);
-        let notice = presented
-            .prepare(&desired(Some("\x1b[s\x1b[1;1Hnotice\x1b[u".into())))
-            .unwrap()
-            .unwrap();
-        let notice = String::from_utf8(notice.bytes).unwrap();
-        assert!(
-            !notice.contains("\x1b[2J"),
-            "a notice over the landing never clears it"
+        let popup = bytes_of(
+            presented
+                .prepare(&desired(1, Some("\x1b[s\x1b[2;1Hmenu\x1b[u".into())))
+                .unwrap()
+                .unwrap()
+                .bytes,
         );
-        assert!(notice.contains("notice"));
+        assert!(
+            !popup.contains("\x1b[2J"),
+            "a popup over the landing never clears it"
+        );
+        assert!(popup.contains("menu"));
     }
 
-    #[test]
-    fn the_caret_reverses_the_cell_under_the_cursor_like_the_owned_editor() {
-        let hints = hints();
-        let text = |cursor: usize| {
-            String::from_utf8(
-                render(&LandingInput {
-                    text: "hello",
-                    cursor,
-                    ..input(80, 24, &hints)
-                })
-                .bytes,
-            )
-            .unwrap()
-        };
-        assert!(text(1).contains("h\x1b[7me\x1b[27mllo"));
-        assert!(text(0).contains("\x1b[7mh\x1b[27mello"));
-        assert!(
-            text(5).contains("hello\x1b[7m \x1b[27m"),
-            "past the text a reversed space"
-        );
-        let placeholder = String::from_utf8(render(&input(80, 24, &hints)).bytes).unwrap();
-        assert!(
-            placeholder.contains("\x1b[7mA\x1b[27msk anything…"),
-            "an empty box carries the caret on the placeholder's first cell"
-        );
-        let pending = String::from_utf8(
-            render(&LandingInput {
-                text: "hello",
-                cursor: 5,
-                spinner: Some("⠋"),
-                ..input(80, 24, &hints)
-            })
-            .bytes,
-        )
-        .unwrap();
-        assert!(
-            !pending.contains("\x1b[7m"),
-            "a pending prompt draws no caret"
-        );
+    fn bytes_of(value: Vec<u8>) -> String {
+        String::from_utf8(value).unwrap()
     }
+
     #[test]
     fn cwd_is_written_under_home_and_clipped_from_the_left() {
         assert_eq!(display_cwd("/home/me/src/a1", Some("/home/me")), "~/src/a1");
