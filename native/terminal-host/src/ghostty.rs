@@ -44,7 +44,12 @@ const CELLS_DATA_RAW: i32 = 1;
 const CELLS_DATA_STYLE: i32 = 2;
 const CELLS_DATA_SELECTED: i32 = 7;
 const CELLS_DATA_GRAPHEMES_UTF8: i32 = 9;
+const CELL_DATA_CONTENT_TAG: i32 = 2;
 const CELL_DATA_WIDE: i32 = 3;
+const CELL_DATA_COLOR_PALETTE: i32 = 10;
+const CELL_DATA_COLOR_RGB: i32 = 11;
+const CELL_CONTENT_BG_PALETTE: i32 = 2;
+const CELL_CONTENT_BG_RGB: i32 = 3;
 const CELL_DATA_HAS_HYPERLINK: i32 = 7;
 const CELL_WIDE_NORMAL: i32 = 0;
 const CELL_WIDE_WIDE: i32 = 1;
@@ -2341,7 +2346,8 @@ fn retained_cell_style(cells: GhosttyRenderStateRowCellsRaw) -> Result<SurfaceSt
     )?;
     Ok(SurfaceStyle {
         foreground: retained_style_color(&style.fg_color),
-        background: retained_style_color(&style.bg_color),
+        background: cell_content_background(cells)?
+            .unwrap_or_else(|| retained_style_color(&style.bg_color)),
         underline_color: retained_style_color(&style.underline_color),
         bold: style.bold,
         faint: style.faint,
@@ -2354,6 +2360,67 @@ fn retained_cell_style(cells: GhosttyRenderStateRowCellsRaw) -> Result<SurfaceSt
         underline: style.underline.clamp(0, 5) as u8,
         selected,
     })
+}
+
+/// Ghostty encodes erased/blank-cell backgrounds in the content tag independently of the
+/// style table. Reading only STYLE silently drops padding, erase fills, and scrollbar tracks.
+/// Keep palette indexes symbolic so later palette changes affect blank and text cells equally.
+fn cell_content_background(
+    cells: GhosttyRenderStateRowCellsRaw,
+) -> Result<Option<SurfaceColor>, String> {
+    let mut raw = 0u64;
+    check(
+        unsafe {
+            ghostty_render_state_row_cells_get(
+                cells,
+                CELLS_DATA_RAW,
+                &mut raw as *mut u64 as *mut c_void,
+            )
+        },
+        "read background cell",
+    )?;
+    let mut tag = 0i32;
+    check(
+        unsafe {
+            ghostty_cell_get(
+                raw,
+                CELL_DATA_CONTENT_TAG,
+                &mut tag as *mut i32 as *mut c_void,
+            )
+        },
+        "read cell content tag",
+    )?;
+    match tag {
+        CELL_CONTENT_BG_PALETTE => {
+            let mut index = 0u8;
+            check(
+                unsafe {
+                    ghostty_cell_get(
+                        raw,
+                        CELL_DATA_COLOR_PALETTE,
+                        &mut index as *mut u8 as *mut c_void,
+                    )
+                },
+                "read blank palette background",
+            )?;
+            Ok(Some(SurfaceColor::Palette(index)))
+        }
+        CELL_CONTENT_BG_RGB => {
+            let mut rgb = GhosttyColorRgb::default();
+            check(
+                unsafe {
+                    ghostty_cell_get(
+                        raw,
+                        CELL_DATA_COLOR_RGB,
+                        &mut rgb as *mut GhosttyColorRgb as *mut c_void,
+                    )
+                },
+                "read blank RGB background",
+            )?;
+            Ok(Some(SurfaceColor::Rgb(rgb_array(rgb))))
+        }
+        _ => Ok(None),
+    }
 }
 
 fn rgb_array(color: GhosttyColorRgb) -> [u8; 3] {
@@ -2412,7 +2479,11 @@ fn cell_style(
         "read cell style",
     )?;
     let fg = style_color(&style.fg_color);
-    let bg = style_color(&style.bg_color);
+    let bg = match cell_content_background(cells)? {
+        Some(SurfaceColor::Palette(index)) => Some(CellColor::Palette(index)),
+        Some(SurfaceColor::Rgb([r, g, b])) => Some(CellColor::Rgb(GhosttyColorRgb { r, g, b })),
+        _ => style_color(&style.bg_color),
+    };
     let mut selected = false;
     check(
         unsafe {
@@ -2667,6 +2738,57 @@ mod retained_tests {
             .expect("second capture");
         assert!(Arc::ptr_eq(&unchanged, &second.row_data[1]));
         assert!(!Arc::ptr_eq(&first.row_data[0], &second.row_data[0]));
+    }
+
+    #[test]
+    fn retained_capture_keeps_styled_blanks_and_observes_cleared_rows() {
+        let mut terminal = GhosttyTerminal::new(8, 2).expect("terminal");
+        let mut builder = RetainedSurfaceBuilder::default();
+        terminal.write(b"\x1b[2;1HJump");
+        let first = terminal
+            .capture_retained_surface(&mut builder, 1, SurfaceCommitKind::Complete)
+            .expect("painted capture");
+
+        terminal.write(b"\x1b[2;1H\x1b[0m\x1b[2K\x1b[1;1H\x1b[48;2;1;2;3mX       \x1b[0m");
+        let second = terminal
+            .capture_retained_surface(&mut builder, 1, SurfaceCommitKind::Complete)
+            .expect("replacement capture");
+        let structured = second.structured().expect("wire surface");
+        assert!(!Arc::ptr_eq(&first.row_data[1], &second.row_data[1]));
+        assert!(
+            structured.row_data[1]
+                .cells
+                .iter()
+                .all(|cell| cell.text == " ")
+        );
+        assert!(structured.row_data[0].cells.iter().all(|cell| {
+            structured.styles[usize::from(cell.style)].background == SurfaceColor::Rgb([1, 2, 3])
+        }));
+    }
+
+    #[test]
+    fn semantic_prompt_start_retains_its_real_fresh_line_behavior() {
+        let mut terminal = GhosttyTerminal::new(24, 4).expect("terminal");
+        terminal.write(b"prefix\x1b]133;A\x07prompt");
+        let surface = terminal
+            .capture_retained_surface(
+                &mut RetainedSurfaceBuilder::default(),
+                1,
+                SurfaceCommitKind::Complete,
+            )
+            .unwrap()
+            .structured()
+            .unwrap();
+        let text = |row: usize| {
+            surface.row_data[row]
+                .cells
+                .iter()
+                .map(|cell| cell.text.as_str())
+                .collect::<String>()
+        };
+        assert!(text(0).starts_with("prefix"));
+        assert!(text(1).starts_with("prompt"));
+        assert_eq!(terminal.cursor_cell().unwrap(), Some((6, 1)));
     }
 
     #[test]

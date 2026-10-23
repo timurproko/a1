@@ -47,15 +47,40 @@ pub fn initial_revision(incarnation: u64) -> u64 {
 }
 
 const SYNCHRONIZED_OUTPUT_RECOVERY_DELAY: Duration = Duration::from_millis(250);
+// Platform: Windows ConPTY re-renders the child's cells on its own schedule and relays DEC 2026
+// markers when it parses them, so a frame's cells can arrive after its end marker (and a render
+// pass can land between its markers). Only a PTY that relays bytes verbatim delimits frames.
+const MARKERS_DELIMIT_FRAMES: bool = !cfg!(windows);
+/// Bound on waiting for the render pass that follows a relayed end marker.
+const RENDER_PASS_WAIT: Duration = Duration::from_millis(40);
+/// Quiet gap after re-rendered output: one render pass can span several pipe reads.
+const RENDER_PASS_SETTLE: Duration = Duration::from_millis(2);
+const HOLDER_IDLE_WAKE: Duration = Duration::from_millis(8);
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct SynchronizationState {
     open: bool,
     deadline: Option<std::time::Instant>,
     recovered: bool,
+    markers_delimit_frames: bool,
+    /// Set by a relayed end marker: the frame is parsed but its render pass has not arrived.
+    render_pass_due: Option<std::time::Instant>,
+    /// Earliest publication of re-rendered output, so one pass is not split across commits.
+    settled_at: Option<std::time::Instant>,
 }
 
 impl SynchronizationState {
+    fn new(markers_delimit_frames: bool) -> Self {
+        Self {
+            open: false,
+            deadline: None,
+            recovered: false,
+            markers_delimit_frames,
+            render_pass_due: None,
+            settled_at: None,
+        }
+    }
+
     fn begin(&mut self, now: std::time::Instant) {
         if self.open {
             return;
@@ -71,6 +96,40 @@ impl SynchronizationState {
         self.recovered = false;
     }
 
+    /// Records a parser-reported boundary; returns whether the state preceding it is publishable.
+    fn observe(&mut self, boundary: SynchronizedOutputBoundary, now: std::time::Instant) -> bool {
+        match boundary {
+            SynchronizedOutputBoundary::Begin => {
+                // Protocol: bytes preceding a begin marker belong to the prior coherent state unless
+                // that state is still waiting for its re-rendered cells.
+                let publishable = self.render_pass_due.is_none_or(|due| now >= due);
+                self.begin(now);
+                publishable
+            }
+            SynchronizedOutputBoundary::End => {
+                self.close();
+                if self.markers_delimit_frames {
+                    return true;
+                }
+                self.render_pass_due = now.checked_add(RENDER_PASS_WAIT);
+                false
+            }
+            SynchronizedOutputBoundary::Reset => {
+                self.close();
+                true
+            }
+        }
+    }
+
+    /// Records output outside a marker: the render pass a relayed end marker was waiting for.
+    fn note_output(&mut self, now: std::time::Instant) {
+        if self.markers_delimit_frames {
+            return;
+        }
+        self.render_pass_due = None;
+        self.settled_at = now.checked_add(RENDER_PASS_SETTLE);
+    }
+
     fn recover_if_due(&mut self, now: std::time::Instant) -> bool {
         if !self.open || self.recovered || !self.deadline.is_some_and(|deadline| now >= deadline) {
             return false;
@@ -79,8 +138,20 @@ impl SynchronizationState {
         true
     }
 
-    fn may_publish(&self) -> bool {
-        !self.open || self.recovered
+    fn may_publish(&self, now: std::time::Instant) -> bool {
+        (!self.open || self.recovered)
+            && self.render_pass_due.is_none_or(|due| now >= due)
+            && self.settled_at.is_none_or(|at| now >= at)
+    }
+
+    /// How long the loop may sleep before a pending publication decision is due.
+    fn wake_timeout(&self, now: std::time::Instant) -> Duration {
+        [self.render_pass_due, self.settled_at, self.deadline]
+            .into_iter()
+            .flatten()
+            .filter(|at| *at > now)
+            .map(|at| at.saturating_duration_since(now))
+            .fold(HOLDER_IDLE_WAKE, Duration::min)
     }
 
     fn commit_kind(&self) -> SurfaceCommitKind {
@@ -730,7 +801,7 @@ fn run_holder(
         geometry_generation,
         SurfaceCommitKind::Complete,
     )?;
-    let mut synchronization = SynchronizationState::default();
+    let mut synchronization = SynchronizationState::new(MARKERS_DELIMIT_FRAMES);
     let mut geometry_deadline: Option<std::time::Instant> = None;
     let mut pending_effects = Vec::<EffectKind>::new();
     let mut effect_sequence = 0u64;
@@ -757,9 +828,10 @@ fn run_holder(
         mpsc::sync_channel::<Result<(endpoint::EndpointStream, u64), String>>(1);
     let mut reconnecting = false;
     let mut server_connected = true;
+    // Invariant: unpublished parser changes carry across rounds until a commit publishes them.
+    let mut changed = false;
     loop {
         watchdog.bump();
-        let mut changed = false;
         if let Ok(reconnected) = reconnect_rx.try_recv() {
             let (replacement, epoch) = reconnected?;
             reconnecting = false;
@@ -1107,6 +1179,7 @@ fn run_holder(
                 recovery_output.pop_front();
             }
             let mut offset = 0usize;
+            let now = std::time::Instant::now();
             while offset < bytes.len() {
                 let (consumed, boundary) = terminal.write_until_sync_boundary(&bytes[offset..])?;
                 offset += consumed;
@@ -1122,73 +1195,43 @@ fn run_holder(
                     &mut pending_effects,
                     server_connected && subscription.as_ref().is_some_and(|value| value.effects),
                 );
-                match boundary {
-                    Some(SynchronizedOutputBoundary::Begin) => {
-                        // Protocol: bytes preceding the opening delimiter belong to the prior coherent
-                        // state. The delimiter itself changes no visible cells, and duplicate
-                        // commits are suppressed by the retained commit contract.
-                        commit_retained_surface(
-                            &mut terminal,
-                            &mut surface_builder,
-                            &mut committed,
-                            &server,
-                            subscription.as_ref(),
-                            &config.tab_id,
-                            config.incarnation,
-                            &mut revision,
-                            geometry_generation,
-                            SurfaceCommitKind::Complete,
-                            "idle",
-                        )?;
-                        publish_pending_effects(
-                            &mut pending_effects,
-                            &server,
-                            server_connected,
-                            &config.tab_id,
-                            config.incarnation,
-                            revision,
-                            &mut effect_sequence,
-                        )?;
-                        changed = false;
-                        synchronization.begin(std::time::Instant::now());
-                        geometry_deadline = None;
-                    }
-                    Some(
-                        boundary @ (SynchronizedOutputBoundary::End
-                        | SynchronizedOutputBoundary::Reset),
-                    ) => {
-                        commit_retained_surface(
-                            &mut terminal,
-                            &mut surface_builder,
-                            &mut committed,
-                            &server,
-                            subscription.as_ref(),
-                            &config.tab_id,
-                            config.incarnation,
-                            &mut revision,
-                            geometry_generation,
-                            if boundary == SynchronizedOutputBoundary::Reset {
-                                SurfaceCommitKind::Recovery
-                            } else {
-                                SurfaceCommitKind::Complete
-                            },
-                            "idle",
-                        )?;
-                        publish_pending_effects(
-                            &mut pending_effects,
-                            &server,
-                            server_connected,
-                            &config.tab_id,
-                            config.incarnation,
-                            revision,
-                            &mut effect_sequence,
-                        )?;
-                        changed = false;
-                        synchronization.close();
-                        geometry_deadline = None;
-                    }
-                    None => {}
+                let Some(boundary) = boundary else {
+                    synchronization.note_output(now);
+                    continue;
+                };
+                // Protocol: a marker changes no visible cells, and duplicate commits are suppressed by
+                // the retained commit contract, so publishing at a boundary is safe whenever the
+                // synchronization state says the preceding bytes form a coherent frame.
+                if synchronization.observe(boundary, now) {
+                    commit_retained_surface(
+                        &mut terminal,
+                        &mut surface_builder,
+                        &mut committed,
+                        &server,
+                        subscription.as_ref(),
+                        &config.tab_id,
+                        config.incarnation,
+                        &mut revision,
+                        geometry_generation,
+                        if boundary == SynchronizedOutputBoundary::Reset {
+                            SurfaceCommitKind::Recovery
+                        } else {
+                            SurfaceCommitKind::Complete
+                        },
+                        "idle",
+                    )?;
+                    publish_pending_effects(
+                        &mut pending_effects,
+                        &server,
+                        server_connected,
+                        &config.tab_id,
+                        config.incarnation,
+                        revision,
+                        &mut effect_sequence,
+                    )?;
+                    changed = false;
                 }
+                geometry_deadline = None;
             }
             if output_bytes >= 256 * 1024
                 || output_round_started.elapsed() >= Duration::from_millis(2)
@@ -1197,8 +1240,9 @@ fn run_holder(
             }
         }
         // Concurrency: normal output commits after this bounded coalescing round. Synchronized output remains
-        // private until a real close/reset boundary or one non-renewable recovery deadline.
-        if changed && synchronization.may_publish() {
+        // private until a real close/reset boundary or one non-renewable recovery deadline, and relayed
+        // output stays private until its render pass has arrived and settled or its wait expires.
+        if changed && synchronization.may_publish(std::time::Instant::now()) {
             commit_retained_surface(
                 &mut terminal,
                 &mut surface_builder,
@@ -1221,6 +1265,7 @@ fn run_holder(
                 revision,
                 &mut effect_sequence,
             )?;
+            changed = false;
             geometry_deadline = None;
         }
         if synchronization.recover_if_due(std::time::Instant::now()) {
@@ -1354,7 +1399,7 @@ fn run_holder(
                 return Ok(());
             }
         }
-        let _ = wake_rx.recv_timeout(Duration::from_millis(8));
+        let _ = wake_rx.recv_timeout(synchronization.wake_timeout(std::time::Instant::now()));
     }
 }
 
@@ -1766,17 +1811,17 @@ mod tests {
     #[test]
     fn synchronization_recovery_deadline_is_not_renewed_and_releases_publication() {
         let started = std::time::Instant::now();
-        let mut synchronization = SynchronizationState::default();
+        let mut synchronization = SynchronizationState::new(true);
         synchronization.begin(started);
         let deadline = synchronization.deadline.expect("deadline");
         synchronization.begin(started + Duration::from_millis(200));
         assert_eq!(synchronization.deadline, Some(deadline));
-        assert!(!synchronization.may_publish());
+        assert!(!synchronization.may_publish(started));
         assert!(!synchronization.recover_if_due(
             started + SYNCHRONIZED_OUTPUT_RECOVERY_DELAY - Duration::from_millis(1)
         ));
         assert!(synchronization.recover_if_due(started + SYNCHRONIZED_OUTPUT_RECOVERY_DELAY));
-        assert!(synchronization.may_publish());
+        assert!(synchronization.may_publish(started + SYNCHRONIZED_OUTPUT_RECOVERY_DELAY));
         assert_eq!(synchronization.commit_kind(), SurfaceCommitKind::Recovery);
         assert!(
             !synchronization.recover_if_due(
@@ -1785,6 +1830,79 @@ mod tests {
         );
         synchronization.close();
         assert_eq!(synchronization.commit_kind(), SurfaceCommitKind::Complete);
+    }
+
+    #[test]
+    fn verbatim_markers_publish_at_every_boundary_without_settling() {
+        let started = std::time::Instant::now();
+        let mut synchronization = SynchronizationState::new(true);
+        assert!(synchronization.observe(SynchronizedOutputBoundary::Begin, started));
+        assert!(!synchronization.may_publish(started));
+        assert!(synchronization.observe(SynchronizedOutputBoundary::End, started));
+        assert!(synchronization.may_publish(started));
+        synchronization.note_output(started);
+        assert!(synchronization.may_publish(started));
+        assert_eq!(synchronization.wake_timeout(started), HOLDER_IDLE_WAKE);
+        assert!(synchronization.observe(SynchronizedOutputBoundary::Reset, started));
+    }
+
+    #[test]
+    fn relayed_end_marker_waits_for_its_render_pass_and_settles_it() {
+        let started = std::time::Instant::now();
+        let mut synchronization = SynchronizationState::new(false);
+        assert!(synchronization.observe(SynchronizedOutputBoundary::Begin, started));
+        // Protocol: a render pass landing between the markers stays private while the transaction is open.
+        synchronization.note_output(started + Duration::from_millis(1));
+        assert!(!synchronization.may_publish(started + Duration::from_millis(5)));
+        let ended = started + Duration::from_millis(6);
+        assert!(!synchronization.observe(SynchronizedOutputBoundary::End, ended));
+        assert!(!synchronization.may_publish(ended + RENDER_PASS_WAIT - Duration::from_millis(1)));
+        assert_eq!(synchronization.wake_timeout(ended), HOLDER_IDLE_WAKE);
+        assert_eq!(
+            synchronization.wake_timeout(ended + RENDER_PASS_WAIT - Duration::from_millis(3)),
+            Duration::from_millis(3)
+        );
+        let rendered = ended + Duration::from_millis(23);
+        synchronization.note_output(rendered);
+        assert!(!synchronization.may_publish(rendered));
+        assert_eq!(synchronization.wake_timeout(rendered), RENDER_PASS_SETTLE);
+        assert!(synchronization.may_publish(rendered + RENDER_PASS_SETTLE));
+        assert_eq!(
+            synchronization.wake_timeout(rendered + RENDER_PASS_SETTLE),
+            HOLDER_IDLE_WAKE
+        );
+    }
+
+    #[test]
+    fn relayed_end_marker_without_a_render_pass_publishes_at_its_bound() {
+        let started = std::time::Instant::now();
+        let mut synchronization = SynchronizationState::new(false);
+        synchronization.observe(SynchronizedOutputBoundary::Begin, started);
+        assert!(!synchronization.observe(SynchronizedOutputBoundary::End, started));
+        assert!(
+            !synchronization.may_publish(started + RENDER_PASS_WAIT - Duration::from_millis(1))
+        );
+        assert!(synchronization.may_publish(started + RENDER_PASS_WAIT));
+        assert_eq!(synchronization.commit_kind(), SurfaceCommitKind::Complete);
+        // Invariant: the expired wait no longer schedules wakes or blocks the next begin marker.
+        let later = started + RENDER_PASS_WAIT + Duration::from_millis(1);
+        assert_eq!(synchronization.wake_timeout(later), HOLDER_IDLE_WAKE);
+        assert!(synchronization.observe(SynchronizedOutputBoundary::Begin, later));
+    }
+
+    #[test]
+    fn begin_marker_during_a_pending_render_pass_keeps_the_torn_state_private() {
+        let started = std::time::Instant::now();
+        let mut synchronization = SynchronizationState::new(false);
+        synchronization.observe(SynchronizedOutputBoundary::Begin, started);
+        synchronization.note_output(started);
+        synchronization.observe(SynchronizedOutputBoundary::End, started);
+        let next = started + Duration::from_millis(1);
+        assert!(!synchronization.observe(SynchronizedOutputBoundary::Begin, next));
+        assert!(!synchronization.may_publish(next));
+        assert!(!synchronization.observe(SynchronizedOutputBoundary::End, next));
+        synchronization.note_output(next + Duration::from_millis(1));
+        assert!(synchronization.may_publish(next + Duration::from_millis(1) + RENDER_PASS_SETTLE));
     }
 
     #[test]

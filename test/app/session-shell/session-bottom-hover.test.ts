@@ -33,10 +33,10 @@ function fixture(length = 20) {
   const row = root.viewportFrameDescriptor()!.transcript!.rowEnd;
   const mouse = (code: number, column = 30, atRow = row) => root.handleViewportPreInput(`\u001b[<${code};${column};${atRow}M`);
   const hover = (rows: readonly string[], expected: boolean) => {
-    const control = rows.find(line => /Jump to bottom|new messages?/.test(stripAnsi(line)));
-    expect(control).toBeDefined();
+    const controls = rows.filter(line => /Jump to bottom|new messages?/.test(stripAnsi(line)));
+    expect(controls).toHaveLength(1);
     const color = piTheme().bg(expected ? "selectedBg" : "toolPendingBg", " ").split(" ")[0];
-    expect(control).toContain(color);
+    expect(controls[0]).toContain(color);
   };
   return { root, view, renders, geometry, render, mouse, hover, row, onFrame: (value: (() => void) | undefined) => { onFrame = value; } };
 }

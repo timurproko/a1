@@ -5,6 +5,8 @@ import { mergeBuiltInRenderers, ToolExecutionComponent as OwnedTool } from "../.
 import { KeybindingsManager, type KeybindingsConfig } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { createBashToolDefinition, createEditToolDefinition, createFindToolDefinition, createGrepToolDefinition, createLsToolDefinition, createReadToolDefinition, createWriteToolDefinition } from "@earendil-works/pi-coding-agent";
 import { createTuiFacade, ensureTheme } from "../../../../src/integrations/pi/components/shell-shared-facade.js";
+import { cellBackgroundAt } from "../../../support/ansi-cell-style.js";
+import { rebaseTerminalDefaultBackground } from "../../../../src/integrations/pi/tui-runtime/index.js";
 import {
   applyPiTheme,
   piTheme,
@@ -24,6 +26,14 @@ afterEach(() => {
   setPiPackageBorderProjectionEnabled(true);
   setPiAccentColor("purple");
 });
+function withEnclosingToolBackground(row: string): string {
+  const background = /\u001b\[(?:4[0-8]|10[0-7]|48;(?:2;\d+;\d+;\d+|5;\d+))m/u.exec(row)?.[0];
+  const close = row.lastIndexOf("\u001b[49m");
+  return background === undefined || close < 0
+    ? row
+    : rebaseTerminalDefaultBackground(row.slice(0, close), background) + row.slice(close);
+}
+
 function pair(name: string, args: unknown, definition?: ConstructorParameters<typeof OwnedTool>[4]) {
   ensureTheme();
   setCapabilities({ ...caps, images: null, hyperlinks: true });
@@ -76,7 +86,7 @@ describe("source-derived tool shell with independent actual pinned renderers", (
             expect(ownedPlain.replace("Ctrl+O expand", "ctrl+o to expand"))
               .toBe(stripTerminalSequences(pinnedRows[index]!).trimEnd());
           } else {
-            expect(ownedRow).toBe(pinnedRows[index]);
+            expect(ownedRow).toBe(withEnclosingToolBackground(pinnedRows[index]!));
           }
         }
       }
@@ -94,6 +104,35 @@ describe("source-derived tool shell with independent actual pinned renderers", (
       }
     }
     owned.dispose();
+  });
+
+  it("keeps the enclosing tool background after nested renderer resets", () => {
+    applyPiTheme("dark", false, "truecolor");
+    const definition = {
+      renderCall: () => new Text("head\u001b[0m reset \u001b[48;2;1;2;3mnested\u001b[49m tail", 0, 0),
+    } as unknown as ConstructorParameters<typeof OwnedTool>[4];
+    const { owned } = pair("custom-reset", {}, definition);
+    const width = 40;
+    const assertRow = (role: "toolPendingBg" | "toolSuccessBg" | "toolErrorBg") => {
+      const row = owned.render(width).find(candidate => stripTerminalSequences(candidate).includes("head"));
+      expect(row).toBeDefined();
+      const plain = stripTerminalSequences(row!);
+      const nestedStart = plain.indexOf("nested");
+      const expected = cellBackgroundAt(piTheme().bg(role, "x"), 0);
+      for (let column = 0; column < width; column += 1) {
+        const background = cellBackgroundAt(row!, column);
+        expect(background).toBe(column >= nestedStart && column < nestedStart + "nested".length ? "1;2;3" : expected);
+      }
+    };
+    try {
+      assertRow("toolPendingBg");
+      owned.updateResult({ content: [{ type: "text", text: "done" }], details: {}, isError: false });
+      assertRow("toolSuccessBg");
+      owned.updateResult({ content: [{ type: "text", text: "failed" }], details: {}, isError: true });
+      assertRow("toolErrorBg");
+    } finally {
+      owned.dispose();
+    }
   });
 
   it("uses concise semantic shortcut styling for collapsed generic fallback output", () => {

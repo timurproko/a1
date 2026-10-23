@@ -111,14 +111,12 @@ pub fn tab_spinner_frame() -> &'static str {
 
 fn status_glyph_at(status: &str, elapsed_ms: u128) -> String {
     match status {
-        "starting" | "restoring" | "working" => {
-            format!("{} ", tab_spinner_frame_at(elapsed_ms))
-        }
-        "needs-input" => "? ".into(),
-        "unresponsive" | "stalled" | "degraded" => "! ".into(),
-        "done" | "done-unseen" => "✓ ".into(),
-        "restarting" => "↻ ".into(),
-        "aborted" | "error" | "crashed" | "failed" | "ended" => "✗ ".into(),
+        "starting" | "restoring" | "working" => tab_spinner_frame_at(elapsed_ms).into(),
+        "needs-input" => "?".into(),
+        "unresponsive" | "stalled" | "degraded" => "!".into(),
+        "done" | "done-unseen" => "✓".into(),
+        "restarting" => "↻".into(),
+        "aborted" | "error" | "crashed" | "failed" | "ended" => "✗".into(),
         _ => String::new(),
     }
 }
@@ -419,6 +417,7 @@ fn chip(
     rename: Option<&StripRename>,
 ) -> (String, usize) {
     let glyph = status_glyph(&tab.status);
+    let separator = if glyph.is_empty() { "" } else { " " };
     let fixed = chip_fixed_width(tab);
     let title = chip_title(tab, 20usize.saturating_sub(fixed), now, truecolor, rename);
     let name = title.text;
@@ -431,7 +430,7 @@ fn chip(
         "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m"
     };
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
-    let text = format!("{background} {glyph_color}{glyph}\x1b[39m{name} \x1b[0m");
+    let text = format!("{background} {glyph_color}{glyph}\x1b[39m{separator}{name} \x1b[0m");
     (text, width)
 }
 
@@ -945,7 +944,7 @@ mod tests {
             now,
             true,
         );
-        assert!(plain(&frame.bytes).contains(" auth-fix "));
+        assert!(plain(&frame.bytes).starts_with(" auth-fix "));
         assert!(!plain(&frame.bytes).contains('×'));
         assert_eq!(truecolor_runs(&frame.bytes), 4);
     }
@@ -1044,7 +1043,7 @@ mod tests {
             start + Duration::from_secs(5),
             true,
         );
-        assert!(plain(&settled.bytes).contains(" auth-fix "));
+        assert!(plain(&settled.bytes).starts_with(" auth-fix "));
         assert_eq!(settled.hits, reference.hits);
     }
 
@@ -1150,6 +1149,41 @@ mod tests {
     }
 
     #[test]
+    fn chips_pad_before_the_icon_and_separate_it_from_the_name() {
+        for status in [
+            "working",
+            "starting",
+            "restoring",
+            "needs-input",
+            "unresponsive",
+            "restarting",
+            "done",
+            "failed",
+            "idle",
+        ] {
+            let mut value = tab("one", "agent");
+            value.status = status.into();
+            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None);
+            let text = plain(&bytes);
+            assert!(text.starts_with(' '), "status={status}");
+            let glyph = status_glyph_at(status, 0);
+            if !glyph.is_empty() {
+                assert_ne!(text.chars().nth(1), Some(' '), "icon column: {status}");
+                assert_eq!(
+                    text.chars().nth(2),
+                    Some(' '),
+                    "icon/name separator: {status}"
+                );
+                assert_eq!(text.chars().nth(3), Some('a'), "name: {status}");
+                assert_eq!(glyph.chars().count(), 1);
+            } else {
+                assert_eq!(text, " agent ");
+            }
+            assert_eq!(width, UnicodeWidthStr::width(text.as_str()));
+        }
+    }
+
+    #[test]
     fn uses_v2_progress_frames_at_eighty_millisecond_cadence() {
         assert_eq!(
             TAB_SPINNER_FRAMES,
@@ -1161,7 +1195,7 @@ mod tests {
             assert_eq!(tab_spinner_frame_at(elapsed), *expected);
             assert_eq!(tab_spinner_frame_at(elapsed + 79), *expected);
             for status in ["working", "starting", "restoring"] {
-                assert_eq!(status_glyph_at(status, elapsed), format!("{expected} "));
+                assert_eq!(status_glyph_at(status, elapsed), *expected);
             }
         }
         assert_eq!(
@@ -1172,15 +1206,15 @@ mod tests {
 
     #[test]
     fn uses_semantic_status_glyphs_without_old_progress_or_suspended_glyphs() {
-        assert_eq!(status_glyph_at("needs-input", 0), "? ");
-        assert_eq!(status_glyph_at("unresponsive", 0), "! ");
-        assert_eq!(status_glyph_at("done-unseen", 0), "✓ ");
-        assert_eq!(status_glyph_at("failed", 0), "✗ ");
+        assert_eq!(status_glyph_at("needs-input", 0), "?");
+        assert_eq!(status_glyph_at("unresponsive", 0), "!");
+        assert_eq!(status_glyph_at("done-unseen", 0), "✓");
+        assert_eq!(status_glyph_at("failed", 0), "✗");
         assert_eq!(status_glyph_at("suspended", 0), "");
-        assert_eq!(status_glyph_at("done", 0), "✓ ");
+        assert_eq!(status_glyph_at("done", 0), "✓");
         assert_eq!(accent("done", None), "\x1b[38;2;90;190;120m");
         for marker in ["aborted", "error"] {
-            assert_eq!(status_glyph_at(marker, 0), "✗ ");
+            assert_eq!(status_glyph_at(marker, 0), "✗");
             assert_eq!(accent(marker, None), "\x1b[38;2;225;90;90m");
         }
         for old in ["◐", "◓", "◑", "◒", "…"] {
