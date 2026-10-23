@@ -1537,6 +1537,17 @@ impl GlyphState {
 
 /// The attach role's side of a session: the server connection, the outer terminal, and what it
 /// presents. Core attach state decides; the client applies its effects.
+fn should_paint_strip(tabs: &[StripTab], has_shown_tabs: bool, notice: bool) -> bool {
+    !tabs.is_empty() || has_shown_tabs || notice
+}
+
+fn cold_staged_tabs(view: &ViewModel, visible: &[StripTab]) -> Option<Vec<StripTab>> {
+    if !visible.is_empty() {
+        return None;
+    }
+    view.staged_tabs().filter(|tabs| !tabs.is_empty()).cloned()
+}
+
 struct Client {
     stream: AttachServerWriter,
     terminal: OuterTerminal,
@@ -1553,6 +1564,7 @@ struct Client {
     time_format: TimeFormatWatch,
     strip_frame: strip::StripFrame,
     presented: Presented,
+    has_shown_tabs: bool,
     apply_effects: bool,
     pending_terminal_effects: VecDeque<TerminalEffect>,
     applied_terminal_effects: HashMap<(String, u64), u64>,
@@ -1607,6 +1619,7 @@ impl Client {
             time_format,
             strip_frame,
             presented: Presented::new(),
+            has_shown_tabs: false,
             apply_effects: handshake.apply_effects,
             pending_terminal_effects: VecDeque::new(),
             applied_terminal_effects: HashMap::new(),
@@ -1754,6 +1767,12 @@ impl Client {
     }
 
     fn paint(&mut self, core: &mut State, clear: bool) -> Result<(), String> {
+        // Invariant: cold attach never shows a provisional `+` strip while the first tab's
+        // registry and surface are still arriving. Closing a previously shown last tab may.
+        if !should_paint_strip(&self.tabs, self.has_shown_tabs, core.notice.is_some()) {
+            return Ok(());
+        }
+        self.has_shown_tabs |= !self.tabs.is_empty();
         let rename = core.mode.rename().map(RenameEditor::display);
         let mut shown = shown_tabs(
             &self.tabs,
@@ -1844,7 +1863,7 @@ impl Client {
         }
     }
 
-    fn present(&self, overlay: Option<String>, clear: bool) -> Result<(), String> {
+    fn present(&mut self, overlay: Option<String>, clear: bool) -> Result<(), String> {
         self.terminal.present(DesiredPresentation {
             tab_id: self.view.viewed.clone(),
             incarnation: self.presented.incarnation,
@@ -2200,7 +2219,16 @@ impl Client {
             TopologyAction::Commit { surface, tabs } => {
                 self.apply_commit(core, surface, Some(tabs), true)
             }
-            TopologyAction::Staged => Ok(()),
+            TopologyAction::Staged => {
+                // Invariant: keep the child body staged, but paint actual registry tab names
+                // immediately on cold attach instead of an empty provisional strip.
+                if let Some(tabs) = cold_staged_tabs(&self.view, &self.tabs) {
+                    self.tabs = tabs;
+                    core.installed(&self.tabs, true);
+                    self.paint(core, false)?;
+                }
+                Ok(())
+            }
             TopologyAction::Install { tabs, changed } => {
                 self.tabs = tabs;
                 core.installed(&self.tabs, changed);
@@ -2777,6 +2805,7 @@ impl OuterWriter {
 
 struct OuterTerminal {
     restored: bool,
+    entered: bool,
     kitty_keyboard: bool,
     writer: OuterWriter,
 }
@@ -2784,18 +2813,11 @@ impl OuterTerminal {
     fn enter() -> Result<Self, String> {
         enable_raw_mode().map_err(|error| format!("enable outer raw mode: {error}"))?;
         let kitty_keyboard = query_kitty_keyboard(Duration::from_millis(200)).unwrap_or(false);
-        let mut initial = Vec::from(ENTER_OUTER_MODES);
-        if kitty_keyboard {
-            initial.extend_from_slice(KITTY_ENABLE);
-        }
-        {
-            let mut out = TerminalOutput::new();
-            out.write_all(&initial)
-                .and_then(|()| out.flush())
-                .map_err(|error| format!("enter outer terminal: {error}"))?;
-        }
+        // Invariant: negotiating input does not clear the user's terminal before there is a
+        // real tab frame to show. The first presentation enters the alternate screen.
         Ok(Self {
             restored: false,
+            entered: false,
             kitty_keyboard,
             writer: OuterWriter::start(),
         })
@@ -2803,11 +2825,24 @@ impl OuterTerminal {
     fn write(&self, bytes: &[u8]) -> Result<(), String> {
         self.writer.bytes(bytes)
     }
-    fn present(&self, desired: DesiredPresentation) -> Result<(), String> {
+    fn present(&mut self, desired: DesiredPresentation) -> Result<(), String> {
+        if !self.entered {
+            self.entered = true;
+            let mut initial = Vec::from(ENTER_OUTER_MODES);
+            if self.kitty_keyboard {
+                initial.extend_from_slice(KITTY_ENABLE);
+            }
+            // Concurrency: the writer owns stdout for its lifetime. Queue the screen switch
+            // before the first presentation rather than taking its stdout lock on this thread.
+            self.writer.bytes(&initial)?;
+        }
         self.writer.offer(desired)
     }
     /// Plays bare A1's fall outro over the screen this client presented, before restoration.
     fn play_quit_outro(&self, row_widths: &[usize]) {
+        if !self.entered {
+            return;
+        }
         self.writer.discard_presentation();
         let seed = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -2816,6 +2851,9 @@ impl OuterTerminal {
         let _ = self.write(b"\x1b[?25h");
     }
     fn restore_sequence(&self) -> Vec<u8> {
+        if !self.entered {
+            return Vec::new();
+        }
         let mut bytes = Vec::new();
         bytes.extend_from_slice(outer_input::RESET_CURSOR_STYLE);
         bytes.extend_from_slice(RESET_OUTER_COLORS);
@@ -2985,6 +3023,46 @@ fn encode_child_mouse(kind: MouseEventKind, column: u16, row: u16) -> Option<Vec
 mod tests {
     use super::*;
     use crate::core::attach::{PopupAction, update_drag};
+
+    #[test]
+    fn cold_attach_does_not_paint_an_empty_strip_before_tab_names_arrive() {
+        let first = StripTab {
+            id: "tab-1".into(),
+            name: "Existing Agent".into(),
+            name_source: "user".into(),
+            status: "running".into(),
+            accent: None,
+            title_animation: None,
+        };
+        assert!(!should_paint_strip(&[], false, false));
+        assert!(should_paint_strip(&[first.clone()], false, false));
+        assert!(
+            should_paint_strip(&[], true, false),
+            "last-tab close still repaints the strip"
+        );
+        assert!(
+            should_paint_strip(&[], false, true),
+            "create failure remains visible"
+        );
+
+        let mut view = ViewModel::new(Some("tab-2".into()));
+        view.request("tab-1");
+        assert_eq!(
+            view.topology(&[], vec![first.clone()], |_| None).action,
+            TopologyAction::Staged
+        );
+        let early = cold_staged_tabs(&view, &[]).expect("staged registry can show names");
+        assert_eq!(early, [first]);
+        assert!(
+            strip::render(&early, Some("tab-1"), 80)
+                .bytes
+                .contains("Existing Agent")
+        );
+        assert!(
+            cold_staged_tabs(&view, &early).is_none(),
+            "later switches stay staged"
+        );
+    }
 
     fn startup_surface(revision: u64, text: &str, structured: bool) -> Surface {
         Surface {
