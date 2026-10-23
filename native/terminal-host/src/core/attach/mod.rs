@@ -423,39 +423,53 @@ impl PopupMenu {
     }
 }
 
-const RENAME_HISTORY_LIMIT: usize = 100;
+const EDITOR_HISTORY_LIMIT: usize = 100;
+
+/// The longest tab name the rename prompt admits, in graphemes.
+pub const RENAME_MAX_GRAPHEMES: usize = 64;
+
+/// The longest prompt the landing admits, in UTF-8 bytes; it matches the seeded-prompt bound.
+pub const LANDING_MAX_BYTES: usize = 64 * 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EditorLimit {
+    Graphemes(usize),
+    Bytes(usize),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct RenameSnapshot {
+struct EditorSnapshot {
     text: String,
     cursor: usize,
     selection_anchor: Option<usize>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum RenameEdit {
+enum EditorEdit {
     Typing,
     Other,
 }
 
+/// An attach-owned text field: grapheme cursor, selection, word motion, and bounded undo. The
+/// rename prompt keeps it to one line; the landing also inserts pasted line breaks.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RenameEditor {
-    pub tab_id: String,
+pub struct LineEditor {
     pub text: String,
     pub cursor: usize,
+    limit: EditorLimit,
     selection_anchor: Option<usize>,
-    undo: Vec<RenameSnapshot>,
-    redo: Vec<RenameSnapshot>,
-    last_edit: Option<RenameEdit>,
+    undo: Vec<EditorSnapshot>,
+    redo: Vec<EditorSnapshot>,
+    last_edit: Option<EditorEdit>,
 }
 
-impl RenameEditor {
-    pub fn new(tab_id: String, text: String) -> Self {
+impl LineEditor {
+    pub fn new(text: String, limit: EditorLimit) -> Self {
         let cursor = text.graphemes(true).count();
         Self {
-            tab_id,
             text,
             cursor,
+            limit,
             selection_anchor: None,
             undo: Vec::new(),
             redo: Vec::new(),
@@ -463,27 +477,27 @@ impl RenameEditor {
         }
     }
 
-    fn snapshot(&self) -> RenameSnapshot {
-        RenameSnapshot {
+    fn snapshot(&self) -> EditorSnapshot {
+        EditorSnapshot {
             text: self.text.clone(),
             cursor: self.cursor,
             selection_anchor: self.selection_anchor,
         }
     }
 
-    fn restore(&mut self, snapshot: RenameSnapshot) {
+    fn restore(&mut self, snapshot: EditorSnapshot) {
         self.text = snapshot.text;
         self.cursor = snapshot.cursor;
         self.selection_anchor = snapshot.selection_anchor;
     }
 
     /// Records the state before an edit; consecutive typed characters share one undo step.
-    fn record(&mut self, edit: RenameEdit) {
-        if edit == RenameEdit::Typing && self.last_edit == Some(RenameEdit::Typing) {
+    fn record(&mut self, edit: EditorEdit) {
+        if edit == EditorEdit::Typing && self.last_edit == Some(EditorEdit::Typing) {
             return;
         }
         self.undo.push(self.snapshot());
-        if self.undo.len() > RENAME_HISTORY_LIMIT {
+        if self.undo.len() > EDITOR_HISTORY_LIMIT {
             self.undo.remove(0);
         }
         self.redo.clear();
@@ -491,7 +505,7 @@ impl RenameEditor {
     }
 
     /// Applies an edit and keeps it in history only when it changed the text.
-    fn edit(&mut self, kind: RenameEdit, change: impl FnOnce(&mut Self)) {
+    fn edit(&mut self, kind: EditorEdit, change: impl FnOnce(&mut Self)) {
         let before = self.snapshot();
         let last_edit = self.last_edit;
         let undo_len = self.undo.len();
@@ -529,6 +543,11 @@ impl RenameEditor {
         self.text.is_empty()
     }
 
+    /// Empties the field and forgets its history.
+    pub fn clear(&mut self) {
+        *self = Self::new(String::new(), self.limit);
+    }
+
     pub fn selection(&self) -> Option<(usize, usize)> {
         self.selection_anchor
             .filter(|anchor| *anchor != self.cursor)
@@ -554,20 +573,66 @@ impl RenameEditor {
         true
     }
 
+    fn admits(&self, added: &str) -> bool {
+        match self.limit {
+            EditorLimit::Graphemes(maximum) => {
+                self.len() + added.graphemes(true).count() <= maximum
+            }
+            EditorLimit::Bytes(maximum) => self.text.len() + added.len() <= maximum,
+        }
+    }
+
     pub fn insert(&mut self, value: char) {
-        self.edit(RenameEdit::Typing, |editor| {
+        self.edit(EditorEdit::Typing, |editor| {
             editor.delete_selection();
-            if editor.len() >= 64 {
+            if !editor.admits(value.encode_utf8(&mut [0; 4])) {
                 return;
             }
             let offset = editor.byte_offset(editor.cursor);
             editor.text.insert(offset, value);
-            editor.cursor += 1;
+            // Invariant: the cursor counts graphemes, so a combining mark joins its base.
+            editor.cursor = editor.text[..offset + value.len_utf8()]
+                .graphemes(true)
+                .count();
         });
     }
 
+    /// Inserts pasted text as one undo step, keeping line breaks and dropping other controls.
+    /// Returns `false`, changing nothing, when the whole text does not fit the bound.
+    pub fn insert_text(&mut self, value: &str) -> bool {
+        let normalized = value
+            .replace("\r\n", "\n")
+            .replace('\r', "\n")
+            .replace('\t', "    ")
+            .chars()
+            .filter(|character| *character == '\n' || !character.is_control())
+            .collect::<String>();
+        let removed = self.selection().map_or(0, |(a, b)| {
+            self.byte_offset(a.max(b)) - self.byte_offset(a.min(b))
+        });
+        let fits = match self.limit {
+            EditorLimit::Graphemes(maximum) => {
+                self.len() + normalized.graphemes(true).count() <= maximum + removed
+            }
+            EditorLimit::Bytes(maximum) => self.text.len() - removed + normalized.len() <= maximum,
+        };
+        if !fits {
+            return false;
+        }
+        self.edit(EditorEdit::Other, |editor| {
+            editor.delete_selection();
+            let offset = editor.byte_offset(editor.cursor);
+            editor.text.insert_str(offset, &normalized);
+            editor.cursor = editor.text[..offset + normalized.len()]
+                .graphemes(true)
+                .count();
+        });
+        self.last_edit = None;
+        true
+    }
+
     pub fn backspace(&mut self) {
-        self.edit(RenameEdit::Other, |editor| {
+        self.edit(EditorEdit::Other, |editor| {
             if editor.delete_selection() || editor.cursor == 0 {
                 return;
             }
@@ -579,7 +644,7 @@ impl RenameEditor {
     }
 
     pub fn delete(&mut self) {
-        self.edit(RenameEdit::Other, |editor| {
+        self.edit(EditorEdit::Other, |editor| {
             if editor.delete_selection() || editor.cursor >= editor.len() {
                 return;
             }
@@ -590,7 +655,7 @@ impl RenameEditor {
     }
 
     pub fn delete_word_left(&mut self) {
-        self.edit(RenameEdit::Other, |editor| {
+        self.edit(EditorEdit::Other, |editor| {
             if editor.delete_selection() {
                 return;
             }
@@ -602,7 +667,7 @@ impl RenameEditor {
     }
 
     pub fn delete_word_right(&mut self) {
-        self.edit(RenameEdit::Other, |editor| {
+        self.edit(EditorEdit::Other, |editor| {
             if editor.delete_selection() {
                 return;
             }
@@ -657,10 +722,40 @@ impl RenameEditor {
     }
 }
 
-/// Handles the rename editor's control-key edits; returns `false` for keys it does not own.
+/// The open tab rename prompt: a one-line editor bound to the tab it renames.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenameEditor {
+    pub tab_id: String,
+    editor: LineEditor,
+}
+
+impl RenameEditor {
+    pub fn new(tab_id: String, text: String) -> Self {
+        Self {
+            tab_id,
+            editor: LineEditor::new(text, EditorLimit::Graphemes(RENAME_MAX_GRAPHEMES)),
+        }
+    }
+}
+
+impl std::ops::Deref for RenameEditor {
+    type Target = LineEditor;
+
+    fn deref(&self) -> &LineEditor {
+        &self.editor
+    }
+}
+
+impl std::ops::DerefMut for RenameEditor {
+    fn deref_mut(&mut self) -> &mut LineEditor {
+        &mut self.editor
+    }
+}
+
+/// Handles an attach editor's control-key edits; returns `false` for keys it does not own.
 /// Terminals report Ctrl+Backspace as Backspace with Ctrl, Ctrl+H, or Ctrl+W.
-pub fn apply_rename_control_key(
-    editor: &mut RenameEditor,
+pub fn apply_editor_control_key(
+    editor: &mut LineEditor,
     code: KeyCode,
     modifiers: Modifiers,
 ) -> bool {
@@ -673,6 +768,27 @@ pub fn apply_rename_control_key(
         KeyCode::Char('a' | 'A') => editor.select_all(),
         KeyCode::Char('z') if !modifiers.shift => editor.undo(),
         KeyCode::Char('Z') | KeyCode::Char('z') | KeyCode::Char('y' | 'Y') => editor.redo(),
+        _ => return false,
+    }
+    true
+}
+
+/// The editing keys every attach editor shares; returns `false` for keys it does not own.
+pub fn apply_editor_key(editor: &mut LineEditor, code: KeyCode, modifiers: Modifiers) -> bool {
+    if apply_editor_control_key(editor, code, modifiers) {
+        return true;
+    }
+    match code {
+        KeyCode::Backspace => editor.backspace(),
+        KeyCode::Delete => editor.delete(),
+        KeyCode::Left if modifiers.control => editor.move_word_left(),
+        KeyCode::Right if modifiers.control => editor.move_word_right(),
+        KeyCode::Left => editor.move_cursor(editor.cursor.saturating_sub(1)),
+        KeyCode::Right => editor.move_cursor((editor.cursor + 1).min(editor.len())),
+        KeyCode::Home => editor.move_cursor(0),
+        KeyCode::End => editor.move_cursor(usize::MAX),
+        KeyCode::Char(_) if modifiers.control || modifiers.alt => {}
+        KeyCode::Char(value) if !value.is_control() => editor.insert(value),
         _ => return false,
     }
     true
@@ -1254,27 +1370,27 @@ mod tests {
     fn rename_deletes_whole_words_and_ignores_control_letters() {
         let mut editor = RenameEditor::new("tab-a".into(), "fix login flow".into());
         editor.move_cursor(4);
-        assert!(apply_rename_control_key(
+        assert!(apply_editor_control_key(
             &mut editor,
             KeyCode::Delete,
             CONTROL
         ));
         assert_eq!(editor.text, "fix flow");
         assert_eq!(editor.cursor, 4);
-        editor.move_cursor(editor.len());
-        assert!(apply_rename_control_key(
+        editor.move_cursor(usize::MAX);
+        assert!(apply_editor_control_key(
             &mut editor,
             KeyCode::Backspace,
             CONTROL
         ));
         assert_eq!(editor.text, "fix ");
-        assert!(apply_rename_control_key(
+        assert!(apply_editor_control_key(
             &mut editor,
             KeyCode::Char('w'),
             CONTROL
         ));
         assert_eq!(editor.text, "");
-        assert!(!apply_rename_control_key(
+        assert!(!apply_editor_control_key(
             &mut editor,
             KeyCode::Delete,
             Modifiers::NONE
@@ -1284,7 +1400,7 @@ mod tests {
         unicode.move_cursor(0);
         unicode.delete_word_right();
         assert_eq!(unicode.text, "👩‍💻 build");
-        unicode.move_cursor(unicode.len());
+        unicode.move_cursor(usize::MAX);
         unicode.delete_word_left();
         assert_eq!(unicode.text, "👩‍💻 ");
         assert_eq!(unicode.cursor, 2);
@@ -1298,17 +1414,17 @@ mod tests {
         }
         editor.delete_word_left();
         assert_eq!(editor.text, "agent ");
-        assert!(apply_rename_control_key(
+        assert!(apply_editor_control_key(
             &mut editor,
             KeyCode::Char('z'),
             CONTROL
         ));
         assert_eq!((editor.text.as_str(), editor.cursor), ("agent one", 9));
-        apply_rename_control_key(&mut editor, KeyCode::Char('z'), CONTROL);
+        apply_editor_control_key(&mut editor, KeyCode::Char('z'), CONTROL);
         assert_eq!((editor.text.as_str(), editor.cursor), ("agent", 5));
-        apply_rename_control_key(&mut editor, KeyCode::Char('y'), CONTROL);
+        apply_editor_control_key(&mut editor, KeyCode::Char('y'), CONTROL);
         assert_eq!(editor.text, "agent one");
-        apply_rename_control_key(&mut editor, KeyCode::Char('Z'), CONTROL_SHIFT);
+        apply_editor_control_key(&mut editor, KeyCode::Char('Z'), CONTROL_SHIFT);
         assert_eq!(editor.text, "agent ");
 
         // Invariant: A new edit after undo discards the redo branch, and no-op edits add no history.
@@ -1335,7 +1451,7 @@ mod tests {
         editor.move_cursor(0);
         editor.delete();
         assert_eq!(editor.text, "ocs");
-        editor.move_cursor(editor.len());
+        editor.move_cursor(usize::MAX);
         editor.backspace();
         assert_eq!(editor.text, "oc");
         assert_eq!(editor.cursor, 2);
@@ -1422,5 +1538,50 @@ mod tests {
                 .resolve::<AttachTab>(&[]),
             None
         );
+    }
+
+    #[test]
+    fn line_editor_pastes_line_breaks_as_one_step_within_its_bound() {
+        let mut editor = LineEditor::new(String::new(), EditorLimit::Bytes(16));
+        assert!(editor.insert_text("one\r\ntwo\tx\u{7}"));
+        assert_eq!(editor.text, "one\ntwo    x");
+        assert_eq!(editor.cursor, editor.len());
+        assert!(
+            !editor.insert_text("too long"),
+            "a paste past the bound is refused whole"
+        );
+        assert_eq!(editor.text, "one\ntwo    x");
+        editor.select_all();
+        assert!(
+            editor.insert_text("replaced in full"),
+            "a selection makes room"
+        );
+        assert_eq!(editor.text, "replaced in full");
+        editor.undo();
+        assert_eq!(editor.text, "one\ntwo    x");
+        editor.clear();
+        assert!(editor.is_empty());
+        editor.undo();
+        assert!(editor.is_empty(), "clearing forgets history");
+
+        let mut rename = RenameEditor::new("tab-1".into(), "x".repeat(RENAME_MAX_GRAPHEMES - 1));
+        rename.insert('y');
+        rename.insert('z');
+        assert_eq!(
+            rename.len(),
+            RENAME_MAX_GRAPHEMES,
+            "rename keeps its 64-grapheme bound"
+        );
+        assert!(apply_editor_key(
+            &mut rename,
+            KeyCode::Home,
+            Modifiers::NONE
+        ));
+        assert_eq!(rename.cursor, 0);
+        assert!(!apply_editor_key(
+            &mut rename,
+            KeyCode::Tab,
+            Modifiers::NONE
+        ));
     }
 }

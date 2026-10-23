@@ -849,6 +849,7 @@ fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
                     release_root,
                     node_executable,
                     environment: std::env::vars().collect(),
+                    initial_prompt: None,
                 },
             )?;
             let payload =

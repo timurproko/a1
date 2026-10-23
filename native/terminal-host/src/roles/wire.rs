@@ -178,7 +178,14 @@ pub struct TabCreate {
     pub node_executable: String,
     #[serde(default)]
     pub environment: Vec<(String, String)>,
+    /// The seeded first prompt, at most [`MAX_INITIAL_PROMPT_BYTES`]. Security: the server
+    /// writes it only to the tab's private seed file, never to a bridge message or record.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial_prompt: Option<String>,
 }
+
+/// The largest seeded first prompt a `tab.create` request may carry.
+pub const MAX_INITIAL_PROMPT_BYTES: usize = 64 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

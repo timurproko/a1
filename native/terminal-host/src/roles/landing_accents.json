@@ -1,0 +1,12 @@
+{
+  "schema": "a1-landing-accents-v1",
+  "appearance": "dark",
+  "accents": {
+    "purple": { "accent": [167, 152, 215], "border": [105, 115, 167] },
+    "blue": { "accent": [130, 160, 241], "border": [116, 102, 197] },
+    "cyan": { "accent": [93, 179, 186], "border": [74, 128, 146] },
+    "green": { "accent": [104, 183, 141], "border": [75, 132, 120] },
+    "orange": { "accent": [231, 135, 83], "border": [178, 89, 79] },
+    "pink": { "accent": [223, 122, 199], "border": [150, 91, 171] }
+  }
+}

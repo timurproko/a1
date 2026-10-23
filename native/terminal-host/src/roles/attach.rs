@@ -29,6 +29,7 @@ use crate::protocol::{
     Welcome,
 };
 use crate::roles::credentials::ProfileCredentials;
+use crate::roles::landing;
 use crate::roles::outer_input::{self, InputChannel, Outgoing};
 #[cfg(test)]
 use crate::roles::presentation::Frame;
@@ -349,6 +350,15 @@ pub fn tab_create_failure_notice(reason: Option<&str>) -> String {
         _ => "the tab could not start",
     };
     format!("Could not open a tab: {reason}")
+}
+
+/// The `tab.create` body for a landing submission: the client's launch context plus the seeded
+/// first prompt, bounded before it leaves this client.
+fn seeded_create(create: &TabCreate, text: String) -> TabCreate {
+    TabCreate {
+        initial_prompt: (text.len() <= wire::MAX_INITIAL_PROMPT_BYTES).then_some(text),
+        ..create.clone()
+    }
 }
 
 /// Most characters remembered as pressed; a stuck set is cleared rather than grown.
@@ -1246,6 +1256,7 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
         release_root: options.release_root.into(),
         node_executable: options.node_executable.into(),
         environment: std::env::vars().collect(),
+        initial_prompt: None,
     };
     Ok(Handshake {
         stream,
@@ -1726,6 +1737,12 @@ impl Client {
         let stream = &mut self.stream;
         match request {
             Request::Create => wire::send(stream, "tab.create", None, self.create.clone()),
+            Request::CreateWithPrompt(text) => wire::send(
+                stream,
+                "tab.create",
+                None,
+                seeded_create(&self.create, text),
+            ),
             Request::OpenSettings => {
                 wire::send(stream, "tab.open-settings", None, self.create.clone())
             }
@@ -1861,7 +1878,50 @@ impl Client {
         }
         self.strip_frame = strip_frame;
         let overlay = self.overlay(core);
-        self.present(overlay, clear)
+        let landing = self.landing(core);
+        self.present(overlay, landing, clear)
+    }
+
+    /// Invariant: the landing is the body only while no tab is viewed after tabs were shown, so a
+    /// first launch, a resize, or a pending switch never flashes it over a child surface.
+    fn landing_shown(&self) -> bool {
+        self.view.viewed.is_none() && self.has_shown_tabs
+    }
+
+    fn landing(&self, core: &State) -> Option<landing::LandingFrame> {
+        if !self.landing_shown() {
+            return None;
+        }
+        let submitted = core.landing.submitted.as_deref();
+        let text = submitted.unwrap_or(&core.landing.editor.text);
+        let cursor = if submitted.is_some() {
+            0
+        } else {
+            core.landing.editor.cursor
+        };
+        let spinner = submitted.map(|_| {
+            strip::TAB_SPINNER_FRAMES[(self.now().as_millis() / u128::from(strip::TAB_SPINNER_MS))
+                as usize
+                % strip::TAB_SPINNER_FRAMES.len()]
+        });
+        let home = std::env::var(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).ok();
+        let cwd = landing::display_cwd(&self.create.cwd, home.as_deref());
+        let hints = [
+            (self.bindings.label("tabs.new"), "new agent"),
+            (self.bindings.label("tabs.settings"), "settings"),
+        ];
+        Some(landing::render(&landing::LandingInput {
+            columns: self.columns,
+            body_rows: self.outer_rows.saturating_sub(1),
+            accent: self.time_format.accent_color,
+            truecolor: !palette_fallback_requested(),
+            half_blocks: landing::half_blocks_supported(),
+            cwd: &cwd,
+            hints: &hints,
+            text,
+            cursor,
+            spinner,
+        }))
     }
 
     fn overlay(&self, core: &State) -> Option<String> {
@@ -1902,7 +1962,30 @@ impl Client {
         }
     }
 
-    fn present(&mut self, overlay: Option<String>, clear: bool) -> Result<(), String> {
+    fn present(
+        &mut self,
+        overlay: Option<String>,
+        landing: Option<landing::LandingFrame>,
+        clear: bool,
+    ) -> Result<(), String> {
+        if let Some(landing) = landing {
+            return self.terminal.present(DesiredPresentation {
+                tab_id: None,
+                incarnation: 0,
+                revision: 0,
+                geometry_generation: self.presented.geometry_generation,
+                strip: self.strip_frame.bytes.clone(),
+                structured: None,
+                legacy_body: landing.bytes,
+                overlay,
+                cursor: Some(landing.cursor.map_or(FinalCursor::Hidden, FinalCursor::At)),
+                modes: None,
+                columns: self.columns,
+                outer_rows: self.outer_rows,
+                child_row_offset: self.time_format.tab_bar_position.child_row_offset(),
+                clear,
+            });
+        }
         self.terminal.present(DesiredPresentation {
             tab_id: self.view.viewed.clone(),
             incarnation: self.presented.incarnation,
@@ -2326,8 +2409,11 @@ impl Client {
             // the writer still considers them current. Overwrite the full cached frame once.
             self.paint(core, true)?;
         }
-        if strip::animations_active(&self.tabs)
-            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs)
+        let landing_pending = core.landing.submitted.is_some() && self.landing_shown();
+        if (strip::animations_active(&self.tabs)
+            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs))
+            || (landing_pending
+                && self.last_strip_frame.elapsed() >= Duration::from_millis(strip::TAB_SPINNER_MS))
         {
             self.paint(core, false)?;
             self.last_strip_frame = Instant::now();
@@ -2361,8 +2447,10 @@ impl Client {
             Event::Mouse(mouse) => self.mouse(core, mouse)?,
             Event::Paste(text) => {
                 for forward in self.run(core, core_attach::Event::Paste(text))? {
-                    if let Effect::ForwardPaste(text) = forward {
-                        self.paste(core, text)?;
+                    match forward {
+                        Effect::ForwardPaste(text) => self.paste(core, text)?,
+                        Effect::Chord { .. } => self.chord.reset(),
+                        _ => {}
                     }
                 }
             }
@@ -2426,7 +2514,22 @@ impl Client {
             key: (&key).into(),
             action,
         };
-        if !self.run(core, event)?.contains(&Effect::ForwardKey) {
+        let forwarded = self.run(core, event)?;
+        if let Some(ctrl_c) = forwarded.iter().find_map(|effect| match effect {
+            Effect::Chord { ctrl_c } => Some(*ctrl_c),
+            _ => None,
+        }) {
+            // Invariant: the landing keeps solo's Ctrl+C meaning; its own key cleared the box and
+            // a second Ctrl+C inside the window still detaches.
+            let now = self.started.elapsed().as_millis() as u64;
+            if self.chord.admit(now, ctrl_c) == CtrlCDisposition::Detach {
+                core.exit();
+                self.detach()?;
+                return Ok(true);
+            }
+            return Ok(false);
+        }
+        if !forwarded.contains(&Effect::ForwardKey) {
             return Ok(false);
         }
         let event = outer_input::normalize_key(&key);
@@ -3954,6 +4057,43 @@ mod tests {
         assert!(text.find(" + ").unwrap() < text.find("SURFACE").unwrap());
         assert!(text.find("SURFACE").unwrap() < text.find("OVERLAY").unwrap());
         assert!(text.find("OVERLAY").unwrap() < text.find("\x1b[?25l").unwrap());
+    }
+
+    #[test]
+    fn landing_creation_carries_its_prompt_only_when_seeded() {
+        let create = TabCreate {
+            cwd: "/work".into(),
+            columns: 80,
+            rows: 23,
+            release_root: "/release".into(),
+            node_executable: "node".into(),
+            environment: Vec::new(),
+            initial_prompt: None,
+        };
+        let plain = serde_json::to_value(&create).unwrap();
+        assert!(
+            plain.get("initialPrompt").is_none(),
+            "older servers see no new field"
+        );
+        let seeded = seeded_create(&create, "What does this build?".into());
+        assert_eq!(
+            serde_json::to_value(&seeded).unwrap()["initialPrompt"],
+            "What does this build?"
+        );
+        assert_eq!(seeded.cwd, "/work");
+        let frame = wire::frame("tab.create", None, seeded).unwrap();
+        let (_, decoded): (Option<u64>, TabCreate) = wire::body(&frame[4..]).unwrap();
+        assert_eq!(
+            decoded.initial_prompt.as_deref(),
+            Some("What does this build?")
+        );
+        let (_, legacy): (Option<u64>, TabCreate) =
+            wire::body(&wire::frame("tab.create", None, create.clone()).unwrap()[4..]).unwrap();
+        assert_eq!(legacy.initial_prompt, None);
+        assert_eq!(
+            seeded_create(&create, "x".repeat(wire::MAX_INITIAL_PROMPT_BYTES + 1)).initial_prompt,
+            None
+        );
     }
 
     #[test]
