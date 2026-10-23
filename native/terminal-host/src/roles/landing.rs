@@ -5,7 +5,9 @@
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "▄▀▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
+/// Invariant: the middle row sits where an Agent's editor draws its caret, so the full block that
+/// starts it is the cell the cursor takes when a tab opens.
+const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "█▀▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
 
 /// The owned dark theme's `muted` foreground and its primary text.
 const MUTED: [u8; 3] = [157, 165, 169];
@@ -305,6 +307,11 @@ mod tests {
             "the second-to-last body row, flush left"
         );
         assert_eq!(grid[22], "a1 v0.2.7");
+        // Invariant: an Agent's editor caret sits two rows above its footer cwd, at column zero.
+        assert!(
+            grid[19].starts_with('█'),
+            "the wordmark's full left block is the cell the Agent caret takes"
+        );
     }
 
     #[test]
