@@ -49,8 +49,8 @@ describe("owned UI setting declarations", () => {
       "promptSuggestions",
       "skillsPresentation",
       "promptImageLimit",
-      "tabsAutoName",
       "tabsPosition",
+      "tabsAutoName",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "timeFormat")).toMatchObject({
       label: "Time format",
@@ -110,7 +110,7 @@ describe("owned UI setting declarations", () => {
       allowedValues: [true, false],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsPosition")).toMatchObject({
-      label: "Tab bar position",
+      label: "Position",
       section: { id: "tabs", title: "Tabs" },
       application: "live",
       defaultValue: "top",

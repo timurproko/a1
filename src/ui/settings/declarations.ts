@@ -150,6 +150,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     defaultValue: 8,
     allowedValues: Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const),
   }),
+  tabsPosition: Object.freeze({
+    id: "tabsPosition",
+    label: "Position",
+    section: TABS_SECTION,
+    description: "Place the resident tab bar at the top or bottom of the terminal.",
+    application: "live",
+    defaultValue: "top",
+    allowedValues: Object.freeze(["top", "bottom"] as const),
+  }),
   tabsAutoName: Object.freeze({
     id: "tabsAutoName",
     label: "Auto name",
@@ -158,15 +167,6 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "live",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
-  }),
-  tabsPosition: Object.freeze({
-    id: "tabsPosition",
-    label: "Tab bar position",
-    section: TABS_SECTION,
-    description: "Place the resident tab bar at the top or bottom of the terminal.",
-    application: "live",
-    defaultValue: "top",
-    allowedValues: Object.freeze(["top", "bottom"] as const),
   }),
 } as const satisfies Readonly<Record<string, OwnedUiSettingDeclaration>>);
 

@@ -456,14 +456,19 @@ describe("the settings screen", () => {
 
   it("changes the resident tab-bar position live and persists it", async () => {
     const { app: target, session, writes } = await app();
-    selectRow(target, "Tab bar position");
-    expect(find(target, "Tab bar position").trimStart()).toMatch(/^→.*top/);
+    selectRow(target, "Position");
+    const rows = screen(target);
+    const positionRow = rows.findIndex(line => /^→?\s*Position\s+top\b/.test(line.trimStart()));
+    expect(positionRow).toBeGreaterThan(0);
+    expect(rows[positionRow - 1]?.trimStart()).toMatch(/^Tabs\b/u);
+    expect(rows[positionRow + 1]).toContain("Auto name");
+    expect(find(target, "Position").trimStart()).toMatch(/^→.*top/);
 
     target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     await session.load();
     expect(session.value("tabsPosition")).toBe("bottom");
-    expect(find(target, "Tab bar position").trimStart()).toMatch(/^→.*bottom/);
+    expect(find(target, "Position").trimStart()).toMatch(/^→.*bottom/);
     expect(writes).toEqual([]);
   });
 
