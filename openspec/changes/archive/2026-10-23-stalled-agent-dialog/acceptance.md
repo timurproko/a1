@@ -30,7 +30,7 @@ The maintainer integration decision accepts these scenarios:
     "A bare `R` on a stalled tab is typed into the tab instead of restarting it, while assigned tab shortcuts such as `Alt+W` keep working over the dialog.",
     "The session shell appends no `No progress` line to the transcript when a resident tab stalls; the strip status still reports stalled."
   ],
-  "archiveDigest": "0875ee5531a3f343aab880a3db524c4a319a00189eed71a6018afc0ff244fd15",
+  "archiveDigest": "d6918e3cb40c22a90938a9b445a292ab09793c28650770f2d82426065752976e",
   "specDigest": "7c07c64b580f9e8b7b3a30a51e529d27fdfdcd2303537b4e7adcdba748404ed2",
   "tasksDigest": "ef909cb679a194443c9e022cd02961cc175b97bcfb0e9a17efdb1cee4bd4b8f1",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
