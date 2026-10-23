@@ -67,7 +67,7 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
     const initial = shell.root.render(60);
     expect(initial).toHaveLength(12);
     const plainInitial = initial.map(row => stripTerminalSequences(row));
-    expect(plainInitial.some(row => /^❯ Question \d+\s+\d{1,2}:\d{2} [AP]M\s*$/.test(row))).toBe(true);
+    expect(plainInitial.some(row => /^ ❯ Question \d+\s+\d{1,2}:\d{2} [AP]M\s*$/.test(row))).toBe(true);
     expect(terminal.writes.some(write => write.includes("[?1003h"))).toBe(true);
 
     terminal.input("\u001b[<64;30;3M");

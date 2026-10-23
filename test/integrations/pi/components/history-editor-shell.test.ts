@@ -59,10 +59,10 @@ describe("history editor component boundary", () => {
       const bottomPlain = stripTerminalSequences(bottom);
       expect(top).toContain(piTheme().fg("dim", "1/1 "));
       expect(topPlain).not.toContain("·");
-      expect(topPlain).toBe("── 1/1 " + "─".repeat(26) + " ↑ 10 more " + "─".repeat(36));
-      expect(bottomPlain).toBe("─".repeat(33) + " ↓ 3 more " + "─".repeat(37));
+      expect(topPlain).toBe("── 1/1 " + "─".repeat(27) + " ↑ 10 more " + "─".repeat(35));
+      expect(bottomPlain).toBe("─".repeat(35) + " ↓ 3 more " + "─".repeat(35));
       expect(Math.abs(topPlain.indexOf(" ↑ 10 more ") * 2 + " ↑ 10 more ".length - 78)).toBeLessThanOrEqual(1);
-      expect(bottomPlain.indexOf(" ↓ 3 more ") * 2 + " ↓ 3 more ".length).toBe(76);
+      expect(bottomPlain.indexOf(" ↓ 3 more ") * 2 + " ↓ 3 more ".length).toBe(80);
       expect(cellStyle(top, "↑")).toEqual(cellStyle(bottom, "↓"));
       expect(cellStyle(top, "1")).not.toEqual(cellStyle(top, "↑"));
       const shifted = editor.render(24)[0]!;
@@ -70,8 +70,7 @@ describe("history editor component boundary", () => {
       expect(stripTerminalSequences(shifted)).toBe("── 1/1  ↑ 10 more ──────");
       const historyOnly = editor.render(19)[0]!;
       expect(historyOnly).toContain(piTheme().fg("dim", "1/1 "));
-      expect(stripTerminalSequences(historyOnly)).toBe("── 1/1 " + "─".repeat(12));
-      expect(historyOnly).not.toContain("↑");
+      expect(stripTerminalSequences(historyOnly)).toBe("── 1/1  ↑ 10 more ─");
 
       const comparison = createPiShellEditor({ ...options, keybindingProfile: "pi" });
       comparison.setText("line\n".repeat(20).trim());

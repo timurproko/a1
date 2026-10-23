@@ -40,7 +40,7 @@ describe("shared prompt input presentation", () => {
   it("retains semantic annotations and aligns continuation and menu rows", () => {
     const input = new PromptInput(theme);
     const rendered = input.render(20, innerWidth => {
-      expect(innerWidth).toBe(17);
+      expect(innerWidth).toBe(20);
       return {
         rows: ["first", "second"],
         topRule: `${input.styleRule("─── ")}${theme.fg("muted", "1/3 ")}${input.styleRule("─")}`,
@@ -50,18 +50,18 @@ describe("shared prompt input presentation", () => {
     });
     const rows = rendered.map(stripAnsi);
     expect(rows[0]).toBe("─── 1/3 ────────────");
-    expect(rows[1]?.trimEnd()).toBe(" ❯ first");
-    expect(rows[2]?.trimEnd()).toBe("   second");
+    expect(rows[1]?.trimEnd()).toBe("first");
+    expect(rows[2]?.trimEnd()).toBe("second");
     expect(rows[3]).toContain("↓ 2");
-    expect(rows[4]?.trimEnd()).toBe("   menu");
+    expect(rows[4]?.trimEnd()).toBe("menu");
     expect(cellStyle(rendered[0]!, "1")).toEqual(cellStyle(theme.fg("muted", "1"), "1"));
     expect(cellStyle(rendered[0]!, "─")).toEqual(cellStyle(promptRule(1, theme), "─"));
     expect(rendered[0]?.endsWith(promptRule(11, theme))).toBe(true);
     const shiftedAfter = input.render(20, () => ({ rows: ["body"], after: ["menu"], afterIndent: 1 })).map(stripAnsi);
-    expect(shiftedAfter[1]?.trimEnd()).toBe(" ❯ body");
+    expect(shiftedAfter[1]?.trimEnd()).toBe("body");
     expect(shiftedAfter[3]?.trimEnd()).toBe(" menu");
     expect(shiftedAfter.every(row => displayWidth(row) === 20)).toBe(true);
-    expect(input.geometry(10, 2)).toEqual({ prefixWidth: 3, innerWidth: 7, paddingX: 2, contentWidth: 3, layoutWidth: 3 });
+    expect(input.geometry(10, 2)).toEqual({ prefixWidth: 0, innerWidth: 10, paddingX: 2, contentWidth: 6, layoutWidth: 6 });
     expect(input.geometry(2, 3).contentWidth).toBe(3);
   });
 });

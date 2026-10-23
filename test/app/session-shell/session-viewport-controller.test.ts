@@ -95,7 +95,7 @@ describe("session viewport interaction controller", () => {
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
     const input = {
       documentRows: ["transcript"],
-      dockRows: ["❯ draft", "status bar"],
+      dockRows: ["draft", "status bar"],
       copyableDockRows: [{ row: 0, prompt: "first" as const }, { row: 1 }],
       promptAnchors: [],
       width: 20,

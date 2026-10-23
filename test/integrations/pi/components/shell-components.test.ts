@@ -221,8 +221,7 @@ describe("Pi shell public component adapters", () => {
     editor.setFocused?.(true);
     editor.setPromptSuggestion("go ahead and merge it");
     const ghost = editor.render(40).join("\n");
-    expect(stripTerminalSequences(ghost)).toContain("❯ go ahead and merge it");
-    expect(cellStyle(ghost, "❯")).toEqual(cellStyle(piTheme().fg("muted", "❯"), "❯"));
+    expect(stripTerminalSequences(ghost)).toContain("go ahead and merge it");
     expect(ghost).toContain("\u001b[2m");
     expect(editor.getText()).toBe("");
 
@@ -234,7 +233,7 @@ describe("Pi shell public component adapters", () => {
     expect(editor.getText()).toBe("go ahead and merge it");
     expect(accepted).toHaveBeenCalledWith("go ahead and merge it");
     const ordinary = editor.render(40).join("\n");
-    expect(stripTerminalSequences(ordinary)).toContain("❯ go ahead and merge it");
+    expect(stripTerminalSequences(ordinary)).toContain("go ahead and merge it");
     expect(ordinary).not.toContain("\u001b[2mgo ahead and merge it");
     editor.handleInput?.("\r");
     expect(submit).toHaveBeenCalledOnce();
@@ -255,7 +254,7 @@ describe("Pi shell public component adapters", () => {
     expect(editor.getText()).toBe("draft");
     expect(accepted).not.toHaveBeenCalled();
     editor.setText("");
-    expect(stripTerminalSequences(editor.render(40).join("\n"))).toContain("❯ go ahead and merge it");
+    expect(stripTerminalSequences(editor.render(40).join("\n"))).toContain("go ahead and merge it");
     editor.handleInput?.("\t");
     expect(editor.getText()).toBe("go ahead and merge it");
     expect(accepted).toHaveBeenCalledOnce();
@@ -278,7 +277,7 @@ describe("Pi shell public component adapters", () => {
     editor.handleInput?.("\u0015");
     expect(editor.getText()).toBe("");
     expect(editor.promptSuggestionBlockReason?.()).toBeNull();
-    expect(stripTerminalSequences(editor.render(40).join("\n"))).toContain("❯ run the tests");
+    expect(stripTerminalSequences(editor.render(40).join("\n"))).toContain("run the tests");
     editor.handleInput?.("\t");
     expect(editor.getText()).toBe("run the tests");
     expect(accepted).toHaveBeenCalledOnce();
@@ -304,7 +303,7 @@ describe("Pi shell public component adapters", () => {
     expect(editor.getText()).toBe("");
     expect(getSuggestions).not.toHaveBeenCalled();
     expect(editor.promptSuggestionBlockReason?.()).toBeNull();
-    expect(stripTerminalSequences(editor.render(40).join("\n"))).toContain("❯ run the tests");
+    expect(stripTerminalSequences(editor.render(40).join("\n"))).toContain("run the tests");
   });
 
   it("reports semantic suggestion presentation blockers without inspecting rendered text", async () => {
@@ -346,7 +345,7 @@ describe("Pi shell public component adapters", () => {
     editor.setPromptSuggestion("review 日本語 output");
     const rows = editor.render(12);
     expect(rows.every(row => visibleWidth(row) <= 12)).toBe(true);
-    expect(stripTerminalSequences(rows.join("\n"))).toContain("❯ review");
+    expect(stripTerminalSequences(rows.join("\n"))).toContain("review");
     expect(editor.getText()).toBe("");
   });
 

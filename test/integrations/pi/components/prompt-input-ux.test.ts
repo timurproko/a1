@@ -74,11 +74,9 @@ describe("owned shared input and status presentation", () => {
       expect(ghost.at(-1)).toBe(search.at(-1));
       expect(cellStyle(ghost[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
       expect(cellStyle(ghost.at(-1)!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
-      const expected = cellStyle(piTheme().fg("muted", "❯"), "❯");
-      expect(cellStyle(ghost[1]!, "❯")).toEqual(expected);
+      expect(stripTerminalSequences(ghost[1]!)).not.toContain("❯");
       expect(stripTerminalSequences(search[1] ?? "")).not.toContain("❯");
       expect(stripTerminalSequences(search[1] ?? "")).not.toContain(">");
-      expect(expected.faint).toBe(false);
       expect(ghost[1]).toContain(CURSOR_MARKER);
       expect(input.getText()).toBe("");
       input.handleInput?.("\r");
@@ -123,9 +121,9 @@ describe("owned shared input and status presentation", () => {
     const { input } = await editor();
     input.setText("draft text");
     input.render(40);
-    input.handlePointer?.({ kind: "press", button: 0, column: 4, row: 2 });
-    input.handlePointer?.({ kind: "motion", button: 0, column: 9, row: 2 });
-    input.handlePointer?.({ kind: "release", button: 0, column: 9, row: 2 });
+    input.handlePointer?.({ kind: "press", button: 0, column: 1, row: 2 });
+    input.handlePointer?.({ kind: "motion", button: 0, column: 6, row: 2 });
+    input.handlePointer?.({ kind: "release", button: 0, column: 6, row: 2 });
     const beforeRows = input.render(40);
     const beforeStyle = cellStyle(beforeRows[0]!, "─");
     expect(input.hasSelection()).toBe(true);
@@ -144,9 +142,9 @@ describe("owned shared input and status presentation", () => {
     const { input, copy } = await editor();
     input.setText("hello world");
     input.render(40);
-    input.handlePointer?.({ kind: "press", button: 0, column: 4, row: 2 });
-    input.handlePointer?.({ kind: "motion", button: 0, column: 9, row: 2 });
-    input.handlePointer?.({ kind: "release", button: 0, column: 9, row: 2 });
+    input.handlePointer?.({ kind: "press", button: 0, column: 1, row: 2 });
+    input.handlePointer?.({ kind: "motion", button: 0, column: 6, row: 2 });
+    input.handlePointer?.({ kind: "release", button: 0, column: 6, row: 2 });
     expect(input.hasSelection()).toBe(true);
     input.handleInput?.("\u0003");
     expect(copy).toHaveBeenCalledWith("hello", false);
