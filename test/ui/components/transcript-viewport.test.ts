@@ -411,6 +411,32 @@ describe("transcript viewport", () => {
     expect(viewport.selectedText()).toBe(["w 14", ...rows(26).slice(15)].join("\n"));
   });
 
+  it("keeps a downward drag on transcript content until edge auto-scroll reaches the end, then enters the dock", () => {
+    const viewport = new TranscriptViewport();
+    const input = { documentRows: rows(40), promptAnchors: [], dockRows: ["editor", "footer"], width: 30, height: 10 };
+    viewport.compose(input);
+    viewport.scrollTo(20);
+    viewport.compose(input);
+    viewport.pressSelection(3, 3, 100);
+    viewport.extendSelection(3, 9, 101, false);
+    let frame = viewport.compose(input);
+    expect(viewport.selectedText()).toBe("w 22\nrow 23\nrow 24\nrow 25\nrow 26\nrow");
+    expect(stripAnsi(frame.rows[8] ?? "")).toBe("editor");
+
+    // Concurrency: mirrors the shell's edge auto-scroll tick with the pointer held on the dock.
+    for (let tick = 0; tick < 12; tick += 1) {
+      const before = viewport.scrollTop;
+      viewport.scrollBy(1);
+      viewport.extendSelection(3, 9, undefined, false);
+      frame = viewport.compose(input);
+      if (viewport.scrollTop === before) break;
+      if (viewport.scrollTop < 32) expect(viewport.selectedText()?.split("\n").slice(-2)).toEqual([`row ${viewport.scrollTop + 6}`, "row"]);
+    }
+    expect(viewport.scrollTop).toBe(32);
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe(["w 22", ...rows(40).slice(23)].join("\n"));
+  });
+
   describe("with a pinned sticky prompt", () => {
     const SELECTED = "\u001b[45m";
     const input = {

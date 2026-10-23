@@ -349,10 +349,14 @@ export class TranscriptViewport {
     else if (autoScroll && frameRow <= 1 && this.#scrollTop > 0) this.scrollBy(-1, now);
     const pointerLine = clamp(frameRow - 1, 0, this.#selectionRows.length - 1);
     // Invariant: a pinned prompt alias is chrome; an upward drag reaching it keeps the pointer
-    // column on the first visible content row.
+    // column on the first visible content row. A content drag below the viewport likewise stays
+    // on the last content row until the transcript end is shown, then continues into the dock.
     const line = pointerLine < this.#firstSelectableRow && pointerLine < selection.anchor.line
       ? this.#firstSelectableRow
-      : pointerLine;
+      : pointerLine >= this.#viewportHeight && this.#scrollTop < this.#maxScroll
+        && this.#selectionAnchors?.anchor.kind !== "dock"
+        ? this.#viewportHeight - 1
+        : pointerLine;
     const selectionWidth = line < (this.#frame?.hits.viewportHeight ?? 0)
       ? this.#contentWidth
       : this.#selectionWidth;
