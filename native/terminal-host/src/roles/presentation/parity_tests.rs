@@ -241,6 +241,111 @@ fn conpty_frames() -> Vec<Vec<u8>> {
     ].iter().map(|body| format!("\x1b[?2026h{body}\x1b[12;1H{}\x1b[0m\x1b[12;3H\x1b[?2026l", " ".repeat(40)).into_bytes()).collect()
 }
 
+/// Frames the custom viewport writes while scrolling with the pointer on the rail: a full paint,
+/// a detached scroll that moves the thumb, rail-only hover changes, and a one-row thumb move.
+#[cfg(windows)]
+fn conpty_rail_frames(columns: u16) -> Vec<Vec<u8>> {
+    const RESET: &str = "\x1b]8;;\x1b\\\x1b[22;23;24;25;27;28;29;39;54;55m";
+    let width = usize::from(columns);
+    let row = |index: usize, text: &str, rail: Option<(&str, &str)>| -> String {
+        let mut line = format!("\x1b[{index};1H\x1b[2K{text:<w$}", w = width - 1);
+        if let Some((color, glyph)) = rail {
+            line.push_str(&format!("{RESET}{color}{glyph}\x1b[0m"));
+        }
+        line
+    };
+    let rail = |thumb: bool, thick: bool| {
+        Some((
+            if thumb {
+                "\x1b[38;2;181;189;104m"
+            } else {
+                "\x1b[2m"
+            },
+            if thick { "┃" } else { "│" },
+        ))
+    };
+    // Invariant: dock rows 10-12 are painted once; a later whole-screen scroll would blank them.
+    let frame = |rows: Vec<String>| {
+        format!("\x1b[?2026h{}\x1b[12;3H\x1b[?25h\x1b[?2026l", rows.concat()).into_bytes()
+    };
+    let mut frames = vec![{
+        let mut rows = vec![format!("\x1b[?1049h\x1b[?7l\x1b[2J\x1b[H")];
+        rows.push(row(1, "> prompt", None));
+        for index in 2..=9 {
+            rows.push(row(
+                index,
+                &format!("line {index}"),
+                rail(index >= 7, false),
+            ));
+        }
+        rows.push(row(10, &"─".repeat(width), None));
+        rows.push(row(11, "footer status", None));
+        rows.push(row(12, "> ", None));
+        frame(rows)
+    }];
+    frames.push({
+        let mut rows = vec![row(1, "> prompt", None)];
+        for index in 2..=9 {
+            rows.push(row(
+                index,
+                &format!("line {}", index + 20),
+                rail(index <= 4, false),
+            ));
+        }
+        rows.push(row(9, "line 29      Jump to bottom ↓", rail(false, false)));
+        frame(rows)
+    });
+    frames.push(frame(
+        (2..=4)
+            .map(|index| row(index, &format!("line {}", index + 20), rail(true, true)))
+            .collect(),
+    ));
+    frames.push(frame(vec![
+        row(2, "line 22", rail(false, false)),
+        row(5, "line 25", rail(true, true)),
+    ]));
+    frames.push(frame(
+        (3..=5)
+            .map(|index| row(index, &format!("line {}", index + 20), rail(true, false)))
+            .collect(),
+    ));
+    // Invariant: when the dock grows by one row, the former last viewport row is erased with no content, and the
+    // control row moves up with its rail cell.
+    frames.push(frame(vec![
+        row(8, "line 28     Jump to bottom ↓", rail(false, false)),
+        format!("\x1b[9;1H\x1b[2K"),
+    ]));
+    frames.push(frame(vec![
+        row(8, "line 28", rail(false, false)),
+        row(9, "line 29     2 new messages ↓", rail(false, false)),
+    ]));
+    // Invariant: a followed stream shifts the transcript region up by two rows inside DECSTBM margins and
+    // repaints only the exposed rows; the dock below the margins must stay in place.
+    frames.push(frame(vec![
+        "\x1b[1;9r\x1b[1;1H\x1b[2S\x1b[r".to_owned(),
+        row(8, "line 30", rail(false, false)),
+        row(9, "line 31", rail(true, false)),
+    ]));
+    frames
+}
+
+/// Frames recorded from the real session shell, from `TERMINAL_HOST_CONPTY_PARITY_FRAMES`.
+#[cfg(windows)]
+fn conpty_recorded_frames() -> (u16, u16, Vec<Vec<u8>>) {
+    let path = std::env::var("TERMINAL_HOST_CONPTY_PARITY_FRAMES").expect("recorded frames path");
+    let text = std::fs::read_to_string(path).expect("read recorded frames");
+    let value: serde_json::Value = serde_json::from_str(&text).expect("parse recorded frames");
+    let columns = value["columns"].as_u64().unwrap() as u16;
+    let rows = value["rows"].as_u64().unwrap() as u16;
+    let frames = value["frames"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|frame| frame["data"].as_str().unwrap().as_bytes().to_vec())
+        .collect();
+    (columns, rows, frames)
+}
+
 #[cfg(windows)]
 fn conpty_hover_frames(columns: u16) -> Vec<StructuredSurface> {
     let fixture: serde_json::Value =
@@ -292,6 +397,43 @@ fn conpty_hover_frames(columns: u16) -> Vec<StructuredSurface> {
         .collect()
 }
 
+/// Composes one resident outer frame for the parity child and acknowledges it.
+#[cfg(windows)]
+fn compose_parity_frame(
+    composer: &mut PresentationComposer,
+    surface: StructuredSurface,
+    cursor: FinalCursor,
+    revision: usize,
+    columns: u16,
+    rows: u16,
+) -> Vec<u8> {
+    let next = DesiredPresentation {
+        tab_id: Some("parity".into()),
+        incarnation: 1,
+        revision: revision as u64 + 1,
+        geometry_generation: 1,
+        strip: "\x1b[1;1HSTRIP".into(),
+        structured: Some(surface),
+        legacy_body: Vec::new(),
+        overlay: None,
+        cursor: Some(cursor),
+        modes: None,
+        columns,
+        outer_rows: rows + 1,
+        child_row_offset: 1,
+        clear: false,
+    };
+    // Invariant: a cursor-only child frame changes no retained cell and prepares nothing.
+    match composer.prepare(&next).unwrap() {
+        Some(prepared) => {
+            let output = prepared.bytes.clone();
+            prepared.acknowledge(composer);
+            output
+        }
+        None => Vec::new(),
+    }
+}
+
 // Rationale: the test binary doubles as the PTY child, avoiding a Node/shell/toolchain dependency.
 #[cfg(windows)]
 #[test]
@@ -306,9 +448,18 @@ fn conpty_parity_child() {
     let mut terminal_output = crate::roles::terminal_output::TerminalOutput::new();
     let resident_output = mode.starts_with("resident:");
     let hover_case = mode.contains(":hover:");
+    let rail_case = mode.contains(":rail:");
+    let recorded_case = mode.contains(":recorded:");
     let frame_limit = mode.rsplit(':').next().unwrap().parse::<usize>().unwrap();
     let columns = mode.split(':').nth(2).unwrap().parse::<u16>().unwrap();
-    let rows = if hover_case { 31 } else { 12 };
+    let recorded = recorded_case.then(conpty_recorded_frames);
+    let rows = if hover_case {
+        31
+    } else if let Some((_, rows, _)) = recorded.as_ref() {
+        *rows
+    } else {
+        12
+    };
     let mut source = GhosttyTerminal::new(columns, rows).unwrap();
     let mut builder = RetainedSurfaceBuilder::default();
     let mut composer = PresentationComposer::default();
@@ -324,6 +475,10 @@ fn conpty_parity_child() {
     };
     let frames = if hover_case {
         vec![Vec::new(); hover.len()]
+    } else if rail_case {
+        conpty_rail_frames(columns)
+    } else if let Some((_, _, frames)) = recorded {
+        frames
     } else {
         conpty_frames()
     };
@@ -335,41 +490,27 @@ fn conpty_parity_child() {
             } else {
                 capture(&mut source, &mut builder)
             };
-            let next = DesiredPresentation {
-                tab_id: Some("parity".into()),
-                incarnation: 1,
-                revision: revision as u64 + 1,
-                geometry_generation: 1,
-                strip: "\x1b[1;1HSTRIP".into(),
-                structured: Some(surface),
-                legacy_body: Vec::new(),
-                overlay: None,
-                cursor: Some(if hover_case {
-                    FinalCursor::Hidden
-                } else {
-                    source
-                        .cursor_cell()
-                        .unwrap()
-                        .map_or(FinalCursor::Hidden, |(column, row)| {
-                            FinalCursor::At(SurfaceCursor { column, row })
-                        })
-                }),
-                modes: None,
-                columns,
-                outer_rows: rows + 1,
-                child_row_offset: 1,
-                clear: false,
+            let cursor = if hover_case {
+                FinalCursor::Hidden
+            } else {
+                source
+                    .cursor_cell()
+                    .unwrap()
+                    .map_or(FinalCursor::Hidden, |(column, row)| {
+                        FinalCursor::At(SurfaceCursor { column, row })
+                    })
             };
-            let prepared = composer.prepare(&next).unwrap().unwrap();
-            let output = prepared.bytes.clone();
-            prepared.acknowledge(&mut composer);
-            output
+            compose_parity_frame(&mut composer, surface, cursor, revision, columns, rows)
         } else {
             frame
         };
         terminal_output.write_all(&output).unwrap();
         terminal_output.flush().unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(80));
+        std::thread::sleep(std::time::Duration::from_millis(if recorded_case {
+            12
+        } else {
+            80
+        }));
     }
     std::thread::sleep(std::time::Duration::from_millis(150));
     drop(terminal_output);
@@ -380,18 +521,47 @@ fn conpty_parity_child() {
 #[cfg(windows)]
 #[test]
 fn conpty_output_preserves_solo_content_before_resident_replay() {
-    conpty_content_parity(false, false, conpty_frames().len(), 40);
-    conpty_content_parity(true, false, conpty_frames().len(), 40);
+    conpty_content_parity(false, "base", conpty_frames().len(), 40);
+    conpty_content_parity(true, "base", conpty_frames().len(), 40);
 }
 
 #[cfg(windows)]
-fn conpty_output(
-    resident_output: bool,
-    hover_case: bool,
-    frame_limit: usize,
-    columns: u16,
-) -> Vec<u8> {
-    let rows = if hover_case { 31 } else { 12 };
+#[test]
+fn conpty_recorded_session_frames_replay() {
+    if std::env::var_os("TERMINAL_HOST_CONPTY_PARITY_FRAMES").is_none() {
+        return;
+    }
+    let (columns, _, frames) = conpty_recorded_frames();
+    let limits: Vec<usize> = std::env::var("TERMINAL_HOST_CONPTY_PARITY_LIMITS")
+        .ok()
+        .map(|value| value.split(',').map(|item| item.parse().unwrap()).collect())
+        .unwrap_or_else(|| vec![frames.len()]);
+    for frame_limit in limits {
+        conpty_content_parity(false, "recorded", frame_limit, columns);
+        conpty_content_parity(true, "recorded", frame_limit, columns);
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn conpty_rail_only_row_changes_reach_the_grid() {
+    for columns in [40u16, 120] {
+        for frame_limit in 1..=conpty_rail_frames(columns).len() {
+            conpty_content_parity(false, "rail", frame_limit, columns);
+            conpty_content_parity(true, "rail", frame_limit, columns);
+        }
+    }
+}
+
+#[cfg(windows)]
+fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns: u16) -> Vec<u8> {
+    let rows = if case == "hover" {
+        31
+    } else if case == "recorded" {
+        conpty_recorded_frames().1
+    } else {
+        12
+    };
     use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
     use std::io::{Read, Write};
     let pair = NativePtySystem::default()
@@ -411,9 +581,8 @@ fn conpty_output(
     command.env(
         "TERMINAL_HOST_CONPTY_PARITY_CHILD",
         format!(
-            "{}:{}:{columns}:{frame_limit}",
+            "{}:{case}:{columns}:{frame_limit}",
             if resident_output { "resident" } else { "solo" },
-            if hover_case { "hover" } else { "base" }
         ),
     );
     let mut child = pair.slave.spawn_command(command).unwrap();
@@ -445,10 +614,13 @@ fn conpty_output(
         };
         let _ = sender.send((result, bytes));
     });
-    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let mut failure = None;
     loop {
         if let Some(status) = child.try_wait().unwrap() {
-            assert!(status.success());
+            if !status.success() {
+                failure = Some(status);
+            }
             break;
         }
         if std::time::Instant::now() >= deadline {
@@ -463,20 +635,42 @@ fn conpty_output(
         .recv_timeout(std::time::Duration::from_secs(10))
         .expect("PTY output completed");
     result.unwrap();
+    if let Some(status) = failure {
+        let text = String::from_utf8_lossy(&bytes);
+        let tail: String = text
+            .chars()
+            .rev()
+            .take(1500)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
+        panic!("ConPTY fixture child failed ({status:?}); output tail: {tail:?}");
+    }
     bytes
 }
 
 #[cfg(windows)]
-fn conpty_content_parity(
-    resident_output: bool,
-    hover_case: bool,
-    frame_limit: usize,
-    columns: u16,
-) {
-    let rows = if hover_case { 31 } else { 12 };
-    let bytes = conpty_output(resident_output, hover_case, frame_limit, columns);
+fn conpty_content_parity(resident_output: bool, case: &str, frame_limit: usize, columns: u16) {
+    let hover_case = case == "hover";
+    let recorded = (case == "recorded").then(conpty_recorded_frames);
+    let rows = if hover_case {
+        31
+    } else if let Some((_, rows, _)) = recorded.as_ref() {
+        *rows
+    } else {
+        12
+    };
+    let bytes = conpty_output(resident_output, case, frame_limit, columns);
     let mut solo = GhosttyTerminal::new(columns, rows).unwrap();
-    for frame in conpty_frames().into_iter().take(frame_limit) {
+    let solo_frames = if case == "rail" {
+        conpty_rail_frames(columns)
+    } else if let Some((_, _, frames)) = recorded {
+        frames
+    } else {
+        conpty_frames()
+    };
+    for frame in solo_frames.into_iter().take(frame_limit) {
         solo.write(&frame);
     }
     let direct = if hover_case {
@@ -501,21 +695,49 @@ fn conpty_content_parity(
         }
         let expected = cells(&direct, 0);
         let actual = cells(&through_pty.unwrap(), usize::from(resident_output));
+        if case == "recorded" {
+            let mut mismatches = Vec::new();
+            for (y, (a, b)) in expected.iter().zip(&actual).enumerate() {
+                let row_text = |row: &Vec<(String, u8, SurfaceStyle, Option<SurfaceLink>)>| {
+                    row.iter().map(|cell| cell.0.as_str()).collect::<String>()
+                };
+                let differs = a.iter().zip(b).any(|(e, g)| {
+                    e.0 != g.0
+                        || e.1 != g.1
+                        || e.2.background != g.2.background
+                        || ((e.0 == "│" || e.0 == "┃") && e.2.foreground != g.2.foreground)
+                });
+                if differs {
+                    mismatches.push(format!(
+                        "row {y}:\n  direct: {:?}\n  conpty: {:?}",
+                        row_text(a),
+                        row_text(b)
+                    ));
+                }
+            }
+            assert!(
+                mismatches.is_empty(),
+                "recorded replay phase={frame_limit} chunks={chunk_size} resident={resident_output}\n{}",
+                mismatches.join("\n")
+            );
+            continue;
+        }
         for (y, (a, b)) in expected.iter().zip(&actual).enumerate() {
             for (x, (e, g)) in a.iter().zip(b).enumerate() {
-                if hover_case {
+                if hover_case || case == "recorded" {
                     // Compatibility: ConPTY may resolve a default foreground into explicit RGB. Cell positions and
                     // backgrounds, including styled blanks, must still survive the replay exactly.
+                    let rail = e.0 == "│" || e.0 == "┃" || g.0 == "│" || g.0 == "┃";
                     assert_eq!(
-                        (&e.0, e.1, &e.2.background),
-                        (&g.0, g.1, &g.2.background),
-                        "hover cell at {y}:{x} phase={frame_limit} width={columns} chunks={chunk_size}"
+                        (&e.0, e.1, &e.2.background, rail.then_some(&e.2.foreground)),
+                        (&g.0, g.1, &g.2.background, rail.then_some(&g.2.foreground)),
+                        "{case} cell at {y}:{x} phase={frame_limit} width={columns} chunks={chunk_size} resident={resident_output}"
                     );
                     continue;
                 }
                 assert_eq!(
                     e, g,
-                    "ConPTY mismatch at {y}:{x} chunks={chunk_size} resident={resident_output} hover={hover_case} phase={frame_limit}"
+                    "ConPTY mismatch at {y}:{x} chunks={chunk_size} resident={resident_output} case={case} phase={frame_limit}"
                 );
             }
         }
@@ -527,7 +749,7 @@ fn conpty_content_parity(
 fn conpty_hover_replay_keeps_the_rail_in_its_fixed_column() {
     for columns in [100, 120, 121, 132] {
         for frame_limit in 1..=conpty_hover_frames(columns).len() {
-            conpty_content_parity(true, true, frame_limit, columns);
+            conpty_content_parity(true, "hover", frame_limit, columns);
         }
     }
 }
@@ -658,4 +880,90 @@ fn solo_and_resident_cells_converge_across_frame_sequences() {
     for columns in [24u16, 80, 132, 192] {
         assert_parity_sequence(columns);
     }
+}
+
+/// Writes PTY output into the terminal exactly as the holder loop does, including its ConPTY
+/// cursor repair and synchronized-output boundary splitting.
+fn write_like_holder(
+    terminal: &mut GhosttyTerminal,
+    repair: &mut crate::roles::conpty_cursor::ConptyCursorRepair,
+    bytes: &[u8],
+) {
+    let mut offset = 0;
+    while offset < bytes.len() {
+        let (consumed, _) = repair
+            .write_until_sync_boundary(terminal, &bytes[offset..])
+            .unwrap();
+        offset += consumed;
+    }
+}
+
+fn row_text(surface: &StructuredSurface, row: usize) -> String {
+    surface.row_data[row]
+        .cells
+        .iter()
+        .map(|cell| cell.text.as_str())
+        .collect()
+}
+
+/// Exact bytes Windows ConPTY re-rendered for a rail row whose render pass was split after the
+/// child's cursor rested past the final column (recorded at 122 columns, reduced to 12).
+const CONPTY_SPLIT_RAIL_ROW: &[u8] = b"\x1b[?2026h\x1b[1;1H 56. text\x1b[K\x1b[3C\x1b[?2026l\x1b[38;2;104;183;141m\x08\xe2\x94\x83\x1b[m\r\n";
+
+#[test]
+fn conpty_split_render_pass_keeps_the_rail_in_the_final_column() {
+    let mut repaired = GhosttyTerminal::new(12, 3).unwrap();
+    let mut repair = crate::roles::conpty_cursor::ConptyCursorRepair::new(true);
+    write_like_holder(&mut repaired, &mut repair, CONPTY_SPLIT_RAIL_ROW);
+    let surface = capture(&mut repaired, &mut RetainedSurfaceBuilder::default());
+    assert_eq!(row_text(&surface, 0), " 56. text  ┃");
+
+    // Platform: without the repair a standard parser draws the rail one column left of the gutter.
+    let mut raw = GhosttyTerminal::new(12, 3).unwrap();
+    let mut disabled = crate::roles::conpty_cursor::ConptyCursorRepair::new(false);
+    write_like_holder(&mut raw, &mut disabled, CONPTY_SPLIT_RAIL_ROW);
+    let surface = capture(&mut raw, &mut RetainedSurfaceBuilder::default());
+    assert_eq!(row_text(&surface, 0), " 56. text ┃ ");
+}
+
+/// Replays real ConPTY output recorded by a probe (`TERMINAL_HOST_CONPTY_OUTPUT`, with
+/// `TERMINAL_HOST_CONPTY_OUTPUT_SIZE=<columns>x<rows>`) through the holder write path and asserts no
+/// published state ever shows a rail glyph beside a blank final column.
+#[test]
+fn recorded_conpty_output_never_shifts_the_rail() {
+    let Some(path) = std::env::var_os("TERMINAL_HOST_CONPTY_OUTPUT") else {
+        return;
+    };
+    let size = std::env::var("TERMINAL_HOST_CONPTY_OUTPUT_SIZE").unwrap();
+    let (columns, rows) = size.split_once('x').unwrap();
+    let (columns, rows): (u16, u16) = (columns.parse().unwrap(), rows.parse().unwrap());
+    let bytes = std::fs::read(path).unwrap();
+    let mut terminal = GhosttyTerminal::new(columns, rows).unwrap();
+    let mut repair = crate::roles::conpty_cursor::ConptyCursorRepair::new(
+        std::env::var_os("TERMINAL_HOST_CONPTY_REPAIR_OFF").is_none(),
+    );
+    let mut builder = RetainedSurfaceBuilder::default();
+    let mut failures = Vec::new();
+    let marker = b"\x1b[?2026h";
+    let mut start = 0;
+    let mut checkpoints: Vec<usize> = (0..bytes.len().saturating_sub(marker.len()))
+        .filter(|&index| &bytes[index..index + marker.len()] == marker)
+        .collect();
+    checkpoints.push(bytes.len());
+    for end in checkpoints {
+        write_like_holder(&mut terminal, &mut repair, &bytes[start..end]);
+        start = end;
+        let surface = capture(&mut terminal, &mut builder);
+        for (row, data) in surface.row_data.iter().enumerate() {
+            let cells = &data.cells;
+            let last = cells.len() - 1;
+            if cells[last].text == " " && matches!(cells[last - 1].text.as_str(), "│" | "┃") {
+                failures.push(format!(
+                    "offset {end} row {row}: {:?}",
+                    row_text(&surface, row)
+                ));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }
