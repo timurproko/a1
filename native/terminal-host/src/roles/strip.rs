@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+// Compatibility: preserve the historical timing constant; the sweep now uses accent shades.
 pub const TITLE_RAINBOW_MS: u128 = 600;
 pub const TITLE_TYPE_MS_PER_CHAR: u128 = 45;
 pub const TITLE_SETTLE_MS: u128 = 300;
@@ -206,26 +207,6 @@ pub struct TitleFrame {
     pub done: bool,
 }
 
-pub fn hsl_to_rgb(hue: f64, saturation: f64, lightness: f64) -> Rgb {
-    let h = hue.rem_euclid(360.0);
-    let s = saturation.clamp(0.0, 100.0) / 100.0;
-    let l = lightness.clamp(0.0, 100.0) / 100.0;
-    let chroma = (1.0 - (2.0 * l - 1.0).abs()) * s;
-    let segment = h / 60.0;
-    let x = chroma * (1.0 - (segment % 2.0 - 1.0).abs());
-    let (red, green, blue) = match segment {
-        value if value < 1.0 => (chroma, x, 0.0),
-        value if value < 2.0 => (x, chroma, 0.0),
-        value if value < 3.0 => (0.0, chroma, x),
-        value if value < 4.0 => (0.0, x, chroma),
-        value if value < 5.0 => (x, 0.0, chroma),
-        _ => (chroma, 0.0, x),
-    };
-    let base = l - chroma / 2.0;
-    let channel = |value: f64| ((value + base) * 255.0).round() as u8;
-    Rgb(channel(red), channel(green), channel(blue))
-}
-
 fn mix(from: Rgb, to: Rgb, progress: f64) -> Rgb {
     let t = progress.clamp(0.0, 1.0);
     let channel = |a: u8, b: u8| (f64::from(a) + (f64::from(b) - f64::from(a)) * t).round() as u8;
@@ -236,8 +217,11 @@ fn mix(from: Rgb, to: Rgb, progress: f64) -> Rgb {
     )
 }
 
-fn rainbow(index: usize, offset: f64) -> Rgb {
-    hsl_to_rgb(index as f64 * 30.0 + offset, 90.0, 65.0)
+fn accent_shade(accent: Rgb, index: usize, offset: f64) -> Rgb {
+    // Invariant: the wave changes only brightness; every animated cell stays in the tab's
+    // accent family, including when the accent changes while a rename is in progress.
+    let wave = (index as f64 * 0.7 - offset).cos();
+    mix(accent, Rgb(235, 235, 235), 0.18 + (wave + 1.0) * 0.16)
 }
 
 fn padded(graphemes: &[&str], width: usize) -> Vec<String> {
@@ -276,8 +260,8 @@ fn title_duration(to: &str, truecolor: bool) -> u128 {
     }
 }
 
-/// Deterministic v2 title transition: moving rainbow over the old title, rainbow typewriter reveal,
-/// then a settle to foreground gray; without truecolor only the plain typewriter remains.
+/// Deterministic title transition: a tonal accent wave over the old title, accent typewriter
+/// reveal, then a settle to foreground gray; without truecolor only typing remains.
 pub fn title_frame(
     from: &str,
     to: &str,
@@ -285,6 +269,18 @@ pub fn title_frame(
     max_width: usize,
     truecolor: bool,
 ) -> TitleFrame {
+    title_frame_accent(from, to, elapsed, max_width, truecolor, None)
+}
+
+fn title_frame_accent(
+    from: &str,
+    to: &str,
+    elapsed: u128,
+    max_width: usize,
+    truecolor: bool,
+    accent: Option<&str>,
+) -> TitleFrame {
+    let accent = tab_accent(accent);
     let from = truncate(&clean(from), max_width);
     let to = truncate(&clean(to), max_width);
     let to_width = UnicodeWidthStr::width(to.as_str());
@@ -313,19 +309,23 @@ pub fn title_frame(
     }
     if elapsed < TITLE_RAINBOW_MS {
         let cells = padded(&from.graphemes(true).collect::<Vec<_>>(), stable);
-        let offset = elapsed as f64 / 4.0;
-        return active(colorize(&cells, |index| rainbow(index, offset)));
+        let offset = elapsed as f64 / 170.0;
+        return active(colorize(&cells, |index| {
+            accent_shade(accent, index, offset)
+        }));
     }
     let typing = elapsed - TITLE_RAINBOW_MS;
     if typing < typing_duration {
-        return active(colorize(&typed(typing), |index| rainbow(index, 0.0)));
+        return active(colorize(&typed(typing), |index| {
+            accent_shade(accent, index, 0.0)
+        }));
     }
     let settle = typing - typing_duration;
     if settle < TITLE_SETTLE_MS {
         let progress = settle as f64 / TITLE_SETTLE_MS as f64;
         let cells = padded(&target, stable);
         return active(colorize(&cells, |index| {
-            mix(rainbow(index, 0.0), SETTLED_FG, progress)
+            mix(accent_shade(accent, index, 0.0), SETTLED_FG, progress)
         }));
     }
     finished
@@ -427,9 +427,14 @@ fn chip_title(
             .as_millis()
     });
     match (&tab.title_animation, elapsed) {
-        (Some(animation), Some(elapsed)) => {
-            title_frame(&animation.from, &tab.name, elapsed, max_width, truecolor)
-        }
+        (Some(animation), Some(elapsed)) => title_frame_accent(
+            &animation.from,
+            &tab.name,
+            elapsed,
+            max_width,
+            truecolor,
+            tab.accent.as_deref(),
+        ),
         _ => {
             let text = truncate(&clean(&tab.name), max_width);
             TitleFrame {
@@ -802,11 +807,15 @@ mod tests {
     }
 
     #[test]
-    fn converts_primary_hues() {
-        assert_eq!(hsl_to_rgb(0.0, 100.0, 50.0), Rgb(255, 0, 0));
-        assert_eq!(hsl_to_rgb(120.0, 100.0, 50.0), Rgb(0, 255, 0));
-        assert_eq!(hsl_to_rgb(240.0, 100.0, 50.0), Rgb(0, 0, 255));
-        assert_eq!(hsl_to_rgb(-120.0, 100.0, 50.0), Rgb(0, 0, 255));
+    fn tonal_wave_uses_each_tabs_accent() {
+        let purple = title_frame_accent(FROM, TO, 0, 20, true, None);
+        let cyan = title_frame_accent(FROM, TO, 0, 20, true, Some("cyan"));
+        assert!(purple.text.starts_with("\x1b[38;2;201;194;225m"));
+        assert!(cyan.text.starts_with("\x1b[38;2;155;205;216m"));
+        assert_ne!(purple.text, cyan.text);
+        assert!(!cyan.text.contains("\x1b[38;2;246;85;85m"));
+        let changed = title_frame_accent(FROM, TO, 240, 20, true, Some("cyan"));
+        assert_ne!(changed.text, cyan.text, "the tonal wave still moves");
     }
 
     #[test]
@@ -817,7 +826,7 @@ mod tests {
     }
 
     #[test]
-    fn rainbow_phase_colors_each_old_title_cell_and_moves_over_time() {
+    fn accent_wave_colors_each_old_title_cell_and_moves_over_time() {
         let first = title_frame(FROM, TO, 0, 20, true);
         assert!(!first.done);
         assert_eq!(plain(&first.text).trim_end(), FROM);
@@ -825,21 +834,21 @@ mod tests {
             truecolor_runs(&first.text),
             plain(&first.text).chars().count()
         );
-        assert!(first.text.starts_with("\x1b[38;2;246;85;85m"));
+        assert!(first.text.starts_with("\x1b[38;2;201;194;225m"));
         let later = title_frame(FROM, TO, 240, 20, true);
         assert_eq!(plain(&later.text), plain(&first.text));
         assert_ne!(later.text, first.text);
     }
 
     #[test]
-    fn rainbow_switches_to_typing_at_the_exact_boundary() {
+    fn accent_wave_switches_to_typing_at_the_exact_boundary() {
         assert_eq!(
             plain(&title_frame(FROM, TO, TITLE_RAINBOW_MS - 1, 20, true).text).trim_end(),
             FROM
         );
         let typing = title_frame(FROM, TO, TITLE_RAINBOW_MS, 20, true);
         assert_eq!(plain(&typing.text).trim_end(), "d");
-        assert!(typing.text.starts_with("\x1b[38;2;246;85;85md"));
+        assert!(typing.text.starts_with("\x1b[38;2;201;194;225md"));
     }
 
     #[test]
@@ -855,13 +864,13 @@ mod tests {
     }
 
     #[test]
-    fn settle_blends_the_static_rainbow_toward_foreground_gray() {
+    fn settle_blends_the_accent_toward_foreground_gray() {
         let start = title_frame(FROM, TO, typing_end(TO), 20, true);
         assert!(!start.done);
         assert_eq!(plain(&start.text), TO);
-        assert!(start.text.starts_with("\x1b[38;2;246;85;85m"));
+        assert!(start.text.starts_with("\x1b[38;2;201;194;225m"));
         let middle = title_frame(FROM, TO, typing_end(TO) + TITLE_SETTLE_MS / 2, 20, true);
-        assert!(middle.text.starts_with("\x1b[38;2;208;128;128m"));
+        assert!(middle.text.starts_with("\x1b[38;2;186;182;198m"));
         let last = title_frame(FROM, TO, typing_end(TO) + TITLE_SETTLE_MS - 1, 20, true);
         assert!(last.text.starts_with("\x1b[38;2;170;170;170m"));
     }
@@ -936,7 +945,7 @@ mod tests {
     }
 
     #[test]
-    fn palette_mode_types_plainly_without_rainbow_or_settle() {
+    fn palette_mode_types_plainly_without_accent_wave_or_settle() {
         let first = title_frame("Agent", "new", 0, 20, false);
         assert_eq!(first.text.trim_end(), "n");
         assert!(!first.text.contains('\x1b'));
@@ -1047,6 +1056,34 @@ mod tests {
         );
         assert!(frame.bytes.contains("\x1b[7m \x1b[27m"));
         assert_eq!(frame.hidden_tabs, Vec::<String>::new());
+    }
+
+    #[test]
+    fn automatic_rename_follows_the_tabs_current_accent() {
+        let started_at = Instant::now();
+        let mut animated = tab("one", "auth-fix");
+        animated.name_source = "auto".into();
+        animated.title_animation = Some(TitleAnimation {
+            from: "Agent".into(),
+            started_at,
+        });
+        animated.accent = Some("cyan".into());
+        let render = |tab: &StripTab| {
+            render_frame(
+                &[tab.clone()],
+                Some("one"),
+                80,
+                None,
+                TimeFormat::Twelve,
+                None,
+                started_at,
+                true,
+            )
+            .bytes
+        };
+        assert!(render(&animated).contains("\x1b[38;2;155;205;216mA"));
+        animated.accent = Some("green".into());
+        assert!(render(&animated).contains("\x1b[38;2;162;209;184mA"));
     }
 
     #[test]
