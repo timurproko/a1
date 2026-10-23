@@ -120,6 +120,8 @@ pub struct Context<'a, T> {
     pub shortcuts: &'a dyn ShortcutLabels,
     /// The viewed child's reported mouse tracking, absent before it reports modes.
     pub mouse_tracking: Option<bool>,
+    /// The landing is the body: tabs were shown in this session and none is viewed now.
+    pub landing: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -897,7 +899,9 @@ impl State {
         // the Settings shortcut as immediate as solo's in-process Settings screen.
         let settings_exists = context.tabs.iter().any(|tab| is_settings(tab.id()));
         let view = &mut self.view;
-        if settings_exists || context.tabs.is_empty() {
+        // Rationale: the landing keeps a hidden Settings ready too, so the Settings shortcut opens
+        // it as quickly there as beside an Agent.
+        if settings_exists || (context.tabs.is_empty() && !context.landing) {
             view.settings_absent_since = None;
             if !settings_exists {
                 view.settings_shown = false;
@@ -905,7 +909,7 @@ impl State {
         } else if !view.settings_prewarm_pending
             && !view.pending_created_activation
             && context.requested.is_none()
-            && context.viewed.is_some()
+            && (context.viewed.is_some() || context.landing)
         {
             let since = *view.settings_absent_since.get_or_insert(now);
             if now.saturating_sub(since) >= SETTINGS_PREWARM_DELAY {
@@ -1085,22 +1089,6 @@ impl State {
         self.view.settings_shown || viewed.is_some_and(is_settings)
     }
 
-    /// Invariant: a hidden Settings tab never surfaces by itself. When it is all the registry
-    /// holds, it closes with the last visible tab, unless this client is opening a tab, such as
-    /// Settings from the empty landing's launcher or shortcut, whose view is still pending.
-    pub fn hidden_settings_orphaned<T: TabView>(
-        &self,
-        tabs: &[T],
-        viewed: Option<&str>,
-        requested: Option<&str>,
-    ) -> bool {
-        !tabs.is_empty()
-            && tabs.iter().all(|tab| is_settings(tab.id()))
-            && !self.settings_visible(viewed)
-            && !self.view.pending_created_activation
-            && !requested.is_some_and(is_settings)
-    }
-
     /// Resolves a jump that waited for a registry snapshot; returns the tab to view.
     pub fn resolve_pending_jump<T: TabView>(
         &mut self,
@@ -1211,6 +1199,7 @@ mod tests {
         requested: Option<String>,
         strip: StripSnapshot,
         mouse_tracking: Option<bool>,
+        landing: bool,
     }
 
     impl Fixture {
@@ -1234,6 +1223,7 @@ mod tests {
                     hidden_tabs: Vec::new(),
                 },
                 mouse_tracking: None,
+                landing: false,
             }
         }
 
@@ -1245,6 +1235,7 @@ mod tests {
                 strip: &self.strip,
                 shortcuts: &Labels,
                 mouse_tracking: self.mouse_tracking,
+                landing: self.landing,
             }
         }
 
@@ -2211,57 +2202,44 @@ mod tests {
     }
 
     #[test]
-    fn settings_opened_from_the_empty_landing_is_not_closed_as_orphaned() {
-        let mut empty = Fixture::new(&[], "none");
-        empty.viewed = None;
-        let mut state = empty.state();
-        let settings = [tab("settings-1")];
-        assert!(
-            state.hidden_settings_orphaned(&settings, None, None),
-            "a hidden Settings left by the last visible tab still closes"
+    fn the_landing_keeps_a_hidden_settings_tab_ready() {
+        let mut cold = Fixture::new(&[], "none");
+        cold.viewed = None;
+        let mut state = cold.state();
+        assert_eq!(
+            cold.step(&mut state, Event::Tick),
+            [],
+            "a cold attach waits for its first Agent before prewarming"
         );
-        for event in [shortcut("tabs.settings"), mouse(LEFT, 0, 0)] {
-            let mut state = empty.state();
-            let effects = empty.step(&mut state, event.clone());
-            let effects = if matches!(state.mode, Mode::Popup(_)) {
-                // The `+` launcher: choose Settings.
-                empty.step(&mut state, key(KeyCode::Down));
-                empty.step(&mut state, key(KeyCode::Down));
-                empty.step(&mut state, key(KeyCode::Enter))
-            } else {
-                effects
-            };
-            assert!(
-                effects.contains(&Effect::Send(Request::OpenSettings)),
-                "{event:?}"
-            );
-            assert!(
-                !state.hidden_settings_orphaned(&settings, None, None),
-                "the requested Settings tab survives its first registry snapshot"
-            );
-            empty.step(
-                &mut state,
-                server(ServerEvent::Created {
-                    tab_id: "settings-1".into(),
-                    created: true,
-                }),
-            );
-            assert!(
-                !state.hidden_settings_orphaned(&settings, None, Some("settings-1")),
-                "and every snapshot while its view is pending"
-            );
-            let viewed = Fixture::new(&["settings-1"], "settings-1");
-            viewed.step(
-                &mut state,
-                server(ServerEvent::Commit {
-                    tab_id: "settings-1".into(),
-                    status: "idle".into(),
-                    requested: true,
-                }),
-            );
-            assert!(!state.hidden_settings_orphaned(&settings, Some("settings-1"), None));
-        }
-        state.view.pending_created_activation = false;
-        assert!(state.hidden_settings_orphaned(&settings, None, None));
+        let mut landing = Fixture::new(&[], "none");
+        landing.viewed = None;
+        landing.landing = true;
+        let mut state = landing.state();
+        assert_eq!(
+            landing.step(&mut state, Event::Tick),
+            [Effect::Send(Request::PrewarmSettings)],
+            "the landing prewarms Settings so the shortcut opens it at once"
+        );
+        assert_eq!(
+            landing.step(&mut state, Event::Tick),
+            [],
+            "one prewarm at a time"
+        );
+        let mut ready = Fixture::new(&["settings-1"], "none");
+        ready.viewed = None;
+        ready.landing = true;
+        let mut state = ready.state();
+        assert_eq!(
+            ready.step(&mut state, Event::Tick),
+            [],
+            "a ready Settings is reused"
+        );
+        // Invariant: the shortcut asks the server for the singleton, which selects the running
+        // hidden tab instead of starting one.
+        assert!(
+            ready
+                .step(&mut state, shortcut("tabs.settings"))
+                .contains(&Effect::Send(Request::OpenSettings))
+        );
     }
 }

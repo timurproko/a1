@@ -155,7 +155,7 @@
       "lines": 199
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
-      "lines": 229
+      "lines": 228
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::stop_tabs": {
       "lines": 157

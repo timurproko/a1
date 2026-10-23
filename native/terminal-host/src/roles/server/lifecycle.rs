@@ -702,8 +702,7 @@ pub(super) fn handle_lifecycle(
                     (tab_id, start)
                 } else {
                     let tab_id = locked.default_tab();
-                    let start =
-                        locked.registry.tabs.is_empty() && locked.core.set_starting(&tab_id, true);
+                    let start = locked.agentless() && locked.core.set_starting(&tab_id, true);
                     (tab_id, start)
                 }
             };

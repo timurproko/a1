@@ -1,14 +1,11 @@
-//! The a1 landing the attach client shows while it has no tab: beside the strip, a header with the
-//! accent wordmark, `a1` and its version, and the launch cwd. It sits below a top strip and above
-//! a bottom one. Rendering is pure; the attach role presents the bytes as the frame's body.
+//! The a1 landing the attach client shows while it has no tab: the launch cwd where an Agent
+//! tab's footer shows it, `a1` and its version below it, and the accent wordmark above it.
+//! Rendering is pure; the attach role presents the bytes as the frame's body.
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "▄▀▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
-/// The header's rows, and its margin from the strip side and the left edge, in cells.
-const HEADER_ROWS: usize = 3;
-const HEADER_MARGIN: usize = 1;
 
 /// The owned dark theme's `muted` foreground and its primary text.
 const MUTED: [u8; 3] = [157, 165, 169];
@@ -81,8 +78,6 @@ pub fn accent_colors(accent: Option<&str>) -> AccentColors {
 pub struct LandingInput<'a> {
     pub columns: u16,
     pub body_rows: u16,
-    /// The strip is at the bottom, so the header sits at the bottom of the body beside it.
-    pub at_bottom: bool,
     /// The running a1 package version, shown after the name.
     pub version: Option<&'a str>,
     pub accent: Option<&'a str>,
@@ -97,21 +92,26 @@ pub fn half_blocks_supported() -> bool {
     std::env::var("TERM_PROGRAM").map_or(true, |program| program != "Apple_Terminal")
 }
 
-/// Shortens `cwd` for display, writing the home directory as `~`.
+/// Shortens `cwd` for display the way an Agent tab's footer does: the home directory becomes `~`
+/// and the rest keeps its own separators.
 pub fn display_cwd(cwd: &str, home: Option<&str>) -> String {
-    let Some(home) = home.filter(|home| !home.is_empty()) else {
+    const SEPARATORS: [char; 2] = ['/', '\\'];
+    let Some(home) = home
+        .map(|home| home.trim_end_matches(SEPARATORS))
+        .filter(|home| !home.is_empty())
+    else {
         return cwd.to_owned();
     };
-    let normalize = |value: &str| value.replace('\\', "/").trim_end_matches('/').to_owned();
-    let (path, home) = (normalize(cwd), normalize(home));
+    let normalize = |value: &str| value.replace('\\', "/");
+    let (path, root) = (normalize(cwd), normalize(home));
     let matches = if cfg!(windows) {
-        path.to_lowercase().starts_with(&home.to_lowercase())
+        path.to_lowercase().starts_with(&root.to_lowercase())
     } else {
-        path.starts_with(&home)
+        path.starts_with(&root)
     };
-    let rest = &path[home.len().min(path.len())..];
-    if matches && (rest.is_empty() || rest.starts_with('/')) {
-        format!("~{rest}")
+    let rest = cwd.get(home.len()..).unwrap_or_default();
+    if matches && (rest.is_empty() || rest.starts_with(SEPARATORS)) {
+        format!("~{}", rest.trim_end_matches(SEPARATORS))
     } else {
         cwd.to_owned()
     }
@@ -193,55 +193,49 @@ fn foreground(rgb: [u8; 3], truecolor: bool) -> String {
     }
 }
 
-/// The landing body, addressed as rows below a top strip: every row is cleared and the header
-/// is drawn one row away from the strip.
+/// The landing body, addressed as rows below a top strip. Every row is cleared; the launch cwd
+/// sits on the second-to-last body row, flush left, with `a1 v<version>` below it and the
+/// wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
+/// folder stays in place when a tab opens or closes, whichever edge the strip is on.
 pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
     let fg = |rgb| foreground(rgb, input.truecolor);
-    let top = if body_rows < HEADER_ROWS + HEADER_MARGIN {
-        0
-    } else if input.at_bottom {
-        body_rows - HEADER_ROWS - HEADER_MARGIN
-    } else {
-        HEADER_MARGIN
-    };
     let mut rows = vec![String::new(); body_rows];
-    let mut place = |row: usize, column: usize, content: String| {
+    let mut place = |row: usize, content: String| {
         if let Some(slot) = rows.get_mut(row) {
-            slot.push_str(&format!("\x1b[{};{}H{content}", row + 2, column + 1));
+            slot.push_str(&content);
         }
     };
-    let text_column = if input.half_blocks {
-        let accent = fg(accent_colors(input.accent).accent);
-        for (offset, line) in WORDMARK.iter().enumerate() {
-            let shown = clip(line, columns.saturating_sub(HEADER_MARGIN));
-            place(
-                top + offset,
-                HEADER_MARGIN,
-                format!("{accent}{shown}\x1b[0m"),
-            );
-        }
-        HEADER_MARGIN + UnicodeWidthStr::width(WORDMARK[0]) + 2
-    } else {
-        HEADER_MARGIN
-    };
-    let room = columns.saturating_sub(text_column);
+    let cwd_row = body_rows.saturating_sub(2);
+    place(
+        cwd_row,
+        format!("{}{}\x1b[0m", fg(MUTED), clip_left(input.cwd, columns)),
+    );
     let version = input
         .version
         .filter(|version| !version.is_empty())
         .map(|version| format!(" v{version}"))
         .unwrap_or_default();
-    let title = format!(
-        "\x1b[1m{}{}\x1b[0m{}{}\x1b[0m",
-        fg(TEXT),
-        clip("a1", room),
-        fg(MUTED),
-        clip(&version, room.saturating_sub(2))
-    );
-    place(top, text_column, title);
-    let cwd = format!("{}{}\x1b[0m", fg(MUTED), clip_left(input.cwd, room));
-    place(top + 1, text_column, cwd);
+    if cwd_row + 1 < body_rows {
+        place(
+            cwd_row + 1,
+            format!(
+                "\x1b[1m{}{}\x1b[0m{}{}\x1b[0m",
+                fg(TEXT),
+                clip("a1", columns),
+                fg(MUTED),
+                clip(&version, columns.saturating_sub(2))
+            ),
+        );
+    }
+    if input.half_blocks && cwd_row >= WORDMARK.len() {
+        let accent = fg(accent_colors(input.accent).accent);
+        for (offset, line) in WORDMARK.iter().enumerate() {
+            let row = cwd_row - WORDMARK.len() + offset;
+            place(row, format!("{accent}{}\x1b[0m", clip(line, columns)));
+        }
+    }
 
     let mut bytes = String::new();
     for (index, content) in rows.iter().enumerate() {
@@ -287,11 +281,10 @@ mod tests {
             .collect()
     }
 
-    fn input(columns: u16, rows: u16, at_bottom: bool) -> LandingInput<'static> {
+    fn input(columns: u16, rows: u16) -> LandingInput<'static> {
         LandingInput {
             columns,
             body_rows: rows,
-            at_bottom,
             version: Some("0.2.7"),
             accent: None,
             truecolor: true,
@@ -301,52 +294,47 @@ mod tests {
     }
 
     #[test]
-    fn the_header_sits_one_row_below_a_top_strip() {
-        let grid = cells(&render(&input(80, 23, false)), 80, 23);
-        assert!(grid[0].is_empty());
-        assert_eq!(grid[1], format!(" {}  a1 v0.2.7", WORDMARK[0]));
-        assert_eq!(grid[2], format!(" {}  ~/src/a1", WORDMARK[1]));
-        assert_eq!(grid[3], format!(" {}", WORDMARK[2]));
-        assert!(
-            grid[4..].iter().all(String::is_empty),
-            "no input below the header"
+    fn the_cwd_sits_where_the_agent_footer_shows_it_with_the_version_below_and_logo_above() {
+        let grid = cells(&render(&input(80, 23)), 80, 23);
+        assert!(grid[..18].iter().all(String::is_empty), "{grid:#?}");
+        assert_eq!(grid[18], WORDMARK[0].trim_end());
+        assert_eq!(grid[19], WORDMARK[1].trim_end());
+        assert_eq!(grid[20], WORDMARK[2].trim_end());
+        assert_eq!(
+            grid[21], "~/src/a1",
+            "the second-to-last body row, flush left"
         );
+        assert_eq!(grid[22], "a1 v0.2.7");
     }
 
     #[test]
-    fn the_header_moves_to_the_bottom_above_a_bottom_strip() {
-        let grid = cells(&render(&input(80, 23, true)), 80, 23);
-        assert!(grid[..19].iter().all(String::is_empty));
-        assert_eq!(grid[19], format!(" {}  a1 v0.2.7", WORDMARK[0]));
-        assert_eq!(grid[20], format!(" {}  ~/src/a1", WORDMARK[1]));
-        assert_eq!(grid[21], format!(" {}", WORDMARK[2]));
-        assert!(grid[22].is_empty(), "one margin row beside the strip");
-    }
-
-    #[test]
-    fn every_body_row_is_cleared_and_the_header_fits_small_terminals() {
-        let bytes = String::from_utf8(render(&input(80, 23, false))).unwrap();
+    fn every_body_row_is_cleared_and_small_terminals_keep_the_cwd() {
+        let bytes = String::from_utf8(render(&input(80, 23))).unwrap();
         for row in 2..=24 {
             assert!(bytes.contains(&format!("\x1b[{row};1H\x1b[0m\x1b[2K")));
         }
-        let small = cells(&render(&input(14, 3, true)), 14, 3);
-        assert_eq!(small[0], format!(" {}  a1", WORDMARK[0]));
-        let narrow = cells(&render(&input(30, 23, false)), 30, 23);
-        assert_eq!(narrow[1], format!(" {}  a1 v0.2.7", WORDMARK[0]));
-        assert_eq!(narrow[2], format!(" {}  ~/src/a1", WORDMARK[1]));
+        let short = cells(&render(&input(40, 3)), 40, 3);
+        assert_eq!(
+            short,
+            ["", "~/src/a1", "a1 v0.2.7"],
+            "no room for the wordmark"
+        );
+        assert_eq!(cells(&render(&input(40, 1)), 40, 1), ["~/src/a1"]);
+        let narrow = cells(&render(&input(6, 23)), 6, 23);
+        assert_eq!(narrow[21], "…rc/a1");
     }
 
     #[test]
     fn accents_palette_fallback_text_header_and_missing_version() {
         let blue = String::from_utf8(render(&LandingInput {
             accent: Some("blue"),
-            ..input(80, 23, false)
+            ..input(80, 23)
         }))
         .unwrap();
         assert!(blue.contains("\x1b[38;2;130;160;241m ▀▀▀▄"));
         let palette = String::from_utf8(render(&LandingInput {
             truecolor: false,
-            ..input(80, 23, false)
+            ..input(80, 23)
         }))
         .unwrap();
         assert!(!palette.contains("38;2;"));
@@ -357,23 +345,22 @@ mod tests {
         let plain = cells(
             &render(&LandingInput {
                 half_blocks: false,
-                ..input(80, 23, false)
+                ..input(80, 23)
             }),
             80,
             23,
         );
         assert!(plain.iter().all(|row| !row.contains('▀')));
-        assert_eq!(plain[1], " a1 v0.2.7");
-        assert_eq!(plain[2], " ~/src/a1");
+        assert_eq!(plain[21..], ["~/src/a1", "a1 v0.2.7"]);
         let unversioned = cells(
             &render(&LandingInput {
                 version: None,
-                ..input(80, 23, false)
+                ..input(80, 23)
             }),
             80,
             23,
         );
-        assert!(unversioned[1].ends_with("  a1"));
+        assert_eq!(unversioned[22], "a1");
     }
 
     #[test]
@@ -396,39 +383,38 @@ mod tests {
     #[test]
     fn the_landing_composes_under_either_strip_with_no_cursor() {
         use crate::roles::presentation::{DesiredPresentation, FinalCursor, PresentationComposer};
-        let desired = |at_bottom: bool| DesiredPresentation {
+        let desired = |offset: u16| DesiredPresentation {
             tab_id: None,
             incarnation: 0,
             revision: 0,
             geometry_generation: 0,
             strip: "strip".into(),
             structured: None,
-            legacy_body: render(&input(80, 23, at_bottom)),
+            legacy_body: render(&input(80, 23)),
             overlay: None,
             cursor: Some(FinalCursor::Hidden),
             modes: None,
             columns: 80,
             outer_rows: 24,
-            child_row_offset: u16::from(!at_bottom),
+            child_row_offset: offset,
             clear: false,
         };
         let composer = PresentationComposer::default();
-        let top =
-            String::from_utf8(composer.prepare(&desired(false)).unwrap().unwrap().bytes).unwrap();
+        let top = String::from_utf8(composer.prepare(&desired(1)).unwrap().unwrap().bytes).unwrap();
         assert!(
             top.contains("\x1b[2J"),
             "the last-tab close clears the prior surface once"
         );
         assert!(
-            top.contains("\x1b[3;2H"),
-            "the header starts one row below the top strip"
+            top.contains("\x1b[23;1H\x1b[0m\x1b[2K\x1b["),
+            "the cwd on child row 21"
         );
         assert!(top.ends_with("\x1b[?25l\x1b[?2026l"), "no cursor shows");
         let bottom =
-            String::from_utf8(composer.prepare(&desired(true)).unwrap().unwrap().bytes).unwrap();
+            String::from_utf8(composer.prepare(&desired(0)).unwrap().unwrap().bytes).unwrap();
         assert!(
-            bottom.contains("\x1b[20;2H"),
-            "above a bottom strip the header ends one row above it"
+            bottom.contains("\x1b[22;1H\x1b[0m\x1b[2K\x1b["),
+            "above a bottom strip the cwd moves with the child rows"
         );
     }
 
@@ -441,6 +427,11 @@ mod tests {
             "/home/meta/x"
         );
         assert_eq!(display_cwd("/srv/a1", None), "/srv/a1");
+        assert_eq!(
+            display_cwd(r"C:\Users\me\src\a1", Some(r"C:\Users\me\")),
+            r"~\src\a1",
+            "the footer keeps native separators"
+        );
         assert_eq!(clip_left("~/src/project/a1", 8), "…ject/a1");
         assert_eq!(clip_left("a1", 8), "a1");
     }

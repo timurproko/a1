@@ -1704,6 +1704,7 @@ impl Client {
                 .modes
                 .as_ref()
                 .map(|modes| modes.mouse_tracking),
+            landing: self.landing_shown(),
         })
     }
 
@@ -1885,16 +1886,22 @@ impl Client {
 
     /// Invariant: the landing is the body only while no tab is viewed after tabs were shown, so a
     /// first launch, a resize, or a pending switch never flashes it over a child surface.
+    fn landing_shown(&self) -> bool {
+        self.view.viewed.is_none() && self.has_shown_tabs
+    }
+
     fn landing(&self) -> Option<Vec<u8>> {
-        if self.view.viewed.is_some() || !self.has_shown_tabs {
+        if !self.landing_shown() {
             return None;
         }
-        let home = std::env::var(if cfg!(windows) { "USERPROFILE" } else { "HOME" }).ok();
+        // Invariant: the footer resolves home from `HOME`, then `USERPROFILE`.
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .ok();
         let cwd = landing::display_cwd(&self.create.cwd, home.as_deref());
         Some(landing::render(&landing::LandingInput {
             columns: self.columns,
             body_rows: self.outer_rows.saturating_sub(1),
-            at_bottom: self.time_format.tab_bar_position == TabBarPosition::Bottom,
             version: self.version.as_deref(),
             accent: self.time_format.accent_color,
             truecolor: !palette_fallback_requested(),
@@ -2268,19 +2275,10 @@ impl Client {
                 .iter()
                 .any(|tab| &tab.tab_id == id && &tab.name == name && tab.name_source == "user")
         });
-        let mut next_tabs = self.registry_tabs(core, list.tabs);
-        // Invariant: a hidden Settings tab never surfaces by itself. When it is all that
-        // remains, it closes with the last visible tab instead of taking the view.
+        let next_tabs = self.registry_tabs(core, list.tabs);
+        // Invariant: a hidden Settings tab never surfaces by itself. When it is all that remains,
+        // it stays hidden and running beside the landing, so Settings opens without a start.
         let settings_visible = core.settings_visible(self.view.viewed.as_deref());
-        if core.hidden_settings_orphaned(
-            &next_tabs,
-            self.view.viewed.as_deref(),
-            self.view.requested.as_deref(),
-        ) {
-            for tab in next_tabs.drain(..) {
-                self.send(Request::Close(tab.id))?;
-            }
-        }
         if name_confirmed {
             core.pending_manual_name = None;
         }
@@ -2502,6 +2500,18 @@ impl Client {
     /// Invariant: double Ctrl+C leaves from any tab with solo's quit animation when it is
     /// enabled; restoration follows whether or not it played.
     fn detach(&mut self) -> Result<(), String> {
+        // Invariant: a hidden Settings kept ready beside the landing leaves with this client, so no
+        // Settings process outlives the last Agent or makes the next launch skip its first Agent.
+        if !self.tabs.is_empty() && self.tabs.iter().all(|tab| tab.id.starts_with("settings-")) {
+            for tab_id in self
+                .tabs
+                .iter()
+                .map(|tab| tab.id.clone())
+                .collect::<Vec<_>>()
+            {
+                self.send(Request::Close(tab_id))?;
+            }
+        }
         wire::send(&mut self.stream, "detach", None, wire::ResultBody::ok())?;
         if read_quit_animation(&self.settings_file) {
             self.terminal

@@ -3,16 +3,16 @@
 ## ADDED Requirements
 
 ### Requirement: The empty resident shell presents the a1 landing
-While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body: a header with the three-row half-block `a1` wordmark in the profile's accent color (omitted where half-block glyphs are unsupported) beside `a1` with the running version and, below that, the shortened launch cwd. The header SHALL sit one row from the strip, at the top of the body below a top strip and at the bottom of the body above a bottom strip, one column from the left edge. The landing SHALL hold no input: keys, paste, and body mouse input SHALL reach no child, while tab shortcuts, the `+` launcher and its popups, strip hover, strip mouse input, and the double-`Ctrl+C` detach SHALL behave exactly as with tabs. The landing SHALL render no cursor and SHALL never be shown while a tab is viewed or requested.
+While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body: the launch cwd, formatted and placed as an Agent tab's footer shows it (flush left on the second-to-last body row, with the home directory as `~`), `a1` with the running version on the row below it, and the three-row half-block `a1` wordmark in the profile's accent color on the rows above it (omitted where half-block glyphs are unsupported or rows run out), so the folder stays in place when a tab opens or closes at either strip position. The landing SHALL hold no input: keys, paste, and body mouse input SHALL reach no child, while tab shortcuts, the `+` launcher and its popups, strip hover, strip mouse input, and the double-`Ctrl+C` detach SHALL behave exactly as with tabs. The landing SHALL render no cursor and SHALL never be shown while a tab is viewed or requested.
 
 #### Scenario: Last tab closes into the landing
 - **WHEN** the final Agent or Settings tab closes while the attach client stays open and the strip is at the top
-- **THEN** the strip SHALL show `+` and the clock and the body SHALL show the wordmark, `a1` with its version, and the launch cwd one row below the strip
+- **THEN** the strip SHALL show `+` and the clock and the body SHALL show the launch cwd on the row where an Agent's footer shows it, `a1` with its version below it, and the wordmark above it
 - **AND** no cursor SHALL show
 
-#### Scenario: Bottom strip moves the landing header
-- **WHEN** the landing is shown and the tab bar position is bottom
-- **THEN** the header SHALL sit at the bottom of the body, one row above the strip
+#### Scenario: The folder does not move when a tab opens
+- **WHEN** the user creates an Agent from the landing at either tab bar position
+- **THEN** the Agent's footer SHALL show the cwd on the same row and column as the landing showed it
 
 #### Scenario: Start an Agent from the landing
 - **WHEN** the user presses the `New A1 tab` shortcut or chooses `+ Agent` from the launcher on the landing
@@ -20,8 +20,7 @@ While the attach client has no tab to show and no view request pending, it SHALL
 
 #### Scenario: Open Settings from the landing
 - **WHEN** the user presses the `Open Settings tab` shortcut or chooses `Settings` from the `+` launcher on the landing
-- **THEN** the singleton Settings tab SHALL be created or activated and shown through the ordinary tab UI
-- **AND** it SHALL NOT be closed as a hidden Settings tab left without visible tabs
+- **THEN** the hidden Settings tab kept ready beside the landing SHALL be shown through the ordinary tab UI without starting a new process
 
 #### Scenario: Small terminal
 - **WHEN** the body has fewer rows or columns than the full header needs
@@ -82,7 +81,7 @@ Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal 
 - **THEN** no tab strip, resident server, holder, or tab bridge SHALL be involved
 
 ### Requirement: Resident Settings is one global utility tab
-Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Settings`. It SHALL render the owned global settings without owning an Agent session. A Settings route delivered before the child presenter has started SHALL be retained and presented once it starts. The launcher SHALL create or activate that singleton. The `tabs.settings` action SHALL toggle it: while Settings is viewed it SHALL hide that tab from the strip, keep its process running, and show the previous tab, and otherwise it SHALL show the singleton. To open Settings without a startup delay, the attach client SHALL start a hidden Settings tab in the background when tabs exist without one; a Settings tab joins the strip only once it is viewed. Closing its tab SHALL remove it. Settings are shared: every running resident tab SHALL reread the shared settings document when it changes and apply each changed live setting, such as the accent color, without a restart. Its screen is the tab, so it SHALL offer no screen-level Esc close or Esc close hint, and one Ctrl+C SHALL NOT dismiss it. Resident Agents SHALL not advertise or execute `/settings`; `a1 solo` and `a1 pi` SHALL retain their existing command behavior.
+Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Settings`. It SHALL render the owned global settings without owning an Agent session. A Settings route delivered before the child presenter has started SHALL be retained and presented once it starts. The launcher SHALL create or activate that singleton. The `tabs.settings` action SHALL toggle it: while Settings is viewed it SHALL hide that tab from the strip, keep its process running, and show the previous tab, and otherwise it SHALL show the singleton. To open Settings without a startup delay, the attach client SHALL start a hidden Settings tab in the background when tabs exist, or the landing is shown, without one; a Settings tab joins the strip only once it is viewed. Closing its tab SHALL remove it. Settings are shared: every running resident tab SHALL reread the shared settings document when it changes and apply each changed live setting, such as the accent color, without a restart. Its screen is the tab, so it SHALL offer no screen-level Esc close or Esc close hint, and one Ctrl+C SHALL NOT dismiss it. Resident Agents SHALL not advertise or execute `/settings`; `a1 solo` and `a1 pi` SHALL retain their existing command behavior.
 
 #### Scenario: Open Settings from the launcher
 - **WHEN** a resident Agent is viewed and the user chooses Settings from `+`
@@ -109,7 +108,8 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 
 #### Scenario: Hidden Settings never opens by itself
 - **WHEN** Settings is hidden and the user closes the last visible tab
-- **THEN** the hidden Settings tab SHALL close too and the strip SHALL show only `+` and the clock beside the landing
+- **THEN** the hidden Settings tab SHALL stay hidden and running beside the landing, and the strip SHALL show only `+` and the clock
+- **AND** it SHALL close when the client detaches, so a later bare `a1` starts its first Agent and never views it
 - **AND** a closed viewed tab SHALL never be replaced by the hidden Settings tab
 
 #### Scenario: Settings opens without a startup delay
