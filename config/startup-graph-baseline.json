@@ -17,8 +17,8 @@
     ]
   },
   "piPublicArtifact": {
-    "maximumLoadedFiles": 2101,
-    "maximumEvaluatedBytes": 10025075
+    "maximumLoadedFiles": 2107,
+    "maximumEvaluatedBytes": 10053785
   },
   "pinnedDynamicImports": [
     {
