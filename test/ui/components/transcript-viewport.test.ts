@@ -12,7 +12,7 @@ const rows = (count: number) => Array.from({ length: count }, (_, index) => `row
 const overflowingRows = (value: readonly string[]) => value.map(row => stripAnsi(row).trimEnd());
 
 describe("transcript viewport", () => {
-  it("returns an exact-height transcript-above-dock frame and leaves one line above the rail", () => {
+  it("returns an exact-height frame with a top gap and a rail through the final content row", () => {
     const viewport = new TranscriptViewport();
     viewport.setConfig(ALWAYS);
     const frame = viewport.compose({ documentRows: rows(10), dockRows: ["editor", "footer"], promptAnchors: [], width: 30, height: 6, now: 100 });
@@ -21,6 +21,7 @@ describe("transcript viewport", () => {
     expect(stripAnsi(frame.rows[0] ?? "")).not.toContain("│");
     expect(stripAnsi(frame.rows[1] ?? "")).toContain("│");
     expect(frame.hits.rail).toMatchObject({ rowStart: 2, trackHeight: 3 });
+    expect(stripAnsi(frame.rows[3] ?? "")).toMatch(/[│┃]$/u);
     expect(frame.rows.slice(-2).map(row => row.trimEnd())).toEqual(["editor", "footer"]);
   });
 
@@ -572,6 +573,46 @@ describe("transcript viewport", () => {
     });
     expect(notified.hits.bottom?.row).toBe(7);
     expect(stripAnsi(notified.rows[6] ?? "")).toContain("Jump to bottom (Ctrl+End) ↓");
+  });
+
+  it("restores the former control row when dock shrink moves the control downward", () => {
+    const viewport = new TranscriptViewport();
+    viewport.setConfig(ALWAYS);
+    const expanded = {
+      documentRows: rows(20),
+      dockRows: ["notice one", "notice two", "editor", "footer"],
+      promptAnchors: [],
+      width: 40,
+      height: 10,
+      bottomControlRow: 5,
+      now: 100,
+    };
+    viewport.compose(expanded);
+    viewport.scrollBy(-4, 101);
+    const before = viewport.compose({ ...expanded, now: 102 });
+    expect(before.hits.bottom?.row).toBe(6);
+    expect(before.rows.filter(row => stripAnsi(row).includes("Jump to bottom"))).toHaveLength(1);
+
+    const moved = viewport.compose({
+      ...expanded,
+      dockRows: ["editor", "footer"],
+      bottomControlRow: 7,
+      now: 103,
+    });
+    expect(moved.hits.bottom?.row).toBe(8);
+    expect(moved.rows.filter(row => stripAnsi(row).includes("Jump to bottom"))).toHaveLength(1);
+    expect(stripAnsi(moved.rows[5] ?? "")).not.toContain("Jump to bottom");
+    expect(stripAnsi(moved.rows[7] ?? "")).toContain("Jump to bottom");
+
+    viewport.noteNewMessage();
+    const relabeled = viewport.compose({ ...expanded, dockRows: ["editor", "footer"], bottomControlRow: 7, now: 104 });
+    expect(relabeled.rows.filter(row => /new message/u.test(stripAnsi(row)))).toHaveLength(1);
+    expect(relabeled.rows.every(row => !stripAnsi(row).includes("Jump to bottom"))).toBe(true);
+
+    viewport.scrollToEnd(105);
+    const removed = viewport.compose({ ...expanded, dockRows: ["editor", "footer"], bottomControlRow: 7, now: 106 });
+    expect(removed.hits.bottom).toBeNull();
+    expect(removed.rows.every(row => !/(?:Jump to bottom|new message)/u.test(stripAnsi(row)))).toBe(true);
   });
 
   it.each([0, 1, 3, 100])("renders the exact downward-arrow label with %i new messages", count => {

@@ -17,4 +17,5 @@ pub mod registry;
 pub mod release_holds;
 pub mod server;
 pub mod strip;
+mod terminal_output;
 pub mod wire;

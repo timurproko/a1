@@ -493,9 +493,8 @@ impl PresentationComposer {
             render_palette_damage(&mut output, prior, surface, force);
             let visible_rows =
                 usize::from(surface.rows).min(usize::from(desired.outer_rows.saturating_sub(1)));
-            for row_index in 0..visible_rows {
-                let changed = prior.and_then(|previous| previous.row_data.get(row_index))
-                    != surface.row_data.get(row_index);
+            let damage = surface_row_damage(prior, surface).take(visible_rows);
+            for (row_index, changed) in damage.enumerate() {
                 if force || changed || overlay_damage.contains(&row_index) {
                     let row = surface
                         .row_data
@@ -628,6 +627,30 @@ fn sanitize_legacy_body(bytes: &[u8]) -> Vec<u8> {
     output
 }
 
+/// Compares frame-local row references while retaining the monotonic-table fast path.
+fn surface_row_damage<'a>(
+    previous: Option<&'a StructuredSurface>,
+    next: &'a StructuredSurface,
+) -> impl Iterator<Item = bool> + 'a {
+    let dictionaries_preserved = previous.is_some_and(|surface| {
+        next.styles.starts_with(&surface.styles) && next.links.starts_with(&surface.links)
+    });
+    next.row_data.iter().enumerate().map(move |(index, row)| {
+        previous.is_none_or(|surface| {
+            surface.row_data.get(index) != Some(row)
+                || (!dictionaries_preserved
+                    && row.cells.iter().any(|cell| {
+                        surface.styles.get(usize::from(cell.style))
+                            != next.styles.get(usize::from(cell.style))
+                            || cell.link.is_some_and(|link| {
+                                surface.links.get(usize::from(link))
+                                    != next.links.get(usize::from(link))
+                            })
+                    }))
+        })
+    })
+}
+
 fn render_palette_damage(
     output: &mut Vec<u8>,
     previous: Option<&StructuredSurface>,
@@ -753,6 +776,12 @@ fn render_surface_row_clipped(
     clip: Option<(usize, usize)>,
 ) -> Result<(), String> {
     output.extend_from_slice(format!("\x1b[{};1H", row_index + 2).as_bytes());
+    if clip.is_none() {
+        // Invariant: a changed retained row replaces its former terminal cells before repainting.
+        // Explicit cell writes then restore styled blanks, while a cleared control/status row cannot
+        // survive because of terminal-specific blank-cell or wrap behavior.
+        output.extend_from_slice(b"\x1b[0m\x1b[2K");
+    }
     let mut active_style: Option<u16> = None;
     let mut active_link: Option<u16> = None;
     let visible = usize::from(columns).min(row.cells.len());
@@ -808,10 +837,27 @@ fn render_surface_row_clipped(
     if active_style.is_some() {
         output.extend_from_slice(b"\x1b[0m");
     }
-    // Invariant: a spectator may be wider than the controller-owned child geometry, and a row may replace
-    // previously wider content. Erasing after the complete retained row prevents stale suffixes
-    // without dropping styled blanks inside the child surface.
-    if visible < usize::from(columns) {
+    erase_surface_row_suffix(
+        output,
+        row_index,
+        visible,
+        usize::from(columns),
+        clip,
+        reposition,
+    );
+    Ok(())
+}
+
+/// Erases a spectator's wider suffix without changing styled child blanks or overlay cells.
+fn erase_surface_row_suffix(
+    output: &mut Vec<u8>,
+    row_index: usize,
+    visible: usize,
+    columns: usize,
+    clip: Option<(usize, usize)>,
+    reposition: bool,
+) {
+    if visible < columns {
         match clip.filter(|(_, right)| *right > visible) {
             None => {
                 if reposition {
@@ -823,7 +869,6 @@ fn render_surface_row_clipped(
             }
             Some((left, right)) => {
                 // Invariant: The suffix contains the overlay, so erase explicitly around it.
-                let columns = usize::from(columns);
                 let before = left.clamp(visible, columns);
                 if before > visible {
                     output.extend_from_slice(
@@ -839,7 +884,6 @@ fn render_surface_row_clipped(
             }
         }
     }
-    Ok(())
 }
 
 /// Finds, per child row, the half-open column span an overlay paints, by following its cursor
@@ -1044,6 +1088,9 @@ impl Frame<'_> {
         Some(output)
     }
 }
+
+#[cfg(test)]
+mod parity_tests;
 
 #[cfg(test)]
 mod tests {
@@ -1585,6 +1632,48 @@ mod tests {
             .expect("row damage");
         assert!(damage.bytes.windows(6).any(|window| window == b"\x1b[3;1H"));
         assert!(!damage.bytes.windows(6).any(|window| window == b"\x1b[2;1H"));
+    }
+
+    #[test]
+    fn changed_rows_clear_stale_cells_and_restore_styled_trailing_blanks() {
+        let mut composer = PresentationComposer::default();
+        let mut initial = structured_fixture();
+        initial.row_data[1].cells[0].text = "J".into();
+        composer
+            .prepare(&desired(Some(initial.clone()), Vec::new()))
+            .unwrap()
+            .expect("initial control")
+            .acknowledge(&mut composer);
+
+        let mut cleared = initial;
+        cleared.row_data[1] = SurfaceRow {
+            cells: vec![crate::protocol::SurfaceCell::default(); 3],
+        };
+        let blank = composer
+            .prepare(&desired(Some(cleared.clone()), Vec::new()))
+            .unwrap()
+            .expect("cleared control");
+        assert!(
+            blank
+                .bytes
+                .windows(14)
+                .any(|window| window == b"\x1b[3;1H\x1b[0m\x1b[2K")
+        );
+        blank.acknowledge(&mut composer);
+
+        for cell in &mut cleared.row_data[1].cells {
+            cell.style = 1;
+        }
+        cleared.row_data[1].cells[0].text = "X".into();
+        let styled = composer
+            .prepare(&desired(Some(cleared), Vec::new()))
+            .unwrap()
+            .expect("styled blanks");
+        let bytes = String::from_utf8(styled.bytes).unwrap();
+        let row = bytes.split("\x1b[3;1H").nth(1).expect("changed row");
+        assert!(row.starts_with("\x1b[0m\x1b[2K"));
+        assert!(row.contains("48;5;4"));
+        assert!(row.contains("X  "), "{row:?}");
     }
 
     #[test]

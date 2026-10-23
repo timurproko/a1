@@ -156,6 +156,10 @@ export interface TranscriptViewportFrame {
 }
 
 const CONTROL_STYLE_RESET = "\u001b]8;;\u001b\\\u001b[0m";
+// Protocol: upstream OSC 133 zones are layout annotations, not fullscreen cursor commands.
+// Styling/padding can move them away from the row prefix Pi strips; 133;A then advances a real
+// terminal parser to a fresh line. The custom viewport owns prompt anchors separately.
+const VIEWPORT_PROMPT_ZONES = /\u001b\]133;[ABC](?:\u0007|\u001b\\)/gu;
 // Invariant: scrollbar chrome closes source links and decoration without clearing
 // the row surface painted beneath its dedicated, non-semantic gutter.
 const GUTTER_DECORATION_RESET = "\u001b]8;;\u001b\\\u001b[22;23;24;25;27;28;29;39;54;55m";
@@ -558,7 +562,7 @@ export class TranscriptViewport {
       contentLength: documentRows.length,
       viewportHeight,
       scroll: this.#scrollTop,
-      // Compatibility: the session rail deliberately starts one line below the viewport top.
+      // Invariant: the rail keeps its top gap; the shell owns the spacing above the dock.
       trackHeight: Math.max(0, viewportHeight - 1),
     });
     const presentation = scrollbarPresentation({
@@ -733,7 +737,7 @@ export class TranscriptViewport {
       // Invariant: paint the rail after selection over the gutter's continued row
       // background. Source content and selection still end at the preceding cell.
       let railCell = "";
-      if (row < viewportHeight && presentation.visible && geometry !== null && row > 0) {
+      if (row > 0 && row < viewportHeight && presentation.visible && geometry !== null) {
         const trackRow = row - 1;
         const thumb = isThumbRow(geometry, trackRow);
         const glyph = thumb ? presentation.thumbGlyph : presentation.trackGlyph;
@@ -777,7 +781,7 @@ export class TranscriptViewport {
         },
       );
       rowRecomputed ||= !final.reused;
-      frameRows[row] = final.value;
+      frameRows[row] = final.value.replace(VIEWPORT_PROMPT_ZONES, "");
       (rowRecomputed ? recomputedRows : reusedRows).push(row + 1);
 
       const state = `${width}\u0000${row}\u0000${painted}\u0000${rangeKey}\u0000${range === null ? "" : selectionPainterId}\u0000${railCell}\u0000${overlayText}\u0000${rowControl?.text ?? ""}`;
@@ -893,19 +897,10 @@ export class TranscriptViewport {
       || !sameRectangle(previous.descriptor.transcript, expectedTranscript)) return null;
 
     const descriptor: TranscriptViewportFrameDescriptor = {
+      ...previous.descriptor,
       frameId: ++this.#frameId,
-      width: boundedWidth,
-      height: boundedHeight,
-      transcript: expectedTranscript,
-      dock: expectedDock,
       previousDocumentRange: previous.descriptor.nextDocumentRange,
-      nextDocumentRange: previous.descriptor.nextDocumentRange,
       previousFollowingEnd: previous.followingEnd,
-      followingEnd: previous.followingEnd,
-      transientRowCount: previous.descriptor.transientRowCount,
-      transientAlignmentGapRows: previous.descriptor.transientAlignmentGapRows,
-      bottomAlignedTailRowCount: previous.descriptor.bottomAlignedTailRowCount,
-      liveTailRows: previous.descriptor.liveTailRows,
       verticalShiftRows: 0,
       safeVerticalShift: false,
       selectionRevision: this.#selectionRevision,
@@ -916,12 +911,8 @@ export class TranscriptViewport {
     this.#selectionRows = [...this.#selectionRows.slice(0, viewportHeight), ...dock].slice(0, boundedHeight);
     this.#copyableDockRows = copyableDockRowsBySuffix(dockRows, copyableDockRows);
     const frame: TranscriptViewportFrame = {
-      rows: [...previous.rows.slice(0, viewportHeight), ...dock].slice(0, boundedHeight),
-      contentWidth: previous.contentWidth,
-      scrollTop: previous.scrollTop,
-      maxScroll: previous.maxScroll,
-      followingEnd: previous.followingEnd,
-      hits: previous.hits,
+      ...previous,
+      rows: [...previous.rows.slice(0, viewportHeight), ...dock.map(row => row.replace(VIEWPORT_PROMPT_ZONES, ""))].slice(0, boundedHeight),
       descriptor,
       selectionDamage: {
         revision: this.#selectionRevision,
