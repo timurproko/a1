@@ -114,7 +114,7 @@ fn status_glyph_at(status: &str, elapsed_ms: u128) -> String {
     match status {
         "starting" | "restoring" | "working" => tab_spinner_frame_at(elapsed_ms).into(),
         "needs-input" => "?".into(),
-        "unresponsive" | "stalled" | "degraded" => "!".into(),
+        "degraded" => "!".into(),
         "done" | "done-unseen" => "✓".into(),
         "restarting" => "↻".into(),
         "aborted" | "error" | "crashed" | "failed" | "ended" => "✗".into(),
@@ -140,7 +140,7 @@ fn status_glyph(status: &str) -> String {
 fn accent(status: &str, value: Option<&str>) -> &'static str {
     if status != "working" {
         return match status {
-            "needs-input" | "unresponsive" | "stalled" | "degraded" => "\x1b[38;2;224;175;70m",
+            "needs-input" | "degraded" => "\x1b[38;2;224;175;70m",
             "done" | "done-unseen" => "\x1b[38;2;90;190;120m",
             "aborted" | "error" | "crashed" | "failed" | "ended" => "\x1b[38;2;225;90;90m",
             _ => "\x1b[38;2;170;170;170m",
@@ -1378,7 +1378,11 @@ mod tests {
     #[test]
     fn uses_semantic_status_glyphs_without_old_progress_or_suspended_glyphs() {
         assert_eq!(status_glyph_at("needs-input", 0), "?");
-        assert_eq!(status_glyph_at("unresponsive", 0), "!");
+        assert_eq!(status_glyph_at("degraded", 0), "!");
+        for silent in ["unresponsive", "stalled"] {
+            assert_eq!(status_glyph_at(silent, 0), "");
+            assert_eq!(accent(silent, None), "\x1b[38;2;170;170;170m");
+        }
         assert_eq!(status_glyph_at("done-unseen", 0), "✓");
         assert_eq!(status_glyph_at("failed", 0), "✗");
         assert_eq!(status_glyph_at("suspended", 0), "");

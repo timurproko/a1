@@ -1,32 +1,22 @@
 import type { OwnedUiEvent, PromptHistoryImageSidecarPort } from "../../contracts/owned-ui/index.js";
 import type { SessionConcern } from "./session-concern.js";
 import type { OwnedUiShellEngineOptions, OwnedUiSessionShellRoot } from "./session-shell-root.js";
-import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 
 export type ResidentTabOptions = NonNullable<OwnedUiShellEngineOptions["residentTab"]>;
 
-const PROGRESS_EVENTS: ReadonlySet<OwnedUiEvent["type"]> = new Set([
-  "transcript-block", "session-view", "assistant-message-completed", "agent-run-started",
-]);
-
 export interface ResidentTabCoordinatorPorts {
   readonly root: Pick<OwnedUiSessionShellRoot, "appendWorkflowStatus" | "rehydrateHistoryText" | "editor">;
-  readonly terminal: Pick<OwnedUiPresenterTerminal, "requestRender">;
-  readonly disposed: () => boolean;
 }
 
 /**
- * The session presenter's side of a resident tab: recovered input, the progress and stall status
- * it reports to the strip, prompt admission and correlation through the recovery journal, draft
- * checkpoints, detach on quit, and the graceful stop when the presenter is released. Outside a
- * resident tab every operation is a no-op.
+ * The session presenter's side of a resident tab: recovered input, the idle status it reports to
+ * the strip, prompt admission and correlation through the recovery journal, draft checkpoints,
+ * detach on quit, and the graceful stop when the presenter is released. Outside a resident tab
+ * every operation is a no-op.
  */
 export class ResidentTabCoordinator implements SessionConcern {
   readonly #options: ResidentTabOptions | undefined;
   readonly #ports: ResidentTabCoordinatorPorts;
-  #progressTimer: ReturnType<typeof setTimeout> | undefined;
-  #working = false;
-  #stalled = false;
 
   constructor(options: ResidentTabOptions | undefined, ports: ResidentTabCoordinatorPorts) {
     this.#options = options;
@@ -67,37 +57,9 @@ export class ResidentTabCoordinator implements SessionConcern {
     }
   }
 
-  /** Tracks working, idle, and stalled status from session events and arms the stall notice. */
-  observeProgress(event: OwnedUiEvent): void {
-    const resident = this.#options;
-    const seconds = resident?.stallNoticeSeconds;
-    if (resident === undefined || seconds === undefined) return;
-    if (event.type === "session-lifecycle") {
-      this.#working = event.lifecycle === "busy";
-      if (!this.#working) {
-        this.#clearTimer();
-        this.#stalled = false;
-        resident.reportStatus?.("idle");
-        return;
-      }
-    } else if (!this.#working || !PROGRESS_EVENTS.has(event.type)) {
-      return;
-    }
-    if (this.#stalled) {
-      this.#stalled = false;
-      resident.reportStatus?.("working");
-    }
-    this.#clearTimer();
-    this.#progressTimer = setTimeout(() => {
-      this.#progressTimer = undefined;
-      if (this.#ports.disposed() || !this.#working) return;
-      this.#stalled = true;
-      resident.reportStatus?.("stalled");
-      const minutes = Math.max(1, Math.round(seconds / 60));
-      this.#ports.root.appendWorkflowStatus(`No progress for ${minutes} min — Esc interrupts · use the tab restart action to restart`);
-      this.#ports.terminal.requestRender();
-    }, seconds * 1_000);
-    this.#progressTimer.unref?.();
+  /** Reports idle to the strip whenever the session leaves its busy lifecycle. */
+  observeLifecycle(event: OwnedUiEvent): void {
+    if (event.type === "session-lifecycle" && event.lifecycle !== "busy") this.#options?.reportStatus?.("idle");
   }
 
   /** Journals a prompt before it is sent; undefined outside a resident tab. Rejects when the journal cannot sync. */
@@ -126,12 +88,5 @@ export class ResidentTabCoordinator implements SessionConcern {
     return this.#options?.gracefulStop?.(sessionFile) ?? Promise.resolve();
   }
 
-  dispose(): void {
-    this.#clearTimer();
-  }
-
-  #clearTimer(): void {
-    if (this.#progressTimer !== undefined) clearTimeout(this.#progressTimer);
-    this.#progressTimer = undefined;
-  }
+  dispose(): void {}
 }

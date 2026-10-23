@@ -140,7 +140,7 @@
       "lines": 442
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
-      "lines": 392
+      "lines": 388
     },
     "native/terminal-host/src/roles/server/controller.rs::claim_client_control": {
       "lines": 126
@@ -166,9 +166,6 @@
     "native/terminal-host/src/roles/server/mod.rs::serve_peer": {
       "lines": 262
     },
-    "native/terminal-host/src/roles/server/mod.rs::supervise_holders": {
-      "lines": 158
-    },
     "native/terminal-host/src/roles/server/standby.rs::promote_standby": {
       "lines": 106
     },
@@ -191,7 +188,7 @@
       "lines": 325
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 305
+      "lines": 304
     },
     "src/composition/resident-tab-bridge.ts::bindResidentTabBridge": {
       "lines": 123

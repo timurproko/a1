@@ -180,7 +180,6 @@ pub enum KeyForward {
         name: String,
         byte: u8,
     },
-    Restart(String),
 }
 
 /// Server messages after the role decoded them and applied their presentation side.
@@ -621,15 +620,6 @@ impl State {
         context: &Context<'_, T>,
         key: AttachKey,
     ) -> Option<KeyForward> {
-        let viewed = context
-            .viewed
-            .and_then(|id| context.tabs.iter().find(|tab| tab.id() == id));
-        if viewed.is_some_and(|tab| matches!(tab.status(), "stalled" | "unresponsive"))
-            && matches!(key.code, KeyCode::Char('r' | 'R'))
-            && key.modifiers.is_empty()
-        {
-            return viewed.map(|tab| KeyForward::Restart(tab.id().to_owned()));
-        }
         let forward = if self.failed(context.viewed) {
             match key.code {
                 KeyCode::Char(value @ ('r' | 'R' | 'f' | 'F')) if key.modifiers.is_empty() => {
@@ -1505,7 +1495,7 @@ mod tests {
     }
 
     #[test]
-    fn keys_reaching_the_child_follow_stall_and_failure_rules() {
+    fn keys_reaching_the_child_follow_failure_rules_only() {
         let mut fixture = Fixture::new(&["a"], "a");
         let mut state = fixture.state();
         let r = AttachKey {
@@ -1523,13 +1513,16 @@ mod tests {
         );
         assert!(state.user_input_pending);
 
-        fixture.tabs[0].status = "stalled".into();
-        state.user_input_pending = false;
-        assert_eq!(
-            state.forward_key(&fixture.context(), r),
-            Some(KeyForward::Restart("a".into()))
-        );
-        assert!(!state.user_input_pending, "a restart is not typed input");
+        for silent in ["stalled", "unresponsive"] {
+            fixture.tabs[0].status = silent.into();
+            state.user_input_pending = false;
+            assert_eq!(
+                state.forward_key(&fixture.context(), r),
+                Some(KeyForward::Typed),
+                "status={silent}"
+            );
+            assert!(state.user_input_pending);
+        }
 
         fixture.tabs[0].status = "failed".into();
         state.failed_tab = Some("a".into());

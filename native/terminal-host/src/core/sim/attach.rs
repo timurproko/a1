@@ -24,7 +24,7 @@ const ACTIONS: [&str; 9] = [
     "tabs.jump2",
     "tabs.settings",
 ];
-const STATUSES: [&str; 5] = ["idle", "working", "stalled", "failed", "done"];
+const STATUSES: [&str; 5] = ["idle", "working", "unresponsive", "failed", "done"];
 
 struct Labels;
 

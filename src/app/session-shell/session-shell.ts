@@ -335,7 +335,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       // Invariant: the presenter owns its root (theme subscription and helper clients) and disposes it once the
       // terminal no longer renders it.
       constructed.push(() => this.root.dispose());
-      this.#resident = new ResidentTabCoordinator(options.engine.residentTab, { root: this.root, terminal: this.#terminal, disposed: () => this.#disposed });
+      this.#resident = new ResidentTabCoordinator(options.engine.residentTab, { root: this.root });
       constructed.push(() => this.#resident.dispose());
       const startupRoute = options.engine.startupRoute;
       this.#dialogs = new SessionDialogCoordinator({
@@ -457,7 +457,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#stop.settleAfter(() => this.dispose());
           return;
         }
-        this.#resident.observeProgress(event);
+        this.#resident.observeLifecycle(event);
         // Performance: a streamed chunk names one block, and touching only that block is what keeps the
         // cost of a chunk the same in a long session as in a new one. Everything else
         // resynchronizes the view, which is cheap next to re-reading the transcript.

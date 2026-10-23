@@ -15,15 +15,15 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-23-fix-upward-selection-row/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-23-fix-upward-selection-row/acceptance.md",
   "finalizedDate": "2026-10-23",
-  "specBaseSha": "cb802f39bbc4bfdc5165bd140fd7cb227c2a0932",
+  "specBaseSha": "b20a04e731f67680decf750df6a0136748a118af",
   "acceptanceScenarios": [
     "Upward dragging through the tab-strip edge selects the first visible transcript content row from the pointer column to the row end.",
     "Tab-strip and pinned-prompt chrome stay outside copied text while forward and reverse selection retain matching visible boundaries."
   ],
-  "archiveDigest": "1c40a1c599171f75ab1e18a994926c100b80295b8983c9ff70af7da358ed960f",
-  "specDigest": "bb6ce922f496a94aad62a3bb9702692d3202d1a4d1b917091b9fbf126b1c1c3b",
-  "tasksDigest": "2ab23b38c00be9e925a878d69f7a730f686f15ba558beb3cfab0eddaca75f0de",
-  "evidenceDigest": "cc3226c26bdcb47f015a522dac597ea0029388171639001f0ed59a4c6003272c",
+  "archiveDigest": "8aa2485427f086981365e3af50d99e3e2c6b11cb8df4fd299ce196a655cd7a6f",
+  "specDigest": "50d0d9e46c7bc1217ced8baba1761942ff0097df716adaa4d38f1334ba062661",
+  "tasksDigest": "3fcdd0871dbef9b7e7ca07d206a64858c8da5ffdbc44b0f9bcc926712a798bd2",
+  "evidenceDigest": "9be662d4b99b0d6c4d89b1520290091a902fcde47306ea601422d3550bf96d56",
   "knownGaps": []
 }
 ```
