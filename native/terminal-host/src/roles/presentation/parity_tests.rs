@@ -309,7 +309,7 @@ fn conpty_rail_frames(columns: u16) -> Vec<Vec<u8>> {
             .map(|index| row(index, &format!("line {}", index + 20), rail(true, false)))
             .collect(),
     ));
-    // The dock grows by one row: the former last viewport row is erased with no content, and the
+    // Invariant: when the dock grows by one row, the former last viewport row is erased with no content, and the
     // control row moves up with its rail cell.
     frames.push(frame(vec![
         row(8, "line 28     Jump to bottom ↓", rail(false, false)),
@@ -319,7 +319,7 @@ fn conpty_rail_frames(columns: u16) -> Vec<Vec<u8>> {
         row(8, "line 28", rail(false, false)),
         row(9, "line 29     2 new messages ↓", rail(false, false)),
     ]));
-    // A followed stream shifts the transcript region up by two rows inside DECSTBM margins and
+    // Invariant: a followed stream shifts the transcript region up by two rows inside DECSTBM margins and
     // repaints only the exposed rows; the dock below the margins must stay in place.
     frames.push(frame(vec![
         "\x1b[1;9r\x1b[1;1H\x1b[2S\x1b[r".to_owned(),
@@ -915,7 +915,7 @@ fn conpty_split_render_pass_keeps_the_rail_in_the_final_column() {
     let surface = capture(&mut repaired, &mut RetainedSurfaceBuilder::default());
     assert_eq!(row_text(&surface, 0), " 56. text  ┃");
 
-    // Without the repair a standard parser draws the rail one column left of the gutter.
+    // Platform: without the repair a standard parser draws the rail one column left of the gutter.
     let mut raw = GhosttyTerminal::new(12, 3).unwrap();
     let mut disabled = crate::roles::conpty_cursor::ConptyCursorRepair::new(false);
     write_like_holder(&mut raw, &mut disabled, CONPTY_SPLIT_RAIL_ROW);
