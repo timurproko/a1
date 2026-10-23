@@ -16,6 +16,7 @@ function fixture(start: () => Promise<boolean> = async () => true) {
     status: vi.fn(),
     session: vi.fn(),
     prompt: vi.fn(),
+    seedConsumed: vi.fn(),
     onCommand: vi.fn((value: typeof commandListener) => { commandListener = value; return vi.fn(); }),
   };
   const backend = {
@@ -276,5 +277,39 @@ describe("resident tab composition bridge", () => {
     expect(unsubscribe).toBeTypeOf("function");
     expect(value.bridge.status).toHaveBeenCalledWith("starting");
     expect(value.bridge.session).toHaveBeenCalledOnce();
+  });
+
+  it("submits a seed already present at bind exactly once and acknowledges it", async () => {
+    const value = fixture();
+    const files = ["What does this repository build?"];
+    const seed = { consume: vi.fn(() => files.shift() ?? null), submit: vi.fn() };
+    await bindResidentTabBridge(value.bridge as never, value.backend as never, null, { seed });
+    expect(seed.submit).toHaveBeenCalledExactlyOnceWith("What does this repository build?");
+    expect(value.bridge.seedConsumed).toHaveBeenCalledOnce();
+    // Invariant: the admission notice for the seed already taken finds no file and submits nothing.
+    value.command({ type: "seed" });
+    expect(seed.consume).toHaveBeenCalledTimes(2);
+    expect(seed.submit).toHaveBeenCalledOnce();
+    expect(value.bridge.seedConsumed).toHaveBeenCalledTimes(2);
+  });
+
+  it("submits a seed the server announces after a standby promotion", async () => {
+    const value = fixture();
+    const files: string[] = [];
+    const seed = { consume: vi.fn(() => files.shift() ?? null), submit: vi.fn() };
+    await bindResidentTabBridge(value.bridge as never, value.backend as never, null, { seed });
+    expect(seed.submit).not.toHaveBeenCalled();
+    expect(value.bridge.seedConsumed, "an absent seed at bind is not acknowledged").not.toHaveBeenCalled();
+    files.push("Explain the build");
+    value.command({ type: "seed" });
+    expect(seed.submit).toHaveBeenCalledExactlyOnceWith("Explain the build");
+    expect(value.bridge.seedConsumed).toHaveBeenCalledOnce();
+  });
+
+  it("never reads a seed for a tab composed without a seed port", async () => {
+    const value = fixture();
+    await bindResidentTabBridge(value.bridge as never, value.backend as never);
+    value.command({ type: "seed" });
+    expect(value.bridge.seedConsumed).not.toHaveBeenCalled();
   });
 });

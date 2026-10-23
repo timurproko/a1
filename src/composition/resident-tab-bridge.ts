@@ -25,14 +25,34 @@ export function residentTabKeybindings(
   return { ...keybindingsHost, reload: () => { keybindingsHost.reload(); publish(); } };
 }
 
+/** Reads the tab's seeded first prompt and hands it to the presenter that submits it. */
+export interface ResidentTabSeedPort {
+  consume(): string | null;
+  submit(text: string): void;
+}
+
 export async function bindResidentTabBridge(
   tabBridge: TabBridgeClient,
   backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows" | "generateResidentTabName">,
   recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
-  options: { readonly autoName?: boolean; readonly openRoute?: (route: "settings") => void } = {},
+  options: {
+    readonly autoName?: boolean;
+    readonly openRoute?: (route: "settings") => void;
+    readonly seed?: ResidentTabSeedPort;
+  } = {},
 ): Promise<() => void> {
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");
+  // Invariant: a seeded first prompt is read from the private file at most once, whether it is
+  // already there when the tab binds or the server announces it later, and is then acknowledged so
+  // the server forgets it.
+  const takeSeed = (announced: boolean) => {
+    if (options.seed === undefined) return;
+    const text = options.seed.consume();
+    if (text !== null || announced) tabBridge.seedConsumed();
+    if (text !== null) options.seed.submit(text);
+  };
+  takeSeed(false);
   const currentSessionFile = () => currentBackendSessionFile(backend);
   let pendingAutoName: string | null = null;
   // Invariant: while a generated name is being applied, the session name it produces is automatic
@@ -113,6 +133,8 @@ export async function bindResidentTabBridge(
       else void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
     } else if (command.type === "stop") {
       void backend.session.dispose().catch(() => {});
+    } else if (command.type === "seed") {
+      takeSeed(true);
     }
   }) : () => {};
   const unsubscribeEvents = backend.session.onEvent(event => {

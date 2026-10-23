@@ -8,7 +8,9 @@ export type TabBridgeCommand =
   | { readonly type: "visibility"; readonly visible: boolean }
   | { readonly type: "rename"; readonly name: string; readonly nameSource: "default" | "user" | "auto" }
   | { readonly type: "route"; readonly route: "settings" }
-  | { readonly type: "stop"; readonly deadlineMs: number };
+  | { readonly type: "stop"; readonly deadlineMs: number }
+  // Security: carries no text; the child reads the seeded prompt from its private seed file.
+  | { readonly type: "seed" };
 
 interface BridgeTransport {
   write(bytes: Uint8Array): boolean;
@@ -86,7 +88,7 @@ export class TabBridgeClient {
       transport.once("connect", () => {
         this.#send("hello", {
           role: "bridge", generation: 1, build: this.#options.build ?? "a1",
-          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-route", "bridge-stop", "bridge-shortcuts", "controller-boundary", "recovery-journal"],
+          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-route", "bridge-stop", "bridge-shortcuts", "bridge-seed", "controller-boundary", "recovery-journal"],
           token: [...Buffer.from(this.#options.credentials.token, "base64")], tabId: this.#options.credentials.tabId,
           pid: this.#options.pid ?? process.pid, startIdentity: this.#options.startIdentity ?? `${process.pid}:node`,
         }, ++this.#request);
@@ -122,6 +124,10 @@ export class TabBridgeClient {
   }
   prompt(interrupted: boolean): void {
     this.#send("bridge.prompt", { interrupted });
+  }
+  /** Reports that the seed file was read and deleted, so the server forgets the pending seed. */
+  seedConsumed(): void {
+    this.#send("bridge.seed-consumed", {});
   }
   /** Publishes the effective tab shortcut assignments so the host dispatches and labels the same keys. */
   shortcuts(assignments: Readonly<Record<string, string | null>>): void {
@@ -240,6 +246,9 @@ export class TabBridgeClient {
     }
     if (message.type === "bridge.stop" && typeof message.body["deadlineMs"] === "number") {
       this.#emitCommand({ type: "stop", deadlineMs: message.body["deadlineMs"] }); return;
+    }
+    if (message.type === "bridge.seed") {
+      this.#emitCommand({ type: "seed" }); return;
     }
     if (message.type === "attachment") {
       const clientId = message.body["clientId"]; const revision = message.body["controllerRevision"];

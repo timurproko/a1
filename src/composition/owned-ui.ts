@@ -38,6 +38,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
+import { consumeSeedPrompt } from "../foundation/resident-tabs/seed-prompt.js";
 import { bindResidentTabBridge, correlateResidentTabSubmission, currentBackendSessionFile, residentTabKeybindings } from "./resident-tab-bridge.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { SessionRuntimeRegistry } from "./session-runtime-registry.js";
@@ -345,6 +346,10 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       unsubscribeTabBridge = await bindResidentTabBridge(tabBridge, backend, tabRecovery, {
         autoName: settings?.value("tabsAutoName") ?? true,
         openRoute: route => presenter.openOwnedRoute(route),
+        ...(tabBridge.tabId.startsWith("settings-") ? {} : { seed: {
+          consume: () => consumeSeedPrompt(options.tab!.dataDir),
+          submit: text => presenter.submitSeededPrompt(text),
+        } }),
       });
     }
   } catch (error) {

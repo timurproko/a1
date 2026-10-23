@@ -130,6 +130,31 @@ describe("resident tab launch contracts", () => {
     bridge.close();
   });
 
+  it("decodes a content-free seed notice and acknowledges consumption without text", async () => {
+    class Transport extends EventEmitter {
+      readonly sent: ResidentEnvelope[] = [];
+      write(bytes: Uint8Array) { this.sent.push(...new ResidentFrameDecoder().push(bytes)); return true; }
+      destroy() { this.emit("close"); }
+    }
+    const transport = new Transport();
+    const bridge = new TabBridgeClient({
+      credentials: { tabId: "tab-1", token: Buffer.alloc(32, 5).toString("base64"), endpoint: "fixture" },
+      connect: () => transport,
+    });
+    const start = bridge.start(); transport.emit("connect");
+    expect(transport.sent[0]?.body).toMatchObject({ features: expect.arrayContaining(["bridge-seed"]) });
+    transport.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, features: ["bridge-seed"] } }));
+    await start;
+    // Invariant: a seed notice that arrives before composition subscribes is replayed to it.
+    transport.emit("data", encodeResidentFrame({ type: "bridge.seed", body: {} }));
+    const commands: unknown[] = [];
+    bridge.onCommand(command => commands.push(command));
+    expect(commands).toEqual([{ type: "seed" }]);
+    bridge.seedConsumed();
+    expect(transport.sent.at(-1)).toEqual({ type: "bridge.seed-consumed", body: {} });
+    bridge.close();
+  });
+
   it("replays a route command that arrives before composition subscribes", async () => {
     class Transport extends EventEmitter {
       write(_bytes: Uint8Array) { return true; }

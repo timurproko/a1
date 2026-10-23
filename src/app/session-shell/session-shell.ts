@@ -103,6 +103,8 @@ import {
 
 // Invariant: a disposed shell leaves the engine a host that holds no reference back to it.
 const DETACHED_WORKFLOW_INTERACTION: OwnedUiWorkflowInteractionHost = { prompt: async () => null, notify() {} };
+/** How often a retained seeded prompt rechecks whether the screen is free. */
+const SEEDED_PROMPT_RETRY_MS = 25;
 
 export {
   OwnedUiSessionShellRoot,
@@ -158,6 +160,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   #pendingClipboardWrite: Promise<void> = Promise.resolve();
   // Invariant: translated startup diagnostics create at most one dock notice per kind per shell.
   #startupTrustHandled = false;
+  // Invariant: undefined before any seed, the text while it waits, null once submitted.
+  #seededPrompt: string | null | undefined;
+  #seededPromptTimer: ReturnType<typeof setTimeout> | undefined;
   readonly #customViewport: boolean;
   #lazySelectors: PiShellLazySelectorLoader | undefined;
   #lazySelectorsPromise: Promise<PiShellLazySelectorLoader> | undefined;
@@ -638,6 +643,34 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   async submit(text: string): Promise<OwnedUiCommandResult> {
     return this.#submission.submit(text);
+  }
+
+  /**
+   * Submits a resident tab's seeded first prompt exactly once through the ordinary submission path.
+   * Invariant: the prompt is retained until the shell runs and no startup route, overlay, dialog,
+   * or replacement input surface holds the screen, so a trust choice or release note comes first.
+   */
+  submitSeededPrompt(text: string): void {
+    if (this.#disposed || this.#seededPrompt !== undefined) return;
+    this.#seededPrompt = text;
+    this.#submitSeededPromptWhenReady();
+  }
+
+  #submitSeededPromptWhenReady(): void {
+    const text = this.#seededPrompt;
+    if (typeof text !== "string" || this.#disposed) return;
+    if (!this.#terminal.running || this.#dialogs.holdsScreen() || this.view().dialog != null) {
+      if (this.#seededPromptTimer === undefined) {
+        this.#seededPromptTimer = setTimeout(() => {
+          this.#seededPromptTimer = undefined;
+          this.#submitSeededPromptWhenReady();
+        }, SEEDED_PROMPT_RETRY_MS);
+        this.#seededPromptTimer.unref?.();
+      }
+      return;
+    }
+    this.#seededPrompt = null;
+    void this.submit(text).catch(() => this.#submission.reportError());
   }
 
   async clearOrExit(now = Date.now()): Promise<OwnedUiCommandResult> {

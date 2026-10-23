@@ -21,8 +21,8 @@ Each numbered section is one Implementation item. Every section starts by mergin
 
 ## 4. Seed consumption in the Agent tab
 
-- [ ] 4.1 Add `src/foundation/resident-tabs/seed-prompt.ts`: read the bounded seed file from the tab data directory, validate the schema, delete it, and return the text; absent or invalid files return nothing. Decode `bridge.seed` into a `seed` command and send `bridge.seed-consumed` in `bridge-client.ts`. Tests: reader fixtures and bridge decoding/encoding.
-- [ ] 4.2 Consume the seed in `resident-tab-bridge.ts` at bind time and on the `seed` command, and hand the text to the presenter through a new `submitSeededPrompt` that submits through the ordinary `submit` path once the shell is ready and no startup route or dialog holds the screen, exactly once. Tests: composition tests for startup and promoted-standby timing, retained-until-ready, and single submission.
+- [x] 4.1 Add `src/foundation/resident-tabs/seed-prompt.ts`: read the bounded seed file from the tab data directory, validate the schema, delete it, and return the text; absent or invalid files return nothing. Decode `bridge.seed` into a `seed` command and send `bridge.seed-consumed` in `bridge-client.ts`. Tests: reader fixtures and bridge decoding/encoding.
+- [x] 4.2 Consume the seed in `resident-tab-bridge.ts` at bind time and on the `seed` command, and hand the text to the presenter through a new `submitSeededPrompt` that submits through the ordinary `submit` path once the shell is ready and no startup route or dialog holds the screen, exactly once. Tests: composition tests for startup and promoted-standby timing, retained-until-ready, and single submission.
 
 ## 5. Architecture record
 
