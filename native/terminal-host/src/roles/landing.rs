@@ -200,8 +200,8 @@ fn foreground(rgb: [u8; 3], truecolor: bool) -> String {
 /// The wordmark row the Agent caret takes when a tab opens.
 const CARET_ROW: usize = 1;
 
-/// One wordmark row. While a new Agent starts, the accent cells wipe away from the right and the
-/// caret cell turns white, so the wordmark hands over to the Agent's cursor in the same cell.
+/// One wordmark row. While a new Agent starts, the accent cells wipe away from the right; the caret
+/// cell goes last and turns white once it is alone, handing over to the Agent's cursor in place.
 fn wordmark_row(
     line: &str,
     offset: usize,
@@ -217,8 +217,10 @@ fn wordmark_row(
     let kept = ((1.0 - progress.clamp(0.0, 1.0)) * cells.len() as f32).ceil() as usize;
     let mut output = String::from(accent);
     for (column, cell) in cells.iter().enumerate().take(columns) {
-        if offset == CARET_ROW && column == 0 {
+        if offset == CARET_ROW && column == 0 && kept <= 1 {
             output.push_str(&format!("{white}{cell}{accent}"));
+        } else if offset == CARET_ROW && column == 0 {
+            output.push_str(cell);
         } else if column < kept {
             output.push_str(cell);
         } else {
@@ -350,6 +352,11 @@ mod tests {
         let half = cells(&frame(0.5), 80, 23);
         assert_eq!(half[18], " ▀▀▀▄", "the right cells go first");
         assert_eq!(half[19], "█▀▀▀█");
+        let midway = String::from_utf8(frame(0.5)).unwrap();
+        assert!(
+            !midway.contains("[38;2;230;230;230m█"),
+            "the caret cell keeps the accent until every other cell is gone"
+        );
         let done = cells(&frame(1.0), 80, 23);
         assert!(done[18].is_empty() && done[20].is_empty(), "{done:#?}");
         assert_eq!(done[19], "█", "only the caret cell remains");
