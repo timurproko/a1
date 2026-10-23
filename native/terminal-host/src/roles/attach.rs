@@ -2272,10 +2272,11 @@ impl Client {
         // Invariant: a hidden Settings tab never surfaces by itself. When it is all that
         // remains, it closes with the last visible tab instead of taking the view.
         let settings_visible = core.settings_visible(self.view.viewed.as_deref());
-        if !settings_visible
-            && !next_tabs.is_empty()
-            && next_tabs.iter().all(|tab| tab.id.starts_with("settings-"))
-        {
+        if core.hidden_settings_orphaned(
+            &next_tabs,
+            self.view.viewed.as_deref(),
+            self.view.requested.as_deref(),
+        ) {
             for tab in next_tabs.drain(..) {
                 self.send(Request::Close(tab.id))?;
             }

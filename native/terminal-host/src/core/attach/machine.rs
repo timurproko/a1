@@ -1085,6 +1085,22 @@ impl State {
         self.view.settings_shown || viewed.is_some_and(is_settings)
     }
 
+    /// Invariant: a hidden Settings tab never surfaces by itself. When it is all the registry
+    /// holds, it closes with the last visible tab, unless this client is opening a tab, such as
+    /// Settings from the empty landing's launcher or shortcut, whose view is still pending.
+    pub fn hidden_settings_orphaned<T: TabView>(
+        &self,
+        tabs: &[T],
+        viewed: Option<&str>,
+        requested: Option<&str>,
+    ) -> bool {
+        !tabs.is_empty()
+            && tabs.iter().all(|tab| is_settings(tab.id()))
+            && !self.settings_visible(viewed)
+            && !self.view.pending_created_activation
+            && !requested.is_some_and(is_settings)
+    }
+
     /// Resolves a jump that waited for a registry snapshot; returns the tab to view.
     pub fn resolve_pending_jump<T: TabView>(
         &mut self,
@@ -2192,5 +2208,60 @@ mod tests {
         state.user_input_pending = true;
         state.drop_request(Some("x"));
         assert!(!state.user_input_pending);
+    }
+
+    #[test]
+    fn settings_opened_from_the_empty_landing_is_not_closed_as_orphaned() {
+        let mut empty = Fixture::new(&[], "none");
+        empty.viewed = None;
+        let mut state = empty.state();
+        let settings = [tab("settings-1")];
+        assert!(
+            state.hidden_settings_orphaned(&settings, None, None),
+            "a hidden Settings left by the last visible tab still closes"
+        );
+        for event in [shortcut("tabs.settings"), mouse(LEFT, 0, 0)] {
+            let mut state = empty.state();
+            let effects = empty.step(&mut state, event.clone());
+            let effects = if matches!(state.mode, Mode::Popup(_)) {
+                // The `+` launcher: choose Settings.
+                empty.step(&mut state, key(KeyCode::Down));
+                empty.step(&mut state, key(KeyCode::Down));
+                empty.step(&mut state, key(KeyCode::Enter))
+            } else {
+                effects
+            };
+            assert!(
+                effects.contains(&Effect::Send(Request::OpenSettings)),
+                "{event:?}"
+            );
+            assert!(
+                !state.hidden_settings_orphaned(&settings, None, None),
+                "the requested Settings tab survives its first registry snapshot"
+            );
+            empty.step(
+                &mut state,
+                server(ServerEvent::Created {
+                    tab_id: "settings-1".into(),
+                    created: true,
+                }),
+            );
+            assert!(
+                !state.hidden_settings_orphaned(&settings, None, Some("settings-1")),
+                "and every snapshot while its view is pending"
+            );
+            let viewed = Fixture::new(&["settings-1"], "settings-1");
+            viewed.step(
+                &mut state,
+                server(ServerEvent::Commit {
+                    tab_id: "settings-1".into(),
+                    status: "idle".into(),
+                    requested: true,
+                }),
+            );
+            assert!(!state.hidden_settings_orphaned(&settings, Some("settings-1"), None));
+        }
+        state.view.pending_created_activation = false;
+        assert!(state.hidden_settings_orphaned(&settings, None, None));
     }
 }

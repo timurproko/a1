@@ -18,6 +18,11 @@ While the attach client has no tab to show and no view request pending, it SHALL
 - **WHEN** the user presses the `New A1 tab` shortcut or chooses `+ Agent` from the launcher on the landing
 - **THEN** one Agent SHALL be created and presented through the ordinary tab UI
 
+#### Scenario: Open Settings from the landing
+- **WHEN** the user presses the `Open Settings tab` shortcut or chooses `Settings` from the `+` launcher on the landing
+- **THEN** the singleton Settings tab SHALL be created or activated and shown through the ordinary tab UI
+- **AND** it SHALL NOT be closed as a hidden Settings tab left without visible tabs
+
 #### Scenario: Small terminal
 - **WHEN** the body has fewer rows or columns than the full header needs
 - **THEN** the header SHALL be clipped to the body without wrapping or overflowing it
