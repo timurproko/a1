@@ -174,6 +174,7 @@ fn resident_content_converges_after_resize_and_tab_reselection() {
             modes: None,
             columns,
             outer_rows: rows + 1,
+            child_row_offset: 1,
             clear: false,
             dim: false,
         };
@@ -215,6 +216,7 @@ fn resident_damage_compares_referenced_style_and_link_values() {
             modes: None,
             columns: 24,
             outer_rows: 5,
+            child_row_offset: 1,
             clear: false,
             dim: false,
         };
@@ -357,6 +359,7 @@ fn conpty_parity_child() {
                 modes: None,
                 columns,
                 outer_rows: rows + 1,
+                child_row_offset: 1,
                 clear: false,
                 dim: false,
             };
@@ -612,6 +615,7 @@ fn assert_parity_sequence(columns: u16) {
             modes: None,
             columns,
             outer_rows: rows + 1,
+            child_row_offset: 1,
             clear: false,
             dim: false,
         };

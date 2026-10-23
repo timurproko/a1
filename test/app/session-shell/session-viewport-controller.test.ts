@@ -95,7 +95,7 @@ describe("session viewport interaction controller", () => {
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
     const input = {
       documentRows: ["transcript"],
-      dockRows: ["❯ draft", "status bar"],
+      dockRows: ["draft", "status bar"],
       copyableDockRows: [{ row: 0, prompt: "first" as const }, { row: 1 }],
       promptAnchors: [],
       width: 20,
@@ -757,7 +757,10 @@ describe("session viewport interaction controller", () => {
     expect(frame(target)[0]).toBe("row-15");
   });
 
-  it.each(["\u001b[1;2B"])("routes supported Shift+Down input %j from the last prompt to the bottom", data => {
+  it.each([
+    { up: "\u001b[1;2A", down: "\u001b[1;2B" },
+    { up: "\u001b[1;5A", down: "\u001b[1;5B" },
+  ])("routes prompt navigation %j from the last prompt to the bottom", ({ up, down }) => {
     const renders: (boolean | undefined)[] = [];
     let draft = "keep this draft";
     const target = new SessionViewportController({
@@ -775,17 +778,17 @@ describe("session viewport interaction controller", () => {
     };
     try {
       target.compose(input);
-      target.handlePreInput("\u001b[1;2A");
+      expect(target.handlePreInput(up)).toEqual({ data: "", consumed: true });
       expect(target.compose(input).scrollTop).toBe(20);
       renders.length = 0;
-      expect(target.handlePreInput(data)).toEqual({ data: "", consumed: true });
+      expect(target.handlePreInput(down)).toEqual({ data: "", consumed: true });
       expect(renders).toEqual([undefined]);
       const bottom = target.compose(input);
       expect(bottom.scrollTop).toBe(bottom.maxScroll);
       expect(bottom.followingEnd).toBe(true);
       expect(draft).toBe("keep this draft");
       renders.length = 0;
-      expect(target.handlePreInput(data)).toEqual({ data: "", consumed: true });
+      expect(target.handlePreInput(down)).toEqual({ data: "", consumed: true });
       expect(renders).toEqual([]);
     } finally {
       target.clearPointerState();

@@ -448,13 +448,21 @@ impl RuntimeState {
     }
 
     fn default_tab(&self) -> String {
-        self.registry
-            .tabs
-            .iter()
-            .min_by_key(|tab| tab.order)
-            .map(|tab| tab.tab_id.clone())
-            .unwrap_or_else(|| "tab-1".into())
+        default_tab(&self.registry.tabs)
     }
+}
+
+fn default_tab(tabs: &[TabRecord]) -> String {
+    tabs.iter()
+        .filter(|tab| tab.desired != "stopped" && tab.kind == "agent")
+        .min_by_key(|tab| tab.order)
+        .or_else(|| {
+            tabs.iter()
+                .filter(|tab| tab.desired != "stopped")
+                .min_by_key(|tab| tab.order)
+        })
+        .map(|tab| tab.tab_id.clone())
+        .unwrap_or_else(|| "tab-1".into())
 }
 
 struct HeldAuthority;
@@ -1804,7 +1812,12 @@ mod tests {
         assert!(!path.exists());
     }
 
-    fn record(tab_id: &str, created_at: u64, desired: &str, holder_pid: Option<u32>) -> TabRecord {
+    pub(super) fn record(
+        tab_id: &str,
+        created_at: u64,
+        desired: &str,
+        holder_pid: Option<u32>,
+    ) -> TabRecord {
         TabRecord {
             tab_id: tab_id.into(),
             kind: "agent".into(),
@@ -1834,6 +1847,213 @@ mod tests {
             attention_seq: 0,
             seen_seq: 0,
         }
+    }
+
+    #[test]
+    fn default_attach_selects_the_first_ordered_running_agent() {
+        let mut settings = record("settings-1", 1, "running", None);
+        settings.kind = "settings".into();
+        settings.order = 0;
+        let mut second = record("tab-2", 2, "running", None);
+        second.order = 2;
+        let mut first = record("tab-1", 3, "running", None);
+        first.order = 1;
+        let mut stopped = record("tab-stopped", 4, "stopped", None);
+        stopped.order = 0;
+        assert_eq!(default_tab(&[settings, second, first, stopped]), "tab-1");
+    }
+
+    #[test]
+    fn settings_starts_last_and_drag_order_survives_agent_creation() {
+        let mut settings = record("settings-1", 1, "running", None);
+        settings.kind = "settings".into();
+        settings.order = 1;
+        let mut first = record("agent-1", 2, "running", None);
+        first.order = 0;
+        let mut registry = RegistryDocument {
+            registry_revision: 4,
+            epoch: 1,
+            boot_id: "boot".into(),
+            os_session_id: "session".into(),
+            tabs: vec![first, settings],
+        };
+        let names = |registry: &RegistryDocument| {
+            registry
+                .tabs
+                .iter()
+                .map(|tab| tab.tab_id.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(names(&registry), ["agent-1", "settings-1"]);
+        let mut second = record("agent-2", 3, "running", None);
+        second.order = 2;
+        insert_new_tab(&mut registry, second);
+        assert_eq!(names(&registry), ["agent-1", "agent-2", "settings-1"]);
+        assert_eq!(
+            registry
+                .tabs
+                .iter()
+                .map(|tab| tab.order)
+                .collect::<Vec<_>>(),
+            [0, 1, 2]
+        );
+        assert!(lifecycle::reorder_registry(
+            &mut registry,
+            &wire::TabReorder {
+                tab_id: "settings-1".into(),
+                target_index: 0,
+                expected_revision: 4,
+            }
+        ));
+        assert_eq!(names(&registry), ["settings-1", "agent-1", "agent-2"]);
+        assert_eq!(registry.tabs[0].order, 0, "dragged placement stays durable");
+        insert_new_tab(&mut registry, record("agent-3", 4, "running", None));
+        assert_eq!(
+            names(&registry),
+            ["settings-1", "agent-1", "agent-2", "agent-3"]
+        );
+    }
+
+    #[test]
+    fn reorder_targets_visible_tabs_not_stopped_registry_slots() {
+        let mut settings = record("settings-1", 3, "running", None);
+        settings.kind = "settings".into();
+        let mut registry = RegistryDocument {
+            registry_revision: 4,
+            epoch: 1,
+            boot_id: "boot".into(),
+            os_session_id: "session".into(),
+            tabs: vec![
+                record("closed-0", 0, "stopped", None),
+                record("agent-1", 1, "running", None),
+                record("closed-1", 2, "stopped", None),
+                settings,
+                record("closed-2", 4, "stopped", None),
+                record("agent-2", 5, "running", None),
+                record("closed-3", 6, "stopped", None),
+            ],
+        };
+        let visible = |registry: &RegistryDocument| {
+            registry
+                .tabs
+                .iter()
+                .filter(|tab| tab.desired != "stopped")
+                .map(|tab| tab.tab_id.clone())
+                .collect::<Vec<_>>()
+        };
+        assert!(lifecycle::reorder_registry(
+            &mut registry,
+            &wire::TabReorder {
+                tab_id: "agent-1".into(),
+                target_index: 2,
+                expected_revision: 4,
+            }
+        ));
+        assert_eq!(visible(&registry), ["settings-1", "agent-2", "agent-1"]);
+        assert_eq!(registry.tabs.last().unwrap().tab_id, "closed-3");
+        assert!(lifecycle::reorder_registry(
+            &mut registry,
+            &wire::TabReorder {
+                tab_id: "agent-1".into(),
+                target_index: 0,
+                expected_revision: 5,
+            }
+        ));
+        assert_eq!(visible(&registry), ["agent-1", "settings-1", "agent-2"]);
+        assert!(lifecycle::reorder_registry(
+            &mut registry,
+            &wire::TabReorder {
+                tab_id: "settings-1".into(),
+                target_index: 0,
+                expected_revision: 6,
+            }
+        ));
+        assert_eq!(visible(&registry), ["settings-1", "agent-1", "agent-2"]);
+        assert!(lifecycle::move_settings_last(&mut registry, "settings-1"));
+        assert_eq!(visible(&registry), ["agent-1", "agent-2", "settings-1"]);
+        assert!(!lifecycle::move_settings_last(&mut registry, "settings-1"));
+        assert_eq!(registry.registry_revision, 8);
+    }
+
+    #[test]
+    fn stopped_records_do_not_push_new_agents_after_hidden_settings() {
+        let mut settings = record("settings-1", 2, "running", None);
+        settings.kind = "settings".into();
+        settings.order = 1;
+        let mut stopped = record("closed-agent", 3, "stopped", None);
+        stopped.order = 2;
+        let mut registry = RegistryDocument {
+            registry_revision: 4,
+            epoch: 1,
+            boot_id: "boot".into(),
+            os_session_id: "session".into(),
+            tabs: vec![record("agent-1", 1, "running", None), settings, stopped],
+        };
+        insert_new_tab(&mut registry, record("agent-2", 4, "running", None));
+        let visible = registry
+            .tabs
+            .iter()
+            .filter(|tab| tab.desired != "stopped")
+            .map(|tab| (tab.tab_id.as_str(), tab.order))
+            .collect::<Vec<_>>();
+        assert_eq!(visible, [("agent-1", 0), ("agent-2", 1), ("settings-1", 2)]);
+        assert_eq!(registry.tabs.last().unwrap().desired, "stopped");
+    }
+
+    #[test]
+    fn reorder_registry_is_revision_guarded_and_no_op_safe() {
+        let tabs = ["a", "b", "c"]
+            .into_iter()
+            .enumerate()
+            .map(|(index, id)| {
+                let mut tab = record(id, index as u64, "running", None);
+                tab.order = index as u32;
+                tab
+            })
+            .collect::<Vec<_>>();
+        let mut registry = RegistryDocument {
+            registry_revision: 4,
+            epoch: 1,
+            boot_id: "boot".into(),
+            os_session_id: "session".into(),
+            tabs,
+        };
+        let original = registry.clone();
+        assert!(!lifecycle::reorder_registry(
+            &mut registry,
+            &wire::TabReorder {
+                tab_id: "a".into(),
+                target_index: 2,
+                expected_revision: 3,
+            }
+        ));
+        assert_eq!(registry, original);
+        assert!(!lifecycle::reorder_registry(
+            &mut registry,
+            &wire::TabReorder {
+                tab_id: "b".into(),
+                target_index: 1,
+                expected_revision: 4,
+            }
+        ));
+        assert_eq!(registry, original);
+        assert!(lifecycle::reorder_registry(
+            &mut registry,
+            &wire::TabReorder {
+                tab_id: "a".into(),
+                target_index: 2,
+                expected_revision: 4,
+            }
+        ));
+        assert_eq!(
+            registry
+                .tabs
+                .iter()
+                .map(|tab| (tab.tab_id.as_str(), tab.order))
+                .collect::<Vec<_>>(),
+            [("b", 0), ("c", 1), ("a", 2)]
+        );
+        assert_eq!(registry.registry_revision, 5);
     }
 
     #[test]

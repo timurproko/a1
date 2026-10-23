@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+// Compatibility: preserve the historical timing constant; the sweep now uses accent shades.
 pub const TITLE_RAINBOW_MS: u128 = 600;
 pub const TITLE_TYPE_MS_PER_CHAR: u128 = 45;
 pub const TITLE_SETTLE_MS: u128 = 300;
@@ -155,6 +156,55 @@ fn accent(status: &str, value: Option<&str>) -> &'static str {
     }
 }
 
+fn tab_accent(value: Option<&str>) -> Rgb {
+    match value.unwrap_or("purple") {
+        "blue" => Rgb(91, 141, 239),
+        "cyan" => Rgb(74, 174, 196),
+        "green" => Rgb(88, 183, 132),
+        "orange" => Rgb(226, 159, 72),
+        "pink" => Rgb(218, 112, 158),
+        _ => Rgb(167, 152, 215),
+    }
+}
+
+fn tab_secondary_accent(value: Option<&str>) -> Rgb {
+    // Protocol: these are the dark-theme secondaryHeading colors from
+    // derivePiAccentProjection(tab_accent(value), "dark") in the owned Pi theme.
+    match value.unwrap_or("purple") {
+        "blue" => Rgb(55, 187, 211),
+        "cyan" => Rgb(74, 211, 160),
+        "green" => Rgb(166, 202, 62),
+        "orange" => Rgb(214, 204, 64),
+        "pink" => Rgb(245, 145, 130),
+        _ => Rgb(239, 160, 197),
+    }
+}
+
+fn tint(base: u8, color: Rgb, percent: u16) -> Rgb {
+    let channel =
+        |value: u8| ((u16::from(base) * (100 - percent) + u16::from(value) * percent) / 100) as u8;
+    Rgb(channel(color.0), channel(color.1), channel(color.2))
+}
+
+fn tint_palette(color: Rgb) -> u8 {
+    match color {
+        Rgb(91, 141, 239) => 60,
+        Rgb(74, 174, 196) => 23,
+        Rgb(88, 183, 132) => 22,
+        Rgb(226, 159, 72) => 58,
+        Rgb(218, 112, 158) => 53,
+        _ => 60,
+    }
+}
+
+fn tinted_background(color: Rgb, truecolor: bool) -> String {
+    if !truecolor {
+        return format!("\x1b[48;5;{}m", tint_palette(color));
+    }
+    let Rgb(red, green, blue) = tint(55, color, 24);
+    format!("\x1b[48;2;{red};{green};{blue}m")
+}
+
 const SETTLED_FG: Rgb = Rgb(170, 170, 170);
 const STRIP_ROW_BACKGROUND: &str = "\x1b[48;2;20;20;20m";
 const STRIP_ROW_BACKGROUND_PALETTE: &str = "\x1b[48;5;233m";
@@ -170,26 +220,6 @@ pub struct TitleFrame {
     pub done: bool,
 }
 
-pub fn hsl_to_rgb(hue: f64, saturation: f64, lightness: f64) -> Rgb {
-    let h = hue.rem_euclid(360.0);
-    let s = saturation.clamp(0.0, 100.0) / 100.0;
-    let l = lightness.clamp(0.0, 100.0) / 100.0;
-    let chroma = (1.0 - (2.0 * l - 1.0).abs()) * s;
-    let segment = h / 60.0;
-    let x = chroma * (1.0 - (segment % 2.0 - 1.0).abs());
-    let (red, green, blue) = match segment {
-        value if value < 1.0 => (chroma, x, 0.0),
-        value if value < 2.0 => (x, chroma, 0.0),
-        value if value < 3.0 => (0.0, chroma, x),
-        value if value < 4.0 => (0.0, x, chroma),
-        value if value < 5.0 => (x, 0.0, chroma),
-        _ => (chroma, 0.0, x),
-    };
-    let base = l - chroma / 2.0;
-    let channel = |value: f64| ((value + base) * 255.0).round() as u8;
-    Rgb(channel(red), channel(green), channel(blue))
-}
-
 fn mix(from: Rgb, to: Rgb, progress: f64) -> Rgb {
     let t = progress.clamp(0.0, 1.0);
     let channel = |a: u8, b: u8| (f64::from(a) + (f64::from(b) - f64::from(a)) * t).round() as u8;
@@ -200,8 +230,11 @@ fn mix(from: Rgb, to: Rgb, progress: f64) -> Rgb {
     )
 }
 
-fn rainbow(index: usize, offset: f64) -> Rgb {
-    hsl_to_rgb(index as f64 * 30.0 + offset, 90.0, 65.0)
+fn accent_shade(accent: Rgb, index: usize, offset: f64) -> Rgb {
+    // Invariant: the wave changes only brightness; every animated cell stays in the tab's
+    // accent family, including when the accent changes while a rename is in progress.
+    let wave = (index as f64 * 0.7 - offset).cos();
+    mix(accent, Rgb(235, 235, 235), 0.18 + (wave + 1.0) * 0.16)
 }
 
 fn padded(graphemes: &[&str], width: usize) -> Vec<String> {
@@ -240,8 +273,8 @@ fn title_duration(to: &str, truecolor: bool) -> u128 {
     }
 }
 
-/// Deterministic v2 title transition: moving rainbow over the old title, rainbow typewriter reveal,
-/// then a settle to foreground gray; without truecolor only the plain typewriter remains.
+/// Deterministic title transition: a tonal accent wave over the old title, accent typewriter
+/// reveal, then a settle to foreground gray; without truecolor only typing remains.
 pub fn title_frame(
     from: &str,
     to: &str,
@@ -249,6 +282,18 @@ pub fn title_frame(
     max_width: usize,
     truecolor: bool,
 ) -> TitleFrame {
+    title_frame_accent(from, to, elapsed, max_width, truecolor, None)
+}
+
+fn title_frame_accent(
+    from: &str,
+    to: &str,
+    elapsed: u128,
+    max_width: usize,
+    truecolor: bool,
+    accent: Option<&str>,
+) -> TitleFrame {
+    let accent = tab_secondary_accent(accent);
     let from = truncate(&clean(from), max_width);
     let to = truncate(&clean(to), max_width);
     let to_width = UnicodeWidthStr::width(to.as_str());
@@ -277,19 +322,23 @@ pub fn title_frame(
     }
     if elapsed < TITLE_RAINBOW_MS {
         let cells = padded(&from.graphemes(true).collect::<Vec<_>>(), stable);
-        let offset = elapsed as f64 / 4.0;
-        return active(colorize(&cells, |index| rainbow(index, offset)));
+        let offset = elapsed as f64 / 170.0;
+        return active(colorize(&cells, |index| {
+            accent_shade(accent, index, offset)
+        }));
     }
     let typing = elapsed - TITLE_RAINBOW_MS;
     if typing < typing_duration {
-        return active(colorize(&typed(typing), |index| rainbow(index, 0.0)));
+        return active(colorize(&typed(typing), |index| {
+            accent_shade(accent, index, 0.0)
+        }));
     }
     let settle = typing - typing_duration;
     if settle < TITLE_SETTLE_MS {
         let progress = settle as f64 / TITLE_SETTLE_MS as f64;
         let cells = padded(&target, stable);
         return active(colorize(&cells, |index| {
-            mix(rainbow(index, 0.0), SETTLED_FG, progress)
+            mix(accent_shade(accent, index, 0.0), SETTLED_FG, progress)
         }));
     }
     finished
@@ -312,12 +361,9 @@ pub fn reconcile_title_animation(
     })
 }
 
-fn chip_fixed_width(tab: &StripTab) -> usize {
-    2 + if status_glyph(&tab.status).is_empty() {
-        0
-    } else {
-        2
-    }
+fn chip_fixed_width() -> usize {
+    // Invariant: the icon column stays reserved when a tab changes status.
+    4
 }
 
 fn rename_title(rename: &StripRename, max_width: usize) -> TitleFrame {
@@ -394,9 +440,14 @@ fn chip_title(
             .as_millis()
     });
     match (&tab.title_animation, elapsed) {
-        (Some(animation), Some(elapsed)) => {
-            title_frame(&animation.from, &tab.name, elapsed, max_width, truecolor)
-        }
+        (Some(animation), Some(elapsed)) => title_frame_accent(
+            &animation.from,
+            &tab.name,
+            elapsed,
+            max_width,
+            truecolor,
+            tab.accent.as_deref(),
+        ),
         _ => {
             let text = truncate(&clean(&tab.name), max_width);
             TitleFrame {
@@ -415,22 +466,34 @@ fn chip(
     now: Instant,
     truecolor: bool,
     rename: Option<&StripRename>,
+    target_width: Option<usize>,
 ) -> (String, usize) {
     let glyph = status_glyph(&tab.status);
-    let separator = if glyph.is_empty() { "" } else { " " };
-    let fixed = chip_fixed_width(tab);
-    let title = chip_title(tab, 20usize.saturating_sub(fixed), now, truecolor, rename);
+    let icon = if glyph.is_empty() { " " } else { &glyph };
+    let fixed = chip_fixed_width();
+    let title = chip_title(
+        tab,
+        target_width.unwrap_or(20).saturating_sub(fixed),
+        now,
+        truecolor,
+        rename,
+    );
     let name = title.text;
-    let width = fixed + title.width;
+    let width = target_width.unwrap_or(fixed + title.width);
+    let padding = " ".repeat(width.saturating_sub(fixed + title.width));
+    let accent_color = tab_accent(tab.accent.as_deref());
     let background = if active {
-        "\x1b[48;2;55;55;55m\x1b[38;2;255;255;255m"
+        format!(
+            "{}\x1b[38;2;255;255;255m",
+            tinted_background(accent_color, truecolor)
+        )
     } else if hovered {
-        "\x1b[48;2;48;48;48m\x1b[38;2;170;170;170m"
+        "\x1b[48;2;48;48;48m\x1b[38;2;170;170;170m".to_owned()
     } else {
-        "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m"
+        "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m".to_owned()
     };
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
-    let text = format!("{background} {glyph_color}{glyph}\x1b[39m{separator}{name} \x1b[0m");
+    let text = format!("{background} {glyph_color}{icon}\x1b[39m {name}{padding} \x1b[0m");
     (text, width)
 }
 
@@ -468,7 +531,22 @@ pub fn render_interactive(
     rename: Option<&StripRename>,
     dim: bool,
 ) -> StripFrame {
-    render_frame(
+    render_interactive_at(tabs, viewed, columns, hovered, time_format, rename, dim, 1)
+}
+
+/// Renders the interactive strip at terminal `row` (one-based), for a top or bottom tab bar.
+#[allow(clippy::too_many_arguments)]
+pub fn render_interactive_at(
+    tabs: &[StripTab],
+    viewed: Option<&str>,
+    columns: u16,
+    hovered: Option<&StripHover>,
+    time_format: TimeFormat,
+    rename: Option<&StripRename>,
+    dim: bool,
+    row: u16,
+) -> StripFrame {
+    let mut frame = render_frame(
         tabs,
         viewed,
         columns,
@@ -478,7 +556,13 @@ pub fn render_interactive(
         Instant::now(),
         !palette_fallback_requested(),
         dim,
-    )
+    );
+    if row != 1 {
+        frame.bytes = frame
+            .bytes
+            .replacen("\x1b[1;1H", &format!("\x1b[{};1H", row.max(1)), 1);
+    }
+    frame
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -493,8 +577,8 @@ fn render_frame(
     truecolor: bool,
     dim: bool,
 ) -> StripFrame {
-    let chip = |tab: &StripTab, active: bool, hovered: bool| {
-        chip(tab, active, hovered, now, truecolor, rename)
+    let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
+        chip(tab, active, hovered, now, truecolor, rename, Some(target))
     };
     // Invariant: the clock stays visible with no tabs, beside the lone `+`.
     let clock = Some(clock_text(time_format));
@@ -504,16 +588,20 @@ fn render_frame(
     let mut selected = Vec::new();
     let mut used = 0usize;
     let plus_width = 3usize;
+    // Rationale: tabs have a steady 20-cell footprint until the row needs space;
+    // share the shrink evenly, then overflow rather than make tabs unreadable.
+    let tab_width = if tabs.is_empty() {
+        20
+    } else {
+        (available.saturating_sub(plus_width) / tabs.len())
+            .clamp(12, 20)
+            .min(available.saturating_sub(plus_width))
+    };
     let mut overflow = false;
     for tab in tabs {
-        let (_, width) = chip(
-            tab,
-            viewed == Some(tab.id.as_str()),
-            hovered == Some(&StripHover::Tab(tab.id.clone())),
-        );
-        if used + width + plus_width <= available {
+        if used + tab_width + plus_width <= available {
             selected.push(tab);
-            used += width;
+            used += tab_width;
         } else {
             overflow = true;
         }
@@ -522,32 +610,17 @@ fn render_frame(
         && !selected.iter().any(|tab| tab.id == active.id)
     {
         overflow = true;
-        let (_, active_width) = chip(
-            active,
-            true,
-            hovered == Some(&StripHover::Tab(active.id.clone())),
-        );
-        while !selected.is_empty() && used + active_width + plus_width + 3 > available {
-            let removed = selected.pop().expect("checked nonempty");
-            used -= chip(
-                removed,
-                false,
-                hovered == Some(&StripHover::Tab(removed.id.clone())),
-            )
-            .1;
+        while !selected.is_empty() && used + tab_width + plus_width + 3 > available {
+            selected.pop();
+            used -= tab_width;
         }
         selected.push(active);
-        used += active_width;
+        used += tab_width;
     }
     let overflow_width = if overflow { 3 } else { 0 };
     while !selected.is_empty() && used + overflow_width + plus_width > available {
-        let removed = selected.pop().expect("checked nonempty");
-        used -= chip(
-            removed,
-            false,
-            hovered == Some(&StripHover::Tab(removed.id.clone())),
-        )
-        .1;
+        selected.pop();
+        used -= tab_width;
         overflow = true;
     }
 
@@ -564,6 +637,7 @@ fn render_frame(
             tab,
             viewed == Some(tab.id.as_str()),
             hovered == Some(&StripHover::Tab(tab.id.clone())),
+            tab_width,
         );
         bytes.push_str(&text);
         let end = column.saturating_add(width as u16);
@@ -670,7 +744,7 @@ fn title_animation_active(tab: &StripTab) -> bool {
         let truecolor = !palette_fallback_requested();
         let to = truncate(
             &clean(&tab.name),
-            20usize.saturating_sub(chip_fixed_width(tab)),
+            20usize.saturating_sub(chip_fixed_width()),
         );
         animation.started_at.elapsed().as_millis() < title_duration(&to, truecolor)
     })
@@ -766,15 +840,36 @@ mod tests {
     }
 
     #[test]
-    fn converts_primary_hues() {
-        assert_eq!(hsl_to_rgb(0.0, 100.0, 50.0), Rgb(255, 0, 0));
-        assert_eq!(hsl_to_rgb(120.0, 100.0, 50.0), Rgb(0, 255, 0));
-        assert_eq!(hsl_to_rgb(240.0, 100.0, 50.0), Rgb(0, 0, 255));
-        assert_eq!(hsl_to_rgb(-120.0, 100.0, 50.0), Rgb(0, 0, 255));
+    fn tonal_wave_uses_each_tabs_secondary_accent() {
+        for (name, expected) in [
+            ("purple", Rgb(239, 160, 197)),
+            ("blue", Rgb(55, 187, 211)),
+            ("cyan", Rgb(74, 211, 160)),
+            ("green", Rgb(166, 202, 62)),
+            ("orange", Rgb(214, 204, 64)),
+            ("pink", Rgb(245, 145, 130)),
+        ] {
+            assert_eq!(tab_secondary_accent(Some(name)), expected, "{name}");
+        }
+        let purple = title_frame_accent(FROM, TO, 0, 20, true, None);
+        let cyan = title_frame_accent(FROM, TO, 0, 20, true, Some("cyan"));
+        assert!(purple.text.starts_with("\x1b[38;2;237;198;216m"));
+        assert!(cyan.text.starts_with("\x1b[38;2;155;223;198m"));
+        assert_ne!(purple.text, cyan.text);
+        assert!(!cyan.text.contains("\x1b[38;2;246;85;85m"));
+        let changed = title_frame_accent(FROM, TO, 240, 20, true, Some("cyan"));
+        assert_ne!(changed.text, cyan.text, "the tonal wave still moves");
     }
 
     #[test]
-    fn rainbow_phase_colors_each_old_title_cell_and_moves_over_time() {
+    fn configured_row_positions_the_complete_strip() {
+        let frame = render_interactive_at(&[], None, 20, None, TimeFormat::Twelve, None, false, 24);
+        assert!(frame.bytes.starts_with("\x1b[24;1H"));
+        assert_eq!(plain(&frame.bytes).chars().count(), 20);
+    }
+
+    #[test]
+    fn accent_wave_colors_each_old_title_cell_and_moves_over_time() {
         let first = title_frame(FROM, TO, 0, 20, true);
         assert!(!first.done);
         assert_eq!(plain(&first.text).trim_end(), FROM);
@@ -782,21 +877,21 @@ mod tests {
             truecolor_runs(&first.text),
             plain(&first.text).chars().count()
         );
-        assert!(first.text.starts_with("\x1b[38;2;246;85;85m"));
+        assert!(first.text.starts_with("\x1b[38;2;237;198;216m"));
         let later = title_frame(FROM, TO, 240, 20, true);
         assert_eq!(plain(&later.text), plain(&first.text));
         assert_ne!(later.text, first.text);
     }
 
     #[test]
-    fn rainbow_switches_to_typing_at_the_exact_boundary() {
+    fn accent_wave_switches_to_typing_at_the_exact_boundary() {
         assert_eq!(
             plain(&title_frame(FROM, TO, TITLE_RAINBOW_MS - 1, 20, true).text).trim_end(),
             FROM
         );
         let typing = title_frame(FROM, TO, TITLE_RAINBOW_MS, 20, true);
         assert_eq!(plain(&typing.text).trim_end(), "d");
-        assert!(typing.text.starts_with("\x1b[38;2;246;85;85md"));
+        assert!(typing.text.starts_with("\x1b[38;2;237;198;216md"));
     }
 
     #[test]
@@ -812,13 +907,13 @@ mod tests {
     }
 
     #[test]
-    fn settle_blends_the_static_rainbow_toward_foreground_gray() {
+    fn settle_blends_the_accent_toward_foreground_gray() {
         let start = title_frame(FROM, TO, typing_end(TO), 20, true);
         assert!(!start.done);
         assert_eq!(plain(&start.text), TO);
-        assert!(start.text.starts_with("\x1b[38;2;246;85;85m"));
+        assert!(start.text.starts_with("\x1b[38;2;237;198;216m"));
         let middle = title_frame(FROM, TO, typing_end(TO) + TITLE_SETTLE_MS / 2, 20, true);
-        assert!(middle.text.starts_with("\x1b[38;2;208;128;128m"));
+        assert!(middle.text.starts_with("\x1b[38;2;204;184;193m"));
         let last = title_frame(FROM, TO, typing_end(TO) + TITLE_SETTLE_MS - 1, 20, true);
         assert!(last.text.starts_with("\x1b[38;2;170;170;170m"));
     }
@@ -893,7 +988,7 @@ mod tests {
     }
 
     #[test]
-    fn palette_mode_types_plainly_without_rainbow_or_settle() {
+    fn palette_mode_types_plainly_without_accent_wave_or_settle() {
         let first = title_frame("Agent", "new", 0, 20, false);
         assert_eq!(first.text.trim_end(), "n");
         assert!(!first.text.contains('\x1b'));
@@ -962,7 +1057,7 @@ mod tests {
             true,
             false,
         );
-        assert!(plain(&frame.bytes).starts_with(" auth-fix "));
+        assert!(plain(&frame.bytes).starts_with("   auth-fix "));
         assert!(!plain(&frame.bytes).contains('×'));
         assert_eq!(truecolor_runs(&frame.bytes), 4);
     }
@@ -1007,6 +1102,35 @@ mod tests {
         );
         assert!(frame.bytes.contains("\x1b[7m \x1b[27m"));
         assert_eq!(frame.hidden_tabs, Vec::<String>::new());
+    }
+
+    #[test]
+    fn automatic_rename_follows_the_tabs_current_accent() {
+        let started_at = Instant::now();
+        let mut animated = tab("one", "auth-fix");
+        animated.name_source = "auto".into();
+        animated.title_animation = Some(TitleAnimation {
+            from: "Agent".into(),
+            started_at,
+        });
+        animated.accent = Some("cyan".into());
+        let render = |tab: &StripTab| {
+            render_frame(
+                &[tab.clone()],
+                Some("one"),
+                80,
+                None,
+                TimeFormat::Twelve,
+                None,
+                started_at,
+                true,
+                false,
+            )
+            .bytes
+        };
+        assert!(render(&animated).contains("\x1b[38;2;155;223;198mA"));
+        animated.accent = Some("green".into());
+        assert!(render(&animated).contains("\x1b[38;2;201;219;149mA"));
     }
 
     #[test]
@@ -1066,7 +1190,7 @@ mod tests {
             true,
             false,
         );
-        assert!(plain(&settled.bytes).starts_with(" auth-fix "));
+        assert!(plain(&settled.bytes).starts_with("   auth-fix "));
         assert_eq!(settled.hits, reference.hits);
     }
 
@@ -1232,7 +1356,7 @@ mod tests {
         ] {
             let mut value = tab("one", "agent");
             value.status = status.into();
-            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None);
+            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None, None);
             let text = plain(&bytes);
             assert!(text.starts_with(' '), "status={status}");
             let glyph = status_glyph_at(status, 0);
@@ -1246,10 +1370,63 @@ mod tests {
                 assert_eq!(text.chars().nth(3), Some('a'), "name: {status}");
                 assert_eq!(glyph.chars().count(), 1);
             } else {
-                assert_eq!(text, " agent ");
+                assert_eq!(text.chars().nth(1), Some(' '), "icon column: {status}");
+                assert_eq!(
+                    text.chars().nth(2),
+                    Some(' '),
+                    "icon/name separator: {status}"
+                );
+                assert_eq!(text.chars().nth(3), Some('a'), "name: {status}");
             }
             assert_eq!(width, UnicodeWidthStr::width(text.as_str()));
         }
+    }
+
+    #[test]
+    fn adjacent_tabs_keep_stable_titles_and_hits_without_dividers() {
+        let mut first = tab("first", "Agent");
+        first.accent = Some("pink".into());
+        let mut second = tab("second", "Second");
+        second.status = "working".into();
+        second.accent = Some("green".into());
+        let tabs = [first, second];
+        let frame = render_frame(
+            &tabs,
+            Some("first"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            Instant::now(),
+            true,
+            false,
+        );
+        let plain = plain(&frame.bytes);
+        assert!(!plain.contains('│'));
+        assert!(plain.starts_with("   Agent"));
+        assert!(plain.contains(" Second"));
+        assert_eq!(plain.chars().nth(23), Some('S'));
+        assert!(
+            frame
+                .bytes
+                .contains(&tinted_background(tab_accent(Some("pink")), true))
+        );
+        assert_eq!(frame.hits[0].0, 0);
+        assert_eq!(frame.hits[0].1, frame.hits[1].0);
+        assert_eq!(plain.chars().count(), 80);
+        let palette = render_frame(
+            &tabs,
+            Some("first"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            Instant::now(),
+            false,
+            false,
+        );
+        assert!(palette.bytes.contains("\x1b[48;5;53m"));
+        assert!(!palette.bytes.contains('│'));
     }
 
     #[test]
@@ -1323,8 +1500,35 @@ mod tests {
                 .any(|glyph| frame.bytes.contains(glyph))
         );
         assert!(frame.hits.iter().any(|(start, end, hit)| {
-            end - start == 9 && matches!(hit, StripHit::View(id) if id == "blue")
+            end - start == 20 && matches!(hit, StripHit::View(id) if id == "blue")
         }));
+    }
+
+    #[test]
+    fn tabs_have_a_steady_width_then_shrink_and_truncate_before_overflow() {
+        let tabs = (0..5)
+            .map(|index| tab(&format!("tab-{index}"), "a very long agent title"))
+            .collect::<Vec<_>>();
+        let widths = |frame: StripFrame| {
+            frame
+                .hits
+                .into_iter()
+                .filter_map(|(start, end, hit)| {
+                    matches!(hit, StripHit::View(_)).then_some(end - start)
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
+        assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [18, 18, 18]);
+        let crowded = render(&tabs, Some("tab-4"), 60);
+        assert!(widths(crowded.clone()).iter().all(|width| *width == 12));
+        assert!(crowded.bytes.contains("a very …"));
+        assert!(
+            crowded
+                .hits
+                .iter()
+                .any(|(_, _, hit)| matches!(hit, StripHit::Overflow))
+        );
     }
 
     #[test]
@@ -1345,7 +1549,7 @@ mod tests {
             assert!(frame.hits.iter().all(|(_, end, _)| *end <= columns));
             assert!(!frame.bytes.contains("×"));
             assert!(frame.bytes.contains(" + "));
-            assert!(frame.bytes.contains("开发助手49"));
+            assert!(frame.bytes.contains("开发助…"));
         }
     }
 

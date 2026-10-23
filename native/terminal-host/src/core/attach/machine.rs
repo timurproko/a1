@@ -15,7 +15,7 @@ use super::{
 
 /// How long the client waits, with tabs present and no Settings tab, before starting a hidden one
 /// so the Settings shortcut opens instantly.
-pub const SETTINGS_PREWARM_DELAY: Duration = Duration::from_secs(2);
+pub const SETTINGS_PREWARM_DELAY: Duration = Duration::ZERO;
 
 /// The strip target under the pointer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,6 +139,7 @@ pub struct Context<'a, T> {
 pub enum Request {
     Create,
     OpenSettings,
+    PrewarmSettings,
     Close(String),
     Restart(String),
     Rename {
@@ -597,10 +598,7 @@ impl State {
                 }
             }
             PopupAction::NewAgent => self.create(Request::Create, effects),
-            PopupAction::Settings => {
-                self.view.settings_prewarm_pending = false;
-                self.open_settings(context, effects);
-            }
+            PopupAction::Settings => self.toggle_settings(context, effects),
             PopupAction::View(tab_id) => effects.push(Effect::View(tab_id)),
         }
     }
@@ -630,13 +628,10 @@ impl State {
         effects.push(Effect::Send(request));
     }
 
-    /// Invariant: a running hidden Settings tab is reused instantly.
-    fn open_settings<T: TabView>(&mut self, context: &Context<'_, T>, effects: &mut Vec<Effect>) {
-        if let Some(tab) = context.tabs.iter().find(|tab| is_settings(tab.id())) {
-            effects.push(Effect::View(tab.id().to_owned()));
-        } else {
-            self.create(Request::OpenSettings, effects);
-        }
+    /// Invariant: the server reuses a prewarmed Settings process and places it last when it
+    /// first becomes visible; no new holder is launched unless the tab is actually absent.
+    fn open_settings(&mut self, effects: &mut Vec<Effect>) {
+        self.create(Request::OpenSettings, effects);
     }
 
     fn shortcut<T: TabView + Clone>(
@@ -715,7 +710,13 @@ impl State {
     ) {
         self.view.settings_prewarm_pending = false;
         let Some(tab_id) = settings_toggle_closes(context.viewed) else {
-            self.open_settings(context, effects);
+            if let Some(settings) = self.shown(context).iter().find(|tab| is_settings(tab.id())) {
+                // Invariant: switching to an already visible Settings tab retains its dragged
+                // slot. Only revealing a hidden Settings tab places it last.
+                effects.push(Effect::View(settings.id().to_owned()));
+            } else {
+                self.open_settings(effects);
+            }
             return;
         };
         let shown = self.shown(context);
@@ -912,12 +913,13 @@ impl State {
         now: Duration,
         effects: &mut Vec<Effect>,
     ) -> bool {
-        let on_strip = mouse.row == 0;
         match mouse.kind {
-            MouseKind::Drag(MouseButton::Left) if matches!(self.mode, Mode::Drag(_)) => {
+            MouseKind::Drag(MouseButton::Left) | MouseKind::Moved
+                if matches!(self.mode, Mode::Drag(_)) =>
+            {
                 let shown = self.shown(context);
                 if let Mode::Drag(drag) = &mut self.mode
-                    && update_drag(drag, mouse.column, on_strip, &shown, context.strip, now)
+                    && update_drag(drag, mouse.column, &shown, context.strip, now)
                 {
                     effects.push(Effect::Paint { clear: false });
                 }
@@ -928,24 +930,21 @@ impl State {
                     return true;
                 };
                 let shown = self.shown(context);
-                update_drag(
-                    &mut completed,
-                    mouse.column,
-                    on_strip,
-                    &shown,
-                    context.strip,
-                    now,
-                );
+                update_drag(&mut completed, mouse.column, &shown, context.strip, now);
                 let from = shown.iter().position(|tab| tab.id() == completed.tab_id);
-                if on_strip
-                    && completed.shown
+                if completed.shown
                     && let Some(target_index) = completed.drop_index
                     && Some(target_index) != from
+                    && completed
+                        .initial_order
+                        .iter()
+                        .map(String::as_str)
+                        .eq(context.tabs.iter().map(|tab| tab.id()))
                 {
                     effects.push(Effect::Send(Request::Reorder {
                         target_index: registry_index(&shown, context.tabs, target_index),
                         tab_id: completed.tab_id,
-                        expected_revision: completed.expected_revision,
+                        expected_revision: self.registry_revision,
                     }));
                 }
                 effects.push(Effect::Paint { clear: false });
@@ -985,6 +984,7 @@ impl State {
             }
             MouseKind::Down(MouseButton::Left) => match target {
                 Some(StripHitKind::View(tab_id)) => {
+                    let previous_marker = self.mode.drag().is_some_and(|drag| drag.shown);
                     self.mode = Mode::Drag(TabDrag {
                         tab_id: tab_id.clone(),
                         start_column: mouse.column,
@@ -994,15 +994,24 @@ impl State {
                             .shown(context)
                             .iter()
                             .position(|tab| tab.id() == tab_id),
-                        expected_revision: self.registry_revision,
+                        marker_column: None,
+                        initial_order: context.tabs.iter().map(|tab| tab.id().to_owned()).collect(),
                     });
+                    if previous_marker {
+                        effects.push(Effect::Paint { clear: false });
+                    }
                     if context.viewed != Some(tab_id.as_str()) {
                         effects.push(Effect::View(tab_id));
                     }
                 }
                 Some(StripHitKind::New) => {
                     self.hovered = Some(Hover::New);
-                    let menu = PopupMenu::add(mouse.column, self.columns, context.shortcuts);
+                    let menu = PopupMenu::add(
+                        mouse.column,
+                        self.columns,
+                        context.shortcuts,
+                        self.settings_visible(context.viewed),
+                    );
                     self.mode = Mode::Popup(menu);
                     effects.push(Effect::Paint { clear: false });
                 }
@@ -1048,7 +1057,7 @@ impl State {
                 view.settings_absent_since = None;
                 view.settings_shown = false;
                 view.settings_prewarm_pending = true;
-                effects.push(Effect::Send(Request::OpenSettings));
+                effects.push(Effect::Send(Request::PrewarmSettings));
             }
         }
         let held = self
@@ -1059,7 +1068,7 @@ impl State {
             let shown = self.shown(context);
             if let Mode::Drag(drag) = &mut self.mode {
                 let column = drag.start_column;
-                if update_drag(drag, column, true, &shown, context.strip, now) {
+                if update_drag(drag, column, &shown, context.strip, now) {
                     effects.push(Effect::Paint { clear: false });
                 }
             }
@@ -1116,7 +1125,9 @@ impl State {
                 effects.extend([Effect::Send(Request::List), paint]);
             }
             ServerEvent::Reordered { accepted, message } => {
-                if !accepted {
+                // Concurrency: another client or a tab status update can advance the registry
+                // after drop. Refresh the strip silently; a stale drag is not a user error.
+                if !accepted && message.as_deref() != Some("stale tab order") {
                     self.notice = message;
                     effects.push(paint);
                 }
@@ -1748,6 +1759,130 @@ mod tests {
         // Invariant: a drop in place sends nothing.
         fixture.step(&mut state, mouse(LEFT, 2, 0));
         assert_eq!(fixture.step(&mut state, mouse(RELEASE, 2, 0)), [PAINT]);
+
+        // Invariant: leaving the strip keeps the last insertion until the button is released.
+        fixture.step(&mut state, mouse(LEFT, 2, 0));
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0)),
+            [PAINT]
+        );
+        let marker = state.mode.drag().and_then(|drag| drag.marker_column);
+        assert!(marker.is_some());
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 2, 1)),
+            [PAINT]
+        );
+        assert!(
+            state
+                .mode
+                .drag()
+                .is_some_and(|drag| drag.drop_index == Some(0))
+        );
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 1)),
+            [PAINT]
+        );
+        assert!(
+            state
+                .mode
+                .drag()
+                .is_some_and(|drag| drag.shown && drag.marker_column == marker)
+        );
+        assert!(
+            fixture
+                .step(&mut state, mouse(MouseKind::Moved, 29, 2))
+                .is_empty()
+        );
+        assert!(
+            state
+                .mode
+                .drag()
+                .is_some_and(|drag| drag.marker_column == marker)
+        );
+        assert_eq!(
+            fixture.step(&mut state, mouse(RELEASE, 29, 1)),
+            [
+                Effect::Send(Request::Reorder {
+                    tab_id: "a".into(),
+                    target_index: 2,
+                    expected_revision: 3,
+                }),
+                PAINT
+            ]
+        );
+        assert!(matches!(state.mode, Mode::Idle));
+
+        // Invariant: A source removed during the gesture cannot produce a reorder.
+        fixture.step(&mut state, mouse(LEFT, 2, 0));
+        fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
+        fixture.tabs.remove(0);
+        assert_eq!(fixture.step(&mut state, mouse(RELEASE, 29, 0)), [PAINT]);
+    }
+
+    #[test]
+    fn drag_uses_latest_revision_when_tab_order_is_unchanged() {
+        let fixture = Fixture::new(&["a", "b", "c"], "a");
+        let mut state = fixture.state();
+        state.registry_revision = 3;
+        fixture.step(&mut state, mouse(LEFT, 12, 0));
+        fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
+        // Concurrency: viewing a tab or updating its status advances the registry during a drag.
+        state.registry_revision = 4;
+        assert_eq!(
+            fixture.step(&mut state, mouse(RELEASE, 29, 0)),
+            [
+                Effect::Send(Request::Reorder {
+                    tab_id: "b".into(),
+                    target_index: 2,
+                    expected_revision: 4,
+                }),
+                PAINT
+            ]
+        );
+        assert_eq!(
+            fixture.step(
+                &mut state,
+                server(ServerEvent::Reordered {
+                    accepted: false,
+                    message: Some("stale tab order".into()),
+                })
+            ),
+            [Effect::Send(Request::List)]
+        );
+        assert_eq!(state.notice, None);
+    }
+
+    #[test]
+    fn release_at_marker_after_last_settings_tab_requests_last_visible_slot() {
+        let fixture = Fixture::new(&["a", "b", "settings-1"], "a");
+        let mut state = fixture.state();
+        state.view.settings_shown = true;
+        state.registry_revision = 9;
+        fixture.step(&mut state, mouse(LEFT, 2, 0));
+        fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
+        assert_eq!(state.mode.drag().and_then(|drag| drag.drop_index), Some(2));
+        assert_eq!(
+            fixture.step(&mut state, mouse(RELEASE, 29, 0)),
+            [
+                Effect::Send(Request::Reorder {
+                    tab_id: "a".into(),
+                    target_index: 2,
+                    expected_revision: 9,
+                }),
+                PAINT,
+            ]
+        );
+    }
+
+    #[test]
+    fn drag_does_not_rebase_across_changed_tab_order() {
+        let mut fixture = Fixture::new(&["a", "b", "c"], "a");
+        let mut state = fixture.state();
+        fixture.step(&mut state, mouse(LEFT, 12, 0));
+        fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
+        fixture.tabs.swap(0, 1);
+        state.registry_revision += 1;
+        assert_eq!(fixture.step(&mut state, mouse(RELEASE, 29, 0)), [PAINT]);
     }
 
     #[test]
@@ -1818,7 +1953,7 @@ mod tests {
     fn resize_refits_an_open_menu_and_repaints_clean() {
         let fixture = Fixture::new(&["a"], "a");
         let mut state = fixture.state();
-        state.mode = Mode::Popup(PopupMenu::add(70, 80, &Labels));
+        state.mode = Mode::Popup(PopupMenu::add(70, 80, &Labels, false));
         assert_eq!(
             fixture.step(
                 &mut state,
@@ -1889,7 +2024,48 @@ mod tests {
         let mut state = hidden.state();
         assert_eq!(
             hidden.step(&mut state, shortcut("tabs.settings")),
+            [Effect::Send(Request::OpenSettings), PAINT]
+        );
+        state.view.settings_shown = true;
+        assert_eq!(
+            hidden.step(&mut state, shortcut("tabs.settings")),
             [Effect::View("settings-1".into()), PAINT]
+        );
+        assert!(
+            state.view.settings_shown,
+            "the first shortcut selects Settings"
+        );
+        let mut popup = PopupMenu::add(0, 80, &Labels, true);
+        popup.hovered = Some(2);
+        state.mode = Mode::Popup(popup);
+        assert_eq!(
+            hidden.step(&mut state, key(KeyCode::Enter)),
+            [Effect::View("settings-1".into()), PAINT]
+        );
+        assert!(
+            state.view.settings_shown,
+            "the checked menu item selects Settings"
+        );
+        let dragged = Fixture::new(&["settings-1", "a"], "a");
+        let mut already_visible = dragged.state();
+        already_visible.view.settings_shown = true;
+        assert_eq!(
+            dragged.step(&mut already_visible, shortcut("tabs.settings")),
+            [Effect::View("settings-1".into()), PAINT],
+            "an already visible Settings tab keeps its dragged slot"
+        );
+        let mut active = fixture.state();
+        active.view.settings_shown = true;
+        let mut popup = PopupMenu::add(0, 80, &Labels, true);
+        popup.hovered = Some(2);
+        active.mode = Mode::Popup(popup);
+        assert_eq!(
+            fixture.step(&mut active, key(KeyCode::Enter)),
+            [Effect::View("a".into()), PAINT]
+        );
+        assert!(
+            !active.view.settings_shown,
+            "clicking the checked item while active hides Settings"
         );
         let lone = Fixture::new(&["settings-1"], "settings-1");
         let mut state = lone.state();
@@ -1900,10 +2076,10 @@ mod tests {
 
         let absent = Fixture::new(&["a"], "a");
         let mut state = absent.state();
-        assert!(absent.step_at(&mut state, Event::Tick, NOW).is_empty());
         assert_eq!(
-            absent.step_at(&mut state, Event::Tick, NOW + SETTINGS_PREWARM_DELAY),
-            [Effect::Send(Request::OpenSettings)]
+            absent.step_at(&mut state, Event::Tick, NOW),
+            [Effect::Send(Request::PrewarmSettings)],
+            "prewarm starts as soon as the first Agent is registered"
         );
         assert!(state.view.settings_prewarm_pending);
         let prewarmed = server(ServerEvent::Created {
@@ -2052,7 +2228,7 @@ mod tests {
         };
         assert_eq!(answer(&mut state, viewer), [PAINT]);
         assert!(answer(&mut state, ServerEvent::ShortcutsChanged).is_empty());
-        state.mode = Mode::Popup(PopupMenu::add(0, 80, &Labels));
+        state.mode = Mode::Popup(PopupMenu::add(0, 80, &Labels, false));
         assert_eq!(answer(&mut state, ServerEvent::ShortcutsChanged), [PAINT]);
     }
 
@@ -2138,6 +2314,8 @@ mod tests {
         use crate::core::attach::{DialogOption, DialogRow};
         let mut fixture = Fixture::new(&["a", "b"], "a");
         let mut state = fixture.state();
+        // Rationale: the Settings prewarm is not under test; keep ticks silent.
+        state.view.settings_prewarm_pending = true;
         // Rationale: the role installs a status before stepping the core.
         fixture.tabs[0].status = "stalled".into();
         assert_eq!(fixture.step(&mut state, status("a", "stalled")), [PAINT]);

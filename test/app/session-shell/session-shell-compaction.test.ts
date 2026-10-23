@@ -394,8 +394,8 @@ describe("prompt-style compaction in the real engine and shell", () => {
         expect(linkRow).toContain(piTheme().fg("accent", "file"));
         const row = rows.findIndex(line => stripTerminalSequences(line).includes("copyable alpha beta")) + 1;
         terminal.input(`\u001b[<0;3;${row}M`);
-        terminal.input(`\u001b[<32;21;${row}M`);
-        terminal.input(`\u001b[<0;21;${row}m`);
+        terminal.input(`\u001b[<32;22;${row}M`);
+        terminal.input(`\u001b[<0;22;${row}m`);
         expect(shell.root.hasActiveSelection()).toBe(true);
         for (let i = 0; i < 8; i++) {
           const message = { role: "assistant", timestamp: time + 5, content: [{ type: "text", text: `stream ${i}` }] };
@@ -416,7 +416,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
         expect(shell.root.hasActiveSelection()).toBe(true);
         terminal.input("\u0003");
         await nextImmediate();
-        expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("copyable alpha beta").toString("base64")}\u0007`);
+        await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from("copyable alpha beta").toString("base64")}\u0007`));
         expect(stripTerminalSequences(renderer.render(80).join("\n"))).toContain("summary-23 alpha beta");
         expect(shell.root.editor.getText()).toBe("unsubmitted draft");
         expect(adapter.view().transcript.find(block => block.id === source.id)?.text).toBe(text);

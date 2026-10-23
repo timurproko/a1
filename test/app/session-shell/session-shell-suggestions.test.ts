@@ -133,7 +133,7 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
     target.engine.session.emit({ type: "agent_settled" });
     await target.adapter.flushEvents();
     const ghost = target.shell.root.editor.render(60).join("\n");
-    expect(stripTerminalSequences(ghost)).toContain("❯ go ahead and merge it");
+    expect(stripTerminalSequences(ghost)).toContain("go ahead and merge it");
     expect(ghost).toContain("\u001b[2m");
     expect(target.shell.root.editor.getText()).toBe("");
     expect(target.adapter.view().status.workingMessage).toBeNull();
@@ -168,7 +168,7 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
     expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).not.toContain("run the tests");
     finish?.("run the tests");
     await nextImmediate();
-    expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).toContain("❯ run the tests");
+    expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).toContain("run the tests");
     await target.shell.dispose();
   });
 
@@ -221,7 +221,7 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
       await target.adapter.flushEvents();
       await nextImmediate();
       const rendered = () => stripTerminalSequences(target.shell.root.editor.render(50).join("\n"));
-      expect(rendered()).toContain("❯ run the tests");
+      expect(rendered()).toContain("run the tests");
       const presentation = vi.spyOn(target.shell.root, "setPromptSuggestion");
 
       const draft = clearing === "backspace" ? "draft" : "x";
@@ -247,7 +247,7 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
         await nextImmediate();
       }
       expect(target.shell.root.editor.getText()).toBe("");
-      expect(rendered()).toContain("❯ run the tests");
+      expect(rendered()).toContain("run the tests");
       expect(presentation).toHaveBeenCalledOnce();
       expect(presentation).toHaveBeenCalledWith("run the tests");
       expect(generator.generate).toHaveBeenCalledTimes(1);
@@ -278,7 +278,7 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
       target.engine.session.emit({ type: "agent_settled" });
       await target.adapter.flushEvents();
       await nextImmediate();
-      expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).toContain("❯ run the tests");
+      expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).toContain("run the tests");
 
       target.terminal.input("/");
       await nextImmediate();
@@ -290,7 +290,7 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
       await nextImmediate();
       expect(target.shell.root.editor.getText()).toBe("");
       expect(target.shell.root.promptSuggestionPresentationBlockReason()).toBeNull();
-      expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).toContain("❯ run the tests");
+      expect(stripTerminalSequences(target.shell.root.editor.render(50).join("\n"))).toContain("run the tests");
       expect(stripTerminalSequences(target.terminal.writes.slice(writeStart).join(""))).toContain("run the tests");
       expect(generator.generate).toHaveBeenCalledTimes(1);
       expect(diagnostics.snapshot().filter(record => record.event === "displayed")).toHaveLength(1);
@@ -315,7 +315,7 @@ describe("OwnedUiSessionShell prompt suggestions", () => {
       await target.adapter.flushEvents();
       await nextImmediate();
       const rendered = () => stripTerminalSequences(target.shell.root.editor.render(50).join("\n"));
-      expect(rendered()).toContain("❯ run the tests");
+      expect(rendered()).toContain("run the tests");
 
       for (const key of "hi") target.shell.root.editor.handleInput?.(key);
       target.shell.root.editor.handleInput?.("\r");
