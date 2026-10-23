@@ -252,6 +252,30 @@ mod tests {
     use super::*;
 
     #[test]
+    fn modified_arrows_reach_the_child_as_prompt_navigation_keys() {
+        let terminal = GhosttyTerminal::new(80, 24).expect("terminal");
+        let mut encoder = SemanticEncoder::new(&terminal, 80, 24).expect("encoder");
+        for (mods, up, down) in [
+            (MOD_SHIFT, b"\x1b[1;2A".as_slice(), b"\x1b[1;2B".as_slice()),
+            (MOD_CTRL, b"\x1b[1;5A".as_slice(), b"\x1b[1;5B".as_slice()),
+        ] {
+            for (key, expected) in [("arrow-up", up), ("arrow-down", down)] {
+                let event = InputEvent::Key {
+                    key: key.into(),
+                    mods,
+                    text: None,
+                    repeat: false,
+                };
+                assert_eq!(
+                    encoder.encode(&terminal, &event).expect("modified arrow"),
+                    expected,
+                    "{key}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn paste_encoding_matches_a_terminal_in_either_mode() {
         assert_eq!(
             bracketed_paste("wide 开发 e\u{301}".as_bytes()),

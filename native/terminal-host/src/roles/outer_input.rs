@@ -294,6 +294,22 @@ mod tests {
                 repeat: false,
             })
         );
+        for (code, key) in [(KeyCode::Up, "arrow-up"), (KeyCode::Down, "arrow-down")] {
+            for (modifiers, mods) in [
+                (KeyModifiers::SHIFT, MOD_SHIFT),
+                (KeyModifiers::CONTROL, MOD_CTRL),
+            ] {
+                assert_eq!(
+                    normalize_key(&press(code, modifiers)),
+                    Some(InputEvent::Key {
+                        key: key.into(),
+                        mods,
+                        text: None,
+                        repeat: false,
+                    })
+                );
+            }
+        }
         let mut repeated = press(KeyCode::Left, KeyModifiers::CONTROL);
         repeated.kind = KeyEventKind::Repeat;
         assert_eq!(

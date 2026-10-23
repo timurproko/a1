@@ -19,6 +19,59 @@ fn serialize_role_fixture() -> std::sync::MutexGuard<'static, ()> {
 }
 
 #[test]
+fn cold_attach_enters_the_screen_with_a_named_tab_not_an_empty_strip() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    let bin = directory(&release, "bin");
+    std::fs::write(
+        bin.join("ui.js"),
+        "if (process.stdin.isTTY) process.stdin.setRawMode(true); process.stdin.on('data', value => process.stdout.write('key:' + Buffer.from(value).toString('hex') + '\\r\\n')); process.stdout.write('fake-a1-ready\\r\\n'); setInterval(() => {}, 1000);\n",
+    )
+    .expect("fake child");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let _cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(
+        attach.output_containing("fake-a1-ready", Duration::from_secs(12)),
+        "{}",
+        attach.output_text()
+    );
+    let output = String::from_utf8_lossy(&attach.retained);
+    assert!(
+        output
+            .find("Agent")
+            .is_some_and(|name| output.find(" + ").is_some_and(|plus| name < plus)),
+        "first strip must already have its tab name: {output}"
+    );
+    attach.write(b"\x1b[1;2A");
+    assert!(
+        attach.output_containing("key:1b5b313b3241", Duration::from_secs(5)),
+        "Shift+Up must reach the child: {}",
+        attach.output_text()
+    );
+    attach.write(b"\x1b[1;5B");
+    assert!(
+        attach.output_containing("key:1b5b313b3542", Duration::from_secs(5)),
+        "Ctrl+Down must reach the child: {}",
+        attach.output_text()
+    );
+    attach.child.kill().expect("stop fixture attach");
+}
+
+#[test]
 fn server_holder_and_attach_survive_client_loss_and_retain_output() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
