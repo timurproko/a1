@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-23-keep-resident-rail-column/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-23-keep-resident-rail-column/acceptance.md",
   "finalizedDate": "2026-10-23",
-  "specBaseSha": "b20a04e731f67680decf750df6a0136748a118af",
+  "specBaseSha": "fa266011275a71cf8275189b82a7d86004d18dc2",
   "acceptanceScenarios": [
     "In a multi-agent tab on Windows, scrolling away from the end and back, hovering or dragging the rail, and streaming new rows never leave a rail cell one column left of the gutter with a blank final column.",
     "Rows that held the jump-to-bottom control or the last streamed line show the rail in the same column as every other row, as in solo mode.",
