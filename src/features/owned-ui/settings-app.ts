@@ -1181,7 +1181,7 @@ export class SettingsApp implements UiApp {
     const status = renderShortcutHintsWithClose(entries, theme, width, width > 0 ? 1 : 0);
     const input = this.#filter;
     if (input === null) return [status];
-    return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, theme }).lines, status];
+    return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, promptGlyph: "", theme }).lines, status];
   }
 }
 

@@ -12,8 +12,8 @@ export function formatLocalTime(source: Date | number, format: UiTimeFormat = "8
   return `${hour % 12 || 12}:${minute} ${hour < 12 ? "AM" : "PM"}`;
 }
 
-/** Visible width of the submitted-prompt prefix (`❯ `). */
-export const SUBMITTED_PROMPT_PREFIX_WIDTH = 2;
+/** Visible width of the submitted-prompt prefix (` ❯ `). */
+export const SUBMITTED_PROMPT_PREFIX_WIDTH = 3;
 const TIMESTAMP_MARGIN = 3;
 const MIN_USEFUL_CONTENT_WIDTH = 8;
 
@@ -69,7 +69,7 @@ export function composeSubmittedPromptRows(
 ): readonly string[] {
   if (width <= 0) return [];
   const layout = submittedPromptLayout(width, source, format);
-  const prefix = (style.prefix ?? identity)("❯ ");
+  const prefix = (style.prefix ?? identity)(" ❯ ");
   const rows = (contentRows.length === 0 ? [""] : contentRows).map((row, index) => {
     const content = truncateToWidth(row, layout.contentWidth);
     return `${index === 0 ? prefix : " ".repeat(SUBMITTED_PROMPT_PREFIX_WIDTH)}${content}`;

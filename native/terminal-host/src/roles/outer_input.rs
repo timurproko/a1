@@ -94,7 +94,20 @@ pub fn normalize_mouse(
     outer_row: u16,
     modifiers: KeyModifiers,
 ) -> Option<InputEvent> {
-    let row = super::attach::child_mouse_row(outer_row)?;
+    normalize_child_mouse(
+        kind,
+        column,
+        super::attach::child_mouse_row(outer_row)?,
+        modifiers,
+    )
+}
+
+pub fn normalize_child_mouse(
+    kind: MouseEventKind,
+    column: u16,
+    row: u16,
+    modifiers: KeyModifiers,
+) -> Option<InputEvent> {
     let button_number = |button: MouseButton| match button {
         MouseButton::Left => 1,
         MouseButton::Right => 2,
@@ -281,6 +294,22 @@ mod tests {
                 repeat: false,
             })
         );
+        for (code, key) in [(KeyCode::Up, "arrow-up"), (KeyCode::Down, "arrow-down")] {
+            for (modifiers, mods) in [
+                (KeyModifiers::SHIFT, MOD_SHIFT),
+                (KeyModifiers::CONTROL, MOD_CTRL),
+            ] {
+                assert_eq!(
+                    normalize_key(&press(code, modifiers)),
+                    Some(InputEvent::Key {
+                        key: key.into(),
+                        mods,
+                        text: None,
+                        repeat: false,
+                    })
+                );
+            }
+        }
         let mut repeated = press(KeyCode::Left, KeyModifiers::CONTROL);
         repeated.kind = KeyEventKind::Repeat;
         assert_eq!(

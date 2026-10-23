@@ -1,6 +1,6 @@
 import type { OwnedUiBackgroundStyle, OwnedUiTimeFormat, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 17;
+export const OWNED_UI_SETTINGS_VERSION = 18;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "purple", "blue", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
@@ -11,9 +11,7 @@ export type OwnedUiSettingApplication = "live" | "restart";
 
 export interface OwnedUiSettingDeclaration {
   readonly id: string;
-  /** Optional presentation label; the id remains the persistence key. */
   readonly label?: string;
-  /** Optional settings-screen group for related owned controls. */
   readonly section?: { readonly id: string; readonly title: string };
   readonly description: string;
   readonly application: OwnedUiSettingApplication;
@@ -24,17 +22,12 @@ export interface OwnedUiSettingDeclaration {
 const MAX_ID_LENGTH = 64;
 const ID_PATTERN = /^[a-z][a-z0-9]*(?:[A-Z][a-z0-9]*)*$/;
 
-/** Declared first so the settings screen opens on it; sections follow first-declaration order. */
 const GENERIC_SECTION = Object.freeze({ id: "generic", title: "Generic" });
 const APPEARANCE_SECTION = Object.freeze({ id: "appearance", title: "Appearance" });
 const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
 const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
 const TABS_SECTION = Object.freeze({ id: "tabs", title: "Tabs" });
 
-/**
- * Every A1 setting, keyed by its id. The table is the one declaration: ids, defaults, and allowed
- * values are read from it, and `OwnedSettingValueOf` derives each getter's type from it.
- */
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   updateCheck: Object.freeze({
     id: "updateCheck",
@@ -157,6 +150,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     defaultValue: 8,
     allowedValues: Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const),
   }),
+  tabsPosition: Object.freeze({
+    id: "tabsPosition",
+    label: "Position",
+    section: TABS_SECTION,
+    description: "Place the resident tab bar at the top or bottom of the terminal.",
+    application: "live",
+    defaultValue: "top",
+    allowedValues: Object.freeze(["top", "bottom"] as const),
+  }),
   tabsAutoName: Object.freeze({
     id: "tabsAutoName",
     label: "Auto name",
@@ -170,10 +172,8 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
 
 export type OwnedSettingId = keyof typeof OWNED_SETTING_DECLARATIONS;
 
-/** The value type a setting's declaration allows: a literal union for a choice, `number` for a stepped range. */
 export type OwnedSettingValueOf<Id extends OwnedSettingId> = (typeof OWNED_SETTING_DECLARATIONS)[Id]["allowedValues"][number];
 
-/** The declarations in declaration order, for resolution, persistence, and the settings screen. */
 export const OWNED_UI_SETTING_DECLARATIONS: readonly OwnedUiSettingDeclaration[] = Object.freeze(Object.values(OWNED_SETTING_DECLARATIONS));
 
 export function isOwnedSettingId(id: string): id is OwnedSettingId {

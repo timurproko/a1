@@ -118,10 +118,10 @@ describe("transcript viewport", () => {
       now: 100,
     });
     const copyRows = [{ row: 0, prompt: "first" as const }, { row: 1 }];
-    const dockOnly = viewport.composeDockOnly(["❯ edited", "footer"], 30, 7, copyRows);
+    const dockOnly = viewport.composeDockOnly(["edited", "footer"], 30, 7, copyRows);
     expect(dockOnly).not.toBeNull();
     expect(dockOnly!.rows.slice(0, 5)).toEqual(initial.rows.slice(0, 5));
-    expect(dockOnly!.rows.slice(-2).map(row => row.trimEnd())).toEqual(["❯ edited", "footer"]);
+    expect(dockOnly!.rows.slice(-2).map(row => row.trimEnd())).toEqual(["edited", "footer"]);
     expect(dockOnly!.descriptor).toMatchObject({
       frameId: 2,
       cause: "dock-input",
@@ -1008,7 +1008,7 @@ describe("transcript viewport", () => {
     const input = {
       documentRows: ["❯ ask me                    19:59", "⠋ Working..."],
       selectableDocumentRowCount: 1,
-      dockRows: ["widget value", "❯ draft", "footer status", "model high"],
+      dockRows: ["widget value", "draft", "footer status", "model high"],
       copyableDockRows: [
         { row: 1, prompt: "first" as const },
         { row: 2 },
@@ -1045,7 +1045,7 @@ describe("transcript viewport", () => {
     const shifted = viewport.compose({
       ...input,
       documentRows: ["new transcript", "⠙ Working..."],
-      dockRows: ["next widget", "❯ next draft", "next footer", "next model"],
+      dockRows: ["next widget", "next draft", "next footer", "next model"],
       height: 7,
       now: 107,
     });

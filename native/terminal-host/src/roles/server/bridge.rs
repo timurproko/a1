@@ -145,10 +145,7 @@ pub(super) fn serve_bridge(
             tx.offer_control(wire::frame(
                 "attachment",
                 None,
-                BridgeAttachment {
-                    client_id: client.into(),
-                    controller_revision: revision,
-                },
+                BridgeAttachment::new(client, revision),
             )?)
             .map_err(str::to_owned)?;
         }
