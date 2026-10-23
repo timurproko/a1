@@ -37,7 +37,7 @@ An accepted ordinary frame drag SHALL use ordered display-column boundaries that
 
 An upward drag within transcript content SHALL map its moving endpoint to the content row under the pointer without a one-row downward offset. The top endpoint row SHALL begin at the pointed grapheme and continue toward the lower anchor using standard reverse-selection semantics; it SHALL NOT select an additional row beyond the pointer or convert the endpoint row into a full-width interior row. Prompt/editor rows outside the addressed transcript content SHALL remain excluded.
 
-When held-edge auto-scroll grows a transcript drag beyond one screen, copy SHALL include every selected transcript row from the pointed endpoint to the press anchor, including rows scrolled past either viewport edge and transcript text beneath the floating jump-to-bottom control. Paint SHALL remain clipped to visible rows, and a selection with no visible row SHALL copy nothing.
+When held-edge auto-scroll grows a transcript drag beyond one screen, copy SHALL include every selected transcript row from the pointed endpoint to the press anchor, including rows scrolled past either viewport edge and transcript text beneath the floating jump-to-bottom control. Paint SHALL remain clipped to visible rows, and a selection with no visible row SHALL copy nothing. A transcript-originated drag held below the viewport while the transcript is detached from its end SHALL keep its moving endpoint on the last visible content row at the pointer column while auto-scroll advances; only after the transcript end is shown SHALL the endpoint continue into dock rows.
 
 Double-click SHALL select the visible word at the pointed cell and triple-click SHALL select the useful visible content of that frame row. Once a distinct drag is active, returning to the anchor cell SHALL retain the anchor grapheme, and motion across row or region boundaries SHALL not create an empty intermediate range.
 
@@ -70,6 +70,11 @@ Double-click SHALL select the visible word at the pointed cell and triple-click 
 - **WHEN** a reverse transcript drag holds the pointer at the top edge until the press anchor scrolls below the viewport
 - **THEN** copy SHALL contain the pointed row from the pointer grapheme through every row down to the press anchor
 - **AND** no selected row SHALL be dropped or replaced by jump-to-bottom chrome
+
+#### Scenario: Auto-scroll a downward drag to the transcript end
+- **WHEN** a transcript drag in a detached viewport holds the pointer on dock rows below the viewport
+- **THEN** the moving endpoint SHALL stay on the last visible content row while auto-scroll reveals each following row
+- **AND** it SHALL enter dock rows only after the transcript end is visible
 
 ### Requirement: Copy output matches selected visible text
 
