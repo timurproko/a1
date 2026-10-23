@@ -155,6 +155,56 @@ fn accent(status: &str, value: Option<&str>) -> &'static str {
     }
 }
 
+fn tab_accent(value: Option<&str>) -> Rgb {
+    match value.unwrap_or("purple") {
+        "blue" => Rgb(91, 141, 239),
+        "cyan" => Rgb(74, 174, 196),
+        "green" => Rgb(88, 183, 132),
+        "orange" => Rgb(226, 159, 72),
+        "pink" => Rgb(218, 112, 158),
+        _ => Rgb(167, 152, 215),
+    }
+}
+
+fn tint(base: u8, color: Rgb, percent: u16) -> Rgb {
+    let channel =
+        |value: u8| ((u16::from(base) * (100 - percent) + u16::from(value) * percent) / 100) as u8;
+    Rgb(channel(color.0), channel(color.1), channel(color.2))
+}
+
+fn tint_palette(color: Rgb, active: bool) -> u8 {
+    match (color, active) {
+        (Rgb(91, 141, 239), true) => 60,
+        (Rgb(91, 141, 239), false) => 67,
+        (Rgb(74, 174, 196), true) => 23,
+        (Rgb(74, 174, 196), false) => 66,
+        (Rgb(88, 183, 132), true) => 22,
+        (Rgb(88, 183, 132), false) => 65,
+        (Rgb(226, 159, 72), true) => 58,
+        (Rgb(226, 159, 72), false) => 101,
+        (Rgb(218, 112, 158), true) => 53,
+        (Rgb(218, 112, 158), false) => 96,
+        (_, true) => 60,
+        (_, false) => 96,
+    }
+}
+
+fn tinted_background(color: Rgb, truecolor: bool) -> String {
+    if !truecolor {
+        return format!("\x1b[48;5;{}m", tint_palette(color, true));
+    }
+    let Rgb(red, green, blue) = tint(55, color, 24);
+    format!("\x1b[48;2;{red};{green};{blue}m")
+}
+
+fn tinted_foreground(color: Rgb, base: u8, active: bool, truecolor: bool) -> String {
+    if !truecolor {
+        return format!("\x1b[38;5;{}m", tint_palette(color, false));
+    }
+    let Rgb(red, green, blue) = tint(base, color, if active { 36 } else { 20 });
+    format!("\x1b[38;2;{red};{green};{blue}m")
+}
+
 const SETTLED_FG: Rgb = Rgb(170, 170, 170);
 const STRIP_ROW_BACKGROUND: &str = "\x1b[48;2;20;20;20m";
 const STRIP_ROW_BACKGROUND_PALETTE: &str = "\x1b[48;5;233m";
@@ -312,12 +362,9 @@ pub fn reconcile_title_animation(
     })
 }
 
-fn chip_fixed_width(tab: &StripTab) -> usize {
-    2 + if status_glyph(&tab.status).is_empty() {
-        0
-    } else {
-        2
-    }
+fn chip_fixed_width() -> usize {
+    // Invariant: the icon column stays reserved when a tab changes status.
+    4
 }
 
 fn rename_title(rename: &StripRename, max_width: usize) -> TitleFrame {
@@ -416,10 +463,11 @@ fn chip(
     truecolor: bool,
     rename: Option<&StripRename>,
     target_width: Option<usize>,
+    divider: bool,
 ) -> (String, usize) {
     let glyph = status_glyph(&tab.status);
-    let separator = if glyph.is_empty() { "" } else { " " };
-    let fixed = chip_fixed_width(tab);
+    let icon = if glyph.is_empty() { " " } else { &glyph };
+    let fixed = chip_fixed_width();
     let title = chip_title(
         tab,
         target_width.unwrap_or(20).saturating_sub(fixed),
@@ -430,16 +478,34 @@ fn chip(
     let name = title.text;
     let width = target_width.unwrap_or(fixed + title.width);
     let padding = " ".repeat(width.saturating_sub(fixed + title.width));
-    let background = if active {
-        "\x1b[48;2;55;55;55m\x1b[38;2;255;255;255m"
+    let accent_color = tab_accent(tab.accent.as_deref());
+    let base = if active {
+        55
     } else if hovered {
-        "\x1b[48;2;48;48;48m\x1b[38;2;170;170;170m"
+        48
     } else {
-        "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m"
+        38
+    };
+    let background = if active {
+        format!(
+            "{}\x1b[38;2;255;255;255m",
+            tinted_background(accent_color, truecolor)
+        )
+    } else if hovered {
+        "\x1b[48;2;48;48;48m\x1b[38;2;170;170;170m".to_owned()
+    } else {
+        "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m".to_owned()
     };
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
-    let text =
-        format!("{background} {glyph_color}{glyph}\x1b[39m{separator}{name}{padding} \x1b[0m");
+    let end = if divider {
+        format!(
+            "{}│",
+            tinted_foreground(accent_color, base, active, truecolor)
+        )
+    } else {
+        " ".to_owned()
+    };
+    let text = format!("{background} {glyph_color}{icon}\x1b[39m {name}{padding}{end}\x1b[0m");
     (text, width)
 }
 
@@ -514,8 +580,17 @@ fn render_frame(
     now: Instant,
     truecolor: bool,
 ) -> StripFrame {
-    let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
-        chip(tab, active, hovered, now, truecolor, rename, Some(target))
+    let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize, divider: bool| {
+        chip(
+            tab,
+            active,
+            hovered,
+            now,
+            truecolor,
+            rename,
+            Some(target),
+            divider,
+        )
     };
     // Invariant: the clock stays visible with no tabs, beside the lone `+`.
     let clock = Some(clock_text(time_format));
@@ -531,7 +606,7 @@ fn render_frame(
         20
     } else {
         (available.saturating_sub(plus_width) / tabs.len())
-            .clamp(10, 20)
+            .clamp(12, 20)
             .min(available.saturating_sub(plus_width))
     };
     let mut overflow = false;
@@ -569,12 +644,14 @@ fn render_frame(
     let mut bytes = format!("\x1b[1;1H{STRIP_ROW_BACKGROUND}");
     let mut hits = Vec::new();
     let mut column = 0u16;
-    for tab in selected {
+    let visible_count = selected.len();
+    for (index, tab) in selected.into_iter().enumerate() {
         let (text, width) = chip(
             tab,
             viewed == Some(tab.id.as_str()),
             hovered == Some(&StripHover::Tab(tab.id.clone())),
             tab_width,
+            index + 1 < visible_count,
         );
         bytes.push_str(&text);
         let end = column.saturating_add(width as u16);
@@ -670,7 +747,7 @@ fn title_animation_active(tab: &StripTab) -> bool {
         let truecolor = !palette_fallback_requested();
         let to = truncate(
             &clean(&tab.name),
-            20usize.saturating_sub(chip_fixed_width(tab)),
+            20usize.saturating_sub(chip_fixed_width()),
         );
         animation.started_at.elapsed().as_millis() < title_duration(&to, truecolor)
     })
@@ -968,7 +1045,7 @@ mod tests {
             now,
             true,
         );
-        assert!(plain(&frame.bytes).starts_with(" auth-fix "));
+        assert!(plain(&frame.bytes).starts_with("   auth-fix "));
         assert!(!plain(&frame.bytes).contains('×'));
         assert_eq!(truecolor_runs(&frame.bytes), 4);
     }
@@ -1067,7 +1144,7 @@ mod tests {
             start + Duration::from_secs(5),
             true,
         );
-        assert!(plain(&settled.bytes).starts_with(" auth-fix "));
+        assert!(plain(&settled.bytes).starts_with("   auth-fix "));
         assert_eq!(settled.hits, reference.hits);
     }
 
@@ -1187,7 +1264,7 @@ mod tests {
         ] {
             let mut value = tab("one", "agent");
             value.status = status.into();
-            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None, None);
+            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None, None, false);
             let text = plain(&bytes);
             assert!(text.starts_with(' '), "status={status}");
             let glyph = status_glyph_at(status, 0);
@@ -1201,10 +1278,66 @@ mod tests {
                 assert_eq!(text.chars().nth(3), Some('a'), "name: {status}");
                 assert_eq!(glyph.chars().count(), 1);
             } else {
-                assert_eq!(text, " agent ");
+                assert_eq!(text.chars().nth(1), Some(' '), "icon column: {status}");
+                assert_eq!(
+                    text.chars().nth(2),
+                    Some(' '),
+                    "icon/name separator: {status}"
+                );
+                assert_eq!(text.chars().nth(3), Some('a'), "name: {status}");
             }
             assert_eq!(width, UnicodeWidthStr::width(text.as_str()));
         }
+    }
+
+    #[test]
+    fn adjacent_tabs_have_subtle_accent_dividers_without_moving_titles_or_hits() {
+        let mut first = tab("first", "Agent");
+        first.accent = Some("pink".into());
+        let mut second = tab("second", "Second");
+        second.status = "working".into();
+        second.accent = Some("green".into());
+        let tabs = [first, second];
+        let frame = render_frame(
+            &tabs,
+            Some("first"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            Instant::now(),
+            true,
+        );
+        let plain = plain(&frame.bytes);
+        assert_eq!(plain.chars().filter(|ch| *ch == '│').count(), 1);
+        assert!(plain.starts_with("   Agent"));
+        assert!(plain.contains(" Second"));
+        assert_eq!(plain.chars().nth(23), Some('S'));
+        assert!(
+            frame
+                .bytes
+                .contains(&tinted_background(tab_accent(Some("pink")), true))
+        );
+        assert!(
+            frame
+                .bytes
+                .contains(&tinted_foreground(tab_accent(Some("pink")), 55, true, true))
+        );
+        assert_eq!(frame.hits[0].0, 0);
+        assert_eq!(frame.hits[0].1, frame.hits[1].0);
+        assert_eq!(plain.chars().count(), 80);
+        let palette = render_frame(
+            &tabs,
+            Some("first"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            Instant::now(),
+            false,
+        );
+        assert!(palette.bytes.contains("\x1b[48;5;53m"));
+        assert!(palette.bytes.contains("\x1b[38;5;96m│"));
     }
 
     #[test]
@@ -1299,7 +1432,7 @@ mod tests {
         assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
         assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [18, 18, 18]);
         let crowded = render(&tabs, Some("tab-4"), 60);
-        assert!(widths(crowded.clone()).iter().all(|width| *width == 10));
+        assert!(widths(crowded.clone()).iter().all(|width| *width == 12));
         assert!(crowded.bytes.contains("a very …"));
         assert!(
             crowded
