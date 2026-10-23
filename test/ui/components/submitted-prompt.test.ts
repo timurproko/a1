@@ -11,15 +11,15 @@ describe("submitted prompt rows", () => {
     const source = new Date(2026, 3, 2, 9, 7);
     const rows = composeSubmittedPromptRows(["first row", "continued"], 34, source);
     expect(formatSubmittedPromptTime(source)).toBe("9:07 AM");
-    expect(rows[0]).toMatch(/^❯ first row\s+9:07 AM$/);
-    expect(rows[1]).toBe("  continued");
+    expect(rows[0]).toMatch(/^ ❯ first row\s+9:07 AM$/);
+    expect(rows[1]).toBe("   continued");
     expect(rows.every(row => displayWidth(row) <= 34)).toBe(true);
   });
 
   it("omits only the timestamp when width cannot leave useful prompt content", () => {
     const source = new Date(2026, 3, 2, 9, 7);
     expect(submittedPromptLayout(14, source).timestamp).toBeNull();
-    expect(composeSubmittedPromptRows(["complete prompt"], 14, source)[0]).toBe("❯ complete pro");
+    expect(composeSubmittedPromptRows(["complete prompt"], 14, source)[0]).toBe(" ❯ complete pr");
   });
 
   it("supports deterministic 24-hour and uppercase 12-hour boundaries", () => {
@@ -35,6 +35,6 @@ describe("submitted prompt rows", () => {
 
   it("rejects an invalid resumed timestamp without changing the text", () => {
     expect(formatSubmittedPromptTime(Number.NaN)).toBeNull();
-    expect(composeSubmittedPromptRows(["resumed"], 20, Number.NaN)).toEqual(["❯ resumed"]);
+    expect(composeSubmittedPromptRows(["resumed"], 20, Number.NaN)).toEqual([" ❯ resumed"]);
   });
 });

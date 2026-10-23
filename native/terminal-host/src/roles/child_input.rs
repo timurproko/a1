@@ -58,6 +58,11 @@ impl SemanticEncoder {
             } => {
                 let code = semantic_keys::key_code(key)
                     .ok_or_else(|| "input rejected; unknown key identity".to_owned())?;
+                // Protocol: owned prompt navigation consumes the legacy modified-arrow form.
+                // Normalize it even if a child's keyboard mode would encode the key differently.
+                if let Some(bytes) = prompt_navigation_arrow(key, *mods) {
+                    return Ok(bytes);
+                }
                 // Compatibility: without the kitty keyboard protocol a modified Enter, Tab,
                 // Backspace, or Escape reaches direct A1 as the bytes its terminal sends, such as
                 // the LF ConPTY reports for Ctrl+Enter; only an enhanced child gets libghostty's form.
@@ -129,6 +134,20 @@ impl SemanticEncoder {
             }
         }
     }
+}
+
+fn prompt_navigation_arrow(key: &str, mods: u8) -> Option<Vec<u8>> {
+    let parameter = match mods {
+        MOD_SHIFT => 2,
+        MOD_CTRL => 5,
+        _ => return None,
+    };
+    let letter = match key {
+        "arrow-up" => 'A',
+        "arrow-down" => 'B',
+        _ => return None,
+    };
+    Some(format!("\x1b[1;{parameter}{letter}").into_bytes())
 }
 
 /// The bytes direct A1 observes for a modified Enter, Tab, Backspace, or Escape that the legacy
@@ -250,6 +269,30 @@ fn mouse_button(number: u8) -> Option<MouseButton> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn modified_arrows_reach_the_child_as_prompt_navigation_keys() {
+        let terminal = GhosttyTerminal::new(80, 24).expect("terminal");
+        let mut encoder = SemanticEncoder::new(&terminal, 80, 24).expect("encoder");
+        for (mods, up, down) in [
+            (MOD_SHIFT, b"\x1b[1;2A".as_slice(), b"\x1b[1;2B".as_slice()),
+            (MOD_CTRL, b"\x1b[1;5A".as_slice(), b"\x1b[1;5B".as_slice()),
+        ] {
+            for (key, expected) in [("arrow-up", up), ("arrow-down", down)] {
+                let event = InputEvent::Key {
+                    key: key.into(),
+                    mods,
+                    text: None,
+                    repeat: false,
+                };
+                assert_eq!(
+                    encoder.encode(&terminal, &event).expect("modified arrow"),
+                    expected,
+                    "{key}"
+                );
+            }
+        }
+    }
 
     #[test]
     fn paste_encoding_matches_a_terminal_in_either_mode() {

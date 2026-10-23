@@ -592,6 +592,78 @@ pub(super) fn lifecycle_status(
     serde_json::json!({ "pending": pending, "oldestMs": oldest_ms })
 }
 
+/// Applies one revision-guarded durable tab move; no-op and stale requests leave no mutation.
+pub(super) fn reorder_registry(
+    registry: &mut RegistryDocument,
+    reorder: &wire::TabReorder,
+) -> bool {
+    if registry.registry_revision != reorder.expected_revision {
+        return false;
+    }
+    // Protocol: the client sends an index in its tab.list (only live records), not an index
+    // into the durable registry, which may contain arbitrarily many interleaved stopped tabs.
+    let live = registry
+        .tabs
+        .iter()
+        .filter(|tab| tab.desired != "stopped")
+        .map(|tab| tab.tab_id.as_str())
+        .collect::<Vec<_>>();
+    let Some(from) = live.iter().position(|id| *id == reorder.tab_id) else {
+        return false;
+    };
+    let target = reorder.target_index.min(live.len().saturating_sub(1));
+    if target == from {
+        return false;
+    }
+    let Some(raw_from) = registry
+        .tabs
+        .iter()
+        .position(|tab| tab.tab_id == reorder.tab_id)
+    else {
+        return false;
+    };
+    let tab = registry.tabs.remove(raw_from);
+    let raw_target = registry
+        .tabs
+        .iter()
+        .enumerate()
+        .filter(|(_, tab)| tab.desired != "stopped")
+        .nth(target)
+        .map(|(index, _)| index)
+        .unwrap_or_else(|| {
+            registry
+                .tabs
+                .iter()
+                .rposition(|tab| tab.desired != "stopped")
+                .map_or(0, |index| index + 1)
+        });
+    registry.tabs.insert(raw_target, tab);
+    for (index, tab) in registry.tabs.iter_mut().enumerate() {
+        tab.order = index as u32;
+    }
+    bump_registry_revision(registry);
+    true
+}
+
+/// Restores Settings to the last live slot on an explicit open, not while prewarming or dragging.
+pub(super) fn move_settings_last(registry: &mut RegistryDocument, tab_id: &str) -> bool {
+    let last = registry
+        .tabs
+        .iter()
+        .filter(|tab| tab.desired != "stopped")
+        .count()
+        .saturating_sub(1);
+    let expected_revision = registry.registry_revision;
+    reorder_registry(
+        registry,
+        &wire::TabReorder {
+            tab_id: tab_id.to_owned(),
+            target_index: last,
+            expected_revision,
+        },
+    )
+}
+
 /// Runs one lifecycle request from an attached client on that client's lifecycle worker.
 pub(super) fn handle_lifecycle(
     state: &Arc<Mutex<RuntimeState>>,
@@ -716,25 +788,7 @@ pub(super) fn handle_lifecycle(
             let (_, reorder): (_, wire::TabReorder) = wire::body(payload)?;
             let commit = {
                 let mut locked = lock_state(&state)?;
-                if locked.registry.registry_revision != reorder.expected_revision {
-                    None
-                } else if let Some(from) = locked
-                    .registry
-                    .tabs
-                    .iter()
-                    .position(|tab| tab.tab_id == reorder.tab_id)
-                {
-                    let tab = locked.registry.tabs.remove(from);
-                    let target = reorder.target_index.min(locked.registry.tabs.len());
-                    locked.registry.tabs.insert(target, tab);
-                    for (index, tab) in locked.registry.tabs.iter_mut().enumerate() {
-                        tab.order = index as u32;
-                    }
-                    bump_registry_revision(&mut locked.registry);
-                    Some(registry_snapshot(&locked))
-                } else {
-                    None
-                }
+                reorder_registry(&mut locked.registry, &reorder).then(|| registry_snapshot(&locked))
             };
             let accepted = commit.is_some();
             commit_staged(commit)?;

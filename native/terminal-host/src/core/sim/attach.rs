@@ -308,7 +308,10 @@ impl Run<'_> {
             self.apply(effect)?;
         }
         if presented(&self.state) != before && !painted {
-            return self.fail("interaction state changed without a paint");
+            return self.fail(&format!(
+                "interaction state changed without a paint: {before} -> {}",
+                presented(&self.state)
+            ));
         }
         Ok(())
     }
@@ -419,7 +422,7 @@ impl Run<'_> {
     /// The resident server answers each request against the model registry.
     fn request(&mut self, request: Request) -> Result<(), SimulationFailure> {
         match request {
-            Request::Create | Request::OpenSettings => {
+            Request::Create | Request::OpenSettings | Request::PrewarmSettings => {
                 let prefix = if request == Request::Create {
                     "tab"
                 } else {

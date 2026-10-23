@@ -290,7 +290,12 @@ impl PopupMenu {
         Self::new(PopupKind::Context, Some(tab_id), column, columns, items)
     }
 
-    pub fn add(column: u16, columns: u16, shortcuts: &(impl ShortcutLabels + ?Sized)) -> Self {
+    pub fn add(
+        column: u16,
+        columns: u16,
+        shortcuts: &(impl ShortcutLabels + ?Sized),
+        settings_shown: bool,
+    ) -> Self {
         Self::new(
             PopupKind::Add,
             None,
@@ -305,7 +310,11 @@ impl PopupMenu {
                 PopupItem::separator(),
                 // Invariant: labels align after the `+ ` marker, so Settings starts under Agent.
                 PopupItem::action(
-                    "  Settings",
+                    if settings_shown {
+                        "✓ Settings"
+                    } else {
+                        "  Settings"
+                    },
                     shortcuts.label("tabs.settings"),
                     PopupAction::Settings,
                 ),
@@ -680,7 +689,9 @@ pub struct TabDrag {
     pub started_at: Duration,
     pub shown: bool,
     pub drop_index: Option<usize>,
-    pub expected_revision: u64,
+    pub marker_column: Option<u16>,
+    /// Invariant: the tab order at press time guards against rebasing a drag across topology changes.
+    pub initial_order: Vec<String>,
 }
 
 pub fn drag_destination<T: TabView>(
@@ -718,25 +729,29 @@ pub fn drag_destination<T: TabView>(
 pub fn update_drag<T: TabView>(
     drag: &mut TabDrag,
     column: u16,
-    on_strip: bool,
     tabs: &[T],
     strip: &impl StripLayout,
     now: Duration,
 ) -> bool {
-    let previous = (drag.shown, drag.drop_index);
+    let previous = (drag.shown, drag.drop_index, drag.marker_column);
     if !drag.shown
         && (column != drag.start_column || now.saturating_sub(drag.started_at) >= DRAG_HOLD)
     {
         drag.shown = true;
     }
-    drag.drop_index = drag
-        .shown
-        .then(|| drag_destination(column, on_strip, tabs, strip, &drag.tab_id))
-        .flatten();
-    previous != (drag.shown, drag.drop_index)
+    // Invariant: project a held drag onto the strip even while the pointer is below it.
+    // A release, not leaving the strip, ends the gesture.
+    if drag.shown {
+        let next = drag_destination(column, true, tabs, strip, &drag.tab_id);
+        if next != drag.drop_index {
+            drag.drop_index = next;
+            drag.marker_column = current_drag_marker_column(drag, tabs, strip);
+        }
+    }
+    previous != (drag.shown, drag.drop_index, drag.marker_column)
 }
 
-pub fn drag_marker_column<T: TabView>(
+fn current_drag_marker_column<T: TabView>(
     drag: &TabDrag,
     tabs: &[T],
     strip: &impl StripLayout,
@@ -754,8 +769,17 @@ pub fn drag_marker_column<T: TabView>(
         .map(|(start, end, _)| if to < from { start } else { end })
 }
 
-/// The Settings shortcut toggles: on the viewed Settings tab it hides that tab, returning to the
-/// previous tab; anywhere else it shows the singleton Settings tab.
+pub fn drag_marker_column<T: TabView>(drag: &TabDrag, tabs: &[T]) -> Option<u16> {
+    let from = tabs.iter().position(|tab| tab.id() == drag.tab_id)?;
+    let to = drag.drop_index?;
+    if drag.shown && from != to && tabs.get(to).is_some() {
+        drag.marker_column
+    } else {
+        None
+    }
+}
+
+/// The viewed Settings tab is the close target when its shortcut toggles it off.
 pub fn settings_toggle_closes(viewed: Option<&str>) -> Option<&str> {
     viewed.filter(|id| id.starts_with("settings-"))
 }

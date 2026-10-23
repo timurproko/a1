@@ -254,15 +254,21 @@ pub fn play(row_widths: &[usize], seed: u32, mut write: impl FnMut(&[u8]) -> boo
 pub fn presented_row_widths(
     columns: u16,
     outer_rows: u16,
+    child_row_offset: u16,
     surface: Option<&crate::protocol::StructuredSurface>,
 ) -> Vec<usize> {
     let mut widths = vec![0usize; usize::from(outer_rows)];
-    if let Some(first) = widths.first_mut() {
-        *first = usize::from(columns);
+    let strip_row = if child_row_offset == 0 {
+        usize::from(outer_rows.saturating_sub(1))
+    } else {
+        0
+    };
+    if let Some(width) = widths.get_mut(strip_row) {
+        *width = usize::from(columns);
     }
     if let Some(surface) = surface {
         for (index, row) in surface.row_data.iter().enumerate() {
-            let Some(width) = widths.get_mut(index + 1) else {
+            let Some(width) = widths.get_mut(index + usize::from(child_row_offset)) else {
                 break;
             };
             // Invariant: solo measures each presented line including its painted padding, so a
@@ -417,7 +423,10 @@ mod tests {
                 cells: vec![cell(" "), cell(" ")],
             },
         ];
-        assert_eq!(presented_row_widths(6, 4, Some(&surface)), vec![6, 2, 0, 0]);
+        assert_eq!(
+            presented_row_widths(6, 4, 1, Some(&surface)),
+            vec![6, 2, 0, 0]
+        );
 
         // Invariant: A highlighted row with blank padding dissolves across its painted width, as in solo.
         surface.styles = vec![
@@ -428,7 +437,16 @@ mod tests {
             },
         ];
         surface.row_data[1].cells[1].style = 1;
-        assert_eq!(presented_row_widths(6, 4, Some(&surface)), vec![6, 2, 2, 0]);
-        assert_eq!(presented_row_widths(6, 2, None), vec![6, 0]);
+        assert_eq!(
+            presented_row_widths(6, 4, 1, Some(&surface)),
+            vec![6, 2, 2, 0]
+        );
+        assert_eq!(
+            presented_row_widths(6, 4, 0, Some(&surface)),
+            vec![2, 2, 0, 6],
+            "a bottom strip and every child row are covered exactly once"
+        );
+        assert_eq!(presented_row_widths(6, 2, 1, None), vec![6, 0]);
+        assert_eq!(presented_row_widths(6, 2, 0, None), vec![0, 6]);
     }
 }

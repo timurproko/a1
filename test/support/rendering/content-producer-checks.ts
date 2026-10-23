@@ -50,7 +50,9 @@ export async function verifyScheduledContent(workload: (typeof CONTENT_RENDERING
         expect(result.presentations!.some(frame => frame.documentRange !== null)).toBe(true);
         expect(result.writes.some((write, index) => write.damageDecision?.frameId != null
           && result.presentations!.some(frame => frame.frameId === write.damageDecision!.frameId && frame.writeStart <= index))).toBe(true);
-        expect(frames.at(-1)!.rows.some(row => row.includes("❯ x"))).toBe(true);
+        const dock = final.viewport?.dock;
+        if (dock === undefined || dock === null) throw new Error("final editor dock is missing");
+        expect(stripAnsi(frames.at(-1)!.rows[dock.rowStart + 1] ?? "").trimEnd()).toBe("x");
         expect(classifyTerminalPaint(result.writes.slice(result.checkpoints[0]!.writeEnd)).fullScreenClears).toBe(0);
         // Invariant: a later correct final snapshot cannot hide an omitted live or intermediate surface.
         const missingLive = frames.map((frame, index) => index === result.checkpoints.findIndex(checkpoint => checkpoint.name === "live-paint")

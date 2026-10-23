@@ -19,6 +19,66 @@ fn serialize_role_fixture() -> std::sync::MutexGuard<'static, ()> {
 }
 
 #[test]
+fn cold_attach_enters_the_screen_with_a_named_tab_not_an_empty_strip() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    let bin = directory(&release, "bin");
+    std::fs::write(
+        bin.join("ui.js"),
+        "if (process.stdin.isTTY) process.stdin.setRawMode(true); process.stdin.on('data', value => process.stdout.write('key:' + Buffer.from(value).toString('hex') + '\\r\\n')); process.stdout.write('fake-a1-ready\\r\\n'); setInterval(() => {}, 1000);\n",
+    )
+    .expect("fake child");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let _cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(
+        attach.output_containing("fake-a1-ready", Duration::from_secs(12)),
+        "{}",
+        attach.output_text()
+    );
+    let output = String::from_utf8_lossy(&attach.retained);
+    assert!(
+        output
+            .find("Agent")
+            .is_some_and(|name| output.find(" + ").is_some_and(|plus| name < plus)),
+        "first strip must already have its tab name: {output}"
+    );
+    let name = output.find("Agent").expect("first tab name");
+    let body = output.find("fake-a1-ready").expect("first child surface");
+    assert!(name < body, "the first tab is named before its child draws");
+    assert!(
+        !output[name..body].contains("\x1b[?2026l"),
+        "the first strip and child surface must be one synchronized frame"
+    );
+    attach.write(b"\x1b[1;2A");
+    assert!(
+        attach.output_containing("key:1b5b313b3241", Duration::from_secs(5)),
+        "Shift+Up must reach the child: {}",
+        attach.output_text()
+    );
+    attach.write(b"\x1b[1;5B");
+    assert!(
+        attach.output_containing("key:1b5b313b3542", Duration::from_secs(5)),
+        "Ctrl+Down must reach the child: {}",
+        attach.output_text()
+    );
+    attach.child.kill().expect("stop fixture attach");
+}
+
+#[test]
 fn server_holder_and_attach_survive_client_loss_and_retain_output() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
@@ -147,7 +207,8 @@ setInterval(() => {}, 1000);
 
     let holder_before_replacement = holder_pids(&credentials_root);
     let epoch_before_replacement = registry_epoch(&credentials_root);
-    assert_eq!(holder_before_replacement.len(), 1);
+    // Invariant: Settings may be prewarmed; only the one Agent holder is required here.
+    assert_eq!(agent_holder_pids(&credentials_root).len(), 1);
     for pid in server_pids(&credentials_root) {
         terminate(pid);
     }
@@ -575,7 +636,12 @@ setInterval(() => {}, 1000);
         let registry = RegistryStore::read(&credentials_root.join("registry.json"))
             .expect("read registry")
             .expect("registry");
-        if registry.tabs.len() == 3 && registry.tabs.iter().all(|tab| tab.lifecycle == "running") {
+        let agents = registry
+            .tabs
+            .iter()
+            .filter(|tab| tab.kind == "agent")
+            .collect::<Vec<_>>();
+        if agents.len() == 3 && agents.iter().all(|tab| tab.lifecycle == "running") {
             break;
         }
         assert!(
@@ -1130,7 +1196,11 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         fake_tab,
         None,
     );
-    assert!(first.output_containing("fake-tab-ready", Duration::from_secs(15)));
+    assert!(
+        first.output_containing("fake-tab-ready", Duration::from_secs(15)),
+        "{}",
+        first.output_text()
+    );
     first.write(b"first-tab\r");
     assert!(first.output_containing("echo:first-tab", Duration::from_secs(10)));
 
@@ -1165,7 +1235,18 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         &[],
     );
     let list = serde_json::from_str::<serde_json::Value>(&listed).expect("tab-list json");
-    assert_eq!(list["tabs"].as_array().expect("tab list").len(), 2);
+    assert_eq!(
+        list["tabs"]
+            .as_array()
+            .expect("tab list")
+            .iter()
+            .filter(|tab| !tab["tabId"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("settings-")))
+            .count(),
+        2,
+        "prewarmed Settings does not count as an Agent tab"
+    );
 
     let mut second = AttachFixture::spawn_view(
         &executable,
@@ -1232,7 +1313,7 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
 
     let default_tab = holders_before_client_loss
         .iter()
-        .find(|(tab, _, _)| tab != &second_tab)
+        .find(|(tab, _, _)| tab != &second_tab && !tab.starts_with("settings-"))
         .expect("default tab")
         .0
         .clone();
@@ -2363,7 +2444,11 @@ fn an_unviewed_tab_keeps_its_terminal_current_and_presents_it_in_full_when_viewe
         fake_tab,
         None,
     );
-    assert!(viewer.output_containing("fake-tab-ready", Duration::from_secs(15)));
+    assert!(
+        viewer.output_containing("fake-tab-ready", Duration::from_secs(15)),
+        "{}",
+        viewer.output_text()
+    );
 
     let created = Command::new(&executable)
         .args([
