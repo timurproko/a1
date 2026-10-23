@@ -13,7 +13,7 @@ export function locateExecutable(command, { platform = process.platform, env = p
     return key ? env[key] : undefined;
   };
   const extensions = windows ? (value("PATHEXT") ?? ".EXE;.CMD;.BAT").split(";").filter(Boolean) : [""];
-  // Path semantics follow the requested platform, never the host, so an injected platform resolves identically everywhere.
+  // Platform: path semantics follow the requested platform, never the host, so an injected platform resolves identically everywhere.
   const path = windows ? win32 : posix;
   const hasDirectory = path.isAbsolute(command) || /[\\/]/u.test(command);
   const directories = hasDirectory ? [""] : (value("PATH") ?? "").split(windows ? ";" : ":").filter(Boolean);
