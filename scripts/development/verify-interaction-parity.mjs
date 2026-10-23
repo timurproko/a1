@@ -174,6 +174,38 @@ export function caseStream(records) {
 const QUIET_MS = 300;
 const CASE_DEADLINE_MS = 5_000;
 const STEP_GAP_MS = 30;
+const HANDSHAKE_ATTEMPTS = 3;
+const HANDSHAKE_WAIT_MS = 1_500;
+const RAW_OUTPUT_TAIL = 16 * 1024;
+
+/** Waits until the record count stops changing for `QUIET_MS`, so late input cannot spill forward. */
+async function settleRecords(recorder) {
+  let count = recordsFromOutput(recorder.output()).length;
+  let changedAt = Date.now();
+  while (Date.now() - changedAt < QUIET_MS) {
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
+    const next = recordsFromOutput(recorder.output()).length;
+    if (next !== count) { count = next; changedAt = Date.now(); }
+  }
+  return count;
+}
+
+/**
+ * Rationale: visible child output proves only that the output path is live. Before the first
+ * measured case, each candidate must also report an uncompared warm-up input, retried so a
+ * start-up hold or a late terminal reply is flushed instead of fusing into the first case.
+ */
+async function confirmInputPath(terminal, recorder) {
+  for (let attempt = 0; attempt < HANDSHAKE_ATTEMPTS; attempt += 1) {
+    const before = recordsFromOutput(recorder.output()).length;
+    terminal.write(".");
+    try {
+      await recorder.waitFor(output => recordsFromOutput(output).length > before, "input handshake", HANDSHAKE_WAIT_MS);
+      return;
+    } catch { /* Invariant: a held warm-up is released by the next attempt's input. */ }
+  }
+  throw new Error(`no input reached the child after ${HANDSHAKE_ATTEMPTS} handshake attempts`);
+}
 
 async function driveCandidate(candidate, terminal, cases, platform) {
   const rowOffset = candidate === "resident" ? 1 : 0;
@@ -182,11 +214,12 @@ async function driveCandidate(candidate, terminal, cases, platform) {
   const recorder = terminalRecorder(terminal);
   try {
     await recorder.waitFor(output => output.includes("fake-tab-ready"), `${candidate} child readiness`);
+    await confirmInputPath(terminal, recorder);
   } catch (error) {
     failures.push({ caseId: "readiness", candidate, reason: String(error.message) });
-    return { observations, failures };
+    return { observations, failures, output: recorder.output() };
   }
-  let seen = recordsFromOutput(recorder.output()).length;
+  let seen = await settleRecords(recorder);
   for (const entry of cases) {
     const sentAt = performance.now();
     for (const chunk of entry.steps.map(step => stepBytes(step, rowOffset)).filter(Boolean)) {
@@ -209,7 +242,7 @@ async function driveCandidate(candidate, terminal, cases, platform) {
     seen = records.length;
     observations.push(...buildObservations(entry.id, candidate, platform, [caseStream(produced)], sentAt, performance.now()));
   }
-  return { observations, failures };
+  return { observations, failures, output: recorder.output() };
 }
 
 async function main() {
@@ -239,11 +272,13 @@ async function main() {
   const terminals = [];
   const observations = [];
   const failures = [];
+  const rawOutput = {};
   try {
     const direct = spawn(fakeTab, [], { cols: 100, rows: 23, cwd: root, env: environment });
     terminals.push(direct);
     const directRun = await driveCandidate("direct", direct, cases, platform);
     observations.push(...directRun.observations); failures.push(...directRun.failures);
+    rawOutput.direct = directRun.output;
 
     run(host, ["server", "--detach", "--profile", context.profile, "--data-dir", context.data, "--runtime-dir", context.runtime], { cwd: root, env: environment });
     const attach = spawn(process.execPath, [
@@ -254,6 +289,7 @@ async function main() {
     terminals.push(attach);
     const residentRun = await driveCandidate("resident", attach, cases, platform);
     observations.push(...residentRun.observations); failures.push(...residentRun.failures);
+    rawOutput.resident = residentRun.output;
     attach.write("\u0003\u0003");
   } finally {
     for (const terminal of terminals) { try { terminal.kill(); } catch { /* Invariant: a terminal that already exited needs no signal. */ } }
@@ -263,6 +299,12 @@ async function main() {
   // Invariant: this harness observes the bytes each child received, one stream per case.
   const faults = validateObservations(observations, cases.map(entry => ({ ...entry, expects: ["key"] })));
   const report = parityReport(platform, observations, cases, faults, failures);
+  // Rationale: CI keeps only this report, so a failing run carries each candidate's latest
+  // terminal output; that is the evidence needed to place a divergence.
+  if (!report.passed) {
+    report.rawOutputTail = Object.fromEntries(Object.entries(rawOutput)
+      .map(([candidate, output]) => [candidate, output.slice(-RAW_OUTPUT_TAIL)]));
+  }
   const json = `${JSON.stringify(report, null, 2)}\n`;
   if (out) await writeFile(out, json);
   process.stdout.write(json);

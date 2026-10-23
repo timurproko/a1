@@ -31,6 +31,8 @@ const RENDER_DATA_CURSOR_HAS_POSITION: i32 = 14;
 const RENDER_DATA_CURSOR_X: i32 = 15;
 const RENDER_DATA_CURSOR_Y: i32 = 16;
 const RENDER_OPTION_DIRTY: i32 = 0;
+const TERMINAL_DATA_COLS: i32 = 1;
+const TERMINAL_DATA_CURSOR_X: i32 = 3;
 const TERMINAL_DATA_ACTIVE_SCREEN: i32 = 6;
 const TERMINAL_DATA_KITTY_KEYBOARD_FLAGS: i32 = 8;
 const TERMINAL_DATA_SCROLLBAR: i32 = 9;
@@ -1258,6 +1260,34 @@ impl GhosttyTerminal {
             "read kitty keyboard flags",
         )?;
         Ok(flags)
+    }
+
+    /// The parser cursor's zero-based column and the screen width, read directly from the terminal
+    /// without updating render state.
+    pub fn cursor_column(&self) -> Result<(u16, u16), String> {
+        let mut column = 0u16;
+        let mut columns = 0u16;
+        check(
+            unsafe {
+                ghostty_terminal_get(
+                    self.raw,
+                    TERMINAL_DATA_CURSOR_X,
+                    &mut column as *mut u16 as *mut c_void,
+                )
+            },
+            "read cursor column",
+        )?;
+        check(
+            unsafe {
+                ghostty_terminal_get(
+                    self.raw,
+                    TERMINAL_DATA_COLS,
+                    &mut columns as *mut u16 as *mut c_void,
+                )
+            },
+            "read terminal columns",
+        )?;
+        Ok((column, columns))
     }
 
     pub fn alternate_screen(&self) -> Result<bool, String> {
