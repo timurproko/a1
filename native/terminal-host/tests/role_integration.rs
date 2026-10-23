@@ -207,7 +207,8 @@ setInterval(() => {}, 1000);
 
     let holder_before_replacement = holder_pids(&credentials_root);
     let epoch_before_replacement = registry_epoch(&credentials_root);
-    assert_eq!(holder_before_replacement.len(), 1);
+    // Invariant: Settings may be prewarmed; only the one Agent holder is required here.
+    assert_eq!(agent_holder_pids(&credentials_root).len(), 1);
     for pid in server_pids(&credentials_root) {
         terminate(pid);
     }
@@ -635,7 +636,12 @@ setInterval(() => {}, 1000);
         let registry = RegistryStore::read(&credentials_root.join("registry.json"))
             .expect("read registry")
             .expect("registry");
-        if registry.tabs.len() == 3 && registry.tabs.iter().all(|tab| tab.lifecycle == "running") {
+        let agents = registry
+            .tabs
+            .iter()
+            .filter(|tab| tab.kind == "agent")
+            .collect::<Vec<_>>();
+        if agents.len() == 3 && agents.iter().all(|tab| tab.lifecycle == "running") {
             break;
         }
         assert!(
@@ -1229,7 +1235,18 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
         &[],
     );
     let list = serde_json::from_str::<serde_json::Value>(&listed).expect("tab-list json");
-    assert_eq!(list["tabs"].as_array().expect("tab list").len(), 2);
+    assert_eq!(
+        list["tabs"]
+            .as_array()
+            .expect("tab list")
+            .iter()
+            .filter(|tab| !tab["tabId"]
+                .as_str()
+                .is_some_and(|id| id.starts_with("settings-")))
+            .count(),
+        2,
+        "prewarmed Settings does not count as an Agent tab"
+    );
 
     let mut second = AttachFixture::spawn_view(
         &executable,

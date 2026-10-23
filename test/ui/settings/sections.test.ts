@@ -81,7 +81,7 @@ describe("owned UI settings sections", () => {
     expect(entries("appearance")).toEqual(["accentColor", "backgroundStyle", "quitAnimation"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
     expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
-    expect(entries("tabs")).toEqual(["tabsAutoName", "tabsPosition"]);
+    expect(entries("tabs")).toEqual(["tabsPosition", "tabsAutoName"]);
     expect(entries("quit")).toBeUndefined();
     expect(findOwnedUiSettingsEntry(sections, "quitAnimation", "a1")).toMatchObject({
       label: "Quit animation", value: true, origin: "default", application: "live", choices: [true, false],
@@ -128,7 +128,7 @@ describe("owned UI settings sections", () => {
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: null });
     expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck", "timeFormat"]);
     expect(sections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual([
-      "tabsAutoName", "tabsPosition",
+      "tabsPosition", "tabsAutoName",
     ]);
   });
 

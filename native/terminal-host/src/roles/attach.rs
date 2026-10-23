@@ -3129,8 +3129,13 @@ mod tests {
         assert_eq!(tabs[0].accent.as_deref(), Some("cyan"));
         assert_eq!(tabs[1].accent.as_deref(), Some("pink"));
         let frame = strip::render(&tabs, Some("settings-1"), 80);
+        let cyan = if strip::palette_fallback_requested() {
+            "\x1b[48;5;23m"
+        } else {
+            "\x1b[48;2;59;83;88m"
+        };
         assert!(
-            frame.bytes.contains("\x1b[48;2;59;83;88m"),
+            frame.bytes.contains(cyan),
             "Settings is cyan on its first frame"
         );
     }
