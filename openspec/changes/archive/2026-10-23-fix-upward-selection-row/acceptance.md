@@ -15,7 +15,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-23-fix-upward-selection-row/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-23-fix-upward-selection-row/acceptance.md",
   "finalizedDate": "2026-10-23",
-  "specBaseSha": "cb802f39bbc4bfdc5165bd140fd7cb227c2a0932",
+  "specBaseSha": "b20a04e731f67680decf750df6a0136748a118af",
   "acceptanceScenarios": [
     "Upward dragging through the tab-strip edge selects the first visible transcript content row from the pointer column to the row end.",
     "Tab-strip and pinned-prompt chrome stay outside copied text while forward and reverse selection retain matching visible boundaries."
