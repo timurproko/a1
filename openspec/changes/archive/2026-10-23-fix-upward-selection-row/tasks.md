@@ -10,6 +10,7 @@
 - [x] 2.3 Copy every selected transcript row when held-edge auto-scroll grows an upward drag beyond one screen, including rows past either viewport edge and beneath the jump-to-bottom control, with paint still clipped to visible rows.
 - [x] 2.4 Extend a detached downward content drag into the pointed dock row while auto-scroll keeps advancing the transcript and every passed transcript row stays selected.
 - [x] 2.5 Keep a held drag's press anchor on its document row when streaming restyles or reflows it, instead of following the live tail or clearing the selection.
+- [x] 2.6 Order a transcript press anchor scrolled below the viewport before dock rows so an upward drag reversed into the dock never inverts.
 
 ## 3. Delivery evidence
 

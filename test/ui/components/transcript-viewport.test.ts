@@ -476,6 +476,37 @@ describe("transcript viewport", () => {
     expect(copied.at(-1)).toBe(`${viewport.scrollTop + 7}. q${viewport.scrollTop + 7}`);
   });
 
+  it("orders a press row scrolled below the viewport before the dock instead of inverting the range", () => {
+    const SELECTED = "\u001b[45m";
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: rows(40), promptAnchors: [], dockRows: ["editor", "footer"], width: 30, height: 10,
+      theme: {
+        track: (text: string) => text, thumb: (text: string) => text, sticky: (text: string) => text,
+        quietSticky: (text: string) => text, bottomControl: (text: string) => text,
+        selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, SELECTED),
+      },
+    };
+    viewport.compose(input);
+    viewport.scrollTo(20);
+    viewport.compose(input);
+    viewport.pressSelection(1, 7, 100);
+    viewport.extendSelection(1, 1, 101, false);
+    for (let tick = 0; tick < 4; tick += 1) {
+      viewport.scrollBy(-1);
+      viewport.extendSelection(1, 1, undefined, false);
+      viewport.compose(input);
+    }
+    expect(viewport.scrollTop).toBe(16);
+
+    viewport.extendSelection(4, 9, 102, false);
+    const crossed = viewport.compose(input);
+    expect(crossed.rows.slice(0, 8).some(row => row.includes(SELECTED))).toBe(false);
+    expect(crossed.rows[8]).toContain(SELECTED);
+    expect(crossed.rows[9]).not.toContain(SELECTED);
+    expect(viewport.selectedText()).toBe(rows(40).slice(26).join("\n"));
+  });
+
   describe("with a pinned sticky prompt", () => {
     const SELECTED = "\u001b[45m";
     const input = {
