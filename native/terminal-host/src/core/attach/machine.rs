@@ -859,6 +859,7 @@ impl State {
                             .shown(context)
                             .iter()
                             .position(|tab| tab.id() == tab_id),
+                        marker_column: None,
                         expected_revision: self.registry_revision,
                     });
                     if context.viewed != Some(tab_id.as_str()) {

@@ -680,6 +680,7 @@ pub struct TabDrag {
     pub started_at: Duration,
     pub shown: bool,
     pub drop_index: Option<usize>,
+    pub marker_column: Option<u16>,
     pub expected_revision: u64,
 }
 
@@ -723,7 +724,7 @@ pub fn update_drag<T: TabView>(
     strip: &impl StripLayout,
     now: Duration,
 ) -> bool {
-    let previous = (drag.shown, drag.drop_index);
+    let previous = (drag.shown, drag.drop_index, drag.marker_column);
     if !drag.shown
         && (column != drag.start_column || now.saturating_sub(drag.started_at) >= DRAG_HOLD)
     {
@@ -733,10 +734,11 @@ pub fn update_drag<T: TabView>(
         .shown
         .then(|| drag_destination(column, on_strip, tabs, strip, &drag.tab_id))
         .flatten();
-    previous != (drag.shown, drag.drop_index)
+    drag.marker_column = current_drag_marker_column(drag, tabs, strip);
+    previous != (drag.shown, drag.drop_index, drag.marker_column)
 }
 
-pub fn drag_marker_column<T: TabView>(
+fn current_drag_marker_column<T: TabView>(
     drag: &TabDrag,
     tabs: &[T],
     strip: &impl StripLayout,
@@ -752,6 +754,16 @@ pub fn drag_marker_column<T: TabView>(
         .into_iter()
         .find(|(_, _, id)| *id == target.id())
         .map(|(start, end, _)| if to < from { start } else { end })
+}
+
+pub fn drag_marker_column<T: TabView>(drag: &TabDrag, tabs: &[T]) -> Option<u16> {
+    let from = tabs.iter().position(|tab| tab.id() == drag.tab_id)?;
+    let to = drag.drop_index?;
+    if drag.shown && from != to && tabs.get(to).is_some() {
+        drag.marker_column
+    } else {
+        None
+    }
 }
 
 /// The Settings shortcut toggles: on the viewed Settings tab it hides that tab, returning to the

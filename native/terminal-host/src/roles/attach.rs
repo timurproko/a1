@@ -405,7 +405,7 @@ fn append_drag_marker<T: TabView>(
     columns: u16,
     row: u16,
 ) {
-    if let Some(column) = drag.and_then(|drag| drag_marker_column(drag, tabs, frame)) {
+    if let Some(column) = drag.and_then(|drag| drag_marker_column(drag, tabs)) {
         frame
             .bytes
             .push_str(&render_drag_marker_at(column, columns, row));
@@ -490,18 +490,24 @@ fn read_presentation_settings(path: &Path) -> PresentationSettings {
         .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
         .and_then(|_| std::fs::read(path).ok())
         .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
-    let Some(a1) = document.as_ref().and_then(|value| value.get("a1")) else {
+    let Some(owned_settings) = document.as_ref().and_then(|value| value.get("a1")) else {
         return PresentationSettings::default();
     };
     PresentationSettings {
         time_format: TimeFormat::from_setting(
-            a1.get("timeFormat").and_then(serde_json::Value::as_str),
+            owned_settings
+                .get("timeFormat")
+                .and_then(serde_json::Value::as_str),
         ),
         accent_hover: accent_selected_background(
-            a1.get("accentColor").and_then(serde_json::Value::as_str),
+            owned_settings
+                .get("accentColor")
+                .and_then(serde_json::Value::as_str),
         ),
         tab_bar_position: TabBarPosition::from_setting(
-            a1.get("tabsPosition").and_then(serde_json::Value::as_str),
+            owned_settings
+                .get("tabsPosition")
+                .and_then(serde_json::Value::as_str),
         ),
     }
 }
@@ -3580,6 +3586,7 @@ mod tests {
             started_at: now,
             shown: false,
             drop_index: Some(0),
+            marker_column: None,
             expected_revision: 9,
         };
         let mut held = TabDrag {
@@ -3588,18 +3595,19 @@ mod tests {
             started_at: now - core_attach::DRAG_HOLD,
             shown: false,
             drop_index: Some(0),
+            marker_column: None,
             expected_revision: 9,
         };
         assert!(update_drag(&mut held, 1, true, &tabs, &snapshot, now));
         assert!(held.shown);
-        assert_eq!(drag_marker_column(&held, &tabs, &snapshot), None);
+        assert_eq!(drag_marker_column(&held, &tabs), None);
 
         assert!(update_drag(
             &mut drag, last_end, true, &tabs, &snapshot, now
         ));
         assert!(drag.shown);
         assert_eq!(drag.drop_index, Some(2));
-        assert_eq!(drag_marker_column(&drag, &tabs, &snapshot), Some(last_end));
+        assert_eq!(drag_marker_column(&drag, &tabs), Some(last_end));
         let mut top = strip::render(&tabs, Some("a"), 80);
         append_drag_marker(&mut top, Some(&drag), &tabs, 80, 1);
         assert!(top.bytes.contains(&format!("\x1b[1;{}H", last_end + 1)));

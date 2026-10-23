@@ -2120,7 +2120,7 @@ mod tests {
     #[test]
     fn bottom_legacy_translation_fails_closed_on_malformed_cursor_addressing() {
         let composer = PresentationComposer::default();
-        for legacy in [b"body\x1b[".to_vec(), b"\x1b[nope;1Hbody".to_vec()] {
+        for legacy in [b"body\x1b[".to_vec(), b"\x1b[1:2;1Hbody".to_vec()] {
             let mut bottom = desired(None, legacy);
             bottom.child_row_offset = 0;
             assert!(
