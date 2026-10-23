@@ -180,6 +180,32 @@ describe("A1-owned damage-aware terminal adapter", () => {
     expect(actual.final.rows.slice(0, 8)).toEqual(["B", "C", "D", "E", "F", "G", "editor", "footer"]);
   });
 
+  it("replaces moved bottom controls and live status rows without retaining the former cells", async () => {
+    const terminal = new RecordingTerminal();
+    const adapter = new DamageAwareTerminalAdapter(terminal, { regionalScroll: true, inspectHyperlinks: readVisibleHyperlinks });
+    const initialRows = ["A", "B", "C", "D", "", "Jump to bottom", "editor", "footer"];
+    const initial = fullscreenWrite(initialRows);
+    adapter.arm(descriptor(1), SAFE);
+    adapter.write(initial);
+
+    const moved = fullscreenWrite(["1 new message", ""], 5, 7);
+    adapter.arm({ ...descriptor(2), cause: "detached" }, SAFE);
+    adapter.write(moved);
+    expect(adapter.presentedRows()).toEqual(["A", "B", "C", "D", "1 new message", "", "editor", "footer"]);
+
+    const settled = fullscreenWrite(["Working", ""], 5, 7);
+    adapter.arm({ ...descriptor(3), cause: "steady" }, SAFE);
+    adapter.write(settled);
+    expect(adapter.presentedRows()).toEqual(["A", "B", "C", "D", "Working", "", "editor", "footer"]);
+
+    const actual = await replayTerminalPaint(terminal.writes.map((data, atMs) => ({ data, atMs })), {
+      columns: 40,
+      rows: 8,
+      synchronizedUpdates: "honor",
+    });
+    expect(actual.final.rows.slice(0, 8)).toEqual(["A", "B", "C", "D", "Working", "", "editor", "footer"]);
+  });
+
   it("restarts frame ids in a new presentation epoch, painting its first frame in full", () => {
     const { adapter, terminal } = initialized();
     adapter.arm(descriptor(9), SAFE);

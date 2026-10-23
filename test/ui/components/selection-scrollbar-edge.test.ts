@@ -32,6 +32,31 @@ function fixture(width: number, appearance: "auto" | "always" | "hidden", style:
 }
 
 describe("truthful selection beside the scrollbar gutter", () => {
+  it("keeps annotated and blank rows in one fixed gutter through the final content row", async () => {
+    const width = 60, height = 12;
+    const viewport = new TranscriptViewport();
+    viewport.setConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin" });
+    const terminal = new HeadlessXterm.Terminal({ cols: width, rows: height, allowProposedApi: true, scrollback: 0 });
+    const documentRows = Array.from({ length: 40 }, (_, index) => index % 3 === 0 ? ""
+      : `\u001b[48;2;11;22;33m \u001b]133;A\u0007row ${index}\u001b]133;B\u001b\\\u001b]133;C\u0007\u001b[0m`);
+    try {
+      for (const dockHeight of [2, 4, 1, 3, 2]) {
+        const frame = viewport.compose({ documentRows, dockRows: Array.from({ length: dockHeight }, () => "dock"),
+          promptAnchors: [], width, height, theme, now: 100 });
+        const viewportHeight = height - dockHeight;
+        expect(frame.hits.rail).toMatchObject({ column: width, rowStart: 2, trackHeight: viewportHeight - 1 });
+        expect(frame.rows.join("")).not.toMatch(/\u001b\]133;[ABC]/u);
+        const data = frame.rows.map((row, index) => `\u001b[${index + 1};1H\u001b[0m\u001b[2K${row}`).join("");
+        await new Promise<void>(resolve => terminal.write(data, resolve));
+        for (let row = 0; row < height; row++) {
+          const line = terminal.buffer.active.getLine(row)!;
+          const railColumns = Array.from({ length: width }, (_, column) => column)
+            .filter(column => /[│┃]/u.test(line.getCell(column)!.getChars()));
+          expect(railColumns, `row ${row}, dock ${dockHeight}`).toEqual(row > 0 && row < viewportHeight ? [width - 1] : []);
+        }
+      }
+    } finally { terminal.dispose(); }
+  });
   it.each(["auto", "always", "hidden"] as const)("reaches the final content cell with %s rails", appearance => {
     const { viewport, compose, plain, contentWidth } = fixture(12, appearance, "thin");
     viewport.pressSelection(1, 2, 100);
@@ -185,6 +210,8 @@ describe("truthful selection beside the scrollbar gutter", () => {
           expect(gutter.isBgDefault()).toBe(!selected);
           if (selected) expect(gutter.getBgColor()).toBe(SELECTED);
           expect(gutter.getChars() || " ").toBe(appearance === "always" ? "│" : " ");
+          const track = terminal.buffer.active.getLine(hit.row - 2)!.getCell(width - 1)!;
+          expect(track.getChars() || " ").toBe(appearance === "always" ? "│" : " ");
         } finally { terminal.dispose(); }
       }
     }
