@@ -23,7 +23,7 @@ use crate::protocol::{
 };
 use crate::roles::child_containment::ChildContainment;
 use crate::roles::child_input::{self, SemanticEncoder};
-use crate::roles::conpty_cursor::{ConptyCursorRepair, ConptyStep};
+use crate::roles::conpty_cursor::ConptyCursorRepair;
 use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::wire::{
     self, HolderExit, HolderLaunchConfig, HolderRespawn, Input, PasteStart, Resize, RoleHello,
@@ -68,6 +68,8 @@ struct SynchronizationState {
     render_pass_due: Option<std::time::Instant>,
     /// Earliest publication of re-rendered output, so one pass is not split across commits.
     settled_at: Option<std::time::Instant>,
+    /// Platform: a re-rendering PTY can also leave its cursor past the final column.
+    conpty_cursor: ConptyCursorRepair,
 }
 
 impl SynchronizationState {
@@ -79,7 +81,19 @@ impl SynchronizationState {
             markers_delimit_frames,
             render_pass_due: None,
             settled_at: None,
+            conpty_cursor: ConptyCursorRepair::new(!markers_delimit_frames),
         }
+    }
+
+    /// Writes PTY output through the next synchronized-output boundary, first reconciling a
+    /// re-rendering PTY's past-the-edge cursor. Returns the bytes consumed, including dropped ones.
+    fn feed(
+        &mut self,
+        terminal: &mut GhosttyTerminal,
+        bytes: &[u8],
+    ) -> Result<(usize, Option<SynchronizedOutputBoundary>), String> {
+        self.conpty_cursor
+            .write_until_sync_boundary(terminal, bytes)
     }
 
     fn begin(&mut self, now: std::time::Instant) {
@@ -803,8 +817,6 @@ fn run_holder(
         SurfaceCommitKind::Complete,
     )?;
     let mut synchronization = SynchronizationState::new(MARKERS_DELIMIT_FRAMES);
-    // Platform: only Windows ConPTY re-renders with a cursor that can sit past the final column.
-    let mut conpty_cursor = ConptyCursorRepair::new(cfg!(windows));
     let mut geometry_deadline: Option<std::time::Instant> = None;
     let mut pending_effects = Vec::<EffectKind>::new();
     let mut effect_sequence = 0u64;
@@ -1184,16 +1196,7 @@ fn run_holder(
             let mut offset = 0usize;
             let now = std::time::Instant::now();
             while offset < bytes.len() {
-                let limit =
-                    match conpty_cursor.next_step(&bytes[offset..], || terminal.cursor_column())? {
-                        ConptyStep::Drop(length) => {
-                            offset += length;
-                            continue;
-                        }
-                        ConptyStep::Write(length) => offset + length,
-                    };
-                let (consumed, boundary) =
-                    terminal.write_until_sync_boundary(&bytes[offset..limit])?;
+                let (consumed, boundary) = synchronization.feed(&mut terminal, &bytes[offset..])?;
                 offset += consumed;
                 changed = true;
                 let answers = terminal.take_responses();

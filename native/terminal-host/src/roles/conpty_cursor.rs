@@ -13,6 +13,8 @@
 //! past the last column, and drops that many immediately following backspaces. Only SGR and
 //! synchronized-output markers may separate them; any other byte ends the overshoot.
 
+use crate::ghostty::{GhosttyTerminal, SynchronizedOutputBoundary};
+
 /// The next action the holder takes on its remaining PTY bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConptyStep {
@@ -66,6 +68,28 @@ impl ConptyCursorRepair {
         Ok(ConptyStep::Write(
             next_cursor_forward(bytes).unwrap_or(bytes.len()),
         ))
+    }
+
+    /// Writes `bytes` to the parser through the next synchronized-output boundary, dropping the
+    /// backspaces that cancel a past-the-edge cursor. Returns the bytes consumed, including dropped
+    /// ones, so a caller loop always makes progress.
+    pub fn write_until_sync_boundary(
+        &mut self,
+        terminal: &mut GhosttyTerminal,
+        bytes: &[u8],
+    ) -> Result<(usize, Option<SynchronizedOutputBoundary>), String> {
+        let mut skipped = 0usize;
+        loop {
+            match self.next_step(&bytes[skipped..], || terminal.cursor_column())? {
+                ConptyStep::Drop(length) => skipped += length,
+                ConptyStep::Write(0) => return Ok((skipped, None)),
+                ConptyStep::Write(length) => {
+                    let (consumed, boundary) =
+                        terminal.write_until_sync_boundary(&bytes[skipped..skipped + length])?;
+                    return Ok((skipped + consumed, boundary));
+                }
+            }
+        }
     }
 }
 

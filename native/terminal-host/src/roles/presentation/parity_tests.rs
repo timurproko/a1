@@ -397,6 +397,43 @@ fn conpty_hover_frames(columns: u16) -> Vec<StructuredSurface> {
         .collect()
 }
 
+/// Composes one resident outer frame for the parity child and acknowledges it.
+#[cfg(windows)]
+fn compose_parity_frame(
+    composer: &mut PresentationComposer,
+    surface: StructuredSurface,
+    cursor: FinalCursor,
+    revision: usize,
+    columns: u16,
+    rows: u16,
+) -> Vec<u8> {
+    let next = DesiredPresentation {
+        tab_id: Some("parity".into()),
+        incarnation: 1,
+        revision: revision as u64 + 1,
+        geometry_generation: 1,
+        strip: "\x1b[1;1HSTRIP".into(),
+        structured: Some(surface),
+        legacy_body: Vec::new(),
+        overlay: None,
+        cursor: Some(cursor),
+        modes: None,
+        columns,
+        outer_rows: rows + 1,
+        child_row_offset: 1,
+        clear: false,
+    };
+    // Invariant: a cursor-only child frame changes no retained cell and prepares nothing.
+    match composer.prepare(&next).unwrap() {
+        Some(prepared) => {
+            let output = prepared.bytes.clone();
+            prepared.acknowledge(composer);
+            output
+        }
+        None => Vec::new(),
+    }
+}
+
 // Rationale: the test binary doubles as the PTY child, avoiding a Node/shell/toolchain dependency.
 #[cfg(windows)]
 #[test]
@@ -453,40 +490,17 @@ fn conpty_parity_child() {
             } else {
                 capture(&mut source, &mut builder)
             };
-            let next = DesiredPresentation {
-                tab_id: Some("parity".into()),
-                incarnation: 1,
-                revision: revision as u64 + 1,
-                geometry_generation: 1,
-                strip: "\x1b[1;1HSTRIP".into(),
-                structured: Some(surface),
-                legacy_body: Vec::new(),
-                overlay: None,
-                cursor: Some(if hover_case {
-                    FinalCursor::Hidden
-                } else {
-                    source
-                        .cursor_cell()
-                        .unwrap()
-                        .map_or(FinalCursor::Hidden, |(column, row)| {
-                            FinalCursor::At(SurfaceCursor { column, row })
-                        })
-                }),
-                modes: None,
-                columns,
-                outer_rows: rows + 1,
-                child_row_offset: 1,
-                clear: false,
+            let cursor = if hover_case {
+                FinalCursor::Hidden
+            } else {
+                source
+                    .cursor_cell()
+                    .unwrap()
+                    .map_or(FinalCursor::Hidden, |(column, row)| {
+                        FinalCursor::At(SurfaceCursor { column, row })
+                    })
             };
-            // Invariant: a cursor-only child frame changes no retained cell and prepares nothing.
-            match composer.prepare(&next).unwrap() {
-                Some(prepared) => {
-                    let output = prepared.bytes.clone();
-                    prepared.acknowledge(&mut composer);
-                    output
-                }
-                None => Vec::new(),
-            }
+            compose_parity_frame(&mut composer, surface, cursor, revision, columns, rows)
         } else {
             frame
         };
@@ -875,21 +889,10 @@ fn write_like_holder(
     repair: &mut crate::roles::conpty_cursor::ConptyCursorRepair,
     bytes: &[u8],
 ) {
-    use crate::roles::conpty_cursor::ConptyStep;
     let mut offset = 0;
     while offset < bytes.len() {
-        let limit = match repair
-            .next_step(&bytes[offset..], || terminal.cursor_column())
-            .unwrap()
-        {
-            ConptyStep::Drop(length) => {
-                offset += length;
-                continue;
-            }
-            ConptyStep::Write(length) => offset + length,
-        };
-        let (consumed, _) = terminal
-            .write_until_sync_boundary(&bytes[offset..limit])
+        let (consumed, _) = repair
+            .write_until_sync_boundary(terminal, &bytes[offset..])
             .unwrap();
         offset += consumed;
     }
