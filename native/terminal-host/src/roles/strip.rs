@@ -167,6 +167,19 @@ fn tab_accent(value: Option<&str>) -> Rgb {
     }
 }
 
+fn tab_secondary_accent(value: Option<&str>) -> Rgb {
+    // Protocol: these are the dark-theme secondaryHeading colors from
+    // derivePiAccentProjection(tab_accent(value), "dark") in the owned Pi theme.
+    match value.unwrap_or("purple") {
+        "blue" => Rgb(55, 187, 211),
+        "cyan" => Rgb(74, 211, 160),
+        "green" => Rgb(166, 202, 62),
+        "orange" => Rgb(214, 204, 64),
+        "pink" => Rgb(245, 145, 130),
+        _ => Rgb(239, 160, 197),
+    }
+}
+
 fn tint(base: u8, color: Rgb, percent: u16) -> Rgb {
     let channel =
         |value: u8| ((u16::from(base) * (100 - percent) + u16::from(value) * percent) / 100) as u8;
@@ -280,7 +293,7 @@ fn title_frame_accent(
     truecolor: bool,
     accent: Option<&str>,
 ) -> TitleFrame {
-    let accent = tab_accent(accent);
+    let accent = tab_secondary_accent(accent);
     let from = truncate(&clean(from), max_width);
     let to = truncate(&clean(to), max_width);
     let to_width = UnicodeWidthStr::width(to.as_str());
@@ -807,11 +820,21 @@ mod tests {
     }
 
     #[test]
-    fn tonal_wave_uses_each_tabs_accent() {
+    fn tonal_wave_uses_each_tabs_secondary_accent() {
+        for (name, expected) in [
+            ("purple", Rgb(239, 160, 197)),
+            ("blue", Rgb(55, 187, 211)),
+            ("cyan", Rgb(74, 211, 160)),
+            ("green", Rgb(166, 202, 62)),
+            ("orange", Rgb(214, 204, 64)),
+            ("pink", Rgb(245, 145, 130)),
+        ] {
+            assert_eq!(tab_secondary_accent(Some(name)), expected, "{name}");
+        }
         let purple = title_frame_accent(FROM, TO, 0, 20, true, None);
         let cyan = title_frame_accent(FROM, TO, 0, 20, true, Some("cyan"));
-        assert!(purple.text.starts_with("\x1b[38;2;201;194;225m"));
-        assert!(cyan.text.starts_with("\x1b[38;2;155;205;216m"));
+        assert!(purple.text.starts_with("\x1b[38;2;237;198;216m"));
+        assert!(cyan.text.starts_with("\x1b[38;2;155;223;198m"));
         assert_ne!(purple.text, cyan.text);
         assert!(!cyan.text.contains("\x1b[38;2;246;85;85m"));
         let changed = title_frame_accent(FROM, TO, 240, 20, true, Some("cyan"));
@@ -834,7 +857,7 @@ mod tests {
             truecolor_runs(&first.text),
             plain(&first.text).chars().count()
         );
-        assert!(first.text.starts_with("\x1b[38;2;201;194;225m"));
+        assert!(first.text.starts_with("\x1b[38;2;237;198;216m"));
         let later = title_frame(FROM, TO, 240, 20, true);
         assert_eq!(plain(&later.text), plain(&first.text));
         assert_ne!(later.text, first.text);
@@ -848,7 +871,7 @@ mod tests {
         );
         let typing = title_frame(FROM, TO, TITLE_RAINBOW_MS, 20, true);
         assert_eq!(plain(&typing.text).trim_end(), "d");
-        assert!(typing.text.starts_with("\x1b[38;2;201;194;225md"));
+        assert!(typing.text.starts_with("\x1b[38;2;237;198;216md"));
     }
 
     #[test]
@@ -868,9 +891,9 @@ mod tests {
         let start = title_frame(FROM, TO, typing_end(TO), 20, true);
         assert!(!start.done);
         assert_eq!(plain(&start.text), TO);
-        assert!(start.text.starts_with("\x1b[38;2;201;194;225m"));
+        assert!(start.text.starts_with("\x1b[38;2;237;198;216m"));
         let middle = title_frame(FROM, TO, typing_end(TO) + TITLE_SETTLE_MS / 2, 20, true);
-        assert!(middle.text.starts_with("\x1b[38;2;186;182;198m"));
+        assert!(middle.text.starts_with("\x1b[38;2;204;184;193m"));
         let last = title_frame(FROM, TO, typing_end(TO) + TITLE_SETTLE_MS - 1, 20, true);
         assert!(last.text.starts_with("\x1b[38;2;170;170;170m"));
     }
@@ -1081,9 +1104,9 @@ mod tests {
             )
             .bytes
         };
-        assert!(render(&animated).contains("\x1b[38;2;155;205;216mA"));
+        assert!(render(&animated).contains("\x1b[38;2;155;223;198mA"));
         animated.accent = Some("green".into());
-        assert!(render(&animated).contains("\x1b[38;2;162;209;184mA"));
+        assert!(render(&animated).contains("\x1b[38;2;201;219;149mA"));
     }
 
     #[test]
