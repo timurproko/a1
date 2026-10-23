@@ -97,6 +97,7 @@ pub(super) fn start_holder(
             attention_seq: 0,
             seen_seq: 0,
         });
+        place_settings_last(&mut locked.registry);
         bump_registry_revision(&mut locked.registry);
         let document = locked.registry.clone();
         (

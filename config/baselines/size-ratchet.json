@@ -152,7 +152,7 @@
       "lines": 575
     },
     "native/terminal-host/src/roles/server/holder.rs::start_holder": {
-      "lines": 197
+      "lines": 198
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
       "lines": 229
@@ -161,7 +161,7 @@
       "lines": 157
     },
     "native/terminal-host/src/roles/server/mod.rs::run_server_child": {
-      "lines": 336
+      "lines": 337
     },
     "native/terminal-host/src/roles/server/mod.rs::serve_peer": {
       "lines": 262
