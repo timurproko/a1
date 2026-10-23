@@ -3625,13 +3625,11 @@ mod tests {
             marker_column: None,
             initial_order: vec!["a".into(), "b".into(), "c".into()],
         };
-        assert!(update_drag(&mut held, 1, true, &tabs, &snapshot, now));
+        assert!(update_drag(&mut held, 1, &tabs, &snapshot, now));
         assert!(held.shown);
         assert_eq!(drag_marker_column(&held, &tabs), None);
 
-        assert!(update_drag(
-            &mut drag, last_end, true, &tabs, &snapshot, now
-        ));
+        assert!(update_drag(&mut drag, last_end, &tabs, &snapshot, now));
         assert!(drag.shown);
         assert_eq!(drag.drop_index, Some(2));
         assert_eq!(drag_marker_column(&drag, &tabs), Some(last_end));
@@ -3655,9 +3653,7 @@ mod tests {
         assert!(bottom.bytes.contains(&format!("\x1b[24;{}H", last_end + 1)));
         assert!(bottom.bytes.contains('│'));
 
-        assert!(!update_drag(
-            &mut drag, last_end, false, &tabs, &snapshot, now
-        ));
+        assert!(!update_drag(&mut drag, last_end, &tabs, &snapshot, now));
         assert_eq!(drag.drop_index, Some(2));
         let mut outside = strip::render(&tabs, Some("a"), 80);
         append_drag_marker(&mut outside, Some(&drag), &tabs, 80, 1);

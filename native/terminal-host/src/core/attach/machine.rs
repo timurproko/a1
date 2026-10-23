@@ -777,14 +777,13 @@ impl State {
         now: Duration,
         effects: &mut Vec<Effect>,
     ) -> bool {
-        let on_strip = mouse.row == 0;
         match mouse.kind {
             MouseKind::Drag(MouseButton::Left) | MouseKind::Moved
                 if matches!(self.mode, Mode::Drag(_)) =>
             {
                 let shown = self.shown(context);
                 if let Mode::Drag(drag) = &mut self.mode
-                    && update_drag(drag, mouse.column, on_strip, &shown, context.strip, now)
+                    && update_drag(drag, mouse.column, &shown, context.strip, now)
                 {
                     effects.push(Effect::Paint { clear: false });
                 }
@@ -795,14 +794,7 @@ impl State {
                     return true;
                 };
                 let shown = self.shown(context);
-                update_drag(
-                    &mut completed,
-                    mouse.column,
-                    on_strip,
-                    &shown,
-                    context.strip,
-                    now,
-                );
+                update_drag(&mut completed, mouse.column, &shown, context.strip, now);
                 let from = shown.iter().position(|tab| tab.id() == completed.tab_id);
                 if completed.shown
                     && let Some(target_index) = completed.drop_index
@@ -931,7 +923,7 @@ impl State {
             let shown = self.shown(context);
             if let Mode::Drag(drag) = &mut self.mode {
                 let column = drag.start_column;
-                if update_drag(drag, column, true, &shown, context.strip, now) {
+                if update_drag(drag, column, &shown, context.strip, now) {
                     effects.push(Effect::Paint { clear: false });
                 }
             }
@@ -1629,10 +1621,19 @@ mod tests {
         );
         let marker = state.mode.drag().and_then(|drag| drag.marker_column);
         assert!(marker.is_some());
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 2, 1)),
+            [PAINT]
+        );
         assert!(
-            fixture
-                .step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 1))
-                .is_empty()
+            state
+                .mode
+                .drag()
+                .is_some_and(|drag| drag.drop_index == Some(0))
+        );
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 1)),
+            [PAINT]
         );
         assert!(
             state

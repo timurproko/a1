@@ -720,7 +720,6 @@ pub fn drag_destination<T: TabView>(
 pub fn update_drag<T: TabView>(
     drag: &mut TabDrag,
     column: u16,
-    on_strip: bool,
     tabs: &[T],
     strip: &impl StripLayout,
     now: Duration,
@@ -731,9 +730,9 @@ pub fn update_drag<T: TabView>(
     {
         drag.shown = true;
     }
-    // Invariant: keep the last valid insertion while the pressed pointer moves through the body.
+    // Invariant: project a held drag onto the strip even while the pointer is below it.
     // A release, not leaving the strip, ends the gesture.
-    if on_strip && drag.shown {
+    if drag.shown {
         let next = drag_destination(column, true, tabs, strip, &drag.tab_id);
         if next != drag.drop_index {
             drag.drop_index = next;
