@@ -23,6 +23,7 @@ use crate::protocol::{
 };
 use crate::roles::child_containment::ChildContainment;
 use crate::roles::child_input::{self, SemanticEncoder};
+use crate::roles::conpty_cursor::{ConptyCursorRepair, ConptyStep};
 use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::wire::{
     self, HolderExit, HolderLaunchConfig, HolderRespawn, Input, PasteStart, Resize, RoleHello,
@@ -802,6 +803,8 @@ fn run_holder(
         SurfaceCommitKind::Complete,
     )?;
     let mut synchronization = SynchronizationState::new(MARKERS_DELIMIT_FRAMES);
+    // Platform: only Windows ConPTY re-renders with a cursor that can sit past the final column.
+    let mut conpty_cursor = ConptyCursorRepair::new(cfg!(windows));
     let mut geometry_deadline: Option<std::time::Instant> = None;
     let mut pending_effects = Vec::<EffectKind>::new();
     let mut effect_sequence = 0u64;
@@ -1181,7 +1184,16 @@ fn run_holder(
             let mut offset = 0usize;
             let now = std::time::Instant::now();
             while offset < bytes.len() {
-                let (consumed, boundary) = terminal.write_until_sync_boundary(&bytes[offset..])?;
+                let limit =
+                    match conpty_cursor.next_step(&bytes[offset..], || terminal.cursor_column())? {
+                        ConptyStep::Drop(length) => {
+                            offset += length;
+                            continue;
+                        }
+                        ConptyStep::Write(length) => offset + length,
+                    };
+                let (consumed, boundary) =
+                    terminal.write_until_sync_boundary(&bytes[offset..limit])?;
                 offset += consumed;
                 changed = true;
                 let answers = terminal.take_responses();

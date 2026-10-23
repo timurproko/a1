@@ -256,23 +256,27 @@ fn conpty_rail_frames(columns: u16) -> Vec<Vec<u8>> {
     };
     let rail = |thumb: bool, thick: bool| {
         Some((
-            if thumb { "\x1b[38;2;181;189;104m" } else { "\x1b[2m" },
+            if thumb {
+                "\x1b[38;2;181;189;104m"
+            } else {
+                "\x1b[2m"
+            },
             if thick { "┃" } else { "│" },
         ))
     };
     // Invariant: dock rows 10-12 are painted once; a later whole-screen scroll would blank them.
     let frame = |rows: Vec<String>| {
-        format!(
-            "\x1b[?2026h{}\x1b[12;3H\x1b[?25h\x1b[?2026l",
-            rows.concat()
-        )
-        .into_bytes()
+        format!("\x1b[?2026h{}\x1b[12;3H\x1b[?25h\x1b[?2026l", rows.concat()).into_bytes()
     };
     let mut frames = vec![{
         let mut rows = vec![format!("\x1b[?1049h\x1b[?7l\x1b[2J\x1b[H")];
         rows.push(row(1, "> prompt", None));
         for index in 2..=9 {
-            rows.push(row(index, &format!("line {index}"), rail(index >= 7, false)));
+            rows.push(row(
+                index,
+                &format!("line {index}"),
+                rail(index >= 7, false),
+            ));
         }
         rows.push(row(10, &"─".repeat(width), None));
         rows.push(row(11, "footer status", None));
@@ -282,7 +286,11 @@ fn conpty_rail_frames(columns: u16) -> Vec<Vec<u8>> {
     frames.push({
         let mut rows = vec![row(1, "> prompt", None)];
         for index in 2..=9 {
-            rows.push(row(index, &format!("line {}", index + 20), rail(index <= 4, false)));
+            rows.push(row(
+                index,
+                &format!("line {}", index + 20),
+                rail(index <= 4, false),
+            ));
         }
         rows.push(row(9, "line 29      Jump to bottom ↓", rail(false, false)));
         frame(rows)
@@ -484,7 +492,11 @@ fn conpty_parity_child() {
         };
         terminal_output.write_all(&output).unwrap();
         terminal_output.flush().unwrap();
-        std::thread::sleep(std::time::Duration::from_millis(if recorded_case { 12 } else { 80 }));
+        std::thread::sleep(std::time::Duration::from_millis(if recorded_case {
+            12
+        } else {
+            80
+        }));
     }
     std::thread::sleep(std::time::Duration::from_millis(150));
     drop(terminal_output);
@@ -528,12 +540,7 @@ fn conpty_rail_only_row_changes_reach_the_grid() {
 }
 
 #[cfg(windows)]
-fn conpty_output(
-    resident_output: bool,
-    case: &str,
-    frame_limit: usize,
-    columns: u16,
-) -> Vec<u8> {
+fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns: u16) -> Vec<u8> {
     let rows = if case == "hover" {
         31
     } else if case == "recorded" {
@@ -616,19 +623,21 @@ fn conpty_output(
     result.unwrap();
     if let Some(status) = failure {
         let text = String::from_utf8_lossy(&bytes);
-        let tail: String = text.chars().rev().take(1500).collect::<Vec<_>>().into_iter().rev().collect();
+        let tail: String = text
+            .chars()
+            .rev()
+            .take(1500)
+            .collect::<Vec<_>>()
+            .into_iter()
+            .rev()
+            .collect();
         panic!("ConPTY fixture child failed ({status:?}); output tail: {tail:?}");
     }
     bytes
 }
 
 #[cfg(windows)]
-fn conpty_content_parity(
-    resident_output: bool,
-    case: &str,
-    frame_limit: usize,
-    columns: u16,
-) {
+fn conpty_content_parity(resident_output: bool, case: &str, frame_limit: usize, columns: u16) {
     let hover_case = case == "hover";
     let recorded = (case == "recorded").then(conpty_recorded_frames);
     let rows = if hover_case {
@@ -679,7 +688,9 @@ fn conpty_content_parity(
                     row.iter().map(|cell| cell.0.as_str()).collect::<String>()
                 };
                 let differs = a.iter().zip(b).any(|(e, g)| {
-                    e.0 != g.0 || e.1 != g.1 || e.2.background != g.2.background
+                    e.0 != g.0
+                        || e.1 != g.1
+                        || e.2.background != g.2.background
                         || ((e.0 == "│" || e.0 == "┃") && e.2.foreground != g.2.foreground)
                 });
                 if differs {
@@ -857,113 +868,99 @@ fn solo_and_resident_cells_converge_across_frame_sequences() {
     }
 }
 
-#[cfg(windows)]
-#[test]
-fn scratch_control_row_bytes() {
-    if std::env::var_os("TERMINAL_HOST_CONPTY_PARITY_FRAMES").is_none() {
-        return;
-    }
-    let (columns, rows, frames) = conpty_recorded_frames();
-    let phase: usize = std::env::var("TERMINAL_HOST_SCRATCH_PHASE")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(140);
-    let mut source = GhosttyTerminal::new(columns, rows).unwrap();
-    for frame in frames.iter().take(phase) {
-        source.write(frame);
-    }
-    let surface = capture(&mut source, &mut RetainedSurfaceBuilder::default());
-    let composer = PresentationComposer::default();
-    let prepared = composer
-        .prepare(&DesiredPresentation {
-            tab_id: Some("scratch".into()),
-            incarnation: 1,
-            revision: 1,
-            geometry_generation: 1,
-            strip: "\x1b[1;1HSTRIP".into(),
-            structured: Some(surface.clone()),
-            legacy_body: Vec::new(),
-            overlay: None,
-            cursor: Some(FinalCursor::Hidden),
-            modes: None,
-            columns,
-            outer_rows: rows + 1,
-            child_row_offset: 1,
-            clear: false,
-        })
-        .unwrap()
-        .unwrap();
-    if let Ok(directory) = std::env::var("TERMINAL_HOST_SCRATCH_OUT") {
-        let mut resident = crate::roles::attach::ENTER_OUTER_MODES.to_vec();
-        resident.extend_from_slice(&prepared.bytes);
-        std::fs::write(format!("{directory}/outer-frame-resident.bin"), &resident).unwrap();
-        let solo: Vec<u8> = frames.iter().take(phase).flatten().copied().collect();
-        std::fs::write(format!("{directory}/outer-frame-solo.bin"), &solo).unwrap();
-    }
-    let text = String::from_utf8(prepared.bytes).unwrap();
-    let mut report = String::new();
-    for (index, row) in surface.row_data.iter().enumerate() {
-        let plain: String = row.cells.iter().map(|cell| cell.text.as_str()).collect();
-        if plain.contains("Jump to bottom") {
-            let widths: Vec<u8> = row.cells.iter().map(|cell| cell.width).collect();
-            let marker = format!("\x1b[{};1H", index + 2);
-            let start = text.find(&marker).unwrap();
-            let end = text[start + marker.len()..]
-                .find("\x1b[")
-                .map(|_| text[start + marker.len()..].find(";1H\x1b[0m\x1b[2K").map(|offset| start + marker.len() + offset).unwrap_or(text.len()))
-                .unwrap_or(text.len());
-            let _ = end;
-            let row_bytes: String = text[start..].chars().take(1200).collect();
-            report.push_str(&format!("row {index}: {plain:?}\nwidths: {widths:?}\nbytes: {}\n", row_bytes.replace('\x1b', "ESC")));
-        }
-    }
-    panic!("{report}");
-}
-
-#[cfg(windows)]
-#[test]
-fn scratch_conpty_control_row_output() {
-    if std::env::var_os("TERMINAL_HOST_CONPTY_PARITY_FRAMES").is_none() {
-        return;
-    }
-    let (columns, _, _) = conpty_recorded_frames();
-    let phase: usize = std::env::var("TERMINAL_HOST_SCRATCH_PHASE")
-        .ok()
-        .and_then(|value| value.parse().ok())
-        .unwrap_or(140);
-    let mut report = String::new();
-    for resident in [false, true] {
-        let bytes = conpty_output(resident, "recorded", phase, columns);
-        let text = String::from_utf8_lossy(&bytes).to_string();
-        let mut last = None;
-        let mut search = 0;
-        while let Some(found) = text[search..].find("Jump to bottom") {
-            last = Some(search + found);
-            search += found + 1;
-        }
-        let Some(index) = last else {
-            report.push_str(&format!("resident={resident}: no control row\n"));
-            continue;
+/// Writes PTY output into the terminal exactly as the holder loop does, including its ConPTY
+/// cursor repair and synchronized-output boundary splitting.
+fn write_like_holder(
+    terminal: &mut GhosttyTerminal,
+    repair: &mut crate::roles::conpty_cursor::ConptyCursorRepair,
+    bytes: &[u8],
+) {
+    use crate::roles::conpty_cursor::ConptyStep;
+    let mut offset = 0;
+    while offset < bytes.len() {
+        let limit = match repair
+            .next_step(&bytes[offset..], || terminal.cursor_column())
+            .unwrap()
+        {
+            ConptyStep::Drop(length) => {
+                offset += length;
+                continue;
+            }
+            ConptyStep::Write(length) => offset + length,
         };
-        let start = text[..index].char_indices().rev().nth(700).map(|(i, _)| i).unwrap_or(0);
-        let end = text[index..].char_indices().nth(500).map(|(i, _)| index + i).unwrap_or(text.len());
-        report.push_str(&format!(
-            "resident={resident}:\n{}\n\n",
-            text[start..end].replace('\x1b', "ESC").replace('\x07', "BEL")
-        ));
+        let (consumed, _) = terminal
+            .write_until_sync_boundary(&bytes[offset..limit])
+            .unwrap();
+        offset += consumed;
     }
-    panic!("{report}");
 }
 
-#[test]
-fn scratch_ambiguous_width_cells() {
-    let mut terminal = GhosttyTerminal::new(24, 2).unwrap();
-    terminal.write("\x1b[1;1H↓x…y⠋z❯w•v─u│t".as_bytes());
-    let surface = capture(&mut terminal, &mut RetainedSurfaceBuilder::default());
-    let row: Vec<(String, u8)> = surface.row_data[0]
+fn row_text(surface: &StructuredSurface, row: usize) -> String {
+    surface.row_data[row]
         .cells
         .iter()
-        .map(|cell| (cell.text.clone(), cell.width))
+        .map(|cell| cell.text.as_str())
+        .collect()
+}
+
+/// Exact bytes Windows ConPTY re-rendered for a rail row whose render pass was split after the
+/// child's cursor rested past the final column (recorded at 122 columns, reduced to 12).
+const CONPTY_SPLIT_RAIL_ROW: &[u8] = b"\x1b[?2026h\x1b[1;1H 56. text\x1b[K\x1b[3C\x1b[?2026l\x1b[38;2;104;183;141m\x08\xe2\x94\x83\x1b[m\r\n";
+
+#[test]
+fn conpty_split_render_pass_keeps_the_rail_in_the_final_column() {
+    let mut repaired = GhosttyTerminal::new(12, 3).unwrap();
+    let mut repair = crate::roles::conpty_cursor::ConptyCursorRepair::new(true);
+    write_like_holder(&mut repaired, &mut repair, CONPTY_SPLIT_RAIL_ROW);
+    let surface = capture(&mut repaired, &mut RetainedSurfaceBuilder::default());
+    assert_eq!(row_text(&surface, 0), " 56. text  ┃");
+
+    // Without the repair a standard parser draws the rail one column left of the gutter.
+    let mut raw = GhosttyTerminal::new(12, 3).unwrap();
+    let mut disabled = crate::roles::conpty_cursor::ConptyCursorRepair::new(false);
+    write_like_holder(&mut raw, &mut disabled, CONPTY_SPLIT_RAIL_ROW);
+    let surface = capture(&mut raw, &mut RetainedSurfaceBuilder::default());
+    assert_eq!(row_text(&surface, 0), " 56. text ┃ ");
+}
+
+/// Replays real ConPTY output recorded by a probe (`TERMINAL_HOST_CONPTY_OUTPUT`, with
+/// `TERMINAL_HOST_CONPTY_OUTPUT_SIZE=<columns>x<rows>`) through the holder write path and asserts no
+/// published state ever shows a rail glyph beside a blank final column.
+#[test]
+fn recorded_conpty_output_never_shifts_the_rail() {
+    let Some(path) = std::env::var_os("TERMINAL_HOST_CONPTY_OUTPUT") else {
+        return;
+    };
+    let size = std::env::var("TERMINAL_HOST_CONPTY_OUTPUT_SIZE").unwrap();
+    let (columns, rows) = size.split_once('x').unwrap();
+    let (columns, rows): (u16, u16) = (columns.parse().unwrap(), rows.parse().unwrap());
+    let bytes = std::fs::read(path).unwrap();
+    let mut terminal = GhosttyTerminal::new(columns, rows).unwrap();
+    let mut repair = crate::roles::conpty_cursor::ConptyCursorRepair::new(
+        std::env::var_os("TERMINAL_HOST_CONPTY_REPAIR_OFF").is_none(),
+    );
+    let mut builder = RetainedSurfaceBuilder::default();
+    let mut failures = Vec::new();
+    let marker = b"\x1b[?2026h";
+    let mut start = 0;
+    let mut checkpoints: Vec<usize> = (0..bytes.len().saturating_sub(marker.len()))
+        .filter(|&index| &bytes[index..index + marker.len()] == marker)
         .collect();
-    panic!("{row:?}");
+    checkpoints.push(bytes.len());
+    for end in checkpoints {
+        write_like_holder(&mut terminal, &mut repair, &bytes[start..end]);
+        start = end;
+        let surface = capture(&mut terminal, &mut builder);
+        for (row, data) in surface.row_data.iter().enumerate() {
+            let cells = &data.cells;
+            let last = cells.len() - 1;
+            if cells[last].text == " " && matches!(cells[last - 1].text.as_str(), "│" | "┃") {
+                failures.push(format!(
+                    "offset {end} row {row}: {:?}",
+                    row_text(&surface, row)
+                ));
+            }
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
 }

@@ -4,8 +4,8 @@ In multi-agent tabs the scrollbar rail sometimes draws one column left of its gu
 
 ## What Changes
 
-- Reproduce the shift by feeding real Windows ConPTY re-rendered output into the resident terminal model and comparing the retained rows with a complete capture.
-- Repair the first divergent boundary so every resident row keeps the rail in the final gutter column, matching solo mode.
+- Reproduce the shift by feeding real Windows ConPTY re-rendered output into the resident terminal model through the holder write path.
+- Reconcile ConPTY's past-the-edge cursor in the holder: a cursor-forward that overshoots the final column is followed by a backspace ConPTY expects to cancel the overshoot, so drop exactly that backspace and keep the rail in the final gutter column, matching solo mode.
 - Keep row-bounded differential repaint, styles, links and cursor placement unchanged.
 
 ## Capabilities
