@@ -1151,22 +1151,6 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
             })?,
         ),
         (
-            "bridge-seed.msgpack".to_owned(),
-            encode_frame(&Envelope {
-                message_type: "bridge.seed".to_owned(),
-                request_id: None,
-                body: BridgeSeed {},
-            })?,
-        ),
-        (
-            "bridge-seed-consumed.msgpack".to_owned(),
-            encode_frame(&Envelope {
-                message_type: "bridge.seed-consumed".to_owned(),
-                request_id: None,
-                body: BridgeSeedConsumed {},
-            })?,
-        ),
-        (
             "bridge-stop.msgpack".to_owned(),
             encode_frame(&Envelope {
                 message_type: "bridge.stop".to_owned(),
@@ -1358,7 +1342,29 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
             })?,
         ),
     ];
-    Ok(fixtures)
+    Ok([fixtures, seed_fixtures()?].concat())
+}
+
+/// The content-free seed notice and its acknowledgement.
+fn seed_fixtures() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
+    Ok(vec![
+        (
+            "bridge-seed.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.seed".to_owned(),
+                request_id: None,
+                body: BridgeSeed {},
+            })?,
+        ),
+        (
+            "bridge-seed-consumed.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "bridge.seed-consumed".to_owned(),
+                request_id: None,
+                body: BridgeSeedConsumed {},
+            })?,
+        ),
+    ])
 }
 
 pub fn fixture_manifest_digest(fixtures: &[(String, Vec<u8>)]) -> String {

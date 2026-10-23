@@ -842,15 +842,12 @@ fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
                 &mut stream,
                 "tab.create",
                 Some(2),
-                contracts::roles::wire::TabCreate {
+                contracts::roles::wire::TabCreate::new(
                     cwd,
-                    columns: 80,
-                    rows: 23,
+                    (80, 23),
                     release_root,
                     node_executable,
-                    environment: std::env::vars().collect(),
-                    initial_prompt: None,
-                },
+                ),
             )?;
             let payload =
                 read_internal_response(&mut stream, &["tab.created", "tab.create-failed"])?;

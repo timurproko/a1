@@ -106,43 +106,14 @@ pub(super) fn promote_standby(
         // Invariant: the seed file exists before the standby is announced as this tab; a seed
         // that cannot be written refuses the creation and keeps the standby.
         if let Some(text) = seed {
-            locked.seeds.write(&standby.tab_id, text)?;
+            write_seed(&tab_data_dir(&locked, &standby.tab_id)?, text)?;
         }
         locked.standby = None;
         let order = locked.registry.tabs.len() as u32;
-        let display_name = DEFAULT_AGENT_TAB_NAME.to_owned();
-        let created_at = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-            .to_string();
         let previous = locked.registry.clone();
         prune_stopped_records(&mut locked.registry.tabs);
-        locked.registry.tabs.push(TabRecord {
-            tab_id: standby.tab_id.clone(),
-            kind: "agent".into(),
-            created_at,
-            display_name,
-            name_source: "default".into(),
-            order,
-            cwd: start.cwd.clone(),
-            session_file: None,
-            session_dir: None,
-            desired: "running".into(),
-            lifecycle: "starting".into(),
-            incarnation: standby.incarnation,
-            holder_pid: Some(holder.identity.pid),
-            holder_start_identity: Some(holder.identity.start.clone()),
-            child_pid: None,
-            child_start_identity: None,
-            release: start.release_root.clone(),
-            last_exit: None,
-            restarts: 0,
-            restart_window_start: None,
-            requested_restart: false,
-            attention_seq: 0,
-            seen_seq: 0,
-        });
+        let record = promoted_record(&standby, &holder, &start, order);
+        locked.registry.tabs.push(record);
         bump_registry_revision(&mut locked.registry);
         let document = locked.registry.clone();
         (
@@ -159,8 +130,10 @@ pub(super) fn promote_standby(
             if locked.registry.registry_revision == document.registry_revision {
                 locked.registry = previous;
             }
-            if seed.is_some() {
-                locked.seeds.remove(&standby.tab_id);
+            if seed.is_some()
+                && let Ok(directory) = tab_data_dir(&locked, &standby.tab_id)
+            {
+                remove_seed(&directory);
             }
             locked.standby = Some(standby);
         }
@@ -194,13 +167,47 @@ pub(super) fn promote_standby(
         .offer_control(wire::frame("holder.promote", None, wire::ResultBody::ok())?)
         .map_err(str::to_owned)?;
     if seed.is_some() {
-        // Protocol: the standby's bridge connected before this promotion, so its admission
-        // notice cannot announce the seed; it is told now.
-        let mut locked = lock_state(&state)?;
-        locked.seeds.mark(&standby.tab_id);
-        notify_seed(&locked, &standby.tab_id)?;
+        announce_seed(state, &standby.tab_id)?;
     }
     Ok(Some(standby.tab_id))
+}
+
+/// The registry record a promoted standby joins the strip with.
+fn promoted_record(
+    standby: &StandbyTab,
+    holder: &HolderSession,
+    start: &AttachStart,
+    order: u32,
+) -> TabRecord {
+    TabRecord {
+        tab_id: standby.tab_id.clone(),
+        kind: "agent".into(),
+        created_at: SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            .to_string(),
+        display_name: DEFAULT_AGENT_TAB_NAME.to_owned(),
+        name_source: "default".into(),
+        order,
+        cwd: start.cwd.clone(),
+        session_file: None,
+        session_dir: None,
+        desired: "running".into(),
+        lifecycle: "starting".into(),
+        incarnation: standby.incarnation,
+        holder_pid: Some(holder.identity.pid),
+        holder_start_identity: Some(holder.identity.start.clone()),
+        child_pid: None,
+        child_start_identity: None,
+        release: start.release_root.clone(),
+        last_exit: None,
+        restarts: 0,
+        restart_window_start: None,
+        requested_restart: false,
+        attention_seq: 0,
+        seen_seq: 0,
+    }
 }
 
 pub(super) fn discard_standby(state: &Arc<Mutex<RuntimeState>>) {

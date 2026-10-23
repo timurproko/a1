@@ -272,27 +272,6 @@ describe("bare A1 startup release notes", () => {
     await shell.dispose();
   });
 
-  it("submits a seeded first prompt once, after the startup route stops holding the screen", async () => {
-    const { shell, routes, terminal, engine } = await shellFixture({ customViewport: true });
-    const prompts = () => engine.session.calls.filter(call => call.startsWith("prompt:"));
-    shell.openOwnedRoute("changelog");
-    shell.submitSeededPrompt("What does this repository build?");
-    shell.submitSeededPrompt("a second seed is ignored");
-    await new Promise(resolve => setTimeout(resolve, 40));
-    expect(prompts()).toEqual([]);
-    shell.start();
-    await new Promise(resolve => setTimeout(resolve, 60));
-    expect(routes!.opens).toEqual([{ route: "changelog", input: undefined }]);
-    expect(prompts(), "the retained route comes first").toEqual([]);
-    shell.runtime.renderNow();
-    terminal.input(ESC);
-    await vi.waitFor(() => expect(prompts()).toEqual(["prompt:What does this repository build?"]));
-    await new Promise(resolve => setTimeout(resolve, 60));
-    expect(prompts()).toHaveLength(1);
-    expect(shell.root.editor.getText()).toBe("");
-    await shell.dispose();
-  });
-
   it("reports a route that cannot open instead of dropping it", async () => {
     const { shell } = await shellFixture({ customViewport: true, routes: routeHost(["changelog"]) });
     shell.start();

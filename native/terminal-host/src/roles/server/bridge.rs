@@ -109,6 +109,25 @@ pub(super) fn broadcast_tab_status(locked: &RuntimeState, surface: &Surface) -> 
     Ok(())
 }
 
+/// Protocol: the newest projection any child publishes is the effective one; it is validated,
+/// retained for later clients, and relayed to every attached client.
+fn relay_shortcuts(state: &Arc<Mutex<RuntimeState>>, payload: &[u8]) -> Result<(), String> {
+    let (_, shortcuts): (_, protocol::TabShortcuts) = wire::body(payload)?;
+    if protocol::validate_shortcuts(&shortcuts).is_err() {
+        return Ok(());
+    }
+    let mut locked = lock_state(state)?;
+    if locked.shortcuts.as_ref() == Some(&shortcuts) {
+        return Ok(());
+    }
+    let frame = wire::frame("tabs.shortcuts", None, shortcuts.clone())?;
+    locked.shortcuts = Some(shortcuts);
+    for client in locked.clients.values() {
+        let _ = client.peer.offer_control(frame.clone());
+    }
+    Ok(())
+}
+
 pub(super) fn serve_bridge(
     mut stream: endpoint::EndpointStream,
     tx: Peer,
@@ -193,23 +212,9 @@ pub(super) fn serve_bridge(
         } else if kind.message_type == "bridge.seed-consumed" {
             let (_, _consumed): (_, protocol::BridgeSeedConsumed) = wire::body(&payload)?;
             // Invariant: the child deleted the file; a leftover from a failed delete goes too.
-            lock_state(&state)?.seeds.discard(&tab_id);
+            discard_seed(&mut *lock_state(&state)?, &tab_id);
         } else if kind.message_type == "bridge.shortcuts" {
-            // Protocol: the newest projection any child publishes is the effective one; it is
-            // validated, retained for later clients, and relayed to every attached client.
-            let (_, shortcuts): (_, protocol::TabShortcuts) = wire::body(&payload)?;
-            if protocol::validate_shortcuts(&shortcuts).is_err() {
-                continue;
-            }
-            let mut locked = lock_state(&state)?;
-            if locked.shortcuts.as_ref() == Some(&shortcuts) {
-                continue;
-            }
-            let frame = wire::frame("tabs.shortcuts", None, shortcuts.clone())?;
-            locked.shortcuts = Some(shortcuts);
-            for client in locked.clients.values() {
-                let _ = client.peer.offer_control(frame.clone());
-            }
+            relay_shortcuts(&state, &payload)?;
         } else if kind.message_type == "bridge.status" {
             let (_, status): (_, BridgeStatus) = wire::body(&payload)?;
             let mut locked = lock_state(&state)?;

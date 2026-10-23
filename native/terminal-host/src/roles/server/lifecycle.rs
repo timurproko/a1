@@ -8,7 +8,7 @@ pub(super) fn close_tab(
     request_id: Option<u64>,
 ) -> Result<bool, String> {
     let mut locked = lock_state(&state)?;
-    locked.seeds.discard(tab_id);
+    discard_seed(&mut locked, tab_id);
     if let Some(bridge) = locked.bridges.get(tab_id) {
         let _ = bridge.peer.offer_control(wire::frame(
             "bridge.stop",
@@ -725,96 +725,7 @@ pub(super) fn handle_lifecycle(
                 .map_err(str::to_owned)?;
             }
         }
-        "tab.create" => {
-            let (_, create): (_, TabCreate) = wire::body(payload)?;
-            let seed = create.initial_prompt.clone();
-            if seed
-                .as_ref()
-                .is_some_and(|text| text.len() > wire::MAX_INITIAL_PROMPT_BYTES)
-            {
-                tx.offer_control(wire::frame(
-                    "tab.create-failed",
-                    request_id,
-                    wire::ResultBody::refused(SEED_TOO_LONG.into()),
-                )?)
-                .map_err(str::to_owned)?;
-                return Ok(());
-            }
-            let mut start = AttachStart {
-                client_id: client_id.clone(),
-                tabs_max: usize::MAX,
-                cwd: create.cwd,
-                columns: create.columns,
-                rows: create.rows,
-                release_root: create.release_root,
-                node_executable: create.node_executable,
-                environment: create.environment,
-                session_file: None,
-                session_dir: None,
-            };
-            sanitize_tab_environment(&mut start.environment);
-            match promote_standby(&state, start.clone(), seed.as_deref()) {
-                Ok(Some(tab_id)) => {
-                    tx.offer_control(wire::frame(
-                        "tab.created",
-                        request_id,
-                        TabTarget { tab_id },
-                    )?)
-                    .map_err(str::to_owned)?;
-                    return Ok(());
-                }
-                Ok(None) => discard_standby(&state),
-                Err(error) => {
-                    tx.offer_control(wire::frame(
-                        "tab.create-failed",
-                        request_id,
-                        wire::ResultBody::refused(error),
-                    )?)
-                    .map_err(str::to_owned)?;
-                    return Ok(());
-                }
-            }
-            let tab_id = format!("tab-{:016x}", rand::random::<u64>());
-            lock_state(&state)?.core.set_starting(&tab_id, true);
-            // Invariant: the seed file exists before the holder can start the child that reads it;
-            // a seed that cannot be written refuses the creation.
-            if let Some(text) = seed.as_deref()
-                && let Err(error) = stage_seed(&state, &tab_id, text)
-            {
-                if let Ok(mut locked) = state.lock() {
-                    locked.core.set_starting(&tab_id, false);
-                }
-                tx.offer_control(wire::frame(
-                    "tab.create-failed",
-                    request_id,
-                    wire::ResultBody::refused(error),
-                )?)
-                .map_err(str::to_owned)?;
-                return Ok(());
-            }
-            match start_holder(&profile, &state, tab_id.clone(), start) {
-                Ok(()) => {
-                    tx.offer_control(wire::frame(
-                        "tab.created",
-                        request_id,
-                        TabTarget { tab_id },
-                    )?)
-                    .map_err(str::to_owned)?;
-                }
-                Err(error) => {
-                    if let Ok(mut locked) = state.lock() {
-                        locked.core.set_starting(&tab_id, false);
-                        locked.seeds.discard(&tab_id);
-                    }
-                    tx.offer_control(wire::frame(
-                        "tab.create-failed",
-                        request_id,
-                        wire::ResultBody::refused(error),
-                    )?)
-                    .map_err(str::to_owned)?;
-                }
-            }
-        }
+        "tab.create" => create_tab(&state, &profile, tx, &client_id, request_id, payload)?,
         "tab.reorder" => {
             let (_, reorder): (_, wire::TabReorder) = wire::body(payload)?;
             let commit = {
@@ -922,6 +833,107 @@ pub(super) fn handle_lifecycle(
             .map_err(str::to_owned)?;
         }
         _ => {}
+    }
+    Ok(())
+}
+
+/// Creates one Agent tab for a client: it promotes a matching standby or starts a new holder, after
+/// writing any seeded first prompt to the tab's private seed file.
+fn create_tab(
+    state: &Arc<Mutex<RuntimeState>>,
+    profile: &Path,
+    tx: &Peer,
+    client_id: &str,
+    request_id: Option<u64>,
+    payload: &[u8],
+) -> Result<(), String> {
+    let (_, create): (_, TabCreate) = wire::body(payload)?;
+    let seed = create.initial_prompt.clone();
+    if seed
+        .as_ref()
+        .is_some_and(|text| text.len() > wire::MAX_INITIAL_PROMPT_BYTES)
+    {
+        tx.offer_control(wire::frame(
+            "tab.create-failed",
+            request_id,
+            wire::ResultBody::refused(SEED_TOO_LONG.into()),
+        )?)
+        .map_err(str::to_owned)?;
+        return Ok(());
+    }
+    let mut start = AttachStart {
+        client_id: client_id.to_owned(),
+        tabs_max: usize::MAX,
+        cwd: create.cwd,
+        columns: create.columns,
+        rows: create.rows,
+        release_root: create.release_root,
+        node_executable: create.node_executable,
+        environment: create.environment,
+        session_file: None,
+        session_dir: None,
+    };
+    sanitize_tab_environment(&mut start.environment);
+    match promote_standby(&state, start.clone(), seed.as_deref()) {
+        Ok(Some(tab_id)) => {
+            tx.offer_control(wire::frame(
+                "tab.created",
+                request_id,
+                TabTarget { tab_id },
+            )?)
+            .map_err(str::to_owned)?;
+            return Ok(());
+        }
+        Ok(None) => discard_standby(&state),
+        Err(error) => {
+            tx.offer_control(wire::frame(
+                "tab.create-failed",
+                request_id,
+                wire::ResultBody::refused(error),
+            )?)
+            .map_err(str::to_owned)?;
+            return Ok(());
+        }
+    }
+    let tab_id = format!("tab-{:016x}", rand::random::<u64>());
+    lock_state(&state)?.core.set_starting(&tab_id, true);
+    // Invariant: the seed file exists before the holder can start the child that reads it;
+    // a seed that cannot be written refuses the creation.
+    if let Some(text) = seed.as_deref()
+        && let Err(error) = stage_seed(&state, &tab_id, text)
+    {
+        if let Ok(mut locked) = state.lock() {
+            locked.core.set_starting(&tab_id, false);
+        }
+        tx.offer_control(wire::frame(
+            "tab.create-failed",
+            request_id,
+            wire::ResultBody::refused(error),
+        )?)
+        .map_err(str::to_owned)?;
+        return Ok(());
+    }
+    match start_holder(&profile, &state, tab_id.clone(), start) {
+        Ok(()) => {
+            tx.offer_control(wire::frame(
+                "tab.created",
+                request_id,
+                TabTarget { tab_id },
+            )?)
+            .map_err(str::to_owned)?;
+        }
+        Err(error) => {
+            if let Ok(mut locked) = state.lock() {
+                locked.core.set_starting(&tab_id, false);
+                discard_seed(&mut locked, &tab_id);
+            }
+            tx.offer_control(wire::frame(
+                "tab.create-failed",
+                request_id,
+                wire::ResultBody::refused(error),
+            )?)
+            .map_err(str::to_owned)?;
+        }
     }
     Ok(())
 }

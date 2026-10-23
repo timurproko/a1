@@ -184,6 +184,26 @@ pub struct TabCreate {
     pub initial_prompt: Option<String>,
 }
 
+impl TabCreate {
+    /// An unseeded tab request in `cwd` that carries this process's environment.
+    pub fn new(
+        cwd: String,
+        (columns, rows): (u16, u16),
+        release_root: String,
+        node_executable: String,
+    ) -> Self {
+        Self {
+            cwd,
+            columns,
+            rows,
+            release_root,
+            node_executable,
+            environment: std::env::vars().collect(),
+            initial_prompt: None,
+        }
+    }
+}
+
 /// The largest seeded first prompt a `tab.create` request may carry.
 pub const MAX_INITIAL_PROMPT_BYTES: usize = 64 * 1024;
 

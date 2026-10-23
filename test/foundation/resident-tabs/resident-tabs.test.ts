@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TabBridgeClient } from "../../../src/foundation/resident-tabs/bridge-client.js";
+import { TabBridgeClient, type TabBridgeCommand } from "../../../src/foundation/resident-tabs/bridge-client.js";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "../../../src/foundation/resident-tabs/protocol.js";
 import { ensureTerminalHost } from "../../../src/foundation/resident-tabs/ensure-terminal-host.js";
 import { readResidentTabLaunchSettings } from "../../../src/foundation/resident-tabs/settings.js";
@@ -144,13 +144,26 @@ describe("resident tab launch contracts", () => {
     expect(transport.sent[0]?.body).toMatchObject({ features: expect.arrayContaining(["bridge-seed"]) });
     transport.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, features: ["bridge-seed"] } }));
     await start;
-    // Invariant: a seed notice that arrives before composition subscribes is replayed to it.
+    // Invariant: a seed notice that arrives before composition subscribes is replayed to it, and stays
+    // replayable for the lazily loaded seed consumer until that consumer acknowledges it.
     transport.emit("data", encodeResidentFrame({ type: "bridge.seed", body: {} }));
-    const commands: unknown[] = [];
-    bridge.onCommand(command => commands.push(command));
-    expect(commands).toEqual([{ type: "seed" }]);
-    bridge.seedConsumed();
-    expect(transport.sent.at(-1)).toEqual({ type: "bridge.seed-consumed", body: {} });
+    const composition: TabBridgeCommand[] = [];
+    bridge.onCommand(command => composition.push(command));
+    expect(composition.map(command => command.type)).toEqual(["seed"]);
+    transport.emit("data", encodeResidentFrame({ type: "bridge.visibility", body: { visible: true } }));
+    const consumer: TabBridgeCommand[] = [];
+    bridge.onCommand(command => consumer.push(command));
+    expect(consumer.map(command => command.type), "only the seed is replayed again").toEqual(["seed"]);
+    const sentBefore = transport.sent.length;
+    const [seed] = consumer;
+    if (seed?.type !== "seed") throw new Error("seed command missing");
+    seed.acknowledge();
+    seed.acknowledge();
+    expect(transport.sent.slice(sentBefore)).toEqual([{ type: "bridge.seed-consumed", body: {} }]);
+    const late: TabBridgeCommand[] = [];
+    bridge.onCommand(command => late.push(command));
+    expect(late, "an acknowledged seed is not replayed").toEqual([]);
+    expect(JSON.stringify(transport.sent)).not.toContain("prompt");
     bridge.close();
   });
 

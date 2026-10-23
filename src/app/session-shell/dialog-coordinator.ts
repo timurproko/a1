@@ -138,13 +138,6 @@ export class SessionDialogCoordinator {
     this.openRoute(pending.route, pending.input, pending.onClosed);
   }
 
-  /** Whether a retained startup route, an overlay, or a replacement input surface holds the screen. */
-  holdsScreen(): boolean {
-    return this.#startupRoute !== undefined
-      || this.#ports.terminal.hasOverlay()
-      || !this.#ports.root.usesDefaultInputSurface();
-  }
-
   /** A replaced session takes its dialog with it; a retained startup route still opens. */
   onSessionReplaced(): void {
     this.#close();

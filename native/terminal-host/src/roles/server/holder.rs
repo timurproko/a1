@@ -866,6 +866,13 @@ pub(super) fn serve_holder(
 
 /// Records a tab whose holder is gone or unreachable and schedules its restart under the restart
 /// policy, exactly as for a holder whose connection closed.
+/// Drops what a lost holder's tab presented and any seed its child never consumed. Invariant: a
+/// seed outlives nothing, so a failed tab never replays its prompt into a replacement child.
+fn forget_lost_output(locked: &mut RuntimeState, tab_id: &str) {
+    locked.surfaces.remove(tab_id);
+    discard_seed(locked, tab_id);
+}
+
 pub(super) fn holder_lost(
     state: &Arc<Mutex<RuntimeState>>,
     mut locked: std::sync::MutexGuard<'_, RuntimeState>,
@@ -888,10 +895,7 @@ pub(super) fn holder_lost(
     );
     locked.core.set_terminating(tab_id, false);
     locked.core.set_starting(tab_id, false);
-    // Invariant: a seed outlives nothing; a tab that fails before its child consumed it never
-    // replays the prompt into a replacement child.
-    locked.seeds.discard(tab_id);
-    locked.surfaces.remove(tab_id);
+    forget_lost_output(&mut locked, tab_id);
     locked.last_activity = std::time::Instant::now();
     let now_epoch = SystemTime::now()
         .duration_since(UNIX_EPOCH)

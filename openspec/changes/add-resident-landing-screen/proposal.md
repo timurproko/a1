@@ -24,6 +24,6 @@ When the last resident tab closes, bare `a1` leaves the attach client showing a 
 ## Impact
 
 - **Native host:** `native/terminal-host/src/core/attach/` (landing editor state, submission state, key/paste/mouse routing with no tabs), a new `roles/landing.rs` renderer, `roles/attach.rs` (present the landing body and cursor, create-with-prompt request), `roles/wire.rs` (`TabCreate.initial_prompt`), `roles/server/lifecycle.rs`, `standby.rs`, `bridge.rs`, and `core/server.rs` (seed file, pending-seed runtime state, `bridge.seed`), `protocol/fixtures.json`, and `core/sim` attach coverage.
-- **TypeScript child:** `src/foundation/resident-tabs/bridge-client.ts` (`bridge.seed` command), a seed-file reader beside the recovery storage, `src/composition/resident-tab-bridge.ts` and `owned-ui.ts` (seed command wiring), and `src/app/session-shell` (submit a retained seed once the shell is ready).
+- **TypeScript child:** `src/foundation/resident-tabs/bridge-client.ts` (`bridge.seed` command), a seed-file reader beside the recovery storage, `src/composition/resident-tab-bridge.ts` and `owned-ui.ts` (Agent-tab seed binding), and a lazily loaded `src/composition/resident-tab-seed.ts` that submits a retained seed through the presenter once the shell is ready.
 - **Documentation:** `docs/architecture/resident-tabs.md` Decision 11 records the landing and seed delivery.
 - **Protocols and dependencies:** one additive optional field on `tab.create`, one additive bridge message pair and a `bridge-seed` welcome feature; older peers ignore both. No new runtime dependency.

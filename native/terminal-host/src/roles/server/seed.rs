@@ -1,6 +1,7 @@
 //! Seeded first prompts. A landing submission reaches its Agent through one owner-only file in
 //! the tab's private data directory, written before the child can look for it and deleted by the
-//! child once consumed; the bridge only says that a seed exists.
+//! child once consumed; the bridge only says that a seed exists. The server holds the pending
+//! flag in its core tab runtime and never the text.
 
 use super::*;
 
@@ -10,71 +11,21 @@ pub(super) const SEED_SCHEMA: &str = "a1-tab-seed-prompt-v1";
 /// The refusal for a seeded prompt over the `tab.create` bound.
 pub(super) const SEED_TOO_LONG: &str = "the prompt is longer than 64 KiB";
 
-/// The tabs whose seed file waits for their child. Security: only a flag per tab is held in
-/// memory; the text lives in the tab's private file and nowhere else in the server.
-#[derive(Debug)]
-pub(super) struct SeedLedger {
-    /// The profile's private tab data root; each tab's directory is `<root>/<tab-id>`, the
-    /// directory the holder passes to the child as `--tab-data-dir`.
-    root: std::path::PathBuf,
-    pending: std::collections::HashSet<String>,
-}
-
-impl SeedLedger {
-    pub(super) fn new(root: std::path::PathBuf) -> Self {
-        Self {
-            root,
-            pending: std::collections::HashSet::new(),
-        }
-    }
-
-    fn directory(&self, tab_id: &str) -> std::path::PathBuf {
-        self.root.join(tab_id)
-    }
-
-    /// Writes the tab's seed file without marking it pending; a standby is marked only once it
-    /// is announced as this tab.
-    pub(super) fn write(&self, tab_id: &str, text: &str) -> Result<(), String> {
-        write_seed(&self.directory(tab_id), text)
-    }
-
-    /// Writes a fresh tab's seed and marks it pending before its holder starts.
-    pub(super) fn stage(&mut self, tab_id: &str, text: &str) -> Result<(), String> {
-        self.write(tab_id, text)?;
-        self.mark(tab_id);
-        Ok(())
-    }
-
-    pub(super) fn mark(&mut self, tab_id: &str) {
-        self.pending.insert(tab_id.to_owned());
-    }
-
-    /// Removes a written seed that was never marked, such as a refused promotion's.
-    pub(super) fn remove(&self, tab_id: &str) {
-        let _ = std::fs::remove_file(self.directory(tab_id).join(SEED_FILE));
-    }
-
-    /// Forgets a pending seed and deletes its file: the child consumed it, or the tab closed,
-    /// stopped, or failed first. Returns whether one was pending.
-    pub(super) fn discard(&mut self, tab_id: &str) -> bool {
-        if !self.pending.remove(tab_id) {
-            return false;
-        }
-        self.remove(tab_id);
-        true
-    }
-
-    /// The content-free `bridge.seed` frame for a tab whose seed is pending.
-    pub(super) fn notice(&self, tab_id: &str) -> Result<Option<Vec<u8>>, String> {
-        if !self.pending.contains(tab_id) {
-            return Ok(None);
-        }
-        wire::frame("bridge.seed", None, protocol::BridgeSeed {}).map(Some)
-    }
+/// The tab's private data directory: the one the holder passes to the child as `--tab-data-dir`.
+pub(super) fn tab_data_dir(
+    locked: &RuntimeState,
+    tab_id: &str,
+) -> Result<std::path::PathBuf, String> {
+    let token =
+        crate::endpoint::endpoint_token(&locked.profile).map_err(|error| error.to_string())?;
+    Ok(Path::new(&locked.server_config.data_dir)
+        .join("tabs")
+        .join(token)
+        .join(tab_id))
 }
 
 /// Writes `text` as the seed file in `directory`, owner-only, replacing any earlier one atomically.
-fn write_seed(directory: &Path, text: &str) -> Result<(), String> {
+pub(super) fn write_seed(directory: &Path, text: &str) -> Result<(), String> {
     if text.len() > wire::MAX_INITIAL_PROMPT_BYTES {
         return Err(SEED_TOO_LONG.into());
     }
@@ -102,20 +53,51 @@ fn write_seed(directory: &Path, text: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub(super) fn remove_seed(directory: &Path) {
+    let _ = std::fs::remove_file(directory.join(SEED_FILE));
+}
+
+/// Writes a fresh tab's seed and marks it pending before its holder starts.
 pub(super) fn stage_seed(
     state: &Arc<Mutex<RuntimeState>>,
     tab_id: &str,
     text: &str,
 ) -> Result<(), String> {
-    lock_state(state)?.seeds.stage(tab_id, text)
+    let mut locked = lock_state(state)?;
+    write_seed(&tab_data_dir(&locked, tab_id)?, text)?;
+    locked.core.set_seed_pending(tab_id, true);
+    Ok(())
 }
 
-/// Tells a connected bridge that its seed file is ready; the frame carries no prompt text.
+/// Forgets a pending seed and deletes its file: the child consumed it, or the tab closed,
+/// stopped, or failed first.
+pub(super) fn discard_seed(locked: &mut RuntimeState, tab_id: &str) {
+    if locked.core.set_seed_pending(tab_id, false)
+        && let Ok(directory) = tab_data_dir(locked, tab_id)
+    {
+        remove_seed(&directory);
+    }
+}
+
+/// The content-free notice that a tab's seed file is ready.
+pub(super) fn seed_notice() -> Result<Vec<u8>, String> {
+    wire::frame("bridge.seed", None, protocol::BridgeSeed {})
+}
+
+/// Marks a promoted standby's seed pending and tells its bridge. Protocol: a bridge that connected
+/// before the promotion has had its admission notice already, so it is told now.
+pub(super) fn announce_seed(state: &Arc<Mutex<RuntimeState>>, tab_id: &str) -> Result<(), String> {
+    let mut locked = lock_state(state)?;
+    locked.core.set_seed_pending(tab_id, true);
+    notify_seed(&locked, tab_id)
+}
+
+/// Tells a connected bridge that its pending seed file is ready.
 pub(super) fn notify_seed(locked: &RuntimeState, tab_id: &str) -> Result<(), String> {
-    if let Some(frame) = locked.seeds.notice(tab_id)?
+    if locked.core.seed_pending(tab_id)
         && let Some(bridge) = locked.bridges.get(tab_id)
     {
-        let _ = bridge.peer.offer_control(frame);
+        let _ = bridge.peer.offer_control(seed_notice()?);
     }
     Ok(())
 }
@@ -135,16 +117,8 @@ mod tests {
             )))
         }
 
-        fn ledger(&self) -> SeedLedger {
-            SeedLedger::new(self.0.join("tabs").join("profile"))
-        }
-
-        fn seed(&self, tab_id: &str) -> std::path::PathBuf {
-            self.0
-                .join("tabs")
-                .join("profile")
-                .join(tab_id)
-                .join(SEED_FILE)
+        fn tab(&self, tab_id: &str) -> std::path::PathBuf {
+            self.0.join("tabs").join("profile").join(tab_id)
         }
     }
 
@@ -157,12 +131,11 @@ mod tests {
     const PROMPT: &str = "What does this repository build?";
 
     #[test]
-    fn a_fresh_tab_seed_is_one_private_file_announced_without_its_text() {
-        let root = Root::new("fresh");
-        let mut ledger = root.ledger();
-        assert_eq!(ledger.notice("tab-1"), Ok(None), "no seed, no notice");
-        ledger.stage("tab-1", PROMPT).unwrap();
-        let path = root.seed("tab-1");
+    fn a_seed_is_one_private_schema_file_that_removal_deletes() {
+        let root = Root::new("write");
+        let tab = root.tab("tab-1");
+        write_seed(&tab, PROMPT).unwrap();
+        let path = tab.join(SEED_FILE);
         let document: serde_json::Value =
             serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
         assert_eq!(document["schema"], SEED_SCHEMA);
@@ -173,95 +146,42 @@ mod tests {
             use std::os::unix::fs::PermissionsExt;
             let mode = |path: &Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
             assert_eq!(mode(&path), 0o600);
-            assert_eq!(mode(path.parent().unwrap()), 0o700);
+            assert_eq!(mode(&tab), 0o700);
         }
+        write_seed(&tab, "replacement").unwrap();
+        let replaced: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(replaced["text"], "replacement");
+        remove_seed(&tab);
+        assert!(!path.exists());
+        remove_seed(&tab);
+    }
 
-        let frame = ledger
-            .notice("tab-1")
-            .unwrap()
-            .expect("a pending seed is announced");
+    #[test]
+    fn the_seed_notice_carries_no_prompt_text() {
+        let frame = seed_notice().unwrap();
         assert!(
             !frame
                 .windows(PROMPT.len())
-                .any(|window| window == PROMPT.as_bytes()),
-            "the bridge notice carries no prompt text"
+                .any(|window| window == PROMPT.as_bytes())
         );
-        let kind = wire::kind(&frame[4..]).unwrap();
-        assert_eq!(kind.message_type, "bridge.seed");
+        assert_eq!(wire::kind(&frame[4..]).unwrap().message_type, "bridge.seed");
         let (_, body): (_, protocol::BridgeSeed) = wire::body(&frame[4..]).unwrap();
         assert_eq!(body, protocol::BridgeSeed {});
-
-        // Invariant: consumption clears the flag and any file the child failed to delete.
-        assert!(ledger.discard("tab-1"));
-        assert!(!path.exists());
-        assert_eq!(ledger.notice("tab-1"), Ok(None));
-        assert!(
-            !ledger.discard("tab-1"),
-            "a second acknowledgement changes nothing"
-        );
     }
 
     #[test]
-    fn a_promoted_standby_is_written_first_and_marked_once_announced() {
-        let root = Root::new("promoted");
-        let mut ledger = root.ledger();
-        ledger.write("standby-1", PROMPT).unwrap();
-        assert!(root.seed("standby-1").exists());
-        assert_eq!(
-            ledger.notice("standby-1"),
-            Ok(None),
-            "an unannounced standby has no pending seed"
-        );
-        ledger.mark("standby-1");
-        assert!(ledger.notice("standby-1").unwrap().is_some());
-
-        // Invariant: a refused promotion removes its unmarked file and keeps nothing pending.
-        ledger.write("standby-2", PROMPT).unwrap();
-        ledger.remove("standby-2");
-        assert!(!root.seed("standby-2").exists());
-        assert!(!ledger.discard("standby-2"));
-    }
-
-    #[test]
-    fn a_seed_outlives_nothing_when_its_tab_closes_or_fails_first() {
-        let root = Root::new("closed");
-        let mut ledger = root.ledger();
-        ledger.stage("tab-closed", PROMPT).unwrap();
-        ledger.stage("tab-failed", "other").unwrap();
-        assert!(ledger.discard("tab-closed"));
-        assert!(!root.seed("tab-closed").exists());
-        assert!(
-            root.seed("tab-failed").exists(),
-            "other tabs keep their seed"
-        );
-        assert!(ledger.discard("tab-failed"));
-        assert!(!root.seed("tab-failed").exists());
-    }
-
-    #[test]
-    fn oversized_or_unwritable_seeds_are_refused() {
+    fn oversized_or_unwritable_seeds_are_refused_and_write_nothing() {
         let root = Root::new("refused");
-        let mut ledger = root.ledger();
+        let tab = root.tab("tab-1");
         assert_eq!(
-            ledger.stage("tab-1", &"x".repeat(wire::MAX_INITIAL_PROMPT_BYTES + 1)),
+            write_seed(&tab, &"x".repeat(wire::MAX_INITIAL_PROMPT_BYTES + 1)),
             Err(SEED_TOO_LONG.to_owned())
         );
-        assert!(
-            !root.seed("tab-1").parent().unwrap().exists(),
-            "nothing is written"
-        );
-        assert_eq!(ledger.notice("tab-1"), Ok(None));
-        ledger
-            .stage("tab-1", &"x".repeat(wire::MAX_INITIAL_PROMPT_BYTES))
-            .unwrap();
-
-        let blocked = root.seed("tab-2");
-        std::fs::write(blocked.parent().unwrap(), b"not a directory").unwrap();
-        assert!(ledger.stage("tab-2", PROMPT).is_err());
-        assert_eq!(
-            ledger.notice("tab-2"),
-            Ok(None),
-            "a failed write marks nothing"
-        );
+        assert!(!tab.exists());
+        write_seed(&tab, &"x".repeat(wire::MAX_INITIAL_PROMPT_BYTES)).unwrap();
+        let blocked = root.tab("tab-2");
+        std::fs::write(&blocked, b"not a directory").unwrap();
+        assert!(write_seed(&blocked, PROMPT).is_err());
     }
 }

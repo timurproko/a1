@@ -21,8 +21,8 @@ Each numbered section is one Implementation item. Every section starts by mergin
 
 ## 4. Seed consumption in the Agent tab
 
-- [x] 4.1 Add `src/foundation/resident-tabs/seed-prompt.ts`: read the bounded seed file from the tab data directory, validate the schema, delete it, and return the text; absent or invalid files return nothing. Decode `bridge.seed` into a `seed` command and send `bridge.seed-consumed` in `bridge-client.ts`. Tests: reader fixtures and bridge decoding/encoding.
-- [x] 4.2 Consume the seed in `resident-tab-bridge.ts` at bind time and on the `seed` command, and hand the text to the presenter through a new `submitSeededPrompt` that submits through the ordinary `submit` path once the shell is ready and no startup route or dialog holds the screen, exactly once. Tests: composition tests for startup and promoted-standby timing, retained-until-ready, and single submission.
+- [x] 4.1 Add `src/foundation/resident-tabs/seed-prompt.ts`: read the bounded seed file from the tab data directory, delete it before parsing, validate the schema, and return the text; absent or invalid files return nothing. Decode `bridge.seed` in `bridge-client.ts` into a `seed` command whose `acknowledge` sends `bridge.seed-consumed` once, and keep an unacknowledged seed command replayable to later subscribers. Tests: reader fixtures and bridge decoding, replay, and acknowledgement.
+- [x] 4.2 Add `src/composition/resident-tab-seed.ts`, loaded lazily off the startup path by `bindResidentAgentTab` for Agent tabs only: consume the seed at bind time and on the `seed` command, acknowledge each announcement, and submit the text exactly once through the presenter's ordinary `submit` path once the shell runs and no startup route, overlay, dialog, or replacement input surface has held the screen for longer than the startup route's retry interval. Tests: composition tests for bind-time and promoted-standby seeds, retained-until-ready, single submission, unbinding, and the Settings exclusion.
 
 ## 5. Architecture record
 

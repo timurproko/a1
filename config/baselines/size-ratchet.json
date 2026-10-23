@@ -122,7 +122,7 @@
       "lines": 155
     },
     "native/terminal-host/src/roles/entry.rs::resident_internal_command": {
-      "lines": 126
+      "lines": 124
     },
     "native/terminal-host/src/roles/entry.rs::resident_server_command": {
       "lines": 160
@@ -140,7 +140,7 @@
       "lines": 442
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
-      "lines": 388
+      "lines": 379
     },
     "native/terminal-host/src/roles/server/controller.rs::claim_client_control": {
       "lines": 126
@@ -155,7 +155,7 @@
       "lines": 199
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
-      "lines": 229
+      "lines": 170
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::stop_tabs": {
       "lines": 157
@@ -165,9 +165,6 @@
     },
     "native/terminal-host/src/roles/server/mod.rs::serve_peer": {
       "lines": 262
-    },
-    "native/terminal-host/src/roles/server/standby.rs::promote_standby": {
-      "lines": 106
     },
     "native/terminal-host/src/roles/strip.rs::render_frame": {
       "lines": 128

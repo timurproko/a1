@@ -304,18 +304,23 @@ fn foreground(rgb: [u8; 3], truecolor: bool) -> String {
     }
 }
 
+/// Body rows, each holding the styled runs placed on it by starting column.
+type Rows = Vec<Vec<(usize, String)>>;
+
+fn place(rows: &mut Rows, row: usize, column: usize, content: String) {
+    if let Some(slot) = rows.get_mut(row) {
+        slot.push((column, content));
+    }
+}
+
 pub fn render(input: &LandingInput<'_>) -> LandingFrame {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
-    let colors = accent_colors(input.accent);
-    let fg = |rgb| foreground(rgb, input.truecolor);
-
     // Invariant: the box mirrors the flush-left owned editor, so its text starts at column zero;
     // a pending creation's spinner takes the first two cells.
     let spinner_width = if input.spinner.is_some() { 2 } else { 0 };
     let content_width = columns.saturating_sub(spinner_width).max(1);
     let wrapped = wrap(input.text, content_width);
-    let (cursor_row, cursor_column) = cursor_cell(input.text, &wrapped, input.cursor);
     let ruled = body_rows >= 3;
     let content_rows = wrapped
         .len()
@@ -326,59 +331,76 @@ pub fn render(input: &LandingInput<'_>) -> LandingFrame {
     let with_hints = box_rows < body_rows;
     let with_header = box_rows + usize::from(with_hints) + HEADER_ROWS + 1 <= body_rows;
 
-    let mut rows: Vec<Vec<(usize, String)>> = vec![Vec::new(); body_rows];
-    let mut place = |row: usize, column: usize, content: String| {
-        if let Some(slot) = rows.get_mut(row) {
-            slot.push((column, content));
-        }
-    };
+    let mut rows: Rows = vec![Vec::new(); body_rows];
     if with_header {
-        let text_column = if input.half_blocks {
-            for (offset, line) in WORDMARK.iter().enumerate() {
-                place(
-                    1 + offset,
-                    HEADER_MARGIN,
-                    format!(
-                        "{}{}\x1b[0m",
-                        fg(colors.accent),
-                        clip(line, columns.saturating_sub(HEADER_MARGIN))
-                    ),
-                );
-            }
-            HEADER_MARGIN + UnicodeWidthStr::width(WORDMARK[0]) + 2
-        } else {
-            HEADER_MARGIN
-        };
-        let room = columns.saturating_sub(text_column);
-        let version = input
-            .version
-            .filter(|version| !version.is_empty())
-            .map(|version| format!(" v{version}"))
-            .unwrap_or_default();
-        place(
-            1,
-            text_column,
-            format!(
-                "\x1b[1m{}{}\x1b[0m{}{}\x1b[0m",
-                fg(TEXT),
-                clip("a1", room),
-                fg(MUTED),
-                clip(&version, room.saturating_sub(2))
-            ),
-        );
-        place(
-            2,
-            text_column,
-            format!("{}{}\x1b[0m", fg(MUTED), clip_left(input.cwd, room)),
-        );
+        place_header(&mut rows, input);
     }
-
     // Invariant: the box sits at the bottom, where the new Agent's editor appears, and grows
     // upward as the prompt wraps.
-    let mut row = body_rows.saturating_sub(box_rows + usize::from(with_hints));
+    let top = body_rows.saturating_sub(box_rows + usize::from(with_hints));
+    let cursor = place_box(&mut rows, input, &wrapped, top, content_rows, ruled);
+    if with_hints {
+        place(&mut rows, body_rows - 1, 0, hint_line(input));
+    }
+    LandingFrame {
+        bytes: encode(&rows),
+        cursor,
+    }
+}
+
+/// The top-left header: the accent wordmark beside `a1 v<version>` and the launch cwd.
+fn place_header(rows: &mut Rows, input: &LandingInput<'_>) {
+    let columns = usize::from(input.columns);
+    let colors = accent_colors(input.accent);
+    let fg = |rgb| foreground(rgb, input.truecolor);
+    let text_column = if input.half_blocks {
+        for (offset, line) in WORDMARK.iter().enumerate() {
+            let shown = clip(line, columns.saturating_sub(HEADER_MARGIN));
+            let content = format!("{}{shown}\x1b[0m", fg(colors.accent));
+            place(rows, 1 + offset, HEADER_MARGIN, content);
+        }
+        HEADER_MARGIN + UnicodeWidthStr::width(WORDMARK[0]) + 2
+    } else {
+        HEADER_MARGIN
+    };
+    let room = columns.saturating_sub(text_column);
+    let version = input
+        .version
+        .filter(|version| !version.is_empty())
+        .map(|version| format!(" v{version}"))
+        .unwrap_or_default();
+    let title = format!(
+        "\x1b[1m{}{}\x1b[0m{}{}\x1b[0m",
+        fg(TEXT),
+        clip("a1", room),
+        fg(MUTED),
+        clip(&version, room.saturating_sub(2))
+    );
+    place(rows, 1, text_column, title);
+    let cwd = format!("{}{}\x1b[0m", fg(MUTED), clip_left(input.cwd, room));
+    place(rows, 2, text_column, cwd);
+}
+
+/// The ruled prompt box from body row `top`; returns the caret cell.
+fn place_box(
+    rows: &mut Rows,
+    input: &LandingInput<'_>,
+    wrapped: &[WrappedRow],
+    top: usize,
+    content_rows: usize,
+    ruled: bool,
+) -> Option<SurfaceCursor> {
+    let columns = usize::from(input.columns);
+    let colors = accent_colors(input.accent);
+    let fg = |rgb| foreground(rgb, input.truecolor);
+    let content_width = columns
+        .saturating_sub(if input.spinner.is_some() { 2 } else { 0 })
+        .max(1);
+    let (cursor_row, cursor_column) = cursor_cell(input.text, wrapped, input.cursor);
     let rule = format!("{}{}\x1b[0m", fg(colors.border), "─".repeat(columns));
+    let mut row = top;
     if ruled {
-        place(row, 0, rule.clone());
+        place(rows, row, 0, rule.clone());
         row += 1;
     }
     let first = cursor_row.saturating_sub(content_rows - 1);
@@ -391,54 +413,63 @@ pub fn render(input: &LandingInput<'_>) -> LandingFrame {
             None => String::new(),
         };
         let caret = (index == cursor_row && input.spinner.is_none()).then_some(cursor_column);
-        let body = if input.text.is_empty() {
-            with_caret(&clip(LANDING_PLACEHOLDER, content_width), &fg(DIM), caret)
+        let (text, color) = if input.text.is_empty() {
+            (LANDING_PLACEHOLDER, DIM)
+        } else if input.spinner.is_some() {
+            (visual.text.as_str(), MUTED)
         } else {
-            let color = if input.spinner.is_some() { MUTED } else { TEXT };
-            with_caret(&clip(&visual.text, content_width), &fg(color), caret)
+            (visual.text.as_str(), TEXT)
         };
+        let body = with_caret(&clip(text, content_width), &fg(color), caret);
         if caret.is_some() {
             cursor = Some(SurfaceCursor {
                 column: cursor_column.min(columns.saturating_sub(1)) as u16,
                 row: row as u16,
             });
         }
-        place(row, 0, format!("{prefix}{body}"));
+        place(rows, row, 0, format!("{prefix}{body}"));
         row += 1;
     }
     if ruled {
-        place(row, 0, rule);
-        row += 1;
+        place(rows, row, 0, rule);
     }
-    if with_hints {
-        let separator = " · ";
-        let mut line = String::new();
-        let mut used = 0usize;
-        for (key, action) in input.hints.iter().filter(|(key, _)| !key.is_empty()) {
-            let key = key.to_lowercase();
-            let gap = if used == 0 {
-                0
-            } else {
-                UnicodeWidthStr::width(separator)
-            };
-            let cells =
-                gap + UnicodeWidthStr::width(key.as_str()) + 1 + UnicodeWidthStr::width(*action);
-            if used + cells > columns {
-                break;
-            }
-            if used > 0 {
-                line.push_str(&format!("{}{separator}\x1b[0m", fg(DIM)));
-            }
-            line.push_str(&format!(
-                "{}{key}\x1b[0m {}{action}\x1b[0m",
-                fg(TEXT),
-                fg(MUTED)
-            ));
-            used += cells;
-        }
-        place(row, 0, line);
-    }
+    cursor
+}
 
+/// The bound shortcut hints that fit, whole, in display order.
+fn hint_line(input: &LandingInput<'_>) -> String {
+    let columns = usize::from(input.columns);
+    let fg = |rgb| foreground(rgb, input.truecolor);
+    let separator = " · ";
+    let mut line = String::new();
+    let mut used = 0usize;
+    for (key, action) in input.hints.iter().filter(|(key, _)| !key.is_empty()) {
+        let key = key.to_lowercase();
+        let gap = if used == 0 {
+            0
+        } else {
+            UnicodeWidthStr::width(separator)
+        };
+        let cells =
+            gap + UnicodeWidthStr::width(key.as_str()) + 1 + UnicodeWidthStr::width(*action);
+        if used + cells > columns {
+            break;
+        }
+        if used > 0 {
+            line.push_str(&format!("{}{separator}\x1b[0m", fg(DIM)));
+        }
+        line.push_str(&format!(
+            "{}{key}\x1b[0m {}{action}\x1b[0m",
+            fg(TEXT),
+            fg(MUTED)
+        ));
+        used += cells;
+    }
+    line
+}
+
+/// Clears every body row and writes its runs, addressed as rows below a top strip.
+fn encode(rows: &Rows) -> Vec<u8> {
     let mut bytes = String::new();
     for (index, slot) in rows.iter().enumerate() {
         let terminal_row = index + 2;
@@ -448,10 +479,7 @@ pub fn render(input: &LandingInput<'_>) -> LandingFrame {
         }
     }
     bytes.push_str("\x1b[0m");
-    LandingFrame {
-        bytes: bytes.into_bytes(),
-        cursor,
-    }
+    bytes.into_bytes()
 }
 
 #[cfg(test)]

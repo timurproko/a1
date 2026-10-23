@@ -5,6 +5,7 @@ import { projectResidentTabShortcuts } from "../features/resident-tab/shortcut-p
 import { readShortcutBindingsFile } from "../features/resident-tab/shortcut-bindings-file.js";
 import type { PiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 import type { ComposedSessionBackend } from "./session-backend.js";
+import type { ResidentTabSeedPorts } from "./resident-tab-seed.js";
 
 /**
  * The keybindings the shells borrow. Inside a resident tab the host dispatches and labels the tab
@@ -25,34 +26,14 @@ export function residentTabKeybindings(
   return { ...keybindingsHost, reload: () => { keybindingsHost.reload(); publish(); } };
 }
 
-/** Reads the tab's seeded first prompt and hands it to the presenter that submits it. */
-export interface ResidentTabSeedPort {
-  consume(): string | null;
-  submit(text: string): void;
-}
-
 export async function bindResidentTabBridge(
   tabBridge: TabBridgeClient,
   backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows" | "generateResidentTabName">,
   recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
-  options: {
-    readonly autoName?: boolean;
-    readonly openRoute?: (route: "settings") => void;
-    readonly seed?: ResidentTabSeedPort;
-  } = {},
+  options: { readonly autoName?: boolean; readonly openRoute?: (route: "settings") => void } = {},
 ): Promise<() => void> {
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");
-  // Invariant: a seeded first prompt is read from the private file at most once, whether it is
-  // already there when the tab binds or the server announces it later, and is then acknowledged so
-  // the server forgets it.
-  const takeSeed = (announced: boolean) => {
-    if (options.seed === undefined) return;
-    const text = options.seed.consume();
-    if (text !== null || announced) tabBridge.seedConsumed();
-    if (text !== null) options.seed.submit(text);
-  };
-  takeSeed(false);
   const currentSessionFile = () => currentBackendSessionFile(backend);
   let pendingAutoName: string | null = null;
   // Invariant: while a generated name is being applied, the session name it produces is automatic
@@ -133,8 +114,6 @@ export async function bindResidentTabBridge(
       else void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
     } else if (command.type === "stop") {
       void backend.session.dispose().catch(() => {});
-    } else if (command.type === "seed") {
-      takeSeed(true);
     }
   }) : () => {};
   const unsubscribeEvents = backend.session.onEvent(event => {
@@ -168,6 +147,31 @@ export async function bindResidentTabBridge(
   return () => {
     unsubscribeCommands();
     unsubscribeEvents();
+  };
+}
+
+/**
+ * Binds a resident tab's bridge and, for an Agent tab, its seeded first prompt. Performance: the seed
+ * consumer loads off the startup path; an unacknowledged seed notice waits for it in the bridge.
+ */
+export async function bindResidentAgentTab(
+  tabBridge: TabBridgeClient,
+  backend: Parameters<typeof bindResidentTabBridge>[1],
+  recovery: Parameters<typeof bindResidentTabBridge>[2],
+  options: Parameters<typeof bindResidentTabBridge>[3],
+  seed: ResidentTabSeedPorts,
+): Promise<() => void> {
+  const unbind = await bindResidentTabBridge(tabBridge, backend, recovery, options);
+  if (tabBridge.tabId.startsWith("settings-")) return unbind;
+  let unseed = () => {};
+  let unbound = false;
+  void import("./resident-tab-seed.js").then(module => {
+    if (!unbound) unseed = module.bindResidentTabSeed(tabBridge, seed);
+  }).catch(() => {});
+  return () => {
+    unbound = true;
+    unseed();
+    unbind();
   };
 }
 

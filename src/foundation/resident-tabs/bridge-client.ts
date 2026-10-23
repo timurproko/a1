@@ -9,8 +9,9 @@ export type TabBridgeCommand =
   | { readonly type: "rename"; readonly name: string; readonly nameSource: "default" | "user" | "auto" }
   | { readonly type: "route"; readonly route: "settings" }
   | { readonly type: "stop"; readonly deadlineMs: number }
-  // Security: carries no text; the child reads the seeded prompt from its private seed file.
-  | { readonly type: "seed" };
+  // Security: carries no text; the child reads the seeded prompt from its private seed file and then
+  // acknowledges it, so the server forgets the pending seed.
+  | { readonly type: "seed"; readonly acknowledge: () => void };
 
 interface BridgeTransport {
   write(bytes: Uint8Array): boolean;
@@ -59,7 +60,11 @@ export class TabBridgeClient {
   captureAttachment(): TabAttachment | null { return this.#attachment === null ? null : { ...this.#attachment }; }
   onCommand(listener: (command: TabBridgeCommand) => void): () => void {
     this.#commandListeners.add(listener);
-    for (const command of this.#pendingCommands.splice(0)) listener(command);
+    // Invariant: an unacknowledged seed notice stays replayable, so the seed consumer that subscribes
+    // after composition still receives the notice the server sent on bridge admission.
+    const pending = this.#pendingCommands.splice(0);
+    for (const command of pending) listener(command);
+    this.#pendingCommands.push(...pending.filter(command => command.type === "seed"));
     return () => this.#commandListeners.delete(listener);
   }
 
@@ -124,10 +129,6 @@ export class TabBridgeClient {
   }
   prompt(interrupted: boolean): void {
     this.#send("bridge.prompt", { interrupted });
-  }
-  /** Reports that the seed file was read and deleted, so the server forgets the pending seed. */
-  seedConsumed(): void {
-    this.#send("bridge.seed-consumed", {});
   }
   /** Publishes the effective tab shortcut assignments so the host dispatches and labels the same keys. */
   shortcuts(assignments: Readonly<Record<string, string | null>>): void {
@@ -206,10 +207,10 @@ export class TabBridgeClient {
   }
 
   #emitCommand(command: TabBridgeCommand): void {
-    if (this.#commandListeners.size === 0) {
+    if (this.#commandListeners.size === 0 || command.type === "seed") {
       if (this.#pendingCommands.length >= 16) this.#pendingCommands.shift();
       this.#pendingCommands.push(command);
-      return;
+      if (this.#commandListeners.size === 0) return;
     }
     for (const listener of this.#commandListeners) listener(command);
   }
@@ -248,7 +249,13 @@ export class TabBridgeClient {
       this.#emitCommand({ type: "stop", deadlineMs: message.body["deadlineMs"] }); return;
     }
     if (message.type === "bridge.seed") {
-      this.#emitCommand({ type: "seed" }); return;
+      const seed: TabBridgeCommand = { type: "seed", acknowledge: () => {
+        const index = this.#pendingCommands.indexOf(seed);
+        if (index < 0) return;
+        this.#pendingCommands.splice(index, 1);
+        this.#send("bridge.seed-consumed", {});
+      } };
+      this.#emitCommand(seed); return;
     }
     if (message.type === "attachment") {
       const clientId = message.body["clientId"]; const revision = message.body["controllerRevision"];
