@@ -1870,15 +1870,8 @@ impl Client {
             .viewed
             .as_ref()
             .and_then(|id| self.tabs.iter().find(|tab| &tab.id == id))
-            .and_then(|tab| {
-                if matches!(tab.status.as_str(), "stalled" | "unresponsive") {
-                    Some("Agent stalled · R restart · Alt+W close".to_owned())
-                } else if tab.status == "failed" {
-                    Some("Tab failed · R retry · F start fresh · Alt+W close".to_owned())
-                } else {
-                    None
-                }
-            });
+            .filter(|tab| tab.status == "failed")
+            .map(|_| "Tab failed · R retry · F start fresh · Alt+W close".to_owned());
         if let Some(menu) = core.mode.popup() {
             Some(menu.render_styled_at(
                 !palette_fallback_requested(),
@@ -2451,7 +2444,6 @@ impl Client {
         }
         match self.with_context(|context| core.forward_key(context, (&key).into())) {
             None => {}
-            Some(KeyForward::Restart(tab_id)) => self.send(Request::Restart(tab_id))?,
             Some(KeyForward::Typed) => self.send_input(core, event, bytes)?,
             Some(KeyForward::Plain { name, byte }) => {
                 self.send_input(core, Some(outer_input::plain_key(&name)), vec![byte])?

@@ -25,7 +25,6 @@ export interface ResidentTabLaunchSettings {
   readonly maxConcurrentStarts: number;
   readonly prewarmCount: number;
   readonly unresponsiveRestartSeconds: number;
-  readonly stallNoticeSeconds: number;
 }
 
 const DEFAULTS: ResidentTabLaunchSettings = Object.freeze({
@@ -33,7 +32,6 @@ const DEFAULTS: ResidentTabLaunchSettings = Object.freeze({
   maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
   prewarmCount: RESIDENT_TABS_PREWARM_COUNT,
   unresponsiveRestartSeconds: 120,
-  stallNoticeSeconds: 300,
 });
 
 /** Read only resident-launch values before any UI or extension module is loaded. */
@@ -81,6 +79,5 @@ function resolveLaunchValues(
     maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
     prewarmCount: RESIDENT_TABS_PREWARM_COUNT,
     unresponsiveRestartSeconds: DEFAULTS.unresponsiveRestartSeconds,
-    stallNoticeSeconds: DEFAULTS.stallNoticeSeconds,
   };
 }
