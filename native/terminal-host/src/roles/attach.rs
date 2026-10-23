@@ -466,6 +466,7 @@ fn render_notice_at(message: &str, columns: u16, row: u16) -> String {
 
 const MAX_SETTINGS_BYTES: u64 = 256 * 1024;
 const SETTINGS_POLL_INTERVAL: Duration = Duration::from_millis(250);
+const OUTER_RESUME_GAP: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PresentationSettings {
@@ -637,6 +638,11 @@ impl TimeFormatWatch {
         self.tab_bar_position = settings.tab_bar_position;
         changed
     }
+}
+
+fn resumed_after_gap(previous: SystemTime, now: SystemTime) -> bool {
+    now.duration_since(previous)
+        .is_ok_and(|elapsed| elapsed >= OUTER_RESUME_GAP)
 }
 
 fn clock_minute() -> u64 {
@@ -1594,6 +1600,7 @@ struct Client {
     glyphs: GlyphState,
     started: Instant,
     last_strip_frame: Instant,
+    last_tick_wall: SystemTime,
     displayed_clock_minute: u64,
     last_list: Instant,
     pressed_chars: std::collections::HashSet<char>,
@@ -1649,14 +1656,15 @@ impl Client {
             glyphs: GlyphState::default(),
             started: Instant::now(),
             last_strip_frame: Instant::now(),
+            last_tick_wall: SystemTime::now(),
             displayed_clock_minute: clock_minute(),
             last_list: Instant::now(),
             pressed_chars: std::collections::HashSet::new(),
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
         };
-        // Rationale: attach.start precedes the first tab.list. Do not paint an empty strip
-        // while the server already has tabs; the initial list paints their names together.
+        // Rationale: attach.start precedes the first tab.list. Wait for a committed child
+        // surface before presenting that list and the body as one first frame.
         Ok(client)
     }
 
@@ -2301,6 +2309,9 @@ impl Client {
     }
 
     fn tick(&mut self, core: &mut State) -> Result<(), String> {
+        let wall_now = SystemTime::now();
+        let resumed = resumed_after_gap(self.last_tick_wall, wall_now);
+        self.last_tick_wall = wall_now;
         if let Some(Offer::Commit {
             surface,
             tabs,
@@ -2309,6 +2320,11 @@ impl Client {
             self.tabs.iter().any(|tab| tab.id == id)
         }) {
             self.apply_commit(core, surface, tabs, requested)?;
+        }
+        if resumed {
+            // Platform: after suspend, ConPTY may have discarded its last painted cells while
+            // the writer still considers them current. Overwrite the full cached frame once.
+            self.paint(core, true)?;
         }
         if strip::animations_active(&self.tabs)
             && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs)
@@ -3045,6 +3061,17 @@ fn encode_child_mouse(kind: MouseEventKind, column: u16, row: u16) -> Option<Vec
 mod tests {
     use super::*;
     use crate::core::attach::{PopupAction, update_drag};
+
+    #[test]
+    fn wake_gap_detects_suspend_without_repainting_during_ordinary_idle() {
+        let before = UNIX_EPOCH + Duration::from_secs(10);
+        assert!(!resumed_after_gap(
+            before,
+            before + Duration::from_millis(500)
+        ));
+        assert!(!resumed_after_gap(before, before - Duration::from_secs(1)));
+        assert!(resumed_after_gap(before, before + OUTER_RESUME_GAP));
+    }
 
     #[test]
     fn cold_attach_waits_for_the_first_surface_before_paint() {

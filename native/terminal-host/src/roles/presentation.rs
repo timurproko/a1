@@ -1677,6 +1677,39 @@ mod tests {
     }
 
     #[test]
+    fn explicit_resume_clear_repaints_an_unchanged_cached_surface() {
+        let surface = structured_fixture();
+        let mut composer = PresentationComposer::default();
+        composer
+            .prepare(&desired(Some(surface.clone()), Vec::new()))
+            .unwrap()
+            .unwrap()
+            .acknowledge(&mut composer);
+        assert!(
+            composer
+                .prepare(&desired(Some(surface.clone()), Vec::new()))
+                .unwrap()
+                .is_none()
+        );
+        let mut refresh = desired(Some(surface), Vec::new());
+        refresh.clear = true;
+        let frame = composer.prepare(&refresh).unwrap().expect("forced repaint");
+        assert!(
+            frame
+                .bytes
+                .windows(7)
+                .any(|bytes| bytes == b"\x1b[2J\x1b[H")
+        );
+        assert!(frame.bytes.windows(5).any(|bytes| bytes == b"STRIP"));
+        assert!(
+            frame
+                .bytes
+                .windows("界".len())
+                .any(|bytes| bytes == "界".as_bytes())
+        );
+    }
+
+    #[test]
     fn structured_composition_preserves_fidelity_and_repaints_only_damaged_rows() {
         let mut composer = PresentationComposer::default();
         let surface = structured_fixture();
