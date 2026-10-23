@@ -172,37 +172,23 @@ fn tint(base: u8, color: Rgb, percent: u16) -> Rgb {
     Rgb(channel(color.0), channel(color.1), channel(color.2))
 }
 
-fn tint_palette(color: Rgb, active: bool) -> u8 {
-    match (color, active) {
-        (Rgb(91, 141, 239), true) => 60,
-        (Rgb(91, 141, 239), false) => 67,
-        (Rgb(74, 174, 196), true) => 23,
-        (Rgb(74, 174, 196), false) => 66,
-        (Rgb(88, 183, 132), true) => 22,
-        (Rgb(88, 183, 132), false) => 65,
-        (Rgb(226, 159, 72), true) => 58,
-        (Rgb(226, 159, 72), false) => 101,
-        (Rgb(218, 112, 158), true) => 53,
-        (Rgb(218, 112, 158), false) => 96,
-        (_, true) => 60,
-        (_, false) => 96,
+fn tint_palette(color: Rgb) -> u8 {
+    match color {
+        Rgb(91, 141, 239) => 60,
+        Rgb(74, 174, 196) => 23,
+        Rgb(88, 183, 132) => 22,
+        Rgb(226, 159, 72) => 58,
+        Rgb(218, 112, 158) => 53,
+        _ => 60,
     }
 }
 
 fn tinted_background(color: Rgb, truecolor: bool) -> String {
     if !truecolor {
-        return format!("\x1b[48;5;{}m", tint_palette(color, true));
+        return format!("\x1b[48;5;{}m", tint_palette(color));
     }
     let Rgb(red, green, blue) = tint(55, color, 24);
     format!("\x1b[48;2;{red};{green};{blue}m")
-}
-
-fn tinted_foreground(color: Rgb, base: u8, active: bool, truecolor: bool) -> String {
-    if !truecolor {
-        return format!("\x1b[38;5;{}m", tint_palette(color, false));
-    }
-    let Rgb(red, green, blue) = tint(base, color, if active { 36 } else { 20 });
-    format!("\x1b[38;2;{red};{green};{blue}m")
 }
 
 const SETTLED_FG: Rgb = Rgb(170, 170, 170);
@@ -463,7 +449,6 @@ fn chip(
     truecolor: bool,
     rename: Option<&StripRename>,
     target_width: Option<usize>,
-    divider: bool,
 ) -> (String, usize) {
     let glyph = status_glyph(&tab.status);
     let icon = if glyph.is_empty() { " " } else { &glyph };
@@ -479,13 +464,6 @@ fn chip(
     let width = target_width.unwrap_or(fixed + title.width);
     let padding = " ".repeat(width.saturating_sub(fixed + title.width));
     let accent_color = tab_accent(tab.accent.as_deref());
-    let base = if active {
-        55
-    } else if hovered {
-        48
-    } else {
-        38
-    };
     let background = if active {
         format!(
             "{}\x1b[38;2;255;255;255m",
@@ -497,15 +475,7 @@ fn chip(
         "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m".to_owned()
     };
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
-    let end = if divider {
-        format!(
-            "{}│",
-            tinted_foreground(accent_color, base, active, truecolor)
-        )
-    } else {
-        " ".to_owned()
-    };
-    let text = format!("{background} {glyph_color}{icon}\x1b[39m {name}{padding}{end}\x1b[0m");
+    let text = format!("{background} {glyph_color}{icon}\x1b[39m {name}{padding} \x1b[0m");
     (text, width)
 }
 
@@ -580,17 +550,8 @@ fn render_frame(
     now: Instant,
     truecolor: bool,
 ) -> StripFrame {
-    let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize, divider: bool| {
-        chip(
-            tab,
-            active,
-            hovered,
-            now,
-            truecolor,
-            rename,
-            Some(target),
-            divider,
-        )
+    let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
+        chip(tab, active, hovered, now, truecolor, rename, Some(target))
     };
     // Invariant: the clock stays visible with no tabs, beside the lone `+`.
     let clock = Some(clock_text(time_format));
@@ -644,14 +605,12 @@ fn render_frame(
     let mut bytes = format!("\x1b[1;1H{STRIP_ROW_BACKGROUND}");
     let mut hits = Vec::new();
     let mut column = 0u16;
-    let visible_count = selected.len();
-    for (index, tab) in selected.into_iter().enumerate() {
+    for tab in selected {
         let (text, width) = chip(
             tab,
             viewed == Some(tab.id.as_str()),
             hovered == Some(&StripHover::Tab(tab.id.clone())),
             tab_width,
-            index + 1 < visible_count,
         );
         bytes.push_str(&text);
         let end = column.saturating_add(width as u16);
@@ -1264,7 +1223,7 @@ mod tests {
         ] {
             let mut value = tab("one", "agent");
             value.status = status.into();
-            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None, None, false);
+            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None, None);
             let text = plain(&bytes);
             assert!(text.starts_with(' '), "status={status}");
             let glyph = status_glyph_at(status, 0);
@@ -1291,7 +1250,7 @@ mod tests {
     }
 
     #[test]
-    fn adjacent_tabs_have_subtle_accent_dividers_without_moving_titles_or_hits() {
+    fn adjacent_tabs_keep_stable_titles_and_hits_without_dividers() {
         let mut first = tab("first", "Agent");
         first.accent = Some("pink".into());
         let mut second = tab("second", "Second");
@@ -1309,7 +1268,7 @@ mod tests {
             true,
         );
         let plain = plain(&frame.bytes);
-        assert_eq!(plain.chars().filter(|ch| *ch == '│').count(), 1);
+        assert!(!plain.contains('│'));
         assert!(plain.starts_with("   Agent"));
         assert!(plain.contains(" Second"));
         assert_eq!(plain.chars().nth(23), Some('S'));
@@ -1317,11 +1276,6 @@ mod tests {
             frame
                 .bytes
                 .contains(&tinted_background(tab_accent(Some("pink")), true))
-        );
-        assert!(
-            frame
-                .bytes
-                .contains(&tinted_foreground(tab_accent(Some("pink")), 55, true, true))
         );
         assert_eq!(frame.hits[0].0, 0);
         assert_eq!(frame.hits[0].1, frame.hits[1].0);
@@ -1337,7 +1291,7 @@ mod tests {
             false,
         );
         assert!(palette.bytes.contains("\x1b[48;5;53m"));
-        assert!(palette.bytes.contains("\x1b[38;5;96m│"));
+        assert!(!palette.bytes.contains('│'));
     }
 
     #[test]
