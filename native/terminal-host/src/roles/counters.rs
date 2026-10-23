@@ -15,7 +15,6 @@ pub enum Event {
     HolderHangRecovery,
     ChildHangRecovery,
     UnresponsiveTransition,
-    StalledTransition,
     RenderLaneReplacement,
     FullSurfaceResync,
     PersistenceDegraded,
@@ -23,7 +22,7 @@ pub enum Event {
     BridgeDegraded,
 }
 
-const EVENTS: usize = 11;
+const EVENTS: usize = 10;
 static COUNTS: [AtomicU64; EVENTS] = [const { AtomicU64::new(0) }; EVENTS];
 
 pub fn record(event: Event) {
@@ -38,7 +37,6 @@ pub struct Snapshot {
     pub holder_hang_recoveries: u64,
     pub child_hang_recoveries: u64,
     pub unresponsive_transitions: u64,
-    pub stalled_transitions: u64,
     /// An unsent surface in a client's single render slot replaced by a newer one.
     pub render_lane_replacements: u64,
     /// Full surfaces delivered to a slow client after one or more of its updates were replaced.
@@ -61,7 +59,6 @@ pub fn snapshot(epoch: u64) -> Snapshot {
         holder_hang_recoveries: read(Event::HolderHangRecovery),
         child_hang_recoveries: read(Event::ChildHangRecovery),
         unresponsive_transitions: read(Event::UnresponsiveTransition),
-        stalled_transitions: read(Event::StalledTransition),
         render_lane_replacements: read(Event::RenderLaneReplacement),
         full_surface_resyncs: read(Event::FullSurfaceResync),
         persistence_degraded: read(Event::PersistenceDegraded),
@@ -84,7 +81,6 @@ mod tests {
             Event::HolderHangRecovery,
             Event::ChildHangRecovery,
             Event::UnresponsiveTransition,
-            Event::StalledTransition,
             Event::RenderLaneReplacement,
             Event::FullSurfaceResync,
             Event::PersistenceDegraded,

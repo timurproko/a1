@@ -1107,8 +1107,33 @@ fn release_recovery_slot(locked: &mut RuntimeState, tab_id: &str) {
     }
 }
 
+/// Applies a `child-unresponsive` or `child-responsive` notice to the tab's registry lifecycle and
+/// reports whether the registry changed. Invariant: liveness is supervision state only; the
+/// presented surface status stays what the tab's bridge last reported, so no client sees it.
+fn record_liveness(registry: &mut RegistryDocument, tab_id: &str, message: &str) -> bool {
+    let Some(record) = registry
+        .tabs
+        .iter_mut()
+        .find(|record| record.tab_id == tab_id)
+    else {
+        return false;
+    };
+    match message {
+        "child-unresponsive" if record.lifecycle != "unresponsive" => {
+            record.lifecycle = "unresponsive".into();
+            counters::record(CounterEvent::UnresponsiveTransition);
+            true
+        }
+        "child-responsive" if record.lifecycle == "unresponsive" => {
+            record.lifecycle = "running".into();
+            true
+        }
+        _ => false,
+    }
+}
+
 fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
-    let (stale, commit, deliveries) = {
+    let (stale, commit) = {
         let Ok(mut locked) = state.lock() else {
             return;
         };
@@ -1143,7 +1168,6 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
             }
         }
         let mut registry_changed = false;
-        let mut deliveries = Vec::<(Arc<Surface>, Vec<(Peer, bool, u64)>)>::new();
         for (tab_id, message) in notices {
             if message == "terminate-unresponsive-child" {
                 counters::record(CounterEvent::ChildHangRecovery);
@@ -1157,63 +1181,8 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
                         .unwrap_or_default(),
                     );
                 }
-            } else if message == "child-responsive" {
-                let responsive = locked.surfaces.get_mut(&tab_id).map(|surface| {
-                    Arc::make_mut(surface).status = "idle".into();
-                    surface.clone()
-                });
-                if let Some(surface) = responsive {
-                    let clients = viewers(&locked, &tab_id)
-                        .map(|client| {
-                            (
-                                client.peer.clone(),
-                                client.structured_surface,
-                                client.view_generation,
-                            )
-                        })
-                        .collect();
-                    deliveries.push((surface, clients));
-                }
-                if let Some(record) = locked
-                    .registry
-                    .tabs
-                    .iter_mut()
-                    .find(|record| record.tab_id == tab_id)
-                {
-                    if record.lifecycle == "unresponsive" {
-                        record.lifecycle = "running".into();
-                        registry_changed = true;
-                    }
-                }
-            } else if message == "child-unresponsive" {
-                let unresponsive = locked.surfaces.get_mut(&tab_id).map(|surface| {
-                    Arc::make_mut(surface).status = "unresponsive".into();
-                    surface.clone()
-                });
-                if let Some(surface) = unresponsive {
-                    let clients = viewers(&locked, &tab_id)
-                        .map(|client| {
-                            (
-                                client.peer.clone(),
-                                client.structured_surface,
-                                client.view_generation,
-                            )
-                        })
-                        .collect();
-                    deliveries.push((surface, clients));
-                }
-                if let Some(record) = locked
-                    .registry
-                    .tabs
-                    .iter_mut()
-                    .find(|record| record.tab_id == tab_id)
-                {
-                    if record.lifecycle != "unresponsive" {
-                        record.lifecycle = "unresponsive".into();
-                        counters::record(CounterEvent::UnresponsiveTransition);
-                        registry_changed = true;
-                    }
-                }
+            } else {
+                registry_changed |= record_liveness(&mut locked.registry, &tab_id, &message);
             }
         }
         if registry_changed {
@@ -1232,18 +1201,8 @@ fn supervise_holders(state: &Arc<Mutex<RuntimeState>>) {
             locked.core.set_terminating(&tab_id, true);
         }
         let commit = registry_changed.then(|| registry_snapshot(&locked));
-        (stale, commit, deliveries)
+        (stale, commit)
     };
-    for (surface, clients) in deliveries {
-        for (client, structured, generation) in clients {
-            if let Ok(surface) =
-                surface_for_client(surface.as_ref().clone(), structured, generation)
-                && let Ok(frame) = wire::frame("surface", None, surface)
-            {
-                client.offer_surface(frame);
-            }
-        }
-    }
     if let Some((store, document)) = commit {
         let _ = commit_registry(store, document);
     }
@@ -1847,6 +1806,30 @@ mod tests {
             attention_seq: 0,
             seen_seq: 0,
         }
+    }
+
+    #[test]
+    fn liveness_notices_change_only_the_registry_lifecycle() {
+        let mut registry = RegistryDocument {
+            registry_revision: 1,
+            epoch: 1,
+            boot_id: "boot".into(),
+            os_session_id: "session".into(),
+            tabs: vec![record("tab", 1, "running", None)],
+        };
+        let before = crate::roles::counters::snapshot(1).unresponsive_transitions;
+        assert!(record_liveness(&mut registry, "tab", "child-unresponsive"));
+        assert_eq!(registry.tabs[0].lifecycle, "unresponsive");
+        assert!(!record_liveness(&mut registry, "tab", "child-unresponsive"));
+        assert!(crate::roles::counters::snapshot(1).unresponsive_transitions > before);
+        assert!(record_liveness(&mut registry, "tab", "child-responsive"));
+        assert_eq!(registry.tabs[0].lifecycle, "running");
+        assert!(!record_liveness(&mut registry, "tab", "child-responsive"));
+        assert!(!record_liveness(
+            &mut registry,
+            "missing",
+            "child-unresponsive"
+        ));
     }
 
     #[test]
