@@ -317,11 +317,13 @@ impl ViewModel {
         let mut view_request = None;
         let viewed_missing = self.viewed.as_deref().is_some_and(|viewed| !listed(viewed));
         if viewed_missing && self.requested.is_none() {
-            let target =
-                fallback(&next_tabs).or_else(|| next_tabs.first().map(|tab| tab.id.clone()));
-            if let Some(tab_id) = target {
+            // Invariant: only the fallback chooses the next view. A hidden Settings tab never takes
+            // it by itself, so with nothing else left the view empties and the landing shows.
+            if let Some(tab_id) = fallback(&next_tabs) {
                 self.request_at(&tab_id, Instant::now());
                 view_request = Some(tab_id);
+            } else {
+                self.viewed = None;
             }
         }
         let target_pending = self.requested.as_deref().is_some_and(|requested| {
@@ -1525,6 +1527,19 @@ mod tests {
         assert_eq!(emptied.view_request, None);
         view.clear();
         assert_eq!(view.viewed, None);
+
+        // Invariant: when only a hidden Settings tab survives the viewed tab, the fallback names
+        // nothing and the view empties for the landing instead of taking that Settings tab.
+        let mut view = ViewModel::new(Some("a".into()));
+        let hidden = view.topology(
+            &[tab("a"), tab("settings-1")],
+            vec![tab("settings-1")],
+            |_| None,
+        );
+        assert_eq!(hidden.view_request, None);
+        assert_eq!(view.requested, None);
+        assert_eq!(view.viewed, None);
+        assert!(matches!(hidden.action, TopologyAction::Install { .. }));
     }
 
     // Performance: strip churn and view commits must stay far inside the attach budgets so a

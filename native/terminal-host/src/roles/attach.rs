@@ -2310,7 +2310,8 @@ impl Client {
             TopologyAction::Install { tabs, changed } => {
                 self.tabs = tabs;
                 core.installed(&self.tabs, changed);
-                if self.tabs.is_empty() {
+                let nothing_shown = self.view.viewed.is_none() && self.view.requested.is_none();
+                if self.tabs.is_empty() || (nothing_shown && self.presented.tab_id.is_some()) {
                     self.view.clear();
                     self.presented = Presented::new();
                     self.pending_terminal_effects.clear();
