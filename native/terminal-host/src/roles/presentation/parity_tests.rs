@@ -888,6 +888,7 @@ fn scratch_control_row_bytes() {
             modes: None,
             columns,
             outer_rows: rows + 1,
+            child_row_offset: 1,
             clear: false,
         })
         .unwrap()
