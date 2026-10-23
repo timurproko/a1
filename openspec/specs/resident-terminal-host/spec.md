@@ -452,7 +452,7 @@ A1 SHALL provide `a1 tabs` to list tabs with identity, name, status, and cwd; `a
 - **THEN** A1 SHALL print one concise diagnostic, exit nonzero, and perform no I/O against resident processes
 
 ### Requirement: Host status reports resident identity and health
-`a1 tabs host status` SHALL report the server id, process id, build, release, protocol generation, epoch, uptime, observed detachment mode and any detachment verification failure reason, tab count by status, client count, the configured and hard limits, and the paths of the structured logs. It SHALL also report counters since server start for crash restarts, failed tabs, hang recoveries, unresponsive and stalled transitions, full-surface resyncs, and persistence, checkpoint, and bridge degradation. Counters SHALL be volatile and SHALL NOT contain prompt text, terminal content, or credentials.
+`a1 tabs host status` SHALL report the server id, process id, build, release, protocol generation, epoch, uptime, observed detachment mode and any detachment verification failure reason, tab count by status, client count, the configured and hard limits, and the paths of the structured logs. It SHALL also report counters since server start for crash restarts, failed tabs, hang recoveries, unresponsive transitions, full-surface resyncs, and persistence, checkpoint, and bridge degradation. Counters SHALL be volatile and SHALL NOT contain prompt text, terminal content, or credentials.
 
 #### Scenario: Status after a tab restart
 - **WHEN** one tab crashed and restarted since the server started

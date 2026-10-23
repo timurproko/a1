@@ -95,7 +95,6 @@ pub enum Lifecycle {
     Crashed,
     Restarting,
     Unresponsive,
-    Stalled,
     Failed,
 }
 
