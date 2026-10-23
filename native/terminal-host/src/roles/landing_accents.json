@@ -1,12 +1,14 @@
 {
   "schema": "a1-landing-accents-v1",
   "appearance": "dark",
+  "dim": [126, 136, 142],
+  "darkCanvas": [26, 27, 28],
   "accents": {
-    "purple": { "accent": [167, 152, 215], "border": [105, 115, 167] },
-    "blue": { "accent": [130, 160, 241], "border": [116, 102, 197] },
-    "cyan": { "accent": [93, 179, 186], "border": [74, 128, 146] },
-    "green": { "accent": [104, 183, 141], "border": [75, 132, 120] },
-    "orange": { "accent": [231, 135, 83], "border": [178, 89, 79] },
-    "pink": { "accent": [223, 122, 199], "border": [150, 91, 171] }
+    "purple": { "accent": [167, 152, 215], "border": [105, 115, 167], "canvas": [27, 26, 32] },
+    "blue": { "accent": [130, 160, 241], "border": [116, 102, 197], "canvas": [25, 27, 32] },
+    "cyan": { "accent": [93, 179, 186], "border": [74, 128, 146], "canvas": [22, 29, 29] },
+    "green": { "accent": [104, 183, 141], "border": [75, 132, 120], "canvas": [24, 29, 26] },
+    "orange": { "accent": [231, 135, 83], "border": [178, 89, 79], "canvas": [31, 26, 23] },
+    "pink": { "accent": [223, 122, 199], "border": [150, 91, 171], "canvas": [31, 25, 29] }
   }
 }

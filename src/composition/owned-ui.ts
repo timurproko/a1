@@ -121,7 +121,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       namespace: PRODUCT_IDENTITY.commandName,
       legacyConfigDir: productPaths.configDir,
       agentProvider: () => backend.settingsPort(),
-      ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition"] } : {}),
+      ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabsStartup"] } : {}),
       hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
       agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
     });

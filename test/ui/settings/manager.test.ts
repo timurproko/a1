@@ -94,7 +94,7 @@ describe("owned settings manager", () => {
     const manager = new OwnedSettingsManager({
       configDir: root,
       profileId: "a1",
-      hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition"],
+      hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabsStartup"],
     });
     expect(manager.sections().find(section => section.id === "tabs")).toBeUndefined();
     expect(manager.value("tabsAutoName")).toBe(true);

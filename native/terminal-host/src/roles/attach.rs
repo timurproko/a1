@@ -473,6 +473,7 @@ const OUTER_RESUME_GAP: Duration = Duration::from_secs(5);
 struct PresentationSettings {
     time_format: TimeFormat,
     accent_color: Option<&'static str>,
+    background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
 }
@@ -482,6 +483,7 @@ impl Default for PresentationSettings {
         Self {
             time_format: TimeFormat::Twelve,
             accent_color: None,
+            background_style: None,
             accent_hover: accent_selected_background(None),
             tab_bar_position: TabBarPosition::Top,
         }
@@ -507,6 +509,10 @@ fn read_presentation_settings(path: &Path) -> PresentationSettings {
             .get("accentColor")
             .and_then(serde_json::Value::as_str)
             .and_then(known_accent),
+        background_style: owned_settings
+            .get("backgroundStyle")
+            .and_then(serde_json::Value::as_str)
+            .and_then(known_background_style),
         accent_hover: accent_selected_background(
             owned_settings
                 .get("accentColor")
@@ -585,6 +591,16 @@ fn known_accent(accent: &str) -> Option<&'static str> {
     }
 }
 
+/// The owned `backgroundStyle` values the landing canvas follows.
+fn known_background_style(style: &str) -> Option<&'static str> {
+    match style {
+        "accent" => Some("accent"),
+        "dark" => Some("dark"),
+        "transparent" => Some("transparent"),
+        _ => None,
+    }
+}
+
 fn accent_selected_background(accent: Option<&str>) -> [u8; 3] {
     match accent {
         Some("blue") => [52, 57, 69],
@@ -612,6 +628,7 @@ struct TimeFormatWatch {
     signature: Option<(std::time::SystemTime, u64)>,
     value: TimeFormat,
     accent_color: Option<&'static str>,
+    background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
     checked_at: Instant,
@@ -625,6 +642,7 @@ impl TimeFormatWatch {
             signature: settings_signature(path),
             value: settings.time_format,
             accent_color: settings.accent_color,
+            background_style: settings.background_style,
             accent_hover: settings.accent_hover,
             tab_bar_position: settings.tab_bar_position,
             checked_at: Instant::now(),
@@ -645,10 +663,12 @@ impl TimeFormatWatch {
         let settings = read_presentation_settings(&self.path);
         let changed = settings.time_format != self.value
             || settings.accent_color != self.accent_color
+            || settings.background_style != self.background_style
             || settings.accent_hover != self.accent_hover
             || settings.tab_bar_position != self.tab_bar_position;
         self.value = settings.time_format;
         self.accent_color = settings.accent_color;
+        self.background_style = settings.background_style;
         self.accent_hover = settings.accent_hover;
         self.tab_bar_position = settings.tab_bar_position;
         changed
@@ -1326,7 +1346,7 @@ fn start_session(
                 session_dir: options.session_dir.map(str::to_owned),
             },
             intent: wire::AttachIntent {
-                start_agent: launch_starts_agent(),
+                start_agent: launch_starts_agent(options.settings_file),
             },
         },
     )?;
@@ -1350,14 +1370,25 @@ fn start_session(
 const LANDING_WIPE: Duration = Duration::from_millis(180);
 const LANDING_WIPE_FRAME: Duration = Duration::from_millis(16);
 
-/// Bare `a1` opens the landing when the profile has no Agent. Fixture: resident role tests that
-/// expect the first Agent ask for it with `TERMINAL_HOST_FIXTURE_START_AGENT=1`.
-fn launch_starts_agent() -> bool {
+/// Whether bare `a1` starts an Agent when the profile has none: the owned `tabsStartup` setting
+/// chooses `agent` or, by default, the empty landing. Fixture: resident role tests choose with
+/// `TERMINAL_HOST_FIXTURE_START_AGENT`.
+fn launch_starts_agent(settings_file: &Path) -> bool {
     #[cfg(feature = "resident-fixtures")]
-    if std::env::var("TERMINAL_HOST_FIXTURE_START_AGENT").is_ok_and(|value| value == "1") {
-        return true;
+    if let Ok(value) = std::env::var("TERMINAL_HOST_FIXTURE_START_AGENT") {
+        return value == "1";
     }
-    false
+    std::fs::metadata(settings_file)
+        .ok()
+        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
+        .and_then(|_| std::fs::read(settings_file).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .is_some_and(|document| {
+            document
+                .get("a1")
+                .and_then(|owned| owned.get("tabsStartup"))
+                == Some(&serde_json::Value::from("agent"))
+        })
 }
 
 /// Reads server frames on their own thread under the ingress byte budget, waking the main loop
@@ -1953,6 +1984,10 @@ impl Client {
             half_blocks: landing::half_blocks_supported(),
             cwd: &cwd,
             wipe,
+            background: landing::canvas_background(
+                self.time_format.background_style,
+                self.time_format.accent_color,
+            ),
         }))
     }
 
@@ -4095,7 +4130,7 @@ mod tests {
             wire::AttachStartRequest {
                 start: start.clone(),
                 intent: wire::AttachIntent {
-                    start_agent: launch_starts_agent(),
+                    start_agent: launch_starts_agent(Path::new("missing-settings.json")),
                 },
             },
         )

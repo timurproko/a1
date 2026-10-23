@@ -159,6 +159,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     defaultValue: "top",
     allowedValues: Object.freeze(["top", "bottom"] as const),
   }),
+  tabsStartup: Object.freeze({
+    id: "tabsStartup",
+    label: "Startup",
+    section: TABS_SECTION,
+    description: "What bare a1 opens when no Agent tab is running: the empty landing, or a new Agent in the launch folder.",
+    application: "live",
+    defaultValue: "empty",
+    allowedValues: Object.freeze(["empty", "agent"] as const),
+  }),
   tabsAutoName: Object.freeze({
     id: "tabsAutoName",
     label: "Auto name",

@@ -13,6 +13,9 @@ Each numbered section is one Implementation item. Every section starts by mergin
 - [x] 2.1 Open bare `a1` on the landing when the profile has no Agent: `attach.start` carries an optional `startAgent` intent (default `true` for older clients) that the attach client sends as `false` unless a resident fixture asks otherwise, and the server's attach tab selection starts the first Agent only for a selected session or that intent. Tests: wire round trips with and without the intent, and an integration test that a cold attach shows the landing, starts no Agent, and starts one on the shortcut.
 - [x] 2.2 Wipe the wordmark from the right into a white caret cell over 180 ms when this client starts an Agent from the landing, holding that cell until the Agent's first frame commits and restoring the wordmark when creation is refused. Tests: wipe frames at start, midway, completion, and hold.
 
+- [x] 2.3 Add the `tabsStartup` setting (`empty` by default, or `agent`) to Settings > Tabs, hidden outside resident launches, and have the attach client read it from the settings document to choose its `startAgent` intent. Tests: declaration, section order, hidden-section, and Settings screen tests, and the native reader for both choices.
+- [x] 2.4 Paint the landing with the `backgroundStyle` canvas an Agent tab uses, read live with the other presentation settings, and draw the cwd and version in the footer's `dim`. Tests: canvas fill and reset restoration, transparent and palette modes, and the pinned canvas and `dim` values checked against the theme.
+
 ## 3. Architecture record
 
 - [x] 3.1 Record the landing under Decision 11 in `docs/architecture/resident-tabs.md`.

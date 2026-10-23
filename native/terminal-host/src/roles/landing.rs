@@ -9,8 +9,9 @@ use unicode_width::UnicodeWidthStr;
 /// starts it is the cell the cursor takes when a tab opens.
 const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "█▀▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
 
-/// The owned dark theme's `muted` foreground and its primary text.
-const MUTED: [u8; 3] = [157, 165, 169];
+/// The owned dark theme's `dim` foreground, which an Agent footer draws its cwd and status in, and
+/// its primary text; `landing_accents.json` pins `dim` with the accents.
+const DIM: [u8; 3] = [126, 136, 142];
 const TEXT: [u8; 3] = [230, 230, 230];
 
 /// The accent and border foregrounds `derivePiAccentProjection(accent, "dark")` gives each A1
@@ -66,6 +67,34 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
     ),
 ];
 
+/// The `accent` canvas `derivePiCanvasBackground("accent", accent)` gives each A1 accent, and the
+/// fixed `dark` canvas; `landing_accents.json` pins both.
+pub const LANDING_ACCENT_CANVASES: [(&str, [u8; 3]); 6] = [
+    ("purple", [27, 26, 32]),
+    ("blue", [25, 27, 32]),
+    ("cyan", [22, 29, 29]),
+    ("green", [24, 29, 26]),
+    ("orange", [31, 26, 23]),
+    ("pink", [31, 25, 29]),
+];
+pub const LANDING_DARK_CANVAS: [u8; 3] = [26, 27, 28];
+
+/// The landing canvas for the owned `backgroundStyle` setting, like an Agent's fullscreen canvas;
+/// `transparent`, or an unknown value, leaves the terminal background.
+pub fn canvas_background(style: Option<&str>, accent: Option<&str>) -> Option<[u8; 3]> {
+    match style {
+        Some("dark") => Some(LANDING_DARK_CANVAS),
+        Some("accent") => Some(
+            LANDING_ACCENT_CANVASES
+                .iter()
+                .find(|(name, _)| Some(*name) == accent)
+                .unwrap_or(&LANDING_ACCENT_CANVASES[0])
+                .1,
+        ),
+        _ => None,
+    }
+}
+
 /// The colors for a configured accent; an unknown or absent accent is the purple default.
 pub fn accent_colors(accent: Option<&str>) -> AccentColors {
     LANDING_ACCENTS
@@ -88,6 +117,8 @@ pub struct LandingInput<'a> {
     pub cwd: &'a str,
     /// How far a new Agent's wipe has run, from 0 to 1, while that Agent starts.
     pub wipe: Option<f32>,
+    /// The canvas color every body row is painted with, or the terminal background.
+    pub background: Option<[u8; 3]>,
 }
 
 /// Whether the terminal draws half-block glyphs as solid cells. Apple Terminal leaves seams
@@ -189,6 +220,14 @@ pub fn palette_index(rgb: [u8; 3]) -> u8 {
     }
 }
 
+fn background(rgb: [u8; 3], truecolor: bool) -> String {
+    if truecolor {
+        format!("[48;2;{};{};{}m", rgb[0], rgb[1], rgb[2])
+    } else {
+        format!("[48;5;{}m", palette_index(rgb))
+    }
+}
+
 fn foreground(rgb: [u8; 3], truecolor: bool) -> String {
     if truecolor {
         format!("\x1b[38;2;{};{};{}m", rgb[0], rgb[1], rgb[2])
@@ -248,24 +287,14 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     let cwd_row = body_rows.saturating_sub(2);
     place(
         cwd_row,
-        format!("{}{}\x1b[0m", fg(MUTED), clip_left(input.cwd, columns)),
+        format!("{}{}\x1b[0m", fg(DIM), clip_left(input.cwd, columns)),
     );
-    let version = input
-        .version
-        .filter(|version| !version.is_empty())
-        .map(|version| format!(" v{version}"))
-        .unwrap_or_default();
-    if cwd_row + 1 < body_rows {
-        place(
-            cwd_row + 1,
-            format!(
-                "\x1b[1m{}{}\x1b[0m{}{}\x1b[0m",
-                fg(TEXT),
-                clip("a1", columns),
-                fg(MUTED),
-                clip(&version, columns.saturating_sub(2))
-            ),
-        );
+    // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
+    if let Some(version) = input.version.filter(|version| !version.is_empty())
+        && cwd_row + 1 < body_rows
+    {
+        let version = clip(&format!("v{version}"), columns);
+        place(cwd_row + 1, format!("{}{version}\x1b[0m", fg(DIM)));
     }
     if input.half_blocks && cwd_row >= WORDMARK.len() {
         let accent = fg(accent_colors(input.accent).accent);
@@ -279,9 +308,20 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
         }
     }
 
+    // Invariant: a painted canvas fills every cell and survives each run's style reset, so the
+    // landing matches the Agent canvas that replaces it.
+    let canvas = input.background.map(|rgb| background(rgb, input.truecolor));
     let mut bytes = String::new();
     for (index, content) in rows.iter().enumerate() {
-        bytes.push_str(&format!("\x1b[{};1H\x1b[0m\x1b[2K{content}", index + 2));
+        let row = index + 2;
+        bytes.push_str(&format!("\x1b[{row};1H\x1b[0m\x1b[2K"));
+        if let Some(canvas) = canvas.as_deref() {
+            let content = content.replace("\x1b[0m", &format!("\x1b[0m{canvas}"));
+            let fill = " ".repeat(columns);
+            bytes.push_str(&format!("{canvas}{fill}\x1b[{row};1H{canvas}{content}"));
+        } else {
+            bytes.push_str(content);
+        }
     }
     bytes.push_str("\x1b[0m");
     bytes.into_bytes()
@@ -333,6 +373,7 @@ mod tests {
             half_blocks: true,
             cwd: "~/src/a1",
             wipe: None,
+            background: None,
         }
     }
 
@@ -387,7 +428,7 @@ mod tests {
             grid[21], "~/src/a1",
             "the second-to-last body row, flush left"
         );
-        assert_eq!(grid[22], "a1 v0.2.7");
+        assert_eq!(grid[22], "v0.2.7");
         // Invariant: an Agent's editor caret sits two rows above its footer cwd, at column zero.
         assert!(
             grid[19].starts_with('█'),
@@ -404,7 +445,7 @@ mod tests {
         let short = cells(&render(&input(40, 3)), 40, 3);
         assert_eq!(
             short,
-            ["", "~/src/a1", "a1 v0.2.7"],
+            ["", "~/src/a1", "v0.2.7"],
             "no room for the wordmark"
         );
         assert_eq!(cells(&render(&input(40, 1)), 40, 1), ["~/src/a1"]);
@@ -439,7 +480,7 @@ mod tests {
             23,
         );
         assert!(plain.iter().all(|row| !row.contains('▀')));
-        assert_eq!(plain[21..], ["~/src/a1", "a1 v0.2.7"]);
+        assert_eq!(plain[21..], ["~/src/a1", "v0.2.7"]);
         let unversioned = cells(
             &render(&LandingInput {
                 version: None,
@@ -448,7 +489,45 @@ mod tests {
             80,
             23,
         );
-        assert_eq!(unversioned[22], "a1");
+        assert!(unversioned[22].is_empty(), "no version, no version row");
+    }
+
+    #[test]
+    fn the_canvas_follows_the_background_style_and_fills_every_cell() {
+        assert_eq!(canvas_background(Some("transparent"), Some("blue")), None);
+        assert_eq!(canvas_background(None, None), None);
+        assert_eq!(
+            canvas_background(Some("dark"), Some("blue")),
+            Some(LANDING_DARK_CANVAS)
+        );
+        assert_eq!(
+            canvas_background(Some("accent"), Some("blue")),
+            Some([25, 27, 32])
+        );
+        assert_eq!(canvas_background(Some("accent"), None), Some([27, 26, 32]));
+        let painted = String::from_utf8(render(&LandingInput {
+            background: Some([25, 27, 32]),
+            ..input(80, 23)
+        }))
+        .unwrap();
+        let canvas = "[48;2;25;27;32m";
+        assert!(painted.contains(&format!("[2;1H[0m[2K{canvas}{}", " ".repeat(80))));
+        assert!(
+            !painted.contains("[0m[38") && painted.contains(&format!("[0m{canvas}")),
+            "every reset inside a row restores the canvas"
+        );
+        let plain = String::from_utf8(render(&input(80, 23))).unwrap();
+        assert!(
+            !plain.contains("[48;"),
+            "a transparent landing paints no background"
+        );
+        let palette = String::from_utf8(render(&LandingInput {
+            background: Some([25, 27, 32]),
+            truecolor: false,
+            ..input(80, 23)
+        }))
+        .unwrap();
+        assert!(palette.contains(&format!("[48;5;{}m", palette_index([25, 27, 32]))));
     }
 
     #[test]
@@ -466,6 +545,19 @@ mod tests {
             assert_eq!(rgb("border"), colors.border, "{name} border");
         }
         assert_eq!(accent_colors(Some("unknown")), LANDING_ACCENTS[0].1);
+        let rgb_of = |value: &serde_json::Value| {
+            let values = value.as_array().unwrap();
+            [0, 1, 2].map(|index| values[index].as_u64().unwrap() as u8)
+        };
+        for (name, canvas) in LANDING_ACCENT_CANVASES {
+            assert_eq!(rgb_of(&accents[name]["canvas"]), canvas, "{name} canvas");
+        }
+        assert_eq!(rgb_of(&fixture["darkCanvas"]), LANDING_DARK_CANVAS);
+        let dim = fixture["dim"].as_array().unwrap();
+        assert_eq!(
+            [0, 1, 2].map(|index| dim[index].as_u64().unwrap() as u8),
+            DIM
+        );
     }
 
     #[test]
