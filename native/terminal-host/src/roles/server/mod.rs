@@ -32,7 +32,6 @@ mod controller;
 mod holder;
 mod lifecycle;
 mod registry;
-mod seed;
 mod standby;
 
 use attach::*;
@@ -42,7 +41,6 @@ use controller::*;
 use holder::*;
 use lifecycle::*;
 use registry::*;
-use seed::*;
 pub use standby::sanitize_tab_environment;
 use standby::*;
 
@@ -1545,7 +1543,6 @@ fn welcome(epoch: u64) -> Welcome {
             protocol::FEATURE_TERMINAL_EFFECTS.into(),
             protocol::FEATURE_STRUCTURED_SURFACE.into(),
             "bridge-shortcuts".into(),
-            "bridge-seed".into(),
         ],
         frame_limit: protocol::MAX_FRAME_BYTES as u32,
         input_limit: protocol::MAX_INPUT_BYTES as u32,
@@ -1727,13 +1724,6 @@ mod tests {
     #[test]
     fn welcome_advertises_the_owned_route_bridge() {
         let welcome = welcome(7);
-        assert!(
-            welcome
-                .features
-                .iter()
-                .any(|feature| feature == "bridge-seed"),
-            "peers learn that a promoted standby can be told about its seed"
-        );
         assert!(
             welcome
                 .features

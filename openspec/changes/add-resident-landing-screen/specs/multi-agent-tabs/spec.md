@@ -3,42 +3,24 @@
 ## ADDED Requirements
 
 ### Requirement: The empty resident shell presents the a1 landing
-While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body below it, laid out like an empty agent screen. A top-left header SHALL show the three-row half-block `a1` wordmark in the profile's accent color (omitted where half-block glyphs are unsupported) beside `a1` with the running version and, below it, the shortened launch cwd. At the bottom of the body, where the new Agent's editor appears, one prompt box SHALL mirror the flush-left owned editor: full-width rules in the accent-derived border color, text from the first column, the dim placeholder `Ask anything…` when empty, and the owned editor's caret (the cell under the cursor reversed, with the hardware cursor hidden). The effective `New A1 tab` and `Open Settings tab` shortcuts SHALL show as owned key-and-action hints on the row below the box. The header and then the hint row SHALL be dropped when rows run out, and the box alone SHALL render below three body rows. The box SHALL accept printable keys, paste including line breaks, the inline-rename editing controls, and `Esc` to clear; it SHALL grow upward to six wrapped rows and keep the cursor row visible; one `Ctrl+C` SHALL clear it and a second inside the detach window SHALL detach as today. Its text SHALL be bounded to 64 KiB, with a notice on refusal. `Enter` with non-blank text SHALL create one Agent in the launch cwd whose first prompt is that text, keep the text visible behind the accent progress spinner while creation is pending, ignore edits until the Agent's first drawn frame commits, and then present the Agent through the ordinary tab UI; `Enter` on blank text SHALL do nothing; a refused creation SHALL restore the editable text and show the existing creation failure notice. Tab shortcuts, the `+` launcher and its popups, strip hover, and strip mouse input SHALL behave exactly as with tabs; mouse input on the landing body SHALL be ignored. The landing SHALL render no hardware or child cursor and SHALL never be shown while a tab is viewed or requested.
+While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body: a header with the three-row half-block `a1` wordmark in the profile's accent color (omitted where half-block glyphs are unsupported) beside `a1` with the running version and, below that, the shortened launch cwd. The header SHALL sit one row from the strip, at the top of the body below a top strip and at the bottom of the body above a bottom strip, one column from the left edge. The landing SHALL hold no input: keys, paste, and body mouse input SHALL reach no child, while tab shortcuts, the `+` launcher and its popups, strip hover, strip mouse input, and the double-`Ctrl+C` detach SHALL behave exactly as with tabs. The landing SHALL render no cursor and SHALL never be shown while a tab is viewed or requested.
 
 #### Scenario: Last tab closes into the landing
-- **WHEN** the final Agent or Settings tab closes while the attach client stays open
-- **THEN** the strip SHALL show `+` and the clock, the body header SHALL show the wordmark, `a1` with its version, and the launch cwd, and the bottom of the body SHALL show the empty prompt box with its placeholder above the two shortcut hints
-- **AND** the caret SHALL be drawn on the placeholder's first cell with the hardware cursor hidden
+- **WHEN** the final Agent or Settings tab closes while the attach client stays open and the strip is at the top
+- **THEN** the strip SHALL show `+` and the clock and the body SHALL show the wordmark, `a1` with its version, and the launch cwd one row below the strip
+- **AND** no cursor SHALL show
 
-#### Scenario: Ask from the landing
-- **WHEN** the user types `What does this repository build?` into the landing box and presses `Enter`
-- **THEN** one Agent tab SHALL be created in the launch cwd, the box SHALL keep the text behind the accent progress spinner until the Agent's first frame commits, and the Agent SHALL then appear in the ordinary tab UI with that prompt submitted exactly once as its first turn
+#### Scenario: Bottom strip moves the landing header
+- **WHEN** the landing is shown and the tab bar position is bottom
+- **THEN** the header SHALL sit at the bottom of the body, one row above the strip
 
-#### Scenario: Enter on an empty landing
-- **WHEN** the landing box holds only whitespace and the user presses `Enter`
-- **THEN** no Agent SHALL be created and the box SHALL remain empty with its placeholder
-
-#### Scenario: Creation is refused
-- **WHEN** the server refuses the landing's creation request
-- **THEN** the typed text SHALL return to the editable box and the existing creation failure notice SHALL show
-- **AND** the seeded prompt SHALL be dispatched nowhere
-
-#### Scenario: Shortcuts still work on the landing
-- **WHEN** the user presses the `New A1 tab` shortcut or chooses `+ Agent` from the launcher while text sits in the landing box
-- **THEN** an Agent SHALL be created without a seeded prompt and the landing text SHALL be discarded with the landing
-
-#### Scenario: Clear the landing
-- **WHEN** the user presses `Esc` or one `Ctrl+C` with text in the landing box
-- **THEN** the box SHALL be emptied and the client SHALL remain attached
-- **AND** a second `Ctrl+C` inside the detach window SHALL detach as with tabs
-
-#### Scenario: Paste into the landing
-- **WHEN** the user pastes three lines into the landing box
-- **THEN** the box SHALL show the lines wrapped within its width, keep the cursor row visible, and submit the text with its line breaks on `Enter`
+#### Scenario: Start an Agent from the landing
+- **WHEN** the user presses the `New A1 tab` shortcut or chooses `+ Agent` from the launcher on the landing
+- **THEN** one Agent SHALL be created and presented through the ordinary tab UI
 
 #### Scenario: Small terminal
-- **WHEN** the body has fewer rows than the full landing needs
-- **THEN** the wordmark and then the hint row SHALL be omitted before the box, and the box SHALL remain usable
+- **WHEN** the body has fewer rows or columns than the full header needs
+- **THEN** the header SHALL be clipped to the body without wrapping or overflowing it
 
 ## MODIFIED Requirements
 
@@ -122,7 +104,7 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 
 #### Scenario: Hidden Settings never opens by itself
 - **WHEN** Settings is hidden and the user closes the last visible tab
-- **THEN** the hidden Settings tab SHALL close too and the strip SHALL show only `+` and the clock above the landing
+- **THEN** the hidden Settings tab SHALL close too and the strip SHALL show only `+` and the clock beside the landing
 - **AND** a closed viewed tab SHALL never be replaced by the hidden Settings tab
 
 #### Scenario: Settings opens without a startup delay
@@ -154,7 +136,7 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - The attach client SHALL NOT render an input-delivery notice row such as `Input was not sent; try again.` beneath the strip.
 - Successful create and close SHALL commit only complete final topology states.
 - A newly created Agent SHALL become visible only with its first drawn frame, or after a bounded fallback when the child never draws. The prior view SHALL remain until then and no cursor SHALL show.
-- When no tabs remain, the strip SHALL show hoverable `+` and the clock, the body SHALL show the landing with its own drawn caret, and no hardware or child cursor SHALL show.
+- When no tabs remain, the strip SHALL show hoverable `+` and the clock, the body SHALL show the landing, and no cursor SHALL show.
 - A tab switch or creation SHALL repaint the strip and body in place without first clearing the screen.
 
 #### Scenario: Type immediately after switching

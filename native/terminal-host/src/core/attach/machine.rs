@@ -6,11 +6,11 @@
 use std::time::Duration;
 
 use super::{
-    AttachKey, AttachMouse, CloseFallback, DRAG_HOLD, DeferredInput, DeferredInputTarget,
-    EditorLimit, KeyCode, LANDING_MAX_BYTES, LineEditor, MouseButton, MouseKind, PopupAction,
-    PopupKind, PopupMenu, RenameEditor, ShortcutLabels, StripHitKind, StripSnapshot, TabDrag,
-    TabView, apply_editor_key, close_fallback_for, failure_applies, forward_pointer_motion,
-    registry_index, rejection_notice, settings_toggle_closes, shown_tabs, update_drag,
+    AttachKey, AttachMouse, CloseFallback, DRAG_HOLD, DeferredInput, DeferredInputTarget, KeyCode,
+    MouseButton, MouseKind, PopupAction, PopupKind, PopupMenu, RenameEditor, ShortcutLabels,
+    StripHitKind, StripSnapshot, TabDrag, TabView, apply_rename_control_key, close_fallback_for,
+    failure_applies, forward_pointer_motion, registry_index, rejection_notice,
+    settings_toggle_closes, shown_tabs, update_drag,
 };
 
 /// How long the client waits, with tabs present and no Settings tab, before starting a hidden one
@@ -93,42 +93,10 @@ pub struct View {
     pub pending_created_activation: bool,
 }
 
-/// The prompt the no-tab landing holds.
-#[derive(Debug, Clone)]
-pub struct Landing {
-    pub editor: LineEditor,
-    /// The text sent with a seeded creation. It stays shown, read only, until that Agent's first
-    /// frame commits, and returns to the editor when the creation is refused.
-    pub submitted: Option<String>,
-}
-
-impl Default for Landing {
-    fn default() -> Self {
-        Self {
-            editor: LineEditor::new(String::new(), EditorLimit::Bytes(LANDING_MAX_BYTES)),
-            submitted: None,
-        }
-    }
-}
-
-impl Landing {
-    fn restore(&mut self) -> bool {
-        let Some(text) = self.submitted.take() else {
-            return false;
-        };
-        self.editor = LineEditor::new(text, EditorLimit::Bytes(LANDING_MAX_BYTES));
-        true
-    }
-}
-
-/// The notice for a landing paste that would exceed the seeded-prompt bound.
-pub const LANDING_TOO_LONG: &str = "Prompt is limited to 64 KiB.";
-
 #[derive(Debug, Default)]
 pub struct State {
     pub mode: Mode,
     pub view: View,
-    pub landing: Landing,
     pub hovered: Option<Hover>,
     /// Invariant: failure input rules belong to one tab and apply only while it is viewed.
     pub failed_tab: Option<String>,
@@ -157,8 +125,6 @@ pub struct Context<'a, T> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
     Create,
-    /// Creates one Agent whose first prompt is the landing text.
-    CreateWithPrompt(String),
     OpenSettings,
     PrewarmSettings,
     Close(String),
@@ -197,10 +163,6 @@ pub enum Effect {
     ForwardPaste(String),
     ForwardFocus {
         gained: bool,
-    },
-    /// The landing consumed a key; the role judges only the double-Ctrl+C detach chord for it.
-    Chord {
-        ctrl_c: bool,
     },
     Paint {
         clear: bool,
@@ -437,48 +399,7 @@ impl State {
             effects.push(Effect::Paint { clear: false });
             return;
         }
-        if self.landing_owns_input(context) {
-            self.landing_key(key, effects);
-            return;
-        }
         effects.push(Effect::ForwardKey);
-    }
-
-    /// Invariant: the landing takes keyboard and paste only while no tab is viewed or requested,
-    /// and keeps them through its own seeded creation, whose typed keys are not deferred.
-    pub fn landing_owns_input<T>(&self, context: &Context<'_, T>) -> bool {
-        context.viewed.is_none()
-            && (self.landing.submitted.is_some()
-                || (context.requested.is_none() && !self.view.pending_created_activation))
-    }
-
-    fn landing_key(&mut self, key: AttachKey, effects: &mut Vec<Effect>) {
-        let modifiers = key.modifiers;
-        let ctrl_c = matches!(key.code, KeyCode::Char('c' | 'C'))
-            && modifiers.control
-            && !modifiers.alt
-            && !modifiers.other;
-        if self.landing.submitted.is_none() {
-            let editor = &mut self.landing.editor;
-            match key.code {
-                KeyCode::Esc => editor.clear(),
-                _ if ctrl_c => editor.clear(),
-                KeyCode::Enter if modifiers.shift || modifiers.alt => {
-                    editor.insert_text("\n");
-                }
-                KeyCode::Enter if editor.text.trim().is_empty() => editor.clear(),
-                KeyCode::Enter => {
-                    let text = editor.text.clone();
-                    self.landing.submitted = Some(text.clone());
-                    self.create(Request::CreateWithPrompt(text), effects);
-                }
-                code => {
-                    apply_editor_key(editor, code, modifiers);
-                }
-            }
-            effects.push(Effect::Paint { clear: false });
-        }
-        effects.push(Effect::Chord { ctrl_c });
     }
 
     /// Edits the open rename prompt; returns `false` when the key cancels it and continues.
@@ -489,6 +410,7 @@ impl State {
         let mut submit = None;
         let mut consume = true;
         let mut cancel = false;
+        let control_or_alt = key.modifiers.control || key.modifiers.alt;
         match key.code {
             KeyCode::Esc => cancel = true,
             KeyCode::Enter => {
@@ -499,7 +421,17 @@ impl State {
                     submit = Some((editor.tab_id.clone(), name));
                 }
             }
-            _ if apply_editor_key(editor, key.code, key.modifiers) => {}
+            _ if apply_rename_control_key(editor, key.code, key.modifiers) => {}
+            KeyCode::Backspace => editor.backspace(),
+            KeyCode::Delete => editor.delete(),
+            KeyCode::Left if key.modifiers.control => editor.move_word_left(),
+            KeyCode::Right if key.modifiers.control => editor.move_word_right(),
+            KeyCode::Left => editor.move_cursor(editor.cursor.saturating_sub(1)),
+            KeyCode::Right => editor.move_cursor((editor.cursor + 1).min(editor.len())),
+            KeyCode::Home => editor.move_cursor(0),
+            KeyCode::End => editor.move_cursor(editor.len()),
+            KeyCode::Char(_) if control_or_alt => {}
+            KeyCode::Char(value) if !value.is_control() => editor.insert(value),
             _ => {
                 cancel = true;
                 consume = false;
@@ -720,16 +652,6 @@ impl State {
             effects.push(Effect::Paint { clear: false });
             return;
         }
-        if self.landing_owns_input(context) && !matches!(self.mode, Mode::Popup(_)) {
-            if self.landing.submitted.is_none() {
-                if !self.landing.editor.insert_text(&text) {
-                    self.notice = Some(LANDING_TOO_LONG.into());
-                }
-                effects.push(Effect::Paint { clear: false });
-            }
-            effects.push(Effect::Chord { ctrl_c: false });
-            return;
-        }
         if self.failed(context.viewed) || matches!(self.mode, Mode::Popup(_)) {
             return;
         }
@@ -789,10 +711,6 @@ impl State {
         }
         if self.hovered.take().is_some() {
             effects.push(Effect::Paint { clear: false });
-        }
-        // Invariant: the landing body has no mouse targets and no child to receive reports.
-        if self.landing_owns_input(context) {
-            return;
         }
         if mouse.kind == MouseKind::Moved
             && !forward_pointer_motion(
@@ -1044,7 +962,6 @@ impl State {
                 self.deferred.discard_created();
                 self.view.pending_created_activation = false;
                 self.user_input_pending = false;
-                self.landing.restore();
                 self.notice = Some(notice);
                 effects.extend([Effect::CancelViewRequest, paint]);
             }
@@ -1145,8 +1062,6 @@ impl State {
             }
             self.close_fallback = None;
             self.notice = None;
-            // Invariant: a viewed tab replaces the landing; its text leaves with it.
-            self.landing = Landing::default();
             self.sync_prompt(viewed);
             let (frames, mut dropped) = self.deferred.resolve(tab_id);
             if status == "failed" {
@@ -1240,10 +1155,6 @@ impl State {
         }
         if tabs.is_empty() {
             self.close_fallback = None;
-            // Invariant: a seeded Agent that left before its first frame returns the text.
-            if !self.view.pending_created_activation {
-                self.landing.restore();
-            }
         }
     }
 }
@@ -2281,243 +2192,5 @@ mod tests {
         state.user_input_pending = true;
         state.drop_request(Some("x"));
         assert!(!state.user_input_pending);
-    }
-
-    /// The attach client after its last tab closed: no tabs, nothing viewed or requested.
-    fn landing_fixture() -> Fixture {
-        let mut fixture = Fixture::new(&[], "none");
-        fixture.viewed = None;
-        fixture
-    }
-
-    fn ctrl(code: KeyCode) -> Event {
-        press(
-            code,
-            Modifiers {
-                control: true,
-                ..Modifiers::NONE
-            },
-        )
-    }
-
-    fn type_text(fixture: &Fixture, state: &mut State, text: &str) {
-        for value in text.chars() {
-            fixture.step(state, key(KeyCode::Char(value)));
-        }
-    }
-
-    #[test]
-    fn landing_edits_typed_text_and_submits_a_seeded_creation() {
-        let fixture = landing_fixture();
-        let mut state = fixture.state();
-        assert_eq!(
-            fixture.step(&mut state, key(KeyCode::Char('W'))),
-            [PAINT, Effect::Chord { ctrl_c: false }],
-            "a landing key paints the box and never reaches a child"
-        );
-        type_text(&fixture, &mut state, "hat does this build?");
-        fixture.step(&mut state, ctrl(KeyCode::Backspace));
-        type_text(&fixture, &mut state, "repository build?");
-        fixture.step(&mut state, key(KeyCode::Home));
-        fixture.step(&mut state, key(KeyCode::Delete));
-        fixture.step(&mut state, key(KeyCode::Char('W')));
-        assert_eq!(
-            state.landing.editor.text,
-            "What does this repository build?"
-        );
-        assert_eq!(state.landing.editor.cursor, 1);
-
-        let text = "What does this repository build?".to_owned();
-        assert_eq!(
-            fixture.step(&mut state, key(KeyCode::Enter)),
-            [
-                Effect::Send(Request::CreateWithPrompt(text.clone())),
-                PAINT,
-                Effect::Chord { ctrl_c: false },
-            ]
-        );
-        assert_eq!(state.landing.submitted.as_deref(), Some(text.as_str()));
-        assert!(state.view.pending_created_activation);
-
-        // Invariant: edits wait while the seeded creation is pending; nothing repaints or forwards.
-        assert_eq!(
-            fixture.step(&mut state, key(KeyCode::Char('x'))),
-            [Effect::Chord { ctrl_c: false }]
-        );
-        assert_eq!(
-            fixture.step(&mut state, Event::Paste("more".into())),
-            [Effect::Chord { ctrl_c: false }]
-        );
-        assert_eq!(state.landing.submitted.as_deref(), Some(text.as_str()));
-
-        // Invariant: the text stays shown after creation until the first Agent frame commits.
-        let effects = fixture.step(
-            &mut state,
-            server(ServerEvent::Created {
-                tab_id: "tab-new".into(),
-                created: true,
-            }),
-        );
-        assert!(effects.contains(&Effect::AwaitFirstDraw("tab-new".into())));
-        assert_eq!(state.landing.submitted.as_deref(), Some(text.as_str()));
-        let mut requested = landing_fixture();
-        requested.requested = Some("tab-new".into());
-        assert!(state.landing_owns_input(&requested.context()));
-        let committed = Fixture::new(&["tab-new"], "tab-new");
-        committed.step(
-            &mut state,
-            server(ServerEvent::Commit {
-                tab_id: "tab-new".into(),
-                status: "starting".into(),
-                requested: true,
-            }),
-        );
-        assert_eq!(state.landing.submitted, None);
-        assert!(state.landing.editor.is_empty());
-        assert_eq!(
-            committed.step(&mut state, key(KeyCode::Char('x'))),
-            [Effect::ForwardKey],
-            "the viewed Agent owns typing after its first frame"
-        );
-    }
-
-    #[test]
-    fn landing_ignores_blank_submissions_and_restores_refused_text() {
-        let fixture = landing_fixture();
-        let mut state = fixture.state();
-        type_text(&fixture, &mut state, "   ");
-        assert_eq!(
-            fixture.step(&mut state, key(KeyCode::Enter)),
-            [PAINT, Effect::Chord { ctrl_c: false }]
-        );
-        assert!(
-            state.landing.editor.is_empty(),
-            "whitespace leaves the placeholder"
-        );
-        assert!(!state.view.pending_created_activation);
-
-        type_text(&fixture, &mut state, "explain");
-        fixture.step(&mut state, key(KeyCode::Enter));
-        let effects = fixture.step(
-            &mut state,
-            server(ServerEvent::CreateFailed {
-                notice: "Could not open a tab: limit".into(),
-            }),
-        );
-        assert!(effects.contains(&PAINT));
-        assert_eq!(state.landing.submitted, None);
-        assert_eq!(state.landing.editor.text, "explain");
-        assert_eq!(state.notice.as_deref(), Some("Could not open a tab: limit"));
-        fixture.step(&mut state, key(KeyCode::Char('!')));
-        assert_eq!(
-            state.landing.editor.text, "explain!",
-            "the text is editable again"
-        );
-
-        // Invariant: a seeded Agent that leaves before its first frame returns the text too.
-        fixture.step(&mut state, key(KeyCode::Enter));
-        fixture.step(
-            &mut state,
-            server(ServerEvent::Created {
-                tab_id: "tab-new".into(),
-                created: true,
-            }),
-        );
-        state.installed::<AttachTab>(&[], true);
-        assert_eq!(state.landing.submitted, None);
-        assert_eq!(state.landing.editor.text, "explain!");
-    }
-
-    #[test]
-    fn landing_clears_with_esc_and_ctrl_c_and_reports_the_chord() {
-        let fixture = landing_fixture();
-        let mut state = fixture.state();
-        type_text(&fixture, &mut state, "draft");
-        assert_eq!(
-            fixture.step(&mut state, key(KeyCode::Esc)),
-            [PAINT, Effect::Chord { ctrl_c: false }]
-        );
-        assert!(state.landing.editor.is_empty());
-        type_text(&fixture, &mut state, "draft");
-        assert_eq!(
-            fixture.step(&mut state, ctrl(KeyCode::Char('c'))),
-            [PAINT, Effect::Chord { ctrl_c: true }]
-        );
-        assert!(state.landing.editor.is_empty());
-        assert_eq!(
-            fixture.step(&mut state, ctrl(KeyCode::Char('c'))),
-            [PAINT, Effect::Chord { ctrl_c: true }],
-            "the role detaches on a second Ctrl+C inside its window"
-        );
-    }
-
-    #[test]
-    fn landing_paste_keeps_line_breaks_and_refuses_oversized_text() {
-        let fixture = landing_fixture();
-        let mut state = fixture.state();
-        fixture.step(&mut state, Event::Paste("one\r\ntwo\nthree".into()));
-        assert_eq!(state.landing.editor.text, "one\ntwo\nthree");
-        assert_eq!(
-            fixture.step(&mut state, key(KeyCode::Enter)),
-            [
-                Effect::Send(Request::CreateWithPrompt("one\ntwo\nthree".into())),
-                PAINT,
-                Effect::Chord { ctrl_c: false },
-            ]
-        );
-
-        let mut state = fixture.state();
-        fixture.step(&mut state, Event::Paste("x".repeat(LANDING_MAX_BYTES)));
-        assert_eq!(state.landing.editor.text.len(), LANDING_MAX_BYTES);
-        fixture.step(&mut state, key(KeyCode::Char('y')));
-        assert_eq!(state.landing.editor.text.len(), LANDING_MAX_BYTES);
-        let mut state = fixture.state();
-        fixture.step(&mut state, Event::Paste("x".repeat(LANDING_MAX_BYTES + 1)));
-        assert!(
-            state.landing.editor.is_empty(),
-            "an oversized paste admits no prefix"
-        );
-        assert_eq!(state.notice.as_deref(), Some(LANDING_TOO_LONG));
-    }
-
-    #[test]
-    fn landing_keeps_tab_shortcuts_the_launcher_and_strip_mouse() {
-        let fixture = landing_fixture();
-        let mut state = fixture.state();
-        type_text(&fixture, &mut state, "discard me");
-        assert_eq!(
-            fixture.step(&mut state, shortcut("tabs.new")),
-            [Effect::Send(Request::Create), PAINT],
-            "the shortcut creates an Agent without a seed"
-        );
-        assert_eq!(state.landing.submitted, None);
-        assert!(
-            !state.landing_owns_input(&fixture.context()),
-            "keys typed while it starts are deferred to it as with tabs"
-        );
-        assert_eq!(
-            fixture.step(&mut state, key(KeyCode::Char('x'))),
-            [Effect::ForwardKey]
-        );
-        let committed = Fixture::new(&["tab-new"], "tab-new");
-        committed.step(
-            &mut state,
-            server(ServerEvent::Commit {
-                tab_id: "tab-new".into(),
-                status: "idle".into(),
-                requested: true,
-            }),
-        );
-        assert!(
-            state.landing.editor.is_empty(),
-            "the landing text left with the landing"
-        );
-
-        let mut state = fixture.state();
-        fixture.step(&mut state, mouse(LEFT, 0, 0));
-        assert!(matches!(state.mode, Mode::Popup(_)), "+ opens the launcher");
-        let mut state = fixture.state();
-        assert_eq!(fixture.step(&mut state, mouse(LEFT, 10, 5)), []);
-        assert_eq!(fixture.step(&mut state, mouse(MouseKind::Moved, 10, 5)), []);
     }
 }

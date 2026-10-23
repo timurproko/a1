@@ -1,24 +1,17 @@
-//! The a1 landing the attach client shows below the strip while it has no tab: a top-left header
-//! with the wordmark, the a1 version, and the launch cwd, and at the bottom one ruled prompt box
-//! that mirrors the flush-left owned editor, above the tab shortcuts that start work. Rendering
-//! is pure; the attach role owns the editor state and presents the bytes as the frame's body.
+//! The a1 landing the attach client shows while it has no tab: beside the strip, a header with the
+//! accent wordmark, `a1` and its version, and the launch cwd. It sits below a top strip and above
+//! a bottom one. Rendering is pure; the attach role presents the bytes as the frame's body.
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-use crate::protocol::SurfaceCursor;
-
-/// Most prompt rows the box shows before it scrolls to keep the cursor row visible.
-pub const LANDING_MAX_ROWS: usize = 6;
-pub const LANDING_PLACEHOLDER: &str = "Ask anything…";
 const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "▄▀▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
-/// The header's rows below one margin row, and its left margin in cells.
+/// The header's rows, and its margin from the strip side and the left edge, in cells.
 const HEADER_ROWS: usize = 3;
 const HEADER_MARGIN: usize = 1;
 
-/// The owned dark theme's `muted` and `dim` foregrounds.
+/// The owned dark theme's `muted` foreground and its primary text.
 const MUTED: [u8; 3] = [157, 165, 169];
-const DIM: [u8; 3] = [126, 136, 142];
 const TEXT: [u8; 3] = [230, 230, 230];
 
 /// The accent and border foregrounds `derivePiAccentProjection(accent, "dark")` gives each A1
@@ -83,34 +76,23 @@ pub fn accent_colors(accent: Option<&str>) -> AccentColors {
         .1
 }
 
-/// What one landing frame shows. `cursor` is the editor's grapheme cursor; `spinner` is the
-/// progress frame shown in place of the prompt prefix while a seeded creation is pending.
+/// What one landing frame shows.
 #[derive(Debug, Clone)]
 pub struct LandingInput<'a> {
     pub columns: u16,
     pub body_rows: u16,
+    /// The strip is at the bottom, so the header sits at the bottom of the body beside it.
+    pub at_bottom: bool,
+    /// The running a1 package version, shown after the name.
+    pub version: Option<&'a str>,
     pub accent: Option<&'a str>,
     pub truecolor: bool,
     pub half_blocks: bool,
-    /// The running a1 package version, shown after the name in the header.
-    pub version: Option<&'a str>,
     pub cwd: &'a str,
-    /// Key label and action for each bound shortcut, in display order.
-    pub hints: &'a [(String, &'a str)],
-    pub text: &'a str,
-    pub cursor: usize,
-    pub spinner: Option<&'a str>,
-}
-
-/// The landing body, addressed as child rows below a top strip, and its caret cell.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LandingFrame {
-    pub bytes: Vec<u8>,
-    pub cursor: Option<SurfaceCursor>,
 }
 
 /// Whether the terminal draws half-block glyphs as solid cells. Apple Terminal leaves seams
-/// between them, so the wordmark falls back to plain text there.
+/// between them, so the wordmark is omitted there.
 pub fn half_blocks_supported() -> bool {
     std::env::var("TERM_PROGRAM").map_or(true, |program| program != "Apple_Terminal")
 }
@@ -122,8 +104,7 @@ pub fn display_cwd(cwd: &str, home: Option<&str>) -> String {
     };
     let normalize = |value: &str| value.replace('\\', "/").trim_end_matches('/').to_owned();
     let (path, home) = (normalize(cwd), normalize(home));
-    let insensitive = cfg!(windows);
-    let matches = if insensitive {
+    let matches = if cfg!(windows) {
         path.to_lowercase().starts_with(&home.to_lowercase())
     } else {
         path.starts_with(&home)
@@ -134,97 +115,6 @@ pub fn display_cwd(cwd: &str, home: Option<&str>) -> String {
     } else {
         cwd.to_owned()
     }
-}
-
-/// One visual row of the wrapped prompt, starting at grapheme `start`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct WrappedRow {
-    text: String,
-    start: usize,
-}
-
-fn wrap(text: &str, width: usize) -> Vec<WrappedRow> {
-    let width = width.max(1);
-    let mut rows = vec![WrappedRow {
-        text: String::new(),
-        start: 0,
-    }];
-    let mut used = 0usize;
-    for (index, grapheme) in text.graphemes(true).enumerate() {
-        if grapheme == "\n" || grapheme == "\r\n" {
-            rows.push(WrappedRow {
-                text: String::new(),
-                start: index + 1,
-            });
-            used = 0;
-            continue;
-        }
-        let cells = UnicodeWidthStr::width(grapheme);
-        if used > 0 && used + cells > width {
-            rows.push(WrappedRow {
-                text: String::new(),
-                start: index,
-            });
-            used = 0;
-        }
-        if let Some(row) = rows.last_mut() {
-            row.text.push_str(grapheme);
-        }
-        used += cells;
-    }
-    // Invariant: a cursor after a full last row sits at the start of the next row, not past
-    // the box edge.
-    if used >= width {
-        rows.push(WrappedRow {
-            text: String::new(),
-            start: text.graphemes(true).count(),
-        });
-    }
-    rows
-}
-
-/// The wrapped row and cell column of grapheme `cursor`.
-fn cursor_cell(text: &str, rows: &[WrappedRow], cursor: usize) -> (usize, usize) {
-    let row = rows
-        .iter()
-        .rposition(|row| row.start <= cursor)
-        .unwrap_or(0);
-    let graphemes = text.graphemes(true).collect::<Vec<_>>();
-    let start = rows[row].start.min(graphemes.len());
-    let end = cursor.min(graphemes.len()).max(start);
-    let column = graphemes[start..end]
-        .iter()
-        .filter(|grapheme| **grapheme != "\n")
-        .map(|grapheme| UnicodeWidthStr::width(*grapheme))
-        .sum();
-    (row, column)
-}
-
-/// Styles one prompt row and, when `caret` names a cell column, reverses the cell under it the
-/// way the owned editor draws its caret: a block in whatever theme is in use, past the text a
-/// reversed space. The hardware cursor stays hidden, as in the owned editor by default.
-fn with_caret(text: &str, color: &str, caret: Option<usize>) -> String {
-    let Some(column) = caret else {
-        return format!("{color}{text}\x1b[0m");
-    };
-    let mut before = String::new();
-    let mut under = None;
-    let mut after = String::new();
-    let mut used = 0usize;
-    for grapheme in text.graphemes(true) {
-        if under.is_some() {
-            after.push_str(grapheme);
-        } else if used >= column {
-            under = Some(grapheme);
-        } else {
-            before.push_str(grapheme);
-            used += UnicodeWidthStr::width(grapheme);
-        }
-    }
-    format!(
-        "{color}{before}\x1b[7m{}\x1b[27m{after}\x1b[0m",
-        under.unwrap_or(" ")
-    )
 }
 
 fn clip(value: &str, width: usize) -> String {
@@ -249,15 +139,14 @@ fn clip_left(value: &str, width: usize) -> String {
     if width == 0 {
         return String::new();
     }
-    let graphemes = value.graphemes(true).collect::<Vec<_>>();
     let mut kept = Vec::new();
     let mut used = 1usize;
-    for grapheme in graphemes.iter().rev() {
-        let cells = UnicodeWidthStr::width(*grapheme);
+    for grapheme in value.graphemes(true).rev() {
+        let cells = UnicodeWidthStr::width(grapheme);
         if used + cells > width {
             break;
         }
-        kept.push(*grapheme);
+        kept.push(grapheme);
         used += cells;
     }
     kept.reverse();
@@ -304,60 +193,34 @@ fn foreground(rgb: [u8; 3], truecolor: bool) -> String {
     }
 }
 
-/// Body rows, each holding the styled runs placed on it by starting column.
-type Rows = Vec<Vec<(usize, String)>>;
-
-fn place(rows: &mut Rows, row: usize, column: usize, content: String) {
-    if let Some(slot) = rows.get_mut(row) {
-        slot.push((column, content));
-    }
-}
-
-pub fn render(input: &LandingInput<'_>) -> LandingFrame {
+/// The landing body, addressed as rows below a top strip: every row is cleared and the header
+/// is drawn one row away from the strip.
+pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
-    // Invariant: the box mirrors the flush-left owned editor, so its text starts at column zero;
-    // a pending creation's spinner takes the first two cells.
-    let spinner_width = if input.spinner.is_some() { 2 } else { 0 };
-    let content_width = columns.saturating_sub(spinner_width).max(1);
-    let wrapped = wrap(input.text, content_width);
-    let ruled = body_rows >= 3;
-    let content_rows = wrapped
-        .len()
-        .min(LANDING_MAX_ROWS)
-        .min(if ruled { body_rows - 2 } else { body_rows })
-        .max(1);
-    let box_rows = content_rows + if ruled { 2 } else { 0 };
-    let with_hints = box_rows < body_rows;
-    let with_header = box_rows + usize::from(with_hints) + HEADER_ROWS + 1 <= body_rows;
-
-    let mut rows: Rows = vec![Vec::new(); body_rows];
-    if with_header {
-        place_header(&mut rows, input);
-    }
-    // Invariant: the box sits at the bottom, where the new Agent's editor appears, and grows
-    // upward as the prompt wraps.
-    let top = body_rows.saturating_sub(box_rows + usize::from(with_hints));
-    let cursor = place_box(&mut rows, input, &wrapped, top, content_rows, ruled);
-    if with_hints {
-        place(&mut rows, body_rows - 1, 0, hint_line(input));
-    }
-    LandingFrame {
-        bytes: encode(&rows),
-        cursor,
-    }
-}
-
-/// The top-left header: the accent wordmark beside `a1 v<version>` and the launch cwd.
-fn place_header(rows: &mut Rows, input: &LandingInput<'_>) {
-    let columns = usize::from(input.columns);
-    let colors = accent_colors(input.accent);
     let fg = |rgb| foreground(rgb, input.truecolor);
+    let top = if body_rows < HEADER_ROWS + HEADER_MARGIN {
+        0
+    } else if input.at_bottom {
+        body_rows - HEADER_ROWS - HEADER_MARGIN
+    } else {
+        HEADER_MARGIN
+    };
+    let mut rows = vec![String::new(); body_rows];
+    let mut place = |row: usize, column: usize, content: String| {
+        if let Some(slot) = rows.get_mut(row) {
+            slot.push_str(&format!("\x1b[{};{}H{content}", row + 2, column + 1));
+        }
+    };
     let text_column = if input.half_blocks {
+        let accent = fg(accent_colors(input.accent).accent);
         for (offset, line) in WORDMARK.iter().enumerate() {
             let shown = clip(line, columns.saturating_sub(HEADER_MARGIN));
-            let content = format!("{}{shown}\x1b[0m", fg(colors.accent));
-            place(rows, 1 + offset, HEADER_MARGIN, content);
+            place(
+                top + offset,
+                HEADER_MARGIN,
+                format!("{accent}{shown}\x1b[0m"),
+            );
         }
         HEADER_MARGIN + UnicodeWidthStr::width(WORDMARK[0]) + 2
     } else {
@@ -376,107 +239,13 @@ fn place_header(rows: &mut Rows, input: &LandingInput<'_>) {
         fg(MUTED),
         clip(&version, room.saturating_sub(2))
     );
-    place(rows, 1, text_column, title);
+    place(top, text_column, title);
     let cwd = format!("{}{}\x1b[0m", fg(MUTED), clip_left(input.cwd, room));
-    place(rows, 2, text_column, cwd);
-}
+    place(top + 1, text_column, cwd);
 
-/// The ruled prompt box from body row `top`; returns the caret cell.
-fn place_box(
-    rows: &mut Rows,
-    input: &LandingInput<'_>,
-    wrapped: &[WrappedRow],
-    top: usize,
-    content_rows: usize,
-    ruled: bool,
-) -> Option<SurfaceCursor> {
-    let columns = usize::from(input.columns);
-    let colors = accent_colors(input.accent);
-    let fg = |rgb| foreground(rgb, input.truecolor);
-    let content_width = columns
-        .saturating_sub(if input.spinner.is_some() { 2 } else { 0 })
-        .max(1);
-    let (cursor_row, cursor_column) = cursor_cell(input.text, wrapped, input.cursor);
-    let rule = format!("{}{}\x1b[0m", fg(colors.border), "─".repeat(columns));
-    let mut row = top;
-    if ruled {
-        place(rows, row, 0, rule.clone());
-        row += 1;
-    }
-    let first = cursor_row.saturating_sub(content_rows - 1);
-    let mut cursor = None;
-    for (offset, visual) in wrapped.iter().skip(first).take(content_rows).enumerate() {
-        let index = first + offset;
-        let prefix = match input.spinner {
-            Some(frame) if index == 0 => format!("{}{frame} \x1b[0m", fg(colors.accent)),
-            Some(_) => "  ".to_owned(),
-            None => String::new(),
-        };
-        let caret = (index == cursor_row && input.spinner.is_none()).then_some(cursor_column);
-        let (text, color) = if input.text.is_empty() {
-            (LANDING_PLACEHOLDER, DIM)
-        } else if input.spinner.is_some() {
-            (visual.text.as_str(), MUTED)
-        } else {
-            (visual.text.as_str(), TEXT)
-        };
-        let body = with_caret(&clip(text, content_width), &fg(color), caret);
-        if caret.is_some() {
-            cursor = Some(SurfaceCursor {
-                column: cursor_column.min(columns.saturating_sub(1)) as u16,
-                row: row as u16,
-            });
-        }
-        place(rows, row, 0, format!("{prefix}{body}"));
-        row += 1;
-    }
-    if ruled {
-        place(rows, row, 0, rule);
-    }
-    cursor
-}
-
-/// The bound shortcut hints that fit, whole, in display order.
-fn hint_line(input: &LandingInput<'_>) -> String {
-    let columns = usize::from(input.columns);
-    let fg = |rgb| foreground(rgb, input.truecolor);
-    let separator = " · ";
-    let mut line = String::new();
-    let mut used = 0usize;
-    for (key, action) in input.hints.iter().filter(|(key, _)| !key.is_empty()) {
-        let key = key.to_lowercase();
-        let gap = if used == 0 {
-            0
-        } else {
-            UnicodeWidthStr::width(separator)
-        };
-        let cells =
-            gap + UnicodeWidthStr::width(key.as_str()) + 1 + UnicodeWidthStr::width(*action);
-        if used + cells > columns {
-            break;
-        }
-        if used > 0 {
-            line.push_str(&format!("{}{separator}\x1b[0m", fg(DIM)));
-        }
-        line.push_str(&format!(
-            "{}{key}\x1b[0m {}{action}\x1b[0m",
-            fg(TEXT),
-            fg(MUTED)
-        ));
-        used += cells;
-    }
-    line
-}
-
-/// Clears every body row and writes its runs, addressed as rows below a top strip.
-fn encode(rows: &Rows) -> Vec<u8> {
     let mut bytes = String::new();
-    for (index, slot) in rows.iter().enumerate() {
-        let terminal_row = index + 2;
-        bytes.push_str(&format!("\x1b[{terminal_row};1H\x1b[0m\x1b[2K"));
-        for (column, content) in slot {
-            bytes.push_str(&format!("\x1b[{terminal_row};{}H{content}", column + 1));
-        }
+    for (index, content) in rows.iter().enumerate() {
+        bytes.push_str(&format!("\x1b[{};1H\x1b[0m\x1b[2K{content}", index + 2));
     }
     bytes.push_str("\x1b[0m");
     bytes.into_bytes()
@@ -487,9 +256,9 @@ mod tests {
     use super::*;
 
     /// Plays the landing bytes onto a cell grid of the body rows, ignoring styles.
-    fn cells(frame: &LandingFrame, columns: u16, rows: u16) -> Vec<String> {
+    fn cells(bytes: &[u8], columns: u16, rows: u16) -> Vec<String> {
         let mut grid = vec![vec![" ".to_owned(); usize::from(columns)]; usize::from(rows)];
-        let text = String::from_utf8(frame.bytes.clone()).unwrap();
+        let text = String::from_utf8(bytes.to_vec()).unwrap();
         let (mut row, mut column) = (0usize, 0usize);
         let mut rest = text.as_str();
         while !rest.is_empty() {
@@ -507,16 +276,10 @@ mod tests {
                 continue;
             }
             let grapheme = rest.graphemes(true).next().unwrap();
-            let cells = UnicodeWidthStr::width(grapheme).max(1);
             if row < grid.len() && column < grid[row].len() {
                 grid[row][column] = grapheme.to_owned();
-                for filler in 1..cells {
-                    if column + filler < grid[row].len() {
-                        grid[row][column + filler] = String::new();
-                    }
-                }
             }
-            column += cells;
+            column += UnicodeWidthStr::width(grapheme).max(1);
             rest = &rest[grapheme.len()..];
         }
         grid.into_iter()
@@ -524,197 +287,77 @@ mod tests {
             .collect()
     }
 
-    fn input<'a>(columns: u16, rows: u16, hints: &'a [(String, &'a str)]) -> LandingInput<'a> {
+    fn input(columns: u16, rows: u16, at_bottom: bool) -> LandingInput<'static> {
         LandingInput {
             columns,
             body_rows: rows,
+            at_bottom,
+            version: Some("0.2.7"),
             accent: None,
             truecolor: true,
             half_blocks: true,
-            version: Some("0.2.7"),
             cwd: "~/src/a1",
-            hints,
-            text: "",
-            cursor: 0,
-            spinner: None,
         }
     }
 
-    fn hints() -> Vec<(String, &'static str)> {
-        vec![
-            ("Alt+A".to_owned(), "new agent"),
-            ("Alt+,".to_owned(), "settings"),
-        ]
-    }
-
-    fn bytes(frame: LandingFrame) -> String {
-        String::from_utf8(frame.bytes).unwrap()
-    }
-
     #[test]
-    fn the_header_sits_top_left_and_the_box_at_the_bottom_at_80x24() {
-        let hints = hints();
-        let frame = render(&input(80, 23, &hints));
-        let grid = cells(&frame, 80, 23);
-        assert!(grid[0].is_empty(), "one margin row above the header");
+    fn the_header_sits_one_row_below_a_top_strip() {
+        let grid = cells(&render(&input(80, 23, false)), 80, 23);
+        assert!(grid[0].is_empty());
         assert_eq!(grid[1], format!(" {}  a1 v0.2.7", WORDMARK[0]));
         assert_eq!(grid[2], format!(" {}  ~/src/a1", WORDMARK[1]));
         assert_eq!(grid[3], format!(" {}", WORDMARK[2]));
-        assert!(grid[4..19].iter().all(String::is_empty), "{grid:#?}");
-        assert_eq!(grid[19], "─".repeat(80));
-        assert_eq!(grid[20], LANDING_PLACEHOLDER);
-        assert_eq!(grid[21], "─".repeat(80));
-        assert_eq!(grid[22], "alt+a new agent · alt+, settings");
-        assert_eq!(frame.cursor, Some(SurfaceCursor { column: 0, row: 20 }));
-    }
-
-    #[test]
-    fn rows_run_out_header_first_then_hints_then_rules() {
-        let hints = hints();
-        let small = cells(&render(&input(40, 7, &hints)), 40, 7);
-        assert!(small.iter().all(|row| !row.contains("a1 v")), "{small:#?}");
-        assert_eq!(small[6], "alt+a new agent · alt+, settings");
-        let tight = cells(&render(&input(20, 3, &hints)), 20, 3);
-        assert_eq!(
-            tight,
-            ["─".repeat(20), LANDING_PLACEHOLDER.into(), "─".repeat(20)]
-        );
-        let two = render(&input(20, 2, &hints));
-        let two_cells = cells(&two, 20, 2);
-        assert!(two_cells.iter().all(|row| !row.contains('─')));
         assert!(
-            two.cursor.is_some(),
-            "the box stays usable below three rows"
-        );
-        let narrow = cells(&render(&input(20, 6, &hints)), 20, 6);
-        assert_eq!(
-            narrow[5], "alt+a new agent",
-            "hints that do not fit are dropped whole"
+            grid[4..].iter().all(String::is_empty),
+            "no input below the header"
         );
     }
 
     #[test]
-    fn rules_span_the_whole_terminal_like_the_owned_editor() {
-        let hints = hints();
-        let grid = cells(&render(&input(200, 59, &hints)), 200, 59);
-        let rule = grid.iter().find(|row| row.contains('─')).unwrap();
-        assert_eq!(rule.chars().count(), 200);
-        assert!(rule.starts_with('─'));
+    fn the_header_moves_to_the_bottom_above_a_bottom_strip() {
+        let grid = cells(&render(&input(80, 23, true)), 80, 23);
+        assert!(grid[..19].iter().all(String::is_empty));
+        assert_eq!(grid[19], format!(" {}  a1 v0.2.7", WORDMARK[0]));
+        assert_eq!(grid[20], format!(" {}  ~/src/a1", WORDMARK[1]));
+        assert_eq!(grid[21], format!(" {}", WORDMARK[2]));
+        assert!(grid[22].is_empty(), "one margin row beside the strip");
     }
 
     #[test]
-    fn typed_text_wraps_upward_and_the_cursor_row_stays_visible() {
-        let hints = hints();
-        let text = "one\ntwo\nthree\nfour\nfive\nsix\nseven\neight";
-        let frame = render(&LandingInput {
-            text,
-            cursor: text.graphemes(true).count(),
-            ..input(40, 23, &hints)
-        });
-        let grid = cells(&frame, 40, 23);
-        assert_eq!(
-            grid[14..22],
-            [
-                "─".repeat(40),
-                "three".into(),
-                "four".into(),
-                "five".into(),
-                "six".into(),
-                "seven".into(),
-                "eight".into(),
-                "─".repeat(40)
-            ]
-        );
-        let cursor = frame.cursor.unwrap();
-        assert_eq!((cursor.row, cursor.column), (20, 5));
-
-        let long = "x".repeat(50);
-        let wrapped = cells(
-            &render(&LandingInput {
-                text: &long,
-                cursor: 50,
-                ..input(40, 23, &hints)
-            }),
-            40,
-            23,
-        );
-        assert_eq!(wrapped[19], "x".repeat(40));
-        assert_eq!(wrapped[20], "x".repeat(10));
-
-        let top = cells(
-            &render(&LandingInput {
-                text,
-                cursor: 0,
-                ..input(40, 23, &hints)
-            }),
-            40,
-            23,
-        );
-        assert!(top.iter().any(|row| row == "one"));
+    fn every_body_row_is_cleared_and_the_header_fits_small_terminals() {
+        let bytes = String::from_utf8(render(&input(80, 23, false))).unwrap();
+        for row in 2..=24 {
+            assert!(bytes.contains(&format!("\x1b[{row};1H\x1b[0m\x1b[2K")));
+        }
+        let small = cells(&render(&input(14, 3, true)), 14, 3);
+        assert_eq!(small[0], format!(" {}  a1", WORDMARK[0]));
+        let narrow = cells(&render(&input(30, 23, false)), 30, 23);
+        assert_eq!(narrow[1], format!(" {}  a1 v0.2.7", WORDMARK[0]));
+        assert_eq!(narrow[2], format!(" {}  ~/src/a1", WORDMARK[1]));
     }
 
     #[test]
-    fn pending_creation_shows_the_spinner_and_no_caret() {
-        let hints = hints();
-        let frame = render(&LandingInput {
-            text: "What does this repository build?",
-            cursor: 32,
-            spinner: Some("⠋"),
-            ..input(80, 23, &hints)
-        });
-        assert_eq!(frame.cursor, None);
-        let grid = cells(&frame, 80, 23);
-        assert_eq!(grid[20], "⠋ What does this repository build?");
-        let text = bytes(frame);
-        assert!(text.contains("\x1b[38;2;167;152;215m⠋"), "accent spinner");
-        assert!(!text.contains("\x1b[7m"), "a pending prompt draws no caret");
-    }
-
-    #[test]
-    fn the_caret_reverses_the_cell_under_the_cursor_like_the_owned_editor() {
-        let hints = hints();
-        let text = |cursor: usize| {
-            bytes(render(&LandingInput {
-                text: "hello",
-                cursor,
-                ..input(80, 24, &hints)
-            }))
-        };
-        assert!(text(1).contains("h\x1b[7me\x1b[27mllo"));
-        assert!(text(0).contains("\x1b[7mh\x1b[27mello"));
-        assert!(
-            text(5).contains("hello\x1b[7m \x1b[27m"),
-            "past the text a reversed space"
-        );
-        assert!(
-            bytes(render(&input(80, 24, &hints))).contains("\x1b[7mA\x1b[27msk anything…"),
-            "an empty box carries the caret on the placeholder's first cell"
-        );
-    }
-
-    #[test]
-    fn accents_palette_fallback_text_wordmark_and_missing_version() {
-        let hints = hints();
-        let blue = bytes(render(&LandingInput {
+    fn accents_palette_fallback_text_header_and_missing_version() {
+        let blue = String::from_utf8(render(&LandingInput {
             accent: Some("blue"),
-            ..input(80, 23, &hints)
-        }));
+            ..input(80, 23, false)
+        }))
+        .unwrap();
         assert!(blue.contains("\x1b[38;2;130;160;241m ▀▀▀▄"));
-        assert!(blue.contains("\x1b[38;2;116;102;197m─"));
-        let palette = bytes(render(&LandingInput {
+        let palette = String::from_utf8(render(&LandingInput {
             truecolor: false,
-            ..input(80, 23, &hints)
-        }));
+            ..input(80, 23, false)
+        }))
+        .unwrap();
         assert!(!palette.contains("38;2;"));
         assert!(palette.contains(&format!("\x1b[38;5;{}m", palette_index([167, 152, 215]))));
         assert_eq!(palette_index([0, 0, 0]), 16);
         assert_eq!(palette_index([255, 255, 255]), 231);
         assert_eq!(palette_index([128, 128, 128]), 244);
-
         let plain = cells(
             &render(&LandingInput {
                 half_blocks: false,
-                ..input(80, 23, &hints)
+                ..input(80, 23, false)
             }),
             80,
             23,
@@ -725,7 +368,7 @@ mod tests {
         let unversioned = cells(
             &render(&LandingInput {
                 version: None,
-                ..input(80, 23, &hints)
+                ..input(80, 23, false)
             }),
             80,
             23,
@@ -751,69 +394,42 @@ mod tests {
     }
 
     #[test]
-    fn the_landing_composes_under_either_strip_with_a_hidden_hardware_cursor() {
+    fn the_landing_composes_under_either_strip_with_no_cursor() {
         use crate::roles::presentation::{DesiredPresentation, FinalCursor, PresentationComposer};
-        let hints = hints();
-        let frame = render(&input(80, 23, &hints));
-        let desired = |offset: u16, overlay: Option<String>| DesiredPresentation {
+        let desired = |at_bottom: bool| DesiredPresentation {
             tab_id: None,
             incarnation: 0,
             revision: 0,
             geometry_generation: 0,
-            strip: "\x1b[1;1Hstrip".into(),
+            strip: "strip".into(),
             structured: None,
-            legacy_body: frame.bytes.clone(),
-            overlay,
+            legacy_body: render(&input(80, 23, at_bottom)),
+            overlay: None,
             cursor: Some(FinalCursor::Hidden),
             modes: None,
             columns: 80,
             outer_rows: 24,
-            child_row_offset: offset,
+            child_row_offset: u16::from(!at_bottom),
             clear: false,
         };
         let composer = PresentationComposer::default();
-        let top = bytes_of(composer.prepare(&desired(1, None)).unwrap().unwrap().bytes);
+        let top =
+            String::from_utf8(composer.prepare(&desired(false)).unwrap().unwrap().bytes).unwrap();
         assert!(
             top.contains("\x1b[2J"),
             "the last-tab close clears the prior surface once"
         );
-        assert!(top.contains("strip"), "the strip stays above the landing");
         assert!(
-            top.contains("\x1b[2;1H\x1b[0m\x1b[2K"),
-            "every body row is overwritten"
+            top.contains("\x1b[3;2H"),
+            "the header starts one row below the top strip"
         );
+        assert!(top.ends_with("\x1b[?25l\x1b[?2026l"), "no cursor shows");
+        let bottom =
+            String::from_utf8(composer.prepare(&desired(true)).unwrap().unwrap().bytes).unwrap();
         assert!(
-            top.ends_with("\x1b[?25l\x1b[?2026l"),
-            "the hardware cursor stays hidden"
+            bottom.contains("\x1b[20;2H"),
+            "above a bottom strip the header ends one row above it"
         );
-        let bottom = bytes_of(composer.prepare(&desired(0, None)).unwrap().unwrap().bytes);
-        assert!(
-            bottom.contains("\x1b[1;1H\x1b[0m\x1b[2K"),
-            "a bottom strip moves the body up"
-        );
-
-        let mut presented = PresentationComposer::default();
-        presented
-            .prepare(&desired(1, None))
-            .unwrap()
-            .unwrap()
-            .acknowledge(&mut presented);
-        let popup = bytes_of(
-            presented
-                .prepare(&desired(1, Some("\x1b[s\x1b[2;1Hmenu\x1b[u".into())))
-                .unwrap()
-                .unwrap()
-                .bytes,
-        );
-        assert!(
-            !popup.contains("\x1b[2J"),
-            "a popup over the landing never clears it"
-        );
-        assert!(popup.contains("menu"));
-    }
-
-    fn bytes_of(value: Vec<u8>) -> String {
-        String::from_utf8(value).unwrap()
     }
 
     #[test]

@@ -1,13 +1,12 @@
 ## Why
 
-When the last resident tab closes, bare `a1` leaves the attach client showing a strip with a lone `+`, the clock, and an empty surface. Nothing names the product, nothing invites the next prompt, and the only way forward is to find the `+` launcher or remember `Alt+A`. The OpenCode home screen shows the better pattern: a wordmark, one prompt box, and the few shortcuts that matter.
+When the last resident tab closes, bare `a1` leaves the attach client showing a strip with a lone `+`, the clock, and an empty surface. Nothing names the product, its version, or where new tabs will start.
 
 ## What Changes
 
-- Replace the blank no-tab surface with an attach-owned **landing** laid out like an empty agent screen: a top-left header with the `a1` wordmark in the profile's accent, `a1` and its version, and the launch cwd; at the bottom, where the Agent's editor appears, a ruled prompt box that mirrors the flush-left owned editor and its caret; and below it the effective `New A1 tab` and `Open Settings tab` shortcuts. The strip keeps `+` and the clock.
-- Let the user type into the landing with the existing inline-rename editing controls plus paste, `Esc` to clear, and the solo `Ctrl+C` clear/detach meaning. `Enter` with text creates one Agent in the launch cwd with that text as its **seeded first prompt**; the landing keeps the submitted text behind the accent progress spinner until the Agent's first frame commits, and then the standard tab UI takes over. `Enter` on an empty box does nothing; a refused creation restores the text and shows the existing failure notice.
-- Carry the seed from the attach client to the Agent without putting prompt text on the bridge: `tab.create` gains a bounded optional `initialPrompt`, the server writes it to an owner-only `seed-prompt.json` in the tab's private data directory before the holder starts (or before a standby is promoted), and the child consumes that file exactly once when its shell can accept a prompt. The bridge carries only a content-free `bridge.seed` notification so a promoted standby learns a seed exists.
-- Submit the seeded prompt through the ordinary resident submission path (journal, status, automatic naming), retained until no startup route or dialog holds the screen.
+- Replace the blank no-tab surface with an attach-owned **landing**: a header with the `a1` wordmark in the profile's accent, `a1` and its running version, and the shortened launch cwd. The strip keeps `+` and the clock.
+- Place the header one row from the strip: at the top of the body below a top strip, and at the bottom of the body above a bottom strip.
+- The landing holds no input. Tab shortcuts, the `+` launcher, strip mouse input, and the double-`Ctrl+C` detach work as with tabs.
 - First launch is unchanged: bare `a1` with no resident tab still creates one Agent and views it. The landing appears only while the attach client has no tab to show.
 
 ## Capabilities
@@ -18,12 +17,11 @@ When the last resident tab closes, bare `a1` leaves the attach client showing a 
 
 ### Modified Capabilities
 
-- `multi-agent-tabs`: the empty resident shell presents the landing instead of a blank surface; last-tab-close, hidden-Settings-close, and lifecycle scenarios now expect the landing body; landing input, submission, and failure behavior.
-- `resident-terminal-host`: a created tab's first prompt is seeded through a private per-tab file; the bridge's server-to-child notifications gain a content-free seed notice while the no-content rule stays.
+- `multi-agent-tabs`: the empty resident shell presents the landing instead of a blank surface; last-tab-close, hidden-Settings-close, and lifecycle scenarios now expect the landing body.
 
 ## Impact
 
-- **Native host:** `native/terminal-host/src/core/attach/` (landing editor state, submission state, key/paste/mouse routing with no tabs), a new `roles/landing.rs` renderer, `roles/attach.rs` (present the landing body and cursor, create-with-prompt request), `roles/wire.rs` (`TabCreate.initial_prompt`), `roles/server/lifecycle.rs`, `standby.rs`, `bridge.rs`, and `core/server.rs` (seed file, pending-seed runtime state, `bridge.seed`), `protocol/fixtures.json`, and `core/sim` attach coverage.
-- **TypeScript child:** `src/foundation/resident-tabs/bridge-client.ts` (`bridge.seed` command), a seed-file reader beside the recovery storage, `src/composition/resident-tab-bridge.ts` and `owned-ui.ts` (Agent-tab seed binding), and a lazily loaded `src/composition/resident-tab-seed.ts` that submits a retained seed through the presenter once the shell is ready.
-- **Documentation:** `docs/architecture/resident-tabs.md` Decision 11 records the landing and seed delivery.
-- **Protocols and dependencies:** one additive optional field on `tab.create`, one additive bridge message pair and a `bridge-seed` welcome feature; older peers ignore both. No new runtime dependency.
+- **Native host:** a new `native/terminal-host/src/roles/landing.rs` renderer with its pinned accent table, and `roles/attach.rs` (read the release version, present the landing as the no-tab body).
+- **TypeScript:** a test that pins the native accent table to `derivePiAccentProjection`.
+- **Documentation:** `docs/architecture/resident-tabs.md` Decision 11 records the landing.
+- **Protocols and dependencies:** none.

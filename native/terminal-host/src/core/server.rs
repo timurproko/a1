@@ -160,9 +160,6 @@ pub struct TabRuntime {
     pub status_last_persist: Option<Duration>,
     /// When the scheduled holder respawn is due, on the server core clock.
     pub respawn_due_at: Option<Duration>,
-    /// A seeded first prompt waits in the tab's private seed file. Security: only this flag is held;
-    /// the text never enters server state.
-    pub seed_pending: bool,
 }
 
 #[derive(Debug)]
@@ -222,18 +219,6 @@ impl State {
     pub fn set_starting(&mut self, tab_id: &str, starting: bool) -> bool {
         self.update_runtime(tab_id, |runtime| {
             std::mem::replace(&mut runtime.starting, starting) != starting
-        })
-    }
-
-    pub fn seed_pending(&self, tab_id: &str) -> bool {
-        self.runtime(tab_id)
-            .is_some_and(|runtime| runtime.seed_pending)
-    }
-
-    /// Marks or clears a pending seed; returns whether the mark changed.
-    pub fn set_seed_pending(&mut self, tab_id: &str, pending: bool) -> bool {
-        self.update_runtime(tab_id, |runtime| {
-            std::mem::replace(&mut runtime.seed_pending, pending) != pending
         })
     }
 
@@ -1150,24 +1135,6 @@ mod tests {
         assert!(state.set_terminating("tab", false));
         assert!(state.runtime("standby").is_none() && state.runtime("tab").is_none());
         assert_eq!(state.starting_tabs().count(), 0);
-    }
-
-    #[test]
-    fn a_pending_seed_is_one_flag_per_tab_runtime() {
-        let mut state = State::new(1, 2);
-        assert!(!state.seed_pending("tab"));
-        assert!(state.set_seed_pending("tab", true));
-        assert!(
-            !state.set_seed_pending("tab", true),
-            "a second mark changes nothing"
-        );
-        assert!(state.seed_pending("tab") && !state.seed_pending("other"));
-        assert!(state.set_seed_pending("tab", false));
-        assert!(
-            state.runtime("tab").is_none(),
-            "a cleared flag leaves no runtime entry"
-        );
-        assert!(!state.set_seed_pending("tab", false));
     }
 
     #[test]

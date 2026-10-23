@@ -54,17 +54,6 @@ impl Model {
         }
     }
 
-    /// A client whose last tab closed: the landing owns input until it creates one.
-    fn empty() -> Self {
-        Self {
-            tabs: Vec::new(),
-            viewed: None,
-            requested: None,
-            creating: Vec::new(),
-            created: 0,
-        }
-    }
-
     /// The strip as the role renders it: shown tabs as fixed-width chips, then the overflow
     /// marker and the `+` button.
     fn strip(&self, state: &State) -> StripSnapshot {
@@ -123,11 +112,7 @@ fn presented(state: &State) -> String {
         Mode::Drag(drag) if drag.shown => format!("drag {:?}", drag.drop_index),
         Mode::Drag(_) => String::new(),
     };
-    let landing = &state.landing;
-    format!(
-        "{mode} | {:?} | {} {} {:?}",
-        state.hovered, landing.editor.text, landing.editor.cursor, landing.submitted
-    )
+    format!("{mode} | {:?}", state.hovered)
 }
 
 struct Run<'a> {
@@ -155,11 +140,7 @@ pub fn run_seeds(count: u64, steps: usize) -> Result<(), SimulationFailure> {
 }
 
 fn execute(seed: u64, steps: usize, events: &mut Vec<String>) -> Result<(), SimulationFailure> {
-    let model = if seed % 4 == 0 {
-        Model::empty()
-    } else {
-        Model::new()
-    };
+    let model = Model::new();
     let mut run = Run {
         seed,
         random: seed | 1,
@@ -299,7 +280,6 @@ impl Run<'_> {
     fn step(&mut self, event: Event, painted: bool) -> Result<(), SimulationFailure> {
         let before = presented(&self.state);
         let exited = self.state.exited;
-        let before_submitted = self.state.landing.submitted.is_some();
         let now = self.now;
         let effects = {
             let state = &mut self.state;
@@ -327,12 +307,6 @@ impl Run<'_> {
         for effect in effects {
             self.apply(effect)?;
         }
-        if before_submitted
-            && self.state.landing.submitted.is_none()
-            && !self.state.landing.editor.is_empty()
-        {
-            self.events.push("landing-failed".into());
-        }
         if presented(&self.state) != before && !painted {
             return self.fail(&format!(
                 "interaction state changed without a paint: {before} -> {}",
@@ -355,12 +329,6 @@ impl Run<'_> {
             _ => {
                 if let Some(mode) = mode_name(&self.state.mode) {
                     self.events.push(mode.into());
-                }
-                if self.model.viewed.is_none() && self.model.tabs.is_empty() {
-                    self.events.push("landing".into());
-                }
-                if self.state.landing.submitted.is_some() {
-                    self.events.push("landing-pending".into());
                 }
                 self.step(event, false)
             }
@@ -454,11 +422,8 @@ impl Run<'_> {
     /// The resident server answers each request against the model registry.
     fn request(&mut self, request: Request) -> Result<(), SimulationFailure> {
         match request {
-            Request::Create
-            | Request::CreateWithPrompt(_)
-            | Request::OpenSettings
-            | Request::PrewarmSettings => {
-                let prefix = if matches!(request, Request::Create | Request::CreateWithPrompt(_)) {
+            Request::Create | Request::OpenSettings | Request::PrewarmSettings => {
+                let prefix = if request == Request::Create {
                     "tab"
                 } else {
                     "settings"
@@ -546,9 +511,6 @@ mod tests {
             "mode-rename",
             "mode-drag",
             "mode-drag-shown",
-            "landing",
-            "landing-pending",
-            "landing-failed",
             "commit",
             "created",
             "server",
