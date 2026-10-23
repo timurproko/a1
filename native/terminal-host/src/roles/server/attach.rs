@@ -78,6 +78,37 @@ fn registry_tab_list(registry: &RegistryDocument) -> TabList {
     }
 }
 
+/// Reserves the singleton Settings process. Only revealing it, not prewarming it, restores
+/// its last live position; selecting an already visible tab bypasses this request entirely.
+fn reserve_settings_tab(
+    state: &Arc<Mutex<RuntimeState>>,
+    opening: bool,
+) -> Result<(String, bool, Option<(RegistryStore, RegistryDocument)>), String> {
+    let mut locked = lock_state(state)?;
+    let existing = locked
+        .registry
+        .tabs
+        .iter()
+        .find(|tab| is_settings_tab_id(&tab.tab_id) && tab.desired != "stopped")
+        .map(|tab| tab.tab_id.clone())
+        .or_else(|| {
+            locked
+                .core
+                .starting_tabs()
+                .find(|tab_id| is_settings_tab_id(tab_id))
+                .map(str::to_owned)
+        });
+    if let Some(tab_id) = existing {
+        let reordered = (opening && lifecycle::move_settings_last(&mut locked.registry, &tab_id))
+            .then(|| registry_snapshot(&locked));
+        Ok((tab_id, false, reordered))
+    } else {
+        let tab_id = format!("{SETTINGS_TAB_PREFIX}{:016x}", rand::random::<u64>());
+        let inserted = locked.core.set_starting(&tab_id, true);
+        Ok((tab_id, inserted, None))
+    }
+}
+
 pub(super) fn serve_attach(
     mut stream: endpoint::EndpointStream,
     tx: Peer,
@@ -219,29 +250,9 @@ pub(super) fn serve_attach(
             }
             "tab.open-settings" | "tab.prewarm-settings" => {
                 let (_, create): (_, TabCreate) = wire::body(&payload)?;
-                let (settings_tab_id, should_start) = {
-                    let mut locked = lock_state(&state)?;
-                    let existing = locked
-                        .registry
-                        .tabs
-                        .iter()
-                        .find(|tab| is_settings_tab_id(&tab.tab_id) && tab.desired != "stopped")
-                        .map(|tab| tab.tab_id.clone())
-                        .or_else(|| {
-                            locked
-                                .core
-                                .starting_tabs()
-                                .find(|tab_id| is_settings_tab_id(tab_id))
-                                .map(str::to_owned)
-                        });
-                    if let Some(tab_id) = existing {
-                        (tab_id, false)
-                    } else {
-                        let tab_id = format!("{SETTINGS_TAB_PREFIX}{:016x}", rand::random::<u64>());
-                        let inserted = locked.core.set_starting(&tab_id, true);
-                        (tab_id, inserted)
-                    }
-                };
+                let (settings_tab_id, should_start, reordered) =
+                    reserve_settings_tab(&state, kind.message_type == "tab.open-settings")?;
+                commit_staged(reordered)?;
                 if should_start {
                     let mut start = AttachStart {
                         client_id: client_id.clone(),

@@ -600,26 +600,68 @@ pub(super) fn reorder_registry(
     if registry.registry_revision != reorder.expected_revision {
         return false;
     }
-    let Some(from) = registry
+    // Protocol: the client sends an index in its tab.list (only live records), not an index
+    // into the durable registry, which may contain arbitrarily many interleaved stopped tabs.
+    let live = registry
+        .tabs
+        .iter()
+        .filter(|tab| tab.desired != "stopped")
+        .map(|tab| tab.tab_id.as_str())
+        .collect::<Vec<_>>();
+    let Some(from) = live.iter().position(|id| *id == reorder.tab_id) else {
+        return false;
+    };
+    let target = reorder.target_index.min(live.len().saturating_sub(1));
+    if target == from {
+        return false;
+    }
+    let Some(raw_from) = registry
         .tabs
         .iter()
         .position(|tab| tab.tab_id == reorder.tab_id)
     else {
         return false;
     };
-    let target = reorder
-        .target_index
-        .min(registry.tabs.len().saturating_sub(1));
-    if target == from {
-        return false;
-    }
-    let tab = registry.tabs.remove(from);
-    registry.tabs.insert(target.min(registry.tabs.len()), tab);
+    let tab = registry.tabs.remove(raw_from);
+    let raw_target = registry
+        .tabs
+        .iter()
+        .enumerate()
+        .filter(|(_, tab)| tab.desired != "stopped")
+        .nth(target)
+        .map(|(index, _)| index)
+        .unwrap_or_else(|| {
+            registry
+                .tabs
+                .iter()
+                .rposition(|tab| tab.desired != "stopped")
+                .map_or(0, |index| index + 1)
+        });
+    registry.tabs.insert(raw_target, tab);
     for (index, tab) in registry.tabs.iter_mut().enumerate() {
         tab.order = index as u32;
     }
     bump_registry_revision(registry);
     true
+}
+
+/// Restores Settings to the last live slot on an explicit open, not while prewarming or dragging.
+pub(super) fn move_settings_last(registry: &mut RegistryDocument, tab_id: &str) -> bool {
+    let last = registry
+        .tabs
+        .iter()
+        .filter(|tab| tab.desired != "stopped")
+        .count()
+        .saturating_sub(1);
+    let expected_revision = registry.registry_revision;
+    reorder_registry(
+        registry,
+        &wire::TabReorder {
+            tab_id: tab_id.to_owned(),
+            target_index: last,
+            expected_revision,
+        },
+    )
 }
 
 /// Runs one lifecycle request from an attached client on that client's lifecycle worker.

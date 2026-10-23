@@ -503,8 +503,8 @@ impl State {
         effects.push(Effect::Send(request));
     }
 
-    /// Invariant: the server reuses a prewarmed Settings process without changing its dragged
-    /// order; no new holder is launched unless the tab is actually absent.
+    /// Invariant: the server reuses a prewarmed Settings process and places it last when it
+    /// first becomes visible; no new holder is launched unless the tab is actually absent.
     fn open_settings(&mut self, effects: &mut Vec<Effect>) {
         self.create(Request::OpenSettings, effects);
     }
@@ -586,8 +586,8 @@ impl State {
         self.view.settings_prewarm_pending = false;
         let Some(tab_id) = settings_toggle_closes(context.viewed) else {
             if let Some(settings) = self.shown(context).iter().find(|tab| is_settings(tab.id())) {
-                // Invariant: the first shortcut selects an already open Settings tab;
-                // only a second shortcut while viewing it hides the tab.
+                // Invariant: switching to an already visible Settings tab retains its dragged
+                // slot. Only revealing a hidden Settings tab places it last.
                 effects.push(Effect::View(settings.id().to_owned()));
             } else {
                 self.open_settings(effects);
@@ -1716,6 +1716,28 @@ mod tests {
     }
 
     #[test]
+    fn release_at_marker_after_last_settings_tab_requests_last_visible_slot() {
+        let fixture = Fixture::new(&["a", "b", "settings-1"], "a");
+        let mut state = fixture.state();
+        state.view.settings_shown = true;
+        state.registry_revision = 9;
+        fixture.step(&mut state, mouse(LEFT, 2, 0));
+        fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
+        assert_eq!(state.mode.drag().and_then(|drag| drag.drop_index), Some(2));
+        assert_eq!(
+            fixture.step(&mut state, mouse(RELEASE, 29, 0)),
+            [
+                Effect::Send(Request::Reorder {
+                    tab_id: "a".into(),
+                    target_index: 2,
+                    expected_revision: 9,
+                }),
+                PAINT,
+            ]
+        );
+    }
+
+    #[test]
     fn drag_does_not_rebase_across_changed_tab_order() {
         let mut fixture = Fixture::new(&["a", "b", "c"], "a");
         let mut state = fixture.state();
@@ -1880,6 +1902,14 @@ mod tests {
         assert!(
             state.view.settings_shown,
             "the checked menu item selects Settings"
+        );
+        let dragged = Fixture::new(&["settings-1", "a"], "a");
+        let mut already_visible = dragged.state();
+        already_visible.view.settings_shown = true;
+        assert_eq!(
+            dragged.step(&mut already_visible, shortcut("tabs.settings")),
+            [Effect::View("settings-1".into()), PAINT],
+            "an already visible Settings tab keeps its dragged slot"
         );
         let mut active = fixture.state();
         active.view.settings_shown = true;
