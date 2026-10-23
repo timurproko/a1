@@ -415,13 +415,21 @@ fn chip(
     now: Instant,
     truecolor: bool,
     rename: Option<&StripRename>,
+    target_width: Option<usize>,
 ) -> (String, usize) {
     let glyph = status_glyph(&tab.status);
     let separator = if glyph.is_empty() { "" } else { " " };
     let fixed = chip_fixed_width(tab);
-    let title = chip_title(tab, 20usize.saturating_sub(fixed), now, truecolor, rename);
+    let title = chip_title(
+        tab,
+        target_width.unwrap_or(20).saturating_sub(fixed),
+        now,
+        truecolor,
+        rename,
+    );
     let name = title.text;
-    let width = fixed + title.width;
+    let width = target_width.unwrap_or(fixed + title.width);
+    let padding = " ".repeat(width.saturating_sub(fixed + title.width));
     let background = if active {
         "\x1b[48;2;55;55;55m\x1b[38;2;255;255;255m"
     } else if hovered {
@@ -430,7 +438,8 @@ fn chip(
         "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m"
     };
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
-    let text = format!("{background} {glyph_color}{glyph}\x1b[39m{separator}{name} \x1b[0m");
+    let text =
+        format!("{background} {glyph_color}{glyph}\x1b[39m{separator}{name}{padding} \x1b[0m");
     (text, width)
 }
 
@@ -505,8 +514,8 @@ fn render_frame(
     now: Instant,
     truecolor: bool,
 ) -> StripFrame {
-    let chip = |tab: &StripTab, active: bool, hovered: bool| {
-        chip(tab, active, hovered, now, truecolor, rename)
+    let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
+        chip(tab, active, hovered, now, truecolor, rename, Some(target))
     };
     // Invariant: the clock stays visible with no tabs, beside the lone `+`.
     let clock = Some(clock_text(time_format));
@@ -516,16 +525,20 @@ fn render_frame(
     let mut selected = Vec::new();
     let mut used = 0usize;
     let plus_width = 3usize;
+    // Rationale: tabs have a steady 20-cell footprint until the row needs space;
+    // share the shrink evenly, then overflow rather than make tabs unreadable.
+    let tab_width = if tabs.is_empty() {
+        20
+    } else {
+        (available.saturating_sub(plus_width) / tabs.len())
+            .clamp(10, 20)
+            .min(available.saturating_sub(plus_width))
+    };
     let mut overflow = false;
     for tab in tabs {
-        let (_, width) = chip(
-            tab,
-            viewed == Some(tab.id.as_str()),
-            hovered == Some(&StripHover::Tab(tab.id.clone())),
-        );
-        if used + width + plus_width <= available {
+        if used + tab_width + plus_width <= available {
             selected.push(tab);
-            used += width;
+            used += tab_width;
         } else {
             overflow = true;
         }
@@ -534,32 +547,17 @@ fn render_frame(
         && !selected.iter().any(|tab| tab.id == active.id)
     {
         overflow = true;
-        let (_, active_width) = chip(
-            active,
-            true,
-            hovered == Some(&StripHover::Tab(active.id.clone())),
-        );
-        while !selected.is_empty() && used + active_width + plus_width + 3 > available {
-            let removed = selected.pop().expect("checked nonempty");
-            used -= chip(
-                removed,
-                false,
-                hovered == Some(&StripHover::Tab(removed.id.clone())),
-            )
-            .1;
+        while !selected.is_empty() && used + tab_width + plus_width + 3 > available {
+            selected.pop();
+            used -= tab_width;
         }
         selected.push(active);
-        used += active_width;
+        used += tab_width;
     }
     let overflow_width = if overflow { 3 } else { 0 };
     while !selected.is_empty() && used + overflow_width + plus_width > available {
-        let removed = selected.pop().expect("checked nonempty");
-        used -= chip(
-            removed,
-            false,
-            hovered == Some(&StripHover::Tab(removed.id.clone())),
-        )
-        .1;
+        selected.pop();
+        used -= tab_width;
         overflow = true;
     }
 
@@ -576,6 +574,7 @@ fn render_frame(
             tab,
             viewed == Some(tab.id.as_str()),
             hovered == Some(&StripHover::Tab(tab.id.clone())),
+            tab_width,
         );
         bytes.push_str(&text);
         let end = column.saturating_add(width as u16);
@@ -1188,7 +1187,7 @@ mod tests {
         ] {
             let mut value = tab("one", "agent");
             value.status = status.into();
-            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None);
+            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None, None);
             let text = plain(&bytes);
             assert!(text.starts_with(' '), "status={status}");
             let glyph = status_glyph_at(status, 0);
@@ -1279,8 +1278,35 @@ mod tests {
                 .any(|glyph| frame.bytes.contains(glyph))
         );
         assert!(frame.hits.iter().any(|(start, end, hit)| {
-            end - start == 9 && matches!(hit, StripHit::View(id) if id == "blue")
+            end - start == 20 && matches!(hit, StripHit::View(id) if id == "blue")
         }));
+    }
+
+    #[test]
+    fn tabs_have_a_steady_width_then_shrink_and_truncate_before_overflow() {
+        let tabs = (0..5)
+            .map(|index| tab(&format!("tab-{index}"), "a very long agent title"))
+            .collect::<Vec<_>>();
+        let widths = |frame: StripFrame| {
+            frame
+                .hits
+                .into_iter()
+                .filter_map(|(start, end, hit)| {
+                    matches!(hit, StripHit::View(_)).then_some(end - start)
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
+        assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [18, 18, 18]);
+        let crowded = render(&tabs, Some("tab-4"), 60);
+        assert!(widths(crowded.clone()).iter().all(|width| *width == 10));
+        assert!(crowded.bytes.contains("a very …"));
+        assert!(
+            crowded
+                .hits
+                .iter()
+                .any(|(_, _, hit)| matches!(hit, StripHit::Overflow))
+        );
     }
 
     #[test]
@@ -1301,7 +1327,7 @@ mod tests {
             assert!(frame.hits.iter().all(|(_, end, _)| *end <= columns));
             assert!(!frame.bytes.contains("×"));
             assert!(frame.bytes.contains(" + "));
-            assert!(frame.bytes.contains("开发助手49"));
+            assert!(frame.bytes.contains("开发助…"));
         }
     }
 

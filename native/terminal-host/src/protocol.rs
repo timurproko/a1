@@ -197,6 +197,25 @@ pub struct BridgeAttachment {
     pub controller_revision: u64,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub selected_tab: Option<String>,
+    /// Protocol: registered tabs available at admission, before the asynchronous first list.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub initial_tabs: Option<InitialTabs>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InitialTabs {
+    pub revision: u64,
+    pub tabs: Vec<InitialTab>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InitialTab {
+    pub tab_id: String,
+    pub name: String,
+    pub name_source: String,
+    pub lifecycle: String,
+    pub cwd: String,
 }
 
 impl BridgeAttachment {
@@ -205,6 +224,7 @@ impl BridgeAttachment {
             client_id: client_id.into(),
             controller_revision,
             selected_tab: None,
+            initial_tabs: None,
         }
     }
 

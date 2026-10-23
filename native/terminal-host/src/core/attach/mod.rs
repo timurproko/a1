@@ -681,7 +681,8 @@ pub struct TabDrag {
     pub shown: bool,
     pub drop_index: Option<usize>,
     pub marker_column: Option<u16>,
-    pub expected_revision: u64,
+    /// Invariant: the tab order at press time guards against rebasing a drag across topology changes.
+    pub initial_order: Vec<String>,
 }
 
 pub fn drag_destination<T: TabView>(
@@ -730,11 +731,15 @@ pub fn update_drag<T: TabView>(
     {
         drag.shown = true;
     }
-    drag.drop_index = drag
-        .shown
-        .then(|| drag_destination(column, on_strip, tabs, strip, &drag.tab_id))
-        .flatten();
-    drag.marker_column = current_drag_marker_column(drag, tabs, strip);
+    // Invariant: keep the last valid insertion while the pressed pointer moves through the body.
+    // A release, not leaving the strip, ends the gesture.
+    if on_strip && drag.shown {
+        let next = drag_destination(column, true, tabs, strip, &drag.tab_id);
+        if next != drag.drop_index {
+            drag.drop_index = next;
+            drag.marker_column = current_drag_marker_column(drag, tabs, strip);
+        }
+    }
     previous != (drag.shown, drag.drop_index, drag.marker_column)
 }
 

@@ -4,15 +4,37 @@ fn attach_admission(
     tabs: &[TabRecord],
     viewed_tab: &str,
     client_id: &str,
-    revision: u64,
+    controller_revision: u64,
+    registry_revision: u64,
 ) -> BridgeAttachment {
     // Invariant: an empty registry has only a provisional default. Let the first real surface
     // choose the view after attach.start creates the tab instead of pinning an absent tab.
-    if tabs.iter().any(|tab| tab.tab_id == viewed_tab) {
-        BridgeAttachment::selected(client_id, revision, viewed_tab.to_owned())
+    let mut admission = if tabs.iter().any(|tab| tab.tab_id == viewed_tab) {
+        BridgeAttachment::selected(client_id, controller_revision, viewed_tab.to_owned())
     } else {
-        BridgeAttachment::new(client_id, revision)
+        BridgeAttachment::new(client_id, controller_revision)
+    };
+    let mut listed = tabs
+        .iter()
+        .filter(|tab| tab.desired != "stopped")
+        .collect::<Vec<_>>();
+    listed.sort_by_key(|tab| tab.order);
+    if !listed.is_empty() {
+        admission.initial_tabs = Some(protocol::InitialTabs {
+            revision: registry_revision,
+            tabs: listed
+                .into_iter()
+                .map(|tab| protocol::InitialTab {
+                    tab_id: tab.tab_id.clone(),
+                    name: tab.display_name.clone(),
+                    name_source: tab.name_source.clone(),
+                    lifecycle: tab.lifecycle.clone(),
+                    cwd: tab.cwd.clone(),
+                })
+                .collect(),
+        });
     }
+    admission
 }
 
 #[cfg(test)]
@@ -22,16 +44,37 @@ mod tests {
     #[test]
     fn admission_selects_only_a_registered_tab() {
         assert_eq!(
-            attach_admission(&[], "tab-1", "client", 1).selected_tab,
+            attach_admission(&[], "tab-1", "client", 1, 2).selected_tab,
             None
         );
         let tab = super::super::tests::record("tab-1", 1, "running", None);
-        assert_eq!(
-            attach_admission(&[tab], "tab-1", "client", 1)
-                .selected_tab
-                .as_deref(),
-            Some("tab-1")
-        );
+        let admission = attach_admission(&[tab], "tab-1", "client", 1, 2);
+        assert_eq!(admission.selected_tab.as_deref(), Some("tab-1"));
+        let initial = admission.initial_tabs.expect("registered tab snapshot");
+        assert_eq!(initial.revision, 2);
+        assert_eq!(initial.tabs[0].tab_id, "tab-1");
+    }
+}
+
+fn registry_tab_list(registry: &RegistryDocument) -> TabList {
+    let mut records = registry
+        .tabs
+        .iter()
+        .filter(|tab| tab.desired != "stopped")
+        .collect::<Vec<_>>();
+    records.sort_by_key(|tab| tab.order);
+    TabList {
+        revision: registry.registry_revision,
+        tabs: records
+            .into_iter()
+            .map(|tab| TabSummary {
+                tab_id: tab.tab_id.clone(),
+                name: tab.display_name.clone(),
+                name_source: tab.name_source.clone(),
+                lifecycle: tab.lifecycle.clone(),
+                cwd: tab.cwd.clone(),
+            })
+            .collect(),
     }
 }
 
@@ -71,7 +114,13 @@ pub(super) fn serve_attach(
             };
         // Protocol: admission must precede every surface or notice; queue it before the client
         // becomes visible to holders whose surface offers wake this writer immediately.
-        let admission = attach_admission(&locked.registry.tabs, &viewed_tab, &client_id, revision);
+        let admission = attach_admission(
+            &locked.registry.tabs,
+            &viewed_tab,
+            &client_id,
+            revision,
+            locked.registry.registry_revision,
+        );
         tx.offer_control(wire::frame("attached", None, admission)?)
             .map_err(str::to_owned)?;
         locked.clients.insert(
@@ -164,37 +213,9 @@ pub(super) fn serve_attach(
                 )?;
             }
             "tab.list" => {
-                let (revision, tabs) = {
-                    let locked = lock_state(&state)?;
-                    let mut tabs = locked
-                        .registry
-                        .tabs
-                        .iter()
-                        .filter(|tab| tab.desired != "stopped")
-                        .map(|tab| TabSummary {
-                            tab_id: tab.tab_id.clone(),
-                            name: tab.display_name.clone(),
-                            name_source: tab.name_source.clone(),
-                            lifecycle: tab.lifecycle.clone(),
-                            cwd: tab.cwd.clone(),
-                        })
-                        .collect::<Vec<_>>();
-                    tabs.sort_by_key(|tab| {
-                        locked
-                            .registry
-                            .tabs
-                            .iter()
-                            .find(|record| record.tab_id == tab.tab_id)
-                            .map_or(u32::MAX, |record| record.order)
-                    });
-                    (locked.registry.registry_revision, tabs)
-                };
-                tx.offer_control(wire::frame(
-                    "tab.list",
-                    kind.request_id,
-                    TabList { revision, tabs },
-                )?)
-                .map_err(str::to_owned)?;
+                let list = registry_tab_list(&lock_state(&state)?.registry);
+                tx.offer_control(wire::frame("tab.list", kind.request_id, list)?)
+                    .map_err(str::to_owned)?;
             }
             "tab.open-settings" => {
                 let (_, create): (_, TabCreate) = wire::body(&payload)?;

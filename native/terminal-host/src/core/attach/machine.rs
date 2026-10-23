@@ -779,7 +779,9 @@ impl State {
     ) -> bool {
         let on_strip = mouse.row == 0;
         match mouse.kind {
-            MouseKind::Drag(MouseButton::Left) if matches!(self.mode, Mode::Drag(_)) => {
+            MouseKind::Drag(MouseButton::Left) | MouseKind::Moved
+                if matches!(self.mode, Mode::Drag(_)) =>
+            {
                 let shown = self.shown(context);
                 if let Mode::Drag(drag) = &mut self.mode
                     && update_drag(drag, mouse.column, on_strip, &shown, context.strip, now)
@@ -802,15 +804,19 @@ impl State {
                     now,
                 );
                 let from = shown.iter().position(|tab| tab.id() == completed.tab_id);
-                if on_strip
-                    && completed.shown
+                if completed.shown
                     && let Some(target_index) = completed.drop_index
                     && Some(target_index) != from
+                    && completed
+                        .initial_order
+                        .iter()
+                        .map(String::as_str)
+                        .eq(context.tabs.iter().map(|tab| tab.id()))
                 {
                     effects.push(Effect::Send(Request::Reorder {
                         target_index: registry_index(&shown, context.tabs, target_index),
                         tab_id: completed.tab_id,
-                        expected_revision: completed.expected_revision,
+                        expected_revision: self.registry_revision,
                     }));
                 }
                 effects.push(Effect::Paint { clear: false });
@@ -860,7 +866,7 @@ impl State {
                             .iter()
                             .position(|tab| tab.id() == tab_id),
                         marker_column: None,
-                        expected_revision: self.registry_revision,
+                        initial_order: context.tabs.iter().map(|tab| tab.id().to_owned()).collect(),
                     });
                     if context.viewed != Some(tab_id.as_str()) {
                         effects.push(Effect::View(tab_id));
@@ -982,7 +988,9 @@ impl State {
                 effects.extend([Effect::Send(Request::List), paint]);
             }
             ServerEvent::Reordered { accepted, message } => {
-                if !accepted {
+                // Concurrency: another client or a tab status update can advance the registry
+                // after drop. Refresh the strip silently; a stale drag is not a user error.
+                if !accepted && message.as_deref() != Some("stale tab order") {
                     self.notice = message;
                     effects.push(paint);
                 }
@@ -1613,32 +1621,97 @@ mod tests {
         fixture.step(&mut state, mouse(LEFT, 2, 0));
         assert_eq!(fixture.step(&mut state, mouse(RELEASE, 2, 0)), [PAINT]);
 
-        // Invariant: Leaving clears the preview, re-entering restores it, and releasing outside cancels.
+        // Invariant: leaving the strip keeps the last insertion until the button is released.
         fixture.step(&mut state, mouse(LEFT, 2, 0));
         assert_eq!(
             fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0)),
             [PAINT]
         );
-        assert_eq!(
-            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 1)),
-            [PAINT]
+        let marker = state.mode.drag().and_then(|drag| drag.marker_column);
+        assert!(marker.is_some());
+        assert!(
+            fixture
+                .step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 1))
+                .is_empty()
         );
         assert!(
             state
                 .mode
                 .drag()
-                .is_some_and(|drag| drag.drop_index.is_none())
+                .is_some_and(|drag| drag.shown && drag.marker_column == marker)
+        );
+        assert!(
+            fixture
+                .step(&mut state, mouse(MouseKind::Moved, 29, 2))
+                .is_empty()
+        );
+        assert!(
+            state
+                .mode
+                .drag()
+                .is_some_and(|drag| drag.marker_column == marker)
         );
         assert_eq!(
-            fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0)),
-            [PAINT]
+            fixture.step(&mut state, mouse(RELEASE, 29, 1)),
+            [
+                Effect::Send(Request::Reorder {
+                    tab_id: "a".into(),
+                    target_index: 2,
+                    expected_revision: 3,
+                }),
+                PAINT
+            ]
         );
-        assert_eq!(fixture.step(&mut state, mouse(RELEASE, 29, 1)), [PAINT]);
+        assert!(matches!(state.mode, Mode::Idle));
 
         // Invariant: A source removed during the gesture cannot produce a reorder.
         fixture.step(&mut state, mouse(LEFT, 2, 0));
         fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
         fixture.tabs.remove(0);
+        assert_eq!(fixture.step(&mut state, mouse(RELEASE, 29, 0)), [PAINT]);
+    }
+
+    #[test]
+    fn drag_uses_latest_revision_when_tab_order_is_unchanged() {
+        let fixture = Fixture::new(&["a", "b", "c"], "a");
+        let mut state = fixture.state();
+        state.registry_revision = 3;
+        fixture.step(&mut state, mouse(LEFT, 12, 0));
+        fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
+        // Concurrency: viewing a tab or updating its status advances the registry during a drag.
+        state.registry_revision = 4;
+        assert_eq!(
+            fixture.step(&mut state, mouse(RELEASE, 29, 0)),
+            [
+                Effect::Send(Request::Reorder {
+                    tab_id: "b".into(),
+                    target_index: 2,
+                    expected_revision: 4,
+                }),
+                PAINT
+            ]
+        );
+        assert_eq!(
+            fixture.step(
+                &mut state,
+                server(ServerEvent::Reordered {
+                    accepted: false,
+                    message: Some("stale tab order".into()),
+                })
+            ),
+            [Effect::Send(Request::List)]
+        );
+        assert_eq!(state.notice, None);
+    }
+
+    #[test]
+    fn drag_does_not_rebase_across_changed_tab_order() {
+        let mut fixture = Fixture::new(&["a", "b", "c"], "a");
+        let mut state = fixture.state();
+        fixture.step(&mut state, mouse(LEFT, 12, 0));
+        fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
+        fixture.tabs.swap(0, 1);
+        state.registry_revision += 1;
         assert_eq!(fixture.step(&mut state, mouse(RELEASE, 29, 0)), [PAINT]);
     }
 

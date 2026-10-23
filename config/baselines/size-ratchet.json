@@ -137,7 +137,7 @@
       "lines": 111
     },
     "native/terminal-host/src/roles/server/attach.rs::serve_attach": {
-      "lines": 484
+      "lines": 462
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
       "lines": 392
@@ -173,7 +173,7 @@
       "lines": 106
     },
     "native/terminal-host/src/roles/strip.rs::render_frame": {
-      "lines": 138
+      "lines": 128
     },
     "src/app/session-shell/paste-executor.ts::startPasteExecutor": {
       "lines": 122

@@ -1148,6 +1148,7 @@ struct Handshake {
     apply_effects: bool,
     request_generation: u64,
     selected_tab: Option<String>,
+    initial_tabs: Option<TabList>,
     columns: u16,
     outer_rows: u16,
     create: TabCreate,
@@ -1224,6 +1225,20 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
         apply_effects,
         request_generation,
         selected_tab: admission.selected_tab,
+        initial_tabs: admission.initial_tabs.map(|initial| TabList {
+            revision: initial.revision,
+            tabs: initial
+                .tabs
+                .into_iter()
+                .map(|tab| wire::TabSummary {
+                    tab_id: tab.tab_id,
+                    name: tab.name,
+                    name_source: tab.name_source,
+                    lifecycle: tab.lifecycle,
+                    cwd: tab.cwd,
+                })
+                .collect(),
+        }),
         columns,
         outer_rows,
         create,
@@ -1367,7 +1382,11 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         .clone()
         .or_else(|| options.view_tab.map(str::to_owned));
     let mut core = State::new(initial_view, handshake.columns);
+    let initial_tabs = handshake.initial_tabs.clone();
     let mut client = Client::start(&options, handshake, terminal)?;
+    if let Some(list) = initial_tabs {
+        client.install_tab_list(&mut core, list)?;
+    }
     loop {
         watchdog.bump();
         if let Some(error) = client.stream.failure() {
@@ -1600,8 +1619,8 @@ impl Client {
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
         };
-        // Invariant: the launch frame hides the cursor until the first child surface places it.
-        client.present(None, true)?;
+        // Rationale: attach.start precedes the first tab.list. Do not paint an empty strip
+        // while the server already has tabs; the initial list paints their names together.
         Ok(client)
     }
 
@@ -2137,6 +2156,14 @@ impl Client {
 
     fn tab_list(&mut self, core: &mut State, payload: &[u8]) -> Result<(), String> {
         let (_, list): (_, TabList) = wire::body(payload)?;
+        self.install_tab_list(core, list)
+    }
+
+    fn install_tab_list(&mut self, core: &mut State, list: TabList) -> Result<(), String> {
+        // Concurrency: a newer queued registry update must not be overwritten by admission data.
+        if list.revision < core.registry_revision {
+            return Ok(());
+        }
         let revision = list.revision;
         core.registry_revision = revision;
         let name_confirmed = core.pending_manual_name.as_ref().is_some_and(|(id, name)| {
@@ -3587,7 +3614,7 @@ mod tests {
             shown: false,
             drop_index: Some(0),
             marker_column: None,
-            expected_revision: 9,
+            initial_order: vec!["a".into(), "b".into(), "c".into()],
         };
         let mut held = TabDrag {
             tab_id: "a".into(),
@@ -3596,7 +3623,7 @@ mod tests {
             shown: false,
             drop_index: Some(0),
             marker_column: None,
-            expected_revision: 9,
+            initial_order: vec!["a".into(), "b".into(), "c".into()],
         };
         assert!(update_drag(&mut held, 1, true, &tabs, &snapshot, now));
         assert!(held.shown);
@@ -3628,13 +3655,13 @@ mod tests {
         assert!(bottom.bytes.contains(&format!("\x1b[24;{}H", last_end + 1)));
         assert!(bottom.bytes.contains('│'));
 
-        assert!(update_drag(
+        assert!(!update_drag(
             &mut drag, last_end, false, &tabs, &snapshot, now
         ));
-        assert_eq!(drag.drop_index, None);
+        assert_eq!(drag.drop_index, Some(2));
         let mut outside = strip::render(&tabs, Some("a"), 80);
         append_drag_marker(&mut outside, Some(&drag), &tabs, 80, 1);
-        assert!(!outside.bytes.contains('│'));
+        assert!(outside.bytes.contains('│'));
     }
 
     #[test]
