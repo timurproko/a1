@@ -20,10 +20,10 @@ The maintainer integration decision accepts these scenarios:
     "Upward dragging through the tab-strip edge selects the first visible transcript content row from the pointer column to the row end.",
     "Tab-strip and pinned-prompt chrome stay outside copied text while forward and reverse selection retain matching visible boundaries."
   ],
-  "archiveDigest": "23135762d93db49d64cef957724ddf5646fd4323594dce76b29158d22efd70ee",
-  "specDigest": "69f850e956c28e29f43b9bb310105e3d4eb9914a75815d618985bec934525039",
-  "tasksDigest": "9c092206aa9c056cb56756daca46ddbfa7d982e86b40dec1b5bc712c299d79e4",
-  "evidenceDigest": "109302dec41747383ae1e5d00b6dbcf96ee645218c3f182a4089b58e75d85671",
+  "archiveDigest": "1c40a1c599171f75ab1e18a994926c100b80295b8983c9ff70af7da358ed960f",
+  "specDigest": "bb6ce922f496a94aad62a3bb9702692d3202d1a4d1b917091b9fbf126b1c1c3b",
+  "tasksDigest": "2ab23b38c00be9e925a878d69f7a730f686f15ba558beb3cfab0eddaca75f0de",
+  "evidenceDigest": "cc3226c26bdcb47f015a522dac597ea0029388171639001f0ed59a4c6003272c",
   "knownGaps": []
 }
 ```
