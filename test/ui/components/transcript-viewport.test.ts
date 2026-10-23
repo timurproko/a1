@@ -387,6 +387,126 @@ describe("transcript viewport", () => {
     expect(clipped.rows.every(row => !row.includes("\u001b[47m"))).toBe(true);
   });
 
+  it("copies from the pointer row to the press point while edge auto-scroll grows an upward drag", () => {
+    const viewport = new TranscriptViewport();
+    const input = { documentRows: rows(40), promptAnchors: [], dockRows: ["editor", "footer"], width: 30, height: 10 };
+    viewport.compose(input);
+    viewport.scrollTo(20);
+    viewport.compose(input);
+    viewport.pressSelection(6, 6, 100);
+    viewport.extendSelection(3, 1, 101, false);
+    viewport.compose(input);
+    expect(viewport.selectedText()).toBe("w 20\nrow 21\nrow 22\nrow 23\nrow 24\nrow 25");
+
+    // Concurrency: mirrors the shell's edge auto-scroll tick; the pointer stays on row 1 while content moves.
+    for (let tick = 0; tick < 6; tick += 1) {
+      viewport.scrollBy(-1);
+      viewport.extendSelection(3, 1, undefined, false);
+      viewport.compose(input);
+    }
+    viewport.releaseSelection();
+    const frame = viewport.compose(input);
+    expect(stripAnsi(frame.rows[0] ?? "")).toContain("row 14");
+    expect(frame.rows.some(row => stripAnsi(row).includes("Jump to bottom"))).toBe(true);
+    expect(viewport.selectedText()).toBe(["w 14", ...rows(26).slice(15)].join("\n"));
+  });
+
+  it("extends a downward drag into the dock while edge auto-scroll keeps the scrolled transcript selected", () => {
+    const SELECTED = "\u001b[45m";
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: rows(40), promptAnchors: [], dockRows: ["editor", "footer"], width: 30, height: 10,
+      theme: {
+        track: (text: string) => text, thumb: (text: string) => text, sticky: (text: string) => text,
+        quietSticky: (text: string) => text, bottomControl: (text: string) => text,
+        selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, SELECTED),
+      },
+    };
+    viewport.compose(input);
+    viewport.scrollTo(20);
+    viewport.compose(input);
+    viewport.pressSelection(3, 3, 100);
+    viewport.extendSelection(3, 9, 101, false);
+    let frame = viewport.compose(input);
+    expect(frame.rows[8]).toContain(SELECTED);
+    expect(viewport.selectedText()).toBe(["w 22", ...rows(28).slice(23)].join("\n"));
+
+    // Concurrency: mirrors the shell's edge auto-scroll tick with the pointer held on the dock.
+    for (let tick = 0; tick < 6; tick += 1) {
+      viewport.scrollBy(1);
+      viewport.extendSelection(3, 9, undefined, false);
+      frame = viewport.compose(input);
+      if (viewport.scrollTop > 22) expect(frame.rows.slice(0, 9).every(row => row.includes(SELECTED))).toBe(true);
+    }
+    viewport.releaseSelection();
+    expect(viewport.selectedText()).toBe(["w 22", ...rows(34).slice(23)].join("\n"));
+  });
+
+  it("keeps a held drag's press row when streaming restyles the live tail during edge auto-scroll", () => {
+    const viewport = new TranscriptViewport();
+    let count = 30;
+    const input = () => {
+      const documentRows = ["❯ ask", "", ...Array.from({ length: count }, (_, index) =>
+        count >= 36 ? `${String(index + 1).padStart(3)}. q${index + 1}` : `${index + 1}. q${index + 1}`)];
+      return {
+        documentRows, liveTailStartRow: 1, selectableDocumentRowCount: documentRows.length,
+        promptAnchors: [{ id: "p", firstRow: 0, lastRow: 0, sourceRow: "❯ ask" }],
+        dockRows: ["", "editor", "footer"], width: 40, height: 12,
+      };
+    };
+    viewport.compose(input());
+    viewport.scrollTo(3);
+    viewport.compose(input());
+    viewport.pressSelection(1, 3, 100);
+    viewport.extendSelection(40, 11, 101, false);
+    viewport.compose(input());
+    expect(viewport.selectedText()?.split("\n")[0]).toBe("4. q4");
+
+    for (let tick = 0; tick < 10; tick += 1) {
+      count += 1;
+      viewport.compose(input());
+      viewport.scrollBy(1);
+      viewport.extendSelection(40, 11, undefined, false);
+      viewport.compose(input());
+      expect(viewport.selectionActive).toBe(true);
+    }
+    viewport.releaseSelection();
+    const copied = viewport.selectedText()?.split("\n").map(row => row.trim()) ?? [];
+    expect(copied[0]).toBe("4. q4");
+    expect(copied.at(-1)).toBe(`${viewport.scrollTop + 7}. q${viewport.scrollTop + 7}`);
+  });
+
+  it("orders a press row scrolled below the viewport before the dock instead of inverting the range", () => {
+    const SELECTED = "\u001b[45m";
+    const viewport = new TranscriptViewport();
+    const input = {
+      documentRows: rows(40), promptAnchors: [], dockRows: ["editor", "footer"], width: 30, height: 10,
+      theme: {
+        track: (text: string) => text, thumb: (text: string) => text, sticky: (text: string) => text,
+        quietSticky: (text: string) => text, bottomControl: (text: string) => text,
+        selection: (line: string, from: number, to: number) => backgroundSgrSpan(line, from, to, SELECTED),
+      },
+    };
+    viewport.compose(input);
+    viewport.scrollTo(20);
+    viewport.compose(input);
+    viewport.pressSelection(1, 7, 100);
+    viewport.extendSelection(1, 1, 101, false);
+    for (let tick = 0; tick < 4; tick += 1) {
+      viewport.scrollBy(-1);
+      viewport.extendSelection(1, 1, undefined, false);
+      viewport.compose(input);
+    }
+    expect(viewport.scrollTop).toBe(16);
+
+    viewport.extendSelection(4, 9, 102, false);
+    const crossed = viewport.compose(input);
+    expect(crossed.rows.slice(0, 8).some(row => row.includes(SELECTED))).toBe(false);
+    expect(crossed.rows[8]).toContain(SELECTED);
+    expect(crossed.rows[9]).not.toContain(SELECTED);
+    expect(viewport.selectedText()).toBe(rows(40).slice(26).join("\n"));
+  });
+
   describe("with a pinned sticky prompt", () => {
     const SELECTED = "\u001b[45m";
     const input = {
@@ -416,17 +536,25 @@ describe("transcript viewport", () => {
     const paintedRows = (frame: { readonly rows: readonly string[] }) =>
       frame.rows.flatMap((row, index) => row.includes(SELECTED) ? [index] : []);
 
-    it("excludes the pinned alias while keeping the prompt selectable at its document row", () => {
+    it("maps an upward edge drag to visible content while keeping the prompt selectable at its document row", () => {
       const viewport = pinned();
       expect(viewport.pressSelection(2, 1, 100)).toBe(false);
       expect(viewport.hasSelection).toBe(false);
 
       viewport.pressSelection(3, 3, 101);
       viewport.extendSelection(4, 1, 102, false);
-      viewport.releaseSelection();
       const crossed = viewport.compose(input);
-      expect(viewport.selectedText()).toBe("row 3\nrow");
+      expect(viewport.selectedText()).toBe(" 3\nrow");
       expect(paintedRows(crossed)).toEqual([1, 2]);
+      expect(crossed.rows[1]).toContain(`row${SELECTED} 3`);
+
+      viewport.scrollBy(-1, 103);
+      viewport.extendSelection(4, 1, 104, false);
+      const scrolled = viewport.compose(input);
+      expect(viewport.selectedText()).toBe(" 2\nrow 3\nrow");
+      expect(paintedRows(scrolled)).toEqual([1, 2, 3]);
+      expect(scrolled.rows[1]).toContain(`row${SELECTED} 2`);
+      viewport.releaseSelection();
 
       viewport.clearSelection();
       viewport.scrollTo(0);
@@ -438,7 +566,7 @@ describe("transcript viewport", () => {
       expect(viewport.selectedText()).toBe("prompt");
     });
 
-    it.each(["above", "below"] as const)("lets a selection shrink and disappear as its source scrolls %s", direction => {
+    it.each(["above", "below"] as const)("clips paint, keeps copy, and disappears as its source scrolls %s", direction => {
       const viewport = pinned();
       viewport.pressSelection(1, 2, 100);
       viewport.extendSelection(20, 3, 101, false);
@@ -449,7 +577,7 @@ describe("transcript viewport", () => {
       viewport.scrollBy(direction === "above" ? 1 : -1);
       const shrunk = viewport.compose(input);
       expect(paintedRows(shrunk)).toEqual(direction === "above" ? [1] : [2, 3]);
-      expect(viewport.selectedText()).toBe(direction === "above" ? "row 4" : "row 3\nrow 4");
+      expect(viewport.selectedText()).toBe("row 3\nrow 4");
 
       viewport.scrollBy(direction === "above" ? 1 : -3);
       const gone = viewport.compose(input);
