@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: The plus menu is configurable
-A1 SHALL offer three tab kinds in this order: `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose menu row carries the `+` marker, and `Settings` and `Changelog`, singleton toggles whose invocation creates or shows their one tab and whose menu row carries `✓` while that tab is open. The A1 setting `tabBarPlusMenu` SHALL hold the kinds `+` offers and SHALL default to `Agent` alone. With only `Agent` enabled, clicking `+` SHALL create an Agent without a menu; with any other enabled set, clicking `+` SHALL open the launcher with one row per enabled kind in kind order and each row's effective shortcut right-aligned; with no kind enabled, clicking `+` SHALL do nothing. Right-clicking `+` SHALL open a one-row `Configure…` popup whose selection opens the plus-menu dialog in the Settings tab. The dialog SHALL list every kind with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, apply each toggle to `+` without a restart, and close with `Esc`.
+A1 SHALL offer three tab kinds in this order: `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose menu row carries the `+` marker, and `Settings` and `Changelog`, singleton toggles whose invocation creates or shows their one tab and whose menu row carries `✓` while that tab is open. The A1 setting `tabBarPlusMenu` SHALL hold the kinds `+` offers and SHALL default to `Agent` alone. With only `Agent` enabled, clicking `+` SHALL create an Agent without a menu; with any other enabled set, clicking `+` SHALL open the launcher with one row per enabled kind in kind order and each row's effective shortcut right-aligned; with no kind enabled, clicking `+` SHALL do nothing. Right-clicking `+` SHALL open a one-row `Configure` popup whose selection opens the plus-menu dialog in the Settings tab. The dialog SHALL list every kind with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, apply each toggle to `+` without a restart, and close with `Esc`.
 
 #### Scenario: Default plus
 - **WHEN** the profile stores no plus menu and the user clicks `+`
@@ -15,7 +15,7 @@ A1 SHALL offer three tab kinds in this order: `Agent`, a multi-instance kind who
 - **AND** Settings or Changelog SHALL show `✓` while its tab is open
 
 #### Scenario: Configure from the strip
-- **WHEN** the user right-clicks `+` and chooses `Configure…`
+- **WHEN** the user right-clicks `+` and chooses `Configure`
 - **THEN** the Settings tab SHALL be shown with the plus-menu dialog open, without starting a second Settings process when one is ready
 
 #### Scenario: Toggle a kind

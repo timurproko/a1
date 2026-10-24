@@ -454,14 +454,33 @@ describe("the settings screen", () => {
     expect(writes).toEqual([]);
   });
 
+  it("opens the plus-menu dialog from its Tab Bar entry and toggles a kind with Space", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Plus menu");
+    target.onInput?.("\r", HOST);
+    let rows = screen(target).map(row => row.trimEnd());
+    expect(rows.some(row => row.includes("● Agent"))).toBe(true);
+    expect(rows.some(row => row.includes("○ Settings"))).toBe(true);
+    target.onInput?.(`${ESC}[B`, HOST);
+    target.onInput?.(" ", HOST);
+    await settleChanges();
+    await session.load();
+    expect(session.value("tabBarPlusMenu")).toBe("agent,settings");
+    rows = screen(target).map(row => row.trimEnd());
+    expect(rows.some(row => row.includes("● Settings"))).toBe(true);
+    target.onInput?.(ESC, HOST);
+    expect(screen(target).some(row => row.includes("● Agent"))).toBe(false);
+  });
+
   it("changes the resident tab-bar position live and persists it", async () => {
     const { app: target, session, writes } = await app();
     selectRow(target, "Position");
     const rows = screen(target);
     const positionRow = rows.findIndex(line => /^→?\s*Position\s+top\b/.test(line.trimStart()));
     expect(positionRow).toBeGreaterThan(0);
-    expect(rows[positionRow - 1]?.trimStart()).toMatch(/^Tabs\b/u);
-    expect(rows[positionRow + 1]).toContain("Auto name");
+    expect(rows[positionRow - 1]?.trimStart()).toMatch(/^Tab Bar\b/u);
+    expect(rows[positionRow + 1]).toContain("Plus menu");
+    expect(rows[positionRow + 1]).toContain("configure");
     expect(find(target, "Position").trimStart()).toMatch(/^→.*top/);
 
     target.onInput?.(`${ESC}[C`, HOST);

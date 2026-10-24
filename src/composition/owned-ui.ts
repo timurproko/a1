@@ -121,7 +121,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       namespace: PRODUCT_IDENTITY.commandName,
       legacyConfigDir: productPaths.configDir,
       agentProvider: () => backend.settingsPort(),
-      ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition"] } : {}),
+      ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabBarPlusMenu"] } : {}),
       hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
       agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
     });
@@ -341,7 +341,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     if (tabBridge !== null) {
       unsubscribeTabBridge = await bindResidentTabBridge(tabBridge, backend, tabRecovery, {
         autoName: settings?.value("tabsAutoName") ?? true,
-        openRoute: route => presenter.openOwnedRoute(route),
+        openRoute: route => route === "plus-menu" ? routeHost?.openSettingsDialog("tabBarPlusMenu") : presenter.openOwnedRoute(route),
       });
     }
   } catch (error) {

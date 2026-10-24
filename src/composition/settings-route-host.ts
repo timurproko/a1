@@ -1,5 +1,5 @@
 import { CHANGELOG_ROUTE, HOTKEYS_ROUTE, HOTKEYS_TITLE } from "../features/owned-ui/reference-routes.js";
-import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "../features/owned-ui/settings-route.js";
+import { SETTINGS_APP_ID, SETTINGS_ROUTE, SettingsDialogRequests } from "../features/owned-ui/settings-route.js";
 import { piTheme, renderPiAccentPreview } from "../integrations/pi/components/upstream/theme/theme.js";
 import type { ReferenceDocumentProvider } from "../features/owned-ui/reference-screen-app.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
@@ -23,19 +23,26 @@ export interface OwnedRouteHostOptions {
   readonly settingsPinned?: boolean;
 }
 
+/** The owned route host, which can also ask its open Settings screen to open one setting's dialog. */
+export interface OwnedRouteHost extends UiRouteHost {
+  openSettingsDialog(id: string): void;
+}
+
 /** Declares settings and lazy document routes. */
 export function createOwnedRouteHost(
   settings: OwnedSettingsManager,
   references?: OwnedReferenceProviders,
   options: OwnedRouteHostOptions = {},
-): UiRouteHost {
+): OwnedRouteHost {
+  const dialogs = new SettingsDialogRequests();
   const routes = new Set([SETTINGS_ROUTE, ...(references === undefined ? [] : [CHANGELOG_ROUTE, HOTKEYS_ROUTE, "session"])]);
   return {
+    openSettingsDialog: id => dialogs.request(id),
     claims: route => routes.has(route),
     open: (route, input) => {
       if (!routes.has(route)) return null;
       if (route === SETTINGS_ROUTE) {
-        return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings, options.settingsPinned === true));
+        return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings, options.settingsPinned === true, dialogs));
       }
       const changelog = route === CHANGELOG_ROUTE;
       const session = route === "session";
@@ -81,10 +88,14 @@ function deferredSurface(id: string, label: string, load: () => Promise<UiRouteS
   };
 }
 
-async function loadSettingsSurface(settings: OwnedSettingsManager, pinned: boolean): Promise<UiRouteSurface> {
+async function loadSettingsSurface(
+  settings: OwnedSettingsManager,
+  pinned: boolean,
+  dialogs: SettingsDialogRequests,
+): Promise<UiRouteSurface> {
   const { SettingsApp } = await import("../features/owned-ui/settings-app.js");
   // Invariant: a pinned Settings tab closes as a tab; neither Esc nor one Ctrl+C dismisses its screen.
-  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings, { pinned }), !pinned);
+  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings, { pinned, dialogs }), !pinned);
 }
 
 async function loadReferenceSurface(
