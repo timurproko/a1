@@ -28,6 +28,7 @@ use crate::protocol::{
     self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, TerminalEffect, TerminalModes,
     Welcome,
 };
+use crate::roles::command_palette;
 use crate::roles::credentials::ProfileCredentials;
 use crate::roles::landing;
 use crate::roles::outer_input::{self, InputChannel, Outgoing};
@@ -1940,7 +1941,7 @@ impl Client {
         self.strip_frame = strip_frame;
         let overlay = self.overlay(core);
         let landing = self.landing(core);
-        self.present(overlay, landing, clear)
+        self.present(overlay, landing, clear, core.mode.palette().is_some())
     }
 
     /// Invariant: the landing is the body only while no tab is viewed after tabs were shown, so a
@@ -1989,7 +1990,19 @@ impl Client {
             .and_then(|id| self.tabs.iter().find(|tab| &tab.id == id))
             .filter(|tab| tab.status == "failed")
             .map(|_| "Tab failed · R retry · F start fresh · Alt+W close".to_owned());
-        if let Some(menu) = core.mode.popup() {
+        if let Some(palette) = core.mode.palette() {
+            Some(command_palette::render(
+                palette,
+                &self.bindings,
+                self.columns,
+                self.outer_rows,
+                command_palette::PaletteStyle {
+                    truecolor: !palette_fallback_requested(),
+                    hover: self.time_format.accent_hover,
+                    accent: landing::accent_colors(self.time_format.accent_color).accent,
+                },
+            ))
+        } else if let Some(menu) = core.mode.popup() {
             Some(menu.render_styled_at(
                 !palette_fallback_requested(),
                 self.time_format.accent_hover,
@@ -2018,6 +2031,7 @@ impl Client {
         overlay: Option<String>,
         landing: Option<Vec<u8>>,
         clear: bool,
+        dimmed: bool,
     ) -> Result<(), String> {
         let child_surface = landing.is_none();
         self.terminal.present(DesiredPresentation {
@@ -2029,12 +2043,17 @@ impl Client {
             structured: self.presented.structured.clone().filter(|_| child_surface),
             legacy_body: landing.unwrap_or_else(|| self.presented.surface.clone()),
             overlay,
-            cursor: self.presented.cursor,
+            cursor: if dimmed {
+                Some(FinalCursor::Hidden)
+            } else {
+                self.presented.cursor
+            },
             modes: self.presented.modes.clone(),
             columns: self.columns,
             outer_rows: self.outer_rows,
             child_row_offset: self.time_format.tab_bar_position.child_row_offset(),
             clear,
+            dimmed,
         })
     }
 

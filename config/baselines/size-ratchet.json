@@ -131,7 +131,7 @@
       "lines": 787
     },
     "native/terminal-host/src/roles/presentation.rs::PresentationComposer::prepare": {
-      "lines": 126
+      "lines": 122
     },
     "native/terminal-host/src/roles/quit_outro.rs::fall_plan": {
       "lines": 111

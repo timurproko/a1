@@ -578,6 +578,7 @@ mod tests {
             outer_rows: 24,
             child_row_offset: offset,
             clear: false,
+            dimmed: false,
         };
         let composer = PresentationComposer::default();
         let top = String::from_utf8(composer.prepare(&desired(1)).unwrap().unwrap().bytes).unwrap();

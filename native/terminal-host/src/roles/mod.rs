@@ -1,6 +1,7 @@
 pub mod attach;
 mod child_containment;
 pub mod child_input;
+mod command_palette;
 pub mod conpty_cursor;
 pub mod counters;
 pub mod credentials;

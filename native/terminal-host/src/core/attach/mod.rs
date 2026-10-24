@@ -9,8 +9,10 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 mod machine;
+mod palette;
 
 pub use machine::*;
+pub use palette::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyCode {

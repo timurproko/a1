@@ -6,11 +6,12 @@
 use std::time::Duration;
 
 use super::{
-    AttachKey, AttachMouse, CloseFallback, DRAG_HOLD, DeferredInput, DeferredInputTarget, KeyCode,
-    MouseButton, MouseKind, PlusMenu, PopupAction, PopupKind, PopupMenu, RenameEditor,
-    ShortcutLabels, StripHitKind, StripSnapshot, TabDrag, TabView, apply_rename_control_key,
-    close_fallback_for, failure_applies, forward_pointer_motion, is_utility_tab, registry_index,
-    rejection_notice, settings_toggle_closes, shown_tabs, update_drag,
+    AttachKey, AttachMouse, CloseFallback, CommandPalette, DRAG_HOLD, DeferredInput,
+    DeferredInputTarget, KeyCode, MouseButton, MouseKind, PaletteKey, PlusMenu, PopupAction,
+    PopupKind, PopupMenu, RenameEditor, ShortcutLabels, StripHitKind, StripSnapshot, TabDrag,
+    TabView, apply_rename_control_key, close_fallback_for, failure_applies, forward_pointer_motion,
+    is_utility_tab, registry_index, rejection_notice, settings_toggle_closes, shown_tabs,
+    update_drag,
 };
 
 /// How long the client waits, with tabs present and no Settings tab, before starting a hidden one
@@ -33,6 +34,8 @@ pub enum Mode {
     Popup(PopupMenu),
     Rename(RenameEditor),
     Drag(TabDrag),
+    /// The command palette, which takes every key and paste and ignores the pointer.
+    Palette(CommandPalette),
 }
 
 impl Mode {
@@ -46,6 +49,13 @@ impl Mode {
     pub fn rename(&self) -> Option<&RenameEditor> {
         match self {
             Self::Rename(editor) => Some(editor),
+            _ => None,
+        }
+    }
+
+    pub fn palette(&self) -> Option<&CommandPalette> {
+        match self {
+            Self::Palette(palette) => Some(palette),
             _ => None,
         }
     }
@@ -71,7 +81,7 @@ impl Mode {
     /// Invariant: a popup or rename prompt belongs to the view it opened in; a drag outlives the
     /// view change its own click requests.
     fn cancel_prompt(&mut self) {
-        if matches!(self, Self::Popup(_) | Self::Rename(_)) {
+        if matches!(self, Self::Popup(_) | Self::Rename(_) | Self::Palette(_)) {
             *self = Self::Idle;
         }
     }
@@ -371,6 +381,10 @@ impl State {
         if matches!(self.mode, Mode::Rename(_)) && self.rename_key(key, effects) {
             return;
         }
+        if matches!(self.mode, Mode::Palette(_)) {
+            self.palette_key(context, key, action, effects);
+            return;
+        }
         if let Some(mut menu) = self.mode.take_popup() {
             match key.code {
                 KeyCode::Esc => {
@@ -410,6 +424,38 @@ impl State {
             return;
         }
         effects.push(Effect::ForwardKey);
+    }
+
+    /// The open palette takes every key. Its own shortcut closes it; another shortcut closes it
+    /// and runs, like the entry it names.
+    fn palette_key<T: TabView + Clone>(
+        &mut self,
+        context: &Context<'_, T>,
+        key: AttachKey,
+        action: Option<&str>,
+        effects: &mut Vec<Effect>,
+    ) {
+        let Mode::Palette(palette) = &mut self.mode else {
+            return;
+        };
+        let run = match action {
+            Some("tabs.commands") => None,
+            Some(action) => Some(action.to_owned()),
+            None => match palette.key(key) {
+                PaletteKey::Close => None,
+                PaletteKey::Run(action) => Some(action.to_owned()),
+                PaletteKey::Changed => {
+                    effects.push(Effect::Paint { clear: false });
+                    return;
+                }
+                PaletteKey::Ignored => return,
+            },
+        };
+        self.mode = Mode::Idle;
+        if let Some(action) = run {
+            self.shortcut(context, &action, effects);
+        }
+        effects.push(Effect::Paint { clear: false });
     }
 
     /// Edits the open rename prompt; returns `false` when the key cancels it and continues.
@@ -533,6 +579,7 @@ impl State {
             "tabs.new" => self.create(Request::Create, effects),
             "tabs.settings" => self.toggle_settings(context, effects),
             "tabs.changelog" => self.open_changelog(context, effects),
+            "tabs.commands" => self.mode = Mode::Palette(CommandPalette::default()),
             "tabs.close" => {
                 if let Some(tab_id) = context.viewed {
                     self.close(context, tab_id.to_owned(), effects);
@@ -684,6 +731,11 @@ impl State {
             effects.push(Effect::Paint { clear: false });
             return;
         }
+        if let Mode::Palette(palette) = &mut self.mode {
+            palette.insert(&text);
+            effects.push(Effect::Paint { clear: false });
+            return;
+        }
         if self.failed(context.viewed) || matches!(self.mode, Mode::Popup(_)) {
             return;
         }
@@ -722,6 +774,9 @@ impl State {
         effects: &mut Vec<Effect>,
     ) {
         self.notice = None;
+        if matches!(self.mode, Mode::Palette(_)) {
+            return;
+        }
         let activation = matches!(
             mouse.kind,
             MouseKind::Down(_) | MouseKind::ScrollDown | MouseKind::ScrollUp
@@ -1913,6 +1968,47 @@ mod tests {
                 .is_empty(),
             "strip motion without child ownership stays resident-host owned"
         );
+    }
+
+    #[test]
+    fn the_palette_takes_keys_and_paste_ignores_the_pointer_and_runs_its_entry() {
+        let fixture = Fixture::new(&["a"], "a");
+        let mut state = fixture.state();
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.commands")), [PAINT]);
+        assert!(state.mode.palette().is_some());
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Char('c'))), [PAINT]);
+        assert_eq!(
+            fixture.step(&mut state, Event::Paste("han".into())),
+            [PAINT]
+        );
+        assert_eq!(
+            state.mode.palette().map(|palette| palette.shown()),
+            Some(vec![("Changelog", "tabs.changelog")])
+        );
+        assert!(
+            fixture.step(&mut state, mouse(LEFT, 31, 0)).is_empty(),
+            "the pointer never reaches the strip or child"
+        );
+        assert!(fixture.step(&mut state, key(KeyCode::Tab)).is_empty());
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Enter)),
+            [Effect::Send(Request::OpenChangelog), PAINT]
+        );
+        assert!(state.mode.palette().is_none());
+
+        fixture.step(&mut state, shortcut("tabs.commands"));
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.commands")), [PAINT]);
+        assert!(state.mode.palette().is_none(), "its own shortcut closes it");
+        fixture.step(&mut state, shortcut("tabs.commands"));
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Esc)), [PAINT]);
+        assert!(state.mode.palette().is_none());
+        fixture.step(&mut state, shortcut("tabs.commands"));
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.new")),
+            [Effect::Send(Request::Create), PAINT],
+            "another shortcut closes the palette and runs"
+        );
+        assert!(state.mode.palette().is_none());
     }
 
     #[test]

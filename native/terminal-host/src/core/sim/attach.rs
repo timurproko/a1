@@ -13,7 +13,7 @@ use crate::core::attach::{
 
 const CHIP_WIDTH: u16 = 10;
 const VISIBLE_CHIPS: usize = 5;
-const ACTIONS: [&str; 10] = [
+const ACTIONS: [&str; 11] = [
     "tabs.new",
     "tabs.close",
     "tabs.rename",
@@ -24,6 +24,7 @@ const ACTIONS: [&str; 10] = [
     "tabs.jump2",
     "tabs.settings",
     "tabs.changelog",
+    "tabs.commands",
 ];
 const STATUSES: [&str; 5] = ["idle", "working", "unresponsive", "failed", "done"];
 
@@ -112,6 +113,7 @@ fn presented(state: &State) -> String {
         }
         Mode::Drag(drag) if drag.shown => format!("drag {:?}", drag.drop_index),
         Mode::Drag(_) => String::new(),
+        Mode::Palette(palette) => format!("palette {palette:?} {}", palette.selected()),
     };
     format!("{mode} | {:?}", state.hovered)
 }
@@ -498,6 +500,7 @@ fn mode_name(mode: &Mode) -> Option<&'static str> {
         Mode::Rename(_) => Some("mode-rename"),
         Mode::Drag(drag) if drag.shown => Some("mode-drag-shown"),
         Mode::Drag(_) => Some("mode-drag"),
+        Mode::Palette(_) => Some("mode-palette"),
     }
 }
 
@@ -521,6 +524,7 @@ mod tests {
         for kind in [
             "mode-popup",
             "mode-rename",
+            "mode-palette",
             "mode-drag",
             "mode-drag-shown",
             "commit",

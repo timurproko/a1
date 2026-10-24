@@ -16,8 +16,8 @@ Each numbered section is one Implementation item. Every section starts by mergin
 
 ## 3. Command palette
 
-- [ ] 3.1 Add `tabs.commands` (default `Alt+/`) and a palette mode to the attach state machine: entries for Agent session, Settings, and Changelog with effective shortcuts, Up and Down, type-to-filter with `Backspace`, `Enter` running the entry through its shortcut request, `Esc` closing, and no key, paste, or mouse reaching a child while open. Tests: machine tests for every transition and the simulator corpus reaching the palette.
-- [ ] 3.2 Render the palette in the attach role as a centered box in the owned list style and add a `dimmed` presentation flag that re-asserts faint across the strip, child rows, and legacy body while a modal is open. Tests: palette renderer cell fixtures, filtered and empty lists, and composer tests for dimming and its full repaint on toggle.
+- [x] 3.1 Add `tabs.commands` (default `Alt+/`) and a palette mode to the attach state machine: entries for Agent session, Settings, and Changelog with effective shortcuts, Up and Down, type-to-filter with `Backspace`, `Enter` running the entry through its shortcut request, `Esc` closing, and no key, paste, or mouse reaching a child while open. Tests: machine tests for every transition and the simulator corpus reaching the palette.
+- [x] 3.2 Render the palette in the attach role as a centered box in the owned list style and add a `dimmed` presentation flag that re-asserts faint across the strip, child rows, and legacy body while a modal is open. Tests: palette renderer cell fixtures, filtered and empty lists, and composer tests for dimming and its full repaint on toggle.
 
 ## 4. Rename selection style
 
