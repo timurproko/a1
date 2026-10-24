@@ -15,14 +15,14 @@
 
 ## 3. Startup integration and restart readiness
 
-- [ ] 3.1 Route startup discovery by `Update check` mode: post-first-frame silent installation for `Automatic`, the existing availability popup for `Yes`, and no cache or network work for `No`.
+- [ ] 3.1 Route startup discovery by `Update` mode: post-first-frame silent installation for `Auto`, the existing availability popup for `Notify`, and no cache or network work for `No`.
 - [ ] 3.2 Let concurrent and already-running sessions observe shared update completion and announce readiness only when the active approved release is newer than their executing version.
-- [ ] 3.3 Add a semantic installed-update state and compact `Update installed · Restart to update` status for automatic paths while retaining current release-update diagnostics and banners for `Yes` mode.
+- [ ] 3.3 Add a semantic installed-update state and compact `Update installed · Restart to update` status for automatic paths while retaining current release-update diagnostics and banners for `Notify` mode.
 - [ ] 3.4 Preserve working-status visibility, editor geometry, transcript stability, narrow-terminal behavior, and session disposal while update state changes asynchronously.
 - [ ] 3.5 Cover stable and development channels, cached and fetched discovery, late completion, concurrent observers, explicit-update completion, no-update/failure cases, and restart removal.
 
 ## 4. Settings and documentation
 
-- [ ] 4.1 Expand `Update check` to `Automatic`, `Yes`, and `No`, default new or unspecified profiles to `Automatic`, and migrate stored booleans to matching `Yes` or `No` behavior.
+- [ ] 4.1 Rename the setting to `Update` with `Auto`, `Notify`, and `No`, default new or unspecified profiles to `Auto`, and migrate stored booleans to matching `Notify` or `No` behavior.
 - [ ] 4.2 Update README guidance to describe all three modes, silent installation, restart readiness, opt-outs, and retained manual/version-specific commands.
 - [ ] 4.3 Update settings, migration, command, and documentation coverage for the new default and preserved yes/no behavior.

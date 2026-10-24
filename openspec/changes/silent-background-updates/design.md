@@ -12,7 +12,7 @@ Automatic execution introduces two constraints absent from the current notice: m
 - Install a newer release in the background without blocking startup or requiring routine command entry.
 - Keep all existing replacement, recovery, certification, rollback, and activation guarantees.
 - Ensure one package replacement owns the installation across automatic and manual callers.
-- In the default `Automatic` mode, prompt only after successful activation using one compact restart-ready line; preserve the existing popup in `Yes` mode.
+- In the default `Auto` mode, prompt only after successful activation using one compact restart-ready line; preserve the existing popup in `Notify` mode.
 - Keep explicit update commands and opt-outs.
 
 **Non-Goals:**
@@ -24,11 +24,11 @@ Automatic execution introduces two constraints absent from the current notice: m
 
 ## Decisions
 
-### D1. Startup discovery follows the selected update-check mode
+### D1. Startup discovery follows the selected Update mode
 
-The existing channel selection, 24-hour cache, semver comparison, registry timeout, and early opt-outs remain. Bare A1 resolves the `Update check` mode before discovery: `Automatic` submits an automatic-update request carrying the exact channel and discovered version, `Yes` emits today's update-available diagnostic and popup without installing, and `No` skips cache and network access. `a1 pi`, which does not expose A1 settings, uses `Automatic` when otherwise eligible.
+The existing channel selection, 24-hour cache, semver comparison, registry timeout, and early opt-outs remain. Bare A1 resolves the `Update` mode before discovery: `Auto` submits an automatic-update request carrying the exact channel and discovered version, `Notify` emits today's update-available diagnostic and popup without installing, and `No` skips cache and network access. `a1 pi`, which does not expose A1 settings, uses `Auto` when otherwise eligible.
 
-Automatic requests start after the first usable shell frame and are never awaited by startup. A fresh cache may therefore request installation without network access, while a stale cache still performs the current bounded background registry query first. `Yes` mode retains the same cached/fetched notice timing and content as today.
+Automatic requests start after the first usable shell frame and are never awaited by startup. A fresh cache may therefore request installation without network access, while a stale cache still performs the current bounded background registry query first. `Notify` mode retains the same cached/fetched notice timing and content as today.
 
 ### D2. A detached immutable worker owns automatic execution
 
@@ -62,19 +62,19 @@ The worker writes `installed` only after the shared updater returns success and 
 
 ### D6. Running sessions observe activation and show only restart readiness
 
-A session in `Automatic` mode that requested or observed automatic work watches the bounded coordinator/cohort state until the attempt settles or the session disposes. It announces restart readiness only when an approved active release is newer than the version executing that session. This also lets an old automatic-mode session notice a successful explicit update run in another terminal. `Yes` mode retains the existing availability banner and does not start this observer merely because a release is available.
+A session in `Auto` mode that requested or observed automatic work watches the bounded coordinator/cohort state until the attempt settles or the session disposes. It announces restart readiness only when an approved active release is newer than the version executing that session. This also lets an old auto-mode session notice a successful explicit update run in another terminal. `Notify` mode retains the existing availability banner and does not start this observer merely because a release is available.
 
 The semantic UI event carries the installed version, not a command or availability link. Bare A1 renders one compact prompt-adjacent status line, right-aligned when space permits: `Update installed · Restart to update`, using success/accent roles. When a working status is present, working remains on the left and restart readiness remains on the right; narrow layouts clip or stack without changing editor geometry or transcript content. The line is not modal, takes no input, and is not dismissible because it describes the process's actual stale runtime.
 
 `a1 pi` uses the same compact status region rather than appending a transcript banner. Restarting naturally removes the line because the new process runs the activated version. Automatic paths render no update-available or update-failure popup.
 
-### D7. `Update check` adds Automatic without removing Yes or No
+### D7. `Update` adds Auto without removing notification or disabled behavior
 
-The persisted key remains `updateCheck`, but its value becomes the string enum `automatic | yes | no` and its visible label remains `Update check`. `Automatic` is the new default and installs verified channel updates silently before prompting for restart. `Yes` preserves today's behavior exactly: check at startup and show the update-available popup with the manual command. `No` skips cache reads, registry access, worker startup, and automatic observation so updates are entirely user-driven.
+The persisted key remains `updateCheck`, but its value becomes the string enum `auto | notify | no` and its visible label becomes `Update`. `Auto` is the new default and installs verified channel updates silently before prompting for restart. `Notify` preserves today's behavior exactly: check at startup and show the update-available popup with the manual command. `No` skips cache reads, registry access, worker startup, and automatic observation so updates are entirely user-driven.
 
-A settings-version migration maps stored boolean `true` to `yes` and `false` to `no`; an absent value resolves to the new `automatic` default. This preserves deliberate existing yes/no choices while making automatic installation the default for new or unspecified profiles.
+A settings-version migration maps stored boolean `true` to `notify` and `false` to `no`; an absent value resolves to the new `auto` default. This preserves deliberate existing enabled/disabled choices while making automatic installation the default for new or unspecified profiles.
 
-`PI_OFFLINE`, `A1_SKIP_VERSION_CHECK`, `CI`, noninteractive output, and unpublished source builds retain their existing skip behavior for both `Automatic` and `Yes`. `a1 pi` continues to use environment/profile eligibility rather than A1 settings and follows `Automatic`. README documentation continues to advertise explicit update commands for manual or version-specific use.
+`PI_OFFLINE`, `A1_SKIP_VERSION_CHECK`, `CI`, noninteractive output, and unpublished source builds retain their existing skip behavior for both `Auto` and `Notify`. `a1 pi` continues to use environment/profile eligibility rather than A1 settings and follows `Auto`. README documentation continues to advertise explicit update commands for manual or version-specific use.
 
 ## Risks / Trade-offs
 
@@ -87,7 +87,7 @@ A settings-version migration maps stored boolean `true` to `yes` and `false` to 
 
 ## Migration Plan
 
-The first release containing this change advances the settings version and converts stored `updateCheck: true` to `yes` and `updateCheck: false` to `no`; profiles without the key resolve `automatic`. A cached newer target can immediately start the background flow in `Automatic` mode or render the existing popup in `Yes` mode. Malformed stale coordinator files are ignored/fail closed. Rolling back leaves the extra coordinator file unused; the old release continues to understand the existing cache but may reject the new string setting and fall back to its boolean default.
+The first release containing this change advances the settings version and converts stored `updateCheck: true` to `notify` and `updateCheck: false` to `no`; profiles without the key resolve `auto`. A cached newer target can immediately start the background flow in `Auto` mode or render the existing popup in `Notify` mode. Malformed stale coordinator files are ignored/fail closed. Rolling back leaves the extra coordinator file unused; the old release continues to understand the existing cache but may reject the new string setting and fall back to its boolean default.
 
 ## Open Questions
 
