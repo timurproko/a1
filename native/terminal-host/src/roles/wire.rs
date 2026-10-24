@@ -323,16 +323,22 @@ impl ResultBody {
 }
 
 pub fn read_payload(stream: &mut endpoint::EndpointStream) -> Result<Option<Vec<u8>>, String> {
-    #[cfg(windows)]
-    if !wait_for_pipe_data(stream)? {
-        return Ok(None);
-    }
+    let waiting = std::time::Instant::now();
     let mut header = [0_u8; 4];
-    match stream.read_exact(&mut header) {
-        Ok(()) => {}
-        Err(error) if error.kind() == std::io::ErrorKind::UnexpectedEof => return Ok(None),
-        Err(error) => return Err(format!("read resident frame header: {error}")),
-    }
+    let first = loop {
+        match stream.read(&mut header) {
+            Ok(0) => return Ok(None),
+            Ok(count) => break count,
+            Err(error) if error.kind() == std::io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(format!("read resident frame header: {error}")),
+        }
+    };
+    // Performance: idle waiting is not delivery latency. Measure assembly only after
+    // the first bytes arrived, retaining idle duration as explicitly separate diagnostic data.
+    let assembling = std::time::Instant::now();
+    stream
+        .read_exact(&mut header[first..])
+        .map_err(|error| format!("read resident frame header: {error}"))?;
     let size = u32::from_le_bytes(header) as usize;
     if size > protocol::MAX_FRAME_BYTES {
         return Err(ProtocolError::FrameTooLarge(size).to_string());
@@ -341,50 +347,23 @@ pub fn read_payload(stream: &mut endpoint::EndpointStream) -> Result<Option<Vec<
     stream
         .read_exact(&mut payload)
         .map_err(|error| format!("read resident frame payload: {error}"))?;
+    crate::roles::progress_observation::observe(
+        "transport",
+        "pipe-frame-read",
+        crate::roles::progress_observation::ProgressMetadata {
+            bytes: size,
+            duration_us: Some(assembling.elapsed().as_micros().min(u128::from(u64::MAX)) as u64),
+            idle_wait_us: Some(
+                assembling
+                    .duration_since(waiting)
+                    .as_micros()
+                    .min(u128::from(u64::MAX)) as u64,
+            ),
+            ..Default::default()
+        },
+    );
     crate::fault_injection::crash_at("frame-after-receive");
     Ok(Some(payload))
-}
-
-#[cfg(windows)]
-fn wait_for_pipe_data(stream: &endpoint::EndpointStream) -> Result<bool, String> {
-    use std::os::windows::io::AsRawHandle;
-    use windows_sys::Win32::System::Pipes::PeekNamedPipe;
-    // Performance: synchronous pipe handles cannot block in a read without stalling writes on the
-    // same handle, so readiness is polled; polling tightly just after traffic keeps interactive
-    // hops near 1 ms while an idle connection backs off.
-    let started = std::time::Instant::now();
-    loop {
-        let mut available = 0_u32;
-        if unsafe {
-            PeekNamedPipe(
-                stream.as_raw_handle(),
-                std::ptr::null_mut(),
-                0,
-                std::ptr::null_mut(),
-                &mut available,
-                std::ptr::null_mut(),
-            )
-        } == 0
-        {
-            let error = std::io::Error::last_os_error();
-            if matches!(
-                error.kind(),
-                std::io::ErrorKind::BrokenPipe | std::io::ErrorKind::NotConnected
-            ) {
-                return Ok(false);
-            }
-            return Err(format!("inspect resident pipe: {error}"));
-        }
-        if available > 0 {
-            return Ok(true);
-        }
-        let pause = if started.elapsed() < std::time::Duration::from_secs(1) {
-            std::time::Duration::from_millis(1)
-        } else {
-            std::time::Duration::from_millis(8)
-        };
-        std::thread::sleep(pause);
-    }
 }
 
 pub fn kind(payload: &[u8]) -> Result<EnvelopeKind, String> {

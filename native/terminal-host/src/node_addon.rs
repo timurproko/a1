@@ -267,8 +267,8 @@ fn marker_cells(
 pub fn run_role(arguments: Vec<String>, host: RoleHost) -> Result<u32> {
     crate::launch::set_host_command(host.executable, [host.entry], host.artifact)
         .map_err(node_error)?;
-    // Platform: the native role blocks this thread and owns the process. A 1 ms Windows timer
-    // period keeps the synchronous readiness polls from adding a full default timer tick per hop.
+    // Platform: retain the process-lifetime period request for non-I/O timers such as ConPTY
+    // render-pass settling. Pipe readiness uses completion events and does not depend on it.
     #[cfg(windows)]
     unsafe {
         windows_sys::Win32::Media::timeBeginPeriod(1);
