@@ -366,13 +366,7 @@ impl Run<'_> {
         let tab_id = self.model.creating.remove(0);
         self.model.tabs.push(tab(&tab_id));
         self.install(true)?;
-        self.step(
-            Event::Server(ServerEvent::Created {
-                tab_id,
-                created: true,
-            }),
-            false,
-        )
+        self.step(Event::Server(ServerEvent::Created { tab_id }), false)
     }
 
     /// The role installs a changed registry and repaints.

@@ -112,7 +112,8 @@ pub fn tab_spinner_frame() -> &'static str {
 
 fn status_glyph_at(status: &str, elapsed_ms: u128) -> String {
     match status {
-        "starting" | "restoring" | "working" => tab_spinner_frame_at(elapsed_ms).into(),
+        // Invariant: a starting tab shows no glyph; it opens as plainly as its UI appears.
+        "restoring" | "working" => tab_spinner_frame_at(elapsed_ms).into(),
         "needs-input" => "?".into(),
         "degraded" => "!".into(),
         "done" | "done-unseen" => "✓".into(),
@@ -746,8 +747,7 @@ pub fn palette_fallback_requested() -> bool {
 
 pub fn animations_active(tabs: &[StripTab]) -> bool {
     tabs.iter().any(|tab| {
-        matches!(tab.status.as_str(), "starting" | "restoring" | "working")
-            || title_animation_active(tab)
+        matches!(tab.status.as_str(), "restoring" | "working") || title_animation_active(tab)
     })
 }
 
@@ -1477,9 +1477,14 @@ mod tests {
             assert_eq!(UnicodeWidthStr::width(*expected), 1);
             assert_eq!(tab_spinner_frame_at(elapsed), *expected);
             assert_eq!(tab_spinner_frame_at(elapsed + 79), *expected);
-            for status in ["working", "starting", "restoring"] {
+            for status in ["working", "restoring"] {
                 assert_eq!(status_glyph_at(status, elapsed), *expected);
             }
+            assert_eq!(
+                status_glyph_at("starting", elapsed),
+                "",
+                "a starting tab has no spinner"
+            );
         }
         assert_eq!(
             tab_spinner_frame_at(TAB_SPINNER_FRAMES.len() as u128 * u128::from(TAB_SPINNER_MS)),
@@ -1513,7 +1518,7 @@ mod tests {
 
     #[test]
     fn progress_states_keep_animation_active() {
-        for status in ["working", "starting", "restoring"] {
+        for status in ["working", "restoring"] {
             let mut progress = tab("tab-0", "agent");
             progress.status = status.into();
             assert!(animations_active(&[progress]));

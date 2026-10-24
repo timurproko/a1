@@ -243,7 +243,6 @@ pub enum ServerEvent {
     },
     Created {
         tab_id: String,
-        created: bool,
     },
     CreateFailed {
         notice: String,
@@ -1089,7 +1088,7 @@ impl State {
                 status,
                 requested,
             } => self.commit(context.viewed, &tab_id, &status, requested, effects),
-            ServerEvent::Created { tab_id, created } => self.created(tab_id, created, effects),
+            ServerEvent::Created { tab_id } => self.created(tab_id, effects),
             ServerEvent::ConfigurePlus => {
                 self.mode = Mode::Palette(CommandPalette::plus_menu());
                 effects.push(paint);
@@ -1168,7 +1167,7 @@ impl State {
         }
     }
 
-    fn created(&mut self, tab_id: String, created: bool, effects: &mut Vec<Effect>) {
+    fn created(&mut self, tab_id: String, effects: &mut Vec<Effect>) {
         let prewarm = UtilityKind::of(&tab_id).map(|kind| self.view.prewarm(kind));
         if let Some(prewarm) = prewarm.filter(|prewarm| prewarm.pending) {
             // Invariant: a prewarmed utility tab starts hidden and never takes the view or a
@@ -1179,10 +1178,10 @@ impl State {
         }
         self.view.pending_created_activation = false;
         self.deferred.retarget_created(&tab_id);
+        // Invariant: a created tab and a revealed hidden tab alike keep the previous frame until
+        // they draw, so neither shows a blank body with a bare cursor.
         effects.push(Effect::View(tab_id.clone()));
-        if created {
-            effects.push(Effect::AwaitFirstDraw(tab_id));
-        }
+        effects.push(Effect::AwaitFirstDraw(tab_id));
         effects.push(Effect::Send(Request::List));
     }
 
@@ -2246,7 +2245,6 @@ mod tests {
         assert!(state.view.settings.pending);
         let prewarmed = server(ServerEvent::Created {
             tab_id: "settings-2".into(),
-            created: true,
         });
         assert_eq!(
             absent.step(&mut state, prewarmed),
@@ -2282,10 +2280,7 @@ mod tests {
 
         state.view.pending_created_activation = true;
         assert_eq!(state.route_input(None, vec![vec![3]]), None);
-        let created = server(ServerEvent::Created {
-            tab_id: "c".into(),
-            created: true,
-        });
+        let created = server(ServerEvent::Created { tab_id: "c".into() });
         assert_eq!(
             fixture.step(&mut state, created),
             [
@@ -2550,7 +2545,6 @@ mod tests {
         );
         let prewarmed = server(ServerEvent::Created {
             tab_id: "changelog-2".into(),
-            created: true,
         });
         assert_eq!(
             ready.step(&mut state, prewarmed),

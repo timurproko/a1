@@ -1668,20 +1668,6 @@ impl ResizeCurtain {
     }
 }
 
-/// The chip a new tab shows before the registry lists it: its kind's name, starting.
-fn provisional_tab(id: &str) -> StripTab {
-    StripTab {
-        id: id.to_owned(),
-        name: core_attach::UtilityKind::of(id)
-            .map_or("Agent", |kind| kind.label())
-            .to_owned(),
-        name_source: "default".into(),
-        status: "starting".into(),
-        accent: None,
-        title_animation: None,
-    }
-}
-
 fn changes_terminal_geometry(
     current_columns: u16,
     current_outer_rows: u16,
@@ -1919,22 +1905,7 @@ impl Client {
         for effect in effects {
             match effect {
                 Effect::Send(request) => self.send(request)?,
-                Effect::View(tab_id) => {
-                    // Rationale: a tab the server created or revealed for this client joins the
-                    // strip at once while the body it replaces, a tab or the landing, hides,
-                    // until it draws; its content then fades in. A tab already shown switches.
-                    let joins = self.reveal.take_joining(&tab_id)
-                        && !shown_tabs(&self.tabs, self.view.viewed.as_deref(), core.view.shown())
-                            .iter()
-                            .any(|tab| tab.id == tab_id);
-                    if joins {
-                        self.reveal.veil(&tab_id);
-                    }
-                    self.request_view(tab_id)?;
-                    if joins {
-                        self.paint(core, false)?;
-                    }
-                }
+                Effect::View(tab_id) => self.request_view(tab_id)?,
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
                 Effect::CancelViewRequest => self.view.cancel_request(),
                 Effect::Renamed { tab_id, name } => {
@@ -2067,20 +2038,8 @@ impl Client {
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
         let rename = core.mode.rename().map(RenameEditor::display);
-        // Invariant: a veiled new tab is the strip's active tab before its content commits.
-        let active = self
-            .reveal
-            .veiled_for(self.view.requested.as_deref())
-            .or(self.view.viewed.as_deref())
-            .map(str::to_owned);
+        let active = self.view.viewed.clone();
         let mut shown = shown_tabs(&self.tabs, active.as_deref(), core.view.shown());
-        // Invariant: a veiled new tab has its chip before the registry topology that lists it.
-        if let Some(id) = active
-            .as_deref()
-            .filter(|id| !shown.iter().any(|tab| tab.id == *id))
-        {
-            shown.push(provisional_tab(id));
-        }
         apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
@@ -2235,8 +2194,7 @@ impl Client {
             clear,
             dimmed,
         };
-        self.terminal
-            .present(self.reveal.present(desired, self.view.requested.as_deref()))
+        self.terminal.present(self.reveal.present(desired))
     }
 
     fn apply_terminal_effect(&mut self, effect: &TerminalEffect) -> Result<(), String> {
@@ -2259,7 +2217,6 @@ impl Client {
         staged: Option<Vec<StripTab>>,
         requested: bool,
     ) -> Result<(), String> {
-        self.reveal.commit(&surface.tab_id, Instant::now());
         if let Some(next) = staged {
             self.tabs = next;
         }
@@ -2396,10 +2353,8 @@ impl Client {
             }
             "tab.created" | "tab.selected" => {
                 let (_, target): (_, TabTarget) = wire::body(payload)?;
-                self.reveal.joining(&target.tab_id);
                 ServerEvent::Created {
                     tab_id: target.tab_id,
-                    created: message_type == "tab.created",
                 }
             }
             "tab.create-failed" | "tab.create-refused" => ServerEvent::CreateFailed {

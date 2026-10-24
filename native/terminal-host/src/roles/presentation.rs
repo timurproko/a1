@@ -212,21 +212,9 @@ impl ViewModel {
             .max(surface.request_generation);
         self.adopt_initial(&surface.tab_id);
         let requested = self.is_requested(&surface.tab_id);
-        // Protocol: a retained re-offer may commit a requested view only after the bounded wait
-        // for the holder's fresh frame, so the old coherent frame stays visible instead of a
-        // surface that predates the switch.
-        if requested && surface.stale && self.viewed.is_some() {
-            let deadline = self
-                .request_started
-                .unwrap_or(now)
-                .checked_add(STALE_SURFACE_WAIT)
-                .unwrap_or(now);
-            self.stale_candidate = Some((surface, deadline));
-            return Offer::Parked;
-        }
-        // Invariant: from an empty strip too, the created tab waits for its first drawn frame, so
-        // its body, status bar, and editor appear together without a bare cursor.
-        // The first view of a session, such as the tab attached at launch, waits the same way.
+        // Invariant: from an empty strip too, a created or revealed tab waits for its first drawn
+        // frame, fresh or retained, so its body, status bar, and editor appear together without a
+        // bare cursor. The first view of a session, such as the tab attached at launch, waits too.
         let first_view = self.committed_revision.is_none();
         if requested
             && (first_view || self.first_draw.as_deref() == Some(surface.tab_id.as_str()))
@@ -236,6 +224,18 @@ impl ViewModel {
                 .request_started
                 .get_or_insert(now)
                 .checked_add(FIRST_DRAW_WAIT)
+                .unwrap_or(now);
+            self.stale_candidate = Some((surface, deadline));
+            return Offer::Parked;
+        }
+        // Protocol: a retained re-offer may commit a requested view only after the bounded wait
+        // for the holder's fresh frame, so the old coherent frame stays visible instead of a
+        // surface that predates the switch.
+        if requested && surface.stale && self.viewed.is_some() {
+            let deadline = self
+                .request_started
+                .unwrap_or(now)
+                .checked_add(STALE_SURFACE_WAIT)
                 .unwrap_or(now);
             self.stale_candidate = Some((surface, deadline));
             return Offer::Parked;
@@ -1369,6 +1369,16 @@ mod tests {
             }
         ));
         assert_eq!(view.viewed.as_deref(), Some("b"));
+
+        // Invariant: A revealed tab's blank retained surface waits for its draw, not the stale wait.
+        let mut revealed = ViewModel::new(Some("a".into()));
+        revealed.request_at("b", now);
+        revealed.await_first_draw("b");
+        let mut retained = blank.clone();
+        retained.stale = true;
+        assert_eq!(revealed.offer(retained, now, true), Offer::Parked);
+        assert_eq!(revealed.expire(now + STALE_SURFACE_WAIT, |_| true), None);
+        assert_eq!(revealed.viewed.as_deref(), Some("a"));
 
         // Invariant: A child that never draws still becomes visible after the bounded wait.
         let mut silent = ViewModel::new(Some("a".into()));

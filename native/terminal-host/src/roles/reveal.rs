@@ -1,9 +1,5 @@
-//! How new content enters the attach client's frame. A reveal fades content in: it draws faint
-//! for `REVEAL_FADE`, then at full intensity. Resizing and a new tab share it, so both enter with
-//! the same timing and the same faint treatment; its scope says what fades. A new tab's content is
-//! also veiled until its first frame commits: the strip already shows the new tab while the body
-//! it replaces, another tab or the landing alike, hides, and the content then fades in, as a resize
-//! reveals once its surface is ready.
+//! How the attach client reveals its frame after a resize: the whole frame draws faint for
+//! `REVEAL_FADE`, then at full intensity. Opening or switching tabs draws at once, without a fade.
 
 use std::time::{Duration, Instant};
 
@@ -12,26 +8,15 @@ use crate::roles::presentation::{DesiredPresentation, FinalCursor};
 /// How long revealed content stays faint before it draws at full intensity.
 pub const REVEAL_FADE: Duration = Duration::from_millis(100);
 
-/// What a reveal fades.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RevealScope {
-    /// The whole frame, the strip included, as after a resize.
-    Frame,
-    /// Only the content beneath the strip, as for a new tab, whose chip is already shown.
-    Content,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RevealFade {
     until: Instant,
-    scope: RevealScope,
 }
 
 impl RevealFade {
-    pub fn new(now: Instant, scope: RevealScope) -> Self {
+    pub fn new(now: Instant) -> Self {
         Self {
             until: now.checked_add(REVEAL_FADE).unwrap_or(now),
-            scope,
         }
     }
 
@@ -40,51 +25,16 @@ impl RevealFade {
     }
 }
 
-/// The client's reveal state: the fade in progress, the tab the server just created or selected,
-/// and the joining tab whose content is veiled.
+/// The client's reveal state: the fade in progress, if any.
 #[derive(Debug, Default)]
 pub struct Reveal {
     pub fade: Option<RevealFade>,
-    joining: Option<String>,
-    veiled: Option<String>,
 }
 
 impl Reveal {
-    /// Notes the tab the server created or selected for this client; it joins the strip if the
-    /// strip does not show it yet when it is viewed.
-    pub fn joining(&mut self, tab_id: &str) {
-        self.joining = Some(tab_id.to_owned());
-    }
-
-    /// True once when `tab_id` is the tab the server just created or selected.
-    pub fn take_joining(&mut self, tab_id: &str) -> bool {
-        if self.joining.as_deref() != Some(tab_id) {
-            return false;
-        }
-        self.joining = None;
-        true
-    }
-
-    /// Veils a new tab's content until its first frame commits.
-    pub fn veil(&mut self, tab_id: &str) {
-        self.veiled = Some(tab_id.to_owned());
-    }
-
-    /// The veiled tab while it is still the requested view; a dropped request shows no veil.
-    pub fn veiled_for<'a>(&'a self, requested: Option<&'a str>) -> Option<&'a str> {
-        self.veiled.as_deref().filter(|id| requested == Some(*id))
-    }
-
-    /// A commit lifts any veil; when it commits the veiled tab, that tab's content fades in.
-    pub fn commit(&mut self, tab_id: &str, now: Instant) {
-        if self.veiled.take().as_deref() == Some(tab_id) {
-            self.fade = Some(RevealFade::new(now, RevealScope::Content));
-        }
-    }
-
     /// Starts a fade of the whole frame, as a resize reveal does.
     pub fn fade_frame(&mut self, now: Instant) {
-        self.fade = Some(RevealFade::new(now, RevealScope::Frame));
+        self.fade = Some(RevealFade::new(now));
     }
 
     /// Ends a finished fade; true when the frame must repaint at full intensity.
@@ -96,32 +46,13 @@ impl Reveal {
         finished
     }
 
-    /// The frame as the reveal presents it: a veiled tab's body empty under the strip, then any
-    /// fade applied to its scope.
-    pub fn present(
-        &self,
-        mut desired: DesiredPresentation,
-        requested: Option<&str>,
-    ) -> DesiredPresentation {
-        if let Some(tab_id) = self.veiled_for(requested) {
-            desired = veil_content(desired, tab_id);
-        }
+    /// The frame as the reveal presents it: faint, without a cursor, while a fade runs.
+    pub fn present(&self, desired: DesiredPresentation) -> DesiredPresentation {
         match self.fade {
-            Some(fade) => fade_presentation(desired, fade.scope),
+            Some(_) => fade_presentation(desired),
             None => desired,
         }
     }
-}
-
-/// The frame with an empty body beneath its strip, attributed to `tab_id` so the composer
-/// repaints the whole body when the new tab's content arrives.
-pub fn veil_content(mut desired: DesiredPresentation, tab_id: &str) -> DesiredPresentation {
-    desired.tab_id = Some(tab_id.to_owned());
-    desired.structured = None;
-    desired.legacy_body = Vec::new();
-    desired.overlay = None;
-    desired.cursor = Some(FinalCursor::Hidden);
-    desired
 }
 
 pub fn force_faint_ansi(bytes: &[u8]) -> Vec<u8> {
@@ -157,13 +88,9 @@ pub fn force_faint_ansi(bytes: &[u8]) -> Vec<u8> {
     output
 }
 
-/// The frame drawn faint within `scope`, with the cursor hidden.
-pub fn fade_presentation(
-    mut desired: DesiredPresentation,
-    scope: RevealScope,
-) -> DesiredPresentation {
-    let frame = scope == RevealScope::Frame;
-    if frame && !desired.strip.is_empty() {
+/// The whole frame drawn faint, with the cursor hidden.
+pub fn fade_presentation(mut desired: DesiredPresentation) -> DesiredPresentation {
+    if !desired.strip.is_empty() {
         desired.strip = String::from_utf8(force_faint_ansi(desired.strip.as_bytes()))
             .expect("host strip is utf-8");
     }
@@ -185,8 +112,6 @@ pub fn fade_presentation(
         *overlay =
             String::from_utf8(force_faint_ansi(overlay.as_bytes())).expect("host overlay is utf-8");
     }
-    // Invariant: a reveal never shows a cursor; a joining tab's first frame may report one before its
-    // screen settles, so the tab's own cursor appears only once its content is in.
     desired.cursor = Some(FinalCursor::Hidden);
     desired
 }
@@ -231,7 +156,7 @@ mod tests {
         assert!(ansi.contains("\x1b[38;2;1;2;3m\x1b[2mcolored"));
         assert!(ansi.ends_with("\x1b[22m"));
 
-        let faded = fade_presentation(desired(), RevealScope::Frame);
+        let faded = fade_presentation(desired());
         assert!(faded.strip.contains("\x1b[0m\x1b[2mstrip"));
         assert!(
             String::from_utf8(faded.legacy_body)
@@ -243,62 +168,8 @@ mod tests {
         assert_eq!(faded.cursor, Some(FinalCursor::Hidden));
 
         let started = Instant::now();
-        let fade = RevealFade::new(started, RevealScope::Frame);
+        let fade = RevealFade::new(started);
         assert!(!fade.complete(started + REVEAL_FADE - Duration::from_millis(1)));
         assert!(fade.complete(started + REVEAL_FADE));
-    }
-
-    #[test]
-    fn a_content_fade_leaves_the_strip_at_full_intensity() {
-        let faded = fade_presentation(desired(), RevealScope::Content);
-        assert_eq!(faded.strip, "\x1b[0mstrip");
-        assert_eq!(
-            faded.cursor,
-            Some(FinalCursor::Hidden),
-            "no cursor shows while content fades in"
-        );
-        assert!(faded.structured.unwrap().styles[0].faint);
-
-        let mut reveal = Reveal::default();
-        reveal.joining("settings-1");
-        assert!(!reveal.take_joining("tab-1"));
-        assert!(reveal.take_joining("settings-1"));
-        assert!(!reveal.take_joining("settings-1"), "a join is taken once");
-    }
-
-    #[test]
-    fn a_new_tab_is_veiled_until_its_first_commit_then_its_content_fades_in() {
-        let now = Instant::now();
-        let mut reveal = Reveal::default();
-        reveal.veil("tab-2");
-        let veiled = reveal.present(desired(), Some("tab-2"));
-        assert_eq!(veiled.tab_id.as_deref(), Some("tab-2"));
-        assert!(veiled.structured.is_none() && veiled.legacy_body.is_empty());
-        assert_eq!(
-            veiled.strip, "\x1b[0mstrip",
-            "the strip shows the new tab at once"
-        );
-        assert_eq!(
-            reveal.veiled_for(Some("tab-1")),
-            None,
-            "a dropped request shows no veil"
-        );
-
-        reveal.commit("tab-2", now);
-        assert_eq!(reveal.veiled_for(Some("tab-2")), None);
-        let fading = reveal.present(desired(), None);
-        assert_eq!(fading.strip, "\x1b[0mstrip");
-        assert!(fading.structured.unwrap().styles[0].faint);
-        assert!(!reveal.finish(now));
-        assert!(reveal.finish(now + REVEAL_FADE));
-        assert!(reveal.fade.is_none());
-
-        reveal.veil("tab-3");
-        reveal.commit("tab-1", now);
-        assert!(
-            reveal.fade.is_none(),
-            "another tab's commit lifts the veil without a fade"
-        );
-        assert_eq!(reveal.veiled_for(Some("tab-3")), None);
     }
 }
