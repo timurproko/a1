@@ -6,6 +6,10 @@
 - The bottom popup's pointer-to-action mapping now uses the same physical rows as popup painting rather than separately calculating the row offset. Rows clipped above the terminal cannot receive mouse actions. Top and bottom tests cover a named second row after hover, different heights, a reordered named tab, and a four-row terminal. Keyboard selection still traverses all rows.
 - A1 path, usage, and extension truncation now use one dim `…`; the full model name takes priority over usage, provider, route, and thinking detail as space tightens. Complete model/level, PR hyperlinks, semantic thinking color, ordinary widths, and Pi comparison behavior remain intact.
 
+## Pending icon-slot refinement
+
+The hidden-only swap behavior below was implemented and checked before this refinement. Status-icon slots and their styling have not yet been implemented or tested; tasks 1.8–1.9 and 3.4 remain open.
+
 ## Focused local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_PREBUILT_VT=D:/Git/a1/.worktrees/tab-overflow-menu/.artifacts/terminal-vt cargo test --manifest-path native/terminal-host/Cargo.toml --lib roles::strip::tests`: 31 passed. The prebuilt terminal library was fetched from a CI-published, merged branch and verified by the native build.

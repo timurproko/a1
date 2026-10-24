@@ -6,7 +6,7 @@ The resident host calculates `StripFrame.hidden_tabs` in `roles/strip.rs` and pa
 
 ### Show only undrawn tabs without changing tab identity
 
-Build the popup from the current strip frame's hidden IDs, in tab order. Remove checkmarks: every menu row is a tab without a drawn chip, even if that tab is viewed in an extremely narrow terminal where no chip fits. Keep stable ID actions and the existing keyboard, hover, clipping, dismissal, and overlay rules. Recompute rows after topology, width, or view changes and close the popup when nothing is hidden; never send a view action for a removed tab. The overflow trigger remains available only while hidden tabs exist.
+Build the popup from the current strip frame's hidden IDs, in tab order. Remove checkmarks: every menu row is a tab without a drawn chip, even if that tab is viewed in an extremely narrow terminal where no chip fits. Each row reserves a one-cell status-icon slot plus one separator cell before the name. Use the same status glyph as the strip, including animation and semantic color when available; render one blank icon cell for an idle tab. Clip names by grapheme display width without allowing icon styling to bleed into text, shortcut, hover, or neighboring rows; keep popup hit width and anchor within the terminal. Keep stable ID actions and the existing keyboard, hover, clipping, dismissal, and overlay rules. Recompute rows after topology, width, or view changes and close the popup when nothing is hidden; never send a view action for a removed tab. The overflow trigger remains available only while hidden tabs exist.
 
 ### Preserve narrow-strip geometry
 
@@ -22,8 +22,8 @@ Use one Unicode ellipsis cell in the semantic dim role in both A1 footer path an
 
 ## Verification approach for implementation
 
-Add focused Rust popup/strip/attach tests for hidden-only ordered rows without checkmarks, replacing a previously viewed visible chip while retaining other chips when possible, row-count and hover refresh, resize and reorder transitions, named bottom-row click identity, removal, and extreme widths. Add focused TypeScript footer tests for both path and usage single-cell dim markers, model retention at constrained widths, adjacent ANSI style boundaries, tiny widths, ordinary-width unchanged behavior, and linked PR badges. Run only the touched tests and typecheck locally before pushing; CI owns full validation after implementation readiness.
+Add focused Rust popup/strip/attach tests for hidden-only ordered rows without checkmarks, their reserved icon slot and live glyph/color, replacing a previously viewed visible chip while retaining other chips when possible, row-count and hover refresh, resize and reorder transitions, named bottom-row click identity, removal, and extreme widths. Add focused TypeScript footer tests for both path and usage single-cell dim markers, model retention at constrained widths, adjacent ANSI style boundaries, tiny widths, ordinary-width unchanged behavior, and linked PR badges. Run only the touched tests and typecheck locally before pushing; CI owns full validation after implementation readiness.
 
 ## Scope boundaries
 
-No tab visibility setting, pinning, new menu-opening shortcut, active-tab marker, global footer redesign, or change to Windows Terminal chrome is included. The swap affects only the resident A1 strip; it does not reorder tabs in the shared registry.
+No tab visibility setting, pinning, new menu-opening shortcut, active-tab marker, new glyph design, global footer redesign, or change to Windows Terminal chrome is included. The swap affects only the resident A1 strip; it does not reorder tabs in the shared registry.
