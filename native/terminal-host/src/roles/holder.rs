@@ -424,6 +424,7 @@ enum PendingPaste {
 }
 
 struct HolderServerPeer {
+    _connection: endpoint::ConnectionGuard,
     control: mpsc::SyncSender<Vec<u8>>,
     surface: Arc<Mutex<Option<HolderSurfaceOffer>>>,
     surface_signaled: Arc<AtomicBool>,
@@ -432,6 +433,7 @@ impl HolderServerPeer {
     fn start(
         mut stream: endpoint::EndpointStream,
     ) -> Result<(Self, endpoint::EndpointStream), String> {
+        let connection = endpoint::close_on_drop(&stream);
         let reader = stream
             .try_clone()
             .map_err(|error| format!("clone holder server stream: {error}"))?;
@@ -441,6 +443,7 @@ impl HolderServerPeer {
         let writer_surface = surface.clone();
         let writer_signaled = surface_signaled.clone();
         thread::spawn(move || {
+            let _connection = endpoint::close_on_drop(&stream);
             loop {
                 match control_rx.recv_timeout(Duration::from_millis(8)) {
                     Ok(frame) if !frame.is_empty() => {
@@ -486,6 +489,7 @@ impl HolderServerPeer {
         });
         Ok((
             Self {
+                _connection: connection,
                 control,
                 surface,
                 surface_signaled,
@@ -1697,6 +1701,7 @@ fn spawn_command_reader(
     wake: mpsc::SyncSender<()>,
 ) {
     thread::spawn(move || {
+        let _connection = endpoint::close_on_drop(&stream);
         while let Ok(Some(payload)) = wire::read_payload(&mut stream) {
             let Ok(kind) = wire::kind(&payload) else {
                 break;

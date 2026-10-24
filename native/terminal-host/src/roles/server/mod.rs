@@ -1297,22 +1297,30 @@ pub fn probe(address: &str, token: &[u8]) -> Result<(), String> {
     Ok(())
 }
 
+/// Reads the complete first envelope under its admission budget before clearing the deadline.
+fn read_peer_hello(
+    stream: &mut endpoint::EndpointStream,
+) -> Result<(Option<u64>, RoleHello), String> {
+    endpoint::set_handshake_deadline(stream, std::time::Duration::from_secs(4))
+        .map_err(|error| error.to_string())?;
+    let payload =
+        wire::read_payload(stream)?.ok_or_else(|| "peer closed before hello".to_owned())?;
+    if wire::kind(&payload)?.message_type != "hello" {
+        return Err("first resident message is not hello".to_owned());
+    }
+    let hello = wire::body(&payload)?;
+    endpoint::clear_handshake_deadline(stream).map_err(|error| error.to_string())?;
+    Ok(hello)
+}
+
 fn serve_peer(
     mut stream: endpoint::EndpointStream,
     state: Arc<Mutex<RuntimeState>>,
     profile: std::path::PathBuf,
 ) -> Result<(), String> {
+    let _connection = endpoint::close_on_drop(&stream);
     lock_state(&state)?.last_activity = std::time::Instant::now();
-    endpoint::set_handshake_deadline(&stream, std::time::Duration::from_secs(4))
-        .map_err(|error| error.to_string())?;
-    let payload =
-        wire::read_payload(&mut stream)?.ok_or_else(|| "peer closed before hello".to_owned())?;
-    endpoint::clear_handshake_deadline(&stream).map_err(|error| error.to_string())?;
-    let kind = wire::kind(&payload)?;
-    if kind.message_type != "hello" {
-        return Err("first resident message is not hello".to_owned());
-    }
-    let (request_id, hello): (_, RoleHello) = wire::body(&payload)?;
+    let (request_id, hello) = read_peer_hello(&mut stream)?;
     let supported =
         crate::fault_injection::server_generation_override().unwrap_or(protocol::GENERATION);
     if hello.generation != supported {
@@ -1596,6 +1604,7 @@ fn writer_loop(
     surface_signaled: Arc<AtomicBool>,
     surface_replaced: Arc<AtomicBool>,
 ) {
+    let _connection = endpoint::close_on_drop(&stream);
     loop {
         match rx.recv_timeout(std::time::Duration::from_millis(8)) {
             Ok(frame) if !frame.is_empty() => {

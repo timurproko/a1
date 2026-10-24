@@ -52,6 +52,7 @@ impl TerminalOutput {
 
 impl Write for TerminalOutput {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        let started = std::time::Instant::now();
         #[cfg(windows)]
         {
             self.prepare_console()?;
@@ -70,15 +71,34 @@ impl Write for TerminalOutput {
             if result == 0 {
                 return Err(io::Error::last_os_error());
             }
+            observe_write(started, written as usize);
             Ok(written as usize)
         }
         #[cfg(not(windows))]
-        self.stdout.write(bytes)
+        {
+            let result = self.stdout.write(bytes);
+            if let Ok(written) = result {
+                observe_write(started, written);
+            }
+            result
+        }
     }
 
     fn flush(&mut self) -> io::Result<()> {
         self.stdout.flush()
     }
+}
+
+fn observe_write(started: std::time::Instant, bytes: usize) {
+    crate::roles::progress_observation::observe(
+        "attach",
+        "outer-write-complete",
+        crate::roles::progress_observation::ProgressMetadata {
+            bytes,
+            duration_us: Some(started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64),
+            ..Default::default()
+        },
+    );
 }
 
 #[cfg(windows)]

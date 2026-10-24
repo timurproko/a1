@@ -121,7 +121,8 @@ describe("resident progress observations", () => {
     const records: ProgressObservation[] = [];
     for (const [tabIndex, tabId] of TABS.entries()) {
       for (let index = 1; index <= 40; index += 1) {
-        const base = 10_000 + index * 1_000;
+        // Invariant: process sequences are chronological, including the shared painter across tabs.
+        const base = 10_000 + tabIndex * 1_000_000 + index * 10_000;
         records.push(record({ stage: "engine-delivery", tabId, timestampUnixUs: base,
           pid: 10 + tabIndex, sequence: index * 2 - 1, eventSequence: index, eventKind: "message_update" }));
         records.push(record({ stage: "child-render-write", tabId, timestampUnixUs: base + 2_000,
@@ -154,5 +155,70 @@ describe("resident progress observations", () => {
     expect(active.faults).not.toContain("tab-a: holder no-progress gap exceeded 1000 ms");
     const stalled = progressLatencyReport(commits, ["tab-a"], [{ startedUnixUs: 0, barrierUnixUs: 6_500_000 }]);
     expect(stalled.faults).toContain("tab-a: holder no-progress gap exceeded 1000 ms");
+  });
+
+  it("accepts additive connection timings without a tab and separates idle waiting", () => {
+    const transfer = record({ stage: "pipe-frame-read", timestampUnixUs: 1_000_000,
+      durationUs: 250, idleWaitUs: 8_000_000, monotonicUs: 1_000, clockEpoch: 0 });
+    expect(validateProgressObservations([transfer], RUN)).toEqual([]);
+    const result = progressLatencyReport([transfer], []);
+    expect(result.localCompletions["pipe-frame-read"]).toMatchObject({ count: 1, p95Ms: 0.25 });
+    expect(result.faults).toEqual([]);
+    expect(validateProgressObservations([{ ...transfer, durationUs: -1, idleWaitUs: Number.NaN }], RUN))
+      .toEqual(expect.arrayContaining([expect.stringContaining("invalid durationUs"), expect.stringContaining("invalid idleWaitUs")]));
+    const missingClock = { ...transfer };
+    delete missingClock.clockEpoch;
+    expect(validateProgressObservations([missingClock], RUN))
+      .toContain("record 1: incomplete monotonic clock");
+  });
+
+  it("rejects a negative latency even within the declared clock uncertainty", () => {
+    const records = [
+      record({ stage: "engine-delivery", tabId: "tab-a", timestampUnixUs: 10_000, eventSequence: 1, sequence: 1 }),
+      record({ stage: "child-render-write", tabId: "tab-a", timestampUnixUs: 9_999, eventSequence: 1, sequence: 2 }),
+    ];
+    expect(progressLatencyReport(records, ["tab-a"]).perTab["tab-a"]!.engineToRender.count).toBe(0);
+  });
+
+  it("excludes wake-crossing samples while retaining post-wake and local completion timings", () => {
+    const records = [
+      record({ stage: "holder-commit", tabId: "tab-a", timestampUnixUs: 1_000_000, pid: 20, revision: 1 }),
+      record({ stage: "wake-gap", tabId: "tab-a", timestampUnixUs: 3_000_000, pid: 30, sequence: 1,
+        monotonicUs: 2_000_000, clockEpoch: 1, clockDiscontinuity: true }),
+      record({ stage: "outer-paint", tabId: "tab-a", timestampUnixUs: 3_100_000, pid: 30, sequence: 2, revision: 1,
+        monotonicUs: 2_100_000, clockEpoch: 1 }),
+      record({ stage: "holder-commit", tabId: "tab-a", timestampUnixUs: 3_200_000, pid: 20, sequence: 2, revision: 2 }),
+      record({ stage: "outer-paint", tabId: "tab-a", timestampUnixUs: 3_210_000, pid: 30, sequence: 3, revision: 2,
+        monotonicUs: 2_210_000, clockEpoch: 1 }),
+      record({ stage: "outer-write-complete", timestampUnixUs: 3_220_000, pid: 30, sequence: 4,
+        monotonicUs: 2_220_000, clockEpoch: 1, durationUs: 1_500 }),
+    ];
+    expect(validateProgressObservations(records, RUN)).toEqual([]);
+    const result = progressLatencyReport(records, ["tab-a"]);
+    expect(result.perTab["tab-a"]!.commitToPaint).toMatchObject({ count: 1, p95Ms: 10 });
+    expect(result.localCompletions["outer-write-complete"]).toMatchObject({ count: 1, p95Ms: 1.5 });
+    expect(result.perTab["tab-a"]!.holderWorstGapMs).toBeNull();
+  });
+
+  it("uses same-process monotonic durations and rejects changed epochs", () => {
+    const engine = record({ stage: "engine-delivery", tabId: "tab-a", timestampUnixUs: 10_000, eventSequence: 1,
+      sequence: 1, role: "child", monotonicUs: 100, clockEpoch: 0 });
+    const rendered = record({ stage: "child-render-write", tabId: "tab-a", timestampUnixUs: 15_000, eventSequence: 1,
+      sequence: 2, role: "child", monotonicUs: 300, clockEpoch: 0 });
+    expect(progressLatencyReport([engine, rendered], ["tab-a"]).perTab["tab-a"]!.engineToRender.p95Ms).toBe(0.2);
+    expect(progressLatencyReport([engine, { ...rendered, clockEpoch: 1 }], ["tab-a"]).perTab["tab-a"]!.engineToRender.count).toBe(0);
+  });
+
+  it("accepts declared backward jumps only as new epochs and excludes ambiguous intervals", () => {
+    const first = record({ stage: "engine-delivery", tabId: "tab-a", timestampUnixUs: 5_000_000,
+      sequence: 1, role: "child", eventSequence: 1, monotonicUs: 100, clockEpoch: 0 });
+    const boundary = record({ stage: "wake-gap", tabId: "tab-a", timestampUnixUs: 1_000_000,
+      sequence: 2, role: "child", monotonicUs: 200, clockEpoch: 1, clockDiscontinuity: true });
+    const rendered = record({ stage: "child-render-write", tabId: "tab-a", timestampUnixUs: 1_100_000,
+      sequence: 3, role: "child", eventSequence: 1, monotonicUs: 300, clockEpoch: 1 });
+    expect(validateProgressObservations([first, boundary, rendered], RUN)).toEqual([]);
+    expect(progressLatencyReport([first, boundary, rendered], ["tab-a"]).perTab["tab-a"]!.engineToRender.count).toBe(0);
+    expect(validateProgressObservations([first, { ...boundary, clockEpoch: 0 }], RUN))
+      .toContain("record 2: clock discontinuity without a new epoch");
   });
 });

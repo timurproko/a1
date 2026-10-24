@@ -680,6 +680,13 @@ fn resumed_after_gap(previous: SystemTime, now: SystemTime) -> bool {
         .is_ok_and(|elapsed| elapsed >= OUTER_RESUME_GAP)
 }
 
+/// Consumes a gap once; subsequent ordinary ticks cannot keep forcing the cached repaint.
+pub(crate) fn take_resume_gap(previous: &mut SystemTime, now: SystemTime) -> bool {
+    let resumed = resumed_after_gap(*previous, now);
+    *previous = now;
+    resumed
+}
+
 fn clock_minute() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -956,6 +963,7 @@ impl AttachServerWriter {
         let writer_bytes = reserved_bytes.clone();
         let writer_failed = failed.clone();
         thread::spawn(move || {
+            let _connection = endpoint::close_on_drop(&stream);
             while let Ok(frame) = receiver.recv() {
                 let result = stream
                     .write_all(&frame)
@@ -1421,6 +1429,7 @@ fn spawn_server_reader(
     let ingress_bytes = Arc::new(AtomicUsize::new(0));
     let reader_ingress_bytes = ingress_bytes.clone();
     thread::spawn(move || {
+        let _connection = endpoint::close_on_drop(&reader);
         loop {
             let payload = match wire::read_payload(&mut reader) {
                 Ok(Some(payload)) => payload,
@@ -1490,6 +1499,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     );
     crate::fault_injection::freeze_role("attach");
     let handshake = handshake(&options)?;
+    let _connection = endpoint::close_on_drop(&handshake.stream);
     let reader = handshake
         .stream
         .try_clone()
@@ -2627,8 +2637,7 @@ impl Client {
 
     fn tick(&mut self, core: &mut State) -> Result<(), String> {
         let wall_now = SystemTime::now();
-        let resumed = resumed_after_gap(self.last_tick_wall, wall_now);
-        self.last_tick_wall = wall_now;
+        let resumed = take_resume_gap(&mut self.last_tick_wall, wall_now);
         let now = Instant::now();
         if let Some(Offer::Commit {
             surface,
@@ -2666,9 +2675,30 @@ impl Client {
             self.paint(core, true)?;
         }
         if resumed {
+            progress_observation::observe(
+                "attach",
+                "wake-gap",
+                ProgressMetadata {
+                    tab_id: self.view.viewed.as_deref(),
+                    incarnation: self.presented.incarnation,
+                    revision: self.presented.revision,
+                    ..ProgressMetadata::default()
+                },
+            );
             // Platform: after suspend, ConPTY may have discarded its last painted cells while
             // the writer still considers them current. Overwrite the full cached frame once.
+            // A gap is not evidence of a child hang and never authorizes process recovery.
             self.paint(core, true)?;
+            progress_observation::observe(
+                "attach",
+                "wake-repaint-requested",
+                ProgressMetadata {
+                    tab_id: self.view.viewed.as_deref(),
+                    incarnation: self.presented.incarnation,
+                    revision: self.presented.revision,
+                    ..ProgressMetadata::default()
+                },
+            );
         }
         let wiping = self
             .landing_wipe
