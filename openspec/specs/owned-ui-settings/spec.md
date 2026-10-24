@@ -1089,11 +1089,11 @@ Bare A1 SHALL declare the persisted A1 setting `timeFormat`, labeled `Time forma
 - **AND** the pinned comparison presentation SHALL retain its own timestamp behavior
 
 ### Requirement: Tabs settings expose tab-bar position
-During resident launches, the owned Settings screen SHALL expose `Tab bar position` in the existing section titled `Tab Bar` with exactly `top` and `bottom` choices, in that order, and `top` as the default. The setting SHALL use A1-owned profile-local persistence and live application. Direct `a1 solo` and `a1 pi` SHALL continue to omit the Tab Bar section and SHALL NOT apply this setting to their interfaces.
+During resident launches, the owned Settings screen SHALL expose `Tab bar position` in the existing Tabs section with exactly `top` and `bottom` choices, in that order, and `top` as the default. The setting SHALL use A1-owned profile-local persistence and live application. Direct `a1 solo` and `a1 pi` SHALL continue to omit the Tabs section and SHALL NOT apply this setting to their interfaces.
 
 #### Scenario: Inspect resident Tabs settings
-- **WHEN** the resident Settings utility presents the Tab Bar section
-- **THEN** it SHALL include `Auto name`, `Tab bar position`, and `Plus menu`
+- **WHEN** the resident Settings utility presents the Tabs section
+- **THEN** it SHALL include `Auto name` and `Tab bar position`
 - **AND** `Tab bar position` SHALL offer `top` and `bottom`
 
 #### Scenario: Resolve the default position
@@ -1121,14 +1121,3 @@ The owned Settings search input and every Settings-owned auxiliary filter, inclu
 - **WHEN** the per-model Thinking Level selector shows its step-one search input
 - **THEN** typed text and the empty placeholder SHALL use the marker-free input row
 - **AND** model filtering, navigation, selection, and Escape behavior SHALL remain unchanged
-
-### Requirement: Tab Bar settings expose the plus menu
-During resident launches, the `Tab Bar` section SHALL expose `Plus menu` with the value `configure`. Activating it SHALL open the plus-menu dialog, which lists `Agent`, `Settings`, and `Changelog` with `●` for each kind `+` offers and `○` otherwise and toggles the selected kind with `Space`. The enabled kinds SHALL be stored as the A1 setting `tabBarPlusMenu` in A1-owned profile-local persistence and applied to attached resident clients without a restart; the default SHALL be `Agent` alone. Direct `a1 solo` and `a1 pi` SHALL continue to omit the section.
-
-#### Scenario: Open the plus-menu dialog from Settings
-- **WHEN** the user selects `Plus menu` in the Tab Bar section and presses `Enter`
-- **THEN** the plus-menu dialog SHALL open with `Agent` marked `●` and `Settings` and `Changelog` marked `○` under the default
-
-#### Scenario: Store a toggle
-- **WHEN** the user toggles `Settings` on in the dialog
-- **THEN** `tabBarPlusMenu` SHALL store `agent` and `settings` in kind order and no Pi or Agent setting SHALL be written
