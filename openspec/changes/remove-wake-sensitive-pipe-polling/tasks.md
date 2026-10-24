@@ -19,4 +19,4 @@
 ## 3. Delivery bookkeeping
 
 - [x] 3.1 Reconcile implementation results and explicit known-gap dispositions, retaining the distinction between simulated gaps and pending physical sleep/wake evidence.
-- [ ] 3.2 Complete focused checks and strict OpenSpec validation, add plain acceptance outcomes, reconcile and push current develop, and validate the intended final PR body before checking its final Implementation item.
+- [x] 3.2 Complete focused checks and strict OpenSpec validation, add plain acceptance outcomes, reconcile and push current develop, and validate the intended final PR body before checking its final Implementation item.
