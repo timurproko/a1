@@ -337,6 +337,8 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   | `Alt+W` | close |
   | `F2` | rename |
   | `Alt+,` | open the global Settings tab, or close it while it is viewed |
+  | `Alt+/` | open the command palette, or close it while it is open |
+  | unbound (`tabs.changelog`) | open the Changelog tab |
   | `Alt+1`â€¦`Alt+9`, `Alt+0` | jump to a tab |
   | unbound (`tabs.next` / `tabs.previous`) | next / previous, wrapping |
   | unbound (`tabs.moveRight` / `tabs.moveLeft`) | move the tab right / left |
@@ -347,17 +349,22 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - **`Ctrl+C` twice leaves, in every tab (user decision).** The client forwards the first `Ctrl+C` to the tab unchanged, so a single press still clears, copies, or interrupts. It consumes the second press within the existing clear/exit interval as the detach request and does not forward it. The tab therefore never receives a second `Ctrl+C` from the chord, which removes v2's bug where `Ctrl+C+C` killed the agent. The trade-off: a future CLI tab cannot receive two quick `Ctrl+C`s. Pressing them more slowly than the interval still reaches the program.
 - **Mouse on row 0:**
   - click activates a tab;
-  - right-click opens `Rename`/`Close` (`Close` only for Settings);
+  - right-click opens `Rename`/`Close` (`Close` only for Settings and Changelog);
+  - right-click on `+` opens a one-row `Configure` menu that shows the Settings tab with its plus-menu dialog open;
   - dragging reorders, with a `â”‚` drop marker, after 250 ms or once the pointer moves;
-  - `+` opens a persistent dark v2 menu with `+ Agent`, a separator, and `Settings`; hover and click remain active through the opening release.
+  - `+` follows the plus menu: with only Agent enabled it adds an Agent at once; with other kinds it opens a persistent dark v2 menu of the enabled kinds, `+ Agent` first and a separator before the `Settings` and `Changelog` toggles, each `✓` while its tab is open; with none it does nothing. Hover and click remain active through the opening release.
 - **Settings.** The strip owns one profile-global `Settings` tab. The grouped launcher creates or activates it; `Alt+,` does the same from another tab and closes it while it is viewed. Esc does not close the Settings tab; closing the tab removes it. Resident Agent autocomplete omits `/settings`, and manually entering it does not open a per-Agent screen. `a1 solo` and `a1 pi` retain their existing Settings routes.
-- **Commands inside A1 tabs:** existing `/name <name>` also renames the tab. Milestone 5 adds no tab-management slash commands: `/new-tab`, `/close`, `/tabs`, `/quit-all`, and `/restart-tab` are not exposed.
+- **Commands inside A1 tabs:** a tab's name and its session's name stay in sync. `/name <name>` publishes the session view at once, so the tab takes the name as a user name; a strip rename or an automatic name sets the session name through the bridge; and a resumed session's name becomes the tab name. An automatic name never replaces a user name. Resident Agents also omit and refuse `/changelog`, which opens as its own tab. Milestone 5 adds no tab-management slash commands: `/new-tab`, `/close`, `/tabs`, `/quit-all`, and `/restart-tab` are not exposed.
 - **Naming:**
   - Default names are `agent` or `agent N`.
   - When `tabsAutoName` is on (the default, by user decision), the tab's model proposes a hyphenated lowercase name of at most 16 characters after the first settled turn. It uses a small budget and one retry, with a fallback derived from the first prompt, and it runs inside the child.
   - A user rename sets `nameSource=user`, and auto-naming never overrides it.
   - An automatic rename uses v2's title transition: 600 ms moving rainbow, typing at 45 ms per character, then a 300 ms settle. Manual renames do not animate.
   - Rename is inline in the chip: `Enter` commits, `Esc` or a click elsewhere cancels, and `Ctrl+Left` / `Ctrl+Right` move by word. The name is trimmed, must not be empty, is at most 64 characters, and has control characters stripped.
+- **Plus menu.** The A1 setting `tabBarPlusMenu`, shown as `Plus menu` in the `Tab Bar` Settings section, holds the kinds `+` offers as comma-joined keys in kind order and defaults to `agent`. Agent is a multi-instance kind that adds a tab every time; Settings and Changelog are singleton toggles. Its `configure` entry and `+`'s `Configure` both open the same dialog in the Settings tab: every kind with `●` when enabled and `○` when not, `Space` to toggle, Up and Down to move, typing to filter, and `Esc` to close. Each toggle is written at once and the attach client reads it live. `tab.open-plus-menu` reserves or reveals the Settings tab and sends it the `plus-menu` route over `bridge.route`: at once when its bridge is connected, or held in the server's core tab runtime until the bridge is admitted, after the tab's own `settings` route.
+- **Command palette.** `Alt+/` (`tabs.commands`) opens a centered box over the whole frame in the owned list style: an accent `Commands` title, a `> ` search row, `Agent session`, `Settings`, and `Changelog` with their effective shortcuts right-aligned, and a key hint. Typing or pasting filters it, Up and Down move, `Enter` runs the selected entry through its shortcut action, and `Esc` or `Alt+/` closes it; another tab shortcut closes it and runs. While it is open no key, paste, or pointer event reaches the strip or a child, the cursor is hidden, and the composer redraws the strip and body with faint re-asserted after every SGR beneath the bright overlay.
+- **Changelog.** The changelog opens as a singleton `changelog-` utility tab titled `Changelog`, from the palette, the plus menu, or the unbound `tabs.changelog` action. Like Settings it is never renamed, offers only `Close`, is placed last, and does not count as an Agent; unlike Settings it is not prewarmed or hidden. Closing its screen closes the tab.
+- **Rename selection.** The inline rename draws a selection on the prompt editor's selection background (RGB `38,79,120`, palette `24`) and keeps the chip's text color, restoring the chip's background after it; only the caret is a reversed cell.
 - **Close.** `Alt+W` and the right-click menu close a tab directly, including while it is working. Closing removes the chip without a confirmation, stopping/read-only frame, or close glyph, then gracefully stops the child under the existing bounded termination policy. Its session stays resumable. Closing the last tab leaves `+` and the clock beside the landing.
 - **Landing.** While the attach client has no tab to show, the attach role renders the a1 landing as the frame's body. The launch cwd sits where an Agent tab's footer shows it, flush left on the second-to-last body row with the same `~` formatting and `dim` color, so the folder does not move when a tab opens or closes; `v<version>`, read once from the release root's `package.json`, sits below it and the three-row half-block `a1` wordmark in the profile's accent above it (omitted in Apple Terminal). The accent colors are a native table pinned by `landing_accents.json`, which a TypeScript test checks against `derivePiAccentProjection`. The body is painted with the canvas `backgroundStyle` gives Agent tabs. The landing holds no input: tab shortcuts, the launcher, strip mouse, and double-`Ctrl+C` behave as with tabs, and no cursor shows. A hidden Settings tab is prewarmed and kept running beside the landing, as beside Agents, so Settings opens without a start; it closes when the client detaches, and an attach treats a registry holding only Settings as empty, so it starts and views its first Agent. Starting an Agent from the landing wipes the wordmark from the right over 180 ms into a white cell where the Agent's caret appears, held until its first frame commits.
 - **Detach.**
@@ -589,6 +596,13 @@ The user made these decisions on 2026-09-24:
 - Icons are the only attention signal, with no bell, sound, or notification: spinner = working, `âœ“` = finished, red `âœ—` = failed, yellow `?` = needs the user.
 - `Ctrl+C` twice leaves `a1` from any tab while tabs keep running. There is no separate detach key.
 - Reliability is a first-class, release-gating requirement (Decision 16).
+
+On 2026-10-24 the user refined the tab bar:
+
+- `+` adds an Agent by default; what it offers is configurable from a right-click `Configure` menu and from `Tab Bar` › `Plus menu` in Settings, where the `Tabs` section is renamed `Tab Bar`.
+- `Alt+/` opens a keyboard-only command palette over a dimmed frame: `Agent session`, `Settings`, and `Changelog`.
+- The changelog opens as its own singleton tab and leaves resident Agents' commands.
+- The tab rename selection matches the editor's selection style, and a tab's name and its session's name stay in sync.
 
 On 2026-10-16 the `ci-critical-path` change replaced the Intel runner for the release builds:
 

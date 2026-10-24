@@ -29,4 +29,4 @@ Each numbered section is one Implementation item. Every section starts by mergin
 
 ## 6. Architecture record
 
-- [ ] 6.1 Record the plus menu, the command palette, the Changelog utility tab, and tab and session name sync under Decision 11 in `docs/architecture/resident-tabs.md`.
+- [x] 6.1 Record the plus menu, the command palette, the Changelog utility tab, and tab and session name sync under Decision 11 in `docs/architecture/resident-tabs.md`.
