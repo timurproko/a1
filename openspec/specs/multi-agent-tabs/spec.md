@@ -134,7 +134,7 @@ Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal 
 - **THEN** no tab strip, resident server, holder, or tab bridge SHALL be involved
 
 ### Requirement: Tab chips reproduce the approved v2 strip
-The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible, remaining tabs SHALL collapse into a keyboard-navigable `…` menu, and a trailing `+` SHALL always be reserved. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
+The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible when space permits, and a trailing `+` SHALL always be reserved. The muted single-column `…` overflow control SHALL appear only while some chips do not fit and SHALL open a keyboard- and mouse-navigable popup listing every available tab once in strip order. Each popup row SHALL show a checkmark if and only if that tab's chip is visible on the current strip; hidden tabs SHALL have no checkmark. The checkmark SHALL describe strip visibility rather than the viewed tab, and SHALL follow the current drawn chips across resize, reorder, creation, removal, and view changes. Choosing any popup row, including a hidden tab, SHALL view that tab; removed tabs SHALL NOT remain actionable. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
 
 #### Scenario: Wide names are clipped by display width
 - **WHEN** a tab name contains CJK characters or emoji wider than the chip allows
@@ -142,7 +142,7 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 
 #### Scenario: More tabs than fit
 - **WHEN** the terminal cannot fit every chip
-- **THEN** the viewed chip SHALL remain visible, `…` SHALL list hidden tabs, and assigned navigation or jump keys SHALL still reach them
+- **THEN** the viewed chip SHALL remain visible when space permits, `…` SHALL list every available tab, and assigned navigation or jump keys SHALL still reach them
 
 #### Scenario: Close button is always present
 - **WHEN** any visible tab chip is rendered or clicked after the legacy close-button behavior is removed
@@ -162,6 +162,21 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 #### Scenario: Clock with no tabs
 - **WHEN** every tab has been closed
 - **THEN** the strip SHALL show `+` and the right-aligned clock
+
+#### Scenario: All tabs appear when some chips overflow
+- **WHEN** a terminal has three open tabs and its strip can show only one tab chip
+- **THEN** the overflow popup SHALL list all three tabs once, in strip order
+- **AND** only the tab with a visible chip SHALL have a checkmark, regardless of which popup row has keyboard focus
+- **AND** selecting a hidden tab SHALL view it through the normal tab-switch flow
+
+#### Scenario: Visibility follows a resize
+- **WHEN** a strip expands to show more chips or shrinks to hide some chips while its popup is open
+- **THEN** the popup SHALL reflect the current set of drawn chip IDs and their ordered names without stale markers or actions
+- **AND** the popup SHALL cease to be available when every tab fits
+
+#### Scenario: Overflow at an extreme width
+- **WHEN** the terminal is too narrow to show ordinary chip geometry beside the reserved controls
+- **THEN** the strip and popup SHALL stay within the terminal columns without wrapping or claiming a chip is visible when it was not drawn
 
 ### Requirement: Tab status comes from the tab bridge, not the screen
 Each chip SHALL show structured status:
