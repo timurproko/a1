@@ -4,11 +4,14 @@ import { captureRenderingGate } from "../../../support/rendering/rendering-gate.
 import type { RenderingMatrixResult } from "../../../support/rendering/rendering-matrix.js";
 import { STREAM_RENDERING_WORKLOADS } from "../../../support/rendering/streaming-workloads.js";
 
+import { assertRenderingSmokeContracts } from "../../../support/rendering/rendering-smoke-contract.js";
+
 const workloadIds = STREAM_RENDERING_WORKLOADS.map(workload => workload.id);
 
 describe("full rendering stability gate", () => {
   it("captures every workload once and preserves product-facing matrix contracts", async () => {
     const captured = await captureRenderingGate(workloadIds);
+    assertRenderingSmokeContracts(captured.matrices);
     expect(captured.structure).toEqual({ workloadCaptures: 11, deliberateRepeatCaptures: 0, producerLaunches: 66 });
     const violations: string[] = [];
     for (const matrix of captured.matrices.values()) {

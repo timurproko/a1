@@ -51,7 +51,7 @@ async function fixtureRepository() {
     "fast-resource-sensitive": { kind: "vitest-resource-sensitive", tests: [] },
   } }));
   await put(repository, "config/validation-ownership.json", JSON.stringify({ schema: "a1-validation-ownership-v1", mandatoryTests: ["test/fixture.test.ts"],
-    invalidators: ["config/validation-suites.json"], unrelated: ["docs/"], shared: [], owners: [{ id: "fixture", paths: ["src/", "test/"], testPaths: ["test/"], integrationOwners: ["fixture"] }] }));
+    invalidators: ["config/validation-suites.json"], unrelated: ["docs/"], shared: [], owners: [{ id: "fixture", paths: ["src/", "test/"], testPaths: ["test/"], criticalTests: ["test/fixture.test.ts"], integrationOwners: ["fixture"] }] }));
   await put(repository, "package.json", JSON.stringify({ name: "@fixture/impact" }));
   const base = await commit(repository, "base");
   return { repository, base };
@@ -107,7 +107,7 @@ describe("development validation impact", () => {
     expect(withCritical).toMatchObject({ tier: "full", reasons: ["full-critical:src/ui/components/transcript-viewport.ts"] });
   });
 
-  it("uses both identities for deleted rendering paths and full coverage for invalidators", async () => {
+  it("uses both identities for deleted rendering paths and keeps generic invalidators out of full rendering", async () => {
     const { repository, base } = await fixtureRepository();
     await git(repository, "rm", "src/leaf.ts");
     await put(repository, "src/ui/components/deleted.ts", "export const rendered = 1;\n");
@@ -119,10 +119,12 @@ describe("development validation impact", () => {
     await put(repository, "config/validation-suites.json", "{}\n");
     const fullHead = await commit(repository, "validation config");
     const changes = await collectCommitChanges(repository, head, fullHead);
-    expect(await classifyRenderingImpact(repository, head, fullHead, changes)).toMatchObject({ tier: "full" });
+    expect(await classifyRenderingImpact(repository, head, fullHead, changes)).toMatchObject({ tier: "none" });
     for (const path of [
       "package-lock.json",
       "scripts/release/validation-impact.mjs",
+    ]) expect(await classifyRenderingImpact(repository, fullHead, fullHead, [{ status: "M", path }]), path).toMatchObject({ tier: "none" });
+    for (const path of [
       "src/integrations/pi/components/theme.asset",
       "test/support/input-responsiveness/input-producer.ts",
       "test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts",

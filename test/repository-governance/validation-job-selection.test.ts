@@ -12,7 +12,7 @@ const execFileAsync = promisify(execFile);
 const base = "a".repeat(40), head = "b".repeat(40), selectionId = "c".repeat(64);
 
 describe("Development validation job resolution", () => {
-  it("keeps a PR-429-shaped conservative promoted job bounded to pull-request owners", async () => {
+  it("leaves direct-impact promoted work inactive for a conservative selection", async () => {
     const owners = await loadIntegrationOwners();
     const integration = conservativeIntegrationImpact({ base, head, owners, reason: "invalidator" });
     const impact = {
@@ -37,24 +37,24 @@ describe("Development validation job resolution", () => {
       const result = JSON.parse(stdout);
       expect(result).toMatchObject({
         schema: "a1-validation-job-selection-v3",
-        active: true,
-        owners: ["launch-integration"],
+        active: false,
+        owners: [],
         deferredOwners: ["update-performance", "update-predecessor"],
       });
-      expect(result.scopes).toEqual(["launch-integration"]);
+      expect(result.scopes).toEqual([]);
       expect(result.scopes).not.toContain("update-predecessor");
       expect(result.scopes).not.toContain("update-performance");
       expect(JSON.parse(await readFile(path, "utf8"))).toEqual(impact);
     } finally { await rm(directory, { recursive: true, force: true }); }
   });
 
-  it("schedules every declared matrix entry for a conservative selection", async () => {
+  it("schedules only critical core, resource, and Pi entries for a conservative selection", async () => {
     const owners = await loadIntegrationOwners();
     const registry = { owners };
     const impact = { base, head, selectionId, prCore: { tests: [], resourceTests: ["test/resource.test.ts"] }, integration: conservativeIntegrationImpact({ base, head, owners, reason: "invalidator" }) };
     const matrix = selectDevelopmentValidationMatrix({ impact, registry });
-    expect(matrix.include).toEqual([...DEVELOPMENT_VALIDATION_MATRIX]);
-    expect(matrix.inactive).toEqual([]);
+    expect(matrix.include.map(entry => entry.group)).toEqual(["core", "resource", "pi"]);
+    expect(matrix.inactive).toHaveLength(21);
     expect(DEVELOPMENT_VALIDATION_MATRIX).toHaveLength(24);
     expect(DEVELOPMENT_VALIDATION_MATRIX.every(entry => entry.addon === "process-guardian.node")).toBe(true);
     expect(DEVELOPMENT_VALIDATION_MATRIX.filter(entry => entry.terminalHost).every(entry => entry.terminalHostAddon === "terminal-host.node")).toBe(true);
@@ -111,7 +111,7 @@ describe("Development validation job resolution", () => {
       await writeFile(path, JSON.stringify(impact));
       await writeFile(output, "");
       const { stdout } = await execFileAsync(process.execPath, ["scripts/release/validation-matrix.mjs", "--impact", path], { env: { ...process.env, GITHUB_OUTPUT: output } });
-      expect(JSON.parse(stdout)).toEqual({ include: [...DEVELOPMENT_VALIDATION_MATRIX], inactive: [] });
+      expect(JSON.parse(stdout)).toEqual(selectDevelopmentValidationMatrix({ impact, registry: { owners } }));
       const emitted = await readFile(output, "utf8");
       expect(emitted.startsWith("modular_matrix=")).toBe(true);
       expect(Object.keys(JSON.parse(emitted.slice("modular_matrix=".length)))).toEqual(["include"]);

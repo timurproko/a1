@@ -32,43 +32,59 @@ registerHooks({
 });
 
 const [producer, home, encodedCases] = process.argv.slice(2);
-if (!["pinned", "owned"].includes(producer) || !home || !encodedCases) throw new Error("Invalid producer input");
-const cases = JSON.parse(encodedCases);
-process.env.PI_CODING_AGENT_DIR = join(home, ".a1", "agent");
-process.env.A1_PROFILE_HOME = home;
-process.chdir(home);
+if (!["pinned", "owned"].includes(producer) || !home || (home !== "--server" && !encodedCases)) throw new Error("Invalid producer input");
+function selectHome(directory) {
+  process.env.HOME = directory;
+  process.env.USERPROFILE = directory;
+  process.env.PI_CODING_AGENT_DIR = join(directory, ".a1", "agent");
+  process.env.A1_PROFILE_HOME = directory;
+  process.chdir(directory);
+}
+if (home !== "--server") selectHome(home);
 const repository = resolve(import.meta.dirname, "../..");
 const write = process.stdout.write.bind(process.stdout);
-const results = [];
 let stdout = "";
 let stderr = "";
 process.stdout.write = chunk => { stdout += String(chunk); return true; };
 process.stderr.write = chunk => { stderr += String(chunk); return true; };
-const pinned = producer === "pinned"
-  ? await import(pathToFileURL(join(repository, "node_modules/@earendil-works/pi-coding-agent/dist/package-manager-cli.js")).href)
-  : undefined;
-const owned = producer === "owned" ? await import(pathToFileURL(join(repository, "src/cli/index.ts")).href) : undefined;
-const packages = producer === "owned" ? await import(pathToFileURL(join(repository, "src/integrations/pi/engine/package-integration.ts")).href) : undefined;
-for (const entry of cases) {
-  stdout = "";
-  stderr = "";
+let pinned, owned, packages;
+async function capture(directory, cases) {
+  selectHome(directory);
+  pinned ??= producer === "pinned"
+    ? await import(pathToFileURL(join(repository, "node_modules/@earendil-works/pi-coding-agent/dist/package-manager-cli.js")).href) : undefined;
+  owned ??= producer === "owned" ? await import(pathToFileURL(join(repository, "src/cli/index.ts")).href) : undefined;
+  packages ??= producer === "owned" ? await import(pathToFileURL(join(repository, "src/integrations/pi/engine/package-integration.ts")).href) : undefined;
+  const results = [];
+  for (const entry of cases) {
+    stdout = "";
+    stderr = "";
+    process.exitCode = 0;
+    process.env.PACKAGE_MESSAGE_SCENARIO = JSON.stringify(entry.scenario ?? {});
+    if (entry.settings) {
+      await mkdir(join(directory, ".a1", "agent"), { recursive: true });
+      await writeFile(join(directory, ".a1", "agent", "settings.json"), `${JSON.stringify(entry.settings, null, 2)}\n`);
+    }
+    if (pinned) {
+      if (!await pinned.handlePackageCommand(entry.pinnedArgs)) throw new Error("Unrecognized pinned fixture command");
+    } else {
+      process.exitCode = await owned.dispatchCli(entry.ownedArgs, {
+        launch: async () => { throw new Error("Interactive launch forbidden in CLI fixture"); },
+        version: async () => { throw new Error("Version dispatch forbidden in CLI fixture"); },
+        update: async () => { throw new Error("Self-update forbidden in CLI fixture"); },
+        packages: request => owned.runPackageCommand(request, { createPort: packages.createPiPackagesPort }),
+      }, { stdout: message => { stdout += message; }, stderr: message => { stderr += message; } }, owned.cliCapabilities("0.1.8-dev"));
+    }
+    results.push({ id: entry.id, stdout, stderr, code: process.exitCode ?? 0 });
+  }
   process.exitCode = 0;
-  process.env.PACKAGE_MESSAGE_SCENARIO = JSON.stringify(entry.scenario ?? {});
-  if (entry.settings) {
-    await mkdir(join(home, ".a1", "agent"), { recursive: true });
-    await writeFile(join(home, ".a1", "agent", "settings.json"), `${JSON.stringify(entry.settings, null, 2)}\n`);
-  }
-  if (pinned) {
-    if (!await pinned.handlePackageCommand(entry.pinnedArgs)) throw new Error("Unrecognized pinned fixture command");
-  } else {
-    process.exitCode = await owned.dispatchCli(entry.ownedArgs, {
-      launch: async () => { throw new Error("Interactive launch forbidden in CLI fixture"); },
-      version: async () => { throw new Error("Version dispatch forbidden in CLI fixture"); },
-      update: async () => { throw new Error("Self-update forbidden in CLI fixture"); },
-      packages: request => owned.runPackageCommand(request, { createPort: packages.createPiPackagesPort }),
-    }, { stdout: message => { stdout += message; }, stderr: message => { stderr += message; } }, owned.cliCapabilities("0.1.8-dev"));
-  }
-  results.push({ id: entry.id, stdout, stderr, code: process.exitCode ?? 0 });
+  // Platform: Windows must not retain a process cwd inside the scenario's disposable home.
+  process.chdir(repository);
+  return results;
 }
-process.exitCode = 0;
-write(JSON.stringify(results));
+if (home === "--server") {
+  const { createInterface } = await import("node:readline");
+  for await (const line of createInterface({ input: process.stdin, crlfDelay: Infinity })) {
+    const request = JSON.parse(line);
+    write(`${JSON.stringify(await capture(request.home, request.cases))}\n`);
+  }
+} else write(JSON.stringify(await capture(home, JSON.parse(encodedCases))));

@@ -67,7 +67,10 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
     try { if (!(await stat(resolve(repository, test))).isFile()) throw new Error("not a file"); }
     catch { throw new Error(`additional validation test does not exist: ${test}`); }
   }
-  const atomic = expandValidationScopes(suites, requested);
+  const expanded = expandValidationScopes(suites, requested);
+  // Invariant: a declared stronger scope supplies every weaker contract, not another capture of it.
+  const superseded = new Set(expanded.flatMap(scope => suites.fullReleaseSupersedes?.[scope] ?? []));
+  const atomic = expanded.filter(scope => !superseded.has(scope));
   const definitions = atomic.map(name => ({ name, definition: suites.tiers[name] ?? suites.scopes[name] }));
   const full = requested.includes("full-release");
   const requiresBuild = definitions.some(({ definition }) => definition.requiresBuild === true);
@@ -204,7 +207,7 @@ export async function createTierPlan(requested, repository = process.cwd(), opti
           ...resourceSensitiveInvocations,
           { id: "vitest-isolated-timing", scopes: ["update-performance"], arguments: ["vitest", "run", ...performanceTests, "--no-file-parallelism", "--testTimeout=120000"] },
           ...[...packageSmokeTests].map((path, index) => ({ id: `vitest-package-smoke-${index + 1}`, scopes: ["package-smoke"], arguments: ["vitest", "run", path, "--no-file-parallelism", "--testTimeout=120000"] })),
-          { id: "vitest-isolated-suites", scopes: ["rendering-stability"], arguments: ["vitest", "run", ...isolatedTests, "--no-file-parallelism", "--testTimeout=600000"] },
+          { id: "vitest-isolated-suites", scopes: ["rendering-stability"], arguments: ["vitest", "run", ...requestedIsolated, "--no-file-parallelism", "--testTimeout=600000"] },
           { id: "vitest-package-startup", scopes: ["package-startup"], arguments: ["vitest", "run", ...packageStartupTests, "--no-file-parallelism", "--testTimeout=600000"] },
           { id: "vitest-package-contracts", scopes: ["package-contracts"], arguments: ["vitest", "run", ...packageContractTests, "--no-file-parallelism", "--testTimeout=600000"] },
           // Rationale: the exhaustive published-predecessor owner runs as its own invocation with the ordinary

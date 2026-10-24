@@ -9,20 +9,8 @@ import { loadIntegrationOwners } from "./integration-owners.mjs";
 import { loadValidationOwnership, selectValidationOwnership, validationSelectionDigest } from "./validation-ownership.mjs";
 
 const execFileAsync = promisify(execFile);
-const FULL_EXACT = new Set([
-  ".github/workflows/ci.yml",
-  ".github/workflows/full-regression.yml",
-  ".github/workflows/publish.yml",
-  "config/validation-suites.json",
-  "package-lock.json",
-  "package.json",
-  "scripts/release/validation-impact.mjs",
-  "scripts/release/select-validation-impact.mjs",
-  "tsconfig.json",
-  "tsconfig.bin.json",
-  "tsconfig.build.json",
-  "vitest.config.ts",
-]);
+// Generic validation-authority changes exercise bounded policy contracts; exhaustive rendering is selected only by rendering surfaces.
+const FULL_EXACT = new Set();
 const FULL_PREFIXES = Object.freeze([
   "test/support/rendering/",
   "test/support/input-responsiveness/",
