@@ -1321,7 +1321,7 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
 /// Starts the attach session, requests the initial view, and asks for the registry; returns the
 /// view request generation.
 fn start_session(
-    stream: &mut endpoint::EndpointStream,
+    stream: &mut impl Write,
     options: &AttachOptions<'_>,
     columns: u16,
     outer_rows: u16,
@@ -1347,18 +1347,56 @@ fn start_session(
     )?;
     if let Some(tab_id) = options.view_tab {
         request_generation = request_generation.saturating_add(1);
-        wire::send(
-            stream,
-            "tab.view",
-            None,
-            ViewTarget {
-                tab_id: tab_id.into(),
-                request_generation,
-            },
-        )?;
+        send_view_with_geometry(stream, tab_id, request_generation, columns, outer_rows, 0)?;
+    } else {
+        // Invariant: admission selected the existing default before attach.start. Reapply this
+        // terminal's size even when no explicit tab.view is needed, so a differently sized
+        // reattach cannot inherit the previous controller's geometry.
+        send_resize(stream, columns, outer_rows, 0)?;
     }
     wire::send(stream, "tab.list", None, wire::ResultBody::ok())?;
     Ok(request_generation)
+}
+
+fn send_view_with_geometry(
+    stream: &mut impl Write,
+    tab_id: &str,
+    request_generation: u64,
+    columns: u16,
+    outer_rows: u16,
+    geometry_generation: u64,
+) -> Result<(), String> {
+    // Protocol: the server processes this stream in order. Selecting first makes the following
+    // resize target the incoming tab rather than the one the client is leaving.
+    wire::send(
+        stream,
+        "tab.view",
+        None,
+        ViewTarget {
+            tab_id: tab_id.into(),
+            request_generation,
+        },
+    )?;
+    send_resize(stream, columns, outer_rows, geometry_generation)
+}
+
+fn send_resize(
+    stream: &mut impl Write,
+    columns: u16,
+    outer_rows: u16,
+    geometry_generation: u64,
+) -> Result<(), String> {
+    wire::send(
+        stream,
+        "resize",
+        None,
+        Resize {
+            columns,
+            rows: tab_rows(outer_rows).map_err(str::to_owned)?,
+            epoch: 0,
+            geometry_generation,
+        },
+    )
 }
 
 /// How long the landing wordmark takes to wipe into the new Agent's caret, and its frame pace.
@@ -1823,14 +1861,13 @@ impl Client {
         self.request_generation = self.request_generation.saturating_add(1);
         self.view.request(&tab_id);
         self.view.expect_request_generation(self.request_generation);
-        wire::send(
+        send_view_with_geometry(
             &mut self.stream,
-            "tab.view",
-            None,
-            ViewTarget {
-                tab_id,
-                request_generation: self.request_generation,
-            },
+            &tab_id,
+            self.request_generation,
+            self.columns,
+            self.outer_rows,
+            self.geometry_generation,
         )
     }
 
@@ -3170,6 +3207,87 @@ fn encode_child_mouse(kind: MouseEventKind, column: u16, row: u16) -> Option<Vec
 mod tests {
     use super::*;
     use crate::core::attach::{PopupAction, update_drag};
+
+    fn split_frames(bytes: &[u8]) -> Vec<&[u8]> {
+        let mut frames = Vec::new();
+        let mut offset = 0usize;
+        while offset < bytes.len() {
+            let size = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap()) as usize;
+            let end = offset + 4 + size;
+            frames.push(&bytes[offset..end]);
+            offset = end;
+        }
+        frames
+    }
+
+    fn test_attach_options(view_tab: Option<&str>) -> AttachOptions<'_> {
+        AttachOptions {
+            endpoint: "test",
+            cwd: "D:/work",
+            clear_exit_ms: 1_500,
+            tabs_max: usize::MAX,
+            profile: Path::new("."),
+            settings_file: Path::new("settings.json"),
+            data_dir: Path::new("data"),
+            runtime_dir: Path::new("runtime"),
+            release_root: "D:/release",
+            node_executable: "node",
+            session_file: None,
+            session_dir: None,
+            view_tab,
+        }
+    }
+
+    #[test]
+    fn activation_orders_current_geometry_after_the_selected_tab() {
+        let mut frames = Vec::new();
+        send_view_with_geometry(&mut frames, "tab-2", 7, 132, 41, 9).unwrap();
+        let frames = split_frames(&frames);
+        assert_eq!(frames.len(), 2);
+
+        let view: protocol::Envelope<ViewTarget> = protocol::decode_frame(frames[0]).unwrap();
+        assert_eq!(view.message_type, "tab.view");
+        assert_eq!(view.body.tab_id, "tab-2");
+        assert_eq!(view.body.request_generation, 7);
+
+        let resize: protocol::Envelope<Resize> = protocol::decode_frame(frames[1]).unwrap();
+        assert_eq!(resize.message_type, "resize");
+        assert_eq!((resize.body.columns, resize.body.rows), (132, 40));
+        assert_eq!(resize.body.geometry_generation, 9);
+    }
+
+    #[test]
+    fn attach_start_reapplies_geometry_for_default_and_requested_tabs() {
+        let mut default = Vec::new();
+        assert_eq!(
+            start_session(&mut default, &test_attach_options(None), 100, 30).unwrap(),
+            1
+        );
+        let default = split_frames(&default);
+        assert_eq!(default.len(), 3);
+        let resize: protocol::Envelope<Resize> = protocol::decode_frame(default[1]).unwrap();
+        assert_eq!(resize.message_type, "resize");
+        assert_eq!((resize.body.columns, resize.body.rows), (100, 29));
+
+        let mut requested = Vec::new();
+        assert_eq!(
+            start_session(
+                &mut requested,
+                &test_attach_options(Some("tab-existing")),
+                120,
+                36,
+            )
+            .unwrap(),
+            2
+        );
+        let requested = split_frames(&requested);
+        assert_eq!(requested.len(), 4);
+        let view: protocol::Envelope<ViewTarget> = protocol::decode_frame(requested[1]).unwrap();
+        let resize: protocol::Envelope<Resize> = protocol::decode_frame(requested[2]).unwrap();
+        assert_eq!(view.message_type, "tab.view");
+        assert_eq!(view.body.tab_id, "tab-existing");
+        assert_eq!((resize.body.columns, resize.body.rows), (120, 35));
+    }
 
     #[test]
     fn wake_gap_detects_suspend_without_repainting_during_ordinary_idle() {

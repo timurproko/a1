@@ -42,6 +42,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn readonly_resize_is_ignored_without_triggering_input_claim() {
+        assert_eq!(unroutable_input_rejection("resize"), None);
+        assert_eq!(
+            unroutable_input_rejection("input"),
+            Some(INPUT_REJECTED_READ_ONLY)
+        );
+    }
+
+    #[test]
     fn admission_selects_only_a_registered_tab() {
         assert_eq!(
             attach_admission(&[], "tab-1", "client", 1, 2).selected_tab,
@@ -54,6 +63,13 @@ mod tests {
         assert_eq!(initial.revision, 2);
         assert_eq!(initial.tabs[0].tab_id, "tab-1");
     }
+}
+
+fn unroutable_input_rejection(message_type: &str) -> Option<&'static str> {
+    // A spectator's geometry never controls the shared child. Unlike typed input, silently
+    // ignoring its resize must not make the attach client interpret the refusal as a lost input
+    // claim and take control merely because it switched views.
+    (message_type != "resize").then_some(INPUT_REJECTED_READ_ONLY)
 }
 
 fn registry_tab_list(registry: &RegistryDocument) -> TabList {
@@ -501,7 +517,7 @@ pub(super) fn serve_attach(
                                 .and_then(|_| locked.holders.get(tab_id))
                         });
                         match holder {
-                            None => Some(INPUT_REJECTED_READ_ONLY),
+                            None => unroutable_input_rejection(&kind.message_type),
                             // Compatibility: an older same-generation holder cannot encode
                             // semantic events; the client re-sends the event as bytes.
                             Some(holder) if semantic && !holder.semantic_input => {
