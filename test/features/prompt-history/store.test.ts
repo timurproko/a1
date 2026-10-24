@@ -19,6 +19,24 @@ function open(path = join(root(), "history.sqlite3"), limit = 100) { const value
 const prompt = (id: string, text = id): PromptHistorySubmission => ({ id, text, timestamp: 1, kind: "prompt" });
 
 describe("profile history store", () => {
+  it("keeps unique sessions separate through reopen and mode switches without migrating images", () => {
+    const dataDir = root(); const profile = join(dataDir, "profile");
+    const shared = resolvePromptHistoryPath(dataDir, profile);
+    const one = resolvePromptHistoryPath(dataDir, profile, process.platform, "unique", "session-one");
+    const two = resolvePromptHistoryPath(dataDir, profile, process.platform, "unique", "session-two");
+    open(shared.path, 100).record(prompt("legacy", "shared prompt"));
+    open(one.path, 100).record(prompt("first", "first prompt"));
+    open(two.path, 10).record(prompt("second", "second prompt"));
+    const image = { tag: "[📷 screenshot-aabb]", data: "aGVsbG8=", mimeType: "image/png", savedAt: "now" };
+    new PromptImageSidecar(one.imagesDir).write("aabb", image);
+    expect(new PromptImageSidecar(two.imagesDir).read("aabb")).toBeNull();
+    expect(new PromptImageSidecar(shared.imagesDir).read("aabb")).toBeNull();
+    expect(new PromptImageSidecar(one.imagesDir).read("aabb")).toEqual(image);
+    expect(open(one.path).snapshot().entries.map(entry => entry.text)).toEqual(["first prompt"]);
+    expect(open(two.path).snapshot().entries.map(entry => entry.text)).toEqual(["second prompt"]);
+    expect(open(shared.path).snapshot().entries.map(entry => entry.text)).toEqual(["shared prompt"]);
+  }, DURABLE_STORE_TEST_TIMEOUT_MS);
+
   // Rationale: acknowledgement fault injection still performs real durable setup and COMMITs, not a latency benchmark.
   it.each([false, true])("reports truthful certainty when COMMIT acknowledgement is lost (committed=%s)", committed => {
     const store = open();

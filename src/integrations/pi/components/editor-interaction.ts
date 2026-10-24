@@ -21,6 +21,8 @@ export interface EditorRecallPort {
   position(): { readonly index: number; readonly total: number };
   observe(listener: () => void): () => void;
   reset(): void;
+  /** Exit a recall browse cycle by restoring the unsent draft rather than keeping the recalled entry. */
+  restoreDraft?(): void;
 }
 
 export interface EditorSurface extends Pick<Editor, Exclude<keyof Editor, "setText" | "render" | "handleInput">> {
