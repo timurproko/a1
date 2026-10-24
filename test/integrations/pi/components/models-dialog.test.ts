@@ -83,6 +83,8 @@ describe("unified Models dialog", () => {
       expect(stripped[2]).toBe(" Filter: all | scoped");
       expect(lines[2]).toContain(piTheme().fg("mdHeading", "all"));
       expect(lines[2]).not.toContain(piTheme().fg("accent", "all"));
+      const search = lines.find(line => stripTerminalSequences(line).trimEnd() === " >")!;
+      expect(cellStyle(search, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
       expect(rows(dialog)).toEqual([
         "   ○ claude [anthropic]",
         " → ○ gpt-5 [openai] ✓",

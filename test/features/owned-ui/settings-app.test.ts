@@ -830,6 +830,8 @@ describe("the settings screen", () => {
     let shown = screen(target).join("\n");
     expect(shown).toContain("Thinking Level (step 1/2)");
     expect(shown).toContain("Select a model to configure");
+    expect(screen(target)).toContain(">");
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).toContain("<accent>></accent> ");
     expect(shown).toContain("gpt-5 [openai]");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
     expect(shown).toContain("Type search · Enter select · Esc close");
@@ -838,6 +840,7 @@ describe("the settings screen", () => {
 
     for (const character of "spark") target.onInput?.(character, HOST);
     shown = screen(target).join("\n");
+    expect(shown).toContain("> spark");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
     expect(shown).not.toContain("gpt-5 [openai]");
 

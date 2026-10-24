@@ -1,8 +1,60 @@
-import { CancellableLoader, Container, Spacer, Text, type Component, type TUI } from "@earendil-works/pi-tui";
+import {
+  CancellableLoader,
+  Container,
+  Input,
+  Spacer,
+  Text,
+  type Component,
+  type Focusable,
+  type TUI,
+  type TuiMouseEvent,
+  type TuiMouseEventResult,
+} from "@earendil-works/pi-tui";
 import { DynamicBorder } from "../startup-public.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "./theme.js";
 
 export const PI_MODAL_CONTENT_PADDING_X = 1;
+
+/** Paints the standard Pi Input prompt as a live-themed dialog-search marker. */
+export function renderPiModalSearchInput(input: Input, width: number): string[] {
+  return input.render(width).map(row => {
+    if (row.length === 0) return row;
+    if (!row.startsWith(">")) throw new TypeError("modal search input does not use the standard prompt");
+    return `${piTheme().fg("accent", ">")}${row.slice(1)}`;
+  });
+}
+
+/** Keeps Pi Input behavior and geometry while owning only its standard dialog-search presentation. */
+export class PiModalSearchInput implements Component, Focusable {
+  readonly #input: Input;
+
+  constructor(input: Input) {
+    this.#input = input;
+  }
+
+  get focused(): boolean { return this.#input.focused; }
+  set focused(value: boolean) { this.#input.focused = value; }
+  invalidate(): void { this.#input.invalidate(); }
+  render(width: number): string[] { return renderPiModalSearchInput(this.#input, width); }
+  handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined { return this.#input.handleMouse(event); }
+}
+
+/** Replaces one explicitly identified direct Input child with the standard search presentation. */
+export function adoptPiModalSearchInput(container: Container, input: Component): PiModalSearchInput {
+  if (!(input instanceof Input)) throw new TypeError("modal search component is not an Input");
+  const index = container.children.indexOf(input);
+  if (index === -1) throw new TypeError("modal search Input is not a direct child");
+  const presentation = new PiModalSearchInput(input);
+  container.children.splice(index, 1, presentation);
+  return presentation;
+}
+
+/** Adds one standard dialog-search presentation while callers retain the Input controller. */
+export function addPiModalSearchInput(container: Container, input: Input): PiModalSearchInput {
+  const presentation = new PiModalSearchInput(input);
+  container.addChild(presentation);
+  return presentation;
+}
 
 /** Adds the standard navigation/select/close footer before a dependency component's bottom rule. */
 export function addPiModalSelectFooter(container: Container): void {

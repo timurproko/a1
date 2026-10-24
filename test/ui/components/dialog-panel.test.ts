@@ -58,8 +58,8 @@ describe("shared dialog panel", () => {
     expect(rows.at(-1)).toBe("─".repeat(80));
     expect(rows.filter(row => row === "─".repeat(80))).toHaveLength(2);
     expect(rows.join("\n")).toContain("Thinking Level (step 1/2)");
-    expect(rows.some(row => stripAnsi(row).trimEnd() === "spark")).toBe(true);
-    expect(rows.join("\n")).not.toContain("> spark");
+    expect(rows.some(row => stripAnsi(row).trimEnd() === "> spark")).toBe(true);
+    expect(rows.join("\n")).toContain("> spark");
     expect(rows.join("\n")).not.toContain("❯ spark");
     expect(rows.join("\n")).toContain("Select a model to configure");
     expect(rows.join("\n")).toContain("Type search · Enter select · Esc close");
@@ -71,6 +71,7 @@ describe("shared dialog panel", () => {
       step: 1,
       steps: 2,
       description: "Select a model to configure",
+      input: new LineInput(""),
       rows: [{ label: "gpt-5.3-codex-spark", labelSuffix: " [openai-codex]", value: "" }],
       index: 0,
       hint: [{ key: "esc", action: "close" }],
@@ -78,6 +79,7 @@ describe("shared dialog panel", () => {
 
     expect(rows[1]).toContain("<accent>Thinking Level</accent> <dim>(step 1/2)</dim>");
     expect(rows[2]).toContain("<dim>Select a model to configure</dim>");
+    expect(rows.some(row => row.includes("<accent>></accent> "))).toBe(true);
     expect(rows.join("\n")).toContain("<text>gpt-5.3-codex-spark</text><muted> [openai-codex]</muted>");
   });
 

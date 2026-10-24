@@ -1,6 +1,6 @@
 import { DynamicBorder } from "../startup-public.js";
 import { Container, getKeybindings, Input, Spacer, Text, type Component } from "@earendil-works/pi-tui";
-import { addPiModalHeader, adoptPiModalFrame } from "./modal-frame.js";
+import { addPiModalHeader, addPiModalSearchInput, adoptPiModalFrame } from "./modal-frame.js";
 import {
   DIALOG_CLOSE_SHORTCUT_HINT,
   paintPiBorder,
@@ -70,7 +70,7 @@ class SkillsSelectorComponent extends Container {
     this.#searchInput.onSubmit = () => this.#selectCurrent();
     const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), new Text(piTheme().fg("accent", piTheme().bold("Skills")), 0, 0));
     this.addChild(new Spacer(1));
-    this.addChild(this.#searchInput);
+    addPiModalSearchInput(this, this.#searchInput);
     this.addChild(new Spacer(1));
     this.addChild(this.#listContainer);
     this.addChild(new Spacer(1));

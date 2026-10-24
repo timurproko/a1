@@ -8,7 +8,7 @@ import {
   type Focusable,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "../startup-public.js";
-import { PiModalFrame } from "./modal-frame.js";
+import { PiModalFrame, renderPiModalSearchInput } from "./modal-frame.js";
 import {
   DIALOG_CLOSE_SHORTCUT_HINT,
   paintPiBorder,
@@ -329,7 +329,7 @@ export class ModelsDialogComponent implements Component, Focusable {
       + theme.fg("dim", " | ")
       + theme.fg(this.#filter === "scoped" ? "mdHeading" : "dim", "scoped"));
     push();
-    for (const line of this.#input.render(width)) push(line);
+    for (const line of renderPiModalSearchInput(this.#input, width)) push(line);
     push();
 
     if (rows.length === 0) {

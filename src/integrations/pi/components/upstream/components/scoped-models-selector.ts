@@ -5,9 +5,9 @@
  * search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status,
  * cancellation, and focus while remapping theme and public helper imports; local key labels preserve
  * pinned platform formatting before layout without changing binding identities, and bare A1 uses the
- * shared semantic modal shortcut row and compact padded modal frame while immediately closing on the
- * implicit Ctrl+C selection-cancel alias without advertising it.
- * Deviations: owned-modal-shortcut-hints, owned-dialog-ctrl-c-cancel.
+ * shared semantic modal shortcut row, accent search marker, and compact padded modal frame while
+ * immediately closing on the implicit Ctrl+C selection-cancel alias without advertising it.
+ * Deviations: owned-modal-shortcut-hints, owned-dialog-ctrl-c-cancel, owned-dialog-search-marker.
  */
 interface ScopedModel {
 	readonly provider: string;
@@ -25,7 +25,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { getModelSearchText } from "../model-search.js";
-import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
+import { addPiModalHeader, addPiModalSearchInput, adoptPiModalFrame } from "../../modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
 // Rationale: upstream's capitalized hint formatter is private to the package; the same mapping lives here.
@@ -173,7 +173,7 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 
 		// Search input
 		this.searchInput = new Input();
-		this.addChild(this.searchInput);
+		addPiModalSearchInput(this, this.searchInput);
 		this.addChild(new Spacer(1));
 
 		// List container
