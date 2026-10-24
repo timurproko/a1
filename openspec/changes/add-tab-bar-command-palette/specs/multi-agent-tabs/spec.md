@@ -31,7 +31,7 @@ A1 SHALL offer `Agent`, a multi-instance kind whose every invocation creates a n
 - **THEN** the strip SHALL no longer show `+`, and the Settings `Plus menu` entry SHALL still open the dialog
 
 ### Requirement: New content enters through one reveal
-The attach client SHALL reveal new content through one shared reveal: content first draws faint for one fade interval and then at full intensity, with the same interval and faint treatment for every use. Its scope SHALL decide what fades: after a resize the whole frame, the strip included, fades in and the cursor stays hidden; for a tab that joins the strip only the content fades in and the child's cursor stays shown. A tab joins the strip when the server creates or reveals it for the client while the strip does not show it, whether a new Agent or a hidden Settings or Changelog tab. It SHALL appear in the strip as the active tab at once, before the registry lists it, while the content area stays empty; once the tab's first frame commits, its content SHALL fade in and the strip SHALL stay at full intensity throughout. Switching to a tab the strip already shows SHALL NOT fade. A tab created from the landing SHALL keep the landing body for its wipe, in which the wordmark, the cwd, and the version all wipe away from the right until only the white caret cell remains, and its content SHALL then fade in like any other joining tab.
+The attach client SHALL reveal new content through one shared reveal: content first draws faint for one fade interval and then at full intensity, with the same interval and faint treatment for every use. Its scope SHALL decide what fades: after a resize the whole frame, the strip included, fades in; for a tab that joins the strip only the content fades in. No cursor SHALL show while content is veiled or fading, so a joining tab never shows a stray cursor before its own. A tab joins the strip when the server creates or reveals it for the client while the strip does not show it, whether a new Agent or a hidden Settings or Changelog tab. It SHALL appear in the strip as the active tab at once, before the registry lists it, while the content area stays empty; once the tab's first frame commits, its content SHALL fade in and the strip SHALL stay at full intensity throughout. Switching to a tab the strip already shows SHALL NOT fade. The body a joining tab replaces, another tab or the landing alike, SHALL hide at once; the landing has no wipe of its own.
 
 #### Scenario: A new tab fades in
 - **WHEN** the user creates an Agent beside another tab
@@ -43,7 +43,7 @@ The attach client SHALL reveal new content through one shared reveal: content fi
 
 #### Scenario: The first tab from the landing
 - **WHEN** the user adds a tab from the landing
-- **THEN** the wordmark, cwd, and version SHALL wipe away leaving the caret cell, and the Agent's content SHALL fade in with its caret shown throughout
+- **THEN** the landing SHALL hide at once, the tab SHALL join the strip, and its content SHALL fade in with no cursor shown until it is in
 
 #### Scenario: Resize and a new tab share the fade
 - **WHEN** a resize reveal and a new tab's reveal each run
@@ -119,6 +119,46 @@ A resident Agent's tab name and its Pi session name SHALL name the same thing. A
 - **THEN** the Agent's session name SHALL become `login fix`
 
 ## MODIFIED Requirements
+
+### Requirement: The empty resident shell presents the a1 landing
+While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body: the launch cwd, formatted and placed as an Agent tab's footer shows it (flush left on the second-to-last body row, with the home directory as `~`, in the footer's dim color), the running version as `v<version>` in the footer's dim color on the row below it, and the three-row half-block `a1` wordmark in the profile's accent color on the rows above it (omitted where half-block glyphs are unsupported or rows run out), so the folder stays in place when a tab opens or closes at either strip position. The landing body SHALL be painted with the canvas the `backgroundStyle` setting gives Agent tabs, and SHALL leave the terminal background when it is `transparent`. When a tab is added from the landing, the landing SHALL hide like any other content and the tab SHALL be revealed through the shared reveal, with no wipe animation. The landing SHALL hold no input: keys, paste, and body mouse input SHALL reach no child, while tab shortcuts, the `+` launcher and its popups, strip hover, strip mouse input, and the double-`Ctrl+C` detach SHALL behave exactly as with tabs. The landing SHALL render no cursor and SHALL never be shown while a tab is viewed or requested.
+
+#### Scenario: Last tab closes into the landing
+- **WHEN** the final Agent or Settings tab closes while the attach client stays open and the strip is at the top
+- **THEN** the strip SHALL show `+` and the clock and the body SHALL show the launch cwd on the row where an Agent's footer shows it, the version below it, and the wordmark above it
+- **AND** no cursor SHALL show
+
+#### Scenario: The folder does not move when a tab opens
+- **WHEN** the user creates an Agent from the landing at either tab bar position
+- **THEN** the Agent's footer SHALL show the cwd on the same row and column as the landing showed it
+
+#### Scenario: Start an Agent from the landing
+- **WHEN** the user presses the `New A1 tab` shortcut or chooses `+ Agent` from the launcher on the landing
+- **THEN** one Agent SHALL be created and presented through the ordinary tab UI
+
+#### Scenario: Open Settings from the landing
+- **WHEN** the user presses the `Open Settings tab` shortcut or chooses `Settings` from the `+` launcher on the landing
+- **THEN** the hidden Settings tab kept ready beside the landing SHALL be shown through the ordinary tab UI without starting a new process
+
+#### Scenario: Adding a tab hides the landing
+- **WHEN** the user adds an Agent or Settings tab from the landing
+- **THEN** the landing SHALL hide at once, the tab SHALL join the strip, and its content SHALL fade in as it would beside another tab
+
+#### Scenario: The wordmark hands over to the Agent caret
+- **WHEN** the user starts an Agent from the landing
+- **THEN** no wipe SHALL run: the wordmark SHALL hide with the rest of the landing at once, and the Agent's content SHALL fade in through the shared reveal
+
+#### Scenario: The landing follows the background setting
+- **WHEN** `backgroundStyle` is `accent` or `dark` and the landing is shown
+- **THEN** every body cell SHALL use the canvas an Agent tab would use for that style and accent
+
+#### Scenario: A lone hidden Settings tab is not an Agent
+- **WHEN** bare `a1` attaches and the registry holds only a hidden Settings tab
+- **THEN** the server SHALL create one A1 tab in the launch cwd and the client SHALL view it, not the Settings tab
+
+#### Scenario: Small terminal
+- **WHEN** the body has fewer rows or columns than the full header needs
+- **THEN** the header SHALL be clipped to the body without wrapping or overflowing it
 
 ### Requirement: Tabs are managed from the strip, mouse, and assignable actions
 A1 SHALL create a new Agent tab in the client's launch cwd from `Alt+A`; clicking `+` SHALL act as the configured plus menu requires, and by default SHALL create one Agent through the same creation flow. Settings SHALL create or show the singleton global Settings utility tab; its default `Alt+,` action SHALL do the same from another tab and SHALL hide the Settings tab while it is viewed. `Alt+1` through `Alt+9` SHALL view those positions and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click on a tab SHALL view it. Right click on a visible Agent tab SHALL open a stable two-row context menu anchored beneath the pointer and clamped to the terminal, with `Close` first and `Rename` second; a Settings or Changelog tab SHALL expose Close but SHALL NOT be renameable. Popup labels SHALL use effective shortcut assignments. Escape, a click elsewhere, a tab switch, or target removal SHALL dismiss a menu without action. Dragging an Agent chip after 250 ms or one column of movement SHALL calculate insertion from chip midpoints, preview only a real move with a v2 `│` marker, and issue one reorder with the captured expected revision on release; release away from the strip SHALL cancel. No tab-management slash command SHALL be exposed. A1 SHALL impose no configured or hard user tab count and SHALL never return a `tab-limit` refusal; only a concrete launch, persistence, containment, protocol, or operating-system resource failure MAY refuse creation. Each client SHALL keep its own viewed tab.
