@@ -3,28 +3,43 @@
 ## ADDED Requirements
 
 ### Requirement: The plus menu is configurable
-`+` SHALL always offer `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose launcher row carries the `+` marker. The A1 setting `tabBarPlusMenu` SHALL hold the extra kinds `+` offers besides Agent, comma-joined in kind order, and SHALL default to none; `Settings`, a singleton toggle whose launcher row carries `✓` while its tab is open, SHALL be the only extra kind. With no extra kind, clicking `+` SHALL create an Agent without a menu; with Settings enabled, clicking `+` SHALL open the launcher with `+ Agent`, a separator, and `Settings`, each with its effective shortcut right-aligned. Right-clicking `+` SHALL open a one-row `Configure` popup whose selection opens the `Plus Menu` dialog as a modal over the dimmed active tab or landing, without switching tabs. The dialog SHALL describe itself as `Choose what else the + button in the tab bar can add.`, list each extra kind, not Agent, with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, store each toggle in `tabBarPlusMenu` at once under the settings document lock, apply it to `+` without a restart, ignore the pointer, and close with `Esc`. The search line SHALL draw its caret as a reversed white cell, as owned inputs do, and a blank row SHALL separate the description from it. The Settings `Plus menu` entry SHALL open the same modal over the Settings tab through the tab's controlling client, and SHALL open an equivalent dialog inside the Settings screen only when no tab bar can show it. When a modal closes, the strip SHALL draw at full intensity.
+A1 SHALL offer `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose launcher row carries the `+` marker, and every utility kind, `Settings` and `Changelog`, singleton toggles whose launcher rows carry `✓` while their tab is open. The A1 setting `tabBarPlusMenu` SHALL hold the kinds `+` offers, comma-joined in that order, and SHALL default to `Agent` alone. With only `Agent` enabled, clicking `+` SHALL create an Agent without a menu; with any other enabled set, clicking `+` SHALL open the launcher with one row per enabled kind in kind order and each row's effective shortcut right-aligned; with no kind enabled, the strip SHALL hide `+` and give its cells to the tabs. Right-clicking `+` SHALL open a one-row `Configure` popup whose selection opens the `Plus Menu` dialog as a modal over the dimmed active tab or landing, without switching tabs. The dialog SHALL describe itself as `Choose what the + button in the tab bar can add.`, list every kind with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, store each toggle in `tabBarPlusMenu` at once under the settings document lock, apply it to `+` without a restart, ignore the pointer, and close with `Esc`. The search line SHALL draw its caret as a reversed white cell, as owned inputs do, and a blank row SHALL separate the description from it. The Settings `Plus menu` entry SHALL open the same modal over the Settings tab through the tab's controlling client, and SHALL open an equivalent dialog inside the Settings screen only when no tab bar can show it. When a modal closes, the strip SHALL draw at full intensity.
 
 #### Scenario: Default plus
 - **WHEN** the profile stores no plus menu and the user clicks `+`
 - **THEN** one Agent SHALL be created and no launcher SHALL open
 
-#### Scenario: Plus offers Settings
-- **WHEN** the plus menu enables Settings and the user clicks `+`
-- **THEN** the launcher SHALL show `+ Agent` and `Settings` in that order with their effective shortcuts
-- **AND** Settings SHALL show `✓` while its tab is open
+#### Scenario: Plus offers more kinds
+- **WHEN** the plus menu enables Agent, Settings, and Changelog and the user clicks `+`
+- **THEN** the launcher SHALL show `+ Agent`, `Settings`, and `Changelog` in that order with their effective shortcuts
+- **AND** Settings or Changelog SHALL show `✓` while its tab is open
 
 #### Scenario: Configure from the strip
 - **WHEN** the user right-clicks `+` and chooses `Configure`
-- **THEN** the `Plus Menu` dialog SHALL open over the dimmed active tab, list only `Settings`, and the viewed tab SHALL NOT change
+- **THEN** the `Plus Menu` dialog SHALL open over the dimmed active tab, list `Agent`, `Settings`, and `Changelog`, and the viewed tab SHALL NOT change
 
 #### Scenario: Toggle a kind
-- **WHEN** the dialog is open on `Settings` and the user presses `Space`
-- **THEN** `Settings` SHALL switch between `●` and `○` and the next click on `+` SHALL reflect the change
+- **WHEN** the dialog is open on `Changelog` and the user presses `Space`
+- **THEN** `Changelog` SHALL switch between `●` and `○` and the next click on `+` SHALL reflect the change
 
 #### Scenario: Configure from Settings
 - **WHEN** the user activates the Settings `Plus menu` entry in a resident Settings tab
 - **THEN** the `Plus Menu` modal SHALL open over the dimmed Settings tab
+
+#### Scenario: Nothing enabled
+- **WHEN** the user disables every kind
+- **THEN** the strip SHALL no longer show `+`, and the Settings `Plus menu` entry SHALL still open the dialog
+
+### Requirement: New content enters through one reveal
+The attach client SHALL reveal new content through one shared reveal: content first draws faint for one fade interval and then at full intensity, with the same interval and faint treatment for every use. Its scope SHALL decide what fades: after a resize the whole frame, the strip included, fades in; for a newly created tab only the content fades in. A newly created tab SHALL appear in the strip as the active tab at once, before the registry lists it, while the content area stays empty; once the tab's first frame commits, its content SHALL fade in and the strip SHALL stay at full intensity throughout. A tab created from the landing SHALL keep the landing's wipe instead.
+
+#### Scenario: A new tab fades in
+- **WHEN** the user creates an Agent beside another tab
+- **THEN** the strip SHALL show the new tab as active at once over an empty content area, and its content SHALL draw faint when its first frame commits and then at full intensity
+
+#### Scenario: Resize and a new tab share the fade
+- **WHEN** a resize reveal and a new tab's reveal each run
+- **THEN** both SHALL use the same fade interval and faint treatment, the resize fading the strip too and the new tab leaving the strip at full intensity
 
 ### Requirement: The command palette opens every tab kind
 The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal command palette over the dimmed strip and body from any tab, the landing, or the Settings tab. The palette SHALL show the title `Commands` with a dim `esc` hint, a search line that shows the dim placeholder `Search` while empty, one `Tabs` section in the owned section style, and the rows `Agent`, `Settings`, and `Changelog` in the owned list style with `→` and the accent selected background on the selected row and each effective shortcut right-aligned. Up and Down SHALL move the selection, printable keys and `Backspace` SHALL edit a case-insensitive label filter, `Enter` SHALL close the palette and run the selected entry exactly as its shortcut or launcher row would, and `Esc` SHALL close it without action. While the palette is open, no key, paste, or mouse input SHALL reach a child, and mouse input SHALL NOT act on the strip or the palette. A `tabs.changelog` action SHALL exist for assignment without a default key.
