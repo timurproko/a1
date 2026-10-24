@@ -104,10 +104,11 @@ import {
 
 // Invariant: a disposed shell leaves the engine a host that holds no reference back to it.
 const DETACHED_WORKFLOW_INTERACTION: OwnedUiWorkflowInteractionHost = { prompt: async () => null, notify() {} };
-/** Resident Agents refuse the commands whose screens are utility tabs, naming where they live. */
+/** Resident Agents refuse the commands their tab bar serves instead, naming where they live. */
 const RESIDENT_UTILITY_TAB_REFUSALS: Readonly<Record<string, string>> = Object.freeze({
   settings: "Settings is available from the global Settings tab.",
   changelog: "The changelog opens as its own tab from the command palette (Alt+/).",
+  name: "Rename the session by renaming its tab (F2).",
 });
 
 export {

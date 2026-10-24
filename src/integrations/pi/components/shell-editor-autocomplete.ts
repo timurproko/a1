@@ -34,8 +34,8 @@ import {
   type PiShellSkillSummary,
 } from "./skills-command.js";
 
-/** The built-in commands whose screens resident A1 opens as utility tabs instead. */
-const RESIDENT_UTILITY_TAB_COMMANDS: ReadonlySet<string> = new Set(["settings", "changelog"]);
+/** The built-in commands resident A1 serves from its tab bar instead: utility tabs, and the tab rename for `/name`. */
+const RESIDENT_UTILITY_TAB_COMMANDS: ReadonlySet<string> = new Set(["settings", "changelog", "name"]);
 
 /** A selected autocomplete row: its arrow/primary column, then the aligned description. */
 const SELECTED_DESCRIBED_ROW = /^(→ .*?\S)(\s{2,}.*)$/u;

@@ -8,7 +8,8 @@ describe("resident footer session name", () => {
     const direct = await fixture([], [], true);
     try {
       for (const { adapter, engine, shell } of [resident, direct]) {
-        await expect(shell.submit("/name Footer Fixture")).resolves.toMatchObject({ outcome: "completed" });
+        // Rationale: a resident Agent refuses `/name`; its tab rename runs the same name workflow.
+        await expect(shell.runWorkflow({ command: "name", argument: "Footer Fixture" })).resolves.toMatchObject({ outcome: "completed" });
         // Rationale: the engine double emits no name event, so a neutral state event delivers the renamed view.
         engine.session.emit({ type: "thinking_level_changed", level: "medium" });
         await adapter.flushEvents();
