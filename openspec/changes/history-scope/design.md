@@ -29,6 +29,10 @@ Composition and the worker must resolve the same selected location, including im
 - Session IDs and tab recovery can differ by launch path; cover solo, resident, resume, fork, and concurrent sessions before implementation signoff.
 - Scope changes while other agents run create a temporary mix of selected stores; restart boundaries and lack of automatic migration make this explicit, not a source of cross-scope reads.
 
+## Implementation review
+
+The implementation uses the pinned Pi session manager's durable session ID, not the adapter's process-local session ID. The owned shell replaces its history controller and image sidecar when a different conversation binds, retains them on a same-ID rebind, and uses transcript-only fallback if a durable ID is unavailable. Focused settings, path, composition/real SQLite worker, shell-rebind, and sidecar tests cover the proposed boundaries. No approved-scope gaps are known; optional interactive review does not gate implementation completion.
+
 ## Migration Plan
 
 No migration. Shared continues to address exactly the former profile database; Unique creates its per-session store on demand. Returning to Shared restores access to existing shared entries without copying them; returning to a previously used session in Unique restores only that session's entries. Rollback to a version without this setting still sees the untouched shared database.

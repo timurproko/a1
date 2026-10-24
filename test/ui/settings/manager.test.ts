@@ -232,18 +232,29 @@ describe("owned settings manager", () => {
   it("preserves multiple pending history settings through reload and unrelated live saves", async () => {
     const session = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     await session.change("a1", "promptHistoryEnabled", false);
+    await session.change("a1", "promptHistoryScope", "shared");
     await session.change("a1", "promptHistoryMaxItems", 20);
     await session.change("a1", "promptSuggestions", false);
     await session.load();
     expect(session.value("promptHistoryEnabled")).toBe(true);
+    expect(session.value("promptHistoryScope")).toBe("unique");
     expect(session.value("promptHistoryMaxItems")).toBe(100);
     const entries = session.sections().flatMap(section => section.entries);
     expect(entries.find(entry => entry.id === "promptHistoryEnabled")).toMatchObject({ storedValue: false, effectiveValue: true, application: "next-start" });
+    expect(entries.find(entry => entry.id === "promptHistoryScope")).toMatchObject({ storedValue: "shared", effectiveValue: "unique", application: "next-start" });
     expect(entries.find(entry => entry.id === "promptHistoryMaxItems")).toMatchObject({ storedValue: 20, effectiveValue: 100 });
     const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     expect(restarted.value("promptHistoryEnabled")).toBe(false);
+    expect(restarted.value("promptHistoryScope")).toBe("shared");
     expect(restarted.value("promptHistoryMaxItems")).toBe(20);
     expect(restarted.value("promptSuggestions")).toBe(false);
+  });
+
+  it("defaults an invalid stored history scope without losing other saved values", () => {
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ a1: { promptHistoryScope: "all", promptHistoryMaxItems: 20 } }));
+    const manager = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    expect(manager.value("promptHistoryScope")).toBe("unique");
+    expect(manager.value("promptHistoryMaxItems")).toBe(20);
   });
 
   it("normalizes recognizable flat legacy shapes on the next accepted change", async () => {
@@ -268,10 +279,11 @@ describe("owned settings manager", () => {
     const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     const speed: "normal" | "fast" | "high" = target.value("scrollbarSpeed");
     const limit: number = target.value("promptHistoryMaxItems");
+    const scope: "unique" | "shared" = target.value("promptHistoryScope");
     const animate: boolean = target.value("quitAnimation");
     const accent: "purple" | "blue" | "cyan" | "green" | "orange" | "pink" = target.value("accentColor");
     const background: "transparent" | "accent" | "dark" = target.value("backgroundStyle");
-    expect([speed, limit, animate, accent, background]).toEqual(["normal", 100, true, "purple", "transparent"]);
+    expect([speed, limit, scope, animate, accent, background]).toEqual(["normal", 100, "unique", true, "purple", "transparent"]);
     await target.change("a1", "scrollbarSpeed", "fast");
     expect(target.value("scrollbarSpeed")).toBe("fast");
     // Invariant: an injected declaration set that omits a setting still answers with the table default.

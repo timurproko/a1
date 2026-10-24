@@ -185,6 +185,9 @@ export interface OwnedUiShellPresentationOptions {
 /** Persistent prompt history: its store, its bound, the editor that recalls it, and the image sidecar. */
 export interface OwnedUiShellHistoryOptions {
   readonly store: import("../../contracts/owned-ui/index.js").PromptHistoryPort;
+  /** When present, session replacement selects a new store and sidecar, not the old session's recall. */
+  readonly sessionId?: string;
+  readonly forSession?: (sessionId: string) => Pick<OwnedUiShellHistoryOptions, "store" | "imageSidecar">;
   readonly limit: number;
   readonly editor: import("../../integrations/pi/components/index.js").HistoryEditorConstructor;
   /** Optional per-profile filesystem sidecar for image chip payloads. When present, submit

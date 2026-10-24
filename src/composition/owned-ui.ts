@@ -259,18 +259,30 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     // Rationale: one listener covers both the A1 presentation choice and the engine skill-command toggle.
     onChange: (listener: () => void) => settings.onChange(() => listener()),
   };
-  const historyLimit = settings?.value("promptHistoryMaxItems");
-  const historyProfileLocation = settings === null || !ownedSurfaces || !settings.value("promptHistoryEnabled")
-    ? null
-    : resolvePromptHistoryPath(resolvePromptHistoryDataDir(), backend.identity.agentDir);
-  const promptHistory = historyProfileLocation === null ? null : {
-    limit: typeof historyLimit === "number" ? historyLimit : 100,
-    store: new PromptHistoryService({
-      dataDir: resolvePromptHistoryDataDir(),
-      profileRoot: backend.identity.agentDir,
-      limit: typeof historyLimit === "number" ? historyLimit : 100,
-    }),
-    imageSidecar: new PromptImageSidecar(historyProfileLocation.imagesDir),
+  const historyLimit = settings?.value("promptHistoryMaxItems") ?? 100;
+  const historyScope = settings?.value("promptHistoryScope") ?? "unique";
+  const persistenceEnabled = settings !== null && ownedSurfaces && settings.value("promptHistoryEnabled");
+  const historySessionId = persistenceEnabled && historyScope === "unique" ? backend.identity.currentHistorySessionId() : null;
+  const historyEnabled = persistenceEnabled && (historyScope === "shared" || historySessionId !== null);
+  const historyDataDir = historyEnabled ? resolvePromptHistoryDataDir() : null;
+  const historyForSession = (sessionId: string) => {
+    if (historyDataDir === null) throw new Error("History is disabled");
+    const location = resolvePromptHistoryPath(historyDataDir, backend.identity.agentDir, process.platform, historyScope, sessionId);
+    return {
+      store: new PromptHistoryService({
+        dataDir: historyDataDir,
+        profileRoot: backend.identity.agentDir,
+        limit: historyLimit,
+        scope: historyScope,
+        sessionId,
+      }),
+      imageSidecar: new PromptImageSidecar(location.imagesDir),
+    };
+  };
+  const promptHistory = !historyEnabled ? null : {
+    limit: historyLimit,
+    ...(historyScope === "unique" ? { sessionId: historySessionId!, forSession: historyForSession } : {}),
+    ...historyForSession(historySessionId ?? ""),
   };
   const clipboardDestination = options.clipboardDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.clipboardDiagnostics];
   const clipboardDiagnostics = settings !== null && ownedSurfaces && clipboardDestination?.trim()

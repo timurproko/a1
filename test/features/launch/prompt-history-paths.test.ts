@@ -42,6 +42,27 @@ describe("prompt history root selection", () => {
     }
   });
 
+  it.each(platforms)("isolates sessions while preserving the former shared location on $platform", ({ platform, home, path }) => {
+    const data = path.join(home, ".a1", "data");
+    const profile = path.join(home, ".a1", "agent");
+    const shared = resolvePromptHistoryPath(data, profile, platform);
+    const explicitShared = resolvePromptHistoryPath(data, profile, platform, "shared", "ignored");
+    const first = resolvePromptHistoryPath(data, profile, platform, "unique", "session-one");
+    const resumed = resolvePromptHistoryPath(data, profile, platform, "unique", "session-one");
+    const second = resolvePromptHistoryPath(data, profile, platform, "unique", "session-two");
+    expect(explicitShared).toEqual(shared);
+    expect(first).toEqual(resumed);
+    expect(new Set([shared.path, first.path, second.path]).size).toBe(3);
+    expect(new Set([shared.imagesDir, first.imagesDir, second.imagesDir]).size).toBe(3);
+    expect(first.path).toBe(path.join(data, "history", `${first.profileId}.sqlite3`));
+    expect(resolvePromptHistoryPath(path.join(home, "other-data"), profile, platform, "unique", "session-one").profileId).toBe(first.profileId);
+    expect(resolvePromptHistoryPath(data, path.join(home, "other-profile"), platform, "unique", "session-one").profileId).not.toBe(first.profileId);
+    for (const id of ["", "x".repeat(257), "bad\0id"]) {
+      expect(() => resolvePromptHistoryPath(data, profile, platform, "unique", id)).toThrow(TypeError);
+    }
+    expect(() => resolvePromptHistoryPath(data, profile, platform, "unique")).toThrow(TypeError);
+  });
+
   it.each(platforms)("keeps profile identity independent of the selected storage root on $platform", ({ platform, home, path }) => {
     const profile = resolveLaunchProfilePaths({ home, platform, environment: {} }).agentProfile;
     const dataDir = resolvePromptHistoryDataDir({ home, platform, environment: {} });

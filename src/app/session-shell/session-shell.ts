@@ -95,6 +95,7 @@ import {
   shellResourceEntries,
   type OwnedUiSessionShellOptions,
   type OwnedUiShellPresentationOptions,
+  type OwnedUiShellHistoryOptions,
   type OwnedUiShellPromptImagesOptions,
   type OwnedUiShellSkillsOptions,
   type PinnedLayoutPart,
@@ -144,6 +145,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #unsubscribeSkills: () => void;
   #installedCommandSignature = "";
   #promptHistory: PromptHistoryController | null = null;
+  #historyOptions: OwnedUiShellHistoryOptions | undefined;
+  #historySessionId: string | undefined;
   #promptHistoryImageSidecar: import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort | undefined;
   readonly #extensionBridge: PiExtensionUiBridge;
   readonly #stop = new SessionStopLatch();
@@ -423,17 +426,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       }, { customViewport: this.#customViewport });
       constructed.push(this.#unbindSessionSettings);
       if (this.#customViewport && promptHistory !== undefined) {
-        this.#promptHistoryImageSidecar = promptHistory.imageSidecar;
-        const sidecar = this.#promptHistoryImageSidecar;
-        this.#promptHistory = new PromptHistoryController({
-          editor: this.root.editor,
-          store: promptHistory.store,
-          limit: promptHistory.limit,
-          fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
-          active: () => this.root.usesDefaultInputSurface(),
-          render: () => this.#terminal.requestRender(),
-          rehydrate: value => this.root.rehydrateHistoryText(value, id => sidecar?.readAttachment(id) ?? null),
-        });
+        this.#historyOptions = promptHistory;
+        this.#historySessionId = promptHistory.sessionId;
+        this.#installPromptHistory(promptHistory);
         constructed.push(() => { void this.#promptHistory?.close().catch(() => false); });
       }
       this.#extensionBridge = this.#createExtensionBridge();
@@ -1292,11 +1287,47 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     ]);
   }
 
-  // Invariant: delivery recovery invalidates callbacks, not same-session local recall or its draft.
+  // Invariant: each controller and its image sidecar belong to one selected durable store.
+  #installPromptHistory(history: OwnedUiShellHistoryOptions): PromptHistoryController {
+    this.#promptHistoryImageSidecar = history.imageSidecar;
+    this.#promptHistory = new PromptHistoryController({
+      editor: this.root.editor,
+      store: history.store,
+      limit: history.limit,
+      fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
+      active: () => this.root.usesDefaultInputSurface(),
+      render: () => this.#terminal.requestRender(),
+      rehydrate: value => this.root.rehydrateHistoryText(value, id => this.#promptHistoryImageSidecar?.readAttachment(id) ?? null),
+    });
+    return this.#promptHistory;
+  }
+
+  // Invariant: delivery recovery does not replace a session's store; conversation replacement can.
   #rebindTranscript(): void {
     if (this.#sessionBindingGeneration === this.backend.identity.sessionBindingGeneration) return;
     this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
     this.root.resetTranscript();
+    const options = this.#historyOptions;
+    if (options?.forSession !== undefined) {
+      const sessionId = this.backend.identity.currentHistorySessionId();
+      if (sessionId !== this.#historySessionId) {
+        const previous = this.#promptHistory;
+        this.#promptHistory = null;
+        this.#promptHistoryImageSidecar = undefined;
+        this.#historySessionId = sessionId ?? undefined;
+        void previous?.close().catch(() => false);
+        if (sessionId !== null) {
+          const controller = this.#installPromptHistory({ ...options, ...options.forSession(sessionId) });
+          if (this.#started) controller.start();
+        } else {
+          // Missing identity must not reopen the shared store or retain the old session's recall.
+          const fallback = this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []).reverse();
+          this.root.editor.recall?.reset();
+          this.root.editor.recall?.replace(fallback);
+        }
+        return;
+      }
+    }
     this.#promptHistory?.reset(this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
   }
 

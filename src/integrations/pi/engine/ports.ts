@@ -54,7 +54,7 @@ export interface PiEngineAdapterPorts {
 export interface EnginePortParts {
   readonly sessionId: string;
   readonly agentDir: string;
-  readonly engine: Pick<PiEngineRuntime, "cwd" | "generation" | "bindingGeneration" | "currentSessionResumeMetadata" | "currentSessionFile">;
+  readonly engine: Pick<PiEngineRuntime, "cwd" | "generation" | "bindingGeneration" | "currentSessionResumeMetadata" | "currentSessionFile" | "currentHistorySessionId">;
   readonly contexts: PiWorkflowContexts;
   readonly workflows: PiWorkflowRunner;
   readonly settings: PiEngineSettings;
@@ -84,6 +84,7 @@ export function createEnginePorts(parts: EnginePortParts): PiEngineAdapterPorts 
       get disposed() { return parts.disposed(); },
       currentSessionResumeMetadata: () => engine.currentSessionResumeMetadata(),
       currentSessionFile: () => engine.currentSessionFile(),
+      currentHistorySessionId: () => engine.currentHistorySessionId(),
     },
     session: parts.session,
     workflows: {

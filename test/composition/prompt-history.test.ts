@@ -10,8 +10,8 @@ import { resolveProductPaths } from "../../src/foundation/lifecycle/index.js";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
 import { PromptHistoryController } from "../../src/app/session-shell/prompt-history-controller.js";
 
-type ShellOptions = { history?: { store: PromptHistoryService } };
-const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, loadEditor: vi.fn() }));
+type ShellOptions = { history?: { store: PromptHistoryService; imageSidecar?: { directory: string }; forSession?: (id: string) => { store: PromptHistoryService } } };
+const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, scope: "unique" as "unique" | "shared", sessionId: "pi-one", loadEditor: vi.fn() }));
 
 // Rationale: test composition/storage without starting a terminal, provider, or Pi runtime.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({
@@ -23,7 +23,7 @@ vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => (
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
-    value(key: string) { return key === "promptHistoryEnabled" ? observed.enabled : key === "promptHistoryMaxItems" ? 100 : key === "accentColor" ? "purple" : undefined; }
+    value(key: string) { return key === "promptHistoryEnabled" ? observed.enabled : key === "promptHistoryScope" ? observed.scope : key === "promptHistoryMaxItems" ? 100 : key === "accentColor" ? "purple" : undefined; }
     onChange() { return () => undefined; }
   },
 }));
@@ -46,6 +46,8 @@ beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), "a1-home-history-"));
   profileRoot = join(root, "custom-agent-profile");
   observed.enabled = true;
+  observed.scope = "unique";
+  observed.sessionId = "pi-one";
   observed.shells.length = 0;
   observed.loadEditor.mockClear();
   vi.stubEnv("A1_PROFILE_HOME", root);
@@ -65,7 +67,7 @@ async function compose(options: { profileId?: string; ownedSurfaces?: "off" } = 
   return composeOwnedUi({
     ...options,
     cwd: root,
-    createEngineHost: async () => ({ create: async () => ({ identity: { cwd: root, agentDir: profileRoot }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never,
+    createEngineHost: async () => ({ create: async () => ({ identity: { cwd: root, agentDir: profileRoot, currentHistorySessionId: () => observed.sessionId || null }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never,
   });
 }
 
@@ -103,10 +105,10 @@ describe("owned history storage composition", () => {
     const productPaths = resolveProductPaths();
     const first = await compose();
     const store = observed.shells.at(-1)!.history!.store;
-    expect(store.options).toMatchObject({ dataDir: join(root, ".a1", "data"), profileRoot, limit: 100 });
+    expect(store.options).toMatchObject({ dataDir: join(root, ".a1", "data"), profileRoot, limit: 100, scope: "unique", sessionId: "pi-one" });
     expect((await snapshot(store)).entries).toEqual([]);
     expect(await store.record({ id: "new", text: "synthetic new prompt", timestamp: 2, kind: "prompt" })).toBe("committed");
-    const location = resolvePromptHistoryPath(store.options.dataDir, profileRoot);
+    const location = resolvePromptHistoryPath(store.options.dataDir, profileRoot, process.platform, "unique", "pi-one");
     expect(existsSync(location.path)).toBe(true);
     if (process.platform !== "win32") {
       expect(statSync(dirname(location.path)).mode & 0o777).toBe(0o700);
@@ -120,13 +122,43 @@ describe("owned history storage composition", () => {
     assertOldUntouched();
   }, 15_000);
 
+  it("isolates two agent runtimes and exposes legacy entries only in Shared mode", async () => {
+    const sharedLocation = resolvePromptHistoryPath(join(root, ".a1", "data"), profileRoot);
+    const legacy = new PromptHistoryStore(sharedLocation.path, sharedLocation.profileId, 100);
+    legacy.record({ id: "legacy", text: "shared history", timestamp: 1, kind: "prompt" });
+    legacy.close();
+    await compose();
+    const first = observed.shells.at(-1)!.history!;
+    expect((await snapshot(first.store)).entries).toEqual([]);
+    expect(await first.store.record({ id: "first", text: "first agent", timestamp: 2, kind: "prompt" })).toBe("committed");
+    const other = first.forSession!("pi-two");
+    expect((await snapshot(other.store)).entries).toEqual([]);
+    await other.store.close();
+    observed.sessionId = "pi-two";
+    await compose();
+    const second = observed.shells.at(-1)!.history!;
+    expect((await snapshot(second.store)).entries).toEqual([]);
+    expect(await second.store.record({ id: "second", text: "second agent", timestamp: 3, kind: "prompt" })).toBe("committed");
+    expect((await snapshot(first.store)).entries.map(entry => entry.text)).toEqual(["first agent"]);
+    observed.scope = "shared";
+    await compose();
+    const shared = observed.shells.at(-1)!.history!;
+    expect(shared.store.options.scope).toBe("shared");
+    expect(shared.forSession).toBeUndefined();
+    expect((await snapshot(shared.store)).entries.map(entry => entry.text)).toEqual(["shared history"]);
+    expect(shared.imageSidecar?.directory).toBe(sharedLocation.imagesDir);
+    observed.scope = "unique";
+    await compose();
+    expect((await snapshot(observed.shells.at(-1)!.history!.store)).entries.map(entry => entry.text)).toEqual(["second agent"]);
+  }, 15_000);
+
   it("accesses only an explicit data override and leaves the default home store absent", async () => {
     vi.stubEnv("A1_DATA_DIR", join(root, "override"));
     await compose();
     const store = observed.shells.at(-1)!.history!.store;
     expect(store.options.dataDir).toBe(join(root, "override"));
     expect(await store.record({ id: "override", text: "synthetic override prompt", timestamp: 1, kind: "prompt" })).toBe("committed");
-    expect(existsSync(resolvePromptHistoryPath(store.options.dataDir, profileRoot).path)).toBe(true);
+    expect(existsSync(resolvePromptHistoryPath(store.options.dataDir, profileRoot, process.platform, "unique", "pi-one").path)).toBe(true);
     expect(existsSync(join(root, ".a1"))).toBe(false);
   });
 
@@ -152,6 +184,17 @@ describe("owned history storage composition", () => {
       expect(replace).toHaveBeenLastCalledWith(["synthetic later prompt", "synthetic private prompt", "synthetic loaded fallback"]);
       assertOldUntouched();
     } finally { await controller.close(); await composition.application.dispose(); }
+  });
+
+  it("does not fall back to Shared when a unique session has no durable identity", async () => {
+    const legacy = resolvePromptHistoryPath(join(root, ".a1", "data"), profileRoot);
+    const seed = new PromptHistoryStore(legacy.path, legacy.profileId, 100);
+    seed.record({ id: "shared", text: "private shared prompt", timestamp: 1, kind: "prompt" });
+    seed.close();
+    observed.sessionId = "";
+    await compose();
+    expect(observed.shells.at(-1)!.history).toBeUndefined();
+    expect(existsSync(legacy.path)).toBe(true);
   });
 
   it.each(["disabled", "comparison", "settings-free"])("does not resolve or access history in %s mode", async mode => {

@@ -67,6 +67,8 @@ export interface OwnedUiSessionIdentityPort {
   readonly sessionBindingGeneration: number;
   readonly disposed: boolean;
   currentSessionFile(): string | null;
+  /** The durable conversation identity; unlike sessionId it survives agent process restart. */
+  currentHistorySessionId(): string | null;
   currentSessionResumeMetadata(): OwnedUiSessionResumeMetadata | null;
 }
 
