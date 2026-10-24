@@ -303,7 +303,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly requestHyperlinkCleanup?: (rows?: readonly number[]) => void;
       readonly enableDockInputReuse?: boolean;
       readonly persistentHistory?: boolean;
-      readonly hideSettingsCommand?: boolean;
+      readonly hideUtilityTabCommands?: boolean;
       readonly historyEditor?: import("../../integrations/pi/components/index.js").HistoryEditorConstructor;
       readonly onSubmit: (text: string) => void;
       readonly onPasteRejected?: (error: unknown) => void;

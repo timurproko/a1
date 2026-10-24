@@ -4,9 +4,9 @@ Each numbered section is one Implementation item. Every section starts by mergin
 
 ## 1. Changelog utility tab
 
-- [ ] 1.1 Generalize the server's Settings reservation to utility kinds (`settings-`, `changelog-`): `tab.open-changelog` reserves or selects the singleton Changelog tab titled `Changelog`, utility tabs share Close-only menus, no rename, last placement, and the rule that a registry of utility tabs has no Agent; only Settings is prewarmed and hidden. Deliver `bridge.route{route:"changelog"}` on a Changelog bridge's admission. Tests: server unit tests for reservation, reuse, and the agentless rule.
-- [ ] 1.2 Accept the `changelog` and `plus-menu` bridge routes in `bridge-client.ts`; compose a `changelog-` child to open the changelog reference route and close its tab when that route exits; hide and refuse `/changelog` in resident Agents. Tests: bridge decoding, composition routing, and autocomplete and slash-command tests.
-- [ ] 1.3 Add `Request::OpenChangelog` and the `tabs.changelog` action (no default key) to the attach client and its shortcut projection, treating `changelog-` like Settings for chip menus and rename. Tests: machine tests for the action and context menu.
+- [x] 1.1 Generalize the server's Settings reservation to utility kinds (`settings-`, `changelog-`): `tab.open-changelog` reserves or selects the singleton Changelog tab titled `Changelog`, utility tabs share Close-only menus, no rename, last placement, and the rule that a registry of utility tabs has no Agent; only Settings is prewarmed and hidden. Deliver `bridge.route{route:"changelog"}` on a Changelog bridge's admission. Tests: server unit tests for reservation, reuse, and the agentless rule.
+- [x] 1.2 Accept the `changelog` and `plus-menu` bridge routes in `bridge-client.ts`; compose a `changelog-` child to open the changelog reference route and close its tab when that route exits; hide and refuse `/changelog` in resident Agents. Tests: bridge decoding, composition routing, and autocomplete and slash-command tests.
+- [x] 1.3 Add `Request::OpenChangelog` and the `tabs.changelog` action (no default key) to the attach client and its shortcut projection, treating `changelog-` like Settings for chip menus and rename. Tests: machine tests for the action and context menu.
 
 ## 2. Configurable plus menu
 
@@ -19,6 +19,14 @@ Each numbered section is one Implementation item. Every section starts by mergin
 - [ ] 3.1 Add `tabs.commands` (default `Alt+/`) and a palette mode to the attach state machine: entries for Agent session, Settings, and Changelog with effective shortcuts, Up and Down, type-to-filter with `Backspace`, `Enter` running the entry through its shortcut request, `Esc` closing, and no key, paste, or mouse reaching a child while open. Tests: machine tests for every transition and the simulator corpus reaching the palette.
 - [ ] 3.2 Render the palette in the attach role as a centered box in the owned list style and add a `dimmed` presentation flag that re-asserts faint across the strip, child rows, and legacy body while a modal is open. Tests: palette renderer cell fixtures, filtered and empty lists, and composer tests for dimming and its full repaint on toggle.
 
-## 4. Architecture record
+## 4. Rename selection style
 
-- [ ] 4.1 Record the plus menu, the command palette, and the Changelog utility tab under Decision 11 in `docs/architecture/resident-tabs.md`.
+- [ ] 4.1 Draw the inline tab-rename selection with the owned editor's selection background and the chip's own text color instead of reversed cells. Tests: strip rename fixtures for a selection over the viewed and a hidden chip, in truecolor and palette modes.
+
+## 5. Tab and session names
+
+- [ ] 5.1 Keep a resident Agent's tab name and its Pi session name in sync: a strip rename or automatic name sets the session name, and a session name the Agent sets with `/name`, or that its session carries when resumed, becomes the tab name as a user name. Tests: server bridge-session tests for user, automatic, and default sources, and composition tests for `/name` reaching the bridge.
+
+## 6. Architecture record
+
+- [ ] 6.1 Record the plus menu, the command palette, the Changelog utility tab, and tab and session name sync under Decision 11 in `docs/architecture/resident-tabs.md`.

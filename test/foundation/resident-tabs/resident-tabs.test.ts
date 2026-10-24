@@ -177,11 +177,15 @@ describe("resident tab launch contracts", () => {
     transport.emit("data", encodeResidentFrame({ type: "bridge.rename", body: { name: "fixed-name", nameSource: "user" } }));
     transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "unknown" } }));
     transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "settings" } }));
+    transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "changelog" } }));
+    transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "plus-menu" } }));
     transport.emit("data", encodeResidentFrame({ type: "bridge.stop", body: { deadlineMs: 5000 } }));
     expect(commands).toEqual([
       { type: "visibility", visible: false },
       { type: "rename", name: "fixed-name", nameSource: "user" },
       { type: "route", route: "settings" },
+      { type: "route", route: "changelog" },
+      { type: "route", route: "plus-menu" },
       { type: "stop", deadlineMs: 5000 },
     ]);
     transport.emit("data", encodeResidentFrame({ type: "attachment", body: { clientId: "client", controllerRevision: 7 } }));

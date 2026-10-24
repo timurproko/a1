@@ -9,7 +9,7 @@ use super::{
     AttachKey, AttachMouse, CloseFallback, DRAG_HOLD, DeferredInput, DeferredInputTarget, KeyCode,
     MouseButton, MouseKind, PopupAction, PopupKind, PopupMenu, RenameEditor, ShortcutLabels,
     StripHitKind, StripSnapshot, TabDrag, TabView, apply_rename_control_key, close_fallback_for,
-    failure_applies, forward_pointer_motion, registry_index, rejection_notice,
+    failure_applies, forward_pointer_motion, is_utility_tab, registry_index, rejection_notice,
     settings_toggle_closes, shown_tabs, update_drag,
 };
 
@@ -130,6 +130,8 @@ pub struct Context<'a, T> {
 pub enum Request {
     Create,
     OpenSettings,
+    /// Creates or shows the singleton Changelog tab.
+    OpenChangelog,
     PrewarmSettings,
     Close(String),
     Restart(String),
@@ -521,13 +523,14 @@ impl State {
         match action {
             "tabs.new" => self.create(Request::Create, effects),
             "tabs.settings" => self.toggle_settings(context, effects),
+            "tabs.changelog" => self.open_changelog(context, effects),
             "tabs.close" => {
                 if let Some(tab_id) = context.viewed {
                     self.close(context, tab_id.to_owned(), effects);
                 }
             }
             "tabs.rename" => {
-                if let Some(tab_id) = context.viewed.filter(|id| !is_settings(id)) {
+                if let Some(tab_id) = context.viewed.filter(|id| !is_utility_tab(id)) {
                     self.open_rename(context, tab_id.to_owned());
                 }
             }
@@ -576,6 +579,22 @@ impl State {
                 }
             }
             _ => {}
+        }
+    }
+
+    /// Shows the singleton Changelog tab, or asks the server to create it.
+    fn open_changelog<T: TabView + Clone>(
+        &mut self,
+        context: &Context<'_, T>,
+        effects: &mut Vec<Effect>,
+    ) {
+        match context
+            .tabs
+            .iter()
+            .find(|tab| tab.id().starts_with("changelog-"))
+        {
+            Some(changelog) => effects.push(Effect::View(changelog.id().to_owned())),
+            None => self.create(Request::OpenChangelog, effects),
         }
     }
 
@@ -2295,5 +2314,43 @@ mod tests {
                 .step(&mut state, shortcut("tabs.settings"))
                 .contains(&Effect::Send(Request::OpenSettings))
         );
+    }
+
+    #[test]
+    fn the_changelog_action_shows_or_creates_one_utility_tab() {
+        let fixture = Fixture::new(&["a"], "a");
+        let mut state = fixture.state();
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.changelog")),
+            [Effect::Send(Request::OpenChangelog), PAINT]
+        );
+        assert!(state.view.pending_created_activation);
+        let existing = Fixture::new(&["a", "changelog-1"], "a");
+        let mut state = existing.state();
+        assert_eq!(
+            existing.step(&mut state, shortcut("tabs.changelog")),
+            [Effect::View("changelog-1".into()), PAINT],
+            "an open Changelog is reused"
+        );
+    }
+
+    #[test]
+    fn a_changelog_tab_is_closed_but_never_renamed() {
+        let fixture = Fixture::new(&["a", "changelog-1"], "changelog-1");
+        let mut state = fixture.state();
+        fixture.step(&mut state, shortcut("tabs.rename"));
+        assert!(matches!(state.mode, Mode::Idle), "no rename prompt opens");
+        fixture.step(&mut state, mouse(RIGHT, 12, 0));
+        let labels = state
+            .mode
+            .popup()
+            .map(|menu| {
+                menu.items
+                    .iter()
+                    .map(|item| item.label.clone())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        assert_eq!(labels, ["Close"]);
     }
 }

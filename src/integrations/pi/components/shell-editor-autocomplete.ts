@@ -34,6 +34,9 @@ import {
   type PiShellSkillSummary,
 } from "./skills-command.js";
 
+/** The built-in commands whose screens resident A1 opens as utility tabs instead. */
+const RESIDENT_UTILITY_TAB_COMMANDS: ReadonlySet<string> = new Set(["settings", "changelog"]);
+
 /** A selected autocomplete row: its arrow/primary column, then the aligned description. */
 const SELECTED_DESCRIBED_ROW = /^(→ .*?\S)(\s{2,}.*)$/u;
 const INPUT_COUNTER_INSET = 3;
@@ -175,7 +178,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   };
   let autocompleteProvider: AutocompleteProvider;
   const builtInCatalog = (options.keybindingProfile === "a1" ? OWNED_BUILTIN_SLASH_COMMANDS : PINNED_PI_BUILTIN_SLASH_COMMANDS)
-    .filter(command => !options.hideSettingsCommand || command.name !== "settings");
+    .filter(command => !options.hideUtilityTabCommands || !RESIDENT_UTILITY_TAB_COMMANDS.has(command.name));
   const setAutocompleteCommands = (installed: readonly PiShellAutocompleteCommand[]) => {
     // Invariant: collapse is a bare-A1 presentation; the comparison profile installs the pinned list.
     const collapsed: PiShellCollapsedSkillCommands = options.keybindingProfile === "a1" && options.skillsPresentation?.() === "collapse"

@@ -813,7 +813,7 @@ pub(super) fn handle_lifecycle(
         "tab.rename" => {
             let (_, rename): (_, wire::TabRename) = wire::body(payload)?;
             let name = rename.name.trim();
-            let valid = !is_settings_tab_id(&rename.tab_id)
+            let valid = !is_utility_tab_id(&rename.tab_id)
                 && !name.is_empty()
                 && name.chars().count() <= 64
                 && !name.chars().any(char::is_control);

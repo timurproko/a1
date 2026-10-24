@@ -56,6 +56,25 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 - **WHEN** a resident Agent's slash-command autocomplete lists commands or the user enters `/changelog`
 - **THEN** `changelog` SHALL be absent and `/changelog` SHALL NOT open a screen in that Agent
 
+### Requirement: Tab rename selection uses the owned selection style
+While a tab is renamed inline, selected characters SHALL be drawn with the owned editor's selection background and the chip's own text color, never as reversed cells, in truecolor and palette modes alike.
+
+#### Scenario: Select a tab name
+- **WHEN** the user presses `Ctrl+A` in an inline tab rename
+- **THEN** the selected name SHALL show the editor's selection background with unchanged text color
+
+### Requirement: Tab names and session names stay in sync
+A resident Agent's tab name and its Pi session name SHALL name the same thing. A strip rename or an automatic name SHALL set the session name, and a session name the Agent sets with `/name`, or that its resumed session carries, SHALL become the tab name with a user name source so automatic naming no longer replaces it. A default session name SHALL NOT replace a tab name.
+
+#### Scenario: Rename the session from the Agent
+- **WHEN** the user runs `/name what is there` in a resident Agent named `what-is this`
+- **THEN** the tab chip SHALL show `what is there`
+- **AND** a later automatic name SHALL NOT replace it
+
+#### Scenario: Rename the tab from the strip
+- **WHEN** the user renames the tab to `login fix` from the strip
+- **THEN** the Agent's session name SHALL become `login fix`
+
 ## MODIFIED Requirements
 
 ### Requirement: Tabs are managed from the strip, mouse, and assignable actions

@@ -1448,7 +1448,9 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
-        assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [18, 18, 18]);
+        // Invariant: a fixed-width 24-hour clock keeps the measured width independent of the hour.
+        let three = render_configured(&tabs[..3], Some("tab-0"), 65, None, TimeFormat::TwentyFour);
+        assert_eq!(widths(three), [18, 18, 18]);
         let crowded = render(&tabs, Some("tab-4"), 60);
         assert!(widths(crowded.clone()).iter().all(|width| *width == 12));
         assert!(crowded.bytes.contains("a very …"));

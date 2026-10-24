@@ -156,11 +156,11 @@ pub(super) fn serve_bridge(
             serde_json::json!({ "visible": visible }),
         )?)
         .map_err(str::to_owned)?;
-        if is_settings_tab_id(&tab_id) {
+        if let Some((route, _)) = utility_kind(&tab_id) {
             tx.offer_control(wire::frame(
                 "bridge.route",
                 None,
-                serde_json::json!({ "route": "settings" }),
+                serde_json::json!({ "route": route }),
             )?)
             .map_err(str::to_owned)?;
         }
@@ -312,7 +312,7 @@ pub(super) fn serve_bridge(
                 .registry
                 .tabs
                 .iter_mut()
-                .find(|tab| tab.tab_id == tab_id && !is_settings_tab_id(&tab_id))
+                .find(|tab| tab.tab_id == tab_id && !is_utility_tab_id(&tab_id))
             {
                 record.session_file = session.file.clone();
                 record.session_dir = session

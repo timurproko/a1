@@ -280,7 +280,7 @@ impl PopupMenu {
             shortcuts.label("tabs.close"),
             PopupAction::Close,
         )];
-        if !tab_id.starts_with("settings-") {
+        if !is_utility_tab(&tab_id) {
             items.push(PopupItem::action(
                 "Rename",
                 shortcuts.label("tabs.rename"),
@@ -777,6 +777,12 @@ pub fn drag_marker_column<T: TabView>(drag: &TabDrag, tabs: &[T]) -> Option<u16>
     } else {
         None
     }
+}
+
+/// Invariant: singleton utility tabs, Settings and Changelog, are never Agents: they are closed
+/// but not renamed, own no session, and never count as running Agents.
+pub fn is_utility_tab(id: &str) -> bool {
+    id.starts_with("settings-") || id.starts_with("changelog-")
 }
 
 /// The viewed Settings tab is the close target when its shortcut toggles it off.

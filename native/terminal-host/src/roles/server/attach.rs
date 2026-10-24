@@ -78,10 +78,11 @@ fn registry_tab_list(registry: &RegistryDocument) -> TabList {
     }
 }
 
-/// Reserves the singleton Settings process. Only revealing it, not prewarming it, restores
-/// its last live position; selecting an already visible tab bypasses this request entirely.
-fn reserve_settings_tab(
+/// Reserves the singleton utility process with this id prefix. Only revealing it, not prewarming
+/// it, restores its last live position; selecting an already visible tab bypasses this request entirely.
+fn reserve_utility_tab(
     state: &Arc<Mutex<RuntimeState>>,
+    prefix: &str,
     opening: bool,
 ) -> Result<(String, bool, Option<(RegistryStore, RegistryDocument)>), String> {
     let mut locked = lock_state(state)?;
@@ -89,13 +90,13 @@ fn reserve_settings_tab(
         .registry
         .tabs
         .iter()
-        .find(|tab| is_settings_tab_id(&tab.tab_id) && tab.desired != "stopped")
+        .find(|tab| tab.tab_id.starts_with(prefix) && tab.desired != "stopped")
         .map(|tab| tab.tab_id.clone())
         .or_else(|| {
             locked
                 .core
                 .starting_tabs()
-                .find(|tab_id| is_settings_tab_id(tab_id))
+                .find(|tab_id| tab_id.starts_with(prefix))
                 .map(str::to_owned)
         });
     if let Some(tab_id) = existing {
@@ -103,10 +104,65 @@ fn reserve_settings_tab(
             .then(|| registry_snapshot(&locked));
         Ok((tab_id, false, reordered))
     } else {
-        let tab_id = format!("{SETTINGS_TAB_PREFIX}{:016x}", rand::random::<u64>());
+        let tab_id = format!("{prefix}{:016x}", rand::random::<u64>());
         let inserted = locked.core.set_starting(&tab_id, true);
         Ok((tab_id, inserted, None))
     }
+}
+
+/// Opens, reveals, or prewarms a singleton utility tab for a client: `tab.open-settings`,
+/// `tab.prewarm-settings`, or `tab.open-changelog`.
+fn open_utility_tab(
+    state: &Arc<Mutex<RuntimeState>>,
+    profile: &Path,
+    tx: &Peer,
+    client_id: &str,
+    message_type: &str,
+    request_id: Option<u64>,
+    payload: &[u8],
+) -> Result<(), String> {
+    let (_, create): (_, TabCreate) = wire::body(payload)?;
+    let prefix = match message_type {
+        "tab.open-changelog" => CHANGELOG_TAB_PREFIX,
+        _ => SETTINGS_TAB_PREFIX,
+    };
+    let opening = message_type != "tab.prewarm-settings";
+    let (settings_tab_id, should_start, reordered) = reserve_utility_tab(state, prefix, opening)?;
+    commit_staged(reordered)?;
+    if should_start {
+        let mut start = AttachStart {
+            client_id: client_id.to_owned(),
+            tabs_max: usize::MAX,
+            cwd: create.cwd,
+            columns: create.columns,
+            rows: create.rows,
+            release_root: create.release_root,
+            node_executable: create.node_executable,
+            environment: create.environment,
+            session_file: None,
+            session_dir: None,
+        };
+        sanitize_tab_environment(&mut start.environment);
+        if let Err(error) = start_holder(profile, state, settings_tab_id.clone(), start) {
+            if let Ok(mut locked) = state.lock() {
+                locked.core.set_starting(&settings_tab_id, false);
+            }
+            return Err(error);
+        }
+    }
+    tx.offer_control(wire::frame(
+        if should_start {
+            "tab.created"
+        } else {
+            "tab.selected"
+        },
+        request_id,
+        TabTarget {
+            tab_id: settings_tab_id,
+        },
+    )?)
+    .map_err(str::to_owned)?;
+    Ok(())
 }
 
 pub(super) fn serve_attach(
@@ -248,46 +304,16 @@ pub(super) fn serve_attach(
                 tx.offer_control(wire::frame("tab.list", kind.request_id, list)?)
                     .map_err(str::to_owned)?;
             }
-            "tab.open-settings" | "tab.prewarm-settings" => {
-                let (_, create): (_, TabCreate) = wire::body(&payload)?;
-                let (settings_tab_id, should_start, reordered) =
-                    reserve_settings_tab(&state, kind.message_type == "tab.open-settings")?;
-                commit_staged(reordered)?;
-                if should_start {
-                    let mut start = AttachStart {
-                        client_id: client_id.clone(),
-                        tabs_max: usize::MAX,
-                        cwd: create.cwd,
-                        columns: create.columns,
-                        rows: create.rows,
-                        release_root: create.release_root,
-                        node_executable: create.node_executable,
-                        environment: create.environment,
-                        session_file: None,
-                        session_dir: None,
-                    };
-                    sanitize_tab_environment(&mut start.environment);
-                    if let Err(error) =
-                        start_holder(&profile, &state, settings_tab_id.clone(), start)
-                    {
-                        if let Ok(mut locked) = state.lock() {
-                            locked.core.set_starting(&settings_tab_id, false);
-                        }
-                        return Err(error);
-                    }
-                }
-                tx.offer_control(wire::frame(
-                    if should_start {
-                        "tab.created"
-                    } else {
-                        "tab.selected"
-                    },
+            "tab.open-settings" | "tab.prewarm-settings" | "tab.open-changelog" => {
+                open_utility_tab(
+                    &state,
+                    &profile,
+                    &tx,
+                    &client_id,
+                    &kind.message_type,
                     kind.request_id,
-                    TabTarget {
-                        tab_id: settings_tab_id,
-                    },
-                )?)
-                .map_err(str::to_owned)?;
+                    &payload,
+                )?
             }
             "tab.view" => {
                 let (_, target): (_, ViewTarget) = wire::body(&payload)?;

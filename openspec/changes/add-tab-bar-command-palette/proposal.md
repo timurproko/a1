@@ -8,6 +8,8 @@ The `+` launcher makes every new Agent a two-step menu choice and is the only pl
 - `Alt+/` opens a modal **command palette** over the dimmed screen with every tab kind A1 can open: `Agent session` (`Alt+A`), `Settings` (`Alt+,`), and `Changelog`. Up and Down move, typing filters, `Enter` runs, and `Esc` closes; the mouse does nothing while it is open. It uses the owned list styling: an accent section header, the `→` selected row, right-aligned shortcuts, and a Models-style `>` search line.
 - `Changelog` becomes a singleton utility tab like Settings. Resident Agents no longer offer `/changelog`; `a1 solo` and `a1 pi` keep it.
 - The Settings `Tabs` section is renamed `Tab Bar`.
+- Inline tab rename shows its selection with the owned blue selection background instead of reversed cells.
+- A resident Agent's tab name and its session name stay in sync: `/name` renames the tab, and a strip or automatic rename names the session.
 - Tab kinds are either multi-instance, like Agent, which adds a tab every time and shows a `+` icon, or singleton toggles, like Settings and Changelog, which open or show their one tab and show a checkmark while it is open.
 
 ## Capabilities

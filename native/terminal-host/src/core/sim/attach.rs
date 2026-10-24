@@ -13,7 +13,7 @@ use crate::core::attach::{
 
 const CHIP_WIDTH: u16 = 10;
 const VISIBLE_CHIPS: usize = 5;
-const ACTIONS: [&str; 9] = [
+const ACTIONS: [&str; 10] = [
     "tabs.new",
     "tabs.close",
     "tabs.rename",
@@ -23,6 +23,7 @@ const ACTIONS: [&str; 9] = [
     "tabs.moveRight",
     "tabs.jump2",
     "tabs.settings",
+    "tabs.changelog",
 ];
 const STATUSES: [&str; 5] = ["idle", "working", "unresponsive", "failed", "done"];
 
@@ -423,6 +424,13 @@ impl Run<'_> {
     /// The resident server answers each request against the model registry.
     fn request(&mut self, request: Request) -> Result<(), SimulationFailure> {
         match request {
+            Request::OpenChangelog => {
+                self.model
+                    .creating
+                    .push(format!("changelog-{}", self.model.created));
+                self.model.created += 1;
+                Ok(())
+            }
             Request::Create | Request::OpenSettings | Request::PrewarmSettings => {
                 let prefix = if request == Request::Create {
                     "tab"

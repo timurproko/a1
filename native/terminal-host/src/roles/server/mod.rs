@@ -45,12 +45,29 @@ pub use standby::sanitize_tab_environment;
 use standby::*;
 
 const SETTINGS_TAB_PREFIX: &str = "settings-";
+const CHANGELOG_TAB_PREFIX: &str = "changelog-";
+/// The singleton utility tab kinds: id prefix, registry kind, which is also the route its child
+/// presents, and title.
+const UTILITY_KINDS: [(&str, &str, &str); 2] = [
+    (SETTINGS_TAB_PREFIX, "settings", "Settings"),
+    (CHANGELOG_TAB_PREFIX, "changelog", "Changelog"),
+];
 /// Every new Agent tab starts with this one name; duplicates are allowed and auto-naming or a
 /// manual rename distinguishes them.
 const DEFAULT_AGENT_TAB_NAME: &str = "Agent";
 
-fn is_settings_tab_id(tab_id: &str) -> bool {
-    tab_id.starts_with(SETTINGS_TAB_PREFIX)
+/// The registry kind and title of a singleton utility tab, or `None` for an Agent.
+fn utility_kind(tab_id: &str) -> Option<(&'static str, &'static str)> {
+    UTILITY_KINDS
+        .iter()
+        .find(|(prefix, _, _)| tab_id.starts_with(prefix))
+        .map(|(_, kind, title)| (*kind, *title))
+}
+
+/// Invariant: utility tabs are never Agents: they cannot be renamed, own no session, trail new
+/// Agents, and never count as the Agent an attach views or starts.
+fn is_utility_tab_id(tab_id: &str) -> bool {
+    utility_kind(tab_id).is_some()
 }
 
 /// One non-blocking render slot per attached client. Replacing an unsent update forces the
@@ -454,7 +471,7 @@ impl RuntimeState {
             .registry
             .tabs
             .iter()
-            .filter(|tab| !is_settings_tab_id(&tab.tab_id))
+            .filter(|tab| !is_utility_tab_id(&tab.tab_id))
             .cloned()
             .collect::<Vec<_>>();
         default_tab(&agents)
@@ -465,7 +482,7 @@ impl RuntimeState {
         self.registry
             .tabs
             .iter()
-            .all(|tab| is_settings_tab_id(&tab.tab_id))
+            .all(|tab| is_utility_tab_id(&tab.tab_id))
     }
 }
 
@@ -1861,6 +1878,46 @@ mod tests {
         let mut stopped = record("tab-stopped", 4, "stopped", None);
         stopped.order = 0;
         assert_eq!(default_tab(&[settings, second, first, stopped]), "tab-1");
+    }
+
+    #[test]
+    fn changelog_is_a_utility_tab_that_trails_new_agents_and_is_never_the_default() {
+        assert_eq!(utility_kind("settings-1"), Some(("settings", "Settings")));
+        assert_eq!(
+            utility_kind("changelog-1"),
+            Some(("changelog", "Changelog"))
+        );
+        assert_eq!(utility_kind("tab-1"), None);
+        assert!(is_utility_tab_id("changelog-1") && !is_utility_tab_id("tab-1"));
+        let mut changelog = record("changelog-1", 1, "running", None);
+        changelog.kind = "changelog".into();
+        let mut registry = RegistryDocument {
+            registry_revision: 1,
+            epoch: 1,
+            boot_id: "boot".into(),
+            os_session_id: "session".into(),
+            tabs: vec![record("agent-1", 1, "running", None), changelog],
+        };
+        insert_new_tab(&mut registry, record("agent-2", 2, "running", None));
+        let ids = registry
+            .tabs
+            .iter()
+            .map(|tab| tab.tab_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, ["agent-1", "agent-2", "changelog-1"]);
+        registry.tabs.retain(|tab| is_utility_tab_id(&tab.tab_id));
+        assert_eq!(
+            default_tab(
+                &registry
+                    .tabs
+                    .iter()
+                    .filter(|tab| !is_utility_tab_id(&tab.tab_id))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            ),
+            "tab-1",
+            "a registry of utility tabs names the first Agent an attach starts"
+        );
     }
 
     #[test]

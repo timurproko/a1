@@ -38,7 +38,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
-import { bindResidentTabBridge, correlateResidentTabSubmission, currentBackendSessionFile, residentTabKeybindings } from "./resident-tab-bridge.js";
+import { bindResidentTabBridge, closeResidentUtilityRoute, correlateResidentTabSubmission, currentBackendSessionFile, residentTabKeybindings } from "./resident-tab-bridge.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { SessionRuntimeRegistry } from "./session-runtime-registry.js";
 import { readPackageVersion, StartupReleaseNote } from "./startup-route.js";
@@ -289,9 +289,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
         ...(tabBridge === null || tabRecovery === null ? {} : { residentTab: {
           requestDetach: () => tabBridge.requestDetach(),
-          closeOwnedRoute: route => {
-            if (tabBridge.tabId.startsWith("settings-") && route === "settings") void tabBridge.requestClose();
-          },
+          closeOwnedRoute: route => closeResidentUtilityRoute(tabBridge, route),
           reportStatus: status => tabBridge.status(status),
           admit: input => tabRecovery.admit({ ...input, incarnation: options.tab!.incarnation }),
           dispatched: () => tabRecovery.dispatched(),

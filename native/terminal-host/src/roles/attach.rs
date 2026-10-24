@@ -64,11 +64,13 @@ const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
 
 /// The global tab declarations in the order that decides which action keeps a duplicated key;
 /// it mirrors the owned feature's declaration list, which the child projects and publishes.
-pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 18] = [
+pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 20] = [
     ("tabs.new", Some("alt+a")),
     ("tabs.close", Some("alt+w")),
     ("tabs.rename", Some("f2")),
     ("tabs.settings", Some("alt+,")),
+    ("tabs.changelog", None),
+    ("tabs.commands", Some("alt+/")),
     ("tabs.jump1", Some("alt+1")),
     ("tabs.jump2", Some("alt+2")),
     ("tabs.jump3", Some("alt+3")),
@@ -1620,7 +1622,7 @@ fn should_paint_strip(has_surface: bool, has_shown_tabs: bool, notice: bool) -> 
 
 fn apply_owned_accent(tabs: &mut [StripTab], color: Option<&str>) {
     for tab in tabs {
-        if tab.id.starts_with("settings-") || tab.accent.is_none() {
+        if core_attach::is_utility_tab(&tab.id) || tab.accent.is_none() {
             tab.accent = color.map(str::to_owned);
         }
     }
@@ -1787,6 +1789,9 @@ impl Client {
             Request::Create => wire::send(stream, "tab.create", None, self.create.clone()),
             Request::OpenSettings => {
                 wire::send(stream, "tab.open-settings", None, self.create.clone())
+            }
+            Request::OpenChangelog => {
+                wire::send(stream, "tab.open-changelog", None, self.create.clone())
             }
             Request::PrewarmSettings => {
                 wire::send(stream, "tab.prewarm-settings", None, self.create.clone())
@@ -2560,7 +2565,12 @@ impl Client {
     fn detach(&mut self) -> Result<(), String> {
         // Invariant: a hidden Settings kept ready beside the landing leaves with this client, so no
         // Settings process outlives the last Agent or makes the next launch skip its first Agent.
-        if !self.tabs.is_empty() && self.tabs.iter().all(|tab| tab.id.starts_with("settings-")) {
+        if !self.tabs.is_empty()
+            && self
+                .tabs
+                .iter()
+                .all(|tab| core_attach::is_utility_tab(&tab.id))
+        {
             for tab_id in self
                 .tabs
                 .iter()
@@ -3036,7 +3046,7 @@ impl Drop for OuterTerminal {
 /// Agents left running after a detach; the global Settings tab is not an agent.
 fn running_agent_count(tabs: &[StripTab]) -> usize {
     tabs.iter()
-        .filter(|tab| !tab.id.starts_with("settings-"))
+        .filter(|tab| !core_attach::is_utility_tab(&tab.id))
         .count()
 }
 

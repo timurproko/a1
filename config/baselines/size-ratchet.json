@@ -137,7 +137,7 @@
       "lines": 111
     },
     "native/terminal-host/src/roles/server/attach.rs::serve_attach": {
-      "lines": 442
+      "lines": 412
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
       "lines": 388
@@ -152,7 +152,7 @@
       "lines": 575
     },
     "native/terminal-host/src/roles/server/holder.rs::start_holder": {
-      "lines": 199
+      "lines": 192
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
       "lines": 208
@@ -188,7 +188,7 @@
       "lines": 325
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 304
+      "lines": 302
     },
     "src/composition/resident-tab-bridge.ts::bindResidentTabBridge": {
       "lines": 123

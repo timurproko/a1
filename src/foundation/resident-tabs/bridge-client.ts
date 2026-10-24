@@ -2,12 +2,15 @@ import { connect, type Socket } from "node:net";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "./protocol.js";
 
 export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "done" | "aborted" | "error" | "idle" | "unresponsive" | "crashed" | "restarting" | "failed";
+/** The owned routes the server opens in a utility tab: its own screen, or Settings' plus-menu dialog. */
+export type ResidentTabRoute = "settings" | "changelog" | "plus-menu";
+const RESIDENT_TAB_ROUTES: ReadonlySet<unknown> = new Set<ResidentTabRoute>(["settings", "changelog", "plus-menu"]);
 export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string }
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
 export type TabBridgeCommand =
   | { readonly type: "visibility"; readonly visible: boolean }
   | { readonly type: "rename"; readonly name: string; readonly nameSource: "default" | "user" | "auto" }
-  | { readonly type: "route"; readonly route: "settings" }
+  | { readonly type: "route"; readonly route: ResidentTabRoute }
   | { readonly type: "stop"; readonly deadlineMs: number };
 
 interface BridgeTransport {
@@ -235,8 +238,8 @@ export class TabBridgeClient {
       const source = message.body["nameSource"];
       this.#emitCommand({ type: "rename", name: message.body["name"], nameSource: source === "auto" || source === "default" ? source : "user" }); return;
     }
-    if (message.type === "bridge.route" && message.body["route"] === "settings") {
-      this.#emitCommand({ type: "route", route: "settings" }); return;
+    if (message.type === "bridge.route" && RESIDENT_TAB_ROUTES.has(message.body["route"])) {
+      this.#emitCommand({ type: "route", route: message.body["route"] as ResidentTabRoute }); return;
     }
     if (message.type === "bridge.stop" && typeof message.body["deadlineMs"] === "number") {
       this.#emitCommand({ type: "stop", deadlineMs: message.body["deadlineMs"] }); return;

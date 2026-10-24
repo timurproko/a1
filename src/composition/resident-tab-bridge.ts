@@ -1,4 +1,4 @@
-import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
+import type { ResidentTabRoute, TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import type { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
 import { deriveResidentTabStatus, type ResidentTabTurnSettlement } from "../features/resident-tab/status-deriver.js";
 import { projectResidentTabShortcuts } from "../features/resident-tab/shortcut-projection.js";
@@ -25,11 +25,19 @@ export function residentTabKeybindings(
   return { ...keybindingsHost, reload: () => { keybindingsHost.reload(); publish(); } };
 }
 
+/**
+ * Closes a utility tab when its own screen closes. Invariant: a utility tab's screen is the tab; another
+ * route it opens, such as Settings' plus-menu dialog, closes back to that screen.
+ */
+export function closeResidentUtilityRoute(tabBridge: Pick<TabBridgeClient, "tabId" | "requestClose">, route: string): void {
+  if ((route === "settings" || route === "changelog") && tabBridge.tabId.startsWith(`${route}-`)) void tabBridge.requestClose();
+}
+
 export async function bindResidentTabBridge(
   tabBridge: TabBridgeClient,
   backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows" | "generateResidentTabName">,
   recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
-  options: { readonly autoName?: boolean; readonly openRoute?: (route: "settings") => void } = {},
+  options: { readonly autoName?: boolean; readonly openRoute?: (route: ResidentTabRoute) => void } = {},
 ): Promise<() => void> {
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");
@@ -110,7 +118,7 @@ export async function bindResidentTabBridge(
       void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
     } else if (command.type === "route") {
       if (options.openRoute !== undefined) options.openRoute(command.route);
-      else void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
+      else if (command.route !== "plus-menu") void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
     } else if (command.type === "stop") {
       void backend.session.dispose().catch(() => {});
     }
