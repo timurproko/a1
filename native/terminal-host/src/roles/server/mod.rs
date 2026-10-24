@@ -2386,6 +2386,41 @@ mod tests {
     }
 
     #[test]
+    fn a_session_name_becomes_the_tab_name_unless_automatic_after_a_user_name() {
+        let mut tab = record("tab-1", 1, "running", None);
+        bridge::apply_session_name(&mut tab, " fix-login ", Some("auto"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("fix-login", "auto")
+        );
+        bridge::apply_session_name(&mut tab, "what is there", Some("user"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("what is there", "user"),
+            "a /name over an automatic name renames the tab"
+        );
+        bridge::apply_session_name(&mut tab, "later-auto", Some("auto"));
+        assert_eq!(
+            tab.display_name, "what is there",
+            "an automatic name never replaces a user name"
+        );
+        bridge::apply_session_name(&mut tab, "again", Some("odd"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("again", "user")
+        );
+        for invalid in ["  ", "bell\u{7}", &"x".repeat(65)] {
+            bridge::apply_session_name(&mut tab, invalid, Some("user"));
+            assert_eq!(tab.display_name, "again");
+        }
+        bridge::apply_session_name(&mut tab, "Agent", Some("default"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("Agent", "default")
+        );
+    }
+
+    #[test]
     fn bridge_session_reads_the_child_name_source() {
         // Protocol: The child bridge client sends camelCase `nameSource`.
         let child: BridgeSession =

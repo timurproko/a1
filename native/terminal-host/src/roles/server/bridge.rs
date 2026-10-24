@@ -313,21 +313,8 @@ pub(super) fn serve_bridge(
                     .as_deref()
                     .and_then(|file| Path::new(file).parent())
                     .map(|path| path.to_string_lossy().into_owned());
-                if let Some(name) = session.name {
-                    let name = name.trim();
-                    let source = session.name_source.as_deref().unwrap_or("user");
-                    let valid = !name.is_empty()
-                        && name.chars().count() <= 64
-                        && !name.chars().any(char::is_control);
-                    let auto_rejected = source == "auto" && record.name_source == "user";
-                    if valid && !auto_rejected {
-                        record.display_name = name.to_owned();
-                        record.name_source = match source {
-                            "default" | "auto" | "user" => source,
-                            _ => "user",
-                        }
-                        .into();
-                    }
+                if let Some(name) = session.name.as_deref() {
+                    apply_session_name(record, name, session.name_source.as_deref());
                 }
             }
             bump_registry_revision(&mut locked.registry);
@@ -520,6 +507,22 @@ fn offer_admission_routes(
         .map_err(str::to_owned)?;
     }
     Ok(())
+}
+
+/// Makes an Agent's session name its tab name. Invariant: a user name, from the strip or `/name`,
+/// is never replaced by an automatic one; any other valid name replaces the tab name.
+pub(super) fn apply_session_name(record: &mut TabRecord, name: &str, source: Option<&str>) {
+    let name = name.trim();
+    let source = match source.unwrap_or("user") {
+        source @ ("default" | "auto" | "user") => source,
+        _ => "user",
+    };
+    let valid =
+        !name.is_empty() && name.chars().count() <= 64 && !name.chars().any(char::is_control);
+    if valid && !(source == "auto" && record.name_source == "user") {
+        record.display_name = name.to_owned();
+        record.name_source = source.into();
+    }
 }
 
 /// Sends a route to the tab's connected bridge, or holds it for the bridge's admission.

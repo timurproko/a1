@@ -25,7 +25,7 @@ Each numbered section is one Implementation item. Every section starts by mergin
 
 ## 5. Tab and session names
 
-- [ ] 5.1 Keep a resident Agent's tab name and its Pi session name in sync: a strip rename or automatic name sets the session name, and a session name the Agent sets with `/name`, or that its session carries when resumed, becomes the tab name as a user name. Tests: server bridge-session tests for user, automatic, and default sources, and composition tests for `/name` reaching the bridge.
+- [x] 5.1 Keep a resident Agent's tab name and its Pi session name in sync: a strip rename or automatic name sets the session name, and a session name the Agent sets with `/name`, or that its session carries when resumed, becomes the tab name as a user name. Tests: server bridge-session tests for user, automatic, and default sources, and composition tests for `/name` reaching the bridge.
 
 ## 6. Architecture record
 

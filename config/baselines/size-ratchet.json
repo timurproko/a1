@@ -140,7 +140,7 @@
       "lines": 410
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
-      "lines": 381
+      "lines": 368
     },
     "native/terminal-host/src/roles/server/controller.rs::claim_client_control": {
       "lines": 126
