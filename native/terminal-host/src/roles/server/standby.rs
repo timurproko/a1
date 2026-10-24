@@ -297,6 +297,7 @@ pub(super) fn launch_standby(
     {
         locked.standby = None;
         locked.holders.remove(&tab_id);
+        locked.holder_geometries.remove(&tab_id);
     }
     result
 }

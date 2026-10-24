@@ -10,6 +10,6 @@
 
 ## 3. Background fitting refinement
 
-- [ ] 3.1 Forward an authoritative outer resize to globally hidden, unclaimed holders without affecting tabs viewed or controlled by another client.
-- [ ] 3.2 Carry current geometry in each view request and queue target resize before fresh surface subscription, removing the redundant post-selection resize.
-- [ ] 3.3 Add native regression coverage for hidden-holder pre-fitting, resize-before-subscription activation ordering, and spectator isolation.
+- [x] 3.1 Forward an authoritative outer resize to globally hidden, unclaimed holders without affecting tabs viewed or controlled by another client.
+- [x] 3.2 Carry current geometry in each view request and queue target resize before fresh surface subscription, removing the redundant post-selection resize.
+- [x] 3.3 Add native regression coverage for hidden-holder pre-fitting, resize-before-subscription activation ordering, and spectator isolation.

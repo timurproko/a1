@@ -260,6 +260,13 @@ struct HolderSession {
     structured_surface: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct HolderGeometry {
+    incarnation: u64,
+    columns: u16,
+    rows: u16,
+}
+
 #[derive(Clone)]
 struct ClientSession {
     peer: Peer,
@@ -401,6 +408,7 @@ struct RuntimeState {
     pending_controller_transfers: HashMap<String, PendingControllerTransfer>,
     standby: Option<StandbyTab>,
     holders: HashMap<String, HolderSession>,
+    holder_geometries: HashMap<String, HolderGeometry>,
     launches: HashMap<String, AttachStart>,
     surfaces: HashMap<String, Arc<Surface>>,
     max_concurrent_starts: usize,
@@ -912,6 +920,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         pending_controller_transfers: HashMap::new(),
         standby: None,
         holders: HashMap::new(),
+        holder_geometries: HashMap::new(),
         launches,
         surfaces: HashMap::new(),
         max_concurrent_starts: config.max_concurrent_starts.clamp(1, 8),

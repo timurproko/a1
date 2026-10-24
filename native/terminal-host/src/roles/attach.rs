@@ -1366,8 +1366,8 @@ fn send_view_with_geometry(
     outer_rows: u16,
     geometry_generation: u64,
 ) -> Result<(), String> {
-    // Protocol: the server processes this stream in order. Selecting first makes the following
-    // resize target the incoming tab rather than the one the client is leaving.
+    // Protocol: geometry travels with selection so the server can resize the target before it
+    // enables fresh surface publication; a separate post-view resize can visibly reflow the tab.
     wire::send(
         stream,
         "tab.view",
@@ -1375,9 +1375,14 @@ fn send_view_with_geometry(
         ViewTarget {
             tab_id: tab_id.into(),
             request_generation,
+            resize: Some(Resize {
+                columns,
+                rows: tab_rows(outer_rows).map_err(str::to_owned)?,
+                epoch: 0,
+                geometry_generation,
+            }),
         },
-    )?;
-    send_resize(stream, columns, outer_rows, geometry_generation)
+    )
 }
 
 fn send_resize(
@@ -3239,21 +3244,19 @@ mod tests {
     }
 
     #[test]
-    fn activation_orders_current_geometry_after_the_selected_tab() {
+    fn activation_carries_current_geometry_in_the_view_request() {
         let mut frames = Vec::new();
         send_view_with_geometry(&mut frames, "tab-2", 7, 132, 41, 9).unwrap();
         let frames = split_frames(&frames);
-        assert_eq!(frames.len(), 2);
+        assert_eq!(frames.len(), 1);
 
         let view: protocol::Envelope<ViewTarget> = protocol::decode_frame(frames[0]).unwrap();
         assert_eq!(view.message_type, "tab.view");
         assert_eq!(view.body.tab_id, "tab-2");
         assert_eq!(view.body.request_generation, 7);
-
-        let resize: protocol::Envelope<Resize> = protocol::decode_frame(frames[1]).unwrap();
-        assert_eq!(resize.message_type, "resize");
-        assert_eq!((resize.body.columns, resize.body.rows), (132, 40));
-        assert_eq!(resize.body.geometry_generation, 9);
+        let resize = view.body.resize.expect("activation geometry");
+        assert_eq!((resize.columns, resize.rows), (132, 40));
+        assert_eq!(resize.geometry_generation, 9);
     }
 
     #[test]
@@ -3281,12 +3284,12 @@ mod tests {
             2
         );
         let requested = split_frames(&requested);
-        assert_eq!(requested.len(), 4);
+        assert_eq!(requested.len(), 3);
         let view: protocol::Envelope<ViewTarget> = protocol::decode_frame(requested[1]).unwrap();
-        let resize: protocol::Envelope<Resize> = protocol::decode_frame(requested[2]).unwrap();
         assert_eq!(view.message_type, "tab.view");
         assert_eq!(view.body.tab_id, "tab-existing");
-        assert_eq!((resize.body.columns, resize.body.rows), (120, 35));
+        let resize = view.body.resize.expect("requested-tab geometry");
+        assert_eq!((resize.columns, resize.rows), (120, 35));
     }
 
     #[test]
