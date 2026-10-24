@@ -6,6 +6,7 @@ import { SettingsManager } from "@earendil-works/pi-coding-agent";
 import { PiSettingsBridge } from "../../src/integrations/pi/engine/index.js";
 import { OwnedSettingsManager } from "../../src/ui/settings/index.js";
 import { SETTINGS_ROUTE, SettingsApp } from "../../src/features/owned-ui/index.js";
+import { createSettingsSearchInputFactory } from "../../src/composition/settings-search-input.js";
 import type { AppHostServices } from "../../src/ui/apps/index.js";
 
 /**
@@ -60,7 +61,9 @@ describe(`the ${SETTINGS_ROUTE} screen, which supersedes the pinned selector`, (
     const session = new OwnedSettingsManager({ configDir: root, profileId: "parity", declarations: [], migrations: [], agent: engine });
     await session.load();
 
-    const screen = new SettingsApp(session)
+    const screen = new SettingsApp(session, {
+      searchInputFactory: createSettingsSearchInputFactory({ agentDir: root, cwd: root }),
+    })
       .render({ width: 200, height: 200 }, HOST)
       .map(line => line.replace(new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g"), ""))
       .join("\n");

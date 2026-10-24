@@ -29,6 +29,8 @@ export interface AppHostOptions {
   readonly closeOnInterrupt: boolean;
   /** Colours handed to every presented app. Absent renders plain text. */
   readonly theme?: UiTheme;
+  /** Lets a focused app claim the first interrupt for an editor selection before host close/exit policy. */
+  readonly appInputBeforeInterrupt?: boolean;
 }
 
 // Invariant: the interrupt byte is written as an escape: as a raw byte it is invisible to
@@ -48,6 +50,7 @@ export class UiAppHost {
   readonly #surface: AppHostSurface;
   readonly #closeOnInterrupt: boolean;
   readonly #theme: UiTheme | undefined;
+  readonly #appInputBeforeInterrupt: boolean;
   // Invariant: the first interrupt timestamp is null whenever the chord is disarmed.
   #interruptArmedAt: number | null = null;
   #renderedInterruptArmed: boolean | undefined;
@@ -59,6 +62,7 @@ export class UiAppHost {
     this.#surface = options.surface;
     this.#closeOnInterrupt = options.closeOnInterrupt;
     this.#theme = options.theme;
+    this.#appInputBeforeInterrupt = options.appInputBeforeInterrupt === true;
   }
 
   get presented(): UiApp | null {
@@ -110,7 +114,7 @@ export class UiAppHost {
   handleInput(data: string): PaneInputResult {
     const app = this.#app;
     if (app === null) return { consumed: false };
-    if (data === INTERRUPT && this.#closeOnInterrupt) {
+    if (data === INTERRUPT && this.#closeOnInterrupt && !this.#appInputBeforeInterrupt) {
       this.close();
       return { consumed: true, render: true };
     }
@@ -120,6 +124,10 @@ export class UiAppHost {
     if (result.consumed) {
       if (result.render !== false) this.render();
       return result;
+    }
+    if (data === INTERRUPT && this.#closeOnInterrupt) {
+      this.close();
+      return { consumed: true, render: true };
     }
     if (data === INTERRUPT) return this.#interrupt();
     return { consumed: false };

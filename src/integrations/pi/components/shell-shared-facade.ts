@@ -200,6 +200,13 @@ export interface PiShellPasteReservation {
 
 export interface PiShellEditorOptions {
   readonly persistentHistory?: boolean;
+  /** Configures the shared interactive input for a caller narrower than the agent prompt. */
+  readonly inputCapabilities?: {
+    readonly singleLine?: boolean;
+    readonly paste?: boolean;
+    readonly autocomplete?: boolean;
+    readonly placeholder?: string;
+  };
   readonly historyEditor?: HistoryEditorConstructor;
   /** Bare A1 adds ergonomic aliases while comparison profiles retain Pi defaults. */
   readonly keybindingProfile?: "pi" | "a1";

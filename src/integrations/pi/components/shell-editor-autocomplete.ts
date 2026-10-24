@@ -93,6 +93,8 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   ensureTheme();
   const tui = createTuiFacade(options);
   const inputPresentation = options.keybindingProfile === "a1" ? options.promptPresentation?.input : undefined;
+  const inputCapabilities = options.inputCapabilities ?? {};
+  const autocompleteEnabled = inputCapabilities.autocomplete !== false;
   // Invariant: the process shares one manager; a standalone editor gets its own host for its profile.
   const host = options.keybindings ?? createPiKeybindingsHost({
     profile: options.keybindingProfile ?? "pi",
@@ -105,7 +107,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   }
   const scrollInfo: { emitted: boolean; counter: string | undefined } = { emitted: false, counter: undefined };
   const selectListTheme = getPiSelectListTheme();
-  let tunnelSkills: readonly PiShellSkillSummary[] = [];
+  const autocomplete = { provider: emptyAutocompleteProvider(), skills: [] as readonly PiShellSkillSummary[] };
   const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? options.historyEditor! : OwnedEditor;
   const editor: ShellEditorInstance = new EditorClass(tui, {
     borderColor: (value: string) => inputPresentation === undefined ? piTheme().fg("borderMuted", value) : inputPresentation.styleRule(value),
@@ -131,13 +133,14 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     ...(options.keybindingProfile === "a1" ? {
       terminalRows: options.getRows,
       getVisualLineCount: (width: number) => editorVisualLineCount(editor, width),
-      clearCommandSearchOnEscape: true,
-      commandTunnels: () => tunnelSkills.length === 0 ? [] : [SKILLS_COMMAND_NAME],
+      clearCommandSearchOnEscape: autocompleteEnabled,
+      commandTunnels: () => !autocompleteEnabled || autocomplete.skills.length === 0 ? [] : [SKILLS_COMMAND_NAME],
     } : {}),
     ...(options.keybindingProfile === "a1" && options.promptPresentation !== undefined ? {
       ...(inputPresentation === undefined ? {} : { inputPresentation }),
       styleSuggestion: options.promptPresentation.styleSuggestion,
       styleSuggestionCaret: options.promptPresentation.styleSuggestionCaret,
+      ...(inputCapabilities.placeholder === undefined ? {} : { placeholder: inputCapabilities.placeholder }),
     } : {}),
   });
   const editorUx = options.keybindingProfile === "a1"
@@ -148,6 +151,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
           ...(options.beginClipboardPaste === undefined ? {} : { beginClipboardPaste: options.beginClipboardPaste }),
           ...(options.beginTextPaste === undefined ? {} : { beginTextPaste: options.beginTextPaste }),
           ...(options.deferTextPaste === undefined ? {} : { deferTextPaste: options.deferTextPaste }),
+          pasteEnabled: inputCapabilities.paste !== false,
           ...(options.onPasteRejected === undefined ? {} : { onPasteRejected: options.onPasteRejected }),
           ...(options.onPasteInput === undefined ? {} : { onPasteInput: options.onPasteInput }),
           transformPastedContent: options.transformPastedContent ?? (content => content.kind === "text" ? content.text : ""),
@@ -173,40 +177,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       : isBashMode ? piTheme().getBashModeBorderColor() : piTheme().getThinkingBorderColor(thinkingLevel);
     tui.requestRender();
   };
-  let autocompleteProvider: AutocompleteProvider;
-  const builtInCatalog = (options.keybindingProfile === "a1" ? OWNED_BUILTIN_SLASH_COMMANDS : PINNED_PI_BUILTIN_SLASH_COMMANDS)
-    .filter(command => !options.hideSettingsCommand || command.name !== "settings");
-  const setAutocompleteCommands = (installed: readonly PiShellAutocompleteCommand[]) => {
-    // Invariant: collapse is a bare-A1 presentation; the comparison profile installs the pinned list.
-    const collapsed: PiShellCollapsedSkillCommands = options.keybindingProfile === "a1" && options.skillsPresentation?.() === "collapse"
-      ? collapseSkillCommands(installed)
-      : { commands: installed, skills: [] };
-    tunnelSkills = collapsed.skills;
-    const commands = collapsed.commands;
-    const additions = new Map(commands.map(command => [command.name, command]));
-    const builtInNames = new Set(builtInCatalog.map(command => command.name));
-    const builtIns = builtInCatalog.flatMap(command => [
-      autocompleteCommand(command, additions.get(command.name)),
-      // Rationale: the collapsed browser is a primary bare-A1 command, not a resource after quit.
-      ...(command.name === "settings" && collapsed.collapsedCommand !== undefined
-        ? [autocompleteCommand(collapsed.collapsedCommand)]
-        : []),
-    ]);
-    // Invariant: built-in additions and the promoted collapsed browser never reappear as resources.
-    const resources = commands
-      .filter(command => command.name !== collapsed.collapsedCommand?.name && command.source !== "builtin" && !builtInNames.has(command.name))
-      .map(command => autocompleteCommand(command));
-    const catalog = [...builtIns, ...resources];
-    const combined = new CombinedAutocompleteProvider(
-      catalog,
-      options.cwd ?? process.cwd(),
-    );
-    const tunnelAware = tunnelSkills.length === 0 ? combined : createSkillsTunnelProvider(combined, tunnelSkills);
-    autocompleteProvider = options.keybindingProfile === "a1"
-      ? createDelimiterReadyCommandProvider(tunnelAware, catalog)
-      : tunnelAware;
-    editor.setAutocompleteProvider(autocompleteProvider);
-  };
+  const setAutocompleteCommands = autocompleteCommandSetter(options, editor, autocomplete, autocompleteEnabled);
   setAutocompleteCommands(options.autocompleteCommands ?? []);
   let submitHandler = options.onSubmit;
   let interruptHandler = options.onInterrupt ?? (() => {});
@@ -281,6 +252,8 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
     reloadKeybindings: () => host.reload(),
     matchesTerminalKey: (data, key) => matchesKey(data, key),
     handleInput: data => {
+      if (inputCapabilities.singleLine === true
+        && (keybindings.matches(data, "tui.input.newLine") || keybindings.matches(data, "tui.input.submit"))) return;
       // Compatibility: an unassigned reverse Tab must not clear selection or reach autocomplete fallback.
       if (editorUx !== undefined && matchesKey(data, "shift+tab")
         && !Object.values(keybindings.getEffectiveConfig()).some(keys =>
@@ -331,11 +304,12 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
       tui.requestRender();
     },
     addAutocompleteProvider(factory) {
+      if (!autocompleteEnabled) return;
       if (typeof factory !== "function") throw new TypeError("extension autocomplete factory must be a function");
-      const candidate: unknown = Reflect.apply(factory, undefined, [autocompleteProvider]);
+      const candidate: unknown = Reflect.apply(factory, undefined, [autocomplete.provider]);
       if (!isAutocompleteProvider(candidate)) throw new TypeError("extension autocomplete factory returned a malformed provider");
-      autocompleteProvider = candidate;
-      editor.setAutocompleteProvider(autocompleteProvider);
+      autocomplete.provider = candidate;
+      editor.setAutocompleteProvider(autocomplete.provider);
     },
     setThinkingLevel(level) {
       if (thinkingLevel === level) return;
@@ -363,6 +337,52 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   };
 }
 
+
+function autocompleteCommandSetter(
+  options: PiShellEditorOptions,
+  editor: ShellEditorInstance,
+  state: { provider: AutocompleteProvider; skills: readonly PiShellSkillSummary[] },
+  enabled: boolean,
+): (installed: readonly PiShellAutocompleteCommand[]) => void {
+  const builtInCatalog = (options.keybindingProfile === "a1" ? OWNED_BUILTIN_SLASH_COMMANDS : PINNED_PI_BUILTIN_SLASH_COMMANDS)
+    .filter(command => !options.hideSettingsCommand || command.name !== "settings");
+  return installed => {
+    if (!enabled) {
+      state.provider = emptyAutocompleteProvider();
+      editor.setAutocompleteProvider(state.provider);
+      return;
+    }
+    // Invariant: collapse is a bare-A1 presentation; the comparison profile installs the pinned list.
+    const collapsed: PiShellCollapsedSkillCommands = options.keybindingProfile === "a1" && options.skillsPresentation?.() === "collapse"
+      ? collapseSkillCommands(installed)
+      : { commands: installed, skills: [] };
+    state.skills = collapsed.skills;
+    const additions = new Map(collapsed.commands.map(command => [command.name, command]));
+    const builtInNames = new Set(builtInCatalog.map(command => command.name));
+    const builtIns = builtInCatalog.flatMap(command => [
+      autocompleteCommand(command, additions.get(command.name)),
+      // Rationale: the collapsed browser is a primary bare-A1 command, not a resource after quit.
+      ...(command.name === "settings" && collapsed.collapsedCommand !== undefined
+        ? [autocompleteCommand(collapsed.collapsedCommand)] : []),
+    ]);
+    const resources = collapsed.commands
+      .filter(command => command.name !== collapsed.collapsedCommand?.name && command.source !== "builtin" && !builtInNames.has(command.name))
+      .map(command => autocompleteCommand(command));
+    const catalog = [...builtIns, ...resources];
+    const combined = new CombinedAutocompleteProvider(catalog, options.cwd ?? process.cwd());
+    const tunnelAware = state.skills.length === 0 ? combined : createSkillsTunnelProvider(combined, state.skills);
+    state.provider = options.keybindingProfile === "a1" ? createDelimiterReadyCommandProvider(tunnelAware, catalog) : tunnelAware;
+    editor.setAutocompleteProvider(state.provider);
+  };
+}
+
+function emptyAutocompleteProvider(): AutocompleteProvider {
+  return {
+    getSuggestions: async () => null,
+    applyCompletion: (lines, cursorLine, cursorCol) => ({ lines, cursorLine, cursorCol }),
+    shouldTriggerFileCompletion: () => false,
+  };
+}
 
 /** Bare A1 leaves an applied catalog command ready for `:`, a user-entered space, or submission. */
 function createDelimiterReadyCommandProvider(
