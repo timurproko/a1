@@ -28,6 +28,7 @@
 - Icon-slot refinement: `npm run typecheck`, `node scripts/governance/check-architecture.mjs`, `npm run check:code-documentation`, `npx openspec validate improve-tab-overflow-menu --strict`, `cargo fmt --manifest-path native/terminal-host/Cargo.toml --check`, and `git diff --check`: passed.
 - Visible-shortcut/stable-swap refinement: same native environment, `cargo test --manifest-path native/terminal-host/Cargo.toml --lib core::attach::machine::tests:: --quiet`: 24 passed; `roles::attach::tests:: --quiet`: 41 passed. The tests cover identical names with distinct tab IDs, swapped/reordered visible hit slots, out-of-range numbers with a later hidden tab, stale removed IDs, a pending swap's strip hits before/after commit, and settling only the newly promoted hidden title.
 - Visible-shortcut/stable-swap refinement: `npm run typecheck`, `npx openspec validate improve-tab-overflow-menu --strict`, `node scripts/governance/check-architecture.mjs`, `npm run check:code-documentation`, `cargo fmt --manifest-path native/terminal-host/Cargo.toml --check`, and `git diff --check`: passed.
+- After merging current `origin/develop` at `662fd5b5`, the same native machine (24) and attach (41) focused tests, `npm run typecheck`, strict OpenSpec validation, architecture and full code-documentation checks, the pinned Pi source ledger check, and the final-body check all passed. The ledger's sole merge conflict was its timestamp; the local field was retained and `--check` confirms the combined record is current.
 
 ## Gap disposition
 
