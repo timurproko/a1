@@ -32,6 +32,62 @@
     "scripts/release/validation-ownership.mjs",
     "scripts/release/validation-tier.mjs"
   ],
+  "refinements": [
+    {
+      "id": "ui-scrollbar", "owner": "ui-rendering",
+      "paths": ["src/ui/components/scrollbar.ts"],
+      "testPaths": ["test/ui/components/", "test/app/session-shell/session-shell-viewport.test.ts", "test/app/session-shell/session-shell-selection.test.ts", "test/features/owned-ui/pi-event-frame-parity.test.ts", "test/features/owned-ui/pi-static-parity.test.ts"],
+      "integrationOwners": []
+    },
+    {
+      "id": "ui-settings", "owner": "ui-rendering",
+      "paths": ["src/ui/settings/"],
+      "testPaths": ["test/ui/settings/", "test/features/owned-ui/run-settings.test.ts", "test/features/owned-ui/settings-app.test.ts", "test/app/session-shell/settings-bindings.test.ts"],
+      "integrationOwners": []
+    },
+    {
+      "id": "pi-clipboard", "owner": "pi",
+      "paths": ["src/app/session-shell/system-clipboard.ts", "src/app/session-shell/response-copy-coordinator.ts", "src/app/session-shell/text-paste.ts"],
+      "testPaths": ["test/app/session-shell/", "test/integrations/pi/components/editor-text-paste.test.ts"],
+      "integrationOwners": ["pi-release-resume", "image-compatibility", "history-compatibility"]
+    },
+    {
+      "id": "pi-editor", "owner": "pi",
+      "paths": ["src/integrations/pi/components/path-word-ranges.ts"],
+      "testPaths": ["test/integrations/pi/components/", "test/app/session-shell/session-shell-paste.test.ts", "test/app/session-shell/session-shell-selection.test.ts"],
+      "integrationOwners": ["pi-release-resume"]
+    },
+    {
+      "id": "pi-repository-commands", "owner": "pi",
+      "paths": ["src/integrations/pi/engine/repository-pr.ts", "src/integrations/pi/engine/repository-pr-rest.ts"],
+      "testPaths": ["test/integrations/pi/engine/repository-pr.test.ts", "test/app/session-shell/session-shell-resident-footer.test.ts"],
+      "integrationOwners": ["pi-release-resume"]
+    },
+    {
+      "id": "governance-documentation", "owner": "governance",
+      "paths": ["scripts/governance/check-docs-governance.mjs", "scripts/governance/check-code-documentation.mjs", "scripts/governance/code-documentation-policy.mjs", "scripts/governance/code-documentation-policy.d.mts"],
+      "testPaths": ["test/repository-governance/docs-sensitive-governance.test.ts", "test/repository-governance/code-documentation*", "test/repository-governance/change-delivery-guidance.test.ts"],
+      "integrationOwners": []
+    },
+    {
+      "id": "governance-cleanup", "owner": "governance",
+      "paths": ["scripts/governance/local-cleanup-*", "scripts/governance/local-worktree-cleanup.mjs"],
+      "testPaths": ["test/repository-governance/local-cleanup.test.ts", "test/repository-governance/merged-branch-cleanup.test.ts"],
+      "integrationOwners": []
+    },
+    {
+      "id": "governance-delivery", "owner": "governance",
+      "paths": ["scripts/governance/openspec-*", "scripts/governance/publish-openspec-finalization.mjs", "scripts/governance/finalize-openspec-delivery.mjs", "scripts/governance/check-delivery-body.mjs"],
+      "testPaths": ["test/repository-governance/openspec-*", "test/repository-governance/acceptance-*", "test/repository-governance/development-validation-readiness.test.ts", "test/repository-governance/documentation-auto-merge.test.ts", "test/repository-governance/local-cleanup.test.ts"],
+      "integrationOwners": []
+    },
+    {
+      "id": "development-environment", "owner": "launch-startup",
+      "paths": ["scripts/development/check-environment.mjs", "scripts/development/environment-prerequisites.mjs", "scripts/development/environment-prerequisites.d.mts", "scripts/development/environment-probe.mjs", "scripts/development/environment-probe.d.mts"],
+      "testPaths": ["test/repository-governance/environment-prerequisites.test.ts"],
+      "integrationOwners": []
+    }
+  ],
   "unrelated": [
     "docs/",
     "openspec/",

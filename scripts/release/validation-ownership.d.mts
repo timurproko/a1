@@ -12,9 +12,9 @@ export interface ValidationOwnershipSelection {
   invalidators: string[];
   unknown: string[];
 }
-export interface ValidationSupportGraph { files: number; reachingTests(path: string): string[] }
+export interface ValidationSupportGraph { files: number; reachingTests(path: string): string[]; hasPath(path: string): boolean }
 export function loadValidationOwnership(repository?: string): Promise<any>;
-export function buildSupportGraph(root: string): Promise<ValidationSupportGraph>;
+export function buildSupportGraph(root: string, options?: { includeProduct?: boolean }): Promise<ValidationSupportGraph>;
 export function selectValidationOwnership(options: { authority: any; changes: { status: string; path: string; oldPath?: string }[]; manualNoComparison?: boolean; exemption?: "docs-only" | "version-only" | null }): ValidationOwnershipSelection;
 export function assertValidationOwnershipSelection(value: unknown, authority: any): ValidationOwnershipSelection;
 export function validationSelectionDigest(value: unknown): string;

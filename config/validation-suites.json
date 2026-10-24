@@ -219,11 +219,11 @@
     "rendering-stability": {
       "kind": "vitest-isolated",
       "evidence": {
-        "workloadCaptures": 16,
+        "workloadCaptures": 19,
         "deliberateRepeatCaptures": 0,
-        "matrixProducerLaunches": 55,
+        "matrixProducerLaunches": 73,
         "protocolProducerLaunches": 10,
-        "totalProducerLaunches": 65
+        "totalProducerLaunches": 83
       },
       "tests": [
         "test/integrations/pi/tui-runtime/rendering-budgets.test.ts",

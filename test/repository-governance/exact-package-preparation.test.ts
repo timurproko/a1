@@ -1,4 +1,5 @@
 import { gzipSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -65,6 +66,28 @@ describe("lane-scoped exact-package preparation", () => {
       [EXACT_PACKAGE_PREPARATION_ENV.consumer]: "package-startup",
       [EXACT_PACKAGE_PREPARATION_ENV.prefix]: resolve(lane.preparation.root, "..", "escaped"),
     } })).rejects.toThrow(/escape/);
+  });
+
+  it("retains the exact independently calculated payload digest with one manifest/payload walk", async () => {
+    const fixture = await prepareFixture();
+    const hash = (text: string) => createHash("sha256").update(text).digest("hex");
+    const manifest = JSON.stringify({ name: "@fixture/app", version: "1.2.3" });
+    const payload = [
+      { path: "dist/identity.js", text: "export const identity = true;" },
+      { path: "package.json", text: manifest },
+    ];
+    // Independent canonical representation of the original receipt contract: no payload bytes
+    // need to remain buffered after their individual hash is calculated.
+    const canonical = `[${payload.map(file => JSON.stringify({ path: file.path, sha256: hash(file.text), size: Buffer.byteLength(file.text) })).join(",")}]`;
+    expect(fixture.preparation.receipt.install.installedIdentity).toEqual({
+      name: "@fixture/app", version: "1.2.3", files: 2,
+      bytes: payload.reduce((total, file) => total + Buffer.byteLength(file.text), 0), sha256: hash(canonical),
+    });
+    const environment = { ...fixture.environment, [EXACT_PACKAGE_PREPARATION_ENV.consumer]: "package-startup" };
+    await expect(verifyExactPackagePreparation({ environment })).resolves.toBeDefined();
+    await writeFile(resolve(fixture.preparation.packageRoot, "package.json"), JSON.stringify({ name: "@fixture/app", version: "9.9.9" }));
+    await expect(verifyExactPackagePreparation({ environment })).rejects.toThrow("installed bytes changed");
+    expect(fixture.calls).toHaveLength(1);
   });
 
   it("detects installed-package mutation before a later owner can consume it", async () => {

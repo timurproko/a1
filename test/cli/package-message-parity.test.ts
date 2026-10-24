@@ -1,12 +1,12 @@
-import { execFile } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { promisify } from "node:util";
-import { afterEach, describe, expect, it } from "vitest";
+import { join } from "node:path";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
+import { PackageMessageCapture } from "../support/package-message-capture.js";
 import { createValidationPhaseRecorder } from "../../scripts/release/validation-phase.mjs";
 
-const execute = promisify(execFile);
+const captures = new PackageMessageCapture();
+afterAll(async () => { await captures.close(); });
 const roots: string[] = [];
 const phases = createValidationPhaseRecorder("package-message-parity");
 let captureSequence = 0;
@@ -21,16 +21,7 @@ interface Case {
 interface Transcript { readonly id: string; readonly stdout: string; readonly stderr: string; readonly code: number }
 async function capture(producer: "owned" | "pinned", home: string, cases: readonly Case[], color: 0 | 1): Promise<Transcript[]> {
   return phases.run(`capture-${++captureSequence}-${producer}`, async () => {
-    const environment = Object.fromEntries(Object.entries(process.env).filter(([key]) =>
-      ["PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "TEMP", "TMP"].includes(key.toUpperCase())));
-    const { stdout, stderr } = await execute(process.execPath, [
-      "--import", "tsx", resolve("test/cli/pinned-package-message-worker.mjs"), producer, home, JSON.stringify(cases),
-    ], {
-      cwd: process.cwd(), timeout: 60_000, maxBuffer: 2 * 1024 * 1024,
-      env: { ...environment, HOME: home, USERPROFILE: home, FORCE_COLOR: String(color), PI_OFFLINE: "1", PI_TELEMETRY: "0", PI_SKIP_VERSION_CHECK: "1" },
-    });
-    expect(stderr).toBe("");
-    return JSON.parse(stdout) as Transcript[];
+    return await captures.capture(producer, home, cases, color) as Transcript[];
   });
 }
 async function home(): Promise<string> {
@@ -167,6 +158,18 @@ describe("independent pinned package command transcripts", () => {
       expect(actual[index]).toEqual({ ...upstream, stderr: projected, code: 2 });
       expect(upstream.code).toBe(1);
     }
+  }, 120_000);
+
+  it("reuses only four producer/color loaders while keeping request homes and settings independent", async () => {
+    for (const producer of ["owned", "pinned"] as const) for (const color of [0, 1] as const) {
+      const populated = await home();
+      const empty = await home();
+      const [before] = await capture(producer, populated, [{ id: "list", pinnedArgs: ["list", "--no-approve"], ownedArgs: ["list"], settings: { packages: ["npm:fixture-only-package@1.2.3"] } }], color);
+      const [after] = await capture(producer, empty, [{ id: "list", pinnedArgs: ["list", "--no-approve"], ownedArgs: ["list"] }], color);
+      expect(before?.stdout).toContain("fixture-only-package");
+      expect(after?.stdout).not.toContain("fixture-only-package");
+    }
+    expect(captures.producerLaunches).toBe(4);
   }, 120_000);
 
   it("reports user settings warnings before operation output without reading project settings", async () => {

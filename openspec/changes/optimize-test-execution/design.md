@@ -28,4 +28,4 @@ Selection narrowing can miss transitive consumers; explicit reviewed dependencie
 
 ## Known Gaps
 
-None identified before implementation. Any irreducible or unmeasured cost must receive an explicit disposition before finalization.
+None. Observational timing limits, deliberately retained uncertain overlap, widened UI consumer coverage, and irreducible npm/predecessor preparation costs are explicitly dispositioned in implementation-evidence.md rather than claimed as measured hosted improvements.

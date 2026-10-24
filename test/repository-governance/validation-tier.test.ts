@@ -194,8 +194,19 @@ describe("validation tier planning", () => {
       "test/integrations/pi/tui-runtime/input-producer.test.ts",
     ]));
     expect(full.structuralEvidence).toEqual({
-      "rendering-stability": { workloadCaptures: 16, deliberateRepeatCaptures: 0, matrixProducerLaunches: 55, protocolProducerLaunches: 10, totalProducerLaunches: 65 },
+      "rendering-stability": { workloadCaptures: 19, deliberateRepeatCaptures: 0, matrixProducerLaunches: 73, protocolProducerLaunches: 10, totalProducerLaunches: 83 },
     });
+  });
+
+  it.each([["full-release"], ["rendering-smoke", "rendering-stability"], ["rendering-stability", "rendering-smoke"]])("supersedes smoke captures in %j without duplicate scheduled content", async (...requested) => {
+    const plan = await createTierPlan(requested);
+    const isolated = plan.vitest!.invocations.find(invocation => invocation.id === "vitest-isolated-suites")!;
+    const files = isolated.arguments.filter(argument => argument.endsWith(".test.ts"));
+    expect(new Set(files).size).toBe(files.length);
+    expect(files).not.toContain("test/integrations/pi/tui-runtime/rendering-smoke.test.ts");
+    expect(files).not.toContain("test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts");
+    expect(files.filter(file => file.endsWith("/content-producer.test.ts"))).toHaveLength(1);
+    expect(files).toContain("test/integrations/pi/tui-runtime/input-responsiveness-budgets.test.ts");
   });
 
   it("keeps changed documentation out of ordinary plans and full review exactly once", async () => {

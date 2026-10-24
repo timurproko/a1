@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 import { captureInputResponsivenessGate } from "../../../support/input-responsiveness/input-gate.js";
 import { assertInputResponsivenessMatrix } from "../../../support/input-responsiveness/input-matrix.js";
 
+import { assertInputSmokeContracts } from "../../../support/input-responsiveness/input-smoke-contract.js";
+
 const capture = captureInputResponsivenessGate("full");
 
 describe("full input responsiveness evidence", () => {
   it("gates editor, menu, replacement, barrier, wrap, long-transcript, and streaming workloads", async () => {
     const evidence = await capture;
+    assertInputSmokeContracts(evidence);
     expect(evidence.structure).toEqual({ workloadCaptures: 6, deliberateRepeatCaptures: 0, producerLaunches: 3 });
     for (const matrix of evidence.matrices.values()) expect(() => assertInputResponsivenessMatrix(matrix)).not.toThrow();
     const empty = evidence.matrices.get("full-empty-transcript")!;
