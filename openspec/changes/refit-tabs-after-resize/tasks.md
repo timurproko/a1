@@ -28,6 +28,6 @@
 
 ## 6. Centered status consistency
 
-- [ ] 6.1 Render the resize curtain as a quiet centered `🖥️` mark above `Resize <columns> x <rows>`.
-- [ ] 6.2 Remove trailing punctuation from the owned Settings `No settings found` empty state.
-- [ ] 6.3 Update focused native and Settings regression coverage for the exact presentation copy and layout.
+- [x] 6.1 Render the resize curtain as a quiet centered `🖥️` mark above `Resize <columns> x <rows>`.
+- [x] 6.2 Remove trailing punctuation from the owned Settings `No settings found` empty state.
+- [x] 6.3 Update focused native and Settings regression coverage for the exact presentation copy and layout.
