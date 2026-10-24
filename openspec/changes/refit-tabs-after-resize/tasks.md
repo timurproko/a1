@@ -25,3 +25,9 @@
 - [x] 5.1 Extend the post-resize curtain hold and reveal the settled complete UI using terminal faint intensity with the child cursor hidden.
 - [x] 5.2 Keep ordinary paints dimmed during the short reveal, then force the current UI at normal intensity; a new resize cancels the reveal.
 - [x] 5.3 Add focused native coverage for ANSI and structured dimming, reveal timing, cursor suppression, and final normal repaint.
+
+## 6. Centered status consistency
+
+- [ ] 6.1 Render the resize curtain as a quiet centered `🖥️` mark above `Resize <columns> x <rows>`.
+- [ ] 6.2 Remove trailing punctuation from the owned Settings `No settings found` empty state.
+- [ ] 6.3 Update focused native and Settings regression coverage for the exact presentation copy and layout.

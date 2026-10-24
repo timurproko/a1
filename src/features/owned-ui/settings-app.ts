@@ -356,7 +356,7 @@ export class SettingsApp implements UiApp {
     const body: string[] = [];
     this.#frameRows = [];
     if (rows.length === 0) {
-      body.push(...renderEmptyState("No settings found.", "👀", bodyHeight, contentWidth, theme));
+      body.push(...renderEmptyState("No settings found", "👀", bodyHeight, contentWidth, theme));
     } else {
       if (layout.topPadding > 0) body.push("");
       if (layout.stickyHeader !== undefined) body.push(this.#header(layout.stickyHeader, theme, contentWidth));

@@ -1734,19 +1734,22 @@ fn dim_presentation(mut desired: DesiredPresentation) -> DesiredPresentation {
 }
 
 fn resize_curtain_overlay(columns: u16, outer_rows: u16, truecolor: bool) -> String {
-    let label = clip_cells(
-        &format!("Resize {columns} × {outer_rows}"),
-        usize::from(columns),
-    );
-    let width = UnicodeWidthStr::width(label.as_str());
-    let column = usize::from(columns).saturating_sub(width) / 2 + 1;
-    let row = outer_rows.saturating_sub(1) / 2 + 1;
+    let available = usize::from(columns);
+    let mark = clip_cells("🖥️", available);
+    let label = clip_cells(&format!("Resize {columns} x {outer_rows}"), available);
+    let mark_column = available.saturating_sub(UnicodeWidthStr::width(mark.as_str())) / 2 + 1;
+    let label_column = available.saturating_sub(UnicodeWidthStr::width(label.as_str())) / 2 + 1;
+    let middle = outer_rows / 2;
+    let label_row = middle + 1;
     let style = if truecolor {
-        "\x1b[0;1;38;2;190;190;190m"
+        "\x1b[0;38;2;158;162;170m"
     } else {
-        "\x1b[0;1;38;5;250m"
+        "\x1b[0;38;5;246m"
     };
-    format!("\x1b[{row};{column}H{style}{label}\x1b[0m")
+    let mark_line = (middle > 0)
+        .then(|| format!("\x1b[{middle};{mark_column}H{mark}"))
+        .unwrap_or_default();
+    format!("{style}{mark_line}\x1b[{label_row};{label_column}H{label}\x1b[0m")
 }
 
 fn resize_curtain_presentation(
@@ -3516,8 +3519,9 @@ mod tests {
         let bytes = String::from_utf8(prepared.bytes).unwrap();
         assert!(bytes.starts_with(std::str::from_utf8(BEGIN_SYNCHRONIZED_UPDATE).unwrap()));
         assert!(bytes.contains("\x1b[2J\x1b[H"));
-        assert!(bytes.contains("\x1b[12;34H"));
-        assert!(bytes.contains("Resize 80 × 24"));
+        assert!(bytes.contains("\x1b[0;38;2;158;162;170m"));
+        assert!(bytes.contains("\x1b[12;40H🖥️"));
+        assert!(bytes.contains("\x1b[13;34HResize 80 x 24"));
         assert!(bytes.contains("\x1b[?25l"));
         assert!(bytes.ends_with(std::str::from_utf8(END_SYNCHRONIZED_UPDATE).unwrap()));
     }
