@@ -50,14 +50,17 @@ if (launchArguments[0] === "--print-environment") {
 } else {
   // Rationale: a checkout's earlier development launch keeps its resident server owning the tab
   // endpoint, which silently forces this launch onto the single-agent fallback; testing always
-  // wants the fresh build, so stop that checkout-owned run first.
-  const { stopCheckoutProcesses } = await import("./stop-checkout-processes.mjs");
+  // wants the fresh build, so stop that checkout-owned run first. The stop converges on its own
+  // and reports only what survived it.
+  const { describeSurvivors, stopCheckoutProcesses } = await import("./stop-checkout-processes.mjs");
   // Rationale: automated probes start a second instance beside a running one and opt out of the stop.
-  const stopped = process.env.A1_DEV_KEEP_PROCESSES === "1" ? [] : stopCheckoutProcesses({ root: canonicalRoot });
-  if (stopped.length > 0) {
-    process.stderr.write(`Stopped ${stopped.length} earlier A1 process(es) from this checkout.\n`);
-    await new Promise(resolveDelay => setTimeout(resolveDelay, 500));
-  }
+  const keepProcesses = process.env.A1_DEV_KEEP_PROCESSES === "1";
+  const stopCheckout = async () => {
+    if (keepProcesses) return;
+    const { survivors } = await stopCheckoutProcesses({ root: canonicalRoot });
+    process.stderr.write(describeSurvivors(survivors));
+  };
+  await stopCheckout();
   const child = spawn(process.execPath, [resolve(packageRoot, entry), ...selectedChildArguments], {
     cwd: process.cwd(),
     env: childEnvironment,
@@ -70,6 +73,10 @@ if (launchArguments[0] === "--print-environment") {
   });
   child.once("close", (code, signal) => {
     process.exitCode = restoreAfterOwnedExit(directProfile === "a1", code, signal);
+    // Rationale: a development instance is disposable test state. Resident roles are designed to
+    // outlive a detached `a1`, which for a checkout means a supervisor, server, holders, and tabs
+    // left running after every `./scripts/dev` session; the launch that created them ends them.
+    void stopCheckout();
   });
 }
 
