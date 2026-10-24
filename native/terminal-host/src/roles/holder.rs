@@ -841,7 +841,7 @@ fn run_holder(
     let mut child_exit_report: Option<HolderExit> = None;
     let (reconnect_tx, reconnect_rx) =
         mpsc::sync_channel::<Result<(endpoint::EndpointStream, u64), String>>(1);
-    let mut reconnecting = false;
+    let (mut reconnecting, mut standby) = (false, config.standby);
     let mut server_connected = true;
     // Invariant: unpublished parser changes carry across rounds until a commit publishes them.
     let mut changed = false;
@@ -903,15 +903,14 @@ fn run_holder(
                 subscription = None;
                 pending_effects.clear();
                 if !reconnecting {
-                    begin_reconnect(
-                        &config,
+                    reconnecting = begin_reconnect(
+                        (&config, standby),
                         &child_identity,
                         &diagnostics_root,
                         highest_epoch,
                         &reconnect_tx,
                         &wake_tx,
                     )?;
-                    reconnecting = true;
                 }
             } else if let HolderCommand::Respawn(respawn) = command {
                 if respawn.tab_id != config.tab_id || respawn.incarnation <= config.incarnation {
@@ -943,6 +942,7 @@ fn run_holder(
                     )?);
                 }
             } else if matches!(&command, HolderCommand::Promote) {
+                standby = false;
                 // Platform: Windows ConPTY may drop the in-band OSC marker, so the private tab
                 // data directory carries the same promotion out of band; the child accepts either.
                 let promotion = tab_data_dir.join("standby-promote");
@@ -1569,17 +1569,19 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<bool, Strin
     }
 }
 
-/// Starts the one reconnect thread for a lost server connection, or ends a standby holder, which
-/// no replacement server could admit (see [`disconnect_ends_holder`]).
+/// Starts the one reconnect thread for a lost server connection and reports that it is running,
+/// or ends a holder that is still a standby, which no replacement server could admit (see
+/// [`disconnect_ends_holder`]). `standby` is the holder's current state, not its launch config:
+/// a promoted standby is a user tab and reconnects like one.
 fn begin_reconnect(
-    config: &HolderLaunchConfig,
+    (config, standby): (&HolderLaunchConfig, bool),
     child: &crate::identity::ProcessIdentity,
     diagnostics_root: &Path,
     highest_epoch: u64,
     reconnect_tx: &mpsc::SyncSender<Result<(endpoint::EndpointStream, u64), String>>,
     wake_tx: &mpsc::SyncSender<()>,
-) -> Result<(), String> {
-    if let Some(reason) = disconnect_ends_holder(config.standby) {
+) -> Result<bool, String> {
+    if let Some(reason) = disconnect_ends_holder(standby) {
         let _ = crate::roles::diagnostics::append_log(
             diagnostics_root,
             &format!("holder-{}", config.tab_id),
@@ -1597,7 +1599,7 @@ fn begin_reconnect(
         let _ = reconnect_tx.send(result);
         let _ = wake_tx.try_send(());
     });
-    Ok(())
+    Ok(true)
 }
 
 fn reconnect_holder(
