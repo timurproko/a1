@@ -42,6 +42,81 @@ mod tests {
     use super::*;
 
     #[test]
+    fn readonly_resize_is_ignored_without_triggering_input_claim() {
+        assert_eq!(unroutable_input_rejection("resize"), None);
+        assert_eq!(
+            unroutable_input_rejection("input"),
+            Some(INPUT_REJECTED_READ_ONLY)
+        );
+    }
+
+    #[test]
+    fn background_resize_only_targets_hidden_unclaimed_tabs() {
+        assert!(background_resize_eligible(
+            "tab-hidden",
+            "tab-selected",
+            false,
+            false
+        ));
+        assert!(!background_resize_eligible(
+            "tab-selected",
+            "tab-selected",
+            true,
+            true
+        ));
+        assert!(!background_resize_eligible(
+            "tab-viewed",
+            "tab-selected",
+            true,
+            false
+        ));
+        assert!(!background_resize_eligible(
+            "tab-controlled",
+            "tab-selected",
+            false,
+            true
+        ));
+    }
+
+    #[test]
+    fn activation_queues_resize_before_surface_subscription() {
+        let frames = activation_holder_frames(
+            Some(Resize {
+                columns: 132,
+                rows: 40,
+                epoch: 0,
+                geometry_generation: 9,
+            }),
+            4,
+            wire::SurfaceSubscription {
+                enabled: true,
+                effects: true,
+                structured: true,
+                legacy: false,
+            },
+        )
+        .unwrap();
+        let resize: protocol::Envelope<Resize> = protocol::decode_frame(&frames[0]).unwrap();
+        let subscription: protocol::Envelope<wire::SurfaceSubscription> =
+            protocol::decode_frame(&frames[1]).unwrap();
+        assert_eq!(resize.message_type, "resize");
+        assert_eq!(resize.body.epoch, 4);
+        assert_eq!(subscription.message_type, "surface.subscription");
+
+        let geometry = HolderGeometry {
+            incarnation: 3,
+            columns: 132,
+            rows: 40,
+        };
+        assert!(holder_geometry_matches(Some(&geometry), 3, &resize.body));
+        let prefitted = activation_holder_frames(None, 4, subscription.body).unwrap();
+        assert_eq!(prefitted.len(), 1);
+        let subscription: protocol::Envelope<wire::SurfaceSubscription> =
+            protocol::decode_frame(&prefitted[0]).unwrap();
+        assert_eq!(subscription.message_type, "surface.subscription");
+    }
+
+    #[test]
     fn admission_selects_only_a_registered_tab() {
         assert_eq!(
             attach_admission(&[], "tab-1", "client", 1, 2).selected_tab,
@@ -54,6 +129,170 @@ mod tests {
         assert_eq!(initial.revision, 2);
         assert_eq!(initial.tabs[0].tab_id, "tab-1");
     }
+}
+
+fn unroutable_input_rejection(message_type: &str) -> Option<&'static str> {
+    // Invariant: a spectator's geometry never controls the shared child. Unlike typed input,
+    // silently ignoring its resize must not make the attach client interpret the refusal as a
+    // lost input claim and take control merely because it switched views.
+    (message_type != "resize").then_some(INPUT_REJECTED_READ_ONLY)
+}
+
+fn background_resize_eligible(
+    tab_id: &str,
+    selected_tab: &str,
+    viewed: bool,
+    controlled: bool,
+) -> bool {
+    tab_id != selected_tab && !viewed && !controlled
+}
+
+fn holder_geometry_matches(
+    geometry: Option<&HolderGeometry>,
+    incarnation: u64,
+    resize: &Resize,
+) -> bool {
+    geometry.is_some_and(|geometry| {
+        geometry.incarnation == incarnation
+            && geometry.columns == resize.columns
+            && geometry.rows == resize.rows
+    })
+}
+
+fn activation_holder_frames(
+    mut resize: Option<Resize>,
+    epoch: u64,
+    subscription: wire::SurfaceSubscription,
+) -> Result<Vec<Vec<u8>>, String> {
+    let mut frames = Vec::with_capacity(usize::from(resize.is_some()) + 1);
+    if let Some(resize) = resize.as_mut() {
+        resize.epoch = epoch;
+        frames.push(wire::frame("resize", None, resize.clone())?);
+    }
+    frames.push(wire::frame("surface.subscription", None, subscription)?);
+    Ok(frames)
+}
+
+fn activate_target_holder(
+    locked: &mut RuntimeState,
+    target: &ViewTarget,
+    client_id: &str,
+    next_revision: Option<u64>,
+) -> Result<(), String> {
+    if let Some(controller_revision) = next_revision
+        && let Some(bridge) = locked.bridges.get(&target.tab_id)
+    {
+        let _ = bridge.peer.offer_control(wire::frame(
+            "attachment",
+            None,
+            BridgeAttachment::new(client_id.to_owned(), controller_revision),
+        )?);
+    }
+    // Protocol: resize precedes subscription on the holder's ordered control lane, so the first
+    // fresh target surface has current geometry; a pre-fitted holder skips redundant PTY reflow.
+    let Some(holder) = locked.holders.get(&target.tab_id) else {
+        return Ok(());
+    };
+    let holder_peer = holder.peer.clone();
+    let holder_incarnation = holder.incarnation;
+    let activation_resize = next_revision
+        .and_then(|_| target.resize.clone())
+        .filter(|resize| {
+            !holder_geometry_matches(
+                locked.holder_geometries.get(&target.tab_id),
+                holder_incarnation,
+                resize,
+            )
+        });
+    let subscription =
+        desired_surface_subscription(locked, &target.tab_id, holder.structured_surface);
+    let frames = activation_holder_frames(
+        activation_resize.clone(),
+        locked.registry.epoch,
+        subscription,
+    )?;
+    for (index, frame) in frames.into_iter().enumerate() {
+        if holder_peer.offer_control(frame).is_err() {
+            break;
+        }
+        if index == 0
+            && let Some(resize) = activation_resize.as_ref()
+        {
+            locked.holder_geometries.insert(
+                target.tab_id.clone(),
+                HolderGeometry {
+                    incarnation: holder_incarnation,
+                    columns: resize.columns,
+                    rows: resize.rows,
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
+fn route_controller_resize(
+    locked: &mut RuntimeState,
+    client_id: &str,
+    resize: &Resize,
+    frame: &[u8],
+) -> Option<&'static str> {
+    let (selected_tab, controller) = locked
+        .clients
+        .get(client_id)
+        .map(|client| (client.viewed_tab.clone(), client.controller))?;
+    if !controller {
+        return None;
+    }
+    let selected = locked.holders.get(&selected_tab).map(|holder| {
+        (
+            selected_tab.clone(),
+            holder.peer.clone(),
+            holder.incarnation,
+        )
+    });
+    let background = locked
+        .holders
+        .iter()
+        .filter(|(tab_id, _)| {
+            background_resize_eligible(
+                tab_id,
+                &selected_tab,
+                is_viewed(locked, tab_id),
+                locked.attachment.current(tab_id).is_some(),
+            )
+        })
+        .map(|(tab_id, holder)| (tab_id.clone(), holder.peer.clone(), holder.incarnation))
+        .collect::<Vec<_>>();
+    let selected_rejection = selected.and_then(|(tab_id, holder, incarnation)| {
+        if holder.offer_control(frame.to_vec()).is_err() {
+            return Some(INPUT_REJECTED_READ_ONLY);
+        }
+        locked.holder_geometries.insert(
+            tab_id,
+            HolderGeometry {
+                incarnation,
+                columns: resize.columns,
+                rows: resize.rows,
+            },
+        );
+        None
+    });
+    // Performance: hidden holders have surface publication disabled, so this reflows retained
+    // state in the background without painting any client.
+    for (tab_id, holder, incarnation) in background {
+        if holder.offer_control(frame.to_vec()).is_ok() {
+            locked.holder_geometries.insert(
+                tab_id,
+                HolderGeometry {
+                    incarnation,
+                    columns: resize.columns,
+                    rows: resize.rows,
+                },
+            );
+        }
+    }
+    selected_rejection
 }
 
 fn registry_tab_list(registry: &RegistryDocument) -> TabList {
@@ -391,22 +630,13 @@ pub(super) fn serve_attach(
                     }
                     refresh_surface_subscription(&locked, previous_tab)?;
                 }
-                refresh_surface_subscription(&locked, &target.tab_id)?;
+                activate_target_holder(&mut locked, &target, &client_id, next_revision)?;
                 offer_bridge_visibility(&locked, &target.tab_id, true)?;
                 // Protocol: the retained surface is offered at once so a view can commit even
                 // when the holder is slow, but it is marked stale so the client prefers the
                 // fresh frame the new subscription produces. Keep only an Arc under the routing
                 // lock; fallback reconstruction and encoding happen after it is released.
                 let stale_surface = locked.surfaces.get(&target.tab_id).cloned();
-                if let Some(controller_revision) = next_revision
-                    && let Some(bridge) = locked.bridges.get(&target.tab_id)
-                {
-                    let _ = bridge.peer.offer_control(wire::frame(
-                        "attachment",
-                        None,
-                        BridgeAttachment::new(client_id.clone(), controller_revision),
-                    )?);
-                }
                 drop(locked);
                 if let Some(surface) = stale_surface {
                     let mut surface = surface.as_ref().clone();
@@ -473,6 +703,7 @@ pub(super) fn serve_attach(
                         .get(&client_id)
                         .map(|client| client.viewed_tab.clone());
                     let epoch = locked.registry.epoch;
+                    let mut resize_body = None;
                     let frame = match kind.message_type.as_str() {
                         "paste.start" => {
                             let (_, mut body): (_, PasteStart) = wire::body(&payload)?;
@@ -492,10 +723,13 @@ pub(super) fn serve_attach(
                         _ => {
                             let (_, mut body): (_, Resize) = wire::body(&payload)?;
                             body.epoch = epoch;
+                            resize_body = Some(body.clone());
                             wire::frame("resize", kind.request_id, body)?
                         }
                     };
-                    if claim.pending {
+                    if let Some(resize) = resize_body {
+                        route_controller_resize(&mut locked, &client_id, &resize, &frame)
+                    } else if claim.pending {
                         let held = viewed_tab
                             .as_ref()
                             .and_then(|tab_id| locked.pending_controller_transfers.get_mut(tab_id))
@@ -522,7 +756,7 @@ pub(super) fn serve_attach(
                                 .and_then(|_| locked.holders.get(tab_id))
                         });
                         match holder {
-                            None => Some(INPUT_REJECTED_READ_ONLY),
+                            None => unroutable_input_rejection(&kind.message_type),
                             // Compatibility: an older same-generation holder cannot encode
                             // semantic events; the client re-sends the event as bytes.
                             Some(holder) if semantic && !holder.semantic_input => {

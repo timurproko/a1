@@ -191,6 +191,9 @@ pub struct ViewTarget {
     pub tab_id: String,
     #[serde(default)]
     pub request_generation: u64,
+    /// Current attach geometry, applied by the server before the target publishes a fresh surface.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resize: Option<Resize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

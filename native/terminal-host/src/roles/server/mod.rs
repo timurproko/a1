@@ -7,7 +7,7 @@ use std::sync::{
     mpsc,
 };
 use std::thread;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -294,6 +294,13 @@ struct HolderSession {
     structured_surface: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct HolderGeometry {
+    incarnation: u64,
+    columns: u16,
+    rows: u16,
+}
+
 #[derive(Clone)]
 struct ClientSession {
     peer: Peer,
@@ -435,6 +442,7 @@ struct RuntimeState {
     pending_controller_transfers: HashMap<String, PendingControllerTransfer>,
     standby: Option<StandbyTab>,
     holders: HashMap<String, HolderSession>,
+    holder_geometries: HashMap<String, HolderGeometry>,
     launches: HashMap<String, AttachStart>,
     surfaces: HashMap<String, Arc<Surface>>,
     max_concurrent_starts: usize,
@@ -516,6 +524,33 @@ fn default_tab(tabs: &[TabRecord]) -> String {
         .unwrap_or_else(|| "tab-1".into())
 }
 
+fn recovered_launches(
+    registry: &RegistryDocument,
+    environment: &[(String, String)],
+) -> HashMap<String, AttachStart> {
+    registry
+        .tabs
+        .iter()
+        .map(|tab| {
+            (
+                tab.tab_id.clone(),
+                AttachStart {
+                    client_id: "recovered-server".into(),
+                    tabs_max: 10,
+                    cwd: tab.cwd.clone(),
+                    columns: 80,
+                    rows: 23,
+                    release_root: tab.release.clone(),
+                    node_executable: "node".into(),
+                    environment: environment.to_vec(),
+                    session_file: tab.session_file.clone(),
+                    session_dir: tab.session_dir.clone(),
+                },
+            )
+        })
+        .collect()
+}
+
 struct HeldAuthority;
 impl RegistryAuthority for HeldAuthority {
     fn is_current(&self, _epoch: u64) -> bool {
@@ -575,6 +610,11 @@ fn lock_state<T>(state: &Mutex<T>) -> Result<MutexGuard<'_, T>, String> {
     state
         .lock()
         .map_err(|_| "resident state poisoned".to_owned())
+}
+
+fn remove_holder_session(state: &mut RuntimeState, tab_id: &str) {
+    state.holders.remove(tab_id);
+    state.holder_geometries.remove(tab_id);
 }
 
 /// The clients currently viewing `tab_id`.
@@ -887,7 +927,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     let core_started = std::time::Instant::now();
     let mut core = crate::core::server::State::new(epoch, config.max_concurrent_starts);
     core.unresponsive_restart_after =
-        std::time::Duration::from_secs(config.unresponsive_restart_seconds.clamp(30, 600));
+        Duration::from_secs(config.unresponsive_restart_seconds.clamp(30, 600));
     for tab in &registry.tabs {
         let mut core_tab = crate::core::server::TabState::new((80, 23));
         core_tab.incarnation = tab.incarnation;
@@ -912,27 +952,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     }
     let mut recovered_environment = std::env::vars().collect::<Vec<_>>();
     sanitize_tab_environment(&mut recovered_environment);
-    let launches = registry
-        .tabs
-        .iter()
-        .map(|tab| {
-            (
-                tab.tab_id.clone(),
-                AttachStart {
-                    client_id: "recovered-server".into(),
-                    tabs_max: 10,
-                    cwd: tab.cwd.clone(),
-                    columns: 80,
-                    rows: 23,
-                    release_root: tab.release.clone(),
-                    node_executable: "node".into(),
-                    environment: recovered_environment.clone(),
-                    session_file: tab.session_file.clone(),
-                    session_dir: tab.session_dir.clone(),
-                },
-            )
-        })
-        .collect();
+    let launches = recovered_launches(&registry, &recovered_environment);
     let state = Arc::new(Mutex::new(RuntimeState {
         endpoint: endpoint_address,
         profile: profile.to_path_buf(),
@@ -946,6 +966,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         pending_controller_transfers: HashMap::new(),
         standby: None,
         holders: HashMap::new(),
+        holder_geometries: HashMap::new(),
         launches,
         surfaces: HashMap::new(),
         max_concurrent_starts: config.max_concurrent_starts.clamp(1, 8),
