@@ -243,26 +243,33 @@ fn connection_and_operation_handles_are_not_inherited() {
 // by other tests. Also emits native (not .NET) echo timings without changing production budgets.
 #[test]
 fn timer_free_subprocess_and_repeated_reconnect_fixture() {
-    const CHILD: &str = "A1_COMPLETION_PIPE_TEST_CHILD";
-    if std::env::var_os(CHILD).is_none() {
-        let output = std::process::Command::new(std::env::current_exe().unwrap())
-            .args([
-                "--exact",
-                "endpoint::windows::tests::timer_free_subprocess_and_repeated_reconnect_fixture",
-                "--nocapture",
-            ])
-            .env(CHILD, "1")
-            .output()
-            .unwrap();
-        assert!(
-            output.status.success(),
-            "{}\n{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-        print!("{}", String::from_utf8_lossy(&output.stdout));
-        return;
-    }
+    let output = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "endpoint::windows::tests::timer_free_and_reconnect_child",
+            "--ignored",
+            "--nocapture",
+        ])
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        output.status.success(),
+        "{stdout}\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        stdout.contains("test result: ok. 1 passed; 0 failed;"),
+        "child fixture did not run: {stdout}"
+    );
+    print!("{stdout}");
+}
+
+// Rationale: only the parent fixture invokes this helper, in a fresh process with no timer request.
+// The parent requires one passed child test, so filtering or accidentally skipping it fails coverage.
+#[test]
+#[ignore = "invoked by timer_free_subprocess_and_repeated_reconnect_fixture"]
+fn timer_free_and_reconnect_child() {
     for requested in [false, true] {
         if requested {
             assert_eq!(unsafe { windows_sys::Win32::Media::timeBeginPeriod(1) }, 0);
