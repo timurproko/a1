@@ -259,31 +259,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     // Rationale: one listener covers both the A1 presentation choice and the engine skill-command toggle.
     onChange: (listener: () => void) => settings.onChange(() => listener()),
   };
-  const historyLimit = settings?.value("promptHistoryMaxItems") ?? 100;
-  const historyScope = settings?.value("promptHistoryScope") ?? "unique";
-  const persistenceEnabled = settings !== null && ownedSurfaces && settings.value("promptHistoryEnabled");
-  const historySessionId = persistenceEnabled && historyScope === "unique" ? backend.identity.currentHistorySessionId() : null;
-  const historyEnabled = persistenceEnabled && (historyScope === "shared" || historySessionId !== null);
-  const historyDataDir = historyEnabled ? resolvePromptHistoryDataDir() : null;
-  const historyForSession = (sessionId: string) => {
-    if (historyDataDir === null) throw new Error("History is disabled");
-    const location = resolvePromptHistoryPath(historyDataDir, backend.identity.agentDir, process.platform, historyScope, sessionId);
-    return {
-      store: new PromptHistoryService({
-        dataDir: historyDataDir,
-        profileRoot: backend.identity.agentDir,
-        limit: historyLimit,
-        scope: historyScope,
-        sessionId,
-      }),
-      imageSidecar: new PromptImageSidecar(location.imagesDir),
-    };
-  };
-  const promptHistory = !historyEnabled ? null : {
-    limit: historyLimit,
-    ...(historyScope === "unique" ? { sessionId: historySessionId!, forSession: historyForSession } : {}),
-    ...historyForSession(historySessionId ?? ""),
-  };
+  const promptHistory = createPromptHistoryConfiguration(settings, backend, ownedSurfaces);
   const clipboardDestination = options.clipboardDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.clipboardDiagnostics];
   const clipboardDiagnostics = settings !== null && ownedSurfaces && clipboardDestination?.trim()
     ? new ClipboardDiagnosticCapture(clipboardDestination) : null;
@@ -416,6 +392,27 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
   };
   return { application, settings };
+}
+
+function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null, backend: ComposedSessionBackend, ownedSurfaces: boolean) {
+  const limit = settings?.value("promptHistoryMaxItems") ?? 100;
+  const scope = settings?.value("promptHistoryScope") ?? "unique";
+  const enabled = settings !== null && ownedSurfaces && settings.value("promptHistoryEnabled");
+  const sessionId = enabled && scope === "unique" ? backend.identity.currentHistorySessionId() : null;
+  if (!enabled || (scope === "unique" && sessionId === null)) return null;
+  const dataDir = resolvePromptHistoryDataDir();
+  const forSession = (id: string) => {
+    const location = resolvePromptHistoryPath(dataDir, backend.identity.agentDir, process.platform, scope, id);
+    return {
+      store: new PromptHistoryService({ dataDir, profileRoot: backend.identity.agentDir, limit, scope, sessionId: id }),
+      imageSidecar: new PromptImageSidecar(location.imagesDir),
+    };
+  };
+  return {
+    limit,
+    ...(scope === "unique" ? { sessionId: sessionId!, forSession } : {}),
+    ...forSession(sessionId ?? ""),
+  };
 }
 
 interface StartupReleaseUpdateObservationOptions {

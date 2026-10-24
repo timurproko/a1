@@ -252,11 +252,6 @@ export class PiEngineRuntime {
     return typeof value === "string" && value.length > 0 ? value : null;
   }
 
-  currentHistorySessionId(): string | null {
-    const id = this.#session?.sessionManager?.getSessionId?.();
-    return typeof id === "string" && id.length > 0 && id.length <= 256 && !id.includes("\0") ? id : null;
-  }
-
   currentSessionResumeMetadata(): PiSessionResumeMetadata | null {
     const session = this.#session;
     const manager = session?.sessionManager;

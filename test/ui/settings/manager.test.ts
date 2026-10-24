@@ -251,7 +251,7 @@ describe("owned settings manager", () => {
   });
 
   it("defaults an invalid stored history scope without losing other saved values", () => {
-    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ a1: { promptHistoryScope: "all", promptHistoryMaxItems: 20 } }));
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { promptHistoryScope: "all", promptHistoryMaxItems: 20 } }));
     const manager = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     expect(manager.value("promptHistoryScope")).toBe("unique");
     expect(manager.value("promptHistoryMaxItems")).toBe(20);

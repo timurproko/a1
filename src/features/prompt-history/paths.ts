@@ -15,8 +15,8 @@ export function resolvePromptHistoryPath(dataDir: string, profileRoot: string, p
   if (scope === "unique" && (typeof sessionId !== "string" || sessionId.length === 0 || sessionId.length > 256 || sessionId.includes("\0"))) {
     throw new TypeError("Unique history requires a valid session ID");
   }
-  // Preserve the exact former identity in Shared mode; a separate domain prevents collisions
-  // between per-session storage and any profile-wide store (including its image sidecars).
+  // Compatibility: preserve the former Shared identity; a separate domain prevents
+  // collisions with per-session databases and image sidecars.
   const profileId = scope === "shared" ? `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}${digest}`
     : `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}${createHash("sha256").update(JSON.stringify([2, PRODUCT_IDENTITY.commandName, normalized, sessionId])).digest("hex")}`;
   const historyDir = paths.join(dataDir, "history");
