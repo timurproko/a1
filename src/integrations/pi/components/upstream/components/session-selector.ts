@@ -7,11 +7,12 @@
  * keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal
  * frame with standalone title, standard outer rules, stable filter/status row, progressive result
  * paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance,
- * and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows
- * use the blue selection surface while preserving title and metadata foregrounds; the active session
- * title uses success green independently of keyboard selection, with ordinary text weight.
+ * an accent dialog-search marker, and one-line bottom dynamic feedback and searchable-dialog shortcut
+ * footer. Selected session rows use the blue selection surface while preserving title and metadata
+ * foregrounds; the active session title uses success green independently of keyboard selection, with
+ * ordinary text weight.
  * Deviations: owned-modal-shortcut-hints, owned-resume-session-dialog,
- * owned-standard-dialog-selection.
+ * owned-standard-dialog-selection, owned-dialog-search-marker.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -32,7 +33,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
-import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
+import { addPiModalHeader, adoptPiModalFrame, renderPiModalSearchInput } from "../../modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 type SessionListProgress = (
@@ -502,7 +503,7 @@ class SessionList implements Component, Focusable {
 		const lines: string[] = [];
 
 		// Render search input
-		lines.push(...this.searchInput.render(width));
+		lines.push(...renderPiModalSearchInput(this.searchInput, width));
 		lines.push(""); // Blank line after search
 
 		if (this.filteredSessions.length === 0) {

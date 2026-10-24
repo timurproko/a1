@@ -51,8 +51,8 @@
       "fields": 27
     },
     "src/integrations/pi/components/models-dialog.ts::ModelsDialogComponent": {
-      "methods": 26,
-      "fields": 18
+      "methods": 24,
+      "fields": 15
     },
     "src/integrations/pi/components/owned-editor-ux.ts::PromptSelectionInterceptor": {
       "methods": 41,

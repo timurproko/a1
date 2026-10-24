@@ -830,14 +830,18 @@ describe("the settings screen", () => {
     let shown = screen(target).join("\n");
     expect(shown).toContain("Thinking Level (step 1/2)");
     expect(shown).toContain("Select a model to configure");
+    expect(screen(target).some(line => line.trimStart().startsWith(">"))).toBe(true);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).toContain("<accent>></accent> ");
     expect(shown).toContain("gpt-5 [openai]");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
-    expect(shown).toContain("Type search · Enter select · Esc close");
+    expect(shown).toContain("Type search  Enter select  Esc close");
+    expect(shown).not.toContain(" · ");
     expect(shown).not.toContain("Ctrl+Z undo");
     expect(shown).not.toContain("Enter change");
 
     for (const character of "spark") target.onInput?.(character, HOST);
     shown = screen(target).join("\n");
+    expect(shown).toContain("> spark");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
     expect(shown).not.toContain("gpt-5 [openai]");
 
@@ -850,7 +854,8 @@ describe("the settings screen", () => {
     shown = screen(target).join("\n");
     expect(shown).toContain("Thinking Level (step 2/2)");
     expect(shown).toContain("Select default thinking level for gpt-5.3-codex-spark [openai]");
-    expect(shown).toContain("↑↓ navigate · Enter select · Esc back");
+    expect(shown).toContain("↑↓ navigate  Enter select  Esc back");
+    expect(shown).not.toContain(" · ");
     expect(shown).not.toContain("Thinking Level for");
     expect(shown).toContain("low");
     expect(shown).toContain("Light reasoning (~2k tokens)");

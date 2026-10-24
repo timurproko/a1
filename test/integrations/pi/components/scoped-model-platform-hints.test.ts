@@ -4,6 +4,7 @@ import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../../src/int
 import { KeybindingsManager, type KeybindingsConfig } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
 import { ScopedModelsSelectorComponent } from "../../../../src/integrations/pi/components/upstream/components/scoped-models-selector.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
+import { cellStyle } from "../../../support/ansi-cell-style.js";
 import { withPiParityColorMode } from "../../../support/pi-terminal-capabilities.js";
 
 const models = [
@@ -50,8 +51,10 @@ for (const platform of ["darwin", "win32", "linux"] as const) {
         expect(text(selector)).toContain("Esc close");
         const rows = selector.render(600);
         const heading = rows.find(row => stripTerminalSequences(row).includes("Model Configuration"))!;
+        const search = rows.find(row => stripTerminalSequences(row).trimEnd() === " >")!;
         const hint = rows.find(row => stripTerminalSequences(row).includes("toggle"))!;
         expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
+        expect(cellStyle(search, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
         expect(text(selector)).toContain("First alt+literal");
         expect(keys.getKeys("app.models.reorderUp")).toEqual(["alt+up"]);
         expect(keys.getKeys("app.models.reorderDown")).toEqual(["alt+down"]);

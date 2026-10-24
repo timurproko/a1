@@ -3329,6 +3329,7 @@
           "kind": "interface",
           "hash": "674d5b2f6c02d9614b69c3d0430155c57c8bcf97dd1b1602745ec40bc98fbb42",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
@@ -3551,6 +3552,7 @@
           "kind": "class",
           "hash": "52019438b4fcc4eabf7c0d96a19377996b2a2632542798e24aa38f84d5a5fc48",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/skills-dialog.ts",
             "src/integrations/pi/components/upstream/components/extension-input.ts",
@@ -4371,6 +4373,7 @@
           "kind": "interface",
           "hash": "71b68579b4a3a3c7825351b6fae6d31a4048fbc6fc9e9d858156d0f2698ed7e9",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
@@ -4381,6 +4384,7 @@
           "kind": "interface",
           "hash": "07978917403b2f2168b40685670a08eed5929fffe6067b4ef33ce8b3e0fa5e36",
           "consumers": [
+            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",
             "src/integrations/pi/components/upstream/history/editor-core.ts"
           ]

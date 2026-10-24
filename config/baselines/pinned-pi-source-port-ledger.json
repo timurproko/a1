@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-24T11:15:46.102Z",
+  "recordedAt": "2026-10-24T12:24:49.414Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "4a080252f06caf63a525d7873c5d94d3c23887e0",
@@ -2279,9 +2279,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row and compact padded modal frame while immediately closing on the implicit Ctrl+C selection-cancel alias without advertising it.",
+      "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row, accent search marker, and compact padded modal frame while immediately closing on the implicit Ctrl+C selection-cancel alias without advertising it.",
       "upgradeStrategy": "three-way",
-      "localSha256": "e0ddc28662c13e13b519828b60f94dd2ebbd6e0cd237cd9618be5a563528932e",
+      "localSha256": "9825d7e136ebbf7daa21babf4ef2aed1597694a33eba293a95e6606a9a91d4d7",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2293,6 +2293,12 @@
           "id": "owned-dialog-ctrl-c-cancel",
           "reason": "Bare A1 closes the scoped-model dialog immediately through the implicit Ctrl+C selection-cancel alias while continuing to advertise only Escape.",
           "upstreamBehavior": "The comparison profile retains its pinned component and non-dialog Ctrl+C behavior remains unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/scoped-model-platform-hints.test.ts"
+        },
+        {
+          "id": "owned-dialog-search-marker",
+          "reason": "Bare A1 renders the standard searchable-dialog ASCII chevron through the live semantic accent role while preserving the Pi Input controller and geometry.",
+          "upstreamBehavior": "The comparison profile retains the pinned selector presentation.",
           "acceptanceTest": "test/integrations/pi/components/scoped-model-platform-hints.test.ts"
         }
       ],
@@ -2373,9 +2379,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance, and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows use the blue selection surface while preserving title and metadata foregrounds; the active session title uses success green independently of keyboard selection, with ordinary text weight.",
+      "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance, an accent dialog-search marker, and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows use the blue selection surface while preserving title and metadata foregrounds; the active session title uses success green independently of keyboard selection, with ordinary text weight.",
       "upgradeStrategy": "three-way",
-      "localSha256": "a4010642d6773bf6a79527c1e088e721ba896aad17e5aa6972908ad4a486a6c2",
+      "localSha256": "155e65bc54291758687c6f801ea5bb6c87e0d3a40a170ff29ebbfc8595f68c39",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2393,6 +2399,12 @@
           "id": "owned-standard-dialog-selection",
           "reason": "Bare A1 gives selected Resume Session entries the shared blue full-width selection surface and success-green primary title while keeping ordinary text weight, an accent arrow, and muted metadata.",
           "upstreamBehavior": "The comparison profile retains the pinned session selector presentation.",
+          "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
+        },
+        {
+          "id": "owned-dialog-search-marker",
+          "reason": "Bare A1 renders the standard searchable-dialog ASCII chevron through the live semantic accent role while preserving the Pi Input controller and geometry.",
+          "upstreamBehavior": "The comparison profile retains the pinned selector presentation.",
           "acceptanceTest": "test/integrations/pi/components/session-selector.test.ts"
         }
       ],
@@ -2700,9 +2712,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/thinking-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering exclusive radio-style default markers before level names, an item-adjacent active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space, closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact semantic shortcut row with Type/search guidance without advertising that alias. All list and border colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 blue selection surface only around the rendered item span, with the existing accent arrow, normal-text level, and preserved current/default/description roles. The comparison profile retains the public pinned component.",
+      "modifications": "Preserve the searchable thinking-level selector, current/default semantics, selection, and focus while accepting the active bare-A1 cycle-key label from the shell, styling the title with the established bold semantic accent treatment, placing it directly below the top rule through the shared compact padded modal frame and its muted hint directly below it, deduplicating levels, and rendering exclusive radio-style default markers before level names, an item-adjacent active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space, closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact semantic shortcut row with Type/search guidance and an accent search marker without advertising that alias. All list and border colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 blue selection surface only around the rendered item span, with the existing accent arrow, normal-text level, and preserved current/default/description roles. The comparison profile retains the public pinned component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "1911a6110c0abd6cd46d98ae098482536c152c346e9628fd1a6cbaca3acc4345",
+      "localSha256": "b1d4cee74afc96d95c37230dc45ee09af4503b8545d0640f5a04540f4635bafb",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2738,6 +2750,12 @@
           "id": "owned-standard-dialog-selection",
           "reason": "Bare A1 uses the shared blue item-bounded selection palette across its Models, Skills, Thinking Level, and editor autocomplete lists.",
           "upstreamBehavior": "The comparison profile retains the pinned selector presentation while bare-A1 preserves existing arrows, actions, and semantic row roles.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-dialog-search-marker",
+          "reason": "Bare A1 renders the standard searchable-dialog ASCII chevron through the live semantic accent role while preserving the Pi Input controller and geometry.",
+          "upstreamBehavior": "The comparison profile retains the pinned selector presentation.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],
@@ -2853,9 +2871,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tree-selector.ts",
       "implementationStatus": "ported",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, standard search input, blue full-row menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off shortcut, semantic role colors with session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a redundant select hint.",
+      "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, a standard accent-marked search input, blue full-row menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off shortcut, semantic role colors with session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "1fd463f1ff29f22a5cf655fdd50eacbb8fe9c252606c297eb29b44e217863313",
+      "localSha256": "3ce3d663dcd2992d310034f34c5f015fc55a2296ac871f6169380a6e393a27e8",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2867,6 +2885,12 @@
           "id": "owned-session-tree-dialog",
           "reason": "Bare A1 reduces tree filters to concise all/no-tools/user/labeled modes, excludes raw label/context/custom/session/usage/model/thinking bookkeeping while retaining resolved labels, and aligns search, focused label editing, accent labels, bracketed timestamps, numeric result counters without duplicate label-time status, a stateful time on/off shortcut, session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, blue full-row bullet-free selection with an accent arrow and preserved per-entry semantic foregrounds, spacing, and Models-ordered Type/search footer placement without a redundant select hint.",
           "upstreamBehavior": "The comparison profile retains the pinned tree selector presentation and geometry.",
+          "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
+        },
+        {
+          "id": "owned-dialog-search-marker",
+          "reason": "Bare A1 renders the standard searchable-dialog ASCII chevron through the live semantic accent role while preserving the Pi Input controller and geometry.",
+          "upstreamBehavior": "The comparison profile retains the pinned selector presentation.",
           "acceptanceTest": "test/integrations/pi/components/tree-selector.test.ts"
         }
       ],

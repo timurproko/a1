@@ -148,6 +148,7 @@ describe("owned pinned session selector", () => {
     expect(filterRow).toContain(piTheme().fg("mdHeading", "all"));
     expect(filterRow).toContain(piTheme().fg("mdHeading", "threaded"));
     expect(plainInitialRows[searchIndex]).toContain('> re:<pattern> regex, "phrase" exact');
+    expect(cellStyle(searchRow, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
     expect(searchRow).toContain(renderFakeCursor("r"));
     expect(cellStyle(searchRow, "r").faint).toBe(false);
     expect(cellStyle(searchRow, "e").faint).toBe(true);

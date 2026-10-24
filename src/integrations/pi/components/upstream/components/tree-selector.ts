@@ -4,15 +4,15 @@
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode
  * Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation
- * excluding internal bookkeeping, standard search input, blue full-row menu-arrow selection that
- * preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed
- * timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off
- * shortcut, semantic role colors with session naming for the system root, standard
- * paging/first-last/non-root containing-branch folding keys with a permanently expanded system session
- * entry even behind hidden metadata, single-character ellipses on both clipped edges with
- * bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic
+ * excluding internal bookkeeping, a standard accent-marked search input, blue full-row menu-arrow
+ * selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry
+ * labels, bracketed timestamps, numeric result counters without duplicate label-time status, and a
+ * stateful time on/off shortcut, semantic role colors with session naming for the system root,
+ * standard paging/first-last/non-root containing-branch folding keys with a permanently expanded
+ * system session entry even behind hidden metadata, single-character ellipses on both clipped edges
+ * with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic
  * Type/search shortcut footers without a redundant select hint.
- * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog.
+ * Deviations: owned-modal-shortcut-hints, owned-session-tree-dialog, owned-dialog-search-marker.
  */
 import {
 	type Component,
@@ -30,7 +30,7 @@ import {
 } from "@earendil-works/pi-tui";
 import { DynamicBorder, formatReadLineRange, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
-import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
+import { addPiModalHeader, adoptPiModalFrame, renderPiModalSearchInput } from "../../modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
 
 const theme = new Proxy({} as ReturnType<typeof piTheme>, {
@@ -1214,7 +1214,7 @@ class TreeSearchInput implements Component, Focusable {
 			this.input.handleInput(query);
 			this.renderedQuery = query;
 		}
-		return this.input.render(width);
+		return renderPiModalSearchInput(this.input, width);
 	}
 }
 
