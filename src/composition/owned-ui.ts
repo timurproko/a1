@@ -57,17 +57,11 @@ export interface OwnedUiCompositionOptions {
   readonly sessionPath?: string;
   readonly sessionSelection?: SessionSelection;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
-  /**
-   * A1 profile whose settings this session reads and writes. Omitted keeps the
-   * session settings-free, which is what the pinned comparison paths use.
-   */
+  /** A1 settings profile; comparison paths omit it. */
   readonly profileId?: string;
   /** Hide resident-only tab controls for the explicit direct single-agent launch. */
   readonly hideTabSettings?: boolean;
-  /**
-   * Whether A1's product-specific surfaces are reachable. Comparison profiles
-   * use the same composition with those surfaces withheld.
-   */
+  /** `off` withholds A1-specific surfaces from comparison profiles. */
   readonly ownedSurfaces?: "on" | "off";
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   /** Explicit local diagnostic destination; ignored by comparison/settings-free compositions. */
@@ -76,14 +70,12 @@ export interface OwnedUiCompositionOptions {
   readonly clipboardDiagnosticsPath?: string;
   /** Deterministic release-note seams for composition tests. */
   readonly packageVersion?: string;
+  readonly notificationVersion?: string | undefined;
   readonly releaseNotes?: ReleaseNoteCatalog;
   /** Startup release-availability seam; defaults to the throttled registry check. */
   readonly checkForNewerRelease?: (options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>;
-  /** Exact native process inspection injected by the shipped entry; absent SDK seams do not publish claims. */
   readonly inspectProcess?: (pid: number) => Promise<NativeProcessIdentity | null>;
-  /** Private credentials were consumed by the entry before composition or extensions loaded. */
   readonly tab?: { readonly bridge: TabBridgeClient; readonly dataDir: string; readonly incarnation: number };
-  /** One prompt-adjacent notice explaining why a resident launch fell back. */
   readonly residentFallbackNotice?: string;
 }
 
@@ -348,7 +340,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     backend,
     configDir: productPaths.configDir,
     mode: settings === null || !ownedSurfaces ? "auto" : settings.value("updateCheck"),
-    packageVersion: releaseNote.packageVersion,
+    packageVersion: releaseNote.packageVersion, notificationVersion: options.notificationVersion,
     checkForNewerRelease: options.checkForNewerRelease,
   });
   const exitNoticePath = process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
@@ -420,6 +412,7 @@ interface StartupReleaseUpdateObservationOptions {
   readonly configDir: string;
   readonly mode: StartupUpdateMode;
   readonly packageVersion: string | null;
+  readonly notificationVersion: string | undefined;
   readonly checkForNewerRelease: ((options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>) | undefined;
 }
 
@@ -432,8 +425,9 @@ function createStartupReleaseUpdateObservation(input: StartupReleaseUpdateObserv
     const check = input.checkForNewerRelease
       ?? (await import("../foundation/release/latest-release.js")).checkForNewerRelease;
     const runningVersion = input.packageVersion ?? await readPackageVersion();
+    const discoveryVersion = input.mode === "notify" ? input.notificationVersion ?? runningVersion : runningVersion;
     const release = await check({
-      runningVersion,
+      runningVersion: discoveryVersion,
       configDir: input.configDir,
       interactive: process.stdout.isTTY === true,
       settingMode: input.mode,

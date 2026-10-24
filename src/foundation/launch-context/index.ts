@@ -8,6 +8,7 @@ export const PRIVATE_ENVIRONMENT = Object.freeze({
   releaseLayers: "LAUNCH_CONTEXT_RELEASE_LAYERS",
   launchProfile: "LAUNCH_CONTEXT_PROFILE",
   launchMode: "LAUNCH_CONTEXT_MODE",
+  updateVersion: "LAUNCH_CONTEXT_UPDATE_VERSION",
   immutableWarmup: "LAUNCH_CONTEXT_WARMUP",
   residentRootExecutable: "LAUNCH_CONTEXT_RESIDENT_ROOT_EXECUTABLE",
   residentRootArguments: "LAUNCH_CONTEXT_RESIDENT_ROOT_ARGUMENTS",
@@ -45,6 +46,7 @@ export interface LaunchContext {
   readonly releaseLayers?: string;
   readonly launchProfile?: "a1" | "pi";
   readonly launchMode?: "tabs" | "solo";
+  readonly updateVersion?: string;
   readonly immutableWarmup?: "1";
   readonly residentRootExecutable?: string;
   readonly residentRootArguments?: string;
