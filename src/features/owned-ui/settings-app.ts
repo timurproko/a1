@@ -23,7 +23,6 @@ import {
   renderSteppedDialogPanel,
   renderEmptyState,
   renderGroupHeader,
-  renderInputRow,
   renderListRow,
   renderNote,
   renderShortcutHintsWithClose,
@@ -67,6 +66,7 @@ import type {
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
 import { SETTINGS_APP_ID } from "./settings-route.js";
+import type { SettingsSearchInput, SettingsSearchInputFactory } from "./settings-search-input.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 const SCOPE = SETTINGS_APP_ID;
 const SETTINGS_TOP_RULE_ROWS = 1;
@@ -85,17 +85,16 @@ const RAIL_KEY = "settings";
 // Compatibility: the transcript rail stays lit this long after a scroll, and repaints just after.
 const SCROLL_LINGER_MS = 900;
 const SCROLL_LINGER_REPAINT_MS = 925;
-const SEARCH_PLACEHOLDER = "search settings";
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
-  | "page-up" | "page-down" | "previous-value" | "next-value" | "activate" | "open-filter" | "close" | "undo"
+  | "page-up" | "page-down" | "previous-value" | "next-value" | "activate" | "edit-filter" | "close" | "undo"
   | "part-previous" | "part-next" | "part-change";
 
 export const SETTINGS_SHORTCUTS = new ShortcutRegistry<Action>();
-SETTINGS_SHORTCUTS.declare({ key: "/", scope: SCOPE, description: "Search settings", section: "Change", hint: { keys: "/", does: "search" } }, "open-filter");
+SETTINGS_SHORTCUTS.declare({ key: "edit", scope: SCOPE, description: "Search settings", section: "Change", hint: { keys: "Type", does: "search" } }, "edit-filter");
 SETTINGS_SHORTCUTS.declare({ key: "up", scope: SCOPE, description: "Previous setting", section: "Navigate", hint: { keys: "↑↓", does: "navigate" } }, "move-up");
 SETTINGS_SHORTCUTS.declare({ key: "down", scope: SCOPE, description: "Next setting", section: "Navigate", hint: { keys: "↑↓", does: "navigate" } }, "move-down");
 SETTINGS_SHORTCUTS.declare({ key: "shift+up", scope: SCOPE, description: "Previous section", section: "Navigate", hint: { keys: "Shift+↑↓", does: "jump" } }, "block-up");
@@ -153,7 +152,6 @@ const KEYS: Readonly<Record<string, string>> = {
   "\r": "enter",
   "\n": "enter",
   " ": "space",
-  "/": "/",
   "\u001a": "ctrl+z",
 };
 
@@ -168,6 +166,13 @@ interface ModelLevelOption {
   readonly value: string;
   readonly label: string;
   readonly description: string;
+}
+
+interface SettingsSearchState {
+  input: SettingsSearchInput | null;
+  scrollBefore: number | null;
+  readonly factory: SettingsSearchInputFactory;
+  readonly copyText: (text: string) => void;
 }
 
 interface StructuredEdit {
@@ -223,8 +228,7 @@ export class SettingsApp implements UiApp {
   // Invariant: keyboard navigation requests visibility once; pointer scrolling then stays free.
   #selectionNeedsReveal = true;
   #reveal: ListRowSpan | undefined;
-  #filter: LineInput | null = null;
-  #scrollBeforeFilter: number | null = null;
+  readonly #search: SettingsSearchState;
   #menu: ValueMenu | null = null;
   #structured: StructuredEdit | null = null;
   // Invariant: pending values remain visible until the source reflects them.
@@ -253,9 +257,19 @@ export class SettingsApp implements UiApp {
   readonly #pinned: boolean;
 
   /** `pinned` presents the screen as a resident Settings tab, which offers no screen-level close. */
-  constructor(session: OwnedSettingsManager, options: { readonly pinned?: boolean } = {}) {
+  constructor(session: OwnedSettingsManager, options: {
+    readonly pinned?: boolean;
+    readonly searchInputFactory: SettingsSearchInputFactory;
+    readonly copyText?: (text: string) => void;
+  }) {
     this.#session = session;
     this.#pinned = options.pinned === true;
+    this.#search = {
+      input: null,
+      scrollBefore: null,
+      factory: options.searchInputFactory,
+      copyText: options.copyText ?? (() => {}),
+    };
   }
 
   onActivate(host: AppHostServices): void {
@@ -267,6 +281,8 @@ export class SettingsApp implements UiApp {
     this.#closed = true;
     this.#undoHistory.length = 0;
     this.#undoRequests = 0;
+    this.#search.input?.setFocused(false);
+    this.#search.input = null;
     this.#clearActivityTimer();
     this.#rails.clear();
   }
@@ -278,7 +294,7 @@ export class SettingsApp implements UiApp {
     const footer = this.#footerLines(rect.width, theme);
     // Invariant: the shared search input and structured panel each begin with their own standard rule.
     // That rule replaces the ordinary content/footer divider instead of stacking beneath it.
-    const dividerRows = this.#filter === null && this.#structured === null ? SETTINGS_FOOTER_DIVIDER_ROWS : 0;
+    const dividerRows = this.#search.input === null && this.#structured === null ? SETTINGS_FOOTER_DIVIDER_ROWS : 0;
     const topRows = Math.min(SETTINGS_TOP_RULE_ROWS, rect.height);
     const contentHeight = Math.max(0, rect.height - topRows - dividerRows - footer.length);
     let titleRows = this.#scroll <= 0 ? Math.min(SETTINGS_TITLE_ROWS, contentHeight) : 0;
@@ -381,13 +397,19 @@ export class SettingsApp implements UiApp {
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {
+    if (data === "\u0003" && this.#search.input === null) return { consumed: false };
     if (this.#structured !== null) return this.#structuredKey(data);
     if (this.#menu !== null) return this.#menuKey(data);
-    if (this.#filter !== null) return this.#filterKey(data);
+    if (this.#search.input !== null) return this.#filterKey(data);
 
-    const key = KEYS[data] ?? data;
-    const action = SETTINGS_SHORTCUTS.resolve(key, SCOPE);
-    if (action === null) return { consumed: false };
+    const key = KEYS[data];
+    const action = key === undefined ? null : SETTINGS_SHORTCUTS.resolve(key, SCOPE);
+    if (action === null) {
+      if (!this.#search.factory.isTextInput(data)) return { consumed: false };
+      openSettingsSearch(this.#search, host, data, this.#scroll);
+      this.#scroll = 0;
+      return { consumed: true };
+    }
 
     const rows = this.#rows();
     const selected = indexOfKey(rows, this.#selectedKey);
@@ -395,10 +417,8 @@ export class SettingsApp implements UiApp {
       case "close":
         if (!this.#pinned) host.close();
         return { consumed: true };
-      case "open-filter":
-        this.#scrollBeforeFilter = this.#scroll;
-        this.#filter = new LineInput("");
-        return { consumed: true };
+      case "edit-filter":
+        return { consumed: false };
       case "activate": {
         const row = rows[selected];
         if (row?.kind === "element" && row.value.structured) this.#openStructured(row.value);
@@ -444,6 +464,9 @@ export class SettingsApp implements UiApp {
   }
 
   onMouse(event: PaneMouseEvent, _host: AppHostServices): PaneInputResult {
+    const searchPointer = handleSettingsSearchPointer(this.#search, event, this.#panelTopForFrame);
+    if (searchPointer !== null) return searchPointer;
+
     const menu = this.#menu;
     const frame = this.#menuFrame;
     if (menu !== null && frame !== null) {
@@ -481,12 +504,12 @@ export class SettingsApp implements UiApp {
       // Invariant: the whole list pane owns wheel scrolling, including blank space beside
       // short labels. A fixed structured dialog keeps that content interaction available.
       const screenRow = event.row - 1;
-      const wheelBottom = this.#filter === null
+      const wheelBottom = this.#search.input === null
         ? this.#bodyTopForFrame + this.#bodyHeightForFrame
         : this.#panelTopForFrame + SETTINGS_SEARCH_INPUT_ROWS + SETTINGS_STATUS_ROWS;
       if (screenRow >= 0 && screenRow < wheelBottom) {
         const distance = scrollbarWheelRows(this.#scrollbarSpeed());
-        if (this.#filter !== null) this.#scrollBeforeFilter = null;
+        if (this.#search.input !== null) this.#search.scrollBefore = null;
         this.#scroll = Math.max(0, this.#scroll + (event.kind === "wheel-down" ? distance : -distance));
         return { consumed: true };
       }
@@ -820,18 +843,19 @@ export class SettingsApp implements UiApp {
   }
 
   #filterKey(data: string): PaneInputResult {
-    const input = this.#filter;
+    const input = this.#search.input;
     if (input === null) return { consumed: false };
 
-    const key = KEYS[data];
-    if (SETTINGS_SHORTCUTS.resolve(key ?? data, SCOPE) === "undo") {
-      this.#undo();
+    if (data === "\u001b" || (data === "\u0003" && !input.hasSelection())) {
+      this.#scroll = closeSettingsSearch(this.#search) ?? this.#scroll;
       return { consumed: true };
     }
+
+    const key = KEYS[data];
     // Rationale: the boundary chords jump through the results; plain Home and End stay with
-    // the search cursor, which the shared line input moves below.
+    // the search cursor, which the shared interactive input moves below.
     if (key === "ctrl+home" || key === "ctrl+end") {
-      this.#scrollBeforeFilter = null;
+      this.#search.scrollBefore = null;
       const rows = this.#rows();
       const selectable = selectableIndexes(rows);
       const target = key === "ctrl+end" ? selectable.at(-1) : selectable[0];
@@ -842,7 +866,7 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
     if (key === "up" || key === "down" || key === "shift+up" || key === "shift+down") {
-      this.#scrollBeforeFilter = null;
+      this.#search.scrollBefore = null;
       const rows = this.#rows();
       // Rationale: nothing found means nothing to move through; the key is still swallowed
       // rather than typed into the search.
@@ -858,13 +882,10 @@ export class SettingsApp implements UiApp {
       return { consumed: true };
     }
 
-    const outcome = handleLineInputKey(input, data);
-    if (outcome.kind === "cancelled") {
-      this.#filter = null;
-      if (this.#scrollBeforeFilter !== null) this.#scroll = this.#scrollBeforeFilter;
-      this.#scrollBeforeFilter = null;
-    } else {
-      this.#scrollBeforeFilter = null;
+    const before = input.getText();
+    input.handleInput(data);
+    if (input.getText() !== before) {
+      this.#search.scrollBefore = null;
       this.#scroll = 0;
     }
     return { consumed: true };
@@ -1003,7 +1024,7 @@ export class SettingsApp implements UiApp {
   }
 
   #rows(): readonly Row[] {
-    const needle = this.#filter?.value.trim().toLowerCase() ?? "";
+    const needle = this.#search.input?.getText().trim().toLowerCase() ?? "";
     const matches = (entry: OwnedUiSettingsEntry): boolean =>
       needle.length === 0
       || entry.id.toLowerCase().includes(needle)
@@ -1179,12 +1200,46 @@ export class SettingsApp implements UiApp {
     const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#pinned
       || entry.key !== DIALOG_CLOSE_SHORTCUT_HINT.key || entry.action !== DIALOG_CLOSE_SHORTCUT_HINT.action);
     const status = renderShortcutHintsWithClose(entries, theme, width, width > 0 ? 1 : 0);
-    const input = this.#filter;
+    const input = this.#search.input;
     if (input === null) return [status];
-    return [...renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, promptGlyph: "", theme }).lines, status];
+    return [...input.render(width), status];
   }
 }
 
+
+function openSettingsSearch(state: SettingsSearchState, host: AppHostServices, initial: string, scroll: number): void {
+  state.scrollBefore = scroll;
+  state.input = state.factory.create({
+    theme: host.theme ?? PLAIN_THEME,
+    getRows: () => host.getSize().height,
+    requestRender: () => host.requestRender(),
+    copyText: state.copyText,
+  });
+  state.input.setFocused(true);
+  state.input.handleInput(initial);
+}
+
+function closeSettingsSearch(state: SettingsSearchState): number | null {
+  state.input?.setFocused(false);
+  state.input = null;
+  const scroll = state.scrollBefore;
+  state.scrollBefore = null;
+  return scroll;
+}
+
+function handleSettingsSearchPointer(
+  state: SettingsSearchState,
+  event: PaneMouseEvent,
+  panelTop: number,
+): PaneInputResult | null {
+  const input = state.input;
+  if (input === null || event.kind === "wheel-up" || event.kind === "wheel-down") return null;
+  const row = event.row - panelTop;
+  const overInput = row >= 1 && row <= SETTINGS_SEARCH_INPUT_ROWS;
+  if (!overInput && !input.ownsPointer()) return null;
+  const handled = input.handlePointer({ kind: event.kind, button: event.button, column: event.column, row });
+  return { consumed: handled || overInput, render: handled };
+}
 
 function modelLabelParts(label: string): Pick<DialogRow, "label" | "labelSuffix"> {
   const match = /^(.*?)(\s+\[[^\]]+\])$/u.exec(label);

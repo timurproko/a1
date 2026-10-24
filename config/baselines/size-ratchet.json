@@ -32,7 +32,7 @@
     },
     "src/features/owned-ui/settings-app.ts::SettingsApp": {
       "methods": 42,
-      "fields": 29
+      "fields": 28
     },
     "src/features/prompt-history/service.ts::PromptHistoryService": {
       "methods": 21,
@@ -218,7 +218,7 @@
       "lines": 109
     },
     "src/integrations/pi/components/shell-editor-autocomplete.ts::createPiShellEditor": {
-      "lines": 273
+      "lines": 247
     },
     "src/integrations/pi/components/shell-extension-ui.ts::createPiExtensionUiBridge": {
       "lines": 231
