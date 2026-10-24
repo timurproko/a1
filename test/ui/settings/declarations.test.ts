@@ -50,7 +50,6 @@ describe("owned UI setting declarations", () => {
       "skillsPresentation",
       "promptImageLimit",
       "tabsPosition",
-      "tabsStartup",
       "tabsAutoName",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "timeFormat")).toMatchObject({

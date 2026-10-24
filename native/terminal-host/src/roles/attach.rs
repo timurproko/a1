@@ -1332,22 +1332,17 @@ fn start_session(
         stream,
         "attach.start",
         None,
-        wire::AttachStartRequest {
-            start: AttachStart {
-                client_id: String::new(),
-                tabs_max: options.tabs_max,
-                cwd: options.cwd.into(),
-                columns,
-                rows,
-                release_root: options.release_root.into(),
-                node_executable: options.node_executable.into(),
-                environment: std::env::vars().collect(),
-                session_file: options.session_file.map(str::to_owned),
-                session_dir: options.session_dir.map(str::to_owned),
-            },
-            intent: wire::AttachIntent {
-                start_agent: launch_starts_agent(options.settings_file),
-            },
+        AttachStart {
+            client_id: String::new(),
+            tabs_max: options.tabs_max,
+            cwd: options.cwd.into(),
+            columns,
+            rows,
+            release_root: options.release_root.into(),
+            node_executable: options.node_executable.into(),
+            environment: std::env::vars().collect(),
+            session_file: options.session_file.map(str::to_owned),
+            session_dir: options.session_dir.map(str::to_owned),
         },
     )?;
     if let Some(tab_id) = options.view_tab {
@@ -1369,27 +1364,6 @@ fn start_session(
 /// How long the landing wordmark takes to wipe into the new Agent's caret, and its frame pace.
 const LANDING_WIPE: Duration = Duration::from_millis(180);
 const LANDING_WIPE_FRAME: Duration = Duration::from_millis(16);
-
-/// Whether bare `a1` starts an Agent when the profile has none: the owned `tabsStartup` setting
-/// chooses `agent` or, by default, the empty landing. Fixture: resident role tests choose with
-/// `TERMINAL_HOST_FIXTURE_START_AGENT`.
-fn launch_starts_agent(settings_file: &Path) -> bool {
-    #[cfg(feature = "resident-fixtures")]
-    if let Ok(value) = std::env::var("TERMINAL_HOST_FIXTURE_START_AGENT") {
-        return value == "1";
-    }
-    std::fs::metadata(settings_file)
-        .ok()
-        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
-        .and_then(|_| std::fs::read(settings_file).ok())
-        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
-        .is_some_and(|document| {
-            document
-                .get("a1")
-                .and_then(|owned| owned.get("tabsStartup"))
-                == Some(&serde_json::Value::from("agent"))
-        })
-}
 
 /// Reads server frames on their own thread under the ingress byte budget, waking the main loop
 /// after each one.
@@ -1683,8 +1657,6 @@ struct Client {
     settings_file: PathBuf,
     /// The running a1 package version the landing header names, when the release records one.
     version: Option<String>,
-    /// A launch that selected a session waits for that tab instead of opening on the landing.
-    awaits_session: bool,
     /// When the landing began handing over to an Agent this client asked for.
     landing_wipe: Option<Instant>,
 }
@@ -1744,7 +1716,6 @@ impl Client {
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
             version: read_release_version(Path::new(options.release_root)),
-            awaits_session: options.session_file.is_some(),
             landing_wipe: None,
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
@@ -2068,7 +2039,6 @@ impl Client {
         staged: Option<Vec<StripTab>>,
         requested: bool,
     ) -> Result<(), String> {
-        self.awaits_session = false;
         self.landing_wipe = None;
         if let Some(next) = staged {
             self.tabs = next;
@@ -2384,12 +2354,7 @@ impl Client {
                 self.tabs = tabs;
                 core.installed(&self.tabs, changed);
                 let nothing_shown = self.view.viewed.is_none() && self.view.requested.is_none();
-                // Invariant: with no Agent to view, the landing is the first frame of a launch,
-                // unless a selected session's tab is still starting.
-                let first_landing = nothing_shown && !self.has_shown_tabs && !self.awaits_session;
-                self.has_shown_tabs |= first_landing;
-                let landing = self.tabs.is_empty() || nothing_shown;
-                if landing && (changed || first_landing || self.presented.tab_id.is_some()) {
+                if self.tabs.is_empty() || (nothing_shown && self.presented.tab_id.is_some()) {
                     self.view.clear();
                     self.presented = Presented::new();
                     self.pending_terminal_effects.clear();
@@ -4108,43 +4073,6 @@ mod tests {
         assert!(text.find(" + ").unwrap() < text.find("SURFACE").unwrap());
         assert!(text.find("SURFACE").unwrap() < text.find("OVERLAY").unwrap());
         assert!(text.find("OVERLAY").unwrap() < text.find("\x1b[?25l").unwrap());
-    }
-
-    #[test]
-    fn bare_attach_asks_for_the_landing_and_older_clients_keep_their_first_agent() {
-        let start = AttachStart {
-            client_id: String::new(),
-            tabs_max: 10,
-            cwd: "/work".into(),
-            columns: 80,
-            rows: 23,
-            release_root: "/release".into(),
-            node_executable: "node".into(),
-            environment: Vec::new(),
-            session_file: None,
-            session_dir: None,
-        };
-        let request = wire::frame(
-            "attach.start",
-            None,
-            wire::AttachStartRequest {
-                start: start.clone(),
-                intent: wire::AttachIntent {
-                    start_agent: launch_starts_agent(Path::new("missing-settings.json")),
-                },
-            },
-        )
-        .unwrap();
-        let (_, decoded): (Option<u64>, AttachStart) = wire::body(&request[4..]).unwrap();
-        assert_eq!(decoded.cwd, "/work");
-        let (_, intent): (Option<u64>, wire::AttachIntent) = wire::body(&request[4..]).unwrap();
-        assert!(!intent.start_agent, "bare `a1` opens the landing");
-        let legacy = wire::frame("attach.start", None, start).unwrap();
-        let (_, intent): (Option<u64>, wire::AttachIntent) = wire::body(&legacy[4..]).unwrap();
-        assert!(
-            intent.start_agent,
-            "an older client still starts its first Agent"
-        );
     }
 
     #[test]

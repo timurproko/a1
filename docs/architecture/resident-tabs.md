@@ -365,7 +365,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - The client restores the terminal. When agents are still running, it prints `1 agent still running run a1 to return.` or `N agents still running run a1 to return.`; otherwise it prints the resume hint.
 - **Launch and reattach:**
   - Bare `a1` ensures the server and attaches.
-  - With no Agent tab, it opens on the landing and starts nothing until the user creates a tab, unless Settings > Tabs > `Startup` is `agent`; `attach.start{startAgent:false}` says so, and an older client that omits the field still gets its first Agent.
+  - With zero tabs, it creates one A1 tab in the launch cwd; a registry holding only the hidden Settings tab counts as zero.
   - Otherwise it views the last active tab from its retained surface without byte-history replay. Every holder keeps draining its PTY and updating its retained terminal independently while hidden; selecting a working tab requests its newest complete partial-response surface immediately and then continues live delivery. Measure retained first paint and first input separately from bootstrap; status for the remaining tabs arrives without subscribing to their surfaces.
   - `a1 --session X` opens X in a new tab, or focuses the tab holding it.
   - A new tab's cwd is the client's launch cwd.

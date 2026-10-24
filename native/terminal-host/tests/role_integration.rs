@@ -79,64 +79,6 @@ fn cold_attach_enters_the_screen_with_a_named_tab_not_an_empty_strip() {
 }
 
 #[test]
-fn cold_attach_without_an_agent_opens_the_landing_until_one_is_requested() {
-    let _serial = serialize_role_fixture();
-    let root = tempfile::tempdir().expect("fixture root");
-    let profile = directory(root.path(), "profile");
-    let data = directory(root.path(), "data");
-    let runtime = directory(root.path(), "runtime");
-    protect_runtime(&runtime);
-    let release = directory(root.path(), "release");
-    let bin = directory(&release, "bin");
-    std::fs::write(
-        release.join("package.json"),
-        br#"{"version":"9.9.9-fixture"}"#,
-    )
-    .expect("fixture package");
-    std::fs::write(
-        bin.join("ui.js"),
-        "process.stdout.write('fake-a1-ready\\r\\n'); setInterval(() => {}, 1000);\n",
-    )
-    .expect("fake child");
-    let address = fixture_endpoint(&runtime);
-    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
-    start_server(&executable, &profile, &data, &runtime, &address);
-    let credentials_root = data
-        .join("tabs")
-        .join(endpoint::endpoint_token(&profile).expect("profile token"));
-    let _cleanup = Cleanup {
-        credentials_root: credentials_root.clone(),
-        pids: server_pids(&credentials_root),
-    };
-    let mut attach = AttachFixture::spawn_configured(
-        &executable,
-        &address,
-        &profile,
-        &data,
-        &release,
-        &node_executable(),
-        None,
-        &[("TERMINAL_HOST_FIXTURE_START_AGENT", "0")],
-    );
-    assert!(
-        attach.output_containing("v9.9.9-fixture", Duration::from_secs(12)),
-        "a launch with no Agent paints the landing header: {}",
-        attach.output_text()
-    );
-    assert!(
-        !attach.output_containing("fake-a1-ready", Duration::from_secs(2)),
-        "the landing starts no Agent by itself: {}",
-        attach.output_text()
-    );
-    attach.write(b"\x1ba");
-    assert!(
-        attach.output_containing("fake-a1-ready", Duration::from_secs(12)),
-        "the new-agent shortcut starts the first Agent: {}",
-        attach.output_text()
-    );
-}
-
-#[test]
 fn server_holder_and_attach_survive_client_loss_and_retain_output() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
@@ -3369,9 +3311,6 @@ impl AttachFixture {
         }
         let mut command = CommandBuilder::new(executable);
         command.env("TERMINAL_HOST_FIXTURE_SIZE", "100x24");
-        // Fixture: these role tests start from the first Agent bare `a1` used to create; the
-        // landing a launch opens without one is covered by the attach role's own tests.
-        command.env("TERMINAL_HOST_FIXTURE_START_AGENT", "1");
         for (name, value) in environment {
             command.env(name, value);
         }

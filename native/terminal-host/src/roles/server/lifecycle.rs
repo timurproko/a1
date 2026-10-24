@@ -665,14 +665,9 @@ pub(super) fn move_settings_last(registry: &mut RegistryDocument, tab_id: &str) 
 }
 
 /// The tab an `attach.start` views and whether it starts that tab's holder: the tab holding the
-/// selected session, a new tab for a session no tab holds, or the default tab. Invariant: bare
-/// `a1` with no Agent opens the landing; a selected session, or a client that asks for it,
-/// starts the first Agent.
-fn attach_start_tab(
-    locked: &mut RuntimeState,
-    selected: Option<&str>,
-    start_agent: bool,
-) -> (String, bool) {
+/// selected session, a new tab for a session no tab holds, or the default tab, started when the
+/// profile has no Agent.
+fn attach_start_tab(locked: &mut RuntimeState, selected: Option<&str>) -> (String, bool) {
     if let Some(selected) = selected
         && let Some(tab) = locked.registry.tabs.iter().find(|tab| {
             tab.session_file
@@ -690,8 +685,7 @@ fn attach_start_tab(
         return (tab_id, start);
     }
     let tab_id = locked.default_tab();
-    let start = (start_agent || selected.is_some()) && locked.agentless();
-    let start = start && locked.core.set_starting(&tab_id, true);
+    let start = locked.agentless() && locked.core.set_starting(&tab_id, true);
     (tab_id, start)
 }
 
@@ -715,12 +709,8 @@ pub(super) fn handle_lifecycle(
                 .session_file
                 .as_deref()
                 .map(canonical_session_identity);
-            let (_, intent): (_, wire::AttachIntent) = wire::body(payload)?;
-            let (tab_id, should_start) = attach_start_tab(
-                &mut *lock_state(&state)?,
-                selected.as_deref(),
-                intent.start_agent,
-            );
+            let (tab_id, should_start) =
+                attach_start_tab(&mut *lock_state(&state)?, selected.as_deref());
             if should_start
                 && let Err(error) = start_holder(&profile, &state, tab_id.clone(), start)
             {
