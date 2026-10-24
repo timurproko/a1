@@ -1419,9 +1419,6 @@ fn send_resize(
     )
 }
 
-/// How long the landing wordmark takes to wipe into the new Agent's caret, and its frame pace.
-const LANDING_WIPE: Duration = Duration::from_millis(180);
-const LANDING_WIPE_FRAME: Duration = Duration::from_millis(16);
 const RESIZE_SETTLE: Duration = Duration::from_millis(220);
 const RESIZE_RECOVERY: Duration = Duration::from_secs(1);
 
@@ -1820,8 +1817,6 @@ struct Client {
     settings_file: PathBuf,
     /// The running a1 package version the landing header names, when the release records one.
     version: Option<String>,
-    /// When the landing began handing over to an Agent this client asked for.
-    landing_wipe: Option<Instant>,
     /// Rationale: resize presentation has two bounded host-owned phases: an opaque curtain while
     /// geometry settles, followed by a faint complete frame before normal intensity returns.
     resize_curtain: Option<ResizeCurtain>,
@@ -1885,7 +1880,6 @@ impl Client {
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
             version: read_release_version(Path::new(options.release_root)),
-            landing_wipe: None,
             resize_curtain: None,
             reveal: Reveal::default(),
         };
@@ -1927,7 +1921,7 @@ impl Client {
                 Effect::Send(request) => self.send(request)?,
                 Effect::View(tab_id) => {
                     // Rationale: a tab the server created or revealed for this client joins the
-                    // strip at once while its body stays empty, or the landing keeps its wipe,
+                    // strip at once while the body it replaces, a tab or the landing, hides,
                     // until it draws; its content then fades in. A tab already shown switches.
                     let joins = self.reveal.take_joining(&tab_id)
                         && !shown_tabs(&self.tabs, self.view.viewed.as_deref(), core.view.shown())
@@ -1978,9 +1972,6 @@ impl Client {
     }
 
     fn send(&mut self, request: Request) -> Result<(), String> {
-        if request == Request::Create && self.landing_shown() {
-            self.landing_wipe = Some(Instant::now());
-        }
         let stream = &mut self.stream;
         match request {
             Request::Create => wire::send(stream, "tab.create", None, self.create.clone()),
@@ -2136,7 +2127,7 @@ impl Client {
         }
         self.strip_frame = strip_frame;
         let overlay = self.overlay(core);
-        let landing = self.landing(core);
+        let landing = self.landing();
         self.present(overlay, landing, clear, core.mode.palette().is_some())
     }
 
@@ -2146,17 +2137,10 @@ impl Client {
         self.view.viewed.is_none() && self.has_shown_tabs
     }
 
-    fn landing(&self, core: &State) -> Option<Vec<u8>> {
+    fn landing(&self) -> Option<Vec<u8>> {
         if !self.landing_shown() {
             return None;
         }
-        // Invariant: the wipe runs only while the Agent it hands over to is starting; a refused
-        // creation restores the wordmark.
-        let creating = core.view.pending_created_activation || self.view.requested.is_some();
-        let wipe = self
-            .landing_wipe
-            .filter(|_| creating)
-            .map(|started| started.elapsed().as_secs_f32() / LANDING_WIPE.as_secs_f32());
         // Invariant: the footer resolves home from `HOME`, then `USERPROFILE`.
         let home = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
@@ -2170,7 +2154,6 @@ impl Client {
             truecolor: !palette_fallback_requested(),
             half_blocks: landing::half_blocks_supported(),
             cwd: &cwd,
-            wipe,
             background: landing::canvas_background(
                 self.time_format.background_style,
                 self.time_format.accent_color,
@@ -2252,11 +2235,8 @@ impl Client {
             clear,
             dimmed,
         };
-        self.terminal.present(self.reveal.present(
-            desired,
-            self.view.requested.as_deref(),
-            self.landing_shown(),
-        ))
+        self.terminal
+            .present(self.reveal.present(desired, self.view.requested.as_deref()))
     }
 
     fn apply_terminal_effect(&mut self, effect: &TerminalEffect) -> Result<(), String> {
@@ -2279,7 +2259,6 @@ impl Client {
         staged: Option<Vec<StripTab>>,
         requested: bool,
     ) -> Result<(), String> {
-        self.landing_wipe = None;
         self.reveal.commit(&surface.tab_id, Instant::now());
         if let Some(next) = staged {
             self.tabs = next;
@@ -2689,12 +2668,8 @@ impl Client {
             // the writer still considers them current. Overwrite the full cached frame once.
             self.paint(core, true)?;
         }
-        let wiping = self
-            .landing_wipe
-            .is_some_and(|started| started.elapsed() < LANDING_WIPE + LANDING_WIPE_FRAME);
-        if (strip::animations_active(&self.tabs)
-            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs))
-            || (wiping && self.last_strip_frame.elapsed() >= LANDING_WIPE_FRAME)
+        if strip::animations_active(&self.tabs)
+            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs)
         {
             self.paint(core, false)?;
             self.last_strip_frame = Instant::now();

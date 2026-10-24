@@ -2,8 +2,8 @@
 //! for `REVEAL_FADE`, then at full intensity. Resizing and a new tab share it, so both enter with
 //! the same timing and the same faint treatment; its scope says what fades. A new tab's content is
 //! also veiled until its first frame commits: the strip already shows the new tab while the body
-//! stays empty, or keeps the landing and its wipe when the tab starts from there, and the content
-//! then fades in, as a resize reveals once its surface is ready.
+//! it replaces, another tab or the landing alike, hides, and the content then fades in, as a resize
+//! reveals once its surface is ready.
 
 use std::time::{Duration, Instant};
 
@@ -96,15 +96,14 @@ impl Reveal {
         finished
     }
 
-    /// The frame as the reveal presents it: a veiled tab's body empty under the strip unless
-    /// `keep_body`, as the landing keeps its wipe, then any fade applied to its scope.
+    /// The frame as the reveal presents it: a veiled tab's body empty under the strip, then any
+    /// fade applied to its scope.
     pub fn present(
         &self,
         mut desired: DesiredPresentation,
         requested: Option<&str>,
-        keep_body: bool,
     ) -> DesiredPresentation {
-        if let Some(tab_id) = self.veiled_for(requested).filter(|_| !keep_body) {
+        if let Some(tab_id) = self.veiled_for(requested) {
             desired = veil_content(desired, tab_id);
         }
         match self.fade {
@@ -186,11 +185,9 @@ pub fn fade_presentation(
         *overlay =
             String::from_utf8(force_faint_ansi(overlay.as_bytes())).expect("host overlay is utf-8");
     }
-    // Invariant: a content fade keeps the child's cursor, so a new tab's caret never blinks out as
-    // its content fades in; a frame fade hides it with the rest of the frame.
-    if frame {
-        desired.cursor = Some(FinalCursor::Hidden);
-    }
+    // Invariant: a reveal never shows a cursor; a joining tab's first frame may report one before its
+    // screen settles, so the tab's own cursor appears only once its content is in.
+    desired.cursor = Some(FinalCursor::Hidden);
     desired
 }
 
@@ -257,8 +254,8 @@ mod tests {
         assert_eq!(faded.strip, "\x1b[0mstrip");
         assert_eq!(
             faded.cursor,
-            desired().cursor,
-            "the caret stays without a blink"
+            Some(FinalCursor::Hidden),
+            "no cursor shows while content fades in"
         );
         assert!(faded.structured.unwrap().styles[0].faint);
 
@@ -274,7 +271,7 @@ mod tests {
         let now = Instant::now();
         let mut reveal = Reveal::default();
         reveal.veil("tab-2");
-        let veiled = reveal.present(desired(), Some("tab-2"), false);
+        let veiled = reveal.present(desired(), Some("tab-2"));
         assert_eq!(veiled.tab_id.as_deref(), Some("tab-2"));
         assert!(veiled.structured.is_none() && veiled.legacy_body.is_empty());
         assert_eq!(
@@ -289,28 +286,12 @@ mod tests {
 
         reveal.commit("tab-2", now);
         assert_eq!(reveal.veiled_for(Some("tab-2")), None);
-        let fading = reveal.present(desired(), None, false);
+        let fading = reveal.present(desired(), None);
         assert_eq!(fading.strip, "\x1b[0mstrip");
         assert!(fading.structured.unwrap().styles[0].faint);
         assert!(!reveal.finish(now));
         assert!(reveal.finish(now + REVEAL_FADE));
         assert!(reveal.fade.is_none());
-
-        reveal.veil("landing-tab");
-        let landing = reveal.present(desired(), Some("landing-tab"), true);
-        assert_eq!(
-            landing.tab_id.as_deref(),
-            Some("tab-1"),
-            "the landing keeps its body and wipe"
-        );
-        reveal.commit("landing-tab", now);
-        assert!(
-            reveal
-                .fade
-                .is_some_and(|fade| fade.scope == RevealScope::Content),
-            "a tab from the landing fades in like any other new tab"
-        );
-        reveal.fade = None;
 
         reveal.veil("tab-3");
         reveal.commit("tab-1", now);
