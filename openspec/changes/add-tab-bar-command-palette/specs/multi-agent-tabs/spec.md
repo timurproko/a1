@@ -111,12 +111,12 @@ While a tab is renamed inline, selected characters SHALL be drawn with the owned
 - **THEN** the selected name SHALL show the editor's selection background with unchanged text color
 
 ### Requirement: Tab names and session names stay in sync
-A resident Agent's tab name and its Pi session name SHALL name the same thing. A strip rename or an automatic name SHALL set the session name, and a session name the Agent sets with `/name`, or that its resumed session carries, SHALL become the tab name with a user name source so automatic naming no longer replaces it. A default session name SHALL NOT replace a tab name.
+A resident Agent's tab name and its Pi session name SHALL name the same thing. A strip rename or an automatic name SHALL set the session name, and a session name the Agent's session otherwise sets, or that its resumed session carries, SHALL become the tab name with a user name source so automatic naming no longer replaces it. A default session name SHALL NOT replace a tab name. Because renaming the tab renames the session, a resident Agent SHALL omit `/name` from its command suggestions and refuse it with a notice pointing to the tab rename; direct A1 SHALL keep `/name`.
 
 #### Scenario: Rename the session from the Agent
 - **WHEN** the user runs `/name what is there` in a resident Agent named `what-is this`
-- **THEN** the tab chip SHALL show `what is there`
-- **AND** a later automatic name SHALL NOT replace it
+- **THEN** the Agent SHALL refuse it with a notice to rename the tab (`F2`), and the tab and session names SHALL stay `what-is this`
+- **AND** `/name` SHALL NOT appear among the Agent's command suggestions, while direct A1 SHALL still offer and run it
 
 #### Scenario: Rename the tab from the strip
 - **WHEN** the user renames the tab to `login fix` from the strip

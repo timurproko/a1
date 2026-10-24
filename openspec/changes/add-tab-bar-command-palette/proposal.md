@@ -9,7 +9,7 @@ The `+` launcher makes every new Agent a two-step menu choice and is the only pl
 - `Changelog` becomes a singleton utility tab like Settings. Resident Agents no longer offer `/changelog`; `a1 solo` and `a1 pi` keep it.
 - The Settings `Tabs` section is renamed `Tab Bar`.
 - Inline tab rename shows its selection with the owned blue selection background instead of reversed cells.
-- A resident Agent's tab name and its session name stay in sync: `/name` renames the tab, and a strip or automatic rename names the session.
+- A resident Agent's tab name and its session name stay in sync: a strip or automatic rename names the session, and resident Agents hide `/name`, since the tab rename does the same; direct A1 keeps `/name`.
 - Tab kinds are either multi-instance, like Agent, which adds a tab every time and shows a `+` icon, or singleton toggles, like Settings and Changelog, which open or show their one tab and show a checkmark while it is open.
 
 ## Capabilities
