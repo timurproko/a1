@@ -19,7 +19,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-24-improve-tab-overflow-menu/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-24-improve-tab-overflow-menu/acceptance.md",
   "finalizedDate": "2026-10-24",
-  "specBaseSha": "662fd5b5aa10de92f773889f0dcd2f026a285322",
+  "specBaseSha": "d917b44ab251c15b042f43090505958c9dcc68d8",
   "acceptanceScenarios": [
     "The overflow popup lists only tabs without drawn chips, without checkmarks; selecting one swaps it into the previously viewed chip's slot and puts the displaced tab in the menu.",
     "Popup rows reserve a status-glyph slot beside every hidden tab name; working and attention glyphs use their current colors, while idle rows keep a blank slot.",
