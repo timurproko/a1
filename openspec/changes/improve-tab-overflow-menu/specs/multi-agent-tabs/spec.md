@@ -42,6 +42,7 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **WHEN** the user presses unshifted Alt+=
 - **THEN** the same add-tab popup as a click on `+` SHALL open without creating a tab until an item is chosen
 - **AND** if the user explicitly rebinds add-menu to Alt++, the terminal's Alt+Shift+= representation SHALL also open it without stealing an unrelated default key
+- **AND** pressing Alt+= again while its add popup is open SHALL close that popup without creating a tab
 - **AND** each keyboard-opened popup SHALL initially focus its first actionable row, so Enter selects it without pressing Down; pointer-opened popup hover SHALL remain unchanged
 - **AND** both shortcuts SHALL follow the resident keybinding projection and respect user rebinding and reserved keys
 
