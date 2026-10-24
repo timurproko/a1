@@ -1,10 +1,13 @@
 ## 1. Resident overflow popup
 
-- [x] 1.1 Build overflow rows from all available ordered tabs and derive checkmarks from the chips actually drawn in the current strip frame.
+- [ ] 1.1 Build overflow rows only from ordered tabs with no drawn chip, without checkmarks; refresh as visibility changes.
 - [x] 1.2 Keep the popup coherent across resize, create, close, reorder, and view changes; preserve keyboard/mouse selection, hidden-tab activation, and existing overlay behavior.
-- [x] 1.3 Add focused Rust strip and attach tests for multiple visible tabs, hidden rows, ordering, narrow widths, resize, removed entries, and hidden-tab activation.
+- [ ] 1.3 Add focused Rust strip and attach tests for hidden-only rows, ordering, resize, removed entries, and hidden-tab activation.
 - [x] 1.4 Align bottom-popup mouse coordinates with the actual rendered row for each named tab, including clamped rows.
-- [x] 1.5 Add focused bottom-popup mouse tests selecting the named second row after hover, resize, and reorder.
+- [ ] 1.5 Update bottom-popup mouse tests for the named hidden row after hover, resize, reorder, and a row-count change.
+
+- [ ] 1.6 Swap a selected hidden tab into the previously viewed chip's slot when space is limited, preserving other visible chips when feasible without changing registry order.
+- [ ] 1.7 Add strip and attach tests for one-chip and two-chip swaps, displaced menu entries, stable chip positions, keyboard switching, and geometry limits.
 
 ## 2. A1 footer truncation
 
@@ -16,4 +19,5 @@
 ## 3. Delivery evidence
 
 - [x] 3.1 Record focused typecheck and touched-test results with any known gaps in implementation evidence after approval and implementation.
-- [x] 3.2 Record the refined behavior's focused checks and gap disposition in the implementation evidence.
+- [x] 3.2 Record the earlier refinement's focused checks and gap disposition in the implementation evidence.
+- [ ] 3.3 Record hidden-only menu and swap checks and any remaining geometry limits.

@@ -6,6 +6,10 @@
 - The bottom popup's pointer-to-action mapping now uses the same physical rows as popup painting rather than separately calculating the row offset. Rows clipped above the terminal cannot receive mouse actions. Top and bottom tests cover a named second row after hover, different heights, a reordered named tab, and a four-row terminal. Keyboard selection still traverses all rows.
 - A1 path, usage, and extension truncation now use one dim `…`; the full model name takes priority over usage, provider, route, and thinking detail as space tightens. Complete model/level, PR hyperlinks, semantic thinking color, ordinary widths, and Pi comparison behavior remain intact.
 
+## Pending approved refinement
+
+The all-tab/checkmark popup behavior recorded above is superseded by the approved hidden-only chooser with a selected-chip swap. Its older tests and local results remain historical evidence, not proof of the new behavior. Tasks 1.1, 1.3, 1.5–1.7, and 3.3 remain open until the swap, updated tests, and gap disposition are written.
+
 ## Focused local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_PREBUILT_VT=D:/Git/a1/.worktrees/tab-overflow-menu/.artifacts/terminal-vt cargo test --manifest-path native/terminal-host/Cargo.toml --lib roles::strip::tests`: 31 passed. The prebuilt terminal library was fetched from a CI-published, merged branch and verified by the native build.
@@ -22,4 +26,4 @@
 
 ## Gap disposition
 
-No remaining implementation gap is known for terminals with room for both strip controls and popup rows. At zero to three columns, a distinct `+` and overflow target cannot coexist; `+` remains available. If the terminal has fewer body rows than popup entries, only physically drawn entries accept clicks; all ordered entries remain available to keyboard navigation. These are intentional geometry limits, not silently selectable invisible rows.
+For the earlier all-tab implementation, no remaining gap was known for terminals with room for both strip controls and popup rows. The hidden-only refinement still needs its own gap disposition. At zero to three columns, a distinct `+` and overflow target cannot coexist; `+` remains available. If the terminal has fewer body rows than popup entries, only physically drawn entries accept clicks; all ordered entries remain available to keyboard navigation. These are intentional geometry limits, not silently selectable invisible rows.
