@@ -26,8 +26,8 @@ use crate::roles::child_input::{self, SemanticEncoder};
 use crate::roles::conpty_cursor::ConptyCursorRepair;
 use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::wire::{
-    self, HolderExit, HolderLaunchConfig, HolderRespawn, Input, PasteStart, Resize, RoleHello,
-    Surface, SurfaceSubscription,
+    self, HolderExit, HolderLaunchConfig, HolderRespawn, Input, PasteStart, Resize, ResultBody,
+    RoleHello, Surface, SurfaceSubscription,
 };
 
 pub const HOLDER_INPUT_CAPACITY: usize = 1024 * 1024;
@@ -903,23 +903,15 @@ fn run_holder(
                 subscription = None;
                 pending_effects.clear();
                 if !reconnecting {
+                    begin_reconnect(
+                        &config,
+                        &child_identity,
+                        &diagnostics_root,
+                        highest_epoch,
+                        &reconnect_tx,
+                        &wake_tx,
+                    )?;
                     reconnecting = true;
-                    let reconnect_tx = reconnect_tx.clone();
-                    let reconnect_wake = wake_tx.clone();
-                    let reconnect_config = config.clone();
-                    let reconnect_child = child_identity.clone();
-                    let reconnect_diagnostics = diagnostics_root.clone();
-                    let reconnect_epoch = highest_epoch;
-                    thread::spawn(move || {
-                        let result = reconnect_holder(
-                            &reconnect_config,
-                            Some(&reconnect_child),
-                            reconnect_epoch,
-                            &reconnect_diagnostics,
-                        );
-                        let _ = reconnect_tx.send(result);
-                        let _ = reconnect_wake.try_send(());
-                    });
                 }
             } else if let HolderCommand::Respawn(respawn) = command {
                 if respawn.tab_id != config.tab_id || respawn.incarnation <= config.incarnation {
@@ -1577,6 +1569,37 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<bool, Strin
     }
 }
 
+/// Starts the one reconnect thread for a lost server connection, or ends a standby holder, which
+/// no replacement server could admit (see [`disconnect_ends_holder`]).
+fn begin_reconnect(
+    config: &HolderLaunchConfig,
+    child: &crate::identity::ProcessIdentity,
+    diagnostics_root: &Path,
+    highest_epoch: u64,
+    reconnect_tx: &mpsc::SyncSender<Result<(endpoint::EndpointStream, u64), String>>,
+    wake_tx: &mpsc::SyncSender<()>,
+) -> Result<(), String> {
+    if let Some(reason) = disconnect_ends_holder(config.standby) {
+        let _ = crate::roles::diagnostics::append_log(
+            diagnostics_root,
+            &format!("holder-{}", config.tab_id),
+            "standby-server-lost",
+        );
+        return Err(reason.to_owned());
+    }
+    let reconnect_tx = reconnect_tx.clone();
+    let wake_tx = wake_tx.clone();
+    let config = config.clone();
+    let child = child.clone();
+    let diagnostics_root = diagnostics_root.to_path_buf();
+    thread::spawn(move || {
+        let result = reconnect_holder(&config, Some(&child), highest_epoch, &diagnostics_root);
+        let _ = reconnect_tx.send(result);
+        let _ = wake_tx.try_send(());
+    });
+    Ok(())
+}
+
 fn reconnect_holder(
     config: &HolderLaunchConfig,
     child: Option<&crate::identity::ProcessIdentity>,
@@ -1625,18 +1648,67 @@ fn reconnect_holder(
                     match error.as_str() {
                         "server refused holder handshake" => "server-replacement-refused",
                         "server closed holder handshake" => "server-replacement-handshake-closed",
+                        refused if refused.starts_with(REFUSED_PREFIX) => {
+                            "server-replacement-refused"
+                        }
                         _ => "server-replacement-connect-failed",
                     },
                 );
+                // Invariant: a definitive refusal ends the holder. Retrying would spawn a
+                // replacement request every backoff forever, as an orphaned standby once did.
+                if refusal_is_definitive(&error) {
+                    let _ = crate::roles::diagnostics::append_log(
+                        diagnostics_root,
+                        &role,
+                        "server-replacement-refused-definitively",
+                    );
+                    return Err(error);
+                }
             }
         }
         thread::sleep(backoff);
-        backoff = backoff.saturating_mul(2).min(Duration::from_secs(2));
+        backoff = backoff.saturating_mul(2).min(REPLACEMENT_BACKOFF_CAP);
     }
 }
 
 /// Long enough for a server to verify the holder and child identities it admits.
 const HOLDER_HANDSHAKE: Duration = Duration::from_secs(10);
+
+/// The longest pause between two replacement-server requests while a server stays unreachable.
+const REPLACEMENT_BACKOFF_CAP: Duration = Duration::from_secs(15);
+
+const REFUSED_PREFIX: &str = "server refused holder: ";
+
+fn refusal_error(reason: &str) -> String {
+    format!("{REFUSED_PREFIX}{reason}")
+}
+
+/// Whether a connect error is a refusal the server derived from durable records or credentials.
+/// No later server admits such a holder, so asking for a replacement server would only repeat the
+/// refusal; the holder ends and its tab is recorded as ended. Connection loss, closed handshakes,
+/// inspection timeouts, and liveness checks stay transient.
+pub fn refusal_is_definitive(error: &str) -> bool {
+    let Some(reason) = error.strip_prefix(REFUSED_PREFIX) else {
+        return false;
+    };
+    matches!(
+        reason,
+        "holder has no registry or standby record"
+            | "resident credential rejected"
+            | "peer has observed a newer server epoch"
+            | "holder incarnation does not match the registry"
+            | "holder identity does not match the registry"
+            | "holder child identity does not match the registry"
+            | "unapproved resident peer role"
+    )
+}
+
+/// What a holder does when its server connection ends. A standby is in-memory state of the server
+/// that prewarmed it: no replacement server has a record for it and the replacement prewarms its
+/// own, so a standby ends with its server instead of requesting one.
+pub fn disconnect_ends_holder(standby: bool) -> Option<&'static str> {
+    standby.then_some("standby holder lost its server")
+}
 
 fn connect_holder(
     config: &HolderLaunchConfig,
@@ -1682,7 +1754,12 @@ fn connect_holder(
         .map_err(|error| error.to_string())?;
     let welcome = wire::read_payload(&mut stream)?
         .ok_or_else(|| "server closed holder handshake".to_owned())?;
-    if wire::kind(&welcome)?.message_type != "welcome" {
+    let kind = wire::kind(&welcome)?;
+    if kind.message_type == "refused" {
+        let (_, refusal): (Option<u64>, ResultBody) = wire::body(&welcome)?;
+        return Err(refusal_error(refusal.message.as_deref().unwrap_or("")));
+    }
+    if kind.message_type != "welcome" {
         return Err("server refused holder handshake".to_owned());
     }
     endpoint::clear_handshake_deadline(&stream).map_err(|error| error.to_string())?;
@@ -1995,6 +2072,60 @@ mod tests {
             assert!(printed.contains("\"started\""), "{printed}");
             assert!(started.elapsed() < Duration::from_secs(5));
         }
+    }
+
+    #[test]
+    fn definitive_refusals_end_the_holder_and_transient_failures_do_not() {
+        for reason in [
+            "holder has no registry or standby record",
+            "resident credential rejected",
+            "peer has observed a newer server epoch",
+            "holder incarnation does not match the registry",
+            "holder identity does not match the registry",
+            "holder child identity does not match the registry",
+            "unapproved resident peer role",
+        ] {
+            assert!(refusal_is_definitive(&refusal_error(reason)), "{reason}");
+        }
+        for transient in [
+            refusal_error("identity inspection deadline exceeded"),
+            refusal_error("holder process is not live"),
+            refusal_error(""),
+            "server refused holder handshake".to_owned(),
+            "server closed holder handshake".to_owned(),
+            "connection refused".to_owned(),
+            // Invariant: only the exact prefixed form counts; the bare reason is not a refusal.
+            "holder has no registry or standby record".to_owned(),
+        ] {
+            assert!(!refusal_is_definitive(&transient), "{transient}");
+        }
+        assert!(REPLACEMENT_BACKOFF_CAP >= Duration::from_secs(15));
+    }
+
+    #[test]
+    fn a_refused_hello_answer_carries_its_reason_through_the_wire() {
+        let frame = wire::frame(
+            "refused",
+            Some(1),
+            ResultBody::refused("holder has no registry or standby record".into()),
+        )
+        .expect("refused frame");
+        let payload = &frame[4..];
+        assert_eq!(wire::kind(payload).unwrap().message_type, "refused");
+        let (request, body): (Option<u64>, ResultBody) = wire::body(payload).unwrap();
+        assert_eq!(request, Some(1));
+        assert!(!body.accepted);
+        let error = refusal_error(body.message.as_deref().unwrap_or(""));
+        assert!(refusal_is_definitive(&error));
+    }
+
+    #[test]
+    fn a_standby_ends_on_disconnect_and_a_user_tab_holder_reconnects() {
+        assert_eq!(
+            disconnect_ends_holder(true),
+            Some("standby holder lost its server")
+        );
+        assert_eq!(disconnect_ends_holder(false), None);
     }
 
     #[test]
