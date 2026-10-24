@@ -24,10 +24,10 @@ The maintainer integration decision accepts these scenarios:
     "Opt-in observations distinguish idle wait, local completion time, and wake epochs without terminal content or process restarts.",
     "Existing protocol bytes and session ownership remain compatible, and a detected wake gap requests one cached repaint."
   ],
-  "archiveDigest": "7f55a46d92527542b09e2636d714d998640f8f6e3617bde97a6306fd6249877a",
+  "archiveDigest": "bdc1d87398f38edca87a7c78de52148323c3fc9a40daccf727cdbca4fde6942c",
   "specDigest": "84952a0d0b52fbab871771ac8210183390c46ac0fd17bad45d83ddc2b42beffa",
   "tasksDigest": "6b1ebad65568d5f64eafa8b8a0459ea3afd59e0b3568ab2f25c53da88f7f4b2b",
-  "evidenceDigest": "9305690a98e8e8b86b6cf74494520c7a27309ff0d3e0f8b0032f2db21288b883",
+  "evidenceDigest": "573d810aa0ecbe759c7a8c43fa1088a492c99d972ffd9d218453a79a2ed39789",
   "knownGaps": []
 }
 ```
