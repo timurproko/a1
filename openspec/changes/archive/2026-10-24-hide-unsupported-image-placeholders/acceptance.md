@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-24-hide-unsupported-image-placeholders/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-24-hide-unsupported-image-placeholders/acceptance.md",
   "finalizedDate": "2026-10-24",
-  "specBaseSha": "3b474cdf46e31c9249b5cd3a6fb1833154c9981a",
+  "specBaseSha": "a055df3f214104c380e5903d9d71ee6668f9133f",
   "acceptanceScenarios": [
     "Unsupported terminals omit automatic image placeholder rows and attachment-only spacing from user and tool transcript content.",
     "Supported inline images, explicit hidden-image markers, and actual unavailable or conversion diagnostics retain their defined presentation.",
