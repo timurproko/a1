@@ -14,17 +14,11 @@
 - [x] 1.11 Avoid a transient old-chip or stale hidden-title animation during a pending hidden-tab swap without changing later auto-naming.
 - [x] 1.12 Add focused shortcut and strip-transition tests for swaps, resizes, reordered/identically named tabs, in-flight views, and out-of-range Alt+number.
 - [x] 1.13 Render centered `⋯` on the overflow control without changing its hit geometry, muted color, or name truncation.
-- [x] 1.14 Project Alt+- and Alt+= to the existing overflow and add popups through the native/owned shortcut declarations, honoring rebindings and owned-key reservations.
-- [x] 1.15 Add focused Rust and TypeScript tests for the centered glyph, popup behavior, the unshifted Alt+= key and explicitly rebound shift-plus encoding, absent overflow, geometry, and shortcut projection.
+- [ ] 1.14 Remove the add/overflow menu actions and Alt+-/Alt+= assignments from native and owned shortcut declarations and native dispatch without changing other tab shortcuts or clicked popup behavior.
+- [ ] 1.15 Add focused Rust and TypeScript tests for the centered glyph, pointer-opened popup behavior, removed menu bindings even if configured, and preserved shortcut projection.
 
 - [x] 1.16 Prioritize the committed active chip over an unrelated pending view when replacing a visible chip from the hidden-tab popup; keep subsequent pending swaps stable.
 - [x] 1.17 Add focused tests for a hidden selection during an unrelated pending view and its committed/pending chip slots.
-
-- [ ] 1.18 Reproduce the reported missing Alt+- menu activation in the actual launched host (or distinguish a stale checkout), repair the input route if needed, and cover the reproduced event with a regression test.
-
-- [x] 1.19 Preselect the first actionable item only when the add or overflow popup opens through its keyboard shortcut; test immediate Enter, Down, and pointer hover preservation.
-
-- [x] 1.20 Make a second Alt+= dismiss the already-open add popup without creating a tab, while preserving first-row focus on reopening and pointer behavior; add focused shortcut tests.
 
 ## 2. A1 footer truncation
 
@@ -40,8 +34,6 @@
 - [x] 3.3 Record hidden-only menu and swap checks and any remaining geometry limits.
 - [x] 3.4 Record icon-slot rendering and interaction checks and any remaining limits.
 - [x] 3.5 Record visible-shortcut and stable-swap checks and any remaining limits.
-- [x] 3.6 Record the requested keyboard-menu and glyph refinement's focused checks and any remaining limits.
+- [x] 3.6 Record the earlier keyboard-menu experiment and glyph refinement's focused checks and limits.
 - [x] 3.7 Record the centered control and committed-active-slot repair checks, with any remaining limits.
-- [ ] 3.8 Disposition the reported physical Alt+-/Alt+= shortcut gap against the exact candidate head.
-- [x] 3.9 Record keyboard-first selection tests and any remaining pointer or terminal-input gap.
-- [x] 3.10 Record the add-menu toggle checks and the unresolved physical overflow key disposition.
+- [ ] 3.8 Record the exact-head Alt+- trace, the decision to remove both popup shortcuts, focused removal checks, and any remaining gaps.

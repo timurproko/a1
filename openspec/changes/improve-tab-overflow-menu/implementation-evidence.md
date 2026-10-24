@@ -10,6 +10,10 @@
 - The bottom popup's pointer-to-action mapping now uses the same physical rows as popup painting rather than separately calculating the row offset. Rows clipped above the terminal cannot receive mouse actions. Top and bottom tests cover a named second row after hover, different heights, a reordered named tab, and a four-row terminal. Keyboard selection still traverses all rows.
 - A1 path, usage, and extension truncation now use one dim `…`; the full model name takes priority over usage, provider, route, and thinking detail as space tightens. Complete model/level, PR hyperlinks, semantic thinking color, ordinary widths, and Pi comparison behavior remain intact.
 
+## Approved pointer-only refinement pending
+
+The exact-head attach trace records the attempted Alt+- as `Char(_)`, `KeyModifiers(0x0)`, `action=None` and Alt+= as `Char('=')`, `KeyModifiers(ALT)`, `action=Some("tabs.addMenu")`. Claiming the former would also intercept ordinary typing, so the user explicitly chose to remove **both** popup-specific shortcuts without a fallback. The centered `⋯` and `+` controls remain clickable and their opened menus retain keyboard navigation. The prior shortcut assignments, keyboard-only focus/toggle tests, and results below describe superseded iterations and must be removed from the final implementation; tasks 1.14/1.15/3.8 track that removal and gap disposition.
+
 ## Current refinement and remaining input gap
 
 The client now prioritizes the committed active chip for a hidden selection even when a different ordinary view request is pending. A second hidden selection during an overflow swap still uses the promoted strip-active chip. The overflow control displays centered one-cell `⋯`, retaining the hit range, muted foreground, and grapheme-clipped name `…`; prior `-` glyph checks below are historical. Focused tests render two chips, assert the hidden target replaces the committed active chip rather than the unrelated requested next chip, compare pending and committed frames, and check a second swap.

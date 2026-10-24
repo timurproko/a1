@@ -35,16 +35,12 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **THEN** the overflow popup SHALL list only the other two tabs, in strip order and without checkmarks
 - **AND** selecting one SHALL view it in the strip and move the currently active chip into the popup
 
-#### Scenario: Keyboard shortcuts open the strip menus
-- **WHEN** the user presses Alt+- and the `⋯` overflow control is drawn
-- **THEN** the same hidden-tab popup as a click on `⋯` SHALL open, with its normal keyboard and mouse actions
-- **AND** if no chips are hidden, Alt+- SHALL NOT open an empty or stale popup
-- **WHEN** the user presses unshifted Alt+=
-- **THEN** the same add-tab popup as a click on `+` SHALL open without creating a tab until an item is chosen
-- **AND** if the user explicitly rebinds add-menu to Alt++, the terminal's Alt+Shift+= representation SHALL also open it without stealing an unrelated default key
-- **AND** pressing Alt+= again while its add popup is open SHALL close that popup without creating a tab
-- **AND** each keyboard-opened popup SHALL initially focus its first actionable row, so Enter selects it without pressing Down; pointer-opened popup hover SHALL remain unchanged
-- **AND** both shortcuts SHALL follow the resident keybinding projection and respect user rebinding and reserved keys
+#### Scenario: Strip menus are pointer-only
+- **WHEN** hidden chips exist and the user clicks the centered `⋯` control
+- **THEN** the hidden-tab popup SHALL open, with its existing pointer hover and keyboard Up/Down/Enter/Esc navigation
+- **WHEN** the user clicks `+`, including when no tabs exist
+- **THEN** the add-tab popup SHALL open without creating a tab until an item is chosen
+- **AND** neither Alt+- nor Alt+= SHALL be assigned to or consumed by a tab-menu shortcut, even if a prior user binding names the removed menu actions
 
 #### Scenario: Jump shortcuts track only drawn chips
 - **WHEN** the strip draws two chips after a narrow resize or hidden-tab swap, regardless of their registry indexes
