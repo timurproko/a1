@@ -18,7 +18,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-24-silent-background-updates/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-24-silent-background-updates/acceptance.md",
   "finalizedDate": "2026-10-24",
-  "specBaseSha": "a055df3f214104c380e5903d9d71ee6668f9133f",
+  "specBaseSha": "63a5d9ec34bcda4632c48015cd1da0857f8ea545",
   "acceptanceScenarios": [
     "Auto silently installs the exact verified channel update without interrupting sessions running from immutable releases.",
     "Notify preserves the existing update-available popup and manual installation flow.",
@@ -27,7 +27,7 @@ The maintainer integration decision accepts these scenarios:
     "Installed updates appear only as persistent restart-ready status chrome and never enter the transcript."
   ],
   "archiveDigest": "fb730ae4197ee1d8d9a0b704027b41cf2dfd6081e2229d17ff91469c94e429a8",
-  "specDigest": "cdeeddd6aab7e72ef1be971ee29f2c3fcf06745257e0535749eb9ea41cda6e1d",
+  "specDigest": "c4c6cf24b2f0d10cbde5d16e3db2daebce7a8eb98824a60ae2b518ab829fe337",
   "tasksDigest": "c705bafcf5949e172c1bae8242dde0f5a762262ed265d8f100e9df3cafc86338",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
