@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Tab chips reproduce the approved v2 strip
-The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible when space permits, and a trailing `+` SHALL always be reserved. The muted single-column centered `⋯` overflow control SHALL appear only while some chips do not fit and SHALL open a keyboard- and mouse-navigable popup listing only tabs whose chips are not drawn, without checkmarks, in strip order. Each row SHALL reserve a one-cell status-glyph slot and separator before its name; it SHALL show the same current status glyph and semantic color as the chip when present, or a blank slot while idle. Names SHALL clip by display width without shifting the icon slot, leaking icon style into the title, or changing popup hit geometry. Choosing a popup row SHALL view exactly that tab with either top or bottom strip placement and place its chip in the currently active chip's strip slot when that chip was drawn and the two do not both fit, even if a different non-swap view request was pending; the displaced tab SHALL appear in the popup. Other visible chips SHALL remain visible when geometry permits, and a pending view request SHALL NOT briefly repaint the old viewed chip in the slot or replay the newly drawn chip's hidden-name transition. The popup SHALL track the current drawn chips across resize, reorder, creation, removal, and view changes; removed tabs SHALL NOT remain actionable. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
+The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible when space permits, and a trailing `+` SHALL be reserved while at least one plus-menu kind is enabled. The muted single-column centered `⋯` overflow control SHALL appear only while some chips do not fit and SHALL open a keyboard- and mouse-navigable popup listing only tabs whose chips are not drawn, without checkmarks, in strip order. Each row SHALL reserve a one-cell status-glyph slot and separator before its name; it SHALL show the same current status glyph and semantic color as the chip when present, or a blank slot while idle. Names SHALL clip by display width without shifting the icon slot, leaking icon style into the title, or changing popup hit geometry. Choosing a popup row SHALL view exactly that tab with either top or bottom strip placement and place its chip in the currently active chip's strip slot when that chip was drawn and the two do not both fit, even if a different non-swap view request was pending; the displaced tab SHALL appear in the popup. Other visible chips SHALL remain visible when geometry permits, and a pending view request SHALL NOT briefly repaint the old viewed chip in the slot or replay the newly drawn chip's hidden-name transition. The popup SHALL track the current drawn chips across resize, reorder, creation, removal, and view changes; removed tabs SHALL NOT remain actionable. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
 
 #### Scenario: Wide names are clipped by display width
 - **WHEN** a tab name contains CJK characters or emoji wider than the chip allows
@@ -27,7 +27,7 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **AND** one blank cell SHALL remain between the clock's final digit and the terminal's right edge
 
 #### Scenario: Clock with no tabs
-- **WHEN** every tab has been closed
+- **WHEN** every tab has been closed and at least one plus-menu kind is enabled
 - **THEN** the strip SHALL show `+` and the right-aligned clock
 
 #### Scenario: Only hidden tabs appear when some chips overflow
@@ -38,8 +38,11 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 #### Scenario: Strip menus are pointer-only
 - **WHEN** hidden chips exist and the user clicks the centered `⋯` control
 - **THEN** the hidden-tab popup SHALL open, with its existing pointer hover and keyboard Up/Down/Enter/Esc navigation
-- **WHEN** the user clicks `+`, including when no tabs exist
+- **WHEN** the configured plus menu includes a utility kind and the user clicks `+`, including when no tabs exist
 - **THEN** the add-tab popup SHALL open without creating a tab until an item is chosen
+- **WHEN** only Agent is enabled and the user clicks `+`
+- **THEN** one Agent SHALL be created directly without opening a popup
+- **AND** `+` SHALL be absent when no plus-menu kind is enabled
 - **AND** neither Alt+- nor Alt+= SHALL be assigned to or consumed by a tab-menu shortcut, even if a prior user binding names the removed menu actions
 
 #### Scenario: Jump shortcuts track only drawn chips

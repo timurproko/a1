@@ -112,7 +112,8 @@ pub fn tab_spinner_frame() -> &'static str {
 
 fn status_glyph_at(status: &str, elapsed_ms: u128) -> String {
     match status {
-        "starting" | "restoring" | "working" => tab_spinner_frame_at(elapsed_ms).into(),
+        // Invariant: a starting tab shows no glyph; it opens as plainly as its UI appears.
+        "restoring" | "working" => tab_spinner_frame_at(elapsed_ms).into(),
         "needs-input" => "?".into(),
         "degraded" => "!".into(),
         "done" | "done-unseen" => "✓".into(),
@@ -394,7 +395,18 @@ fn chip_fixed_width() -> usize {
     4
 }
 
-fn rename_title(rename: &StripRename, max_width: usize) -> TitleFrame {
+/// The owned editor's selection background; selected text keeps its own color over it.
+fn selection_background(truecolor: bool) -> &'static str {
+    if truecolor {
+        "\x1b[48;2;38;79;120m"
+    } else {
+        "\x1b[48;5;24m"
+    }
+}
+
+/// The rename prompt's title. `chip` is the chip's own background and text style, restored after
+/// a selected grapheme.
+fn rename_title(rename: &StripRename, max_width: usize, truecolor: bool, chip: &str) -> TitleFrame {
     let graphemes = clean(&rename.text)
         .graphemes(true)
         .map(str::to_owned)
@@ -433,11 +445,15 @@ fn rename_title(rename: &StripRename, max_width: usize) -> TitleFrame {
         let absolute = start + index;
         let selected = selection.is_some_and(|(left, right)| absolute >= left && absolute < right);
         let pointed = selection.is_none() && absolute == cursor;
-        if selected || pointed {
+        if selected {
+            text.push_str(selection_background(truecolor));
+        } else if pointed {
             text.push_str("\x1b[7m");
         }
         text.push_str(grapheme);
-        if selected || pointed {
+        if selected {
+            text.push_str(chip);
+        } else if pointed {
             text.push_str("\x1b[27m");
         }
         width += UnicodeWidthStr::width(grapheme.as_str());
@@ -459,9 +475,10 @@ fn chip_title(
     now: Instant,
     truecolor: bool,
     rename: Option<&StripRename>,
+    chip: &str,
 ) -> TitleFrame {
     if let Some(rename) = rename.filter(|rename| rename.tab_id == tab.id) {
-        return rename_title(rename, max_width);
+        return rename_title(rename, max_width, truecolor, chip);
     }
     let elapsed = tab.title_animation.as_ref().map(|animation| {
         now.saturating_duration_since(animation.started_at)
@@ -499,16 +516,6 @@ fn chip(
     let glyph = status_glyph(&tab.status);
     let icon = if glyph.is_empty() { " " } else { &glyph };
     let fixed = chip_fixed_width();
-    let title = chip_title(
-        tab,
-        target_width.unwrap_or(20).saturating_sub(fixed),
-        now,
-        truecolor,
-        rename,
-    );
-    let name = title.text;
-    let width = target_width.unwrap_or(fixed + title.width);
-    let padding = " ".repeat(width.saturating_sub(fixed + title.width));
     let accent_color = tab_accent(tab.accent.as_deref());
     let background = if active {
         format!(
@@ -520,6 +527,17 @@ fn chip(
     } else {
         "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m".to_owned()
     };
+    let title = chip_title(
+        tab,
+        target_width.unwrap_or(20).saturating_sub(fixed),
+        now,
+        truecolor,
+        rename,
+        &background,
+    );
+    let name = title.text;
+    let width = target_width.unwrap_or(fixed + title.width);
+    let padding = " ".repeat(width.saturating_sub(fixed + title.width));
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
     let text = format!("{background} {glyph_color}{icon}\x1b[39m {name}{padding} \x1b[0m");
     (text, width)
@@ -556,7 +574,7 @@ pub fn render_interactive(
     time_format: TimeFormat,
     rename: Option<&StripRename>,
 ) -> StripFrame {
-    render_interactive_at(tabs, viewed, columns, hovered, time_format, rename, 1)
+    render_interactive_at(tabs, viewed, columns, hovered, time_format, rename, 1, true)
 }
 
 pub fn render_interactive_at(
@@ -567,6 +585,7 @@ pub fn render_interactive_at(
     time_format: TimeFormat,
     rename: Option<&StripRename>,
     row: u16,
+    plus: bool,
 ) -> StripFrame {
     let mut frame = render_frame(
         tabs,
@@ -577,6 +596,7 @@ pub fn render_interactive_at(
         rename,
         Instant::now(),
         !palette_fallback_requested(),
+        plus,
     );
     if row != 1 {
         frame.bytes = frame
@@ -584,6 +604,21 @@ pub fn render_interactive_at(
             .replacen("\x1b[1;1H", &format!("\x1b[{};1H", row.max(1)), 1);
     }
     frame
+}
+
+/// The strip's fixed RGB colors as their palette counterparts.
+fn palette_fallback(mut bytes: String) -> String {
+    for (rgb, palette) in [
+        (STRIP_ROW_BACKGROUND, STRIP_ROW_BACKGROUND_PALETTE),
+        ("\x1b[48;2;38;38;38m", "\x1b[48;5;235m"),
+        ("\x1b[48;2;48;48;48m", "\x1b[48;5;236m"),
+        ("\x1b[48;2;55;55;55m", "\x1b[48;5;237m"),
+        ("\x1b[38;2;170;170;170m", "\x1b[38;5;248m"),
+        ("\x1b[38;2;255;255;255m", "\x1b[38;5;15m"),
+    ] {
+        bytes = bytes.replace(rgb, palette);
+    }
+    bytes
 }
 
 fn render_frame(
@@ -595,12 +630,14 @@ fn render_frame(
     rename: Option<&StripRename>,
     now: Instant,
     truecolor: bool,
+    plus: bool,
 ) -> StripFrame {
     let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
         chip(tab, active, hovered, now, truecolor, rename, Some(target))
     };
-    // Invariant: reserve controls before the clock on narrow rows.
-    let plus_width = usize::from(columns).min(3);
+    // Invariant: reserve controls before the clock on narrow rows. A disabled plus menu
+    // hides `+` and gives its cells to the tabs.
+    let plus_width = if plus { usize::from(columns).min(3) } else { 0 };
     let clock_text = clock_text(time_format);
     let clock = (usize::from(columns)
         >= UnicodeWidthStr::width(clock_text.as_str())
@@ -614,7 +651,7 @@ fn render_frame(
     let available = usize::from(columns).saturating_sub(clock_reserve);
     let mut selected = Vec::new();
     let mut used = 0usize;
-    // Rationale: shrink 20-cell tabs evenly before overflowing unreadable chips.
+    // Rationale: share the shrink evenly before overflowing unreadable chips.
     let tab_width = if tabs.is_empty() {
         20
     } else {
@@ -661,7 +698,9 @@ fn render_frame(
         .filter(|tab| !selected.iter().any(|visible| visible.id == tab.id))
         .map(|tab| tab.id.clone())
         .collect::<Vec<_>>();
-    let mut bytes = format!("\x1b[1;1H{STRIP_ROW_BACKGROUND}");
+    // Invariant: the strip starts from reset attributes, so a modal's faint backdrop that a cursor
+    // restore brings back never lingers on the first chip; the reset gains the row background below.
+    let mut bytes = String::from("\x1b[1;1H\x1b[0m");
     let mut hits = Vec::new();
     let mut column = 0u16;
     for tab in selected {
@@ -696,16 +735,7 @@ fn render_frame(
     bytes = bytes.replace("\x1b[0m", &format!("\x1b[0m{STRIP_ROW_BACKGROUND}"));
     bytes.push_str("\x1b[0m");
     if !truecolor {
-        for (rgb, palette) in [
-            (STRIP_ROW_BACKGROUND, STRIP_ROW_BACKGROUND_PALETTE),
-            ("\x1b[48;2;38;38;38m", "\x1b[48;5;235m"),
-            ("\x1b[48;2;48;48;48m", "\x1b[48;5;236m"),
-            ("\x1b[48;2;55;55;55m", "\x1b[48;5;237m"),
-            ("\x1b[38;2;170;170;170m", "\x1b[38;5;248m"),
-            ("\x1b[38;2;255;255;255m", "\x1b[38;5;15m"),
-        ] {
-            bytes = bytes.replace(rgb, palette);
-        }
+        bytes = palette_fallback(bytes);
     }
     StripFrame {
         bytes,
@@ -785,8 +815,7 @@ pub fn palette_fallback_requested() -> bool {
 
 pub fn animations_active(tabs: &[StripTab]) -> bool {
     tabs.iter().any(|tab| {
-        matches!(tab.status.as_str(), "starting" | "restoring" | "working")
-            || title_animation_active(tab)
+        matches!(tab.status.as_str(), "restoring" | "working") || title_animation_active(tab)
     })
 }
 
@@ -923,7 +952,7 @@ mod tests {
 
     #[test]
     fn configured_row_positions_the_complete_strip() {
-        let frame = render_interactive_at(&[], None, 20, None, TimeFormat::Twelve, None, 24);
+        let frame = render_interactive_at(&[], None, 20, None, TimeFormat::Twelve, None, 24, true);
         assert!(frame.bytes.starts_with("\x1b[24;1H"));
         assert_eq!(plain(&frame.bytes).chars().count(), 20);
     }
@@ -1115,6 +1144,7 @@ mod tests {
             None,
             now,
             true,
+            true,
         );
         assert!(plain(&frame.bytes).starts_with("   auth-fix "));
         assert!(!plain(&frame.bytes).contains('×'));
@@ -1138,8 +1168,31 @@ mod tests {
             TimeFormat::Twelve,
             Some(&selected),
         );
-        assert!(frame.bytes.contains("\x1b[7m"));
+        assert!(
+            !frame.bytes.contains("\x1b[7m"),
+            "a selection is never drawn reversed"
+        );
         assert!(plain(&frame.bytes).contains("文档-helper"));
+        for (active, truecolor, on) in [
+            (true, true, "\x1b[48;2;38;79;120m"),
+            (false, true, "\x1b[48;2;38;79;120m"),
+            (true, false, "\x1b[48;5;24m"),
+        ] {
+            let (text, _) = chip(
+                &tabs[0],
+                active,
+                false,
+                Instant::now(),
+                truecolor,
+                Some(&selected),
+                None,
+            );
+            let chip_style = text.split(' ').next().unwrap().to_owned();
+            assert!(
+                text.contains(&format!("{on}文{chip_style}")),
+                "the selection keeps the chip's text color and restores its background: {text:?}"
+            );
+        }
         let (_, end, _) = frame.hits.first().unwrap();
         assert!(*end <= 20);
 
@@ -1181,6 +1234,7 @@ mod tests {
                 None,
                 started_at,
                 true,
+                true,
             )
             .bytes
         };
@@ -1207,6 +1261,7 @@ mod tests {
             None,
             start,
             true,
+            true,
         );
         for elapsed in [
             0,
@@ -1226,7 +1281,8 @@ mod tests {
                         TimeFormat::Twelve,
                         None,
                         at,
-                        truecolor
+                        truecolor,
+                        true
                     )
                     .hits,
                     reference.hits
@@ -1241,6 +1297,7 @@ mod tests {
             TimeFormat::Twelve,
             None,
             start + Duration::from_secs(5),
+            true,
             true,
         );
         assert!(plain(&settled.bytes).starts_with("   auth-fix "));
@@ -1297,6 +1354,45 @@ mod tests {
         );
         assert_eq!(UnicodeWidthStr::width(text.as_str()), 80);
         assert_eq!(frame.hits, vec![(0, 3, StripHit::New)]);
+        // Platform: `render` detects truecolor from the environment, so either row background may
+        // follow the reset.
+        assert!(
+            [STRIP_ROW_BACKGROUND, STRIP_ROW_BACKGROUND_PALETTE]
+                .iter()
+                .any(|background| frame
+                    .bytes
+                    .starts_with(&format!("\x1b[1;1H\x1b[0m{background}"))),
+            "the strip resets attributes a faint backdrop could leave"
+        );
+    }
+
+    #[test]
+    fn a_plus_menu_with_no_kind_hides_plus() {
+        let tabs = [tab("one", "agent")];
+        let render_plus = |plus| {
+            render_frame(
+                &tabs,
+                Some("one"),
+                80,
+                None,
+                TimeFormat::Twelve,
+                None,
+                Instant::now(),
+                true,
+                plus,
+            )
+        };
+        let hidden = render_plus(false);
+        assert!(!plain(&hidden.bytes).contains(" + "));
+        assert!(
+            hidden
+                .hits
+                .iter()
+                .all(|(_, _, hit)| !matches!(hit, StripHit::New)),
+            "a hidden `+` takes no clicks"
+        );
+        assert_eq!(UnicodeWidthStr::width(plain(&hidden.bytes).as_str()), 80);
+        assert!(plain(&render_plus(true).bytes).contains(" + "));
     }
 
     #[test]
@@ -1313,6 +1409,7 @@ mod tests {
                 format,
                 None,
                 Instant::now(),
+                true,
                 true,
             );
             assert!(plain(&frame.bytes).ends_with(' '));
@@ -1337,8 +1434,13 @@ mod tests {
                 None,
                 Instant::now(),
                 truecolor,
+                true,
             );
-            assert!(frame.bytes.starts_with(&format!("\x1b[1;1H{background}")));
+            assert!(
+                frame
+                    .bytes
+                    .starts_with(&format!("\x1b[1;1H\x1b[0m{background}"))
+            );
             // Invariant: Every reset inside the row re-establishes the row background before more cells.
             let body = frame.bytes.strip_suffix("\x1b[0m").expect("row ends reset");
             for (offset, _) in body.match_indices("\x1b[0m") {
@@ -1406,6 +1508,7 @@ mod tests {
             None,
             Instant::now(),
             true,
+            true,
         );
         let plain = plain(&frame.bytes);
         assert!(!plain.contains('│'));
@@ -1429,6 +1532,7 @@ mod tests {
             None,
             Instant::now(),
             false,
+            true,
         );
         assert!(palette.bytes.contains("\x1b[48;5;53m"));
         assert!(!palette.bytes.contains('│'));
@@ -1445,9 +1549,14 @@ mod tests {
             assert_eq!(UnicodeWidthStr::width(*expected), 1);
             assert_eq!(tab_spinner_frame_at(elapsed), *expected);
             assert_eq!(tab_spinner_frame_at(elapsed + 79), *expected);
-            for status in ["working", "starting", "restoring"] {
+            for status in ["working", "restoring"] {
                 assert_eq!(status_glyph_at(status, elapsed), *expected);
             }
+            assert_eq!(
+                status_glyph_at("starting", elapsed),
+                "",
+                "a starting tab has no spinner"
+            );
         }
         assert_eq!(
             tab_spinner_frame_at(TAB_SPINNER_FRAMES.len() as u128 * u128::from(TAB_SPINNER_MS)),
@@ -1481,7 +1590,7 @@ mod tests {
 
     #[test]
     fn progress_states_keep_animation_active() {
-        for status in ["working", "starting", "restoring"] {
+        for status in ["working", "restoring"] {
             let mut progress = tab("tab-0", "agent");
             progress.status = status.into();
             assert!(animations_active(&[progress]));
@@ -1528,7 +1637,7 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
-        // Invariant: 12-hour clock width varies by hour.
+        // Invariant: the twelve-hour clock width varies by hour; 24-hour time is stable.
         let twelve_hour = widths(render(&tabs[..3], Some("tab-0"), 65));
         assert!(matches!(
             twelve_hour.as_slice(),

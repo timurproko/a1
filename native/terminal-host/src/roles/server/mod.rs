@@ -45,12 +45,46 @@ pub use standby::sanitize_tab_environment;
 use standby::*;
 
 const SETTINGS_TAB_PREFIX: &str = "settings-";
+const CHANGELOG_TAB_PREFIX: &str = "changelog-";
+/// The singleton utility tab kinds: id prefix, registry kind, which is also the route its child
+/// presents, and title.
+const UTILITY_KINDS: [(&str, &str, &str); 2] = [
+    (SETTINGS_TAB_PREFIX, "settings", "Settings"),
+    (CHANGELOG_TAB_PREFIX, "changelog", "Changelog"),
+];
 /// Every new Agent tab starts with this one name; duplicates are allowed and auto-naming or a
 /// manual rename distinguishes them.
 const DEFAULT_AGENT_TAB_NAME: &str = "Agent";
 
-fn is_settings_tab_id(tab_id: &str) -> bool {
-    tab_id.starts_with(SETTINGS_TAB_PREFIX)
+/// The registry kind and title of a singleton utility tab, or `None` for an Agent.
+fn utility_kind(tab_id: &str) -> Option<(&'static str, &'static str)> {
+    UTILITY_KINDS
+        .iter()
+        .find(|(prefix, _, _)| tab_id.starts_with(prefix))
+        .map(|(_, kind, title)| (*kind, *title))
+}
+
+/// The utility tab a client message opens or prewarms, `tab.open-<kind>` or
+/// `tab.prewarm-<kind>` for each kind: its id prefix and whether the message opens it.
+fn utility_request(message_type: &str) -> Option<(&'static str, bool)> {
+    let (opening, kind) = message_type
+        .strip_prefix("tab.open-")
+        .map(|kind| (true, kind))
+        .or_else(|| {
+            message_type
+                .strip_prefix("tab.prewarm-")
+                .map(|kind| (false, kind))
+        })?;
+    UTILITY_KINDS
+        .iter()
+        .find(|(_, name, _)| *name == kind)
+        .map(|(prefix, _, _)| (*prefix, opening))
+}
+
+/// Invariant: utility tabs are never Agents: they cannot be renamed, own no session, trail new
+/// Agents, and never count as the Agent an attach views or starts.
+fn is_utility_tab_id(tab_id: &str) -> bool {
+    utility_kind(tab_id).is_some()
 }
 
 /// One non-blocking render slot per attached client. Replacing an unsent update forces the
@@ -462,7 +496,7 @@ impl RuntimeState {
             .registry
             .tabs
             .iter()
-            .filter(|tab| !is_settings_tab_id(&tab.tab_id))
+            .filter(|tab| !is_utility_tab_id(&tab.tab_id))
             .cloned()
             .collect::<Vec<_>>();
         default_tab(&agents)
@@ -473,7 +507,7 @@ impl RuntimeState {
         self.registry
             .tabs
             .iter()
-            .all(|tab| is_settings_tab_id(&tab.tab_id))
+            .all(|tab| is_utility_tab_id(&tab.tab_id))
     }
 }
 
@@ -1885,6 +1919,56 @@ mod tests {
     }
 
     #[test]
+    fn changelog_is_a_utility_tab_that_trails_new_agents_and_is_never_the_default() {
+        assert_eq!(utility_kind("settings-1"), Some(("settings", "Settings")));
+        assert_eq!(
+            utility_kind("changelog-1"),
+            Some(("changelog", "Changelog"))
+        );
+        assert_eq!(utility_kind("tab-1"), None);
+        assert!(is_utility_tab_id("changelog-1") && !is_utility_tab_id("tab-1"));
+        assert_eq!(
+            utility_request("tab.open-changelog"),
+            Some((CHANGELOG_TAB_PREFIX, true))
+        );
+        assert_eq!(
+            utility_request("tab.prewarm-settings"),
+            Some((SETTINGS_TAB_PREFIX, false))
+        );
+        assert_eq!(utility_request("tab.open-browser"), None);
+        assert_eq!(utility_request("tab.create"), None);
+        let mut changelog = record("changelog-1", 1, "running", None);
+        changelog.kind = "changelog".into();
+        let mut registry = RegistryDocument {
+            registry_revision: 1,
+            epoch: 1,
+            boot_id: "boot".into(),
+            os_session_id: "session".into(),
+            tabs: vec![record("agent-1", 1, "running", None), changelog],
+        };
+        insert_new_tab(&mut registry, record("agent-2", 2, "running", None));
+        let ids = registry
+            .tabs
+            .iter()
+            .map(|tab| tab.tab_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, ["agent-1", "agent-2", "changelog-1"]);
+        registry.tabs.retain(|tab| is_utility_tab_id(&tab.tab_id));
+        assert_eq!(
+            default_tab(
+                &registry
+                    .tabs
+                    .iter()
+                    .filter(|tab| !is_utility_tab_id(&tab.tab_id))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            ),
+            "tab-1",
+            "a registry of utility tabs names the first Agent an attach starts"
+        );
+    }
+
+    #[test]
     fn settings_starts_last_and_drag_order_survives_agent_creation() {
         let mut settings = record("settings-1", 1, "running", None);
         settings.kind = "settings".into();
@@ -1990,9 +2074,9 @@ mod tests {
             }
         ));
         assert_eq!(visible(&registry), ["settings-1", "agent-1", "agent-2"]);
-        assert!(lifecycle::move_settings_last(&mut registry, "settings-1"));
+        assert!(lifecycle::move_utility_last(&mut registry, "settings-1"));
         assert_eq!(visible(&registry), ["agent-1", "agent-2", "settings-1"]);
-        assert!(!lifecycle::move_settings_last(&mut registry, "settings-1"));
+        assert!(!lifecycle::move_utility_last(&mut registry, "settings-1"));
         assert_eq!(registry.registry_revision, 8);
     }
 
@@ -2347,6 +2431,41 @@ mod tests {
         }
         reordered.environment.push(("EXTRA".into(), "value".into()));
         assert!(!same_standby_context(&start, &reordered));
+    }
+
+    #[test]
+    fn a_session_name_becomes_the_tab_name_unless_automatic_after_a_user_name() {
+        let mut tab = record("tab-1", 1, "running", None);
+        bridge::apply_session_name(&mut tab, " fix-login ", Some("auto"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("fix-login", "auto")
+        );
+        bridge::apply_session_name(&mut tab, "what is there", Some("user"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("what is there", "user"),
+            "a /name over an automatic name renames the tab"
+        );
+        bridge::apply_session_name(&mut tab, "later-auto", Some("auto"));
+        assert_eq!(
+            tab.display_name, "what is there",
+            "an automatic name never replaces a user name"
+        );
+        bridge::apply_session_name(&mut tab, "again", Some("odd"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("again", "user")
+        );
+        for invalid in ["  ", "bell\u{7}", &"x".repeat(65)] {
+            bridge::apply_session_name(&mut tab, invalid, Some("user"));
+            assert_eq!(tab.display_name, "again");
+        }
+        bridge::apply_session_name(&mut tab, "Agent", Some("default"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("Agent", "default")
+        );
     }
 
     #[test]

@@ -51,6 +51,7 @@ describe("owned UI setting declarations", () => {
       "skillsPresentation",
       "promptImageLimit",
       "tabsPosition",
+      "tabBarPlusMenu",
       "tabsAutoName",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "timeFormat")).toMatchObject({
@@ -105,14 +106,14 @@ describe("owned UI setting declarations", () => {
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMax")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsAutoName")).toMatchObject({
       label: "Auto name",
-      section: { id: "tabs", title: "Tabs" },
+      section: { id: "tabs", title: "Tab Bar" },
       application: "live",
       defaultValue: true,
       allowedValues: [true, false],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsPosition")).toMatchObject({
       label: "Position",
-      section: { id: "tabs", title: "Tabs" },
+      section: { id: "tabs", title: "Tab Bar" },
       application: "live",
       defaultValue: "top",
       allowedValues: ["top", "bottom"],

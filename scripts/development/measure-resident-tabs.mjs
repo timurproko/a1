@@ -238,7 +238,9 @@ async function collectMeasurements(host) {
     const warmPaint = await first.waitFor(new RegExp(`measurement-ready:(?!${coldPaint.match[1]}\\b)(\\d+)`, "u"), "promoted standby paint", 15_000, warmCheckpoint);
     const warm = await measureInput(first, "b", "warm");
     sample.warmCreateMs = milliseconds(warmPaint.receivedNs - warmStartNs);
-    const created = JSON.parse(internal(host, context, "tab-list")).tabs.find(tab => !existingTabIds.has(tab.tabId));
+    // Invariant: a Settings or Changelog tab the client prewarms meanwhile is not the promoted Agent.
+    const created = JSON.parse(internal(host, context, "tab-list")).tabs.find(tab => !existingTabIds.has(tab.tabId)
+      && !tab.tabId.startsWith("settings-") && !tab.tabId.startsWith("changelog-"));
     if (!created) throw new Error("promoted standby was absent from the tab list");
 
     const hot = [];

@@ -65,6 +65,7 @@ import type {
   OwnedUiSettingsEntry,
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
+import { PLUS_MENU_SETTING_ID, PlusMenuDialog } from "./plus-menu-dialog.js";
 import { SETTINGS_APP_ID } from "./settings-route.js";
 import type { SettingsSearchInput, SettingsSearchInputFactory } from "./settings-search-input.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
@@ -179,6 +180,8 @@ interface StructuredEdit {
   readonly entry: OwnedUiSettingsEntry;
   readonly flags: readonly string[];
   readonly modelDialog: boolean;
+  /** The plus menu's own dialog, when this is that setting. */
+  readonly plusMenu: PlusMenuDialog | null;
   readonly filter: LineInput | null;
   step: "model" | "level";
   modelKey: string | null;
@@ -254,16 +257,20 @@ export class SettingsApp implements UiApp {
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
   #renderedScroll: number | undefined;
 
-  readonly #pinned: boolean;
+  readonly #options: { readonly pinned: boolean; readonly configurePlusMenu: (() => boolean) | null };
 
-  /** `pinned` presents the screen as a resident Settings tab, which offers no screen-level close. */
+  /**
+   * `pinned` presents the screen as a resident Settings tab, which offers no screen-level close;
+   * `configurePlusMenu` opens the tab bar's Plus Menu dialog in place of this screen's own.
+   */
   constructor(session: OwnedSettingsManager, options: {
     readonly pinned?: boolean;
     readonly searchInputFactory: SettingsSearchInputFactory;
     readonly copyText?: (text: string) => void;
+    readonly configurePlusMenu?: (() => boolean) | null;
   }) {
     this.#session = session;
-    this.#pinned = options.pinned === true;
+    this.#options = { pinned: options.pinned === true, configurePlusMenu: options.configurePlusMenu ?? null };
     this.#search = {
       input: null,
       scrollBefore: null,
@@ -415,7 +422,7 @@ export class SettingsApp implements UiApp {
     const selected = indexOfKey(rows, this.#selectedKey);
     switch (action) {
       case "close":
-        if (!this.#pinned) host.close();
+        if (!this.#options.pinned) host.close();
         return { consumed: true };
       case "edit-filter":
         return { consumed: false };
@@ -643,6 +650,8 @@ export class SettingsApp implements UiApp {
     // Invariant: the flags come from the declaration, not from the stored value: an unset
     // flag still has a row, showing the default the source would apply.
     if (entry.flags.length === 0) return;
+    // Rationale: beside a tab bar, its own Plus Menu dialog configures `+`, so both ways look the same.
+    if (entry.backend === "a1" && entry.id === PLUS_MENU_SETTING_ID && this.#options.configurePlusMenu?.() === true) return;
     const stored = typeof entry.rawValue === "object" && entry.rawValue !== null && !Array.isArray(entry.rawValue)
       ? (entry.rawValue as Record<string, unknown>)
       : {};
@@ -663,6 +672,7 @@ export class SettingsApp implements UiApp {
       entry,
       flags: entry.flags.map(flag => flag.key),
       modelDialog,
+      plusMenu: entry.backend === "a1" && entry.id === PLUS_MENU_SETTING_ID ? new PlusMenuDialog(entry.flags) : null,
       filter: modelDialog ? new LineInput("") : null,
       step: "model",
       modelKey: null,
@@ -676,6 +686,11 @@ export class SettingsApp implements UiApp {
     const open = this.#structured;
     if (open === null) return { consumed: false };
     if (open.modelDialog) return this.#modelDialogKey(open, data);
+    if (open.plusMenu !== null) {
+      const outcome = open.plusMenu.handle(KEYS[data] ?? data, data, key => this.#toggleFlag(open.flags.indexOf(key)));
+      if (outcome === "close") this.#structured = null;
+      return { consumed: true };
+    }
     switch (SETTINGS_SHORTCUTS.resolve(KEYS[data] ?? data, DIALOG_SCOPE)) {
       case "close":
         this.#structured = null;
@@ -1138,6 +1153,7 @@ export class SettingsApp implements UiApp {
 
   #dialogLines(open: StructuredEdit, width: number, theme: UiTheme): readonly string[] {
     if (open.modelDialog) return this.#modelDialogLines(open, width, theme);
+    if (open.plusMenu !== null) return open.plusMenu.lines(open.record, width, theme);
     const rows = open.flags.map(key => {
       const declared = open.entry.flags.find(flag => flag.key === key);
       return {
@@ -1197,7 +1213,7 @@ export class SettingsApp implements UiApp {
 
     // Rationale: standing guidance is more useful than transient feedback; failures still
     // roll back without displacing the Settings interaction contract.
-    const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#pinned
+    const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#options.pinned
       || entry.key !== DIALOG_CLOSE_SHORTCUT_HINT.key || entry.action !== DIALOG_CLOSE_SHORTCUT_HINT.action);
     const status = renderShortcutHintsWithClose(entries, theme, width, width > 0 ? 1 : 0);
     const input = this.#search.input;

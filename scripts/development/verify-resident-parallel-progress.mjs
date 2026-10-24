@@ -341,16 +341,22 @@ function stopAttach(attach) {
   attach.terminal.kill();
 }
 
+// Invariant: the attach client prewarms hidden Settings and Changelog tabs; only Agent tabs are real A1 tabs.
+function agentTabIds(host, context) {
+  return JSON.parse(internal(host, context, "tab-list")).tabs
+    .map(tab => tab.tabId)
+    .filter(tabId => !tabId.startsWith("settings-") && !tabId.startsWith("changelog-"));
+}
+
 async function createRealTabs(host, context) {
-  await waitUntil(() => JSON.parse(internal(host, context, "tab-list")).tabs.length === 1, "first real A1 tab");
+  await waitUntil(() => agentTabIds(host, context).length === 1, "first real A1 tab");
   for (let count = 2; count <= 3; count += 1) {
     internal(host, context, "tab-create", [
       "--cwd", context.root, "--release-root", context.release, "--node-executable", process.execPath,
     ]);
-    await waitUntil(() => JSON.parse(internal(host, context, "tab-list")).tabs.length === count, `${count} real A1 tabs`);
+    await waitUntil(() => agentTabIds(host, context).length === count, `${count} real A1 tabs`);
   }
-  const tabs = JSON.parse(internal(host, context, "tab-list")).tabs;
-  const tabIds = tabs.map(tab => tab.tabId);
+  const tabIds = agentTabIds(host, context);
   await waitUntil(async () => {
     const { records } = await currentObservations(context);
     return tabIds.every(tabId => records.some(record => record.stage === "child-render-write" && record.tabId === tabId));
