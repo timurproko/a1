@@ -16,8 +16,8 @@ export interface PlusMenuKind {
   readonly label: string;
 }
 
-const TITLE = "Plus menu";
-const DESCRIPTION = "Choose the tabs + offers";
+const TITLE = "Plus Menu";
+const DESCRIPTION = "Choose what the + button in the tab bar can add.";
 const HINT = "Type search · ↑↓ navigate · Space toggle · Esc close";
 
 /**

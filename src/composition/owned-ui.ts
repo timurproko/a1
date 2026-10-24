@@ -341,7 +341,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     if (tabBridge !== null) {
       unsubscribeTabBridge = await bindResidentTabBridge(tabBridge, backend, tabRecovery, {
         autoName: settings?.value("tabsAutoName") ?? true,
-        openRoute: route => route === "plus-menu" ? routeHost?.openSettingsDialog("tabBarPlusMenu") : presenter.openOwnedRoute(route),
+        openRoute: route => presenter.openOwnedRoute(route),
       });
     }
   } catch (error) {

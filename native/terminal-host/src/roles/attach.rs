@@ -32,6 +32,7 @@ use crate::roles::command_palette;
 use crate::roles::credentials::ProfileCredentials;
 use crate::roles::landing;
 use crate::roles::outer_input::{self, InputChannel, Outgoing};
+use crate::roles::owned_settings;
 #[cfg(test)]
 use crate::roles::presentation::Frame;
 use crate::roles::presentation::{
@@ -1699,6 +1700,7 @@ impl Client {
             time_format
                 .tab_bar_position
                 .strip_terminal_row(handshake.outer_rows),
+            !time_format.plus_menu.is_empty(),
         );
         let client = Self {
             stream: AttachServerWriter::start(handshake.stream),
@@ -1786,10 +1788,23 @@ impl Client {
                     }
                 }
                 Effect::Paint { clear } => self.paint(core, clear)?,
+                Effect::SavePlusMenu(menu) => self.save_plus_menu(core, menu),
                 forward => forwarded.push(forward),
             }
         }
         Ok(forwarded)
+    }
+
+    /// Stores the plus menu its dialog changed. A refused write restores the stored menu, so the
+    /// dialog and `+` never show a value the settings do not hold.
+    fn save_plus_menu(&mut self, core: &mut State, menu: PlusMenu) {
+        match owned_settings::write_plus_menu(&self.time_format.path, menu) {
+            Ok(()) => self.time_format.plus_menu = menu,
+            Err(error) => {
+                core.plus_menu = self.time_format.plus_menu;
+                core.notice = Some(format!("Plus menu not saved: {error}"));
+            }
+        }
     }
 
     fn send(&mut self, request: Request) -> Result<(), String> {
@@ -1804,9 +1819,6 @@ impl Client {
             }
             Request::OpenChangelog => {
                 wire::send(stream, "tab.open-changelog", None, self.create.clone())
-            }
-            Request::OpenPlusMenu => {
-                wire::send(stream, "tab.open-plus-menu", None, self.create.clone())
             }
             Request::PrewarmSettings => {
                 wire::send(stream, "tab.prewarm-settings", None, self.create.clone())
@@ -1906,6 +1918,7 @@ impl Client {
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
         let drag = core.mode.drag().cloned();
+        let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
             let mut frame = strip::render_interactive_at(
                 &shown,
@@ -1917,6 +1930,7 @@ impl Client {
                 self.time_format
                     .tab_bar_position
                     .strip_terminal_row(self.outer_rows),
+                plus,
             );
             append_drag_marker(
                 &mut frame,
@@ -1994,6 +2008,7 @@ impl Client {
             Some(command_palette::render(
                 palette,
                 &self.bindings,
+                core.plus_menu,
                 self.columns,
                 self.outer_rows,
                 command_palette::PaletteStyle {
@@ -3962,8 +3977,16 @@ mod tests {
                 .contains(&format!("\x1b[1;{}H", last_end + 1)),
             "a status-driven strip repaint retains unchanged drag feedback"
         );
-        let mut bottom =
-            strip::render_interactive_at(&tabs, Some("a"), 80, None, TimeFormat::Twelve, None, 24);
+        let mut bottom = strip::render_interactive_at(
+            &tabs,
+            Some("a"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            24,
+            true,
+        );
         append_drag_marker(&mut bottom, Some(&drag), &tabs, 80, 24);
         assert!(bottom.bytes.contains(&format!("\x1b[24;{}H", last_end + 1)));
         assert!(bottom.bytes.contains('│'));

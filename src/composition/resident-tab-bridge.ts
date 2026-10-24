@@ -25,10 +25,7 @@ export function residentTabKeybindings(
   return { ...keybindingsHost, reload: () => { keybindingsHost.reload(); publish(); } };
 }
 
-/**
- * Closes a utility tab when its own screen closes. Invariant: a utility tab's screen is the tab; another
- * route it opens, such as Settings' plus-menu dialog, closes back to that screen.
- */
+/** Closes a utility tab when its own screen closes. Invariant: a utility tab's screen is the tab. */
 export function closeResidentUtilityRoute(tabBridge: Pick<TabBridgeClient, "tabId" | "requestClose">, route: string): void {
   if ((route === "settings" || route === "changelog") && tabBridge.tabId.startsWith(`${route}-`)) void tabBridge.requestClose();
 }
@@ -118,7 +115,7 @@ export async function bindResidentTabBridge(
       void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
     } else if (command.type === "route") {
       if (options.openRoute !== undefined) options.openRoute(command.route);
-      else if (command.route !== "plus-menu") void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
+      else void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
     } else if (command.type === "stop") {
       void backend.session.dispose().catch(() => {});
     }

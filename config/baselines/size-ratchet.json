@@ -170,7 +170,7 @@
       "lines": 106
     },
     "native/terminal-host/src/roles/strip.rs::render_frame": {
-      "lines": 128
+      "lines": 123
     },
     "src/app/session-shell/paste-executor.ts::startPasteExecutor": {
       "lines": 122

@@ -433,10 +433,7 @@ impl Run<'_> {
                 self.model.created += 1;
                 Ok(())
             }
-            Request::Create
-            | Request::OpenSettings
-            | Request::OpenPlusMenu
-            | Request::PrewarmSettings => {
+            Request::Create | Request::OpenSettings | Request::PrewarmSettings => {
                 let prefix = if request == Request::Create {
                     "tab"
                 } else {

@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { PLUS_MENU_SETTING_ID, PlusMenuDialog } from "../../../src/features/owned-ui/plus-menu-dialog.js";
-import { SettingsDialogRequests } from "../../../src/features/owned-ui/settings-route.js";
 import { PLAIN_THEME } from "../../../src/ui/components/index.js";
 import { OwnedSettingsManager, findOwnedUiSettingsEntry } from "../../../src/ui/settings/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
@@ -40,17 +39,6 @@ describe("plus-menu dialog", () => {
     const dialog = new PlusMenuDialog(KINDS);
     for (const character of "zzz") dialog.handle(character, character, () => undefined);
     expect(dialog.lines({}, 40, PLAIN_THEME).map(line => line.trim())).toContain("No tabs match");
-  });
-
-  it("delivers a dialog request made before the screen listens, once", () => {
-    const requests = new SettingsDialogRequests();
-    const opened: string[] = [];
-    requests.request(PLUS_MENU_SETTING_ID);
-    requests.listen(id => opened.push(id));
-    requests.request("other");
-    requests.listen(null);
-    requests.request("dropped-until-listening");
-    expect(opened).toEqual([PLUS_MENU_SETTING_ID, "other"]);
   });
 });
 

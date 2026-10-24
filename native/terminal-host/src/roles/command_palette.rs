@@ -5,11 +5,15 @@
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-use crate::core::attach::{CommandPalette, PALETTE_ENTRIES, ShortcutLabels};
+use crate::core::attach::{CommandPalette, PALETTE_ENTRIES, PlusMenu, ShortcutLabels};
 
 const TITLE: &str = "Commands";
 const HINT: &str = "Type search · ↑↓ navigate · Enter open · Esc close";
 const EMPTY: &str = "No commands match";
+const PLUS_TITLE: &str = "Plus Menu";
+const PLUS_DESCRIPTION: &str = "Choose what the + button in the tab bar can add.";
+const PLUS_HINT: &str = "Type search · ↑↓ navigate · Space toggle · Esc close";
+const PLUS_EMPTY: &str = "No tabs match";
 const MAX_WIDTH: usize = 60;
 const PADDING: usize = 2;
 
@@ -86,65 +90,90 @@ fn row(style: PaletteStyle, width: usize, selected: bool, parts: &[(Tone, bool, 
     output
 }
 
-/// The palette overlay for an outer terminal of `columns` by `outer_rows`.
+/// One entry's row: the cursor, then a command and its shortcut right-aligned, or a plus-menu
+/// kind with `●` when `+` offers it and `○` when not.
+fn entry_row(
+    style: PaletteStyle,
+    width: usize,
+    chosen: bool,
+    label: &str,
+    trailing: Result<String, bool>,
+) -> String {
+    let inner = width.saturating_sub(PADDING * 2);
+    let cursor = if chosen { "→ " } else { "  " };
+    match trailing {
+        Ok(shortcut) => {
+            let used =
+                2 + UnicodeWidthStr::width(label) + UnicodeWidthStr::width(shortcut.as_str());
+            let spacing = " ".repeat(inner.saturating_sub(used).max(1));
+            let parts = [
+                (Tone::Accent, false, cursor),
+                (Tone::Text, false, label),
+                (Tone::Text, false, spacing.as_str()),
+                (Tone::Muted, false, shortcut.as_str()),
+            ];
+            row(style, width, chosen, &parts)
+        }
+        Err(enabled) => {
+            let marker = if enabled { "● " } else { "○ " };
+            let parts = [
+                (Tone::Accent, false, cursor),
+                (Tone::Text, false, marker),
+                (Tone::Text, false, label),
+            ];
+            row(style, width, chosen, &parts)
+        }
+    }
+}
+
+/// The open list's overlay for an outer terminal of `columns` by `outer_rows`: the command
+/// palette, or the plus-menu dialog marking the kinds `plus` holds.
 pub fn render(
     palette: &CommandPalette,
     labels: &dyn ShortcutLabels,
+    plus: PlusMenu,
     columns: u16,
     outer_rows: u16,
     style: PaletteStyle,
 ) -> String {
     let width = usize::from(columns).min(MAX_WIDTH);
-    let inner = width.saturating_sub(PADDING * 2);
+    let configure = palette.is_plus_menu();
+    let (title, description, hint, empty) = if configure {
+        (PLUS_TITLE, PLUS_DESCRIPTION, PLUS_HINT, PLUS_EMPTY)
+    } else {
+        (TITLE, "", HINT, EMPTY)
+    };
     let shown = palette.shown();
     let selected = palette.selected();
+    let search = [
+        (Tone::Accent, false, "> "),
+        (Tone::Text, false, palette.filter.as_str()),
+        (Tone::Accent, false, "▏"),
+    ];
     let mut rows = vec![
         row(style, width, false, &[]),
-        row(style, width, false, &[(Tone::Accent, true, TITLE)]),
-        row(style, width, false, &[]),
-        row(
-            style,
-            width,
-            false,
-            &[
-                (Tone::Accent, false, "> "),
-                (Tone::Text, false, &palette.filter),
-                (Tone::Accent, false, "▏"),
-            ],
-        ),
+        row(style, width, false, &[(Tone::Accent, true, title)]),
+        row(style, width, false, &[(Tone::Muted, false, description)]),
+        row(style, width, false, &search),
         row(style, width, false, &[]),
     ];
     // Invariant: the box keeps one row per entry, so filtering never moves its edges.
     for index in 0..PALETTE_ENTRIES.len() {
-        let line = match shown.get(index) {
-            Some((label, action)) => {
-                let chosen = index == selected;
-                let marker = if chosen { "→ " } else { "  " };
-                let shortcut = labels.label(action);
-                let label_cells = 2 + UnicodeWidthStr::width(*label);
-                let gap = inner
-                    .saturating_sub(label_cells + UnicodeWidthStr::width(shortcut.as_str()))
-                    .max(1);
-                let spacing = " ".repeat(gap);
-                row(
-                    style,
-                    width,
-                    chosen,
-                    &[
-                        (Tone::Accent, false, marker),
-                        (Tone::Text, false, label),
-                        (Tone::Text, false, &spacing),
-                        (Tone::Muted, false, &shortcut),
-                    ],
-                )
+        rows.push(match shown.get(index) {
+            Some((label, value)) => {
+                let trailing = if configure {
+                    Err(plus.enabled(value))
+                } else {
+                    Ok(labels.label(value))
+                };
+                entry_row(style, width, index == selected, label, trailing)
             }
-            None if index == 0 => row(style, width, false, &[(Tone::Muted, false, EMPTY)]),
+            None if index == 0 => row(style, width, false, &[(Tone::Muted, false, empty)]),
             None => row(style, width, false, &[]),
-        };
-        rows.push(line);
+        });
     }
     rows.push(row(style, width, false, &[]));
-    rows.push(row(style, width, false, &[(Tone::Muted, false, HINT)]));
+    rows.push(row(style, width, false, &[(Tone::Muted, false, hint)]));
     rows.push(row(style, width, false, &[]));
 
     let top = usize::from(outer_rows).saturating_sub(rows.len()) / 2;
@@ -204,7 +233,7 @@ mod tests {
     #[test]
     fn draws_a_centered_box_with_shortcuts_and_the_selected_row_on_the_hover_background() {
         let palette = CommandPalette::default();
-        let rendered = render(&palette, &Labels, 80, 24, STYLE);
+        let rendered = render(&palette, &Labels, PlusMenu::default(), 80, 24, STYLE);
         assert!(rendered.starts_with("\x1b[s") && rendered.ends_with("\x1b[0m\x1b[u"));
         assert!(rendered.contains("\x1b[7;11H"), "the box is centered");
         let rows = plain(&rendered);
@@ -224,10 +253,35 @@ mod tests {
     }
 
     #[test]
+    fn the_plus_menu_dialog_marks_the_kinds_plus_offers() {
+        let dialog = CommandPalette::plus_menu();
+        let plus = PlusMenu::from_setting(Some("agent,changelog"));
+        let rows = plain(&render(&dialog, &Labels, plus, 80, 24, STYLE));
+        assert_eq!(rows.len(), 11);
+        assert_eq!(rows[1].trim(), PLUS_TITLE);
+        assert_eq!(rows[2].trim(), PLUS_DESCRIPTION);
+        assert_eq!(rows[5].trim(), "→ ● Agent");
+        assert_eq!(rows[6].trim(), "○ Settings");
+        assert_eq!(rows[7].trim(), "● Changelog");
+        assert_eq!(rows[9].trim(), PLUS_HINT);
+        assert!(
+            !rows.iter().any(|row| row.contains("Alt+")),
+            "kinds show no shortcuts"
+        );
+    }
+
+    #[test]
     fn a_filter_that_matches_nothing_keeps_the_box_and_names_it() {
         let mut palette = CommandPalette::default();
         palette.insert("zz");
-        let rows = plain(&render(&palette, &Labels, 30, 12, STYLE));
+        let rows = plain(&render(
+            &palette,
+            &Labels,
+            PlusMenu::default(),
+            30,
+            12,
+            STYLE,
+        ));
         assert_eq!(rows.len(), 11);
         assert!(
             rows.iter()
@@ -239,7 +293,14 @@ mod tests {
             truecolor: false,
             ..STYLE
         };
-        let rendered = render(&CommandPalette::default(), &Labels, 80, 24, palette_mode);
+        let rendered = render(
+            &CommandPalette::default(),
+            &Labels,
+            PlusMenu::default(),
+            80,
+            24,
+            palette_mode,
+        );
         assert!(rendered.contains("48;5;238") && !rendered.contains("48;2;"));
     }
 }

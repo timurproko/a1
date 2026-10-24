@@ -2,9 +2,9 @@ import { connect, type Socket } from "node:net";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "./protocol.js";
 
 export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "done" | "aborted" | "error" | "idle" | "unresponsive" | "crashed" | "restarting" | "failed";
-/** The owned routes the server opens in a utility tab: its own screen, or Settings' plus-menu dialog. */
-export type ResidentTabRoute = "settings" | "changelog" | "plus-menu";
-const RESIDENT_TAB_ROUTES: ReadonlySet<unknown> = new Set<ResidentTabRoute>(["settings", "changelog", "plus-menu"]);
+/** The owned screens the server opens in a utility tab. */
+export type ResidentTabRoute = "settings" | "changelog";
+const RESIDENT_TAB_ROUTES: ReadonlySet<unknown> = new Set<ResidentTabRoute>(["settings", "changelog"]);
 export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string }
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
 export type TabBridgeCommand =

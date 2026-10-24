@@ -144,8 +144,6 @@ pub enum Request {
     OpenSettings,
     /// Creates or shows the singleton Changelog tab.
     OpenChangelog,
-    /// Shows the Settings tab with its plus-menu dialog open.
-    OpenPlusMenu,
     PrewarmSettings,
     Close(String),
     Restart(String),
@@ -187,6 +185,8 @@ pub enum Effect {
     Paint {
         clear: bool,
     },
+    /// Stores the plus menu the configure dialog changed.
+    SavePlusMenu(PlusMenu),
 }
 
 /// How a key that reached the child path is delivered.
@@ -444,6 +444,14 @@ impl State {
             None => match palette.key(key) {
                 PaletteKey::Close => None,
                 PaletteKey::Run(action) => Some(action.to_owned()),
+                PaletteKey::Toggle(kind) => {
+                    self.plus_menu.toggle(kind);
+                    effects.extend([
+                        Effect::SavePlusMenu(self.plus_menu),
+                        Effect::Paint { clear: false },
+                    ]);
+                    return;
+                }
                 PaletteKey::Changed => {
                     effects.push(Effect::Paint { clear: false });
                     return;
@@ -530,10 +538,7 @@ impl State {
             PopupAction::NewAgent => self.create(Request::Create, effects),
             PopupAction::Settings => self.toggle_settings(context, effects),
             PopupAction::Changelog => self.open_changelog(context, effects),
-            PopupAction::ConfigurePlus => {
-                self.view.settings_prewarm_pending = false;
-                self.create(Request::OpenPlusMenu, effects);
-            }
+            PopupAction::ConfigurePlus => self.mode = Mode::Palette(CommandPalette::plus_menu()),
             PopupAction::View(tab_id) => effects.push(Effect::View(tab_id)),
         }
     }
@@ -1704,9 +1709,23 @@ mod tests {
         assert_eq!(configure.items[0].label, "Configure");
         assert_eq!(
             fixture.step(&mut state, mouse(LEFT, configure.column, 1)),
-            [Effect::Send(Request::OpenPlusMenu), PAINT]
+            [PAINT]
         );
-        assert!(state.view.pending_created_activation);
+        assert!(
+            state
+                .mode
+                .palette()
+                .is_some_and(CommandPalette::is_plus_menu),
+            "Configure opens its dialog over the active tab"
+        );
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Char(' '))),
+            [Effect::SavePlusMenu(PlusMenu::ALL), PAINT],
+            "Space toggles the selected kind and stores it at once"
+        );
+        assert!(fixture.step(&mut state, mouse(LEFT, 31, 0)).is_empty());
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Esc)), [PAINT]);
+        assert!(state.mode.palette().is_none());
     }
 
     #[test]

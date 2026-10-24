@@ -257,6 +257,37 @@ impl PlusMenu {
     pub fn is_empty(self) -> bool {
         !self.agent && !self.settings && !self.changelog
     }
+
+    pub fn enabled(self, kind: &str) -> bool {
+        match kind {
+            "agent" => self.agent,
+            "settings" => self.settings,
+            "changelog" => self.changelog,
+            _ => false,
+        }
+    }
+
+    pub fn toggle(&mut self, kind: &str) {
+        match kind {
+            "agent" => self.agent = !self.agent,
+            "settings" => self.settings = !self.settings,
+            "changelog" => self.changelog = !self.changelog,
+            _ => {}
+        }
+    }
+
+    /// The setting's value: the enabled kinds, comma-joined in kind order.
+    pub fn to_setting(self) -> String {
+        [
+            ("agent", self.agent),
+            ("settings", self.settings),
+            ("changelog", self.changelog),
+        ]
+        .into_iter()
+        .filter_map(|(kind, enabled)| enabled.then_some(kind))
+        .collect::<Vec<_>>()
+        .join(",")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1,37 +1,76 @@
-//! The command palette: every tab kind, filtered by typed text, run through its shortcut action.
+//! The attach client's modal lists: the command palette, whose entries run their shortcut actions,
+//! and the plus-menu dialog, whose entries toggle the tab kinds `+` offers. Both filter by typed
+//! text and move with Up and Down.
 
 use super::{AttachKey, KeyCode};
 
-/// The palette's entries in order: each label and the shortcut action that runs it.
+/// The command palette's entries in order: each label and the shortcut action that runs it.
 pub const PALETTE_ENTRIES: [(&str, &str); 3] = [
     ("Agent session", "tabs.new"),
     ("Settings", "tabs.settings"),
     ("Changelog", "tabs.changelog"),
 ];
 
-/// What one key did to the open palette.
+/// The plus-menu dialog's entries in kind order: each label and its `tabBarPlusMenu` key.
+pub const PLUS_MENU_ENTRIES: [(&str, &str); 3] = [
+    ("Agent", "agent"),
+    ("Settings", "settings"),
+    ("Changelog", "changelog"),
+];
+
+/// What one key did to an open list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaletteKey {
     Close,
     /// Runs the selected entry's shortcut action and closes the palette.
     Run(&'static str),
+    /// Toggles the selected plus-menu kind; the dialog stays open.
+    Toggle(&'static str),
     Changed,
     Ignored,
 }
 
-/// The open palette's filter and the row in hand.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+/// An open modal list: its entries, filter, and the row in hand.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandPalette {
+    entries: &'static [(&'static str, &'static str)],
     pub filter: String,
     selected: usize,
 }
 
+impl Default for CommandPalette {
+    fn default() -> Self {
+        Self::commands()
+    }
+}
+
 impl CommandPalette {
+    pub fn commands() -> Self {
+        Self {
+            entries: &PALETTE_ENTRIES,
+            filter: String::new(),
+            selected: 0,
+        }
+    }
+
+    /// The plus-menu dialog, where `Space` toggles a kind instead of typing.
+    pub fn plus_menu() -> Self {
+        Self {
+            entries: &PLUS_MENU_ENTRIES,
+            ..Self::commands()
+        }
+    }
+
+    pub fn is_plus_menu(&self) -> bool {
+        std::ptr::eq(self.entries, &PLUS_MENU_ENTRIES)
+    }
+
     /// The entries the filter keeps, in entry order.
     pub fn shown(&self) -> Vec<(&'static str, &'static str)> {
         let needle = self.filter.trim().to_lowercase();
-        PALETTE_ENTRIES
-            .into_iter()
+        self.entries
+            .iter()
+            .copied()
             .filter(|(label, _)| label.to_lowercase().contains(&needle))
             .collect()
     }
@@ -43,11 +82,15 @@ impl CommandPalette {
 
     pub fn key(&mut self, key: AttachKey) -> PaletteKey {
         let shown = self.shown();
+        let chosen = shown.get(self.selected()).map(|(_, value)| *value);
         match key.code {
             KeyCode::Esc => PaletteKey::Close,
-            KeyCode::Enter => shown
-                .get(self.selected())
-                .map_or(PaletteKey::Ignored, |(_, action)| PaletteKey::Run(action)),
+            KeyCode::Char(' ') if self.is_plus_menu() => {
+                chosen.map_or(PaletteKey::Ignored, PaletteKey::Toggle)
+            }
+            KeyCode::Enter if !self.is_plus_menu() => {
+                chosen.map_or(PaletteKey::Ignored, PaletteKey::Run)
+            }
             KeyCode::Up => {
                 self.selected = self.selected().saturating_sub(1);
                 PaletteKey::Changed
@@ -124,5 +167,31 @@ mod tests {
         };
         assert_eq!(palette.key(alt), PaletteKey::Ignored);
         assert_eq!(palette.key(key(KeyCode::Esc)), PaletteKey::Close);
+    }
+
+    #[test]
+    fn the_plus_menu_toggles_with_space_and_ignores_enter() {
+        let mut dialog = CommandPalette::plus_menu();
+        assert!(dialog.is_plus_menu() && !CommandPalette::commands().is_plus_menu());
+        assert_eq!(
+            dialog.key(key(KeyCode::Char(' '))),
+            PaletteKey::Toggle("agent")
+        );
+        dialog.key(key(KeyCode::Down));
+        assert_eq!(
+            dialog.key(key(KeyCode::Char(' '))),
+            PaletteKey::Toggle("settings")
+        );
+        assert_eq!(dialog.key(key(KeyCode::Enter)), PaletteKey::Ignored);
+        for value in "chan".chars() {
+            dialog.key(key(KeyCode::Char(value)));
+        }
+        assert_eq!(dialog.shown(), [("Changelog", "changelog")]);
+        assert_eq!(
+            dialog.key(key(KeyCode::Char(' '))),
+            PaletteKey::Toggle("changelog")
+        );
+        assert_eq!(dialog.filter, "chan", "Space toggles instead of typing");
+        assert_eq!(dialog.key(key(KeyCode::Esc)), PaletteKey::Close);
     }
 }

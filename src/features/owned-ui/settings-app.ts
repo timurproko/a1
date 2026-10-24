@@ -67,7 +67,7 @@ import type {
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
 import { PLUS_MENU_SETTING_ID, PlusMenuDialog } from "./plus-menu-dialog.js";
-import { SETTINGS_APP_ID, type SettingsDialogRequests } from "./settings-route.js";
+import { SETTINGS_APP_ID } from "./settings-route.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
 const SCOPE = SETTINGS_APP_ID;
 const SETTINGS_TOP_RULE_ROWS = 1;
@@ -253,33 +253,21 @@ export class SettingsApp implements UiApp {
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
   #renderedScroll: number | undefined;
 
-  readonly #options: { readonly pinned: boolean; readonly dialogs: SettingsDialogRequests | null };
+  readonly #pinned: boolean;
 
   /** `pinned` presents the screen as a resident Settings tab, which offers no screen-level close. */
-  constructor(
-    session: OwnedSettingsManager,
-    options: { readonly pinned?: boolean; readonly dialogs?: SettingsDialogRequests } = {},
-  ) {
+  constructor(session: OwnedSettingsManager, options: { readonly pinned?: boolean } = {}) {
     this.#session = session;
-    this.#options = { pinned: options.pinned === true, dialogs: options.dialogs ?? null };
+    this.#pinned = options.pinned === true;
   }
 
   onActivate(host: AppHostServices): void {
     this.#closed = false;
-    void this.#session.load().then(() => {
-      // Invariant: a dialog request names a setting; it opens once the settings it edits are loaded.
-      this.#options.dialogs?.listen(id => {
-        const entry = this.#session.sections().flatMap(section => section.entries).find(candidate => candidate.id === id);
-        if (entry !== undefined) this.#openStructured(entry);
-        host.requestRender();
-      });
-      host.requestRender();
-    });
+    void this.#session.load().then(() => host.requestRender());
   }
 
   onClose(_host: AppHostServices): void {
     this.#closed = true;
-    this.#options.dialogs?.listen(null);
     this.#undoHistory.length = 0;
     this.#undoRequests = 0;
     this.#clearActivityTimer();
@@ -408,7 +396,7 @@ export class SettingsApp implements UiApp {
     const selected = indexOfKey(rows, this.#selectedKey);
     switch (action) {
       case "close":
-        if (!this.#options.pinned) host.close();
+        if (!this.#pinned) host.close();
         return { consumed: true };
       case "open-filter":
         this.#scrollBeforeFilter = this.#scroll;
@@ -1198,7 +1186,7 @@ export class SettingsApp implements UiApp {
 
     // Rationale: standing guidance is more useful than transient feedback; failures still
     // roll back without displacing the Settings interaction contract.
-    const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#options.pinned
+    const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#pinned
       || entry.key !== DIALOG_CLOSE_SHORTCUT_HINT.key || entry.action !== DIALOG_CLOSE_SHORTCUT_HINT.action);
     const status = renderShortcutHintsWithClose(entries, theme, width, width > 0 ? 1 : 0);
     const input = this.#filter;

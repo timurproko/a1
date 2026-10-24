@@ -110,16 +110,14 @@ fn reserve_utility_tab(
     }
 }
 
-const UTILITY_TAB_MESSAGES: [&str; 4] = [
+const UTILITY_TAB_MESSAGES: [&str; 3] = [
     "tab.open-settings",
     "tab.prewarm-settings",
     "tab.open-changelog",
-    "tab.open-plus-menu",
 ];
 
 /// Opens, reveals, or prewarms a singleton utility tab for a client: `tab.open-settings`,
-/// `tab.prewarm-settings`, `tab.open-changelog`, or `tab.open-plus-menu`, which also opens the
-/// plus-menu dialog in the Settings tab.
+/// `tab.prewarm-settings`, or `tab.open-changelog`.
 fn open_utility_tab(
     state: &Arc<Mutex<RuntimeState>>,
     profile: &Path,
@@ -137,9 +135,6 @@ fn open_utility_tab(
     let opening = message_type != "tab.prewarm-settings";
     let (settings_tab_id, should_start, reordered) = reserve_utility_tab(state, prefix, opening)?;
     commit_staged(reordered)?;
-    if message_type == "tab.open-plus-menu" {
-        bridge::offer_route(&mut *lock_state(state)?, &settings_tab_id, "plus-menu")?;
-    }
     if should_start {
         let mut start = AttachStart {
             client_id: client_id.to_owned(),
