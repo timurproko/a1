@@ -44,10 +44,10 @@ Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted
 - **WHEN** the user presses Escape in step 1 while its footer shows `Esc close`
 - **THEN** the structured dialog SHALL close and restore the Settings list
 
-### Requirement: Settings application search omits a prompt marker
+### Requirement: Settings text inputs omit prompt markers
 The owned full-screen Settings search input SHALL render no chevron or ASCII greater-than prompt marker. Its top and bottom rules, content inset, placeholder, block caret, filtering, navigation, and cancellation behavior SHALL remain unchanged. Settings-owned standard dialog searches, including the per-model Thinking Level selector's step-one model search, SHALL instead use the shared exact ASCII `> ` standard-dialog marker with the `>` in the active semantic accent role. Non-search structured text entries SHALL retain their established presentation.
 
-#### Scenario: Open full-screen Settings search
+#### Scenario: Open Settings search
 - **WHEN** the user opens the `search settings` input
 - **THEN** its input row SHALL begin with the placeholder or caret at the shared content inset
 - **AND** no chevron or greater-than marker SHALL precede it
