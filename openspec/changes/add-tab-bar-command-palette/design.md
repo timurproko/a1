@@ -12,7 +12,7 @@ A1 knows three tab kinds in a fixed order: `agent`, `settings`, and `changelog`.
 
 ### 2. The plus menu is a setting
 
-`tabBarPlusMenu` is an A1-owned profile setting holding the enabled kinds, in kind order, defaulting to `["agent"]`. The attach client reads it with its other live presentation settings. With exactly `agent`, a left click on `+` creates an Agent; with any other set, it opens the launcher with one row per enabled kind; with none, the strip hides `+`, which the Settings entry can restore. Right-clicking `+` opens a one-row `Configure` popup.
+`tabBarPlusMenu` is an A1-owned profile setting holding the enabled kinds, in kind order, defaulting to `["agent"]`. The attach client reads it with its other live presentation settings. With exactly `agent`, a left click on `+` creates an Agent; with any other set, it opens the launcher with one row per enabled kind; Agent is always offered and the setting holds only the extra kinds, of which Settings is the only one, so `+` is never empty. Right-clicking `+` opens a one-row `Configure` popup.
 
 ### 3. One configuration dialog, owned by Settings
 
@@ -20,7 +20,7 @@ The `Plus Menu` dialog lists every kind with `●`/`○` markers under the descr
 
 ### 4. The command palette is attach-owned
 
-`tabs.commands`, bound to `Alt+/` by default, opens a palette mode in the attach state machine. While it is open, keys drive the palette and nothing reaches the child, mouse input is ignored, and the strip does not react. The palette lists every kind under one `Tabs` section in kind order with its label (`Agent session`, `Settings`, `Changelog`) and effective shortcut; typing filters labels case-insensitively, `Backspace` edits the filter, `Enter` invokes the selected entry through the same request as its shortcut, and `Esc` closes. A `tabs.changelog` action exists with no default key. The role renders a centered box at `min(columns - 4, 64)` columns on the popup background: an accent `Commands` title with a dim `esc` hint, a `>` search line with a drawn caret and a dim `Search` placeholder, an accent section header, and rows in the owned list style with `→` and the accent selected background.
+`tabs.commands`, bound to `Alt+/` by default, opens a palette mode in the attach state machine. While it is open, keys drive the palette and nothing reaches the child, mouse input is ignored, and the strip does not react. The palette lists every kind under one `Tabs` section in kind order with its label (`Agent`, `Settings`, `Changelog`) and effective shortcut; typing filters labels case-insensitively, `Backspace` edits the filter, `Enter` invokes the selected entry through the same request as its shortcut, and `Esc` closes. A `tabs.changelog` action exists with no default key. The role renders a centered box at `min(columns - 4, 64)` columns on the popup background: an accent `Commands` title with a dim `esc` hint, a `>` search line with a drawn caret and a dim `Search` placeholder, an accent section header, and rows in the owned list style with `→` and the accent selected background.
 
 ### 5. The frame dims under a modal
 

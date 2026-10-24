@@ -211,82 +211,42 @@ pub enum PopupKind {
     Overflow,
 }
 
-/// The tab kinds the strip's `+` offers, read from the owned `tabBarPlusMenu` setting.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What the strip's `+` offers beside Agent, which it always offers: the extra kinds the owned
+/// `tabBarPlusMenu` setting holds, comma-joined. Settings is the only extra kind for now.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PlusMenu {
-    pub agent: bool,
     pub settings: bool,
-    pub changelog: bool,
-}
-
-impl Default for PlusMenu {
-    fn default() -> Self {
-        Self::from_setting(None)
-    }
 }
 
 impl PlusMenu {
-    pub const ALL: Self = Self {
-        agent: true,
-        settings: true,
-        changelog: true,
-    };
+    pub const ALL: Self = Self { settings: true };
 
-    /// The comma-separated kinds the setting holds; an absent or non-text value offers Agent alone.
+    /// The extra kinds the setting names; an absent value or any other kind adds nothing.
     pub fn from_setting(value: Option<&str>) -> Self {
-        let Some(value) = value else {
-            return Self {
-                agent: true,
-                settings: false,
-                changelog: false,
-            };
-        };
-        let has = |kind: &str| value.split(',').any(|part| part.trim() == kind);
         Self {
-            agent: has("agent"),
-            settings: has("settings"),
-            changelog: has("changelog"),
+            settings: value
+                .is_some_and(|value| value.split(',').any(|kind| kind.trim() == "settings")),
         }
     }
 
-    /// With Agent alone, `+` creates an Agent without a menu.
+    /// With no extra kind, `+` creates an Agent without a menu.
     pub fn agent_only(self) -> bool {
-        self.agent && !self.settings && !self.changelog
-    }
-
-    pub fn is_empty(self) -> bool {
-        !self.agent && !self.settings && !self.changelog
+        !self.settings
     }
 
     pub fn enabled(self, kind: &str) -> bool {
-        match kind {
-            "agent" => self.agent,
-            "settings" => self.settings,
-            "changelog" => self.changelog,
-            _ => false,
-        }
+        kind == "settings" && self.settings
     }
 
     pub fn toggle(&mut self, kind: &str) {
-        match kind {
-            "agent" => self.agent = !self.agent,
-            "settings" => self.settings = !self.settings,
-            "changelog" => self.changelog = !self.changelog,
-            _ => {}
+        if kind == "settings" {
+            self.settings = !self.settings;
         }
     }
 
-    /// The setting's value: the enabled kinds, comma-joined in kind order.
+    /// The setting's value: the extra kinds, comma-joined in kind order.
     pub fn to_setting(self) -> String {
-        [
-            ("agent", self.agent),
-            ("settings", self.settings),
-            ("changelog", self.changelog),
-        ]
-        .into_iter()
-        .filter_map(|(kind, enabled)| enabled.then_some(kind))
-        .collect::<Vec<_>>()
-        .join(",")
+        if self.settings { "settings" } else { "" }.to_owned()
     }
 }
 
@@ -296,7 +256,6 @@ pub enum PopupAction {
     Rename,
     NewAgent,
     Settings,
-    Changelog,
     /// Opens the plus-menu dialog in the Settings tab.
     ConfigurePlus,
     View(String),
@@ -380,48 +339,32 @@ impl PopupMenu {
         column: u16,
         columns: u16,
         shortcuts: &(impl ShortcutLabels + ?Sized),
-        plus: PlusMenu,
-        shown: [bool; 2],
+        settings_shown: bool,
     ) -> Self {
-        let mut items = Vec::new();
-        if plus.agent {
-            items.push(PopupItem::action(
-                "+ Agent",
-                shortcuts.label("tabs.new"),
-                PopupAction::NewAgent,
-            ));
-            if plus.settings || plus.changelog {
-                items.push(PopupItem::separator());
-            }
-        }
-        // Invariant: labels align after the `+ ` marker, so the toggles start under Agent.
-        let toggles = [
-            (
-                plus.settings,
-                shown[0],
-                "Settings",
-                "tabs.settings",
-                PopupAction::Settings,
-            ),
-            (
-                plus.changelog,
-                shown[1],
-                "Changelog",
-                "tabs.changelog",
-                PopupAction::Changelog,
-            ),
-        ];
-        for (offered, open, label, action, invoke) in toggles {
-            if offered {
-                let marker = if open { "✓" } else { " " };
-                items.push(PopupItem::action(
-                    format!("{marker} {label}"),
-                    shortcuts.label(action),
-                    invoke,
-                ));
-            }
-        }
-        Self::new(PopupKind::Add, None, column, columns, items)
+        Self::new(
+            PopupKind::Add,
+            None,
+            column,
+            columns,
+            vec![
+                PopupItem::action(
+                    "+ Agent",
+                    shortcuts.label("tabs.new"),
+                    PopupAction::NewAgent,
+                ),
+                PopupItem::separator(),
+                // Invariant: labels align after the `+ ` marker, so Settings starts under Agent.
+                PopupItem::action(
+                    if settings_shown {
+                        "✓ Settings"
+                    } else {
+                        "  Settings"
+                    },
+                    shortcuts.label("tabs.settings"),
+                    PopupAction::Settings,
+                ),
+            ],
+        )
     }
 
     /// The right-click menu on `+`: one row that opens the plus-menu dialog.
@@ -902,17 +845,21 @@ pub fn settings_toggle_closes(viewed: Option<&str>) -> Option<&str> {
     viewed.filter(|id| id.starts_with("settings-"))
 }
 
-/// The tabs the strip, jumps, and drags present. A running Settings tab stays hidden until it is
-/// viewed in this session, and after the Settings shortcut hides it, so its process can be reused
-/// instantly instead of starting a new one.
+/// The tabs the strip, jumps, and drags present. A running Settings or Changelog tab stays hidden
+/// until it is viewed in this session, and Settings again after its shortcut hides it, so its
+/// process can be reused instantly instead of starting a new one. `shown` holds whether
+/// Settings and Changelog are shown.
 pub fn shown_tabs<T: TabView + Clone>(
     tabs: &[T],
     viewed: Option<&str>,
-    settings_shown: bool,
+    shown: (bool, bool),
 ) -> Vec<T> {
     tabs.iter()
         .filter(|tab| {
-            !tab.id().starts_with("settings-") || settings_shown || viewed == Some(tab.id())
+            let id = tab.id();
+            let hidden = (id.starts_with("settings-") && !shown.0)
+                || (id.starts_with("changelog-") && !shown.1);
+            !hidden || viewed == Some(id)
         })
         .cloned()
         .collect()
@@ -1330,20 +1277,20 @@ mod tests {
         let tabs = vec![tab("tab-1"), tab("settings-1"), tab("tab-2")];
         let ids = |shown: Vec<AttachTab>| shown.into_iter().map(|tab| tab.id).collect::<Vec<_>>();
         assert_eq!(
-            ids(shown_tabs(&tabs, Some("tab-1"), false)),
+            ids(shown_tabs(&tabs, Some("tab-1"), (false, false))),
             ["tab-1", "tab-2"]
         );
         assert_eq!(
-            ids(shown_tabs(&tabs, Some("settings-1"), false)),
+            ids(shown_tabs(&tabs, Some("settings-1"), (false, false))),
             ["tab-1", "settings-1", "tab-2"]
         );
         assert_eq!(
-            ids(shown_tabs(&tabs, Some("tab-2"), true)),
+            ids(shown_tabs(&tabs, Some("tab-2"), (true, false))),
             ["tab-1", "settings-1", "tab-2"]
         );
 
         // Invariant: A drop among shown tabs maps to the registry position the server reorders by.
-        let shown = shown_tabs(&tabs, Some("tab-1"), false);
+        let shown = shown_tabs(&tabs, Some("tab-1"), (false, false));
         assert_eq!(registry_index(&shown, &tabs, 0), 0);
         assert_eq!(registry_index(&shown, &tabs, 1), 2);
         assert_eq!(registry_index(&shown, &tabs, 2), 3);

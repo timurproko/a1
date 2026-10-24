@@ -6,17 +6,14 @@ use super::{AttachKey, KeyCode};
 
 /// The command palette's entries in order: each label and the shortcut action that runs it.
 pub const PALETTE_ENTRIES: [(&str, &str); 3] = [
-    ("Agent session", "tabs.new"),
+    ("Agent", "tabs.new"),
     ("Settings", "tabs.settings"),
     ("Changelog", "tabs.changelog"),
 ];
 
-/// The plus-menu dialog's entries in kind order: each label and its `tabBarPlusMenu` key.
-pub const PLUS_MENU_ENTRIES: [(&str, &str); 3] = [
-    ("Agent", "agent"),
-    ("Settings", "settings"),
-    ("Changelog", "changelog"),
-];
+/// The plus-menu dialog's entries in kind order: each extra kind's label and its
+/// `tabBarPlusMenu` key. Agent is always offered, so it is not listed.
+pub const PLUS_MENU_ENTRIES: [(&str, &str); 1] = [("Settings", "settings")];
 
 /// What one key did to an open list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -63,6 +60,11 @@ impl CommandPalette {
 
     pub fn is_plus_menu(&self) -> bool {
         std::ptr::eq(self.entries, &PLUS_MENU_ENTRIES)
+    }
+
+    /// How many entries the list holds before filtering.
+    pub fn len(&self) -> usize {
+        self.entries.len()
     }
 
     /// The entries the filter keeps, in entry order.
@@ -174,24 +176,24 @@ mod tests {
         let mut dialog = CommandPalette::plus_menu();
         assert!(dialog.is_plus_menu() && !CommandPalette::commands().is_plus_menu());
         assert_eq!(
-            dialog.key(key(KeyCode::Char(' '))),
-            PaletteKey::Toggle("agent")
+            dialog.len(),
+            1,
+            "Agent is always offered, so only Settings is listed"
         );
-        dialog.key(key(KeyCode::Down));
         assert_eq!(
             dialog.key(key(KeyCode::Char(' '))),
             PaletteKey::Toggle("settings")
         );
         assert_eq!(dialog.key(key(KeyCode::Enter)), PaletteKey::Ignored);
-        for value in "chan".chars() {
+        for value in "set".chars() {
             dialog.key(key(KeyCode::Char(value)));
         }
-        assert_eq!(dialog.shown(), [("Changelog", "changelog")]);
+        assert_eq!(dialog.shown(), [("Settings", "settings")]);
         assert_eq!(
             dialog.key(key(KeyCode::Char(' '))),
-            PaletteKey::Toggle("changelog")
+            PaletteKey::Toggle("settings")
         );
-        assert_eq!(dialog.filter, "chan", "Space toggles instead of typing");
+        assert_eq!(dialog.filter, "set", "Space toggles instead of typing");
         assert_eq!(dialog.key(key(KeyCode::Esc)), PaletteKey::Close);
     }
 }

@@ -62,7 +62,7 @@ impl Model {
         let shown = shown_tabs(
             &self.tabs,
             self.viewed.as_deref(),
-            state.view.settings_shown,
+            (state.view.settings.shown, state.view.changelog.shown),
         );
         let mut hits = Vec::new();
         let mut column = 0;
@@ -426,7 +426,7 @@ impl Run<'_> {
     /// The resident server answers each request against the model registry.
     fn request(&mut self, request: Request) -> Result<(), SimulationFailure> {
         match request {
-            Request::OpenChangelog => {
+            Request::OpenChangelog | Request::PrewarmChangelog => {
                 self.model
                     .creating
                     .push(format!("changelog-{}", self.model.created));

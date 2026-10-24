@@ -15,7 +15,7 @@ const LOCK_RETRY: Duration = Duration::from_millis(20);
 const STALE_LOCK: Duration = Duration::from_secs(10);
 const NAMESPACE: &str = "a1";
 const SETTING: &str = "tabBarPlusMenu";
-const DEFAULT_VALUE: &str = "agent";
+const DEFAULT_VALUE: &str = "";
 
 pub fn write_plus_menu(file: &Path, menu: PlusMenu) -> Result<(), String> {
     let lock = lock_path(file);
@@ -108,12 +108,12 @@ mod tests {
             br#"{"theme":"dark","a1":{"accentColor":"cyan"},"pi":{"x":1}}"#,
         )
         .unwrap();
-        write_plus_menu(&file, PlusMenu::from_setting(Some("agent,changelog"))).unwrap();
+        write_plus_menu(&file, PlusMenu::ALL).unwrap();
         assert_eq!(
             read(&file),
             serde_json::json!({
                 "theme": "dark",
-                "a1": { "accentColor": "cyan", "tabBarPlusMenu": "agent,changelog" },
+                "a1": { "accentColor": "cyan", "tabBarPlusMenu": "settings" },
                 "pi": { "x": 1 }
             })
         );
@@ -125,10 +125,10 @@ mod tests {
         assert!(!lock_path(&file).exists(), "the lock is released");
 
         let fresh = profile.path().join("fresh.json");
-        write_plus_menu(&fresh, PlusMenu::from_setting(Some(""))).unwrap();
+        write_plus_menu(&fresh, PlusMenu::ALL).unwrap();
         assert_eq!(
             read(&fresh),
-            serde_json::json!({ "a1": { "tabBarPlusMenu": "" } })
+            serde_json::json!({ "a1": { "tabBarPlusMenu": "settings" } })
         );
         write_plus_menu(&fresh, PlusMenu::default()).unwrap();
         assert_eq!(

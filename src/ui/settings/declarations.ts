@@ -33,17 +33,13 @@ const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
 const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
 const TABS_SECTION = Object.freeze({ id: "tabs", title: "Tab Bar" });
 
-/** The tab kinds the strip's `+` can offer, in the order it shows them. */
+/** The kinds the strip's `+` can offer besides Agent, which it always offers, in the order it shows them. */
 const PLUS_MENU_KINDS = Object.freeze([
-  Object.freeze({ key: "agent", label: "Agent", description: "Add a new Agent tab every time." }),
   Object.freeze({ key: "settings", label: "Settings", description: "Show the one Settings tab." }),
-  Object.freeze({ key: "changelog", label: "Changelog", description: "Show the one Changelog tab." }),
 ]);
 
-/** Every enabled subset of the plus-menu kinds, each in kind order. */
-const PLUS_MENU_VALUES = Object.freeze([
-  "", "agent", "settings", "changelog", "agent,settings", "agent,changelog", "settings,changelog", "agent,settings,changelog",
-] as const);
+/** Every enabled subset of the extra plus-menu kinds, each in kind order. */
+const PLUS_MENU_VALUES = Object.freeze(["", "settings"] as const);
 
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   updateCheck: Object.freeze({
@@ -180,9 +176,9 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     id: "tabBarPlusMenu",
     label: "Plus menu",
     section: TABS_SECTION,
-    description: "The tabs + offers. With only Agent, + adds an Agent at once; with more, it opens a menu.",
+    description: "What + offers besides Agent. With nothing extra, + adds an Agent at once; otherwise it opens a menu.",
     application: "live",
-    defaultValue: "agent",
+    defaultValue: "",
     allowedValues: PLUS_MENU_VALUES,
     flags: PLUS_MENU_KINDS,
   }),

@@ -3,39 +3,35 @@
 ## ADDED Requirements
 
 ### Requirement: The plus menu is configurable
-A1 SHALL offer three tab kinds in this order: `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose menu row carries the `+` marker, and `Settings` and `Changelog`, singleton toggles whose invocation creates or shows their one tab and whose menu row carries `✓` while that tab is open. The A1 setting `tabBarPlusMenu` SHALL hold the kinds `+` offers and SHALL default to `Agent` alone. With only `Agent` enabled, clicking `+` SHALL create an Agent without a menu; with any other enabled set, clicking `+` SHALL open the launcher with one row per enabled kind in kind order and each row's effective shortcut right-aligned; with no kind enabled, the strip SHALL hide `+` and give its cells to the tabs. Right-clicking `+` SHALL open a one-row `Configure` popup whose selection opens the `Plus Menu` dialog as a modal over the dimmed active tab or landing, without switching tabs. The dialog SHALL describe itself as `Choose what the + button in the tab bar can add.`, list every kind with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, store each toggle in `tabBarPlusMenu` at once under the settings document lock, apply it to `+` without a restart, ignore the pointer, and close with `Esc`. The search line SHALL draw its caret as a reversed white cell, as owned inputs do, and a blank row SHALL separate the description from it. The Settings `Plus menu` entry SHALL open the same modal over the Settings tab through the tab's controlling client, and SHALL open an equivalent dialog inside the Settings screen only when no tab bar can show it. Choosing `Changelog` SHALL create or show the Changelog tab, whose registry record has the `changelog` kind.
+`+` SHALL always offer `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose launcher row carries the `+` marker. The A1 setting `tabBarPlusMenu` SHALL hold the extra kinds `+` offers besides Agent, comma-joined in kind order, and SHALL default to none; `Settings`, a singleton toggle whose launcher row carries `✓` while its tab is open, SHALL be the only extra kind. With no extra kind, clicking `+` SHALL create an Agent without a menu; with Settings enabled, clicking `+` SHALL open the launcher with `+ Agent`, a separator, and `Settings`, each with its effective shortcut right-aligned. Right-clicking `+` SHALL open a one-row `Configure` popup whose selection opens the `Plus Menu` dialog as a modal over the dimmed active tab or landing, without switching tabs. The dialog SHALL describe itself as `Choose what else the + button in the tab bar can add.`, list each extra kind, not Agent, with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, store each toggle in `tabBarPlusMenu` at once under the settings document lock, apply it to `+` without a restart, ignore the pointer, and close with `Esc`. The search line SHALL draw its caret as a reversed white cell, as owned inputs do, and a blank row SHALL separate the description from it. The Settings `Plus menu` entry SHALL open the same modal over the Settings tab through the tab's controlling client, and SHALL open an equivalent dialog inside the Settings screen only when no tab bar can show it. When a modal closes, the strip SHALL draw at full intensity.
 
 #### Scenario: Default plus
 - **WHEN** the profile stores no plus menu and the user clicks `+`
 - **THEN** one Agent SHALL be created and no launcher SHALL open
 
-#### Scenario: Plus offers more kinds
-- **WHEN** the plus menu enables Agent, Settings, and Changelog and the user clicks `+`
-- **THEN** the launcher SHALL show `+ Agent`, `Settings`, and `Changelog` in that order with their effective shortcuts
-- **AND** Settings or Changelog SHALL show `✓` while its tab is open
+#### Scenario: Plus offers Settings
+- **WHEN** the plus menu enables Settings and the user clicks `+`
+- **THEN** the launcher SHALL show `+ Agent` and `Settings` in that order with their effective shortcuts
+- **AND** Settings SHALL show `✓` while its tab is open
 
 #### Scenario: Configure from the strip
 - **WHEN** the user right-clicks `+` and chooses `Configure`
-- **THEN** the `Plus Menu` dialog SHALL open over the dimmed active tab, and the viewed tab SHALL NOT change
+- **THEN** the `Plus Menu` dialog SHALL open over the dimmed active tab, list only `Settings`, and the viewed tab SHALL NOT change
 
 #### Scenario: Toggle a kind
-- **WHEN** the dialog is open on `Changelog` and the user presses `Space`
-- **THEN** `Changelog` SHALL switch between `●` and `○` and the next click on `+` SHALL reflect the change
+- **WHEN** the dialog is open on `Settings` and the user presses `Space`
+- **THEN** `Settings` SHALL switch between `●` and `○` and the next click on `+` SHALL reflect the change
 
 #### Scenario: Configure from Settings
 - **WHEN** the user activates the Settings `Plus menu` entry in a resident Settings tab
 - **THEN** the `Plus Menu` modal SHALL open over the dimmed Settings tab
 
-#### Scenario: Nothing enabled
-- **WHEN** the user disables every kind
-- **THEN** the strip SHALL no longer show `+`, and the Settings `Plus menu` entry SHALL still open the dialog
-
 ### Requirement: The command palette opens every tab kind
-The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal command palette over the dimmed strip and body from any tab, the landing, or the Settings tab. The palette SHALL show the title `Commands` with a dim `esc` hint, a search line that shows the dim placeholder `Search` while empty, one `Tabs` section in the owned section style, and the rows `Agent session`, `Settings`, and `Changelog` in the owned list style with `→` and the accent selected background on the selected row and each effective shortcut right-aligned. Up and Down SHALL move the selection, printable keys and `Backspace` SHALL edit a case-insensitive label filter, `Enter` SHALL close the palette and run the selected entry exactly as its shortcut or launcher row would, and `Esc` SHALL close it without action. While the palette is open, no key, paste, or mouse input SHALL reach a child, and mouse input SHALL NOT act on the strip or the palette. A `tabs.changelog` action SHALL exist for assignment without a default key.
+The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal command palette over the dimmed strip and body from any tab, the landing, or the Settings tab. The palette SHALL show the title `Commands` with a dim `esc` hint, a search line that shows the dim placeholder `Search` while empty, one `Tabs` section in the owned section style, and the rows `Agent`, `Settings`, and `Changelog` in the owned list style with `→` and the accent selected background on the selected row and each effective shortcut right-aligned. Up and Down SHALL move the selection, printable keys and `Backspace` SHALL edit a case-insensitive label filter, `Enter` SHALL close the palette and run the selected entry exactly as its shortcut or launcher row would, and `Esc` SHALL close it without action. While the palette is open, no key, paste, or mouse input SHALL reach a child, and mouse input SHALL NOT act on the strip or the palette. A `tabs.changelog` action SHALL exist for assignment without a default key.
 
 #### Scenario: Open the palette
 - **WHEN** the user presses `Alt+/`
-- **THEN** the strip and body SHALL dim and the palette SHALL show `Agent session  Alt+A`, `Settings  Alt+,`, and `Changelog` with the first row selected
+- **THEN** the strip and body SHALL dim and the palette SHALL show `Agent  Alt+A`, `Settings  Alt+,`, and `Changelog` with the first row selected
 
 #### Scenario: Filter and run
 - **WHEN** the user types `chan` and presses `Enter`
@@ -50,7 +46,7 @@ The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal comm
 - **THEN** nothing SHALL change and no mouse report SHALL reach a child
 
 ### Requirement: Changelog is a singleton utility tab
-Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Changelog` that renders the owned changelog reference screen without owning an Agent session. The palette, a configured `+` launcher, and `tabs.changelog` SHALL create it or show the existing one. Its chip SHALL offer Close but not Rename, and exiting its screen SHALL close the tab. Resident Agents SHALL neither advertise nor execute `/changelog`; `a1 solo` and `a1 pi` SHALL keep their existing changelog command.
+Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Changelog` that renders the owned changelog reference screen without owning an Agent session. The palette and `tabs.changelog` SHALL show it at once: the attach client SHALL keep one Changelog tab prewarmed and hidden, as it does Settings, starting it after Settings is ready and again after a Changelog tab closes, and SHALL create one only when none is running. Its registry record SHALL have the `changelog` kind. Its chip SHALL offer Close but not Rename. Its screen SHALL be the tab: it SHALL show no `Esc close` hint, and neither `Esc` nor one `Ctrl+C` SHALL close it. Resident Agents SHALL neither advertise nor execute `/changelog`; `a1 solo` and `a1 pi` SHALL keep their existing changelog command.
 
 #### Scenario: Open the changelog
 - **WHEN** the user runs Changelog from the palette with no Changelog tab
@@ -59,6 +55,14 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 #### Scenario: Reuse the changelog
 - **WHEN** a Changelog tab exists and the user runs Changelog again
 - **THEN** that tab SHALL be shown without creating another
+
+#### Scenario: Changelog opens at once
+- **WHEN** Settings and Changelog are prewarmed and the user runs Changelog
+- **THEN** the hidden Changelog tab SHALL be shown without starting a process
+
+#### Scenario: Esc keeps the Changelog tab
+- **WHEN** the Changelog tab is viewed and the user presses `Esc`
+- **THEN** the tab SHALL stay open and its hint line SHALL show no `Esc close`
 
 #### Scenario: Changelog is not an Agent command
 - **WHEN** a resident Agent's slash-command autocomplete lists commands or the user enters `/changelog`

@@ -5,7 +5,7 @@ The `+` launcher makes every new Agent a two-step menu choice and is the only pl
 ## What Changes
 
 - `+` creates one Agent by default. Its contents are configurable: right-clicking `+` offers `Configure`, and Settings gains a `Plus menu` entry, both opening one dialog where `Space` toggles which tab kinds `+` offers. With only Agent enabled, `+` creates an Agent directly; with more, `+` opens the launcher with those entries.
-- `Alt+/` opens a modal **command palette** over the dimmed screen with every tab kind A1 can open: `Agent session` (`Alt+A`), `Settings` (`Alt+,`), and `Changelog`. Up and Down move, typing filters, `Enter` runs, and `Esc` closes; the mouse does nothing while it is open. It uses the owned list styling: an accent section header, the `→` selected row, right-aligned shortcuts, and a Models-style `>` search line.
+- `Alt+/` opens a modal **command palette** over the dimmed screen with every tab kind A1 can open: `Agent` (`Alt+A`), `Settings` (`Alt+,`), and `Changelog`. Up and Down move, typing filters, `Enter` runs, and `Esc` closes; the mouse does nothing while it is open. It uses the owned list styling: an accent section header, the `→` selected row, right-aligned shortcuts, and a Models-style `>` search line.
 - `Changelog` becomes a singleton utility tab like Settings. Resident Agents no longer offer `/changelog`; `a1 solo` and `a1 pi` keep it.
 - The Settings `Tabs` section is renamed `Tab Bar`.
 - Inline tab rename shows its selection with the owned blue selection background instead of reversed cells.

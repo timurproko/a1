@@ -110,14 +110,15 @@ fn reserve_utility_tab(
     }
 }
 
-const UTILITY_TAB_MESSAGES: [&str; 3] = [
+const UTILITY_TAB_MESSAGES: [&str; 4] = [
     "tab.open-settings",
     "tab.prewarm-settings",
     "tab.open-changelog",
+    "tab.prewarm-changelog",
 ];
 
 /// Opens, reveals, or prewarms a singleton utility tab for a client: `tab.open-settings`,
-/// `tab.prewarm-settings`, or `tab.open-changelog`.
+/// `tab.prewarm-settings`, `tab.open-changelog`, or `tab.prewarm-changelog`.
 fn open_utility_tab(
     state: &Arc<Mutex<RuntimeState>>,
     profile: &Path,
@@ -129,10 +130,10 @@ fn open_utility_tab(
 ) -> Result<(), String> {
     let (_, create): (_, TabCreate) = wire::body(payload)?;
     let prefix = match message_type {
-        "tab.open-changelog" => CHANGELOG_TAB_PREFIX,
+        "tab.open-changelog" | "tab.prewarm-changelog" => CHANGELOG_TAB_PREFIX,
         _ => SETTINGS_TAB_PREFIX,
     };
-    let opening = message_type != "tab.prewarm-settings";
+    let opening = !message_type.starts_with("tab.prewarm-");
     let (settings_tab_id, should_start, reordered) = reserve_utility_tab(state, prefix, opening)?;
     commit_staged(reordered)?;
     if should_start {

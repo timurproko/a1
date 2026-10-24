@@ -27,12 +27,13 @@ export function residentTabKeybindings(
 }
 
 /**
- * How Settings is presented in a resident tab: a Settings tab's screen is the tab, and the Plus menu entry opens
+ * How owned screens are presented in a resident tab: a Settings or Changelog tab's screen is the tab, and the Plus menu entry opens
  * the tab bar's own Plus Menu dialog while this tab's controlling client can show it.
  */
 export function residentRouteHostOptions(tabBridge: TabBridgeClient | null): OwnedRouteHostOptions {
   return {
     settingsPinned: tabBridge?.tabId.startsWith("settings-") === true,
+    changelogPinned: tabBridge?.tabId.startsWith("changelog-") === true,
     configurePlusMenu: () => {
       if (tabBridge === null || !tabBridge.available || tabBridge.captureAttachment() === null) return false;
       void tabBridge.requestAction("configure-plus");

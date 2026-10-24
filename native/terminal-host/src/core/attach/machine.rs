@@ -87,6 +87,22 @@ impl Mode {
     }
 }
 
+/// One singleton utility kind's hidden process, started ahead of use so the tab opens at once.
+#[derive(Debug, Clone, Default)]
+pub struct Prewarm {
+    /// The tab joined the strip: it was viewed in this session and not hidden again.
+    pub shown: bool,
+    /// A prewarm request awaits its `tab.created`, which must not take the view.
+    pub pending: bool,
+    pub absent_since: Option<Duration>,
+}
+
+/// A singleton utility kind the client prewarms: its tab-id prefix and the prewarm request.
+const PREWARMED: [(&str, Request); 2] = [
+    ("settings-", Request::PrewarmSettings),
+    ("changelog-", Request::PrewarmChangelog),
+];
+
 /// The client's view intent beside the presentation view model's viewed and requested tabs.
 #[derive(Debug, Clone, Default)]
 pub struct View {
@@ -94,9 +110,9 @@ pub struct View {
     pub prompt_view: Option<String>,
     /// Invariant: a Settings tab joins the strip only once viewed in this session; the Settings
     /// shortcut hides it again while its process keeps running for an instant reopen.
-    pub settings_shown: bool,
-    pub settings_prewarm_pending: bool,
-    pub settings_absent_since: Option<Duration>,
+    pub settings: Prewarm,
+    /// Invariant: a Changelog tab is prewarmed and joins the strip the same way, so it opens at once.
+    pub changelog: Prewarm,
     /// Concurrency: a shortcut can arrive after the server created a tab but before its
     /// registry snapshot reaches this client; the requested ordinal waits for that snapshot.
     pub pending_jump: Option<(usize, u64)>,
@@ -145,6 +161,8 @@ pub enum Request {
     /// Creates or shows the singleton Changelog tab.
     OpenChangelog,
     PrewarmSettings,
+    /// Starts the Changelog tab hidden, so opening it later is immediate.
+    PrewarmChangelog,
     Close(String),
     Restart(String),
     Rename {
@@ -347,7 +365,11 @@ impl State {
     }
 
     fn shown<T: TabView + Clone>(&self, context: &Context<'_, T>) -> Vec<T> {
-        shown_tabs(context.tabs, context.viewed, self.view.settings_shown)
+        shown_tabs(
+            context.tabs,
+            context.viewed,
+            (self.view.settings.shown, self.view.changelog.shown),
+        )
     }
 
     /// Routes child frames: while a view or created tab is pending they wait for that target,
@@ -539,7 +561,6 @@ impl State {
             }
             PopupAction::NewAgent => self.create(Request::Create, effects),
             PopupAction::Settings => self.toggle_settings(context, effects),
-            PopupAction::Changelog => self.open_changelog(context, effects),
             PopupAction::ConfigurePlus => self.mode = Mode::Palette(CommandPalette::plus_menu()),
             PopupAction::View(tab_id) => effects.push(Effect::View(tab_id)),
         }
@@ -651,6 +672,8 @@ impl State {
         context: &Context<'_, T>,
         effects: &mut Vec<Effect>,
     ) {
+        // Invariant: an explicit open owns the view, so a prewarm still starting no longer hides it.
+        self.view.changelog.pending = false;
         match context
             .tabs
             .iter()
@@ -668,7 +691,7 @@ impl State {
         context: &Context<'_, T>,
         effects: &mut Vec<Effect>,
     ) {
-        self.view.settings_prewarm_pending = false;
+        self.view.settings.pending = false;
         let Some(tab_id) = settings_toggle_closes(context.viewed) else {
             if let Some(settings) = self.shown(context).iter().find(|tab| is_settings(tab.id())) {
                 // Invariant: switching to an already visible Settings tab retains its dragged
@@ -689,7 +712,7 @@ impl State {
             .and_then(|fallback| fallback.resolve(&survivors));
         if let Some(previous) = previous {
             // Invariant: hiding keeps the Settings process for reuse.
-            self.view.settings_shown = false;
+            self.view.settings.shown = false;
             effects.push(Effect::View(previous));
         } else {
             self.close_fallback = None;
@@ -981,17 +1004,12 @@ impl State {
                     self.hovered = Some(Hover::New);
                     if self.plus_menu.agent_only() {
                         self.create(Request::Create, effects);
-                    } else if !self.plus_menu.is_empty() {
-                        let changelog_open = context
-                            .tabs
-                            .iter()
-                            .any(|tab| tab.id().starts_with("changelog-"));
+                    } else {
                         let menu = PopupMenu::add(
                             mouse.column,
                             self.columns,
                             context.shortcuts,
-                            self.plus_menu,
-                            [self.settings_visible(context.viewed), changelog_open],
+                            self.settings_visible(context.viewed),
                         );
                         self.mode = Mode::Popup(menu);
                     }
@@ -1020,29 +1038,35 @@ impl State {
         now: Duration,
         effects: &mut Vec<Effect>,
     ) {
-        // Rationale: Settings opens in its own process; starting it hidden ahead of time makes
-        // the Settings shortcut as immediate as solo's in-process Settings screen.
-        let settings_exists = context.tabs.iter().any(|tab| is_settings(tab.id()));
-        let view = &mut self.view;
-        // Rationale: the landing keeps a hidden Settings ready too, so the Settings shortcut opens
-        // it as quickly there as beside an Agent.
-        if settings_exists || (context.tabs.is_empty() && !context.landing) {
-            view.settings_absent_since = None;
-            if !settings_exists {
-                view.settings_shown = false;
+        // Rationale: Settings and Changelog open in their own processes; starting them hidden
+        // ahead of time makes opening them as immediate as solo's in-process screens. The landing
+        // keeps them ready too. Changelog waits for Settings, so the two never start at once.
+        let mut ready = true;
+        for (prefix, request) in PREWARMED {
+            let exists = context.tabs.iter().any(|tab| tab.id().starts_with(prefix));
+            let idle = !self.view.pending_created_activation
+                && context.requested.is_none()
+                && (context.viewed.is_some() || context.landing);
+            let prewarm = if prefix == "settings-" {
+                &mut self.view.settings
+            } else {
+                &mut self.view.changelog
+            };
+            if exists || (context.tabs.is_empty() && !context.landing) {
+                prewarm.absent_since = None;
+                if !exists {
+                    prewarm.shown = false;
+                }
+            } else if ready && !prewarm.pending && idle {
+                let since = *prewarm.absent_since.get_or_insert(now);
+                if now.saturating_sub(since) >= SETTINGS_PREWARM_DELAY {
+                    prewarm.absent_since = None;
+                    prewarm.shown = false;
+                    prewarm.pending = true;
+                    effects.push(Effect::Send(request));
+                }
             }
-        } else if !view.settings_prewarm_pending
-            && !view.pending_created_activation
-            && context.requested.is_none()
-            && (context.viewed.is_some() || context.landing)
-        {
-            let since = *view.settings_absent_since.get_or_insert(now);
-            if now.saturating_sub(since) >= SETTINGS_PREWARM_DELAY {
-                view.settings_absent_since = None;
-                view.settings_shown = false;
-                view.settings_prewarm_pending = true;
-                effects.push(Effect::Send(Request::PrewarmSettings));
-            }
+            ready = exists;
         }
         let held = self
             .mode
@@ -1163,10 +1187,17 @@ impl State {
     }
 
     fn created(&mut self, tab_id: String, created: bool, effects: &mut Vec<Effect>) {
-        if self.view.settings_prewarm_pending && is_settings(&tab_id) {
-            // Invariant: a prewarmed Settings tab starts hidden and never takes the view or a
+        let prewarm = if is_settings(&tab_id) {
+            Some(&mut self.view.settings)
+        } else if tab_id.starts_with("changelog-") {
+            Some(&mut self.view.changelog)
+        } else {
+            None
+        };
+        if let Some(prewarm) = prewarm.filter(|prewarm| prewarm.pending) {
+            // Invariant: a prewarmed utility tab starts hidden and never takes the view or a
             // pending Agent creation's input.
-            self.view.settings_prewarm_pending = false;
+            prewarm.pending = false;
             effects.push(Effect::Send(Request::List));
             return;
         }
@@ -1191,7 +1222,9 @@ impl State {
     ) {
         if requested {
             if is_settings(tab_id) {
-                self.view.settings_shown = true;
+                self.view.settings.shown = true;
+            } else if tab_id.starts_with("changelog-") {
+                self.view.changelog.shown = true;
             }
             self.close_fallback = None;
             self.notice = None;
@@ -1215,7 +1248,7 @@ impl State {
 
     /// Invariant: a hidden Settings tab never surfaces by itself.
     pub fn settings_visible(&self, viewed: Option<&str>) -> bool {
-        self.view.settings_shown || viewed.is_some_and(is_settings)
+        self.view.settings.shown || viewed.is_some_and(is_settings)
     }
 
     /// Resolves a jump that waited for a registry snapshot; returns the tab to view.
@@ -1700,21 +1733,22 @@ mod tests {
 
     #[test]
     fn plus_follows_its_configured_kinds_and_right_click_configures_it() {
-        let mut fixture = Fixture::new(&["a", "changelog-1"], "a");
+        let mut fixture = Fixture::new(&["a", "settings-1"], "a");
         fixture.strip.hits.push((30, 32, StripHitKind::New));
         let mut state = fixture.state();
         assert_eq!(
             fixture.step(&mut state, mouse(LEFT, 31, 0)),
             [Effect::Send(Request::Create), PAINT],
-            "Agent alone adds an Agent without a menu"
+            "with no extra kind, + adds an Agent without a menu"
         );
         assert!(state.mode.popup().is_none());
 
-        state.plus_menu = PlusMenu::from_setting(Some(""));
-        assert_eq!(fixture.step(&mut state, mouse(LEFT, 31, 0)), [PAINT]);
-        assert!(state.mode.popup().is_none(), "no kind offers nothing");
-
         state.plus_menu = PlusMenu::from_setting(Some("settings,changelog"));
+        assert_eq!(
+            state.plus_menu,
+            PlusMenu::ALL,
+            "only Settings is an extra kind"
+        );
         fixture.step(&mut state, mouse(LEFT, 31, 0));
         let menu = state.mode.popup().expect("launcher").clone();
         let labels = menu
@@ -1722,10 +1756,11 @@ mod tests {
             .iter()
             .map(|item| item.label.as_str())
             .collect::<Vec<_>>();
-        assert_eq!(labels, ["  Settings", "✓ Changelog"]);
+        assert_eq!(labels, ["+ Agent", "", "  Settings"]);
         assert_eq!(
-            fixture.step(&mut state, mouse(LEFT, menu.column, 2)),
-            [Effect::View("changelog-1".into()), PAINT]
+            fixture.step(&mut state, mouse(LEFT, menu.column, 3)),
+            [Effect::Send(Request::OpenSettings), PAINT],
+            "the hidden Settings is revealed through the server"
         );
 
         assert_eq!(fixture.step(&mut state, mouse(RIGHT, 31, 0)), [PAINT]);
@@ -1746,7 +1781,7 @@ mod tests {
         );
         assert_eq!(
             fixture.step(&mut state, key(KeyCode::Char(' '))),
-            [Effect::SavePlusMenu(PlusMenu::ALL), PAINT],
+            [Effect::SavePlusMenu(PlusMenu::default()), PAINT],
             "Space toggles the selected kind and stores it at once"
         );
         assert!(fixture.step(&mut state, mouse(LEFT, 31, 0)).is_empty());
@@ -1925,7 +1960,7 @@ mod tests {
     fn release_at_marker_after_last_settings_tab_requests_last_visible_slot() {
         let fixture = Fixture::new(&["a", "b", "settings-1"], "a");
         let mut state = fixture.state();
-        state.view.settings_shown = true;
+        state.view.settings.shown = true;
         state.registry_revision = 9;
         fixture.step(&mut state, mouse(LEFT, 2, 0));
         fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
@@ -2094,7 +2129,7 @@ mod tests {
     fn resize_refits_an_open_menu_and_repaints_clean() {
         let fixture = Fixture::new(&["a"], "a");
         let mut state = fixture.state();
-        state.mode = Mode::Popup(PopupMenu::add(70, 80, &Labels, PlusMenu::ALL, [false; 2]));
+        state.mode = Mode::Popup(PopupMenu::add(70, 80, &Labels, false));
         assert_eq!(
             fixture.step(&mut state, Event::Resize { columns: 20 }),
             [Effect::Paint { clear: true }]
@@ -2145,13 +2180,13 @@ mod tests {
     fn settings_toggles_reuses_and_prewarms_one_hidden_tab() {
         let fixture = Fixture::new(&["a", "settings-1"], "settings-1");
         let mut state = fixture.state();
-        state.view.settings_shown = true;
+        state.view.settings.shown = true;
         assert_eq!(
             fixture.step(&mut state, shortcut("tabs.settings")),
             [Effect::View("a".into()), PAINT]
         );
         assert!(
-            !state.view.settings_shown,
+            !state.view.settings.shown,
             "hiding keeps the process for reuse"
         );
 
@@ -2161,16 +2196,16 @@ mod tests {
             hidden.step(&mut state, shortcut("tabs.settings")),
             [Effect::Send(Request::OpenSettings), PAINT]
         );
-        state.view.settings_shown = true;
+        state.view.settings.shown = true;
         assert_eq!(
             hidden.step(&mut state, shortcut("tabs.settings")),
             [Effect::View("settings-1".into()), PAINT]
         );
         assert!(
-            state.view.settings_shown,
+            state.view.settings.shown,
             "the first shortcut selects Settings"
         );
-        let mut popup = PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [true, false]);
+        let mut popup = PopupMenu::add(0, 80, &Labels, true);
         popup.hovered = Some(2);
         state.mode = Mode::Popup(popup);
         assert_eq!(
@@ -2178,20 +2213,20 @@ mod tests {
             [Effect::View("settings-1".into()), PAINT]
         );
         assert!(
-            state.view.settings_shown,
+            state.view.settings.shown,
             "the checked menu item selects Settings"
         );
         let dragged = Fixture::new(&["settings-1", "a"], "a");
         let mut already_visible = dragged.state();
-        already_visible.view.settings_shown = true;
+        already_visible.view.settings.shown = true;
         assert_eq!(
             dragged.step(&mut already_visible, shortcut("tabs.settings")),
             [Effect::View("settings-1".into()), PAINT],
             "an already visible Settings tab keeps its dragged slot"
         );
         let mut active = fixture.state();
-        active.view.settings_shown = true;
-        let mut popup = PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [true, false]);
+        active.view.settings.shown = true;
+        let mut popup = PopupMenu::add(0, 80, &Labels, true);
         popup.hovered = Some(2);
         active.mode = Mode::Popup(popup);
         assert_eq!(
@@ -2199,7 +2234,7 @@ mod tests {
             [Effect::View("a".into()), PAINT]
         );
         assert!(
-            !active.view.settings_shown,
+            !active.view.settings.shown,
             "clicking the checked item while active hides Settings"
         );
         let lone = Fixture::new(&["settings-1"], "settings-1");
@@ -2216,7 +2251,7 @@ mod tests {
             [Effect::Send(Request::PrewarmSettings)],
             "prewarm starts as soon as the first Agent is registered"
         );
-        assert!(state.view.settings_prewarm_pending);
+        assert!(state.view.settings.pending);
         let prewarmed = server(ServerEvent::Created {
             tab_id: "settings-2".into(),
             created: true,
@@ -2226,7 +2261,7 @@ mod tests {
             [Effect::Send(Request::List)],
             "a prewarmed tab never takes the view"
         );
-        assert!(!state.view.settings_prewarm_pending);
+        assert!(!state.view.settings.pending);
         assert_eq!(
             absent.step(&mut state, shortcut("tabs.settings")),
             [Effect::Send(Request::OpenSettings), PAINT]
@@ -2363,7 +2398,7 @@ mod tests {
         };
         assert_eq!(answer(&mut state, viewer), [PAINT]);
         assert!(answer(&mut state, ServerEvent::ShortcutsChanged).is_empty());
-        state.mode = Mode::Popup(PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [false; 2]));
+        state.mode = Mode::Popup(PopupMenu::add(0, 80, &Labels, false));
         assert_eq!(answer(&mut state, ServerEvent::ShortcutsChanged), [PAINT]);
     }
 
@@ -2509,8 +2544,34 @@ mod tests {
         let mut state = ready.state();
         assert_eq!(
             ready.step(&mut state, Event::Tick),
-            [],
-            "a ready Settings is reused"
+            [Effect::Send(Request::PrewarmChangelog)],
+            "a ready Settings is reused, and Changelog is prewarmed after it"
+        );
+        let prewarmed = server(ServerEvent::Created {
+            tab_id: "changelog-2".into(),
+            created: true,
+        });
+        assert_eq!(
+            ready.step(&mut state, prewarmed),
+            [Effect::Send(Request::List)],
+            "a prewarmed Changelog never takes the view"
+        );
+        let both = Fixture::new(&["a", "settings-1", "changelog-2"], "a");
+        let mut state = both.state();
+        assert!(
+            both.step(&mut state, Event::Tick).is_empty(),
+            "both are ready"
+        );
+        assert_eq!(
+            both.step(&mut state, shortcut("tabs.changelog")),
+            [Effect::View("changelog-2".into()), PAINT],
+            "opening Changelog shows the running hidden tab at once"
+        );
+        assert!(
+            state
+                .shown(&both.context())
+                .iter()
+                .all(|tab| tab.id() != "changelog-2")
         );
         // Invariant: the shortcut asks the server for the singleton, which selects the running
         // hidden tab instead of starting one.

@@ -545,7 +545,7 @@ pub fn render_interactive(
     time_format: TimeFormat,
     rename: Option<&StripRename>,
 ) -> StripFrame {
-    render_interactive_at(tabs, viewed, columns, hovered, time_format, rename, 1, true)
+    render_interactive_at(tabs, viewed, columns, hovered, time_format, rename, 1)
 }
 
 pub fn render_interactive_at(
@@ -556,7 +556,6 @@ pub fn render_interactive_at(
     time_format: TimeFormat,
     rename: Option<&StripRename>,
     row: u16,
-    plus: bool,
 ) -> StripFrame {
     let mut frame = render_frame(
         tabs,
@@ -567,7 +566,6 @@ pub fn render_interactive_at(
         rename,
         Instant::now(),
         !palette_fallback_requested(),
-        plus,
     );
     if row != 1 {
         frame.bytes = frame
@@ -601,20 +599,18 @@ fn render_frame(
     rename: Option<&StripRename>,
     now: Instant,
     truecolor: bool,
-    plus: bool,
 ) -> StripFrame {
     let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
         chip(tab, active, hovered, now, truecolor, rename, Some(target))
     };
-    // Invariant: the clock stays visible with no tabs, beside the lone `+` when it is shown.
+    // Invariant: the clock stays visible with no tabs, beside the lone `+`.
     let clock = Some(clock_text(time_format));
     let clock_width = clock.as_deref().map_or(0, UnicodeWidthStr::width);
     let clock_reserve = if clock.is_some() { clock_width + 1 } else { 0 };
     let available = usize::from(columns).saturating_sub(clock_reserve);
     let mut selected = Vec::new();
     let mut used = 0usize;
-    // Invariant: a plus menu with no kind enabled hides `+` and gives its cells to the tabs.
-    let plus_width = if plus { 3usize } else { 0 };
+    let plus_width = 3usize;
     // Rationale: tabs have a steady 20-cell footprint until the row needs space;
     // share the shrink evenly, then overflow rather than make tabs unreadable.
     let tab_width = if tabs.is_empty() {
@@ -656,7 +652,9 @@ fn render_frame(
         .filter(|tab| !selected.iter().any(|visible| visible.id == tab.id))
         .map(|tab| tab.id.clone())
         .collect::<Vec<_>>();
-    let mut bytes = format!("\x1b[1;1H{STRIP_ROW_BACKGROUND}");
+    // Invariant: the strip starts from reset attributes, so a modal's faint backdrop that a cursor
+    // restore brings back never lingers on the first chip; the reset gains the row background below.
+    let mut bytes = String::from("\x1b[1;1H\x1b[0m");
     let mut hits = Vec::new();
     let mut column = 0u16;
     for tab in selected {
@@ -688,13 +686,11 @@ fn render_frame(
     } else {
         "38;38;38"
     };
-    if plus {
-        bytes.push_str(&format!(
-            "\x1b[48;2;{plus_background}m\x1b[38;2;170;170;170m + \x1b[0m"
-        ));
-        hits.push((column, column.saturating_add(3), StripHit::New));
-        column = column.saturating_add(3);
-    }
+    bytes.push_str(&format!(
+        "\x1b[48;2;{plus_background}m\x1b[38;2;170;170;170m + \x1b[0m"
+    ));
+    hits.push((column, column.saturating_add(3), StripHit::New));
+    column = column.saturating_add(3);
     let padding = usize::from(columns).saturating_sub(column as usize + clock_reserve);
     bytes.push_str(&" ".repeat(padding));
     if let Some(clock) = clock {
@@ -872,7 +868,7 @@ mod tests {
 
     #[test]
     fn configured_row_positions_the_complete_strip() {
-        let frame = render_interactive_at(&[], None, 20, None, TimeFormat::Twelve, None, 24, true);
+        let frame = render_interactive_at(&[], None, 20, None, TimeFormat::Twelve, None, 24);
         assert!(frame.bytes.starts_with("\x1b[24;1H"));
         assert_eq!(plain(&frame.bytes).chars().count(), 20);
     }
@@ -1064,7 +1060,6 @@ mod tests {
             None,
             now,
             true,
-            true,
         );
         assert!(plain(&frame.bytes).starts_with("   auth-fix "));
         assert!(!plain(&frame.bytes).contains('×'));
@@ -1154,7 +1149,6 @@ mod tests {
                 None,
                 started_at,
                 true,
-                true,
             )
             .bytes
         };
@@ -1181,7 +1175,6 @@ mod tests {
             None,
             start,
             true,
-            true,
         );
         for elapsed in [
             0,
@@ -1201,8 +1194,7 @@ mod tests {
                         TimeFormat::Twelve,
                         None,
                         at,
-                        truecolor,
-                        true
+                        truecolor
                     )
                     .hits,
                     reference.hits
@@ -1217,7 +1209,6 @@ mod tests {
             TimeFormat::Twelve,
             None,
             start + Duration::from_secs(5),
-            true,
             true,
         );
         assert!(plain(&settled.bytes).starts_with("   auth-fix "));
@@ -1274,35 +1265,12 @@ mod tests {
         );
         assert_eq!(UnicodeWidthStr::width(text.as_str()), 80);
         assert_eq!(frame.hits, vec![(0, 3, StripHit::New)]);
-    }
-
-    #[test]
-    fn a_plus_menu_with_no_kind_hides_plus() {
-        let tabs = [tab("one", "agent")];
-        let render_plus = |plus| {
-            render_frame(
-                &tabs,
-                Some("one"),
-                80,
-                None,
-                TimeFormat::Twelve,
-                None,
-                Instant::now(),
-                true,
-                plus,
-            )
-        };
-        let hidden = render_plus(false);
-        assert!(!plain(&hidden.bytes).contains(" + "));
         assert!(
-            hidden
-                .hits
-                .iter()
-                .all(|(_, _, hit)| !matches!(hit, StripHit::New)),
-            "a hidden `+` takes no clicks"
+            frame
+                .bytes
+                .starts_with(&format!("\x1b[1;1H\x1b[0m{STRIP_ROW_BACKGROUND}")),
+            "the strip resets attributes a faint backdrop could leave"
         );
-        assert_eq!(UnicodeWidthStr::width(plain(&hidden.bytes).as_str()), 80);
-        assert!(plain(&render_plus(true).bytes).contains(" + "));
     }
 
     #[test]
@@ -1319,7 +1287,6 @@ mod tests {
                 format,
                 None,
                 Instant::now(),
-                true,
                 true,
             );
             assert!(plain(&frame.bytes).ends_with(' '));
@@ -1344,9 +1311,12 @@ mod tests {
                 None,
                 Instant::now(),
                 truecolor,
-                true,
             );
-            assert!(frame.bytes.starts_with(&format!("\x1b[1;1H{background}")));
+            assert!(
+                frame
+                    .bytes
+                    .starts_with(&format!("\x1b[1;1H\x1b[0m{background}"))
+            );
             // Invariant: Every reset inside the row re-establishes the row background before more cells.
             let body = frame.bytes.strip_suffix("\x1b[0m").expect("row ends reset");
             for (offset, _) in body.match_indices("\x1b[0m") {
@@ -1414,7 +1384,6 @@ mod tests {
             None,
             Instant::now(),
             true,
-            true,
         );
         let plain = plain(&frame.bytes);
         assert!(!plain.contains('│'));
@@ -1438,7 +1407,6 @@ mod tests {
             None,
             Instant::now(),
             false,
-            true,
         );
         assert!(palette.bytes.contains("\x1b[48;5;53m"));
         assert!(!palette.bytes.contains('│'));

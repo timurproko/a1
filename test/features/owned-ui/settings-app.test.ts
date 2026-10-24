@@ -476,17 +476,16 @@ describe("the settings screen", () => {
     selectRow(target, "Plus menu");
     target.onInput?.("\r", HOST);
     let rows = screen(target).map(row => row.trimEnd());
-    expect(rows.some(row => row.includes("● Agent"))).toBe(true);
     expect(rows.some(row => row.includes("○ Settings"))).toBe(true);
-    target.onInput?.(`${ESC}[B`, HOST);
+    expect(rows.some(row => row.includes("Agent")), "Agent is always offered, so it is not listed").toBe(false);
     target.onInput?.(" ", HOST);
     await settleChanges();
     await session.load();
-    expect(session.value("tabBarPlusMenu")).toBe("agent,settings");
+    expect(session.value("tabBarPlusMenu")).toBe("settings");
     rows = screen(target).map(row => row.trimEnd());
     expect(rows.some(row => row.includes("● Settings"))).toBe(true);
     target.onInput?.(ESC, HOST);
-    expect(screen(target).some(row => row.includes("● Agent"))).toBe(false);
+    expect(screen(target).some(row => row.includes("● Settings"))).toBe(false);
   });
 
   it("hands the plus menu to the tab bar's own dialog when one can show it", async () => {
@@ -497,10 +496,10 @@ describe("the settings screen", () => {
     selectRow(target, "Plus menu");
     target.onInput?.("\r", HOST);
     expect(requests).toEqual(["plus"]);
-    expect(screen(target).some(row => row.includes("● Agent")), "no in-screen dialog opens").toBe(false);
+    expect(screen(target).some(row => row.includes("○ Settings")), "no in-screen dialog opens").toBe(false);
     available = false;
     target.onInput?.("\r", HOST);
-    expect(screen(target).some(row => row.includes("● Agent")), "without a tab bar the screen's own dialog opens").toBe(true);
+    expect(screen(target).some(row => row.includes("○ Settings")), "without a tab bar the screen's own dialog opens").toBe(true);
   });
 
   it("changes the resident tab-bar position live and persists it", async () => {

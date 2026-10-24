@@ -17,7 +17,7 @@ export interface PlusMenuKind {
 }
 
 const TITLE = "Plus Menu";
-const DESCRIPTION = "Choose what the + button in the tab bar can add.";
+const DESCRIPTION = "Choose what else the + button in the tab bar can add.";
 const HINT = "Type search · ↑↓ navigate · Space toggle · Esc close";
 
 /**

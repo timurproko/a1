@@ -1700,7 +1700,6 @@ impl Client {
             time_format
                 .tab_bar_position
                 .strip_terminal_row(handshake.outer_rows),
-            !time_format.plus_menu.is_empty(),
         );
         let client = Self {
             stream: AttachServerWriter::start(handshake.stream),
@@ -1823,6 +1822,9 @@ impl Client {
             Request::PrewarmSettings => {
                 wire::send(stream, "tab.prewarm-settings", None, self.create.clone())
             }
+            Request::PrewarmChangelog => {
+                wire::send(stream, "tab.prewarm-changelog", None, self.create.clone())
+            }
             Request::Close(tab_id) => wire::send(stream, "tab.close", None, TabTarget { tab_id }),
             Request::Restart(tab_id) => {
                 wire::send(stream, "tab.restart", None, TabTarget { tab_id })
@@ -1906,7 +1908,7 @@ impl Client {
         let mut shown = shown_tabs(
             &self.tabs,
             self.view.viewed.as_deref(),
-            core.view.settings_shown,
+            (core.view.settings.shown, core.view.changelog.shown),
         );
         apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
@@ -1918,7 +1920,6 @@ impl Client {
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
         let drag = core.mode.drag().cloned();
-        let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
             let mut frame = strip::render_interactive_at(
                 &shown,
@@ -1930,7 +1931,6 @@ impl Client {
                 self.time_format
                     .tab_bar_position
                     .strip_terminal_row(self.outer_rows),
-                plus,
             );
             append_drag_marker(
                 &mut frame,
@@ -3860,7 +3860,7 @@ mod tests {
         menu.resize(80);
         assert_eq!(menu.column + menu.width, 80);
 
-        let mut add = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
+        let mut add = PopupMenu::add(0, 80, &bindings, false);
         assert_eq!(add.action_at(add.column, 1), Some(PopupAction::NewAgent));
         assert_eq!(add.action_at(add.column, 2), None);
         assert_eq!(add.action_at(add.column, 3), Some(PopupAction::Settings));
@@ -3872,7 +3872,7 @@ mod tests {
         assert!(add_rendered.contains("+ Agent"));
         assert!(add_rendered.contains("  Settings"));
         assert!(add_rendered.contains("Alt+,"));
-        let checked = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [true, false]);
+        let checked = PopupMenu::add(0, 80, &bindings, true);
         assert!(checked.render().contains("✓ Settings"));
         assert_eq!(checked.width, add.width);
         for rendered in [add.render_with_color(true), add.render_with_color(false)] {
@@ -3980,16 +3980,8 @@ mod tests {
                 .contains(&format!("\x1b[1;{}H", last_end + 1)),
             "a status-driven strip repaint retains unchanged drag feedback"
         );
-        let mut bottom = strip::render_interactive_at(
-            &tabs,
-            Some("a"),
-            80,
-            None,
-            TimeFormat::Twelve,
-            None,
-            24,
-            true,
-        );
+        let mut bottom =
+            strip::render_interactive_at(&tabs, Some("a"), 80, None, TimeFormat::Twelve, None, 24);
         append_drag_marker(&mut bottom, Some(&drag), &tabs, 80, 24);
         assert!(bottom.bytes.contains(&format!("\x1b[24;{}H", last_end + 1)));
         assert!(bottom.bytes.contains('│'));
@@ -4013,7 +4005,7 @@ mod tests {
         std::fs::write(&file, br#"{"a1":{"accentColor":"cyan"}}"#).unwrap();
         assert_eq!(read_accent_hover(&file), [48, 60, 61]);
         let bindings = TabBindings::load(profile.path());
-        let mut menu = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
+        let mut menu = PopupMenu::add(0, 80, &bindings, false);
         menu.hovered = Some(0);
         let rendered = menu.render_styled(true, read_accent_hover(&file));
         assert!(rendered.contains("\x1b[48;2;48;60;61m"));
@@ -4079,21 +4071,14 @@ mod tests {
 
         std::fs::write(
             &file,
-            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom","tabBarPlusMenu":"agent,changelog"}}"#,
+            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom","tabBarPlusMenu":"settings"}}"#,
         )
         .unwrap();
         watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
         assert!(watch.refresh());
         assert_eq!(watch.tab_bar_position, TabBarPosition::Bottom);
         assert_eq!(read_tab_bar_position(&file), TabBarPosition::Bottom);
-        assert_eq!(
-            watch.plus_menu,
-            PlusMenu {
-                agent: true,
-                settings: false,
-                changelog: true
-            }
-        );
+        assert_eq!(watch.plus_menu, PlusMenu::ALL);
 
         std::fs::write(
             &file,
@@ -4121,7 +4106,7 @@ mod tests {
         assert_eq!(watch.tab_bar_position, TabBarPosition::Top);
         assert!(
             watch.plus_menu.agent_only(),
-            "an absent plus menu offers Agent alone"
+            "an absent plus menu adds nothing to Agent"
         );
 
         std::fs::write(&file, b"not json").unwrap();

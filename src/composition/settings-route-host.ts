@@ -22,6 +22,8 @@ export interface OwnedReferenceProviders {
 export interface OwnedRouteHostOptions {
   /** The resident Settings tab: the screen is the tab, so it offers no screen-level close. */
   readonly settingsPinned?: boolean;
+  /** The resident Changelog tab: its changelog screen is the tab, so it offers no screen-level close. */
+  readonly changelogPinned?: boolean;
   /** Opens the tab bar's own Plus Menu dialog; false when no tab bar can show it. */
   readonly configurePlusMenu?: () => boolean;
   readonly keybindings?: PiKeybindingsHost;
@@ -48,7 +50,8 @@ export function createOwnedRouteHost(
       const session = route === "session";
       const title = session ? "Session Info" : changelog ? input ? "What's New" : "Changelog" : HOTKEYS_TITLE;
       const document = session ? references!.session() : changelog ? references!.changelog(input) : references!.hotkeys();
-      return deferredSurface(route, title, () => loadReferenceSurface(settings, route, route, title, document));
+      const pinned = changelog && options.changelogPinned === true;
+      return deferredSurface(route, title, () => loadReferenceSurface(settings, route, title, document, pinned));
     },
   };
 }
@@ -110,11 +113,12 @@ async function loadSettingsSurface(settings: OwnedSettingsManager, options: Owne
 
 async function loadReferenceSurface(
   settings: OwnedSettingsManager,
-  id: string,
   route: string,
   title: string,
   document: Promise<ReferenceDocumentProvider>,
+  pinned: boolean,
 ): Promise<UiRouteSurface> {
+  const id = route;
   // Rationale: the app module and the document load together, so a document that fails
   // to render is reported by the placeholder rather than by a screen that never fills.
   const [{ ReferenceScreenApp }, content] = await Promise.all([import("../features/owned-ui/reference-screen-app.js"), document]);
@@ -127,7 +131,8 @@ async function loadReferenceSurface(
       scrollbarStyle: settings.value("scrollbarStyle"),
       scrollbarSpeed: settings.value("scrollbarSpeed"),
     }),
-  }));
+    pinned,
+  }), !pinned);
 }
 
 async function hostApp(
