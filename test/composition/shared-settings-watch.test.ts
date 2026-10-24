@@ -16,6 +16,23 @@ afterEach(() => {
 });
 
 describe("shared settings watch", () => {
+  it("propagates live scope changes to running solo processes in both directions", async () => {
+    const settingsTab = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    const soloOne = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    const soloTwo = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    const scopes: [string[], string[]] = [[], []];
+    soloOne.onChange(current => scopes[0].push(current.value("promptHistoryScope")));
+    soloTwo.onChange(current => scopes[1].push(current.value("promptHistoryScope")));
+    const stopOne = watchSharedSettings(soloOne);
+    const stopTwo = watchSharedSettings(soloTwo);
+    try {
+      await settingsTab.change("a1", "promptHistoryScope", "shared");
+      await vi.waitFor(() => expect(scopes).toEqual([["shared"], ["shared"]]), { timeout: 5_000, interval: 50 });
+      await settingsTab.change("a1", "promptHistoryScope", "unique");
+      await vi.waitFor(() => expect(scopes).toEqual([["shared", "unique"], ["shared", "unique"]]), { timeout: 5_000, interval: 50 });
+    } finally { stopOne(); stopTwo(); }
+  });
+
   it("applies a setting saved by another tab to every running tab", async () => {
     const settingsTab = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     const agentTab = new OwnedSettingsManager({ configDir: root, profileId: "a1" });

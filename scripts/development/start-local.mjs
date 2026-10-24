@@ -41,6 +41,7 @@ if (launchArguments[0] === "--print-environment") {
   process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, childArguments: selectedChildArguments, directProfile, launchMode, selectedEntry: entry, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
     A1_CONFIG_DIR: childEnvironment.A1_CONFIG_DIR,
     A1_DATA_DIR: childEnvironment.A1_DATA_DIR,
+    A1_DEV_HISTORY_DATA_DIR: childEnvironment.A1_DEV_HISTORY_DATA_DIR,
     A1_RUNTIME_DIR: childEnvironment.A1_RUNTIME_DIR,
     A1_DATABASE_PATH: childEnvironment.A1_DATABASE_PATH,
     PI_CODING_AGENT_DIR: childEnvironment.PI_CODING_AGENT_DIR ?? null,

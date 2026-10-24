@@ -1,7 +1,8 @@
 # Persistent prompt history
 
-Bare A1 recalls recent prompts across sessions and projects within the same A1
-profile. It is input recall, not conversation recovery or agent memory. The Pi
+Bare A1 recalls recent prompts within each agent session, including when that
+session resumes. The optional Shared scope recalls prompts across agent sessions
+and projects in the same A1 profile. It is input recall, not conversation recovery or agent memory. The Pi
 comparison (`a1 pi`) retains its ordinary current-session history.
 
 ## Recall
@@ -36,16 +37,21 @@ imported automatically.
 
 | Platform | Default durable location |
 |---|---|
-| Windows | `%USERPROFILE%/.a1/data/history/<profile-id>.sqlite3` |
-| Linux and macOS | `~/.a1/data/history/<profile-id>.sqlite3` |
-| Explicit override | `<A1_DATA_DIR>/history/<profile-id>.sqlite3` |
+| Windows | `%USERPROFILE%/.a1/data/history/<history-id>.sqlite3` |
+| Linux and macOS | `~/.a1/data/history/<history-id>.sqlite3` |
+| Explicit override | `<A1_DATA_DIR>/history/<history-id>.sqlite3` |
 
 The default uses A1's effective profile home: `A1_PROFILE_HOME` when set, otherwise
 the operating-system home. A custom agent-profile directory changes the history
 identity, not this default root. `A1_DATA_DIR` takes precedence for storage;
 `XDG_DATA_HOME` does not redirect default history. Control metadata, settings,
 agent resources, releases, logs, runtime files, and caches keep their existing
-locations.
+locations. For repository-local `./scripts/dev` launches, history uses a stable
+checkout-wide data root so two independent solo instances share the selected
+Shared database, while control and runtime data remain isolated per launch.
+The development-only `A1_DEV_HISTORY_DATA_DIR` selects that root; an explicit
+`A1_DATA_DIR` still overrides its launcher default. Existing histories in old
+per-instance development roots are not moved or combined.
 
 **The home-based default starts fresh.** Previous versions used
 `%LOCALAPPDATA%/a1/history` on Windows, or `$XDG_DATA_HOME/a1/history` /
@@ -53,12 +59,15 @@ locations.
 fall back to those stores. Explicit `A1_DATA_DIR` selections still work normally.
 Old and new releases using different roots do not synchronize history.
 
-The profile filename is `a1-` followed by a SHA-256 digest of a versioned tuple
-containing the launch kind and normalized effective agent-profile path. It is
-independent of project, session, checkout, and release. Windows ordinary case and
-separator variants normalize together. Different profile roots use different
-files. Moving a profile, unresolved symlink aliases, or selecting a different
-data root can select a different history; A1 never silently merges or imports it.
+In Shared mode the filename is the original `a1-` SHA-256 profile identity,
+independent of project, session, checkout, and release. In Unique mode (the
+default), a domain-separated digest also includes the stable conversation session
+ID; two solo launches or resident tabs therefore use different databases and
+image sidecars. Resuming the same session reuses its store; starting or forking a
+session selects a different one. Windows ordinary case and separator variants
+normalize together. Moving a profile, unresolved symlink aliases, or selecting a
+different data root can select a different history; A1 never silently merges or
+imports it.
 
 The database is separate from `control.sqlite3`, agent resources, and disposable
 caches. Upgrades, ordinary npm uninstall/reinstall, release rollback, cache cleanup,
@@ -79,11 +88,19 @@ must not appear in history diagnostics or test evidence.
 The History section in `/settings` provides:
 
 - **Persistent history:** on by default; applies on the next start. Off disables
-  storage and cross-session recall for subsequent launches, not current-session
+  storage and durable recall for subsequent launches, not current-session
   recovery. Existing enabled instances keep running until closed.
+- **History scope:** Unique (default) keeps each agent session's durable prompts
+  separate across solo launches and resident tabs. Shared restores the former
+  profile-wide store. Switching applies to running agents, including other solo
+  processes and resident tabs, when their shared settings update arrives. New
+  prompts use the newly selected store; already-submitted writes finish in their
+  original store. Switching never transfers or deletes records, and it preserves
+  unsent drafts. Existing profiles without this setting default to Unique, so
+  old Shared entries remain intact but do not appear until Shared is selected.
 - **History limit:** 10-100 in increments of 10, default 100; applies when a new
-  enabled instance starts. All writers then use that profile store's updated
-  retention limit. Raising the limit cannot restore pruned entries.
+  enabled instance starts. All writers using that selected store then use its
+  updated retention limit. Raising the limit cannot restore pruned entries.
 
 The settings use A1's existing settings document, not Pi's settings or a separate
 history configuration file. Disabling persistence does not delete saved data;
@@ -134,14 +151,18 @@ placed beside history. For a history-only review, `NODE_DISABLE_COMPILE_CACHE=1`
 also avoids creating compile-cache files under that explicitly overridden root.
 The focused path/composition tests cover normal no-override selection. Test:
 
-1. Submit two text prompts and one repeated prompt; start `/new`, then restart.
-   The latest unique prompts remain recallable.
+1. Submit two text prompts and one repeated prompt; resume the same session
+   after restart and check those prompts remain recallable. Start `/new` and
+   confirm its durable history is separate.
 2. Browse multiline input with a draft present. Check v2 caret placement,
    newest/oldest numbering, and draft restoration.
-3. Submit from a second instance while the first browses. The first selection
-   stays fixed; the update appears on a later safe browse cycle.
+3. Submit from a second instance while the first browses. Under Unique, the
+   first sees no cross-agent update. Switch to Shared without restarting; once
+   both agents apply the setting, the second instance's new prompt appears in
+   the first agent's shared history. Switching back restores each Unique store.
 4. Recall pasted text after restart; image tokens must not promise reattachment.
-5. Save both History settings, restart, and verify effective values and opt-out.
+5. Save History scope and verify its immediate effective value. Restart only
+   for changes to Persistent history or History limit.
 6. Use a second isolated effective profile and verify no sharing. Run
    `./scripts/dev pi` and verify its ordinary history/editor remain unchanged.
 

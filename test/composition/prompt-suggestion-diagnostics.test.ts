@@ -15,6 +15,8 @@ vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => (
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
+    get file() { return "synthetic-agent-settings.json"; }
+    refresh() { return false; }
     value(key: string) { return key === "promptHistoryEnabled" ? false : key === "promptImageLimit" ? 12 : key === "accentColor" ? "purple" : undefined; }
     onChange() { return () => undefined; }
   },

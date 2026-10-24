@@ -3383,8 +3383,8 @@
           "hash": "1f29a1dae7775f9d051bbb458b1a2b0d147275b80948ad028afed6299bb1308c",
           "consumers": [
             "src/integrations/pi/components/shell-presenters-info.ts",
+            "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/components/tool-image-presentation.ts",
-            "src/integrations/pi/components/upstream/components/tool-execution.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts"
           ]
         },
