@@ -1286,10 +1286,14 @@ mod tests {
         );
         assert_eq!(UnicodeWidthStr::width(text.as_str()), 80);
         assert_eq!(frame.hits, vec![(0, 3, StripHit::New)]);
+        // Platform: `render` detects truecolor from the environment, so either row background may
+        // follow the reset.
         assert!(
-            frame
-                .bytes
-                .starts_with(&format!("\x1b[1;1H\x1b[0m{STRIP_ROW_BACKGROUND}")),
+            [STRIP_ROW_BACKGROUND, STRIP_ROW_BACKGROUND_PALETTE]
+                .iter()
+                .any(|background| frame
+                    .bytes
+                    .starts_with(&format!("\x1b[1;1H\x1b[0m{background}"))),
             "the strip resets attributes a faint backdrop could leave"
         );
     }
