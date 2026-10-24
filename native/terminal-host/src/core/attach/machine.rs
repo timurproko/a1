@@ -8,8 +8,8 @@ use std::time::Duration;
 use super::{
     AttachKey, AttachMouse, CloseFallback, CommandPalette, DRAG_HOLD, DeferredInput,
     DeferredInputTarget, KeyCode, MouseButton, MouseKind, PaletteKey, PlusMenu, PopupAction,
-    PopupKind, PopupMenu, RenameEditor, ShortcutLabels, StripHitKind, StripSnapshot, TabDrag,
-    TabView, UtilityKind, apply_rename_control_key, close_fallback_for, failure_applies,
+    PopupKind, PopupMenu, RenameEditor, ShortcutLabels, StripHitKind, StripLayout, StripSnapshot,
+    TabDrag, TabView, UtilityKind, apply_rename_control_key, close_fallback_for, failure_applies,
     forward_pointer_motion, is_utility_tab, registry_index, rejection_notice, shown_tabs,
     update_drag, utility_toggle_closes,
 };
@@ -124,7 +124,6 @@ pub struct View {
     pub changelog: Prewarm,
     /// Concurrency: a shortcut can arrive after the server created a tab but before its
     /// registry snapshot reaches this client; the requested ordinal waits for that snapshot.
-    pub pending_jump: Option<(usize, u64)>,
     pub pending_created_activation: bool,
 }
 
@@ -370,6 +369,18 @@ impl State {
         shown_tabs(context.tabs, context.viewed, self.view.shown())
     }
 
+    fn shown_for_drag<T: TabView + Clone>(&self, context: &Context<'_, T>) -> Vec<T> {
+        let mut shown = self.shown(context);
+        let slots = context.strip.tab_spans();
+        shown.sort_by_key(|tab| {
+            slots
+                .iter()
+                .position(|(_, _, id)| *id == tab.id())
+                .unwrap_or(slots.len())
+        });
+        shown
+    }
+
     /// Routes child frames: while a view or created tab is pending they wait for that target,
     /// otherwise they are returned for delivery now.
     pub fn route_input(
@@ -599,6 +610,16 @@ impl State {
         effects.push(Effect::Send(request));
     }
 
+    fn open_overflow_menu<T: TabView + Clone>(&mut self, context: &Context<'_, T>, anchor: u16) {
+        self.hovered = Some(Hover::Overflow);
+        self.mode = Mode::Popup(PopupMenu::overflow(
+            anchor,
+            self.columns,
+            &context.strip.hidden_tabs,
+            &self.shown(context),
+        ));
+    }
+
     fn shortcut<T: TabView + Clone>(
         &mut self,
         context: &Context<'_, T>,
@@ -659,11 +680,18 @@ impl State {
                     .parse::<usize>()
                     .unwrap_or(1)
                     .saturating_sub(1);
-                if let Some(tab) = self.shown(context).get(index) {
-                    self.view.pending_jump = None;
-                    effects.push(Effect::View(tab.id().to_owned()));
-                } else {
-                    self.view.pending_jump = Some((index, self.registry_revision));
+                if let Some(id) = context
+                    .strip
+                    .hits
+                    .iter()
+                    .filter_map(|(_, _, hit)| match hit {
+                        StripHitKind::View(id) => Some(id),
+                        _ => None,
+                    })
+                    .nth(index)
+                    .filter(|id| context.tabs.iter().any(|tab| tab.id() == id.as_str()))
+                {
+                    effects.push(Effect::View(id.clone()));
                 }
             }
             _ => {}
@@ -901,7 +929,7 @@ impl State {
             MouseKind::Drag(MouseButton::Left) | MouseKind::Moved
                 if matches!(self.mode, Mode::Drag(_)) =>
             {
-                let shown = self.shown(context);
+                let shown = self.shown_for_drag(context);
                 if let Mode::Drag(drag) = &mut self.mode
                     && update_drag(drag, mouse.column, &shown, context.strip, now)
                 {
@@ -913,7 +941,7 @@ impl State {
                 let Mode::Drag(mut completed) = std::mem::take(&mut self.mode) else {
                     return true;
                 };
-                let shown = self.shown(context);
+                let shown = self.shown_for_drag(context);
                 update_drag(&mut completed, mouse.column, &shown, context.strip, now);
                 let from = shown.iter().position(|tab| tab.id() == completed.tab_id);
                 if completed.shown
@@ -978,7 +1006,7 @@ impl State {
                         started_at: now,
                         shown: false,
                         drop_index: self
-                            .shown(context)
+                            .shown_for_drag(context)
                             .iter()
                             .position(|tab| tab.id() == tab_id),
                         marker_column: None,
@@ -1008,14 +1036,15 @@ impl State {
                     effects.push(Effect::Paint { clear: false });
                 }
                 Some(StripHitKind::Overflow) => {
-                    self.hovered = Some(Hover::Overflow);
-                    self.mode = Mode::Popup(PopupMenu::overflow(
-                        mouse.column,
-                        self.columns,
-                        &context.strip.hidden_tabs,
-                        context.tabs,
-                        context.viewed,
-                    ));
+                    let anchor = context
+                        .strip
+                        .hits
+                        .iter()
+                        .find_map(|(start, _, hit)| {
+                            matches!(hit, StripHitKind::Overflow).then_some(*start)
+                        })
+                        .unwrap_or(mouse.column);
+                    self.open_overflow_menu(context, anchor);
                     effects.push(Effect::Paint { clear: false });
                 }
                 None => {}
@@ -1241,25 +1270,6 @@ impl State {
         UtilityKind::ALL.map(|kind| self.utility_visible(kind, viewed))
     }
 
-    /// Resolves a jump that waited for a registry snapshot; returns the tab to view.
-    pub fn resolve_pending_jump<T: TabView>(
-        &mut self,
-        tabs: &[T],
-        revision: u64,
-    ) -> Option<String> {
-        let (index, requested_revision) = self.view.pending_jump?;
-        if let Some(tab) = tabs.get(index) {
-            self.view.pending_jump = None;
-            return Some(tab.id().to_owned());
-        }
-        if revision > requested_revision {
-            // Protocol: a newer authoritative registry still lacking the ordinal proves this
-            // was not an in-flight tab creation.
-            self.view.pending_jump = None;
-        }
-        None
-    }
-
     /// The tab to view when the viewed tab leaves the registry. Invariant: a hidden utility tab
     /// never surfaces by itself; `visible` is `utilities_visible`.
     pub fn fallback_view<T: TabView + Clone>(
@@ -1284,15 +1294,43 @@ impl State {
         }
     }
 
-    /// Clears prompts and names bound to tabs the installed registry no longer lists; a changed
-    /// registry also closes the overflow menu, and an empty one forgets the close fallback.
-    pub fn installed<T: TabView>(&mut self, tabs: &[T], changed: bool) {
+    /// Refreshes an open overflow menu from the same chips painted in this frame.
+    /// Preserve keyboard focus by tab ID when the order changes; remove stale targets immediately.
+    pub fn refresh_overflow<T: TabView>(
+        &mut self,
+        tabs: &[T],
+        hidden_tabs: &[String],
+        anchor: Option<u16>,
+    ) {
+        let Mode::Popup(menu) = &self.mode else {
+            return;
+        };
+        if menu.kind != PopupKind::Overflow {
+            return;
+        }
+        let previous = menu
+            .hovered
+            .and_then(|index| menu.items.get(index))
+            .and_then(|item| item.action.clone());
+        let Some(anchor) = anchor else {
+            self.mode = Mode::Idle;
+            self.hovered = None;
+            return;
+        };
+        let mut refreshed = PopupMenu::overflow(anchor, self.columns, hidden_tabs, tabs);
+        refreshed.hovered = refreshed
+            .items
+            .iter()
+            .position(|item| item.action == previous);
+        self.mode = Mode::Popup(refreshed);
+    }
+
+    /// Clears prompts and names bound to tabs the installed registry no longer lists; an empty
+    /// registry forgets the close fallback. The overflow menu refreshes from painted chips.
+    pub fn installed<T: TabView>(&mut self, tabs: &[T], _changed: bool) {
         let listed = |id: &str| tabs.iter().any(|tab| tab.id() == id);
         let stale = match &self.mode {
-            Mode::Popup(menu) => {
-                menu.tab_id.as_deref().is_some_and(|id| !listed(id))
-                    || (changed && menu.kind == PopupKind::Overflow)
-            }
+            Mode::Popup(menu) => menu.tab_id.as_deref().is_some_and(|id| !listed(id)),
             Mode::Rename(editor) => !listed(&editor.tab_id),
             _ => false,
         };
@@ -1635,29 +1673,100 @@ mod tests {
             [Effect::View("a".into()), PAINT]
         );
         assert_eq!(fixture.step(&mut state, shortcut("tabs.jump5")), [PAINT]);
-        assert_eq!(state.view.pending_jump, Some((4, 7)));
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.jump3")),
+            [Effect::View("c".into()), PAINT]
+        );
         assert_eq!(fixture.step(&mut state, shortcut("tabs.unknown")), [PAINT]);
     }
 
     #[test]
-    fn a_pending_jump_waits_for_the_registry_snapshot_that_lists_it() {
-        let mut state = State::default();
-        state.view.pending_jump = Some((2, 4));
-        let two = [tab("a"), tab("b")];
-        assert_eq!(state.resolve_pending_jump(&two, 4), None);
+    fn jump_shortcuts_follow_drawn_chip_slots_not_registry_indexes() {
+        let mut fixture = Fixture::new(&["a", "b", "c"], "b");
+        for tab in &mut fixture.tabs {
+            tab.name = "ask-100".into();
+        }
+        fixture.strip.hits = vec![
+            (0, 10, StripHitKind::View("c".into())),
+            (10, 20, StripHitKind::View("a".into())),
+            (20, 23, StripHitKind::Overflow),
+            (23, 26, StripHitKind::New),
+        ];
+        fixture.strip.hidden_tabs = vec!["b".into()];
+        let mut state = fixture.state();
         assert_eq!(
-            state.view.pending_jump,
-            Some((2, 4)),
-            "an in-flight creation may still list it"
+            fixture.step(&mut state, shortcut("tabs.jump1")),
+            [Effect::View("c".into()), PAINT]
         );
-        let three = [tab("a"), tab("b"), tab("c")];
-        assert_eq!(state.resolve_pending_jump(&three, 5), Some("c".into()));
-        assert_eq!(state.view.pending_jump, None);
-        state.view.pending_jump = Some((2, 4));
-        assert_eq!(state.resolve_pending_jump(&two, 5), None);
         assert_eq!(
-            state.view.pending_jump, None,
-            "a newer registry without it ends the wait"
+            fixture.step(&mut state, shortcut("tabs.jump2")),
+            [Effect::View("a".into()), PAINT]
+        );
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.jump3")), [PAINT]);
+        fixture.tabs.push(tab("d"));
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.jump3")),
+            [PAINT],
+            "a new hidden tab cannot activate a previously missing slot"
+        );
+        fixture.strip.hits = vec![
+            (0, 10, StripHitKind::View("b".into())),
+            (10, 13, StripHitKind::Overflow),
+            (13, 16, StripHitKind::New),
+        ];
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.jump1")),
+            [Effect::View("b".into()), PAINT]
+        );
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.jump2")), [PAINT]);
+        fixture.strip.hits[0].2 = StripHitKind::View("removed".into());
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.jump1")),
+            [PAINT],
+            "a stale painted slot cannot select a removed tab"
+        );
+    }
+
+    #[test]
+    fn pointer_controls_open_menus_with_keyboard_navigation_after_click() {
+        let mut fixture = Fixture::new(&["a", "b", "c"], "a");
+        fixture.strip.hits = vec![
+            (0, 10, StripHitKind::View("a".into())),
+            (10, 11, StripHitKind::Overflow),
+            (11, 14, StripHitKind::New),
+        ];
+        fixture.strip.hidden_tabs = vec!["b".into(), "c".into()];
+        let mut state = fixture.state();
+        state.plus_menu = PlusMenu::ALL;
+        assert_eq!(fixture.step(&mut state, mouse(LEFT, 10, 0)), [PAINT]);
+        let Mode::Popup(menu) = &state.mode else {
+            panic!("clicking ⋯ opens the hidden menu")
+        };
+        assert_eq!(menu.kind, PopupKind::Overflow);
+        assert_eq!(menu.items.len(), 2);
+        assert_eq!(menu.hovered, None);
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Down)), [PAINT]);
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Enter)),
+            [Effect::View("b".into()), PAINT]
+        );
+        assert_eq!(fixture.step(&mut state, mouse(LEFT, 11, 0)), [PAINT]);
+        let Mode::Popup(menu) = &state.mode else {
+            panic!("clicking + opens the add menu")
+        };
+        assert_eq!(menu.kind, PopupKind::Add);
+        assert_eq!(menu.hovered, None);
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Down)), [PAINT]);
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Enter)),
+            [Effect::Send(Request::Create), PAINT]
+        );
+        fixture.tabs.clear();
+        fixture.strip.hits = vec![(0, 3, StripHitKind::New)];
+        assert_eq!(fixture.step(&mut state, mouse(LEFT, 1, 0)), [PAINT]);
+        assert!(
+            matches!(state.mode, Mode::Popup(_)),
+            "+ remains clickable with no tabs"
         );
     }
 
@@ -1850,6 +1959,13 @@ mod tests {
 
         fixture.step(&mut state, mouse(LEFT, 41, 0));
         let menu = state.mode.popup().expect("overflow menu").clone();
+        assert_eq!(
+            menu.items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["c name"]
+        );
         assert_eq!(menu.items[0].action, Some(PopupAction::View("c".into())));
         assert!(fixture.step(&mut state, mouse(RELEASE, 41, 0)).is_empty());
         assert!(
@@ -2171,6 +2287,77 @@ mod tests {
         assert_eq!(state.columns, 20);
         let menu = state.mode.popup().expect("menu survives a resize");
         assert!(menu.column + menu.width <= 20);
+    }
+
+    #[test]
+    fn drag_uses_visual_chip_order_after_a_hidden_tab_swap() {
+        let mut fixture = Fixture::new(&["a", "b", "c"], "a");
+        fixture.strip.hits = vec![
+            (0, 10, StripHitKind::View("a".into())),
+            (10, 20, StripHitKind::View("c".into())),
+            (20, 23, StripHitKind::Overflow),
+            (23, 26, StripHitKind::New),
+        ];
+        fixture.strip.hidden_tabs = vec!["b".into()];
+        let mut state = fixture.state();
+        fixture.step(&mut state, mouse(LEFT, 2, 0));
+        fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 19, 0));
+        assert!(fixture.step(&mut state, mouse(RELEASE, 19, 0)).iter().any(|effect|
+            matches!(effect, Effect::Send(Request::Reorder { tab_id, target_index: 2, .. }) if tab_id == "a")));
+    }
+
+    #[test]
+    fn overflow_tracks_rendered_visibility_and_order_without_stale_actions() {
+        let fixture = Fixture::new(&["a", "b", "c"], "a");
+        let mut state = fixture.state();
+        state.mode = Mode::Popup(PopupMenu::overflow(
+            20,
+            60,
+            &["b".into(), "c".into()],
+            &fixture.tabs,
+        ));
+        if let Mode::Popup(menu) = &mut state.mode {
+            menu.hovered = Some(1);
+        }
+        state.refresh_overflow(
+            &[tab("c"), tab("a"), tab("b")],
+            &["c".into(), "b".into()],
+            Some(12),
+        );
+        let menu = state.mode.popup().expect("refreshed menu");
+        assert_eq!(
+            menu.items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["c name", "b name"]
+        );
+        assert_eq!(
+            menu.hovered,
+            Some(0),
+            "focus follows the tab ID across reorder"
+        );
+        assert_eq!(menu.anchor_column, 12);
+        state.installed(&[tab("a"), tab("b")], true);
+        state.refresh_overflow(&[tab("a"), tab("b")], &["b".into()], Some(12));
+        let menu = state.mode.popup().expect("menu survives registry change");
+        assert_eq!(menu.items.len(), 1);
+        assert_eq!(menu.hovered, None, "removed focused tab cannot be selected");
+        assert_eq!(
+            menu.action_at(menu.column, 1),
+            Some(PopupAction::View("b".into()))
+        );
+        let mut changed = tab("b");
+        changed.status = "done".into();
+        state.refresh_overflow(&[tab("a"), changed], &["b".into()], Some(12));
+        let menu = state.mode.popup().expect("live status refresh");
+        assert_eq!(menu.items[0].icon_status.as_deref(), Some("done"));
+        assert_eq!(
+            menu.action_at(menu.column, 1),
+            Some(PopupAction::View("b".into()))
+        );
+        state.refresh_overflow(&[tab("a"), tab("b")], &[], None);
+        assert!(state.mode.popup().is_none());
     }
 
     #[test]
@@ -2514,13 +2701,14 @@ mod tests {
         assert!(matches!(state.mode, Mode::Idle));
         assert!(state.pending_manual_name.is_none() && state.failed_tab.is_none());
 
-        state.mode = Mode::Popup(PopupMenu::overflow(0, 80, &[], &[tab("a")], None));
+        state.mode = Mode::Popup(PopupMenu::overflow(0, 80, &[], &[tab("a")]));
         state.installed(&[tab("a")], false);
         assert!(state.mode.popup().is_some());
         state.installed(&[tab("a")], true);
+        state.refresh_overflow(&[tab("a")], &[], None);
         assert!(
             matches!(state.mode, Mode::Idle),
-            "a changed registry closes the overflow menu"
+            "a strip without overflow closes the menu"
         );
 
         state.close_fallback = close_fallback_for(&[tab("a"), tab("b")], Some("a"), "a");
