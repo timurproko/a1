@@ -18,6 +18,7 @@ import {
   createPiShellHotkeys,
   createPiShellLoadedResources,
   createPiShellLoginDialog,
+  createPiShellModelSelector,
   createPiQueuedInputStatus,
   createPiShellSettingsSelector,
   createPiShellSessionInfo,
@@ -1018,6 +1019,25 @@ describe("Pi shell public component adapters", () => {
     expect(stripTerminalSequences(messages.render(80).join("\n"))).toContain("Esc close");
     messages.handleInput?.("\r");
     expect(selected).toHaveBeenCalledWith("entry-1");
+    const model = { provider: "openai", id: "gpt-5", name: "GPT-5" };
+    const modelSelector = createPiShellModelSelector({
+      currentModel: model,
+      modelRuntime: {
+        getAvailableSnapshot: () => [model],
+        getModel: () => model,
+        getError: () => undefined,
+        refresh: async () => ({ aborted: false, errors: new Map() }),
+      },
+      scopedModels: [],
+      runtime: { getColumns: () => 80, getRows: () => 24, requestRender: vi.fn() },
+      onSelect: vi.fn(),
+      onSelectAsDefault: vi.fn(),
+      onCancel: cancelled,
+    });
+    const modelSearch = modelSelector.render(80).find(row => stripTerminalSequences(row).trimEnd() === " >")!;
+    expect(cellStyle(modelSearch, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
+    modelSelector.dispose?.();
+
     const auth = createPiShellAuthProviderSelector("login", [{
       id: "oauth:openai",
       providerId: "openai",
@@ -1025,8 +1045,11 @@ describe("Pi shell public component adapters", () => {
       authType: "oauth",
       status: { type: "oauth", source: "stored" },
     }], selected, cancelled);
-    const authRows = auth.render(80).map(stripTerminalSequences);
+    const renderedAuthRows = auth.render(80);
+    const authRows = renderedAuthRows.map(stripTerminalSequences);
     expect(authRows[1]?.trimEnd()).toBe(" Select provider to configure:");
+    const authSearch = renderedAuthRows.find(row => stripTerminalSequences(row).trimEnd() === " >")!;
+    expect(cellStyle(authSearch, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
     expect(authRows.join("\n")).toContain("OpenAI ✓ stored");
     expect(authRows.join("\n")).toContain("Esc close");
     auth.handleInput?.("\r");

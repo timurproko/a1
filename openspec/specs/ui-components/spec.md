@@ -354,7 +354,7 @@ the value it belongs to rather than anywhere on the row.
 ### Requirement: An input row and a status line are components
 The component layer SHALL provide one configurable interactive input component for search, inline editing, and the bare-A1 agent prompt. The component SHALL own its prompt presentation, text and block caret rendering, quiet placeholder, cursor movement, text insertion and deletion, selection, pointer gestures, copy/cut dispatch, and declared capability handling. A screen SHALL NOT independently recreate those interactions or compose equivalent input chrome from escapes of its own.
 
-The component SHALL support explicit single-line or multiline configuration, optional presentation-only prompt markers, placeholders, accept and cancel callbacks, and paste capability. Bare A1's agent prompt and Settings search SHALL instantiate this same component while supplying different options: the agent retains multiline editing and its enabled history, autocomplete, submission, chip, and paste adapters; Settings remains a single-line filter with paste disabled. The component SHALL keep one geometry and rendering implementation for rules, caret, selection, placeholder, clipping, content width, and pointer hit testing. Sharing only color constants or presentation while retaining independent editing controllers SHALL NOT satisfy this requirement.
+The component SHALL support explicit single-line or multiline configuration, optional presentation-only prompt markers and semantic marker roles, placeholders, accept and cancel callbacks, and paste capability. Bare A1's agent prompt and Settings search SHALL instantiate this same component while supplying different options: the agent retains multiline editing and its enabled history, autocomplete, submission, chip, and paste adapters; Settings remains a single-line filter with paste disabled. Standard dialog search inputs SHALL request the exact ASCII `> ` marker in the active accent role, while non-dialog auxiliary inputs MAY remain marker-free. The component SHALL keep one geometry and rendering implementation for rules, marker width, caret, selection, placeholder, clipping, content width, and pointer hit testing. Sharing only color constants or presentation while retaining independent editing controllers SHALL NOT satisfy this requirement.
 
 The component layer SHALL also provide the status line a screen uses to say one thing at a time.
 
@@ -377,11 +377,17 @@ The component layer SHALL also provide the status line a screen uses to say one 
 - **WHEN** the bare-A1 main agent prompt is rendered
 - **THEN** the shared component SHALL supply one leading blank cell, the `❯` marker, and the established marker-to-content spacing
 - **AND** those presentation cells SHALL NOT change semantic text offsets
-- **WHEN** Settings search or another A1-owned auxiliary input is rendered
-- **THEN** the same component SHALL supply its rules and configured content inset without an agent prompt marker
+- **WHEN** the full-screen Settings search input is rendered
+- **THEN** the same component SHALL supply its rules and configured content inset without an agent or dialog prompt marker
+
+#### Scenario: Render a standard dialog search input
+- **WHEN** a bare-A1 standard dialog renders a typing-based search field
+- **THEN** the shared presentation SHALL place exact ASCII `> ` before the caret or query
+- **AND** the `>` SHALL use the active semantic accent role resolved during render
+- **AND** marker width SHALL be included in caret, clipping, and pointer geometry
 
 #### Scenario: Render an auxiliary input without a marker
-- **WHEN** Settings search or an A1-owned Agent auxiliary input is rendered
+- **WHEN** full-screen Settings search or another explicitly marker-free A1-owned auxiliary input is rendered
 - **THEN** the shared component SHALL supply its rules and configured content inset without a chevron or greater-than marker
 - **AND** the surface SHALL retain its configured interactive input behavior
 
@@ -522,17 +528,19 @@ The semantic label before the ellipsis SHALL use a restrained animation in which
 - **THEN** the progress-marker and animated-highlight rules SHALL NOT alter its text or styling
 
 ### Requirement: Owned input bars and arrows have consistent themed presentation
-Bare A1's agent prompt and shared ruled inputs, including Settings search, SHALL render their top and bottom bars with the active theme's semantic `border` role used by modal bars, without thinking-level or bash-mode tint. Both input `❯` arrows SHALL match the existing undimmed submitted-prompt arrow foreground and SHALL NOT be dimmed or faint. Rule and prefix styles SHALL be owned by the shared component's presentation policy rather than hardcoded at individual call sites. Quiet placeholder styling SHALL NOT leak into the arrow or rules.
+Bare A1's agent prompt and shared ruled inputs, including Settings search, SHALL render their top and bottom bars with the active theme's semantic `border` role used by modal bars, without thinking-level or bash-mode tint. The agent input `❯` SHALL match the existing undimmed submitted-prompt arrow foreground and SHALL NOT be dimmed or faint. Standard dialog search inputs SHALL render the ASCII `>` in the active semantic `accent` role. Rule and prefix styles SHALL be owned by shared component or explicit dialog-adapter presentation policy rather than hardcoded at individual call sites. Quiet placeholder styling SHALL NOT leak into the agent arrow, dialog marker, or rules.
 
 #### Scenario: Compare the two inputs with a submitted prompt
-- **WHEN** a submitted prompt, the bare-A1 agent prompt, Settings search, and a modal are viewed under the same theme and terminal color capability
-- **THEN** both inputs' rules SHALL match the modal rule's semantic `border` foreground
-- **AND** both input arrows SHALL retain the submitted-prompt arrow's undimmed foreground
+- **WHEN** a submitted prompt, the bare-A1 agent prompt, Settings search, a standard dialog search field, and a modal are viewed under the same theme and terminal color capability
+- **THEN** the ruled inputs' bars SHALL match the modal rule's semantic `border` foreground
+- **AND** the agent `❯` SHALL retain the submitted-prompt arrow's undimmed foreground
+- **AND** the standard dialog `>` SHALL use the active accent foreground
 
 #### Scenario: Change the active accent
-- **WHEN** the active accent preference changes while an agent prompt or shared ruled input is visible
-- **THEN** its top and bottom rules SHALL repaint with the new accent family's modal-border tone in the same session
-- **AND** its arrow, body text, placeholder treatment, and caret SHALL retain their established roles
+- **WHEN** the active accent preference changes while an agent prompt or standard dialog search input is visible
+- **THEN** shared input rules SHALL repaint with the new accent family's modal-border tone in the same session
+- **AND** a standard dialog search marker SHALL repaint with the new semantic accent
+- **AND** body text, placeholder treatment, caret, query, and geometry SHALL retain their established behavior
 
 #### Scenario: Change the agent thinking level or input mode
 - **WHEN** a level changes or the bare-A1 agent draft enters or leaves bash mode
