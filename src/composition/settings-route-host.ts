@@ -21,6 +21,8 @@ export interface OwnedReferenceProviders {
 export interface OwnedRouteHostOptions {
   /** The resident Settings tab: the screen is the tab, so it offers no screen-level close. */
   readonly settingsPinned?: boolean;
+  /** Opens the tab bar's own Plus Menu dialog; false when no tab bar can show it. */
+  readonly configurePlusMenu?: () => boolean;
 }
 
 /** Declares settings and lazy document routes. */
@@ -35,7 +37,7 @@ export function createOwnedRouteHost(
     open: (route, input) => {
       if (!routes.has(route)) return null;
       if (route === SETTINGS_ROUTE) {
-        return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings, options.settingsPinned === true));
+        return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings, options));
       }
       const changelog = route === CHANGELOG_ROUTE;
       const session = route === "session";
@@ -81,10 +83,11 @@ function deferredSurface(id: string, label: string, load: () => Promise<UiRouteS
   };
 }
 
-async function loadSettingsSurface(settings: OwnedSettingsManager, pinned: boolean): Promise<UiRouteSurface> {
+async function loadSettingsSurface(settings: OwnedSettingsManager, options: OwnedRouteHostOptions): Promise<UiRouteSurface> {
+  const pinned = options.settingsPinned === true;
   const { SettingsApp } = await import("../features/owned-ui/settings-app.js");
   // Invariant: a pinned Settings tab closes as a tab; neither Esc nor one Ctrl+C dismisses its screen.
-  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings, { pinned }), !pinned);
+  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings, { pinned, configurePlusMenu: options.configurePlusMenu ?? null }), !pinned);
 }
 
 async function loadReferenceSurface(

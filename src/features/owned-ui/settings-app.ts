@@ -253,12 +253,16 @@ export class SettingsApp implements UiApp {
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
   #renderedScroll: number | undefined;
 
-  readonly #pinned: boolean;
+  readonly #options: { readonly pinned: boolean; readonly configurePlusMenu: (() => boolean) | null };
 
   /** `pinned` presents the screen as a resident Settings tab, which offers no screen-level close. */
-  constructor(session: OwnedSettingsManager, options: { readonly pinned?: boolean } = {}) {
+  /** `configurePlusMenu` opens the tab bar's Plus Menu dialog in place of this screen's own. */
+  constructor(
+    session: OwnedSettingsManager,
+    options: { readonly pinned?: boolean; readonly configurePlusMenu?: (() => boolean) | null } = {},
+  ) {
     this.#session = session;
-    this.#pinned = options.pinned === true;
+    this.#options = { pinned: options.pinned === true, configurePlusMenu: options.configurePlusMenu ?? null };
   }
 
   onActivate(host: AppHostServices): void {
@@ -396,7 +400,7 @@ export class SettingsApp implements UiApp {
     const selected = indexOfKey(rows, this.#selectedKey);
     switch (action) {
       case "close":
-        if (!this.#pinned) host.close();
+        if (!this.#options.pinned) host.close();
         return { consumed: true };
       case "open-filter":
         this.#scrollBeforeFilter = this.#scroll;
@@ -623,6 +627,8 @@ export class SettingsApp implements UiApp {
     // Invariant: the flags come from the declaration, not from the stored value: an unset
     // flag still has a row, showing the default the source would apply.
     if (entry.flags.length === 0) return;
+    // Rationale: beside a tab bar, its own Plus Menu dialog configures `+`, so both ways look the same.
+    if (entry.backend === "a1" && entry.id === PLUS_MENU_SETTING_ID && this.#options.configurePlusMenu?.() === true) return;
     const stored = typeof entry.rawValue === "object" && entry.rawValue !== null && !Array.isArray(entry.rawValue)
       ? (entry.rawValue as Record<string, unknown>)
       : {};
@@ -1186,7 +1192,7 @@ export class SettingsApp implements UiApp {
 
     // Rationale: standing guidance is more useful than transient feedback; failures still
     // roll back without displacing the Settings interaction contract.
-    const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#pinned
+    const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#options.pinned
       || entry.key !== DIALOG_CLOSE_SHORTCUT_HINT.key || entry.action !== DIALOG_CLOSE_SHORTCUT_HINT.action);
     const status = renderShortcutHintsWithClose(entries, theme, width, width > 0 ? 1 : 0);
     const input = this.#filter;

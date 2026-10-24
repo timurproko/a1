@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: The plus menu is configurable
-A1 SHALL offer three tab kinds in this order: `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose menu row carries the `+` marker, and `Settings` and `Changelog`, singleton toggles whose invocation creates or shows their one tab and whose menu row carries `✓` while that tab is open. The A1 setting `tabBarPlusMenu` SHALL hold the kinds `+` offers and SHALL default to `Agent` alone. With only `Agent` enabled, clicking `+` SHALL create an Agent without a menu; with any other enabled set, clicking `+` SHALL open the launcher with one row per enabled kind in kind order and each row's effective shortcut right-aligned; with no kind enabled, the strip SHALL hide `+` and give its cells to the tabs. Right-clicking `+` SHALL open a one-row `Configure` popup whose selection opens the `Plus Menu` dialog as a modal over the dimmed active tab or landing, without switching tabs. The dialog SHALL describe itself as `Choose what the + button in the tab bar can add.`, list every kind with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, store each toggle in `tabBarPlusMenu` at once under the settings document lock, apply it to `+` without a restart, ignore the pointer, and close with `Esc`. The Settings `Plus menu` entry SHALL open the same dialog inside the Settings screen.
+A1 SHALL offer three tab kinds in this order: `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose menu row carries the `+` marker, and `Settings` and `Changelog`, singleton toggles whose invocation creates or shows their one tab and whose menu row carries `✓` while that tab is open. The A1 setting `tabBarPlusMenu` SHALL hold the kinds `+` offers and SHALL default to `Agent` alone. With only `Agent` enabled, clicking `+` SHALL create an Agent without a menu; with any other enabled set, clicking `+` SHALL open the launcher with one row per enabled kind in kind order and each row's effective shortcut right-aligned; with no kind enabled, the strip SHALL hide `+` and give its cells to the tabs. Right-clicking `+` SHALL open a one-row `Configure` popup whose selection opens the `Plus Menu` dialog as a modal over the dimmed active tab or landing, without switching tabs. The dialog SHALL describe itself as `Choose what the + button in the tab bar can add.`, list every kind with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, store each toggle in `tabBarPlusMenu` at once under the settings document lock, apply it to `+` without a restart, ignore the pointer, and close with `Esc`. The search line SHALL draw its caret as a reversed white cell, as owned inputs do, and a blank row SHALL separate the description from it. The Settings `Plus menu` entry SHALL open the same modal over the Settings tab through the tab's controlling client, and SHALL open an equivalent dialog inside the Settings screen only when no tab bar can show it. Choosing `Changelog` SHALL create or show the Changelog tab, whose registry record has the `changelog` kind.
 
 #### Scenario: Default plus
 - **WHEN** the profile stores no plus menu and the user clicks `+`
@@ -21,6 +21,10 @@ A1 SHALL offer three tab kinds in this order: `Agent`, a multi-instance kind who
 #### Scenario: Toggle a kind
 - **WHEN** the dialog is open on `Changelog` and the user presses `Space`
 - **THEN** `Changelog` SHALL switch between `●` and `○` and the next click on `+` SHALL reflect the change
+
+#### Scenario: Configure from Settings
+- **WHEN** the user activates the Settings `Plus menu` entry in a resident Settings tab
+- **THEN** the `Plus Menu` modal SHALL open over the dimmed Settings tab
 
 #### Scenario: Nothing enabled
 - **WHEN** the user disables every kind

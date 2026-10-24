@@ -472,6 +472,20 @@ describe("the settings screen", () => {
     expect(screen(target).some(row => row.includes("● Agent"))).toBe(false);
   });
 
+  it("hands the plus menu to the tab bar's own dialog when one can show it", async () => {
+    const { session } = await app();
+    const requests: string[] = [];
+    let available = true;
+    const target = new SettingsApp(session, { configurePlusMenu: () => { requests.push("plus"); return available; } });
+    selectRow(target, "Plus menu");
+    target.onInput?.("\r", HOST);
+    expect(requests).toEqual(["plus"]);
+    expect(screen(target).some(row => row.includes("● Agent")), "no in-screen dialog opens").toBe(false);
+    available = false;
+    target.onInput?.("\r", HOST);
+    expect(screen(target).some(row => row.includes("● Agent")), "without a tab bar the screen's own dialog opens").toBe(true);
+  });
+
   it("changes the resident tab-bar position live and persists it", async () => {
     const { app: target, session, writes } = await app();
     selectRow(target, "Position");

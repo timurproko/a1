@@ -38,7 +38,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
-import { bindResidentTabBridge, closeResidentUtilityRoute, correlateResidentTabSubmission, currentBackendSessionFile, residentTabKeybindings } from "./resident-tab-bridge.js";
+import { bindResidentTabBridge, closeResidentUtilityRoute, correlateResidentTabSubmission, currentBackendSessionFile, residentRouteHostOptions, residentTabKeybindings } from "./resident-tab-bridge.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { SessionRuntimeRegistry } from "./session-runtime-registry.js";
 import { readPackageVersion, StartupReleaseNote } from "./startup-route.js";
@@ -224,9 +224,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
     session: () => import("./session-info-reference.js").then(m => m.loadSessionInfoReference(backend)),
   };
-  const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(settings, references, {
-    settingsPinned: tabBridge?.tabId.startsWith("settings-") === true,
-  });
+  const routeHost = settings === null || !ownedSurfaces ? null
+    : createOwnedRouteHost(settings, references, residentRouteHostOptions(tabBridge));
   const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),

@@ -337,26 +337,8 @@ pub(super) fn serve_bridge(
             }
         } else if kind.message_type == "bridge.request" {
             let (_, request): (_, BridgeRequest) = wire::body(&payload)?;
-            let accepted = if request.action == "detach" {
-                let locked = lock_state(&state)?;
-                if locked.attachment.current(&tab_id)
-                    == Some((request.client_id.as_str(), request.controller_revision))
-                {
-                    if let Some(client) = locked
-                        .clients
-                        .get(&request.client_id)
-                        .filter(|client| client.viewed_tab == tab_id)
-                    {
-                        let _ = client.peer.offer_control(wire::frame(
-                            "detach",
-                            None,
-                            wire::ResultBody::ok(),
-                        )?);
-                    }
-                    true
-                } else {
-                    false
-                }
+            let accepted = if let Some(message) = controller_message(&request.action) {
+                offer_to_requesting_controller(&state, &tab_id, &request, message)?
             } else if request.action == "close" {
                 let authorized = state.lock().ok().is_some_and(|locked| {
                     locked.attachment.current(&tab_id)
@@ -484,6 +466,42 @@ pub fn encoded_bridge_token(
     incarnation: u64,
 ) -> String {
     BASE64.encode(credentials.derive("bridge", tab_id, incarnation))
+}
+
+/// The message a child's request asks the client controlling its tab to act on: leave, or open
+/// the tab bar's Plus Menu dialog.
+fn controller_message(action: &str) -> Option<&'static str> {
+    match action {
+        "detach" => Some("detach"),
+        "configure-plus" => Some("plus.configure"),
+        _ => None,
+    }
+}
+
+/// Sends `message` to the client that controls the tab and views it, when the request came from
+/// that controller; returns whether it did.
+fn offer_to_requesting_controller(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    request: &BridgeRequest,
+    message: &str,
+) -> Result<bool, String> {
+    let locked = lock_state(state)?;
+    if locked.attachment.current(tab_id)
+        != Some((request.client_id.as_str(), request.controller_revision))
+    {
+        return Ok(false);
+    }
+    if let Some(client) = locked
+        .clients
+        .get(&request.client_id)
+        .filter(|client| client.viewed_tab == tab_id)
+    {
+        let _ = client
+            .peer
+            .offer_control(wire::frame(message, None, wire::ResultBody::ok())?);
+    }
+    Ok(true)
 }
 
 /// Sends an admitted utility tab's bridge the route its screen shows.

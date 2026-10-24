@@ -137,15 +137,15 @@ export class TabBridgeClient {
   }
 
   requestDetach(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
-    return this.#requestAction("detach", origin, timeoutMs);
+    return this.requestAction("detach", origin, timeoutMs);
   }
 
   requestRestart(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
-    return this.#requestAction("restart", origin, timeoutMs);
+    return this.requestAction("restart", origin, timeoutMs);
   }
 
   requestClose(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
-    return this.#requestAction("close", origin, timeoutMs);
+    return this.requestAction("close", origin, timeoutMs);
   }
 
   consumeControllerBoundaryInput(data: string): string {
@@ -255,7 +255,15 @@ export class TabBridgeClient {
     }
   }
 
-  async #requestAction(action: "detach" | "restart" | "close", origin: TabAttachment | null, timeoutMs: number): Promise<boolean> {
+  /**
+   * Asks the server to act for the client that controls this tab, as `origin`: leave it, restart or close the tab,
+   * or open the tab bar's Plus Menu dialog (`configure-plus`).
+   */
+  async requestAction(
+    action: "detach" | "restart" | "close" | "configure-plus",
+    origin: TabAttachment | null = this.captureAttachment(),
+    timeoutMs = 1_000,
+  ): Promise<boolean> {
     if (!this.available || origin === null || (action === "restart" && !this.#supports("bridge-restart"))) return false;
     const requestId = ++this.#request;
     const result = new Promise<boolean>(resolvePromise => this.#pending.set(requestId, resolvePromise));

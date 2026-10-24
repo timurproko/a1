@@ -203,6 +203,8 @@ pub enum KeyForward {
 /// Server messages after the role decoded them and applied their presentation side.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ServerEvent {
+    /// A Settings tab asked this client to open the tab bar's Plus Menu dialog.
+    ConfigurePlus,
     ShortcutsChanged,
     Status {
         tab_id: String,
@@ -1082,6 +1084,10 @@ impl State {
                 requested,
             } => self.commit(context.viewed, &tab_id, &status, requested, effects),
             ServerEvent::Created { tab_id, created } => self.created(tab_id, created, effects),
+            ServerEvent::ConfigurePlus => {
+                self.mode = Mode::Palette(CommandPalette::plus_menu());
+                effects.push(paint);
+            }
             ServerEvent::CreateFailed { notice } => {
                 if let Some(target) = context.requested {
                     self.deferred.discard_tab(target);
@@ -1670,6 +1676,26 @@ mod tests {
             action: None,
         };
         assert!(fixture.step(&mut state, released).is_empty());
+    }
+
+    #[test]
+    fn a_settings_request_opens_the_plus_menu_dialog_over_the_viewed_tab() {
+        let fixture = Fixture::new(&["a", "settings-1"], "settings-1");
+        let mut state = fixture.state();
+        assert_eq!(
+            fixture.step(&mut state, server(ServerEvent::ConfigurePlus)),
+            [PAINT]
+        );
+        assert!(
+            state
+                .mode
+                .palette()
+                .is_some_and(CommandPalette::is_plus_menu)
+        );
+        assert!(
+            fixture.step(&mut state, key(KeyCode::Tab)).is_empty(),
+            "the dialog keeps keys from the Settings child"
+        );
     }
 
     #[test]

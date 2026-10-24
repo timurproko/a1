@@ -31,14 +31,20 @@ enum Tone {
     Text,
     Muted,
     Accent,
+    /// The search caret: a reversed white cell, as owned inputs draw it.
+    Caret,
 }
 
 impl PaletteStyle {
     fn paint(self, tone: Tone, selected: bool, bold: bool) -> String {
-        let weight = if bold { ";1" } else { "" };
+        let weight = match (bold, tone) {
+            (_, Tone::Caret) => ";7",
+            (true, _) => ";1",
+            (false, _) => "",
+        };
         if self.truecolor {
             let [r, g, b] = match tone {
-                Tone::Text => [255, 255, 255],
+                Tone::Text | Tone::Caret => [255, 255, 255],
                 Tone::Muted => [128, 128, 128],
                 Tone::Accent => self.accent,
             };
@@ -46,7 +52,7 @@ impl PaletteStyle {
             format!("\x1b[0;48;2;{br};{bg};{bb};38;2;{r};{g};{b}{weight}m")
         } else {
             let foreground = match tone {
-                Tone::Text => 15,
+                Tone::Text | Tone::Caret => 15,
                 Tone::Muted => 244,
                 Tone::Accent => 141,
             };
@@ -148,15 +154,19 @@ pub fn render(
     let search = [
         (Tone::Accent, false, "> "),
         (Tone::Text, false, palette.filter.as_str()),
-        (Tone::Accent, false, "▏"),
+        (Tone::Caret, false, " "),
     ];
     let mut rows = vec![
         row(style, width, false, &[]),
         row(style, width, false, &[(Tone::Accent, true, title)]),
         row(style, width, false, &[(Tone::Muted, false, description)]),
-        row(style, width, false, &search),
-        row(style, width, false, &[]),
     ];
+    // Invariant: a description is followed by its own blank row before the search line.
+    if !description.is_empty() {
+        rows.push(row(style, width, false, &[]));
+    }
+    rows.push(row(style, width, false, &search));
+    rows.push(row(style, width, false, &[]));
     // Invariant: the box keeps one row per entry, so filtering never moves its edges.
     for index in 0..PALETTE_ENTRIES.len() {
         rows.push(match shown.get(index) {
@@ -243,7 +253,11 @@ mod tests {
                 .all(|row| UnicodeWidthStr::width(row.as_str()) == 60)
         );
         assert_eq!(rows[1].trim(), "Commands");
-        assert_eq!(rows[3].trim(), "> ▏");
+        assert_eq!(rows[3].trim(), ">");
+        assert!(
+            rendered.contains("38;2;255;255;255;7m "),
+            "the caret is a reversed white cell"
+        );
         assert!(rows[5].trim_start().starts_with("→ Agent session"));
         assert!(rows[5].trim_end().ends_with("Alt+A"));
         assert!(rows[6].trim_end().ends_with("Alt+,"));
@@ -257,13 +271,15 @@ mod tests {
         let dialog = CommandPalette::plus_menu();
         let plus = PlusMenu::from_setting(Some("agent,changelog"));
         let rows = plain(&render(&dialog, &Labels, plus, 80, 24, STYLE));
-        assert_eq!(rows.len(), 11);
+        assert_eq!(rows.len(), 12);
         assert_eq!(rows[1].trim(), PLUS_TITLE);
         assert_eq!(rows[2].trim(), PLUS_DESCRIPTION);
-        assert_eq!(rows[5].trim(), "→ ● Agent");
-        assert_eq!(rows[6].trim(), "○ Settings");
-        assert_eq!(rows[7].trim(), "● Changelog");
-        assert_eq!(rows[9].trim(), PLUS_HINT);
+        assert_eq!(rows[3].trim(), "", "a blank row follows the description");
+        assert_eq!(rows[4].trim(), ">");
+        assert_eq!(rows[6].trim(), "→ ● Agent");
+        assert_eq!(rows[7].trim(), "○ Settings");
+        assert_eq!(rows[8].trim(), "● Changelog");
+        assert_eq!(rows[10].trim(), PLUS_HINT);
         assert!(
             !rows.iter().any(|row| row.contains("Alt+")),
             "kinds show no shortcuts"
@@ -287,7 +303,7 @@ mod tests {
             rows.iter()
                 .all(|row| UnicodeWidthStr::width(row.as_str()) == 30)
         );
-        assert_eq!(rows[3].trim(), "> zz▏");
+        assert_eq!(rows[3].trim(), "> zz");
         assert_eq!(rows[5].trim(), EMPTY);
         let palette_mode = PaletteStyle {
             truecolor: false,

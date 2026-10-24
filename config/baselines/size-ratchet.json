@@ -140,7 +140,7 @@
       "lines": 410
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
-      "lines": 368
+      "lines": 350
     },
     "native/terminal-host/src/roles/server/controller.rs::claim_client_control": {
       "lines": 126
@@ -188,7 +188,7 @@
       "lines": 325
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 302
+      "lines": 301
     },
     "src/composition/resident-tab-bridge.ts::bindResidentTabBridge": {
       "lines": 123

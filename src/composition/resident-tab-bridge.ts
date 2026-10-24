@@ -5,6 +5,7 @@ import { projectResidentTabShortcuts } from "../features/resident-tab/shortcut-p
 import { readShortcutBindingsFile } from "../features/resident-tab/shortcut-bindings-file.js";
 import type { PiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 import type { ComposedSessionBackend } from "./session-backend.js";
+import type { OwnedRouteHostOptions } from "./settings-route-host.js";
 
 /**
  * The keybindings the shells borrow. Inside a resident tab the host dispatches and labels the tab
@@ -23,6 +24,21 @@ export function residentTabKeybindings(
   }).assignments);
   publish();
   return { ...keybindingsHost, reload: () => { keybindingsHost.reload(); publish(); } };
+}
+
+/**
+ * How Settings is presented in a resident tab: a Settings tab's screen is the tab, and the Plus menu entry opens
+ * the tab bar's own Plus Menu dialog while this tab's controlling client can show it.
+ */
+export function residentRouteHostOptions(tabBridge: TabBridgeClient | null): OwnedRouteHostOptions {
+  return {
+    settingsPinned: tabBridge?.tabId.startsWith("settings-") === true,
+    configurePlusMenu: () => {
+      if (tabBridge === null || !tabBridge.available || tabBridge.captureAttachment() === null) return false;
+      void tabBridge.requestAction("configure-plus");
+      return true;
+    },
+  };
 }
 
 /** Closes a utility tab when its own screen closes. Invariant: a utility tab's screen is the tab. */

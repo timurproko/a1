@@ -2167,6 +2167,9 @@ impl Client {
             "surface" => self.surface(core, payload)?,
             "terminal.effect" => self.terminal_effect(payload)?,
             "tab.list" => self.tab_list(core, payload)?,
+            "plus.configure" => {
+                self.run(core, core_attach::Event::Server(ServerEvent::ConfigurePlus))?;
+            }
             "detach" => {
                 core.exit();
                 wire::send(&mut self.stream, "detach", None, wire::ResultBody::ok())?;

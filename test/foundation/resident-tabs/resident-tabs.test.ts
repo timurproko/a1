@@ -199,6 +199,12 @@ describe("resident tab launch contracts", () => {
     if (closeRequest.requestId === undefined) throw new Error("close request id missing");
     transport.emit("data", encodeResidentFrame({ type: "bridge.result", requestId: closeRequest.requestId, body: { accepted: true } }));
     await expect(closing).resolves.toBe(true);
+    const configuring = bridge.requestAction("configure-plus");
+    const configureRequest = transport.sent.at(-1)!;
+    expect(configureRequest).toMatchObject({ type: "bridge.request", body: { action: "configure-plus", clientId: "client", controllerRevision: 7 } });
+    if (configureRequest.requestId === undefined) throw new Error("configure request id missing");
+    transport.emit("data", encodeResidentFrame({ type: "bridge.result", requestId: configureRequest.requestId, body: { accepted: true } }));
+    await expect(configuring).resolves.toBe(true);
     const marker = "\x1bP+a1;controller=8;07070707070707070707070707070707\x1b\\";
     expect(bridge.consumeControllerBoundaryInput(`before${marker.slice(0, 12)}`)).toBe("before");
     expect(bridge.consumeControllerBoundaryInput(`${marker.slice(12)}after`)).toBe("after");
