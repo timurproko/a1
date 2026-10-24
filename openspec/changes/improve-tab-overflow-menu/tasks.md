@@ -14,8 +14,8 @@
 - [x] 1.11 Avoid a transient old-chip or stale hidden-title animation during a pending hidden-tab swap without changing later auto-naming.
 - [x] 1.12 Add focused shortcut and strip-transition tests for swaps, resizes, reordered/identically named tabs, in-flight views, and out-of-range Alt+number.
 - [x] 1.13 Render centered `⋯` on the overflow control without changing its hit geometry, muted color, or name truncation.
-- [ ] 1.14 Remove the add/overflow menu actions and Alt+-/Alt+= assignments from native and owned shortcut declarations and native dispatch without changing other tab shortcuts or clicked popup behavior.
-- [ ] 1.15 Add focused Rust and TypeScript tests for the centered glyph, pointer-opened popup behavior, removed menu bindings even if configured, and preserved shortcut projection.
+- [x] 1.14 Remove the add/overflow menu actions and Alt+-/Alt+= assignments from native and owned shortcut declarations and native dispatch without changing other tab shortcuts or clicked popup behavior.
+- [x] 1.15 Add focused Rust and TypeScript tests for the centered glyph, pointer-opened popup behavior, removed menu bindings even if configured, and preserved shortcut projection.
 
 - [x] 1.16 Prioritize the committed active chip over an unrelated pending view when replacing a visible chip from the hidden-tab popup; keep subsequent pending swaps stable.
 - [x] 1.17 Add focused tests for a hidden selection during an unrelated pending view and its committed/pending chip slots.
@@ -36,4 +36,4 @@
 - [x] 3.5 Record visible-shortcut and stable-swap checks and any remaining limits.
 - [x] 3.6 Record the earlier keyboard-menu experiment and glyph refinement's focused checks and limits.
 - [x] 3.7 Record the centered control and committed-active-slot repair checks, with any remaining limits.
-- [ ] 3.8 Record the exact-head Alt+- trace, the decision to remove both popup shortcuts, focused removal checks, and any remaining gaps.
+- [x] 3.8 Record the exact-head Alt+- trace, the decision to remove both popup shortcuts, focused removal checks, and any remaining gaps.

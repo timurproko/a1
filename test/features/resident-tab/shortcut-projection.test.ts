@@ -23,7 +23,7 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
 describe("resident tab shortcut projection", () => {
   it("covers every global declaration in declaration order", () => {
     expect(RESIDENT_TAB_GLOBAL_SHORTCUTS.map(shortcut => shortcut.id)).toEqual([
-      "tabs.new", "tabs.overflowMenu", "tabs.addMenu", "tabs.close", "tabs.rename", "tabs.settings",
+      "tabs.new", "tabs.close", "tabs.rename", "tabs.settings",
       ...Array.from({ length: 10 }, (_, index) => `tabs.jump${index + 1}`),
       "tabs.next", "tabs.previous", "tabs.moveRight", "tabs.moveLeft",
     ]);
@@ -35,14 +35,14 @@ describe("resident tab shortcut projection", () => {
     expect(projectResidentTabShortcuts({ configured: entry.configured, reserved: entry.reserved }).assignments).toEqual(entry.assignments);
   });
 
-  it("respects menu rebindings and reserved A1 keys", () => {
+  it("ignores legacy menu bindings without changing other tab shortcuts", () => {
     const { assignments } = projectResidentTabShortcuts({
-      configured: { "tabs.overflowMenu": "ctrl+-", "tabs.addMenu": ["alt++", "ctrl++"] },
-      reserved: { "app.reserved": "alt++" },
+      configured: { "tabs.overflowMenu": "alt+-", "tabs.addMenu": "alt+=", "tabs.next": "alt+]" },
     });
-    expect(assignments["tabs.overflowMenu"]).toBe("ctrl+-");
-    expect(assignments["tabs.addMenu"]).toBe("ctrl++");
+    expect(assignments).not.toHaveProperty("tabs.overflowMenu");
+    expect(assignments).not.toHaveProperty("tabs.addMenu");
     expect(assignments["tabs.new"]).toBe("alt+a");
+    expect(assignments["tabs.next"]).toBe("alt+]");
   });
 
   it("names why a key was refused", () => {

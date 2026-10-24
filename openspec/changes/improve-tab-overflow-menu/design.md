@@ -18,7 +18,7 @@ Resolve Alt+number against the current painted strip hit ranges in left-to-right
 
 ### Keep the popup controls pointer-only
 
-Remove `tabs.overflowMenu` and `tabs.addMenu` from native and owned shortcut declarations and from dispatch, labels, projection fixtures, and tests. Neither Alt+- nor Alt+= may open a menu or be consumed as a menu shortcut, including through a previously configured action. Preserve the clicked `⋯` hidden-only menu and clicked `+` add menu, their existing hover behavior, and keyboard Up/Down/Enter/Esc navigation after opening by pointer. Do not conflate an unmodified minus event with an Alt chord: the user's exact-head trace showed the terminal sends the attempted Alt+- without the modifier, so intercepting `-` would break ordinary input. Alt+A remains direct tab creation, and Alt+number remains visible-chip navigation.
+Remove `tabs.overflowMenu` and `tabs.addMenu` from native and owned shortcut declarations and from dispatch, labels, projection fixtures, and tests. Neither Alt+- nor Alt+= may open a menu or be consumed as a menu shortcut, including through a previously configured action. Preserve the clicked `⋯` hidden-only menu and clicked `+` add menu, their existing hover behavior, and keyboard Up/Down/Enter/Esc navigation after opening by pointer. Do not conflate an unmodified minus event with an Alt chord: the reported Alt+- attempt appeared as an unmodified, character-masked event in the exact-head trace; treating plain `-` as a substitute would break ordinary input. Alt+A remains direct tab creation, and Alt+number remains visible-chip navigation.
 
 ### Map bottom popup clicks to visual rows
 

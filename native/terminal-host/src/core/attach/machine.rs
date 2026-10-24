@@ -377,11 +377,6 @@ impl State {
             return;
         }
         if let Some(mut menu) = self.mode.take_popup() {
-            if menu.kind == PopupKind::Add && action == Some("tabs.addMenu") {
-                self.hovered = None;
-                effects.push(Effect::Paint { clear: false });
-                return;
-            }
             match key.code {
                 KeyCode::Esc => {
                     self.hovered = None;
@@ -548,13 +543,6 @@ impl State {
         ));
     }
 
-    /// Keyboard-opened menus start on their first actionable row; pointer hover is unchanged.
-    fn focus_first_menu_item(&mut self) {
-        if let Mode::Popup(menu) = &mut self.mode {
-            menu.move_hover(1);
-        }
-    }
-
     fn shortcut<T: TabView + Clone>(
         &mut self,
         context: &Context<'_, T>,
@@ -563,26 +551,6 @@ impl State {
     ) {
         match action {
             "tabs.new" => self.create(Request::Create, effects),
-            "tabs.addMenu" => {
-                if let Some(anchor) =
-                    context.strip.hits.iter().find_map(|(start, _, hit)| {
-                        matches!(hit, StripHitKind::New).then_some(*start)
-                    })
-                {
-                    self.open_add_menu(context, anchor);
-                    self.focus_first_menu_item();
-                }
-            }
-            "tabs.overflowMenu" => {
-                if !context.strip.hidden_tabs.is_empty()
-                    && let Some(anchor) = context.strip.hits.iter().find_map(|(start, _, hit)| {
-                        matches!(hit, StripHitKind::Overflow).then_some(*start)
-                    })
-                {
-                    self.open_overflow_menu(context, anchor);
-                    self.focus_first_menu_item();
-                }
-            }
             "tabs.settings" => self.toggle_settings(context, effects),
             "tabs.close" => {
                 if let Some(tab_id) = context.viewed {
@@ -1603,7 +1571,7 @@ mod tests {
     }
 
     #[test]
-    fn menu_shortcuts_open_only_drawn_controls_without_creating_tabs() {
+    fn pointer_controls_open_menus_with_keyboard_navigation_after_click() {
         let mut fixture = Fixture::new(&["a", "b", "c"], "a");
         fixture.strip.hits = vec![
             (0, 10, StripHitKind::View("a".into())),
@@ -1612,93 +1580,35 @@ mod tests {
         ];
         fixture.strip.hidden_tabs = vec!["b".into(), "c".into()];
         let mut state = fixture.state();
-        assert_eq!(
-            fixture.step(&mut state, shortcut("tabs.overflowMenu")),
-            [PAINT]
-        );
+        assert_eq!(fixture.step(&mut state, mouse(LEFT, 10, 0)), [PAINT]);
         let Mode::Popup(menu) = &state.mode else {
-            panic!("overflow shortcut should open the popup")
+            panic!("clicking ⋯ opens the hidden menu")
         };
         assert_eq!(menu.kind, PopupKind::Overflow);
         assert_eq!(menu.items.len(), 2);
-        assert_eq!(menu.column, 10);
-        assert_eq!(
-            menu.hovered,
-            Some(0),
-            "keyboard opening focuses the first hidden tab"
-        );
+        assert_eq!(menu.hovered, None);
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Down)), [PAINT]);
         assert_eq!(
             fixture.step(&mut state, key(KeyCode::Enter)),
             [Effect::View("b".into()), PAINT]
         );
-        assert_eq!(
-            fixture.step(&mut state, shortcut("tabs.overflowMenu")),
-            [PAINT]
-        );
-        assert_eq!(fixture.step(&mut state, key(KeyCode::Down)), [PAINT]);
-        assert_eq!(
-            fixture.step(&mut state, key(KeyCode::Enter)),
-            [Effect::View("c".into()), PAINT]
-        );
-        fixture.strip.hidden_tabs.clear();
-        assert_eq!(
-            fixture.step(&mut state, shortcut("tabs.overflowMenu")),
-            [PAINT]
-        );
-        assert!(
-            matches!(state.mode, Mode::Idle),
-            "no hidden chips means no menu"
-        );
-        fixture.strip.hidden_tabs.push("b".into());
-        fixture.strip.hits.remove(1);
-        assert_eq!(
-            fixture.step(&mut state, shortcut("tabs.overflowMenu")),
-            [PAINT]
-        );
-        assert!(
-            matches!(state.mode, Mode::Idle),
-            "a missing overflow control is inert"
-        );
-        assert_eq!(fixture.step(&mut state, shortcut("tabs.addMenu")), [PAINT]);
+        assert_eq!(fixture.step(&mut state, mouse(LEFT, 11, 0)), [PAINT]);
         let Mode::Popup(menu) = &state.mode else {
-            panic!("add shortcut should open the popup")
+            panic!("clicking + opens the add menu")
         };
         assert_eq!(menu.kind, PopupKind::Add);
-        assert_eq!(menu.column, 11);
-        assert_eq!(menu.hovered, Some(0), "keyboard opening focuses + Agent");
-        assert_eq!(fixture.step(&mut state, shortcut("tabs.addMenu")), [PAINT]);
-        assert!(
-            matches!(state.mode, Mode::Idle),
-            "second shortcut closes the add menu"
-        );
-        assert!(
-            !state.view.pending_created_activation,
-            "closing must not create a tab"
-        );
-        assert_eq!(fixture.step(&mut state, shortcut("tabs.addMenu")), [PAINT]);
-        let Mode::Popup(menu) = &state.mode else {
-            panic!("the add menu reopens")
-        };
-        assert_eq!(menu.hovered, Some(0));
+        assert_eq!(menu.hovered, None);
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Down)), [PAINT]);
         assert_eq!(
             fixture.step(&mut state, key(KeyCode::Enter)),
             [Effect::Send(Request::Create), PAINT]
         );
         fixture.tabs.clear();
         fixture.strip.hits = vec![(0, 3, StripHitKind::New)];
-        assert_eq!(fixture.step(&mut state, shortcut("tabs.addMenu")), [PAINT]);
-        let Mode::Popup(menu) = &state.mode else {
-            panic!("the add popup works without tabs")
-        };
-        assert_eq!(menu.hovered, Some(0));
-        assert_eq!(fixture.step(&mut state, key(KeyCode::Esc)), [PAINT]);
         assert_eq!(fixture.step(&mut state, mouse(LEFT, 1, 0)), [PAINT]);
-        let Mode::Popup(menu) = &state.mode else {
-            panic!("clicking + opens the add menu")
-        };
-        assert_eq!(
-            menu.hovered, None,
-            "pointer opening keeps its own hover behavior"
+        assert!(
+            matches!(state.mode, Mode::Popup(_)),
+            "+ remains clickable with no tabs"
         );
     }
 

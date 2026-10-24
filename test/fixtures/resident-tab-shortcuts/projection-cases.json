@@ -6,7 +6,6 @@
       "configured": {},
       "reserved": {},
       "assignments": {
-        "tabs.overflowMenu": "alt+-", "tabs.addMenu": "alt+=",
         "tabs.new": "alt+a", "tabs.close": "alt+w", "tabs.rename": "f2", "tabs.settings": "alt+,",
         "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": "alt+3", "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
         "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
@@ -18,7 +17,6 @@
       "configured": { "tabs.next": "Alt+]", "tabs.close": ["alt+x", "alt+w"], "tabs.jump3": null },
       "reserved": {},
       "assignments": {
-        "tabs.overflowMenu": "alt+-", "tabs.addMenu": "alt+=",
         "tabs.new": "alt+a", "tabs.close": "alt+x", "tabs.rename": "f2", "tabs.settings": "alt+,",
         "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": null, "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
         "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
@@ -30,7 +28,6 @@
       "configured": { "tabs.close": "ctrl+x", "tui.editor.deleteToLineEnd": "ctrl+x" },
       "reserved": {},
       "assignments": {
-        "tabs.overflowMenu": "alt+-", "tabs.addMenu": "alt+=",
         "tabs.new": "alt+a", "tabs.close": null, "tabs.rename": "f2", "tabs.settings": "alt+,",
         "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": "alt+3", "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
         "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
@@ -42,7 +39,6 @@
       "configured": { "tabs.new": "ctrl+c" },
       "reserved": { "app.clear": "ctrl+c", "app.exit": ["ctrl+d"] },
       "assignments": {
-        "tabs.overflowMenu": "alt+-", "tabs.addMenu": "alt+=",
         "tabs.new": null, "tabs.close": "alt+w", "tabs.rename": "f2", "tabs.settings": "alt+,",
         "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": "alt+3", "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
         "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
@@ -54,7 +50,6 @@
       "configured": { "app.clear": "ctrl+q", "tabs.new": "ctrl+c" },
       "reserved": { "app.clear": "ctrl+c" },
       "assignments": {
-        "tabs.overflowMenu": "alt+-", "tabs.addMenu": "alt+=",
         "tabs.new": "ctrl+c", "tabs.close": "alt+w", "tabs.rename": "f2", "tabs.settings": "alt+,",
         "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": "alt+3", "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
         "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
@@ -66,7 +61,6 @@
       "configured": { "tabs.rename": "alt+a", "tabs.moveLeft": "alt+1" },
       "reserved": {},
       "assignments": {
-        "tabs.overflowMenu": "alt+-", "tabs.addMenu": "alt+=",
         "tabs.new": "alt+a", "tabs.close": "alt+w", "tabs.rename": null, "tabs.settings": "alt+,",
         "tabs.jump1": "alt+1", "tabs.jump2": "alt+2", "tabs.jump3": "alt+3", "tabs.jump4": "alt+4", "tabs.jump5": "alt+5",
         "tabs.jump6": "alt+6", "tabs.jump7": "alt+7", "tabs.jump8": "alt+8", "tabs.jump9": "alt+9", "tabs.jump10": "alt+0",
