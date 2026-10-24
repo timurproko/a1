@@ -147,7 +147,7 @@ let root: string;
 
 function settingsApp(
   session: OwnedSettingsManager,
-  options: { readonly pinned?: boolean; readonly copyText?: (text: string) => void } = {},
+  options: { readonly pinned?: boolean; readonly copyText?: (text: string) => void; readonly configurePlusMenu?: () => boolean } = {},
 ): SettingsApp {
   return new SettingsApp(session, {
     ...options,
@@ -472,14 +472,48 @@ describe("the settings screen", () => {
     expect(writes).toEqual([]);
   });
 
+  it("opens the plus-menu dialog from its Tab Bar entry and toggles a kind with Space", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Plus menu");
+    target.onInput?.("\r", HOST);
+    let rows = screen(target).map(row => row.trimEnd());
+    expect(rows.some(row => row.includes("● Agent"))).toBe(true);
+    expect(rows.some(row => row.includes("○ Settings"))).toBe(true);
+    expect(rows.some(row => row.includes("○ Changelog"))).toBe(true);
+    target.onInput?.(`${ESC}[B`, HOST);
+    target.onInput?.(" ", HOST);
+    await settleChanges();
+    await session.load();
+    expect(session.value("tabBarPlusMenu")).toBe("agent,settings");
+    rows = screen(target).map(row => row.trimEnd());
+    expect(rows.some(row => row.includes("● Settings"))).toBe(true);
+    target.onInput?.(ESC, HOST);
+    expect(screen(target).some(row => row.includes("● Agent"))).toBe(false);
+  });
+
+  it("hands the plus menu to the tab bar's own dialog when one can show it", async () => {
+    const { session } = await app();
+    const requests: string[] = [];
+    let available = true;
+    const target = settingsApp(session, { configurePlusMenu: () => { requests.push("plus"); return available; } });
+    selectRow(target, "Plus menu");
+    target.onInput?.("\r", HOST);
+    expect(requests).toEqual(["plus"]);
+    expect(screen(target).some(row => row.includes("○ Settings")), "no in-screen dialog opens").toBe(false);
+    available = false;
+    target.onInput?.("\r", HOST);
+    expect(screen(target).some(row => row.includes("○ Settings")), "without a tab bar the screen's own dialog opens").toBe(true);
+  });
+
   it("changes the resident tab-bar position live and persists it", async () => {
     const { app: target, session, writes } = await app();
     selectRow(target, "Position");
     const rows = screen(target);
     const positionRow = rows.findIndex(line => /^→?\s*Position\s+top\b/.test(line.trimStart()));
     expect(positionRow).toBeGreaterThan(0);
-    expect(rows[positionRow - 1]?.trimStart()).toMatch(/^Tabs\b/u);
-    expect(rows[positionRow + 1]).toContain("Auto name");
+    expect(rows[positionRow - 1]?.trimStart()).toMatch(/^Tab Bar\b/u);
+    expect(rows[positionRow + 1]).toContain("Plus menu");
+    expect(rows[positionRow + 1]).toContain("configure");
     expect(find(target, "Position").trimStart()).toMatch(/^→.*top/);
 
     target.onInput?.(`${ESC}[C`, HOST);

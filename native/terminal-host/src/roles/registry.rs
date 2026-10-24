@@ -361,7 +361,7 @@ fn validate(document: &RegistryDocument) -> Result<(), String> {
     let mut ids = std::collections::HashSet::new();
     for tab in &document.tabs {
         if tab.tab_id.is_empty()
-            || !matches!(tab.kind.as_str(), "agent" | "settings")
+            || !matches!(tab.kind.as_str(), "agent" | "settings" | "changelog")
             || !ids.insert(&tab.tab_id)
         {
             return Err("registry tab identity is invalid".to_owned());
@@ -438,19 +438,24 @@ mod tests {
     }
 
     #[test]
-    fn normalizes_historical_kinds_and_accepts_settings() {
+    fn normalizes_historical_kinds_and_accepts_utility_kinds() {
         let mut legacy = serde_json::to_value(document(7)).unwrap();
         legacy["tabs"][0].as_object_mut().unwrap().remove("kind");
         let parsed = RegistryStore::parse(&serde_json::to_vec(&legacy).unwrap()).unwrap();
         assert_eq!(parsed.tabs[0].kind, "agent");
 
-        let mut settings = document(7);
-        settings.tabs[0].kind = "settings".into();
-        settings.tabs[0].tab_id = "settings-1".into();
-        assert_eq!(
-            RegistryStore::parse(&serde_json::to_vec(&settings).unwrap()).unwrap(),
-            settings
-        );
+        for kind in ["settings", "changelog"] {
+            let mut utility = document(7);
+            utility.tabs[0].kind = kind.into();
+            utility.tabs[0].tab_id = format!("{kind}-1");
+            assert_eq!(
+                RegistryStore::parse(&serde_json::to_vec(&utility).unwrap()).unwrap(),
+                utility
+            );
+        }
+        let mut unknown = document(7);
+        unknown.tabs[0].kind = "browser".into();
+        assert!(RegistryStore::parse(&serde_json::to_vec(&unknown).unwrap()).is_err());
     }
 
     #[test]

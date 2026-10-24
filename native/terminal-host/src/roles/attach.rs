@@ -18,19 +18,21 @@ use crossterm::event::{
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use crate::core::attach::{
-    self as core_attach, Context, Effect, Hover, KeyForward, PopupItem, PopupMenu, RenameEditor,
-    Request, ServerEvent, ShortcutLabels, State, StripLayout, StripSnapshot, TabDrag, TabView,
-    debounce_starting_glyphs, drag_marker_column, hold_status_glyphs, holder_idle_precedes_bridge,
-    shown_tabs,
+    self as core_attach, Context, Effect, Hover, KeyForward, PlusMenu, PopupItem, PopupMenu,
+    RenameEditor, Request, ServerEvent, ShortcutLabels, State, StripLayout, StripSnapshot, TabDrag,
+    TabView, debounce_starting_glyphs, drag_marker_column, hold_status_glyphs,
+    holder_idle_precedes_bridge, shown_tabs,
 };
 use crate::endpoint;
 use crate::protocol::{
     self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, TerminalEffect, TerminalModes,
     Welcome,
 };
+use crate::roles::command_palette;
 use crate::roles::credentials::ProfileCredentials;
 use crate::roles::landing;
 use crate::roles::outer_input::{self, InputChannel, Outgoing};
+use crate::roles::owned_settings;
 #[cfg(test)]
 use crate::roles::presentation::Frame;
 use crate::roles::presentation::{
@@ -38,6 +40,7 @@ use crate::roles::presentation::{
     surface_is_blank,
 };
 use crate::roles::progress_observation::{self, ProgressMetadata};
+use crate::roles::reveal::Reveal;
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
 use crate::roles::terminal_output::TerminalOutput;
 use crate::roles::wire::{
@@ -64,11 +67,13 @@ const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
 
 /// The global tab declarations in the order that decides which action keeps a duplicated key;
 /// it mirrors the owned feature's declaration list, which the child projects and publishes.
-pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 18] = [
+pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 20] = [
     ("tabs.new", Some("alt+a")),
     ("tabs.close", Some("alt+w")),
     ("tabs.rename", Some("f2")),
     ("tabs.settings", Some("alt+,")),
+    ("tabs.changelog", None),
+    ("tabs.commands", Some("alt+/")),
     ("tabs.jump1", Some("alt+1")),
     ("tabs.jump2", Some("alt+2")),
     ("tabs.jump3", Some("alt+3")),
@@ -476,6 +481,7 @@ struct PresentationSettings {
     background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
+    plus_menu: PlusMenu,
 }
 
 impl Default for PresentationSettings {
@@ -486,6 +492,7 @@ impl Default for PresentationSettings {
             background_style: None,
             accent_hover: accent_selected_background(None),
             tab_bar_position: TabBarPosition::Top,
+            plus_menu: PlusMenu::default(),
         }
     }
 }
@@ -521,6 +528,11 @@ fn read_presentation_settings(path: &Path) -> PresentationSettings {
         tab_bar_position: TabBarPosition::from_setting(
             owned_settings
                 .get("tabsPosition")
+                .and_then(serde_json::Value::as_str),
+        ),
+        plus_menu: PlusMenu::from_setting(
+            owned_settings
+                .get("tabBarPlusMenu")
                 .and_then(serde_json::Value::as_str),
         ),
     }
@@ -631,6 +643,7 @@ struct TimeFormatWatch {
     background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
+    plus_menu: PlusMenu,
     checked_at: Instant,
 }
 
@@ -645,6 +658,7 @@ impl TimeFormatWatch {
             background_style: settings.background_style,
             accent_hover: settings.accent_hover,
             tab_bar_position: settings.tab_bar_position,
+            plus_menu: settings.plus_menu,
             checked_at: Instant::now(),
         }
     }
@@ -671,6 +685,7 @@ impl TimeFormatWatch {
         self.background_style = settings.background_style;
         self.accent_hover = settings.accent_hover;
         self.tab_bar_position = settings.tab_bar_position;
+        self.plus_menu = settings.plus_menu;
         changed
     }
 }
@@ -1404,11 +1419,7 @@ fn send_resize(
     )
 }
 
-/// How long the landing wordmark takes to wipe into the new Agent's caret, and its frame pace.
-const LANDING_WIPE: Duration = Duration::from_millis(180);
-const LANDING_WIPE_FRAME: Duration = Duration::from_millis(16);
 const RESIZE_SETTLE: Duration = Duration::from_millis(220);
-const RESIZE_FADE: Duration = Duration::from_millis(100);
 const RESIZE_RECOVERY: Duration = Duration::from_secs(1);
 
 /// Reads server frames on their own thread under the ingress byte budget, waking the main loop
@@ -1510,6 +1521,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     if let Some(list) = initial_tabs {
         client.install_tab_list(&mut core, list)?;
     }
+    core.plus_menu = client.time_format.plus_menu;
     loop {
         watchdog.bump();
         if let Some(error) = client.stream.failure() {
@@ -1656,83 +1668,6 @@ impl ResizeCurtain {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct ResizeFade {
-    until: Instant,
-}
-
-impl ResizeFade {
-    fn new(now: Instant) -> Self {
-        Self {
-            until: now.checked_add(RESIZE_FADE).unwrap_or(now),
-        }
-    }
-
-    fn complete(self, now: Instant) -> bool {
-        now >= self.until
-    }
-}
-
-fn force_faint_ansi(bytes: &[u8]) -> Vec<u8> {
-    if bytes.is_empty() {
-        return Vec::new();
-    }
-    let mut output = Vec::with_capacity(bytes.len() + 32);
-    output.extend_from_slice(b"\x1b[2m");
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if bytes.get(index..index + 2) != Some(b"\x1b[") {
-            output.push(bytes[index]);
-            index += 1;
-            continue;
-        }
-        let Some(offset) = bytes[index + 2..]
-            .iter()
-            .position(|byte| (0x40..=0x7e).contains(byte))
-        else {
-            output.extend_from_slice(&bytes[index..]);
-            break;
-        };
-        let end = index + 2 + offset;
-        output.extend_from_slice(&bytes[index..=end]);
-        if bytes[end] == b'm' {
-            // Protocol: every child or host SGR may change intensity. Reassert faint after it so
-            // resets, bold text, and explicit colors all remain inside the reveal treatment.
-            output.extend_from_slice(b"\x1b[2m");
-        }
-        index = end + 1;
-    }
-    output.extend_from_slice(b"\x1b[22m");
-    output
-}
-
-fn dim_presentation(mut desired: DesiredPresentation) -> DesiredPresentation {
-    if !desired.strip.is_empty() {
-        desired.strip = String::from_utf8(force_faint_ansi(desired.strip.as_bytes()))
-            .expect("host strip is utf-8");
-    }
-    if !desired.legacy_body.is_empty() {
-        desired.legacy_body = force_faint_ansi(&desired.legacy_body);
-    }
-    if let Some(surface) = desired.structured.as_mut() {
-        for style in &mut surface.styles {
-            style.faint = true;
-        }
-        desired.overlay = Some(desired.overlay.map_or_else(
-            || "\x1b[22m".to_owned(),
-            |overlay| {
-                String::from_utf8(force_faint_ansi(overlay.as_bytes()))
-                    .expect("host overlay is utf-8")
-            },
-        ));
-    } else if let Some(overlay) = desired.overlay.as_mut() {
-        *overlay =
-            String::from_utf8(force_faint_ansi(overlay.as_bytes())).expect("host overlay is utf-8");
-    }
-    desired.cursor = Some(FinalCursor::Hidden);
-    desired
-}
-
 fn changes_terminal_geometry(
     current_columns: u16,
     current_outer_rows: u16,
@@ -1781,6 +1716,7 @@ fn resize_curtain_presentation(
         outer_rows,
         child_row_offset: 1,
         clear: true,
+        dimmed: false,
     }
 }
 
@@ -1830,7 +1766,7 @@ fn should_paint_strip(has_surface: bool, has_shown_tabs: bool, notice: bool) -> 
 
 fn apply_owned_accent(tabs: &mut [StripTab], color: Option<&str>) {
     for tab in tabs {
-        if tab.id.starts_with("settings-") || tab.accent.is_none() {
+        if core_attach::is_utility_tab(&tab.id) || tab.accent.is_none() {
             tab.accent = color.map(str::to_owned);
         }
     }
@@ -1867,12 +1803,11 @@ struct Client {
     settings_file: PathBuf,
     /// The running a1 package version the landing header names, when the release records one.
     version: Option<String>,
-    /// When the landing began handing over to an Agent this client asked for.
-    landing_wipe: Option<Instant>,
     /// Rationale: resize presentation has two bounded host-owned phases: an opaque curtain while
     /// geometry settles, followed by a faint complete frame before normal intensity returns.
     resize_curtain: Option<ResizeCurtain>,
-    resize_fade: Option<ResizeFade>,
+    /// The fade in progress and the new tab whose content is veiled until its first frame.
+    reveal: Reveal,
 }
 
 impl Client {
@@ -1899,6 +1834,7 @@ impl Client {
             time_format
                 .tab_bar_position
                 .strip_terminal_row(handshake.outer_rows),
+            !time_format.plus_menu.is_empty(),
         );
         let client = Self {
             stream: AttachServerWriter::start(handshake.stream),
@@ -1930,9 +1866,8 @@ impl Client {
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
             version: read_release_version(Path::new(options.release_root)),
-            landing_wipe: None,
             resize_curtain: None,
-            resize_fade: None,
+            reveal: Reveal::default(),
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
         // surface before presenting that list and the body as one first frame.
@@ -1988,24 +1923,36 @@ impl Client {
                     }
                 }
                 Effect::Paint { clear } => self.paint(core, clear)?,
+                Effect::SavePlusMenu(menu) => self.save_plus_menu(core, menu),
                 forward => forwarded.push(forward),
             }
         }
         Ok(forwarded)
     }
 
-    fn send(&mut self, request: Request) -> Result<(), String> {
-        if request == Request::Create && self.landing_shown() {
-            self.landing_wipe = Some(Instant::now());
+    /// Stores the plus menu its dialog changed. A refused write restores the stored menu, so the
+    /// dialog and `+` never show a value the settings do not hold.
+    fn save_plus_menu(&mut self, core: &mut State, menu: PlusMenu) {
+        match owned_settings::write_plus_menu(&self.time_format.path, menu) {
+            Ok(()) => self.time_format.plus_menu = menu,
+            Err(error) => {
+                core.plus_menu = self.time_format.plus_menu;
+                core.notice = Some(format!("Plus menu not saved: {error}"));
+            }
         }
+    }
+
+    fn send(&mut self, request: Request) -> Result<(), String> {
         let stream = &mut self.stream;
         match request {
             Request::Create => wire::send(stream, "tab.create", None, self.create.clone()),
-            Request::OpenSettings => {
-                wire::send(stream, "tab.open-settings", None, self.create.clone())
+            Request::Open(kind) => {
+                let message = format!("tab.open-{}", kind.name());
+                wire::send(stream, &message, None, self.create.clone())
             }
-            Request::PrewarmSettings => {
-                wire::send(stream, "tab.prewarm-settings", None, self.create.clone())
+            Request::Prewarm(kind) => {
+                let message = format!("tab.prewarm-{}", kind.name());
+                wire::send(stream, &message, None, self.create.clone())
             }
             Request::Close(tab_id) => wire::send(stream, "tab.close", None, TabTarget { tab_id }),
             Request::Restart(tab_id) => {
@@ -2091,11 +2038,8 @@ impl Client {
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
         let rename = core.mode.rename().map(RenameEditor::display);
-        let mut shown = shown_tabs(
-            &self.tabs,
-            self.view.viewed.as_deref(),
-            core.view.settings_shown,
-        );
+        let active = self.view.viewed.clone();
+        let mut shown = shown_tabs(&self.tabs, active.as_deref(), core.view.shown());
         apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
@@ -2106,10 +2050,11 @@ impl Client {
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
         let drag = core.mode.drag().cloned();
+        let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
             let mut frame = strip::render_interactive_at(
                 &shown,
-                self.view.viewed.as_deref(),
+                active.as_deref(),
                 self.columns,
                 hovered,
                 self.time_format.value,
@@ -2117,6 +2062,7 @@ impl Client {
                 self.time_format
                     .tab_bar_position
                     .strip_terminal_row(self.outer_rows),
+                plus,
             );
             append_drag_marker(
                 &mut frame,
@@ -2140,8 +2086,8 @@ impl Client {
         }
         self.strip_frame = strip_frame;
         let overlay = self.overlay(core);
-        let landing = self.landing(core);
-        self.present(overlay, landing, clear)
+        let landing = self.landing();
+        self.present(overlay, landing, clear, core.mode.palette().is_some())
     }
 
     /// Invariant: the landing is the body only while no tab is viewed after tabs were shown, so a
@@ -2150,17 +2096,10 @@ impl Client {
         self.view.viewed.is_none() && self.has_shown_tabs
     }
 
-    fn landing(&self, core: &State) -> Option<Vec<u8>> {
+    fn landing(&self) -> Option<Vec<u8>> {
         if !self.landing_shown() {
             return None;
         }
-        // Invariant: the wipe runs only while the Agent it hands over to is starting; a refused
-        // creation restores the wordmark.
-        let creating = core.view.pending_created_activation || self.view.requested.is_some();
-        let wipe = self
-            .landing_wipe
-            .filter(|_| creating)
-            .map(|started| started.elapsed().as_secs_f32() / LANDING_WIPE.as_secs_f32());
         // Invariant: the footer resolves home from `HOME`, then `USERPROFILE`.
         let home = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
@@ -2174,7 +2113,6 @@ impl Client {
             truecolor: !palette_fallback_requested(),
             half_blocks: landing::half_blocks_supported(),
             cwd: &cwd,
-            wipe,
             background: landing::canvas_background(
                 self.time_format.background_style,
                 self.time_format.accent_color,
@@ -2190,7 +2128,20 @@ impl Client {
             .and_then(|id| self.tabs.iter().find(|tab| &tab.id == id))
             .filter(|tab| tab.status == "failed")
             .map(|_| "Tab failed · R retry · F start fresh · Alt+W close".to_owned());
-        if let Some(menu) = core.mode.popup() {
+        if let Some(palette) = core.mode.palette() {
+            Some(command_palette::render(
+                palette,
+                &self.bindings,
+                core.plus_menu,
+                self.columns,
+                self.outer_rows,
+                command_palette::PaletteStyle {
+                    truecolor: !palette_fallback_requested(),
+                    hover: self.time_format.accent_hover,
+                    accent: landing::accent_colors(self.time_format.accent_color).accent,
+                },
+            ))
+        } else if let Some(menu) = core.mode.popup() {
             Some(menu.render_styled_at(
                 !palette_fallback_requested(),
                 self.time_format.accent_hover,
@@ -2219,6 +2170,7 @@ impl Client {
         overlay: Option<String>,
         landing: Option<Vec<u8>>,
         clear: bool,
+        dimmed: bool,
     ) -> Result<(), String> {
         let child_surface = landing.is_none();
         let desired = DesiredPresentation {
@@ -2230,18 +2182,19 @@ impl Client {
             structured: self.presented.structured.clone().filter(|_| child_surface),
             legacy_body: landing.unwrap_or_else(|| self.presented.surface.clone()),
             overlay,
-            cursor: self.presented.cursor,
+            cursor: if dimmed {
+                Some(FinalCursor::Hidden)
+            } else {
+                self.presented.cursor
+            },
             modes: self.presented.modes.clone(),
             columns: self.columns,
             outer_rows: self.outer_rows,
             child_row_offset: self.time_format.tab_bar_position.child_row_offset(),
             clear,
+            dimmed,
         };
-        self.terminal.present(if self.resize_fade.is_some() {
-            dim_presentation(desired)
-        } else {
-            desired
-        })
+        self.terminal.present(self.reveal.present(desired))
     }
 
     fn apply_terminal_effect(&mut self, effect: &TerminalEffect) -> Result<(), String> {
@@ -2264,7 +2217,6 @@ impl Client {
         staged: Option<Vec<StripTab>>,
         requested: bool,
     ) -> Result<(), String> {
-        self.landing_wipe = None;
         if let Some(next) = staged {
             self.tabs = next;
         }
@@ -2339,6 +2291,9 @@ impl Client {
             "surface" => self.surface(core, payload)?,
             "terminal.effect" => self.terminal_effect(payload)?,
             "tab.list" => self.tab_list(core, payload)?,
+            "plus.configure" => {
+                self.run(core, core_attach::Event::Server(ServerEvent::ConfigurePlus))?;
+            }
             "detach" => {
                 core.exit();
                 wire::send(&mut self.stream, "detach", None, wire::ResultBody::ok())?;
@@ -2400,7 +2355,6 @@ impl Client {
                 let (_, target): (_, TabTarget) = wire::body(payload)?;
                 ServerEvent::Created {
                     tab_id: target.tab_id,
-                    created: message_type == "tab.created",
                 }
             }
             "tab.create-failed" | "tab.create-refused" => ServerEvent::CreateFailed {
@@ -2554,9 +2508,9 @@ impl Client {
                 .any(|tab| &tab.tab_id == id && &tab.name == name && tab.name_source == "user")
         });
         let next_tabs = self.registry_tabs(core, list.tabs);
-        // Invariant: a hidden Settings tab never surfaces by itself. When it is all that remains,
-        // it stays hidden and running beside the landing, so Settings opens without a start.
-        let settings_visible = core.settings_visible(self.view.viewed.as_deref());
+        // Invariant: a hidden utility tab never surfaces by itself. When only those remain, they
+        // stay hidden and running beside the landing, so they open without a start.
+        let utility_visible = core.utilities_visible(self.view.viewed.as_deref());
         if name_confirmed {
             core.pending_manual_name = None;
         }
@@ -2564,7 +2518,7 @@ impl Client {
             self.request_view(tab_id)?;
         }
         let outcome = self.view.topology(&self.tabs, next_tabs, |candidates| {
-            core.fallback_view(candidates, settings_visible)
+            core.fallback_view(candidates, utility_visible)
         });
         core.drop_request(outcome.dropped_request.as_deref());
         if let Some(tab_id) = outcome.view_request {
@@ -2649,7 +2603,7 @@ impl Client {
                 self.has_shown_tabs,
                 core.notice.is_some(),
             ) {
-                self.resize_fade = Some(ResizeFade::new(now));
+                self.reveal.fade_frame(now);
                 self.paint(core, true)?;
             } else {
                 let mut blank = resize_curtain_presentation(
@@ -2661,8 +2615,7 @@ impl Client {
                 self.terminal.present(blank)?;
             }
         }
-        if self.resize_fade.is_some_and(|fade| fade.complete(now)) {
-            self.resize_fade = None;
+        if self.reveal.finish(now) {
             self.paint(core, true)?;
         }
         if resumed {
@@ -2670,12 +2623,8 @@ impl Client {
             // the writer still considers them current. Overwrite the full cached frame once.
             self.paint(core, true)?;
         }
-        let wiping = self
-            .landing_wipe
-            .is_some_and(|started| started.elapsed() < LANDING_WIPE + LANDING_WIPE_FRAME);
-        if (strip::animations_active(&self.tabs)
-            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs))
-            || (wiping && self.last_strip_frame.elapsed() >= LANDING_WIPE_FRAME)
+        if strip::animations_active(&self.tabs)
+            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs)
         {
             self.paint(core, false)?;
             self.last_strip_frame = Instant::now();
@@ -2683,6 +2632,7 @@ impl Client {
         if self.time_format.refresh() {
             self.paint(core, false)?;
         }
+        core.plus_menu = self.time_format.plus_menu;
         // Invariant: A held glyph that no status replaced is released once its hold ends.
         if self.glyphs.expires.is_some_and(|until| self.now() >= until) {
             self.paint(core, false)?;
@@ -2812,7 +2762,12 @@ impl Client {
     fn detach(&mut self) -> Result<(), String> {
         // Invariant: a hidden Settings kept ready beside the landing leaves with this client, so no
         // Settings process outlives the last Agent or makes the next launch skip its first Agent.
-        if !self.tabs.is_empty() && self.tabs.iter().all(|tab| tab.id.starts_with("settings-")) {
+        if !self.tabs.is_empty()
+            && self
+                .tabs
+                .iter()
+                .all(|tab| core_attach::is_utility_tab(&tab.id))
+        {
             for tab_id in self
                 .tabs
                 .iter()
@@ -2917,7 +2872,7 @@ impl Client {
         self.columns = columns;
         self.create.columns = columns;
         self.create.rows = rows;
-        self.resize_fade = None;
+        self.reveal.fade = None;
         self.resize_curtain = Some(ResizeCurtain::new(
             Instant::now(),
             self.view.viewed.clone(),
@@ -3301,7 +3256,7 @@ impl Drop for OuterTerminal {
 /// Agents left running after a detach; the global Settings tab is not an agent.
 fn running_agent_count(tabs: &[StripTab]) -> usize {
     tabs.iter()
-        .filter(|tab| !tab.id.starts_with("settings-"))
+        .filter(|tab| !core_attach::is_utility_tab(&tab.id))
         .count()
 }
 
@@ -3543,54 +3498,6 @@ mod tests {
         assert!(bytes.contains("\x1b[13;34HResize 80 x 24"));
         assert!(bytes.contains("\x1b[?25l"));
         assert!(bytes.ends_with(std::str::from_utf8(END_SYNCHRONIZED_UPDATE).unwrap()));
-    }
-
-    #[test]
-    fn dimmed_resize_reveal_enforces_faint_and_hides_the_cursor() {
-        let ansi =
-            String::from_utf8(force_faint_ansi(b"\x1b[0mplain\x1b[38;2;1;2;3mcolored")).unwrap();
-        assert!(ansi.starts_with("\x1b[2m"));
-        assert!(ansi.contains("\x1b[0m\x1b[2mplain"));
-        assert!(ansi.contains("\x1b[38;2;1;2;3m\x1b[2mcolored"));
-        assert!(ansi.ends_with("\x1b[22m"));
-
-        let desired = DesiredPresentation {
-            tab_id: Some("tab-1".into()),
-            incarnation: 1,
-            revision: 2,
-            geometry_generation: 3,
-            strip: "\x1b[0mstrip".into(),
-            structured: Some(protocol::StructuredSurface {
-                styles: vec![protocol::SurfaceStyle::default()],
-                ..protocol::StructuredSurface::default()
-            }),
-            legacy_body: b"\x1b[0mlegacy".to_vec(),
-            overlay: Some("\x1b[0moverlay".into()),
-            cursor: Some(FinalCursor::At(protocol::SurfaceCursor {
-                column: 2,
-                row: 3,
-            })),
-            modes: None,
-            columns: 80,
-            outer_rows: 24,
-            child_row_offset: 1,
-            clear: true,
-        };
-        let dimmed = dim_presentation(desired);
-        assert!(dimmed.strip.contains("\x1b[0m\x1b[2mstrip"));
-        assert!(
-            String::from_utf8(dimmed.legacy_body)
-                .unwrap()
-                .contains("\x1b[2mlegacy")
-        );
-        assert!(dimmed.overlay.unwrap().contains("\x1b[2moverlay"));
-        assert!(dimmed.structured.unwrap().styles[0].faint);
-        assert_eq!(dimmed.cursor, Some(FinalCursor::Hidden));
-
-        let started = Instant::now();
-        let fade = ResizeFade::new(started);
-        assert!(!fade.complete(started + RESIZE_FADE - Duration::from_millis(1)));
-        assert!(fade.complete(started + RESIZE_FADE));
     }
 
     #[test]
@@ -4251,10 +4158,13 @@ mod tests {
         menu.resize(80);
         assert_eq!(menu.column + menu.width, 80);
 
-        let mut add = PopupMenu::add(0, 80, &bindings, false);
+        let mut add = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
         assert_eq!(add.action_at(add.column, 1), Some(PopupAction::NewAgent));
         assert_eq!(add.action_at(add.column, 2), None);
-        assert_eq!(add.action_at(add.column, 3), Some(PopupAction::Settings));
+        assert_eq!(
+            add.action_at(add.column, 3),
+            Some(PopupAction::Utility(core_attach::UtilityKind::Settings))
+        );
         add.move_hover(1);
         assert_eq!(add.hovered, Some(0));
         add.move_hover(1);
@@ -4263,7 +4173,7 @@ mod tests {
         assert!(add_rendered.contains("+ Agent"));
         assert!(add_rendered.contains("  Settings"));
         assert!(add_rendered.contains("Alt+,"));
-        let checked = PopupMenu::add(0, 80, &bindings, true);
+        let checked = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [true, false]);
         assert!(checked.render().contains("✓ Settings"));
         assert_eq!(checked.width, add.width);
         for rendered in [add.render_with_color(true), add.render_with_color(false)] {
@@ -4371,8 +4281,16 @@ mod tests {
                 .contains(&format!("\x1b[1;{}H", last_end + 1)),
             "a status-driven strip repaint retains unchanged drag feedback"
         );
-        let mut bottom =
-            strip::render_interactive_at(&tabs, Some("a"), 80, None, TimeFormat::Twelve, None, 24);
+        let mut bottom = strip::render_interactive_at(
+            &tabs,
+            Some("a"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            24,
+            true,
+        );
         append_drag_marker(&mut bottom, Some(&drag), &tabs, 80, 24);
         assert!(bottom.bytes.contains(&format!("\x1b[24;{}H", last_end + 1)));
         assert!(bottom.bytes.contains('│'));
@@ -4396,7 +4314,7 @@ mod tests {
         std::fs::write(&file, br#"{"a1":{"accentColor":"cyan"}}"#).unwrap();
         assert_eq!(read_accent_hover(&file), [48, 60, 61]);
         let bindings = TabBindings::load(profile.path());
-        let mut menu = PopupMenu::add(0, 80, &bindings, false);
+        let mut menu = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
         menu.hovered = Some(0);
         let rendered = menu.render_styled(true, read_accent_hover(&file));
         assert!(rendered.contains("\x1b[48;2;48;60;61m"));
@@ -4462,13 +4380,14 @@ mod tests {
 
         std::fs::write(
             &file,
-            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom"}}"#,
+            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom","tabBarPlusMenu":"agent,settings,changelog"}}"#,
         )
         .unwrap();
         watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
         assert!(watch.refresh());
         assert_eq!(watch.tab_bar_position, TabBarPosition::Bottom);
         assert_eq!(read_tab_bar_position(&file), TabBarPosition::Bottom);
+        assert_eq!(watch.plus_menu, PlusMenu::ALL);
 
         std::fs::write(
             &file,
@@ -4494,6 +4413,10 @@ mod tests {
         assert_eq!(watch.accent_color, None);
         assert_eq!(watch.accent_hover, accent_selected_background(None));
         assert_eq!(watch.tab_bar_position, TabBarPosition::Top);
+        assert!(
+            watch.plus_menu.agent_only(),
+            "an absent plus menu adds nothing to Agent"
+        );
 
         std::fs::write(&file, b"not json").unwrap();
         assert_eq!(

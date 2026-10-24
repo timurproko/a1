@@ -63,20 +63,21 @@ export function buildOwnedUiSettingsSections(
   for (const setting of input.resolution.settings) {
     const section = setting.declaration.section ?? { id: "a1", title: "A1" };
     const group = grouped.get(section.id) ?? { title: section.title, entries: [] };
+    const flagged = setting.declaration.flags;
     group.entries.push({
       id: setting.declaration.id,
       label: setting.declaration.label ?? null,
       backend: "a1",
       description: setting.declaration.description,
       value: setting.value,
-      rawValue: setting.value,
+      rawValue: flagged === undefined ? setting.value : flagRecord(flagged, setting.value),
       storedValue: setting.value,
       effectiveValue: setting.value,
       editable: true,
-      structured: false,
+      structured: flagged !== undefined,
       minimum: null,
       maximum: null,
-      flags: [],
+      flags: flagged?.map(flag => ({ ...flag, fallback: false })) ?? [],
       choices: setting.declaration.allowedValues,
       origin: setting.source,
       application: setting.declaration.application === "restart" ? "next-start" : "live",
@@ -102,6 +103,12 @@ export function buildOwnedUiSettingsSections(
     readOnlyReason: null,
   };
   return Object.freeze([...ownedSections, combinedAgent]);
+}
+
+/** The enabled parts a flagged A1 setting's comma-separated value names, as the record its dialog edits. */
+export function flagRecord(flags: readonly { readonly key: string }[], value: unknown): Record<string, boolean> {
+  const enabled = new Set(typeof value === "string" ? value.split(",") : []);
+  return Object.fromEntries(flags.map(flag => [flag.key, enabled.has(flag.key)]));
 }
 
 export function findOwnedUiSettingsEntry(

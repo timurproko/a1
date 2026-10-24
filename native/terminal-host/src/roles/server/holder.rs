@@ -3,12 +3,12 @@ use super::*;
 pub(super) fn insert_new_tab(registry: &mut RegistryDocument, tab: TabRecord) {
     // Invariant: newly created Agent tabs precede a trailing Settings tab by default; a
     // Settings tab the user dragged elsewhere keeps its durable position.
-    let at = if !is_settings_tab_id(&tab.tab_id)
+    let at = if !is_utility_tab_id(&tab.tab_id)
         && let Some(last_live) = registry
             .tabs
             .iter()
             .rposition(|last| last.desired != "stopped")
-        && is_settings_tab_id(&registry.tabs[last_live].tab_id)
+        && is_utility_tab_id(&registry.tabs[last_live].tab_id)
     {
         // Invariant: stopped records can trail a hidden Settings tab. They must not make
         // newly created Agents appear after Settings when it is opened later.
@@ -70,11 +70,7 @@ pub(super) fn start_holder(
             .credentials
             .derive("bridge", &tab_id, incarnation)
             .to_vec();
-        let display_name = if is_settings_tab_id(&tab_id) {
-            "Settings".into()
-        } else {
-            DEFAULT_AGENT_TAB_NAME.to_owned()
-        };
+        let display_name = utility_kind(&tab_id).map_or(DEFAULT_AGENT_TAB_NAME, |(_, title)| title);
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -87,15 +83,12 @@ pub(super) fn start_holder(
             &mut locked.registry,
             TabRecord {
                 tab_id: tab_id.clone(),
-                kind: if is_settings_tab_id(&tab_id) {
-                    "settings"
-                } else {
-                    "agent"
-                }
-                .into(),
+                kind: utility_kind(&tab_id)
+                    .map_or("agent", |(kind, _)| kind)
+                    .into(),
                 created_at,
-                display_name,
-                name_source: if is_settings_tab_id(&tab_id) {
+                display_name: display_name.into(),
+                name_source: if is_utility_tab_id(&tab_id) {
                     "system"
                 } else {
                     "default"

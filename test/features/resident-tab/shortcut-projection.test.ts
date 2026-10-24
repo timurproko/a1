@@ -23,7 +23,7 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
 describe("resident tab shortcut projection", () => {
   it("covers every global declaration in declaration order", () => {
     expect(RESIDENT_TAB_GLOBAL_SHORTCUTS.map(shortcut => shortcut.id)).toEqual([
-      "tabs.new", "tabs.close", "tabs.rename", "tabs.settings",
+      "tabs.new", "tabs.close", "tabs.rename", "tabs.settings", "tabs.changelog", "tabs.commands",
       ...Array.from({ length: 10 }, (_, index) => `tabs.jump${index + 1}`),
       "tabs.next", "tabs.previous", "tabs.moveRight", "tabs.moveLeft",
     ]);

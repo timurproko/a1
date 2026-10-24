@@ -645,8 +645,9 @@ pub(super) fn reorder_registry(
     true
 }
 
-/// Restores Settings to the last live slot on an explicit open, not while prewarming or dragging.
-pub(super) fn move_settings_last(registry: &mut RegistryDocument, tab_id: &str) -> bool {
+/// Places a utility tab in the last live slot on an explicit open, not while prewarming or
+/// dragging, so every utility tab opens last.
+pub(super) fn move_utility_last(registry: &mut RegistryDocument, tab_id: &str) -> bool {
     let last = registry
         .tabs
         .iter()
@@ -813,7 +814,7 @@ pub(super) fn handle_lifecycle(
         "tab.rename" => {
             let (_, rename): (_, wire::TabRename) = wire::body(payload)?;
             let name = rename.name.trim();
-            let valid = !is_settings_tab_id(&rename.tab_id)
+            let valid = !is_utility_tab_id(&rename.tab_id)
                 && !name.is_empty()
                 && name.chars().count() <= 64
                 && !name.chars().any(char::is_control);

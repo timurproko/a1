@@ -9,8 +9,10 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 mod machine;
+mod palette;
 
 pub use machine::*;
+pub use palette::*;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyCode {
@@ -204,7 +206,84 @@ pub fn rejection_notice(user_input_pending: &mut bool, message: Option<String>) 
 pub enum PopupKind {
     Context,
     Add,
+    /// The right-click menu on `+`.
+    Configure,
     Overflow,
+}
+
+/// The tab kinds the strip's `+` offers, read from the owned `tabBarPlusMenu` setting: Agent and
+/// every utility kind, comma-joined in that order. With none, the strip hides `+`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlusMenu {
+    pub agent: bool,
+    /// Whether each utility kind is offered, by kind.
+    pub utilities: [bool; 2],
+}
+
+impl Default for PlusMenu {
+    fn default() -> Self {
+        Self::from_setting(None)
+    }
+}
+
+impl PlusMenu {
+    pub const ALL: Self = Self {
+        agent: true,
+        utilities: [true; 2],
+    };
+
+    /// The kinds the setting names; an absent or non-text value offers Agent alone.
+    pub fn from_setting(value: Option<&str>) -> Self {
+        let Some(value) = value else {
+            return Self {
+                agent: true,
+                utilities: [false; 2],
+            };
+        };
+        let has = |name: &str| value.split(',').any(|kind| kind.trim() == name);
+        Self {
+            agent: has("agent"),
+            utilities: UtilityKind::ALL.map(|kind| has(kind.name())),
+        }
+    }
+
+    /// With Agent alone, `+` creates an Agent without a menu.
+    pub fn agent_only(self) -> bool {
+        self.agent && !self.utilities.contains(&true)
+    }
+
+    pub fn is_empty(self) -> bool {
+        !self.agent && !self.utilities.contains(&true)
+    }
+
+    pub fn enabled(self, kind: &str) -> bool {
+        match UtilityKind::from_name(kind) {
+            Some(utility) => self.utilities[utility.index()],
+            None => kind == "agent" && self.agent,
+        }
+    }
+
+    pub fn toggle(&mut self, kind: &str) {
+        match UtilityKind::from_name(kind) {
+            Some(utility) => self.utilities[utility.index()] ^= true,
+            None if kind == "agent" => self.agent ^= true,
+            None => {}
+        }
+    }
+
+    /// The setting's value: the enabled kinds, comma-joined in kind order.
+    pub fn to_setting(self) -> String {
+        let agent = self.agent.then_some("agent");
+        let utilities = UtilityKind::ALL
+            .into_iter()
+            .filter(|kind| self.utilities[kind.index()])
+            .map(UtilityKind::name);
+        agent
+            .into_iter()
+            .chain(utilities)
+            .collect::<Vec<_>>()
+            .join(",")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -212,7 +291,10 @@ pub enum PopupAction {
     Close,
     Rename,
     NewAgent,
-    Settings,
+    /// Toggles a utility tab, as its shortcut does.
+    Utility(UtilityKind),
+    /// Opens the plus-menu dialog in the Settings tab.
+    ConfigurePlus,
     View(String),
 }
 
@@ -280,7 +362,7 @@ impl PopupMenu {
             shortcuts.label("tabs.close"),
             PopupAction::Close,
         )];
-        if !tab_id.starts_with("settings-") {
+        if !is_utility_tab(&tab_id) {
             items.push(PopupItem::action(
                 "Rename",
                 shortcuts.label("tabs.rename"),
@@ -294,32 +376,42 @@ impl PopupMenu {
         column: u16,
         columns: u16,
         shortcuts: &(impl ShortcutLabels + ?Sized),
-        settings_shown: bool,
+        plus: PlusMenu,
+        shown: [bool; 2],
     ) -> Self {
-        Self::new(
-            PopupKind::Add,
-            None,
-            column,
-            columns,
-            vec![
-                PopupItem::action(
-                    "+ Agent",
-                    shortcuts.label("tabs.new"),
-                    PopupAction::NewAgent,
-                ),
-                PopupItem::separator(),
-                // Invariant: labels align after the `+ ` marker, so Settings starts under Agent.
-                PopupItem::action(
-                    if settings_shown {
-                        "✓ Settings"
-                    } else {
-                        "  Settings"
-                    },
-                    shortcuts.label("tabs.settings"),
-                    PopupAction::Settings,
-                ),
-            ],
-        )
+        let mut items = Vec::new();
+        if plus.agent {
+            items.push(PopupItem::action(
+                "+ Agent",
+                shortcuts.label("tabs.new"),
+                PopupAction::NewAgent,
+            ));
+            if plus.utilities.contains(&true) {
+                items.push(PopupItem::separator());
+            }
+        }
+        // Invariant: labels align after the `+ ` marker, so the utility kinds start under Agent.
+        for kind in UtilityKind::ALL {
+            if plus.utilities[kind.index()] {
+                let marker = if shown[kind.index()] { "✓" } else { " " };
+                items.push(PopupItem::action(
+                    format!("{marker} {}", kind.label()),
+                    shortcuts.label(kind.action()),
+                    PopupAction::Utility(kind),
+                ));
+            }
+        }
+        Self::new(PopupKind::Add, None, column, columns, items)
+    }
+
+    /// The right-click menu on `+`: one row that opens the plus-menu dialog.
+    pub fn configure(column: u16, columns: u16) -> Self {
+        let items = vec![PopupItem::action(
+            "Configure",
+            String::new(),
+            PopupAction::ConfigurePlus,
+        )];
+        Self::new(PopupKind::Configure, None, column, columns, items)
     }
 
     pub fn overflow<T: TabView>(
@@ -779,22 +871,89 @@ pub fn drag_marker_column<T: TabView>(drag: &TabDrag, tabs: &[T]) -> Option<u16>
     }
 }
 
-/// The viewed Settings tab is the close target when its shortcut toggles it off.
-pub fn settings_toggle_closes(viewed: Option<&str>) -> Option<&str> {
-    viewed.filter(|id| id.starts_with("settings-"))
+/// A singleton utility tab kind. The tab bar owns every utility tab rule: its toggle reveals the
+/// one tab through the server, which starts it or places the running one last, and hides it
+/// again; the client keeps it prewarmed and hidden; it never takes the view when another tab
+/// closes; and it is closed but never renamed and never counts as an Agent. A new kind is only an
+/// entry here, the matching `View` field, and the server's kind table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UtilityKind {
+    Settings,
+    Changelog,
 }
 
-/// The tabs the strip, jumps, and drags present. A running Settings tab stays hidden until it is
-/// viewed in this session, and after the Settings shortcut hides it, so its process can be reused
-/// instantly instead of starting a new one.
+impl UtilityKind {
+    /// Every kind, in prewarm order: a kind starts prewarming once the one before it runs.
+    pub const ALL: [Self; 2] = [Self::Settings, Self::Changelog];
+
+    /// The kind's tab id stem, route, and wire message suffix.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Settings => "settings",
+            Self::Changelog => "changelog",
+        }
+    }
+
+    /// The kind's tab title and menu label.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Settings => "Settings",
+            Self::Changelog => "Changelog",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.name() == name)
+    }
+
+    /// The shortcut action that toggles the kind's tab.
+    pub fn action(self) -> &'static str {
+        match self {
+            Self::Settings => "tabs.settings",
+            Self::Changelog => "tabs.changelog",
+        }
+    }
+
+    /// The kind of a utility tab id, `<name>-…`, or `None` for an Agent.
+    pub fn of(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| {
+            id.strip_prefix(kind.name())
+                .is_some_and(|rest| rest.starts_with('-'))
+        })
+    }
+
+    pub fn from_action(action: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.action() == action)
+    }
+
+    pub fn index(self) -> usize {
+        self as usize
+    }
+}
+
+/// Invariant: singleton utility tabs are never Agents: they are closed but not renamed, own no
+/// session, and never count as running Agents.
+pub fn is_utility_tab(id: &str) -> bool {
+    UtilityKind::of(id).is_some()
+}
+
+/// The viewed tab of `kind`, which its toggle hides.
+pub fn utility_toggle_closes(viewed: Option<&str>, kind: UtilityKind) -> Option<&str> {
+    viewed.filter(|id| UtilityKind::of(id) == Some(kind))
+}
+
+/// The tabs the strip, jumps, and drags present. A running utility tab stays hidden until it is
+/// viewed in this session, and again after its toggle hides it, so its process can be reused
+/// instantly instead of starting a new one. `shown` holds, by kind, whether each is shown.
 pub fn shown_tabs<T: TabView + Clone>(
     tabs: &[T],
     viewed: Option<&str>,
-    settings_shown: bool,
+    shown: [bool; 2],
 ) -> Vec<T> {
     tabs.iter()
         .filter(|tab| {
-            !tab.id().starts_with("settings-") || settings_shown || viewed == Some(tab.id())
+            let id = tab.id();
+            UtilityKind::of(id).is_none_or(|kind| shown[kind.index()]) || viewed == Some(id)
         })
         .cloned()
         .collect()
@@ -1212,20 +1371,20 @@ mod tests {
         let tabs = vec![tab("tab-1"), tab("settings-1"), tab("tab-2")];
         let ids = |shown: Vec<AttachTab>| shown.into_iter().map(|tab| tab.id).collect::<Vec<_>>();
         assert_eq!(
-            ids(shown_tabs(&tabs, Some("tab-1"), false)),
+            ids(shown_tabs(&tabs, Some("tab-1"), [false; 2])),
             ["tab-1", "tab-2"]
         );
         assert_eq!(
-            ids(shown_tabs(&tabs, Some("settings-1"), false)),
+            ids(shown_tabs(&tabs, Some("settings-1"), [false; 2])),
             ["tab-1", "settings-1", "tab-2"]
         );
         assert_eq!(
-            ids(shown_tabs(&tabs, Some("tab-2"), true)),
+            ids(shown_tabs(&tabs, Some("tab-2"), [true, false])),
             ["tab-1", "settings-1", "tab-2"]
         );
 
         // Invariant: A drop among shown tabs maps to the registry position the server reorders by.
-        let shown = shown_tabs(&tabs, Some("tab-1"), false);
+        let shown = shown_tabs(&tabs, Some("tab-1"), [false; 2]);
         assert_eq!(registry_index(&shown, &tabs, 0), 0);
         assert_eq!(registry_index(&shown, &tabs, 1), 2);
         assert_eq!(registry_index(&shown, &tabs, 2), 3);
@@ -1234,11 +1393,24 @@ mod tests {
     #[test]
     fn settings_shortcut_toggles_the_viewed_settings_tab() {
         assert_eq!(
-            settings_toggle_closes(Some("settings-1a")),
+            utility_toggle_closes(Some("settings-1a"), UtilityKind::Settings),
             Some("settings-1a")
         );
-        assert_eq!(settings_toggle_closes(Some("tab-1")), None);
-        assert_eq!(settings_toggle_closes(None), None);
+        assert_eq!(
+            utility_toggle_closes(Some("tab-1"), UtilityKind::Settings),
+            None
+        );
+        assert_eq!(
+            utility_toggle_closes(Some("changelog-1"), UtilityKind::Settings),
+            None
+        );
+        assert_eq!(utility_toggle_closes(None, UtilityKind::Changelog), None);
+        assert_eq!(UtilityKind::of("settingsx-1"), None);
+        assert_eq!(UtilityKind::of("changelog-1"), Some(UtilityKind::Changelog));
+        assert_eq!(
+            UtilityKind::from_action("tabs.settings"),
+            Some(UtilityKind::Settings)
+        );
     }
 
     #[test]
