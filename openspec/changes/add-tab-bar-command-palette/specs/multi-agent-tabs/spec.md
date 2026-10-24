@@ -31,11 +31,19 @@ A1 SHALL offer `Agent`, a multi-instance kind whose every invocation creates a n
 - **THEN** the strip SHALL no longer show `+`, and the Settings `Plus menu` entry SHALL still open the dialog
 
 ### Requirement: New content enters through one reveal
-The attach client SHALL reveal new content through one shared reveal: content first draws faint for one fade interval and then at full intensity, with the same interval and faint treatment for every use. Its scope SHALL decide what fades: after a resize the whole frame, the strip included, fades in; for a newly created tab only the content fades in. A newly created tab SHALL appear in the strip as the active tab at once, before the registry lists it, while the content area stays empty; once the tab's first frame commits, its content SHALL fade in and the strip SHALL stay at full intensity throughout. A tab created from the landing SHALL keep the landing's wipe instead.
+The attach client SHALL reveal new content through one shared reveal: content first draws faint for one fade interval and then at full intensity, with the same interval and faint treatment for every use. Its scope SHALL decide what fades: after a resize the whole frame, the strip included, fades in and the cursor stays hidden; for a tab that joins the strip only the content fades in and the child's cursor stays shown. A tab joins the strip when the server creates or reveals it for the client while the strip does not show it, whether a new Agent or a hidden Settings or Changelog tab. It SHALL appear in the strip as the active tab at once, before the registry lists it, while the content area stays empty; once the tab's first frame commits, its content SHALL fade in and the strip SHALL stay at full intensity throughout. Switching to a tab the strip already shows SHALL NOT fade. A tab created from the landing SHALL keep the landing body for its wipe, in which the wordmark, the cwd, and the version all wipe away from the right until only the white caret cell remains, and its content SHALL then fade in like any other joining tab.
 
 #### Scenario: A new tab fades in
 - **WHEN** the user creates an Agent beside another tab
 - **THEN** the strip SHALL show the new tab as active at once over an empty content area, and its content SHALL draw faint when its first frame commits and then at full intensity
+
+#### Scenario: A revealed utility tab fades in
+- **WHEN** the user opens a hidden Settings or Changelog tab
+- **THEN** it SHALL join the strip at once over an empty content area and its content SHALL fade in
+
+#### Scenario: The first tab from the landing
+- **WHEN** the user adds a tab from the landing
+- **THEN** the wordmark, cwd, and version SHALL wipe away leaving the caret cell, and the Agent's content SHALL fade in with its caret shown throughout
 
 #### Scenario: Resize and a new tab share the fade
 - **WHEN** a resize reveal and a new tab's reveal each run
