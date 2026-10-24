@@ -10,7 +10,11 @@ Build the popup from the current strip frame's hidden IDs, in tab order. Remove 
 
 ### Preserve narrow-strip geometry
 
-Retain the existing width allocation, no-wrap behavior, viewed-chip priority when feasible, trailing `+`, single-column `…` glyph, and strip muted foreground. For a hidden-tab selection, reserve its chip in the position occupied by the previously viewed chip when the previous chip was drawn and both cannot fit. Prefer retaining all other drawn chips; if a resize or minimum width prevents that, retain the viewed chip where feasible and use the existing geometry fallback. Do not reorder the registry or alter the global tab sequence to achieve a client-local visible-chip swap. Test very narrow widths explicitly rather than assuming a chip always fits.
+Retain the existing width allocation, no-wrap behavior, viewed-chip priority when feasible, trailing `+`, single-column `…` glyph, and strip muted foreground. For a hidden-tab selection, reserve its chip in the position occupied by the previously viewed chip when the previous chip was drawn and both cannot fit. While the view request is pending, treat the requested tab as strip-active so the old viewed chip does not temporarily return to that slot. Settle any auto-name animation already in progress on the newly revealed tab; later automatic renames still use normal behavior. Keep the body/surface view commit gate unchanged and do not repaint unaffected chip slots as another tab. Prefer retaining all other drawn chips; if a resize or minimum width prevents that, retain the viewed chip where feasible and use the existing geometry fallback. Do not reorder the registry or alter the global tab sequence to achieve a client-local visible-chip swap. Test very narrow widths explicitly rather than assuming a chip always fits.
+
+### Jump to displayed chips only
+
+Resolve Alt+number against the current painted strip hit ranges in left-to-right order, not the registry's tab index. If N exceeds the number of drawn chips, do nothing; do not arm a pending jump for a future registry snapshot. Keep next/previous shortcuts able to traverse every shown tab, including ones currently in the popup. Keep drag and popup actions bound to stable tab IDs.
 
 ### Map bottom popup clicks to visual rows
 
@@ -22,8 +26,8 @@ Use one Unicode ellipsis cell in the semantic dim role in both A1 footer path an
 
 ## Verification approach for implementation
 
-Add focused Rust popup/strip/attach tests for hidden-only ordered rows without checkmarks, their reserved icon slot and live glyph/color, replacing a previously viewed visible chip while retaining other chips when possible, row-count and hover refresh, resize and reorder transitions, named bottom-row click identity, removal, and extreme widths. Add focused TypeScript footer tests for both path and usage single-cell dim markers, model retention at constrained widths, adjacent ANSI style boundaries, tiny widths, ordinary-width unchanged behavior, and linked PR badges. Run only the touched tests and typecheck locally before pushing; CI owns full validation after implementation readiness.
+Add focused Rust popup/strip/attach tests for hidden-only ordered rows without checkmarks, their reserved icon slot and live glyph/color, replacing a previously viewed visible chip while retaining other chips when possible, no intermediate old-chip flash during a pending request, visible-only Alt+number after swap/resize/reorder, row-count and hover refresh, named bottom-row click identity, removal, and extreme widths. Add focused TypeScript footer tests for both path and usage single-cell dim markers, model retention at constrained widths, adjacent ANSI style boundaries, tiny widths, ordinary-width unchanged behavior, and linked PR badges. Run only the touched tests and typecheck locally before pushing; CI owns full validation after implementation readiness.
 
 ## Scope boundaries
 
-No tab visibility setting, pinning, new menu-opening shortcut, active-tab marker, new glyph design, global footer redesign, or change to Windows Terminal chrome is included. The swap affects only the resident A1 strip; it does not reorder tabs in the shared registry.
+No auto-naming behavior change, tab visibility setting, pinning, new menu-opening shortcut, active-tab marker, new glyph design, global footer redesign, or change to Windows Terminal chrome is included. The swap affects only the resident A1 strip; it does not reorder tabs in the shared registry.
