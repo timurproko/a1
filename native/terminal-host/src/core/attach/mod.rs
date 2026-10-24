@@ -168,6 +168,9 @@ pub trait TabView {
     fn id(&self) -> &str;
     fn name(&self) -> &str;
     fn status(&self) -> &str;
+    fn accent(&self) -> Option<&str> {
+        None
+    }
     fn set_status(&mut self, status: String);
 }
 
@@ -302,6 +305,8 @@ pub enum PopupAction {
 pub struct PopupItem {
     pub label: String,
     pub shortcut: String,
+    pub icon_status: Option<String>,
+    pub icon_accent: Option<String>,
     pub action: Option<PopupAction>,
     pub separator: bool,
 }
@@ -311,6 +316,8 @@ impl PopupItem {
         Self {
             label: label.into(),
             shortcut,
+            icon_status: None,
+            icon_accent: None,
             action: Some(action),
             separator: false,
         }
@@ -320,6 +327,8 @@ impl PopupItem {
         Self {
             label: String::new(),
             shortcut: String::new(),
+            icon_status: None,
+            icon_accent: None,
             action: None,
             separator: true,
         }
@@ -330,6 +339,7 @@ impl PopupItem {
             8
         } else {
             UnicodeWidthStr::width(self.label.as_str())
+                + if self.icon_status.is_some() { 2 } else { 0 }
                 + if self.shortcut.is_empty() {
                     0
                 } else {
@@ -419,18 +429,19 @@ impl PopupMenu {
         columns: u16,
         hidden_tabs: &[String],
         tabs: &[T],
-        viewed: Option<&str>,
     ) -> Self {
-        let items = hidden_tabs
+        let items = tabs
             .iter()
-            .filter_map(|id| tabs.iter().find(|tab| tab.id() == id))
+            .filter(|tab| hidden_tabs.iter().any(|id| id == tab.id()))
             .map(|tab| {
-                let marker = if viewed == Some(tab.id()) { "✓" } else { " " };
-                PopupItem::action(
-                    format!("{marker} {}", tab.name()),
+                let mut item = PopupItem::action(
+                    tab.name(),
                     String::new(),
                     PopupAction::View(tab.id().to_owned()),
-                )
+                );
+                item.icon_status = Some(tab.status().to_owned());
+                item.icon_accent = tab.accent().map(str::to_owned);
+                item
             })
             .collect();
         Self::new(PopupKind::Overflow, None, column, columns, items)
