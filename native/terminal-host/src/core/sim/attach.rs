@@ -389,9 +389,9 @@ impl Run<'_> {
             .as_deref()
             .is_some_and(|id| !self.model.listed(id))
         {
-            let settings_visible = self.state.settings_visible(self.model.viewed.as_deref());
+            let visible = self.state.utility_visible(self.model.viewed.as_deref());
             self.model.viewed = None;
-            self.model.requested = self.state.fallback_view(&self.model.tabs, settings_visible);
+            self.model.requested = self.state.fallback_view(&self.model.tabs, visible);
         }
         if presented(&self.state) != before && !changed && !self.model.tabs.is_empty() {
             return self.fail("an unchanged registry altered the interaction state");

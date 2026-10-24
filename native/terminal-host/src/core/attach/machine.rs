@@ -1251,6 +1251,14 @@ impl State {
         self.view.settings.shown || viewed.is_some_and(is_settings)
     }
 
+    /// Whether Settings and Changelog are visible: shown in the strip or viewed now.
+    pub fn utility_visible(&self, viewed: Option<&str>) -> (bool, bool) {
+        (
+            self.settings_visible(viewed),
+            self.view.changelog.shown || viewed.is_some_and(|id| id.starts_with("changelog-")),
+        )
+    }
+
     /// Resolves a jump that waited for a registry snapshot; returns the tab to view.
     pub fn resolve_pending_jump<T: TabView>(
         &mut self,
@@ -1270,19 +1278,19 @@ impl State {
         None
     }
 
-    /// The tab to view when the viewed tab leaves the registry.
-    pub fn fallback_view<T: TabView>(
+    /// The tab to view when the viewed tab leaves the registry. Invariant: a hidden utility tab,
+    /// Settings or Changelog, never surfaces by itself; `visible` is `utility_visible`.
+    pub fn fallback_view<T: TabView + Clone>(
         &self,
         candidates: &[T],
-        settings_visible: bool,
+        visible: (bool, bool),
     ) -> Option<String> {
         self.close_fallback
             .as_ref()
             .and_then(|fallback| fallback.resolve(candidates))
             .or_else(|| {
-                candidates
-                    .iter()
-                    .find(|tab| settings_visible || !is_settings(tab.id()))
+                shown_tabs(candidates, None, visible)
+                    .first()
                     .map(|tab| tab.id().to_owned())
             })
     }
@@ -2495,18 +2503,27 @@ mod tests {
 
         state.close_fallback = close_fallback_for(&[tab("a"), tab("b")], Some("a"), "a");
         assert_eq!(
-            state.fallback_view(&[tab("b"), tab("settings-1")], false),
+            state.fallback_view(&[tab("b"), tab("settings-1")], (false, false)),
             Some("b".into())
         );
         state.installed::<AttachTab>(&[], false);
         assert!(state.close_fallback.is_none());
         assert_eq!(
-            state.fallback_view(&[tab("settings-1"), tab("c")], false),
+            state.fallback_view(&[tab("settings-1"), tab("c")], (false, false)),
             Some("c".into())
         );
         assert_eq!(
-            state.fallback_view(&[tab("settings-1"), tab("c")], true),
+            state.fallback_view(&[tab("settings-1"), tab("c")], (true, false)),
             Some("settings-1".into())
+        );
+        assert_eq!(
+            state.fallback_view(&[tab("settings-1"), tab("changelog-2")], (false, false)),
+            None,
+            "closing the last Agent never views a hidden utility tab"
+        );
+        assert_eq!(
+            state.fallback_view(&[tab("changelog-2"), tab("c")], (false, true)),
+            Some("changelog-2".into())
         );
         state.route_input(Some("x"), vec![vec![1]]);
         state.user_input_pending = true;

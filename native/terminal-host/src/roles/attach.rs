@@ -2385,9 +2385,9 @@ impl Client {
                 .any(|tab| &tab.tab_id == id && &tab.name == name && tab.name_source == "user")
         });
         let next_tabs = self.registry_tabs(core, list.tabs);
-        // Invariant: a hidden Settings tab never surfaces by itself. When it is all that remains,
-        // it stays hidden and running beside the landing, so Settings opens without a start.
-        let settings_visible = core.settings_visible(self.view.viewed.as_deref());
+        // Invariant: a hidden utility tab never surfaces by itself. When only those remain, they
+        // stay hidden and running beside the landing, so they open without a start.
+        let utility_visible = core.utility_visible(self.view.viewed.as_deref());
         if name_confirmed {
             core.pending_manual_name = None;
         }
@@ -2395,7 +2395,7 @@ impl Client {
             self.request_view(tab_id)?;
         }
         let outcome = self.view.topology(&self.tabs, next_tabs, |candidates| {
-            core.fallback_view(candidates, settings_visible)
+            core.fallback_view(candidates, utility_visible)
         });
         core.drop_request(outcome.dropped_request.as_deref());
         if let Some(tab_id) = outcome.view_request {
