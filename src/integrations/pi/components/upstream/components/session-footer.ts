@@ -6,8 +6,10 @@
  * thinking-level name, renders its repository-context path, and reserves its linked pull-request badge
  * before path truncation while preserving the remaining footer layout and formatting; replacement
  * surfaces may suppress a thinking level they already present; a resident tab whose chip already shows
- * the session name may suppress its path-row suffix.
- * Deviations: owned-status-level-color, owned-pull-request-badge, owned-resident-session-name.
+ * the session name may suppress its path-row suffix; narrow A1 usage text uses a dim one-cell
+ * truncation marker instead of the upstream three-dot suffix.
+ * Deviations: owned-status-level-color, owned-pull-request-badge, owned-resident-session-name,
+ * owned-footer-ellipsis.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { hyperlink, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
@@ -80,7 +82,10 @@ export class SessionFooter implements Component {
 
     let left = parts.join(" ");
     let leftWidth = visibleWidth(left);
-    if (leftWidth > width) { left = truncateToWidth(left, width, "..."); leftWidth = visibleWidth(left); }
+    if (leftWidth > width) {
+      left = truncateToWidth(left, width, this.profile === "a1" ? theme.fg("dim", "…") : "...");
+      leftWidth = visibleWidth(left);
+    }
 
     const modelName = view.activeModel?.modelId ?? "no-model";
     let rightWithoutProvider = this.profile === "a1"

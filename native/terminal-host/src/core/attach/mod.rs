@@ -327,13 +327,15 @@ impl PopupMenu {
         columns: u16,
         hidden_tabs: &[String],
         tabs: &[T],
-        viewed: Option<&str>,
     ) -> Self {
-        let items = hidden_tabs
+        let items = tabs
             .iter()
-            .filter_map(|id| tabs.iter().find(|tab| tab.id() == id))
             .map(|tab| {
-                let marker = if viewed == Some(tab.id()) { "✓" } else { " " };
+                let marker = if hidden_tabs.iter().any(|id| id == tab.id()) {
+                    " "
+                } else {
+                    "✓"
+                };
                 PopupItem::action(
                     format!("{marker} {}", tab.name()),
                     String::new(),

@@ -281,6 +281,28 @@ describe("owned shared input and status presentation", () => {
     expect(stripTerminalSequences(truncated)).toMatch(/\.\.\. #540$/);
   });
 
+  it.each(["dark", "light"] as const)("uses a dim single-cell marker for narrow A1 footer usage in %s", themeName => {
+    applyPiTheme(themeName, false, "truecolor");
+    const base = view();
+    const state: OwnedUiSessionViewModel = {
+      ...base,
+      status: {
+        ...base.status,
+        usage: { ...base.status.usage!, input: 120000, output: 120000, cost: 10, contextWindow: 272000 },
+      },
+    };
+    for (const width of [1, 8, 16]) {
+      const owned = createPiShellFooter(state, "/WORK", "a1").render(width)[1]!;
+      const comparison = createPiShellFooter(state, "/WORK", "pi").render(width)[1]!;
+      expect(visibleWidth(owned)).toBeLessThanOrEqual(width);
+      expect(stripTerminalSequences(owned)).toContain("…");
+      expect(stripTerminalSequences(owned)).not.toContain("...");
+      expect(cellStyle(owned, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
+      if (width >= 3) expect(stripTerminalSequences(comparison)).toContain("...");
+    }
+    expect(stripTerminalSequences(createPiShellFooter(state, "/WORK", "a1").render(120)[1]!)).not.toContain("…");
+  });
+
   it.each(["dark", "light"] as const)("colors only the effective level span in the %s footer", themeName => {
     applyPiTheme(themeName, false, "truecolor");
     const state = view();

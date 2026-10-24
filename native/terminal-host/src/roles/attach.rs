@@ -1919,6 +1919,12 @@ impl Client {
             strip_frame = render(None);
         }
         self.strip_frame = strip_frame;
+        let overflow_anchor = self
+            .strip_frame
+            .hits
+            .iter()
+            .find_map(|(start, _, hit)| matches!(hit, StripHit::Overflow).then_some(*start));
+        core.refresh_overflow(&shown, &self.strip_frame.hidden_tabs, overflow_anchor);
         let overlay = self.overlay(core);
         let landing = self.landing(core);
         self.present(overlay, landing, clear)
@@ -3769,6 +3775,36 @@ mod tests {
         ));
         assert!(!strip_hover_present(&changed, &StripHover::Overflow));
         assert!(strip_hover_present(&changed, &StripHover::New));
+    }
+
+    #[test]
+    fn overflow_menu_marks_only_chips_rendered_at_each_width() {
+        let tabs = (0..3)
+            .map(|index| StripTab {
+                id: format!("tab-{index}"),
+                name: format!("agent {index}"),
+                name_source: "default".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        for (columns, visible) in [(36, 1), (55, 3)] {
+            let frame = strip::render(&tabs, Some("tab-0"), columns);
+            let drawn = frame
+                .hits
+                .iter()
+                .filter(|(_, _, hit)| matches!(hit, StripHit::View(_)))
+                .count();
+            assert_eq!(drawn, visible);
+            let menu = PopupMenu::overflow(0, columns, &frame.hidden_tabs, &tabs);
+            assert_eq!(menu.items.len(), 3);
+            for (index, item) in menu.items.iter().enumerate() {
+                assert_eq!(item.label.starts_with('✓'), index < visible);
+                assert_eq!(item.action, Some(PopupAction::View(format!("tab-{index}"))));
+            }
+            assert!(menu.column + menu.width <= columns);
+        }
     }
 
     #[test]

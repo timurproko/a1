@@ -897,12 +897,19 @@ impl State {
                 }
                 Some(StripHitKind::Overflow) => {
                     self.hovered = Some(Hover::Overflow);
+                    let anchor = context
+                        .strip
+                        .hits
+                        .iter()
+                        .find_map(|(start, _, hit)| {
+                            matches!(hit, StripHitKind::Overflow).then_some(*start)
+                        })
+                        .unwrap_or(mouse.column);
                     self.mode = Mode::Popup(PopupMenu::overflow(
-                        mouse.column,
+                        anchor,
                         self.columns,
                         &context.strip.hidden_tabs,
-                        context.tabs,
-                        context.viewed,
+                        &self.shown(context),
                     ));
                     effects.push(Effect::Paint { clear: false });
                 }
@@ -1155,15 +1162,43 @@ impl State {
         }
     }
 
-    /// Clears prompts and names bound to tabs the installed registry no longer lists; a changed
-    /// registry also closes the overflow menu, and an empty one forgets the close fallback.
-    pub fn installed<T: TabView>(&mut self, tabs: &[T], changed: bool) {
+    /// Refreshes an open overflow menu from the same chips painted in this frame.
+    /// Preserve keyboard focus by tab ID when the order changes; remove stale targets immediately.
+    pub fn refresh_overflow<T: TabView>(
+        &mut self,
+        tabs: &[T],
+        hidden_tabs: &[String],
+        anchor: Option<u16>,
+    ) {
+        let Mode::Popup(menu) = &self.mode else {
+            return;
+        };
+        if menu.kind != PopupKind::Overflow {
+            return;
+        }
+        let previous = menu
+            .hovered
+            .and_then(|index| menu.items.get(index))
+            .and_then(|item| item.action.clone());
+        let Some(anchor) = anchor else {
+            self.mode = Mode::Idle;
+            self.hovered = None;
+            return;
+        };
+        let mut refreshed = PopupMenu::overflow(anchor, self.columns, hidden_tabs, tabs);
+        refreshed.hovered = refreshed
+            .items
+            .iter()
+            .position(|item| item.action == previous);
+        self.mode = Mode::Popup(refreshed);
+    }
+
+    /// Clears prompts and names bound to tabs the installed registry no longer lists; an empty
+    /// registry forgets the close fallback. The overflow menu refreshes from painted chips.
+    pub fn installed<T: TabView>(&mut self, tabs: &[T], _changed: bool) {
         let listed = |id: &str| tabs.iter().any(|tab| tab.id() == id);
         let stale = match &self.mode {
-            Mode::Popup(menu) => {
-                menu.tab_id.as_deref().is_some_and(|id| !listed(id))
-                    || (changed && menu.kind == PopupKind::Overflow)
-            }
+            Mode::Popup(menu) => menu.tab_id.as_deref().is_some_and(|id| !listed(id)),
             Mode::Rename(editor) => !listed(&editor.tab_id),
             _ => false,
         };
@@ -1600,14 +1635,21 @@ mod tests {
 
         fixture.step(&mut state, mouse(LEFT, 41, 0));
         let menu = state.mode.popup().expect("overflow menu").clone();
-        assert_eq!(menu.items[0].action, Some(PopupAction::View("c".into())));
+        assert_eq!(
+            menu.items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["✓ a name", "✓ b name", "  c name"]
+        );
+        assert_eq!(menu.items[2].action, Some(PopupAction::View("c".into())));
         assert!(fixture.step(&mut state, mouse(RELEASE, 41, 0)).is_empty());
         assert!(
             state.mode.popup().is_some(),
             "the release that opened a menu keeps it"
         );
         assert_eq!(
-            fixture.step(&mut state, mouse(LEFT, menu.column, 1)),
+            fixture.step(&mut state, mouse(LEFT, menu.column, 3)),
             [Effect::View("c".into()), PAINT]
         );
 
@@ -1878,6 +1920,46 @@ mod tests {
         assert_eq!(state.columns, 20);
         let menu = state.mode.popup().expect("menu survives a resize");
         assert!(menu.column + menu.width <= 20);
+    }
+
+    #[test]
+    fn overflow_tracks_rendered_visibility_and_order_without_stale_actions() {
+        let fixture = Fixture::new(&["a", "b", "c"], "a");
+        let mut state = fixture.state();
+        state.mode = Mode::Popup(PopupMenu::overflow(20, 60, &["c".into()], &fixture.tabs));
+        if let Mode::Popup(menu) = &mut state.mode {
+            menu.hovered = Some(2);
+        }
+        state.refresh_overflow(
+            &[tab("c"), tab("a"), tab("b")],
+            &["a".into(), "b".into()],
+            Some(12),
+        );
+        let menu = state.mode.popup().expect("refreshed menu");
+        assert_eq!(
+            menu.items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["✓ c name", "  a name", "  b name"]
+        );
+        assert_eq!(
+            menu.hovered,
+            Some(0),
+            "focus follows the tab ID across reorder"
+        );
+        assert_eq!(menu.anchor_column, 12);
+        state.installed(&[tab("a"), tab("b")], true);
+        state.refresh_overflow(&[tab("a"), tab("b")], &["b".into()], Some(12));
+        let menu = state.mode.popup().expect("menu survives registry change");
+        assert_eq!(menu.items.len(), 2);
+        assert_eq!(menu.hovered, None, "removed focused tab cannot be selected");
+        assert_eq!(
+            menu.action_at(menu.column, 2),
+            Some(PopupAction::View("b".into()))
+        );
+        state.refresh_overflow(&[tab("a"), tab("b")], &[], None);
+        assert!(state.mode.popup().is_none());
     }
 
     #[test]
@@ -2225,13 +2307,14 @@ mod tests {
         assert!(matches!(state.mode, Mode::Idle));
         assert!(state.pending_manual_name.is_none() && state.failed_tab.is_none());
 
-        state.mode = Mode::Popup(PopupMenu::overflow(0, 80, &[], &[tab("a")], None));
+        state.mode = Mode::Popup(PopupMenu::overflow(0, 80, &[], &[tab("a")]));
         state.installed(&[tab("a")], false);
         assert!(state.mode.popup().is_some());
         state.installed(&[tab("a")], true);
+        state.refresh_overflow(&[tab("a")], &[], None);
         assert!(
             matches!(state.mode, Mode::Idle),
-            "a changed registry closes the overflow menu"
+            "a strip without overflow closes the menu"
         );
 
         state.close_fallback = close_fallback_for(&[tab("a"), tab("b")], Some("a"), "a");

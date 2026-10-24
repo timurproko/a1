@@ -571,14 +571,21 @@ fn render_frame(
     let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
         chip(tab, active, hovered, now, truecolor, rename, Some(target))
     };
-    // Invariant: the clock stays visible with no tabs, beside the lone `+`.
-    let clock = Some(clock_text(time_format));
-    let clock_width = clock.as_deref().map_or(0, UnicodeWidthStr::width);
-    let clock_reserve = if clock.is_some() { clock_width + 1 } else { 0 };
+    // Keep controls inside exceptionally narrow terminals before reserving clock cells.
+    let plus_width = usize::from(columns).min(3);
+    let clock_text = clock_text(time_format);
+    let clock = (usize::from(columns)
+        >= UnicodeWidthStr::width(clock_text.as_str())
+            + 1
+            + plus_width
+            + if tabs.is_empty() { 0 } else { 3 })
+    .then_some(clock_text);
+    let clock_reserve = clock
+        .as_deref()
+        .map_or(0, |text| UnicodeWidthStr::width(text) + 1);
     let available = usize::from(columns).saturating_sub(clock_reserve);
     let mut selected = Vec::new();
     let mut used = 0usize;
-    let plus_width = 3usize;
     // Rationale: tabs have a steady 20-cell footprint until the row needs space;
     // share the shrink evenly, then overflow rather than make tabs unreadable.
     let tab_width = if tabs.is_empty() {
@@ -590,7 +597,7 @@ fn render_frame(
     };
     let mut overflow = false;
     for tab in tabs {
-        if used + tab_width + plus_width <= available {
+        if tab_width > 0 && used + tab_width + plus_width <= available {
             selected.push(tab);
             used += tab_width;
         } else {
@@ -598,21 +605,28 @@ fn render_frame(
         }
     }
     if let Some(active) = viewed.and_then(|id| tabs.iter().find(|tab| tab.id == id))
+        && tab_width > 0
         && !selected.iter().any(|tab| tab.id == active.id)
     {
         overflow = true;
-        while !selected.is_empty() && used + tab_width + plus_width + 3 > available {
+        while !selected.is_empty()
+            && used + tab_width + plus_width + 3.min(available.saturating_sub(plus_width))
+                > available
+        {
             selected.pop();
             used -= tab_width;
         }
         selected.push(active);
         used += tab_width;
     }
-    let overflow_width = if overflow { 3 } else { 0 };
+    let overflow_width = if overflow {
+        3.min(available.saturating_sub(plus_width))
+    } else {
+        0
+    };
     while !selected.is_empty() && used + overflow_width + plus_width > available {
         selected.pop();
         used -= tab_width;
-        overflow = true;
     }
 
     let hidden_tabs = tabs
@@ -635,28 +649,49 @@ fn render_frame(
         hits.push((column, end, StripHit::View(tab.id.clone())));
         column = end;
     }
-    if overflow {
+    if overflow_width > 0 {
         let background = if hovered == Some(&StripHover::Overflow) {
             "48;48;48"
         } else {
             "38;38;38"
         };
+        let label = match overflow_width {
+            1 => "…",
+            2 => " …",
+            _ => " … ",
+        };
         bytes.push_str(&format!(
-            "\x1b[48;2;{background}m\x1b[38;2;170;170;170m … \x1b[0m"
+            "\x1b[48;2;{background}m\x1b[38;2;170;170;170m{label}\x1b[0m"
         ));
-        hits.push((column, column.saturating_add(3), StripHit::Overflow));
-        column = column.saturating_add(3);
+        hits.push((
+            column,
+            column.saturating_add(overflow_width as u16),
+            StripHit::Overflow,
+        ));
+        column = column.saturating_add(overflow_width as u16);
     }
     let plus_background = if hovered == Some(&StripHover::New) {
         "48;48;48"
     } else {
         "38;38;38"
     };
+    let plus_label = match plus_width {
+        0 => "",
+        1 => "+",
+        2 => " +",
+        _ => " + ",
+    };
     bytes.push_str(&format!(
-        "\x1b[48;2;{plus_background}m\x1b[38;2;170;170;170m + \x1b[0m"
+        "\x1b[48;2;{plus_background}m\x1b[38;2;170;170;170m{plus_label}\x1b[0m"
     ));
-    hits.push((column, column.saturating_add(3), StripHit::New));
-    column = column.saturating_add(3);
+    if plus_width > 0 {
+        hits.push((
+            column,
+            column.saturating_add(plus_width as u16),
+            StripHit::New,
+        ));
+        column = column.saturating_add(plus_width as u16);
+    }
     let padding = usize::from(columns).saturating_sub(column as usize + clock_reserve);
     bytes.push_str(&" ".repeat(padding));
     if let Some(clock) = clock {
@@ -1448,7 +1483,18 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
-        assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [18, 18, 18]);
+        // The 12-hour clock changes width between 9 and 10 o'clock; use a fixed-width clock.
+        assert_eq!(
+            widths(render_interactive(
+                &tabs[..3],
+                Some("tab-0"),
+                65,
+                None,
+                TimeFormat::TwentyFour,
+                None
+            )),
+            [18, 18, 18]
+        );
         let crowded = render(&tabs, Some("tab-4"), 60);
         assert!(widths(crowded.clone()).iter().all(|width| *width == 12));
         assert!(crowded.bytes.contains("a very …"));
@@ -1458,6 +1504,45 @@ mod tests {
                 .iter()
                 .any(|(_, _, hit)| matches!(hit, StripHit::Overflow))
         );
+    }
+
+    #[test]
+    fn narrow_overflow_does_not_claim_undrawn_chips_or_exceed_terminal_width() {
+        let tabs = (0..3)
+            .map(|index| tab(&format!("tab-{index}"), "Agent"))
+            .collect::<Vec<_>>();
+        for columns in 0..16 {
+            let frame = render(&tabs, Some("tab-2"), columns);
+            assert!(
+                frame
+                    .hits
+                    .iter()
+                    .all(|(start, end, _)| start < end && *end <= columns)
+            );
+            let visible = frame
+                .hits
+                .iter()
+                .filter_map(|(_, _, hit)| match hit {
+                    StripHit::View(id) => Some(id.as_str()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(frame.hidden_tabs.len() + visible.len(), tabs.len());
+            for tab in &tabs {
+                assert_eq!(
+                    visible.contains(&tab.id.as_str()),
+                    !frame.hidden_tabs.contains(&tab.id)
+                );
+            }
+            if (4..16).contains(&columns) {
+                assert!(
+                    frame
+                        .hits
+                        .iter()
+                        .any(|(_, _, hit)| matches!(hit, StripHit::Overflow))
+                );
+            }
+        }
     }
 
     #[test]
