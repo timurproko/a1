@@ -68,6 +68,15 @@ describe("Pi engine adapter as the owned-UI session backend", () => {
     }
   });
 
+  it("projects an installed release as shell status state rather than an availability popup", () => {
+    const adapter = new PiEngineAdapter({ cwd: "D:/work", agentDir: "D:/agent", sessionId: "backend-contract" });
+    adapter.extensions.announceReleaseUpdate({ status: "installed", version: "1.2.4" });
+    expect(adapter.session.view().diagnostics).toEqual([
+      expect.objectContaining({ code: "release-update-installed", message: "Update 1.2.4 installed; restart to update." }),
+    ]);
+    expect(adapter.session.view().diagnostics.some(diagnostic => diagnostic.code === "release-update")).toBe(false);
+  });
+
   it("reads identity at call time, so disposal is visible through a port obtained earlier", async () => {
     const adapter = new PiEngineAdapter({ cwd: "D:/work", agentDir: "D:/agent", sessionId: "backend-contract" });
     const identity = adapter.identity;

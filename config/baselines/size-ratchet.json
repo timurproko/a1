@@ -188,7 +188,7 @@
       "lines": 325
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 304
+      "lines": 301
     },
     "src/composition/resident-tab-bridge.ts::bindResidentTabBridge": {
       "lines": 123
@@ -209,7 +209,7 @@
       "lines": 110
     },
     "src/foundation/release/update.ts::runSelfUpdate": {
-      "lines": 216
+      "lines": 213
     },
     "src/foundation/storage/control-store.ts::ControlStore.migrate": {
       "lines": 181

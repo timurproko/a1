@@ -98,7 +98,7 @@ describe("transcript image conversion lifetime", () => {
     });
   });
 
-  it.each([null, "iterm2"] as const)("matches pinned original-image presentation for capability %s and hidden images", async protocol => {
+  it.each([null, "iterm2"] as const)("uses the owned unsupported fallback policy for capability %s and matches pinned hidden images", async protocol => {
     const value = await fixture();
     setCapabilities({ ...getCapabilities(), images: protocol });
     const content = [image(255, "image/jpeg")];
@@ -107,7 +107,12 @@ describe("transcript image conversion lifetime", () => {
     const reference = pinned();
     reference.markExecutionStarted(); reference.setArgsComplete();
     reference.updateResult({ content, isError: false }, true);
-    for (const width of [40, 80, 192]) expect(mounted.render(width)).toEqual(reference.render(width));
+    for (const width of [40, 80, 192]) {
+      if (protocol === null) {
+        expect(mounted.render(width).map(stripAnsi).join("\n")).not.toContain("[Image:");
+        expect(reference.render(width).map(stripAnsi).join("\n")).toContain("[Image:");
+      } else expect(mounted.render(width)).toEqual(reference.render(width));
+    }
     mounted.setImagePresentation(false, 80); reference.setShowImages(false);
     expect(mounted.render(80)).toEqual(reference.render(80));
     expect(mounted.render(80).map(stripAnsi).join("\n")).toContain("image/jpeg");

@@ -1,5 +1,5 @@
 import { VERSION } from "@earendil-works/pi-coding-agent";
-import { Text, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
+import { getCapabilities, setCapabilities, Text, stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -690,18 +690,62 @@ describe("Pi shell public component adapters", () => {
     expect(source.text).toBe(chip);
   });
 
-  it("renders safe transcript-image placeholders for hidden and unavailable assets", () => {
+  it("omits unsupported transcript images without spacers while preserving hidden and unavailable diagnostics", () => {
+    const capabilities = getCapabilities();
     const imageBlock = {
       ...block("user", "image prompt"),
       imageReferences: [{ assetId: "image-1", mimeType: "image/png", byteLength: 128, source: "user" as const }],
     };
-    const component = createPiShellTranscriptComponent(
-      imageBlock, process.cwd(), undefined, undefined, 1, false, "off", false, 40,
-      { resolve: () => null },
-    );
-    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image hidden: image/png");
-    component.setImagePresentation(true, 40);
-    expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image unavailable: image/png");
+    try {
+      setCapabilities({ ...capabilities, images: null });
+      const component = createPiShellTranscriptComponent(
+        imageBlock, process.cwd(), undefined, undefined, 1, false, "off", true, 40,
+        { resolve: () => ({ type: "image", mimeType: "image/png", data: "AQID" }) },
+      );
+      const baseline = createPiShellTranscriptComponent(
+        { ...imageBlock, imageReferences: [] }, process.cwd(), undefined, undefined, 1, false, "off", true, 40,
+      );
+      expect(component.render(80)).toEqual(baseline.render(80));
+      expect(stripTerminalSequences(component.render(80).join("\n"))).not.toContain("[Image:");
+
+      component.setImagePresentation(false, 40);
+      expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("Image hidden: image/png");
+
+      setCapabilities({ ...capabilities, images: "kitty" });
+      const unavailable = createPiShellTranscriptComponent(
+        imageBlock, process.cwd(), undefined, undefined, 1, false, "off", true, 40,
+        { resolve: () => null },
+      );
+      expect(stripTerminalSequences(unavailable.render(80).join("\n"))).toContain("Image unavailable: image/png");
+    } finally {
+      setCapabilities(capabilities);
+    }
+  });
+
+  it("omits unsupported tool image indicators while preserving text and explicit hiding", () => {
+    const capabilities = getCapabilities();
+    const toolBlock: OwnedUiTranscriptBlock = {
+      ...block("tool-result", "ordinary result", {
+        toolCallId: "tool-image", toolName: "custom-image", arguments: { json: {} }, isError: false,
+      }),
+      title: "custom-image",
+      imageReferences: [{ assetId: "image-1", mimeType: "image/png", byteLength: 3, source: "tool-result" }],
+    };
+    try {
+      setCapabilities({ ...capabilities, images: null });
+      const component = createPiShellTranscriptComponent(
+        toolBlock, process.cwd(), undefined, undefined, 1, false, "off", true, 40,
+        { resolve: () => ({ type: "image", mimeType: "image/png", data: "AQID" }) },
+      );
+      const visible = stripTerminalSequences(component.render(80).join("\n"));
+      expect(visible).toContain("ordinary result");
+      expect(visible).not.toContain("[Image:");
+
+      component.setImagePresentation(false, 40);
+      expect(stripTerminalSequences(component.render(80).join("\n"))).toContain("[Image: [image/png]");
+    } finally {
+      setCapabilities(capabilities);
+    }
   });
 
   it("rebuilds finalized and streaming assistant presentation for thinking and Mermaid modes", () => {

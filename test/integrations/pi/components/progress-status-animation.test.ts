@@ -30,6 +30,22 @@ function busyView(message = "ABCDEFG"): OwnedUiSessionViewModel {
   };
 }
 
+function installedView(lifecycle: "ready" | "busy" = "ready"): OwnedUiSessionViewModel {
+  const view = busyView("Working");
+  return {
+    ...view,
+    lifecycle,
+    status: { ...view.status, workingMessage: lifecycle === "busy" ? "Working" : null, badges: lifecycle === "busy" ? ["busy"] : [] },
+    diagnostics: [{
+      sequence: 1,
+      code: "release-update-installed",
+      severity: "info",
+      message: "Update 1.2.4 installed; restart to update.",
+      recoverable: true,
+    }],
+  };
+}
+
 afterEach(() => vi.useRealTimers());
 
 describe("bare-A1 progress status animation", () => {
@@ -80,6 +96,40 @@ describe("bare-A1 progress status animation", () => {
       const row = status.renderLive(80).join("\n");
       expect(stripTerminalSequences(row)).toContain("Working...");
       expect(cellStyle(row, "W").foreground).toBe(cellStyle(piTheme().fg("muted", "W"), "W").foreground);
+    } finally {
+      status.dispose?.();
+    }
+  });
+
+  it("right-aligns the installed update status while idle and combines it with live progress when space permits", () => {
+    vi.useFakeTimers();
+    const idle = createPiShellStatus(installedView(), presentation);
+    const busy = createPiShellStatus(installedView("busy"), presentation);
+    busy.setProgressPresentation("custom-viewport");
+    try {
+      const idleText = stripTerminalSequences(idle.render(60).join("\n"));
+      expect(idleText.trim()).toBe("Update installed · Restart to update");
+      expect(idleText).toHaveLength(60);
+
+      const busyRows = busy.renderLive(160).map(row => stripTerminalSequences(row)).filter(row => row.trim().length > 0);
+      expect(busyRows).toHaveLength(1);
+      expect(busyRows[0]).toContain("Working…");
+      expect(busyRows[0]).toContain("Update installed · Restart to update");
+    } finally {
+      idle.dispose?.();
+      busy.dispose?.();
+    }
+  });
+
+  it("stacks the installed update status at narrow widths without entering the transcript", () => {
+    vi.useFakeTimers();
+    const status = createPiShellStatus(installedView("busy"), presentation);
+    status.setProgressPresentation("custom-viewport");
+    try {
+      const rows = status.renderLive(35).map(row => stripTerminalSequences(row)).filter(row => row.trim().length > 0);
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toContain("Working…");
+      expect(rows[1]?.trim()).toBe("Update installed · Restart to updat");
     } finally {
       status.dispose?.();
     }
