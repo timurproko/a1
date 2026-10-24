@@ -320,7 +320,9 @@ describe("owned level and model keybindings", () => {
       const assertTheme = () => {
         const rows = selector.render(100);
         const selected = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
+        const search = rows.find(row => stripTerminalSequences(row).trimEnd().startsWith(" >"))!;
         expect(stripTerminalSequences(selected).replace(/\s+/g, " ")).toContain("→ ◉ medium ✓ Moderate reasoning");
+        expect(cellStyle(search, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
         expect(cellStyle(selected, "→")).toEqual(cellStyle(piTheme().fg("accent", "→"), "→"));
         expect(cellStyle(selected, "m")).toEqual(cellStyle(piTheme().fg("text", "m"), "m"));
         expect(cellStyle(selected, "M")).toEqual(cellStyle(piTheme().fg("muted", "M"), "M"));
@@ -329,6 +331,10 @@ describe("owned level and model keybindings", () => {
         expect(cellStyle(rows[0]!, "─")).toEqual(cellStyle(piTheme().fg("border", "─"), "─"));
       };
       assertTheme();
+      applyPiTheme(name === "dark" ? "light" : "dark", false, mode);
+      const recoloredSearch = selector.render(100).find(row => stripTerminalSequences(row).trimEnd().startsWith(" >"))!;
+      expect(cellStyle(recoloredSearch, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
+      applyPiTheme(name, false, mode);
       selector.handleInput?.("medium");
       assertTheme(); // Invariant: filtering rebuilds the list with the same theme authority.
     });
@@ -359,8 +365,10 @@ describe("owned level and model keybindings", () => {
     const hintIndex = rows.findIndex(row => stripTerminalSequences(row).includes("Ctrl+L cycles thinking levels in-session"));
     const heading = rows[headingIndex]!;
     const hint = rows[hintIndex]!;
+    const search = rows.find(row => stripTerminalSequences(row).trimEnd() === " >")!;
     expect(hintIndex).toBe(headingIndex + 1);
     expect(cellStyle(heading, "T")).toEqual(cellStyle(piTheme().fg("accent", piTheme().bold("T")), "T"));
+    expect(cellStyle(search, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
     expect(cellStyle(hint, "C")).toEqual(cellStyle(piTheme().fg("muted", "C"), "C"));
     const selectedRow = rows.find(row => stripTerminalSequences(row).includes("Moderate reasoning"))!;
     const unselectedRow = rows.find(row => stripTerminalSequences(row).includes("Light reasoning"))!;

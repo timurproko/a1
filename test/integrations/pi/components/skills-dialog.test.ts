@@ -81,8 +81,10 @@ describe("the Skills dialog", () => {
     const rendered = component.render(80);
     const rows = semantic(rendered);
     const heading = rendered.find(row => stripTerminalSequences(row).includes("Skills"))!;
+    const search = rendered.find(row => stripTerminalSequences(row).trimEnd() === " >")!;
     const hint = rendered.find(row => stripTerminalSequences(row).includes("Type search"))!;
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
+    expect(cellStyle(search, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
     expect(cellStyle(hint, "T")).toEqual(cellStyle(piTheme().fg("dim", "T"), "T"));
     expect(cellStyle(hint, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     // Platform: chalk decides whether bold is emitted for this terminal; the accent role is what the theme guarantees.

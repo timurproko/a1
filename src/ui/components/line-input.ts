@@ -1,5 +1,5 @@
 import { displayWidth, faint, truncateToWidth } from "./text.js";
-import { PromptInput } from "./prompt-input.js";
+import { PromptInput, type PromptMarkerRole } from "./prompt-input.js";
 import type { UiTheme } from "./theme.js";
 
 export type LineInputOutcome =
@@ -231,6 +231,8 @@ export interface InputRowOptions {
   readonly ruled?: boolean;
   /** Prompt marker including any following spacing. Defaults to the shared prompt glyph. */
   readonly promptGlyph?: string;
+  /** Semantic foreground for a configured prompt marker. */
+  readonly promptRole?: PromptMarkerRole;
   readonly theme?: Pick<UiTheme, "fg">;
 }
 
@@ -255,5 +257,7 @@ export function renderInputRow(input: LineInput, width: number, options: InputRo
   const body = empty
     ? `${caretCell(placeholder.slice(0, 1))}${faint(placeholder.slice(1))}`
     : `${before}${caretCell(under)}${after}`;
-  return { lines: presentation.render(width, () => ({ rows: [body] }), options.ruled, 0, options.promptGlyph) };
+  return {
+    lines: presentation.render(width, () => ({ rows: [body] }), options.ruled, 0, options.promptGlyph, options.promptRole),
+  };
 }
