@@ -62,7 +62,7 @@ export class PackageMessageCapture {
         clearTimeout(timer); current.pending = null; current.failure = error; current.child.kill(); reject(error);
       });
     }));
-    // A failed producer is never restarted or retried; later consumers receive the same failure.
+    // Invariant: a failed producer is never restarted or retried; later consumers receive the same failure.
     current.queue = request;
     return request;
   }

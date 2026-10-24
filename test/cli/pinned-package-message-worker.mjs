@@ -77,7 +77,7 @@ async function capture(directory, cases) {
     results.push({ id: entry.id, stdout, stderr, code: process.exitCode ?? 0 });
   }
   process.exitCode = 0;
-  // Windows must not retain a process cwd inside the scenario's disposable home.
+  // Platform: Windows must not retain a process cwd inside the scenario's disposable home.
   process.chdir(repository);
   return results;
 }

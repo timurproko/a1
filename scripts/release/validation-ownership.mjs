@@ -175,7 +175,7 @@ export function selectValidationOwnership({ authority, changes, manualNoComparis
   const additionalTests = new Set();
   if (mode === "impact" && authority.consumerGraph) for (const decision of decisions.filter(item => item.selected)) {
     const reasons = ownerReasons.get(decision.owner);
-    // Changed tests and shared support retain their coarse contract, even in a mixed source change.
+    // Invariant: changed tests and shared support retain their coarse contract, even in a mixed source change.
     if (!reasons.length || reasons.some(reason => reason.code !== "owned-path")) continue;
     const rules = (policy.refinements ?? []).filter(rule => rule.owner === decision.owner);
     const relevant = [...new Set(reasons.map(reason => reason.path))];

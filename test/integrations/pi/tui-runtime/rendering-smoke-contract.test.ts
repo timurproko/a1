@@ -3,7 +3,7 @@ import { evaluateRenderingBudgets } from "../../../support/rendering/rendering-b
 import { assertRenderingSmokeContracts } from "../../../support/rendering/rendering-smoke-contract.js";
 import type { RenderingMatrixResult } from "../../../support/rendering/rendering-matrix.js";
 
-// Coverage: these smoke-only negative controls remain ordinary deterministic tests in both tiers.
+// Invariant: smoke-only negative controls remain ordinary deterministic tests in both tiers.
 describe("rendering smoke evidence controls", () => {
   it("rejects seeded parity, clear, damage, blank-frame, and stale-final evidence", () => {
     const matrix = fixtureMatrix();

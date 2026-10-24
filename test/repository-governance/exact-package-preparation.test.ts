@@ -76,7 +76,7 @@ describe("lane-scoped exact-package preparation", () => {
       { path: "dist/identity.js", text: "export const identity = true;" },
       { path: "package.json", text: manifest },
     ];
-    // Independent canonical representation of the original receipt contract: no payload bytes
+    // Compatibility: independent canonical representation of the original receipt contract; no payload bytes
     // need to remain buffered after their individual hash is calculated.
     const canonical = `[${payload.map(file => JSON.stringify({ path: file.path, sha256: hash(file.text), size: Buffer.byteLength(file.text) })).join(",")}]`;
     expect(fixture.preparation.receipt.install.installedIdentity).toEqual({

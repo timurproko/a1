@@ -25,11 +25,11 @@ describe("real Git release fixture isolation", () => {
 
   it("registers cleanup before a setup failure and releases the failed private repository", async () => {
     let dispose: (() => Promise<void>) | undefined;
-    // Identical baseline/current manifests make the second real commit fail with no changes.
+    // Rationale: identical baseline/current manifests make the second real commit fail with no changes.
     await expect(releaseFixture("0.1.7", undefined, cleanup => { dispose = cleanup; })).rejects.toThrow();
     expect(dispose).toBeDefined();
     await dispose!();
-    // The callback is safely repeatable after a partial setup failure.
+    // Invariant: the callback is safely repeatable after a partial setup failure.
     await expect(dispose!()).resolves.toBeUndefined();
   }, 30_000);
 });

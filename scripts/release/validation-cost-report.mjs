@@ -45,7 +45,7 @@ export function createValidationCostReport({ sourceHead, ledger, run = null, log
       workflowElapsedMs: interval(run.createdAt, run.updatedAt),
       runnerSumMs: complete ? jobs.reduce((sum, job) => sum + job.durationMs, 0) : null,
       longestJobMs: complete && jobs.length ? Math.max(...jobs.map(job => job.durationMs)) : null,
-      // This span includes inter-job scheduling/dependencies; it is not a claimed DAG critical path.
+      // Rationale: this span includes scheduling/dependencies and is not a claimed DAG critical path.
       runnerSpanMs: starts.length && [...starts, ...ends].every(value => value !== null) && Math.max(...ends) >= Math.min(...starts)
         ? Math.max(...ends) - Math.min(...starts) : null,
       queueMs: null, criticalPathMs: null,
