@@ -557,7 +557,7 @@ impl State {
                     self.close(context, tab_id, effects);
                 }
             }
-            PopupAction::NewAgent => self.create(Request::Create, effects),
+            PopupAction::NewAgent => self.create_agent(context, effects),
             PopupAction::Utility(kind) => self.toggle_utility(context, kind, effects),
             PopupAction::ConfigurePlus => self.mode = Mode::Palette(CommandPalette::plus_menu()),
             PopupAction::View(tab_id) => effects.push(Effect::View(tab_id)),
@@ -584,6 +584,16 @@ impl State {
         effects.push(Effect::Send(Request::Close(tab_id)));
     }
 
+    /// Invariant: one Agent opens at a time. New-Agent input while an Agent this client asked for
+    /// is still starting, or any view is still pending, is ignored, so a burst never starts
+    /// Agents in the background or leaves an earlier one in view.
+    fn create_agent<T: TabView>(&mut self, context: &Context<'_, T>, effects: &mut Vec<Effect>) {
+        if self.view.pending_created_activation || context.requested.is_some() {
+            return;
+        }
+        self.create(Request::Create, effects);
+    }
+
     fn create(&mut self, request: Request, effects: &mut Vec<Effect>) {
         self.view.pending_created_activation = true;
         effects.push(Effect::Send(request));
@@ -600,7 +610,7 @@ impl State {
             return;
         }
         match action {
-            "tabs.new" => self.create(Request::Create, effects),
+            "tabs.new" => self.create_agent(context, effects),
             "tabs.commands" => self.mode = Mode::Palette(CommandPalette::default()),
             "tabs.close" => {
                 if let Some(tab_id) = context.viewed {
@@ -984,7 +994,7 @@ impl State {
                 Some(StripHitKind::New) => {
                     self.hovered = Some(Hover::New);
                     if self.plus_menu.agent_only() {
-                        self.create(Request::Create, effects);
+                        self.create_agent(context, effects);
                     } else if !self.plus_menu.is_empty() {
                         let menu = PopupMenu::add(
                             mouse.column,
@@ -1550,6 +1560,37 @@ mod tests {
     }
 
     #[test]
+    fn a_new_agent_waits_until_the_previous_one_has_opened() {
+        let mut fixture = Fixture::new(&["a"], "a");
+        let mut state = fixture.state();
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.new")),
+            [Effect::Send(Request::Create), PAINT]
+        );
+        let repeated = fixture.step(&mut state, shortcut("tabs.new"));
+        assert!(
+            !repeated.contains(&Effect::Send(Request::Create)),
+            "no second Agent starts while the first is created"
+        );
+        fixture.step(
+            &mut state,
+            server(ServerEvent::Created { tab_id: "b".into() }),
+        );
+        fixture.requested = Some("b".into());
+        let repeated = fixture.step(&mut state, shortcut("tabs.new"));
+        assert!(
+            !repeated.contains(&Effect::Send(Request::Create)),
+            "no second Agent starts while the first has not drawn"
+        );
+        fixture.requested = None;
+        fixture.viewed = Some("b".into());
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.new")),
+            [Effect::Send(Request::Create), PAINT]
+        );
+    }
+
+    #[test]
     fn shortcuts_create_close_navigate_reorder_and_jump() {
         let fixture = Fixture::new(&["a", "b", "c"], "b");
         let mut state = fixture.state();
@@ -2066,6 +2107,8 @@ mod tests {
             [Effect::Send(Request::Open(UtilityKind::Changelog)), PAINT]
         );
         assert!(state.mode.palette().is_none());
+        // Changelog has opened, so a new Agent may start.
+        state.view.pending_created_activation = false;
 
         fixture.step(&mut state, shortcut("tabs.commands"));
         assert_eq!(fixture.step(&mut state, shortcut("tabs.commands")), [PAINT]);

@@ -31,7 +31,7 @@ A1 SHALL offer `Agent`, a multi-instance kind whose every invocation creates a n
 - **THEN** the strip SHALL no longer show `+`, and the Settings `Plus menu` entry SHALL still open the dialog
 
 ### Requirement: Tabs open at once and only a resize fades
-The attach client SHALL draw an opened tab at once, without a fade: a new Agent or a revealed Settings or Changelog tab SHALL replace the current content, another tab or the landing alike, as soon as the tab's first drawn frame commits, and until then the current content SHALL stay. A tab that never draws SHALL still show after the bounded first-draw wait. Only a resize reveal SHALL fade: once its curtain lifts the whole frame, the strip included, SHALL draw faint for one fade interval and then at full intensity, with no cursor shown during the fade. A starting tab's chip SHALL show no spinner.
+The attach client SHALL draw an opened tab at once, without a fade: a new Agent or a revealed Settings or Changelog tab SHALL replace the current content, another tab or the landing alike, as soon as the tab's first drawn frame commits, and until then the current content SHALL stay. A tab that never draws SHALL still show after the bounded first-draw wait. Only a resize reveal SHALL fade: once its curtain lifts the whole frame, the strip included, SHALL draw faint for one fade interval and then at full intensity, with no cursor shown during the fade. A starting tab's chip SHALL show no spinner. One tab SHALL open at a time: while a tab this client asked for is still starting or not yet shown, a new-Agent shortcut, `+` click, or menu entry SHALL start nothing.
 
 #### Scenario: A new tab draws at once
 - **WHEN** the user creates an Agent beside another tab
@@ -40,6 +40,10 @@ The attach client SHALL draw an opened tab at once, without a fade: a new Agent 
 #### Scenario: A revealed utility tab draws at once
 - **WHEN** the user opens a hidden Settings or Changelog tab whose retained screen is still blank
 - **THEN** the current content SHALL stay until the tab draws, so no empty body or bare cursor shows, and the tab SHALL then show with no fade
+
+#### Scenario: A burst of new-Agent shortcuts opens one Agent at a time
+- **WHEN** the user presses the new-Agent shortcut repeatedly while an Agent is still opening
+- **THEN** no further Agent SHALL start until that Agent is shown, so no Agents start in the background and the newest Agent opened is the one in view
 
 #### Scenario: A starting tab has no spinner
 - **WHEN** an Agent tab is starting
