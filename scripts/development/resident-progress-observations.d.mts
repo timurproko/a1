@@ -51,6 +51,10 @@ export function evaluateProgressScenario(records: readonly ProgressObservation[]
   byTab: Record<string, Record<string, number>>;
   observedFirstOrder: string[];
 };
+export interface StopObservationBoundary {
+  readonly processInstance: string;
+  readonly sequence: number;
+}
 export function evaluateStoppedStageControl(records: readonly ProgressObservation[], control: {
   readonly id: string;
   readonly stage: "engine-delivery" | "child-render-write" | "holder-commit" | "outer-paint";
@@ -59,6 +63,7 @@ export function evaluateStoppedStageControl(records: readonly ProgressObservatio
   readonly startedUnixUs: number;
   readonly barrierUnixUs: number;
   readonly engineBaselines: Readonly<Record<string, number>>;
+  readonly stopBoundary?: StopObservationBoundary;
 }): {
   id: string;
   stage: string;
@@ -66,6 +71,7 @@ export function evaluateStoppedStageControl(records: readonly ProgressObservatio
   passed: boolean;
   faults: string[];
   counts: Record<string, Record<string, number>>;
+  stopBoundary?: StopObservationBoundary;
 };
 export function progressLatencyReport(records: readonly ProgressObservation[], tabIds: readonly string[],
   activeWindows?: readonly { readonly startedUnixUs: number; readonly barrierUnixUs: number }[] | null): {

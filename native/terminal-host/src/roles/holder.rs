@@ -1484,32 +1484,21 @@ fn input_rejected_message(error: InputAdmissionError) -> &'static str {
 /// Longest one replacement request may take before the holder abandons it and retries.
 const SERVER_REPLACEMENT_DEADLINE: Duration = Duration::from_secs(15);
 
-/// Waits for a replacement request with a deadline and returns its exit and the outcome it
-/// printed. Its stdout is read on a thread and not to end-of-file, because a detached server
-/// that inherited the pipe would hold it open for its whole life.
+/// Waits within one deadline for request exit and its complete outcome line. A detached server
+/// may inherit stdout, so a complete line ends the reader without waiting for end-of-file.
 fn wait_for_replacement(
     mut child: std::process::Child,
     deadline: Duration,
 ) -> Result<(std::process::ExitStatus, String), String> {
-    let printed = Arc::new(Mutex::new(Vec::<u8>::new()));
-    if let Some(mut stdout) = child.stdout.take() {
-        let printed = printed.clone();
-        thread::spawn(move || {
-            let mut buffer = [0_u8; 1024];
-            while let Ok(count) = stdout.read(&mut buffer) {
-                if count == 0 {
-                    break;
-                }
-                if let Ok(mut printed) = printed.lock() {
-                    printed.extend_from_slice(&buffer[..count]);
-                    if printed.len() > 64 * 1024 {
-                        break;
-                    }
-                }
-            }
-        });
-    }
     let started = std::time::Instant::now();
+    let (outcome_tx, outcome_rx) = mpsc::sync_channel(1);
+    if let Some(stdout) = child.stdout.take() {
+        thread::spawn(move || {
+            let _ = outcome_tx.send(read_replacement_output(stdout));
+        });
+    } else {
+        let _ = outcome_tx.send(Ok(String::new()));
+    }
     let status = loop {
         if let Some(status) = child
             .try_wait()
@@ -1524,19 +1513,36 @@ fn wait_for_replacement(
         }
         thread::sleep(Duration::from_millis(20));
     };
-    // Concurrency: the outcome line is written before the request exits; allow the reader a
-    // moment to collect it without waiting on a pipe a detached server may still hold.
-    let collected = std::time::Instant::now();
+    // Concurrency: process exit does not prove the reader ran. Wait for its result within the
+    // original deadline, not an arbitrary grace period that can return an empty or partial line.
+    let printed = outcome_rx
+        .recv_timeout(deadline.saturating_sub(started.elapsed()))
+        .map_err(|_| "server replacement request timed out".to_owned())??;
+    Ok((status, printed))
+}
+
+/// Reads the first bounded outcome line, leaving a descendant's still-open pipe irrelevant.
+fn read_replacement_output(mut stdout: impl Read) -> Result<String, String> {
+    let mut printed = Vec::new();
+    let mut buffer = [0_u8; 1024];
     loop {
-        let text = printed
-            .lock()
-            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
-            .unwrap_or_default();
-        if text.contains("\"outcome\"") || collected.elapsed() >= Duration::from_millis(500) {
-            return Ok((status, text));
+        let count = stdout
+            .read(&mut buffer)
+            .map_err(|error| format!("read server replacement outcome: {error}"))?;
+        if count == 0 {
+            break;
         }
-        thread::sleep(Duration::from_millis(10));
+        let newline = buffer[..count].iter().position(|byte| *byte == b'\n');
+        let length = newline.map_or(count, |index| index + 1);
+        if printed.len() + length > 64 * 1024 {
+            return Err("server replacement outcome exceeded byte limit".to_owned());
+        }
+        printed.extend_from_slice(&buffer[..length]);
+        if newline.is_some() {
+            break;
+        }
     }
+    Ok(String::from_utf8_lossy(&printed).into_owned())
 }
 
 /// Asks for a replacement server. Ok(false) means the registry no longer wants any tab to run.
@@ -2042,6 +2048,56 @@ mod tests {
             .write_until_sync_boundary(b"\x1bc")
             .expect("reset transaction");
         assert_eq!(boundary, Some(SynchronizedOutputBoundary::Reset));
+    }
+
+    #[test]
+    fn replacement_output_waits_for_a_complete_fragmented_line_not_eof() {
+        struct Fragmented(std::collections::VecDeque<&'static [u8]>);
+        impl Read for Fragmented {
+            fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+                let next = self
+                    .0
+                    .pop_front()
+                    .expect("must not wait for EOF after the outcome line");
+                buffer[..next.len()].copy_from_slice(next);
+                Ok(next.len())
+            }
+        }
+        let output = Fragmented(std::collections::VecDeque::from([
+            &b"{\"outcome\":"[..],
+            &b"\"not-"[..],
+            &b"needed\"}\n"[..],
+        ]));
+        assert_eq!(
+            read_replacement_output(output).unwrap(),
+            "{\"outcome\":\"not-needed\"}\n"
+        );
+        assert_eq!(
+            read_replacement_output(&b"{\"outcome\":\"started\"}"[..]).unwrap(),
+            "{\"outcome\":\"started\"}"
+        );
+    }
+
+    #[test]
+    fn replacement_output_keeps_its_byte_bound_and_propagates_read_failure() {
+        assert_eq!(
+            read_replacement_output(&vec![b'x'; 64 * 1024 + 1][..]).unwrap_err(),
+            "server replacement outcome exceeded byte limit"
+        );
+        struct Failed;
+        impl Read for Failed {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "fixture failure",
+                ))
+            }
+        }
+        assert!(
+            read_replacement_output(Failed)
+                .unwrap_err()
+                .starts_with("read server replacement outcome:")
+        );
     }
 
     #[test]

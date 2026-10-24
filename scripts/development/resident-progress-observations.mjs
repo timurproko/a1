@@ -4,7 +4,7 @@ import { join } from "node:path";
 export const progressObservationSchema = "a1-resident-progress-observation-v1";
 export const progressStages = Object.freeze([
   "engine-delivery", "child-render-write", "pty-ingest", "holder-commit", "attach-receipt", "outer-paint",
-  "pipe-frame-read", "pipe-write-complete", "outer-write-complete", "wake-gap", "wake-repaint-requested",
+  "pipe-frame-read", "pipe-write-complete", "outer-write-complete", "wake-gap", "wake-repaint-requested", "fixture-stop-ack",
 ]);
 const connectionStages = new Set(["pipe-frame-read", "pipe-write-complete", "outer-write-complete", "wake-gap", "wake-repaint-requested"]);
 const stageSet = new Set(progressStages);
@@ -147,7 +147,11 @@ export function evaluateStoppedStageControl(records, control) {
       pty: tab.filter(record => record.stage === "pty-ingest").length,
       holder: tab.filter(record => record.stage === "holder-commit").length,
       receipt: tab.filter(record => record.stage === "attach-receipt").length,
-      painter: tab.filter(record => record.stage === "outer-paint").length,
+      // Concurrency: an earlier paint can complete before the writer acknowledges the stop but
+      // receive a wall timestamp inside this window. Only its causal sequence excludes it.
+      painter: tab.filter(record => record.stage === "outer-paint" && (!control.stopBoundary
+        || record.processInstance !== control.stopBoundary.processInstance
+        || record.sequence > control.stopBoundary.sequence)).length,
     }];
   }));
   const target = counts[control.targetTabId];
@@ -174,7 +178,8 @@ export function evaluateStoppedStageControl(records, control) {
     }
   }
   return { id: control.id, stage: control.stage, targetTabId: control.targetTabId,
-    passed: faults.length === 0, faults, counts };
+    passed: faults.length === 0, faults, counts,
+    ...(control.stopBoundary === undefined ? {} : { stopBoundary: control.stopBoundary }) };
 }
 
 export function progressLatencyReport(records, tabIds, activeWindows = null) {

@@ -17,17 +17,17 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-24-remove-wake-sensitive-pipe-polling/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-24-remove-wake-sensitive-pipe-polling/acceptance.md",
   "finalizedDate": "2026-10-24",
-  "specBaseSha": "14caed95de8937409bd4153a8880e7b77767f047",
+  "specBaseSha": "2b69a496dd9f12b2399002a19498ac9f97d79c90",
   "acceptanceScenarios": [
     "Windows resident frame transfer wakes on pipe completion rather than short readiness sleeps.",
     "Pending reads permit independent writes, and connection shutdown safely cancels and drains pending operations.",
     "Opt-in observations distinguish idle wait, local completion time, and wake epochs without terminal content or process restarts.",
     "Existing protocol bytes and session ownership remain compatible, and a detected wake gap requests one cached repaint."
   ],
-  "archiveDigest": "bdc1d87398f38edca87a7c78de52148323c3fc9a40daccf727cdbca4fde6942c",
-  "specDigest": "84952a0d0b52fbab871771ac8210183390c46ac0fd17bad45d83ddc2b42beffa",
+  "archiveDigest": "ba3d18817f4f1e3891bf75508d0ce20361b8373a4515a275932b0c708ff0e5c6",
+  "specDigest": "45ce472903cec1e97be751010364db680083bd8cd95a33e6135b69db8b38fc39",
   "tasksDigest": "6b1ebad65568d5f64eafa8b8a0459ea3afd59e0b3568ab2f25c53da88f7f4b2b",
-  "evidenceDigest": "573d810aa0ecbe759c7a8c43fa1088a492c99d972ffd9d218453a79a2ed39789",
+  "evidenceDigest": "24c76ed5d91dfc304cd65a83db52fd9e0921667a6d9bd4f5548b853118a2d0f3",
   "knownGaps": []
 }
 ```

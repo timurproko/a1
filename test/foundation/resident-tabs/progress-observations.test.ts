@@ -96,6 +96,41 @@ describe("resident progress observations", () => {
     expect(stillAdvancing.faults).toContain(`stopped-${stage}: stopped ${stage} still advanced`);
   });
 
+  it("starts a stopped painter's zero-progress check after its acknowledged writer sequence", () => {
+    const control = {
+      id: "acknowledged-painter-stop", stage: "outer-paint" as const,
+      targetTabId: "tab-b", tabIds: TABS, startedUnixUs: 1_000_000, barrierUnixUs: 5_000_000,
+      engineBaselines: { "tab-a": 0, "tab-b": 0, "tab-c": 0 },
+    };
+    const controlled = { ...control, stopBoundary: { processInstance: "process-300", sequence: 10 } };
+    const records = scenarioRecords().filter(value => value.tabId !== "tab-b" || value.stage !== "outer-paint");
+    records.push(record({ stage: "outer-paint", tabId: "tab-b", timestampUnixUs: 3_000_000, pid: 300, sequence: 9 }));
+    records.push(record({ stage: "fixture-stop-ack", tabId: "tab-b", timestampUnixUs: 3_000_001,
+      pid: 300, sequence: 10, eventKind: "outer-paint" }));
+    expect(evaluateStoppedStageControl(records, control).passed).toBe(false);
+    expect(evaluateStoppedStageControl(records, controlled)).toMatchObject({
+      passed: true, counts: { "tab-b": { painter: 0 } }, stopBoundary: controlled.stopBoundary,
+    });
+    for (const afterStop of [
+      record({ stage: "outer-paint", tabId: "tab-b", timestampUnixUs: 3_100_000, pid: 300, sequence: 11 }),
+      record({ stage: "outer-paint", tabId: "tab-b", timestampUnixUs: 3_100_000, pid: 301, sequence: 1 }),
+    ]) {
+      expect(evaluateStoppedStageControl([...records, afterStop], controlled)).toMatchObject({
+        passed: false, counts: { "tab-b": { painter: 1 } },
+        faults: expect.arrayContaining(["acknowledged-painter-stop: stopped outer-paint still advanced"]),
+      });
+    }
+  });
+
+  it("accepts a payload-free fixture stop acknowledgement only with its tab identity", () => {
+    const acknowledgement = record({ stage: "fixture-stop-ack", tabId: "tab-b", timestampUnixUs: 1_000_000,
+      eventKind: "outer-paint" });
+    expect(validateProgressObservations([acknowledgement], RUN)).toEqual([]);
+    const missingTab = { ...acknowledgement };
+    delete missingTab.tabId;
+    expect(validateProgressObservations([missingTab], RUN)).toContain("record 1: invalid tab id");
+  });
+
   it("rejects loss, duplicate process sequence, bad clocks, and payload fields", () => {
     const first = record({ stage: "holder-commit", tabId: "tab-a", timestampUnixUs: 2_000,
       pid: 4, sequence: 1, revision: 1 });
