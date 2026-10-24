@@ -13,7 +13,7 @@ use crate::core::attach::{
 
 const CHIP_WIDTH: u16 = 10;
 const VISIBLE_CHIPS: usize = 5;
-const ACTIONS: [&str; 9] = [
+const ACTIONS: [&str; 11] = [
     "tabs.new",
     "tabs.close",
     "tabs.rename",
@@ -23,6 +23,8 @@ const ACTIONS: [&str; 9] = [
     "tabs.moveRight",
     "tabs.jump2",
     "tabs.settings",
+    "tabs.changelog",
+    "tabs.commands",
 ];
 const STATUSES: [&str; 5] = ["idle", "working", "unresponsive", "failed", "done"];
 
@@ -57,11 +59,7 @@ impl Model {
     /// The strip as the role renders it: shown tabs as fixed-width chips, then the overflow
     /// marker and the `+` button.
     fn strip(&self, state: &State) -> StripSnapshot {
-        let shown = shown_tabs(
-            &self.tabs,
-            self.viewed.as_deref(),
-            state.view.settings_shown,
-        );
+        let shown = shown_tabs(&self.tabs, self.viewed.as_deref(), state.view.shown());
         let mut hits = Vec::new();
         let mut column = 0;
         for tab in shown.iter().take(VISIBLE_CHIPS) {
@@ -111,6 +109,7 @@ fn presented(state: &State) -> String {
         }
         Mode::Drag(drag) if drag.shown => format!("drag {:?}", drag.drop_index),
         Mode::Drag(_) => String::new(),
+        Mode::Palette(palette) => format!("palette {palette:?} {}", palette.selected()),
     };
     format!("{mode} | {:?}", state.hovered)
 }
@@ -367,13 +366,7 @@ impl Run<'_> {
         let tab_id = self.model.creating.remove(0);
         self.model.tabs.push(tab(&tab_id));
         self.install(true)?;
-        self.step(
-            Event::Server(ServerEvent::Created {
-                tab_id,
-                created: true,
-            }),
-            false,
-        )
+        self.step(Event::Server(ServerEvent::Created { tab_id }), false)
     }
 
     /// The role installs a changed registry and repaints.
@@ -386,9 +379,9 @@ impl Run<'_> {
             .as_deref()
             .is_some_and(|id| !self.model.listed(id))
         {
-            let settings_visible = self.state.settings_visible(self.model.viewed.as_deref());
+            let visible = self.state.utilities_visible(self.model.viewed.as_deref());
             self.model.viewed = None;
-            self.model.requested = self.state.fallback_view(&self.model.tabs, settings_visible);
+            self.model.requested = self.state.fallback_view(&self.model.tabs, visible);
         }
         if presented(&self.state) != before && !changed && !self.model.tabs.is_empty() {
             return self.fail("an unchanged registry altered the interaction state");
@@ -423,15 +416,17 @@ impl Run<'_> {
     /// The resident server answers each request against the model registry.
     fn request(&mut self, request: Request) -> Result<(), SimulationFailure> {
         match request {
-            Request::Create | Request::OpenSettings | Request::PrewarmSettings => {
-                let prefix = if request == Request::Create {
-                    "tab"
-                } else {
-                    "settings"
-                };
+            Request::Open(kind) | Request::Prewarm(kind) => {
                 self.model
                     .creating
-                    .push(format!("{prefix}-{}", self.model.created));
+                    .push(format!("{}-{}", kind.name(), self.model.created));
+                self.model.created += 1;
+                Ok(())
+            }
+            Request::Create => {
+                self.model
+                    .creating
+                    .push(format!("tab-{}", self.model.created));
                 self.model.created += 1;
                 Ok(())
             }
@@ -487,6 +482,7 @@ fn mode_name(mode: &Mode) -> Option<&'static str> {
         Mode::Rename(_) => Some("mode-rename"),
         Mode::Drag(drag) if drag.shown => Some("mode-drag-shown"),
         Mode::Drag(_) => Some("mode-drag"),
+        Mode::Palette(_) => Some("mode-palette"),
     }
 }
 
@@ -510,6 +506,7 @@ mod tests {
         for kind in [
             "mode-popup",
             "mode-rename",
+            "mode-palette",
             "mode-drag",
             "mode-drag-shown",
             "commit",

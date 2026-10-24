@@ -218,7 +218,8 @@ describe("pinned Pi modal transition graph", () => {
     expect(dialogPanel).toContain("renderInputRow(state.input, layout.contentWidth");
     expect(dialogPanel).not.toContain('" · "');
     const reference = await readFile("src/features/owned-ui/reference-screen-app.ts", "utf8");
-    expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, rect.width, 1");
+    expect(reference).toContain("renderShortcutHintsWithClose(this.#hintEntries(), theme, rect.width, 1)");
+    expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE)");
     expect(reference).not.toContain("HINT_SEPARATOR");
     const models = await readFile("src/integrations/pi/components/models-dialog.ts", "utf8");
     expect(models).toContain("renderHintsWithClose(this.#hints(), width)");

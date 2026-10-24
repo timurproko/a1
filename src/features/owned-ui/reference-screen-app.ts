@@ -96,6 +96,8 @@ export interface ReferenceScreenOptions {
   readonly document: ReferenceDocumentProvider;
   /** The reader's scroll settings, read on every frame so a live change is honored. */
   readonly scrollSettings: () => OwnedUiViewportSettings;
+  /** The screen is a resident tab, such as the Changelog tab: it offers no screen-level close. */
+  readonly pinned?: boolean;
 }
 
 /**
@@ -110,6 +112,7 @@ export class ReferenceScreenApp implements UiApp {
   readonly #title: string;
   readonly #document: ReferenceDocumentProvider;
   readonly #scrollSettings: () => OwnedUiViewportSettings;
+  readonly #pinned: boolean;
   #scroll = 0;
   #interruptArmed = false;
   #failure: string | null = null;
@@ -130,6 +133,7 @@ export class ReferenceScreenApp implements UiApp {
     this.#title = options.title;
     this.#document = options.document;
     this.#scrollSettings = options.scrollSettings;
+    this.#pinned = options.pinned === true;
   }
 
   onActivate(host: AppHostServices): void {
@@ -201,7 +205,7 @@ export class ReferenceScreenApp implements UiApp {
     const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, { presentation });
     const hint = this.#interruptArmed
       ? theme.fg("dim", " press ctrl+c again to exit a1")
-      : renderShortcutHintsWithClose(REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, rect.width, 1);
+      : renderShortcutHintsWithClose(this.#hintEntries(), theme, rect.width, 1);
     // Compatibility: the v2 reference screen frames its document between two border-coloured rules.
     const rule = theme.fg("border", "─".repeat(rect.width));
     // Invariant: dialog chrome shares the title's one-cell inset; document content keeps its own layout.
@@ -215,7 +219,7 @@ export class ReferenceScreenApp implements UiApp {
     if (action === null) return { consumed: false };
     switch (action) {
       case "close":
-        host.close();
+        if (!this.#pinned) host.close();
         return { consumed: true };
       case "up":
         this.#scrollBy(-1);
@@ -275,6 +279,13 @@ export class ReferenceScreenApp implements UiApp {
       this.#scroll = scrollForTrackPage(frame.geometry, pointer.row - frame.rail.rowStart, this.#scroll, frame.page);
     }
     return { owned: true, changed: true };
+  }
+
+  // Invariant: a pinned screen is its tab and `Esc` does not close it, so it shows no close hint.
+  #hintEntries(): ReturnType<typeof REFERENCE_SCREEN_SHORTCUTS.hintEntries> {
+    const entries = REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE);
+    if (!this.#pinned) return entries;
+    return entries.filter(entry => entry.key !== DIALOG_CLOSE_SHORTCUT_HINT.key || entry.action !== DIALOG_CLOSE_SHORTCUT_HINT.action);
   }
 
   // Invariant: the title is the first document row, as in v2, so it scrolls with the document.

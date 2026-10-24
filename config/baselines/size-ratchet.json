@@ -131,16 +131,16 @@
       "lines": 779
     },
     "native/terminal-host/src/roles/presentation.rs::PresentationComposer::prepare": {
-      "lines": 126
+      "lines": 122
     },
     "native/terminal-host/src/roles/quit_outro.rs::fall_plan": {
       "lines": 111
     },
     "native/terminal-host/src/roles/server/attach.rs::serve_attach": {
-      "lines": 437
+      "lines": 405
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
-      "lines": 388
+      "lines": 350
     },
     "native/terminal-host/src/roles/server/controller.rs::claim_client_control": {
       "lines": 126
@@ -152,7 +152,7 @@
       "lines": 575
     },
     "native/terminal-host/src/roles/server/holder.rs::start_holder": {
-      "lines": 199
+      "lines": 192
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
       "lines": 208
@@ -170,7 +170,7 @@
       "lines": 106
     },
     "native/terminal-host/src/roles/strip.rs::render_frame": {
-      "lines": 128
+      "lines": 116
     },
     "src/app/session-shell/paste-executor.ts::startPasteExecutor": {
       "lines": 122
@@ -188,7 +188,7 @@
       "lines": 325
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 289
+      "lines": 286
     },
     "src/composition/resident-tab-bridge.ts::bindResidentTabBridge": {
       "lines": 123

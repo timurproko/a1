@@ -181,6 +181,18 @@ describe("ReferenceScreenApp frame", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("stays open on Escape and hides its close hint when it is a pinned tab", () => {
+    const close = vi.fn();
+    const target = new ReferenceScreenApp({
+      id: "changelog", title: "Changelog", document: { rows: () => ["alpha"] }, scrollSettings: settings({}), pinned: true,
+    });
+    expect(target.onInput?.(ESC, { ...HOST, close })).toEqual({ consumed: true });
+    expect(close).not.toHaveBeenCalled();
+    const footer = screen(target, HOST).at(-1) ?? "";
+    expect(footer).toContain("scroll");
+    expect(footer).not.toContain("close");
+  });
+
   it("shows a loading notice until a pending provider is ready, then renders the document once", async () => {
     let ready!: () => void;
     let rows: readonly string[] | null = null;

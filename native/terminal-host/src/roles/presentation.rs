@@ -212,21 +212,9 @@ impl ViewModel {
             .max(surface.request_generation);
         self.adopt_initial(&surface.tab_id);
         let requested = self.is_requested(&surface.tab_id);
-        // Protocol: a retained re-offer may commit a requested view only after the bounded wait
-        // for the holder's fresh frame, so the old coherent frame stays visible instead of a
-        // surface that predates the switch.
-        if requested && surface.stale && self.viewed.is_some() {
-            let deadline = self
-                .request_started
-                .unwrap_or(now)
-                .checked_add(STALE_SURFACE_WAIT)
-                .unwrap_or(now);
-            self.stale_candidate = Some((surface, deadline));
-            return Offer::Parked;
-        }
-        // Invariant: from an empty strip too, the created tab waits for its first drawn frame, so
-        // its body, status bar, and editor appear together without a bare cursor.
-        // The first view of a session, such as the tab attached at launch, waits the same way.
+        // Invariant: from an empty strip too, a created or revealed tab waits for its first drawn
+        // frame, fresh or retained, so its body, status bar, and editor appear together without a
+        // bare cursor. The first view of a session, such as the tab attached at launch, waits too.
         let first_view = self.committed_revision.is_none();
         if requested
             && (first_view || self.first_draw.as_deref() == Some(surface.tab_id.as_str()))
@@ -236,6 +224,18 @@ impl ViewModel {
                 .request_started
                 .get_or_insert(now)
                 .checked_add(FIRST_DRAW_WAIT)
+                .unwrap_or(now);
+            self.stale_candidate = Some((surface, deadline));
+            return Offer::Parked;
+        }
+        // Protocol: a retained re-offer may commit a requested view only after the bounded wait
+        // for the holder's fresh frame, so the old coherent frame stays visible instead of a
+        // surface that predates the switch.
+        if requested && surface.stale && self.viewed.is_some() {
+            let deadline = self
+                .request_started
+                .unwrap_or(now)
+                .checked_add(STALE_SURFACE_WAIT)
                 .unwrap_or(now);
             self.stale_candidate = Some((surface, deadline));
             return Offer::Parked;
@@ -398,6 +398,8 @@ pub struct DesiredPresentation {
     /// Number of outer rows before child row zero: one for a top strip, zero for a bottom strip.
     pub child_row_offset: u16,
     pub clear: bool,
+    /// A modal is open: the strip and body draw faint beneath the overlay.
+    pub dimmed: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -415,6 +417,7 @@ pub struct PresentationComposer {
     cursor: Option<FinalCursor>,
     cursor_style: Option<(String, bool)>,
     modes: Option<TerminalModes>,
+    dimmed: bool,
 }
 
 #[derive(Debug)]
@@ -460,7 +463,8 @@ impl PresentationComposer {
             || desired.clear
             || identity_changed
             || geometry_changed
-            || structured_base_invalid;
+            || structured_base_invalid
+            || self.dimmed != desired.dimmed;
         let mut output = Vec::new();
         let overlay_damage = changed_overlay_rows(self, desired);
 
@@ -487,22 +491,16 @@ impl PresentationComposer {
             &mut output,
         )?;
 
+        if desired.dimmed {
+            output = faint(&output);
+        }
         let overlay_changed = self.overlay != desired.overlay;
         if let Some(overlay) = desired.overlay.as_deref()
             && (force || overlay_changed || body_changed)
         {
             output.extend_from_slice(overlay.as_bytes());
         }
-        let cursor = match desired.cursor {
-            Some(FinalCursor::At(cursor))
-                if cursor.column < desired.columns
-                    && cursor.row < desired.outer_rows.saturating_sub(1) =>
-            {
-                Some(FinalCursor::At(cursor))
-            }
-            Some(_) => Some(FinalCursor::Hidden),
-            None => None,
-        };
+        let cursor = clamped_cursor(desired);
         let cursor_style = desired
             .modes
             .as_ref()
@@ -551,6 +549,7 @@ impl PresentationComposer {
             cursor,
             cursor_style,
             modes: desired.modes.clone(),
+            dimmed: desired.dimmed,
         };
         Ok(Some(PreparedPresentation {
             bytes,
@@ -564,6 +563,20 @@ impl PresentationComposer {
 
     pub fn invalidate(&mut self) {
         self.valid = false;
+    }
+}
+
+/// The final cursor, hidden when it falls outside the child rows.
+fn clamped_cursor(desired: &DesiredPresentation) -> Option<FinalCursor> {
+    match desired.cursor {
+        Some(FinalCursor::At(cursor))
+            if cursor.column < desired.columns
+                && cursor.row < desired.outer_rows.saturating_sub(1) =>
+        {
+            Some(FinalCursor::At(cursor))
+        }
+        Some(_) => Some(FinalCursor::Hidden),
+        None => None,
     }
 }
 
@@ -707,6 +720,36 @@ fn relocate_legacy_body(bytes: &[u8], child_row_offset: u16) -> Result<Vec<u8>, 
         index = end + 1;
     }
     Ok(output)
+}
+
+/// Re-asserts faint after every SGR, so a modal's backdrop stays dim whatever styles it carries.
+/// Private-marker sequences such as `CSI > 4 ; 1 m` are not SGR and are left alone.
+fn faint(bytes: &[u8]) -> Vec<u8> {
+    const FAINT: &[u8] = b"[2m";
+    let mut output = Vec::with_capacity(bytes.len() + bytes.len() / 8 + FAINT.len());
+    output.extend_from_slice(FAINT);
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index..].starts_with(b"[")
+            && let Some(end) = bytes[index + 2..]
+                .iter()
+                .position(|byte| (0x40..=0x7e).contains(byte))
+                .map(|offset| index + 2 + offset)
+        {
+            output.extend_from_slice(&bytes[index..=end]);
+            let private = bytes
+                .get(index + 2)
+                .is_some_and(|byte| (b'<'..=b'?').contains(byte));
+            if bytes[end] == b'm' && !private {
+                output.extend_from_slice(FAINT);
+            }
+            index = end + 1;
+            continue;
+        }
+        output.push(bytes[index]);
+        index += 1;
+    }
+    output
 }
 
 fn sanitize_legacy_body(bytes: &[u8]) -> Vec<u8> {
@@ -1327,6 +1370,16 @@ mod tests {
         ));
         assert_eq!(view.viewed.as_deref(), Some("b"));
 
+        // Invariant: A revealed tab's blank retained surface waits for its draw, not the stale wait.
+        let mut revealed = ViewModel::new(Some("a".into()));
+        revealed.request_at("b", now);
+        revealed.await_first_draw("b");
+        let mut retained = blank.clone();
+        retained.stale = true;
+        assert_eq!(revealed.offer(retained, now, true), Offer::Parked);
+        assert_eq!(revealed.expire(now + STALE_SURFACE_WAIT, |_| true), None);
+        assert_eq!(revealed.viewed.as_deref(), Some("a"));
+
         // Invariant: A child that never draws still becomes visible after the bounded wait.
         let mut silent = ViewModel::new(Some("a".into()));
         silent.request_at("c", now);
@@ -1688,7 +1741,60 @@ mod tests {
             outer_rows: 3,
             child_row_offset: 1,
             clear: false,
+            dimmed: false,
         }
+    }
+
+    #[test]
+    fn a_modal_dims_the_strip_and_body_but_not_its_overlay_and_repaints_on_toggle() {
+        let surface = structured_fixture();
+        let mut composer = PresentationComposer::default();
+        let plain = desired(Some(surface.clone()), Vec::new());
+        composer
+            .prepare(&plain)
+            .unwrap()
+            .unwrap()
+            .acknowledge(&mut composer);
+        let mut dimmed = plain.clone();
+        dimmed.dimmed = true;
+        dimmed.overlay = Some("\x1b[2;1H\x1b[0;1mBOX\x1b[0m".into());
+        let prepared = composer.prepare(&dimmed).unwrap().unwrap();
+        let bytes = String::from_utf8(prepared.bytes.clone()).unwrap();
+        let body = bytes.split("\x1b[2;1H\x1b[0;1mBOX").next().unwrap();
+        assert!(
+            body.contains("\x1b[2m\x1b[1;1HSTRIP"),
+            "the strip draws faint"
+        );
+        let sequences = body.split("\x1b[").skip(1).collect::<Vec<_>>();
+        for (index, sequence) in sequences.iter().enumerate() {
+            let end = sequence
+                .find(|value: char| ('\x40'..='\x7e').contains(&value))
+                .unwrap();
+            if sequence.as_bytes()[end] == b'm' && !sequence.starts_with("2m") {
+                assert!(
+                    sequences
+                        .get(index + 1)
+                        .is_some_and(|next| next.starts_with("2m")),
+                    "every body SGR is followed by faint: {sequence:?}"
+                );
+            }
+        }
+        assert!(
+            bytes.contains("\x1b[2;1H\x1b[0;1mBOX\x1b[0m"),
+            "the overlay stays bright"
+        );
+        prepared.acknowledge(&mut composer);
+        let restored = String::from_utf8(composer.prepare(&plain).unwrap().unwrap().bytes).unwrap();
+        assert!(
+            restored.contains("STRIP"),
+            "closing the modal repaints everything"
+        );
+        assert!(!restored.contains("\x1b[2m"));
+        assert_eq!(
+            faint(b"\x1b[>4;1m\x1b[31mx"),
+            b"\x1b[2m\x1b[>4;1m\x1b[31m\x1b[2mx".to_vec(),
+            "private-marker sequences are not SGR"
+        );
     }
 
     #[test]

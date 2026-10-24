@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TabBridgeClient } from "../../../src/foundation/resident-tabs/bridge-client.js";
+import { residentUtilityRoute, TabBridgeClient } from "../../../src/foundation/resident-tabs/bridge-client.js";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "../../../src/foundation/resident-tabs/protocol.js";
 import { ensureTerminalHost } from "../../../src/foundation/resident-tabs/ensure-terminal-host.js";
 import { readResidentTabLaunchSettings } from "../../../src/foundation/resident-tabs/settings.js";
@@ -177,11 +177,13 @@ describe("resident tab launch contracts", () => {
     transport.emit("data", encodeResidentFrame({ type: "bridge.rename", body: { name: "fixed-name", nameSource: "user" } }));
     transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "unknown" } }));
     transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "settings" } }));
+    transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "changelog" } }));
     transport.emit("data", encodeResidentFrame({ type: "bridge.stop", body: { deadlineMs: 5000 } }));
     expect(commands).toEqual([
       { type: "visibility", visible: false },
       { type: "rename", name: "fixed-name", nameSource: "user" },
       { type: "route", route: "settings" },
+      { type: "route", route: "changelog" },
       { type: "stop", deadlineMs: 5000 },
     ]);
     transport.emit("data", encodeResidentFrame({ type: "attachment", body: { clientId: "client", controllerRevision: 7 } }));
@@ -197,6 +199,12 @@ describe("resident tab launch contracts", () => {
     if (closeRequest.requestId === undefined) throw new Error("close request id missing");
     transport.emit("data", encodeResidentFrame({ type: "bridge.result", requestId: closeRequest.requestId, body: { accepted: true } }));
     await expect(closing).resolves.toBe(true);
+    const configuring = bridge.requestAction("configure-plus");
+    const configureRequest = transport.sent.at(-1)!;
+    expect(configureRequest).toMatchObject({ type: "bridge.request", body: { action: "configure-plus", clientId: "client", controllerRevision: 7 } });
+    if (configureRequest.requestId === undefined) throw new Error("configure request id missing");
+    transport.emit("data", encodeResidentFrame({ type: "bridge.result", requestId: configureRequest.requestId, body: { accepted: true } }));
+    await expect(configuring).resolves.toBe(true);
     const marker = "\x1bP+a1;controller=8;07070707070707070707070707070707\x1b\\";
     expect(bridge.consumeControllerBoundaryInput(`before${marker.slice(0, 12)}`)).toBe("before");
     expect(bridge.consumeControllerBoundaryInput(`${marker.slice(12)}after`)).toBe("after");
@@ -376,5 +384,14 @@ describe("resident tab shortcut publication", () => {
       assignments: [["tabs.new", null]],
     });
     bridge.close();
+  });
+});
+
+describe("resident utility routes", () => {
+  it("names the screen a utility tab shows by its id stem, and none for an Agent", () => {
+    expect(residentUtilityRoute("settings-1a")).toBe("settings");
+    expect(residentUtilityRoute("changelog-2b")).toBe("changelog");
+    expect(residentUtilityRoute("tab-1")).toBeNull();
+    expect(residentUtilityRoute("settingsx-1")).toBeNull();
   });
 });

@@ -104,6 +104,12 @@ import {
 
 // Invariant: a disposed shell leaves the engine a host that holds no reference back to it.
 const DETACHED_WORKFLOW_INTERACTION: OwnedUiWorkflowInteractionHost = { prompt: async () => null, notify() {} };
+/** Resident Agents refuse the commands their tab bar serves instead, naming where they live. */
+const RESIDENT_UTILITY_TAB_REFUSALS: Readonly<Record<string, string>> = Object.freeze({
+  settings: "Settings is available from the global Settings tab.",
+  changelog: "The changelog opens as its own tab from the command palette (Alt+/).",
+  name: "Rename the session by renaming its tab (F2).",
+});
 
 export {
   OwnedUiSessionShellRoot,
@@ -257,7 +263,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         }),
         enableDockInputReuse: inputPresentation?.viewportReuse !== false,
         footerSessionName: options.engine.residentTab === undefined,
-        hideSettingsCommand: options.engine.residentTab !== undefined,
+        hideUtilityTabCommands: options.engine.residentTab !== undefined,
         persistentHistory: this.#customViewport && promptHistory !== undefined,
         ...(promptHistory === undefined ? {} : { historyEditor: promptHistory.editor }),
         onSubmit: text => { void this.submit(text).catch(() => this.#submission.reportError()); },
@@ -1401,9 +1407,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const separator = body.search(/\s/);
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
-    if (name === "settings" && this.#resident.active) {
-      return rejected("Settings is available from the global Settings tab.");
-    }
+    const utilityTab = this.#resident.active ? RESIDENT_UTILITY_TAB_REFUSALS[name] : undefined;
+    if (utilityTab !== undefined) return rejected(utilityTab);
     if (this.#dialogs.claimsRoute(name)) return this.#dialogs.openRoute(name);
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {

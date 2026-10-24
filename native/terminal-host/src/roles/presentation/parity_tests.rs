@@ -176,6 +176,7 @@ fn resident_content_converges_after_resize_and_tab_reselection() {
             outer_rows: rows + 1,
             child_row_offset: 1,
             clear: false,
+            dimmed: false,
         };
         let prepared = composer
             .prepare(&next)
@@ -217,6 +218,7 @@ fn resident_damage_compares_referenced_style_and_link_values() {
             outer_rows: 5,
             child_row_offset: 1,
             clear: false,
+            dimmed: false,
         };
         if let Some(prepared) = composer.prepare(&next).unwrap() {
             outer.write(&prepared.bytes);
@@ -422,6 +424,7 @@ fn compose_parity_frame(
         outer_rows: rows + 1,
         child_row_offset: 1,
         clear: false,
+        dimmed: false,
     };
     // Invariant: a cursor-only child frame changes no retained cell and prepares nothing.
     match composer.prepare(&next).unwrap() {
@@ -836,6 +839,7 @@ fn assert_parity_sequence(columns: u16) {
             outer_rows: rows + 1,
             child_row_offset: 1,
             clear: false,
+            dimmed: false,
         };
         if let Some(prepared) = composer.prepare(&next).unwrap() {
             outer.write(&prepared.bytes);
