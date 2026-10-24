@@ -21,7 +21,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-24-add-tab-bar-command-palette/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-24-add-tab-bar-command-palette/acceptance.md",
   "finalizedDate": "2026-10-24",
-  "specBaseSha": "662fd5b5aa10de92f773889f0dcd2f026a285322",
+  "specBaseSha": "d917b44ab251c15b042f43090505958c9dcc68d8",
   "acceptanceScenarios": [
     "Clicking `+` with the default plus menu adds an Agent at once, without a menu.",
     "Right-clicking `+` shows `Configure`, which opens the `Plus Menu` modal over the current tab listing Agent, Settings, and Changelog; `Space` toggles a kind, `+` then offers the enabled kinds, and with none enabled `+` is hidden.",
