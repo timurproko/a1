@@ -54,7 +54,7 @@ Attach startup without an explicit target sends current geometry after admission
 
 ### 6. Keep centered application-state copy consistent
 
-The resize curtain follows the shared mark-and-message empty-state composition even though it is rendered by the native host rather than the TypeScript component layer. The owned Settings no-result state keeps its existing `👀` mark and centered layout, leaves one blank row before the punctuation-free `No settings found` message, and gracefully collapses that spacing in very short viewports.
+The resize curtain follows the shared mark-and-message empty-state composition even though it is rendered by the native host rather than the TypeScript component layer. The owned Settings no-result state keeps the lowered punctuation-free `No settings found` message and moves its centered `👀` mark down to the immediately preceding row, preserving compact behavior in very short viewports.
 
 ## Risks / Trade-offs
 

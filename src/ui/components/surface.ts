@@ -47,8 +47,9 @@ export function withScrollbarRail(
 export function renderEmptyState(message: string, mark: string, height: number, width: number, theme: UiTheme): readonly string[] {
   const middle = Math.floor(height / 2);
   const messageRow = Math.min(Math.max(0, height - 1), middle + 1);
+  const markRow = messageRow - 1;
   return Array.from({ length: Math.max(0, height) }, (_line, index) => {
-    if (index === middle - 1) return centre(theme.fg("muted", mark), mark, width);
+    if (index === markRow) return centre(theme.fg("muted", mark), mark, width);
     return index === messageRow ? centre(theme.fg("muted", message), message, width) : "";
   });
 }

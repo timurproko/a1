@@ -39,3 +39,8 @@
 - [x] 7.3 Ignore unchanged outer resize notifications before starting curtain state so ordinary launch does not flash resize feedback.
 - [x] 7.4 Add focused native regression coverage for changed and unchanged terminal geometry.
 - [x] 7.5 Correct the stale tab-width expectation for the default twelve-hour clock reserve while retaining explicit twenty-four-hour coverage.
+
+## 8. Settings mark alignment
+
+- [x] 8.1 Keep the lowered Settings message row and move its empty-state mark down to the directly preceding row.
+- [x] 8.2 Update Settings regression coverage for the adjacent lowered rows.

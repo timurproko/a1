@@ -1108,9 +1108,8 @@ describe("the settings screen", () => {
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
     const visible = screen(target);
     const emptyRow = visible.findIndex(line => line.trim() === "No settings found");
-    expect(emptyRow).toBeGreaterThan(1);
-    expect(visible[emptyRow - 2]?.trim()).toBe("👀");
-    expect(visible[emptyRow - 1]).toBe("");
+    expect(emptyRow).toBeGreaterThan(0);
+    expect(visible[emptyRow - 1]?.trim()).toBe("👀");
     expect(visible.join("\n")).not.toContain("No settings found.");
     expect(visible.join("\n")).not.toContain("Loading settings");
   });
