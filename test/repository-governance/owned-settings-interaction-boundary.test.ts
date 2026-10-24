@@ -3,17 +3,25 @@ import { describe, expect, it } from "vitest";
 
 const SETTINGS_APP = "src/features/owned-ui/settings-app.ts";
 const SETTINGS_ROUTE_HOST = "src/composition/settings-route-host.ts";
+const SETTINGS_SEARCH_INPUT = "src/composition/settings-search-input.ts";
 const VALUE_MENU = "src/ui/components/value-menu.ts";
 const PROVENANCE = "config/baselines/pi-session-shell-provenance.json";
 const REFERENCE = "docs/architecture/ui-reference-provenance.md";
 
 describe("owned settings interaction boundary", () => {
-  it("composes explicit search from shared input and shortcut authorities", async () => {
-    const source = await readFile(SETTINGS_APP, "utf8");
-    expect(source).toContain('renderInputRow(input, width, { placeholder: SEARCH_PLACEHOLDER, promptGlyph: "", theme })');
+  it("composes typing-first search from the shared interactive input and shortcut authorities", async () => {
+    const [source, search] = await Promise.all([
+      readFile(SETTINGS_APP, "utf8"),
+      readFile(SETTINGS_SEARCH_INPUT, "utf8"),
+    ]);
+    expect(source).toContain("this.#search.factory.isTextInput(data)");
+    expect(source).toContain("...input.render(width)");
     expect(source).toContain("SETTINGS_SHORTCUTS.hintEntries(SCOPE)");
-    expect(source).toContain('key: "/"');
-    expect(source).not.toContain('key: "printable"');
+    expect(source).toContain('hint: { keys: "Type", does: "search" }');
+    expect(search).toContain("createPiShellEditor");
+    expect(search).toContain('placeholder: "Search settings"');
+    expect(search).toContain("paste: false");
+    expect(source).not.toContain('key: "/"');
     expect(source).not.toContain("renderPinnedSettingsSearch");
   });
 

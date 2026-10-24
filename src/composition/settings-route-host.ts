@@ -6,6 +6,7 @@ import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 import type { UiApp, UiRouteHost, UiRouteInput, UiRouteSurface } from "../ui/apps/contracts.js";
 import { faint } from "../ui/components/text.js";
 import type { UiTheme, UiThemeToken } from "../ui/components/theme.js";
+import type { PiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 
 /** Styled document rows for one content width. */
 export type OwnedReferenceRows = NonNullable<ReferenceDocumentProvider["rows"]>;
@@ -21,6 +22,10 @@ export interface OwnedReferenceProviders {
 export interface OwnedRouteHostOptions {
   /** The resident Settings tab: the screen is the tab, so it offers no screen-level close. */
   readonly settingsPinned?: boolean;
+  readonly keybindings?: PiKeybindingsHost;
+  readonly agentDir?: string;
+  readonly cwd?: string;
+  readonly copyText?: (text: string) => void;
 }
 
 /** Declares settings and lazy document routes. */
@@ -35,7 +40,7 @@ export function createOwnedRouteHost(
     open: (route, input) => {
       if (!routes.has(route)) return null;
       if (route === SETTINGS_ROUTE) {
-        return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings, options.settingsPinned === true));
+        return deferredSurface(SETTINGS_APP_ID, "settings", () => loadSettingsSurface(settings, options));
       }
       const changelog = route === CHANGELOG_ROUTE;
       const session = route === "session";
@@ -81,10 +86,23 @@ function deferredSurface(id: string, label: string, load: () => Promise<UiRouteS
   };
 }
 
-async function loadSettingsSurface(settings: OwnedSettingsManager, pinned: boolean): Promise<UiRouteSurface> {
-  const { SettingsApp } = await import("../features/owned-ui/settings-app.js");
-  // Invariant: a pinned Settings tab closes as a tab; neither Esc nor one Ctrl+C dismisses its screen.
-  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings, { pinned }), !pinned);
+async function loadSettingsSurface(settings: OwnedSettingsManager, options: OwnedRouteHostOptions): Promise<UiRouteSurface> {
+  const [{ SettingsApp }, { createSettingsSearchInputFactory }] = await Promise.all([
+    import("../features/owned-ui/settings-app.js"),
+    import("./settings-search-input.js"),
+  ]);
+  const pinned = options.settingsPinned === true;
+  const searchInputFactory = createSettingsSearchInputFactory({
+    ...(options.keybindings === undefined ? {} : { keybindings: options.keybindings }),
+    ...(options.agentDir === undefined ? {} : { agentDir: options.agentDir }),
+    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+  });
+  // Invariant: a pinned Settings tab closes as a tab; neither Esc nor one unclaimed Ctrl+C dismisses its screen.
+  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings, {
+    pinned,
+    searchInputFactory,
+    ...(options.copyText === undefined ? {} : { copyText: options.copyText }),
+  }), !pinned, true);
 }
 
 async function loadReferenceSurface(
@@ -109,7 +127,13 @@ async function loadReferenceSurface(
   }));
 }
 
-async function hostApp(id: string, route: string, create: () => UiApp, closeOnInterrupt = true): Promise<UiRouteSurface> {
+async function hostApp(
+  id: string,
+  route: string,
+  create: () => UiApp,
+  closeOnInterrupt = true,
+  appInputBeforeInterrupt = false,
+): Promise<UiRouteSurface> {
   const [{ UiAppHost }, { UiAppRegistry }] = await Promise.all([
     import("../ui/apps/host.js"),
     import("../ui/apps/registry.js"),
@@ -124,6 +148,7 @@ async function hostApp(id: string, route: string, create: () => UiApp, closeOnIn
   const host = new UiAppHost({
     registry,
     closeOnInterrupt,
+    appInputBeforeInterrupt,
     theme: pinnedTheme(),
     surface: {
       size: () => size,
