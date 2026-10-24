@@ -137,6 +137,34 @@ fn status_glyph(status: &str) -> String {
     )
 }
 
+/// Renders the chip's live status glyph in a reserved popup cell, restoring the menu foreground.
+pub fn popup_status_icon(status: &str, value: Option<&str>, truecolor: bool) -> String {
+    let glyph = status_glyph(status);
+    if glyph.is_empty() {
+        return " ".into();
+    }
+    let color = if truecolor {
+        accent(status, value)
+    } else {
+        let palette = match status {
+            "needs-input" | "degraded" => 221,
+            "done" | "done-unseen" => 78,
+            "aborted" | "error" | "crashed" | "failed" | "ended" => 203,
+            "working" => match value.unwrap_or("purple") {
+                "blue" => 69,
+                "cyan" => 73,
+                "green" => 72,
+                "orange" => 215,
+                "pink" => 175,
+                _ => 140,
+            },
+            _ => 248,
+        };
+        return format!("\x1b[38;5;{palette}m{glyph}\x1b[38;5;15m");
+    };
+    format!("{color}{glyph}\x1b[38;2;255;255;255m")
+}
+
 fn accent(status: &str, value: Option<&str>) -> &'static str {
     if status != "working" {
         return match status {

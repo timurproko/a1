@@ -1992,6 +1992,15 @@ mod tests {
             menu.action_at(menu.column, 1),
             Some(PopupAction::View("b".into()))
         );
+        let mut changed = tab("b");
+        changed.status = "done".into();
+        state.refresh_overflow(&[tab("a"), changed], &["b".into()], Some(12));
+        let menu = state.mode.popup().expect("live status refresh");
+        assert_eq!(menu.items[0].icon_status.as_deref(), Some("done"));
+        assert_eq!(
+            menu.action_at(menu.column, 1),
+            Some(PopupAction::View("b".into()))
+        );
         state.refresh_overflow(&[tab("a"), tab("b")], &[], None);
         assert!(state.mode.popup().is_none());
     }

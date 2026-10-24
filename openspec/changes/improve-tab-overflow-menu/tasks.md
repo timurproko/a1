@@ -8,8 +8,8 @@
 
 - [x] 1.6 Swap a selected hidden tab into the previously viewed chip's slot when space is limited, preserving other visible chips when feasible without changing registry order.
 - [x] 1.7 Add strip and attach tests for one-chip and two-chip swaps, displaced menu entries, stable chip positions, keyboard switching, and geometry limits.
-- [ ] 1.8 Reserve a stable status icon and separator before each hidden-tab name, using the strip's live glyph and semantic color without changing row actions.
-- [ ] 1.9 Add focused tests for idle and active icon slots, color and style boundaries, hover, name clipping, and mouse coordinates at narrow widths.
+- [x] 1.8 Reserve a stable status icon and separator before each hidden-tab name, using the strip's live glyph and semantic color without changing row actions.
+- [x] 1.9 Add focused tests for idle and active icon slots, color and style boundaries, hover, name clipping, and mouse coordinates at narrow widths.
 
 ## 2. A1 footer truncation
 
@@ -23,4 +23,4 @@
 - [x] 3.1 Record focused typecheck and touched-test results with any known gaps in implementation evidence after approval and implementation.
 - [x] 3.2 Record the earlier refinement's focused checks and gap disposition in the implementation evidence.
 - [x] 3.3 Record hidden-only menu and swap checks and any remaining geometry limits.
-- [ ] 3.4 Record icon-slot rendering and interaction checks and any remaining limits.
+- [x] 3.4 Record icon-slot rendering and interaction checks and any remaining limits.

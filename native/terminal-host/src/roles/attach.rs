@@ -244,6 +244,21 @@ fn clip_cells(value: &str, width: usize) -> String {
     output
 }
 
+fn menu_icon(item: &PopupItem, inner: usize, truecolor: bool) -> (String, usize) {
+    let Some(status) = item.icon_status.as_deref() else {
+        return (String::new(), 0);
+    };
+    if inner == 0 {
+        return (String::new(), 0);
+    }
+    let icon = strip::popup_status_icon(status, item.icon_accent.as_deref(), truecolor);
+    if inner == 1 {
+        (icon, 1)
+    } else {
+        (format!("{icon} "), 2)
+    }
+}
+
 fn menu_text_parts(item: &PopupItem, inner: usize) -> (String, usize, String) {
     let shortcut = clip_cells(&item.shortcut, inner);
     let shortcut_width = UnicodeWidthStr::width(shortcut.as_str());
@@ -774,7 +789,9 @@ impl PopupMenu {
                 if item.separator {
                     output.push_str(&"─".repeat(inner));
                 } else {
-                    let (label, gap, shortcut) = menu_text_parts(item, inner);
+                    let (icon, icon_width) = menu_icon(item, inner, true);
+                    let (label, gap, shortcut) = menu_text_parts(item, inner - icon_width);
+                    output.push_str(&icon);
                     output.push_str(&label);
                     output.push_str(&" ".repeat(gap));
                     if !shortcut.is_empty() {
@@ -793,7 +810,9 @@ impl PopupMenu {
                 let label = if item.separator {
                     "─".repeat(inner)
                 } else {
-                    let (mut label, gap, shortcut) = menu_text_parts(item, inner);
+                    let (icon, icon_width) = menu_icon(item, inner, false);
+                    let (mut label, gap, shortcut) = menu_text_parts(item, inner - icon_width);
+                    label.insert_str(0, &icon);
                     label.push_str(&" ".repeat(gap));
                     if !shortcut.is_empty() {
                         // Compatibility: The palette counterpart of the truecolor muted shortcut.
@@ -1177,6 +1196,10 @@ impl TabView for StripTab {
 
     fn status(&self) -> &str {
         &self.status
+    }
+
+    fn accent(&self) -> Option<&str> {
+        self.accent.as_deref()
     }
 
     fn set_status(&mut self, status: String) {
@@ -4348,6 +4371,84 @@ mod tests {
             }
             assert!(menu.column + menu.width <= columns);
         }
+    }
+
+    #[test]
+    fn overflow_rows_reserve_a_live_status_glyph_without_coloring_the_title() {
+        let mut tabs = ["Agent2", "Agent3", "Agent4"]
+            .iter()
+            .enumerate()
+            .map(|(index, name)| StripTab {
+                id: format!("tab-{index}"),
+                name: (*name).into(),
+                name_source: "user".into(),
+                status: ["working", "needs-input", "idle"][index].into(),
+                accent: (index == 0).then(|| "blue".into()),
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        let hidden = tabs.iter().map(|tab| tab.id.clone()).collect::<Vec<_>>();
+        let mut menu = PopupMenu::overflow(0, 30, &hidden, &tabs);
+        assert_eq!(
+            menu.width, 10,
+            "each row reserves icon, separator, name, and edges"
+        );
+        assert_eq!(
+            menu.items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["Agent2", "Agent3", "Agent4"]
+        );
+        menu.hovered = Some(0);
+        let rgb = menu.render_styled_at(true, POPUP_HOVER_NEUTRAL, TabBarPosition::Bottom, 24);
+        assert!(
+            strip::TAB_SPINNER_FRAMES
+                .iter()
+                .any(|glyph| rgb.contains(&format!(
+                    "\x1b[38;2;91;141;239m{glyph}\x1b[38;2;255;255;255m Agent2"
+                )))
+        );
+        assert!(rgb.contains("\x1b[38;2;224;175;70m?\x1b[38;2;255;255;255m Agent3"));
+        assert!(rgb.contains("\x1b[38;2;255;255;255m   Agent4"));
+        assert!(
+            rgb.contains("\x1b[48;2;48;48;48m"),
+            "hover affects only background"
+        );
+        let palette = menu.render_styled_at(false, POPUP_HOVER_NEUTRAL, TabBarPosition::Bottom, 24);
+        assert!(strip::TAB_SPINNER_FRAMES.iter().any(|glyph|
+            palette.contains(&format!("\x1b[38;5;69m{glyph}\x1b[38;5;15m Agent2"))));
+        assert!(palette.contains("\x1b[38;5;221m?\x1b[38;5;15m Agent3"));
+        tabs[1].status = "done".into();
+        menu = PopupMenu::overflow(0, 4, &hidden, &tabs);
+        assert_eq!(menu.width, 4);
+        assert_eq!(menu_text_parts(&menu.items[0], 0).0, "");
+        assert_eq!(menu_icon(&menu.items[0], 2, true).1, 2);
+        let narrow = menu.render_styled_at(true, POPUP_HOVER_NEUTRAL, TabBarPosition::Bottom, 24);
+        assert!(narrow.contains("\x1b[38;2;90;190;120m✓\x1b[38;2;255;255;255m "));
+        assert_eq!(
+            menu.action_at(menu.column, 2),
+            Some(PopupAction::View("tab-1".into()))
+        );
+        assert_eq!(
+            menu.mouse_row(
+                TabBarPosition::Bottom,
+                24,
+                menu.terminal_row(1, TabBarPosition::Bottom, 24).unwrap() - 1
+            ),
+            Some(2)
+        );
+        tabs[2].name = "名🌙α".into();
+        menu = PopupMenu::overflow(0, 7, &hidden, &tabs);
+        assert_eq!(
+            menu_text_parts(&menu.items[2], 3).0,
+            "名",
+            "the reserved icon slot leaves a grapheme-safe title budget"
+        );
+        assert_eq!(
+            menu.action_at(menu.column, 3),
+            Some(PopupAction::View("tab-2".into()))
+        );
     }
 
     #[test]
