@@ -2045,7 +2045,7 @@ Space SHALL toggle the selected model's membership in the session's cycling scop
 
 The dialog SHALL compare its current scope and order with the last successfully saved scope. Whenever they differ, the title row SHALL read `Models (unsaved)`, with `(unsaved)` immediately after the title. Ctrl+S SHALL persist the current scope and order while leaving the dialog open; only a successful save SHALL clear `(unsaved)`. An empty explicit scope SHALL preserve the existing all-model cycling fallback.
 
-While a real catalog refresh runs in the background, the dialog SHALL show a muted `(refreshing)` marker on the title row, SHALL NOT render the full progress sentence in its body, and SHALL keep `(refreshing)` visible for at least one second so fast completion cannot reduce it to an unreadable flash. After both a successful refresh and the minimum-visible interval, the dialog SHALL remove `(refreshing)` directly without showing `(refreshed)` or a success sentence. The refresh marker SHALL coexist with `(unsaved)` without hiding or clearing the dirty state. Timeout and failure outcomes SHALL remove the title refresh marker after the minimum-visible interval and remain visible as actionable warning details in the body.
+Catalog refresh SHALL run in the background without adding `(refreshing)` to the title or rendering a progress or successful-completion sentence in the dialog body. A successful refresh SHALL silently update available rows while preserving the user's query, surviving selection, pending scope edits, and dirty state. Timeout and failure outcomes SHALL keep the same state and remain visible as actionable bounded warning details in the body without changing the title.
 
 #### Scenario: Advertise the unified bare-A1 command
 - **WHEN** bare A1 builds its slash-command catalog
@@ -2089,17 +2089,16 @@ While a real catalog refresh runs in the background, the dialog SHALL show a mut
 
 #### Scenario: Refresh model catalogs
 - **WHEN** the Models dialog starts its real background catalog refresh
-- **THEN** the title SHALL show muted `(refreshing)`, including alongside `(unsaved)` when the scope is dirty
-- **AND** the full progress sentence SHALL not appear in the dialog body
-- **AND** quick completion SHALL leave `(refreshing)` visible until one second has elapsed from refresh start
-- **WHEN** catalog refresh then succeeds and the minimum-visible interval has elapsed
+- **THEN** the title SHALL remain `Models` or `Models (unsaved)` according to dirty state
+- **AND** neither `(refreshing)` nor the full progress sentence SHALL appear in the dialog
+- **WHEN** catalog refresh then succeeds
 - **THEN** the dialog SHALL preserve the user's query, selected row where still available, pending scope edits, and dirty state while updating the available rows
-- **AND** the title SHALL remove `(refreshing)` directly without showing `(refreshed)` or a success sentence
+- **AND** the dialog SHALL not show `(refreshed)` or a success sentence
 
 #### Scenario: Model catalog refresh fails or times out
 - **WHEN** catalog refresh fails or times out while the Models dialog is open
 - **THEN** the dialog SHALL preserve the user's query, selected row where still available, pending scope edits, and dirty state without broadening availability to unauthenticated providers
-- **AND** after the one-second minimum-visible interval it SHALL remove `(refreshing)` and report the bounded warning details in the dialog body without showing `(refreshed)`
+- **AND** it SHALL report the bounded warning details in the dialog body without showing `(refreshing)` or `(refreshed)`
 
 #### Scenario: Invoke an explicit model-selection binding
 - **WHEN** the user invokes an explicitly configured model-selection shortcut in bare A1
