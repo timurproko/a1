@@ -46,7 +46,12 @@ the operating-system home. A custom agent-profile directory changes the history
 identity, not this default root. `A1_DATA_DIR` takes precedence for storage;
 `XDG_DATA_HOME` does not redirect default history. Control metadata, settings,
 agent resources, releases, logs, runtime files, and caches keep their existing
-locations.
+locations. For repository-local `./scripts/dev` launches, history uses a stable
+checkout-wide data root so two independent solo instances share the selected
+Shared database, while control and runtime data remain isolated per launch.
+The development-only `A1_DEV_HISTORY_DATA_DIR` selects that root; an explicit
+`A1_DATA_DIR` still overrides its launcher default. Existing histories in old
+per-instance development roots are not moved or combined.
 
 **The home-based default starts fresh.** Previous versions used
 `%LOCALAPPDATA%/a1/history` on Windows, or `$XDG_DATA_HOME/a1/history` /

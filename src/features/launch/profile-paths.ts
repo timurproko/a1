@@ -34,6 +34,10 @@ export function resolveLaunchProfilePaths(options: LaunchProfilePathOptions = {}
 export function resolvePromptHistoryDataDir(options: LaunchProfilePathOptions = {}): string {
   const environment = options.environment ?? process.env;
   const platform = options.platform ?? process.platform;
+  const developmentHistoryDataDir = environment[PRODUCT_IDENTITY.environment.developmentHistoryDataDir];
+  if (developmentHistoryDataDir !== undefined) {
+    return resolveProductPaths({ ...environment, [PRODUCT_IDENTITY.environment.dataDir]: developmentHistoryDataDir }, platform).dataDir;
+  }
   if (environment[PRODUCT_IDENTITY.environment.dataDir] !== undefined) {
     return resolveProductPaths(environment, platform).dataDir;
   }

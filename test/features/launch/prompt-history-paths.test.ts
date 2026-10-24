@@ -42,6 +42,15 @@ describe("prompt history root selection", () => {
     }
   });
 
+  it.each(platforms)("uses the checkout-wide development history root without changing control storage on $platform", ({ platform, home, path }) => {
+    const environment = {
+      A1_DATA_DIR: path.join(home, "instance-data"),
+      A1_DEV_HISTORY_DATA_DIR: path.join(home, "checkout-data"),
+    };
+    expect(resolvePromptHistoryDataDir({ environment, platform })).toBe(path.join(home, "checkout-data"));
+    expect(resolveProductPaths(environment, platform).dataDir).toBe(path.join(home, "instance-data"));
+  });
+
   it.each(platforms)("isolates sessions while preserving the former shared location on $platform", ({ platform, home, path }) => {
     const data = path.join(home, ".a1", "data");
     const profile = path.join(home, ".a1", "agent");
