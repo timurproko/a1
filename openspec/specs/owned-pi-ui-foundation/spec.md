@@ -725,7 +725,7 @@ Stable-work evidence SHALL associate each measured composition's transcript rend
 - **AND** the diagnostic SHALL be bounded, SHALL NOT require a second producer run, and SHALL NOT dump arbitrary transcript or credential content
 
 ### Requirement: The owned shell preserves setting-controlled Pi behavior
-Every Pi setting the A1-owned settings replacement presents SHALL control the same active-session, presentation, terminal, startup, or shutdown behavior that the pinned Pi setting controls. The replacement SHALL not count persistence, callback reachability, or selector rendering as preservation of a pinned capability. An inventory entry with no effect in the active product mode or environment SHALL be omitted from the settings UI rather than rendered as an unavailable option. A supported setting that provides a defined terminal fallback remains present and SHALL render that fallback truthfully.
+Every Pi setting the A1-owned settings replacement presents SHALL control the same active-session, presentation, terminal, startup, or shutdown behavior that the pinned Pi setting controls. The replacement SHALL not count persistence, callback reachability, or selector rendering as preservation of a pinned capability. An inventory entry with no effect in the active product mode or environment SHALL be omitted from the settings UI rather than rendered as an unavailable option. A supported setting that provides a defined terminal fallback remains present and SHALL render that fallback truthfully. Bare A1's declared transcript-specific omission for enabled images in terminals without an inline-image protocol SHALL not mutate the setting value or the underlying attachment.
 
 #### Scenario: Change a pinned live setting through bare A1
 - **WHEN** the user changes a setting that pinned Pi applies live
@@ -736,8 +736,9 @@ Every Pi setting the A1-owned settings replacement presents SHALL control the sa
 - **THEN** existing affected transcript blocks SHALL be reconstructed or invalidated with stable semantic identity and SHALL show the new presentation
 
 #### Scenario: Use a terminal without inline-image support
-- **WHEN** the transcript contains an image but the terminal advertises no protocol supported by the pinned renderer
-- **THEN** the attachment SHALL remain visible through a textual fallback and inline-image availability SHALL not be claimed
+- **WHEN** the transcript contains an image, image display is enabled, and the terminal advertises no protocol supported by the pinned renderer
+- **THEN** the owned transcript content area SHALL omit the automatic textual attachment fallback and SHALL NOT claim inline-image availability
+- **AND** surrounding transcript content, submitted screenshot chips, attachment retention, and model-facing delivery SHALL remain unchanged
 
 #### Scenario: Exit the owned fullscreen surface
 - **WHEN** the shell disposes after `fullscreenExitOutput` has selected transcript or resume-hint output
