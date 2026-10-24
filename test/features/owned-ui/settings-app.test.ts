@@ -1106,8 +1106,12 @@ describe("the settings screen", () => {
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(screen(target).some(line => line.trimEnd() === "zzzz")).toBe(true);
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
-    expect(screen(target).join("\n")).toContain("No settings found.");
-    expect(screen(target).join("\n")).not.toContain("Loading settings");
+    const visible = screen(target);
+    const emptyRow = visible.findIndex(line => line.trim() === "No settings found");
+    expect(emptyRow).toBeGreaterThan(0);
+    expect(visible[emptyRow - 1]?.trim()).toBe("👀");
+    expect(visible.join("\n")).not.toContain("No settings found.");
+    expect(visible.join("\n")).not.toContain("Loading settings");
   });
 
   it("leaves Ctrl+C to the host outside an active search selection", async () => {
@@ -1329,7 +1333,7 @@ describe("the input row and status line behind the screen", () => {
     const { app: target } = await app();
     expect(target.onInput?.("/", HOST)).toEqual({ consumed: true });
     expect(screen(target).some(line => line.trim() === "/")).toBe(true);
-    expect(screen(target).join("\n")).toContain("No settings found.");
+    expect(screen(target).join("\n")).toContain("No settings found");
   });
 
   it("shows the Search settings placeholder for an empty active search", async () => {

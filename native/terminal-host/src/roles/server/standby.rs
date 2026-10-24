@@ -296,7 +296,7 @@ pub(super) fn launch_standby(
             .is_some_and(|value| value.tab_id == tab_id)
     {
         locked.standby = None;
-        locked.holders.remove(&tab_id);
+        remove_holder_session(&mut locked, &tab_id);
     }
     result
 }

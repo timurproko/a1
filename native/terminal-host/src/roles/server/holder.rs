@@ -844,7 +844,7 @@ pub(super) fn serve_holder(
     {
         return served;
     }
-    locked.holders.remove(&tab_id);
+    remove_holder_session(&mut locked, &tab_id);
     let was_standby = locked
         .standby
         .as_ref()
