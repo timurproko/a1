@@ -1501,15 +1501,14 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
-        // Rationale: the 12-hour clock changes width between 9 and 10 o'clock; use a fixed-width clock.
+        assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [17, 17, 17]);
         assert_eq!(
-            widths(render_interactive(
+            widths(render_configured(
                 &tabs[..3],
                 Some("tab-0"),
                 65,
                 None,
                 TimeFormat::TwentyFour,
-                None
             )),
             [18, 18, 18]
         );

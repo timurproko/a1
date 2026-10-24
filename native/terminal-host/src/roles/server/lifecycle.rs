@@ -249,7 +249,7 @@ pub(super) fn release_gone_tab(
     {
         return Ok(false);
     }
-    locked.holders.remove(tab_id);
+    remove_holder_session(&mut locked, tab_id);
     locked.core.set_starting(tab_id, false);
     locked.core.set_terminating(tab_id, false);
     release_recovery_slot(&mut locked, tab_id);
