@@ -270,6 +270,17 @@ fn wordmark_row(
     output
 }
 
+/// A text row as a new Agent's wipe leaves it: its cells go from the right, as the wordmark's do,
+/// so only the caret cell is left when the wipe completes.
+fn wiped(text: &str, wipe: Option<f32>) -> String {
+    let Some(progress) = wipe else {
+        return text.to_owned();
+    };
+    let cells = text.graphemes(true).collect::<Vec<_>>();
+    let kept = ((1.0 - progress.clamp(0.0, 1.0)) * cells.len() as f32).ceil() as usize;
+    cells.into_iter().take(kept).collect()
+}
+
 /// The landing body, addressed as rows below a top strip. Every row is cleared; the launch cwd
 /// sits on the second-to-last body row, flush left, with `a1 v<version>` below it and the
 /// wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
@@ -287,13 +298,17 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     let cwd_row = body_rows.saturating_sub(2);
     place(
         cwd_row,
-        format!("{}{}\x1b[0m", fg(DIM), clip_left(input.cwd, columns)),
+        format!(
+            "{}{}\x1b[0m",
+            fg(DIM),
+            wiped(&clip_left(input.cwd, columns), input.wipe)
+        ),
     );
     // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
     if let Some(version) = input.version.filter(|version| !version.is_empty())
         && cwd_row + 1 < body_rows
     {
-        let version = clip(&format!("v{version}"), columns);
+        let version = wiped(&clip(&format!("v{version}"), columns), input.wipe);
         place(cwd_row + 1, format!("{}{version}\x1b[0m", fg(DIM)));
     }
     if input.half_blocks && cwd_row >= WORDMARK.len() {
@@ -412,8 +427,16 @@ mod tests {
             "the caret cell turns white like the Agent caret"
         );
         assert_eq!(
-            done[21], "~/src/a1",
+            start[21], "~/src/a1",
             "the cwd stays where the footer shows it"
+        );
+        assert_eq!(
+            half[21], "~/sr",
+            "the cwd wipes from the right with the wordmark"
+        );
+        assert!(
+            done[21].is_empty() && done[22].is_empty(),
+            "the cwd and version are gone, leaving only the caret cell"
         );
     }
 

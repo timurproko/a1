@@ -1925,17 +1925,23 @@ impl Client {
         for effect in effects {
             match effect {
                 Effect::Send(request) => self.send(request)?,
-                Effect::View(tab_id) => self.request_view(tab_id)?,
-                Effect::AwaitFirstDraw(tab_id) => {
-                    self.view.await_first_draw(&tab_id);
-                    // Rationale: the strip shows the new tab at once while its body stays empty
-                    // until it draws, then its content fades in; the landing's wipe already
-                    // carries a new Agent from the landing.
-                    if !self.landing_shown() {
+                Effect::View(tab_id) => {
+                    // Rationale: a tab the server created or revealed for this client joins the
+                    // strip at once while its body stays empty, or the landing keeps its wipe,
+                    // until it draws; its content then fades in. A tab already shown switches.
+                    let joins = self.reveal.take_joining(&tab_id)
+                        && !shown_tabs(&self.tabs, self.view.viewed.as_deref(), core.view.shown())
+                            .iter()
+                            .any(|tab| tab.id == tab_id);
+                    if joins {
                         self.reveal.veil(&tab_id);
+                    }
+                    self.request_view(tab_id)?;
+                    if joins {
                         self.paint(core, false)?;
                     }
                 }
+                Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
                 Effect::CancelViewRequest => self.view.cancel_request(),
                 Effect::Renamed { tab_id, name } => {
                     if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) {
@@ -2246,8 +2252,11 @@ impl Client {
             clear,
             dimmed,
         };
-        self.terminal
-            .present(self.reveal.present(desired, self.view.requested.as_deref()))
+        self.terminal.present(self.reveal.present(
+            desired,
+            self.view.requested.as_deref(),
+            self.landing_shown(),
+        ))
     }
 
     fn apply_terminal_effect(&mut self, effect: &TerminalEffect) -> Result<(), String> {
@@ -2408,6 +2417,7 @@ impl Client {
             }
             "tab.created" | "tab.selected" => {
                 let (_, target): (_, TabTarget) = wire::body(payload)?;
+                self.reveal.joining(&target.tab_id);
                 ServerEvent::Created {
                     tab_id: target.tab_id,
                     created: message_type == "tab.created",
