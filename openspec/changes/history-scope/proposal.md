@@ -4,9 +4,9 @@ Today every enabled bare-A1 agent using the same profile reads and writes one pr
 
 ## What Changes
 
-- Add **History scope** under Settings → History with **Unique** (default) and **Shared** choices. Like the existing history controls, it takes effect on the next agent start, not mid-session.
+- Add **History scope** under Settings → History with **Unique** (default) and **Shared** choices. Unlike the existing persistence and limit controls, scope changes take effect in running agents as well as subsequent starts.
 - In Unique mode, separate agent session identities address separate durable history databases and image sidecars, whether launched in separate `a1 solo` processes or resident tabs. Restarting/resuming the *same* session recovers its history; a new session or fork gets its own history.
-- In Shared mode, use the existing profile-wide history location and behavior unchanged. Changing modes never automatically copies, imports, merges, deletes, or migrates either mode's history.
+- In Shared mode, use the existing profile-wide history location and behavior unchanged. Changing modes switches the active database and image sidecars for every running agent without copying, importing, merging, deleting, or migrating either mode's history. Already-submitted writes finish in their original store; unsent drafts remain intact.
 - Retain existing profile/data-root isolation, count and byte limits, session-local recall and transcript seeding, disabled-persistence behavior, and untouched `a1 pi` comparison.
 
 ## Capabilities

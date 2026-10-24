@@ -390,41 +390,26 @@ A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` a
 - **THEN** A1's stored scrollbar appearance, style, and speed SHALL NOT modify that interface's scrollbar or wheel behavior
 
 ### Requirement: Prompt history settings declare persistence and retention boundaries
-A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `promptHistoryMaxItems` as an integer allowing 10 through 100 in steps of 10 and defaulting to 100, and `promptHistoryScope` as `unique` (default) or `shared`. They SHALL appear in bare A1's History settings section as `Persistent history`, `History limit`, and `History scope`, using existing shared settings controls, profile-local A1 settings persistence, validation, and stored/effective-state presentation. All three SHALL declare a `next-start` application boundary. Unique SHALL select a durable history per agent session, while Shared SHALL retain the former profile-wide history. Saving a scope SHALL NOT migrate, merge, delete, or retroactively change any running agent's history. No Pi settings document or separate history settings file SHALL be used, and `a1 pi` SHALL neither expose nor apply these A1 settings.
+A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true and `promptHistoryMaxItems` as an integer allowing 10 through 100 in steps of 10, defaulting to 100. They SHALL appear in bare A1's History settings section as `Persistent history` and `History limit`, using existing shared settings controls, profile-local A1 settings persistence, validation, and stored/effective-state presentation. Both SHALL declare a `next-start` application boundary. No Pi settings document or separate history settings file SHALL be used, and `a1 pi` SHALL neither expose nor apply these A1 settings.
 
 #### Scenario: Start without stored history settings
-- **WHEN** a bare-A1 profile has no stored history settings, including an existing profile created before History scope was introduced
-- **THEN** its next-start effective values SHALL enable persistence with a 100-entry count limit and Unique scope
+- **WHEN** a bare-A1 profile has no stored history settings
+- **THEN** its next-start effective values SHALL enable persistence with a 100-entry count limit
 - **AND** byte retention limits SHALL still apply independently
-- **AND** any old shared profile history SHALL remain intact, but SHALL NOT appear in the new session's unique durable recall
 
 #### Scenario: Change retention
 - **WHEN** the user saves a valid history limit
 - **THEN** the settings surface SHALL show that it applies on the next start rather than claiming a live effect
-- **AND** the next enabled launch SHALL apply that count to its selected history store, pruning oldest entries if necessary
-- **AND** existing writers using that store SHALL follow its newly applied limit without restoring their older startup limit
+- **AND** the next enabled launch SHALL apply that count to the shared profile store, pruning oldest entries if necessary
+- **AND** existing writers SHALL follow the store's newly applied limit without restoring their older startup limit
 
 #### Scenario: Reject an invalid limit
 - **WHEN** a stored history limit is not one of 10, 20, 30, 40, 50, 60, 70, 80, 90, or 100
 - **THEN** existing settings validation SHALL reject that value and resolve the declared default without blocking startup
 
-#### Scenario: Set scope to Shared
-- **WHEN** the user saves Shared scope and starts a new enabled agent
-- **THEN** that agent SHALL read and write the unchanged profile-wide history store used before this setting existed
-- **AND** other sessions in Shared mode SHALL see its committed prompts
-
-#### Scenario: Reject an invalid scope
-- **WHEN** a stored history scope is neither `unique` nor `shared`
-- **THEN** existing settings validation SHALL reject that value and resolve Unique without blocking startup
-
-#### Scenario: Change scope while agents are running
-- **WHEN** the user saves another scope while an agent is already running
-- **THEN** the setting SHALL be presented as applying on next start and that agent SHALL continue using its original store
-- **AND** no existing history store SHALL be copied, merged, or erased
-
 #### Scenario: Disable history for subsequent launches
 - **WHEN** the user disables persistent history and restarts A1
-- **THEN** that process SHALL not create, read, write, or poll the durable history store in either scope
+- **THEN** that process SHALL not create, read, write, or poll the durable history store
 - **AND** it SHALL keep existing current-session history behavior
 - **AND** disabling SHALL leave retained records intact rather than claiming to erase them
 
@@ -435,7 +420,7 @@ A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `prompt
 
 #### Scenario: Re-enable persistence
 - **WHEN** the user re-enables history and starts a new enabled process
-- **THEN** compatible previously retained records in that process's selected scope SHALL become available again under the configured count and byte limits
+- **THEN** compatible previously retained records SHALL become available again under the configured count and byte limits
 
 #### Scenario: Keep history settings profile-local
 - **WHEN** different A1 profiles store different history settings or the Pi comparison starts

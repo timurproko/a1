@@ -1,11 +1,11 @@
 ## MODIFIED Requirements
 
 ### Requirement: Prompt history settings declare persistence and retention boundaries
-A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `promptHistoryMaxItems` as an integer allowing 10 through 100 in steps of 10 and defaulting to 100, and `promptHistoryScope` as `unique` (default) or `shared`. They SHALL appear in bare A1's History settings section as `Persistent history`, `History limit`, and `History scope`, using existing shared settings controls, profile-local A1 settings persistence, validation, and stored/effective-state presentation. All three SHALL declare a `next-start` application boundary. Unique SHALL select a durable history per agent session, while Shared SHALL retain the former profile-wide history. Saving a scope SHALL NOT migrate, merge, delete, or retroactively change any running agent's history. No Pi settings document or separate history settings file SHALL be used, and `a1 pi` SHALL neither expose nor apply these A1 settings.
+A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `promptHistoryMaxItems` as an integer allowing 10 through 100 in steps of 10 and defaulting to 100, and `promptHistoryScope` as `unique` (default) or `shared`. They SHALL appear in bare A1's History settings section as `Persistent history`, `History limit`, and `History scope`, using existing shared settings controls, profile-local A1 settings persistence, validation, and stored/effective-state presentation. `promptHistoryEnabled` and `promptHistoryMaxItems` SHALL declare a `next-start` application boundary; `promptHistoryScope` SHALL be live and apply to running bare-A1 agents sharing that profile. Unique SHALL select a durable history per agent session, while Shared SHALL retain the former profile-wide history. Saving a scope SHALL switch each running agent's selected durable history and image sidecars without migrating, merging, deleting, or rerouting already-submitted prompts; unsent drafts SHALL remain intact. No Pi settings document or separate history settings file SHALL be used, and `a1 pi` SHALL neither expose nor apply these A1 settings.
 
 #### Scenario: Start without stored history settings
 - **WHEN** a bare-A1 profile has no stored history settings, including an existing profile created before History scope was introduced
-- **THEN** its next-start effective values SHALL enable persistence with a 100-entry count limit and Unique scope
+- **THEN** its effective values SHALL enable persistence with a 100-entry count limit and Unique scope
 - **AND** byte retention limits SHALL still apply independently
 - **AND** any old shared profile history SHALL remain intact, but SHALL NOT appear in the new session's unique durable recall
 
@@ -20,7 +20,7 @@ A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `prompt
 - **THEN** existing settings validation SHALL reject that value and resolve the declared default without blocking startup
 
 #### Scenario: Set scope to Shared
-- **WHEN** the user saves Shared scope and starts a new enabled agent
+- **WHEN** the user saves Shared scope or starts a new enabled agent with Shared selected
 - **THEN** that agent SHALL read and write the unchanged profile-wide history store used before this setting existed
 - **AND** other sessions in Shared mode SHALL see its committed prompts
 
@@ -30,8 +30,15 @@ A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `prompt
 
 #### Scenario: Change scope while agents are running
 - **WHEN** the user saves another scope while an agent is already running
-- **THEN** the setting SHALL be presented as applying on next start and that agent SHALL continue using its original store
+- **THEN** that agent SHALL select the newly chosen store and show its own existing entries, preserving any unsent draft
+- **AND** submissions already captured SHALL finish in their original store, while future submissions use the newly selected one
 - **AND** no existing history store SHALL be copied, merged, or erased
+
+#### Scenario: Switch scope across resident tabs and solo processes
+- **WHEN** one agent changes History scope while other agents in the same profile are running
+- **THEN** each SHALL apply the saved scope on its next accepted settings notification, showing the selected store's recall rather than appending the other store's entries
+- **AND** a prompt submitted before that agent observes the change SHALL remain in its then-selected store
+- **AND** persistence enablement and retention count SHALL remain next-start settings
 
 #### Scenario: Disable history for subsequent launches
 - **WHEN** the user disables persistent history and restarts A1
