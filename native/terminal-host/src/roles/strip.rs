@@ -1448,7 +1448,13 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
-        assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [17, 17, 17]);
+        // Invariant: three tabs share what the row leaves after the clock and its gap and the
+        // `+`. The twelve-hour clock is seven cells before ten o'clock and eight after, so the
+        // expectation follows the clock the frame drew instead of the hour the test runs at.
+        let twelve_hour_clock = UnicodeWidthStr::width(clock_text(TimeFormat::Twelve).as_str());
+        let shared = ((65 - (twelve_hour_clock + 1) - 3) / 3) as u16;
+        assert!((17..=18).contains(&shared), "{shared}");
+        assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [shared; 3]);
         assert_eq!(
             widths(render_configured(
                 &tabs[..3],
