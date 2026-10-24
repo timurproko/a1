@@ -1,6 +1,6 @@
 ## MODIFIED Requirements
 
-### Requirement: Interactive startup checks for a newer release on the applicable channel
+### Requirement: Interactive startup checks for a newer release on the running channel
 
 When an interactive profile (`a1` or `a1 pi`) starts from a published build, A1 SHALL determine whether a newer release exists on the channel applicable to the selected update mode. In `Auto`, the applicable version SHALL be the immutable release executing the session. In `Notify`, the applicable version SHALL be the installed package that accepted the public launch command when current launch context provides that validated version; otherwise it SHALL fall back to the executing version. A version without a prerelease component SHALL select npm dist-tag `latest`, and an `X.Y.Z-dev.N` version SHALL select `next`. A version is newer only when both versions are valid semver and the candidate is greater than the applicable version. The check SHALL NOT delay the first usable frame and SHALL NOT run for noninteractive commands. Any lookup, parse, or cache failure SHALL be silent and SHALL NOT produce a diagnostic.
 
@@ -20,7 +20,7 @@ Both `Auto` and `Notify` SHALL be skipped when `PI_OFFLINE` is truthy, when `A1_
 - **THEN** A1 SHALL request a silent background update to exact development release `0.3.1-dev.652`
 - **AND** it SHALL NOT inspect or install the `latest` stable release
 
-#### Scenario: The applicable release is current or newer
+#### Scenario: The running release is current or newer
 - **WHEN** the applicable channel's dist-tag is equal to or lower than the applicable version, or either version is not valid semver
 - **THEN** no automatic update or availability popup SHALL be produced
 
@@ -35,6 +35,10 @@ Both `Auto` and `Notify` SHALL be skipped when `PI_OFFLINE` is truthy, when `A1_
 #### Scenario: The check is disabled
 - **WHEN** any environment/profile opt-out holds or bare A1 selects `No`
 - **THEN** A1 SHALL neither read the release cache, contact the registry, start an automatic-update worker, nor observe automatic-update state for this check
+
+#### Scenario: Notify preserves the current popup
+- **WHEN** bare A1 selects `Notify` and discovery resolves a newer release on the applicable channel
+- **THEN** A1 SHALL show the existing update-available popup with the channel-appropriate manual command and SHALL NOT start automatic installation
 
 #### Scenario: Stable notify follows the invoking package
 - **WHEN** a stable installed package starts in `Notify` mode but ordinary launch selection executes an approved development runtime
