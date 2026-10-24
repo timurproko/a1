@@ -435,15 +435,18 @@ describe("transcript content retention across renderer boundaries", () => {
     expect(backend.view().transcript.at(-1)!.revision).toBe(revision);
   });
 
-  it("attaches a late image to an already mounted tool surface", async () => {
+  it("attaches a late image to an already mounted tool surface without an unsupported-terminal placeholder", async () => {
     const { emit, shell, backend } = await fixture();
+    setCapabilities({ ...getCapabilities(), images: null });
     await emit({ type: "message_end", message: assistantCall("image", "unknown-image-tool", {}) });
+    const mounted = shell.root.transcriptComponent("tool-image");
     await emit({ type: "message_end", message: {
       role: "toolResult", timestamp: 25, toolCallId: "image", toolName: "unknown-image-tool", isError: false,
       content: [{ type: "image", mimeType: "image/png", data: "AQID" }],
     } });
+    expect(shell.root.transcriptComponent("tool-image")).toBe(mounted);
     expect(backend.view().transcript.find(block => block.id === "tool-image")?.imageReferences).toHaveLength(1);
-    expect(textRows(shell.root.render(80))).toMatch(/\[Image/);
+    expect(textRows(shell.root.render(80))).not.toMatch(/\[Image/);
   });
 
   // Rationale: retain this known failure under the accepted scope split (PR #355 / issue #353).

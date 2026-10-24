@@ -3,13 +3,15 @@
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell/public renderers. Own image conversion; replace private APIs with
  * public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut
- * hints. Restore the enclosing default-shell background after nested renderer resets. See
+ * hints. Restore the enclosing default-shell background after nested renderer resets. Omit
+ * non-actionable image fallback rows when the terminal has no image protocol. See
  * docs/architecture/tool-image-presentation.md.
  * Deviations: current-tool-image-conversion-ownership, read-range-secondary-accent,
- * concise-tool-expand-shortcut-hint, default-shell-background-reset-scoping.
+ * concise-tool-expand-shortcut-hint, default-shell-background-reset-scoping,
+ * unsupported-image-fallback-omission.
  */
 import { stripVTControlCharacters } from "node:util";
-import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
+import { Box, type Component, Container, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
   createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, keyText, type ToolDefinition,
   type ToolRenderers,
@@ -427,7 +429,7 @@ export class ToolExecutionComponent extends Container {
     if (!this.result) return "";
     const text = this.result.content.filter(part => part.type === "text").map(part =>
       stripVTControlCharacters(part.text ?? "").replace(/[\u0000-\u0008\u000b-\u001f\ufff9-\ufffb]/gu, "")).join("\n");
-    if (getCapabilities().images && this.showImages) return text;
+    if (this.showImages) return text;
     const indicators = this.result.content.filter(part => part.type === "image").map(part => imageFallback(
       part.mimeType ?? "image/unknown",
       part.data && part.mimeType ? getImageDimensions(part.data, part.mimeType) ?? undefined : undefined,

@@ -13,6 +13,7 @@ import { createTranscriptImageResolver } from "./transcript-image-resolver.js";
 import { createMermaidMarkdownTransformer, type MermaidRenderingMode } from "./upstream/components/mermaid.js";
 import {
   Container,
+  getCapabilities,
   Image,
   Spacer,
   Text,
@@ -160,7 +161,9 @@ function withTranscriptImages(
   if (references.length === 0) return component;
   const container = new Container();
   container.addChild(component);
+  const imageProtocolUnavailable = getCapabilities().images === null;
   for (const reference of references) {
+    if (showImages && imageProtocolUnavailable) continue;
     container.addChild(new Spacer(1));
     const asset = assets?.resolve(reference.assetId) ?? null;
     if (!showImages) {
