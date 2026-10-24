@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-24-remove-wake-sensitive-pipe-polling/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-24-remove-wake-sensitive-pipe-polling/acceptance.md",
   "finalizedDate": "2026-10-24",
-  "specBaseSha": "8d5ba0ca2e9fcae0d070f078556341652a474120",
+  "specBaseSha": "14caed95de8937409bd4153a8880e7b77767f047",
   "acceptanceScenarios": [
     "Windows resident frame transfer wakes on pipe completion rather than short readiness sleeps.",
     "Pending reads permit independent writes, and connection shutdown safely cancels and drains pending operations.",
