@@ -35,6 +35,16 @@ describe("resident tab shortcut projection", () => {
     expect(projectResidentTabShortcuts({ configured: entry.configured, reserved: entry.reserved }).assignments).toEqual(entry.assignments);
   });
 
+  it("ignores legacy menu bindings without changing other tab shortcuts", () => {
+    const { assignments } = projectResidentTabShortcuts({
+      configured: { "tabs.overflowMenu": "alt+-", "tabs.addMenu": "alt+=", "tabs.next": "alt+]" },
+    });
+    expect(assignments).not.toHaveProperty("tabs.overflowMenu");
+    expect(assignments).not.toHaveProperty("tabs.addMenu");
+    expect(assignments["tabs.new"]).toBe("alt+a");
+    expect(assignments["tabs.next"]).toBe("alt+]");
+  });
+
   it("names why a key was refused", () => {
     const projection = projectResidentTabShortcuts({
       configured: { "tabs.rename": "alt+a", "tabs.close": "ctrl+x" },

@@ -1890,9 +1890,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present; a resident tab whose chip already shows the session name may suppress its path-row suffix.",
+      "modifications": "Owned UI/routing; A1 level color, linked PRs, resident names, dim ellipsis and model priority; Pi unchanged.",
       "upgradeStrategy": "three-way",
-      "localSha256": "d897277a8ed0630e0907a8ffe8465da119684af67b0afb91bc2204828736793b",
+      "localSha256": "f06fffb3ef4828826c4d43d3592df79fec80370c72eadba8977e7c4efd6f7b52",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1910,6 +1910,18 @@
           "id": "owned-resident-session-name",
           "reason": "Approved hide-resident-footer-session-name shows a resident session name once, in its tab chip, so the viewed resident shell omits the duplicate path-row suffix.",
           "upstreamBehavior": "Direct bare A1, solo, resident fallback, and the pinned comparison footer keep the upstream session suffix; the session name stays in the owned view model, and path, branch, pull-request badge, width, usage, and extension rows are unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-footer-ellipsis",
+          "reason": "Approved improve-tab-overflow-menu uses one dim ellipsis for clipped A1 path, usage, and extension rows.",
+          "upstreamBehavior": "The pinned comparison footer retains its three-dot suffix; A1 PR hyperlinks and untruncated rows remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-footer-model-priority",
+          "reason": "Approved improve-tab-overflow-menu preserves the A1 model name before clipping the lower-priority usage summary and optional level, route, or provider text.",
+          "upstreamBehavior": "The pinned comparison footer and wide A1 layout are unchanged; only narrow A1 layout prioritizes model identity.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],

@@ -236,7 +236,8 @@ describe("owned shared input and status presentation", () => {
     const truncated = createPiShellFooter(footerState, "/WORK", "a1").render(40)[0]!;
     const truncatedPlain = stripTerminalSequences(truncated);
     expect(visibleWidth(truncated)).toBeLessThanOrEqual(40);
-    expect(truncatedPlain).toMatch(/\.\.\. #540$/);
+    expect(truncatedPlain).toMatch(/… #540$/);
+    expect(cellStyle(truncated, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
     const truncatedLink = truncatedPlain.indexOf("#540");
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink - 1)).toBeUndefined();
     expect(hyperlinkTargetAtColumn(truncated, truncatedLink)).toBe("https://github.com/timurproko/a1/pull/540");
@@ -278,7 +279,65 @@ describe("owned shared input and status presentation", () => {
 
     const truncated = createPiShellFooter(footerState, "/WORK", "a1", () => true, false).render(40)[0]!;
     expect(visibleWidth(truncated)).toBeLessThanOrEqual(40);
-    expect(stripTerminalSequences(truncated)).toMatch(/\.\.\. #540$/);
+    expect(stripTerminalSequences(truncated)).toMatch(/… #540$/);
+  });
+
+  it.each(["dark", "light"] as const)("uses a dim single-cell marker for narrow A1 footer usage in %s", themeName => {
+    applyPiTheme(themeName, false, "truecolor");
+    const base = view();
+    const state: OwnedUiSessionViewModel = {
+      ...base,
+      status: {
+        ...base.status,
+        usage: { ...base.status.usage!, input: 120000, output: 120000, cost: 10, contextWindow: 272000 },
+      },
+    };
+    for (const width of [1, 8, 22]) {
+      const owned = createPiShellFooter(state, "/WORK", "a1").render(width)[1]!;
+      const comparison = createPiShellFooter(state, "/WORK", "pi").render(width)[1]!;
+      expect(visibleWidth(owned)).toBeLessThanOrEqual(width);
+      expect(stripTerminalSequences(owned)).toContain("…");
+      expect(stripTerminalSequences(owned)).not.toContain("...");
+      expect(cellStyle(owned, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
+      if (width >= 3) expect(stripTerminalSequences(comparison)).toContain("...");
+    }
+    expect(stripTerminalSequences(createPiShellFooter(state, "/WORK", "a1").render(120)[1]!)).not.toContain("…");
+  });
+
+  it.each(["dark", "light"] as const)("reserves the A1 model ahead of usage at narrow widths in %s", themeName => {
+    applyPiTheme(themeName, false, "truecolor");
+    const base = view();
+    const state: OwnedUiSessionViewModel = {
+      ...base,
+      activeModel: { ...base.activeModel!, modelId: "gpt-5.6-sol" },
+      thinkingLevel: "high",
+      status: { ...base.status,
+        footer: { ...base.status.footer!, repositoryPath: "/DELIVERY/WORKTREE/WITH/A/LONG/PATH/EXTRA", pullRequest: { number: 827, url: "https://github.com/timurproko/a1/pull/827" }, extensionStatuses: [["long", "extension status too long"]] },
+        usage: { ...base.status.usage!, input: 3500, output: 18000, cost: 0.014, contextPercent: 1.3, contextWindow: 272000 },
+      },
+    };
+    const rows = createPiShellFooter(state, "/WORK", "a1").render(40);
+    const usage = stripTerminalSequences(rows[1]!);
+    expect(usage).toContain("gpt-5.6-sol • high");
+    expect(usage).toContain("…");
+    expect(cellStyle(rows[1]!, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
+    expect(cellStyle(rows[1]!, "h")).toEqual(cellStyle(piTheme().getThinkingBorderColor("high")("h"), "h"));
+    for (const width of [1, 2, 8, 11, 12, 40]) {
+      const [path, line] = createPiShellFooter(state, "/WORK", "a1").render(width);
+      expect(visibleWidth(path!)).toBeLessThanOrEqual(width);
+      expect(visibleWidth(line!)).toBeLessThanOrEqual(width);
+      if (width >= 11) expect(stripTerminalSequences(line!)).toContain("gpt-5.6-sol");
+      if (width < 4) expect(hyperlinkTargetAtColumn(path!, 0)).toBeUndefined();
+    }
+    const path = rows[0]!;
+    expect(stripTerminalSequences(path)).toMatch(/… #827$/);
+    expect(hyperlinkTargetAtColumn(path, stripTerminalSequences(path).indexOf("#827"))).toBe("https://github.com/timurproko/a1/pull/827");
+    const clippedStatus = createPiShellFooter(state, "/WORK", "a1").render(8)[2]!;
+    expect(stripTerminalSequences(clippedStatus)).toContain("…");
+    expect(cellStyle(clippedStatus, "…")).toEqual(cellStyle(piTheme().fg("dim", "…"), "…"));
+    const pinned = createPiShellFooter(state, "/WORK", "pi").render(8);
+    expect(stripTerminalSequences(pinned[1]!)).toContain("...");
+    expect(stripTerminalSequences(pinned[2]!)).toContain("...");
   });
 
   it.each(["dark", "light"] as const)("colors only the effective level span in the %s footer", themeName => {
