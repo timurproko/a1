@@ -11,6 +11,27 @@ export const DIALOG_CLOSE_SHORTCUT_HINT = Object.freeze({ key: "esc", action: "c
 /** Canonical return guidance for a nested step within a dialog surface. */
 export const DIALOG_BACK_SHORTCUT_HINT = Object.freeze({ key: "esc", action: "back" } satisfies SemanticShortcutHint);
 
+/** Global inset inherited by every semantic row inside an A1-owned dialog frame. */
+export const DIALOG_CONTENT_PADDING_X = 1;
+
+export interface DialogFrameGeometry {
+  readonly frameWidth: number;
+  readonly contentPaddingX: number;
+  readonly contentWidth: number;
+}
+
+/** Shared full-width-rule/content-width geometry for string and component dialog renderers. */
+export function dialogFrameGeometry(width: number): DialogFrameGeometry {
+  const frameWidth = Math.max(0, width);
+  const contentPaddingX = Math.min(DIALOG_CONTENT_PADDING_X, frameWidth);
+  return { frameWidth, contentPaddingX, contentWidth: frameWidth - contentPaddingX };
+}
+
+/** Injects a semantic row into the frame's global content inset. */
+export function insetDialogContent(row: string, geometry: DialogFrameGeometry): string {
+  return `${" ".repeat(geometry.contentPaddingX)}${row}`;
+}
+
 export interface ShortcutHintRoles {
   key(label: string): string;
   action(name: string): string;

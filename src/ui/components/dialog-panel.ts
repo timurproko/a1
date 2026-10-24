@@ -1,5 +1,6 @@
+import { dialogFrameGeometry, insetDialogContent } from "../../contracts/presentation/index.js";
 import { LineInput, renderInputRow } from "./line-input.js";
-import { renderShortcutHints, renderShortcutHintsWithClose, shortcutHintsText, type ShortcutHintEntry } from "./shortcut-hints.js";
+import { renderShortcutHintsWithClose, type ShortcutHintEntry } from "./shortcut-hints.js";
 import { displayWidth, truncateToWidth } from "./text.js";
 import type { UiTheme } from "./theme.js";
 
@@ -49,6 +50,25 @@ export interface SteppedDialogPanelState {
 const LABEL_COLUMN_CAP = 30;
 const STEPPED_LABEL_COLUMN_CAP = 46;
 
+interface DialogPanelLayout {
+  readonly rule: string;
+  readonly contentWidth: number;
+  contentRow(painted: string, raw?: string): string;
+}
+
+/** One frame path for every semantic row, regardless of which dialog supplies the content. */
+function dialogPanelLayout(width: number, theme: UiTheme): DialogPanelLayout {
+  const geometry = dialogFrameGeometry(width);
+  return {
+    rule: theme.fg("border", "─".repeat(geometry.frameWidth)),
+    contentWidth: geometry.contentWidth,
+    contentRow: (painted, raw = painted) => insetDialogContent(
+      pad(truncateToWidth(painted, geometry.contentWidth), geometry.contentWidth, raw),
+      geometry,
+    ),
+  };
+}
+
 /** The column values start at: past the widest label, capped so one long name cannot push them off. */
 export function dialogValueColumn(rows: readonly DialogRow[]): number {
   const widest = Math.min(LABEL_COLUMN_CAP, Math.max(0, ...rows.map(row => displayWidth(row.label))));
@@ -61,12 +81,7 @@ export function dialogValueColumn(rows: readonly DialogRow[]): number {
  */
 export function renderDialogPanel(state: DialogPanelState, width: number, theme: UiTheme): readonly string[] {
   const labelColumn = Math.min(LABEL_COLUMN_CAP, Math.max(0, ...state.rows.map(row => displayWidth(row.label))));
-  const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
-  const contentPadding = Math.min(1, Math.max(0, width));
-  const contentWidth = Math.max(0, width - contentPadding);
-  const inset = " ".repeat(contentPadding);
-  const contentRow = (painted: string, raw: string): string =>
-    `${inset}${pad(truncateToWidth(painted, contentWidth), contentWidth, raw)}`;
+  const layout = dialogPanelLayout(width, theme);
 
   const rows = state.rows.map((row, index) => {
     const selected = index === state.index;
@@ -77,23 +92,23 @@ export function renderDialogPanel(state: DialogPanelState, width: number, theme:
       ? `${theme.fg("accent", cursor)}${theme.fg("text", padded)}  ${theme.fg("muted", row.value)}`
       : `${cursor}${padded}  ${theme.fg("muted", row.value)}`;
     const painted = selected ? theme.highlight(content) : content;
-    return contentRow(painted, raw);
+    return layout.contentRow(painted, raw);
   });
 
   const description = state.rows[state.index]?.description ?? "";
   const hint = typeof state.hint === "string"
     ? theme.fg("dim", state.hint)
-    : renderShortcutHintsWithClose(state.hint, theme, contentWidth, 0);
+    : renderShortcutHintsWithClose(state.hint, theme, layout.contentWidth, 0);
   const plainHint = typeof state.hint === "string" ? state.hint : " ".repeat(displayWidth(hint));
   return [
-    rule,
-    contentRow(theme.bold(theme.fg("accent", state.title)), state.title),
-    contentRow(theme.fg("dim", description), description),
+    layout.rule,
+    layout.contentRow(theme.bold(theme.fg("accent", state.title)), state.title),
+    layout.contentRow(theme.fg("dim", description), description),
     "",
     ...rows,
     "",
-    contentRow(hint, plainHint),
-    rule,
+    layout.contentRow(hint, plainHint),
+    layout.rule,
   ];
 }
 
@@ -103,12 +118,7 @@ export function renderSteppedDialogPanel(
   width: number,
   theme: UiTheme,
 ): readonly string[] {
-  const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
-  const contentPadding = Math.min(1, Math.max(0, width));
-  const contentWidth = Math.max(0, width - contentPadding);
-  const inset = " ".repeat(contentPadding);
-  const contentRow = (painted: string, raw: string): string =>
-    `${inset}${pad(truncateToWidth(painted, contentWidth), contentWidth, raw)}`;
+  const layout = dialogPanelLayout(width, theme);
   const labelColumn = Math.min(
     STEPPED_LABEL_COLUMN_CAP,
     Math.max(0, ...state.rows.map(row => displayWidth(`${row.label}${row.labelSuffix ?? ""}`))),
@@ -124,31 +134,33 @@ export function renderSteppedDialogPanel(
     const content = selected
       ? `${theme.fg("accent", cursor)}${label}${theme.fg("muted", suffix)}`
       : `${cursor}${label}${theme.fg("muted", suffix)}`;
-    return contentRow(selected ? theme.highlight(content) : content, raw);
+    return layout.contentRow(selected ? theme.highlight(content) : content, raw);
   });
   const input = state.input === undefined
     ? []
-    : [...renderInputRow(state.input, width, { ruled: false, promptGlyph: "> ", promptRole: "accent", theme }).lines, ""];
+    : [
+      ...renderInputRow(state.input, layout.contentWidth, {
+        ruled: false,
+        promptGlyph: "> ",
+        promptRole: "accent",
+        theme,
+      }).lines.map(row => layout.contentRow(row)),
+      "",
+    ];
   const step = `(step ${state.step}/${state.steps})`;
   const title = `${state.title} ${step}`;
   const paintedTitle = `${theme.bold(theme.fg("accent", state.title))} ${theme.fg("dim", step)}`;
   return [
-    rule,
-    contentRow(paintedTitle, title),
-    contentRow(theme.fg("dim", state.description), state.description),
+    layout.rule,
+    layout.contentRow(paintedTitle, title),
+    layout.contentRow(theme.fg("dim", state.description), state.description),
     "",
     ...input,
     ...rows,
     "",
-    renderSteppedHint(state.hint, width, theme),
-    rule,
+    layout.contentRow(renderShortcutHintsWithClose(state.hint, theme, layout.contentWidth)),
+    layout.rule,
   ];
-}
-
-function renderSteppedHint(entries: readonly ShortcutHintEntry[], width: number, theme: UiTheme): string {
-  const raw = shortcutHintsText(entries, 1, " · ");
-  const painted = renderShortcutHints(entries, theme, 1, theme.fg("dim", " · "));
-  return `${truncateToWidth(painted, width)}${" ".repeat(Math.max(0, width - displayWidth(raw)))}`;
 }
 
 /** The row a pointer report lands on, or null when it is not on one. */

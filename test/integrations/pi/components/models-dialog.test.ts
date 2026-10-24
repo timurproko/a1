@@ -282,101 +282,61 @@ describe("unified Models dialog", () => {
     });
   });
 
-  it("keeps query, selection, scope edits, and dirty state across catalog refresh and reports the bounded outcome", async () => {
-    vi.useFakeTimers();
-    try {
-      await withDialog(async (dialog, callbacks) => {
-        for (const character of "gpt") dialog.handleInput(character);
-        dialog.handleInput(DOWN);
-        dialog.handleInput(SPACE);
-        expect(dialog.selectedModelId).toBe(ids.mini);
-        const refreshingLines = dialog.render(200);
-        expect(stripTerminalSequences(refreshingLines[1]!)).toBe(" Models (unsaved) (refreshing)");
-        expect(refreshingLines[1]).toContain(piTheme().fg("muted", " (refreshing)"));
-        expect(text(dialog)).not.toContain("Refreshing model catalogs…");
-        dialog.updateModels([...models, { provider: "google", id: "gemini", name: "Gemini" }]);
-        dialog.setRefreshStatus("Model catalogs refreshed.", "success");
-        expect(dialog.query).toBe("gpt");
-        expect(dialog.selectedModelId).toBe(ids.mini);
-        expect(dialog.scopeIds).toEqual([ids.mini]);
-        expect(dialog.dirty).toBe(true);
-        expect(text(dialog)).toContain("Models (unsaved) (refreshing)");
-        await vi.advanceTimersByTimeAsync(1_000);
-        const completedLines = dialog.render(200);
-        expect(stripTerminalSequences(completedLines[1]!)).toBe(" Models (unsaved)");
-        expect(text(dialog)).not.toContain("(refreshed)");
-        expect(text(dialog)).not.toContain("Model catalogs refreshed.");
-        dialog.updateModels([models[0]!]);
-        dialog.setRefreshStatus("Model refresh timed out; showing cached models.", "warning");
-        expect(dialog.selectedModelId).toBe(ids.gpt5);
-        expect(dialog.scopeIds).toEqual([ids.mini]);
-        expect(dialog.dirty).toBe(true);
-        expect(dialog.render(200).some(line => line.includes(piTheme().fg("warning", "  Model refresh timed out; showing cached models.")))).toBe(true);
-        expect(text(dialog)).not.toContain("(refreshing)");
-        expect(text(dialog)).not.toContain("(refreshed)");
-        expect(callbacks.onSelect).not.toHaveBeenCalled();
-      }, { refreshStatus: "Refreshing model catalogs…" });
-    } finally {
-      vi.useRealTimers();
-    }
+  it("keeps query, selection, scope edits, and dirty state across quiet catalog refresh and reports warnings", () => {
+    withDialog((dialog, callbacks) => {
+      for (const character of "gpt") dialog.handleInput(character);
+      dialog.handleInput(DOWN);
+      dialog.handleInput(SPACE);
+      expect(dialog.selectedModelId).toBe(ids.mini);
+      expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (unsaved)");
+      expect(text(dialog)).not.toContain("(refreshing)");
+      expect(text(dialog)).not.toContain("Refreshing model catalogs…");
+
+      dialog.updateModels([...models, { provider: "google", id: "gemini", name: "Gemini" }]);
+      dialog.setRefreshStatus("Model catalogs refreshed.", "success");
+      expect(dialog.query).toBe("gpt");
+      expect(dialog.selectedModelId).toBe(ids.mini);
+      expect(dialog.scopeIds).toEqual([ids.mini]);
+      expect(dialog.dirty).toBe(true);
+      expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (unsaved)");
+      expect(text(dialog)).not.toContain("(refreshed)");
+      expect(text(dialog)).not.toContain("Model catalogs refreshed.");
+
+      dialog.updateModels([models[0]!]);
+      dialog.setRefreshStatus("Model refresh timed out; showing cached models.", "warning");
+      expect(dialog.selectedModelId).toBe(ids.gpt5);
+      expect(dialog.scopeIds).toEqual([ids.mini]);
+      expect(dialog.dirty).toBe(true);
+      expect(dialog.render(200).some(line => line.includes(piTheme().fg("warning", "  Model refresh timed out; showing cached models.")))).toBe(true);
+      expect(text(dialog)).not.toContain("(refreshing)");
+      expect(text(dialog)).not.toContain("(refreshed)");
+      expect(callbacks.onSelect).not.toHaveBeenCalled();
+    }, { refreshStatus: "Refreshing model catalogs…" });
   });
 
-  it("holds refreshing for one second then clears success without late rendering", async () => {
-    vi.useFakeTimers();
-    try {
-      await withDialog(async (dialog, callbacks) => {
-        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (refreshing)");
-        expect(text(dialog)).not.toContain("Refreshing model catalogs…");
-        dialog.setRefreshStatus("Model catalogs refreshed.", "success");
-        await vi.advanceTimersByTimeAsync(999);
-        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models (refreshing)");
-        expect(callbacks.requestRender).not.toHaveBeenCalled();
-        await vi.advanceTimersByTimeAsync(1);
-        expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models");
-        expect(text(dialog)).not.toContain("(refreshed)");
-        expect(text(dialog)).not.toContain("Model catalogs refreshed.");
-        expect(callbacks.requestRender).toHaveBeenCalledOnce();
+  it("keeps progress and successful completion silent while retaining actionable failures", () => {
+    withDialog((dialog, callbacks) => {
+      expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models");
+      expect(text(dialog)).not.toContain("Refreshing model catalogs…");
 
-        callbacks.requestRender.mockClear();
-        dialog.handleInput(SPACE);
-        dialog.setRefreshStatus("Refreshing model catalogs…", "muted");
-        await vi.advanceTimersByTimeAsync(500);
-        dialog.setRefreshStatus("Model catalogs refreshed.", "success");
-        await vi.advanceTimersByTimeAsync(499);
-        expect(text(dialog)).toContain("Models (unsaved) (refreshing)");
-        expect(callbacks.requestRender).not.toHaveBeenCalled();
-        await vi.advanceTimersByTimeAsync(1);
-        expect(text(dialog)).toContain("Models (unsaved)");
-        expect(text(dialog)).not.toContain("(refreshing)");
-        expect(text(dialog)).not.toContain("(refreshed)");
-        expect(callbacks.requestRender).toHaveBeenCalledOnce();
+      dialog.setRefreshStatus("Refreshing model catalogs…", "muted");
+      expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models");
+      expect(text(dialog)).not.toContain("refreshing");
 
-        callbacks.requestRender.mockClear();
-        dialog.setRefreshStatus("Refreshing model catalogs…", "muted");
-        await vi.advanceTimersByTimeAsync(500);
-        dialog.setRefreshStatus("Could not refresh model catalogs: offline", "warning");
-        await vi.advanceTimersByTimeAsync(499);
-        expect(text(dialog)).toContain("Models (unsaved) (refreshing)");
-        expect(text(dialog)).not.toContain("Could not refresh model catalogs");
-        expect(callbacks.requestRender).not.toHaveBeenCalled();
-        await vi.advanceTimersByTimeAsync(1);
-        expect(text(dialog)).toContain("  Could not refresh model catalogs: offline");
-        expect(text(dialog)).not.toContain("(refreshing)");
-        expect(text(dialog)).not.toContain("(refreshed)");
-        expect(callbacks.requestRender).toHaveBeenCalledOnce();
+      dialog.setRefreshStatus("Model catalogs refreshed.", "success");
+      expect(text(dialog)).not.toContain("refreshed");
 
-        callbacks.requestRender.mockClear();
-        dialog.setRefreshStatus("Refreshing model catalogs…", "muted");
-        dialog.setRefreshStatus("Model catalogs refreshed.", "success");
-        dialog.dispose();
-        await vi.advanceTimersByTimeAsync(1_000);
-        expect(callbacks.requestRender).not.toHaveBeenCalled();
-        expect(text(dialog)).not.toContain("(refreshing)");
-        expect(text(dialog)).not.toContain("(refreshed)");
-      }, { refreshStatus: "Refreshing model catalogs…" });
-    } finally {
-      vi.useRealTimers();
-    }
+      dialog.setRefreshStatus("Could not refresh model catalogs: offline", "warning");
+      expect(text(dialog)).toContain("  Could not refresh model catalogs: offline");
+      expect(stripTerminalSequences(dialog.render(200)[1]!)).toBe(" Models");
+
+      dialog.setRefreshStatus("Refreshing model catalogs…", "muted");
+      expect(text(dialog)).not.toContain("Could not refresh model catalogs");
+      dialog.dispose();
+      dialog.setRefreshStatus("Late refresh failure", "warning");
+      expect(text(dialog)).not.toContain("Late refresh failure");
+      expect(callbacks.requestRender).not.toHaveBeenCalled();
+    }, { refreshStatus: "Refreshing model catalogs…" });
   });
 
   it("keeps bulk, provider, and reorder scope actions on their effective bindings", () => {

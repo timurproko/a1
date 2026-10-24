@@ -10,10 +10,11 @@ import {
   type TuiMouseEvent,
   type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
+import { DIALOG_CONTENT_PADDING_X, dialogFrameGeometry, insetDialogContent } from "../../../contracts/presentation/index.js";
 import { DynamicBorder } from "../startup-public.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "./theme.js";
 
-export const PI_MODAL_CONTENT_PADDING_X = 1;
+export const PI_MODAL_CONTENT_PADDING_X = DIALOG_CONTENT_PADDING_X;
 
 /** Paints the standard Pi Input prompt as a live-themed dialog-search marker. */
 export function renderPiModalSearchInput(input: Input, width: number): string[] {
@@ -135,19 +136,18 @@ export class PiModalFrame implements Component {
   }
 
   render(width: number): string[] {
-    const padding = Math.min(PI_MODAL_CONTENT_PADDING_X, Math.max(0, width));
-    const contentWidth = Math.max(0, width - padding);
-    const rows = [...this.#topRule.render(width)];
+    const geometry = dialogFrameGeometry(width);
+    const rows = [...this.#topRule.render(geometry.frameWidth)];
     for (const component of this.#content) {
       if (this.#fullWidthContent.has(component) || this.#preInsetContent.has(component)) {
-        rows.push(...component.render(width));
+        rows.push(...component.render(geometry.frameWidth));
       } else if (component instanceof Spacer) {
-        rows.push(...component.render(contentWidth));
+        rows.push(...component.render(geometry.contentWidth));
       } else {
-        rows.push(...component.render(contentWidth).map(row => `${" ".repeat(padding)}${row}`));
+        rows.push(...component.render(geometry.contentWidth).map(row => insetDialogContent(row, geometry)));
       }
     }
-    rows.push(...this.#bottomRule.render(width));
+    rows.push(...this.#bottomRule.render(geometry.frameWidth));
     return rows;
   }
 }

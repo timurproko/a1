@@ -58,11 +58,42 @@ describe("shared dialog panel", () => {
     expect(rows.at(-1)).toBe("─".repeat(80));
     expect(rows.filter(row => row === "─".repeat(80))).toHaveLength(2);
     expect(rows.join("\n")).toContain("Thinking Level (step 1/2)");
-    expect(rows.some(row => stripAnsi(row).trimEnd() === "> spark")).toBe(true);
+    expect(rows.some(row => stripAnsi(row).trimEnd() === " > spark")).toBe(true);
     expect(rows.join("\n")).toContain("> spark");
     expect(rows.join("\n")).not.toContain("❯ spark");
     expect(rows.join("\n")).toContain("Select a model to configure");
-    expect(rows.join("\n")).toContain("Type search · Enter select · Esc close");
+    expect(rows.join("\n")).toContain("Type search  Enter select  Esc close");
+    expect(rows.join("\n")).not.toContain(" · ");
+    expect(stripAnsi(rows[1] ?? "").search(/\S/u)).toBe(1);
+    expect(stripAnsi(rows[4] ?? "").indexOf(">")).toBe(1);
+    expect(stripAnsi(rows[6] ?? "").indexOf("→")).toBe(1);
+    expect(stripAnsi(rows[8] ?? "").search(/\S/u)).toBe(1);
+  });
+
+  it("keeps stepped content aligned and close guidance intact at narrow widths", () => {
+    const rows = renderSteppedDialogPanel({
+      title: "Thinking Level",
+      step: 1,
+      steps: 2,
+      description: "Select a model to configure",
+      input: new LineInput("spark"),
+      rows: [{ label: "gpt-5.3-codex-spark", labelSuffix: " [openai-codex]", value: "low" }],
+      index: 0,
+      hint: [
+        { key: "Type", action: "search" },
+        { key: "Enter", action: "select" },
+        { key: "esc", action: "close" },
+      ],
+    }, 24, PLAIN_THEME);
+
+    expect(rows[0]).toBe("─".repeat(24));
+    expect(rows.at(-1)).toBe("─".repeat(24));
+    for (const row of rows.slice(1, -1).filter(row => row.length > 0)) {
+      expect(stripAnsi(row)).toHaveLength(24);
+      expect(stripAnsi(row).startsWith(" ")).toBe(true);
+    }
+    expect(rows.join("\n")).toContain("Esc close");
+    expect(rows.join("\n")).not.toContain(" · ");
   });
 
   it("mutes a stepped model row's bracketed provider, including on the selected row", () => {
