@@ -14,8 +14,8 @@
 - [x] 1.11 Avoid a transient old-chip or stale hidden-title animation during a pending hidden-tab swap without changing later auto-naming.
 - [x] 1.12 Add focused shortcut and strip-transition tests for swaps, resizes, reordered/identically named tabs, in-flight views, and out-of-range Alt+number.
 - [x] 1.13 Render centered `⋯` on the overflow control without changing its hit geometry, muted color, or name truncation.
-- [x] 1.14 Project Alt+- and Alt++ to the existing overflow and add popups through the native/owned shortcut declarations, honoring rebindings and owned-key reservations.
-- [x] 1.15 Add focused Rust and TypeScript tests for the centered glyph, popup behavior, shift-plus terminal encoding, absent overflow, geometry, and shortcut projection.
+- [ ] 1.14 Project Alt+- and Alt+= to the existing overflow and add popups through the native/owned shortcut declarations, honoring rebindings and owned-key reservations.
+- [ ] 1.15 Add focused Rust and TypeScript tests for the centered glyph, popup behavior, the unshifted Alt+= key and explicitly rebound shift-plus encoding, absent overflow, geometry, and shortcut projection.
 
 - [x] 1.16 Prioritize the committed active chip over an unrelated pending view when replacing a visible chip from the hidden-tab popup; keep subsequent pending swaps stable.
 - [x] 1.17 Add focused tests for a hidden selection during an unrelated pending view and its committed/pending chip slots.

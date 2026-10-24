@@ -39,8 +39,9 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **WHEN** the user presses Alt+- and the `⋯` overflow control is drawn
 - **THEN** the same hidden-tab popup as a click on `⋯` SHALL open, with its normal keyboard and mouse actions
 - **AND** if no chips are hidden, Alt+- SHALL NOT open an empty or stale popup
-- **WHEN** the user presses Alt++ (including a terminal's Alt+Shift+= representation)
+- **WHEN** the user presses unshifted Alt+=
 - **THEN** the same add-tab popup as a click on `+` SHALL open without creating a tab until an item is chosen
+- **AND** if the user explicitly rebinds add-menu to Alt++, the terminal's Alt+Shift+= representation SHALL also open it without stealing an unrelated default key
 - **AND** both shortcuts SHALL follow the resident keybinding projection and respect user rebinding and reserved keys
 
 #### Scenario: Jump shortcuts track only drawn chips
