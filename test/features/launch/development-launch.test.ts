@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 
 const execute = promisify(execFile);
-import { resolveDevelopmentLaunchEnvironment } from "../../../src/features/launch/index.js";
+import { resolveDevelopmentLaunchEnvironment, resolvePromptHistoryDataDir } from "../../../src/features/launch/index.js";
 import { resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 
 describe("repository-local development launch", () => {
@@ -75,6 +75,7 @@ describe("repository-local development launch", () => {
       A1_DATA_DIR: resolve("D:/custom/data"),
       A1_RUNTIME_DIR: resolve("D:/custom/runtime"),
       A1_DATABASE_PATH: resolve("D:/custom/database.sqlite3"),
+      A1_DEV_HISTORY_DATA_DIR: resolve("D:/custom/data"),
     });
   });
 
@@ -157,7 +158,36 @@ describe("repository-local development launch", () => {
 
     expect(first.environment.A1_CONFIG_DIR).toBe(second.environment.A1_CONFIG_DIR);
     expect(first.environment.A1_CONFIG_DIR).toBe(rebuilt.environment.A1_CONFIG_DIR);
+    expect(first.environment.A1_DEV_HISTORY_DATA_DIR).toBe(second.environment.A1_DEV_HISTORY_DATA_DIR);
+    expect(first.environment.A1_DEV_HISTORY_DATA_DIR).toBe(rebuilt.environment.A1_DEV_HISTORY_DATA_DIR);
     expect(first.environment.A1_CONFIG_DIR).toBe(resolve(temporaryDirectory, "a1-development", first.checkoutId, "config"));
     expect(first.environment.A1_CONFIG_DIR).not.toContain(first.instanceId);
+  });
+
+  it("shares Shared history across solo launches without sharing their control state", async () => {
+    const { resolvePromptHistoryPath } = await import("../../../src/features/prompt-history/index.js");
+    const temporaryDirectory = resolve("C:/isolated-temp");
+    const first = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.4-build", {}, temporaryDirectory);
+    const second = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.4-build", {}, temporaryDirectory);
+    const profile = resolve("D:/user/.a1/agent");
+    const firstHistory = resolvePromptHistoryDataDir({ environment: first.environment });
+    const secondHistory = resolvePromptHistoryDataDir({ environment: second.environment });
+    expect(first.environment.A1_DEV_HISTORY_DATA_DIR).toBe(resolve(temporaryDirectory, "a1-development", first.checkoutId, "data"));
+    expect(firstHistory).toBe(secondHistory);
+    expect(firstHistory).not.toBe(first.environment.A1_DATA_DIR);
+    expect(resolvePromptHistoryPath(firstHistory, profile, process.platform, "shared").path)
+      .toBe(resolvePromptHistoryPath(secondHistory, profile, process.platform, "shared").path);
+    expect(resolvePromptHistoryPath(firstHistory, profile, process.platform, "unique", "session-one").path)
+      .not.toBe(resolvePromptHistoryPath(secondHistory, profile, process.platform, "unique", "session-two").path);
+    expect(resolveProductPaths(first.environment).endpoint).not.toBe(resolveProductPaths(second.environment).endpoint);
+  });
+
+  it("keeps an explicit development root self-contained while allowing a history-only override", () => {
+    const root = resolve("D:/custom/root");
+    const launch = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", { A1_DEV_ROOT: root }, "D:/temp");
+    expect(resolvePromptHistoryDataDir({ environment: launch.environment })).toBe(resolve(root, "data"));
+    expect(resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", {
+      A1_DEV_ROOT: root, A1_DEV_HISTORY_DATA_DIR: "D:/shared-history",
+    }, "D:/temp").environment.A1_DEV_HISTORY_DATA_DIR).toBe(resolve("D:/shared-history"));
   });
 });

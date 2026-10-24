@@ -401,6 +401,7 @@ export class HistoryEditorCore implements Component, Focusable {
 			return () => { if (this.onHistoryChange === listener) delete this.onHistoryChange; };
 		},
 		reset: () => this.resetHistoryBrowsing(),
+		restoreDraft: () => { while (this.historyIndex >= 0) this.navigateHistory(1); },
 	};
 	private persistentHistory = false;
 	private readonly styleHistoryLabel: (text: string) => string;

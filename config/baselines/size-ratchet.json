@@ -179,7 +179,7 @@
       "lines": 131
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.constructor": {
-      "lines": 329
+      "lines": 328
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.runWorkflow": {
       "lines": 109
@@ -188,7 +188,7 @@
       "lines": 325
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 298
+      "lines": 286
     },
     "src/composition/resident-tab-bridge.ts::bindResidentTabBridge": {
       "lines": 123

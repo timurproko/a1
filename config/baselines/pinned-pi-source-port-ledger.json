@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-24T09:25:55.056Z",
+  "recordedAt": "2026-10-24T11:00:15.929Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "4a080252f06caf63a525d7873c5d94d3c23887e0",
@@ -3912,7 +3912,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, semantic border state with the user-approved numeric-only history label with a three-cell inset and separate centered history-overflow cue, and history-count retention during cursor placement within recalled multiline text. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "e787effc2d30a3e250c15a3b738283cf7a74473677281749ff76136e99f21e48",
+      "localSha256": "175867fe0e439b374135b4d05245eb0185ab1ce5ab0fe27605dfb6a94830fdb8",
       "approvedDeviations": [
         {
           "id": "compact-history-counter-label",

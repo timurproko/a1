@@ -80,7 +80,7 @@ describe("owned UI settings sections", () => {
     expect(entries("generic")).toEqual(["updateCheck", "timeFormat"]);
     expect(entries("appearance")).toEqual(["accentColor", "backgroundStyle", "quitAnimation"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
-    expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
+    expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryScope", "promptHistoryMaxItems"]);
     expect(entries("tabs")).toEqual(["tabsPosition", "tabBarPlusMenu", "tabsAutoName"]);
     expect(entries("quit")).toBeUndefined();
     expect(findOwnedUiSettingsEntry(sections, "quitAnimation", "a1")).toMatchObject({
