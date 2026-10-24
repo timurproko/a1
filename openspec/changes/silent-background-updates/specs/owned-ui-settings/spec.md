@@ -2,25 +2,35 @@
 
 ### Requirement: The startup update check is a Generic-section owned setting
 
-Bare A1 SHALL retain the persisted compatibility key `updateCheck` as a boolean defaulting to `true`, but SHALL present it as `Automatic updates`, as the first entry in the first `Generic` section. Its description SHALL state that A1 checks its running channel at most once per day, installs verified updates silently in the background, and prompts for restart only after installation. When `false`, bare A1 SHALL skip the startup release cache, registry check, automatic-update worker, and automatic-update observation entirely. The value SHALL remain stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage. The setting SHALL take effect at the next launch. `a1 pi` SHALL neither expose nor apply it.
+Bare A1 SHALL retain the persisted key and visible label `Update check`, but SHALL expand its value from a boolean to exactly `Automatic`, `Yes`, and `No`, with `Automatic` as the default. `Automatic` SHALL check the running channel at most once per day, install verified updates silently in the background, and prompt for restart only after installation. `Yes` SHALL preserve the existing check-only behavior and update-available popup without installing. `No` SHALL skip the startup release cache and registry check so updates remain manual.
+
+The value SHALL remain stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage. Introducing the three-choice value SHALL advance the stored settings version. Migration SHALL map stored boolean `true` to `Yes`, stored boolean `false` to `No`, and an omitted key to the new `Automatic` default while preserving unknown values. The setting SHALL take effect at the next launch. `a1 pi` SHALL neither expose nor apply it.
 
 #### Scenario: Resolve an older profile
-- **WHEN** a profile already stores `updateCheck` or omits the key
-- **THEN** existing boolean values SHALL be preserved and an omitted value SHALL resolve to `true` without a migration to another key
+- **WHEN** an older profile stores `updateCheck: true`, stores `updateCheck: false`, or omits the key
+- **THEN** migration SHALL resolve those cases to `Yes`, `No`, and `Automatic` respectively while preserving other existing and unknown values
 
 #### Scenario: Present the Generic section
 - **WHEN** bare A1 opens the owned settings screen
-- **THEN** the `Generic` section SHALL offer `Automatic updates` first, followed by the other declared Generic settings
-- **AND** its description SHALL explain silent background installation and restart readiness
+- **THEN** the `Generic` section SHALL offer `Update check` first with choices `Automatic`, `Yes`, and `No`
+- **AND** its description SHALL distinguish silent installation, the existing popup, and fully manual updating
 
 #### Scenario: Disable the check
-- **WHEN** the user sets `Automatic updates` to off and restarts bare A1
+- **WHEN** the user selects `No` and restarts bare A1
 - **THEN** A1 SHALL neither read the release cache, contact the registry, start an automatic worker, nor observe automatic-update state for the startup flow
 
+#### Scenario: Preserve check-only behavior
+- **WHEN** the user selects `Yes` and restarts bare A1
+- **THEN** A1 SHALL check for a newer release and show the existing update-available popup without installing it
+
+#### Scenario: Use the automatic default
+- **WHEN** the profile has no explicit `Update check` choice
+- **THEN** bare A1 SHALL resolve `Automatic` and silently install an eligible newer release before prompting for restart
+
 #### Scenario: Reject an invalid value
-- **WHEN** a stored `updateCheck` value is not a boolean
-- **THEN** existing settings validation SHALL reject that value and resolve `true` without blocking startup
+- **WHEN** a stored `updateCheck` value is not `automatic`, `yes`, or `no` after migration
+- **THEN** existing settings validation SHALL reject that value and resolve `Automatic` without blocking startup
 
 #### Scenario: Use the comparison profile
 - **WHEN** the user opens or runs `a1 pi`
-- **THEN** its pinned settings presentation SHALL contain no A1 `Automatic updates` entry
+- **THEN** its pinned settings presentation SHALL contain no A1 `Update check` entry
