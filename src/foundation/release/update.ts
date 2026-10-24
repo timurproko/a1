@@ -30,6 +30,7 @@ import {
   type UpdateMaterializationProgress,
 } from "./update-activation.js";
 import { UpdateTransactionStore, type UpdateRecoveryState, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
+import { acquireUpdateExecutionLease, type UpdateExecutionOwner } from "./update-execution-lease.js";
 import {
   npmPrefixForGlobalRoot,
   removeUpdateRecoveryCapsule,
@@ -99,6 +100,11 @@ export interface SelfUpdateOptions {
   channel?: UpdateChannel;
   /** A specific preview to install, named by its development number or full version. */
   target?: string;
+  /** Internal exact channel target selected by the automatic update probe. */
+  resolvedTarget?: string;
+  mode?: "manual" | "automatic";
+  onLeaseAcquired?: (owner: UpdateExecutionOwner) => void;
+  onLeaseBusy?: (owner: UpdateExecutionOwner) => void;
   environment?: NodeJS.ProcessEnv;
   fileSystem?: UpdateFileSystem;
   output?: UpdateOutput;
@@ -119,6 +125,7 @@ export type { UpdateActivationPhase, UpdateMaterializationProgress } from "./upd
 
 export interface UpdateLifecycleCoordinator {
   targetIsActive(targetVersion: string): Promise<boolean>;
+  verifyAutomaticSafety?(): Promise<void>;
   shutdownVerifiedOwners(targetVersion: string): Promise<{ priorActiveVersion: string | null }>;
   verifyPackageUnlocked(packageRoot: string): Promise<void>;
   activateInstalled(
@@ -166,6 +173,7 @@ const defaultFileSystem: UpdateFileSystem = {
  * The update therefore keeps checking for this long before it calls the package locked.
  */
 export const PACKAGE_UNLOCK_PATIENCE_MS = 15_000;
+export const UPDATE_ALREADY_RUNNING_EXIT_CODE = 75;
 const PACKAGE_UNLOCK_INITIAL_DELAY_MS = 100;
 const PACKAGE_UNLOCK_MAX_DELAY_MS = 1_000;
 // Platform: Windows reports a held directory as EPERM or EBUSY; EACCES and ENOTEMPTY are the other
@@ -220,6 +228,24 @@ export type UpdateOwnershipAction = "clean-dead-record" | "leave-running" | "end
  * its own endpoint. A cohort running from the mutable installation is the one exception,
  * because that installation is exactly what is about to be replaced under it.
  */
+async function verifyAutomaticUpdateSafety(
+  paths: ReturnType<typeof resolveProductPaths>,
+  stateStore: CohortStateStore,
+  environment: NodeJS.ProcessEnv,
+): Promise<void> {
+  const state = await stateStore.read();
+  const owner = await readActiveEndpoint(paths, state.references.active, environment);
+  if (!owner) return;
+  const ownership = await probeOwnership(owner.metadata);
+  if (ownership === "dead") return;
+  if (ownership !== "live-verified") {
+    throw new UpdateAutomaticDeferred(PRODUCT_TEXT.diagnostic(`automatic update deferred because supervisor ownership is ${ownership}`));
+  }
+  if (!await canonicalImmutableRoot(paths.dataDir, owner.metadata.releaseRoot)) {
+    throw new UpdateAutomaticDeferred(PRODUCT_TEXT.diagnostic("automatic update deferred because the running session is not using a retained immutable release; run the update command manually"));
+  }
+}
+
 export function planUpdateOwnership(
   ownership: "live-verified" | "dead",
   runsFromRetainedRelease: boolean,
@@ -258,12 +284,12 @@ export function createUpdateLifecycleCoordinator(
   const stateStore = new CohortStateStore(paths.dataDir);
   return {
     async targetIsActive(targetVersion) {
-      const state = await stateStore.read();
-      const activeId = state.references.active;
+      const state = await stateStore.read(), activeId = state.references.active;
       if (!activeId || state.releases[activeId]?.packageVersion !== targetVersion) return false;
       const endpoint = await readActiveEndpoint(paths, activeId, environment);
       return endpoint?.metadata.releaseId === activeId && await probeOwnership(endpoint.metadata) === "live-verified";
     },
+    async verifyAutomaticSafety() { await verifyAutomaticUpdateSafety(paths, stateStore, environment); },
     async shutdownVerifiedOwners(targetVersion) {
       const state = await stateStore.read();
       const activeId = state.references.active;
@@ -614,8 +640,73 @@ async function launchersOwnPackage(globalRoot: string, fileSystem: UpdateFileSys
   }
 }
 
+async function resolveSelfUpdateTarget(input: {
+  readonly runner: UpdateProcessRunner;
+  readonly output: UpdateOutput;
+  readonly channel: UpdateChannel;
+  readonly distTag: string;
+  readonly requested: string | undefined;
+  readonly exactTarget: string | undefined;
+}): Promise<ResolvedTarget> {
+  if (input.exactTarget !== undefined && input.exactTarget.length > 0) {
+    return resolveExactAutomaticTarget(input.exactTarget, input.channel, input.output);
+  }
+  return input.requested === undefined || input.requested.length === 0
+    ? await resolveChannelHead(input.runner, input.distTag, input.output)
+    : await resolveRequestedPreview(input.runner, input.requested, input.output);
+}
+
+function resolveExactAutomaticTarget(target: string, channel: UpdateChannel, output: UpdateOutput): ResolvedTarget {
+  const version = validSemver(target);
+  const expected = channel === "stable" ? "stable" : "development";
+  if (version === null || releaseChannelOf(version) !== expected) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`refused invalid automatic ${expected} update target ${JSON.stringify(target)}`)}\n`);
+    return { version: null, exitCode: 1 };
+  }
+  return { version, exitCode: 0 };
+}
+
 function reportUnmanagedInstallation(output: UpdateOutput, packageRoot: string, activeGlobalRoot: string): void {
   output.stderr(`${PRODUCT_TEXT.diagnostic(`refused to update automatically because ${packageRoot} could not be verified as an npm-managed ${PRODUCT_PACKAGE} installation; npm's active global package root is ${activeGlobalRoot}. Run npm install --global ${PRODUCT_PACKAGE} to install it manually.`)}\n`);
+}
+
+async function withUpdateExecutionLease(
+  input: Parameters<typeof acquireUpdateExecutionLease>[0],
+  options: SelfUpdateOptions,
+  output: UpdateOutput,
+  operation: () => Promise<number>,
+): Promise<number> {
+  const lease = await acquireUpdateExecutionLease(input);
+  if (lease.status === "busy") {
+    options.onLeaseBusy?.(lease.owner);
+    if ((options.mode ?? "manual") === "manual") {
+      output.stderr(`${PRODUCT_TEXT.diagnostic(`update already in progress for ${lease.owner.targetVersion}`)}\n`);
+    }
+    return UPDATE_ALREADY_RUNNING_EXIT_CODE;
+  }
+  try {
+    options.onLeaseAcquired?.(lease.owner);
+    return await operation();
+  } finally {
+    await lease.release();
+  }
+}
+
+async function readRunningPackageVersion(
+  packageRoot: string,
+  fileSystem: UpdateFileSystem,
+  output: UpdateOutput,
+): Promise<string | null> {
+  try {
+    const packageJson = JSON.parse(await fileSystem.readFile(resolve(packageRoot, "package.json"))) as { name?: unknown; version?: unknown };
+    const version = typeof packageJson.version === "string" ? validSemver(packageJson.version) : null;
+    if (packageJson.name !== PRODUCT_PACKAGE) throw new Error(`package.json does not identify ${PRODUCT_PACKAGE}`);
+    if (version === null) throw new Error("package.json does not contain a valid semantic version");
+    return version;
+  } catch (error) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not read its running package version: ${errorMessage(error)}`)}\n`);
+    return null;
+  }
 }
 
 export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number> {
@@ -631,22 +722,14 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     finally { options.onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - startedAt) }); }
   };
 
-  let runningVersion: string;
-  try {
-    const packageJson = JSON.parse(await measure("package-version", async () => await fileSystem.readFile(resolve(options.packageRoot, "package.json")))) as { name?: unknown; version?: unknown };
-    const parsedVersion = typeof packageJson.version === "string" ? validSemver(packageJson.version) : null;
-    if (packageJson.name !== PRODUCT_PACKAGE) throw new Error(`package.json does not identify ${PRODUCT_PACKAGE}`);
-    if (parsedVersion === null) throw new Error("package.json does not contain a valid semantic version");
-    runningVersion = parsedVersion;
-  } catch (error) {
-    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not read its running package version: ${errorMessage(error)}`)}\n`);
-    return 1;
-  }
+  const runningVersion = await measure("package-version", async () => await readRunningPackageVersion(options.packageRoot, fileSystem, output));
+  if (runningVersion === null) return 1;
 
   const requested = options.target?.trim();
-  const resolved = await measure("target-resolution", async () => requested === undefined || requested.length === 0
-    ? await resolveChannelHead(runner, distTag, output)
-    : await resolveRequestedPreview(runner, requested, output));
+  const exactTarget = options.resolvedTarget?.trim();
+  const resolved = await measure("target-resolution", async () => await resolveSelfUpdateTarget({
+    runner, output, channel, distTag, requested, exactTarget,
+  }));
   if (resolved.version === null) return resolved.exitCode;
   const targetVersion = resolved.version;
   // Invariant: a channel head below the running release on the same channel is never installed, so a
@@ -670,13 +753,16 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   const paths = resolveProductPaths(environment);
   const lifecycle = options.lifecycle ?? createUpdateLifecycleCoordinator(environment, fileSystem, output);
   const transactionStore = options.transactionStore ?? new UpdateTransactionStore(paths.dataDir);
+  const mode = options.mode ?? "manual";
   const maintenance = options.maintenance ?? (options.lifecycle
     ? async () => {}
     : async () => await scheduleReleaseCleanup(paths.dataDir, paths));
-  let transaction = await transactionStore.read();
-  let npmCli: string | undefined;
-  try {
-    if ((!transaction || transaction.status === "completed") && await lifecycle.targetIsActive(targetVersion)) {
+  return await withUpdateExecutionLease({ dataDir: paths.dataDir, packageRoot, channel, targetVersion, mode }, options, output, async () => {
+    let transaction = await transactionStore.read();
+    let npmCli: string | undefined;
+    try {
+      if (mode === "automatic") await lifecycle.verifyAutomaticSafety?.();
+      if ((!transaction || transaction.status === "completed") && await lifecycle.targetIsActive(targetVersion)) {
       await maintenance();
       await transactionStore.clearCompleted();
       output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);
@@ -819,20 +905,22 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     progress.finish();
     output.stdout(`${PRODUCT_TEXT.commandName} updated successfully to ${targetVersion}\n`);
     return 0;
-  } catch (error) {
-    progress.clear();
-    const message = errorMessage(error);
-    if (error instanceof UpdatePreflightFailure) {
-      output.stderr(`${PRODUCT_TEXT.diagnostic(`update could not start safely: ${message}. Nothing was changed. Retry with npm x -y -- ${PRODUCT_PACKAGE}-install`)}\n`);
-      return 1;
+    } catch (error) {
+      progress.clear();
+      const message = errorMessage(error);
+      if (error instanceof UpdateAutomaticDeferred) return 1;
+      if (error instanceof UpdatePreflightFailure) {
+        output.stderr(`${PRODUCT_TEXT.diagnostic(`update could not start safely: ${message}. Nothing was changed. Retry with npm x -y -- ${PRODUCT_PACKAGE}-install`)}\n`);
+        return 1;
+      }
+      const rollback = options.lifecycle
+        ? "previous test lifecycle retained"
+        : await rollbackPriorCohort(paths.dataDir, environment, transaction?.priorActiveReleaseId ?? null).catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
+      if (transaction) await transactionStore.finish(rollback === "rolled back" ? "rolled-back" : "failed", `${message}; ${rollback}`);
+      output.stderr(`${PRODUCT_TEXT.diagnostic(`update failed: ${message}. ${rollback}. Diagnostics: ${transactionStore.path}`)}\n`);
+      return error instanceof UpdateFailure ? error.exitCode : 1;
     }
-    const rollback = options.lifecycle
-      ? "previous test lifecycle retained"
-      : await rollbackPriorCohort(paths.dataDir, environment, transaction?.priorActiveReleaseId ?? null).catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
-    if (transaction) await transactionStore.finish(rollback === "rolled back" ? "rolled-back" : "failed", `${message}; ${rollback}`);
-    output.stderr(`${PRODUCT_TEXT.diagnostic(`update failed: ${message}. ${rollback}. Diagnostics: ${transactionStore.path}`)}\n`);
-    return error instanceof UpdateFailure ? error.exitCode : 1;
-  }
+  });
 }
 
 export function assertUpdatePerformanceBudget(
@@ -918,6 +1006,7 @@ class UpdateFailure extends Error {
 }
 
 class UpdatePreflightFailure extends Error {}
+class UpdateAutomaticDeferred extends Error {}
 
 async function canonicalImmutableRoot(dataDir: string, releaseRoot: string): Promise<boolean> {
   try {
