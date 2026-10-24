@@ -32,6 +32,7 @@ describe("exact packed npm command surface", () => {
     expect(paths).toEqual(expect.arrayContaining([
       "package.json",
       "bin/activate.js",
+      "bin/automatic-update.js",
       "bin/cli.js",
       "bin/release-cleanup.js",
       "bin/guardian.js",

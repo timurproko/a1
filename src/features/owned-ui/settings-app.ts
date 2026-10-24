@@ -1270,6 +1270,9 @@ function displaySettingValue(entry: OwnedUiSettingsEntry, value: OwnedUiSettingV
   if (entry.backend === "a1" && entry.id === "timeFormat" && (value === "20:00" || value === "8:00 PM")) {
     return formatLocalTime(new Date(), value) ?? value;
   }
+  if (entry.backend === "a1" && entry.id === "updateCheck" && typeof value === "string") {
+    return value.charAt(0).toUpperCase() + value.slice(1);
+  }
   if (typeof value === "boolean") return value ? "yes" : "no";
   return String(value);
 }

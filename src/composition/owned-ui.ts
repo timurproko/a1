@@ -6,7 +6,7 @@ import { PromptImageSidecar } from "../features/prompt-history/image-sidecar.js"
 import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
 import { resolveLaunchProfilePaths, resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
-import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
+import type { AvailableRelease, StartupReleaseCheckOptions, StartupUpdateMode } from "../foundation/release/latest-release.js";
 import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
@@ -357,17 +357,13 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // Rationale: pinned Pi's version check is unreachable because the owned shell never runs its
   // InteractiveMode, so A1 checks its own channel. The result is never awaited on the startup path;
   // settings are read here because the runner resolves them only just before start.
-  const announceNewerRelease = async (): Promise<void> => {
-    const check: (input: StartupReleaseCheckOptions) => Promise<AvailableRelease | null> = options.checkForNewerRelease
-      ?? (await import("../foundation/release/latest-release.js")).checkForNewerRelease;
-    const release = await check({
-      runningVersion: releaseNote.packageVersion ?? await readPackageVersion(),
-      configDir: productPaths.configDir,
-      interactive: process.stdout.isTTY === true,
-      ...(settings === null || !ownedSurfaces ? {} : { settingEnabled: settings.value("updateCheck") }),
-    });
-    if (release !== null) backend.extensions.announceReleaseUpdate(release);
-  };
+  const releaseUpdates = createStartupReleaseUpdateObservation({
+    backend,
+    configDir: productPaths.configDir,
+    mode: settings === null || !ownedSurfaces ? "auto" : settings.value("updateCheck"),
+    packageVersion: releaseNote.packageVersion,
+    checkForNewerRelease: options.checkForNewerRelease,
+  });
   const exitNoticePath = process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
   // Security: tools the agent runs must never see, or rewrite, this instance's notice.
   delete process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
@@ -379,11 +375,12 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       if (exitNoticePath) exitNotice = import("../app/session-shell/exit-notice.js")
         .then(module => module.armExitNotice(backend, exitNoticePath), () => null);
       presenter.start();
-      void announceNewerRelease().catch(() => undefined);
+      releaseUpdates.start();
     },
     flush: () => backend.session.flushEvents(),
     waitUntilStopped: () => presenter.waitUntilStopped(),
     dispose: async () => {
+      releaseUpdates.stop();
       try {
         await terminalHost.dispose();
         // Invariant: cleared only once the terminal is restored; a failed dispose leaves it armed.
@@ -405,6 +402,48 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
   };
   return { application, settings };
+}
+
+interface StartupReleaseUpdateObservationOptions {
+  readonly backend: ComposedSessionBackend;
+  readonly configDir: string;
+  readonly mode: StartupUpdateMode;
+  readonly packageVersion: string | null;
+  readonly checkForNewerRelease: ((options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>) | undefined;
+}
+
+function createStartupReleaseUpdateObservation(input: StartupReleaseUpdateObservationOptions): {
+  start(): void;
+  stop(): void;
+} {
+  const controller = new AbortController();
+  const observe = async (): Promise<void> => {
+    const check = input.checkForNewerRelease
+      ?? (await import("../foundation/release/latest-release.js")).checkForNewerRelease;
+    const runningVersion = input.packageVersion ?? await readPackageVersion();
+    const release = await check({
+      runningVersion,
+      configDir: input.configDir,
+      interactive: process.stdout.isTTY === true,
+      settingMode: input.mode,
+    });
+    if (release === null || controller.signal.aborted) return;
+    if (input.mode === "notify") {
+      input.backend.extensions.announceReleaseUpdate(release);
+      return;
+    }
+    if (input.mode === "auto") {
+      const installed = await import("../foundation/release/automatic-update.js")
+        .then(module => module.requestAutomaticUpdate({ release, runningVersion, signal: controller.signal }));
+      if (installed !== null && !controller.signal.aborted) {
+        input.backend.extensions.announceReleaseUpdate({ status: "installed", version: installed });
+      }
+    }
+  };
+  return {
+    start() { void observe().catch(() => undefined); },
+    stop() { controller.abort(); },
+  };
 }
 
 const SHARED_SETTINGS_POLL_MS = 250;

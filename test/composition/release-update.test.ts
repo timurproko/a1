@@ -4,7 +4,9 @@ import type { AvailableRelease, StartupReleaseCheckOptions } from "../../src/fou
 import type { PiEngineHostOptions } from "../../src/integrations/pi/engine/host.js";
 
 const observed = vi.hoisted(() => ({
-  updateCheck: true as unknown,
+  updateCheck: "notify" as unknown,
+  automaticInstalled: "0.3.1" as string | null,
+  automaticRequests: [] as unknown[],
   accentColor: "purple",
   accentCalls: [] as string[],
   packageBorderProjectionCalls: [] as boolean[],
@@ -30,6 +32,12 @@ vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async im
   setPiPackageBorderProjectionEnabled(enabled: boolean) { observed.packageBorderProjectionCalls.push(enabled); },
 }));
 vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
+vi.mock("../../src/foundation/release/automatic-update.js", () => ({
+  requestAutomaticUpdate: async (input: unknown) => {
+    observed.automaticRequests.push(input);
+    return observed.automaticInstalled;
+  },
+}));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({
   createOwnedRouteHost: (_settings: unknown, references: typeof observed.references) => {
@@ -63,7 +71,9 @@ vi.mock("../../src/app/session-shell/session-shell.js", () => ({
 }));
 
 afterEach(() => {
-  observed.updateCheck = true;
+  observed.updateCheck = "notify";
+  observed.automaticInstalled = "0.3.1";
+  observed.automaticRequests.length = 0;
   observed.accentColor = "purple";
   observed.accentCalls.length = 0;
   observed.packageBorderProjectionCalls.length = 0;
@@ -225,25 +235,37 @@ describe("startup release check composition", () => {
 
     expect(observed.started).toBe(1);
     await vi.waitFor(() => { expect(announced).toEqual([STABLE]); });
-    expect(checks[0]).toMatchObject({ runningVersion: "0.3.0", settingEnabled: true });
+    expect(checks[0]).toMatchObject({ runningVersion: "0.3.0", settingMode: "notify" });
     await composed.application.dispose();
   });
 
-  it("passes a disabled bare-A1 setting to the check", async () => {
-    observed.updateCheck = false;
-    const { composed, checks } = await compose({ profileId: "a1", release: null });
+  it("passes the no mode to the check and does not announce", async () => {
+    observed.updateCheck = "no";
+    const { composed, announced, checks } = await compose({ profileId: "a1" });
     composed.application.start();
     await vi.waitFor(() => { expect(checks).toHaveLength(1); });
-    expect(checks[0]!.settingEnabled).toBe(false);
+    expect(checks[0]!.settingMode).toBe("no");
+    expect(announced).toEqual([]);
+    expect(observed.automaticRequests).toEqual([]);
     await composed.application.dispose();
   });
 
-  it("applies only environment opt-outs to the comparison profile", async () => {
-    observed.updateCheck = false;
+  it("installs automatically and announces only the restart status", async () => {
+    observed.updateCheck = "auto";
+    const { composed, announced, checks } = await compose({ profileId: "a1" });
+    composed.application.start();
+    await vi.waitFor(() => { expect(announced).toEqual([{ status: "installed", version: "0.3.1" }]); });
+    expect(checks[0]!.settingMode).toBe("auto");
+    expect(observed.automaticRequests).toHaveLength(1);
+    await composed.application.dispose();
+  });
+
+  it("uses auto when a comparison profile has no A1 setting", async () => {
+    observed.updateCheck = "no";
     const { composed, announced, checks } = await compose({ profileId: "a1", ownedSurfaces: "off" });
     composed.application.start();
-    await vi.waitFor(() => { expect(announced).toHaveLength(1); });
-    expect(checks[0]).not.toHaveProperty("settingEnabled");
+    await vi.waitFor(() => { expect(announced).toEqual([{ status: "installed", version: "0.3.1" }]); });
+    expect(checks[0]!.settingMode).toBe("auto");
     await composed.application.dispose();
   });
 
