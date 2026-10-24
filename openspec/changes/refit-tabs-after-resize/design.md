@@ -38,7 +38,7 @@ The attach client does not send a separate resize after each view request. Remov
 
 On every accepted outer resize event, the attach client immediately offers a complete synchronized presentation that clears the old UI, hides the cursor, and shows `🖥️` above `Resize <columns> x <rows>` with each row centered independently in the terminal's quiet presentation role. The next resize event replaces that complete curtain with the new dimensions. Ordinary tab, surface, animation, notice, and clock paints continue updating internal state but are suppressed from the outer terminal while the curtain is active.
 
-The curtain uses the existing single-slot outer presentation writer rather than direct terminal writes. This lets a newer curtain replace queued work, keeps synchronized-update framing, and makes the composer aware that the old tab UI is no longer the visible baseline.
+The curtain uses the existing single-slot outer presentation writer rather than direct terminal writes. This lets a newer curtain replace queued work, keeps synchronized-update framing, and makes the composer aware that the old tab UI is no longer the visible baseline. A resize notification whose columns and rows match the client's established geometry is ignored before curtain state begins, preventing the startup terminal-size notification from flashing resize feedback.
 
 ### 4. Hold briefly, then reveal through a dimmed frame
 
@@ -54,7 +54,7 @@ Attach startup without an explicit target sends current geometry after admission
 
 ### 6. Keep centered application-state copy consistent
 
-The resize curtain follows the shared two-row empty-state composition even though it is rendered by the native host rather than the TypeScript component layer. The owned Settings no-result state keeps its existing `👀` mark and centered layout but changes its message to punctuation-free `No settings found`.
+The resize curtain follows the shared mark-and-message empty-state composition even though it is rendered by the native host rather than the TypeScript component layer. The owned Settings no-result state keeps its existing `👀` mark and centered layout, leaves one blank row before the punctuation-free `No settings found` message, and gracefully collapses that spacing in very short viewports.
 
 ## Risks / Trade-offs
 

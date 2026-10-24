@@ -1733,6 +1733,15 @@ fn dim_presentation(mut desired: DesiredPresentation) -> DesiredPresentation {
     desired
 }
 
+fn changes_terminal_geometry(
+    current_columns: u16,
+    current_outer_rows: u16,
+    columns: u16,
+    outer_rows: u16,
+) -> bool {
+    (columns, outer_rows) != (current_columns, current_outer_rows)
+}
+
 fn resize_curtain_overlay(columns: u16, outer_rows: u16, truecolor: bool) -> String {
     let available = usize::from(columns);
     let mark = clip_cells("🖥️", available);
@@ -2899,6 +2908,9 @@ impl Client {
     }
 
     fn resize(&mut self, core: &mut State, columns: u16, outer_rows: u16) -> Result<(), String> {
+        if !changes_terminal_geometry(self.columns, self.outer_rows, columns, outer_rows) {
+            return Ok(());
+        }
         let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
         self.outer_rows = outer_rows;
         self.geometry_generation = self.geometry_generation.saturating_add(1);
@@ -3501,6 +3513,13 @@ mod tests {
         assert_eq!(view.body.tab_id, "tab-existing");
         let resize = view.body.resize.expect("requested-tab geometry");
         assert_eq!((resize.columns, resize.rows), (120, 35));
+    }
+
+    #[test]
+    fn unchanged_terminal_geometry_does_not_start_a_resize() {
+        assert!(!changes_terminal_geometry(80, 24, 80, 24));
+        assert!(changes_terminal_geometry(80, 24, 81, 24));
+        assert!(changes_terminal_geometry(80, 24, 80, 25));
     }
 
     #[test]

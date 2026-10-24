@@ -31,3 +31,11 @@
 - [x] 6.1 Render the resize curtain as a quiet centered `🖥️` mark above `Resize <columns> x <rows>`.
 - [x] 6.2 Remove trailing punctuation from the owned Settings `No settings found` empty state.
 - [x] 6.3 Update focused native and Settings regression coverage for the exact presentation copy and layout.
+
+## 7. Settings empty-state spacing
+
+- [x] 7.1 Leave one blank row between the centered Settings empty-state mark and message while preserving compact viewport behavior.
+- [x] 7.2 Extend Settings regression coverage for the exact vertical spacing.
+- [x] 7.3 Ignore unchanged outer resize notifications before starting curtain state so ordinary launch does not flash resize feedback.
+- [x] 7.4 Add focused native regression coverage for changed and unchanged terminal geometry.
+- [x] 7.5 Correct the stale tab-width expectation for the default twelve-hour clock reserve while retaining explicit twenty-four-hour coverage.
