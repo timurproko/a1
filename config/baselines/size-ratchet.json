@@ -137,10 +137,10 @@
       "lines": 111
     },
     "native/terminal-host/src/roles/server/attach.rs::serve_attach": {
-      "lines": 412
+      "lines": 410
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
-      "lines": 388
+      "lines": 381
     },
     "native/terminal-host/src/roles/server/controller.rs::claim_client_control": {
       "lines": 126

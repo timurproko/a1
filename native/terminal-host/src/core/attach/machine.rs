@@ -7,10 +7,10 @@ use std::time::Duration;
 
 use super::{
     AttachKey, AttachMouse, CloseFallback, DRAG_HOLD, DeferredInput, DeferredInputTarget, KeyCode,
-    MouseButton, MouseKind, PopupAction, PopupKind, PopupMenu, RenameEditor, ShortcutLabels,
-    StripHitKind, StripSnapshot, TabDrag, TabView, apply_rename_control_key, close_fallback_for,
-    failure_applies, forward_pointer_motion, is_utility_tab, registry_index, rejection_notice,
-    settings_toggle_closes, shown_tabs, update_drag,
+    MouseButton, MouseKind, PlusMenu, PopupAction, PopupKind, PopupMenu, RenameEditor,
+    ShortcutLabels, StripHitKind, StripSnapshot, TabDrag, TabView, apply_rename_control_key,
+    close_fallback_for, failure_applies, forward_pointer_motion, is_utility_tab, registry_index,
+    rejection_notice, settings_toggle_closes, shown_tabs, update_drag,
 };
 
 /// How long the client waits, with tabs present and no Settings tab, before starting a hidden one
@@ -109,6 +109,8 @@ pub struct State {
     /// Pointer ownership that began in the child remains there across the resident tab strip.
     child_primary_drag: bool,
     pub columns: u16,
+    /// The kinds `+` offers, which the role refreshes from the live settings.
+    pub plus_menu: PlusMenu,
     /// Invariant: an exited client sends, views, and paints nothing more.
     pub exited: bool,
 }
@@ -132,6 +134,8 @@ pub enum Request {
     OpenSettings,
     /// Creates or shows the singleton Changelog tab.
     OpenChangelog,
+    /// Shows the Settings tab with its plus-menu dialog open.
+    OpenPlusMenu,
     PrewarmSettings,
     Close(String),
     Restart(String),
@@ -479,6 +483,11 @@ impl State {
             }
             PopupAction::NewAgent => self.create(Request::Create, effects),
             PopupAction::Settings => self.toggle_settings(context, effects),
+            PopupAction::Changelog => self.open_changelog(context, effects),
+            PopupAction::ConfigurePlus => {
+                self.view.settings_prewarm_pending = false;
+                self.create(Request::OpenPlusMenu, effects);
+            }
             PopupAction::View(tab_id) => effects.push(Effect::View(tab_id)),
         }
     }
@@ -874,12 +883,15 @@ impl State {
                 }
             }
             MouseKind::Down(MouseButton::Right) => {
-                if let Some(StripHitKind::View(tab_id)) = target {
-                    let menu =
-                        PopupMenu::context(tab_id, mouse.column, self.columns, context.shortcuts);
-                    self.mode = Mode::Popup(menu);
-                    effects.push(Effect::Paint { clear: false });
-                }
+                let menu = match target {
+                    Some(StripHitKind::View(tab_id)) => {
+                        PopupMenu::context(tab_id, mouse.column, self.columns, context.shortcuts)
+                    }
+                    Some(StripHitKind::New) => PopupMenu::configure(mouse.column, self.columns),
+                    _ => return,
+                };
+                self.mode = Mode::Popup(menu);
+                effects.push(Effect::Paint { clear: false });
             }
             MouseKind::Down(MouseButton::Left) => match target {
                 Some(StripHitKind::View(tab_id)) => {
@@ -905,13 +917,22 @@ impl State {
                 }
                 Some(StripHitKind::New) => {
                     self.hovered = Some(Hover::New);
-                    let menu = PopupMenu::add(
-                        mouse.column,
-                        self.columns,
-                        context.shortcuts,
-                        self.settings_visible(context.viewed),
-                    );
-                    self.mode = Mode::Popup(menu);
+                    if self.plus_menu.agent_only() {
+                        self.create(Request::Create, effects);
+                    } else if !self.plus_menu.is_empty() {
+                        let changelog_open = context
+                            .tabs
+                            .iter()
+                            .any(|tab| tab.id().starts_with("changelog-"));
+                        let menu = PopupMenu::add(
+                            mouse.column,
+                            self.columns,
+                            context.shortcuts,
+                            self.plus_menu,
+                            [self.settings_visible(context.viewed), changelog_open],
+                        );
+                        self.mode = Mode::Popup(menu);
+                    }
                     effects.push(Effect::Paint { clear: false });
                 }
                 Some(StripHitKind::Overflow) => {
@@ -1592,11 +1613,54 @@ mod tests {
     }
 
     #[test]
+    fn plus_follows_its_configured_kinds_and_right_click_configures_it() {
+        let mut fixture = Fixture::new(&["a", "changelog-1"], "a");
+        fixture.strip.hits.push((30, 32, StripHitKind::New));
+        let mut state = fixture.state();
+        assert_eq!(
+            fixture.step(&mut state, mouse(LEFT, 31, 0)),
+            [Effect::Send(Request::Create), PAINT],
+            "Agent alone adds an Agent without a menu"
+        );
+        assert!(state.mode.popup().is_none());
+
+        state.plus_menu = PlusMenu::from_setting(Some(""));
+        assert_eq!(fixture.step(&mut state, mouse(LEFT, 31, 0)), [PAINT]);
+        assert!(state.mode.popup().is_none(), "no kind offers nothing");
+
+        state.plus_menu = PlusMenu::from_setting(Some("settings,changelog"));
+        fixture.step(&mut state, mouse(LEFT, 31, 0));
+        let menu = state.mode.popup().expect("launcher").clone();
+        let labels = menu
+            .items
+            .iter()
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(labels, ["  Settings", "✓ Changelog"]);
+        assert_eq!(
+            fixture.step(&mut state, mouse(LEFT, menu.column, 2)),
+            [Effect::View("changelog-1".into()), PAINT]
+        );
+
+        assert_eq!(fixture.step(&mut state, mouse(RIGHT, 31, 0)), [PAINT]);
+        let configure = state.mode.popup().expect("configure menu").clone();
+        assert_eq!(configure.kind, PopupKind::Configure);
+        assert_eq!(configure.items.len(), 1);
+        assert_eq!(configure.items[0].label, "Configure");
+        assert_eq!(
+            fixture.step(&mut state, mouse(LEFT, configure.column, 1)),
+            [Effect::Send(Request::OpenPlusMenu), PAINT]
+        );
+        assert!(state.view.pending_created_activation);
+    }
+
+    #[test]
     fn strip_pointer_hovers_opens_menus_and_drags() {
         let mut fixture = Fixture::new(&["a", "b", "c"], "a");
         fixture.strip.hits.push((40, 42, StripHitKind::Overflow));
         fixture.strip.hidden_tabs = vec!["c".into()];
         let mut state = fixture.state();
+        state.plus_menu = PlusMenu::ALL;
         assert_eq!(
             fixture.step(&mut state, mouse(MouseKind::Moved, 12, 0)),
             [PAINT]
@@ -1889,7 +1953,7 @@ mod tests {
     fn resize_refits_an_open_menu_and_repaints_clean() {
         let fixture = Fixture::new(&["a"], "a");
         let mut state = fixture.state();
-        state.mode = Mode::Popup(PopupMenu::add(70, 80, &Labels, false));
+        state.mode = Mode::Popup(PopupMenu::add(70, 80, &Labels, PlusMenu::ALL, [false; 2]));
         assert_eq!(
             fixture.step(&mut state, Event::Resize { columns: 20 }),
             [Effect::Paint { clear: true }]
@@ -1965,7 +2029,7 @@ mod tests {
             state.view.settings_shown,
             "the first shortcut selects Settings"
         );
-        let mut popup = PopupMenu::add(0, 80, &Labels, true);
+        let mut popup = PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [true, false]);
         popup.hovered = Some(2);
         state.mode = Mode::Popup(popup);
         assert_eq!(
@@ -1986,7 +2050,7 @@ mod tests {
         );
         let mut active = fixture.state();
         active.view.settings_shown = true;
-        let mut popup = PopupMenu::add(0, 80, &Labels, true);
+        let mut popup = PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [true, false]);
         popup.hovered = Some(2);
         active.mode = Mode::Popup(popup);
         assert_eq!(
@@ -2158,7 +2222,7 @@ mod tests {
         };
         assert_eq!(answer(&mut state, viewer), [PAINT]);
         assert!(answer(&mut state, ServerEvent::ShortcutsChanged).is_empty());
-        state.mode = Mode::Popup(PopupMenu::add(0, 80, &Labels, false));
+        state.mode = Mode::Popup(PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [false; 2]));
         assert_eq!(answer(&mut state, ServerEvent::ShortcutsChanged), [PAINT]);
     }
 

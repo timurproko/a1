@@ -156,14 +156,7 @@ pub(super) fn serve_bridge(
             serde_json::json!({ "visible": visible }),
         )?)
         .map_err(str::to_owned)?;
-        if let Some((route, _)) = utility_kind(&tab_id) {
-            tx.offer_control(wire::frame(
-                "bridge.route",
-                None,
-                serde_json::json!({ "route": route }),
-            )?)
-            .map_err(str::to_owned)?;
-        }
+        offer_admission_routes(&mut locked, &tx, &tab_id)?;
     }
     crate::fault_injection::crash_at("bridge-after-admit");
     while let Some(payload) = wire::read_payload(&mut stream)? {
@@ -504,4 +497,46 @@ pub fn encoded_bridge_token(
     incarnation: u64,
 ) -> String {
     BASE64.encode(credentials.derive("bridge", tab_id, incarnation))
+}
+
+/// Sends an admitted bridge its tab's routes. Invariant: a utility tab learns its own route
+/// before any route held for it.
+fn offer_admission_routes(
+    locked: &mut RuntimeState,
+    tx: &Peer,
+    tab_id: &str,
+) -> Result<(), String> {
+    let held = locked.core.take_route(tab_id);
+    for route in utility_kind(tab_id)
+        .map(|(route, _)| route)
+        .into_iter()
+        .chain(held.as_deref())
+    {
+        tx.offer_control(wire::frame(
+            "bridge.route",
+            None,
+            serde_json::json!({ "route": route }),
+        )?)
+        .map_err(str::to_owned)?;
+    }
+    Ok(())
+}
+
+/// Sends a route to the tab's connected bridge, or holds it for the bridge's admission.
+pub(super) fn offer_route(
+    state: &mut RuntimeState,
+    tab_id: &str,
+    route: &str,
+) -> Result<(), String> {
+    match state.bridges.get(tab_id) {
+        Some(bridge) => {
+            let _ = bridge.peer.offer_control(wire::frame(
+                "bridge.route",
+                None,
+                serde_json::json!({ "route": route }),
+            )?);
+        }
+        None => state.core.hold_route(tab_id, route),
+    }
+    Ok(())
 }

@@ -110,8 +110,16 @@ fn reserve_utility_tab(
     }
 }
 
+const UTILITY_TAB_MESSAGES: [&str; 4] = [
+    "tab.open-settings",
+    "tab.prewarm-settings",
+    "tab.open-changelog",
+    "tab.open-plus-menu",
+];
+
 /// Opens, reveals, or prewarms a singleton utility tab for a client: `tab.open-settings`,
-/// `tab.prewarm-settings`, or `tab.open-changelog`.
+/// `tab.prewarm-settings`, `tab.open-changelog`, or `tab.open-plus-menu`, which also opens the
+/// plus-menu dialog in the Settings tab.
 fn open_utility_tab(
     state: &Arc<Mutex<RuntimeState>>,
     profile: &Path,
@@ -129,6 +137,9 @@ fn open_utility_tab(
     let opening = message_type != "tab.prewarm-settings";
     let (settings_tab_id, should_start, reordered) = reserve_utility_tab(state, prefix, opening)?;
     commit_staged(reordered)?;
+    if message_type == "tab.open-plus-menu" {
+        bridge::offer_route(&mut *lock_state(state)?, &settings_tab_id, "plus-menu")?;
+    }
     if should_start {
         let mut start = AttachStart {
             client_id: client_id.to_owned(),
@@ -304,17 +315,15 @@ pub(super) fn serve_attach(
                 tx.offer_control(wire::frame("tab.list", kind.request_id, list)?)
                     .map_err(str::to_owned)?;
             }
-            "tab.open-settings" | "tab.prewarm-settings" | "tab.open-changelog" => {
-                open_utility_tab(
-                    &state,
-                    &profile,
-                    &tx,
-                    &client_id,
-                    &kind.message_type,
-                    kind.request_id,
-                    &payload,
-                )?
-            }
+            message if UTILITY_TAB_MESSAGES.contains(&message) => open_utility_tab(
+                &state,
+                &profile,
+                &tx,
+                &client_id,
+                &kind.message_type,
+                kind.request_id,
+                &payload,
+            )?,
             "tab.view" => {
                 let (_, target): (_, ViewTarget) = wire::body(&payload)?;
                 let mut locked = lock_state(&state)?;

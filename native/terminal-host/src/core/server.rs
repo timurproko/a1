@@ -160,6 +160,8 @@ pub struct TabRuntime {
     pub status_last_persist: Option<Duration>,
     /// When the scheduled holder respawn is due, on the server core clock.
     pub respawn_due_at: Option<Duration>,
+    /// A route the tab's bridge is sent when it is admitted, such as the plus-menu dialog.
+    pub pending_route: Option<String>,
 }
 
 #[derive(Debug)]
@@ -209,6 +211,18 @@ impl State {
             self.runtime.remove(tab_id);
         }
         result
+    }
+
+    /// Holds a route for the tab's next bridge admission, replacing any held one.
+    pub fn hold_route(&mut self, tab_id: &str, route: &str) {
+        self.update_runtime(tab_id, |runtime| {
+            runtime.pending_route = Some(route.to_owned())
+        });
+    }
+
+    /// Takes the route held for the tab's bridge admission.
+    pub fn take_route(&mut self, tab_id: &str) -> Option<String> {
+        self.update_runtime(tab_id, |runtime| runtime.pending_route.take())
     }
 
     pub fn is_starting(&self, tab_id: &str) -> bool {
@@ -1135,6 +1149,21 @@ mod tests {
         assert!(state.set_terminating("tab", false));
         assert!(state.runtime("standby").is_none() && state.runtime("tab").is_none());
         assert_eq!(state.starting_tabs().count(), 0);
+    }
+
+    #[test]
+    fn a_held_route_waits_for_one_bridge_admission() {
+        let mut state = State::new(1, 2);
+        state.hold_route("settings-1", "plus-menu");
+        assert!(state.set_starting("settings-1", true));
+        assert_eq!(state.take_route("settings-1").as_deref(), Some("plus-menu"));
+        assert_eq!(
+            state.take_route("settings-1"),
+            None,
+            "a route is delivered once"
+        );
+        assert!(state.set_starting("settings-1", false));
+        assert!(state.runtime("settings-1").is_none());
     }
 
     #[test]

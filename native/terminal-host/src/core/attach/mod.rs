@@ -204,7 +204,57 @@ pub fn rejection_notice(user_input_pending: &mut bool, message: Option<String>) 
 pub enum PopupKind {
     Context,
     Add,
+    /// The right-click menu on `+`.
+    Configure,
     Overflow,
+}
+
+/// The tab kinds the strip's `+` offers, read from the owned `tabBarPlusMenu` setting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PlusMenu {
+    pub agent: bool,
+    pub settings: bool,
+    pub changelog: bool,
+}
+
+impl Default for PlusMenu {
+    fn default() -> Self {
+        Self::from_setting(None)
+    }
+}
+
+impl PlusMenu {
+    pub const ALL: Self = Self {
+        agent: true,
+        settings: true,
+        changelog: true,
+    };
+
+    /// The comma-separated kinds the setting holds; an absent or non-text value offers Agent alone.
+    pub fn from_setting(value: Option<&str>) -> Self {
+        let Some(value) = value else {
+            return Self {
+                agent: true,
+                settings: false,
+                changelog: false,
+            };
+        };
+        let has = |kind: &str| value.split(',').any(|part| part.trim() == kind);
+        Self {
+            agent: has("agent"),
+            settings: has("settings"),
+            changelog: has("changelog"),
+        }
+    }
+
+    /// With Agent alone, `+` creates an Agent without a menu.
+    pub fn agent_only(self) -> bool {
+        self.agent && !self.settings && !self.changelog
+    }
+
+    pub fn is_empty(self) -> bool {
+        !self.agent && !self.settings && !self.changelog
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -213,6 +263,9 @@ pub enum PopupAction {
     Rename,
     NewAgent,
     Settings,
+    Changelog,
+    /// Opens the plus-menu dialog in the Settings tab.
+    ConfigurePlus,
     View(String),
 }
 
@@ -294,32 +347,58 @@ impl PopupMenu {
         column: u16,
         columns: u16,
         shortcuts: &(impl ShortcutLabels + ?Sized),
-        settings_shown: bool,
+        plus: PlusMenu,
+        shown: [bool; 2],
     ) -> Self {
-        Self::new(
-            PopupKind::Add,
-            None,
-            column,
-            columns,
-            vec![
-                PopupItem::action(
-                    "+ Agent",
-                    shortcuts.label("tabs.new"),
-                    PopupAction::NewAgent,
-                ),
-                PopupItem::separator(),
-                // Invariant: labels align after the `+ ` marker, so Settings starts under Agent.
-                PopupItem::action(
-                    if settings_shown {
-                        "✓ Settings"
-                    } else {
-                        "  Settings"
-                    },
-                    shortcuts.label("tabs.settings"),
-                    PopupAction::Settings,
-                ),
-            ],
-        )
+        let mut items = Vec::new();
+        if plus.agent {
+            items.push(PopupItem::action(
+                "+ Agent",
+                shortcuts.label("tabs.new"),
+                PopupAction::NewAgent,
+            ));
+            if plus.settings || plus.changelog {
+                items.push(PopupItem::separator());
+            }
+        }
+        // Invariant: labels align after the `+ ` marker, so the toggles start under Agent.
+        let toggles = [
+            (
+                plus.settings,
+                shown[0],
+                "Settings",
+                "tabs.settings",
+                PopupAction::Settings,
+            ),
+            (
+                plus.changelog,
+                shown[1],
+                "Changelog",
+                "tabs.changelog",
+                PopupAction::Changelog,
+            ),
+        ];
+        for (offered, open, label, action, invoke) in toggles {
+            if offered {
+                let marker = if open { "✓" } else { " " };
+                items.push(PopupItem::action(
+                    format!("{marker} {label}"),
+                    shortcuts.label(action),
+                    invoke,
+                ));
+            }
+        }
+        Self::new(PopupKind::Add, None, column, columns, items)
+    }
+
+    /// The right-click menu on `+`: one row that opens the plus-menu dialog.
+    pub fn configure(column: u16, columns: u16) -> Self {
+        let items = vec![PopupItem::action(
+            "Configure",
+            String::new(),
+            PopupAction::ConfigurePlus,
+        )];
+        Self::new(PopupKind::Configure, None, column, columns, items)
     }
 
     pub fn overflow<T: TabView>(

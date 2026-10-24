@@ -18,10 +18,10 @@ use crossterm::event::{
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use crate::core::attach::{
-    self as core_attach, Context, Effect, Hover, KeyForward, PopupItem, PopupMenu, RenameEditor,
-    Request, ServerEvent, ShortcutLabels, State, StripLayout, StripSnapshot, TabDrag, TabView,
-    debounce_starting_glyphs, drag_marker_column, hold_status_glyphs, holder_idle_precedes_bridge,
-    shown_tabs,
+    self as core_attach, Context, Effect, Hover, KeyForward, PlusMenu, PopupItem, PopupMenu,
+    RenameEditor, Request, ServerEvent, ShortcutLabels, State, StripLayout, StripSnapshot, TabDrag,
+    TabView, debounce_starting_glyphs, drag_marker_column, hold_status_glyphs,
+    holder_idle_precedes_bridge, shown_tabs,
 };
 use crate::endpoint;
 use crate::protocol::{
@@ -478,6 +478,7 @@ struct PresentationSettings {
     background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
+    plus_menu: PlusMenu,
 }
 
 impl Default for PresentationSettings {
@@ -488,6 +489,7 @@ impl Default for PresentationSettings {
             background_style: None,
             accent_hover: accent_selected_background(None),
             tab_bar_position: TabBarPosition::Top,
+            plus_menu: PlusMenu::default(),
         }
     }
 }
@@ -523,6 +525,11 @@ fn read_presentation_settings(path: &Path) -> PresentationSettings {
         tab_bar_position: TabBarPosition::from_setting(
             owned_settings
                 .get("tabsPosition")
+                .and_then(serde_json::Value::as_str),
+        ),
+        plus_menu: PlusMenu::from_setting(
+            owned_settings
+                .get("tabBarPlusMenu")
                 .and_then(serde_json::Value::as_str),
         ),
     }
@@ -633,6 +640,7 @@ struct TimeFormatWatch {
     background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
+    plus_menu: PlusMenu,
     checked_at: Instant,
 }
 
@@ -647,6 +655,7 @@ impl TimeFormatWatch {
             background_style: settings.background_style,
             accent_hover: settings.accent_hover,
             tab_bar_position: settings.tab_bar_position,
+            plus_menu: settings.plus_menu,
             checked_at: Instant::now(),
         }
     }
@@ -673,6 +682,7 @@ impl TimeFormatWatch {
         self.background_style = settings.background_style;
         self.accent_hover = settings.accent_hover;
         self.tab_bar_position = settings.tab_bar_position;
+        self.plus_menu = settings.plus_menu;
         changed
     }
 }
@@ -1466,6 +1476,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     if let Some(list) = initial_tabs {
         client.install_tab_list(&mut core, list)?;
     }
+    core.plus_menu = client.time_format.plus_menu;
     loop {
         watchdog.bump();
         if let Some(error) = client.stream.failure() {
@@ -1792,6 +1803,9 @@ impl Client {
             }
             Request::OpenChangelog => {
                 wire::send(stream, "tab.open-changelog", None, self.create.clone())
+            }
+            Request::OpenPlusMenu => {
+                wire::send(stream, "tab.open-plus-menu", None, self.create.clone())
             }
             Request::PrewarmSettings => {
                 wire::send(stream, "tab.prewarm-settings", None, self.create.clone())
@@ -2436,6 +2450,7 @@ impl Client {
         if self.time_format.refresh() {
             self.paint(core, false)?;
         }
+        core.plus_menu = self.time_format.plus_menu;
         // Invariant: A held glyph that no status replaced is released once its hold ends.
         if self.glyphs.expires.is_some_and(|until| self.now() >= until) {
             self.paint(core, false)?;
@@ -3808,7 +3823,7 @@ mod tests {
         menu.resize(80);
         assert_eq!(menu.column + menu.width, 80);
 
-        let mut add = PopupMenu::add(0, 80, &bindings, false);
+        let mut add = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
         assert_eq!(add.action_at(add.column, 1), Some(PopupAction::NewAgent));
         assert_eq!(add.action_at(add.column, 2), None);
         assert_eq!(add.action_at(add.column, 3), Some(PopupAction::Settings));
@@ -3820,7 +3835,7 @@ mod tests {
         assert!(add_rendered.contains("+ Agent"));
         assert!(add_rendered.contains("  Settings"));
         assert!(add_rendered.contains("Alt+,"));
-        let checked = PopupMenu::add(0, 80, &bindings, true);
+        let checked = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [true, false]);
         assert!(checked.render().contains("✓ Settings"));
         assert_eq!(checked.width, add.width);
         for rendered in [add.render_with_color(true), add.render_with_color(false)] {
@@ -3953,7 +3968,7 @@ mod tests {
         std::fs::write(&file, br#"{"a1":{"accentColor":"cyan"}}"#).unwrap();
         assert_eq!(read_accent_hover(&file), [48, 60, 61]);
         let bindings = TabBindings::load(profile.path());
-        let mut menu = PopupMenu::add(0, 80, &bindings, false);
+        let mut menu = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
         menu.hovered = Some(0);
         let rendered = menu.render_styled(true, read_accent_hover(&file));
         assert!(rendered.contains("\x1b[48;2;48;60;61m"));
@@ -4019,13 +4034,21 @@ mod tests {
 
         std::fs::write(
             &file,
-            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom"}}"#,
+            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom","tabBarPlusMenu":"agent,changelog"}}"#,
         )
         .unwrap();
         watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
         assert!(watch.refresh());
         assert_eq!(watch.tab_bar_position, TabBarPosition::Bottom);
         assert_eq!(read_tab_bar_position(&file), TabBarPosition::Bottom);
+        assert_eq!(
+            watch.plus_menu,
+            PlusMenu {
+                agent: true,
+                settings: false,
+                changelog: true
+            }
+        );
 
         std::fs::write(
             &file,
@@ -4051,6 +4074,10 @@ mod tests {
         assert_eq!(watch.accent_color, None);
         assert_eq!(watch.accent_hover, accent_selected_background(None));
         assert_eq!(watch.tab_bar_position, TabBarPosition::Top);
+        assert!(
+            watch.plus_menu.agent_only(),
+            "an absent plus menu offers Agent alone"
+        );
 
         std::fs::write(&file, b"not json").unwrap();
         assert_eq!(
