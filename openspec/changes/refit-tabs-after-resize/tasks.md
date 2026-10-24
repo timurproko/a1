@@ -19,3 +19,9 @@
 - [x] 4.1 Replace the complete outer UI with a centered live terminal-dimension curtain for the duration of each resize event burst.
 - [x] 4.2 Suppress ordinary paints behind the curtain and restore one forced complete frame after a quiet interval and current-geometry surface, with bounded fallback.
 - [x] 4.3 Add focused native coverage for curtain centering, paint suppression, settle gating, and complete restoration.
+
+## 5. Soft resize completion
+
+- [ ] 5.1 Extend the post-resize curtain hold and reveal the settled complete UI using terminal faint intensity with the child cursor hidden.
+- [ ] 5.2 Keep ordinary paints dimmed during the short reveal, then force the current UI at normal intensity; a new resize cancels the reveal.
+- [ ] 5.3 Add focused native coverage for ANSI and structured dimming, reveal timing, cursor suppression, and final normal repaint.

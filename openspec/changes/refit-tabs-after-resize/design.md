@@ -12,7 +12,7 @@ The attach presentation path already owns complete synchronized outer frames and
 - Make tab activation publish only a surface for the requesting controller's current geometry.
 - Hide all active tab and strip reflow while outer resize events are arriving.
 - Show the live terminal dimensions in one centered resize status.
-- Restore the complete UI atomically after resizing settles and current content is ready.
+- Hold the resize curtain briefly after resizing stops, then reveal current content through a short dim-to-normal transition.
 - Preserve existing controller ownership rules.
 
 **Non-Goals:**
@@ -40,11 +40,13 @@ On every accepted outer resize event, the attach client immediately offers a com
 
 The curtain uses the existing single-slot outer presentation writer rather than direct terminal writes. This lets a newer curtain replace queued work, keeps synchronized-update framing, and makes the composer aware that the old tab UI is no longer the visible baseline.
 
-### 4. Reveal once the resize burst and child geometry have settled
+### 4. Hold briefly, then reveal through a dimmed frame
 
-Each resize event restarts a short 120 ms quiet interval. After that interval, the attach client waits until the currently viewed holder has published a surface newer than the pre-resize surface and, for structured surfaces, carrying at least the requested geometry generation. Landing or no-tab views need only the quiet interval. The client then removes the curtain and forces one complete synchronized repaint at the final dimensions.
+Each resize event restarts a 160 ms quiet interval. After that interval, the attach client waits until the currently viewed holder has published a surface newer than the pre-resize surface. Landing or no-tab views need only the quiet interval. This deliberate hold keeps the final dimension curtain visible long enough that stopping a resize does not feel like an abrupt cut.
 
-A one-second maximum from the latest resize prevents a failed or disconnected holder from leaving the terminal permanently behind the curtain. That bounded fallback restores the newest retained presentation with a full clear; normal holder resize publication should satisfy the current-surface gate first.
+The first settled UI frame is complete and synchronized but rendered with terminal faint intensity across the tab strip, overlays, landing or legacy bytes, and every structured child style. The child cursor remains hidden. After 100 ms, the attach client forces the same complete current presentation at normal intensity and restores its cursor. Any ordinary state update during the fade remains dimmed, and a new resize cancels the fade and returns immediately to the curtain.
+
+A one-second maximum from the latest resize prevents a failed or disconnected holder from leaving the terminal permanently behind the curtain. That bounded fallback enters the same dimmed reveal using the newest retained presentation rather than cutting directly to full intensity.
 
 ### 5. Keep initial attachment convergence and controller isolation
 
@@ -52,7 +54,7 @@ Attach startup without an explicit target sends current geometry after admission
 
 ## Risks / Trade-offs
 
-- [The curtain lingers after the mouse is released] → Use a short 120 ms quiet interval and reveal immediately once both quiet and current-surface conditions hold.
+- [The transition feels sluggish] → Bound the post-event hold to 160 ms and the dimmed reveal to 100 ms.
 - [A holder never publishes the requested surface] → Bound the curtain to one second and force a complete fallback repaint.
 - [Rapid resize produces excessive writes] → The existing replaceable single-slot presentation lane retains only the newest complete curtain.
 - [Background resize adds work to hidden children] → Resize only globally hidden, unclaimed holders; hidden full-surface serialization remains disabled.
@@ -60,4 +62,4 @@ Attach startup without an explicit target sends current geometry after admission
 
 ## Migration Plan
 
-No stored data migration is required. The view payload's optional geometry remains backward-decodable. Rolling back restores direct intermediate resize presentation, activation-time convergence, and no resize curtain.
+No stored data migration is required. The view payload's optional geometry remains backward-decodable. Rolling back removes the dimmed reveal first; rolling back the full change restores direct intermediate resize presentation and activation-time convergence.

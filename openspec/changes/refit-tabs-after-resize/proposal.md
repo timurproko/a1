@@ -7,7 +7,7 @@ A resident tab can now be fitted before it becomes visible, eliminating switch-t
 - Pre-fit globally hidden, unclaimed resident holders whenever an authoritative controller reports new terminal geometry.
 - Carry current geometry with each view request and queue any required target resize before enabling its fresh surface publication.
 - Replace the complete active UI with a centered `Resize <columns> × <rows>` curtain while outer resize events continue.
-- Restore the complete UI in one synchronized repaint only after resize events settle and a current-geometry surface is available, with a bounded recovery fallback.
+- Keep the resize curtain briefly after the event burst, then reveal the settled UI dimmed before returning it to normal intensity so the transition is visually soft.
 - Preserve per-tab controller authority by excluding tabs currently viewed or controlled by another client.
 - Add focused native regression coverage for background resize, activation ordering, resize-curtain presentation, and resized reattachment flows.
 
@@ -15,7 +15,7 @@ A resident tab can now be fitted before it becomes visible, eliminating switch-t
 
 ### Modified Capabilities
 
-- `resident-terminal-host`: authoritative outer resize pre-fits eligible hidden children, stages activation geometry before replacement surfaces publish, and presents a stable resize curtain instead of intermediate active-TUI reflows.
+- `resident-terminal-host`: authoritative outer resize pre-fits eligible hidden children, stages activation geometry before replacement surfaces publish, and transitions from a stable resize curtain through a brief dimmed reveal instead of flashing the active TUI.
 
 ## Impact
 

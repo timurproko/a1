@@ -35,7 +35,7 @@ Whenever an authoritative attach controller reports new terminal geometry, A1 SH
 
 ### Requirement: Active outer resize uses a stable dimension curtain
 
-While an attach client's outer terminal emits a burst of resize events, A1 SHALL replace the complete tab strip, active child surface, overlays, and cursor with a host-owned curtain showing `Resize <columns> × <rows>` centered for the latest terminal dimensions. A1 SHALL continue routing geometry and accepting fresh holder state behind the curtain but SHALL NOT present intermediate active-TUI frames. After resize events remain quiet for the bounded settle interval and the viewed holder has published current-geometry state, A1 SHALL restore the complete UI in one synchronized full repaint. If current holder state does not arrive within the bounded recovery interval, A1 SHALL restore the newest retained complete presentation rather than leave the curtain indefinitely.
+While an attach client's outer terminal emits a burst of resize events, A1 SHALL replace the complete tab strip, active child surface, overlays, and cursor with a host-owned curtain showing `Resize <columns> × <rows>` centered for the latest terminal dimensions. A1 SHALL continue routing geometry and accepting fresh holder state behind the curtain but SHALL NOT present intermediate active-TUI frames. After resize events remain quiet for the bounded settle interval and the viewed holder has published current-geometry state, A1 SHALL first restore the complete UI in one synchronized dimmed presentation with the child cursor hidden, then SHALL force the current complete presentation at normal intensity after a short bounded fade interval. Ordinary paints during that interval SHALL remain dimmed, and another resize SHALL cancel the reveal and restore the curtain. If current holder state does not arrive within the bounded recovery interval, A1 SHALL use the newest retained complete presentation for the same dim-to-normal reveal rather than leave the curtain indefinitely.
 
 #### Scenario: Continuous window resize shows only current dimensions
 
@@ -43,14 +43,20 @@ While an attach client's outer terminal emits a burst of resize events, A1 SHALL
 - **THEN** every visible intermediate frame SHALL contain only the centered resize curtain for the latest columns and rows
 - **AND** no tab strip, child content, overlay, or child cursor SHALL be visible behind it
 
-#### Scenario: Resize completion restores one current frame
+#### Scenario: Resize completion fades in the current UI
 
 - **WHEN** resize events stop and the active holder publishes a surface for the final geometry
-- **THEN** A1 SHALL remove the curtain after the settle interval
-- **AND** SHALL restore the complete strip and child UI in one synchronized full repaint without exposing intermediate reflow
+- **THEN** A1 SHALL retain the curtain for the settle interval and then show the complete strip and child UI dimmed with no child cursor
+- **AND** SHALL restore the current complete UI at normal intensity after the short fade interval without exposing intermediate reflow
+
+#### Scenario: Resize resumes during the dimmed reveal
+
+- **WHEN** another outer resize event arrives while the settled UI is still dimmed
+- **THEN** A1 SHALL cancel the reveal immediately
+- **AND** SHALL replace the dimmed UI with the centered curtain for the new dimensions
 
 #### Scenario: Resize publication stalls
 
 - **WHEN** resize events stop but the active holder does not publish current-geometry state within the bounded recovery interval
-- **THEN** A1 SHALL remove the curtain and force a complete repaint from the newest retained presentation
+- **THEN** A1 SHALL enter the bounded dim-to-normal reveal using the newest retained presentation
 - **AND** SHALL NOT leave the terminal permanently on the resize status
