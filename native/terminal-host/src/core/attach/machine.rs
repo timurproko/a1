@@ -2107,7 +2107,7 @@ mod tests {
             [Effect::Send(Request::Open(UtilityKind::Changelog)), PAINT]
         );
         assert!(state.mode.palette().is_none());
-        // Changelog has opened, so a new Agent may start.
+        // Invariant: once Changelog has opened, a new Agent may start.
         state.view.pending_created_activation = false;
 
         fixture.step(&mut state, shortcut("tabs.commands"));
