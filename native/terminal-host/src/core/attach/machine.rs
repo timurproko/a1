@@ -523,6 +523,26 @@ impl State {
         self.create(Request::OpenSettings, effects);
     }
 
+    fn open_add_menu<T: TabView + Clone>(&mut self, context: &Context<'_, T>, anchor: u16) {
+        self.hovered = Some(Hover::New);
+        self.mode = Mode::Popup(PopupMenu::add(
+            anchor,
+            self.columns,
+            context.shortcuts,
+            self.settings_visible(context.viewed),
+        ));
+    }
+
+    fn open_overflow_menu<T: TabView + Clone>(&mut self, context: &Context<'_, T>, anchor: u16) {
+        self.hovered = Some(Hover::Overflow);
+        self.mode = Mode::Popup(PopupMenu::overflow(
+            anchor,
+            self.columns,
+            &context.strip.hidden_tabs,
+            &self.shown(context),
+        ));
+    }
+
     fn shortcut<T: TabView + Clone>(
         &mut self,
         context: &Context<'_, T>,
@@ -531,6 +551,24 @@ impl State {
     ) {
         match action {
             "tabs.new" => self.create(Request::Create, effects),
+            "tabs.addMenu" => {
+                if let Some(anchor) =
+                    context.strip.hits.iter().find_map(|(start, _, hit)| {
+                        matches!(hit, StripHitKind::New).then_some(*start)
+                    })
+                {
+                    self.open_add_menu(context, anchor);
+                }
+            }
+            "tabs.overflowMenu" => {
+                if !context.strip.hidden_tabs.is_empty()
+                    && let Some(anchor) = context.strip.hits.iter().find_map(|(start, _, hit)| {
+                        matches!(hit, StripHitKind::Overflow).then_some(*start)
+                    })
+                {
+                    self.open_overflow_menu(context, anchor);
+                }
+            }
             "tabs.settings" => self.toggle_settings(context, effects),
             "tabs.close" => {
                 if let Some(tab_id) = context.viewed {
@@ -903,18 +941,10 @@ impl State {
                     }
                 }
                 Some(StripHitKind::New) => {
-                    self.hovered = Some(Hover::New);
-                    let menu = PopupMenu::add(
-                        mouse.column,
-                        self.columns,
-                        context.shortcuts,
-                        self.settings_visible(context.viewed),
-                    );
-                    self.mode = Mode::Popup(menu);
+                    self.open_add_menu(context, mouse.column);
                     effects.push(Effect::Paint { clear: false });
                 }
                 Some(StripHitKind::Overflow) => {
-                    self.hovered = Some(Hover::Overflow);
                     let anchor = context
                         .strip
                         .hits
@@ -923,12 +953,7 @@ impl State {
                             matches!(hit, StripHitKind::Overflow).then_some(*start)
                         })
                         .unwrap_or(mouse.column);
-                    self.mode = Mode::Popup(PopupMenu::overflow(
-                        anchor,
-                        self.columns,
-                        &context.strip.hidden_tabs,
-                        &self.shown(context),
-                    ));
+                    self.open_overflow_menu(context, anchor);
                     effects.push(Effect::Paint { clear: false });
                 }
                 None => {}
@@ -1560,6 +1585,67 @@ mod tests {
             fixture.step(&mut state, shortcut("tabs.jump1")),
             [PAINT],
             "a stale painted slot cannot select a removed tab"
+        );
+    }
+
+    #[test]
+    fn menu_shortcuts_open_only_drawn_controls_without_creating_tabs() {
+        let mut fixture = Fixture::new(&["a", "b", "c"], "a");
+        fixture.strip.hits = vec![
+            (0, 10, StripHitKind::View("a".into())),
+            (10, 11, StripHitKind::Overflow),
+            (11, 14, StripHitKind::New),
+        ];
+        fixture.strip.hidden_tabs = vec!["b".into(), "c".into()];
+        let mut state = fixture.state();
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.overflowMenu")),
+            [PAINT]
+        );
+        let Mode::Popup(menu) = &state.mode else {
+            panic!("overflow shortcut should open the popup")
+        };
+        assert_eq!(menu.kind, PopupKind::Overflow);
+        assert_eq!(menu.items.len(), 2);
+        assert_eq!(menu.column, 10);
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Down)), [PAINT]);
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Enter)),
+            [Effect::View("b".into()), PAINT]
+        );
+        fixture.strip.hidden_tabs.clear();
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.overflowMenu")),
+            [PAINT]
+        );
+        assert!(
+            matches!(state.mode, Mode::Idle),
+            "no hidden chips means no menu"
+        );
+        fixture.strip.hidden_tabs.push("b".into());
+        fixture.strip.hits.remove(1);
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.overflowMenu")),
+            [PAINT]
+        );
+        assert!(
+            matches!(state.mode, Mode::Idle),
+            "a missing overflow control is inert"
+        );
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.addMenu")), [PAINT]);
+        let Mode::Popup(menu) = &state.mode else {
+            panic!("add shortcut should open the popup")
+        };
+        assert_eq!(menu.kind, PopupKind::Add);
+        assert_eq!(menu.column, 11);
+        assert!(!menu.items.is_empty());
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Esc)), [PAINT]);
+        fixture.tabs.clear();
+        fixture.strip.hits = vec![(0, 3, StripHitKind::New)];
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.addMenu")), [PAINT]);
+        assert!(
+            matches!(state.mode, Mode::Popup(_)),
+            "the add popup works without tabs"
         );
     }
 

@@ -729,9 +729,9 @@ fn append_controls(
             "38;38;38"
         };
         let label = match overflow_width {
-            1 => "…",
-            2 => " …",
-            _ => " … ",
+            1 => "-",
+            2 => " -",
+            _ => " - ",
         };
         bytes.push_str(&format!(
             "\x1b[48;2;{background}m\x1b[38;2;170;170;170m{label}\x1b[0m"
@@ -1553,6 +1553,30 @@ mod tests {
                 .iter()
                 .any(|(_, _, hit)| matches!(hit, StripHit::Overflow))
         );
+    }
+
+    #[test]
+    fn overflow_uses_a_muted_minus_in_the_same_single_cell_hit_area() {
+        for (width, expected) in [(1, "-"), (2, " -"), (3, " - ")] {
+            let (mut bytes, mut hits, mut column) = (String::new(), Vec::new(), 4);
+            append_controls(&mut bytes, &mut hits, &mut column, None, width, 1);
+            assert_eq!(plain(&bytes), format!("{expected}+"));
+            assert_eq!(hits[0], (4, 4 + width as u16, StripHit::Overflow));
+            assert!(
+                bytes.contains("38;2;170;170;170m"),
+                "keep the muted control color"
+            );
+        }
+        let tabs = [tab("a", "Agent"), tab("b", "Agent")];
+        let frame = render_configured(&tabs, Some("a"), 4, None, TimeFormat::TwentyFour);
+        assert!(
+            frame
+                .hits
+                .iter()
+                .any(|(_, _, hit)| matches!(hit, StripHit::Overflow))
+        );
+        assert!(plain(&frame.bytes).contains("-"));
+        assert!(!plain(&frame.bytes).contains('…'));
     }
 
     #[test]

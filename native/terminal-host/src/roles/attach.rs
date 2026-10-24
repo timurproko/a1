@@ -64,8 +64,10 @@ const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
 
 /// The global tab declarations in the order that decides which action keeps a duplicated key;
 /// it mirrors the owned feature's declaration list, which the child projects and publishes.
-pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 18] = [
+pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 20] = [
     ("tabs.new", Some("alt+a")),
+    ("tabs.overflowMenu", Some("alt+-")),
+    ("tabs.addMenu", Some("alt++")),
     ("tabs.close", Some("alt+w")),
     ("tabs.rename", Some("f2")),
     ("tabs.settings", Some("alt+,")),
@@ -202,8 +204,20 @@ impl TabBindings {
     }
 
     fn action(&self, key: &crossterm::event::KeyEvent) -> Option<&str> {
+        let token = key_token(key.code, key.modifiers);
         self.by_key
-            .get(&key_token(key.code, key.modifiers))
+            .get(&token)
+            .or_else(|| {
+                // Platform: some terminals report Alt++ as Alt+Shift+= (or Alt+Shift++).
+                // Only alias this representation while the default plus binding is active.
+                ((token == "alt+shift+=" || token == "alt+shift++")
+                    && self
+                        .by_action
+                        .get("tabs.addMenu")
+                        .is_some_and(|key| key == "alt++"))
+                .then(|| self.by_key.get("alt++"))
+                .flatten()
+            })
             .map(String::as_str)
     }
 
@@ -4156,6 +4170,48 @@ mod tests {
                 KeyModifiers::ALT,
             )),
             None
+        );
+    }
+
+    #[test]
+    fn menu_shortcuts_accept_shifted_plus_only_while_its_default_is_active() {
+        let bindings = TabBindings::from_assignments(&project_tab_shortcuts(
+            &ShortcutBindings::new(),
+            &ShortcutBindings::new(),
+        ));
+        let key = |ch, modifiers| crossterm::event::KeyEvent::new(KeyCode::Char(ch), modifiers);
+        assert_eq!(
+            bindings.action(&key('-', KeyModifiers::ALT)),
+            Some("tabs.overflowMenu")
+        );
+        assert_eq!(
+            bindings.action(&key('+', KeyModifiers::ALT)),
+            Some("tabs.addMenu")
+        );
+        assert_eq!(
+            bindings.action(&key('=', KeyModifiers::ALT | KeyModifiers::SHIFT)),
+            Some("tabs.addMenu")
+        );
+        assert_eq!(
+            bindings.action(&key('+', KeyModifiers::ALT | KeyModifiers::SHIFT)),
+            Some("tabs.addMenu")
+        );
+        assert_eq!(bindings.action(&key('=', KeyModifiers::ALT)), None);
+        let configured = shortcut_bindings(&serde_json::json!({
+            "tabs.addMenu": "ctrl++", "tabs.overflowMenu": null,
+        }));
+        let rebound = TabBindings::from_assignments(&project_tab_shortcuts(
+            &configured,
+            &ShortcutBindings::new(),
+        ));
+        assert_eq!(
+            rebound.action(&key('=', KeyModifiers::ALT | KeyModifiers::SHIFT)),
+            None
+        );
+        assert_eq!(rebound.action(&key('-', KeyModifiers::ALT)), None);
+        assert_eq!(
+            rebound.action(&key('+', KeyModifiers::CONTROL)),
+            Some("tabs.addMenu")
         );
     }
 
