@@ -89,7 +89,6 @@ pub struct View {
     pub settings_absent_since: Option<Duration>,
     /// Concurrency: a shortcut can arrive after the server created a tab but before its
     /// registry snapshot reaches this client; the requested ordinal waits for that snapshot.
-    pub pending_jump: Option<(usize, u64)>,
     pub pending_created_activation: bool,
 }
 
@@ -580,11 +579,18 @@ impl State {
                     .parse::<usize>()
                     .unwrap_or(1)
                     .saturating_sub(1);
-                if let Some(tab) = self.shown(context).get(index) {
-                    self.view.pending_jump = None;
-                    effects.push(Effect::View(tab.id().to_owned()));
-                } else {
-                    self.view.pending_jump = Some((index, self.registry_revision));
+                if let Some(id) = context
+                    .strip
+                    .hits
+                    .iter()
+                    .filter_map(|(_, _, hit)| match hit {
+                        StripHitKind::View(id) => Some(id),
+                        _ => None,
+                    })
+                    .nth(index)
+                    .filter(|id| context.tabs.iter().any(|tab| tab.id() == id.as_str()))
+                {
+                    effects.push(Effect::View(id.clone()));
                 }
             }
             _ => {}
@@ -1131,25 +1137,6 @@ impl State {
         self.view.settings_shown || viewed.is_some_and(is_settings)
     }
 
-    /// Resolves a jump that waited for a registry snapshot; returns the tab to view.
-    pub fn resolve_pending_jump<T: TabView>(
-        &mut self,
-        tabs: &[T],
-        revision: u64,
-    ) -> Option<String> {
-        let (index, requested_revision) = self.view.pending_jump?;
-        if let Some(tab) = tabs.get(index) {
-            self.view.pending_jump = None;
-            return Some(tab.id().to_owned());
-        }
-        if revision > requested_revision {
-            // Protocol: a newer authoritative registry still lacking the ordinal proves this
-            // was not an in-flight tab creation.
-            self.view.pending_jump = None;
-        }
-        None
-    }
-
     /// The tab to view when the viewed tab leaves the registry.
     pub fn fallback_view<T: TabView>(
         &self,
@@ -1522,29 +1509,57 @@ mod tests {
             [Effect::View("a".into()), PAINT]
         );
         assert_eq!(fixture.step(&mut state, shortcut("tabs.jump5")), [PAINT]);
-        assert_eq!(state.view.pending_jump, Some((4, 7)));
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.jump3")),
+            [Effect::View("c".into()), PAINT]
+        );
         assert_eq!(fixture.step(&mut state, shortcut("tabs.unknown")), [PAINT]);
     }
 
     #[test]
-    fn a_pending_jump_waits_for_the_registry_snapshot_that_lists_it() {
-        let mut state = State::default();
-        state.view.pending_jump = Some((2, 4));
-        let two = [tab("a"), tab("b")];
-        assert_eq!(state.resolve_pending_jump(&two, 4), None);
+    fn jump_shortcuts_follow_drawn_chip_slots_not_registry_indexes() {
+        let mut fixture = Fixture::new(&["a", "b", "c"], "b");
+        for tab in &mut fixture.tabs {
+            tab.name = "ask-100".into();
+        }
+        fixture.strip.hits = vec![
+            (0, 10, StripHitKind::View("c".into())),
+            (10, 20, StripHitKind::View("a".into())),
+            (20, 23, StripHitKind::Overflow),
+            (23, 26, StripHitKind::New),
+        ];
+        fixture.strip.hidden_tabs = vec!["b".into()];
+        let mut state = fixture.state();
         assert_eq!(
-            state.view.pending_jump,
-            Some((2, 4)),
-            "an in-flight creation may still list it"
+            fixture.step(&mut state, shortcut("tabs.jump1")),
+            [Effect::View("c".into()), PAINT]
         );
-        let three = [tab("a"), tab("b"), tab("c")];
-        assert_eq!(state.resolve_pending_jump(&three, 5), Some("c".into()));
-        assert_eq!(state.view.pending_jump, None);
-        state.view.pending_jump = Some((2, 4));
-        assert_eq!(state.resolve_pending_jump(&two, 5), None);
         assert_eq!(
-            state.view.pending_jump, None,
-            "a newer registry without it ends the wait"
+            fixture.step(&mut state, shortcut("tabs.jump2")),
+            [Effect::View("a".into()), PAINT]
+        );
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.jump3")), [PAINT]);
+        fixture.tabs.push(tab("d"));
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.jump3")),
+            [PAINT],
+            "a new hidden tab cannot activate a previously missing slot"
+        );
+        fixture.strip.hits = vec![
+            (0, 10, StripHitKind::View("b".into())),
+            (10, 13, StripHitKind::Overflow),
+            (13, 16, StripHitKind::New),
+        ];
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.jump1")),
+            [Effect::View("b".into()), PAINT]
+        );
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.jump2")), [PAINT]);
+        fixture.strip.hits[0].2 = StripHitKind::View("removed".into());
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.jump1")),
+            [PAINT],
+            "a stale painted slot cannot select a removed tab"
         );
     }
 

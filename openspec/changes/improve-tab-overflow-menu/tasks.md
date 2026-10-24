@@ -10,9 +10,9 @@
 - [x] 1.7 Add strip and attach tests for one-chip and two-chip swaps, displaced menu entries, stable chip positions, keyboard switching, and geometry limits.
 - [x] 1.8 Reserve a stable status icon and separator before each hidden-tab name, using the strip's live glyph and semantic color without changing row actions.
 - [x] 1.9 Add focused tests for idle and active icon slots, color and style boundaries, hover, name clipping, and mouse coordinates at narrow widths.
-- [ ] 1.10 Resolve Alt+number from the currently drawn strip chips in visual order, leaving out-of-range numbers inert without pending jumps.
-- [ ] 1.11 Avoid a transient old-chip or stale hidden-title animation during a pending hidden-tab swap without changing later auto-naming.
-- [ ] 1.12 Add focused shortcut and strip-transition tests for swaps, resizes, reordered/identically named tabs, in-flight views, and out-of-range Alt+number.
+- [x] 1.10 Resolve Alt+number from the currently drawn strip chips in visual order, leaving out-of-range numbers inert without pending jumps.
+- [x] 1.11 Avoid a transient old-chip or stale hidden-title animation during a pending hidden-tab swap without changing later auto-naming.
+- [x] 1.12 Add focused shortcut and strip-transition tests for swaps, resizes, reordered/identically named tabs, in-flight views, and out-of-range Alt+number.
 
 ## 2. A1 footer truncation
 
@@ -27,4 +27,4 @@
 - [x] 3.2 Record the earlier refinement's focused checks and gap disposition in the implementation evidence.
 - [x] 3.3 Record hidden-only menu and swap checks and any remaining geometry limits.
 - [x] 3.4 Record icon-slot rendering and interaction checks and any remaining limits.
-- [ ] 3.5 Record visible-shortcut and stable-swap checks and any remaining limits.
+- [x] 3.5 Record visible-shortcut and stable-swap checks and any remaining limits.

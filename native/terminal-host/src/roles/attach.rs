@@ -1888,6 +1888,7 @@ struct Client {
     view: ViewModel,
     tabs: Vec<StripTab>,
     chip_priority: Vec<String>,
+    swap_in_flight: Option<String>,
     bindings: TabBindings,
     channel: InputChannel,
     chord: DoubleCtrlC,
@@ -1953,6 +1954,7 @@ impl Client {
             view,
             tabs: Vec::new(),
             chip_priority: Vec::new(),
+            swap_in_flight: None,
             bindings: TabBindings::load(options.profile),
             channel: handshake.channel,
             chord: DoubleCtrlC::new(options.clear_exit_ms),
@@ -2025,7 +2027,12 @@ impl Client {
                 }
                 Effect::View(tab_id) => self.request_view(tab_id)?,
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
-                Effect::CancelViewRequest => self.view.cancel_request(),
+                Effect::CancelViewRequest => {
+                    self.view.cancel_request();
+                    if self.swap_in_flight.take().is_some() {
+                        self.chip_priority.clear();
+                    }
+                }
                 Effect::Renamed { tab_id, name } => {
                     if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) {
                         tab.name = name;
@@ -2094,8 +2101,13 @@ impl Client {
                 .or_else(|| {
                     swapped_chip_priority(&self.strip_frame, self.view.viewed.as_deref(), &tab_id)
                 });
+        self.swap_in_flight = priority.as_ref().map(|_| tab_id.clone());
         if let Some(priority) = priority {
             self.chip_priority = priority;
+            settle_promoted_title(&mut self.tabs, &tab_id);
+            if let Some(staged) = self.view.staged_tabs_mut() {
+                settle_promoted_title(staged, &tab_id);
+            }
         }
         self.request_generation = self.request_generation.saturating_add(1);
         self.view.request(&tab_id);
@@ -2152,11 +2164,8 @@ impl Client {
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
         let rename = core.mode.rename().map(RenameEditor::display);
-        let mut shown = shown_tabs(
-            &self.tabs,
-            self.view.viewed.as_deref(),
-            core.view.settings_shown,
-        );
+        let strip_viewed = strip_active_view(&self.view, self.swap_in_flight.as_deref());
+        let mut shown = shown_tabs(&self.tabs, strip_viewed, core.view.settings_shown);
         apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
@@ -2171,7 +2180,7 @@ impl Client {
         let render = |hovered: Option<&StripHover>| {
             let mut frame = strip::render_interactive_at(
                 &shown,
-                self.view.viewed.as_deref(),
+                strip_viewed,
                 self.columns,
                 hovered,
                 self.time_format.value,
@@ -2183,7 +2192,7 @@ impl Client {
             if !self.chip_priority.is_empty() && !frame.hidden_tabs.is_empty() {
                 frame = strip::render_interactive_at(
                     &prioritized,
-                    self.view.viewed.as_deref(),
+                    strip_viewed,
                     self.columns,
                     hovered,
                     self.time_format.value,
@@ -2354,6 +2363,10 @@ impl Client {
         self.landing_wipe = None;
         if let Some(next) = staged {
             self.tabs = next;
+        }
+        if self.swap_in_flight.as_deref() == Some(surface.tab_id.as_str()) {
+            settle_promoted_title(&mut self.tabs, &surface.tab_id);
+            self.swap_in_flight = None;
         }
         self.run(
             core,
@@ -2647,9 +2660,6 @@ impl Client {
         if name_confirmed {
             core.pending_manual_name = None;
         }
-        if let Some(tab_id) = core.resolve_pending_jump(&next_tabs, revision) {
-            self.request_view(tab_id)?;
-        }
         let outcome = self.view.topology(&self.tabs, next_tabs, |candidates| {
             core.fallback_view(candidates, settings_visible)
         });
@@ -2698,8 +2708,12 @@ impl Client {
                     .map_or((tab.name, tab.name_source), |(_, name)| {
                         (name.clone(), "user".into())
                     });
-                let title_animation =
-                    strip::reconcile_title_animation(previous, &name, &name_source, Instant::now());
+                let title_animation = if self.swap_in_flight.as_deref() == Some(tab.tab_id.as_str())
+                {
+                    None
+                } else {
+                    strip::reconcile_title_animation(previous, &name, &name_source, Instant::now())
+                };
                 StripTab {
                     id: tab.tab_id,
                     name,
@@ -3027,6 +3041,20 @@ impl From<&Hover> for StripHover {
             Hover::Overflow => Self::Overflow,
             Hover::New => Self::New,
         }
+    }
+}
+
+/// Invariant: while a view is pending the strip must not resurrect its displaced old chip.
+fn strip_active_view<'a>(view: &'a ViewModel, swapping: Option<&'a str>) -> Option<&'a str> {
+    swapping
+        .filter(|target| view.requested.as_deref() == Some(*target))
+        .or(view.viewed.as_deref())
+}
+
+/// A revealed chip shows its current name immediately; auto-naming itself remains unchanged.
+fn settle_promoted_title(tabs: &mut [StripTab], target: &str) {
+    if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == target) {
+        tab.title_animation = None;
     }
 }
 
@@ -4449,6 +4477,68 @@ mod tests {
             menu.action_at(menu.column, 3),
             Some(PopupAction::View("tab-2".into()))
         );
+    }
+
+    #[test]
+    fn pending_swap_keeps_the_new_chip_stable_and_settles_its_hidden_title() {
+        let mut tabs = (0..4)
+            .map(|index| StripTab {
+                id: format!("tab-{index}"),
+                name: format!("agent {index}"),
+                name_source: "auto".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        tabs[3].title_animation = Some(strip::TitleAnimation {
+            from: "Agent".into(),
+            started_at: Instant::now(),
+        });
+        let first =
+            strip::render_configured(&tabs, Some("tab-1"), 42, None, TimeFormat::TwentyFour);
+        let priority = swapped_chip_priority(&first, Some("tab-1"), "tab-3").unwrap();
+        settle_promoted_title(&mut tabs, "tab-3");
+        assert_eq!(tabs[3].title_animation, None);
+        assert_eq!(tabs[3].name, "agent 3");
+        assert!(
+            strip::reconcile_title_animation(Some(&tabs[3]), "new name", "auto", Instant::now())
+                .is_some(),
+            "later auto naming still animates normally"
+        );
+        let ordered = prioritized_chips(&tabs, &priority);
+        let mut view = ViewModel::new(Some("tab-1".into()));
+        view.request("tab-3");
+        assert_eq!(strip_active_view(&view, Some("tab-3")), Some("tab-3"));
+        assert_eq!(
+            strip_active_view(&view, None),
+            Some("tab-1"),
+            "ordinary pending views keep the old strip state"
+        );
+        let pending = strip::render_configured(
+            &ordered,
+            strip_active_view(&view, Some("tab-3")),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        let stale =
+            strip::render_configured(&ordered, Some("tab-1"), 42, None, TimeFormat::TwentyFour);
+        assert_ne!(
+            pending.hits, stale.hits,
+            "the old viewed chip must not return mid-swap"
+        );
+        view.cancel_request();
+        view.viewed = Some("tab-3".into());
+        let committed = strip::render_configured(
+            &ordered,
+            strip_active_view(&view, None),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(pending.hits, committed.hits);
+        assert_eq!(pending.hidden_tabs, committed.hidden_tabs);
     }
 
     #[test]
