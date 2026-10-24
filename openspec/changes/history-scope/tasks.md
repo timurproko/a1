@@ -1,7 +1,7 @@
 ## 1. Settings contract
 
-- [ ] 1.1 Declare History scope (`unique` default, `shared` alternative) in the History section with live application, persistence, validation, and guidance about switching without migration; cover default, stored and invalid choices in focused settings tests.
-- [ ] 1.2 Update owned-settings metadata/spec parity fixtures and user-facing history-setting wording for live scope changes without exposing the choice in `a1 pi`.
+- [x] 1.1 Declare History scope (`unique` default, `shared` alternative) in the History section with live application, persistence, validation, and guidance about switching without migration; cover default, stored and invalid choices in focused settings tests.
+- [x] 1.2 Update owned-settings metadata/spec parity fixtures and user-facing history-setting wording for live scope changes without exposing the choice in `a1 pi`.
 
 ## 2. History storage selection
 
@@ -13,10 +13,10 @@
 
 - [x] 3.1 Cover isolated concurrent `a1 solo` processes and resident tabs, session resume/restart, fresh sessions/forks, Shared interoperability with the legacy path, and switching both directions without data transfer.
 - [x] 3.2 Cover per-scope image sidecars, profile/data-root isolation, failure handling, history count/byte limits, persistence-off behavior, and unchanged comparison mode.
-- [ ] 3.3 Record any implementation gaps and their disposition before delivery; run only typecheck, touched focused tests, and strict OpenSpec validation before pushing implementation.
+- [x] 3.3 Record any implementation gaps and their disposition before delivery; run only typecheck, touched focused tests, and strict OpenSpec validation before pushing implementation.
 
 ## 4. Live scope switching
 
-- [ ] 4.1 Route changes from the local Settings screen and other profile processes to each running history controller without changing the restart-only persistence and limit controls.
-- [ ] 4.2 Replace active storage, sidecar and recall view on scope changes and session replacements, retaining drafts and ensuring in-flight writes finish in their original store.
-- [ ] 4.3 Cover live Unique-to-Shared and Shared-to-Unique switches across concurrent solo agents and resident tabs, delayed notifications, drafts, read refreshes, image sidecars, and missing durable identity.
+- [x] 4.1 Route changes from the local Settings screen and other profile processes to each running history controller without changing the restart-only persistence and limit controls.
+- [x] 4.2 Replace active storage, sidecar and recall view on scope changes and session replacements, retaining drafts and ensuring in-flight writes finish in their original store.
+- [x] 4.3 Cover live Unique-to-Shared and Shared-to-Unique switches across concurrent solo agents and resident tabs, delayed notifications, drafts, read refreshes, image sidecars, and missing durable identity.

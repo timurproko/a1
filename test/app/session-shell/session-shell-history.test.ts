@@ -65,6 +65,66 @@ describe("OwnedUiSessionShell prompt history", () => {
     } finally { await shell.dispose(); }
   });
 
+  it("switches live stores in both directions without moving entries or losing a browsing draft", async () => {
+    const unique = memoryHistory(); const shared = memoryHistory(); const uniqueAgain = memoryHistory();
+    let notify!: (scope: "unique" | "shared") => void;
+    const unsubscribe = vi.fn();
+    const forScope = vi.fn((scope: "unique" | "shared", id: string | null) => {
+      expect(id).toBe("conversation-one");
+      return { store: scope === "shared" ? shared.store : uniqueAgain.store };
+    });
+    const { shell, terminal } = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,
+      { store: unique.store, limit: 100, scope: "unique", sessionId: "conversation-one", forScope,
+        onScopeChange: listener => { notify = listener; return unsubscribe; } },
+      runtime => { Object.assign(runtime.session.sessionManager, { getSessionId: () => "conversation-one" }); });
+    try {
+      unique.emit(["private unique"]);
+      shell.root.editor.setText("unsent draft");
+      terminal.input("\x1b[A"); terminal.input("\x1b[A");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("private unique"));
+      notify("shared");
+      expect(shell.root.editor.getText()).toBe("unsent draft");
+      expect(unique.store.close).toHaveBeenCalledOnce();
+      expect(shared.store.start).toHaveBeenCalledOnce();
+      unique.emit(["late private"]);
+      shared.emit(["saved shared"]);
+      expect(shell.root.editor.recall?.position().total).toBe(1);
+      await shell.submit("new shared submission");
+      expect(shared.submitted.map(item => item.text)).toEqual(["new shared submission"]);
+      expect(unique.submitted).toHaveLength(0);
+      notify("unique");
+      expect(shared.store.close).toHaveBeenCalledOnce();
+      uniqueAgain.emit(["private unique"]);
+      expect(shell.root.editor.recall?.position().total).toBe(1);
+      expect(forScope.mock.calls.map(call => call[0])).toEqual(["shared", "unique"]);
+    } finally { await shell.dispose(); }
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it("leaves an in-flight submission with the store that captured it", async () => {
+    const unique = memoryHistory(); const shared = memoryHistory();
+    let notify!: (scope: "unique" | "shared") => void;
+    let finish!: (result: "committed") => void;
+    const pending = new Promise<"committed">(resolve => { finish = resolve; });
+    vi.mocked(unique.store.record).mockImplementation(async submission => {
+      unique.submitted.push(submission);
+      return pending;
+    });
+    const { shell } = await fixture([], [], true, undefined, undefined, undefined, undefined, undefined,
+      { store: unique.store, limit: 100, scope: "unique", sessionId: "conversation-one",
+        forScope: () => ({ store: shared.store }), onScopeChange: listener => { notify = listener; return () => {}; } },
+      runtime => { Object.assign(runtime.session.sessionManager, { getSessionId: () => "conversation-one" }); });
+    try {
+      await shell.submit("captured unique");
+      notify("shared");
+      expect(unique.submitted.map(item => item.text)).toEqual(["captured unique"]);
+      expect(shared.submitted).toHaveLength(0);
+      finish("committed");
+      await shell.submit("captured shared");
+      expect(shared.submitted.map(item => item.text)).toEqual(["captured shared"]);
+    } finally { finish("committed"); await shell.dispose(); }
+  });
+
   it("retains the draft and local-only recall through exceptional delivery reconciliation", async () => {
     const history = memoryHistory();
     vi.mocked(history.store.record).mockResolvedValue("skipped");

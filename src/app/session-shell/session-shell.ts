@@ -145,7 +145,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #unsubscribeSkills: () => void;
   #installedCommandSignature = "";
   #promptHistory: PromptHistoryController | null = null;
-  #historyBinding: { options: OwnedUiShellHistoryOptions; sessionId: string | undefined; imageSidecar: import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort | undefined } | undefined;
+  #historyBinding: { options: OwnedUiShellHistoryOptions; scope: "unique" | "shared"; sessionId: string | undefined; imageSidecar: import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort | undefined } | undefined;
   readonly #extensionBridge: PiExtensionUiBridge;
   readonly #stop = new SessionStopLatch();
   readonly #dialogs: SessionDialogCoordinator;
@@ -410,9 +410,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         });
       };
       applyViewportSettings();
-      this.#unsubscribeSettings = this.#customViewport && viewportSettings
-        ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
-        : () => {};
+      const unsubscribeViewport = this.#customViewport && viewportSettings ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings)) : () => {};
+      const unsubscribeHistoryScope = this.#customViewport && promptHistory?.onScopeChange?.(scope => this.#rebindTranscript(scope));
+      this.#unsubscribeSettings = () => { unsubscribeViewport(); if (unsubscribeHistoryScope) unsubscribeHistoryScope(); };
       constructed.push(this.#unsubscribeSettings);
       this.#unbindSessionSettings = bindSessionSettings(this.backend.settings, initialPiSettings, {
         terminal: this.#terminal,
@@ -424,7 +424,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       }, { customViewport: this.#customViewport });
       constructed.push(this.#unbindSessionSettings);
       if (this.#customViewport && promptHistory !== undefined) {
-        this.#historyBinding = { options: promptHistory, sessionId: promptHistory.sessionId, imageSidecar: promptHistory.imageSidecar };
+        this.#historyBinding = { options: promptHistory, scope: promptHistory.scope ?? "unique", sessionId: promptHistory.sessionId, imageSidecar: promptHistory.imageSidecar };
         this.#promptHistory = new PromptHistoryController({
           editor: this.root.editor,
           store: promptHistory.store,
@@ -1292,28 +1292,36 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     ]);
   }
 
-  // Invariant: delivery recovery does not replace a session's store; conversation replacement can.
-  #rebindTranscript(): void {
-    if (this.#sessionBindingGeneration === this.backend.identity.sessionBindingGeneration) return;
-    this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
-    this.root.resetTranscript();
+  // Invariant: delivery recovery does not replace a store; conversation or live scope changes can.
+  #rebindTranscript(scope?: "unique" | "shared"): void {
+    const replaced = this.#sessionBindingGeneration !== this.backend.identity.sessionBindingGeneration;
+    if (!replaced && scope === undefined) return;
+    if (replaced) {
+      this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
+      this.root.resetTranscript();
+    }
     const binding = this.#historyBinding;
-    if (binding?.options.forSession !== undefined) {
+    if (binding?.options.forSession !== undefined || binding?.options.forScope !== undefined) {
       const sessionId = this.backend.identity.currentHistorySessionId();
-      if (sessionId !== binding.sessionId) {
+      const selectedScope = scope ?? binding.scope;
+      if (selectedScope !== binding.scope || sessionId !== binding.sessionId) {
+        if (!replaced) this.root.editor.recall?.restoreDraft?.();
         const previous = this.#promptHistory;
         this.#promptHistory = null;
         binding.imageSidecar = undefined;
+        binding.scope = selectedScope;
         binding.sessionId = sessionId ?? undefined;
         void previous?.close().catch(() => false);
-        if (sessionId !== null) {
-          const selected = { ...binding.options, ...binding.options.forSession(sessionId) };
-          binding.imageSidecar = selected.imageSidecar;
+        const destination = binding.options.forScope !== undefined
+          ? binding.options.forScope(selectedScope, sessionId)
+          : sessionId === null ? null : binding.options.forSession!(sessionId);
+        if (destination !== null) {
+          binding.imageSidecar = destination.imageSidecar;
           const controller = new PromptHistoryController({
             editor: this.root.editor,
-            store: selected.store,
-            limit: selected.limit,
-            fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
+            store: destination.store,
+            limit: binding.options.limit,
+            fallback: replaced ? this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []) : [],
             active: () => this.root.usesDefaultInputSurface(),
             render: () => this.#terminal.requestRender(),
             rehydrate: value => this.root.rehydrateHistoryText(value, id => this.#historyBinding?.imageSidecar?.readAttachment(id) ?? null),
@@ -1322,14 +1330,14 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           if (this.#started) controller.start();
         } else {
           // Security: missing identity must not reopen Shared or retain another session's recall.
-          const fallback = this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []).reverse();
+          const fallback = replaced ? this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []).reverse() : [];
           this.root.editor.recall?.reset();
           this.root.editor.recall?.replace(fallback);
         }
         return;
       }
     }
-    this.#promptHistory?.reset(this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
+    if (replaced) this.#promptHistory?.reset(this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
   }
 
   #syncTerminalProgress(view: OwnedUiSessionViewModel): void {

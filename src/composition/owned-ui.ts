@@ -205,9 +205,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       host.setAccentColor(accent);
       tabBridge?.accent(accent);
     });
-  // Rationale: every resident tab is its own process over one shared settings document, so a
-  // change saved in any tab reaches the others only by rereading that document.
-  const unwatchSharedSettings = settings === null || !ownedSurfaces || tabBridge === null
+  // Rationale: resident tabs and separate solo agents share a settings document; a live scope
+  // change saved in either reaches the others only by rereading that document.
+  const unwatchSharedSettings = settings === null || !ownedSurfaces
     ? () => {}
     : watchSharedSettings(settings);
   const unsubscribeAccent = (): void => { unwatchSharedSettings(); unsubscribeAccentChange(); };
@@ -398,20 +398,23 @@ function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null,
   const limit = settings?.value("promptHistoryMaxItems") ?? 100;
   const scope = settings?.value("promptHistoryScope") ?? "unique";
   const enabled = settings !== null && ownedSurfaces && settings.value("promptHistoryEnabled");
-  const sessionId = enabled && scope === "unique" ? backend.identity.currentHistorySessionId() : null;
-  if (!enabled || (scope === "unique" && sessionId === null)) return null;
+  const sessionId = enabled ? backend.identity.currentHistorySessionId() : null;
+  if (settings === null || !enabled || (scope === "unique" && sessionId === null)) return null;
   const dataDir = resolvePromptHistoryDataDir();
-  const forSession = (id: string) => {
-    const location = resolvePromptHistoryPath(dataDir, backend.identity.agentDir, process.platform, scope, id);
+  const forScope = (selected: "unique" | "shared", id: string | null) => {
+    if (selected === "unique" && id === null) return null;
+    const location = resolvePromptHistoryPath(dataDir, backend.identity.agentDir, process.platform, selected, id ?? "");
     return {
-      store: new PromptHistoryService({ dataDir, profileRoot: backend.identity.agentDir, limit, scope, sessionId: id }),
+      store: new PromptHistoryService({ dataDir, profileRoot: backend.identity.agentDir, limit, scope: selected, sessionId: id ?? "" }),
       imageSidecar: new PromptImageSidecar(location.imagesDir),
     };
   };
   return {
-    limit,
-    ...(scope === "unique" ? { sessionId: sessionId!, forSession } : {}),
-    ...forSession(sessionId ?? ""),
+    limit, scope,
+    ...(sessionId === null ? {} : { sessionId }),
+    forScope,
+    onScopeChange: (listener: (scope: "unique" | "shared") => void) => settings.onChange(() => listener(settings.value("promptHistoryScope"))),
+    ...forScope(scope, sessionId)!,
   };
 }
 

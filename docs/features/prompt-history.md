@@ -87,10 +87,12 @@ The History section in `/settings` provides:
   recovery. Existing enabled instances keep running until closed.
 - **History scope:** Unique (default) keeps each agent session's durable prompts
   separate across solo launches and resident tabs. Shared restores the former
-  profile-wide store. Applies on the next agent start; running agents keep their
-  scope. Switching never transfers or deletes records. Existing profiles without
-  this setting default to Unique, so old Shared entries remain intact but do not
-  appear until Shared is selected.
+  profile-wide store. Switching applies to running agents, including other solo
+  processes and resident tabs, when their shared settings update arrives. New
+  prompts use the newly selected store; already-submitted writes finish in their
+  original store. Switching never transfers or deletes records, and it preserves
+  unsent drafts. Existing profiles without this setting default to Unique, so
+  old Shared entries remain intact but do not appear until Shared is selected.
 - **History limit:** 10-100 in increments of 10, default 100; applies when a new
   enabled instance starts. All writers using that selected store then use its
   updated retention limit. Raising the limit cannot restore pruned entries.
@@ -150,11 +152,12 @@ The focused path/composition tests cover normal no-override selection. Test:
 2. Browse multiline input with a draft present. Check v2 caret placement,
    newest/oldest numbering, and draft restoration.
 3. Submit from a second instance while the first browses. Under Unique, the
-   first sees no cross-agent update. Switch to Shared and restart both; the
-   first selection stays fixed while browsing, and a second instance's new
-   prompt appears on a later safe browse cycle.
+   first sees no cross-agent update. Switch to Shared without restarting; once
+   both agents apply the setting, the second instance's new prompt appears in
+   the first agent's shared history. Switching back restores each Unique store.
 4. Recall pasted text after restart; image tokens must not promise reattachment.
-5. Save all three History settings, restart, and verify effective values and opt-out.
+5. Save History scope and verify its immediate effective value. Restart only
+   for changes to Persistent history or History limit.
 6. Use a second isolated effective profile and verify no sharing. Run
    `./scripts/dev pi` and verify its ordinary history/editor remain unchanged.
 

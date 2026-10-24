@@ -10,7 +10,7 @@ import { resolveProductPaths } from "../../src/foundation/lifecycle/index.js";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
 import { PromptHistoryController } from "../../src/app/session-shell/prompt-history-controller.js";
 
-type ShellOptions = { history?: { store: PromptHistoryService; imageSidecar?: { directory: string }; forSession?: (id: string) => { store: PromptHistoryService } } };
+type ShellOptions = { history?: { store: PromptHistoryService; imageSidecar?: { directory: string }; forScope?: (scope: "unique" | "shared", id: string | null) => { store: PromptHistoryService; imageSidecar: { directory: string } } | null } };
 const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, scope: "unique" as "unique" | "shared", sessionId: "pi-one", loadEditor: vi.fn() }));
 
 // Rationale: test composition/storage without starting a terminal, provider, or Pi runtime.
@@ -23,6 +23,8 @@ vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => (
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
+    get file() { return join(root, "agent-settings.json"); }
+    refresh() { return false; }
     value(key: string) { return key === "promptHistoryEnabled" ? observed.enabled : key === "promptHistoryScope" ? observed.scope : key === "promptHistoryMaxItems" ? 100 : key === "accentColor" ? "purple" : undefined; }
     onChange() { return () => undefined; }
   },
@@ -131,7 +133,7 @@ describe("owned history storage composition", () => {
     const first = observed.shells.at(-1)!.history!;
     expect((await snapshot(first.store)).entries).toEqual([]);
     expect(await first.store.record({ id: "first", text: "first agent", timestamp: 2, kind: "prompt" })).toBe("committed");
-    const other = first.forSession!("pi-two");
+    const other = first.forScope!("unique", "pi-two")!;
     expect((await snapshot(other.store)).entries).toEqual([]);
     await other.store.close();
     observed.sessionId = "pi-two";
@@ -140,12 +142,21 @@ describe("owned history storage composition", () => {
     expect((await snapshot(second.store)).entries).toEqual([]);
     expect(await second.store.record({ id: "second", text: "second agent", timestamp: 3, kind: "prompt" })).toBe("committed");
     expect((await snapshot(first.store)).entries.map(entry => entry.text)).toEqual(["first agent"]);
+    const liveSharedOne = first.forScope!("shared", "pi-one")!;
+    const liveSharedTwo = second.forScope!("shared", "pi-two")!;
+    expect(liveSharedOne.imageSidecar.directory).toBe(sharedLocation.imagesDir);
+    expect(liveSharedTwo.imageSidecar.directory).toBe(sharedLocation.imagesDir);
+    expect(first.imageSidecar?.directory).not.toBe(sharedLocation.imagesDir);
+    try {
+      expect(await liveSharedOne.store.record({ id: "live", text: "new live shared", timestamp: 4, kind: "prompt" })).toBe("committed");
+      expect((await snapshot(liveSharedTwo.store)).entries.map(entry => entry.text)).toEqual(["new live shared", "shared history"]);
+    } finally { await liveSharedOne.store.close(); await liveSharedTwo.store.close(); }
     observed.scope = "shared";
     await compose();
     const shared = observed.shells.at(-1)!.history!;
     expect(shared.store.options.scope).toBe("shared");
-    expect(shared.forSession).toBeUndefined();
-    expect((await snapshot(shared.store)).entries.map(entry => entry.text)).toEqual(["shared history"]);
+    expect(shared.forScope!("shared", "pi-one")?.store.options.scope).toBe("shared");
+    expect((await snapshot(shared.store)).entries.map(entry => entry.text)).toEqual(["new live shared", "shared history"]);
     expect(shared.imageSidecar?.directory).toBe(sharedLocation.imagesDir);
     observed.scope = "unique";
     await compose();

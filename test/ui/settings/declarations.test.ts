@@ -148,7 +148,7 @@ describe("owned UI setting declarations", () => {
       label: "Persistent history", section: { id: "history", title: "History" }, application: "restart", defaultValue: true, allowedValues: [true, false],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptHistoryScope")).toMatchObject({
-      label: "History scope", section: { id: "history", title: "History" }, application: "restart", defaultValue: "unique", allowedValues: ["unique", "shared"],
+      label: "History scope", section: { id: "history", title: "History" }, application: "live", defaultValue: "unique", allowedValues: ["unique", "shared"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptHistoryMaxItems")).toMatchObject({
       label: "History limit", section: { id: "history", title: "History" }, application: "restart", defaultValue: 100, allowedValues: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],

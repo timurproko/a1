@@ -216,12 +216,15 @@ describe("owned settings manager", () => {
     target.onChange(() => { notified += 1; });
     await peer.change("a1", "accentColor", "orange");
     await peer.change("a1", "promptHistoryEnabled", false);
+    await peer.change("a1", "promptHistoryScope", "shared");
     expect(target.value("accentColor")).toBe("purple");
     expect(target.refresh()).toBe(true);
     expect(notified).toBe(1);
     expect(target.value("accentColor")).toBe("orange");
     expect(target.value("promptHistoryEnabled")).toBe(true);
     expect(target.pendingValue("promptHistoryEnabled")).toBe(false);
+    expect(target.value("promptHistoryScope")).toBe("shared");
+    expect(target.pendingValue("promptHistoryScope")).toBeNull();
     expect(target.refresh()).toBe(false);
     await target.change("a1", "accentColor", "green");
     notified = 0;
@@ -229,7 +232,7 @@ describe("owned settings manager", () => {
     expect(notified).toBe(0);
   });
 
-  it("preserves multiple pending history settings through reload and unrelated live saves", async () => {
+  it("applies live scope while preserving pending restart-only history settings", async () => {
     const session = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     await session.change("a1", "promptHistoryEnabled", false);
     await session.change("a1", "promptHistoryScope", "shared");
@@ -237,11 +240,11 @@ describe("owned settings manager", () => {
     await session.change("a1", "promptSuggestions", false);
     await session.load();
     expect(session.value("promptHistoryEnabled")).toBe(true);
-    expect(session.value("promptHistoryScope")).toBe("unique");
+    expect(session.value("promptHistoryScope")).toBe("shared");
     expect(session.value("promptHistoryMaxItems")).toBe(100);
     const entries = session.sections().flatMap(section => section.entries);
     expect(entries.find(entry => entry.id === "promptHistoryEnabled")).toMatchObject({ storedValue: false, effectiveValue: true, application: "next-start" });
-    expect(entries.find(entry => entry.id === "promptHistoryScope")).toMatchObject({ storedValue: "shared", effectiveValue: "unique", application: "next-start" });
+    expect(entries.find(entry => entry.id === "promptHistoryScope")).toMatchObject({ storedValue: "shared", effectiveValue: "shared", application: "live" });
     expect(entries.find(entry => entry.id === "promptHistoryMaxItems")).toMatchObject({ storedValue: 20, effectiveValue: 100 });
     const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     expect(restarted.value("promptHistoryEnabled")).toBe(false);
