@@ -380,9 +380,15 @@ export interface OwnedUiVisualExtensionSupport {
   readonly diagnostic: string;
 }
 
-/** A newer release found by the startup check. */
-export interface OwnedUiReleaseUpdate {
-  readonly version: string;
-  readonly command: string;
-  readonly changelogUrl: string | null;
-}
+/** A newer release found by the startup check, or one installed for the next restart. */
+export type OwnedUiReleaseUpdate =
+  | {
+    readonly status?: "available";
+    readonly version: string;
+    readonly command: string;
+    readonly changelogUrl: string | null;
+  }
+  | {
+    readonly status: "installed";
+    readonly version: string;
+  };

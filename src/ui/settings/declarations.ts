@@ -1,6 +1,6 @@
 import type { OwnedUiBackgroundStyle, OwnedUiTimeFormat, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 18;
+export const OWNED_UI_SETTINGS_VERSION = 19;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "purple", "blue", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
@@ -44,12 +44,12 @@ const PLUS_MENU_VALUES = Object.freeze(["", "settings"] as const);
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   updateCheck: Object.freeze({
     id: "updateCheck",
-    label: "Update check",
+    label: "Update",
     section: GENERIC_SECTION,
-    description: "Check once a day at startup whether a newer A1 release exists on this channel and show a notice. Uses the public npm registry; applies on next start.",
+    description: "Auto installs verified channel updates silently, Notify shows the current update notice, and No leaves updates manual. Checks use the public npm registry; applies on next start.",
     application: "restart",
-    defaultValue: true,
-    allowedValues: Object.freeze([true, false] as const),
+    defaultValue: "auto",
+    allowedValues: Object.freeze(["auto", "notify", "no"] as const),
   }),
   timeFormat: Object.freeze({
     id: "timeFormat",

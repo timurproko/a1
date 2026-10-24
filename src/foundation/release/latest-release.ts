@@ -6,6 +6,7 @@ import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 /** Published release channels: stable `X.Y.Z` on dist-tag `latest`, development `X.Y.Z-dev.N` on `next`. */
 export type ReleaseChannel = "stable" | "development";
+export type StartupUpdateMode = "auto" | "notify" | "no";
 
 export interface DistTagVersions {
   readonly release: string | null;
@@ -93,8 +94,8 @@ export interface StartupReleaseCheckOptions {
   readonly environment?: NodeJS.ProcessEnv;
   /** Whether standard output is an interactive terminal. */
   readonly interactive: boolean;
-  /** The bare-A1 `updateCheck` setting; comparison profiles omit it. */
-  readonly settingEnabled?: boolean;
+  /** The bare-A1 `updateCheck` setting; comparison profiles omit it and use auto. */
+  readonly settingMode?: StartupUpdateMode;
   readonly fetcher?: RegistryFetcher;
   readonly now?: () => number;
 }
@@ -106,7 +107,7 @@ export function startupReleaseCheckSkipReason(options: StartupReleaseCheckOption
   if (truthy(environment[PRODUCT_IDENTITY.environment.skipVersionCheck])) return "disabled-by-environment";
   if (truthy(environment.CI)) return "ci";
   if (!options.interactive) return "not-interactive";
-  if (options.settingEnabled === false) return "disabled-by-setting";
+  if (options.settingMode === "no") return "disabled-by-setting";
   if (releaseChannelOf(options.runningVersion) === null) return "unpublished-version";
   return null;
 }

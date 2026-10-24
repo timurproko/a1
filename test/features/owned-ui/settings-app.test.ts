@@ -265,10 +265,11 @@ describe("the settings screen", () => {
     expect(lines[1]?.trimEnd()).toBe(" <b><accent>Settings</accent></b>");
     expect(lines[2]?.trimEnd()).toBe("");
     expect(lines[3]).toContain("Generic");
-    expect(lines[4]).toContain("Update check");
+    expect(lines[4]).toContain("Update");
+    expect(lines[4]).toContain("auto");
     expect(lines.find(line => line.includes("Generic"))?.startsWith(" ")).toBe(true);
     expect(lines.find(line => line.includes("Generic"))).toContain("<mdHeading><b>Generic</b></mdHeading>");
-    expect(lines.find(line => line.includes("Update check"))?.startsWith(" <highlight><accent>→ ")).toBe(true);
+    expect(lines.find(line => line.includes("Update"))?.startsWith(" <highlight><accent>→ ")).toBe(true);
     expect(lines.at(-2)).toBe(`<border>${rule}</border>`);
     expect(lines.at(-1)?.startsWith(" <dim>")).toBe(true);
 
@@ -381,27 +382,27 @@ describe("the settings screen", () => {
     expect(selectedRow).toBeGreaterThanOrEqual(0);
     const selected = lines[selectedRow]!;
     expect(selected).toMatch(/^ <highlight>.*<\/highlight>$/u);
-    expect(selected).toContain("<text>Update check");
-    expect(selected).toContain("<muted>yes</muted>");
-    expect(selected).not.toContain("<accent>yes");
+    expect(selected).toContain("<text>Update");
+    expect(selected).toContain("<muted>auto</muted>");
+    expect(selected).not.toContain("<accent>auto");
     const unselected = lines.find(line => line.includes("Scrollbar style"))!;
     expect(unselected).toContain("<muted>thin</muted>");
     expect(unselected).not.toContain("<accent>");
 
-    const valueColumn = screen(target)[selectedRow]!.indexOf("yes") + 1;
+    const valueColumn = screen(target)[selectedRow]!.indexOf("auto") + 1;
     target.onMouse?.({ kind: "motion", button: 0, row: selectedRow + 1, column: valueColumn }, NAMING_HOST);
     const pointed = named()[selectedRow]!;
-    expect(pointed).toContain("<text>Update check");
+    expect(pointed).toContain("<text>Update");
     expect(pointed).toMatch(/^ <highlight>.*<\/highlight>$/u);
-    expect(pointed).toMatch(/\s+yes<\/highlight>$/u);
-    expect(pointed).not.toContain("<muted>yes");
-    expect(pointed).not.toContain("<accent>yes");
+    expect(pointed).toMatch(/\s+auto<\/highlight>$/u);
+    expect(pointed).not.toContain("<muted>auto");
+    expect(pointed).not.toContain("<accent>auto");
   });
 
   it("keeps the moved control stable through section jumps, search, refresh, keyboard, and pointer changes", async () => {
     const { app: target, session, writes } = await app();
     screen(target);
-    expect(find(target, "Update check").trimStart()).toMatch(/^→/);
+    expect(find(target, "Update").trimStart()).toMatch(/^→/);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
@@ -605,26 +606,34 @@ describe("the settings screen", () => {
 
   it("shows only the selected value through a deferred save and keeps shortcut guidance", async () => {
     const { app: target, session } = await app();
-    selectRow(target, "Update check");
+    selectRow(target, "Update");
+
+    target.onInput?.(ENTER, HOST);
+    const choices = screen(target).join("\n");
+    expect(choices).toMatch(/\bauto\b/u);
+    expect(choices).toMatch(/\bnotify\b/u);
+    expect(choices).toMatch(/\bno\b/u);
+    expect(choices).not.toMatch(/\b(?:Auto|Notify|No)\b/u);
+    target.onInput?.(ESC, HOST);
 
     target.onInput?.(`${ESC}[C`, HOST);
-    let row = find(target, "Update check");
-    expect(row).toMatch(/Update check\s+no/u);
+    let row = find(target, "Update");
+    expect(row).toMatch(/Update\s+notify/u);
     expect(row).not.toContain("effective");
     expect(row).not.toContain("next start");
 
     await settleChanges();
-    row = find(target, "Update check");
-    expect(row).toMatch(/Update check\s+no/u);
+    row = find(target, "Update");
+    expect(row).toMatch(/Update\s+notify/u);
     expect(row).not.toContain("effective");
     expect(row).not.toContain("next start");
     expect(find(target, "Type search")).not.toBe("");
     expect(screen(target).join("\n")).not.toContain("stored and applies");
 
     const reopened = settingsApp(session);
-    selectRow(reopened, "Update check");
-    row = find(reopened, "Update check");
-    expect(row).toMatch(/Update check\s+no/u);
+    selectRow(reopened, "Update");
+    row = find(reopened, "Update");
+    expect(row).toMatch(/Update\s+notify/u);
     expect(row).not.toContain("effective");
     expect(row).not.toContain("next start");
 
@@ -1029,7 +1038,7 @@ describe("the settings screen", () => {
     expect(lines[1]).toContain(" Settings");
     expect(lines[2]?.replace(/[│┃]$/u, "").trimEnd()).toBe("");
     expect(lines[3]).toContain("Generic");
-    expect(lines[4]?.trimStart()).toMatch(/^→\s+Update check/);
+    expect(lines[4]?.trimStart()).toMatch(/^→\s+Update/);
   });
 
   it("moves the last result onto the final body row when Ctrl+End is used during search", async () => {
