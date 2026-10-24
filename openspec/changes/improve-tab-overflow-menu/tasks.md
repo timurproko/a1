@@ -20,7 +20,9 @@
 - [x] 1.16 Prioritize the committed active chip over an unrelated pending view when replacing a visible chip from the hidden-tab popup; keep subsequent pending swaps stable.
 - [x] 1.17 Add focused tests for a hidden selection during an unrelated pending view and its committed/pending chip slots.
 
-- [ ] 1.18 Reproduce the reported missing Alt+-/Alt++ menu activation in the actual launched host (or distinguish a stale checkout), repair the input route if needed, and cover the reproduced event with a regression test.
+- [ ] 1.18 Reproduce the reported missing Alt+- menu activation in the actual launched host (or distinguish a stale checkout), repair the input route if needed, and cover the reproduced event with a regression test.
+
+- [ ] 1.19 Preselect the first actionable item only when the add or overflow popup opens through its keyboard shortcut; test immediate Enter, Down, and pointer hover preservation.
 
 ## 2. A1 footer truncation
 
@@ -38,4 +40,5 @@
 - [x] 3.5 Record visible-shortcut and stable-swap checks and any remaining limits.
 - [x] 3.6 Record the requested keyboard-menu and glyph refinement's focused checks and any remaining limits.
 - [x] 3.7 Record the centered control and committed-active-slot repair checks, with any remaining limits.
-- [ ] 3.8 Disposition the reported physical Alt+-/Alt++ shortcut gap against the exact candidate head.
+- [ ] 3.8 Disposition the reported physical Alt+-/Alt+= shortcut gap against the exact candidate head.
+- [ ] 3.9 Record keyboard-first selection tests and any remaining pointer or terminal-input gap.
