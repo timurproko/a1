@@ -205,8 +205,7 @@ export class ReferenceScreenApp implements UiApp {
     const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, { presentation });
     const hint = this.#interruptArmed
       ? theme.fg("dim", " press ctrl+c again to exit a1")
-      : renderShortcutHintsWithClose(REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#pinned
-        || entry.key !== DIALOG_CLOSE_SHORTCUT_HINT.key || entry.action !== DIALOG_CLOSE_SHORTCUT_HINT.action), theme, rect.width, 1);
+      : renderShortcutHintsWithClose(this.#hintEntries(), theme, rect.width, 1);
     // Compatibility: the v2 reference screen frames its document between two border-coloured rules.
     const rule = theme.fg("border", "─".repeat(rect.width));
     // Invariant: dialog chrome shares the title's one-cell inset; document content keeps its own layout.
@@ -280,6 +279,13 @@ export class ReferenceScreenApp implements UiApp {
       this.#scroll = scrollForTrackPage(frame.geometry, pointer.row - frame.rail.rowStart, this.#scroll, frame.page);
     }
     return { owned: true, changed: true };
+  }
+
+  // Invariant: a pinned screen is its tab and `Esc` does not close it, so it shows no close hint.
+  #hintEntries(): ReturnType<typeof REFERENCE_SCREEN_SHORTCUTS.hintEntries> {
+    const entries = REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE);
+    if (!this.#pinned) return entries;
+    return entries.filter(entry => entry.key !== DIALOG_CLOSE_SHORTCUT_HINT.key || entry.action !== DIALOG_CLOSE_SHORTCUT_HINT.action);
   }
 
   // Invariant: the title is the first document row, as in v2, so it scrolls with the document.
