@@ -6,16 +6,19 @@
 - [x] 1.4 Align bottom-popup mouse coordinates with the actual rendered row for each named tab, including clamped rows.
 - [x] 1.5 Update bottom-popup mouse tests for the named hidden row after hover, resize, reorder, and a row-count change.
 
-- [x] 1.6 Swap a selected hidden tab into the previously viewed chip's slot when space is limited, preserving other visible chips when feasible without changing registry order.
+- [ ] 1.6 Swap a selected hidden tab into the currently active chip's slot when space is limited, preserving other visible chips when feasible without changing registry order.
 - [x] 1.7 Add strip and attach tests for one-chip and two-chip swaps, displaced menu entries, stable chip positions, keyboard switching, and geometry limits.
 - [x] 1.8 Reserve a stable status icon and separator before each hidden-tab name, using the strip's live glyph and semantic color without changing row actions.
 - [x] 1.9 Add focused tests for idle and active icon slots, color and style boundaries, hover, name clipping, and mouse coordinates at narrow widths.
 - [x] 1.10 Resolve Alt+number from the currently drawn strip chips in visual order, leaving out-of-range numbers inert without pending jumps.
 - [x] 1.11 Avoid a transient old-chip or stale hidden-title animation during a pending hidden-tab swap without changing later auto-naming.
 - [x] 1.12 Add focused shortcut and strip-transition tests for swaps, resizes, reordered/identically named tabs, in-flight views, and out-of-range Alt+number.
-- [x] 1.13 Render `-` on the overflow control without changing its hit geometry, muted color, or name truncation.
+- [ ] 1.13 Render centered `⋯` on the overflow control without changing its hit geometry, muted color, or name truncation.
 - [x] 1.14 Project Alt+- and Alt++ to the existing overflow and add popups through the native/owned shortcut declarations, honoring rebindings and owned-key reservations.
-- [x] 1.15 Add focused Rust and TypeScript tests for the glyph, popup behavior, shift-plus terminal encoding, absent overflow, geometry, and shortcut projection.
+- [ ] 1.15 Add focused Rust and TypeScript tests for the centered glyph, popup behavior, shift-plus terminal encoding, absent overflow, geometry, and shortcut projection.
+
+- [ ] 1.16 Prioritize the committed active chip over an unrelated pending view when replacing a visible chip from the hidden-tab popup; keep subsequent pending swaps stable.
+- [ ] 1.17 Add focused tests for a hidden selection during an unrelated pending view and its committed/pending chip slots.
 
 ## 2. A1 footer truncation
 
@@ -32,3 +35,4 @@
 - [x] 3.4 Record icon-slot rendering and interaction checks and any remaining limits.
 - [x] 3.5 Record visible-shortcut and stable-swap checks and any remaining limits.
 - [x] 3.6 Record the requested keyboard-menu and glyph refinement's focused checks and any remaining limits.
+- [ ] 3.7 Record the centered control and committed-active-slot repair checks, with any remaining limits.
