@@ -1407,7 +1407,8 @@ fn send_resize(
 /// How long the landing wordmark takes to wipe into the new Agent's caret, and its frame pace.
 const LANDING_WIPE: Duration = Duration::from_millis(180);
 const LANDING_WIPE_FRAME: Duration = Duration::from_millis(16);
-const RESIZE_SETTLE: Duration = Duration::from_millis(120);
+const RESIZE_SETTLE: Duration = Duration::from_millis(160);
+const RESIZE_FADE: Duration = Duration::from_millis(100);
 const RESIZE_RECOVERY: Duration = Duration::from_secs(1);
 
 /// Reads server frames on their own thread under the ingress byte budget, waking the main loop
@@ -1655,6 +1656,83 @@ impl ResizeCurtain {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct ResizeFade {
+    until: Instant,
+}
+
+impl ResizeFade {
+    fn new(now: Instant) -> Self {
+        Self {
+            until: now.checked_add(RESIZE_FADE).unwrap_or(now),
+        }
+    }
+
+    fn complete(self, now: Instant) -> bool {
+        now >= self.until
+    }
+}
+
+fn force_faint_ansi(bytes: &[u8]) -> Vec<u8> {
+    if bytes.is_empty() {
+        return Vec::new();
+    }
+    let mut output = Vec::with_capacity(bytes.len() + 32);
+    output.extend_from_slice(b"\x1b[2m");
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes.get(index..index + 2) != Some(b"\x1b[") {
+            output.push(bytes[index]);
+            index += 1;
+            continue;
+        }
+        let Some(offset) = bytes[index + 2..]
+            .iter()
+            .position(|byte| (0x40..=0x7e).contains(byte))
+        else {
+            output.extend_from_slice(&bytes[index..]);
+            break;
+        };
+        let end = index + 2 + offset;
+        output.extend_from_slice(&bytes[index..=end]);
+        if bytes[end] == b'm' {
+            // Protocol: every child or host SGR may change intensity. Reassert faint after it so
+            // resets, bold text, and explicit colors all remain inside the reveal treatment.
+            output.extend_from_slice(b"\x1b[2m");
+        }
+        index = end + 1;
+    }
+    output.extend_from_slice(b"\x1b[22m");
+    output
+}
+
+fn dim_presentation(mut desired: DesiredPresentation) -> DesiredPresentation {
+    if !desired.strip.is_empty() {
+        desired.strip = String::from_utf8(force_faint_ansi(desired.strip.as_bytes()))
+            .expect("host strip is utf-8");
+    }
+    if !desired.legacy_body.is_empty() {
+        desired.legacy_body = force_faint_ansi(&desired.legacy_body);
+    }
+    if let Some(surface) = desired.structured.as_mut() {
+        for style in &mut surface.styles {
+            style.faint = true;
+        }
+        desired.overlay = Some(desired.overlay.map_or_else(
+            || "\x1b[22m".to_owned(),
+            |overlay| {
+                String::from_utf8(force_faint_ansi(overlay.as_bytes()))
+                    .expect("host overlay is utf-8")
+            },
+        ));
+    } else if let Some(overlay) = desired.overlay.as_mut() {
+        *overlay =
+            String::from_utf8(force_faint_ansi(overlay.as_bytes())).expect("host overlay is utf-8");
+    }
+    desired.cursor = Some(FinalCursor::Hidden);
+    desired
+}
+
 fn resize_curtain_overlay(columns: u16, outer_rows: u16, truecolor: bool) -> String {
     let label = clip_cells(
         &format!("Resize {columns} × {outer_rows}"),
@@ -1779,8 +1857,10 @@ struct Client {
     version: Option<String>,
     /// When the landing began handing over to an Agent this client asked for.
     landing_wipe: Option<Instant>,
-    /// The complete host-owned presentation shown while outer resize events are still settling.
+    /// Rationale: resize presentation has two bounded host-owned phases: an opaque curtain while
+    /// geometry settles, followed by a faint complete frame before normal intensity returns.
     resize_curtain: Option<ResizeCurtain>,
+    resize_fade: Option<ResizeFade>,
 }
 
 impl Client {
@@ -1840,6 +1920,7 @@ impl Client {
             version: read_release_version(Path::new(options.release_root)),
             landing_wipe: None,
             resize_curtain: None,
+            resize_fade: None,
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
         // surface before presenting that list and the body as one first frame.
@@ -2128,7 +2209,7 @@ impl Client {
         clear: bool,
     ) -> Result<(), String> {
         let child_surface = landing.is_none();
-        self.terminal.present(DesiredPresentation {
+        let desired = DesiredPresentation {
             tab_id: self.view.viewed.clone(),
             incarnation: self.presented.incarnation,
             revision: self.presented.revision,
@@ -2143,6 +2224,11 @@ impl Client {
             outer_rows: self.outer_rows,
             child_row_offset: self.time_format.tab_bar_position.child_row_offset(),
             clear,
+        };
+        self.terminal.present(if self.resize_fade.is_some() {
+            dim_presentation(desired)
+        } else {
+            desired
         })
     }
 
@@ -2531,17 +2617,19 @@ impl Client {
         let wall_now = SystemTime::now();
         let resumed = resumed_after_gap(self.last_tick_wall, wall_now);
         self.last_tick_wall = wall_now;
+        let now = Instant::now();
         if let Some(Offer::Commit {
             surface,
             tabs,
             requested,
-        }) = self.view.expire(Instant::now(), |id| {
-            self.tabs.iter().any(|tab| tab.id == id)
-        }) {
+        }) = self
+            .view
+            .expire(now, |id| self.tabs.iter().any(|tab| tab.id == id))
+        {
             self.apply_commit(core, surface, tabs, requested)?;
         }
         if self.resize_curtain.as_ref().is_some_and(|curtain| {
-            curtain.should_reveal(Instant::now(), self.view.viewed.as_deref(), &self.presented)
+            curtain.should_reveal(now, self.view.viewed.as_deref(), &self.presented)
         }) {
             self.resize_curtain = None;
             if should_paint_strip(
@@ -2549,6 +2637,7 @@ impl Client {
                 self.has_shown_tabs,
                 core.notice.is_some(),
             ) {
+                self.resize_fade = Some(ResizeFade::new(now));
                 self.paint(core, true)?;
             } else {
                 let mut blank = resize_curtain_presentation(
@@ -2559,6 +2648,10 @@ impl Client {
                 blank.overlay = None;
                 self.terminal.present(blank)?;
             }
+        }
+        if self.resize_fade.is_some_and(|fade| fade.complete(now)) {
+            self.resize_fade = None;
+            self.paint(core, true)?;
         }
         if resumed {
             // Platform: after suspend, ConPTY may have discarded its last painted cells while
@@ -2809,6 +2902,7 @@ impl Client {
         self.columns = columns;
         self.create.columns = columns;
         self.create.rows = rows;
+        self.resize_fade = None;
         self.resize_curtain = Some(ResizeCurtain::new(
             Instant::now(),
             self.view.viewed.clone(),
@@ -3426,6 +3520,54 @@ mod tests {
         assert!(bytes.contains("Resize 80 × 24"));
         assert!(bytes.contains("\x1b[?25l"));
         assert!(bytes.ends_with(std::str::from_utf8(END_SYNCHRONIZED_UPDATE).unwrap()));
+    }
+
+    #[test]
+    fn dimmed_resize_reveal_enforces_faint_and_hides_the_cursor() {
+        let ansi =
+            String::from_utf8(force_faint_ansi(b"\x1b[0mplain\x1b[38;2;1;2;3mcolored")).unwrap();
+        assert!(ansi.starts_with("\x1b[2m"));
+        assert!(ansi.contains("\x1b[0m\x1b[2mplain"));
+        assert!(ansi.contains("\x1b[38;2;1;2;3m\x1b[2mcolored"));
+        assert!(ansi.ends_with("\x1b[22m"));
+
+        let desired = DesiredPresentation {
+            tab_id: Some("tab-1".into()),
+            incarnation: 1,
+            revision: 2,
+            geometry_generation: 3,
+            strip: "\x1b[0mstrip".into(),
+            structured: Some(protocol::StructuredSurface {
+                styles: vec![protocol::SurfaceStyle::default()],
+                ..protocol::StructuredSurface::default()
+            }),
+            legacy_body: b"\x1b[0mlegacy".to_vec(),
+            overlay: Some("\x1b[0moverlay".into()),
+            cursor: Some(FinalCursor::At(protocol::SurfaceCursor {
+                column: 2,
+                row: 3,
+            })),
+            modes: None,
+            columns: 80,
+            outer_rows: 24,
+            child_row_offset: 1,
+            clear: true,
+        };
+        let dimmed = dim_presentation(desired);
+        assert!(dimmed.strip.contains("\x1b[0m\x1b[2mstrip"));
+        assert!(
+            String::from_utf8(dimmed.legacy_body)
+                .unwrap()
+                .contains("\x1b[2mlegacy")
+        );
+        assert!(dimmed.overlay.unwrap().contains("\x1b[2moverlay"));
+        assert!(dimmed.structured.unwrap().styles[0].faint);
+        assert_eq!(dimmed.cursor, Some(FinalCursor::Hidden));
+
+        let started = Instant::now();
+        let fade = ResizeFade::new(started);
+        assert!(!fade.complete(started + RESIZE_FADE - Duration::from_millis(1)));
+        assert!(fade.complete(started + RESIZE_FADE));
     }
 
     #[test]

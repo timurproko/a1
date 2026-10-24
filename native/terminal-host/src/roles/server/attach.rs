@@ -132,9 +132,9 @@ mod tests {
 }
 
 fn unroutable_input_rejection(message_type: &str) -> Option<&'static str> {
-    // A spectator's geometry never controls the shared child. Unlike typed input, silently
-    // ignoring its resize must not make the attach client interpret the refusal as a lost input
-    // claim and take control merely because it switched views.
+    // Invariant: a spectator's geometry never controls the shared child. Unlike typed input,
+    // silently ignoring its resize must not make the attach client interpret the refusal as a
+    // lost input claim and take control merely because it switched views.
     (message_type != "resize").then_some(INPUT_REJECTED_READ_ONLY)
 }
 
