@@ -3,10 +3,12 @@
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell/public renderers. Own image conversion; replace private APIs with
  * public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut
- * hints. Restore the enclosing default-shell background after nested renderer resets. See
+ * hints. Restore the enclosing default-shell background after nested renderer resets. Omit
+ * non-actionable image fallback rows when the terminal has no image protocol. See
  * docs/architecture/tool-image-presentation.md.
  * Deviations: current-tool-image-conversion-ownership, read-range-secondary-accent,
- * concise-tool-expand-shortcut-hint, default-shell-background-reset-scoping.
+ * concise-tool-expand-shortcut-hint, default-shell-background-reset-scoping,
+ * unsupported-image-fallback-omission.
  */
 import { stripVTControlCharacters } from "node:util";
 import { Box, type Component, Container, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
