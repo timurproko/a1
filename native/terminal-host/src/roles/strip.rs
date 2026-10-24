@@ -729,9 +729,9 @@ fn append_controls(
             "38;38;38"
         };
         let label = match overflow_width {
-            1 => "-",
-            2 => " -",
-            _ => " - ",
+            1 => "⋯",
+            2 => " ⋯",
+            _ => " ⋯ ",
         };
         bytes.push_str(&format!(
             "\x1b[48;2;{background}m\x1b[38;2;170;170;170m{label}\x1b[0m"
@@ -1556,8 +1556,9 @@ mod tests {
     }
 
     #[test]
-    fn overflow_uses_a_muted_minus_in_the_same_single_cell_hit_area() {
-        for (width, expected) in [(1, "-"), (2, " -"), (3, " - ")] {
+    fn overflow_uses_a_centered_midline_ellipsis_in_the_same_hit_area() {
+        assert_eq!(UnicodeWidthStr::width("⋯"), 1);
+        for (width, expected) in [(1, "⋯"), (2, " ⋯"), (3, " ⋯ ")] {
             let (mut bytes, mut hits, mut column) = (String::new(), Vec::new(), 4);
             append_controls(&mut bytes, &mut hits, &mut column, None, width, 1);
             assert_eq!(plain(&bytes), format!("{expected}+"));
@@ -1575,7 +1576,7 @@ mod tests {
                 .iter()
                 .any(|(_, _, hit)| matches!(hit, StripHit::Overflow))
         );
-        assert!(plain(&frame.bytes).contains("-"));
+        assert!(plain(&frame.bytes).contains('⋯'));
         assert!(!plain(&frame.bytes).contains('…'));
     }
 

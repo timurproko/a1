@@ -2110,11 +2110,12 @@ impl Client {
     }
 
     fn request_view(&mut self, tab_id: String) -> Result<(), String> {
-        let priority =
-            swapped_chip_priority(&self.strip_frame, self.view.requested.as_deref(), &tab_id)
-                .or_else(|| {
-                    swapped_chip_priority(&self.strip_frame, self.view.viewed.as_deref(), &tab_id)
-                });
+        let priority = swapped_chip_priority_for_view(
+            &self.strip_frame,
+            &self.view,
+            self.swap_in_flight.as_deref(),
+            &tab_id,
+        );
         self.swap_in_flight = priority.as_ref().map(|_| tab_id.clone());
         if let Some(priority) = priority {
             self.chip_priority = priority;
@@ -3097,6 +3098,16 @@ fn swapped_chip_priority(
     let slot = chips.iter().position(|id| Some(id.as_str()) == viewed)?;
     chips[slot] = target.to_owned();
     Some(chips)
+}
+
+/// A normal pending view cannot displace the active chip's slot; an overflow swap in flight can.
+fn swapped_chip_priority_for_view(
+    frame: &strip::StripFrame,
+    view: &ViewModel,
+    swapping: Option<&str>,
+    target: &str,
+) -> Option<Vec<String>> {
+    swapped_chip_priority(frame, strip_active_view(view, swapping), target)
 }
 
 /// Keeps the registry order untouched while promoting the client's chosen chip slots.
@@ -4594,6 +4605,59 @@ mod tests {
             TimeFormat::TwentyFour,
         );
         assert_eq!(pending.hits, committed.hits);
+        assert_eq!(pending.hidden_tabs, committed.hidden_tabs);
+    }
+
+    #[test]
+    fn hidden_selection_replaces_committed_active_not_an_unrelated_pending_chip() {
+        let tabs = (0..4)
+            .map(|index| StripTab {
+                id: format!("tab-{index}"),
+                name: format!("agent {index}"),
+                name_source: "user".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        let first =
+            strip::render_configured(&tabs, Some("tab-0"), 42, None, TimeFormat::TwentyFour);
+        assert_eq!(drawn_chip_ids(&first), ["tab-0", "tab-1"]);
+        let mut view = ViewModel::new(Some("tab-0".into()));
+        view.request("tab-1");
+        assert_eq!(strip_active_view(&view, None), Some("tab-0"));
+        let priority = swapped_chip_priority_for_view(&first, &view, None, "tab-3").unwrap();
+        assert_eq!(
+            priority,
+            ["tab-3", "tab-1"],
+            "the pending next chip must retain its slot"
+        );
+        view.request("tab-3");
+        let pending = strip::render_configured(
+            &prioritized_chips(&tabs, &priority),
+            strip_active_view(&view, Some("tab-3")),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(drawn_chip_ids(&pending), ["tab-3", "tab-1"]);
+        assert_eq!(pending.hidden_tabs, ["tab-0", "tab-2"]);
+        let next = swapped_chip_priority_for_view(&pending, &view, Some("tab-3"), "tab-2").unwrap();
+        assert_eq!(
+            next,
+            ["tab-2", "tab-1"],
+            "a second swap replaces the new active chip"
+        );
+        view.cancel_request();
+        view.viewed = Some("tab-3".into());
+        let committed = strip::render_configured(
+            &prioritized_chips(&tabs, &priority),
+            strip_active_view(&view, None),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(drawn_chip_ids(&pending), drawn_chip_ids(&committed));
         assert_eq!(pending.hidden_tabs, committed.hidden_tabs);
     }
 
