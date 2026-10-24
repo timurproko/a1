@@ -986,12 +986,13 @@ impl State {
                     self.hovered = Some(Hover::New);
                     if self.plus_menu.agent_only() {
                         self.create(Request::Create, effects);
-                    } else {
+                    } else if !self.plus_menu.is_empty() {
                         let menu = PopupMenu::add(
                             mouse.column,
                             self.columns,
                             context.shortcuts,
-                            self.utility_visible(UtilityKind::Settings, context.viewed),
+                            self.plus_menu,
+                            self.utilities_visible(context.viewed),
                         );
                         self.mode = Mode::Popup(menu);
                     }
@@ -1719,24 +1720,29 @@ mod tests {
         assert_eq!(
             fixture.step(&mut state, mouse(LEFT, 31, 0)),
             [Effect::Send(Request::Create), PAINT],
-            "with no extra kind, + adds an Agent without a menu"
+            "Agent alone adds an Agent without a menu"
         );
         assert!(state.mode.popup().is_none());
 
+        state.plus_menu = PlusMenu::from_setting(Some(""));
+        assert_eq!(fixture.step(&mut state, mouse(LEFT, 31, 0)), [PAINT]);
+        assert!(state.mode.popup().is_none(), "no kind offers nothing");
+
         state.plus_menu = PlusMenu::from_setting(Some("settings,changelog"));
-        assert_eq!(
-            state.plus_menu,
-            PlusMenu::ALL,
-            "only Settings is an extra kind"
-        );
         fixture.step(&mut state, mouse(LEFT, 31, 0));
+        let labels = |state: &State| {
+            let menu = state.mode.popup().expect("launcher").clone();
+            menu.items
+                .iter()
+                .map(|item| item.label.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(labels(&state), ["  Settings", "  Changelog"]);
+        state.mode = Mode::Idle;
+        state.plus_menu = PlusMenu::ALL;
+        fixture.step(&mut state, mouse(LEFT, 31, 0));
+        assert_eq!(labels(&state), ["+ Agent", "", "  Settings", "  Changelog"]);
         let menu = state.mode.popup().expect("launcher").clone();
-        let labels = menu
-            .items
-            .iter()
-            .map(|item| item.label.as_str())
-            .collect::<Vec<_>>();
-        assert_eq!(labels, ["+ Agent", "", "  Settings"]);
         assert_eq!(
             fixture.step(&mut state, mouse(LEFT, menu.column, 3)),
             [Effect::Send(Request::Open(UtilityKind::Settings)), PAINT],
@@ -1761,8 +1767,14 @@ mod tests {
         );
         assert_eq!(
             fixture.step(&mut state, key(KeyCode::Char(' '))),
-            [Effect::SavePlusMenu(PlusMenu::default()), PAINT],
-            "Space toggles the selected kind and stores it at once"
+            [
+                Effect::SavePlusMenu(PlusMenu {
+                    agent: false,
+                    utilities: [true, true]
+                }),
+                PAINT
+            ],
+            "Space toggles the selected kind, Agent first, and stores it at once"
         );
         assert!(fixture.step(&mut state, mouse(LEFT, 31, 0)).is_empty());
         assert_eq!(fixture.step(&mut state, key(KeyCode::Esc)), [PAINT]);
@@ -2109,7 +2121,7 @@ mod tests {
     fn resize_refits_an_open_menu_and_repaints_clean() {
         let fixture = Fixture::new(&["a"], "a");
         let mut state = fixture.state();
-        state.mode = Mode::Popup(PopupMenu::add(70, 80, &Labels, false));
+        state.mode = Mode::Popup(PopupMenu::add(70, 80, &Labels, PlusMenu::ALL, [false; 2]));
         assert_eq!(
             fixture.step(&mut state, Event::Resize { columns: 20 }),
             [Effect::Paint { clear: true }]
@@ -2185,7 +2197,7 @@ mod tests {
             state.view.settings.shown,
             "the first shortcut selects Settings"
         );
-        let mut popup = PopupMenu::add(0, 80, &Labels, true);
+        let mut popup = PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [true, false]);
         popup.hovered = Some(2);
         state.mode = Mode::Popup(popup);
         assert_eq!(
@@ -2206,7 +2218,7 @@ mod tests {
         );
         let mut active = fixture.state();
         active.view.settings.shown = true;
-        let mut popup = PopupMenu::add(0, 80, &Labels, true);
+        let mut popup = PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [true, false]);
         popup.hovered = Some(2);
         active.mode = Mode::Popup(popup);
         assert_eq!(
@@ -2378,7 +2390,7 @@ mod tests {
         };
         assert_eq!(answer(&mut state, viewer), [PAINT]);
         assert!(answer(&mut state, ServerEvent::ShortcutsChanged).is_empty());
-        state.mode = Mode::Popup(PopupMenu::add(0, 80, &Labels, false));
+        state.mode = Mode::Popup(PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [false; 2]));
         assert_eq!(answer(&mut state, ServerEvent::ShortcutsChanged), [PAINT]);
     }
 

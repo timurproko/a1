@@ -11,9 +11,13 @@ pub const PALETTE_ENTRIES: [(&str, &str); 3] = [
     ("Changelog", "tabs.changelog"),
 ];
 
-/// The plus-menu dialog's entries in kind order: each extra kind's label and its
-/// `tabBarPlusMenu` key. Agent is always offered, so it is not listed.
-pub const PLUS_MENU_ENTRIES: [(&str, &str); 1] = [("Settings", "settings")];
+/// The plus-menu dialog's entries in kind order: each label and its `tabBarPlusMenu` key, Agent
+/// and then every utility kind.
+pub const PLUS_MENU_ENTRIES: [(&str, &str); 3] = [
+    ("Agent", "agent"),
+    ("Settings", "settings"),
+    ("Changelog", "changelog"),
+];
 
 /// What one key did to an open list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -175,14 +179,10 @@ mod tests {
     fn the_plus_menu_toggles_with_space_and_ignores_enter() {
         let mut dialog = CommandPalette::plus_menu();
         assert!(dialog.is_plus_menu() && !CommandPalette::commands().is_plus_menu());
-        assert_eq!(
-            dialog.len(),
-            1,
-            "Agent is always offered, so only Settings is listed"
-        );
+        assert_eq!(dialog.len(), 3, "Agent and every utility kind are listed");
         assert_eq!(
             dialog.key(key(KeyCode::Char(' '))),
-            PaletteKey::Toggle("settings")
+            PaletteKey::Toggle("agent")
         );
         assert_eq!(dialog.key(key(KeyCode::Enter)), PaletteKey::Ignored);
         for value in "set".chars() {

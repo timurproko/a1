@@ -15,7 +15,7 @@ const LOCK_RETRY: Duration = Duration::from_millis(20);
 const STALE_LOCK: Duration = Duration::from_secs(10);
 const NAMESPACE: &str = "a1";
 const SETTING: &str = "tabBarPlusMenu";
-const DEFAULT_VALUE: &str = "";
+const DEFAULT_VALUE: &str = "agent";
 
 pub fn write_plus_menu(file: &Path, menu: PlusMenu) -> Result<(), String> {
     let lock = lock_path(file);
@@ -113,7 +113,7 @@ mod tests {
             read(&file),
             serde_json::json!({
                 "theme": "dark",
-                "a1": { "accentColor": "cyan", "tabBarPlusMenu": "settings" },
+                "a1": { "accentColor": "cyan", "tabBarPlusMenu": "agent,settings,changelog" },
                 "pi": { "x": 1 }
             })
         );
@@ -128,7 +128,7 @@ mod tests {
         write_plus_menu(&fresh, PlusMenu::ALL).unwrap();
         assert_eq!(
             read(&fresh),
-            serde_json::json!({ "a1": { "tabBarPlusMenu": "settings" } })
+            serde_json::json!({ "a1": { "tabBarPlusMenu": "agent,settings,changelog" } })
         );
         write_plus_menu(&fresh, PlusMenu::default()).unwrap();
         assert_eq!(

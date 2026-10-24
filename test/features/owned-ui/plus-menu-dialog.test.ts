@@ -43,19 +43,19 @@ describe("plus-menu dialog", () => {
 });
 
 describe("plus-menu setting", () => {
-  it("defaults to nothing besides Agent and stores the extra kinds", async () => {
+  it("defaults to Agent alone and stores toggles as kinds in order", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "a1-plus-menu-"));
     roots.push(root);
     const manager = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     await manager.load();
-    expect(manager.value("tabBarPlusMenu")).toBe("");
+    expect(manager.value("tabBarPlusMenu")).toBe("agent");
     const entry = findOwnedUiSettingsEntry(manager.sections(), PLUS_MENU_SETTING_ID, "a1");
     expect(entry?.structured).toBe(true);
-    expect(entry?.rawValue).toEqual({ settings: false });
-    const outcome = await manager.changeStructured("a1", PLUS_MENU_SETTING_ID, { settings: true });
-    expect(outcome).toMatchObject({ status: "applied", storedValue: "settings" });
-    expect(manager.value("tabBarPlusMenu")).toBe("settings");
+    expect(entry?.rawValue).toEqual({ agent: true, settings: false, changelog: false });
+    const outcome = await manager.changeStructured("a1", PLUS_MENU_SETTING_ID, { changelog: true, agent: true, settings: false });
+    expect(outcome).toMatchObject({ status: "applied", storedValue: "agent,changelog" });
+    expect(manager.value("tabBarPlusMenu")).toBe("agent,changelog");
     const document = JSON.parse(readFileSync(path.join(root, "settings.json"), "utf8")) as Record<string, Record<string, unknown>>;
-    expect(document[PRODUCT_IDENTITY.commandName]?.["tabBarPlusMenu"]).toBe("settings");
+    expect(document[PRODUCT_IDENTITY.commandName]?.["tabBarPlusMenu"]).toBe("agent,changelog");
   });
 });

@@ -477,16 +477,18 @@ describe("the settings screen", () => {
     selectRow(target, "Plus menu");
     target.onInput?.("\r", HOST);
     let rows = screen(target).map(row => row.trimEnd());
+    expect(rows.some(row => row.includes("● Agent"))).toBe(true);
     expect(rows.some(row => row.includes("○ Settings"))).toBe(true);
-    expect(rows.some(row => row.includes("Agent")), "Agent is always offered, so it is not listed").toBe(false);
+    expect(rows.some(row => row.includes("○ Changelog"))).toBe(true);
+    target.onInput?.(`${ESC}[B`, HOST);
     target.onInput?.(" ", HOST);
     await settleChanges();
     await session.load();
-    expect(session.value("tabBarPlusMenu")).toBe("settings");
+    expect(session.value("tabBarPlusMenu")).toBe("agent,settings");
     rows = screen(target).map(row => row.trimEnd());
     expect(rows.some(row => row.includes("● Settings"))).toBe(true);
     target.onInput?.(ESC, HOST);
-    expect(screen(target).some(row => row.includes("● Settings"))).toBe(false);
+    expect(screen(target).some(row => row.includes("● Agent"))).toBe(false);
   });
 
   it("hands the plus menu to the tab bar's own dialog when one can show it", async () => {

@@ -11,7 +11,7 @@ const TITLE: &str = "Commands";
 const HINT: &str = "Type search · ↑↓ navigate · Enter open · Esc close";
 const EMPTY: &str = "No commands match";
 const PLUS_TITLE: &str = "Plus Menu";
-const PLUS_DESCRIPTION: &str = "Choose what else the + button in the tab bar can add.";
+const PLUS_DESCRIPTION: &str = "Choose what the + button in the tab bar can add.";
 const PLUS_HINT: &str = "Type search · ↑↓ navigate · Space toggle · Esc close";
 const PLUS_EMPTY: &str = "No tabs match";
 const MAX_WIDTH: usize = 60;
@@ -269,27 +269,17 @@ mod tests {
     #[test]
     fn the_plus_menu_dialog_marks_the_kinds_plus_offers() {
         let dialog = CommandPalette::plus_menu();
-        let rows = plain(&render(&dialog, &Labels, PlusMenu::ALL, 80, 24, STYLE));
-        assert_eq!(rows.len(), 10);
+        let plus = PlusMenu::from_setting(Some("agent,changelog"));
+        let rows = plain(&render(&dialog, &Labels, plus, 80, 24, STYLE));
+        assert_eq!(rows.len(), 12);
         assert_eq!(rows[1].trim(), PLUS_TITLE);
         assert_eq!(rows[2].trim(), PLUS_DESCRIPTION);
         assert_eq!(rows[3].trim(), "", "a blank row follows the description");
         assert_eq!(rows[4].trim(), ">");
-        assert_eq!(
-            rows[6].trim(),
-            "→ ● Settings",
-            "Agent is always offered, so only extra kinds are listed"
-        );
-        assert_eq!(rows[8].trim(), PLUS_HINT);
-        let off = plain(&render(
-            &dialog,
-            &Labels,
-            PlusMenu::default(),
-            80,
-            24,
-            STYLE,
-        ));
-        assert_eq!(off[6].trim(), "→ ○ Settings");
+        assert_eq!(rows[6].trim(), "→ ● Agent");
+        assert_eq!(rows[7].trim(), "○ Settings");
+        assert_eq!(rows[8].trim(), "● Changelog");
+        assert_eq!(rows[10].trim(), PLUS_HINT);
         assert!(
             !rows.iter().any(|row| row.contains("Alt+")),
             "kinds show no shortcuts"

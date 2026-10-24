@@ -40,6 +40,7 @@ use crate::roles::presentation::{
     surface_is_blank,
 };
 use crate::roles::progress_observation::{self, ProgressMetadata};
+use crate::roles::reveal::Reveal;
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
 use crate::roles::terminal_output::TerminalOutput;
 use crate::roles::wire::{
@@ -1422,7 +1423,6 @@ fn send_resize(
 const LANDING_WIPE: Duration = Duration::from_millis(180);
 const LANDING_WIPE_FRAME: Duration = Duration::from_millis(16);
 const RESIZE_SETTLE: Duration = Duration::from_millis(220);
-const RESIZE_FADE: Duration = Duration::from_millis(100);
 const RESIZE_RECOVERY: Duration = Duration::from_secs(1);
 
 /// Reads server frames on their own thread under the ingress byte budget, waking the main loop
@@ -1671,81 +1671,18 @@ impl ResizeCurtain {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct ResizeFade {
-    until: Instant,
-}
-
-impl ResizeFade {
-    fn new(now: Instant) -> Self {
-        Self {
-            until: now.checked_add(RESIZE_FADE).unwrap_or(now),
-        }
+/// The chip a new tab shows before the registry lists it: its kind's name, starting.
+fn provisional_tab(id: &str) -> StripTab {
+    StripTab {
+        id: id.to_owned(),
+        name: core_attach::UtilityKind::of(id)
+            .map_or("Agent", |kind| kind.label())
+            .to_owned(),
+        name_source: "default".into(),
+        status: "starting".into(),
+        accent: None,
+        title_animation: None,
     }
-
-    fn complete(self, now: Instant) -> bool {
-        now >= self.until
-    }
-}
-
-fn force_faint_ansi(bytes: &[u8]) -> Vec<u8> {
-    if bytes.is_empty() {
-        return Vec::new();
-    }
-    let mut output = Vec::with_capacity(bytes.len() + 32);
-    output.extend_from_slice(b"\x1b[2m");
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if bytes.get(index..index + 2) != Some(b"\x1b[") {
-            output.push(bytes[index]);
-            index += 1;
-            continue;
-        }
-        let Some(offset) = bytes[index + 2..]
-            .iter()
-            .position(|byte| (0x40..=0x7e).contains(byte))
-        else {
-            output.extend_from_slice(&bytes[index..]);
-            break;
-        };
-        let end = index + 2 + offset;
-        output.extend_from_slice(&bytes[index..=end]);
-        if bytes[end] == b'm' {
-            // Protocol: every child or host SGR may change intensity. Reassert faint after it so
-            // resets, bold text, and explicit colors all remain inside the reveal treatment.
-            output.extend_from_slice(b"\x1b[2m");
-        }
-        index = end + 1;
-    }
-    output.extend_from_slice(b"\x1b[22m");
-    output
-}
-
-fn dim_presentation(mut desired: DesiredPresentation) -> DesiredPresentation {
-    if !desired.strip.is_empty() {
-        desired.strip = String::from_utf8(force_faint_ansi(desired.strip.as_bytes()))
-            .expect("host strip is utf-8");
-    }
-    if !desired.legacy_body.is_empty() {
-        desired.legacy_body = force_faint_ansi(&desired.legacy_body);
-    }
-    if let Some(surface) = desired.structured.as_mut() {
-        for style in &mut surface.styles {
-            style.faint = true;
-        }
-        desired.overlay = Some(desired.overlay.map_or_else(
-            || "\x1b[22m".to_owned(),
-            |overlay| {
-                String::from_utf8(force_faint_ansi(overlay.as_bytes()))
-                    .expect("host overlay is utf-8")
-            },
-        ));
-    } else if let Some(overlay) = desired.overlay.as_mut() {
-        *overlay =
-            String::from_utf8(force_faint_ansi(overlay.as_bytes())).expect("host overlay is utf-8");
-    }
-    desired.cursor = Some(FinalCursor::Hidden);
-    desired
 }
 
 fn changes_terminal_geometry(
@@ -1888,7 +1825,8 @@ struct Client {
     /// Rationale: resize presentation has two bounded host-owned phases: an opaque curtain while
     /// geometry settles, followed by a faint complete frame before normal intensity returns.
     resize_curtain: Option<ResizeCurtain>,
-    resize_fade: Option<ResizeFade>,
+    /// The fade in progress and the new tab whose content is veiled until its first frame.
+    reveal: Reveal,
 }
 
 impl Client {
@@ -1915,6 +1853,7 @@ impl Client {
             time_format
                 .tab_bar_position
                 .strip_terminal_row(handshake.outer_rows),
+            !time_format.plus_menu.is_empty(),
         );
         let client = Self {
             stream: AttachServerWriter::start(handshake.stream),
@@ -1948,7 +1887,7 @@ impl Client {
             version: read_release_version(Path::new(options.release_root)),
             landing_wipe: None,
             resize_curtain: None,
-            resize_fade: None,
+            reveal: Reveal::default(),
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
         // surface before presenting that list and the body as one first frame.
@@ -1987,7 +1926,16 @@ impl Client {
             match effect {
                 Effect::Send(request) => self.send(request)?,
                 Effect::View(tab_id) => self.request_view(tab_id)?,
-                Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
+                Effect::AwaitFirstDraw(tab_id) => {
+                    self.view.await_first_draw(&tab_id);
+                    // Rationale: the strip shows the new tab at once while its body stays empty
+                    // until it draws, then its content fades in; the landing's wipe already
+                    // carries a new Agent from the landing.
+                    if !self.landing_shown() {
+                        self.reveal.veil(&tab_id);
+                        self.paint(core, false)?;
+                    }
+                }
                 Effect::CancelViewRequest => self.view.cancel_request(),
                 Effect::Renamed { tab_id, name } => {
                     if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) {
@@ -2122,7 +2070,20 @@ impl Client {
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
         let rename = core.mode.rename().map(RenameEditor::display);
-        let mut shown = shown_tabs(&self.tabs, self.view.viewed.as_deref(), core.view.shown());
+        // Invariant: a veiled new tab is the strip's active tab before its content commits.
+        let active = self
+            .reveal
+            .veiled_for(self.view.requested.as_deref())
+            .or(self.view.viewed.as_deref())
+            .map(str::to_owned);
+        let mut shown = shown_tabs(&self.tabs, active.as_deref(), core.view.shown());
+        // Invariant: a veiled new tab has its chip before the registry topology that lists it.
+        if let Some(id) = active
+            .as_deref()
+            .filter(|id| !shown.iter().any(|tab| tab.id == *id))
+        {
+            shown.push(provisional_tab(id));
+        }
         apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
@@ -2133,10 +2094,11 @@ impl Client {
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
         let drag = core.mode.drag().cloned();
+        let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
             let mut frame = strip::render_interactive_at(
                 &shown,
-                self.view.viewed.as_deref(),
+                active.as_deref(),
                 self.columns,
                 hovered,
                 self.time_format.value,
@@ -2144,6 +2106,7 @@ impl Client {
                 self.time_format
                     .tab_bar_position
                     .strip_terminal_row(self.outer_rows),
+                plus,
             );
             append_drag_marker(
                 &mut frame,
@@ -2283,11 +2246,8 @@ impl Client {
             clear,
             dimmed,
         };
-        self.terminal.present(if self.resize_fade.is_some() {
-            dim_presentation(desired)
-        } else {
-            desired
-        })
+        self.terminal
+            .present(self.reveal.present(desired, self.view.requested.as_deref()))
     }
 
     fn apply_terminal_effect(&mut self, effect: &TerminalEffect) -> Result<(), String> {
@@ -2311,6 +2271,7 @@ impl Client {
         requested: bool,
     ) -> Result<(), String> {
         self.landing_wipe = None;
+        self.reveal.commit(&surface.tab_id, Instant::now());
         if let Some(next) = staged {
             self.tabs = next;
         }
@@ -2698,7 +2659,7 @@ impl Client {
                 self.has_shown_tabs,
                 core.notice.is_some(),
             ) {
-                self.resize_fade = Some(ResizeFade::new(now));
+                self.reveal.fade_frame(now);
                 self.paint(core, true)?;
             } else {
                 let mut blank = resize_curtain_presentation(
@@ -2710,8 +2671,7 @@ impl Client {
                 self.terminal.present(blank)?;
             }
         }
-        if self.resize_fade.is_some_and(|fade| fade.complete(now)) {
-            self.resize_fade = None;
+        if self.reveal.finish(now) {
             self.paint(core, true)?;
         }
         if resumed {
@@ -2972,7 +2932,7 @@ impl Client {
         self.columns = columns;
         self.create.columns = columns;
         self.create.rows = rows;
-        self.resize_fade = None;
+        self.reveal.fade = None;
         self.resize_curtain = Some(ResizeCurtain::new(
             Instant::now(),
             self.view.viewed.clone(),
@@ -3598,55 +3558,6 @@ mod tests {
         assert!(bytes.contains("\x1b[13;34HResize 80 x 24"));
         assert!(bytes.contains("\x1b[?25l"));
         assert!(bytes.ends_with(std::str::from_utf8(END_SYNCHRONIZED_UPDATE).unwrap()));
-    }
-
-    #[test]
-    fn dimmed_resize_reveal_enforces_faint_and_hides_the_cursor() {
-        let ansi =
-            String::from_utf8(force_faint_ansi(b"\x1b[0mplain\x1b[38;2;1;2;3mcolored")).unwrap();
-        assert!(ansi.starts_with("\x1b[2m"));
-        assert!(ansi.contains("\x1b[0m\x1b[2mplain"));
-        assert!(ansi.contains("\x1b[38;2;1;2;3m\x1b[2mcolored"));
-        assert!(ansi.ends_with("\x1b[22m"));
-
-        let desired = DesiredPresentation {
-            tab_id: Some("tab-1".into()),
-            incarnation: 1,
-            revision: 2,
-            geometry_generation: 3,
-            strip: "\x1b[0mstrip".into(),
-            structured: Some(protocol::StructuredSurface {
-                styles: vec![protocol::SurfaceStyle::default()],
-                ..protocol::StructuredSurface::default()
-            }),
-            legacy_body: b"\x1b[0mlegacy".to_vec(),
-            overlay: Some("\x1b[0moverlay".into()),
-            cursor: Some(FinalCursor::At(protocol::SurfaceCursor {
-                column: 2,
-                row: 3,
-            })),
-            modes: None,
-            columns: 80,
-            outer_rows: 24,
-            child_row_offset: 1,
-            clear: true,
-            dimmed: false,
-        };
-        let dimmed = dim_presentation(desired);
-        assert!(dimmed.strip.contains("\x1b[0m\x1b[2mstrip"));
-        assert!(
-            String::from_utf8(dimmed.legacy_body)
-                .unwrap()
-                .contains("\x1b[2mlegacy")
-        );
-        assert!(dimmed.overlay.unwrap().contains("\x1b[2moverlay"));
-        assert!(dimmed.structured.unwrap().styles[0].faint);
-        assert_eq!(dimmed.cursor, Some(FinalCursor::Hidden));
-
-        let started = Instant::now();
-        let fade = ResizeFade::new(started);
-        assert!(!fade.complete(started + RESIZE_FADE - Duration::from_millis(1)));
-        assert!(fade.complete(started + RESIZE_FADE));
     }
 
     #[test]
@@ -4307,7 +4218,7 @@ mod tests {
         menu.resize(80);
         assert_eq!(menu.column + menu.width, 80);
 
-        let mut add = PopupMenu::add(0, 80, &bindings, false);
+        let mut add = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
         assert_eq!(add.action_at(add.column, 1), Some(PopupAction::NewAgent));
         assert_eq!(add.action_at(add.column, 2), None);
         assert_eq!(
@@ -4322,7 +4233,7 @@ mod tests {
         assert!(add_rendered.contains("+ Agent"));
         assert!(add_rendered.contains("  Settings"));
         assert!(add_rendered.contains("Alt+,"));
-        let checked = PopupMenu::add(0, 80, &bindings, true);
+        let checked = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [true, false]);
         assert!(checked.render().contains("✓ Settings"));
         assert_eq!(checked.width, add.width);
         for rendered in [add.render_with_color(true), add.render_with_color(false)] {
@@ -4430,8 +4341,16 @@ mod tests {
                 .contains(&format!("\x1b[1;{}H", last_end + 1)),
             "a status-driven strip repaint retains unchanged drag feedback"
         );
-        let mut bottom =
-            strip::render_interactive_at(&tabs, Some("a"), 80, None, TimeFormat::Twelve, None, 24);
+        let mut bottom = strip::render_interactive_at(
+            &tabs,
+            Some("a"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            24,
+            true,
+        );
         append_drag_marker(&mut bottom, Some(&drag), &tabs, 80, 24);
         assert!(bottom.bytes.contains(&format!("\x1b[24;{}H", last_end + 1)));
         assert!(bottom.bytes.contains('│'));
@@ -4455,7 +4374,7 @@ mod tests {
         std::fs::write(&file, br#"{"a1":{"accentColor":"cyan"}}"#).unwrap();
         assert_eq!(read_accent_hover(&file), [48, 60, 61]);
         let bindings = TabBindings::load(profile.path());
-        let mut menu = PopupMenu::add(0, 80, &bindings, false);
+        let mut menu = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
         menu.hovered = Some(0);
         let rendered = menu.render_styled(true, read_accent_hover(&file));
         assert!(rendered.contains("\x1b[48;2;48;60;61m"));
@@ -4521,7 +4440,7 @@ mod tests {
 
         std::fs::write(
             &file,
-            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom","tabBarPlusMenu":"settings"}}"#,
+            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom","tabBarPlusMenu":"agent,settings,changelog"}}"#,
         )
         .unwrap();
         watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;

@@ -211,42 +211,78 @@ pub enum PopupKind {
     Overflow,
 }
 
-/// What the strip's `+` offers beside Agent, which it always offers: the extra kinds the owned
-/// `tabBarPlusMenu` setting holds, comma-joined. Settings is the only extra kind for now.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// The tab kinds the strip's `+` offers, read from the owned `tabBarPlusMenu` setting: Agent and
+/// every utility kind, comma-joined in that order. With none, the strip hides `+`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlusMenu {
-    pub settings: bool,
+    pub agent: bool,
+    /// Whether each utility kind is offered, by kind.
+    pub utilities: [bool; 2],
+}
+
+impl Default for PlusMenu {
+    fn default() -> Self {
+        Self::from_setting(None)
+    }
 }
 
 impl PlusMenu {
-    pub const ALL: Self = Self { settings: true };
+    pub const ALL: Self = Self {
+        agent: true,
+        utilities: [true; 2],
+    };
 
-    /// The extra kinds the setting names; an absent value or any other kind adds nothing.
+    /// The kinds the setting names; an absent or non-text value offers Agent alone.
     pub fn from_setting(value: Option<&str>) -> Self {
+        let Some(value) = value else {
+            return Self {
+                agent: true,
+                utilities: [false; 2],
+            };
+        };
+        let has = |name: &str| value.split(',').any(|kind| kind.trim() == name);
         Self {
-            settings: value
-                .is_some_and(|value| value.split(',').any(|kind| kind.trim() == "settings")),
+            agent: has("agent"),
+            utilities: UtilityKind::ALL.map(|kind| has(kind.name())),
         }
     }
 
-    /// With no extra kind, `+` creates an Agent without a menu.
+    /// With Agent alone, `+` creates an Agent without a menu.
     pub fn agent_only(self) -> bool {
-        !self.settings
+        self.agent && !self.utilities.contains(&true)
+    }
+
+    pub fn is_empty(self) -> bool {
+        !self.agent && !self.utilities.contains(&true)
     }
 
     pub fn enabled(self, kind: &str) -> bool {
-        kind == "settings" && self.settings
-    }
-
-    pub fn toggle(&mut self, kind: &str) {
-        if kind == "settings" {
-            self.settings = !self.settings;
+        match UtilityKind::from_name(kind) {
+            Some(utility) => self.utilities[utility.index()],
+            None => kind == "agent" && self.agent,
         }
     }
 
-    /// The setting's value: the extra kinds, comma-joined in kind order.
+    pub fn toggle(&mut self, kind: &str) {
+        match UtilityKind::from_name(kind) {
+            Some(utility) => self.utilities[utility.index()] ^= true,
+            None if kind == "agent" => self.agent ^= true,
+            None => {}
+        }
+    }
+
+    /// The setting's value: the enabled kinds, comma-joined in kind order.
     pub fn to_setting(self) -> String {
-        if self.settings { "settings" } else { "" }.to_owned()
+        let agent = self.agent.then_some("agent");
+        let utilities = UtilityKind::ALL
+            .into_iter()
+            .filter(|kind| self.utilities[kind.index()])
+            .map(UtilityKind::name);
+        agent
+            .into_iter()
+            .chain(utilities)
+            .collect::<Vec<_>>()
+            .join(",")
     }
 }
 
@@ -340,32 +376,32 @@ impl PopupMenu {
         column: u16,
         columns: u16,
         shortcuts: &(impl ShortcutLabels + ?Sized),
-        settings_shown: bool,
+        plus: PlusMenu,
+        shown: [bool; 2],
     ) -> Self {
-        Self::new(
-            PopupKind::Add,
-            None,
-            column,
-            columns,
-            vec![
-                PopupItem::action(
-                    "+ Agent",
-                    shortcuts.label("tabs.new"),
-                    PopupAction::NewAgent,
-                ),
-                PopupItem::separator(),
-                // Invariant: labels align after the `+ ` marker, so Settings starts under Agent.
-                PopupItem::action(
-                    if settings_shown {
-                        "✓ Settings"
-                    } else {
-                        "  Settings"
-                    },
-                    shortcuts.label("tabs.settings"),
-                    PopupAction::Utility(UtilityKind::Settings),
-                ),
-            ],
-        )
+        let mut items = Vec::new();
+        if plus.agent {
+            items.push(PopupItem::action(
+                "+ Agent",
+                shortcuts.label("tabs.new"),
+                PopupAction::NewAgent,
+            ));
+            if plus.utilities.contains(&true) {
+                items.push(PopupItem::separator());
+            }
+        }
+        // Invariant: labels align after the `+ ` marker, so the utility kinds start under Agent.
+        for kind in UtilityKind::ALL {
+            if plus.utilities[kind.index()] {
+                let marker = if shown[kind.index()] { "✓" } else { " " };
+                items.push(PopupItem::action(
+                    format!("{marker} {}", kind.label()),
+                    shortcuts.label(kind.action()),
+                    PopupAction::Utility(kind),
+                ));
+            }
+        }
+        Self::new(PopupKind::Add, None, column, columns, items)
     }
 
     /// The right-click menu on `+`: one row that opens the plus-menu dialog.
@@ -856,6 +892,18 @@ impl UtilityKind {
             Self::Settings => "settings",
             Self::Changelog => "changelog",
         }
+    }
+
+    /// The kind's tab title and menu label.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Settings => "Settings",
+            Self::Changelog => "Changelog",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.name() == name)
     }
 
     /// The shortcut action that toggles the kind's tab.

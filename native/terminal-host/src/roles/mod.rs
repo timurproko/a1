@@ -19,6 +19,7 @@ pub mod quit_outro;
 pub mod recovery_artifacts;
 pub mod registry;
 pub mod release_holds;
+pub mod reveal;
 pub mod server;
 pub mod strip;
 mod terminal_output;
