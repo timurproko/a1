@@ -26,6 +26,8 @@ import {
 import {
   createTuiFacade,
   ensureTheme,
+  piShellTruncateToWidth,
+  piShellVisibleWidth,
   type PiShellViewComponentPort,
   type PiShellStatusPort,
   type PiShellStatusPlacement,
@@ -141,9 +143,9 @@ export function createPiShellStatus(
     component = statusComponent(view, statusUi, outputPad, liveStatusText, placement, progressPresentation, progressStatus);
   };
   return {
-    render: width => component?.render(width) ?? [],
+    render: width => appendInstalledUpdateStatus(component?.render(width) ?? [], width, view),
     renderDock: width => placement === "dock" ? component?.render(width) ?? [] : [],
-    renderLive: width => placement === "live" ? component?.render(width) ?? [] : [],
+    renderLive: width => appendInstalledUpdateStatus(placement === "live" ? component?.render(width) ?? [] : [], width, view),
     placement: () => placement,
     invalidate: () => component?.invalidate(),
     update(next) {
@@ -296,6 +298,24 @@ function statusSignature(
 ): string {
   const message = withMessage ? `${workingOverride ?? ""}\u0000${view.status.workingMessage ?? ""}\u0000${view.status.workingProgress ?? ""}` : "";
   return `${placement}\u0000${outputPad}\u0000${view.lifecycle}\u0000${progressPresentation}\u0000${message}\u0000${view.status.diagnostics.at(-1) ?? ""}`;
+}
+
+function appendInstalledUpdateStatus(
+  rows: readonly string[],
+  width: number,
+  view: OwnedUiSessionViewModel,
+): readonly string[] {
+  if (width <= 0 || !view.diagnostics.some(diagnostic => diagnostic.code === "release-update-installed")) return rows;
+  const theme = piTheme();
+  const full = `${theme.fg("success", "Update installed")} ${theme.fg("muted", "·")} ${theme.fg("accent", "Restart to update")}`;
+  const status = piShellTruncateToWidth(full, width);
+  const statusWidth = piShellVisibleWidth(status);
+  const target = rows.findLastIndex(row => piShellVisibleWidth(row.trimEnd()) > 0);
+  if (target < 0) return [`${" ".repeat(Math.max(0, width - statusWidth))}${status}`];
+  const base = (rows[target] ?? "").trimEnd();
+  const gap = width - piShellVisibleWidth(base) - statusWidth;
+  if (gap >= 2) return rows.map((row, index) => index === target ? `${base}${" ".repeat(gap)}${status}` : row);
+  return [...rows.slice(0, target + 1), `${" ".repeat(Math.max(0, width - statusWidth))}${status}`, ...rows.slice(target + 1)];
 }
 
 function queuedInputChipWrapping(

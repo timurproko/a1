@@ -31,7 +31,12 @@ function fakeComponent(id: string, rows: (width: number) => readonly string[] = 
   return component;
 }
 
-function harness(options: { customViewport?: boolean; extensionHeader?: () => boolean; thinkingVisible?: () => boolean } = {}) {
+function harness(options: {
+  customViewport?: boolean;
+  diagnostics?: OwnedUiSessionViewModel["diagnostics"];
+  extensionHeader?: () => boolean;
+  thinkingVisible?: () => boolean;
+} = {}) {
   const mounted = new Map<string, ReturnType<typeof fakeComponent>>();
   const document = new TranscriptDocument({
     customViewport: options.customViewport ?? false,
@@ -43,7 +48,7 @@ function harness(options: { customViewport?: boolean; extensionHeader?: () => bo
       return component as unknown as PiShellTranscriptComponentPort;
     },
     chrome: {
-      diagnostics: () => [],
+      diagnostics: () => options.diagnostics ?? [],
       headerRows: () => ["header"],
       resourceRows: () => ["resources", ""],
       hasExtensionHeader: options.extensionHeader ?? (() => false),
@@ -166,6 +171,22 @@ describe("TranscriptDocument", () => {
     document.apply(block("a"));
     document.dispose();
     expect(document.component("a")).toBeUndefined();
+  });
+
+  it("keeps installed-update readiness out of the transcript document", () => {
+    const diagnostics: OwnedUiSessionViewModel["diagnostics"] = [{
+      sequence: 1,
+      code: "release-update-installed",
+      severity: "info",
+      message: "Update 1.2.4 installed; restart to update.",
+      recoverable: true,
+    }];
+    for (const customViewport of [false, true]) {
+      const { document } = harness({ customViewport, diagnostics });
+      const rows = document.layout(80).rows.join("\n");
+      expect(rows).not.toContain("release-update-installed");
+      expect(rows).not.toContain("restart to update");
+    }
   });
 
   it("parses the release-update diagnostic", () => {

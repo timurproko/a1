@@ -242,7 +242,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(17);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(18);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -326,23 +326,23 @@ describe("owned UI settings migrations", () => {
     expect(invalid.notices.length).toBeGreaterThan(0);
   });
 
-  it("introduces the enabled startup update check without rewriting stored values", () => {
+  it("introduces the startup update setting without rewriting stored values", () => {
     expect(OWNED_UI_SETTINGS_MIGRATIONS[8]).toMatchObject({ to: 10 });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[8]?.migrate({ quitAnimation: false, future: true }))
       .toEqual({ quitAnimation: false, future: true });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "updateCheck")).toMatchObject({
-      label: "Update check",
+      label: "Update",
       section: { id: "generic", title: "Generic" },
       application: "restart",
-      defaultValue: true,
-      allowedValues: [true, false],
+      defaultValue: "auto",
+      allowedValues: ["auto", "notify", "no"],
     });
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 9, values: { quitAnimation: false, future: true } },
     });
     expect(resolved).toMatchObject({ version: OWNED_UI_SETTINGS_VERSION, migrated: true, notices: [] });
-    expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck")).toMatchObject({ value: true, source: "default" });
+    expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck")).toMatchObject({ value: "auto", source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "quitAnimation")).toMatchObject({ value: false, source: "stored" });
     expect(resolved.preserved).toEqual({ future: true });
 
@@ -350,7 +350,7 @@ describe("owned UI settings migrations", () => {
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
       document: { version: 10, values: { updateCheck: "sometimes" } },
     });
-    expect(invalid.settings.find(setting => setting.declaration.id === "updateCheck")).toMatchObject({ value: true, source: "default" });
+    expect(invalid.settings.find(setting => setting.declaration.id === "updateCheck")).toMatchObject({ value: "auto", source: "default" });
     expect(invalid.notices.length).toBeGreaterThan(0);
   });
 
@@ -369,7 +369,7 @@ describe("owned UI settings migrations", () => {
     expect(resolved.settings.find(setting => setting.declaration.id === "accentColor"))
       .toMatchObject({ value: "purple", source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck"))
-      .toMatchObject({ value: false, source: "stored" });
+      .toMatchObject({ value: "no", source: "stored" });
     expect(resolved.preserved).toEqual({ future: true });
 
     const renamed = resolveOwnedUiSettings({
@@ -445,6 +445,32 @@ describe("owned UI settings migrations", () => {
     expect(resolved.settings.find(setting => setting.declaration.id === "tabsPosition"))
       .toMatchObject({ value: "top", source: "default" });
     expect(resolved.preserved).not.toHaveProperty("tabsMaxConcurrentStarts");
+  });
+
+  it("migrates legacy update-check booleans and defaults an absent value to auto", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[17]).toMatchObject({ to: 19 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[17]?.migrate({ updateCheck: true, future: true }))
+      .toEqual({ updateCheck: "notify", future: true });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[17]?.migrate({ updateCheck: false, future: true }))
+      .toEqual({ updateCheck: "no", future: true });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[17]?.migrate({ future: true })).toEqual({ future: true });
+
+    for (const [stored, expected] of [[true, "notify"], [false, "no"]] as const) {
+      const resolved = resolveOwnedUiSettings({
+        declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+        document: { version: 18, values: { updateCheck: stored } },
+      });
+      expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck"))
+        .toMatchObject({ value: expected, source: "stored" });
+    }
+    const absent = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 18, values: {} },
+    });
+    expect(absent.settings.find(setting => setting.declaration.id === "updateCheck"))
+      .toMatchObject({ value: "auto", source: "default" });
+    expect(normalizeOwnedUiSettingsValues({ updateCheck: true }).values).toMatchObject({ updateCheck: "notify" });
+    expect(normalizeOwnedUiSettingsValues({ updateCheck: false }).values).toMatchObject({ updateCheck: "no" });
   });
 
   it("rejects a list with a gap or a wrong end version", () => {

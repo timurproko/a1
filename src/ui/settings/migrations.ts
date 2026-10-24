@@ -151,6 +151,15 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return { ...values };
     },
   }),
+  Object.freeze({
+    to: 19,
+    description: "Expand the update check into auto, notify, and no modes.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      if (values.updateCheck === true) return { ...values, updateCheck: "notify" };
+      if (values.updateCheck === false) return { ...values, updateCheck: "no" };
+      return { ...values };
+    },
+  }),
 ]);
 
 export interface OwnedUiSettingsCompatibilityResult {
@@ -166,6 +175,8 @@ export function normalizeOwnedUiSettingsValues(
   // Compatibility: "high" is valid again, so the old speed meaning is ambiguous without legacy metadata.
   if (values.scrollbarAppearance === "hover") values.scrollbarAppearance = "auto";
   if (values.accentColor === "default") values.accentColor = "purple";
+  if (values.updateCheck === true) values.updateCheck = "notify";
+  else if (values.updateCheck === false) values.updateCheck = "no";
 
   if (values.quitEffect === "off") {
     if (Object.hasOwn(values, "quitAnimation") && values.quitAnimation !== false) {
