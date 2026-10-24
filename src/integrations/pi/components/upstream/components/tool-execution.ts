@@ -9,7 +9,7 @@
  * concise-tool-expand-shortcut-hint, default-shell-background-reset-scoping.
  */
 import { stripVTControlCharacters } from "node:util";
-import { Box, type Component, Container, getCapabilities, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
+import { Box, type Component, Container, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
   createGrepToolDefinition, createFindToolDefinition, createLsToolDefinition, keyHint, keyText, type ToolDefinition,
   type ToolRenderers,
@@ -427,7 +427,7 @@ export class ToolExecutionComponent extends Container {
     if (!this.result) return "";
     const text = this.result.content.filter(part => part.type === "text").map(part =>
       stripVTControlCharacters(part.text ?? "").replace(/[\u0000-\u0008\u000b-\u001f\ufff9-\ufffb]/gu, "")).join("\n");
-    if (getCapabilities().images && this.showImages) return text;
+    if (this.showImages) return text;
     const indicators = this.result.content.filter(part => part.type === "image").map(part => imageFallback(
       part.mimeType ?? "image/unknown",
       part.data && part.mimeType ? getImageDimensions(part.data, part.mimeType) ?? undefined : undefined,
