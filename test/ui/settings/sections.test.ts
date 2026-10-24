@@ -70,7 +70,7 @@ describe("owned UI settings sections", () => {
   it("places owned agent controls once after engine entries in a single Agent group", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 18, values: { promptSuggestions: false } },
+      document: { version: 19, values: { promptSuggestions: false } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
     expect(sections.map(section => [section.id, section.title])).toEqual([
@@ -123,7 +123,7 @@ describe("owned UI settings sections", () => {
   it("shows only the approved resident tab controls", () => {
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 18, values: { residentTabs: false } },
+      document: { version: 19, values: { residentTabs: false } },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: null });
     expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck", "timeFormat"]);

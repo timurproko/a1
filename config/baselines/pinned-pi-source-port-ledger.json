@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-24T08:46:17.822Z",
+  "recordedAt": "2026-10-24T09:25:55.056Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "4a080252f06caf63a525d7873c5d94d3c23887e0",
@@ -2766,9 +2766,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/tool-execution.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. Restore the enclosing default-shell background after nested renderer resets. See docs/architecture/tool-image-presentation.md.",
+      "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. Restore the enclosing default-shell background after nested renderer resets. Omit non-actionable image fallback rows when the terminal has no image protocol. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "bcc7bc0fbb37001c3b2d5ffbec66cbfb04cfd3f23dee2388f8b4a455c376341c",
+      "localSha256": "380c19c39741704308339faccae01c6574719ae769a76f33e7c6a8e7cefd84da",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2793,6 +2793,12 @@
           "reason": "User-approved resident rendering repair: nested tool renderers must not cancel the enclosing pending, success, or error background before the padded row ends.",
           "upstreamBehavior": "The explicit a1 pi comparison keeps pinned terminal-control bytes; bare A1 only restores its enclosing default-shell background after a nested full or default-background reset while preserving explicit nested backgrounds and all visible content.",
           "acceptanceTest": "test/integrations/pi/components/tool-shell-parity.test.ts"
+        },
+        {
+          "id": "unsupported-image-fallback-omission",
+          "reason": "User-approved transcript cleanup: an image metadata placeholder provides no actionable preview when the active terminal cannot render inline images.",
+          "upstreamBehavior": "The explicit a1 pi comparison and extension-owned image components keep pinned fallback behavior; bare A1 omits only enabled user and tool transcript attachment fallbacks when terminal image capability is unavailable, while preserving hidden-image and actual failure diagnostics.",
+          "acceptanceTest": "test/integrations/pi/components/shell-components.test.ts"
         }
       ],
       "behaviorCategories": [
@@ -2816,6 +2822,7 @@
         "test/integrations/pi/components/pinned-transcript-lifecycle-parity.test.ts",
         "test/integrations/pi/components/tool-shell-parity.test.ts",
         "test/integrations/pi/components/tool-image-presentation.test.ts",
+        "test/integrations/pi/components/shell-components.test.ts",
         "test/app/session-shell/transcript-image-conversion.test.ts",
         "test/app/session-shell/transcript-presentation-lifetime.test.ts",
         "test/app/session-shell/session-shell.test.ts"

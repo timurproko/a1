@@ -109,6 +109,7 @@ export { STABLE_RELEASE_SCHEMA, createStableReleaseEvidence, verifyStableRegistr
 export type { StableRegistryState, StableRegistryVerificationOptions, StableReleaseEvidence, StableReleaseEvidenceInput } from "./stable-release.js";
 export {
   PACKAGE_UNLOCK_PATIENCE_MS,
+  UPDATE_ALREADY_RUNNING_EXIT_CODE,
   PRODUCT_PACKAGE,
   assertUpdatePerformanceBudget,
   createNpmProcessRunner,

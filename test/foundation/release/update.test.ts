@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it, vi } from "vitest";
@@ -8,16 +9,19 @@ import {
   PRODUCT_PACKAGE,
   runSelfUpdate,
   updateNpmInstallArguments,
+  UPDATE_ALREADY_RUNNING_EXIT_CODE,
   UPDATE_JOURNAL_SCHEMA,
   type ProcessRequest,
   type ProcessResult,
   type UpdateFileSystem,
   type UpdateLifecycleCoordinator,
   type UpdateOutput,
+  type UpdatePackageReplacementInput,
   type UpdateProcessRunner,
   type UpdateTransactionJournal,
   type UpdateTransactionPhase,
 } from "../../../src/foundation/release/index.js";
+import { acquireUpdateExecutionLease } from "../../../src/foundation/release/update-execution-lease.js";
 
 interface Invocation {
   command: string;
@@ -120,6 +124,7 @@ function createHarness(options: {
   };
 
   return {
+    environment: { A1_DATA_DIR: resolve(tmpdir(), "a1-update-test-data", String(process.pid)) },
     fileSystem,
     globalRoot,
     invocations,
@@ -159,6 +164,48 @@ describe("update progress presentation", () => {
 });
 
 describe("A1 self-update orchestration", () => {
+  it("reports the shared execution owner without mutating when another update is active", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${TEST_GLOBAL_ROOT}\n`)] });
+    const lease = await acquireUpdateExecutionLease({
+      dataDir: harness.environment.A1_DATA_DIR,
+      packageRoot: harness.packageRoot,
+      channel: "stable",
+      targetVersion: "1.3.0",
+      mode: "automatic",
+    });
+    expect(lease.status).toBe("acquired");
+    if (lease.status !== "acquired") return;
+    try {
+      await expect(runSelfUpdate(harness)).resolves.toBe(UPDATE_ALREADY_RUNNING_EXIT_CODE);
+      expect(harness.stderr.join("")).toContain("update already in progress for 1.3.0");
+      expect(harness.lifecycleCalls).toEqual([]);
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it("refuses automatic mutation before shutdown when the live cohort is not immutable-safe", async () => {
+    const harness = createHarness({ responses: [success(`${TEST_GLOBAL_ROOT}\n`)] });
+    const packageReplacement = vi.fn(async (_input: UpdatePackageReplacementInput): Promise<never> => {
+      throw new Error("package replacement must not run");
+    });
+    const lifecycle: UpdateLifecycleCoordinator = {
+      ...harness.lifecycle,
+      async verifyAutomaticSafety() { throw new Error("live session is not immutable-safe"); },
+    };
+
+    await expect(runSelfUpdate({
+      ...harness,
+      lifecycle,
+      packageReplacement,
+      resolvedTarget: "1.3.0",
+      mode: "automatic",
+    })).resolves.toBe(1);
+
+    expect(packageReplacement).not.toHaveBeenCalled();
+    expect(harness.lifecycleCalls).toEqual([]);
+  });
+
   it("reinstalls the current version when it is not the active release", async () => {
     const latest = "1.2.3";
     const harness = createHarness({ responses: [success(`${latest}\n`), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
