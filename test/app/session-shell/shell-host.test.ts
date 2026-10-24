@@ -27,6 +27,20 @@ async function settledFrames(): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 40));
 }
 
+/**
+ * The text the terminal received after `from`, read again until it holds `text` or a bound passes.
+ * Rationale: a frame throttled behind a busy CI runner still arrives on its own; the bound only
+ * decides when a missing paint is a failure, so the assertion that follows stays exact.
+ */
+async function writtenAfter(terminal: { writes: string[] }, from: number, text: string): Promise<string> {
+  const deadline = Date.now() + 2_000;
+  for (;;) {
+    const written = stripTerminalSequences(terminal.writes.slice(from).join(""));
+    if (written.includes(text) || Date.now() >= deadline) return written;
+    await settledFrames();
+  }
+}
+
 describe("OwnedUiTerminalHost", () => {
   it("keeps a detached presenter live without painting, and paints it in full once on attach", async () => {
     const { terminal, shell } = await fixture([], [], true);
@@ -81,8 +95,7 @@ describe("OwnedUiTerminalHost", () => {
       engine.session.emit({ type: "agent_start" });
       engine.session.emit({ type: "message_start", message: reply("Background stream") });
       await adapter.flushEvents();
-      await settledFrames();
-      expect(stripTerminalSequences(terminal.writes.slice(beforeStart).join(""))).toContain("Background stream");
+      expect(await writtenAfter(terminal, beforeStart, "Background stream")).toContain("Background stream");
 
       // Invariant: each streamed delta paints as it arrives, never saved up for a later catch-up repaint.
       const beforeDelta = terminal.writes.length;
@@ -92,8 +105,7 @@ describe("OwnedUiTerminalHost", () => {
         assistantMessageEvent: { type: "text_delta", delta: " advances" },
       });
       await adapter.flushEvents();
-      await settledFrames();
-      expect(stripTerminalSequences(terminal.writes.slice(beforeDelta).join(""))).toContain("advances");
+      expect(await writtenAfter(terminal, beforeDelta, "advances")).toContain("advances");
       expect(shell.runtime.fullRedraws).toBe(redraws);
     } finally {
       await shell.dispose();
