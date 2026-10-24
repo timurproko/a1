@@ -571,7 +571,7 @@ fn render_frame(
     let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
         chip(tab, active, hovered, now, truecolor, rename, Some(target))
     };
-    // Keep controls inside exceptionally narrow terminals before reserving clock cells.
+    // Invariant: keep controls inside exceptionally narrow terminals before reserving clock cells.
     let plus_width = usize::from(columns).min(3);
     let clock_text = clock_text(time_format);
     let clock = (usize::from(columns)
@@ -649,49 +649,14 @@ fn render_frame(
         hits.push((column, end, StripHit::View(tab.id.clone())));
         column = end;
     }
-    if overflow_width > 0 {
-        let background = if hovered == Some(&StripHover::Overflow) {
-            "48;48;48"
-        } else {
-            "38;38;38"
-        };
-        let label = match overflow_width {
-            1 => "…",
-            2 => " …",
-            _ => " … ",
-        };
-        bytes.push_str(&format!(
-            "\x1b[48;2;{background}m\x1b[38;2;170;170;170m{label}\x1b[0m"
-        ));
-        hits.push((
-            column,
-            column.saturating_add(overflow_width as u16),
-            StripHit::Overflow,
-        ));
-        column = column.saturating_add(overflow_width as u16);
-    }
-    let plus_background = if hovered == Some(&StripHover::New) {
-        "48;48;48"
-    } else {
-        "38;38;38"
-    };
-    let plus_label = match plus_width {
-        0 => "",
-        1 => "+",
-        2 => " +",
-        _ => " + ",
-    };
-    bytes.push_str(&format!(
-        "\x1b[48;2;{plus_background}m\x1b[38;2;170;170;170m{plus_label}\x1b[0m"
-    ));
-    if plus_width > 0 {
-        hits.push((
-            column,
-            column.saturating_add(plus_width as u16),
-            StripHit::New,
-        ));
-        column = column.saturating_add(plus_width as u16);
-    }
+    append_controls(
+        &mut bytes,
+        &mut hits,
+        &mut column,
+        hovered,
+        overflow_width,
+        plus_width,
+    );
     let padding = usize::from(columns).saturating_sub(column as usize + clock_reserve);
     bytes.push_str(&" ".repeat(padding));
     if let Some(clock) = clock {
@@ -719,6 +684,59 @@ fn render_frame(
         bytes,
         hits,
         hidden_tabs,
+    }
+}
+
+fn append_controls(
+    bytes: &mut String,
+    hits: &mut Vec<(u16, u16, StripHit)>,
+    column: &mut u16,
+    hovered: Option<&StripHover>,
+    overflow_width: usize,
+    plus_width: usize,
+) {
+    if overflow_width > 0 {
+        let background = if hovered == Some(&StripHover::Overflow) {
+            "48;48;48"
+        } else {
+            "38;38;38"
+        };
+        let label = match overflow_width {
+            1 => "…",
+            2 => " …",
+            _ => " … ",
+        };
+        bytes.push_str(&format!(
+            "\x1b[48;2;{background}m\x1b[38;2;170;170;170m{label}\x1b[0m"
+        ));
+        hits.push((
+            *column,
+            column.saturating_add(overflow_width as u16),
+            StripHit::Overflow,
+        ));
+        *column = column.saturating_add(overflow_width as u16);
+    }
+    let plus_background = if hovered == Some(&StripHover::New) {
+        "48;48;48"
+    } else {
+        "38;38;38"
+    };
+    let plus_label = match plus_width {
+        0 => "",
+        1 => "+",
+        2 => " +",
+        _ => " + ",
+    };
+    bytes.push_str(&format!(
+        "\x1b[48;2;{plus_background}m\x1b[38;2;170;170;170m{plus_label}\x1b[0m"
+    ));
+    if plus_width > 0 {
+        hits.push((
+            *column,
+            column.saturating_add(plus_width as u16),
+            StripHit::New,
+        ));
+        *column = column.saturating_add(plus_width as u16);
     }
 }
 
@@ -1483,7 +1501,7 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
-        // The 12-hour clock changes width between 9 and 10 o'clock; use a fixed-width clock.
+        // Rationale: the 12-hour clock changes width between 9 and 10 o'clock; use a fixed-width clock.
         assert_eq!(
             widths(render_interactive(
                 &tabs[..3],

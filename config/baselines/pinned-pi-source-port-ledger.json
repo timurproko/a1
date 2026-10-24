@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-24T09:25:55.056Z",
+  "recordedAt": "2026-10-24T10:41:55.319Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "4a080252f06caf63a525d7873c5d94d3c23887e0",
@@ -1890,9 +1890,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession; preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the thinking-level name, renders its repository-context path, and reserves its linked pull-request badge before path truncation while preserving the remaining footer layout and formatting; replacement surfaces may suppress a thinking level they already present; a resident tab whose chip already shows the session name may suppress its path-row suffix.",
+      "modifications": "Consumes neutral owned-UI data and preserves virtual-model routing. Bare A1 colors thinking, links repository PRs, hides duplicate resident names, and dims a one-cell usage truncation marker; other footer behavior follows Pi.",
       "upgradeStrategy": "three-way",
-      "localSha256": "d897277a8ed0630e0907a8ffe8465da119684af67b0afb91bc2204828736793b",
+      "localSha256": "89989d49877ab153ec7130007b562b224a48e184911c7891ea5dfd8ed02ffd95",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1910,6 +1910,12 @@
           "id": "owned-resident-session-name",
           "reason": "Approved hide-resident-footer-session-name shows a resident session name once, in its tab chip, so the viewed resident shell omits the duplicate path-row suffix.",
           "upstreamBehavior": "Direct bare A1, solo, resident fallback, and the pinned comparison footer keep the upstream session suffix; the session name stays in the owned view model, and path, branch, pull-request badge, width, usage, and extension rows are unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-footer-ellipsis",
+          "reason": "Approved improve-tab-overflow-menu makes A1 usage truncation occupy one cell and use the same dim foreground as adjacent footer text.",
+          "upstreamBehavior": "The pinned comparison footer retains its three-dot suffix. Path, PR hyperlink, thinking color, extension rows, and untruncated A1 usage remain unchanged.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],

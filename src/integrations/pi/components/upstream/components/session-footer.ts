@@ -1,13 +1,9 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: Consumes neutral owned-UI view data instead of a fabricated concrete AgentSession;
- * preserves the latest physical route for virtual models; an explicit bare-A1 profile colors the
- * thinking-level name, renders its repository-context path, and reserves its linked pull-request badge
- * before path truncation while preserving the remaining footer layout and formatting; replacement
- * surfaces may suppress a thinking level they already present; a resident tab whose chip already shows
- * the session name may suppress its path-row suffix; narrow A1 usage text uses a dim one-cell
- * truncation marker instead of the upstream three-dot suffix.
+ * Modifications: Consumes neutral owned-UI data and preserves virtual-model routing. Bare A1 colors
+ * thinking, links repository PRs, hides duplicate resident names, and dims a one-cell usage truncation
+ * marker; other footer behavior follows Pi.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-resident-session-name,
  * owned-footer-ellipsis.
  */
@@ -82,10 +78,7 @@ export class SessionFooter implements Component {
 
     let left = parts.join(" ");
     let leftWidth = visibleWidth(left);
-    if (leftWidth > width) {
-      left = truncateToWidth(left, width, this.profile === "a1" ? theme.fg("dim", "…") : "...");
-      leftWidth = visibleWidth(left);
-    }
+    if (leftWidth > width) { left = truncateToWidth(left, width, this.profile === "a1" ? theme.fg("dim", "…") : "..."); leftWidth = visibleWidth(left); }
 
     const modelName = view.activeModel?.modelId ?? "no-model";
     let rightWithoutProvider = this.profile === "a1"
@@ -140,10 +133,7 @@ function formatTokens(count: number): string {
 }
 function formatCwd(cwd: string, home: string | undefined): string {
   if (!home) return cwd;
-  const resolvedCwd = resolve(cwd);
-  const resolvedHome = resolve(home);
-  const relativeToHome = relative(resolvedHome, resolvedCwd);
-  const inside = relativeToHome === "" || (relativeToHome !== ".." && !relativeToHome.startsWith(`..${sep}`) && !isAbsolute(relativeToHome));
-  if (!inside) return cwd;
+  const relativeToHome = relative(resolve(home), resolve(cwd));
+  if (isAbsolute(relativeToHome) || relativeToHome === ".." || relativeToHome.startsWith(`..${sep}`)) return cwd;
   return relativeToHome === "" ? "~" : `~${sep}${relativeToHome}`;
 }
