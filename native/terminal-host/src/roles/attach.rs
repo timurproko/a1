@@ -1864,6 +1864,7 @@ struct Client {
     terminal: OuterTerminal,
     view: ViewModel,
     tabs: Vec<StripTab>,
+    chip_priority: Vec<String>,
     bindings: TabBindings,
     channel: InputChannel,
     chord: DoubleCtrlC,
@@ -1928,6 +1929,7 @@ impl Client {
             terminal,
             view,
             tabs: Vec::new(),
+            chip_priority: Vec::new(),
             bindings: TabBindings::load(options.profile),
             channel: handshake.channel,
             chord: DoubleCtrlC::new(options.clear_exit_ms),
@@ -1992,7 +1994,12 @@ impl Client {
         let mut forwarded = Vec::new();
         for effect in effects {
             match effect {
-                Effect::Send(request) => self.send(request)?,
+                Effect::Send(request) => {
+                    if matches!(request, Request::Reorder { .. }) {
+                        self.chip_priority.clear();
+                    }
+                    self.send(request)?;
+                }
                 Effect::View(tab_id) => self.request_view(tab_id)?,
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
                 Effect::CancelViewRequest => self.view.cancel_request(),
@@ -2059,6 +2066,14 @@ impl Client {
     }
 
     fn request_view(&mut self, tab_id: String) -> Result<(), String> {
+        let priority =
+            swapped_chip_priority(&self.strip_frame, self.view.requested.as_deref(), &tab_id)
+                .or_else(|| {
+                    swapped_chip_priority(&self.strip_frame, self.view.viewed.as_deref(), &tab_id)
+                });
+        if let Some(priority) = priority {
+            self.chip_priority = priority;
+        }
         self.request_generation = self.request_generation.saturating_add(1);
         self.view.request(&tab_id);
         self.view.expect_request_generation(self.request_generation);
@@ -2128,6 +2143,7 @@ impl Client {
         );
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
+        let prioritized = prioritized_chips(&shown, &self.chip_priority);
         let drag = core.mode.drag().cloned();
         let render = |hovered: Option<&StripHover>| {
             let mut frame = strip::render_interactive_at(
@@ -2141,15 +2157,31 @@ impl Client {
                     .tab_bar_position
                     .strip_terminal_row(self.outer_rows),
             );
-            append_drag_marker(
-                &mut frame,
-                drag.as_ref(),
-                &shown,
-                self.columns,
-                self.time_format
-                    .tab_bar_position
-                    .strip_terminal_row(self.outer_rows),
-            );
+            if !self.chip_priority.is_empty() && !frame.hidden_tabs.is_empty() {
+                frame = strip::render_interactive_at(
+                    &prioritized,
+                    self.view.viewed.as_deref(),
+                    self.columns,
+                    hovered,
+                    self.time_format.value,
+                    rename.as_ref(),
+                    self.time_format
+                        .tab_bar_position
+                        .strip_terminal_row(self.outer_rows),
+                );
+            }
+            if let Some(drag) = drag.as_ref() {
+                let drag_order = prioritized_chips(&shown, &drawn_chip_ids(&frame));
+                append_drag_marker(
+                    &mut frame,
+                    Some(drag),
+                    &drag_order,
+                    self.columns,
+                    self.time_format
+                        .tab_bar_position
+                        .strip_terminal_row(self.outer_rows),
+                );
+            }
             frame
         };
         let hovered = core.hovered.as_ref().map(StripHover::from);
@@ -2162,6 +2194,9 @@ impl Client {
             strip_frame = render(None);
         }
         self.strip_frame = strip_frame;
+        if self.strip_frame.hidden_tabs.is_empty() {
+            self.chip_priority.clear();
+        }
         let overflow_anchor = self
             .strip_frame
             .hits
@@ -2970,6 +3005,45 @@ impl From<&Hover> for StripHover {
             Hover::New => Self::New,
         }
     }
+}
+
+/// IDs of chips physically drawn in the current strip, in visual order.
+fn drawn_chip_ids(frame: &strip::StripFrame) -> Vec<String> {
+    frame
+        .hits
+        .iter()
+        .filter_map(|(_, _, hit)| match hit {
+            StripHit::View(id) => Some(id.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Swaps the requested hidden tab into the currently viewed chip's client-local slot.
+fn swapped_chip_priority(
+    frame: &strip::StripFrame,
+    viewed: Option<&str>,
+    target: &str,
+) -> Option<Vec<String>> {
+    if !frame.hidden_tabs.iter().any(|id| id == target) {
+        return None;
+    }
+    let mut chips = drawn_chip_ids(frame);
+    let slot = chips.iter().position(|id| Some(id.as_str()) == viewed)?;
+    chips[slot] = target.to_owned();
+    Some(chips)
+}
+
+/// Keeps the registry order untouched while promoting the client's chosen chip slots.
+fn prioritized_chips(tabs: &[StripTab], priority: &[String]) -> Vec<StripTab> {
+    let mut chips = tabs.to_vec();
+    chips.sort_by_key(|tab| {
+        priority
+            .iter()
+            .position(|id| id == &tab.id)
+            .unwrap_or(priority.len())
+    });
+    chips
 }
 
 fn strip_hover_present(frame: &strip::StripFrame, hovered: &StripHover) -> bool {
@@ -4244,7 +4318,7 @@ mod tests {
     }
 
     #[test]
-    fn overflow_menu_marks_only_chips_rendered_at_each_width() {
+    fn overflow_menu_lists_only_undrawn_chips_at_each_width() {
         let tabs = (0..3)
             .map(|index| StripTab {
                 id: format!("tab-{index}"),
@@ -4264,13 +4338,101 @@ mod tests {
                 .count();
             assert_eq!(drawn, visible);
             let menu = PopupMenu::overflow(0, columns, &frame.hidden_tabs, &tabs);
-            assert_eq!(menu.items.len(), 3);
+            assert_eq!(menu.items.len(), tabs.len() - visible);
             for (index, item) in menu.items.iter().enumerate() {
-                assert_eq!(item.label.starts_with('✓'), index < visible);
-                assert_eq!(item.action, Some(PopupAction::View(format!("tab-{index}"))));
+                assert_eq!(item.label, format!("agent {}", index + visible));
+                assert_eq!(
+                    item.action,
+                    Some(PopupAction::View(format!("tab-{}", index + visible)))
+                );
             }
             assert!(menu.column + menu.width <= columns);
         }
+    }
+
+    #[test]
+    fn choosing_hidden_tabs_swaps_the_viewed_chip_without_reordering_tabs() {
+        let tabs = (0..4)
+            .map(|index| StripTab {
+                id: format!("tab-{index}"),
+                name: format!("agent {index}"),
+                name_source: "user".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        let visible = |frame: &strip::StripFrame| {
+            frame
+                .hits
+                .iter()
+                .filter_map(|(_, _, hit)| {
+                    if let StripHit::View(id) = hit {
+                        Some(id.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
+        let first =
+            strip::render_configured(&tabs, Some("tab-1"), 42, None, TimeFormat::TwentyFour);
+        assert_eq!(visible(&first), ["tab-0", "tab-1"]);
+        let priority = swapped_chip_priority(&first, Some("tab-1"), "tab-3").unwrap();
+        let swapped = strip::render_configured(
+            &prioritized_chips(&tabs, &priority),
+            Some("tab-3"),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(visible(&swapped), ["tab-0", "tab-3"]);
+        let menu = PopupMenu::overflow(0, 42, &swapped.hidden_tabs, &tabs);
+        assert_eq!(
+            menu.items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["agent 1", "agent 2"]
+        );
+        assert_eq!(
+            menu.action_at(menu.column, 1),
+            Some(PopupAction::View("tab-1".into()))
+        );
+        assert_eq!(
+            tabs.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+            ["tab-0", "tab-1", "tab-2", "tab-3"]
+        );
+        assert!(
+            swapped_chip_priority(&swapped, Some("tab-3"), "tab-0").is_none(),
+            "selecting an already visible chip does not swap"
+        );
+        let next = swapped_chip_priority(&swapped, Some("tab-3"), "tab-2").unwrap();
+        let next_frame = strip::render_configured(
+            &prioritized_chips(&tabs, &next),
+            Some("tab-2"),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(visible(&next_frame), ["tab-0", "tab-2"]);
+
+        let single =
+            strip::render_configured(&tabs, Some("tab-0"), 30, None, TimeFormat::TwentyFour);
+        assert_eq!(visible(&single), ["tab-0"]);
+        let single_order = swapped_chip_priority(&single, Some("tab-0"), "tab-2").unwrap();
+        let single_frame = strip::render_configured(
+            &prioritized_chips(&tabs, &single_order),
+            Some("tab-2"),
+            30,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(visible(&single_frame), ["tab-2"]);
+        assert!(single_frame.hidden_tabs.contains(&"tab-0".into()));
+        let tiny = strip::render_configured(&tabs, Some("tab-0"), 3, None, TimeFormat::TwentyFour);
+        assert!(visible(&tiny).is_empty());
+        assert!(swapped_chip_priority(&tiny, Some("tab-0"), "tab-2").is_none());
     }
 
     #[test]
@@ -4288,11 +4450,17 @@ mod tests {
                 title_animation: None,
             })
             .collect::<Vec<_>>();
-        let mut menu = PopupMenu::overflow(10, 80, &["tab-1".into()], &tabs);
+        let hidden = [
+            "tab-0".into(),
+            "tab-1".into(),
+            "tab-2".into(),
+            "tab-3".into(),
+        ];
+        let mut menu = PopupMenu::overflow(10, 80, &hidden, &tabs);
         for position in [TabBarPosition::Top, TabBarPosition::Bottom] {
             for outer_rows in [7, 24] {
                 menu.hovered = Some(0);
-                for index in 0..names.len() {
+                for index in 0..hidden.len() {
                     let physical = menu
                         .terminal_row(index, position, outer_rows)
                         .expect("visible popup row")
@@ -4314,7 +4482,7 @@ mod tests {
         }
         let mut reordered = tabs.clone();
         reordered.swap(1, 3);
-        menu = PopupMenu::overflow(10, 80, &["tab-1".into()], &reordered);
+        menu = PopupMenu::overflow(10, 80, &hidden, &reordered);
         let physical = menu.terminal_row(3, TabBarPosition::Bottom, 24).unwrap() - 1;
         assert_eq!(
             menu.action_at(
@@ -4324,9 +4492,21 @@ mod tests {
             ),
             Some(PopupAction::View("tab-1".into()))
         );
+        let fewer = PopupMenu::overflow(10, 80, &["tab-3".into(), "tab-1".into()], &reordered);
+        for position in [TabBarPosition::Top, TabBarPosition::Bottom] {
+            let physical = fewer.terminal_row(1, position, 24).unwrap() - 1;
+            assert_eq!(
+                fewer.action_at(
+                    fewer.column,
+                    fewer.mouse_row(position, 24, physical).unwrap()
+                ),
+                Some(PopupAction::View("tab-1".into())),
+                "named row survives a row-count change"
+            );
+        }
         // Invariant: only the bottom three rows fit in a four-row terminal; clipped rows cannot act.
-        assert_eq!(menu.terminal_row(1, TabBarPosition::Bottom, 4), None);
-        assert_eq!(menu.mouse_row(TabBarPosition::Bottom, 4, 0), Some(3));
+        assert_eq!(menu.terminal_row(0, TabBarPosition::Bottom, 4), None);
+        assert_eq!(menu.mouse_row(TabBarPosition::Bottom, 4, 0), Some(2));
         assert_eq!(menu.mouse_row(TabBarPosition::Bottom, 4, 3), None);
     }
 

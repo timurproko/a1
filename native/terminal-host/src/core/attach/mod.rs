@@ -330,14 +330,10 @@ impl PopupMenu {
     ) -> Self {
         let items = tabs
             .iter()
+            .filter(|tab| hidden_tabs.iter().any(|id| id == tab.id()))
             .map(|tab| {
-                let marker = if hidden_tabs.iter().any(|id| id == tab.id()) {
-                    " "
-                } else {
-                    "✓"
-                };
                 PopupItem::action(
-                    format!("{marker} {}", tab.name()),
+                    tab.name(),
                     String::new(),
                     PopupAction::View(tab.id().to_owned()),
                 )

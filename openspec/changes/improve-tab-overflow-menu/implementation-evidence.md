@@ -1,20 +1,16 @@
 ## Implemented behavior
 
-- The native chooser now builds rows from the complete shown-tab order, using the current strip frame's hidden IDs to check only the chips actually visible. A shown Settings tab is treated like any other shown tab; intentionally hidden Settings remains outside the strip and chooser.
-- Each paint refreshes open chooser rows, order, checkmarks, anchor, and keyboard focus by stable tab ID. Removing or hiding a target clears that focus; losing overflow closes the chooser. Existing click, Enter, Escape, and view behavior remain.
+- The native chooser now lists only ordered tabs without a drawn chip, without checkmarks. A shown Settings tab can be selected if its chip is hidden; intentionally hidden Settings remains outside the strip and chooser. Each paint refreshes popup rows, anchor, and keyboard focus by stable tab ID. Drawing or removing a focused target clears focus; losing overflow closes the chooser.
+- Selecting a hidden tab puts its chip in the previously viewed chip's slot and moves the displaced tab into the chooser, retaining other drawn chips when there is room. The client keeps this chip-slot priority without changing shared registry order; once every chip fits, canonical strip order resumes. Explicit chip dragging uses the visual order and clears the local priority when a registry reorder is sent.
 - At constrained widths, strip controls and hit regions stay within the available columns. The `+` takes priority if fewer than four columns exist; from four columns onward an overflow control is available while tabs are hidden. The clock yields before controls. This is the physical minimum for distinct `+` and overflow targets and does not change ordinary-width placement.
 - The bottom popup's pointer-to-action mapping now uses the same physical rows as popup painting rather than separately calculating the row offset. Rows clipped above the terminal cannot receive mouse actions. Top and bottom tests cover a named second row after hover, different heights, a reordered named tab, and a four-row terminal. Keyboard selection still traverses all rows.
 - A1 path, usage, and extension truncation now use one dim `…`; the full model name takes priority over usage, provider, route, and thinking detail as space tightens. Complete model/level, PR hyperlinks, semantic thinking color, ordinary widths, and Pi comparison behavior remain intact.
-
-## Pending approved refinement
-
-The all-tab/checkmark popup behavior recorded above is superseded by the approved hidden-only chooser with a selected-chip swap. Its older tests and local results remain historical evidence, not proof of the new behavior. Tasks 1.1, 1.3, 1.5–1.7, and 3.3 remain open until the swap, updated tests, and gap disposition are written.
 
 ## Focused local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_PREBUILT_VT=D:/Git/a1/.worktrees/tab-overflow-menu/.artifacts/terminal-vt cargo test --manifest-path native/terminal-host/Cargo.toml --lib roles::strip::tests`: 31 passed. The prebuilt terminal library was fetched from a CI-published, merged branch and verified by the native build.
 - Same native environment, `cargo test --manifest-path native/terminal-host/Cargo.toml --lib core::attach::machine::tests`: 23 passed.
-- Same native environment, `cargo test --manifest-path native/terminal-host/Cargo.toml --lib overflow_menu_marks`: 1 passed.
+- Earlier all-tab/checkmark iteration: same native environment, `cargo test --manifest-path native/terminal-host/Cargo.toml --lib overflow_menu_marks`: 1 passed before supersession. This is historical evidence, not a current test.
 - `npm run build:managed --silent` followed by `npm run typecheck`: passed.
 - `npx vitest run test/integrations/pi/components/prompt-input-ux.test.ts`: 29 passed.
 - `npx openspec validate improve-tab-overflow-menu --strict`: passed.
@@ -23,7 +19,9 @@ The all-tab/checkmark popup behavior recorded above is superseded by the approve
 - `npx vitest run test/integrations/pi/components/prompt-input-ux.test.ts`: 31 passed, including dark/light model priority, tiny widths, clipped path/status rows, PR hyperlinks, ANSI color boundaries, and Pi comparison.
 - `npx vitest run test/app/session-shell/session-shell-resident-footer.test.ts`: 1 passed.
 - `npm run typecheck`, `npm run check:code-documentation`, `node scripts/governance/check-architecture.mjs`, `node scripts/pi/update-pinned-pi-source-ledger.mjs --check`: passed. The startup source budget remains unchanged; the strip size ratchet was lowered by one line.
+- Hidden-only swap refinement: same native environment, `cargo test --manifest-path native/terminal-host/Cargo.toml --lib core::attach::machine::tests:: --quiet`: 24 passed; `roles::attach::tests:: --quiet`: 39 passed; `roles::strip::tests:: --quiet`: 31 passed. These cover exact hidden-row activation, reordered and resized row positions, swapped one- and two-chip strips, displaced menu entries, removed targets, keyboard focus, visual drag order, and extreme widths.
+- Hidden-only swap refinement: `npm run typecheck`, `npx openspec validate improve-tab-overflow-menu --strict`, `node scripts/governance/check-architecture.mjs`, `npm run check:code-documentation`, `cargo fmt --manifest-path native/terminal-host/Cargo.toml --check`, and `git diff --check`: passed.
 
 ## Gap disposition
 
-For the earlier all-tab implementation, no remaining gap was known for terminals with room for both strip controls and popup rows. The hidden-only refinement still needs its own gap disposition. At zero to three columns, a distinct `+` and overflow target cannot coexist; `+` remains available. If the terminal has fewer body rows than popup entries, only physically drawn entries accept clicks; all ordered entries remain available to keyboard navigation. These are intentional geometry limits, not silently selectable invisible rows.
+No remaining gap is known for the hidden-only swap at widths with room for both controls and a chip. At zero to three columns, a distinct `+` and overflow target cannot coexist; `+` remains available. Where no chip fits, there is no previously viewed chip slot to swap, but the requested tab remains viewed through the ordinary view flow. If fewer body rows than popup entries fit, only physically drawn entries accept clicks; all menu entries remain available by keyboard. These are intentional geometry limits, not silently selectable invisible rows.

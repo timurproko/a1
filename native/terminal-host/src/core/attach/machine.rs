@@ -8,8 +8,8 @@ use std::time::Duration;
 use super::{
     AttachKey, AttachMouse, CloseFallback, DRAG_HOLD, DeferredInput, DeferredInputTarget, KeyCode,
     MouseButton, MouseKind, PopupAction, PopupKind, PopupMenu, RenameEditor, ShortcutLabels,
-    StripHitKind, StripSnapshot, TabDrag, TabView, apply_rename_control_key, close_fallback_for,
-    failure_applies, forward_pointer_motion, registry_index, rejection_notice,
+    StripHitKind, StripLayout, StripSnapshot, TabDrag, TabView, apply_rename_control_key,
+    close_fallback_for, failure_applies, forward_pointer_motion, registry_index, rejection_notice,
     settings_toggle_closes, shown_tabs, update_drag,
 };
 
@@ -330,6 +330,18 @@ impl State {
 
     fn shown<T: TabView + Clone>(&self, context: &Context<'_, T>) -> Vec<T> {
         shown_tabs(context.tabs, context.viewed, self.view.settings_shown)
+    }
+
+    fn shown_for_drag<T: TabView + Clone>(&self, context: &Context<'_, T>) -> Vec<T> {
+        let mut shown = self.shown(context);
+        let slots = context.strip.tab_spans();
+        shown.sort_by_key(|tab| {
+            slots
+                .iter()
+                .position(|(_, _, id)| *id == tab.id())
+                .unwrap_or(slots.len())
+        });
+        shown
     }
 
     /// Routes child frames: while a view or created tab is pending they wait for that target,
@@ -797,7 +809,7 @@ impl State {
             MouseKind::Drag(MouseButton::Left) | MouseKind::Moved
                 if matches!(self.mode, Mode::Drag(_)) =>
             {
-                let shown = self.shown(context);
+                let shown = self.shown_for_drag(context);
                 if let Mode::Drag(drag) = &mut self.mode
                     && update_drag(drag, mouse.column, &shown, context.strip, now)
                 {
@@ -809,7 +821,7 @@ impl State {
                 let Mode::Drag(mut completed) = std::mem::take(&mut self.mode) else {
                     return true;
                 };
-                let shown = self.shown(context);
+                let shown = self.shown_for_drag(context);
                 update_drag(&mut completed, mouse.column, &shown, context.strip, now);
                 let from = shown.iter().position(|tab| tab.id() == completed.tab_id);
                 if completed.shown
@@ -871,7 +883,7 @@ impl State {
                         started_at: now,
                         shown: false,
                         drop_index: self
-                            .shown(context)
+                            .shown_for_drag(context)
                             .iter()
                             .position(|tab| tab.id() == tab_id),
                         marker_column: None,
@@ -1640,16 +1652,16 @@ mod tests {
                 .iter()
                 .map(|item| item.label.as_str())
                 .collect::<Vec<_>>(),
-            ["✓ a name", "✓ b name", "  c name"]
+            ["c name"]
         );
-        assert_eq!(menu.items[2].action, Some(PopupAction::View("c".into())));
+        assert_eq!(menu.items[0].action, Some(PopupAction::View("c".into())));
         assert!(fixture.step(&mut state, mouse(RELEASE, 41, 0)).is_empty());
         assert!(
             state.mode.popup().is_some(),
             "the release that opened a menu keeps it"
         );
         assert_eq!(
-            fixture.step(&mut state, mouse(LEFT, menu.column, 3)),
+            fixture.step(&mut state, mouse(LEFT, menu.column, 1)),
             [Effect::View("c".into()), PAINT]
         );
 
@@ -1923,16 +1935,38 @@ mod tests {
     }
 
     #[test]
+    fn drag_uses_visual_chip_order_after_a_hidden_tab_swap() {
+        let mut fixture = Fixture::new(&["a", "b", "c"], "a");
+        fixture.strip.hits = vec![
+            (0, 10, StripHitKind::View("a".into())),
+            (10, 20, StripHitKind::View("c".into())),
+            (20, 23, StripHitKind::Overflow),
+            (23, 26, StripHitKind::New),
+        ];
+        fixture.strip.hidden_tabs = vec!["b".into()];
+        let mut state = fixture.state();
+        fixture.step(&mut state, mouse(LEFT, 2, 0));
+        fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 19, 0));
+        assert!(fixture.step(&mut state, mouse(RELEASE, 19, 0)).iter().any(|effect|
+            matches!(effect, Effect::Send(Request::Reorder { tab_id, target_index: 2, .. }) if tab_id == "a")));
+    }
+
+    #[test]
     fn overflow_tracks_rendered_visibility_and_order_without_stale_actions() {
         let fixture = Fixture::new(&["a", "b", "c"], "a");
         let mut state = fixture.state();
-        state.mode = Mode::Popup(PopupMenu::overflow(20, 60, &["c".into()], &fixture.tabs));
+        state.mode = Mode::Popup(PopupMenu::overflow(
+            20,
+            60,
+            &["b".into(), "c".into()],
+            &fixture.tabs,
+        ));
         if let Mode::Popup(menu) = &mut state.mode {
-            menu.hovered = Some(2);
+            menu.hovered = Some(1);
         }
         state.refresh_overflow(
             &[tab("c"), tab("a"), tab("b")],
-            &["a".into(), "b".into()],
+            &["c".into(), "b".into()],
             Some(12),
         );
         let menu = state.mode.popup().expect("refreshed menu");
@@ -1941,7 +1975,7 @@ mod tests {
                 .iter()
                 .map(|item| item.label.as_str())
                 .collect::<Vec<_>>(),
-            ["✓ c name", "  a name", "  b name"]
+            ["c name", "b name"]
         );
         assert_eq!(
             menu.hovered,
@@ -1952,10 +1986,10 @@ mod tests {
         state.installed(&[tab("a"), tab("b")], true);
         state.refresh_overflow(&[tab("a"), tab("b")], &["b".into()], Some(12));
         let menu = state.mode.popup().expect("menu survives registry change");
-        assert_eq!(menu.items.len(), 2);
+        assert_eq!(menu.items.len(), 1);
         assert_eq!(menu.hovered, None, "removed focused tab cannot be selected");
         assert_eq!(
-            menu.action_at(menu.column, 2),
+            menu.action_at(menu.column, 1),
             Some(PopupAction::View("b".into()))
         );
         state.refresh_overflow(&[tab("a"), tab("b")], &[], None);
