@@ -60,6 +60,10 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 - **WHEN** Settings and Changelog are prewarmed and the user runs Changelog
 - **THEN** the hidden Changelog tab SHALL be shown without starting a process
 
+#### Scenario: Closing the last Agent
+- **WHEN** a hidden Changelog or Settings tab is running and the user closes the last Agent
+- **THEN** the landing SHALL be shown and neither hidden tab SHALL take the view
+
 #### Scenario: Esc keeps the Changelog tab
 - **WHEN** the Changelog tab is viewed and the user presses `Esc`
 - **THEN** the tab SHALL stay open and its hint line SHALL show no `Esc close`
