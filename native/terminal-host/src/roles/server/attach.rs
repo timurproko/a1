@@ -173,6 +173,128 @@ fn activation_holder_frames(
     Ok(frames)
 }
 
+fn activate_target_holder(
+    locked: &mut RuntimeState,
+    target: &ViewTarget,
+    client_id: &str,
+    next_revision: Option<u64>,
+) -> Result<(), String> {
+    if let Some(controller_revision) = next_revision
+        && let Some(bridge) = locked.bridges.get(&target.tab_id)
+    {
+        let _ = bridge.peer.offer_control(wire::frame(
+            "attachment",
+            None,
+            BridgeAttachment::new(client_id.to_owned(), controller_revision),
+        )?);
+    }
+    // Protocol: resize precedes subscription on the holder's ordered control lane, so the first
+    // fresh target surface has current geometry; a pre-fitted holder skips redundant PTY reflow.
+    let Some(holder) = locked.holders.get(&target.tab_id) else {
+        return Ok(());
+    };
+    let holder_peer = holder.peer.clone();
+    let holder_incarnation = holder.incarnation;
+    let activation_resize = next_revision
+        .and_then(|_| target.resize.clone())
+        .filter(|resize| {
+            !holder_geometry_matches(
+                locked.holder_geometries.get(&target.tab_id),
+                holder_incarnation,
+                resize,
+            )
+        });
+    let subscription =
+        desired_surface_subscription(locked, &target.tab_id, holder.structured_surface);
+    let frames = activation_holder_frames(
+        activation_resize.clone(),
+        locked.registry.epoch,
+        subscription,
+    )?;
+    for (index, frame) in frames.into_iter().enumerate() {
+        if holder_peer.offer_control(frame).is_err() {
+            break;
+        }
+        if index == 0
+            && let Some(resize) = activation_resize.as_ref()
+        {
+            locked.holder_geometries.insert(
+                target.tab_id.clone(),
+                HolderGeometry {
+                    incarnation: holder_incarnation,
+                    columns: resize.columns,
+                    rows: resize.rows,
+                },
+            );
+        }
+    }
+    Ok(())
+}
+
+fn route_controller_resize(
+    locked: &mut RuntimeState,
+    client_id: &str,
+    resize: &Resize,
+    frame: &[u8],
+) -> Option<&'static str> {
+    let (selected_tab, controller) = locked
+        .clients
+        .get(client_id)
+        .map(|client| (client.viewed_tab.clone(), client.controller))?;
+    if !controller {
+        return None;
+    }
+    let selected = locked.holders.get(&selected_tab).map(|holder| {
+        (
+            selected_tab.clone(),
+            holder.peer.clone(),
+            holder.incarnation,
+        )
+    });
+    let background = locked
+        .holders
+        .iter()
+        .filter(|(tab_id, _)| {
+            background_resize_eligible(
+                tab_id,
+                &selected_tab,
+                is_viewed(locked, tab_id),
+                locked.attachment.current(tab_id).is_some(),
+            )
+        })
+        .map(|(tab_id, holder)| (tab_id.clone(), holder.peer.clone(), holder.incarnation))
+        .collect::<Vec<_>>();
+    let selected_rejection = selected.and_then(|(tab_id, holder, incarnation)| {
+        if holder.offer_control(frame.to_vec()).is_err() {
+            return Some(INPUT_REJECTED_READ_ONLY);
+        }
+        locked.holder_geometries.insert(
+            tab_id,
+            HolderGeometry {
+                incarnation,
+                columns: resize.columns,
+                rows: resize.rows,
+            },
+        );
+        None
+    });
+    // Performance: hidden holders have surface publication disabled, so this reflows retained
+    // state in the background without painting any client.
+    for (tab_id, holder, incarnation) in background {
+        if holder.offer_control(frame.to_vec()).is_ok() {
+            locked.holder_geometries.insert(
+                tab_id,
+                HolderGeometry {
+                    incarnation,
+                    columns: resize.columns,
+                    rows: resize.rows,
+                },
+            );
+        }
+    }
+    selected_rejection
+}
+
 fn registry_tab_list(registry: &RegistryDocument) -> TabList {
     let mut records = registry
         .tabs
@@ -487,58 +609,7 @@ pub(super) fn serve_attach(
                     }
                     refresh_surface_subscription(&locked, previous_tab)?;
                 }
-                if let Some(controller_revision) = next_revision
-                    && let Some(bridge) = locked.bridges.get(&target.tab_id)
-                {
-                    let _ = bridge.peer.offer_control(wire::frame(
-                        "attachment",
-                        None,
-                        BridgeAttachment::new(client_id.clone(), controller_revision),
-                    )?);
-                }
-                // Protocol: resize precedes subscription on the holder's ordered control lane, so
-                // the first fresh target surface already has current geometry. A holder pre-fitted
-                // during the outer resize skips the redundant PTY reflow.
-                if let Some(holder) = locked.holders.get(&target.tab_id) {
-                    let holder_peer = holder.peer.clone();
-                    let holder_incarnation = holder.incarnation;
-                    let activation_resize = next_revision
-                        .and_then(|_| target.resize.clone())
-                        .filter(|resize| {
-                            !holder_geometry_matches(
-                                locked.holder_geometries.get(&target.tab_id),
-                                holder_incarnation,
-                                resize,
-                            )
-                        });
-                    let subscription = desired_surface_subscription(
-                        &locked,
-                        &target.tab_id,
-                        holder.structured_surface,
-                    );
-                    let frames = activation_holder_frames(
-                        activation_resize.clone(),
-                        locked.registry.epoch,
-                        subscription,
-                    )?;
-                    for (index, frame) in frames.into_iter().enumerate() {
-                        if holder_peer.offer_control(frame).is_err() {
-                            break;
-                        }
-                        if index == 0
-                            && let Some(resize) = activation_resize.as_ref()
-                        {
-                            locked.holder_geometries.insert(
-                                target.tab_id.clone(),
-                                HolderGeometry {
-                                    incarnation: holder_incarnation,
-                                    columns: resize.columns,
-                                    rows: resize.rows,
-                                },
-                            );
-                        }
-                    }
-                }
+                activate_target_holder(&mut locked, &target, &client_id, next_revision)?;
                 offer_bridge_visibility(&locked, &target.tab_id, true)?;
                 // Protocol: the retained surface is offered at once so a view can commit even
                 // when the holder is slow, but it is marked stale so the client prefers the
@@ -610,10 +681,6 @@ pub(super) fn serve_attach(
                         .clients
                         .get(&client_id)
                         .map(|client| client.viewed_tab.clone());
-                    let controller = locked
-                        .clients
-                        .get(&client_id)
-                        .is_some_and(|client| client.controller);
                     let epoch = locked.registry.epoch;
                     let mut resize_body = None;
                     let frame = match kind.message_type.as_str() {
@@ -640,68 +707,7 @@ pub(super) fn serve_attach(
                         }
                     };
                     if let Some(resize) = resize_body {
-                        let selected = if controller {
-                            viewed_tab.as_ref().and_then(|tab_id| {
-                                locked.holders.get(tab_id).map(|holder| {
-                                    (tab_id.clone(), holder.peer.clone(), holder.incarnation)
-                                })
-                            })
-                        } else {
-                            None
-                        };
-                        let background = viewed_tab
-                            .as_deref()
-                            .filter(|_| controller)
-                            .map(|selected_tab| {
-                                locked
-                                    .holders
-                                    .iter()
-                                    .filter(|(tab_id, _)| {
-                                        background_resize_eligible(
-                                            tab_id,
-                                            selected_tab,
-                                            is_viewed(&locked, tab_id),
-                                            locked.attachment.current(tab_id).is_some(),
-                                        )
-                                    })
-                                    .map(|(tab_id, holder)| {
-                                        (tab_id.clone(), holder.peer.clone(), holder.incarnation)
-                                    })
-                                    .collect::<Vec<_>>()
-                            })
-                            .unwrap_or_default();
-                        let selected_rejection =
-                            selected.and_then(|(tab_id, holder, incarnation)| {
-                                match holder.offer_control(frame.clone()) {
-                                    Ok(()) => {
-                                        locked.holder_geometries.insert(
-                                            tab_id,
-                                            HolderGeometry {
-                                                incarnation,
-                                                columns: resize.columns,
-                                                rows: resize.rows,
-                                            },
-                                        );
-                                        None
-                                    }
-                                    Err(_) => Some(INPUT_REJECTED_READ_ONLY),
-                                }
-                            });
-                        // Performance: hidden holders have surface publication disabled, so this
-                        // reflows retained state in the background without painting any client.
-                        for (tab_id, holder, incarnation) in background {
-                            if holder.offer_control(frame.clone()).is_ok() {
-                                locked.holder_geometries.insert(
-                                    tab_id,
-                                    HolderGeometry {
-                                        incarnation,
-                                        columns: resize.columns,
-                                        rows: resize.rows,
-                                    },
-                                );
-                            }
-                        }
-                        selected_rejection
+                        route_controller_resize(&mut locked, &client_id, &resize, &frame)
                     } else if claim.pending {
                         let held = viewed_tab
                             .as_ref()
