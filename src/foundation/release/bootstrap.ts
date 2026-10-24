@@ -5,6 +5,7 @@ import { connect } from "node:net";
 import { resolve } from "node:path";
 import { selectCohortLaunch } from "./cohort-selection.js";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
+import { releaseChannelOf } from "./latest-release.js";
 import { CohortStateStore, type CohortState, type SupervisorEndpointMetadata } from "./cohort-state.js";
 import { assertLaunchProfileId, createSupervisorStartupAttempt, readSupervisorStartupResult, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId, type SupervisorStartupAttemptIdentity } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
@@ -17,7 +18,7 @@ import { scheduleReleaseCleanup } from "./release-gc.js";
 import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
-import { isCurrentLaunchContract, launchContractTarget, readLaunchContext, withLaunchContext, type LaunchContext } from "../launch-context/index.js";
+import { PRIVATE_ENVIRONMENT, isCurrentLaunchContract, launchContractTarget, readLaunchContext, withLaunchContext, type LaunchContext } from "../launch-context/index.js";
 import { ensureTerminalHost, readResidentTabLaunchSettings, selectResidentHost, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
 
 export interface BootstrapOptions {
@@ -25,15 +26,7 @@ export interface BootstrapOptions {
   readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId; readonly launchMode: "tabs" | "solo"; readonly sessionSelection?: SessionSelection };
   readonly environment?: NodeJS.ProcessEnv;
   readonly output?: Pick<NodeJS.WriteStream, "write">;
-  /**
-   * Whether a materialized release copy is fit to launch. The active release
-   * is normally reused while its version matches the installation, but a copy
-   * can be broken in ways a version cannot see — materialized from a tree a
-   * blocked postinstall never finished repairing. The probe is injected from
-   * the bin entry because deciding it requires inspecting dependency
-   * resolution, which stays out of production code. Absent means every
-   * release is fit.
-   */
+  /** Optional package-resolution probe that excludes a damaged retained release. */
   readonly releaseIsLaunchable?: (releaseRoot: string) => boolean;
   /** Test seam for bounded maintenance scheduled after stale endpoint sweeping. */
   readonly scheduleMaintenance?: (dataDir: string, paths: ReturnType<typeof resolveProductPaths>) => Promise<void>;
@@ -145,7 +138,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     }
   }
   let probe = endpoint ? await probeOwnership(endpoint) : "dead";
-  const installedVersion = await readInstalledVersion(options.packageRoot);
+  const installedVersion = await readInstalledVersion(options.packageRoot); if (releaseChannelOf(installedVersion) !== null) environment[PRIVATE_ENVIRONMENT.updateVersion] = installedVersion;
   const activeId = state.references.active;
   const active = activeId === null ? undefined : state.releases[activeId];
   let activeIsLaunchable = active === undefined || (options.releaseIsLaunchable?.(active.releaseRoot) ?? true);
@@ -486,14 +479,15 @@ async function launchUi(
  * version instead of failing while an installation is being replaced.
  */
 export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease, profile?: LaunchProfileId): NodeJS.ProcessEnv {
-  const launchMode = readLaunchContext(environment).launchMode;
+  const context = readLaunchContext(environment);
   return withLaunchContext(environment, {
     releaseId: release.releaseId,
     releaseLayers: (release.dependencyLayers ?? []).map(layer => layer.layerId).join(","),
     releaseRoot: release.releaseRoot,
     releaseDigest: release.contentDigest,
     ...(profile === undefined ? {} : { launchProfile: profile }),
-    ...(launchMode === undefined ? {} : { launchMode }),
+    ...(context.launchMode === undefined ? {} : { launchMode: context.launchMode }),
+    ...(context.updateVersion === undefined ? {} : { updateVersion: context.updateVersion }),
   }, process.platform, launchContractTarget(release));
 }
 

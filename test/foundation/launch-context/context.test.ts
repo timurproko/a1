@@ -9,6 +9,7 @@ const release = {
   releaseLayers: "",
   launchProfile: "a1" as const,
   launchMode: "tabs" as const,
+  updateVersion: "1.0.0",
 };
 
 describe("tab settings visibility", () => {
@@ -69,8 +70,12 @@ describe("neutral private launch contract", () => {
       ...withLaunchContext({}, { ...release, immutableWarmup: "1" }),
       A1_CONFIG_DIR: "my-config", PATH: "my-path", THIRD_PARTY_SETTING: "keep",
     };
-    const result = withLaunchContext(environment, { ...release, releaseId: `2.0.0-${"b".repeat(20)}`, launchProfile: "pi", launchMode: "solo" });
-    expect(readLaunchContext(result, "release")).toMatchObject({ releaseId: `2.0.0-${"b".repeat(20)}`, launchProfile: "pi" });
+    const result = withLaunchContext(environment, {
+      ...release, releaseId: `2.0.0-${"b".repeat(20)}`, launchProfile: "pi", launchMode: "solo", updateVersion: "2.0.0-dev.4",
+    });
+    expect(readLaunchContext(result, "release")).toMatchObject({
+      releaseId: `2.0.0-${"b".repeat(20)}`, launchProfile: "pi", updateVersion: "2.0.0-dev.4",
+    });
     expect(result[PRIVATE_ENVIRONMENT.immutableWarmup]).toBeUndefined();
     expect(withoutLaunchContext(result)).toEqual({ A1_CONFIG_DIR: "my-config", PATH: "my-path", THIRD_PARTY_SETTING: "keep" });
   });

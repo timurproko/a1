@@ -89,6 +89,7 @@ describe("launch selection across update completion", () => {
     expect(selectSupervisorLaunchReleaseId(await store.read(), await journal.read())).toBeNull();
     await expect(bootstrap()).resolves.toBe(0);
     expect(selectedRelease()).toBe(previous.releaseId);
+    expect(selectedLaunchContext().updateVersion).toBeUndefined();
     expect(materializeRelease).not.toHaveBeenCalled();
     expect(spawn).toHaveBeenCalledOnce();
   });
@@ -124,6 +125,7 @@ describe("launch selection across update completion", () => {
     await expect(bootstrap()).resolves.toBe(0);
 
     expect(selectedRelease()).toBe(target.releaseId);
+    expect(selectedLaunchContext().updateVersion).toBe(previous.packageVersion);
     expect((await store.read()).references.active).toBe(target.releaseId);
     expect(materializeRelease).toHaveBeenCalledOnce();
   });
@@ -254,9 +256,13 @@ function bootstrap() {
   return runBootstrap({ packageRoot: target.packageRoot, environment, scheduleMaintenance: async () => {} });
 }
 
-function selectedRelease(): string | undefined {
+function selectedLaunchContext() {
   const call = vi.mocked(spawn).mock.calls.at(-1)!;
-  return readLaunchContext((call[2] as { env: NodeJS.ProcessEnv }).env).releaseId;
+  return readLaunchContext((call[2] as { env: NodeJS.ProcessEnv }).env);
+}
+
+function selectedRelease(): string | undefined {
+  return selectedLaunchContext().releaseId;
 }
 
 function release(version: string, digestByte: string): MaterializedRelease {
