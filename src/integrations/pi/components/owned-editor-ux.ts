@@ -151,6 +151,8 @@ export interface PromptSelectionUxOptions {
   readonly beginClipboardPaste?: () => PiShellPasteReservation;
   readonly beginTextPaste?: (text: string) => PiShellPasteReservation;
   readonly deferTextPaste?: (text: string) => boolean;
+  /** False consumes every paste transport without changing editor text. */
+  readonly pasteEnabled?: boolean;
   readonly onPasteRejected?: (error: unknown) => void;
   readonly onPasteInput?: (bytes: number, phase: "framing" | "inserting" | "settled") => void;
   readonly transformPastedContent: (content: PiShellClipboardContent) => string;
@@ -218,7 +220,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   handleInput(data: string, next: (data?: string) => void): void {
-    if (this.#handleTerminalPaste(data, next)) return;
+    if (this.options.pasteEnabled === false ? discardTerminalPaste(this, data, value => this.handleInput(value, next)) : this.#handleTerminalPaste(data, next)) return;
     if (this.keybindings.matches(data, "owned.editor.selectAll")) {
       this.#selectAll();
       return;
@@ -242,7 +244,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       return;
     }
     if (this.keybindings.matches(data, "owned.editor.paste")) {
-      this.pasteClipboard();
+      if (this.options.pasteEnabled !== false) this.pasteClipboard();
       return;
     }
     if (this.keybindings.matches(data, "owned.editor.redo")) {
@@ -268,7 +270,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         this.#deleteSelection();
         return;
       }
-      const inserted = insertedText(data);
+      const inserted = editorInsertedText(data);
       if (inserted !== undefined) {
         this.#replaceSelection(inserted);
         return;
@@ -410,12 +412,14 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     this.#pointerSelecting = false;
     this.#lastClick = undefined;
     this.#redoStack = [];
+    DISABLED_TERMINAL_PASTES.delete(this);
     this.#selectionRevision += 1;
   }
 
   cancelPendingPastes(): void {
     this.#pasteGeneration += 1;
     this.#terminalPaste = undefined;
+    DISABLED_TERMINAL_PASTES.delete(this);
   }
 
   hasSelection(): boolean {
@@ -429,6 +433,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   pasteClipboard(): boolean {
+    if (this.options.pasteEnabled === false) return false;
     this.#pasteFromClipboard();
     return true;
   }
@@ -1036,7 +1041,74 @@ function isEditorSegment(value: unknown): value is EditorSegment {
   return typeof segment === "string" && typeof index === "number" && typeof input === "string";
 }
 
-function insertedText(data: string): string | undefined {
+interface DisabledTerminalPasteState {
+  startTail: string;
+  bodyTail: string | null;
+}
+
+const DISABLED_TERMINAL_PASTES = new WeakMap<object, DisabledTerminalPasteState>();
+
+function discardTerminalPaste(owner: object, data: string, forward: (data: string) => void): boolean {
+  const startMarker = "\x1b[200~";
+  const endMarker = "\x1b[201~";
+  const state = DISABLED_TERMINAL_PASTES.get(owner) ?? { startTail: "", bodyTail: null };
+  if (state.bodyTail !== null) {
+    const framed = state.bodyTail + data;
+    const end = framed.indexOf(endMarker);
+    if (end < 0) {
+      state.bodyTail = delimiterTail(framed, endMarker);
+      DISABLED_TERMINAL_PASTES.set(owner, state);
+      return true;
+    }
+    DISABLED_TERMINAL_PASTES.delete(owner);
+    const remaining = framed.slice(end + endMarker.length);
+    if (remaining.length > 0) forward(remaining);
+    return true;
+  }
+
+  const hadStartTail = state.startTail.length > 0;
+  const candidate = state.startTail + data;
+  state.startTail = "";
+  const start = candidate.indexOf(startMarker);
+  if (start >= 0) {
+    if (start > 0) forward(candidate.slice(0, start));
+    const framed = candidate.slice(start + startMarker.length);
+    const end = framed.indexOf(endMarker);
+    if (end < 0) {
+      state.bodyTail = delimiterTail(framed, endMarker);
+      DISABLED_TERMINAL_PASTES.set(owner, state);
+    } else {
+      DISABLED_TERMINAL_PASTES.delete(owner);
+      const remaining = framed.slice(end + endMarker.length);
+      if (remaining.length > 0) forward(remaining);
+    }
+    return true;
+  }
+
+  const partial = delimiterTail(candidate, startMarker);
+  // Compatibility: standalone Escape still cancels; marker fragments stay pending.
+  if (partial.length > 1) {
+    const before = candidate.slice(0, candidate.length - partial.length);
+    if (before.length > 0) forward(before);
+    state.startTail = partial;
+    DISABLED_TERMINAL_PASTES.set(owner, state);
+    return true;
+  }
+  DISABLED_TERMINAL_PASTES.delete(owner);
+  if (hadStartTail) { forward(candidate); return true; }
+  return false;
+}
+
+function delimiterTail(text: string, delimiter: string): string {
+  const limit = Math.min(text.length, delimiter.length - 1);
+  for (let length = limit; length > 0; length -= 1) {
+    const suffix = text.slice(text.length - length);
+    if (delimiter.startsWith(suffix)) return suffix;
+  }
+  return "";
+}
+
+export function editorInsertedText(data: string): string | undefined {
   if (!data || data.includes("\u001b[200~")) return undefined;
   const kitty = decodeKittyPrintable(data);
   if (kitty !== undefined) return kitty;

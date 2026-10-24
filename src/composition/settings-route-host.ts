@@ -6,6 +6,7 @@ import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 import type { UiApp, UiRouteHost, UiRouteInput, UiRouteSurface } from "../ui/apps/contracts.js";
 import { faint } from "../ui/components/text.js";
 import type { UiTheme, UiThemeToken } from "../ui/components/theme.js";
+import type { PiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 
 /** Styled document rows for one content width. */
 export type OwnedReferenceRows = NonNullable<ReferenceDocumentProvider["rows"]>;
@@ -23,6 +24,10 @@ export interface OwnedRouteHostOptions {
   readonly settingsPinned?: boolean;
   /** Opens the tab bar's own Plus Menu dialog; false when no tab bar can show it. */
   readonly configurePlusMenu?: () => boolean;
+  readonly keybindings?: PiKeybindingsHost;
+  readonly agentDir?: string;
+  readonly cwd?: string;
+  readonly copyText?: (text: string) => void;
 }
 
 /** Declares settings and lazy document routes. */
@@ -84,10 +89,23 @@ function deferredSurface(id: string, label: string, load: () => Promise<UiRouteS
 }
 
 async function loadSettingsSurface(settings: OwnedSettingsManager, options: OwnedRouteHostOptions): Promise<UiRouteSurface> {
+  const [{ SettingsApp }, { createSettingsSearchInputFactory }] = await Promise.all([
+    import("../features/owned-ui/settings-app.js"),
+    import("./settings-search-input.js"),
+  ]);
   const pinned = options.settingsPinned === true;
-  const { SettingsApp } = await import("../features/owned-ui/settings-app.js");
-  // Invariant: a pinned Settings tab closes as a tab; neither Esc nor one Ctrl+C dismisses its screen.
-  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings, { pinned, configurePlusMenu: options.configurePlusMenu ?? null }), !pinned);
+  const searchInputFactory = createSettingsSearchInputFactory({
+    ...(options.keybindings === undefined ? {} : { keybindings: options.keybindings }),
+    ...(options.agentDir === undefined ? {} : { agentDir: options.agentDir }),
+    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+  });
+  // Invariant: a pinned Settings tab closes as a tab; neither Esc nor one unclaimed Ctrl+C dismisses its screen.
+  return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings, {
+    pinned,
+    searchInputFactory,
+    configurePlusMenu: options.configurePlusMenu ?? null,
+    ...(options.copyText === undefined ? {} : { copyText: options.copyText }),
+  }), !pinned, true);
 }
 
 async function loadReferenceSurface(
@@ -112,7 +130,13 @@ async function loadReferenceSurface(
   }));
 }
 
-async function hostApp(id: string, route: string, create: () => UiApp, closeOnInterrupt = true): Promise<UiRouteSurface> {
+async function hostApp(
+  id: string,
+  route: string,
+  create: () => UiApp,
+  closeOnInterrupt = true,
+  appInputBeforeInterrupt = false,
+): Promise<UiRouteSurface> {
   const [{ UiAppHost }, { UiAppRegistry }] = await Promise.all([
     import("../ui/apps/host.js"),
     import("../ui/apps/registry.js"),
@@ -127,6 +151,7 @@ async function hostApp(id: string, route: string, create: () => UiApp, closeOnIn
   const host = new UiAppHost({
     registry,
     closeOnInterrupt,
+    appInputBeforeInterrupt,
     theme: pinnedTheme(),
     surface: {
       size: () => size,

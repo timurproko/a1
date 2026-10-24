@@ -7,6 +7,7 @@ import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
 import { resolveLaunchProfilePaths, resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
 import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
+import { MAX_CLIPBOARD_TEXT_BYTES } from "../contracts/owned-ui/index.js";
 import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
 import { applyConfiguredPiTheme, getAvailablePiThemes, setPiAccentColor, setPiPackageBorderProjectionEnabled } from "../integrations/pi/components/upstream/theme/theme.js";
@@ -16,6 +17,7 @@ import type { PiProjectTrustPreflightPrompt } from "../integrations/pi/engine/pr
 import type { PiSessionForkPrompt } from "../integrations/pi/engine/session-selection.js";
 import { ClipboardDiagnosticCapture } from "../app/session-shell/clipboard-diagnostics.js";
 import { createOwnedUiClipboardServices } from "../app/session-shell/clipboard-services.js";
+import { writeSystemClipboardText } from "../app/session-shell/system-clipboard.js";
 import { createPiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 import {
   OwnedUiSessionPresenter,
@@ -32,7 +34,7 @@ import type {
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
 } from "../contracts/owned-ui/index.js";
-import { createOwnedRouteHost, type OwnedReferenceProviders } from "./settings-route-host.js";
+import { createOwnedRouteHost, type OwnedReferenceProviders, type OwnedRouteHostOptions } from "./settings-route-host.js";
 import { renderPiShellChangelogLines } from "../integrations/pi/components/shell-presenters-info.js";
 import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
@@ -210,6 +212,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     : watchSharedSettings(settings);
   const unsubscribeAccent = (): void => { unwatchSharedSettings(); unsubscribeAccentChange(); };
 
+  // Invariant: the Settings search and agent prompt borrow the same resolved Pi keybindings.
+  const keybindingsHost = createPiKeybindingsHost({ profile: ownedSurfaces ? "a1" : "pi", agentDir: backend.identity.agentDir });
+  const keybindings = residentTabKeybindings(tabBridge, backend.identity.agentDir, keybindingsHost);
   // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {
     changelog: async input => {
@@ -225,7 +230,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     session: () => import("./session-info-reference.js").then(m => m.loadSessionInfoReference(backend)),
   };
   const routeHost = settings === null || !ownedSurfaces ? null
-    : createOwnedRouteHost(settings, references, residentRouteHostOptions(tabBridge));
+    : createOwnedRouteHost(settings, references, settingsRouteOptions(tabBridge, keybindings, backend.identity.agentDir, cwd));
   const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),
@@ -269,10 +274,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const clipboardDestination = options.clipboardDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.clipboardDiagnostics];
   const clipboardDiagnostics = settings !== null && ownedSurfaces && clipboardDestination?.trim()
     ? new ClipboardDiagnosticCapture(clipboardDestination) : null;
-  // Invariant: process-wide services are created once here and borrowed by every session shell. The
-  // keybinding registry is applied before any presenter is built, so none of them reads Pi's defaults.
-  const keybindingsHost = createPiKeybindingsHost({ profile: ownedSurfaces ? "a1" : "pi", agentDir: backend.identity.agentDir });
-  const keybindings = residentTabKeybindings(tabBridge, backend.identity.agentDir, keybindingsHost);
+  // Invariant: process-wide services are created once here and borrowed by every session shell.
   const clipboardServices = ownedSurfaces ? createOwnedUiClipboardServices() : null;
   let createdTerminalHost: OwnedUiTerminalHost | undefined;
   let terminalHost: OwnedUiTerminalHost;
@@ -416,6 +418,23 @@ export function watchSharedSettings(settings: Pick<OwnedSettingsManager, "file" 
   };
   watchFile(file, { interval: SHARED_SETTINGS_POLL_MS, persistent: false }, listener);
   return () => unwatchFile(file, listener);
+}
+
+function settingsRouteOptions(
+  tabBridge: TabBridgeClient | null,
+  keybindings: ReturnType<typeof residentTabKeybindings>,
+  agentDir: string,
+  cwd: string,
+): OwnedRouteHostOptions {
+  return {
+    ...residentRouteHostOptions(tabBridge),
+    keybindings,
+    agentDir,
+    cwd,
+    copyText: text => {
+      if (Buffer.byteLength(text) <= MAX_CLIPBOARD_TEXT_BYTES) void writeSystemClipboardText(text).catch(() => {});
+    },
+  };
 }
 
 function quitOutroSettingsSnapshot(settings: OwnedSettingsManager): OwnedUiQuitOutroSettings {

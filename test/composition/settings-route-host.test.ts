@@ -52,7 +52,9 @@ describe("owned settings route opening", () => {
     }
     expect(loaded.some(line => line.replace(STYLE, "").includes("Mode"))).toBe(true);
     expect(loaded.join("\n")).not.toContain("Loading settings");
-    expect(surface!.handleInput("/")).toBe(true);
+    expect(surface!.handleInput("query")).toBe(true);
+    expect(surface!.isClosed()).toBe(false);
+    expect(surface!.handleInput(INTERRUPT)).toBe(true);
     expect(surface!.isClosed()).toBe(false);
     expect(surface!.handleInput(INTERRUPT)).toBe(true);
     expect(surface!.isClosed()).toBe(true);

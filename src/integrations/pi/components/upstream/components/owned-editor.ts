@@ -3,11 +3,11 @@
  * packages/coding-agent/src/modes/interactive/components/custom-editor.ts.
  * Modifications: A1-owned class name and synchronized A1 keybinding contract replace the nominal
  * private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input
- * frame, transient contextual-suggestion branch, and explicit body geometry for selection and
- * above-prompt autocomplete with a one-cell outer gutter. Bare A1 also clears a sole top-level
- * slash-command search on Escape and completes a selected or exact completed tunnel command with `:`
- * and reopens the menu on its tunnel rows, and synchronously retains then refreshes an exact top-level
- * command menu after Tab applies its row.
+ * frame, configurable empty-input placeholder branch, transient contextual-suggestion branch, and
+ * explicit body geometry for selection and above-prompt autocomplete with a one-cell outer gutter.
+ * Bare A1 also clears a sole top-level slash-command search on Escape and completes a selected or
+ * exact completed tunnel command with `:` and reopens the menu on its tunnel rows, and synchronously
+ * retains then refreshes an exact top-level command menu after Tab applies its row.
  * Deviations: owned-shared-input-frame, above-prompt-autocomplete-placement,
  * clear-command-search-on-escape, command-tunnel-colon-completion, keep-command-menu-open-after-tab.
  */
@@ -32,6 +32,8 @@ export interface OwnedEditorOptions extends EditorOptions {
   readonly inputPresentation?: PiShellPromptInputPresentation;
   readonly styleSuggestion?: (text: string) => string;
   readonly styleSuggestionCaret?: (text: string) => string;
+  /** Non-accepting empty-input guidance rendered through the shared suggestion presentation. */
+  readonly placeholder?: string;
   readonly terminalRows?: () => number;
   /** Reuses the editor's established atomic-aware visual layout when available. */
   readonly getVisualLineCount?: (width: number) => number | undefined;
@@ -73,6 +75,7 @@ return class extends Base {
   readonly #inputPresentation: PiShellPromptInputPresentation | undefined;
   readonly #styleSuggestion: (text: string) => string;
   readonly #styleSuggestionCaret: (text: string) => string;
+  readonly #placeholder: string | null;
   readonly #terminalRows: () => number;
   readonly #getVisualLineCount: ((width: number) => number | undefined) | undefined;
   readonly #clearCommandSearchOnEscape: boolean;
@@ -86,6 +89,7 @@ return class extends Base {
     this.#inputPresentation = options.inputPresentation;
     this.#styleSuggestion = options.styleSuggestion ?? (text => text);
     this.#styleSuggestionCaret = options.styleSuggestionCaret ?? (text => `\u001b[7m${text}\u001b[27m`);
+    this.#placeholder = options.placeholder ?? null;
     this.#terminalRows = options.terminalRows ?? (() => 24);
     this.#getVisualLineCount = options.getVisualLineCount;
     this.#clearCommandSearchOnEscape = options.clearCommandSearchOnEscape === true;
@@ -122,7 +126,12 @@ return class extends Base {
       return rows;
     }
     if (this.#promptSuggestion !== null && this.canPresentPromptSuggestion()) {
-      const rows = this.#renderSuggestion(width);
+      const rows = this.#renderSuggestion(width, this.#promptSuggestion);
+      this.#renderedBodyRowCount = rows.length;
+      return rows;
+    }
+    if (this.#placeholder !== null && this.focused && this.getText().length === 0 && !this.isShowingAutocomplete()) {
+      const rows = this.#renderSuggestion(width, this.#placeholder);
       this.#renderedBodyRowCount = rows.length;
       return rows;
     }
@@ -215,10 +224,10 @@ return class extends Base {
     return true;
   }
 
-  #renderSuggestion(width: number): string[] {
+  #renderSuggestion(width: number, suggestion: string): string[] {
     const presentation = this.#inputPresentation!;
     const { paddingX, contentWidth, layoutWidth } = presentation.geometry(width, this.getPaddingX());
-    const chunks = wrapTextWithAnsi(this.#promptSuggestion ?? "", layoutWidth).map(text => ({ text }));
+    const chunks = wrapTextWithAnsi(suggestion, layoutWidth).map(text => ({ text }));
     const maxVisible = Math.max(5, Math.floor(this.#terminalRows() * 0.3));
     const visible = chunks.slice(0, maxVisible);
     const leftPadding = " ".repeat(paddingX);

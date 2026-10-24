@@ -43,7 +43,11 @@ function view(): OwnedUiSessionViewModel {
   };
 }
 
-async function editor(profile: "a1" | "pi" = "a1", bindings: Record<string, string | string[]> = {}) {
+async function editor(
+  profile: "a1" | "pi" = "a1",
+  bindings: Record<string, string | string[]> = {},
+  inputCapabilities?: { readonly singleLine?: boolean; readonly paste?: boolean; readonly autocomplete?: boolean; readonly placeholder?: string },
+) {
   const cycle = vi.fn();
   const select = vi.fn();
   const submit = vi.fn();
@@ -54,6 +58,7 @@ async function editor(profile: "a1" | "pi" = "a1", bindings: Record<string, stri
     getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit: submit,
     onThinkingCycle: cycle, onModelSelect: select, onCopyText: copy, onDequeue: dequeue,
     promptPresentation: promptInputPresentation(),
+    ...(inputCapabilities === undefined ? {} : { inputCapabilities }),
   });
   input.setFocused?.(true);
   return { input, cycle, select, submit, copy, dequeue };
@@ -92,6 +97,48 @@ describe("owned shared input and status presentation", () => {
       }
       expect(input.getText()).toBe("draft 日本語\nsecond line");
     } finally { compose.mockRestore(); }
+  });
+
+  it("configures the shared input as single-line, placeholder-bearing, paste-disabled, and autocomplete-free", async () => {
+    const capabilities = { singleLine: true, paste: false, autocomplete: false, placeholder: "Search settings" } as const;
+    const { input, submit } = await editor("a1", {}, capabilities);
+    expect(stripTerminalSequences(input.render(40).join("\n"))).toContain("Search settings");
+
+    input.handleInput?.("\r");
+    expect(submit).not.toHaveBeenCalled();
+    expect(input.getText()).toBe("");
+
+    input.handleInput?.("\u0016");
+    input.handleInput?.("\x1b[200~complete paste\x1b[201~");
+    input.handleInput?.("\x1b[2");
+    input.handleInput?.("00~fragmented paste\x1b[20");
+    input.handleInput?.("1~");
+    expect(input.getText()).toBe("");
+    expect(input.render(40)).toHaveLength(3);
+
+    input.handleInput?.("/");
+    expect(input.getText()).toBe("/");
+    expect(input.render(40)).toHaveLength(3);
+
+    const normal = await editor();
+    normal.input.handleInput?.("\x1b[200~agent paste\x1b[201~");
+    expect(normal.input.getText()).toBe("agent paste");
+  });
+
+  it("shares double-click word and triple-click whole-content selection", async () => {
+    const { input } = await editor();
+    input.setText("alpha beta");
+    input.render(40);
+    const click = () => {
+      input.handlePointer?.({ kind: "press", button: 0, column: 8, row: 2 });
+      input.handlePointer?.({ kind: "release", button: 0, column: 8, row: 2 });
+    };
+
+    click();
+    click();
+    expect(input.selectedText?.()).toBe("beta");
+    click();
+    expect(input.selectedText?.()).toBe("alpha beta");
   });
 
   it("keeps owned rules on the modal border across every level and bash mode while preserving pinned borders", async () => {

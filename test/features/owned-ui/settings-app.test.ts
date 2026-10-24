@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
 import {
   OWNED_UI_SETTING_DECLARATIONS,
@@ -10,6 +11,7 @@ import {
   type OwnedUiSettingValue,
 } from "../../../src/ui/settings/index.js";
 import { SettingsApp } from "../../../src/features/owned-ui/index.js";
+import { createSettingsSearchInputFactory } from "../../../src/composition/settings-search-input.js";
 import type { AppHostServices } from "../../../src/ui/apps/index.js";
 import { finalizeFrame, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
 import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
@@ -143,6 +145,16 @@ const BOLD_NAMING_HOST: AppHostServices = {
 
 let root: string;
 
+function settingsApp(
+  session: OwnedSettingsManager,
+  options: { readonly pinned?: boolean; readonly copyText?: (text: string) => void; readonly configurePlusMenu?: () => boolean } = {},
+): SettingsApp {
+  return new SettingsApp(session, {
+    ...options,
+    searchInputFactory: createSettingsSearchInputFactory({ agentDir: root, cwd: root }),
+  });
+}
+
 // Rationale: fixed numbered rows verify exact wheel distances independently of the product's settings inventory.
 const WHEEL_ROWS: readonly OwnedUiSettingDeclaration[] = Array.from({ length: 20 }, (_, index) => ({
   id: `wheelRow${index + 1}`, label: `Wheel row ${String(index + 1).padStart(2, "0")}`,
@@ -175,7 +187,7 @@ function railEventRow(screenRow: number): number {
 
 /** The rows of a rail-sized frame, with styling taken off. */
 function railScreen(target: SettingsApp): string[] {
-  return target.render(RAIL_RECT, HOST).map(line => line.replace(STYLE, ""));
+  return target.render(RAIL_RECT, HOST).map(stripTerminalSequences);
 }
 
 /** The rail cells of a rail-sized frame, top to bottom. */
@@ -200,16 +212,26 @@ async function app(
   for (const [id, value] of Object.entries(stored)) await seed.change("a1", id, value);
   const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", declarations, migrations: [], agent: backing.port });
   await session.load();
-  return { app: new SettingsApp(session), session, writes: backing.writes };
+  return { app: settingsApp(session), session, writes: backing.writes };
 }
 
 /** The rows the app draws, with styling escapes taken back off. */
 function screen(target: SettingsApp): string[] {
-  return target.render({ width: 80, height: 24 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+  return target.render({ width: 80, height: 24 }, HOST).map(line => stripTerminalSequences(line).trimEnd());
 }
 
 function find(target: SettingsApp, needle: string): string {
   return screen(target).find(line => line.includes(needle)) ?? "";
+}
+
+function startSearch(target: SettingsApp, query: string): void {
+  target.onInput?.(query, HOST);
+}
+
+function openEmptySearch(target: SettingsApp): void {
+  startSearch(target, "x");
+  target.onInput?.("\u0001", HOST);
+  target.onInput?.("\u007f", HOST);
 }
 
 /** Walks the selection down to the named setting the way a reader would. */
@@ -397,8 +419,7 @@ describe("the settings screen", () => {
     expect(writes).toEqual([]);
 
     for (const query of ["Agent", "Prompt suggestions"]) {
-      target.onInput?.("/", HOST);
-      for (const letter of query) target.onInput?.(letter, HOST);
+      startSearch(target, query);
       expect(screen(target).filter(line => line === " Agent")).toHaveLength(1);
       expect(screen(target).filter(line => line.includes("Prompt suggestions") && line.trimStart().startsWith("→"))).toHaveLength(1);
       expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→/);
@@ -417,15 +438,13 @@ describe("the settings screen", () => {
     expect(session.value("promptSuggestions")).toBe(true);
     expect(writes).toEqual([]);
     target.onInput?.(ESC, HOST);
-    target.onInput?.("/", HOST);
-    for (const letter of "Prompt suggestions") target.onInput?.(letter, HOST);
+    startSearch(target, "Prompt suggestions");
     expect(find(target, "Prompt suggestions").trimStart()).toMatch(/^→.*yes/);
     expect(screen(target).filter(line => line.includes("Prompt suggestions") && line.trimStart().startsWith("→"))).toHaveLength(1);
     target.onInput?.(ESC, HOST);
 
     // Invariant: the Skills row is the same kind of owned Agent control: search finds it, Enter cycles it, nothing reaches the engine.
-    target.onInput?.("/", HOST);
-    for (const letter of "Skills") target.onInput?.(letter, HOST);
+    startSearch(target, "Skills");
     expect(screen(target).filter(line => line === " Agent")).toHaveLength(1);
     expect(find(target, "Skills").trimStart()).toMatch(/^→.*collapse/);
     const skills = screen(target);
@@ -440,16 +459,14 @@ describe("the settings screen", () => {
     expect(screen(target).filter(line => line.includes("Skills") && line.trimStart().startsWith("→"))).toHaveLength(1);
     target.onInput?.(ESC, HOST);
 
-    target.onInput?.("/", HOST);
-    for (const letter of "Prompt image limit") target.onInput?.(letter, HOST);
+    startSearch(target, "Prompt image limit");
     expect(find(target, "Prompt image limit").trimStart()).toMatch(/^→.*8/);
     target.onInput?.(ESC, HOST);
     target.onInput?.(CTRL_END, HOST);
     target.onInput?.(ENTER, HOST);
     await session.load();
     expect(session.value("promptImageLimit")).toBe(9);
-    target.onInput?.("/", HOST);
-    for (const letter of "Prompt image limit") target.onInput?.(letter, HOST);
+    startSearch(target, "Prompt image limit");
     expect(find(target, "Prompt image limit").trimStart()).toMatch(/^→.*9/);
     expect(writes).toEqual([]);
   });
@@ -476,7 +493,7 @@ describe("the settings screen", () => {
     const { session } = await app();
     const requests: string[] = [];
     let available = true;
-    const target = new SettingsApp(session, { configurePlusMenu: () => { requests.push("plus"); return available; } });
+    const target = settingsApp(session, { configurePlusMenu: () => { requests.push("plus"); return available; } });
     selectRow(target, "Plus menu");
     target.onInput?.("\r", HOST);
     expect(requests).toEqual(["plus"]);
@@ -517,9 +534,8 @@ describe("the settings screen", () => {
     };
     const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent });
     await session.load();
-    const target = new SettingsApp(session);
-    target.onInput?.("/", HOST);
-    for (const letter of "Agent") target.onInput?.(letter, HOST);
+    const target = settingsApp(session);
+    target.onInput?.("Agent", HOST);
     const shown = screen(target);
     expect(shown.filter(line => line === " Agent")).toHaveLength(1);
     expect(shown.filter(line => line.includes("Prompt suggestions"))).toHaveLength(1);
@@ -547,8 +563,7 @@ describe("the settings screen", () => {
       ["fullscreen scrollbar", "Fullscreen scrollbar"],
       ["quiet startup", "Quiet startup"],
     ] as const) {
-      target.onInput?.("/", HOST);
-      for (const letter of query) target.onInput?.(letter, HOST);
+      startSearch(target, query);
       const shown = screen(target);
       expect(shown.some(line => line.includes(label))).toBe(false);
       expect(shown.join("\n")).not.toContain("fixture reason must stay hidden");
@@ -559,7 +574,6 @@ describe("the settings screen", () => {
   it("opens the current scalar choice on enter and cancels without writing", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
-    target.onInput?.(SPACE, HOST);
     expect(writes).toEqual([]);
 
     target.onInput?.(ENTER, HOST);
@@ -605,10 +619,10 @@ describe("the settings screen", () => {
     expect(row).toMatch(/Update check\s+no/u);
     expect(row).not.toContain("effective");
     expect(row).not.toContain("next start");
-    expect(find(target, "/ search")).not.toBe("");
+    expect(find(target, "Type search")).not.toBe("");
     expect(screen(target).join("\n")).not.toContain("stored and applies");
 
-    const reopened = new SettingsApp(session);
+    const reopened = settingsApp(session);
     selectRow(reopened, "Update check");
     row = find(reopened, "Update check");
     expect(row).toMatch(/Update check\s+no/u);
@@ -617,7 +631,7 @@ describe("the settings screen", () => {
 
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
-    expect(find(target, "/ search")).not.toBe("");
+    expect(find(target, "Type search")).not.toBe("");
     expect(screen(target).join("\n")).not.toContain("restored and applies");
   });
 
@@ -661,7 +675,7 @@ describe("the settings screen", () => {
     ]);
   });
 
-  it("undoes from a scalar menu and active search without losing the query", async () => {
+  it("uses editor undo inside active search without undoing settings", async () => {
     const { app: target, writes } = await app();
     selectRow(target, "Thinking level");
     target.onInput?.(`${ESC}[C`, HOST);
@@ -679,16 +693,11 @@ describe("the settings screen", () => {
 
     target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
-    target.onInput?.("/", HOST);
-    for (const letter of "think") target.onInput?.(letter, HOST);
+    startSearch(target, "think");
     target.onInput?.(CTRL_Z, HOST);
-    await settleChanges();
     lines = screen(target);
-    row = lines.findIndex(line => line.includes("Thinking level"));
-    valueColumn = (lines[row] ?? "").indexOf("low");
-    expect(lines.some(line => line.includes("think"))).toBe(true);
-    expect(valueColumn).toBeGreaterThan(0);
-    expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "low" });
+    expect(lines.some(line => line.includes("think"))).toBe(false);
+    expect(writes.at(-1)).toEqual({ key: "thinkingLevel", value: "high" });
   });
 
   it("keeps a failed restore retryable without changing the authoritative value", async () => {
@@ -705,7 +714,7 @@ describe("the settings screen", () => {
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
     expect(session.value("promptSuggestions")).toBe(false);
-    expect(find(target, "/ search")).not.toBe("");
+    expect(find(target, "Type search")).not.toBe("");
     expect(screen(target).join("\n")).not.toContain("restore refused");
 
     target.onInput?.(CTRL_Z, HOST);
@@ -721,7 +730,7 @@ describe("the settings screen", () => {
     expect(session.value("promptSuggestions")).toBe(false);
     target.onClose?.(HOST);
 
-    const reopened = new SettingsApp(session);
+    const reopened = settingsApp(session);
     reopened.onInput?.(CTRL_Z, HOST);
     await settleChanges();
     expect(session.value("promptSuggestions")).toBe(false);
@@ -813,7 +822,7 @@ describe("the settings screen", () => {
     await settleChanges();
     target.onInput?.(ESC, HOST);
 
-    expect(find(target, "/ search")).not.toBe("");
+    expect(find(target, "Type search")).not.toBe("");
     expect(screen(target).join("\n")).not.toContain("stored and applies");
   });
 
@@ -838,7 +847,7 @@ describe("the settings screen", () => {
     const backing = modelDialogPort();
     const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent: backing.port });
     await session.load();
-    const target = new SettingsApp(session);
+    const target = settingsApp(session);
     selectRow(target, "Default thinking level per model");
     target.onInput?.(ENTER, HOST);
 
@@ -957,8 +966,7 @@ describe("the settings screen", () => {
 
   it("moves through what the search found instead of typing the arrows", async () => {
     const { app: target } = await app();
-    target.onInput?.("/", HOST);
-    target.onInput?.("t", HOST);
+    startSearch(target, "t");
     target.onInput?.(DOWN, HOST);
     const after = screen(target);
     expect(after.some(line => line.trimEnd() === "t")).toBe(true);
@@ -971,8 +979,8 @@ describe("the settings screen", () => {
       scrollbarAppearance: "always",
       scrollbarStyle: "thick",
     });
-    target.onInput?.("/", HOST);
-    const render = () => target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    openEmptySearch(target);
+    const render = () => target.render({ width: 80, height: 13 }, HOST).map(line => stripTerminalSequences(line).trimEnd());
     let lines = render();
     const visited = new Set<string>();
     for (let step = 0; step < 20; step++) {
@@ -980,13 +988,13 @@ describe("the settings screen", () => {
         if (lines.some(line => line.includes(label))) visited.add(label);
       }
       // Rationale: the search input still belongs to its results for wheel navigation.
-      const promptRow = lines.findIndex(line => line.includes("search settings"));
+      const promptRow = lines.findIndex(line => line.includes("Search settings"));
       target.onMouse?.({ kind: "wheel-down", button: 0, row: promptRow + 1, column: 70 }, HOST);
       const next = render();
       if (next.join("\n") === lines.join("\n")) break;
       lines = next;
     }
-    const searchRow = lines.findIndex(line => line.includes("search settings"));
+    const searchRow = lines.findIndex(line => line.includes("Search settings"));
     expect(searchRow).toBeGreaterThanOrEqual(2);
     expect(lines[searchRow - 2]).toContain("Prompt image limit");
     expect(lines[searchRow - 2]?.endsWith("┃")).toBe(true);
@@ -998,26 +1006,26 @@ describe("the settings screen", () => {
   it("reaches the actual final setting by wheeling over the bottom of an open search", async () => {
     const { app: target } = await app(false, undefined, WHEEL_SETTINGS);
     const rect = { width: 80, height: 8 };
-    target.onInput?.("/", HOST);
-    let lines = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    openEmptySearch(target);
+    let lines = target.render(rect, HOST).map(line => stripTerminalSequences(line).trimEnd());
     for (let step = 0; step < 20; step++) {
       // Invariant: the bottom status row still scrolls the results while search owns the footer.
       target.onMouse?.({ kind: "wheel-down", button: 0, row: rect.height, column: 70 }, HOST);
-      lines = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
+      lines = target.render(rect, HOST).map(line => stripTerminalSequences(line).trimEnd());
     }
-    const promptRow = lines.findIndex(line => line.includes("search settings"));
+    const promptRow = lines.findIndex(line => line.includes("Search settings"));
     expect(lines[promptRow - 2]).toContain("Output padding");
   });
 
   it("restores the opening spacer when Ctrl+Home returns to the beginning during search", async () => {
     const { app: target } = await app();
-    target.onInput?.("/", HOST);
+    openEmptySearch(target);
     target.render({ width: 80, height: 13 }, HOST);
     target.onMouse?.({ kind: "wheel-down", button: 0, row: 3, column: 70 }, HOST);
     target.render({ width: 80, height: 13 }, HOST);
 
     target.onInput?.(CTRL_HOME, HOST);
-    const lines = target.render({ width: 80, height: 13 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
+    const lines = target.render({ width: 80, height: 13 }, HOST).map(line => stripTerminalSequences(line).trimEnd());
     expect(lines[0]).toBe("─".repeat(80));
     expect(lines[1]).toContain(" Settings");
     expect(lines[2]?.replace(/[│┃]$/u, "").trimEnd()).toBe("");
@@ -1027,18 +1035,18 @@ describe("the settings screen", () => {
 
   it("moves the last result onto the final body row when Ctrl+End is used during search", async () => {
     const { app: target } = await app();
-    target.onInput?.("/", HOST);
+    openEmptySearch(target);
     target.onInput?.(CTRL_END, HOST);
 
-    const lines = target.render({ width: 80, height: 10 }, HOST).map(line => line.replace(STYLE, "").trimEnd());
-    const searchRow = lines.findIndex(line => line.includes("search settings"));
+    const lines = target.render({ width: 80, height: 10 }, HOST).map(line => stripTerminalSequences(line).trimEnd());
+    const searchRow = lines.findIndex(line => line.includes("Search settings"));
     expect(searchRow, JSON.stringify(lines)).toBeGreaterThanOrEqual(0);
     expect(lines.find(line => line.includes("Prompt image limit"))?.trimStart()).toMatch(/^→/);
     // Invariant: no trailing spacer separates the final result from the ruled input's top line.
     expect(lines[searchRow - 2]).toContain("Prompt image limit");
   });
 
-  it("restores the previous bottom position when an untouched search closes", async () => {
+  it("restores the previous bottom position when search closes", async () => {
     const { app: target } = await app(false, undefined, WHEEL_SETTINGS);
     const rect = { width: 80, height: 8 };
     target.render(rect, HOST);
@@ -1049,7 +1057,7 @@ describe("the settings screen", () => {
     const before = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
     expect(before.join("\n")).toContain("Output padding");
 
-    target.onInput?.("/", HOST);
+    startSearch(target, "x");
     target.render(rect, HOST);
     target.onInput?.(ESC, HOST);
     const after = target.render(rect, HOST).map(line => line.replace(STYLE, "").trimEnd());
@@ -1084,8 +1092,7 @@ describe("the settings screen", () => {
 
   it("moves the search cursor on plain Home and End without moving the selection", async () => {
     const { app: target } = await app();
-    target.onInput?.("/", HOST);
-    for (const character of "cr") target.onInput?.(character, HOST);
+    startSearch(target, "cr");
     target.onInput?.(DOWN, HOST);
     expect(find(target, "→")).toContain("Scrollbar style");
 
@@ -1099,7 +1106,7 @@ describe("the settings screen", () => {
 
   it("jumps a section from the search, as the arrows move through it", async () => {
     const { app: target } = await app();
-    target.onInput?.("/", HOST);
+    openEmptySearch(target);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     const after = screen(target);
     expect(after.join("\n")).not.toContain("❯");
@@ -1108,8 +1115,7 @@ describe("the settings screen", () => {
 
   it("shows a whole section when the search names it", async () => {
     const { app: target } = await app();
-    target.onInput?.("/", HOST);
-    for (const letter of "agen") target.onInput?.(letter, HOST);
+    startSearch(target, "agen");
 
     const shown = screen(target);
     for (const label of ["Warnings", "Thinking level", "Editor padding", "Output padding", "Prompt suggestions"]) {
@@ -1119,14 +1125,25 @@ describe("the settings screen", () => {
 
   it("swallows the arrows when the search found nothing", async () => {
     const { app: target } = await app();
-    target.onInput?.("/", HOST);
-    for (const letter of "zzzz") target.onInput?.(letter, HOST);
+    startSearch(target, "zzzz");
     target.onInput?.(DOWN, HOST);
     target.onInput?.(`${ESC}[1;2B`, HOST);
     expect(screen(target).some(line => line.trimEnd() === "zzzz")).toBe(true);
     expect(screen(target).some(line => line.trimStart().startsWith("→"))).toBe(false);
     expect(screen(target).join("\n")).toContain("No settings found.");
     expect(screen(target).join("\n")).not.toContain("Loading settings");
+  });
+
+  it("leaves Ctrl+C to the host outside an active search selection", async () => {
+    const { app: menu } = await app();
+    selectRow(menu, "Thinking level");
+    menu.onInput?.(ENTER, HOST);
+    expect(menu.onInput?.("\u0003", HOST)).toEqual({ consumed: false });
+
+    const { app: dialog } = await app();
+    selectRow(dialog, "Warnings");
+    dialog.onInput?.(ENTER, HOST);
+    expect(dialog.onInput?.("\u0003", HOST)).toEqual({ consumed: false });
   });
 
   it("leaves the dialog on escape", async () => {
@@ -1307,27 +1324,109 @@ describe("the value dropdown behind the screen", () => {
 });
 
 describe("the input row and status line behind the screen", () => {
-  it("uses the shared ruled search input in place of the ordinary divider", async () => {
+  it("opens the shared ruled search input from the first typed character", async () => {
     const { app: target } = await app();
-    expect(target.onInput?.("t", HOST)).toMatchObject({ consumed: false });
-    expect(screen(target).join("\n")).not.toContain("search settings");
+    expect(target.onInput?.("t", HOST)).toMatchObject({ consumed: true });
 
-    target.onInput?.("/", HOST);
     const painted = target.render({ width: 80, height: 24 }, HOST);
-    const visible = painted.map(line => line.replace(STYLE, "").trimEnd());
-    const searchRow = visible.findIndex(line => line.includes("search settings"));
-    expect(painted[searchRow]).toContain(String.fromCharCode(27) + "[7m");
-    expect(visible[searchRow]?.startsWith("search settings")).toBe(true);
+    const visible = painted.map(line => stripTerminalSequences(line).trimEnd());
+    const searchRow = visible.findIndex(line => line.trim() === "t");
+    expect(searchRow).toBeGreaterThanOrEqual(0);
     expect(visible[searchRow]).not.toContain("❯");
     expect(visible[searchRow - 1]).toMatch(/^─+$/u);
     expect(visible[searchRow + 1]).toMatch(/^─+$/u);
     expect(searchRow).toBe(visible.length - 3);
   });
 
+  it("opens search for printable whitespace before applying close behavior", async () => {
+    const { app: target } = await app();
+    let closes = 0;
+    const host = { ...HOST, close: () => { closes += 1; } };
+    expect(target.onInput?.(" ", host)).toEqual({ consumed: true });
+    target.onInput?.(ESC, host);
+    expect(closes).toBe(0);
+    target.onInput?.(ESC, host);
+    expect(closes).toBe(1);
+  });
+
+  it("treats slash as the first ordinary query character", async () => {
+    const { app: target } = await app();
+    expect(target.onInput?.("/", HOST)).toEqual({ consumed: true });
+    expect(screen(target).some(line => line.trim() === "/")).toBe(true);
+    expect(screen(target).join("\n")).toContain("No settings found.");
+  });
+
+  it("shows the Search settings placeholder for an empty active search", async () => {
+    const { app: target } = await app();
+    openEmptySearch(target);
+    expect(screen(target).some(line => line.includes("Search settings"))).toBe(true);
+  });
+
+  it("copies and cuts keyboard selections without leaving search", async () => {
+    const { session } = await app();
+    const copyText = vi.fn();
+    const target = settingsApp(session, { copyText });
+    startSearch(target, "alpha beta");
+
+    target.onInput?.("\u0001", HOST);
+    expect(target.onInput?.("\u0003", HOST)).toEqual({ consumed: true });
+    expect(copyText).toHaveBeenLastCalledWith("alpha beta");
+    expect(screen(target).some(line => line.includes("alpha beta"))).toBe(true);
+
+    target.onInput?.("\u0001", HOST);
+    target.onInput?.("\u0018", HOST);
+    expect(copyText).toHaveBeenLastCalledWith("alpha beta");
+    expect(screen(target).some(line => line.includes("Search settings"))).toBe(true);
+
+    target.onInput?.("old query", HOST);
+    target.onInput?.("\u0001", HOST);
+    target.onInput?.("replacement", HOST);
+    expect(screen(target).some(line => line.trim() === "replacement")).toBe(true);
+  });
+
+  it("routes drag and multi-click selection through the shared search input", async () => {
+    const { session } = await app();
+    const copyText = vi.fn();
+    const target = settingsApp(session, { copyText });
+    startSearch(target, "alpha beta");
+    const rows = target.render({ width: 80, height: 24 }, HOST).map(stripTerminalSequences);
+    const row = rows.findIndex(line => line.includes("alpha beta")) + 1;
+
+    target.onMouse?.({ kind: "press", button: 0, row, column: 1 }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row, column: 6 }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row, column: 6 }, HOST);
+    target.onInput?.("\u0003", HOST);
+    expect(copyText).toHaveBeenLastCalledWith("alpha");
+
+    const click = () => {
+      target.onMouse?.({ kind: "press", button: 0, row, column: 8 }, HOST);
+      target.onMouse?.({ kind: "release", button: 0, row, column: 8 }, HOST);
+    };
+    click();
+    click();
+    target.onInput?.("\u0003", HOST);
+    expect(copyText).toHaveBeenLastCalledWith("beta");
+    click();
+    target.onInput?.("\u0003", HOST);
+    expect(copyText).toHaveBeenLastCalledWith("alpha beta");
+  });
+
+  it("rejects keyboard and complete or fragmented terminal paste in search", async () => {
+    const { app: target } = await app();
+    startSearch(target, "base");
+    target.onInput?.("\u0016", HOST);
+    target.onInput?.("\x1b[200~ complete\x1b[201~", HOST);
+    target.onInput?.("\x1b[2", HOST);
+    target.onInput?.("00~ fragmented\x1b[20", HOST);
+    target.onInput?.("1~", HOST);
+    target.onInput?.("x", HOST);
+    expect(screen(target).some(line => line.trim() === "basex")).toBe(true);
+  });
+
   it("derives the complete standing status from active shortcut declarations", async () => {
     const { app: target } = await app();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
-    const hint = wide.find(line => line.includes("/ search")) ?? "";
+    const hint = wide.find(line => line.includes("Type search")) ?? "";
     const title = wide.find(line => line.includes("Settings")) ?? "";
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(title));
     expect(hint.startsWith(" ")).toBe(true);
@@ -1338,12 +1437,12 @@ describe("the input row and status line behind the screen", () => {
     expect(hint).toContain("←→ adjust");
     expect(hint).toContain("Ctrl+Z undo");
     expect(hint).toContain("Esc close");
-    expect(hint).not.toContain("Type search");
+    expect(hint).toContain("Type search");
     expect(hint).not.toContain(" to ");
     expect(hint).not.toMatch(/[·•]/u);
     const armed = target.render({ width: 200, height: 24 }, { ...HOST, interruptArmed: true })
       .map(line => line.replace(STYLE, ""));
-    expect(armed.find(line => line.includes("/ search"))).toBeDefined();
+    expect(armed.find(line => line.includes("Type search"))).toBeDefined();
     expect(armed.join("\n")).not.toContain("press ctrl+c again");
     const narrow = target.render({ width: 24, height: 8 }, HOST).map(line => line.replace(STYLE, ""));
     expect(narrow.at(-1)).toHaveLength(24);
@@ -1351,23 +1450,23 @@ describe("the input row and status line behind the screen", () => {
 
   it("keeps a pinned resident Settings tab open on Esc and omits its close hint", async () => {
     const { session } = await app();
-    const pinned = new SettingsApp(session, { pinned: true });
+    const pinned = settingsApp(session, { pinned: true });
     let closes = 0;
     const host: AppHostServices = { ...HOST, close: () => { closes += 1; } };
     const hint = pinned.render({ width: 200, height: 24 }, host).map(line => line.replace(STYLE, ""))
-      .find(line => line.includes("/ search")) ?? "";
+      .find(line => line.includes("Type search")) ?? "";
     expect(hint).toContain("Ctrl+Z undo");
     expect(hint).not.toContain("Esc close");
     expect(pinned.onInput?.("\u001b", host)).toEqual({ consumed: true });
     expect(closes).toBe(0);
 
     // Invariant: Esc still leaves search inside the pinned screen.
-    pinned.onInput?.("/", host);
-    expect(pinned.render({ width: 200, height: 24 }, host).map(line => line.replace(STYLE, "")).join("\n"))
-      .toContain("search settings");
+    pinned.onInput?.("query", host);
+    expect(pinned.render({ width: 200, height: 24 }, host).map(stripTerminalSequences).join("\n"))
+      .toContain("query");
     pinned.onInput?.("\u001b", host);
-    expect(pinned.render({ width: 200, height: 24 }, host).map(line => line.replace(STYLE, "")).join("\n"))
-      .not.toContain("search settings");
+    expect(pinned.render({ width: 200, height: 24 }, host).map(stripTerminalSequences).join("\n"))
+      .not.toContain("query");
 
     const { app: ordinary } = await app();
     ordinary.onInput?.("\u001b", host);
@@ -1555,7 +1654,7 @@ describe("the input row and status line behind the screen", () => {
     target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
     const wide = target.render({ width: 200, height: 24 }, HOST).map(line => line.replace(STYLE, ""));
-    expect(wide.find(line => line.includes("/ search"))).toBeDefined();
+    expect(wide.find(line => line.includes("Type search"))).toBeDefined();
     expect(wide.some(line => line.includes("Could not save"))).toBe(false);
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
