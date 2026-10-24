@@ -8,6 +8,7 @@ export const PRIVATE_ENVIRONMENT = Object.freeze({
   releaseLayers: "LAUNCH_CONTEXT_RELEASE_LAYERS",
   launchProfile: "LAUNCH_CONTEXT_PROFILE",
   launchMode: "LAUNCH_CONTEXT_MODE",
+  updateVersion: "LAUNCH_CONTEXT_UPDATE_VERSION",
   immutableWarmup: "LAUNCH_CONTEXT_WARMUP",
   residentRootExecutable: "LAUNCH_CONTEXT_RESIDENT_ROOT_EXECUTABLE",
   residentRootArguments: "LAUNCH_CONTEXT_RESIDENT_ROOT_ARGUMENTS",
@@ -34,6 +35,7 @@ export type LaunchContractTarget = typeof PRIVATE_LAUNCH_CONTRACT | "superseded"
 
 const PRIVATE_ENTRIES = Object.entries(PRIVATE_ENVIRONMENT);
 const SUPERSEDED_ENTRIES = Object.entries(SUPERSEDED_ENVIRONMENT);
+const PUBLISHED_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-dev\.(0|[1-9]\d*))?$/u;
 const PRIVATE_KEYS = new Set<string>([...Object.values(PRIVATE_ENVIRONMENT), ...Object.values(SUPERSEDED_ENVIRONMENT)]);
 const LOGICAL_KEYS = new Map<string, string>(PRIVATE_ENTRIES.map(([logical, key]) => [key, logical]));
 const SUPERSEDED_LOGICAL_KEYS = new Map<string, string>(SUPERSEDED_ENTRIES.map(([logical, key]) => [key, logical]));
@@ -45,6 +47,8 @@ export interface LaunchContext {
   readonly releaseLayers?: string;
   readonly launchProfile?: "a1" | "pi";
   readonly launchMode?: "tabs" | "solo";
+  /** Installed package version that accepted the public launch command. */
+  readonly updateVersion?: string;
   readonly immutableWarmup?: "1";
   readonly residentRootExecutable?: string;
   readonly residentRootArguments?: string;
@@ -93,6 +97,9 @@ export function readLaunchContext(
     throw invalidContext("launchMode", "unsupported launch mode");
   }
   if (values.launchProfile === "pi" && values.launchMode === "tabs") throw invalidContext("launchMode", "Pi comparison cannot use tabs");
+  if (values.updateVersion !== undefined && !PUBLISHED_VERSION.test(values.updateVersion)) {
+    throw invalidContext("updateVersion", "invalid published version");
+  }
   if (values.immutableWarmup !== undefined && values.immutableWarmup !== "1") throw invalidContext("immutableWarmup", "invalid permission flag");
   if ((values.residentRootExecutable === undefined) !== (values.residentRootArguments === undefined)) throw invalidContext("residentRootExecutable", "resident root command is incomplete");
   if (values.residentRootArguments !== undefined) {

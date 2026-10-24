@@ -86,10 +86,13 @@ afterEach(() => {
 });
 
 const STABLE: AvailableRelease = { channel: "stable", version: "0.3.1", command: "a1 update", changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.3.1" };
+const DEVELOPMENT: AvailableRelease = { channel: "development", version: "0.3.1-dev.652", command: "a1 update --develop", changelogUrl: null };
 
 async function compose(options: {
   ownedSurfaces?: "off";
   profileId?: string;
+  packageVersion?: string;
+  notificationVersion?: string;
   release?: AvailableRelease | null;
   releaseNotes?: { current: () => null; completeMarkdown: string };
 }) {
@@ -100,7 +103,8 @@ async function compose(options: {
   const composed = await composeOwnedUi({
     ...(options.ownedSurfaces === undefined ? {} : { ownedSurfaces: options.ownedSurfaces }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
-    packageVersion: "0.3.0",
+    packageVersion: options.packageVersion ?? "0.3.0",
+    ...(options.notificationVersion === undefined ? {} : { notificationVersion: options.notificationVersion }),
     releaseNotes: (options.releaseNotes ?? { current: () => null, completeMarkdown: "" }) as never,
     checkForNewerRelease: async input => { checks.push(input); return options.release === undefined ? STABLE : options.release; },
     createEngineHost: async hostOptions => {
@@ -236,6 +240,32 @@ describe("startup release check composition", () => {
     expect(observed.started).toBe(1);
     await vi.waitFor(() => { expect(announced).toEqual([STABLE]); });
     expect(checks[0]).toMatchObject({ runningVersion: "0.3.0", settingMode: "notify" });
+    await composed.application.dispose();
+  });
+
+  it.each([
+    ["stable", "0.3.1-dev.640", "0.3.0", STABLE],
+    ["development", "0.3.1", "0.3.1-dev.640", DEVELOPMENT],
+  ] as const)("uses the invoking %s package version for notify discovery when another channel executes", async (
+    _channel, packageVersion, notificationVersion, release,
+  ) => {
+    const { composed, announced, checks } = await compose({
+      profileId: "a1", packageVersion, notificationVersion, release,
+    });
+    composed.application.start();
+    await vi.waitFor(() => { expect(announced).toEqual([release]); });
+    expect(checks[0]).toMatchObject({ runningVersion: notificationVersion, settingMode: "notify" });
+    await composed.application.dispose();
+  });
+
+  it("keeps automatic discovery on the executing release version", async () => {
+    observed.updateCheck = "auto";
+    const { composed, announced, checks } = await compose({
+      profileId: "a1", packageVersion: "0.3.1-dev.640", notificationVersion: "0.3.0", release: STABLE,
+    });
+    composed.application.start();
+    await vi.waitFor(() => { expect(announced).toEqual([{ status: "installed", version: "0.3.1" }]); });
+    expect(checks[0]).toMatchObject({ runningVersion: "0.3.1-dev.640", settingMode: "auto" });
     await composed.application.dispose();
   });
 

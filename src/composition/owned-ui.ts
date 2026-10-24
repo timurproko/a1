@@ -76,6 +76,8 @@ export interface OwnedUiCompositionOptions {
   readonly clipboardDiagnosticsPath?: string;
   /** Deterministic release-note seams for composition tests. */
   readonly packageVersion?: string;
+  /** Installed package version that selected the notification channel for this launch. */
+  readonly notificationVersion?: string;
   readonly releaseNotes?: ReleaseNoteCatalog;
   /** Startup release-availability seam; defaults to the throttled registry check. */
   readonly checkForNewerRelease?: (options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>;
@@ -364,6 +366,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     configDir: productPaths.configDir,
     mode: settings === null || !ownedSurfaces ? "auto" : settings.value("updateCheck"),
     packageVersion: releaseNote.packageVersion,
+    notificationVersion: options.notificationVersion,
     checkForNewerRelease: options.checkForNewerRelease,
   });
   const exitNoticePath = process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
@@ -411,6 +414,7 @@ interface StartupReleaseUpdateObservationOptions {
   readonly configDir: string;
   readonly mode: StartupUpdateMode;
   readonly packageVersion: string | null;
+  readonly notificationVersion: string | undefined;
   readonly checkForNewerRelease: ((options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>) | undefined;
 }
 
@@ -423,8 +427,9 @@ function createStartupReleaseUpdateObservation(input: StartupReleaseUpdateObserv
     const check = input.checkForNewerRelease
       ?? (await import("../foundation/release/latest-release.js")).checkForNewerRelease;
     const runningVersion = input.packageVersion ?? await readPackageVersion();
+    const discoveryVersion = input.mode === "notify" ? input.notificationVersion ?? runningVersion : runningVersion;
     const release = await check({
-      runningVersion,
+      runningVersion: discoveryVersion,
       configDir: input.configDir,
       interactive: process.stdout.isTTY === true,
       settingMode: input.mode,

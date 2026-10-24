@@ -5,6 +5,7 @@ import { connect } from "node:net";
 import { resolve } from "node:path";
 import { selectCohortLaunch } from "./cohort-selection.js";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
+import { releaseChannelOf } from "./latest-release.js";
 import { CohortStateStore, type CohortState, type SupervisorEndpointMetadata } from "./cohort-state.js";
 import { assertLaunchProfileId, createSupervisorStartupAttempt, readSupervisorStartupResult, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId, type SupervisorStartupAttemptIdentity } from "../lifecycle/index.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
@@ -63,6 +64,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   const paths = resolveProductPaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
+  let invocationVersion: string | undefined;
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
     let residentContext: LaunchContext = {};
     // Compatibility: public launch preparation supplies PI_CODING_AGENT_DIR; the fallback keeps
@@ -99,7 +101,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
         ]),
       } : { residentFallback: resident.reason };
     }
-    const result = await launchUi(release, environment, sessionArgs, residentContext);
+    const result = await launchUi(release, environment, sessionArgs, residentContext, invocationVersion);
     if (!result.releaseSuperseded) return result.code;
     if (retriesRemaining > 0) return await runBootstrapAttempt(options, retriesRemaining - 1);
     output.write(`${PRODUCT_TEXT.diagnostic("active release changed repeatedly during startup; launch could not converge")}\n`);
@@ -146,6 +148,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   }
   let probe = endpoint ? await probeOwnership(endpoint) : "dead";
   const installedVersion = await readInstalledVersion(options.packageRoot);
+  invocationVersion = releaseChannelOf(installedVersion) === null ? undefined : installedVersion;
   const activeId = state.references.active;
   const active = activeId === null ? undefined : state.releases[activeId];
   let activeIsLaunchable = active === undefined || (options.releaseIsLaunchable?.(active.releaseRoot) ?? true);
@@ -448,12 +451,13 @@ async function launchUi(
   environment: NodeJS.ProcessEnv,
   sessionArgs: readonly string[],
   residentContext: LaunchContext = {},
+  updateVersion?: string,
 ): Promise<{ readonly code: number; readonly releaseSuperseded: boolean }> {
   await markStartupPhase(environment, "bootstrap-selected");
   const entry = await resolveReleaseEntryPoint(release, "bin/guardian.js");
   return await new Promise((resolvePromise, rejectPromise) => {
     let releaseSuperseded = false;
-    const releaseEnv = releaseEnvironment(environment, release, readLaunchContext(environment, "profile").launchProfile);
+    const releaseEnv = releaseEnvironment(environment, release, readLaunchContext(environment, "profile").launchProfile, updateVersion);
     const launchEnvironment = Object.keys(residentContext).length === 0 ? releaseEnv : withLaunchContext(
       releaseEnv,
       { ...readLaunchContext(releaseEnv), ...residentContext },
@@ -485,7 +489,12 @@ async function launchUi(
  * still startable this way, which is what lets a launch fall back to the previous
  * version instead of failing while an installation is being replaced.
  */
-export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease, profile?: LaunchProfileId): NodeJS.ProcessEnv {
+export function releaseEnvironment(
+  environment: NodeJS.ProcessEnv,
+  release: MaterializedRelease,
+  profile?: LaunchProfileId,
+  updateVersion?: string,
+): NodeJS.ProcessEnv {
   const launchMode = readLaunchContext(environment).launchMode;
   return withLaunchContext(environment, {
     releaseId: release.releaseId,
@@ -494,6 +503,7 @@ export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: Mate
     releaseDigest: release.contentDigest,
     ...(profile === undefined ? {} : { launchProfile: profile }),
     ...(launchMode === undefined ? {} : { launchMode }),
+    ...(updateVersion === undefined ? {} : { updateVersion }),
   }, process.platform, launchContractTarget(release));
 }
 
