@@ -185,6 +185,13 @@ export interface OwnedUiShellPresentationOptions {
 /** Persistent prompt history: its store, its bound, the editor that recalls it, and the image sidecar. */
 export interface OwnedUiShellHistoryOptions {
   readonly store: import("../../contracts/owned-ui/index.js").PromptHistoryPort;
+  /** When present, session replacement selects a new store and sidecar, not the old session's recall. */
+  readonly sessionId?: string;
+  readonly scope?: "unique" | "shared";
+  readonly forSession?: (sessionId: string) => Pick<OwnedUiShellHistoryOptions, "store" | "imageSidecar">;
+  /** A live scope change selects the matching store for this session without copying records. */
+  readonly forScope?: (scope: "unique" | "shared", sessionId: string | null) => Pick<OwnedUiShellHistoryOptions, "store" | "imageSidecar"> | null;
+  readonly onScopeChange?: (listener: (scope: "unique" | "shared") => void) => () => void;
   readonly limit: number;
   readonly editor: import("../../integrations/pi/components/index.js").HistoryEditorConstructor;
   /** Optional per-profile filesystem sidecar for image chip payloads. When present, submit

@@ -33,6 +33,11 @@ export function resolveDevelopmentLaunchEnvironment(
     ? join(developmentRoot, "config")
     : join(checkoutRoot, "config");
   const dataDir = resolve(source[PRODUCT_IDENTITY.environment.dataDir] ?? join(developmentRoot, "data"));
+  // Rationale: solo processes keep isolated control state but must see the same history
+  // after selecting Shared; use a checkout-wide root across rebuilds unless overridden.
+  const historyDataDir = resolve(source[PRODUCT_IDENTITY.environment.developmentHistoryDataDir]
+    ?? source[PRODUCT_IDENTITY.environment.dataDir]
+    ?? (selectedDevelopmentRoot ? dataDir : join(checkoutRoot, "data")));
   return {
     checkoutId,
     releaseId,
@@ -41,6 +46,7 @@ export function resolveDevelopmentLaunchEnvironment(
     environment: {
       ...source,
       [PRODUCT_IDENTITY.environment.developmentInstanceId]: instanceId,
+      [PRODUCT_IDENTITY.environment.developmentHistoryDataDir]: historyDataDir,
       [PRODUCT_IDENTITY.environment.configDir]: resolve(source[PRODUCT_IDENTITY.environment.configDir] ?? persistentConfigDir),
       [PRODUCT_IDENTITY.environment.dataDir]: dataDir,
       [PRODUCT_IDENTITY.environment.runtimeDir]: resolve(source[PRODUCT_IDENTITY.environment.runtimeDir] ?? join(developmentRoot, "runtime")),

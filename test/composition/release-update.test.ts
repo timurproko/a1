@@ -47,6 +47,8 @@ vi.mock("../../src/composition/settings-route-host.js", () => ({
 }));
 vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
+    get file() { return "synthetic-agent-settings.json"; }
+    refresh() { return false; }
     value(key: string) { return key === "updateCheck" ? observed.updateCheck : key === "promptHistoryEnabled" ? false : key === "accentColor" ? observed.accentColor : undefined; }
     onChange(listener: (manager: this) => void) {
       const notify = () => listener(this);
