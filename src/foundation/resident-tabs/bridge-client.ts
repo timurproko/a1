@@ -1,10 +1,10 @@
 import { connect, type Socket } from "node:net";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "./protocol.js";
+import { RESIDENT_TAB_ROUTES, type ResidentTabRoute } from "./routes.js";
 
 export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "done" | "aborted" | "error" | "idle" | "unresponsive" | "crashed" | "restarting" | "failed";
-/** The owned screens the server opens in a utility tab. */
-export type ResidentTabRoute = "settings" | "changelog";
-const RESIDENT_TAB_ROUTES: ReadonlySet<unknown> = new Set<ResidentTabRoute>(["settings", "changelog"]);
+export { residentUtilityRoute, type ResidentTabRoute } from "./routes.js";
+const RESIDENT_TAB_ROUTE_SET: ReadonlySet<unknown> = new Set<ResidentTabRoute>(RESIDENT_TAB_ROUTES);
 export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string }
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
 export type TabBridgeCommand =
@@ -238,7 +238,7 @@ export class TabBridgeClient {
       const source = message.body["nameSource"];
       this.#emitCommand({ type: "rename", name: message.body["name"], nameSource: source === "auto" || source === "default" ? source : "user" }); return;
     }
-    if (message.type === "bridge.route" && RESIDENT_TAB_ROUTES.has(message.body["route"])) {
+    if (message.type === "bridge.route" && RESIDENT_TAB_ROUTE_SET.has(message.body["route"])) {
       this.#emitCommand({ type: "route", route: message.body["route"] as ResidentTabRoute }); return;
     }
     if (message.type === "bridge.stop" && typeof message.body["deadlineMs"] === "number") {

@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { TabBridgeClient } from "../../../src/foundation/resident-tabs/bridge-client.js";
+import { residentUtilityRoute, TabBridgeClient } from "../../../src/foundation/resident-tabs/bridge-client.js";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "../../../src/foundation/resident-tabs/protocol.js";
 import { ensureTerminalHost } from "../../../src/foundation/resident-tabs/ensure-terminal-host.js";
 import { readResidentTabLaunchSettings } from "../../../src/foundation/resident-tabs/settings.js";
@@ -384,5 +384,14 @@ describe("resident tab shortcut publication", () => {
       assignments: [["tabs.new", null]],
     });
     bridge.close();
+  });
+});
+
+describe("resident utility routes", () => {
+  it("names the screen a utility tab shows by its id stem, and none for an Agent", () => {
+    expect(residentUtilityRoute("settings-1a")).toBe("settings");
+    expect(residentUtilityRoute("changelog-2b")).toBe("changelog");
+    expect(residentUtilityRoute("tab-1")).toBeNull();
+    expect(residentUtilityRoute("settingsx-1")).toBeNull();
   });
 });

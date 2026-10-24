@@ -645,8 +645,9 @@ pub(super) fn reorder_registry(
     true
 }
 
-/// Restores Settings to the last live slot on an explicit open, not while prewarming or dragging.
-pub(super) fn move_settings_last(registry: &mut RegistryDocument, tab_id: &str) -> bool {
+/// Places a utility tab in the last live slot on an explicit open, not while prewarming or
+/// dragging, so every utility tab opens last.
+pub(super) fn move_utility_last(registry: &mut RegistryDocument, tab_id: &str) -> bool {
     let last = registry
         .tabs
         .iter()

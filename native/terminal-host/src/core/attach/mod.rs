@@ -255,7 +255,8 @@ pub enum PopupAction {
     Close,
     Rename,
     NewAgent,
-    Settings,
+    /// Toggles a utility tab, as its shortcut does.
+    Utility(UtilityKind),
     /// Opens the plus-menu dialog in the Settings tab.
     ConfigurePlus,
     View(String),
@@ -361,7 +362,7 @@ impl PopupMenu {
                         "  Settings"
                     },
                     shortcuts.label("tabs.settings"),
-                    PopupAction::Settings,
+                    PopupAction::Utility(UtilityKind::Settings),
                 ),
             ],
         )
@@ -834,32 +835,77 @@ pub fn drag_marker_column<T: TabView>(drag: &TabDrag, tabs: &[T]) -> Option<u16>
     }
 }
 
-/// Invariant: singleton utility tabs, Settings and Changelog, are never Agents: they are closed
-/// but not renamed, own no session, and never count as running Agents.
+/// A singleton utility tab kind. The tab bar owns every utility tab rule: its toggle reveals the
+/// one tab through the server, which starts it or places the running one last, and hides it
+/// again; the client keeps it prewarmed and hidden; it never takes the view when another tab
+/// closes; and it is closed but never renamed and never counts as an Agent. A new kind is only an
+/// entry here, the matching `View` field, and the server's kind table.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UtilityKind {
+    Settings,
+    Changelog,
+}
+
+impl UtilityKind {
+    /// Every kind, in prewarm order: a kind starts prewarming once the one before it runs.
+    pub const ALL: [Self; 2] = [Self::Settings, Self::Changelog];
+
+    /// The kind's tab id stem, route, and wire message suffix.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Settings => "settings",
+            Self::Changelog => "changelog",
+        }
+    }
+
+    /// The shortcut action that toggles the kind's tab.
+    pub fn action(self) -> &'static str {
+        match self {
+            Self::Settings => "tabs.settings",
+            Self::Changelog => "tabs.changelog",
+        }
+    }
+
+    /// The kind of a utility tab id, `<name>-…`, or `None` for an Agent.
+    pub fn of(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| {
+            id.strip_prefix(kind.name())
+                .is_some_and(|rest| rest.starts_with('-'))
+        })
+    }
+
+    pub fn from_action(action: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.action() == action)
+    }
+
+    pub fn index(self) -> usize {
+        self as usize
+    }
+}
+
+/// Invariant: singleton utility tabs are never Agents: they are closed but not renamed, own no
+/// session, and never count as running Agents.
 pub fn is_utility_tab(id: &str) -> bool {
-    id.starts_with("settings-") || id.starts_with("changelog-")
+    UtilityKind::of(id).is_some()
 }
 
-/// The viewed Settings tab is the close target when its shortcut toggles it off.
-pub fn settings_toggle_closes(viewed: Option<&str>) -> Option<&str> {
-    viewed.filter(|id| id.starts_with("settings-"))
+/// The viewed tab of `kind`, which its toggle hides.
+pub fn utility_toggle_closes(viewed: Option<&str>, kind: UtilityKind) -> Option<&str> {
+    viewed.filter(|id| UtilityKind::of(id) == Some(kind))
 }
 
-/// The tabs the strip, jumps, and drags present. A running Settings or Changelog tab stays hidden
-/// until it is viewed in this session, and Settings again after its shortcut hides it, so its
-/// process can be reused instantly instead of starting a new one. `shown` holds whether
-/// Settings and Changelog are shown.
+/// The tabs the strip, jumps, and drags present. A running utility tab stays hidden until it is
+/// viewed in this session, and again after its toggle hides it, so its process can be reused
+/// instantly instead of starting a new one. `shown` holds, by kind, whether each is shown.
 pub fn shown_tabs<T: TabView + Clone>(
     tabs: &[T],
     viewed: Option<&str>,
-    shown: (bool, bool),
+    shown: [bool; 2],
 ) -> Vec<T> {
     tabs.iter()
         .filter(|tab| {
             let id = tab.id();
-            let hidden = (id.starts_with("settings-") && !shown.0)
-                || (id.starts_with("changelog-") && !shown.1);
-            !hidden || viewed == Some(id)
+            UtilityKind::of(id).is_none_or(|kind| shown[kind.index()]) || viewed == Some(id)
         })
         .cloned()
         .collect()
@@ -1277,20 +1323,20 @@ mod tests {
         let tabs = vec![tab("tab-1"), tab("settings-1"), tab("tab-2")];
         let ids = |shown: Vec<AttachTab>| shown.into_iter().map(|tab| tab.id).collect::<Vec<_>>();
         assert_eq!(
-            ids(shown_tabs(&tabs, Some("tab-1"), (false, false))),
+            ids(shown_tabs(&tabs, Some("tab-1"), [false; 2])),
             ["tab-1", "tab-2"]
         );
         assert_eq!(
-            ids(shown_tabs(&tabs, Some("settings-1"), (false, false))),
+            ids(shown_tabs(&tabs, Some("settings-1"), [false; 2])),
             ["tab-1", "settings-1", "tab-2"]
         );
         assert_eq!(
-            ids(shown_tabs(&tabs, Some("tab-2"), (true, false))),
+            ids(shown_tabs(&tabs, Some("tab-2"), [true, false])),
             ["tab-1", "settings-1", "tab-2"]
         );
 
         // Invariant: A drop among shown tabs maps to the registry position the server reorders by.
-        let shown = shown_tabs(&tabs, Some("tab-1"), (false, false));
+        let shown = shown_tabs(&tabs, Some("tab-1"), [false; 2]);
         assert_eq!(registry_index(&shown, &tabs, 0), 0);
         assert_eq!(registry_index(&shown, &tabs, 1), 2);
         assert_eq!(registry_index(&shown, &tabs, 2), 3);
@@ -1299,11 +1345,24 @@ mod tests {
     #[test]
     fn settings_shortcut_toggles_the_viewed_settings_tab() {
         assert_eq!(
-            settings_toggle_closes(Some("settings-1a")),
+            utility_toggle_closes(Some("settings-1a"), UtilityKind::Settings),
             Some("settings-1a")
         );
-        assert_eq!(settings_toggle_closes(Some("tab-1")), None);
-        assert_eq!(settings_toggle_closes(None), None);
+        assert_eq!(
+            utility_toggle_closes(Some("tab-1"), UtilityKind::Settings),
+            None
+        );
+        assert_eq!(
+            utility_toggle_closes(Some("changelog-1"), UtilityKind::Settings),
+            None
+        );
+        assert_eq!(utility_toggle_closes(None, UtilityKind::Changelog), None);
+        assert_eq!(UtilityKind::of("settingsx-1"), None);
+        assert_eq!(UtilityKind::of("changelog-1"), Some(UtilityKind::Changelog));
+        assert_eq!(
+            UtilityKind::from_action("tabs.settings"),
+            Some(UtilityKind::Settings)
+        );
     }
 
     #[test]

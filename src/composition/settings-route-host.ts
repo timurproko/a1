@@ -20,10 +20,11 @@ export interface OwnedReferenceProviders {
 
 /** How the settings route is presented. */
 export interface OwnedRouteHostOptions {
-  /** The resident Settings tab: the screen is the tab, so it offers no screen-level close. */
-  readonly settingsPinned?: boolean;
-  /** The resident Changelog tab: its changelog screen is the tab, so it offers no screen-level close. */
-  readonly changelogPinned?: boolean;
+  /**
+   * The route whose screen is this resident utility tab. That screen is the tab, so it offers no
+   * screen-level close: neither Esc nor one Ctrl+C dismisses it, and it shows no close hint.
+   */
+  readonly tabRoute?: string | null;
   /** Opens the tab bar's own Plus Menu dialog; false when no tab bar can show it. */
   readonly configurePlusMenu?: () => boolean;
   readonly keybindings?: PiKeybindingsHost;
@@ -50,7 +51,7 @@ export function createOwnedRouteHost(
       const session = route === "session";
       const title = session ? "Session Info" : changelog ? input ? "What's New" : "Changelog" : HOTKEYS_TITLE;
       const document = session ? references!.session() : changelog ? references!.changelog(input) : references!.hotkeys();
-      const pinned = changelog && options.changelogPinned === true;
+      const pinned = options.tabRoute === route;
       return deferredSurface(route, title, () => loadReferenceSurface(settings, route, title, document, pinned));
     },
   };
@@ -96,7 +97,7 @@ async function loadSettingsSurface(settings: OwnedSettingsManager, options: Owne
     import("../features/owned-ui/settings-app.js"),
     import("./settings-search-input.js"),
   ]);
-  const pinned = options.settingsPinned === true;
+  const pinned = options.tabRoute === SETTINGS_ROUTE;
   const searchInputFactory = createSettingsSearchInputFactory({
     ...(options.keybindings === undefined ? {} : { keybindings: options.keybindings }),
     ...(options.agentDir === undefined ? {} : { agentDir: options.agentDir }),

@@ -9,9 +9,9 @@ use super::{
     AttachKey, AttachMouse, CloseFallback, CommandPalette, DRAG_HOLD, DeferredInput,
     DeferredInputTarget, KeyCode, MouseButton, MouseKind, PaletteKey, PlusMenu, PopupAction,
     PopupKind, PopupMenu, RenameEditor, ShortcutLabels, StripHitKind, StripSnapshot, TabDrag,
-    TabView, apply_rename_control_key, close_fallback_for, failure_applies, forward_pointer_motion,
-    is_utility_tab, registry_index, rejection_notice, settings_toggle_closes, shown_tabs,
-    update_drag,
+    TabView, UtilityKind, apply_rename_control_key, close_fallback_for, failure_applies,
+    forward_pointer_motion, is_utility_tab, registry_index, rejection_notice, shown_tabs,
+    update_drag, utility_toggle_closes,
 };
 
 /// How long the client waits, with tabs present and no Settings tab, before starting a hidden one
@@ -97,11 +97,20 @@ pub struct Prewarm {
     pub absent_since: Option<Duration>,
 }
 
-/// A singleton utility kind the client prewarms: its tab-id prefix and the prewarm request.
-const PREWARMED: [(&str, Request); 2] = [
-    ("settings-", Request::PrewarmSettings),
-    ("changelog-", Request::PrewarmChangelog),
-];
+impl View {
+    /// The kind's prewarm state.
+    pub fn prewarm(&mut self, kind: UtilityKind) -> &mut Prewarm {
+        match kind {
+            UtilityKind::Settings => &mut self.settings,
+            UtilityKind::Changelog => &mut self.changelog,
+        }
+    }
+
+    /// Whether each kind's tab joined the strip, by kind.
+    pub fn shown(&self) -> [bool; 2] {
+        [self.settings.shown, self.changelog.shown]
+    }
+}
 
 /// The client's view intent beside the presentation view model's viewed and requested tabs.
 #[derive(Debug, Clone, Default)]
@@ -157,12 +166,10 @@ pub struct Context<'a, T> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
     Create,
-    OpenSettings,
-    /// Creates or shows the singleton Changelog tab.
-    OpenChangelog,
-    PrewarmSettings,
-    /// Starts the Changelog tab hidden, so opening it later is immediate.
-    PrewarmChangelog,
+    /// Shows the kind's one tab: the server starts it, or reveals the running one and places it last.
+    Open(UtilityKind),
+    /// Starts the kind's tab hidden, so opening it later is immediate.
+    Prewarm(UtilityKind),
     Close(String),
     Restart(String),
     Rename {
@@ -295,10 +302,6 @@ pub enum Event {
     Tick,
 }
 
-fn is_settings(id: &str) -> bool {
-    id.starts_with("settings-")
-}
-
 impl State {
     pub fn new(viewed: Option<String>, columns: u16) -> Self {
         Self {
@@ -365,11 +368,7 @@ impl State {
     }
 
     fn shown<T: TabView + Clone>(&self, context: &Context<'_, T>) -> Vec<T> {
-        shown_tabs(
-            context.tabs,
-            context.viewed,
-            (self.view.settings.shown, self.view.changelog.shown),
-        )
+        shown_tabs(context.tabs, context.viewed, self.view.shown())
     }
 
     /// Routes child frames: while a view or created tab is pending they wait for that target,
@@ -560,7 +559,7 @@ impl State {
                 }
             }
             PopupAction::NewAgent => self.create(Request::Create, effects),
-            PopupAction::Settings => self.toggle_settings(context, effects),
+            PopupAction::Utility(kind) => self.toggle_utility(context, kind, effects),
             PopupAction::ConfigurePlus => self.mode = Mode::Palette(CommandPalette::plus_menu()),
             PopupAction::View(tab_id) => effects.push(Effect::View(tab_id)),
         }
@@ -591,22 +590,18 @@ impl State {
         effects.push(Effect::Send(request));
     }
 
-    /// Invariant: the server reuses a prewarmed Settings process and places it last when it
-    /// first becomes visible; no new holder is launched unless the tab is actually absent.
-    fn open_settings(&mut self, effects: &mut Vec<Effect>) {
-        self.create(Request::OpenSettings, effects);
-    }
-
     fn shortcut<T: TabView + Clone>(
         &mut self,
         context: &Context<'_, T>,
         action: &str,
         effects: &mut Vec<Effect>,
     ) {
+        if let Some(kind) = UtilityKind::from_action(action) {
+            self.toggle_utility(context, kind, effects);
+            return;
+        }
         match action {
             "tabs.new" => self.create(Request::Create, effects),
-            "tabs.settings" => self.toggle_settings(context, effects),
-            "tabs.changelog" => self.open_changelog(context, effects),
             "tabs.commands" => self.mode = Mode::Palette(CommandPalette::default()),
             "tabs.close" => {
                 if let Some(tab_id) = context.viewed {
@@ -666,39 +661,26 @@ impl State {
         }
     }
 
-    /// Shows the singleton Changelog tab, or asks the server to create it.
-    fn open_changelog<T: TabView + Clone>(
+    /// A utility tab's toggle hides its viewed tab, returning to its nearest neighbour, and
+    /// otherwise shows its one tab. Invariant: a tab already in the strip is switched to in its
+    /// dragged slot; a hidden or absent one is asked of the server, which reuses a prewarmed
+    /// process and places it last, so every utility tab opens last.
+    fn toggle_utility<T: TabView + Clone>(
         &mut self,
         context: &Context<'_, T>,
+        kind: UtilityKind,
         effects: &mut Vec<Effect>,
     ) {
         // Invariant: an explicit open owns the view, so a prewarm still starting no longer hides it.
-        self.view.changelog.pending = false;
-        match context
-            .tabs
-            .iter()
-            .find(|tab| tab.id().starts_with("changelog-"))
-        {
-            Some(changelog) => effects.push(Effect::View(changelog.id().to_owned())),
-            None => self.create(Request::OpenChangelog, effects),
-        }
-    }
-
-    /// The Settings shortcut hides the viewed Settings tab, returning to its nearest neighbour,
-    /// and otherwise shows the singleton Settings tab.
-    fn toggle_settings<T: TabView + Clone>(
-        &mut self,
-        context: &Context<'_, T>,
-        effects: &mut Vec<Effect>,
-    ) {
-        self.view.settings.pending = false;
-        let Some(tab_id) = settings_toggle_closes(context.viewed) else {
-            if let Some(settings) = self.shown(context).iter().find(|tab| is_settings(tab.id())) {
-                // Invariant: switching to an already visible Settings tab retains its dragged
-                // slot. Only revealing a hidden Settings tab places it last.
-                effects.push(Effect::View(settings.id().to_owned()));
-            } else {
-                self.open_settings(effects);
+        self.view.prewarm(kind).pending = false;
+        let Some(tab_id) = utility_toggle_closes(context.viewed, kind) else {
+            match self
+                .shown(context)
+                .iter()
+                .find(|tab| UtilityKind::of(tab.id()) == Some(kind))
+            {
+                Some(tab) => effects.push(Effect::View(tab.id().to_owned())),
+                None => self.create(Request::Open(kind), effects),
             }
             return;
         };
@@ -711,8 +693,8 @@ impl State {
         let previous = close_fallback_for(&shown, context.viewed, tab_id)
             .and_then(|fallback| fallback.resolve(&survivors));
         if let Some(previous) = previous {
-            // Invariant: hiding keeps the Settings process for reuse.
-            self.view.settings.shown = false;
+            // Invariant: hiding keeps the process for reuse.
+            self.view.prewarm(kind).shown = false;
             effects.push(Effect::View(previous));
         } else {
             self.close_fallback = None;
@@ -1009,7 +991,7 @@ impl State {
                             mouse.column,
                             self.columns,
                             context.shortcuts,
-                            self.settings_visible(context.viewed),
+                            self.utility_visible(UtilityKind::Settings, context.viewed),
                         );
                         self.mode = Mode::Popup(menu);
                     }
@@ -1038,20 +1020,19 @@ impl State {
         now: Duration,
         effects: &mut Vec<Effect>,
     ) {
-        // Rationale: Settings and Changelog open in their own processes; starting them hidden
-        // ahead of time makes opening them as immediate as solo's in-process screens. The landing
-        // keeps them ready too. Changelog waits for Settings, so the two never start at once.
+        // Rationale: utility tabs open in their own processes; starting them hidden ahead of time
+        // makes opening them as immediate as solo's in-process screens. The landing keeps them
+        // ready too. Each kind waits for the one before it, so they never start at once.
         let mut ready = true;
-        for (prefix, request) in PREWARMED {
-            let exists = context.tabs.iter().any(|tab| tab.id().starts_with(prefix));
+        for kind in UtilityKind::ALL {
+            let exists = context
+                .tabs
+                .iter()
+                .any(|tab| UtilityKind::of(tab.id()) == Some(kind));
             let idle = !self.view.pending_created_activation
                 && context.requested.is_none()
                 && (context.viewed.is_some() || context.landing);
-            let prewarm = if prefix == "settings-" {
-                &mut self.view.settings
-            } else {
-                &mut self.view.changelog
-            };
+            let prewarm = self.view.prewarm(kind);
             if exists || (context.tabs.is_empty() && !context.landing) {
                 prewarm.absent_since = None;
                 if !exists {
@@ -1063,7 +1044,7 @@ impl State {
                     prewarm.absent_since = None;
                     prewarm.shown = false;
                     prewarm.pending = true;
-                    effects.push(Effect::Send(request));
+                    effects.push(Effect::Send(Request::Prewarm(kind)));
                 }
             }
             ready = exists;
@@ -1187,13 +1168,7 @@ impl State {
     }
 
     fn created(&mut self, tab_id: String, created: bool, effects: &mut Vec<Effect>) {
-        let prewarm = if is_settings(&tab_id) {
-            Some(&mut self.view.settings)
-        } else if tab_id.starts_with("changelog-") {
-            Some(&mut self.view.changelog)
-        } else {
-            None
-        };
+        let prewarm = UtilityKind::of(&tab_id).map(|kind| self.view.prewarm(kind));
         if let Some(prewarm) = prewarm.filter(|prewarm| prewarm.pending) {
             // Invariant: a prewarmed utility tab starts hidden and never takes the view or a
             // pending Agent creation's input.
@@ -1221,10 +1196,8 @@ impl State {
         effects: &mut Vec<Effect>,
     ) {
         if requested {
-            if is_settings(tab_id) {
-                self.view.settings.shown = true;
-            } else if tab_id.starts_with("changelog-") {
-                self.view.changelog.shown = true;
+            if let Some(kind) = UtilityKind::of(tab_id) {
+                self.view.prewarm(kind).shown = true;
             }
             self.close_fallback = None;
             self.notice = None;
@@ -1246,17 +1219,16 @@ impl State {
         }
     }
 
-    /// Invariant: a hidden Settings tab never surfaces by itself.
-    pub fn settings_visible(&self, viewed: Option<&str>) -> bool {
-        self.view.settings.shown || viewed.is_some_and(is_settings)
+    /// Whether `kind`'s tab is visible: shown in the strip or viewed now. Invariant: a hidden
+    /// utility tab never surfaces by itself.
+    pub fn utility_visible(&self, kind: UtilityKind, viewed: Option<&str>) -> bool {
+        self.view.shown()[kind.index()]
+            || viewed.is_some_and(|id| UtilityKind::of(id) == Some(kind))
     }
 
-    /// Whether Settings and Changelog are visible: shown in the strip or viewed now.
-    pub fn utility_visible(&self, viewed: Option<&str>) -> (bool, bool) {
-        (
-            self.settings_visible(viewed),
-            self.view.changelog.shown || viewed.is_some_and(|id| id.starts_with("changelog-")),
-        )
+    /// Every kind's visibility, by kind.
+    pub fn utilities_visible(&self, viewed: Option<&str>) -> [bool; 2] {
+        UtilityKind::ALL.map(|kind| self.utility_visible(kind, viewed))
     }
 
     /// Resolves a jump that waited for a registry snapshot; returns the tab to view.
@@ -1278,12 +1250,12 @@ impl State {
         None
     }
 
-    /// The tab to view when the viewed tab leaves the registry. Invariant: a hidden utility tab,
-    /// Settings or Changelog, never surfaces by itself; `visible` is `utility_visible`.
+    /// The tab to view when the viewed tab leaves the registry. Invariant: a hidden utility tab
+    /// never surfaces by itself; `visible` is `utilities_visible`.
     pub fn fallback_view<T: TabView + Clone>(
         &self,
         candidates: &[T],
-        visible: (bool, bool),
+        visible: [bool; 2],
     ) -> Option<String> {
         self.close_fallback
             .as_ref()
@@ -1767,7 +1739,7 @@ mod tests {
         assert_eq!(labels, ["+ Agent", "", "  Settings"]);
         assert_eq!(
             fixture.step(&mut state, mouse(LEFT, menu.column, 3)),
-            [Effect::Send(Request::OpenSettings), PAINT],
+            [Effect::Send(Request::Open(UtilityKind::Settings)), PAINT],
             "the hidden Settings is revealed through the server"
         );
 
@@ -2080,7 +2052,7 @@ mod tests {
         assert!(fixture.step(&mut state, key(KeyCode::Tab)).is_empty());
         assert_eq!(
             fixture.step(&mut state, key(KeyCode::Enter)),
-            [Effect::Send(Request::OpenChangelog), PAINT]
+            [Effect::Send(Request::Open(UtilityKind::Changelog)), PAINT]
         );
         assert!(state.mode.palette().is_none());
 
@@ -2202,7 +2174,7 @@ mod tests {
         let mut state = hidden.state();
         assert_eq!(
             hidden.step(&mut state, shortcut("tabs.settings")),
-            [Effect::Send(Request::OpenSettings), PAINT]
+            [Effect::Send(Request::Open(UtilityKind::Settings)), PAINT]
         );
         state.view.settings.shown = true;
         assert_eq!(
@@ -2256,7 +2228,7 @@ mod tests {
         let mut state = absent.state();
         assert_eq!(
             absent.step_at(&mut state, Event::Tick, NOW),
-            [Effect::Send(Request::PrewarmSettings)],
+            [Effect::Send(Request::Prewarm(UtilityKind::Settings))],
             "prewarm starts as soon as the first Agent is registered"
         );
         assert!(state.view.settings.pending);
@@ -2272,10 +2244,10 @@ mod tests {
         assert!(!state.view.settings.pending);
         assert_eq!(
             absent.step(&mut state, shortcut("tabs.settings")),
-            [Effect::Send(Request::OpenSettings), PAINT]
+            [Effect::Send(Request::Open(UtilityKind::Settings)), PAINT]
         );
-        assert!(!state.settings_visible(Some("a")));
-        assert!(state.settings_visible(Some("settings-2")));
+        assert!(!state.utility_visible(UtilityKind::Settings, Some("a")));
+        assert!(state.utility_visible(UtilityKind::Settings, Some("settings-2")));
     }
 
     #[test]
@@ -2503,26 +2475,26 @@ mod tests {
 
         state.close_fallback = close_fallback_for(&[tab("a"), tab("b")], Some("a"), "a");
         assert_eq!(
-            state.fallback_view(&[tab("b"), tab("settings-1")], (false, false)),
+            state.fallback_view(&[tab("b"), tab("settings-1")], [false; 2]),
             Some("b".into())
         );
         state.installed::<AttachTab>(&[], false);
         assert!(state.close_fallback.is_none());
         assert_eq!(
-            state.fallback_view(&[tab("settings-1"), tab("c")], (false, false)),
+            state.fallback_view(&[tab("settings-1"), tab("c")], [false; 2]),
             Some("c".into())
         );
         assert_eq!(
-            state.fallback_view(&[tab("settings-1"), tab("c")], (true, false)),
+            state.fallback_view(&[tab("settings-1"), tab("c")], [true, false]),
             Some("settings-1".into())
         );
         assert_eq!(
-            state.fallback_view(&[tab("settings-1"), tab("changelog-2")], (false, false)),
+            state.fallback_view(&[tab("settings-1"), tab("changelog-2")], [false; 2]),
             None,
             "closing the last Agent never views a hidden utility tab"
         );
         assert_eq!(
-            state.fallback_view(&[tab("changelog-2"), tab("c")], (false, true)),
+            state.fallback_view(&[tab("changelog-2"), tab("c")], [false, true]),
             Some("changelog-2".into())
         );
         state.route_input(Some("x"), vec![vec![1]]);
@@ -2547,7 +2519,7 @@ mod tests {
         let mut state = landing.state();
         assert_eq!(
             landing.step(&mut state, Event::Tick),
-            [Effect::Send(Request::PrewarmSettings)],
+            [Effect::Send(Request::Prewarm(UtilityKind::Settings))],
             "the landing prewarms Settings so the shortcut opens it at once"
         );
         assert_eq!(
@@ -2561,7 +2533,7 @@ mod tests {
         let mut state = ready.state();
         assert_eq!(
             ready.step(&mut state, Event::Tick),
-            [Effect::Send(Request::PrewarmChangelog)],
+            [Effect::Send(Request::Prewarm(UtilityKind::Changelog))],
             "a ready Settings is reused, and Changelog is prewarmed after it"
         );
         let prewarmed = server(ServerEvent::Created {
@@ -2581,8 +2553,8 @@ mod tests {
         );
         assert_eq!(
             both.step(&mut state, shortcut("tabs.changelog")),
-            [Effect::View("changelog-2".into()), PAINT],
-            "opening Changelog shows the running hidden tab at once"
+            [Effect::Send(Request::Open(UtilityKind::Changelog)), PAINT],
+            "opening Changelog reveals the running hidden tab, which the server places last"
         );
         assert!(
             state
@@ -2595,7 +2567,7 @@ mod tests {
         assert!(
             ready
                 .step(&mut state, shortcut("tabs.settings"))
-                .contains(&Effect::Send(Request::OpenSettings))
+                .contains(&Effect::Send(Request::Open(UtilityKind::Settings)))
         );
     }
 
@@ -2605,16 +2577,31 @@ mod tests {
         let mut state = fixture.state();
         assert_eq!(
             fixture.step(&mut state, shortcut("tabs.changelog")),
-            [Effect::Send(Request::OpenChangelog), PAINT]
+            [Effect::Send(Request::Open(UtilityKind::Changelog)), PAINT]
         );
         assert!(state.view.pending_created_activation);
         let existing = Fixture::new(&["a", "changelog-1"], "a");
         let mut state = existing.state();
         assert_eq!(
             existing.step(&mut state, shortcut("tabs.changelog")),
-            [Effect::View("changelog-1".into()), PAINT],
-            "an open Changelog is reused"
+            [Effect::Send(Request::Open(UtilityKind::Changelog)), PAINT],
+            "a hidden Changelog is revealed through the server, which places it last"
         );
+        state.view.changelog.shown = true;
+        assert_eq!(
+            existing.step(&mut state, shortcut("tabs.changelog")),
+            [Effect::View("changelog-1".into()), PAINT],
+            "a Changelog already in the strip keeps its slot"
+        );
+        let viewed = Fixture::new(&["a", "changelog-1"], "changelog-1");
+        let mut state = viewed.state();
+        state.view.changelog.shown = true;
+        assert_eq!(
+            viewed.step(&mut state, shortcut("tabs.changelog")),
+            [Effect::View("a".into()), PAINT],
+            "its toggle hides the viewed Changelog and keeps the process"
+        );
+        assert!(!state.view.changelog.shown);
     }
 
     #[test]

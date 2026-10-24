@@ -1,4 +1,5 @@
-import type { ResidentTabRoute, TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
+import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
+import { residentUtilityRoute, type ResidentTabRoute } from "../foundation/resident-tabs/routes.js";
 import type { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
 import { deriveResidentTabStatus, type ResidentTabTurnSettlement } from "../features/resident-tab/status-deriver.js";
 import { projectResidentTabShortcuts } from "../features/resident-tab/shortcut-projection.js";
@@ -32,8 +33,7 @@ export function residentTabKeybindings(
  */
 export function residentRouteHostOptions(tabBridge: TabBridgeClient | null): OwnedRouteHostOptions {
   return {
-    settingsPinned: tabBridge?.tabId.startsWith("settings-") === true,
-    changelogPinned: tabBridge?.tabId.startsWith("changelog-") === true,
+    ...(tabBridge === null ? {} : { tabRoute: residentUtilityRoute(tabBridge.tabId) }),
     configurePlusMenu: () => {
       if (tabBridge === null || !tabBridge.available || tabBridge.captureAttachment() === null) return false;
       void tabBridge.requestAction("configure-plus");
@@ -44,7 +44,7 @@ export function residentRouteHostOptions(tabBridge: TabBridgeClient | null): Own
 
 /** Closes a utility tab when its own screen closes. Invariant: a utility tab's screen is the tab. */
 export function closeResidentUtilityRoute(tabBridge: Pick<TabBridgeClient, "tabId" | "requestClose">, route: string): void {
-  if ((route === "settings" || route === "changelog") && tabBridge.tabId.startsWith(`${route}-`)) void tabBridge.requestClose();
+  if (residentUtilityRoute(tabBridge.tabId) === route) void tabBridge.requestClose();
 }
 
 export async function bindResidentTabBridge(

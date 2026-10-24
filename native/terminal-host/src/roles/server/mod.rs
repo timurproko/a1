@@ -64,6 +64,23 @@ fn utility_kind(tab_id: &str) -> Option<(&'static str, &'static str)> {
         .map(|(_, kind, title)| (*kind, *title))
 }
 
+/// The utility tab a client message opens or prewarms, `tab.open-<kind>` or
+/// `tab.prewarm-<kind>` for each kind: its id prefix and whether the message opens it.
+fn utility_request(message_type: &str) -> Option<(&'static str, bool)> {
+    let (opening, kind) = message_type
+        .strip_prefix("tab.open-")
+        .map(|kind| (true, kind))
+        .or_else(|| {
+            message_type
+                .strip_prefix("tab.prewarm-")
+                .map(|kind| (false, kind))
+        })?;
+    UTILITY_KINDS
+        .iter()
+        .find(|(_, name, _)| *name == kind)
+        .map(|(prefix, _, _)| (*prefix, opening))
+}
+
 /// Invariant: utility tabs are never Agents: they cannot be renamed, own no session, trail new
 /// Agents, and never count as the Agent an attach views or starts.
 fn is_utility_tab_id(tab_id: &str) -> bool {
@@ -1889,6 +1906,16 @@ mod tests {
         );
         assert_eq!(utility_kind("tab-1"), None);
         assert!(is_utility_tab_id("changelog-1") && !is_utility_tab_id("tab-1"));
+        assert_eq!(
+            utility_request("tab.open-changelog"),
+            Some((CHANGELOG_TAB_PREFIX, true))
+        );
+        assert_eq!(
+            utility_request("tab.prewarm-settings"),
+            Some((SETTINGS_TAB_PREFIX, false))
+        );
+        assert_eq!(utility_request("tab.open-browser"), None);
+        assert_eq!(utility_request("tab.create"), None);
         let mut changelog = record("changelog-1", 1, "running", None);
         changelog.kind = "changelog".into();
         let mut registry = RegistryDocument {
@@ -2026,9 +2053,9 @@ mod tests {
             }
         ));
         assert_eq!(visible(&registry), ["settings-1", "agent-1", "agent-2"]);
-        assert!(lifecycle::move_settings_last(&mut registry, "settings-1"));
+        assert!(lifecycle::move_utility_last(&mut registry, "settings-1"));
         assert_eq!(visible(&registry), ["agent-1", "agent-2", "settings-1"]);
-        assert!(!lifecycle::move_settings_last(&mut registry, "settings-1"));
+        assert!(!lifecycle::move_utility_last(&mut registry, "settings-1"));
         assert_eq!(registry.registry_revision, 8);
     }
 

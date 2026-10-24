@@ -1813,17 +1813,13 @@ impl Client {
         let stream = &mut self.stream;
         match request {
             Request::Create => wire::send(stream, "tab.create", None, self.create.clone()),
-            Request::OpenSettings => {
-                wire::send(stream, "tab.open-settings", None, self.create.clone())
+            Request::Open(kind) => {
+                let message = format!("tab.open-{}", kind.name());
+                wire::send(stream, &message, None, self.create.clone())
             }
-            Request::OpenChangelog => {
-                wire::send(stream, "tab.open-changelog", None, self.create.clone())
-            }
-            Request::PrewarmSettings => {
-                wire::send(stream, "tab.prewarm-settings", None, self.create.clone())
-            }
-            Request::PrewarmChangelog => {
-                wire::send(stream, "tab.prewarm-changelog", None, self.create.clone())
+            Request::Prewarm(kind) => {
+                let message = format!("tab.prewarm-{}", kind.name());
+                wire::send(stream, &message, None, self.create.clone())
             }
             Request::Close(tab_id) => wire::send(stream, "tab.close", None, TabTarget { tab_id }),
             Request::Restart(tab_id) => {
@@ -1905,11 +1901,7 @@ impl Client {
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
         let rename = core.mode.rename().map(RenameEditor::display);
-        let mut shown = shown_tabs(
-            &self.tabs,
-            self.view.viewed.as_deref(),
-            (core.view.settings.shown, core.view.changelog.shown),
-        );
+        let mut shown = shown_tabs(&self.tabs, self.view.viewed.as_deref(), core.view.shown());
         apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
@@ -2387,7 +2379,7 @@ impl Client {
         let next_tabs = self.registry_tabs(core, list.tabs);
         // Invariant: a hidden utility tab never surfaces by itself. When only those remain, they
         // stay hidden and running beside the landing, so they open without a start.
-        let utility_visible = core.utility_visible(self.view.viewed.as_deref());
+        let utility_visible = core.utilities_visible(self.view.viewed.as_deref());
         if name_confirmed {
             core.pending_manual_name = None;
         }
@@ -3863,7 +3855,10 @@ mod tests {
         let mut add = PopupMenu::add(0, 80, &bindings, false);
         assert_eq!(add.action_at(add.column, 1), Some(PopupAction::NewAgent));
         assert_eq!(add.action_at(add.column, 2), None);
-        assert_eq!(add.action_at(add.column, 3), Some(PopupAction::Settings));
+        assert_eq!(
+            add.action_at(add.column, 3),
+            Some(PopupAction::Utility(core_attach::UtilityKind::Settings))
+        );
         add.move_hover(1);
         assert_eq!(add.hovered, Some(0));
         add.move_hover(1);

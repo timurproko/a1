@@ -100,7 +100,7 @@ fn reserve_utility_tab(
                 .map(str::to_owned)
         });
     if let Some(tab_id) = existing {
-        let reordered = (opening && lifecycle::move_settings_last(&mut locked.registry, &tab_id))
+        let reordered = (opening && lifecycle::move_utility_last(&mut locked.registry, &tab_id))
             .then(|| registry_snapshot(&locked));
         Ok((tab_id, false, reordered))
     } else {
@@ -110,15 +110,8 @@ fn reserve_utility_tab(
     }
 }
 
-const UTILITY_TAB_MESSAGES: [&str; 4] = [
-    "tab.open-settings",
-    "tab.prewarm-settings",
-    "tab.open-changelog",
-    "tab.prewarm-changelog",
-];
-
-/// Opens, reveals, or prewarms a singleton utility tab for a client: `tab.open-settings`,
-/// `tab.prewarm-settings`, `tab.open-changelog`, or `tab.prewarm-changelog`.
+/// Opens, reveals, or prewarms a singleton utility tab for a client, as `utility_request` reads
+/// its message.
 fn open_utility_tab(
     state: &Arc<Mutex<RuntimeState>>,
     profile: &Path,
@@ -129,11 +122,8 @@ fn open_utility_tab(
     payload: &[u8],
 ) -> Result<(), String> {
     let (_, create): (_, TabCreate) = wire::body(payload)?;
-    let prefix = match message_type {
-        "tab.open-changelog" | "tab.prewarm-changelog" => CHANGELOG_TAB_PREFIX,
-        _ => SETTINGS_TAB_PREFIX,
-    };
-    let opening = !message_type.starts_with("tab.prewarm-");
+    let (prefix, opening) =
+        utility_request(message_type).ok_or_else(|| "unknown utility tab request".to_owned())?;
     let (settings_tab_id, should_start, reordered) = reserve_utility_tab(state, prefix, opening)?;
     commit_staged(reordered)?;
     if should_start {
@@ -311,7 +301,7 @@ pub(super) fn serve_attach(
                 tx.offer_control(wire::frame("tab.list", kind.request_id, list)?)
                     .map_err(str::to_owned)?;
             }
-            message if UTILITY_TAB_MESSAGES.contains(&message) => open_utility_tab(
+            message if utility_request(message).is_some() => open_utility_tab(
                 &state,
                 &profile,
                 &tx,

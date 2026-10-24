@@ -59,11 +59,7 @@ impl Model {
     /// The strip as the role renders it: shown tabs as fixed-width chips, then the overflow
     /// marker and the `+` button.
     fn strip(&self, state: &State) -> StripSnapshot {
-        let shown = shown_tabs(
-            &self.tabs,
-            self.viewed.as_deref(),
-            (state.view.settings.shown, state.view.changelog.shown),
-        );
+        let shown = shown_tabs(&self.tabs, self.viewed.as_deref(), state.view.shown());
         let mut hits = Vec::new();
         let mut column = 0;
         for tab in shown.iter().take(VISIBLE_CHIPS) {
@@ -389,7 +385,7 @@ impl Run<'_> {
             .as_deref()
             .is_some_and(|id| !self.model.listed(id))
         {
-            let visible = self.state.utility_visible(self.model.viewed.as_deref());
+            let visible = self.state.utilities_visible(self.model.viewed.as_deref());
             self.model.viewed = None;
             self.model.requested = self.state.fallback_view(&self.model.tabs, visible);
         }
@@ -426,22 +422,17 @@ impl Run<'_> {
     /// The resident server answers each request against the model registry.
     fn request(&mut self, request: Request) -> Result<(), SimulationFailure> {
         match request {
-            Request::OpenChangelog | Request::PrewarmChangelog => {
+            Request::Open(kind) | Request::Prewarm(kind) => {
                 self.model
                     .creating
-                    .push(format!("changelog-{}", self.model.created));
+                    .push(format!("{}-{}", kind.name(), self.model.created));
                 self.model.created += 1;
                 Ok(())
             }
-            Request::Create | Request::OpenSettings | Request::PrewarmSettings => {
-                let prefix = if request == Request::Create {
-                    "tab"
-                } else {
-                    "settings"
-                };
+            Request::Create => {
                 self.model
                     .creating
-                    .push(format!("{prefix}-{}", self.model.created));
+                    .push(format!("tab-{}", self.model.created));
                 self.model.created += 1;
                 Ok(())
             }
