@@ -18,7 +18,7 @@ import { scheduleReleaseCleanup } from "./release-gc.js";
 import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
-import { isCurrentLaunchContract, launchContractTarget, readLaunchContext, withLaunchContext, type LaunchContext } from "../launch-context/index.js";
+import { PRIVATE_ENVIRONMENT, isCurrentLaunchContract, launchContractTarget, readLaunchContext, withLaunchContext, type LaunchContext } from "../launch-context/index.js";
 import { ensureTerminalHost, readResidentTabLaunchSettings, selectResidentHost, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
 
 export interface BootstrapOptions {
@@ -26,15 +26,7 @@ export interface BootstrapOptions {
   readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId; readonly launchMode: "tabs" | "solo"; readonly sessionSelection?: SessionSelection };
   readonly environment?: NodeJS.ProcessEnv;
   readonly output?: Pick<NodeJS.WriteStream, "write">;
-  /**
-   * Whether a materialized release copy is fit to launch. The active release
-   * is normally reused while its version matches the installation, but a copy
-   * can be broken in ways a version cannot see — materialized from a tree a
-   * blocked postinstall never finished repairing. The probe is injected from
-   * the bin entry because deciding it requires inspecting dependency
-   * resolution, which stays out of production code. Absent means every
-   * release is fit.
-   */
+  /** Optional package-resolution probe that excludes a damaged retained release. */
   readonly releaseIsLaunchable?: (releaseRoot: string) => boolean;
   /** Test seam for bounded maintenance scheduled after stale endpoint sweeping. */
   readonly scheduleMaintenance?: (dataDir: string, paths: ReturnType<typeof resolveProductPaths>) => Promise<void>;
@@ -64,7 +56,6 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   const paths = resolveProductPaths(environment);
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
-  let invocationVersion: string | undefined;
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
     let residentContext: LaunchContext = {};
     // Compatibility: public launch preparation supplies PI_CODING_AGENT_DIR; the fallback keeps
@@ -101,7 +92,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
         ]),
       } : { residentFallback: resident.reason };
     }
-    const result = await launchUi(release, environment, sessionArgs, residentContext, invocationVersion);
+    const result = await launchUi(release, environment, sessionArgs, residentContext);
     if (!result.releaseSuperseded) return result.code;
     if (retriesRemaining > 0) return await runBootstrapAttempt(options, retriesRemaining - 1);
     output.write(`${PRODUCT_TEXT.diagnostic("active release changed repeatedly during startup; launch could not converge")}\n`);
@@ -147,8 +138,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     }
   }
   let probe = endpoint ? await probeOwnership(endpoint) : "dead";
-  const installedVersion = await readInstalledVersion(options.packageRoot);
-  invocationVersion = releaseChannelOf(installedVersion) === null ? undefined : installedVersion;
+  const installedVersion = await readInstalledVersion(options.packageRoot); if (releaseChannelOf(installedVersion) !== null) environment[PRIVATE_ENVIRONMENT.updateVersion] = installedVersion;
   const activeId = state.references.active;
   const active = activeId === null ? undefined : state.releases[activeId];
   let activeIsLaunchable = active === undefined || (options.releaseIsLaunchable?.(active.releaseRoot) ?? true);
@@ -451,13 +441,12 @@ async function launchUi(
   environment: NodeJS.ProcessEnv,
   sessionArgs: readonly string[],
   residentContext: LaunchContext = {},
-  updateVersion?: string,
 ): Promise<{ readonly code: number; readonly releaseSuperseded: boolean }> {
   await markStartupPhase(environment, "bootstrap-selected");
   const entry = await resolveReleaseEntryPoint(release, "bin/guardian.js");
   return await new Promise((resolvePromise, rejectPromise) => {
     let releaseSuperseded = false;
-    const releaseEnv = releaseEnvironment(environment, release, readLaunchContext(environment, "profile").launchProfile, updateVersion);
+    const releaseEnv = releaseEnvironment(environment, release, readLaunchContext(environment, "profile").launchProfile);
     const launchEnvironment = Object.keys(residentContext).length === 0 ? releaseEnv : withLaunchContext(
       releaseEnv,
       { ...readLaunchContext(releaseEnv), ...residentContext },
@@ -489,21 +478,16 @@ async function launchUi(
  * still startable this way, which is what lets a launch fall back to the previous
  * version instead of failing while an installation is being replaced.
  */
-export function releaseEnvironment(
-  environment: NodeJS.ProcessEnv,
-  release: MaterializedRelease,
-  profile?: LaunchProfileId,
-  updateVersion?: string,
-): NodeJS.ProcessEnv {
-  const launchMode = readLaunchContext(environment).launchMode;
+export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease, profile?: LaunchProfileId): NodeJS.ProcessEnv {
+  const context = readLaunchContext(environment);
   return withLaunchContext(environment, {
     releaseId: release.releaseId,
     releaseLayers: (release.dependencyLayers ?? []).map(layer => layer.layerId).join(","),
     releaseRoot: release.releaseRoot,
     releaseDigest: release.contentDigest,
     ...(profile === undefined ? {} : { launchProfile: profile }),
-    ...(launchMode === undefined ? {} : { launchMode }),
-    ...(updateVersion === undefined ? {} : { updateVersion }),
+    ...(context.launchMode === undefined ? {} : { launchMode: context.launchMode }),
+    ...(context.updateVersion === undefined ? {} : { updateVersion: context.updateVersion }),
   }, process.platform, launchContractTarget(release));
 }
 

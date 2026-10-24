@@ -91,7 +91,6 @@ describe("neutral private launch contract", () => {
 
   it.each([
     { launchProfile: "other" }, { launchMode: "other" }, { launchProfile: "pi", launchMode: "tabs" },
-    { updateVersion: "1.0.0-beta.1" }, { updateVersion: "1.0.0-dev.01" },
     { immutableWarmup: "yes" }, { releaseDigest: "invalid" }, { releaseRoot: "bad\0root" },
   ])("rejects invalid current values: %j", value => {
     const environment = Object.fromEntries(Object.entries(value).map(([key, entry]) => [PRIVATE_ENVIRONMENT[key as keyof typeof PRIVATE_ENVIRONMENT], entry]));

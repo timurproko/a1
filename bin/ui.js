@@ -78,7 +78,7 @@ Promise.resolve().then(async () => {
         cwd: process.cwd(),
         profileId,
         ownedSurfaces,
-        ...(launchContext.updateVersion === undefined ? {} : { notificationVersion: launchContext.updateVersion }),
+        notificationVersion: launchContext.updateVersion,
         ...(hidesTabSettings(launchContext) ? { hideTabSettings: true } : {}),
         ...(processInspector === null ? {} : { inspectProcess: pid => processInspector.observe(pid) }),
         projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
