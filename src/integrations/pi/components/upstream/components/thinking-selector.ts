@@ -8,13 +8,14 @@
  * levels, and rendering exclusive radio-style default markers before level names, an item-adjacent
  * active checkmark, and aligned muted descriptions. Bare A1 persists defaults immediately on Space,
  * closes through the implicit Ctrl+C-capable selection-cancel action, and uses the shared compact
- * semantic shortcut row with Type/search guidance without advertising that alias. All list and border
- * colors use the owned theme and its explicit color mode. Selected rows use the shared bare-A1 blue
- * selection surface only around the rendered item span, with the existing accent arrow, normal-text
- * level, and preserved current/default/description roles. The comparison profile retains the public
- * pinned component.
+ * semantic shortcut row with Type/search guidance and an accent search marker without advertising that
+ * alias. All list and border colors use the owned theme and its explicit color mode. Selected rows use
+ * the shared bare-A1 blue selection surface only around the rendered item span, with the existing
+ * accent arrow, normal-text level, and preserved current/default/description roles. The comparison
+ * profile retains the public pinned component.
  * Deviations: owned-modal-shortcut-hints, owned-level-cycle-shortcut, owned-thinking-selector-heading,
- * owned-thinking-selector-controls, owned-dialog-ctrl-c-cancel, owned-standard-dialog-selection.
+ * owned-thinking-selector-controls, owned-dialog-ctrl-c-cancel, owned-standard-dialog-selection,
+ * owned-dialog-search-marker.
  */
 import {
 	Container,
@@ -32,7 +33,7 @@ import {
 	Text,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
-import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
+import { addPiModalHeader, addPiModalSearchInput, adoptPiModalFrame } from "../../modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalListRow, renderPiModalShortcutHints } from "../../theme.js";
 
 export type ThinkingSelectorLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -135,7 +136,7 @@ export class OwnedThinkingSelectorComponent extends Container implements Focusab
 
 		this.searchInput = new Input();
 		this.searchInput.onSubmit = () => this.selectList.handleInput("\r");
-		this.addChild(this.searchInput);
+		addPiModalSearchInput(this, this.searchInput);
 		this.addChild(new Spacer(1));
 
 		const initialList = this.buildSelectList(this.allItems, currentLevel);

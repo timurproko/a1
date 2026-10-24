@@ -213,9 +213,10 @@ describe("pinned Pi modal transition graph", () => {
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE)");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(SCOPE)");
     const dialogPanel = await readFile("src/ui/components/dialog-panel.ts", "utf8");
-    expect(dialogPanel).toContain("renderShortcutHintsWithClose(state.hint, theme, contentWidth, 0)");
-    expect(dialogPanel).toContain('renderShortcutHints(entries, theme, 1, theme.fg("dim", " · "))');
-    expect(dialogPanel).toContain("contentWidth = Math.max(0, width - contentPadding)");
+    expect(dialogPanel).toContain("dialogPanelLayout(width, theme)");
+    expect(dialogPanel).toContain("renderShortcutHintsWithClose(state.hint, theme, layout.contentWidth)");
+    expect(dialogPanel).toContain("renderInputRow(state.input, layout.contentWidth");
+    expect(dialogPanel).not.toContain('" · "');
     const reference = await readFile("src/features/owned-ui/reference-screen-app.ts", "utf8");
     expect(reference).toContain("REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE), theme, rect.width, 1");
     expect(reference).not.toContain("HINT_SEPARATOR");
@@ -233,7 +234,8 @@ describe("pinned Pi modal transition graph", () => {
     const modalFrame = await readFile("src/integrations/pi/components/modal-frame.ts", "utf8");
     expect(modalFrame).toContain("export class PiModalHeader");
     expect(modalFrame).toContain("export class PiModalFrame");
-    expect(modalFrame).toContain("width - padding");
+    expect(modalFrame).toContain("dialogFrameGeometry(width)");
+    expect(modalFrame).toContain("insetDialogContent(row, geometry)");
     expect(modalFrame).toContain("component instanceof Spacer");
     for (const path of COMPACT_MODAL_HEADER_SOURCES) {
       expect(await readFile(path, "utf8"), path).toContain("PiModalFrame");

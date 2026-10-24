@@ -14,8 +14,11 @@ export function promptRule(width: number, theme: RuleTheme): string {
   return promptRuleText("─".repeat(Math.max(0, width)), theme);
 }
 
-export function promptArrow(text: string, theme: RuleTheme): string {
-  return theme.fg("muted", text);
+export type PromptMarkerRole = "muted" | "accent";
+
+export function promptArrow(text: string, theme: RuleTheme, role: PromptMarkerRole = "muted"): string {
+  if (role === "accent" && text.startsWith(">")) return `${theme.fg(role, ">")}${text.slice(1)}`;
+  return theme.fg(role, text);
 }
 
 export interface PromptInputBody {
@@ -60,6 +63,7 @@ export class PromptInput {
     ruled = true,
     padding = 0,
     promptGlyph = PROMPT_GLYPH,
+    promptRole: PromptMarkerRole = "muted",
   ): string[] {
     if (width <= 0) return [];
     const { prefixWidth, innerWidth } = this.geometry(width, padding, promptGlyph);
@@ -73,7 +77,7 @@ export class PromptInput {
       return clipped + " ".repeat(Math.max(0, width - this.metrics.measure(clipped)));
     };
     const rows = body.rows.map((row, index) => fit(`${index === 0
-      ? promptArrow(promptGlyph, this.theme)
+      ? promptArrow(promptGlyph, this.theme, promptRole)
       : " ".repeat(prefixWidth)}${row}`));
     const rule = (fragment?: string): string => fragment === undefined
       ? promptRule(width, this.theme)

@@ -8,7 +8,7 @@ import {
   type Focusable,
 } from "@earendil-works/pi-tui";
 import { DynamicBorder } from "../startup-public.js";
-import { PiModalFrame } from "./modal-frame.js";
+import { PiModalFrame, renderPiModalSearchInput } from "./modal-frame.js";
 import {
   DIALOG_CLOSE_SHORTCUT_HINT,
   paintPiBorder,
@@ -62,7 +62,6 @@ export interface ModelsDialogCallbacks {
 
 const MAX_VISIBLE_ROWS = 10;
 const MODELS_TITLE = "Models";
-const REFRESHING_TITLE_MIN_DURATION_MS = 1_000;
 
 interface ModelsDialogRow {
   readonly fullId: string;
@@ -122,9 +121,6 @@ export class ModelsDialogComponent implements Component, Focusable {
   #selectedIndex = 0;
   #preferredId: string | undefined;
   #refreshStatus: { readonly message: string; readonly kind: "warning" } | undefined;
-  #refreshing = false;
-  #refreshStartedAt: number | undefined;
-  #refreshOutcomeTimer: ReturnType<typeof setTimeout> | undefined;
   #disposed = false;
   #focused = false;
 
@@ -134,10 +130,6 @@ export class ModelsDialogComponent implements Component, Focusable {
     this.#scopeIds = [...config.scopeIds];
     this.#savedScopeIds = [...config.savedScopeIds];
     this.#filter = config.initialFilter ?? "all";
-    if (config.refreshStatus !== undefined) {
-      this.#refreshing = true;
-      this.#refreshStartedAt = Date.now();
-    }
     if (config.initialQuery) this.#input.setValue(config.initialQuery);
     this.#replaceModels(config.models);
     const rows = this.#rows();
@@ -184,37 +176,11 @@ export class ModelsDialogComponent implements Component, Focusable {
 
   setRefreshStatus(message: string, kind: "muted" | "success" | "warning"): void {
     if (this.#disposed) return;
-    if (kind === "muted") {
-      this.#clearRefreshOutcome();
-      this.#refreshStatus = undefined;
-      this.#refreshing = true;
-      this.#refreshStartedAt = Date.now();
-      return;
-    }
-    const visibleMs = this.#refreshStartedAt === undefined ? REFRESHING_TITLE_MIN_DURATION_MS : Date.now() - this.#refreshStartedAt;
-    const remainingMs = Math.max(0, REFRESHING_TITLE_MIN_DURATION_MS - visibleMs);
-    if (this.#refreshing && remainingMs > 0) {
-      this.#clearRefreshOutcome();
-      const timer = setTimeout(() => {
-        if (this.#refreshOutcomeTimer !== timer) return;
-        this.#refreshOutcomeTimer = undefined;
-        if (this.#disposed) return;
-        this.#applyRefreshOutcome(message, kind);
-        this.#callbacks.requestRender();
-      }, remainingMs);
-      timer.unref?.();
-      this.#refreshOutcomeTimer = timer;
-      return;
-    }
-    this.#clearRefreshOutcome();
-    this.#applyRefreshOutcome(message, kind);
+    this.#refreshStatus = kind === "warning" ? { message, kind } : undefined;
   }
 
   dispose(): void {
     this.#disposed = true;
-    this.#clearRefreshOutcome();
-    this.#refreshing = false;
-    this.#refreshStartedAt = undefined;
   }
 
   invalidate(): void {
@@ -300,21 +266,8 @@ export class ModelsDialogComponent implements Component, Focusable {
   render(width: number): string[] {
     const theme = piTheme();
     this.#title.setText(theme.fg("accent", theme.bold(MODELS_TITLE))
-      + (this.dirty ? theme.fg("warning", " (unsaved)") : "")
-      + (this.#refreshing ? theme.fg("muted", " (refreshing)") : ""));
+      + (this.dirty ? theme.fg("warning", " (unsaved)") : ""));
     return this.#frame.render(width);
-  }
-
-  #applyRefreshOutcome(message: string, kind: "success" | "warning"): void {
-    this.#refreshing = false;
-    this.#refreshStartedAt = undefined;
-    this.#refreshStatus = kind === "warning" ? { message, kind } : undefined;
-  }
-
-  #clearRefreshOutcome(): void {
-    if (this.#refreshOutcomeTimer === undefined) return;
-    clearTimeout(this.#refreshOutcomeTimer);
-    this.#refreshOutcomeTimer = undefined;
   }
 
   #renderBody(width: number): string[] {
@@ -329,7 +282,7 @@ export class ModelsDialogComponent implements Component, Focusable {
       + theme.fg("dim", " | ")
       + theme.fg(this.#filter === "scoped" ? "mdHeading" : "dim", "scoped"));
     push();
-    for (const line of this.#input.render(width)) push(line);
+    for (const line of renderPiModalSearchInput(this.#input, width)) push(line);
     push();
 
     if (rows.length === 0) {

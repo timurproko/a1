@@ -1846,7 +1846,7 @@ Path-aware word boundaries SHALL affect only semantic word movement and word del
 - **THEN** word movement and deletion SHALL retain the pinned Pi boundary behavior rather than the bare-A1 path-aware override
 
 ### Requirement: Bare A1 declares shared input and status-level presentation
-Bare A1 SHALL use the shared input presentation and status-level color behavior as an explicit A1-owned customization over the pinned shell. The ordinary main user prompt SHALL render one blank cell before its `❯` marker, followed by the existing marker-to-content spacing. Auxiliary A1-owned Agent search and compact text-entry inputs SHALL use the same reusable rules, caret, placeholder, and content geometry without rendering a chevron or greater-than prompt marker. This customization SHALL supersede pinned editor border coloring and thinking-label styling only in bare A1; it SHALL render shared input rules through the same active semantic `border` role as modal bars and SHALL NOT change pinned `a1 pi` presentation, extension-provided custom editors, engine semantics, or other footer values. Bare-A1 keyboard defaults SHALL follow the declared level-cycle and model-selector shortcut policy instead of pinned defaults.
+Bare A1 SHALL use the shared input presentation and status-level color behavior as an explicit A1-owned customization over the pinned shell. The ordinary main user prompt SHALL render one blank cell before its `❯` marker, followed by the existing marker-to-content spacing. Bare-A1 standard dialog search inputs SHALL render exact ASCII `> ` before their caret or query, with the `>` resolved through the live semantic accent role. Marker-free full-screen application search and compact non-search text-entry inputs SHALL continue using the reusable rules, caret, placeholder, and content geometry without a dialog marker. This customization SHALL supersede pinned editor border coloring and thinking-label styling only in bare A1; it SHALL render shared input rules through the same active semantic `border` role as modal bars and SHALL NOT change pinned `a1 pi` presentation, extension-provided custom editors, engine semantics, or other footer values. Bare-A1 keyboard defaults SHALL follow the declared level-cycle and model-selector shortcut policy instead of pinned defaults.
 
 #### Scenario: Open the pinned comparison profile
 - **WHEN** the user starts `a1 pi`
@@ -1857,14 +1857,22 @@ Bare A1 SHALL use the shared input presentation and status-level color behavior 
 - **THEN** the input SHALL use the shared modal-border rules and render exactly one blank cell before the `❯` prompt marker
 - **AND** prompt history, paste chips, selection and copy, suggestions, streaming, submission, and bash execution SHALL retain their existing semantics
 
+#### Scenario: Use a standard dialog search input
+- **WHEN** a bare-A1 standard dialog offers typing-based search
+- **THEN** its input SHALL render exact ASCII `> ` with the `>` in the active semantic accent role
+- **AND** focus, editing, filtering, submission, cancellation, IME placement, clipping, and pointer geometry SHALL remain unchanged
+
 #### Scenario: Use an auxiliary Agent input
-- **WHEN** an A1-owned Agent selector, search, or compact text-entry surface requests the shared input presentation
-- **THEN** the input SHALL render its caret, placeholder, and text without a chevron or greater-than prompt marker
-- **AND** its existing focus, editing, submission, and cancellation behavior SHALL remain unchanged
+- **WHEN** an A1-owned Agent standard selector or dialog offers typing-based search
+- **THEN** the input SHALL render exact ASCII `> ` with the `>` in the active semantic accent role
+- **WHEN** full-screen Settings search or an explicitly marker-free compact non-search text-entry surface requests the shared input presentation
+- **THEN** the input SHALL render its caret, placeholder, and text without an agent or dialog prompt marker
+- **AND** each surface's existing focus, editing, submission, and cancellation behavior SHALL remain unchanged
 
 #### Scenario: Change the owned accent live
-- **WHEN** the active bare-A1 accent changes while the default agent editor is visible
-- **THEN** both input rules SHALL repaint with the same derived border tone as modal rules
+- **WHEN** the active bare-A1 accent changes while the default agent editor or a standard dialog search input is visible
+- **THEN** shared input rules SHALL repaint with the same derived border tone as modal rules
+- **AND** a visible standard-dialog `>` SHALL repaint with the new semantic accent
 - **AND** the input SHALL retain its text, cursor, selection, focus, prefix choice, and geometry
 
 ### Requirement: The status-bar level name carries the existing thinking color
@@ -2037,7 +2045,7 @@ Space SHALL toggle the selected model's membership in the session's cycling scop
 
 The dialog SHALL compare its current scope and order with the last successfully saved scope. Whenever they differ, the title row SHALL read `Models (unsaved)`, with `(unsaved)` immediately after the title. Ctrl+S SHALL persist the current scope and order while leaving the dialog open; only a successful save SHALL clear `(unsaved)`. An empty explicit scope SHALL preserve the existing all-model cycling fallback.
 
-While a real catalog refresh runs in the background, the dialog SHALL show a muted `(refreshing)` marker on the title row, SHALL NOT render the full progress sentence in its body, and SHALL keep `(refreshing)` visible for at least one second so fast completion cannot reduce it to an unreadable flash. After both a successful refresh and the minimum-visible interval, the dialog SHALL remove `(refreshing)` directly without showing `(refreshed)` or a success sentence. The refresh marker SHALL coexist with `(unsaved)` without hiding or clearing the dirty state. Timeout and failure outcomes SHALL remove the title refresh marker after the minimum-visible interval and remain visible as actionable warning details in the body.
+Catalog refresh SHALL run in the background without adding `(refreshing)` to the title or rendering a progress or successful-completion sentence in the dialog body. A successful refresh SHALL silently update available rows while preserving the user's query, surviving selection, pending scope edits, and dirty state. Timeout and failure outcomes SHALL keep the same state and remain visible as actionable bounded warning details in the body without changing the title.
 
 #### Scenario: Advertise the unified bare-A1 command
 - **WHEN** bare A1 builds its slash-command catalog
@@ -2081,17 +2089,16 @@ While a real catalog refresh runs in the background, the dialog SHALL show a mut
 
 #### Scenario: Refresh model catalogs
 - **WHEN** the Models dialog starts its real background catalog refresh
-- **THEN** the title SHALL show muted `(refreshing)`, including alongside `(unsaved)` when the scope is dirty
-- **AND** the full progress sentence SHALL not appear in the dialog body
-- **AND** quick completion SHALL leave `(refreshing)` visible until one second has elapsed from refresh start
-- **WHEN** catalog refresh then succeeds and the minimum-visible interval has elapsed
+- **THEN** the title SHALL remain `Models` or `Models (unsaved)` according to dirty state
+- **AND** neither `(refreshing)` nor the full progress sentence SHALL appear in the dialog
+- **WHEN** catalog refresh then succeeds
 - **THEN** the dialog SHALL preserve the user's query, selected row where still available, pending scope edits, and dirty state while updating the available rows
-- **AND** the title SHALL remove `(refreshing)` directly without showing `(refreshed)` or a success sentence
+- **AND** the dialog SHALL not show `(refreshed)` or a success sentence
 
 #### Scenario: Model catalog refresh fails or times out
 - **WHEN** catalog refresh fails or times out while the Models dialog is open
 - **THEN** the dialog SHALL preserve the user's query, selected row where still available, pending scope edits, and dirty state without broadening availability to unauthenticated providers
-- **AND** after the one-second minimum-visible interval it SHALL remove `(refreshing)` and report the bounded warning details in the dialog body without showing `(refreshed)`
+- **AND** it SHALL report the bounded warning details in the dialog body without showing `(refreshing)` or `(refreshed)`
 
 #### Scenario: Invoke an explicit model-selection binding
 - **WHEN** the user invokes an explicitly configured model-selection shortcut in bare A1
@@ -3512,7 +3519,12 @@ When the bare-A1 default editor applies a selected top-level slash-command row, 
 
 ### Requirement: Searchable dialog typing guidance uses shortcut roles
 
-Bare A1's Models, Skills, Thinking Level, Resume Session, and Session Tree dialogs SHALL present their typing-based search guidance as the exact visible text `Type search`. `Type` SHALL use the shared quiet key role, and `search` SHALL use the shared action-text role used by neighboring shortcut hints. Resume Session MAY additionally present its query grammar as quiet placeholder text inside its empty search field and consolidate its shortcut guidance into one row. These presentation changes SHALL NOT alter filtering semantics, keybindings, or the pinned `a1 pi` comparison profile; every other covered dialog SHALL retain its established input and hint order, spacing, and width handling.
+Bare A1's Models, legacy model selector, scoped-model configuration, Skills, Thinking Level, Resume Session, Session Tree, login provider, and logout provider dialogs SHALL render exact ASCII `> ` before their typing-based search field, with the `>` in the active semantic accent role. The Models, Skills, Thinking Level, Resume Session, and Session Tree dialogs SHALL continue presenting their typing guidance as the exact visible text `Type search`. `Type` SHALL use the shared quiet key role, and `search` SHALL use the shared action-text role used by neighboring shortcut hints. Resume Session MAY additionally present its query grammar as quiet placeholder text inside its empty search field and consolidate its shortcut guidance into one row. These presentation changes SHALL NOT alter filtering semantics, keybindings, focus, cursor placement, prompt width, input clipping, or the pinned `a1 pi` comparison profile; every other covered dialog SHALL retain its established input and hint order, spacing, and width handling.
+
+#### Scenario: Read and identify a searchable dialog
+- **WHEN** any declared bare-A1 standard searchable dialog is visible
+- **THEN** its search field SHALL begin with exact ASCII `> `
+- **AND** the `>` SHALL use the active semantic accent role while the query retains its established text and caret roles
 
 #### Scenario: Read typing guidance in a searchable dialog
 - **WHEN** the ordinary Models, Skills, Thinking Level, Resume Session, or Session Tree dialog is visible
@@ -3522,8 +3534,12 @@ Bare A1's Models, Skills, Thinking Level, Resume Session, and Session Tree dialo
 
 #### Scenario: Read Resume Session query grammar
 - **WHEN** Resume Session is visible with an empty search query
-- **THEN** its query grammar SHALL appear as quiet placeholder text in the input rather than as shortcut entries
+- **THEN** its query grammar SHALL appear as quiet placeholder text after the accent `> ` marker rather than as shortcut entries
 - **AND** `Type search` SHALL remain the first footer entry
+
+#### Scenario: Change the dialog accent live
+- **WHEN** the active accent changes while a standard searchable dialog remains open
+- **THEN** its `>` marker SHALL repaint from the live accent role without clearing or moving the query or caret
 
 #### Scenario: Use the comparison profile
 - **WHEN** a corresponding searchable surface is presented through `a1 pi`
