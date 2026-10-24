@@ -325,7 +325,7 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
 
 - **Strip.** Row 0, drawn by the attach client, reproduces the approved v2 default appearance:
   - normal chips use RGB background `38,38,38` with foreground `170,170,170`, hover uses `48,48,48`, and the viewed chip uses `55,55,55` with white text, plus v2's palette fallback;
-  - the empty state contains only the hoverable `+` control, with no clock, wallpaper, hint, or child cursor;
+  - the empty state keeps the hoverable `+` control and the clock beside the landing, with no cursor;
   - chips are at most 20 columns, clipped with `â€¦` by grapheme width, with no separators or close glyph;
   - a `â€¦` overflow menu holds tabs that do not fit, and `+` is always reserved;
   - these presentation choices are fixed, not settings, while each working spinner uses that tab's reported A1 accent.
@@ -358,13 +358,14 @@ Tab status is an A1-owned state machine fed by `bridge.status`:
   - A user rename sets `nameSource=user`, and auto-naming never overrides it.
   - An automatic rename uses v2's title transition: 600 ms moving rainbow, typing at 45 ms per character, then a 300 ms settle. Manual renames do not animate.
   - Rename is inline in the chip: `Enter` commits, `Esc` or a click elsewhere cancels, and `Ctrl+Left` / `Ctrl+Right` move by word. The name is trimmed, must not be empty, is at most 64 characters, and has control characters stripped.
-- **Close.** `Alt+W` and the right-click menu close a tab directly, including while it is working. Closing removes the chip without a confirmation, stopping/read-only frame, or close glyph, then gracefully stops the child under the existing bounded termination policy. Its session stays resumable. Closing the last tab leaves only the hoverable `+` control.
+- **Close.** `Alt+W` and the right-click menu close a tab directly, including while it is working. Closing removes the chip without a confirmation, stopping/read-only frame, or close glyph, then gracefully stops the child under the existing bounded termination policy. Its session stays resumable. Closing the last tab leaves `+` and the clock beside the landing.
+- **Landing.** While the attach client has no tab to show, the attach role renders the a1 landing as the frame's body. The launch cwd sits where an Agent tab's footer shows it, flush left on the second-to-last body row with the same `~` formatting and `dim` color, so the folder does not move when a tab opens or closes; `v<version>`, read once from the release root's `package.json`, sits below it and the three-row half-block `a1` wordmark in the profile's accent above it (omitted in Apple Terminal). The accent colors are a native table pinned by `landing_accents.json`, which a TypeScript test checks against `derivePiAccentProjection`. The body is painted with the canvas `backgroundStyle` gives Agent tabs. The landing holds no input: tab shortcuts, the launcher, strip mouse, and double-`Ctrl+C` behave as with tabs, and no cursor shows. A hidden Settings tab is prewarmed and kept running beside the landing, as beside Agents, so Settings opens without a start; it closes when the client detaches, and an attach treats a registry holding only Settings as empty, so it starts and views its first Agent. Starting an Agent from the landing wipes the wordmark from the right over 180 ms into a white cell where the Agent's caret appears, held until its first frame commits.
 - **Detach.**
   - `Ctrl+C` twice detaches from any tab and is handled by the attach client, so it works even when the bridge is down. Inside an A1 tab, `/quit` and empty-editor `Ctrl+D` send a detach request carrying the immutable command-origin controller identity and revision; stale, ambiguous or unavailable attribution keeps the tab running and directs the user to `Ctrl+C` twice.
   - The client restores the terminal. When agents are still running, it prints `1 agent still running run a1 to return.` or `N agents still running run a1 to return.`; otherwise it prints the resume hint.
 - **Launch and reattach:**
   - Bare `a1` ensures the server and attaches.
-  - With zero tabs, it creates one A1 tab in the launch cwd.
+  - With zero tabs, it creates one A1 tab in the launch cwd; a registry holding only the hidden Settings tab counts as zero.
   - Otherwise it views the last active tab from its retained surface without byte-history replay. Every holder keeps draining its PTY and updating its retained terminal independently while hidden; selecting a working tab requests its newest complete partial-response surface immediately and then continues live delivery. Measure retained first paint and first input separately from bootstrap; status for the remaining tabs arrives without subscribing to their surfaces.
   - `a1 --session X` opens X in a new tab, or focuses the tab holding it.
   - A new tab's cwd is the client's launch cwd.

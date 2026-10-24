@@ -447,8 +447,25 @@ impl RuntimeState {
         })
     }
 
+    /// Invariant: a hidden Settings kept ready beside a landing is never the tab an attach shows;
+    /// with only Settings left this names the first Agent an attach starts.
     fn default_tab(&self) -> String {
-        default_tab(&self.registry.tabs)
+        let agents = self
+            .registry
+            .tabs
+            .iter()
+            .filter(|tab| !is_settings_tab_id(&tab.tab_id))
+            .cloned()
+            .collect::<Vec<_>>();
+        default_tab(&agents)
+    }
+
+    /// A registry holding only Settings starts its first Agent like an empty one.
+    fn agentless(&self) -> bool {
+        self.registry
+            .tabs
+            .iter()
+            .all(|tab| is_settings_tab_id(&tab.tab_id))
     }
 }
 

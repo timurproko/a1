@@ -29,6 +29,7 @@ use crate::protocol::{
     Welcome,
 };
 use crate::roles::credentials::ProfileCredentials;
+use crate::roles::landing;
 use crate::roles::outer_input::{self, InputChannel, Outgoing};
 #[cfg(test)]
 use crate::roles::presentation::Frame;
@@ -472,6 +473,7 @@ const OUTER_RESUME_GAP: Duration = Duration::from_secs(5);
 struct PresentationSettings {
     time_format: TimeFormat,
     accent_color: Option<&'static str>,
+    background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
 }
@@ -481,6 +483,7 @@ impl Default for PresentationSettings {
         Self {
             time_format: TimeFormat::Twelve,
             accent_color: None,
+            background_style: None,
             accent_hover: accent_selected_background(None),
             tab_bar_position: TabBarPosition::Top,
         }
@@ -506,6 +509,10 @@ fn read_presentation_settings(path: &Path) -> PresentationSettings {
             .get("accentColor")
             .and_then(serde_json::Value::as_str)
             .and_then(known_accent),
+        background_style: owned_settings
+            .get("backgroundStyle")
+            .and_then(serde_json::Value::as_str)
+            .and_then(known_background_style),
         accent_hover: accent_selected_background(
             owned_settings
                 .get("accentColor")
@@ -540,6 +547,20 @@ fn key_trace(path: Option<&Path>, line: &str) {
     }
 }
 
+/// The `version` the release root's `package.json` records, for the landing header.
+fn read_release_version(release_root: &Path) -> Option<String> {
+    let path = release_root.join("package.json");
+    std::fs::metadata(&path)
+        .ok()
+        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
+        .and_then(|_| std::fs::read(&path).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .and_then(|document| document.get("version")?.as_str().map(str::to_owned))
+        .filter(|version| {
+            !version.is_empty() && version.len() <= 64 && !version.chars().any(char::is_control)
+        })
+}
+
 /// Reads the owned `quitAnimation` setting, which defaults to on, from the canonical profile.
 fn read_quit_animation(path: &Path) -> bool {
     std::fs::metadata(path)
@@ -566,6 +587,16 @@ fn known_accent(accent: &str) -> Option<&'static str> {
         "orange" => Some("orange"),
         "pink" => Some("pink"),
         "purple" => Some("purple"),
+        _ => None,
+    }
+}
+
+/// The owned `backgroundStyle` values the landing canvas follows.
+fn known_background_style(style: &str) -> Option<&'static str> {
+    match style {
+        "accent" => Some("accent"),
+        "dark" => Some("dark"),
+        "transparent" => Some("transparent"),
         _ => None,
     }
 }
@@ -597,6 +628,7 @@ struct TimeFormatWatch {
     signature: Option<(std::time::SystemTime, u64)>,
     value: TimeFormat,
     accent_color: Option<&'static str>,
+    background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
     checked_at: Instant,
@@ -610,6 +642,7 @@ impl TimeFormatWatch {
             signature: settings_signature(path),
             value: settings.time_format,
             accent_color: settings.accent_color,
+            background_style: settings.background_style,
             accent_hover: settings.accent_hover,
             tab_bar_position: settings.tab_bar_position,
             checked_at: Instant::now(),
@@ -630,10 +663,12 @@ impl TimeFormatWatch {
         let settings = read_presentation_settings(&self.path);
         let changed = settings.time_format != self.value
             || settings.accent_color != self.accent_color
+            || settings.background_style != self.background_style
             || settings.accent_hover != self.accent_hover
             || settings.tab_bar_position != self.tab_bar_position;
         self.value = settings.time_format;
         self.accent_color = settings.accent_color;
+        self.background_style = settings.background_style;
         self.accent_hover = settings.accent_hover;
         self.tab_bar_position = settings.tab_bar_position;
         changed
@@ -1326,6 +1361,10 @@ fn start_session(
     Ok(request_generation)
 }
 
+/// How long the landing wordmark takes to wipe into the new Agent's caret, and its frame pace.
+const LANDING_WIPE: Duration = Duration::from_millis(180);
+const LANDING_WIPE_FRAME: Duration = Duration::from_millis(16);
+
 /// Reads server frames on their own thread under the ingress byte budget, waking the main loop
 /// after each one.
 fn spawn_server_reader(
@@ -1616,6 +1655,10 @@ struct Client {
     pressed_chars: std::collections::HashSet<char>,
     key_trace_path: Option<PathBuf>,
     settings_file: PathBuf,
+    /// The running a1 package version the landing header names, when the release records one.
+    version: Option<String>,
+    /// When the landing began handing over to an Agent this client asked for.
+    landing_wipe: Option<Instant>,
 }
 
 impl Client {
@@ -1672,6 +1715,8 @@ impl Client {
             pressed_chars: std::collections::HashSet::new(),
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
+            version: read_release_version(Path::new(options.release_root)),
+            landing_wipe: None,
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
         // surface before presenting that list and the body as one first frame.
@@ -1696,6 +1741,7 @@ impl Client {
                 .modes
                 .as_ref()
                 .map(|modes| modes.mouse_tracking),
+            landing: self.landing_shown(),
         })
     }
 
@@ -1733,6 +1779,9 @@ impl Client {
     }
 
     fn send(&mut self, request: Request) -> Result<(), String> {
+        if request == Request::Create && self.landing_shown() {
+            self.landing_wipe = Some(Instant::now());
+        }
         let stream = &mut self.stream;
         match request {
             Request::Create => wire::send(stream, "tab.create", None, self.create.clone()),
@@ -1871,7 +1920,46 @@ impl Client {
         }
         self.strip_frame = strip_frame;
         let overlay = self.overlay(core);
-        self.present(overlay, clear)
+        let landing = self.landing(core);
+        self.present(overlay, landing, clear)
+    }
+
+    /// Invariant: the landing is the body only while no tab is viewed after tabs were shown, so a
+    /// first launch, a resize, or a pending switch never flashes it over a child surface.
+    fn landing_shown(&self) -> bool {
+        self.view.viewed.is_none() && self.has_shown_tabs
+    }
+
+    fn landing(&self, core: &State) -> Option<Vec<u8>> {
+        if !self.landing_shown() {
+            return None;
+        }
+        // Invariant: the wipe runs only while the Agent it hands over to is starting; a refused
+        // creation restores the wordmark.
+        let creating = core.view.pending_created_activation || self.view.requested.is_some();
+        let wipe = self
+            .landing_wipe
+            .filter(|_| creating)
+            .map(|started| started.elapsed().as_secs_f32() / LANDING_WIPE.as_secs_f32());
+        // Invariant: the footer resolves home from `HOME`, then `USERPROFILE`.
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .ok();
+        let cwd = landing::display_cwd(&self.create.cwd, home.as_deref());
+        Some(landing::render(&landing::LandingInput {
+            columns: self.columns,
+            body_rows: self.outer_rows.saturating_sub(1),
+            version: self.version.as_deref(),
+            accent: self.time_format.accent_color,
+            truecolor: !palette_fallback_requested(),
+            half_blocks: landing::half_blocks_supported(),
+            cwd: &cwd,
+            wipe,
+            background: landing::canvas_background(
+                self.time_format.background_style,
+                self.time_format.accent_color,
+            ),
+        }))
     }
 
     fn overlay(&self, core: &State) -> Option<String> {
@@ -1905,15 +1993,22 @@ impl Client {
         }
     }
 
-    fn present(&mut self, overlay: Option<String>, clear: bool) -> Result<(), String> {
+    /// With no tab to show, the landing header is the body and no cursor shows.
+    fn present(
+        &mut self,
+        overlay: Option<String>,
+        landing: Option<Vec<u8>>,
+        clear: bool,
+    ) -> Result<(), String> {
+        let child_surface = landing.is_none();
         self.terminal.present(DesiredPresentation {
             tab_id: self.view.viewed.clone(),
             incarnation: self.presented.incarnation,
             revision: self.presented.revision,
             geometry_generation: self.presented.geometry_generation,
             strip: self.strip_frame.bytes.clone(),
-            structured: self.presented.structured.clone(),
-            legacy_body: self.presented.surface.clone(),
+            structured: self.presented.structured.clone().filter(|_| child_surface),
+            legacy_body: landing.unwrap_or_else(|| self.presented.surface.clone()),
             overlay,
             cursor: self.presented.cursor,
             modes: self.presented.modes.clone(),
@@ -1944,6 +2039,7 @@ impl Client {
         staged: Option<Vec<StripTab>>,
         requested: bool,
     ) -> Result<(), String> {
+        self.landing_wipe = None;
         if let Some(next) = staged {
             self.tabs = next;
         }
@@ -2232,18 +2328,10 @@ impl Client {
                 .iter()
                 .any(|tab| &tab.tab_id == id && &tab.name == name && tab.name_source == "user")
         });
-        let mut next_tabs = self.registry_tabs(core, list.tabs);
-        // Invariant: a hidden Settings tab never surfaces by itself. When it is all that
-        // remains, it closes with the last visible tab instead of taking the view.
+        let next_tabs = self.registry_tabs(core, list.tabs);
+        // Invariant: a hidden Settings tab never surfaces by itself. When it is all that remains,
+        // it stays hidden and running beside the landing, so Settings opens without a start.
         let settings_visible = core.settings_visible(self.view.viewed.as_deref());
-        if !settings_visible
-            && !next_tabs.is_empty()
-            && next_tabs.iter().all(|tab| tab.id.starts_with("settings-"))
-        {
-            for tab in next_tabs.drain(..) {
-                self.send(Request::Close(tab.id))?;
-            }
-        }
         if name_confirmed {
             core.pending_manual_name = None;
         }
@@ -2265,7 +2353,8 @@ impl Client {
             TopologyAction::Install { tabs, changed } => {
                 self.tabs = tabs;
                 core.installed(&self.tabs, changed);
-                if self.tabs.is_empty() {
+                let nothing_shown = self.view.viewed.is_none() && self.view.requested.is_none();
+                if self.tabs.is_empty() || (nothing_shown && self.presented.tab_id.is_some()) {
                     self.view.clear();
                     self.presented = Presented::new();
                     self.pending_terminal_effects.clear();
@@ -2329,8 +2418,12 @@ impl Client {
             // the writer still considers them current. Overwrite the full cached frame once.
             self.paint(core, true)?;
         }
-        if strip::animations_active(&self.tabs)
-            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs)
+        let wiping = self
+            .landing_wipe
+            .is_some_and(|started| started.elapsed() < LANDING_WIPE + LANDING_WIPE_FRAME);
+        if (strip::animations_active(&self.tabs)
+            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs))
+            || (wiping && self.last_strip_frame.elapsed() >= LANDING_WIPE_FRAME)
         {
             self.paint(core, false)?;
             self.last_strip_frame = Instant::now();
@@ -2465,6 +2558,18 @@ impl Client {
     /// Invariant: double Ctrl+C leaves from any tab with solo's quit animation when it is
     /// enabled; restoration follows whether or not it played.
     fn detach(&mut self) -> Result<(), String> {
+        // Invariant: a hidden Settings kept ready beside the landing leaves with this client, so no
+        // Settings process outlives the last Agent or makes the next launch skip its first Agent.
+        if !self.tabs.is_empty() && self.tabs.iter().all(|tab| tab.id.starts_with("settings-")) {
+            for tab_id in self
+                .tabs
+                .iter()
+                .map(|tab| tab.id.clone())
+                .collect::<Vec<_>>()
+            {
+                self.send(Request::Close(tab_id))?;
+            }
+        }
         wire::send(&mut self.stream, "detach", None, wire::ResultBody::ok())?;
         if read_quit_animation(&self.settings_file) {
             self.terminal
@@ -3968,6 +4073,28 @@ mod tests {
         assert!(text.find(" + ").unwrap() < text.find("SURFACE").unwrap());
         assert!(text.find("SURFACE").unwrap() < text.find("OVERLAY").unwrap());
         assert!(text.find("OVERLAY").unwrap() < text.find("\x1b[?25l").unwrap());
+    }
+
+    #[test]
+    fn the_landing_header_reads_the_release_version_or_none() {
+        let root = std::env::temp_dir().join(format!(
+            "a1-release-version-{}-{}",
+            std::process::id(),
+            rand::random::<u32>()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+        assert_eq!(read_release_version(&root), None, "no package.json");
+        std::fs::write(root.join("package.json"), br#"{"version":"0.2.7-dev"}"#).unwrap();
+        assert_eq!(read_release_version(&root).as_deref(), Some("0.2.7-dev"));
+        std::fs::write(root.join("package.json"), br#"{"version":"bad\u0007"}"#).unwrap();
+        assert_eq!(
+            read_release_version(&root),
+            None,
+            "control text is never shown"
+        );
+        std::fs::write(root.join("package.json"), b"{").unwrap();
+        assert_eq!(read_release_version(&root), None);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

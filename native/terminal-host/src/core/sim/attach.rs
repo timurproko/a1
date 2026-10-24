@@ -292,6 +292,7 @@ impl Run<'_> {
                     strip: &strip,
                     shortcuts: &Labels,
                     mouse_tracking: None,
+                    landing: self.model.viewed.is_none() && self.model.requested.is_none(),
                 },
                 event,
                 now,

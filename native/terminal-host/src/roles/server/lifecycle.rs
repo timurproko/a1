@@ -664,6 +664,31 @@ pub(super) fn move_settings_last(registry: &mut RegistryDocument, tab_id: &str) 
     )
 }
 
+/// The tab an `attach.start` views and whether it starts that tab's holder: the tab holding the
+/// selected session, a new tab for a session no tab holds, or the default tab, started when the
+/// profile has no Agent.
+fn attach_start_tab(locked: &mut RuntimeState, selected: Option<&str>) -> (String, bool) {
+    if let Some(selected) = selected
+        && let Some(tab) = locked.registry.tabs.iter().find(|tab| {
+            tab.session_file
+                .as_deref()
+                .map(canonical_session_identity)
+                .as_deref()
+                == Some(selected)
+        })
+    {
+        return (tab.tab_id.clone(), false);
+    }
+    if selected.is_some() && !locked.registry.tabs.is_empty() {
+        let tab_id = format!("tab-{:016x}", rand::random::<u64>());
+        let start = locked.core.set_starting(&tab_id, true);
+        return (tab_id, start);
+    }
+    let tab_id = locked.default_tab();
+    let start = locked.agentless() && locked.core.set_starting(&tab_id, true);
+    (tab_id, start)
+}
+
 /// Runs one lifecycle request from an attached client on that client's lifecycle worker.
 pub(super) fn handle_lifecycle(
     state: &Arc<Mutex<RuntimeState>>,
@@ -684,29 +709,8 @@ pub(super) fn handle_lifecycle(
                 .session_file
                 .as_deref()
                 .map(canonical_session_identity);
-            let (tab_id, should_start) = {
-                let mut locked = lock_state(&state)?;
-                if let Some(selected) = selected.as_deref()
-                    && let Some(tab) = locked.registry.tabs.iter().find(|tab| {
-                        tab.session_file
-                            .as_deref()
-                            .map(canonical_session_identity)
-                            .as_deref()
-                            == Some(selected)
-                    })
-                {
-                    (tab.tab_id.clone(), false)
-                } else if selected.is_some() && !locked.registry.tabs.is_empty() {
-                    let tab_id = format!("tab-{:016x}", rand::random::<u64>());
-                    let start = locked.core.set_starting(&tab_id, true);
-                    (tab_id, start)
-                } else {
-                    let tab_id = locked.default_tab();
-                    let start =
-                        locked.registry.tabs.is_empty() && locked.core.set_starting(&tab_id, true);
-                    (tab_id, start)
-                }
-            };
+            let (tab_id, should_start) =
+                attach_start_tab(&mut *lock_state(&state)?, selected.as_deref());
             if should_start
                 && let Err(error) = start_holder(&profile, &state, tab_id.clone(), start)
             {
