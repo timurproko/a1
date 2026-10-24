@@ -377,6 +377,11 @@ impl State {
             return;
         }
         if let Some(mut menu) = self.mode.take_popup() {
+            if menu.kind == PopupKind::Add && action == Some("tabs.addMenu") {
+                self.hovered = None;
+                effects.push(Effect::Paint { clear: false });
+                return;
+            }
             match key.code {
                 KeyCode::Esc => {
                     self.hovered = None;
@@ -1661,6 +1666,20 @@ mod tests {
         assert_eq!(menu.kind, PopupKind::Add);
         assert_eq!(menu.column, 11);
         assert_eq!(menu.hovered, Some(0), "keyboard opening focuses + Agent");
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.addMenu")), [PAINT]);
+        assert!(
+            matches!(state.mode, Mode::Idle),
+            "second shortcut closes the add menu"
+        );
+        assert!(
+            !state.view.pending_created_activation,
+            "closing must not create a tab"
+        );
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.addMenu")), [PAINT]);
+        let Mode::Popup(menu) = &state.mode else {
+            panic!("the add menu reopens")
+        };
+        assert_eq!(menu.hovered, Some(0));
         assert_eq!(
             fixture.step(&mut state, key(KeyCode::Enter)),
             [Effect::Send(Request::Create), PAINT]

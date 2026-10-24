@@ -24,7 +24,7 @@
 
 - [x] 1.19 Preselect the first actionable item only when the add or overflow popup opens through its keyboard shortcut; test immediate Enter, Down, and pointer hover preservation.
 
-- [ ] 1.20 Make a second Alt+= dismiss the already-open add popup without creating a tab, while preserving first-row focus on reopening and pointer behavior; add focused shortcut tests.
+- [x] 1.20 Make a second Alt+= dismiss the already-open add popup without creating a tab, while preserving first-row focus on reopening and pointer behavior; add focused shortcut tests.
 
 ## 2. A1 footer truncation
 
@@ -44,4 +44,4 @@
 - [x] 3.7 Record the centered control and committed-active-slot repair checks, with any remaining limits.
 - [ ] 3.8 Disposition the reported physical Alt+-/Alt+= shortcut gap against the exact candidate head.
 - [x] 3.9 Record keyboard-first selection tests and any remaining pointer or terminal-input gap.
-- [ ] 3.10 Record the add-menu toggle checks and the unresolved physical overflow key disposition.
+- [x] 3.10 Record the add-menu toggle checks and the unresolved physical overflow key disposition.
