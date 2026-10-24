@@ -571,7 +571,7 @@ fn render_frame(
     let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
         chip(tab, active, hovered, now, truecolor, rename, Some(target))
     };
-    // Invariant: keep controls inside exceptionally narrow terminals before reserving clock cells.
+    // Invariant: reserve controls before the clock on narrow rows.
     let plus_width = usize::from(columns).min(3);
     let clock_text = clock_text(time_format);
     let clock = (usize::from(columns)
@@ -586,8 +586,7 @@ fn render_frame(
     let available = usize::from(columns).saturating_sub(clock_reserve);
     let mut selected = Vec::new();
     let mut used = 0usize;
-    // Rationale: tabs have a steady 20-cell footprint until the row needs space;
-    // share the shrink evenly, then overflow rather than make tabs unreadable.
+    // Rationale: shrink 20-cell tabs evenly before overflowing unreadable chips.
     let tab_width = if tabs.is_empty() {
         20
     } else {
@@ -1501,7 +1500,12 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
-        assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [17, 17, 17]);
+        // Invariant: 12-hour clock width varies by hour.
+        let twelve_hour = widths(render(&tabs[..3], Some("tab-0"), 65));
+        assert!(matches!(
+            twelve_hour.as_slice(),
+            [17, 17, 17] | [18, 18, 18]
+        ));
         assert_eq!(
             widths(render_configured(
                 &tabs[..3],

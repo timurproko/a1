@@ -1,11 +1,10 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: Consumes neutral owned-UI data and preserves virtual-model routing. Bare A1 colors
- * thinking, links repository PRs, hides duplicate resident names, and dims a one-cell usage truncation
- * marker; other footer behavior follows Pi.
+ * Modifications: Owned UI/routing; A1 level color, linked PRs, resident names, dim ellipsis and model
+ * priority; Pi unchanged.
  * Deviations: owned-status-level-color, owned-pull-request-badge, owned-resident-session-name,
- * owned-footer-ellipsis.
+ * owned-footer-ellipsis, owned-footer-model-priority.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { hyperlink, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
@@ -28,6 +27,7 @@ export class SessionFooter implements Component {
     const view = this.getView();
     const usage = view.status.usage;
     const theme = piTheme();
+    const dimEllipsis = theme.fg("dim", this.profile === "a1" ? "…" : "...");
     const input = usage?.input ?? 0;
     const output = usage?.output ?? 0;
     const cacheRead = usage?.cacheRead ?? 0;
@@ -35,8 +35,8 @@ export class SessionFooter implements Component {
     const cost = usage?.cost ?? 0;
     const contextWindow = usage?.contextWindow ?? 0;
     const contextPercentValue = usage?.contextPercent ?? 0;
-    const contextPercentSource = usage?.contextAvailable === false ? undefined : usage?.contextPercent;
-    const contextPercent = contextPercentSource !== null ? contextPercentValue.toFixed(1) : "?";
+    const contextPercent = usage?.contextAvailable !== false && usage?.contextPercent === null
+      ? "?" : contextPercentValue.toFixed(1);
 
     const repositoryPath = this.profile === "a1" ? view.status.footer?.repositoryPath ?? this.cwd : this.cwd;
     let pwd = formatCwd(repositoryPath, process.env.HOME || process.env.USERPROFILE);
@@ -45,7 +45,7 @@ export class SessionFooter implements Component {
     const sessionName = this.showSessionName ? view.status.footer?.sessionName : null;
     const pullRequest = this.profile === "a1" ? view.status.footer?.pullRequest : null;
     let pathRow: string;
-    if (pullRequest === undefined || pullRequest === null) {
+    if (pullRequest == null) {
       pathRow = theme.fg("dim", sessionName ? `${pwd} • ${sessionName}` : pwd);
     } else {
       const badge = theme.fg("dim", " ")
@@ -54,11 +54,9 @@ export class SessionFooter implements Component {
       const full = theme.fg("dim", pwd) + badge + sessionSuffix;
       if (visibleWidth(full) <= width) pathRow = full;
       else if (visibleWidth(badge) <= width) {
-        const pathWidth = Math.max(0, width - visibleWidth(badge));
-        const path = pathWidth === 0 ? "" : truncateToWidth(theme.fg("dim", pwd), pathWidth, theme.fg("dim", "..."));
-        pathRow = path + badge;
+        pathRow = truncateToWidth(theme.fg("dim", pwd), width - visibleWidth(badge), dimEllipsis) + badge;
       } else {
-        pathRow = truncateToWidth(badge, width, theme.fg("dim", "..."));
+        pathRow = truncateToWidth(badge, width, dimEllipsis);
       }
     }
 
@@ -78,13 +76,14 @@ export class SessionFooter implements Component {
 
     let left = parts.join(" ");
     let leftWidth = visibleWidth(left);
-    if (leftWidth > width) { left = truncateToWidth(left, width, this.profile === "a1" ? theme.fg("dim", "…") : "..."); leftWidth = visibleWidth(left); }
+    if (leftWidth > width) { left = truncateToWidth(left, width, this.profile === "a1" ? dimEllipsis : "..."); leftWidth = visibleWidth(left); }
 
     const modelName = view.activeModel?.modelId ?? "no-model";
     let rightWithoutProvider = this.profile === "a1"
       ? view.activeModel === null || !this.show() ? theme.fg("dim", modelName)
         : theme.fg("dim", `${modelName} • `) + theme.getThinkingBorderColor(view.thinkingLevel)(view.thinkingLevel)
       : view.activeModel === null || view.thinkingLevel === "off" || !this.show() ? modelName : `${modelName} • ${view.thinkingLevel}`;
+    const modelLevel = rightWithoutProvider;
     const routed = view.routedModel;
     if (routed) {
       const level = routed.thinkingLevel === undefined ? "" : ` • ${routed.thinkingLevel}`;
@@ -98,9 +97,17 @@ export class SessionFooter implements Component {
       if (leftWidth + 2 + visibleWidth(right) > width) right = rightWithoutProvider;
     }
 
+    if (this.profile === "a1" && leftWidth + 2 + visibleWidth(right) > width) {
+      right = [rightWithoutProvider, modelLevel].find(value => visibleWidth(value) + 2 <= width)
+        ?? truncateToWidth(theme.fg("dim", modelName), width, dimEllipsis);
+      left = truncateToWidth(left, Math.max(0, width - visibleWidth(right) - 2), dimEllipsis);
+      leftWidth = visibleWidth(left);
+    }
     const rightWidth = visibleWidth(right);
     let line: string;
-    if (leftWidth + 2 + rightWidth <= width) {
+    if (this.profile === "a1" && leftWidth === 0) {
+      line = " ".repeat(Math.max(0, width - rightWidth)) + right;
+    } else if (leftWidth + 2 + rightWidth <= width) {
       line = left + " ".repeat(width - leftWidth - rightWidth) + right;
     } else {
       const available = width - leftWidth - 2;
@@ -111,13 +118,13 @@ export class SessionFooter implements Component {
     }
 
     const lines = [
-      truncateToWidth(pathRow, width, theme.fg("dim", "...")),
+      truncateToWidth(pathRow, width, dimEllipsis),
       theme.fg("dim", left) + (this.profile === "a1" ? line.slice(left.length) : theme.fg("dim", line.slice(left.length))),
     ];
     const statuses = view.status.footer?.extensionStatuses ?? [];
     if (statuses.length > 0) {
       const status = [...statuses].sort(([leftKey], [rightKey]) => leftKey.localeCompare(rightKey)).map(([, text]) => sanitize(text)).join(" ");
-      lines.push(truncateToWidth(status, width, theme.fg("dim", "...")));
+      lines.push(truncateToWidth(status, width, dimEllipsis));
     }
     return lines;
   }

@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-10-24T10:41:55.319Z",
+  "recordedAt": "2026-10-24T11:15:46.102Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "4a080252f06caf63a525d7873c5d94d3c23887e0",
@@ -1890,9 +1890,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Consumes neutral owned-UI data and preserves virtual-model routing. Bare A1 colors thinking, links repository PRs, hides duplicate resident names, and dims a one-cell usage truncation marker; other footer behavior follows Pi.",
+      "modifications": "Owned UI/routing; A1 level color, linked PRs, resident names, dim ellipsis and model priority; Pi unchanged.",
       "upgradeStrategy": "three-way",
-      "localSha256": "89989d49877ab153ec7130007b562b224a48e184911c7891ea5dfd8ed02ffd95",
+      "localSha256": "f06fffb3ef4828826c4d43d3592df79fec80370c72eadba8977e7c4efd6f7b52",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1914,8 +1914,14 @@
         },
         {
           "id": "owned-footer-ellipsis",
-          "reason": "Approved improve-tab-overflow-menu makes A1 usage truncation occupy one cell and use the same dim foreground as adjacent footer text.",
-          "upstreamBehavior": "The pinned comparison footer retains its three-dot suffix. Path, PR hyperlink, thinking color, extension rows, and untruncated A1 usage remain unchanged.",
+          "reason": "Approved improve-tab-overflow-menu uses one dim ellipsis for clipped A1 path, usage, and extension rows.",
+          "upstreamBehavior": "The pinned comparison footer retains its three-dot suffix; A1 PR hyperlinks and untruncated rows remain unchanged.",
+          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
+        },
+        {
+          "id": "owned-footer-model-priority",
+          "reason": "Approved improve-tab-overflow-menu preserves the A1 model name before clipping the lower-priority usage summary and optional level, route, or provider text.",
+          "upstreamBehavior": "The pinned comparison footer and wide A1 layout are unchanged; only narrow A1 layout prioritizes model identity.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         }
       ],

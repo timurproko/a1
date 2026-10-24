@@ -698,6 +698,33 @@ fn settings_signature(path: &Path) -> Option<(std::time::SystemTime, u64)> {
 const POPUP_HOVER_NEUTRAL: [u8; 3] = [48, 48, 48];
 
 impl PopupMenu {
+    /// Maps a displayed popup row to its action row. Items clipped above the screen cannot act.
+    fn terminal_row(&self, index: usize, position: TabBarPosition, outer_rows: u16) -> Option<u16> {
+        let body_rows = usize::from(outer_rows.saturating_sub(1));
+        let row = match position {
+            TabBarPosition::Top => index.checked_add(2)?,
+            TabBarPosition::Bottom => {
+                body_rows.checked_sub(self.items.len().saturating_sub(index + 1))?
+            }
+        };
+        (row > 0 && row <= body_rows).then_some(u16::try_from(row).ok()?)
+    }
+
+    fn mouse_row(
+        &self,
+        position: TabBarPosition,
+        outer_rows: u16,
+        pointer_row: u16,
+    ) -> Option<u16> {
+        self.items
+            .iter()
+            .enumerate()
+            .find(|(index, _)| {
+                self.terminal_row(*index, position, outer_rows) == pointer_row.checked_add(1)
+            })
+            .and_then(|(index, _)| u16::try_from(index + 1).ok())
+    }
+
     #[cfg(test)]
     fn render(&self) -> String {
         self.render_with_color(!palette_fallback_requested())
@@ -725,13 +752,9 @@ impl PopupMenu {
         let inner = usize::from(self.width).saturating_sub(2);
         let mut output = String::from("\x1b[s");
         for (index, item) in self.items.iter().enumerate() {
-            let row = match position {
-                TabBarPosition::Top => index + 2,
-                TabBarPosition::Bottom => usize::from(outer_rows)
-                    .saturating_sub(self.items.len())
-                    .saturating_add(index),
+            let Some(row) = self.terminal_row(index, position, outer_rows) else {
+                continue;
             };
-            let row = row.max(1);
             output.push_str(&format!("\x1b[{row};{}H", self.column.saturating_add(1)));
             if truecolor {
                 let hovered_background = format!("{};{};{}", hover[0], hover[1], hover[2]);
@@ -2850,21 +2873,11 @@ impl Client {
     ) -> Result<(), String> {
         let position = self.time_format.tab_bar_position;
         let mut normalized: core_attach::AttachMouse = (&mouse).into();
-        normalized.row = if position == TabBarPosition::Bottom {
-            core.mode
-                .popup()
-                .and_then(|menu| {
-                    let start = self
-                        .outer_rows
-                        .saturating_sub(1)
-                        .saturating_sub(menu.items.len() as u16);
-                    (mouse.row >= start && mouse.row < self.outer_rows.saturating_sub(1))
-                        .then_some(mouse.row.saturating_sub(start).saturating_add(1))
-                })
-                .unwrap_or_else(|| position.logical_mouse_row(mouse.row, self.outer_rows))
-        } else {
-            position.logical_mouse_row(mouse.row, self.outer_rows)
-        };
+        normalized.row = core
+            .mode
+            .popup()
+            .and_then(|menu| menu.mouse_row(position, self.outer_rows, mouse.row))
+            .unwrap_or_else(|| position.logical_mouse_row(mouse.row, self.outer_rows));
         let forwarded = self.run(core, core_attach::Event::Mouse(normalized))?;
         if !forwarded.contains(&Effect::ForwardMouse) {
             return Ok(());
@@ -4258,6 +4271,63 @@ mod tests {
             }
             assert!(menu.column + menu.width <= columns);
         }
+    }
+
+    #[test]
+    fn popup_mouse_targets_the_named_row_in_both_strip_positions() {
+        let names = ["Agent", "ask-me-something", "Agent", "Agent", "Settings"];
+        let tabs = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| StripTab {
+                id: format!("tab-{index}"),
+                name: (*name).into(),
+                name_source: "user".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        let mut menu = PopupMenu::overflow(10, 80, &["tab-1".into()], &tabs);
+        for position in [TabBarPosition::Top, TabBarPosition::Bottom] {
+            for outer_rows in [7, 24] {
+                menu.hovered = Some(0);
+                for index in 0..names.len() {
+                    let physical = menu
+                        .terminal_row(index, position, outer_rows)
+                        .expect("visible popup row")
+                        - 1;
+                    let action_row = menu
+                        .mouse_row(position, outer_rows, physical)
+                        .expect("pointer row");
+                    assert_eq!(
+                        menu.action_at(menu.column, action_row),
+                        Some(PopupAction::View(format!("tab-{index}")))
+                    );
+                }
+                let named_row = menu.terminal_row(1, position, outer_rows).unwrap();
+                assert!(
+                    menu.render_styled_at(true, POPUP_HOVER_NEUTRAL, position, outer_rows)
+                        .contains(&format!("\x1b[{named_row};{}H", menu.column + 1))
+                );
+            }
+        }
+        let mut reordered = tabs.clone();
+        reordered.swap(1, 3);
+        menu = PopupMenu::overflow(10, 80, &["tab-1".into()], &reordered);
+        let physical = menu.terminal_row(3, TabBarPosition::Bottom, 24).unwrap() - 1;
+        assert_eq!(
+            menu.action_at(
+                menu.column,
+                menu.mouse_row(TabBarPosition::Bottom, 24, physical)
+                    .unwrap()
+            ),
+            Some(PopupAction::View("tab-1".into()))
+        );
+        // Invariant: only the bottom three rows fit in a four-row terminal; clipped rows cannot act.
+        assert_eq!(menu.terminal_row(1, TabBarPosition::Bottom, 4), None);
+        assert_eq!(menu.mouse_row(TabBarPosition::Bottom, 4, 0), Some(3));
+        assert_eq!(menu.mouse_row(TabBarPosition::Bottom, 4, 3), None);
     }
 
     #[test]
