@@ -44,3 +44,8 @@
 
 - [x] 8.1 Keep the lowered Settings message row and move its empty-state mark down to the directly preceding row.
 - [x] 8.2 Update Settings regression coverage for the adjacent lowered rows.
+
+## 9. Resize settle pacing
+
+- [x] 9.1 Extend the post-resize quiet hold to 220 ms so brief pauses within continued resizing do not flash the settled UI.
+- [x] 9.2 Pin the revised settle duration in focused native regression coverage.

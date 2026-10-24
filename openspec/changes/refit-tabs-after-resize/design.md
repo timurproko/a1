@@ -42,7 +42,7 @@ The curtain uses the existing single-slot outer presentation writer rather than 
 
 ### 4. Hold briefly, then reveal through a dimmed frame
 
-Each resize event restarts a 160 ms quiet interval. After that interval, the attach client waits until the currently viewed holder has published a surface newer than the pre-resize surface. Landing or no-tab views need only the quiet interval. This deliberate hold keeps the final dimension curtain visible long enough that stopping a resize does not feel like an abrupt cut.
+Each resize event restarts a 220 ms quiet interval. After that interval, the attach client waits until the currently viewed holder has published a surface newer than the pre-resize surface. Landing or no-tab views need only the quiet interval. This slightly longer hold bridges brief pauses within one resize gesture, keeping the final dimension curtain visible long enough to avoid repeated reveal flashes without making completion feel sluggish.
 
 The first settled UI frame is complete and synchronized but rendered with terminal faint intensity across the tab strip, overlays, landing or legacy bytes, and every structured child style. The child cursor remains hidden. After 100 ms, the attach client forces the same complete current presentation at normal intensity and restores its cursor. Any ordinary state update during the fade remains dimmed, and a new resize cancels the fade and returns immediately to the curtain.
 
@@ -58,7 +58,7 @@ The resize curtain follows the shared mark-and-message empty-state composition e
 
 ## Risks / Trade-offs
 
-- [The transition feels sluggish] → Bound the post-event hold to 160 ms and the dimmed reveal to 100 ms.
+- [The transition feels sluggish] → Bound the post-event hold to 220 ms and the dimmed reveal to 100 ms.
 - [A holder never publishes the requested surface] → Bound the curtain to one second and force a complete fallback repaint.
 - [Rapid resize produces excessive writes] → The existing replaceable single-slot presentation lane retains only the newest complete curtain.
 - [Background resize adds work to hidden children] → Resize only globally hidden, unclaimed holders; hidden full-surface serialization remains disabled.

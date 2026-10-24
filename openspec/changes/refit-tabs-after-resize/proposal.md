@@ -7,7 +7,7 @@ A resident tab can now be fitted before it becomes visible, eliminating switch-t
 - Pre-fit globally hidden, unclaimed resident holders whenever an authoritative controller reports new terminal geometry.
 - Carry current geometry with each view request and queue any required target resize before enabling its fresh surface publication.
 - Replace the complete active UI with a centered two-line `🖥️` and `Resize <columns> x <rows>` curtain while changed-size outer resize events continue, without flashing it for the unchanged startup size notification.
-- Keep the resize curtain briefly after the event burst, then reveal the settled UI dimmed before returning it to normal intensity so the transition is visually soft.
+- Keep the resize curtain for a 220 ms quiet interval after the event burst, bridging brief pauses in continued resizing before revealing the settled UI dimmed and returning it to normal intensity.
 - Present the curtain like other centered application states, with `🖥️` above `Resize 81 x 46`, and standardize the lowered Settings empty-result state as `👀` directly above `No settings found` without trailing punctuation.
 - Preserve per-tab controller authority by excluding tabs currently viewed or controlled by another client.
 - Add focused native regression coverage for background resize, activation ordering, resize-curtain presentation, and resized reattachment flows.

@@ -1407,7 +1407,7 @@ fn send_resize(
 /// How long the landing wordmark takes to wipe into the new Agent's caret, and its frame pace.
 const LANDING_WIPE: Duration = Duration::from_millis(180);
 const LANDING_WIPE_FRAME: Duration = Duration::from_millis(16);
-const RESIZE_SETTLE: Duration = Duration::from_millis(160);
+const RESIZE_SETTLE: Duration = Duration::from_millis(220);
 const RESIZE_FADE: Duration = Duration::from_millis(100);
 const RESIZE_RECOVERY: Duration = Duration::from_secs(1);
 
@@ -3595,6 +3595,7 @@ mod tests {
 
     #[test]
     fn resize_curtain_waits_for_quiet_and_a_new_surface_but_has_a_bound() {
+        assert_eq!(RESIZE_SETTLE, Duration::from_millis(220));
         let started = Instant::now();
         let mut presented = Presented::new();
         presented.tab_id = Some("tab-1".into());
