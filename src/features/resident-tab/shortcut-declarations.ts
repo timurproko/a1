@@ -25,7 +25,7 @@ const jumps = Array.from({ length: 10 }, (_, index): ResidentTabShortcut => ({
 export const RESIDENT_TAB_SHORTCUTS: readonly ResidentTabShortcut[] = Object.freeze([
   { id: "tabs.new", defaultKey: "alt+a", scope: "global", description: "New A1 tab" },
   { id: "tabs.overflowMenu", defaultKey: "alt+-", scope: "global", description: "Open hidden A1 tabs" },
-  { id: "tabs.addMenu", defaultKey: "alt++", scope: "global", description: "Open add A1 tab menu" },
+  { id: "tabs.addMenu", defaultKey: "alt+=", scope: "global", description: "Open add A1 tab menu" },
   { id: "tabs.close", defaultKey: "alt+w", scope: "global", description: "Close A1 tab" },
   { id: "tabs.rename", defaultKey: "f2", scope: "global", description: "Rename A1 tab" },
   { id: "tabs.settings", defaultKey: "alt+,", scope: "global", description: "Open Settings tab" },

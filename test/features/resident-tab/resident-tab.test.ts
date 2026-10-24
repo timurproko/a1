@@ -90,7 +90,7 @@ describe("resident tab shortcuts", () => {
     }, () => [], "a1", true);
     expect(markdown).toContain("**Tabs**");
     expect(markdown).toContain(`\`${process.platform === "darwin" ? "Option" : "Alt"}+-\` | Open hidden A1 tabs`);
-    expect(markdown).toContain(`\`${process.platform === "darwin" ? "Option" : "Alt"}++\` | Open add A1 tab menu`);
+    expect(markdown).toContain(`\`${process.platform === "darwin" ? "Option" : "Alt"}+=\` | Open add A1 tab menu`);
     // Platform: pinned Pi labels Alt as Option on macOS, so the row names the live platform's modifier.
     expect(markdown).toContain(`\`${process.platform === "darwin" ? "Option" : "Alt"}+]\` | View next A1 tab`);
     expect(markdown).toContain("Unbound | Close A1 tab");
@@ -114,7 +114,7 @@ describe("resident tab shortcuts", () => {
     const { assignments } = projectResidentTabShortcuts();
     expect(assignments["tabs.new"]).toBe("alt+a");
     expect(assignments["tabs.overflowMenu"]).toBe("alt+-");
-    expect(assignments["tabs.addMenu"]).toBe("alt++");
+    expect(assignments["tabs.addMenu"]).toBe("alt+=");
     expect(assignments["tabs.close"]).toBe("alt+w");
     expect(assignments["tabs.rename"]).toBe("f2");
     expect(assignments["tabs.settings"]).toBe("alt+,");
