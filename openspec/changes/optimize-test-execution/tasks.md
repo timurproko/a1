@@ -60,4 +60,4 @@
 ## 11. Refined delivery
 
 - [x] 11.1 Update validation documentation and implementation evidence with the critical/deferred ownership model and exact observed limits.
-- [ ] 11.2 Complete focused checks, gap disposition, acceptance outcomes, target reconciliation, and final body validation.
+- [x] 11.2 Complete focused checks, gap disposition, acceptance outcomes, target reconciliation, and final body validation.

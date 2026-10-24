@@ -63,6 +63,7 @@ These are local working-tree checks, not successful exact-head hosted CI or perf
 - Explicit package parity, capture-failure, real Git isolation and existing release-command files: 4 files / 44 tests passed. Existing package parity plus new independence control: 12 tests, 6476 ms locally; this is not a comparable hosted speedup claim.
 - `npx vitest run test/repository-governance/local-cleanup.test.ts --no-file-parallelism`: 1 passed, including its three dependency-free Node suites; 70670 ms locally, original limits unchanged.
 - Explicit full/smoke rendering and input files: 4 files / 6 tests passed; shared smoke assertions passed against the real independent full captures. Local file times 114348, 8714, 31233 and 5764 ms respectively; not comparable to hosted baseline durations.
+- Critical selection, integration cadence, matrix, aggregate, workflow, replay, suite-policy, and ownership regressions: 11 files / 133 tests passed with serial file scheduling and the retained 30000 ms explicit bound.
 - Strict OpenSpec validation: passed.
 
 ## Limitations and dispositions
