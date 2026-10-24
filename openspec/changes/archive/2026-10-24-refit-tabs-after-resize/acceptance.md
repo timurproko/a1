@@ -23,7 +23,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-24-refit-tabs-after-resize/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-24-refit-tabs-after-resize/acceptance.md",
   "finalizedDate": "2026-10-24",
-  "specBaseSha": "a055df3f214104c380e5903d9d71ee6668f9133f",
+  "specBaseSha": "63a5d9ec34bcda4632c48015cd1da0857f8ea545",
   "acceptanceScenarios": [
     "Resizing the outer terminal pre-fits globally hidden, unclaimed resident tabs without painting them.",
     "Switching tabs exposes the target only at the current dimensions, with no old-size flash or reflow jump.",
