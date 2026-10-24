@@ -10,11 +10,15 @@ Build the popup from the current strip frame's hidden IDs, in tab order. Remove 
 
 ### Preserve narrow-strip geometry
 
-Retain the existing width allocation, no-wrap behavior, viewed-chip priority when feasible, trailing `+`, single-column `…` glyph, and strip muted foreground. For a hidden-tab selection, reserve its chip in the position occupied by the previously viewed chip when the previous chip was drawn and both cannot fit. While the view request is pending, treat the requested tab as strip-active so the old viewed chip does not temporarily return to that slot. Settle any auto-name animation already in progress on the newly revealed tab; later automatic renames still use normal behavior. Keep the body/surface view commit gate unchanged and do not repaint unaffected chip slots as another tab. Prefer retaining all other drawn chips; if a resize or minimum width prevents that, retain the viewed chip where feasible and use the existing geometry fallback. Do not reorder the registry or alter the global tab sequence to achieve a client-local visible-chip swap. Test very narrow widths explicitly rather than assuming a chip always fits.
+Retain the existing width allocation, no-wrap behavior, viewed-chip priority when feasible, trailing `+`, and strip muted foreground; replace only the overflow control's single-column `…` with `-`, leaving title truncation ellipses untouched. For a hidden-tab selection, reserve its chip in the position occupied by the previously viewed chip when the previous chip was drawn and both cannot fit. While the view request is pending, treat the requested tab as strip-active so the old viewed chip does not temporarily return to that slot. Settle any auto-name animation already in progress on the newly revealed tab; later automatic renames still use normal behavior. Keep the body/surface view commit gate unchanged and do not repaint unaffected chip slots as another tab. Prefer retaining all other drawn chips; if a resize or minimum width prevents that, retain the viewed chip where feasible and use the existing geometry fallback. Do not reorder the registry or alter the global tab sequence to achieve a client-local visible-chip swap. Test very narrow widths explicitly rather than assuming a chip always fits.
 
 ### Jump to displayed chips only
 
 Resolve Alt+number against the current painted strip hit ranges in left-to-right order, not the registry's tab index. If N exceeds the number of drawn chips, do nothing; do not arm a pending jump for a future registry snapshot. Keep next/previous shortcuts able to traverse every shown tab, including ones currently in the popup. Keep drag and popup actions bound to stable tab IDs.
+
+### Keyboard access to the existing popup controls
+
+Project two configurable resident shortcuts with the same default and reserved-key conflict policy on both the owned child and native host: `tabs.overflowMenu` on Alt+- and `tabs.addMenu` on Alt++. Both invoke the same popup construction, focus, paint, and geometry path as the corresponding strip control. Alt+- does nothing when no overflow control is painted; Alt++ opens the add menu even with no tabs, without creating a tab until an entry is chosen. Normalize a shifted `=` reported as Alt+Shift+= to Alt++ only for the default plus binding, without taking unrelated key chords. Retain Alt+A as direct tab creation and the existing user rebinding and owned-action reservation rules.
 
 ### Map bottom popup clicks to visual rows
 
@@ -30,4 +34,4 @@ Add focused Rust popup/strip/attach tests for hidden-only ordered rows without c
 
 ## Scope boundaries
 
-No auto-naming behavior change, tab visibility setting, pinning, new menu-opening shortcut, active-tab marker, new glyph design, global footer redesign, or change to Windows Terminal chrome is included. The swap affects only the resident A1 strip; it does not reorder tabs in the shared registry.
+No auto-naming behavior change, tab visibility setting, pinning, active-tab marker, global footer redesign, or change to Windows Terminal chrome is included. The only new menu-opening shortcuts and glyph change are the two requested popup bindings and the overflow control's `-`. The swap affects only the resident A1 strip; it does not reorder tabs in the shared registry.

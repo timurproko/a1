@@ -13,6 +13,9 @@
 - [x] 1.10 Resolve Alt+number from the currently drawn strip chips in visual order, leaving out-of-range numbers inert without pending jumps.
 - [x] 1.11 Avoid a transient old-chip or stale hidden-title animation during a pending hidden-tab swap without changing later auto-naming.
 - [x] 1.12 Add focused shortcut and strip-transition tests for swaps, resizes, reordered/identically named tabs, in-flight views, and out-of-range Alt+number.
+- [ ] 1.13 Render `-` on the overflow control without changing its hit geometry, muted color, or name truncation.
+- [ ] 1.14 Project Alt+- and Alt++ to the existing overflow and add popups through the native/owned shortcut declarations, honoring rebindings and owned-key reservations.
+- [ ] 1.15 Add focused Rust and TypeScript tests for the glyph, popup behavior, shift-plus terminal encoding, absent overflow, geometry, and shortcut projection.
 
 ## 2. A1 footer truncation
 
@@ -28,3 +31,4 @@
 - [x] 3.3 Record hidden-only menu and swap checks and any remaining geometry limits.
 - [x] 3.4 Record icon-slot rendering and interaction checks and any remaining limits.
 - [x] 3.5 Record visible-shortcut and stable-swap checks and any remaining limits.
+- [ ] 3.6 Record the requested keyboard-menu and glyph refinement's focused checks and any remaining limits.

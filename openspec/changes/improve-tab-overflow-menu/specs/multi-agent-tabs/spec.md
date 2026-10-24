@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Tab chips reproduce the approved v2 strip
-The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible when space permits, and a trailing `+` SHALL always be reserved. The muted single-column `…` overflow control SHALL appear only while some chips do not fit and SHALL open a keyboard- and mouse-navigable popup listing only tabs whose chips are not drawn, without checkmarks, in strip order. Each row SHALL reserve a one-cell status-glyph slot and separator before its name; it SHALL show the same current status glyph and semantic color as the chip when present, or a blank slot while idle. Names SHALL clip by display width without shifting the icon slot, leaking icon style into the title, or changing popup hit geometry. Choosing a popup row SHALL view exactly that tab with either top or bottom strip placement and place its chip in the previously viewed chip's strip slot when that chip was drawn and the two do not both fit; the displaced tab SHALL appear in the popup. Other visible chips SHALL remain visible when geometry permits, and a pending view request SHALL NOT briefly repaint the old viewed chip in the slot or replay the newly drawn chip's hidden-name transition. The popup SHALL track the current drawn chips across resize, reorder, creation, removal, and view changes; removed tabs SHALL NOT remain actionable. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
+The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible when space permits, and a trailing `+` SHALL always be reserved. The muted single-column `-` overflow control SHALL appear only while some chips do not fit and SHALL open a keyboard- and mouse-navigable popup listing only tabs whose chips are not drawn, without checkmarks, in strip order. Each row SHALL reserve a one-cell status-glyph slot and separator before its name; it SHALL show the same current status glyph and semantic color as the chip when present, or a blank slot while idle. Names SHALL clip by display width without shifting the icon slot, leaking icon style into the title, or changing popup hit geometry. Choosing a popup row SHALL view exactly that tab with either top or bottom strip placement and place its chip in the previously viewed chip's strip slot when that chip was drawn and the two do not both fit; the displaced tab SHALL appear in the popup. Other visible chips SHALL remain visible when geometry permits, and a pending view request SHALL NOT briefly repaint the old viewed chip in the slot or replay the newly drawn chip's hidden-name transition. The popup SHALL track the current drawn chips across resize, reorder, creation, removal, and view changes; removed tabs SHALL NOT remain actionable. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
 
 #### Scenario: Wide names are clipped by display width
 - **WHEN** a tab name contains CJK characters or emoji wider than the chip allows
@@ -9,7 +9,7 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 
 #### Scenario: More tabs than fit
 - **WHEN** the terminal cannot fit every chip
-- **THEN** the viewed chip SHALL remain visible when space permits, `…` SHALL list only the tabs without drawn chips, next/previous navigation SHALL still reach every tab, and Alt+number SHALL select only a chip currently drawn in that numbered left-to-right position
+- **THEN** the viewed chip SHALL remain visible when space permits, `-` SHALL list only the tabs without drawn chips, next/previous navigation SHALL still reach every tab, and Alt+number SHALL select only a chip currently drawn in that numbered left-to-right position
 
 #### Scenario: Close button is always present
 - **WHEN** any visible tab chip is rendered or clicked after the legacy close-button behavior is removed
@@ -35,6 +35,14 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **THEN** the overflow popup SHALL list only the other two tabs, in strip order and without checkmarks
 - **AND** selecting one SHALL view it in the strip and move the previously viewed chip into the popup
 
+#### Scenario: Keyboard shortcuts open the strip menus
+- **WHEN** the user presses Alt+- and the `-` overflow control is drawn
+- **THEN** the same hidden-tab popup as a click on `-` SHALL open, with its normal keyboard and mouse actions
+- **AND** if no chips are hidden, Alt+- SHALL NOT open an empty or stale popup
+- **WHEN** the user presses Alt++ (including a terminal's Alt+Shift+= representation)
+- **THEN** the same add-tab popup as a click on `+` SHALL open without creating a tab until an item is chosen
+- **AND** both shortcuts SHALL follow the resident keybinding projection and respect user rebinding and reserved keys
+
 #### Scenario: Jump shortcuts track only drawn chips
 - **WHEN** the strip draws two chips after a narrow resize or hidden-tab swap, regardless of their registry indexes
 - **THEN** Alt+1 SHALL select the first drawn chip and Alt+2 the second
@@ -51,7 +59,7 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **AND** clipping a long name or hovering a row SHALL NOT shift the icon or alter the row's tab target
 
 #### Scenario: Swap a hidden tab while two chips fit
-- **WHEN** two chips are visible, the user views one of them, and they choose a hidden named tab from `…`
+- **WHEN** two chips are visible, the user views one of them, and they choose a hidden named tab from `-`
 - **THEN** the named tab SHALL occupy the previously viewed chip's position
 - **AND** the other visible chip SHALL remain drawn, while the displaced chip SHALL become a menu entry
 
