@@ -13,3 +13,9 @@
 - [x] 3.1 Forward an authoritative outer resize to globally hidden, unclaimed holders without affecting tabs viewed or controlled by another client.
 - [x] 3.2 Carry current geometry in each view request and queue target resize before fresh surface subscription, removing the redundant post-selection resize.
 - [x] 3.3 Add native regression coverage for hidden-holder pre-fitting, resize-before-subscription activation ordering, and spectator isolation.
+
+## 4. Stable active resize presentation
+
+- [ ] 4.1 Replace the complete outer UI with a centered live terminal-dimension curtain for the duration of each resize event burst.
+- [ ] 4.2 Suppress ordinary paints behind the curtain and restore one forced complete frame after a quiet interval and current-geometry surface, with bounded fallback.
+- [ ] 4.3 Add focused native coverage for curtain centering, paint suppression, settle gating, and complete restoration.

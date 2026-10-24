@@ -32,3 +32,25 @@ Whenever an authoritative attach controller reports new terminal geometry, A1 SH
 - **WHEN** another client views or controls a tab using different terminal dimensions, or a read-only client switches views
 - **THEN** background fitting SHALL leave the other client's viewed or controlled tab unchanged
 - **AND** the spectator SHALL fit the controller-sized presentation without resizing any shared child
+
+### Requirement: Active outer resize uses a stable dimension curtain
+
+While an attach client's outer terminal emits a burst of resize events, A1 SHALL replace the complete tab strip, active child surface, overlays, and cursor with a host-owned curtain showing `Resize <columns> × <rows>` centered for the latest terminal dimensions. A1 SHALL continue routing geometry and accepting fresh holder state behind the curtain but SHALL NOT present intermediate active-TUI frames. After resize events remain quiet for the bounded settle interval and the viewed holder has published current-geometry state, A1 SHALL restore the complete UI in one synchronized full repaint. If current holder state does not arrive within the bounded recovery interval, A1 SHALL restore the newest retained complete presentation rather than leave the curtain indefinitely.
+
+#### Scenario: Continuous window resize shows only current dimensions
+
+- **WHEN** the user drags the outer terminal boundary and multiple resize events arrive
+- **THEN** every visible intermediate frame SHALL contain only the centered resize curtain for the latest columns and rows
+- **AND** no tab strip, child content, overlay, or child cursor SHALL be visible behind it
+
+#### Scenario: Resize completion restores one current frame
+
+- **WHEN** resize events stop and the active holder publishes a surface for the final geometry
+- **THEN** A1 SHALL remove the curtain after the settle interval
+- **AND** SHALL restore the complete strip and child UI in one synchronized full repaint without exposing intermediate reflow
+
+#### Scenario: Resize publication stalls
+
+- **WHEN** resize events stop but the active holder does not publish current-geometry state within the bounded recovery interval
+- **THEN** A1 SHALL remove the curtain and force a complete repaint from the newest retained presentation
+- **AND** SHALL NOT leave the terminal permanently on the resize status
