@@ -164,7 +164,7 @@
       "lines": 317
     },
     "native/terminal-host/src/roles/server/mod.rs::serve_peer": {
-      "lines": 155
+      "lines": 147
     },
     "native/terminal-host/src/roles/server/standby.rs::promote_standby": {
       "lines": 106

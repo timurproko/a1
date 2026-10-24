@@ -848,6 +848,10 @@ pub fn hit(frame: &StripFrame, column: u16) -> Option<&StripHit> {
 }
 
 fn clock_text(format: TimeFormat) -> String {
+    #[cfg(test)]
+    if let Some((hour, minute)) = tests::FIXED_CLOCK.with(|clock| clock.get()) {
+        return format_clock(hour, minute, format);
+    }
     let seconds = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
@@ -888,6 +892,20 @@ fn local_hour_minute(_seconds: u64) -> (u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Concurrency: each test thread owns its clock; the guard restores it even during unwinding.
+    thread_local! {
+        pub(super) static FIXED_CLOCK: std::cell::Cell<Option<(u32, u32)>> = const { std::cell::Cell::new(None) };
+    }
+    struct FixedClock(Option<(u32, u32)>);
+    impl Drop for FixedClock {
+        fn drop(&mut self) {
+            FIXED_CLOCK.with(|clock| clock.set(self.0));
+        }
+    }
+    fn clock_at(hour: u32, minute: u32) -> FixedClock {
+        FixedClock(FIXED_CLOCK.with(|clock| clock.replace(Some((hour, minute)))))
+    }
 
     fn tab(id: &str, name: &str) -> StripTab {
         StripTab {
@@ -1662,6 +1680,50 @@ mod tests {
                 .iter()
                 .any(|(_, _, hit)| matches!(hit, StripHit::Overflow))
         );
+    }
+
+    #[test]
+    fn fixed_hour_clocks_preserve_chip_width_and_overflow() {
+        let tabs = (0..5)
+            .map(|index| tab(&format!("tab-{index}"), "a very long agent title"))
+            .collect::<Vec<_>>();
+        let widths = |frame: StripFrame| {
+            frame
+                .hits
+                .into_iter()
+                .filter_map(|(start, end, hit)| {
+                    matches!(hit, StripHit::View(_)).then_some(end - start)
+                })
+                .collect::<Vec<_>>()
+        };
+        for (hour, twelve_hour_width) in [(0, 17), (4, 18), (12, 17), (16, 18), (23, 17)] {
+            let _clock = clock_at(hour, 5);
+            assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
+            assert_eq!(
+                widths(render(&tabs[..3], Some("tab-0"), 65)),
+                [twelve_hour_width; 3]
+            );
+            // Invariant: a fixed-width 24-hour clock keeps the measured width independent of the hour.
+            assert_eq!(
+                widths(render_configured(
+                    &tabs[..3],
+                    Some("tab-0"),
+                    65,
+                    None,
+                    TimeFormat::TwentyFour,
+                )),
+                [18, 18, 18]
+            );
+            let crowded = render(&tabs, Some("tab-4"), 60);
+            assert!(widths(crowded.clone()).iter().all(|width| *width == 12));
+            assert!(crowded.bytes.contains("a very …"));
+            assert!(
+                crowded
+                    .hits
+                    .iter()
+                    .any(|(_, _, hit)| matches!(hit, StripHit::Overflow))
+            );
+        }
     }
 
     #[test]

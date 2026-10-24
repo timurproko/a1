@@ -857,21 +857,44 @@ async function runStoppedStageControls(attach, context, provider, tabIds) {
     const engineBaselines = currentEngineBaselines(before.records, tabIds);
     const marker = stage === "engine-delivery" ? null : join(context.controls, `${targetTabId}.${stage}.stop`);
     if (marker !== null) await writeFile(marker, "", { mode: 0o600 });
-    const startedUnixUs = epochUs();
-    scenario.start();
     try {
-      await waitUntil(async () => {
-        const observations = await currentObservations(context);
-        return evaluateStoppedStageControl(observations.records, {
-          id, stage, targetTabId, tabIds, startedUnixUs, barrierUnixUs: epochUs(), engineBaselines,
-        }).passed;
-      }, `${id} isolated stop`);
+      let stopBoundary;
+      if (stage === "outer-paint") {
+        const sequences = new Map();
+        for (const record of before.records) sequences.set(record.processInstance,
+          Math.max(sequences.get(record.processInstance) ?? 0, record.sequence));
+        await waitUntil(async () => {
+          const observations = await currentObservations(context);
+          if (observations.faults.length > 0) throw new Error(observations.faults.join("; "));
+          const acknowledgement = observations.records.find(record => record.stage === "fixture-stop-ack"
+            && record.eventKind === stage && record.tabId === targetTabId
+            && record.sequence > (sequences.get(record.processInstance) ?? 0));
+          if (!acknowledgement) return false;
+          stopBoundary = { processInstance: acknowledgement.processInstance, sequence: acknowledgement.sequence };
+          return true;
+        }, `${id} writer stop acknowledgement`);
+      }
+      const startedUnixUs = epochUs();
+      const causalBoundary = stopBoundary === undefined ? {} : { stopBoundary };
+      scenario.start();
+      let evidence;
+      try {
+        await waitUntil(async () => {
+          const observations = await currentObservations(context);
+          evidence = evaluateStoppedStageControl(observations.records, {
+            id, stage, targetTabId, tabIds, startedUnixUs, barrierUnixUs: epochUs(), engineBaselines, ...causalBoundary,
+          });
+          return evidence.passed;
+        }, `${id} isolated stop`);
+      } catch (error) {
+        throw new Error(`${error instanceof Error ? error.message : String(error)} ${JSON.stringify(evidence)}`);
+      }
       await delay(250);
       const barrierUnixUs = epochUs();
       const stopped = await currentObservations(context);
       if (stopped.faults.length > 0) throw new Error(stopped.faults.join("; "));
       const result = evaluateStoppedStageControl(stopped.records, {
-        id, stage, targetTabId, tabIds, startedUnixUs, barrierUnixUs, engineBaselines,
+        id, stage, targetTabId, tabIds, startedUnixUs, barrierUnixUs, engineBaselines, ...causalBoundary,
       });
       if (!result.passed) throw new Error(result.faults.join("; "));
       if (marker !== null) await rm(marker, { force: true });

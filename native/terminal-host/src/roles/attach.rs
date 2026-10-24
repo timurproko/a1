@@ -709,6 +709,13 @@ fn resumed_after_gap(previous: SystemTime, now: SystemTime) -> bool {
         .is_ok_and(|elapsed| elapsed >= OUTER_RESUME_GAP)
 }
 
+/// Consumes a gap once; subsequent ordinary ticks cannot keep forcing the cached repaint.
+pub(crate) fn take_resume_gap(previous: &mut SystemTime, now: SystemTime) -> bool {
+    let resumed = resumed_after_gap(*previous, now);
+    *previous = now;
+    resumed
+}
+
 fn clock_minute() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1012,6 +1019,7 @@ impl AttachServerWriter {
         let writer_bytes = reserved_bytes.clone();
         let writer_failed = failed.clone();
         thread::spawn(move || {
+            let _connection = endpoint::close_on_drop(&stream);
             while let Ok(frame) = receiver.recv() {
                 let result = stream
                     .write_all(&frame)
@@ -1477,6 +1485,7 @@ fn spawn_server_reader(
     let ingress_bytes = Arc::new(AtomicUsize::new(0));
     let reader_ingress_bytes = ingress_bytes.clone();
     thread::spawn(move || {
+        let _connection = endpoint::close_on_drop(&reader);
         loop {
             let payload = match wire::read_payload(&mut reader) {
                 Ok(Some(payload)) => payload,
@@ -1546,6 +1555,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     );
     crate::fault_injection::freeze_role("attach");
     let handshake = handshake(&options)?;
+    let _connection = endpoint::close_on_drop(&handshake.stream);
     let reader = handshake
         .stream
         .try_clone()
@@ -2686,8 +2696,7 @@ impl Client {
 
     fn tick(&mut self, core: &mut State) -> Result<(), String> {
         let wall_now = SystemTime::now();
-        let resumed = resumed_after_gap(self.last_tick_wall, wall_now);
-        self.last_tick_wall = wall_now;
+        let resumed = take_resume_gap(&mut self.last_tick_wall, wall_now);
         let now = Instant::now();
         if let Some(Offer::Commit {
             surface,
@@ -2724,9 +2733,30 @@ impl Client {
             self.paint(core, true)?;
         }
         if resumed {
+            progress_observation::observe(
+                "attach",
+                "wake-gap",
+                ProgressMetadata {
+                    tab_id: self.view.viewed.as_deref(),
+                    incarnation: self.presented.incarnation,
+                    revision: self.presented.revision,
+                    ..ProgressMetadata::default()
+                },
+            );
             // Platform: after suspend, ConPTY may have discarded its last painted cells while
             // the writer still considers them current. Overwrite the full cached frame once.
+            // A gap is not evidence of a child hang and never authorizes process recovery.
             self.paint(core, true)?;
+            progress_observation::observe(
+                "attach",
+                "wake-repaint-requested",
+                ProgressMetadata {
+                    tab_id: self.view.viewed.as_deref(),
+                    incarnation: self.presented.incarnation,
+                    revision: self.presented.revision,
+                    ..ProgressMetadata::default()
+                },
+            );
         }
         if strip::animations_active(&self.tabs)
             && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs)
@@ -3175,6 +3205,37 @@ struct OuterWriter {
     failed: Arc<Mutex<Option<String>>>,
 }
 
+/// Commits a prepared presentation only after its complete outer write and flush succeeded.
+fn write_outer_presentation(
+    composer: &mut PresentationComposer,
+    out: &mut impl Write,
+    desired: &DesiredPresentation,
+) -> Result<(), String> {
+    let Some(prepared) = composer.prepare(desired)? else {
+        return Ok(());
+    };
+    out.write_all(&prepared.bytes)
+        .and_then(|()| out.flush())
+        .map_err(|error| format!("write outer presentation: {error}"))?;
+    if let Some(tab_id) = prepared.tab_id.as_deref() {
+        progress_observation::observe(
+            "attach",
+            "outer-paint",
+            ProgressMetadata {
+                tab_id: Some(tab_id),
+                incarnation: prepared.incarnation,
+                revision: prepared.revision,
+                geometry_generation: prepared.geometry_generation,
+                bytes: prepared.bytes.len(),
+                count: 1,
+                ..ProgressMetadata::default()
+            },
+        );
+    }
+    prepared.acknowledge(composer);
+    Ok(())
+}
+
 impl OuterWriter {
     fn start() -> Self {
         let (control, receiver) = mpsc::sync_channel::<OuterWrite>(OUTER_CONTROL_QUEUE_FRAMES);
@@ -3189,6 +3250,8 @@ impl OuterWriter {
         thread::spawn(move || {
             let mut composer = PresentationComposer::default();
             let mut out = TerminalOutput::new();
+            let mut viewed_tab = None::<String>;
+            let mut acknowledged_stop = None;
             loop {
                 let command = receiver.recv_timeout(Duration::from_millis(8));
                 let result = match command {
@@ -3220,48 +3283,39 @@ impl OuterWriter {
                 }
                 thread_signaled.store(false, Ordering::SeqCst);
                 let desired = thread_latest.lock().ok().and_then(|mut slot| slot.take());
+                if let Some(desired) = desired.as_ref() {
+                    viewed_tab.clone_from(&desired.tab_id);
+                }
+                let stopped = viewed_tab
+                    .as_deref()
+                    .filter(|tab_id| crate::roles::fixture_control::stopped("outer-paint", tab_id));
+                // Concurrency: this sole writer acknowledges only after earlier writes completed,
+                // including while idle. A marker's creation alone is not a completed-paint barrier.
+                if crate::roles::fixture_control::take_stop_acknowledgement(
+                    &mut acknowledged_stop,
+                    stopped,
+                ) {
+                    progress_observation::observe(
+                        "attach",
+                        "fixture-stop-ack",
+                        ProgressMetadata {
+                            tab_id: stopped,
+                            event_kind: Some("outer-paint"),
+                            count: 1,
+                            ..ProgressMetadata::default()
+                        },
+                    );
+                }
                 if let Some(desired) = desired {
-                    if desired.tab_id.as_deref().is_some_and(|tab_id| {
-                        crate::roles::fixture_control::stopped("outer-paint", tab_id)
-                    }) {
+                    if stopped.is_some() {
                         continue;
                     }
-                    match composer.prepare(&desired) {
-                        Ok(Some(prepared)) => {
-                            let result = out
-                                .write_all(&prepared.bytes)
-                                .and_then(|()| out.flush())
-                                .map_err(|error| format!("write outer presentation: {error}"));
-                            if let Err(error) = result {
-                                if let Ok(mut failed) = thread_failed.lock() {
-                                    *failed = Some(error);
-                                }
-                                return;
-                            }
-                            if let Some(tab_id) = prepared.tab_id.as_deref() {
-                                progress_observation::observe(
-                                    "attach",
-                                    "outer-paint",
-                                    ProgressMetadata {
-                                        tab_id: Some(tab_id),
-                                        incarnation: prepared.incarnation,
-                                        revision: prepared.revision,
-                                        geometry_generation: prepared.geometry_generation,
-                                        bytes: prepared.bytes.len(),
-                                        count: 1,
-                                        ..ProgressMetadata::default()
-                                    },
-                                );
-                            }
-                            prepared.acknowledge(&mut composer);
+                    if let Err(error) = write_outer_presentation(&mut composer, &mut out, &desired)
+                    {
+                        if let Ok(mut failed) = thread_failed.lock() {
+                            *failed = Some(error);
                         }
-                        Ok(None) => {}
-                        Err(error) => {
-                            if let Ok(mut failed) = thread_failed.lock() {
-                                *failed = Some(error);
-                            }
-                            return;
-                        }
+                        return;
                     }
                 }
             }
@@ -5006,6 +5060,35 @@ mod tests {
             read_presentation_settings(&file),
             PresentationSettings::default()
         );
+    }
+
+    #[test]
+    fn outer_presentation_acknowledges_only_a_complete_successful_write() {
+        struct FlushFailure(Vec<u8>);
+        impl Write for FlushFailure {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Err(std::io::Error::other("fixture flush failure"))
+            }
+        }
+        let mut desired = resize_curtain_presentation(20, 8, true);
+        desired.clear = false;
+        let mut composer = PresentationComposer::default();
+        let mut failed = FlushFailure(Vec::new());
+        assert!(write_outer_presentation(&mut composer, &mut failed, &desired).is_err());
+        assert!(!failed.0.is_empty());
+        assert!(composer.prepare(&desired).unwrap().is_some());
+        let mut written = Vec::new();
+        write_outer_presentation(&mut composer, &mut written, &desired).unwrap();
+        assert!(written.starts_with(BEGIN_SYNCHRONIZED_UPDATE));
+        assert!(written.ends_with(END_SYNCHRONIZED_UPDATE));
+        assert!(composer.prepare(&desired).unwrap().is_none());
+        let bytes = written.len();
+        write_outer_presentation(&mut composer, &mut written, &desired).unwrap();
+        assert_eq!(written.len(), bytes);
     }
 
     #[test]
