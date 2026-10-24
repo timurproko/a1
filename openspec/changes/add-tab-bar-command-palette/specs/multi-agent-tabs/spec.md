@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: The plus menu is configurable
-A1 SHALL offer three tab kinds in this order: `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose menu row carries the `+` marker, and `Settings` and `Changelog`, singleton toggles whose invocation creates or shows their one tab and whose menu row carries `✓` while that tab is open. The A1 setting `tabBarPlusMenu` SHALL hold the kinds `+` offers and SHALL default to `Agent` alone. With only `Agent` enabled, clicking `+` SHALL create an Agent without a menu; with any other enabled set, clicking `+` SHALL open the launcher with one row per enabled kind in kind order and each row's effective shortcut right-aligned; with no kind enabled, clicking `+` SHALL do nothing. Right-clicking `+` SHALL open a one-row `Configure` popup whose selection opens the plus-menu dialog in the Settings tab. The dialog SHALL list every kind with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, apply each toggle to `+` without a restart, and close with `Esc`.
+A1 SHALL offer three tab kinds in this order: `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose menu row carries the `+` marker, and `Settings` and `Changelog`, singleton toggles whose invocation creates or shows their one tab and whose menu row carries `✓` while that tab is open. The A1 setting `tabBarPlusMenu` SHALL hold the kinds `+` offers and SHALL default to `Agent` alone. With only `Agent` enabled, clicking `+` SHALL create an Agent without a menu; with any other enabled set, clicking `+` SHALL open the launcher with one row per enabled kind in kind order and each row's effective shortcut right-aligned; with no kind enabled, the strip SHALL hide `+` and give its cells to the tabs. Right-clicking `+` SHALL open a one-row `Configure` popup whose selection opens the `Plus Menu` dialog as a modal over the dimmed active tab or landing, without switching tabs. The dialog SHALL describe itself as `Choose what the + button in the tab bar can add.`, list every kind with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, store each toggle in `tabBarPlusMenu` at once under the settings document lock, apply it to `+` without a restart, ignore the pointer, and close with `Esc`. The Settings `Plus menu` entry SHALL open the same dialog inside the Settings screen.
 
 #### Scenario: Default plus
 - **WHEN** the profile stores no plus menu and the user clicks `+`
@@ -16,11 +16,15 @@ A1 SHALL offer three tab kinds in this order: `Agent`, a multi-instance kind who
 
 #### Scenario: Configure from the strip
 - **WHEN** the user right-clicks `+` and chooses `Configure`
-- **THEN** the Settings tab SHALL be shown with the plus-menu dialog open, without starting a second Settings process when one is ready
+- **THEN** the `Plus Menu` dialog SHALL open over the dimmed active tab, and the viewed tab SHALL NOT change
 
 #### Scenario: Toggle a kind
 - **WHEN** the dialog is open on `Changelog` and the user presses `Space`
 - **THEN** `Changelog` SHALL switch between `●` and `○` and the next click on `+` SHALL reflect the change
+
+#### Scenario: Nothing enabled
+- **WHEN** the user disables every kind
+- **THEN** the strip SHALL no longer show `+`, and the Settings `Plus menu` entry SHALL still open the dialog
 
 ### Requirement: The command palette opens every tab kind
 The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal command palette over the dimmed strip and body from any tab, the landing, or the Settings tab. The palette SHALL show the title `Commands` with a dim `esc` hint, a search line that shows the dim placeholder `Search` while empty, one `Tabs` section in the owned section style, and the rows `Agent session`, `Settings`, and `Changelog` in the owned list style with `→` and the accent selected background on the selected row and each effective shortcut right-aligned. Up and Down SHALL move the selection, printable keys and `Backspace` SHALL edit a case-insensitive label filter, `Enter` SHALL close the palette and run the selected entry exactly as its shortcut or launcher row would, and `Esc` SHALL close it without action. While the palette is open, no key, paste, or mouse input SHALL reach a child, and mouse input SHALL NOT act on the strip or the palette. A `tabs.changelog` action SHALL exist for assignment without a default key.

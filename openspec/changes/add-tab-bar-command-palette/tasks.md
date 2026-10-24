@@ -30,3 +30,7 @@ Each numbered section is one Implementation item. Every section starts by mergin
 ## 6. Architecture record
 
 - [x] 6.1 Record the plus menu, the command palette, the Changelog utility tab, and tab and session name sync under Decision 11 in `docs/architecture/resident-tabs.md`.
+
+## 7. Configure in place
+
+- [x] 7.1 Open `Configure` on `+` as a `Plus Menu` modal over the dimmed active tab, store each toggle in `tabBarPlusMenu` from the attach client under the settings document lock, hide `+` when no kind is enabled, and retire `tab.open-plus-menu` with its pending bridge route. Tests: palette list and machine tests for the modal, renderer fixtures, settings writer tests for locking, defaults, and broken documents, and a strip test for the hidden `+`.

@@ -12,11 +12,11 @@ A1 knows three tab kinds in a fixed order: `agent`, `settings`, and `changelog`.
 
 ### 2. The plus menu is a setting
 
-`tabBarPlusMenu` is an A1-owned profile setting holding the enabled kinds, in kind order, defaulting to `["agent"]`. The attach client reads it with its other live presentation settings. With exactly `agent`, a left click on `+` creates an Agent; with any other set, it opens the launcher with one row per enabled kind; with none, `+` does nothing. Right-clicking `+` opens a one-row `Configure` popup.
+`tabBarPlusMenu` is an A1-owned profile setting holding the enabled kinds, in kind order, defaulting to `["agent"]`. The attach client reads it with its other live presentation settings. With exactly `agent`, a left click on `+` creates an Agent; with any other set, it opens the launcher with one row per enabled kind; with none, the strip hides `+`, which the Settings entry can restore. Right-clicking `+` opens a one-row `Configure` popup.
 
 ### 3. One configuration dialog, owned by Settings
 
-The plus-menu dialog is an owned route, `plus-menu`, served by the Settings app: a Models-style list of every kind with `●`/`○` markers, `Space` to toggle, `↑↓` to move, typing to filter, and `Esc` to close, with changes written as they are made. The Settings screen's `Plus menu` entry shows `configure` and opens that route on `Enter`. `Configure` on `+` sends `tab.open-plus-menu`: the server reserves the Settings tab as `tab.open-settings` does, records `plus-menu` as the tab's pending route in its core tab runtime, and delivers it over `bridge.route` at once when the bridge is connected or on its admission otherwise. The Settings child opens a delivered route through the same retained-route path as its own `settings` route.
+The `Plus Menu` dialog lists every kind with `●`/`○` markers under the description `Choose what the + button in the tab bar can add.`, with `Space` to toggle, `↑↓` to move, typing to filter, and `Esc` to close, and writes each change as it is made. It has two hosts. The Settings screen's `Plus menu` entry shows `configure` and opens it inside Settings on `Enter`. `Configure` on `+` opens it in the attach client as a modal over the dimmed active tab or landing, sharing the command palette's list state and renderer, so configuring never switches tabs. The attach client stores a toggle itself: it takes the `settings.json.lock` directory lock the TypeScript writer takes through `proper-lockfile`, rereads the document, replaces only `a1.tabBarPlusMenu` (removing it at the default), and renames a temporary file over the document. A refused write restores the stored menu and names the failure.
 
 ### 4. The command palette is attach-owned
 
