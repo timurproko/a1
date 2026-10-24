@@ -16,6 +16,6 @@
 
 ## 4. Stable active resize presentation
 
-- [ ] 4.1 Replace the complete outer UI with a centered live terminal-dimension curtain for the duration of each resize event burst.
-- [ ] 4.2 Suppress ordinary paints behind the curtain and restore one forced complete frame after a quiet interval and current-geometry surface, with bounded fallback.
-- [ ] 4.3 Add focused native coverage for curtain centering, paint suppression, settle gating, and complete restoration.
+- [x] 4.1 Replace the complete outer UI with a centered live terminal-dimension curtain for the duration of each resize event burst.
+- [x] 4.2 Suppress ordinary paints behind the curtain and restore one forced complete frame after a quiet interval and current-geometry surface, with bounded fallback.
+- [x] 4.3 Add focused native coverage for curtain centering, paint suppression, settle gating, and complete restoration.

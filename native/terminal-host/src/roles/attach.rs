@@ -1407,6 +1407,8 @@ fn send_resize(
 /// How long the landing wordmark takes to wipe into the new Agent's caret, and its frame pace.
 const LANDING_WIPE: Duration = Duration::from_millis(180);
 const LANDING_WIPE_FRAME: Duration = Duration::from_millis(16);
+const RESIZE_SETTLE: Duration = Duration::from_millis(120);
+const RESIZE_RECOVERY: Duration = Duration::from_secs(1);
 
 /// Reads server frames on their own thread under the ingress byte budget, waking the main loop
 /// after each one.
@@ -1605,15 +1607,90 @@ impl Presented {
                 .or_else(|| surface.modes.as_ref().map(|_| FinalCursor::Hidden))
         };
     }
+}
 
-    /// Invariant: the old viewport is never combined with new strip/overlay coordinates.
-    fn clear_body(&mut self) {
-        self.surface.clear();
-        self.structured = None;
-        self.tab_id = None;
-        self.cursor = Some(FinalCursor::Hidden);
-        self.startup_drew_content = false;
-        self.quiet_startup_handoff = false;
+#[derive(Debug, Clone)]
+struct ResizeCurtain {
+    quiet_until: Instant,
+    recovery_until: Instant,
+    viewed_tab: Option<String>,
+    incarnation: u64,
+    revision: u64,
+    geometry_generation: u64,
+}
+
+impl ResizeCurtain {
+    fn new(now: Instant, viewed_tab: Option<String>, presented: &Presented) -> Self {
+        Self {
+            quiet_until: now.checked_add(RESIZE_SETTLE).unwrap_or(now),
+            recovery_until: now.checked_add(RESIZE_RECOVERY).unwrap_or(now),
+            viewed_tab,
+            incarnation: presented.incarnation,
+            revision: presented.revision,
+            geometry_generation: presented.geometry_generation,
+        }
+    }
+
+    fn surface_ready(&self, viewed_tab: Option<&str>, presented: &Presented) -> bool {
+        let Some(viewed_tab) = viewed_tab else {
+            return true;
+        };
+        if presented.tab_id.as_deref() != Some(viewed_tab) {
+            return false;
+        }
+        if self.viewed_tab.as_deref() != Some(viewed_tab)
+            || presented.incarnation != self.incarnation
+        {
+            return true;
+        }
+        if presented.structured.is_some() {
+            return presented.geometry_generation > self.geometry_generation;
+        }
+        presented.revision > self.revision
+    }
+
+    fn should_reveal(&self, now: Instant, viewed_tab: Option<&str>, presented: &Presented) -> bool {
+        now >= self.quiet_until
+            && (self.surface_ready(viewed_tab, presented) || now >= self.recovery_until)
+    }
+}
+
+fn resize_curtain_overlay(columns: u16, outer_rows: u16, truecolor: bool) -> String {
+    let label = clip_cells(
+        &format!("Resize {columns} × {outer_rows}"),
+        usize::from(columns),
+    );
+    let width = UnicodeWidthStr::width(label.as_str());
+    let column = usize::from(columns).saturating_sub(width) / 2 + 1;
+    let row = outer_rows.saturating_sub(1) / 2 + 1;
+    let style = if truecolor {
+        "\x1b[0;1;38;2;190;190;190m"
+    } else {
+        "\x1b[0;1;38;5;250m"
+    };
+    format!("\x1b[{row};{column}H{style}{label}\x1b[0m")
+}
+
+fn resize_curtain_presentation(
+    columns: u16,
+    outer_rows: u16,
+    truecolor: bool,
+) -> DesiredPresentation {
+    DesiredPresentation {
+        tab_id: None,
+        incarnation: 0,
+        revision: 0,
+        geometry_generation: 0,
+        strip: String::new(),
+        structured: None,
+        legacy_body: Vec::new(),
+        overlay: Some(resize_curtain_overlay(columns, outer_rows, truecolor)),
+        cursor: Some(FinalCursor::Hidden),
+        modes: None,
+        columns,
+        outer_rows,
+        child_row_offset: 1,
+        clear: true,
     }
 }
 
@@ -1702,6 +1779,8 @@ struct Client {
     version: Option<String>,
     /// When the landing began handing over to an Agent this client asked for.
     landing_wipe: Option<Instant>,
+    /// The complete host-owned presentation shown while outer resize events are still settling.
+    resize_curtain: Option<ResizeCurtain>,
 }
 
 impl Client {
@@ -1760,6 +1839,7 @@ impl Client {
             settings_file: options.settings_file.to_owned(),
             version: read_release_version(Path::new(options.release_root)),
             landing_wipe: None,
+            resize_curtain: None,
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
         // surface before presenting that list and the body as one first frame.
@@ -1902,6 +1982,11 @@ impl Client {
     }
 
     fn paint(&mut self, core: &mut State, clear: bool) -> Result<(), String> {
+        // Invariant: surfaces, strip animation, notices, and clocks may update retained state while
+        // resizing, but none may replace the stable host-owned curtain before its reveal gate.
+        if self.resize_curtain.is_some() {
+            return Ok(());
+        }
         // Invariant: first strip and complete child body enter the alternate screen together.
         // A failed launch notice and closing a previously shown last tab still paint.
         if !should_paint_strip(
@@ -2455,6 +2540,26 @@ impl Client {
         }) {
             self.apply_commit(core, surface, tabs, requested)?;
         }
+        if self.resize_curtain.as_ref().is_some_and(|curtain| {
+            curtain.should_reveal(Instant::now(), self.view.viewed.as_deref(), &self.presented)
+        }) {
+            self.resize_curtain = None;
+            if should_paint_strip(
+                self.presented.tab_id.is_some(),
+                self.has_shown_tabs,
+                core.notice.is_some(),
+            ) {
+                self.paint(core, true)?;
+            } else {
+                let mut blank = resize_curtain_presentation(
+                    self.columns,
+                    self.outer_rows,
+                    !palette_fallback_requested(),
+                );
+                blank.overlay = None;
+                self.terminal.present(blank)?;
+            }
+        }
         if resumed {
             // Platform: after suspend, ConPTY may have discarded its last painted cells while
             // the writer still considers them current. Overwrite the full cached frame once.
@@ -2698,13 +2803,22 @@ impl Client {
     }
 
     fn resize(&mut self, core: &mut State, columns: u16, outer_rows: u16) -> Result<(), String> {
-        self.outer_rows = outer_rows;
         let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
+        self.outer_rows = outer_rows;
         self.geometry_generation = self.geometry_generation.saturating_add(1);
         self.columns = columns;
         self.create.columns = columns;
         self.create.rows = rows;
-        self.presented.clear_body();
+        self.resize_curtain = Some(ResizeCurtain::new(
+            Instant::now(),
+            self.view.viewed.clone(),
+            &self.presented,
+        ));
+        self.terminal.present(resize_curtain_presentation(
+            columns,
+            outer_rows,
+            !palette_fallback_requested(),
+        ))?;
         self.run(core, core_attach::Event::Resize { columns })?;
         let resize = wire::frame(
             "resize",
@@ -3290,6 +3404,58 @@ mod tests {
         assert_eq!(view.body.tab_id, "tab-existing");
         let resize = view.body.resize.expect("requested-tab geometry");
         assert_eq!((resize.columns, resize.rows), (120, 35));
+    }
+
+    #[test]
+    fn resize_curtain_is_centered_and_replaces_the_complete_ui() {
+        let desired = resize_curtain_presentation(80, 24, true);
+        assert!(desired.clear);
+        assert!(desired.tab_id.is_none());
+        assert!(desired.strip.is_empty());
+        assert!(desired.legacy_body.is_empty());
+        assert_eq!(desired.cursor, Some(FinalCursor::Hidden));
+
+        let prepared = PresentationComposer::default()
+            .prepare(&desired)
+            .unwrap()
+            .expect("complete resize curtain");
+        let bytes = String::from_utf8(prepared.bytes).unwrap();
+        assert!(bytes.starts_with(std::str::from_utf8(BEGIN_SYNCHRONIZED_UPDATE).unwrap()));
+        assert!(bytes.contains("\x1b[2J\x1b[H"));
+        assert!(bytes.contains("\x1b[12;34H"));
+        assert!(bytes.contains("Resize 80 × 24"));
+        assert!(bytes.contains("\x1b[?25l"));
+        assert!(bytes.ends_with(std::str::from_utf8(END_SYNCHRONIZED_UPDATE).unwrap()));
+    }
+
+    #[test]
+    fn resize_curtain_waits_for_quiet_and_a_new_surface_but_has_a_bound() {
+        let started = Instant::now();
+        let mut presented = Presented::new();
+        presented.tab_id = Some("tab-1".into());
+        presented.incarnation = 3;
+        presented.revision = 7;
+        let curtain = ResizeCurtain::new(started, Some("tab-1".into()), &presented);
+
+        assert!(!curtain.should_reveal(started + RESIZE_SETTLE, Some("tab-1"), &presented));
+        presented.revision = 8;
+        assert!(!curtain.should_reveal(
+            started + RESIZE_SETTLE - Duration::from_millis(1),
+            Some("tab-1"),
+            &presented
+        ));
+        assert!(curtain.should_reveal(started + RESIZE_SETTLE, Some("tab-1"), &presented));
+
+        presented.revision = 7;
+        assert!(curtain.should_reveal(started + RESIZE_RECOVERY, Some("tab-1"), &presented));
+        assert!(curtain.should_reveal(started + RESIZE_SETTLE, None, &presented));
+
+        presented.structured = Some(protocol::StructuredSurface::default());
+        presented.geometry_generation = 20;
+        let structured = ResizeCurtain::new(started, Some("tab-1".into()), &presented);
+        assert!(!structured.should_reveal(started + RESIZE_SETTLE, Some("tab-1"), &presented));
+        presented.geometry_generation = 21;
+        assert!(structured.should_reveal(started + RESIZE_SETTLE, Some("tab-1"), &presented));
     }
 
     #[test]
