@@ -463,11 +463,12 @@ A1 SHALL provide `a1 tabs` to list tabs with identity, name, status, and cwd; `a
 - **THEN** A1 SHALL report that no host runs, exit successfully, and SHALL NOT start a server
 
 ### Requirement: An idle resident server exits after ten minutes
-The resident server SHALL exit after ten minutes with no attached client and no user tab with a live holder. A prewarmed standby tab SHALL NOT keep the server alive; the server SHALL stop it before exiting. The server SHALL remove its endpoint and owner marker only while both still identify it.
+The resident server SHALL exit after ten minutes with no attached client and no user tab with a live holder. A prewarmed standby tab SHALL NOT keep the server alive; the server SHALL stop it before exiting. The server SHALL record the verified process identity of the standby holder it launched, and whenever it discards the standby or exits it SHALL offer that holder a graceful shutdown and then terminate it by that identity within a bounded deadline, whether or not the holder is connected. The server SHALL remove its endpoint and owner marker only while both still identify it.
 
 #### Scenario: Only a standby tab remains
 - **WHEN** every user tab is closed, no client is attached, and ten minutes pass
 - **THEN** the server SHALL stop the standby tab, remove its own endpoint and marker, and exit
+- **AND** the standby holder process SHALL NOT be running after the server has exited
 
 #### Scenario: Client returns before the deadline
 - **WHEN** a client attaches before the ten-minute interval ends
@@ -940,64 +941,20 @@ While an attach client's outer terminal emits a burst of changed-size resize eve
 - **THEN** A1 SHALL enter the bounded dim-to-normal reveal using the newest retained presentation
 - **AND** SHALL NOT leave the terminal permanently on the resize status
 
-### Requirement: Windows resident transport readiness is completion-driven
+### Requirement: A holder without a record ends instead of replacing its server
+When the server refuses a holder's hello for a definitive reason, it SHALL answer with a `refused` message naming that reason before closing the connection. A holder SHALL treat a refusal for no registry or standby record, a rejected credential, a newer server epoch, or an incarnation, holder identity, child identity, or role mismatch as definitive and SHALL exit, ending its child, without requesting a replacement server. A holder SHALL keep its bounded reconnect only for transient failures, and the interval between replacement requests SHALL grow to at least fifteen seconds. A standby holder SHALL NOT request a replacement server; it SHALL exit when its server disconnects or refuses it.
 
-On Windows, resident endpoint connection admission and frame transfer SHALL use bounded operating-system waits and overlapped completion rather than sleep-based pipe readiness polling. Readiness progress SHALL NOT depend on a successful or effective multimedia timer-period request. A pending read SHALL NOT serialize an independent write on the same connection. The transport SHALL preserve the existing owner-only admission, peer verification, first-instance protection, non-inherited custody, generation-1 frame bounds, reliable control ordering, latest-surface replacement, and slow-peer isolation. Unix endpoint semantics SHALL remain unchanged.
+#### Scenario: Orphaned standby holder meets a new server
+- **WHEN** a standby holder outlives the server that prewarmed it and a replacement server refuses its hello for having no record
+- **THEN** the holder SHALL exit within its handshake deadline and SHALL spawn no further replacement request
 
-#### Scenario: An idle connection receives interactive traffic under coarse timers
+#### Scenario: Registered holder loses its server
+- **WHEN** a holder with a registry record cannot connect because no server runs
+- **THEN** it SHALL keep requesting a replacement with a growing interval, exactly as before, and SHALL be re-admitted when one starts
 
-- **WHEN** an existing Windows resident connection receives input or a surface after an idle period and its process has no effective short timer-period request
-- **THEN** the corresponding pipe operation SHALL progress from operating-system completion without waiting for a periodic readiness sleep
-- **AND** other peers and tab children SHALL retain independent progress
+### Requirement: Role-spawned children never show a console window on Windows
+On Windows, every child process a resident role spawns through the host's fixed command path (replacement-server requests, bounded probes, and maintenance children) SHALL be created without a console window, and detached resident launches SHALL continue to receive no console at all.
 
-#### Scenario: One direction is waiting for data
-
-- **WHEN** a Windows connection has a pending read and its owner admits a frame for writing
-- **THEN** the write SHALL progress independently of that read
-- **AND** admitted frame bytes SHALL retain their original order
-
-#### Scenario: A peer sends only part of its handshake
-
-- **WHEN** a Windows peer supplies only part of its first frame's length prefix or body
-- **THEN** the complete handshake SHALL remain bounded by its absolute four-second deadline rather than a first-byte readiness check
-- **AND** expiry SHALL fail only that connection after safely cancelling and draining its pending operation
-
-#### Scenario: Shutdown races with completion
-
-- **WHEN** timeout, peer disconnect, or owning-connection shutdown races with an overlapped completion
-- **THEN** the owner SHALL resolve or cancel and drain every affected operation before releasing its buffers, events, or final handle reference
-- **AND** operation-scoped cancellation SHALL NOT inadvertently cancel an independent operation or another peer's connection
-
-#### Scenario: A new client joins after a simulated wake gap
-
-- **WHEN** a simulated long attach clock gap occurs and a new client subsequently connects while prior connections remain live
-- **THEN** both existing and new connections SHALL continue completion-driven transfer under their normal ownership and queue bounds
-- **AND** the gap SHALL NOT authorize process restart, prompt replay, or replacement of a live session writer
-
-### Requirement: Wake responsiveness observations separate local completion from physical presentation
-
-The resident host SHALL provide opt-in, bounded, asynchronous, payload-free observations that identify attach wake-gap/repaint events and local monotonic transport and outer-write completion durations. Normal pending-read idle time SHALL NOT by itself be classified as a delivery-latency fault. Derived latency evidence SHALL use causally matched events and SHALL reject invalid or clock-discontinuity-crossing samples. Diagnostic pressure SHALL drop only observations with explicit loss accounting, never stall terminal I/O. Observation fields SHALL be additive and SHALL contain no terminal content, input text, prompts, transcripts, credentials, or environment values.
-
-#### Scenario: Attach detects one long clock gap
-
-- **WHEN** attach detects one qualifying long gap and then returns to ordinary ticks
-- **THEN** it SHALL retain its existing one-shot complete repaint behavior and emit the associated opt-in wake/repaint observation
-- **AND** it SHALL NOT repeatedly repaint solely because of that same gap or restart a resident process
-
-#### Scenario: Wall time changes while a trace is active
-
-- **WHEN** wall-clock time moves discontinuously or a wake gap separates observation epochs
-- **THEN** local completion durations SHALL remain monotonic
-- **AND** derived latency percentiles SHALL exclude invalid or cross-discontinuity samples instead of treating them as delivery evidence
-
-#### Scenario: Observation output falls behind
-
-- **WHEN** the opt-in observation queue reaches its existing bound
-- **THEN** terminal transfer SHALL continue without waiting for diagnostics
-- **AND** the next admitted observation SHALL report diagnostic loss without including terminal payloads
-
-#### Scenario: An automated wake-gap fixture passes
-
-- **WHEN** simulated-gap and transport fixtures pass without a physical sleep/wake run
-- **THEN** the result SHALL be described as simulated-gap and transport evidence only
-- **AND** it SHALL NOT claim physical wake recovery or equate outer-write completion with pixels presented by the terminal
+#### Scenario: Console-less holder requests a replacement server
+- **WHEN** a detached holder spawns a replacement-server request on Windows
+- **THEN** no console window SHALL appear for the request process

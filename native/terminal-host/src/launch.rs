@@ -91,6 +91,16 @@ where
         .args(&host.arguments)
         .args(arguments)
         .env("A1_TERMINAL_HOST_PATH", &host.artifact);
+    // Platform: a role process has no console (`configure_detached` uses DETACHED_PROCESS and the
+    // WMI path starts with ShowWindow=0), so a console child it spawned would otherwise get a new
+    // visible window. Bounded requests and probes therefore run with CREATE_NO_WINDOW; detached
+    // resident launches keep the flags `configure_detached` sets, which give them no console.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
     Ok(command)
 }
 

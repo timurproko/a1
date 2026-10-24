@@ -128,7 +128,7 @@
       "lines": 160
     },
     "native/terminal-host/src/roles/holder.rs::run_holder": {
-      "lines": 787
+      "lines": 779
     },
     "native/terminal-host/src/roles/presentation.rs::PresentationComposer::prepare": {
       "lines": 122
@@ -164,7 +164,7 @@
       "lines": 317
     },
     "native/terminal-host/src/roles/server/mod.rs::serve_peer": {
-      "lines": 254
+      "lines": 147
     },
     "native/terminal-host/src/roles/server/standby.rs::promote_standby": {
       "lines": 106

@@ -411,6 +411,9 @@ struct StandbyTab {
     tab_id: String,
     start: AttachStart,
     incarnation: u64,
+    /// The verified identity of the launched standby holder, so discarding the standby can end
+    /// the holder whether or not it has connected.
+    holder: Option<ProcessIdentity>,
 }
 
 struct PendingControllerTransfer {
@@ -1368,127 +1371,20 @@ fn serve_peer(
             },
         );
     }
-    // Invariant: a holder or bridge belongs to the incarnation its token was derived with, which
-    // the registry names; a hello that omits its incarnation must not detach a bridge's status
-    // from the surfaces of the holder it runs under.
-    let (expected, admitted_incarnation) = {
-        let locked = lock_state(&state)?;
-        match hello.role.as_str() {
-            "attach" | "internal" | "probe" | "maintain" => {
-                (locked.credentials.client_token.to_vec(), hello.incarnation)
-            }
-            "holder" | "bridge" => {
-                let tab_id = hello.tab_id.as_deref().unwrap_or("");
-                let incarnation = locked
-                    .registry
-                    .tabs
-                    .iter()
-                    .find(|tab| tab.tab_id == tab_id)
-                    .map(|tab| {
-                        if hello.role == "holder"
-                            && tab.lifecycle == "restarting"
-                            && hello.incarnation.saturating_add(1) == tab.incarnation
-                        {
-                            hello.incarnation
-                        } else {
-                            tab.incarnation
-                        }
-                    })
-                    .or_else(|| {
-                        locked
-                            .standby
-                            .as_ref()
-                            .filter(|standby| standby.tab_id == tab_id)
-                            .map(|standby| standby.incarnation)
-                    })
-                    .unwrap_or(1);
-                (
-                    locked
-                        .credentials
-                        .derive(
-                            if hello.role == "holder" {
-                                "holder"
-                            } else {
-                                "bridge"
-                            },
-                            tab_id,
-                            incarnation,
-                        )
-                        .to_vec(),
-                    incarnation,
-                )
-            }
-            _ => return Err("unapproved resident peer role".to_owned()),
+    let (admitted_incarnation, epoch) = match admit_hello(&state, &hello) {
+        Ok(admitted) => admitted,
+        Err(reason) => {
+            // Protocol: a refusal names its reason so a holder the server will never admit, such as
+            // one without a registry or standby record, ends instead of asking for another server.
+            let _ = wire::send(
+                &mut stream,
+                "refused",
+                request_id,
+                wire::ResultBody::refused(reason.clone()),
+            );
+            return Err(reason);
         }
     };
-    if hello.token != expected {
-        return Err("resident credential rejected".to_owned());
-    }
-    let epoch = lock_state(&state)?.registry.epoch;
-    if hello.highest_epoch > epoch {
-        return Err("peer has observed a newer server epoch".to_owned());
-    }
-    if hello.role == "holder" {
-        let recorded = {
-            let locked = lock_state(&state)?;
-            let recorded = locked
-                .registry
-                .tabs
-                .iter()
-                .find(|tab| Some(tab.tab_id.as_str()) == hello.tab_id.as_deref())
-                .cloned();
-            let standby_matches = locked.standby.as_ref().is_some_and(|standby| {
-                Some(standby.tab_id.as_str()) == hello.tab_id.as_deref()
-                    && standby.incarnation == hello.incarnation
-            });
-            if recorded.is_none() && !standby_matches {
-                return Err("holder has no registry or standby record".to_owned());
-            }
-            recorded
-        };
-        let pending_respawn = recorded.as_ref().is_some_and(|recorded| {
-            recorded.lifecycle == "restarting"
-                && hello.incarnation.saturating_add(1) == recorded.incarnation
-        });
-        if recorded
-            .as_ref()
-            .is_some_and(|recorded| hello.incarnation != recorded.incarnation && !pending_respawn)
-        {
-            return Err("holder incarnation does not match the registry".to_owned());
-        }
-        if let Some(recorded_pid) = recorded.as_ref().and_then(|recorded| recorded.holder_pid) {
-            let pid = hello
-                .pid
-                .ok_or_else(|| "holder did not present a pid".to_owned())?;
-            let observed = inspect_identity_bounded(pid)?
-                .ok_or_else(|| "holder process is not live".to_owned())?;
-            if recorded_pid != pid
-                || recorded
-                    .as_ref()
-                    .and_then(|recorded| recorded.holder_start_identity.as_deref())
-                    != Some(observed.start.as_str())
-            {
-                return Err("holder identity does not match the registry".to_owned());
-            }
-        }
-        if let Some(recorded_child_pid) = recorded.as_ref().and_then(|recorded| recorded.child_pid)
-        {
-            let child_pid = hello
-                .child_pid
-                .ok_or_else(|| "holder did not present its child pid".to_owned())?;
-            let child = inspect_identity_bounded(child_pid)?
-                .ok_or_else(|| "holder child process is not live".to_owned())?;
-            if recorded_child_pid != child_pid
-                || recorded
-                    .as_ref()
-                    .and_then(|recorded| recorded.child_start_identity.as_deref())
-                    != Some(child.start.as_str())
-                || hello.child_start_identity.as_deref() != Some(child.start.as_str())
-            {
-                return Err("holder child identity does not match the registry".to_owned());
-            }
-        }
-    }
     if hello.role == "probe" {
         return wire::send(&mut stream, "welcome", request_id, welcome(epoch));
     }
@@ -1600,6 +1496,150 @@ fn serve_peer(
         }
         _ => unreachable!(),
     }
+}
+
+/// Verifies a peer's hello against credentials, epoch, and the registry or standby record, and
+/// returns the incarnation it is admitted under with the current epoch. Every error is a refusal
+/// reason the peer may read; none includes peer-supplied text.
+fn admit_hello(state: &Arc<Mutex<RuntimeState>>, hello: &RoleHello) -> Result<(u64, u64), String> {
+    // Invariant: a holder or bridge belongs to the incarnation its token was derived with, which
+    // the registry names; a hello that omits its incarnation must not detach a bridge's status
+    // from the surfaces of the holder it runs under.
+    let (expected, admitted_incarnation) = {
+        let locked = lock_state(state)?;
+        expected_peer_credential(&locked, hello)?
+    };
+    if hello.token != expected {
+        return Err("resident credential rejected".to_owned());
+    }
+    let epoch = lock_state(&state)?.registry.epoch;
+    if hello.highest_epoch > epoch {
+        return Err("peer has observed a newer server epoch".to_owned());
+    }
+    verify_holder_record(state, hello)?;
+    Ok((admitted_incarnation, epoch))
+}
+
+/// The credential a peer must present and the incarnation it is admitted under: the client token
+/// for clients, or the holder or bridge token derived for the tab's recorded incarnation.
+fn expected_peer_credential(
+    locked: &RuntimeState,
+    hello: &RoleHello,
+) -> Result<(Vec<u8>, u64), String> {
+    Ok(match hello.role.as_str() {
+        "attach" | "internal" | "probe" | "maintain" => {
+            (locked.credentials.client_token.to_vec(), hello.incarnation)
+        }
+        "holder" | "bridge" => {
+            let tab_id = hello.tab_id.as_deref().unwrap_or("");
+            let incarnation = locked
+                .registry
+                .tabs
+                .iter()
+                .find(|tab| tab.tab_id == tab_id)
+                .map(|tab| {
+                    if hello.role == "holder"
+                        && tab.lifecycle == "restarting"
+                        && hello.incarnation.saturating_add(1) == tab.incarnation
+                    {
+                        hello.incarnation
+                    } else {
+                        tab.incarnation
+                    }
+                })
+                .or_else(|| {
+                    locked
+                        .standby
+                        .as_ref()
+                        .filter(|standby| standby.tab_id == tab_id)
+                        .map(|standby| standby.incarnation)
+                })
+                .unwrap_or(1);
+            (
+                locked
+                    .credentials
+                    .derive(
+                        if hello.role == "holder" {
+                            "holder"
+                        } else {
+                            "bridge"
+                        },
+                        tab_id,
+                        incarnation,
+                    )
+                    .to_vec(),
+                incarnation,
+            )
+        }
+        _ => return Err("unapproved resident peer role".to_owned()),
+    })
+}
+
+/// Verifies a holder's hello against its registry or standby record: the record must exist, name
+/// the hello's incarnation, and match the live holder and child identities it recorded.
+fn verify_holder_record(state: &Arc<Mutex<RuntimeState>>, hello: &RoleHello) -> Result<(), String> {
+    if hello.role != "holder" {
+        return Ok(());
+    }
+    let recorded = {
+        let locked = lock_state(&state)?;
+        let recorded = locked
+            .registry
+            .tabs
+            .iter()
+            .find(|tab| Some(tab.tab_id.as_str()) == hello.tab_id.as_deref())
+            .cloned();
+        let standby_matches = locked.standby.as_ref().is_some_and(|standby| {
+            Some(standby.tab_id.as_str()) == hello.tab_id.as_deref()
+                && standby.incarnation == hello.incarnation
+        });
+        if recorded.is_none() && !standby_matches {
+            return Err("holder has no registry or standby record".to_owned());
+        }
+        recorded
+    };
+    let pending_respawn = recorded.as_ref().is_some_and(|recorded| {
+        recorded.lifecycle == "restarting"
+            && hello.incarnation.saturating_add(1) == recorded.incarnation
+    });
+    if recorded
+        .as_ref()
+        .is_some_and(|recorded| hello.incarnation != recorded.incarnation && !pending_respawn)
+    {
+        return Err("holder incarnation does not match the registry".to_owned());
+    }
+    if let Some(recorded_pid) = recorded.as_ref().and_then(|recorded| recorded.holder_pid) {
+        let pid = hello
+            .pid
+            .ok_or_else(|| "holder did not present a pid".to_owned())?;
+        let observed = inspect_identity_bounded(pid)?
+            .ok_or_else(|| "holder process is not live".to_owned())?;
+        if recorded_pid != pid
+            || recorded
+                .as_ref()
+                .and_then(|recorded| recorded.holder_start_identity.as_deref())
+                != Some(observed.start.as_str())
+        {
+            return Err("holder identity does not match the registry".to_owned());
+        }
+    }
+    if let Some(recorded_child_pid) = recorded.as_ref().and_then(|recorded| recorded.child_pid) {
+        let child_pid = hello
+            .child_pid
+            .ok_or_else(|| "holder did not present its child pid".to_owned())?;
+        let child = inspect_identity_bounded(child_pid)?
+            .ok_or_else(|| "holder child process is not live".to_owned())?;
+        if recorded_child_pid != child_pid
+            || recorded
+                .as_ref()
+                .and_then(|recorded| recorded.child_start_identity.as_deref())
+                != Some(child.start.as_str())
+            || hello.child_start_identity.as_deref() != Some(child.start.as_str())
+        {
+            return Err("holder child identity does not match the registry".to_owned());
+        }
+    }
+    Ok(())
 }
 
 fn welcome(epoch: u64) -> Welcome {

@@ -1,10 +1,20 @@
-import { describe, expect, it } from "vitest";
-import { developmentCheckoutId, selectCheckoutProcesses, stopCheckoutProcesses } from "../../scripts/development/stop-checkout-processes.mjs";
+import { describe, expect, it, vi } from "vitest";
+import {
+  describeSurvivors,
+  developmentCheckoutId,
+  selectCheckoutProcesses,
+  STOP_PASS_DELAY_MS,
+  STOP_PASS_LIMIT,
+  stopCheckoutProcesses,
+} from "../../scripts/development/stop-checkout-processes.mjs";
 import { resolveDevelopmentLaunchEnvironment } from "../../src/features/launch/development-launch.js";
 
-describe("stopping a checkout's running A1 before a rebuild", () => {
+describe("stopping a checkout's running A1", () => {
   const root = process.platform === "win32" ? "E:\\Git\\a1\\.worktrees\\polish" : "/work/a1/.worktrees/polish";
   const join = (...parts: string[]) => parts.join(process.platform === "win32" ? "\\" : "/");
+  const ownProcess = (pid: number) => ({ pid, commandLine: `node ${join(root, "dist", "foundation", "resident-tabs", "host-entry.js")} --resident-role-child holder` });
+  const foreignProcess = (pid: number) => ({ pid, commandLine: `node ${join(root + "-other", "dist", "foundation", "host-entry.js")}` });
+  const sleep = vi.fn(async () => undefined);
 
   it("selects only processes running this checkout's dist or bin code", () => {
     const processes = [
@@ -35,7 +45,47 @@ describe("stopping a checkout's running A1 before a rebuild", () => {
     expect(selectCheckoutProcesses([own], root, 42)).toEqual([]);
   });
 
-  it("does nothing in CI", () => {
-    expect(stopCheckoutProcesses({ root, environment: { CI: "true" } })).toEqual([]);
+  it("repeats passes until a pass finds nothing, so roles that restart each other still end", async () => {
+    const listings = [[ownProcess(1), ownProcess(2), foreignProcess(9)], [ownProcess(3)], []];
+    const list = vi.fn(() => listings.shift() ?? []);
+    const terminate = vi.fn();
+
+    const result = await stopCheckoutProcesses({ root, environment: {}, list, terminate, sleep });
+
+    expect(result).toEqual({ stopped: [1, 2, 3], survivors: [] });
+    expect(terminate.mock.calls.map(([pid]) => pid)).toEqual([1, 2, 3]);
+    expect(list).toHaveBeenCalledTimes(3);
+    expect(sleep).toHaveBeenCalledWith(STOP_PASS_DELAY_MS);
+    expect(describeSurvivors(result.survivors)).toBe("");
+  });
+
+  it("gives up after the pass limit and names what survived", async () => {
+    const list = vi.fn(() => [ownProcess(7)]);
+    const terminate = vi.fn(() => { throw new Error("access denied"); });
+
+    const result = await stopCheckoutProcesses({ root, environment: {}, list, terminate, sleep, passLimit: 3 });
+
+    expect(result).toEqual({ stopped: [], survivors: [7] });
+    expect(terminate).toHaveBeenCalledTimes(3);
+    expect(list).toHaveBeenCalledTimes(4);
+    expect(describeSurvivors(result.survivors)).toBe("A1 process(es) from this checkout are still running after the stop: 7.\n");
+    expect(STOP_PASS_LIMIT).toBeGreaterThanOrEqual(3);
+  });
+
+  it("does nothing in CI", async () => {
+    const list = vi.fn();
+    const terminate = vi.fn();
+
+    expect(await stopCheckoutProcesses({ root, environment: { CI: "true" }, list, terminate, sleep })).toEqual({ stopped: [], survivors: [] });
+    expect(list).not.toHaveBeenCalled();
+    expect(terminate).not.toHaveBeenCalled();
+  });
+
+  it("treats an unreadable process list as nothing to stop", async () => {
+    const list = vi.fn(() => { throw new Error("powershell unavailable"); });
+    const terminate = vi.fn();
+
+    expect(await stopCheckoutProcesses({ root, environment: {}, list, terminate, sleep })).toEqual({ stopped: [], survivors: [] });
+    expect(terminate).not.toHaveBeenCalled();
   });
 });
