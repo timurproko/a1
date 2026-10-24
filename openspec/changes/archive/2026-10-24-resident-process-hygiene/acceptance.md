@@ -18,7 +18,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-24-resident-process-hygiene/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-24-resident-process-hygiene/acceptance.md",
   "finalizedDate": "2026-10-24",
-  "specBaseSha": "94d20148619a7a3e25f5b84a6e6684ed1cab7973",
+  "specBaseSha": "8d5ba0ca2e9fcae0d070f078556341652a474120",
   "acceptanceScenarios": [
     "A standby holder that outlives its server exits within its handshake deadline after the next server refuses it, and no console window flashes while it does.",
     "A tab holder whose server is gone keeps requesting a replacement with a growing interval and is re-admitted with its tab intact when one starts.",
