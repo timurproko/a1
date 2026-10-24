@@ -46,7 +46,7 @@ The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal comm
 - **THEN** nothing SHALL change and no mouse report SHALL reach a child
 
 ### Requirement: Changelog is a singleton utility tab
-Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Changelog` that renders the owned changelog reference screen without owning an Agent session. The palette and `tabs.changelog` SHALL show it at once: the attach client SHALL keep one Changelog tab prewarmed and hidden, as it does Settings, starting it after Settings is ready and again after a Changelog tab closes, and SHALL create one only when none is running. Its registry record SHALL have the `changelog` kind. Its chip SHALL offer Close but not Rename. Its screen SHALL be the tab: it SHALL show no `Esc close` hint, and neither `Esc` nor one `Ctrl+C` SHALL close it. Resident Agents SHALL neither advertise nor execute `/changelog`; `a1 solo` and `a1 pi` SHALL keep their existing changelog command.
+Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Changelog` that renders the owned changelog reference screen without owning an Agent session. The palette and `tabs.changelog` SHALL show it at once: the attach client SHALL keep one Changelog tab prewarmed and hidden, as it does Settings, starting it after Settings is ready and again after a Changelog tab closes, and SHALL create one only when none is running. Every utility tab, Settings and Changelog alike, SHALL follow one set of tab bar rules: opening one that is not in the strip SHALL place it last, its toggle SHALL hide the viewed one while its process keeps running, and a resident tab whose id names a utility route SHALL present that route as its pinned screen. Its registry record SHALL have the `changelog` kind. Its chip SHALL offer Close but not Rename. Its screen SHALL be the tab: it SHALL show no `Esc close` hint, and neither `Esc` nor one `Ctrl+C` SHALL close it. Resident Agents SHALL neither advertise nor execute `/changelog`; `a1 solo` and `a1 pi` SHALL keep their existing changelog command.
 
 #### Scenario: Open the changelog
 - **WHEN** the user runs Changelog from the palette with no Changelog tab
@@ -59,6 +59,10 @@ Bare A1 resident mode SHALL present at most one profile-global utility tab title
 #### Scenario: Changelog opens at once
 - **WHEN** Settings and Changelog are prewarmed and the user runs Changelog
 - **THEN** the hidden Changelog tab SHALL be shown without starting a process
+
+#### Scenario: A utility tab opens last
+- **WHEN** a hidden Changelog or Settings tab is opened after more Agents were added
+- **THEN** it SHALL join the strip as the last tab, while one already in the strip SHALL keep its slot
 
 #### Scenario: Closing the last Agent
 - **WHEN** a hidden Changelog or Settings tab is running and the user closes the last Agent
