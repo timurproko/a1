@@ -58,12 +58,15 @@
         "test/foundation/release/package-install.integration.test.ts"
       ],
       "support": [
+        "src/foundation/release/",
+        "packages/a1-install/",
+        "scripts/release/prepare-validation-package.mjs",
         "scripts/release/exact-package-preparation.d.mts",
         "scripts/release/exact-package-preparation.mjs",
         "test/foundation/release/package-candidate-fixture.ts",
         "test/foundation/release/package-install-fixture.ts"
       ],
-      "cadence": "pull-request"
+      "cadence": "direct-impact"
     },
     {
       "id": "startup",
@@ -85,12 +88,15 @@
         "test/foundation/release/package-startup.integration.test.ts"
       ],
       "support": [
+        "bin/",
+        "src/features/launch/",
+        "src/foundation/startup/",
         "scripts/release/exact-package-preparation.d.mts",
         "scripts/release/exact-package-preparation.mjs",
         "test/foundation/release/package-candidate-fixture.ts",
         "test/foundation/release/package-install-fixture.ts"
       ],
-      "cadence": "pull-request"
+      "cadence": "direct-impact"
     },
     {
       "id": "image-compatibility",
@@ -122,8 +128,13 @@
         "test/app/session-shell/image-preparation.test.ts",
         "test/app/session-shell/image-worker-package.test.ts"
       ],
-      "support": [],
-      "cadence": "pull-request"
+      "support": [
+        "src/app/session-shell/image-preparation.ts",
+        "src/app/session-shell/image-preparation-client.ts",
+        "src/app/session-shell/image-worker.ts",
+        "src/app/session-shell/image-source.ts"
+      ],
+      "cadence": "direct-impact"
     },
     {
       "id": "history-compatibility",
@@ -161,8 +172,10 @@
         "test/features/prompt-history/store.test.ts",
         "test/features/prompt-history/worker-package.test.ts"
       ],
-      "support": [],
-      "cadence": "pull-request"
+      "support": [
+        "src/features/prompt-history/"
+      ],
+      "cadence": "direct-impact"
     },
     {
       "id": "unix-containment",
@@ -214,9 +227,12 @@
         "test/foundation/process-containment/windows-job.integration.test.ts"
       ],
       "support": [
+        "native/process-guardian/",
+        "src/foundation/process-containment/",
+        "src/foundation/protocol/",
         "test/foundation/process-containment/"
       ],
-      "cadence": "pull-request"
+      "cadence": "direct-impact"
     },
     {
       "id": "launch-integration",
@@ -238,8 +254,12 @@
         "test/features/launch/exact-pi-entry.integration.test.ts",
         "test/features/launch/profile-isolation.integration.test.ts"
       ],
-      "support": [],
-      "cadence": "pull-request"
+      "support": [
+        "src/features/launch/",
+        "src/foundation/launch-context/",
+        "src/foundation/launch-guardian/"
+      ],
+      "cadence": "direct-impact"
     },
     {
       "id": "update-performance",
@@ -326,9 +346,11 @@
         "scripts/development/build-terminal-host.mjs",
         "scripts/release/generate-terminal-host-notices.mjs",
         "native/terminal-host/vendor/third-party-licenses/",
+        "src/foundation/resident-tabs/",
+        "src/features/resident-tab/",
         "test/foundation/release/live-cohort-fixture.ts"
       ],
-      "cadence": "pull-request"
+      "cadence": "direct-impact"
     },
     {
       "id": "resident-chaos",
@@ -365,9 +387,11 @@
         "scripts/development/build-terminal-host.mjs",
         "scripts/release/generate-terminal-host-notices.mjs",
         "native/terminal-host/vendor/third-party-licenses/",
+        "src/foundation/resident-tabs/",
+        "src/features/resident-tab/",
         "scripts/development/run-resident-chaos.mjs"
       ],
-      "cadence": "pull-request"
+      "cadence": "direct-impact"
     }
   ]
 }

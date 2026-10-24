@@ -9,7 +9,7 @@ Validation SHALL execute each equivalent producer workload once per gate and use
 - **AND** every unique smoke assertion SHALL consume retained captures or deterministic fixtures
 
 ### Requirement: Pull requests execute bounded critical ownership
-Every coarse owner SHALL declare a bounded critical test floor. Pull-request selection SHALL combine the mandatory core, critical floors for affected owners, directly changed tests, and statically reachable consumers. It SHALL NOT select an owner's complete retained population merely because one owned source path changed. Unknown paths, invalidators, unavailable comparison, or unavailable dependency information SHALL select every critical floor or block, rather than silently skip or expand to the complete test repository. Changed tests, shared support consumers, and both rename identities SHALL remain covered.
+Every coarse owner SHALL declare a bounded critical test floor. Pull-request selection SHALL combine mandatory tests, applicable critical floors, changed tests, and bounded reachable consumers. One owned source change SHALL NOT select the owner's complete retained population. Unknown or invalidating input SHALL retain every critical floor or block without expanding to the complete repository.
 
 #### Scenario: A localized path is refined
 - **WHEN** complete trusted selection matches a reviewed subarea
@@ -18,6 +18,7 @@ Every coarse owner SHALL declare a bounded critical test floor. Pull-request sel
 #### Scenario: Selection cannot establish precise impact
 - **WHEN** a changed path or consumer cannot be interpreted precisely
 - **THEN** selection SHALL retain the mandatory core and every applicable critical floor or block
+- **AND** changed tests, shared-support consumers, and both rename identities SHALL remain covered
 - **AND** exhaustive retained tests SHALL remain owned by Full, nightly, and release cadence
 
 ### Requirement: Optimized fixtures preserve independent scenarios
@@ -33,7 +34,7 @@ Fixture optimization SHALL preserve real exercised operations, fresh mutable sce
 - **AND** it SHALL not remove consumer checks, share installed state across shards, or retry failed evidence
 
 ### Requirement: Expensive boundaries use direct or exhaustive cadence
-Integration, rendering, native, chaos, performance, package, and platform permutations SHALL run on an ordinary pull request only when their reviewed production, test, or support surfaces are directly affected, except for explicitly declared critical pull-request boundaries. Conservative fallback SHALL retain critical boundaries without scheduling direct-impact or exhaustive owners. Full, nightly, and release workflows SHALL retain complete declared coverage.
+Expensive integration, rendering, native, chaos, performance, package, and platform work SHALL use direct-impact or exhaustive cadence. Only directly affected direct-impact owners and explicit critical pull-request owners SHALL run on a pull request. Conservative fallback SHALL omit unrelated direct-impact and exhaustive owners. Complete workflows SHALL retain all declared coverage.
 
 #### Scenario: Validation authority changes
 - **WHEN** a pull request changes validation selection or suite policy without changing a product boundary

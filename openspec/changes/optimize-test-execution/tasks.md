@@ -41,23 +41,23 @@
 
 ## 8. Critical pull-request ownership
 
-- [ ] 8.1 Declare a bounded critical test floor for every coarse owner.
-- [ ] 8.2 Select mandatory, critical, changed, and statically reachable tests without selecting an owner's complete population.
-- [ ] 8.3 Keep unknown and invalidating changes fail-closed to all critical floors and add bounded selection contracts.
+- [x] 8.1 Declare a bounded critical test floor for every coarse owner.
+- [x] 8.2 Select mandatory, critical, changed, and statically reachable tests without selecting an owner's complete population.
+- [x] 8.3 Keep unknown and invalidating changes fail-closed to all critical floors and add bounded selection contracts.
 
 ## 9. Expensive boundary cadence
 
-- [ ] 9.1 Add direct-impact integration cadence for package, compatibility, native-host, containment, and chaos boundaries.
-- [ ] 9.2 Declare production/support surfaces that activate each direct-impact owner while conservative fallback omits exhaustive work.
-- [ ] 9.3 Restrict rendering smoke/full selection to rendering-affecting surfaces and retain exhaustive rendering in complete workflows.
+- [x] 9.1 Add direct-impact integration cadence for package, compatibility, native-host, containment, and chaos boundaries.
+- [x] 9.2 Declare production/support surfaces that activate each direct-impact owner while conservative fallback omits exhaustive work.
+- [x] 9.3 Restrict rendering smoke/full selection to rendering-affecting surfaces and retain exhaustive rendering in complete workflows.
 
 ## 10. Compute control
 
-- [ ] 10.1 Cancel remaining Development matrix entries after a decisive failure.
-- [ ] 10.2 Add selection-budget contracts for critical files, modular jobs, and deferred exhaustive owners.
-- [ ] 10.3 Reconcile replacement-aware Full inventory assertions and current failure evidence.
+- [x] 10.1 Cancel remaining Development matrix entries after a decisive failure.
+- [x] 10.2 Add selection-budget contracts for critical files, modular jobs, and deferred exhaustive owners.
+- [x] 10.3 Reconcile replacement-aware Full inventory assertions and current failure evidence.
 
 ## 11. Refined delivery
 
-- [ ] 11.1 Update validation documentation and implementation evidence with the critical/deferred ownership model and exact observed limits.
+- [x] 11.1 Update validation documentation and implementation evidence with the critical/deferred ownership model and exact observed limits.
 - [ ] 11.2 Complete focused checks, gap disposition, acceptance outcomes, target reconciliation, and final body validation.

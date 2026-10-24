@@ -10,7 +10,7 @@ describe("impact-aware validation workflows", () => {
     expect(source.match(/select-validation-impact\.mjs/g)).toHaveLength(1);
     expect(workflow.jobs.modular.needs).toBe("changes");
     expect(workflow.jobs.rendering.needs).toBe("changes");
-    expect(workflow.jobs.modular.strategy["fail-fast"]).toBe(false);
+    expect(workflow.jobs.modular.strategy["fail-fast"]).toBe(true);
     expect(workflow.jobs.modular.strategy).not.toHaveProperty("max-parallel");
     expect(workflow.jobs.modular.strategy.matrix).toBe("${{ fromJSON(needs.changes.outputs.modular-matrix) }}");
     expect(workflow.jobs.changes.outputs["modular-matrix"]).toContain("steps.matrix.outputs.modular_matrix");

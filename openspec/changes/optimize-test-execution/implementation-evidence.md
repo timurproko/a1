@@ -32,7 +32,7 @@ Windows Node 22 predecessor evidence attributes exact-package preparation to ins
 ## Delivered structural changes
 
 - Full rendering now selects only active isolated scopes; full input/rendering consume the shared smoke assertions. The two superseded smoke files have explicit executed replacements, and the complete file-assignment test rejects any unaccounted omission or duplicate. Full matrix/protocol counts are derived against the retained workload declarations: 73 + 10 launches instead of additionally repeating smoke's 19.
-- The final audited inventory has 502 files (496 at the initial base plus six focused regression files); every file retains its coarse owner and execution class. More tests is intentional where cheap orchestration/isolation contracts prevent future coverage loss; file count itself is not a latency metric.
+- The final audited inventory has 502 files (496 at the initial base plus six focused regression files); every file retains its coarse owner and complete-workflow execution class. Ordinary pull requests no longer treat that inventory as their default workload: critical floors, changed tests, and bounded transitive consumers provide fast feedback while Full/nightly/release retain exhaustive coverage.
 - Nine reviewed refinements retain explicit minimum consumers and add bounded transitive consumers across operational/test roots. Unsupported, absent, deleted, unreviewed, mixed changed-test/shared-support, invalidator and manual authority retain coarse/conservative selection. Consumer integration links retain their source reasons. The same-current-inventory comparison below isolates policy effects rather than comparing different source populations.
 - CLI transcripts start four independent producer/color loaders rather than 22. Every command and exact comparison still executes; per-request homes/settings, both aliases/colors, output emphasis, syntax, error scenarios, and warning order remain tested. Producers are neither retried nor restarted after failure; teardown awaits their closure.
 - Cleanup writes each private real repository's configuration once instead of four config/remote subprocesses. Release fixtures replace two baseline ref commands with one real atomic Git transaction. Fresh roots/remotes, real histories and lifecycle failures remain; no fixture setup is moved outside its scenario deadline. Finalization's real publication/race cases remain unchanged because no further safe equivalent reduction was demonstrated.
@@ -44,6 +44,14 @@ Windows Node 22 predecessor evidence attributes exact-package preparation to ins
 | check-environment.mjs | 25 / 3 | 7 / 0 | No unrelated startup/launch integrations |
 | system-clipboard.ts | 138 / 10 | 79 / 9 | All three existing Pi/image/history links retained |
 | scrollbar.ts | 69 / 0 | 109 / 5 | Wider on purpose: shell/composition consumers are not dropped |
+
+## Critical pull-request refinement
+
+The first finalized exact-head run, 40123697042, scheduled 24 modular jobs and 31 non-skipped jobs because validation-authority changes selected every owner; its core lane failed while expensive native and chaos jobs continued. The refined policy classifies generic validation-authority changes as bounded critical work rather than rendering or product-boundary impact.
+
+For `config/validation-ownership.json` against the current 502-file inventory, deterministic selection now retains 25 ordinary files and 3 resource-sensitive files. The modular matrix contains only core, resource, and Pi critical jobs, leaving 21 entries unscheduled. Eight expensive owners are `direct-impact`, two are `exhaustive`, and only `pi-release-resume` remains a conservative pull-request integration boundary. Direct native, package, startup, image/history, containment, and launch changes still activate their reviewed owners and platform targets.
+
+Static reachability contributes at most 24 sorted tests per changed path. Every owner declares one to five critical files; policy tests reject larger conservative file or job budgets. Development matrix fail-fast cancellation stops remaining cells after a failure, while aggregate policy continues to reject failed, cancelled, or missing selected evidence.
 
 ## Focused local evidence
 
@@ -60,7 +68,7 @@ These are local working-tree checks, not successful exact-head hosted CI or perf
 ## Limitations and dispositions
 
 - Hosted before/after timing is not claimed. Existing completed-run observations establish cost categories, while exact-head selected CI remains the authority after finalization; no background watcher or semantic retry is started.
-- UI consumer retention may widen selected coverage and is explicitly preferred over an unsafe numerical reduction. Unknown/dynamic cases retain the reviewed floor and coarse fallback where authority is unavailable; graph reachability never independently authorizes empty coverage.
+- UI consumer retention is capped per changed path and remains additive to explicit critical floors. Dynamic consumers beyond that bound rely on owner critical contracts and exhaustive cadence; graph reachability never independently authorizes empty coverage.
 - No further broad test deletion, mutable fixture seeding, warm startup substitution, cross-shard installation sharing, predecessor-count reduction, or verification caching was justified. The remaining latency is retained rather than hidden.
 - Queue and DAG critical-path measurements are explicitly unavailable in the observational report; runner span and longest job are not mislabeled as critical path.
-- All seven approved stages are implemented through the documented code/contract outcomes; no required implementation behavior is deferred to manual validation or future performance evidence.
+- The original seven stages and the critical-selection refinement are implemented through documented code/contract outcomes; no required implementation behavior is deferred to manual validation or future performance evidence.

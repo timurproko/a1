@@ -36,7 +36,7 @@
     {
       "id": "ui-scrollbar", "owner": "ui-rendering",
       "paths": ["src/ui/components/scrollbar.ts"],
-      "testPaths": ["test/ui/components/", "test/app/session-shell/session-shell-viewport.test.ts", "test/app/session-shell/session-shell-selection.test.ts", "test/features/owned-ui/pi-event-frame-parity.test.ts", "test/features/owned-ui/pi-static-parity.test.ts"],
+      "testPaths": ["test/ui/components/scrollbar.test.ts", "test/ui/components/selection-scrollbar-edge.test.ts", "test/app/session-shell/session-shell-viewport.test.ts", "test/app/session-shell/session-shell-selection.test.ts", "test/features/owned-ui/pi-event-frame-parity.test.ts", "test/features/owned-ui/pi-static-parity.test.ts"],
       "integrationOwners": []
     },
     {
@@ -48,13 +48,13 @@
     {
       "id": "pi-clipboard", "owner": "pi",
       "paths": ["src/app/session-shell/system-clipboard.ts", "src/app/session-shell/response-copy-coordinator.ts", "src/app/session-shell/text-paste.ts"],
-      "testPaths": ["test/app/session-shell/", "test/integrations/pi/components/editor-text-paste.test.ts"],
+      "testPaths": ["test/app/session-shell/system-clipboard.test.ts", "test/app/session-shell/response-copy-coordinator.test.ts", "test/app/session-shell/response-copy-transport.test.ts", "test/app/session-shell/text-paste.test.ts", "test/app/session-shell/clipboard-executor-lifecycle.test.ts", "test/app/session-shell/clipboard-packaged.test.ts", "test/app/session-shell/session-shell-paste.test.ts", "test/integrations/pi/components/editor-text-paste.test.ts", "test/composition/prompt-history.test.ts"],
       "integrationOwners": ["pi-release-resume", "image-compatibility", "history-compatibility"]
     },
     {
       "id": "pi-editor", "owner": "pi",
       "paths": ["src/integrations/pi/components/path-word-ranges.ts"],
-      "testPaths": ["test/integrations/pi/components/", "test/app/session-shell/session-shell-paste.test.ts", "test/app/session-shell/session-shell-selection.test.ts"],
+      "testPaths": ["test/integrations/pi/components/path-word-ranges.test.ts", "test/integrations/pi/components/pinned-editor-input-parity.test.ts", "test/integrations/pi/components/editor-text-paste.test.ts", "test/app/session-shell/session-shell-paste.test.ts", "test/app/session-shell/session-shell-selection.test.ts"],
       "integrationOwners": ["pi-release-resume"]
     },
     {
@@ -148,6 +148,11 @@
         "test/features/prompt-suggestions/",
         "test/integrations/pi/tui-runtime/"
       ],
+      "criticalTests": [
+        "test/ui/components/frame.test.ts",
+        "test/features/owned-ui/run.test.ts",
+        "test/integrations/pi/tui-runtime/input-presentation-coordinator.test.ts"
+      ],
       "integrationOwners": []
     },
     {
@@ -172,6 +177,11 @@
         "test/foundation/supervision/",
         "test/foundation/terminal-cleanup/"
       ],
+      "criticalTests": [
+        "test/features/launch/runtime-selection.test.ts",
+        "test/foundation/lifecycle/launch-instance.test.ts",
+        "test/foundation/supervision/supervisor-release-exit.test.ts"
+      ],
       "integrationOwners": [
         "launch-integration",
         "startup"
@@ -187,6 +197,13 @@
       ],
       "testPaths": [
         "test/foundation/release/"
+      ],
+      "criticalTests": [
+        "test/foundation/release/release.test.ts",
+        "test/foundation/release/update-transaction.test.ts",
+        "test/foundation/release/cohort-state.test.ts",
+        "test/foundation/release/predecessor-command.test.ts",
+        "test/foundation/release/predecessor-fixture.test.ts"
       ],
       "integrationOwners": [
         "pi-release-resume",
@@ -211,6 +228,11 @@
         "test/integrations/pi/session-presenters/",
         "test/app/session-shell/"
       ],
+      "criticalTests": [
+        "test/integrations/pi/components/components.test.ts",
+        "test/integrations/pi/engine/command-dispatch.test.ts",
+        "test/app/session-shell/session-shell.test.ts"
+      ],
       "integrationOwners": [
         "pi-release-resume",
         "image-compatibility",
@@ -228,6 +250,10 @@
         "test/foundation/process-containment/",
         "test/foundation/protocol/"
       ],
+      "criticalTests": [
+        "test/foundation/process-containment/contracts.test.ts",
+        "test/foundation/protocol/protocol.test.ts"
+      ],
       "integrationOwners": [
         "unix-containment"
       ]
@@ -243,6 +269,9 @@
         "test/foundation/resident-tabs/",
         "test/features/resident-tab/"
       ],
+      "criticalTests": [
+        "test/foundation/resident-tabs/resident-tabs.test.ts"
+      ],
       "integrationOwners": [
         "terminal-host",
         "resident-chaos"
@@ -255,6 +284,10 @@
       ],
       "testPaths": [
         "test/features/prompt-history/"
+      ],
+      "criticalTests": [
+        "test/features/prompt-history/service.test.ts",
+        "test/features/prompt-history/store.test.ts"
       ],
       "integrationOwners": [
         "image-compatibility",
@@ -274,6 +307,11 @@
         "test/repository-governance/",
         "test/product-identity/"
       ],
+      "criticalTests": [
+        "test/repository-governance/validation-suite-policy.test.ts",
+        "test/repository-governance/development-validation-baseline.test.ts",
+        "test/repository-governance/change-delivery-guidance.test.ts"
+      ],
       "integrationOwners": []
     },
     {
@@ -288,6 +326,11 @@
         "test/composition/",
         "test/contracts/",
         "test/foundation/storage/"
+      ],
+      "criticalTests": [
+        "test/cli/capabilities.test.ts",
+        "test/cli/packages.test.ts",
+        "test/contracts/agent-engine/package-ports.test.ts"
       ],
       "integrationOwners": []
     }
