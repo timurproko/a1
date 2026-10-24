@@ -1448,7 +1448,17 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
-        assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [18, 18, 18]);
+        assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [17, 17, 17]);
+        assert_eq!(
+            widths(render_configured(
+                &tabs[..3],
+                Some("tab-0"),
+                65,
+                None,
+                TimeFormat::TwentyFour,
+            )),
+            [18, 18, 18]
+        );
         let crowded = render(&tabs, Some("tab-4"), 60);
         assert!(widths(crowded.clone()).iter().all(|width| *width == 12));
         assert!(crowded.bytes.contains("a very …"));
