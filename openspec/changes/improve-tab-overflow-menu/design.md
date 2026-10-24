@@ -1,6 +1,6 @@
 ## Context
 
-The resident host calculates `StripFrame.hidden_tabs` in `roles/strip.rs` and passes that list to `Popup::overflow` in `core/attach/mod.rs`. The popup currently iterates only those hidden IDs and marks the viewed tab; since the viewed chip normally stays on the strip, that mark does not describe visibility. A separate A1 footer path uses `truncateToWidth(..., "...")` for a usage-line left segment before dimming its output. The screenshot shows that marker bright white at narrow widths.
+The resident host calculates `StripFrame.hidden_tabs` in `roles/strip.rs` and passes that list to `Popup::overflow` in `core/attach/mod.rs`. The original popup iterated only hidden IDs and marked the viewed tab; the first implementation now lists all shown tabs and checks visible chips. A bottom-positioned popup draws rows above the strip, but the new five-row screenshot shows a click on the named second row activating another tab: the visual-row-to-action mapping must be proven against actual terminal coordinates, including pointer motion and resize. A separate A1 footer path uses a dim `…` for truncated usage, but path/PR-badge truncation still uses `...`, and the usage width allocation can sacrifice the entire model name to fit the left side.
 
 ## Decisions
 
@@ -12,13 +12,17 @@ Use the current strip frame's visible tab hits (or a derived visible-ID set) to 
 
 Retain the existing width allocation, no-wrap behavior, viewed-chip priority when feasible, trailing `+`, single-column `…` glyph, and strip muted foreground. The popup's checkmark does not reserve strip cells; it represents the chips actually drawn, not all open tabs or active selection. Test very narrow widths explicitly rather than assuming a chip always fits.
 
-### Make the A1 footer truncation marker semantic
+### Map bottom popup clicks to visual rows
 
-Use one Unicode ellipsis cell for the truncated usage segment and paint it in the same dim role as the adjacent A1 footer text. Keep the result display-width-bounded and ANSI-safe, including a colored context segment or right-hand thinking-level name. Scope any change in the pinned-component adaptation to the A1 profile and update the component's deviation/provenance notes if required; retain comparison Pi behavior and current path/badge hyperlink truncation policy.
+Derive bottom popup pointer normalization from the same terminal-row calculation used to draw each visible popup row, rather than independently counting rows from the strip. Account for clamping when the popup has more items than available body rows, and leave top-strip and keyboard selection unchanged. Bind each row action to its stable tab ID; add tests that click the second named entry from a five-row bottom popup after hover, and verify it selects that exact tab rather than the first. Test a popup after a resize/reorder and ensure no entry outside the displayed rows can act on a different tab.
+
+### Make every A1 footer truncation marker semantic and reserve the model
+
+Use one Unicode ellipsis cell in the semantic dim role in both A1 footer path and usage truncation, including the path/branch prefix before the complete PR badge and tiny-width fallback. Preserve hyperlink termination and the existing PR-badge reservation policy. For the A1 usage row, omit optional provider first, then allocate enough right-hand space for the full model name when it fits, clipping left usage with the dim single-cell marker before clipping model text. Show a thinking-level suffix only when space remains without truncating the model; retain its distinct level color. At widths too narrow for the model itself, truncate safely to available width. Scope changes to the A1 profile, update the copied-component provenance ledger, and retain Pi comparison behavior and ordinary-width rendering.
 
 ## Verification approach for implementation
 
-Add focused Rust popup/strip/attach tests for full ordered menu membership, multiple checked visible tabs, hidden tabs unchecked, resize and reorder transitions, selection of hidden entries, removal, and extreme widths. Add focused TypeScript footer rendering tests for single-cell dim marker, adjacent ANSI style boundaries, and ordinary-width unchanged behavior including linked PR badges. Run only the touched tests and typecheck locally before pushing; CI owns full validation after implementation readiness.
+Add focused Rust popup/strip/attach tests for full ordered menu membership, multiple checked visible tabs, hidden tabs unchecked, resize and reorder transitions, named bottom-row click identity, selection of hidden entries, removal, and extreme widths. Add focused TypeScript footer tests for both path and usage single-cell dim markers, model retention at constrained widths, adjacent ANSI style boundaries, tiny widths, ordinary-width unchanged behavior, and linked PR badges. Run only the touched tests and typecheck locally before pushing; CI owns full validation after implementation readiness.
 
 ## Scope boundaries
 
