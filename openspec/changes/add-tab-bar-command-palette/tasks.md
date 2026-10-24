@@ -21,7 +21,7 @@ Each numbered section is one Implementation item. Every section starts by mergin
 
 ## 4. Rename selection style
 
-- [ ] 4.1 Draw the inline tab-rename selection with the owned editor's selection background and the chip's own text color instead of reversed cells. Tests: strip rename fixtures for a selection over the viewed and a hidden chip, in truecolor and palette modes.
+- [x] 4.1 Draw the inline tab-rename selection with the owned editor's selection background and the chip's own text color instead of reversed cells. Tests: strip rename fixtures for a selection over the viewed and a hidden chip, in truecolor and palette modes.
 
 ## 5. Tab and session names
 

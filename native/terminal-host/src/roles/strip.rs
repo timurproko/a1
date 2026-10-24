@@ -366,7 +366,18 @@ fn chip_fixed_width() -> usize {
     4
 }
 
-fn rename_title(rename: &StripRename, max_width: usize) -> TitleFrame {
+/// The owned editor's selection background; selected text keeps its own color over it.
+fn selection_background(truecolor: bool) -> &'static str {
+    if truecolor {
+        "\x1b[48;2;38;79;120m"
+    } else {
+        "\x1b[48;5;24m"
+    }
+}
+
+/// The rename prompt's title. `chip` is the chip's own background and text style, restored after
+/// a selected grapheme.
+fn rename_title(rename: &StripRename, max_width: usize, truecolor: bool, chip: &str) -> TitleFrame {
     let graphemes = clean(&rename.text)
         .graphemes(true)
         .map(str::to_owned)
@@ -405,11 +416,15 @@ fn rename_title(rename: &StripRename, max_width: usize) -> TitleFrame {
         let absolute = start + index;
         let selected = selection.is_some_and(|(left, right)| absolute >= left && absolute < right);
         let pointed = selection.is_none() && absolute == cursor;
-        if selected || pointed {
+        if selected {
+            text.push_str(selection_background(truecolor));
+        } else if pointed {
             text.push_str("\x1b[7m");
         }
         text.push_str(grapheme);
-        if selected || pointed {
+        if selected {
+            text.push_str(chip);
+        } else if pointed {
             text.push_str("\x1b[27m");
         }
         width += UnicodeWidthStr::width(grapheme.as_str());
@@ -431,9 +446,10 @@ fn chip_title(
     now: Instant,
     truecolor: bool,
     rename: Option<&StripRename>,
+    chip: &str,
 ) -> TitleFrame {
     if let Some(rename) = rename.filter(|rename| rename.tab_id == tab.id) {
-        return rename_title(rename, max_width);
+        return rename_title(rename, max_width, truecolor, chip);
     }
     let elapsed = tab.title_animation.as_ref().map(|animation| {
         now.saturating_duration_since(animation.started_at)
@@ -471,16 +487,6 @@ fn chip(
     let glyph = status_glyph(&tab.status);
     let icon = if glyph.is_empty() { " " } else { &glyph };
     let fixed = chip_fixed_width();
-    let title = chip_title(
-        tab,
-        target_width.unwrap_or(20).saturating_sub(fixed),
-        now,
-        truecolor,
-        rename,
-    );
-    let name = title.text;
-    let width = target_width.unwrap_or(fixed + title.width);
-    let padding = " ".repeat(width.saturating_sub(fixed + title.width));
     let accent_color = tab_accent(tab.accent.as_deref());
     let background = if active {
         format!(
@@ -492,6 +498,17 @@ fn chip(
     } else {
         "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m".to_owned()
     };
+    let title = chip_title(
+        tab,
+        target_width.unwrap_or(20).saturating_sub(fixed),
+        now,
+        truecolor,
+        rename,
+        &background,
+    );
+    let name = title.text;
+    let width = target_width.unwrap_or(fixed + title.width);
+    let padding = " ".repeat(width.saturating_sub(fixed + title.width));
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
     let text = format!("{background} {glyph_color}{icon}\x1b[39m {name}{padding} \x1b[0m");
     (text, width)
@@ -1058,8 +1075,31 @@ mod tests {
             TimeFormat::Twelve,
             Some(&selected),
         );
-        assert!(frame.bytes.contains("\x1b[7m"));
+        assert!(
+            !frame.bytes.contains("\x1b[7m"),
+            "a selection is never drawn reversed"
+        );
         assert!(plain(&frame.bytes).contains("文档-helper"));
+        for (active, truecolor, on) in [
+            (true, true, "\x1b[48;2;38;79;120m"),
+            (false, true, "\x1b[48;2;38;79;120m"),
+            (true, false, "\x1b[48;5;24m"),
+        ] {
+            let (text, _) = chip(
+                &tabs[0],
+                active,
+                false,
+                Instant::now(),
+                truecolor,
+                Some(&selected),
+                None,
+            );
+            let chip_style = text.split(' ').next().unwrap().to_owned();
+            assert!(
+                text.contains(&format!("{on}文{chip_style}")),
+                "the selection keeps the chip's text color and restores its background: {text:?}"
+            );
+        }
         let (_, end, _) = frame.hits.first().unwrap();
         assert!(*end <= 20);
 
