@@ -1,13 +1,16 @@
 import { connect, type Socket } from "node:net";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "./protocol.js";
+import { RESIDENT_TAB_ROUTES, type ResidentTabRoute } from "./routes.js";
 
 export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "done" | "aborted" | "error" | "idle" | "unresponsive" | "crashed" | "restarting" | "failed";
+export { residentUtilityRoute, type ResidentTabRoute } from "./routes.js";
+const RESIDENT_TAB_ROUTE_SET: ReadonlySet<unknown> = new Set<ResidentTabRoute>(RESIDENT_TAB_ROUTES);
 export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string }
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
 export type TabBridgeCommand =
   | { readonly type: "visibility"; readonly visible: boolean }
   | { readonly type: "rename"; readonly name: string; readonly nameSource: "default" | "user" | "auto" }
-  | { readonly type: "route"; readonly route: "settings" }
+  | { readonly type: "route"; readonly route: ResidentTabRoute }
   | { readonly type: "stop"; readonly deadlineMs: number };
 
 interface BridgeTransport {
@@ -134,15 +137,15 @@ export class TabBridgeClient {
   }
 
   requestDetach(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
-    return this.#requestAction("detach", origin, timeoutMs);
+    return this.requestAction("detach", origin, timeoutMs);
   }
 
   requestRestart(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
-    return this.#requestAction("restart", origin, timeoutMs);
+    return this.requestAction("restart", origin, timeoutMs);
   }
 
   requestClose(origin: TabAttachment | null = this.captureAttachment(), timeoutMs = 1_000): Promise<boolean> {
-    return this.#requestAction("close", origin, timeoutMs);
+    return this.requestAction("close", origin, timeoutMs);
   }
 
   consumeControllerBoundaryInput(data: string): string {
@@ -235,8 +238,8 @@ export class TabBridgeClient {
       const source = message.body["nameSource"];
       this.#emitCommand({ type: "rename", name: message.body["name"], nameSource: source === "auto" || source === "default" ? source : "user" }); return;
     }
-    if (message.type === "bridge.route" && message.body["route"] === "settings") {
-      this.#emitCommand({ type: "route", route: "settings" }); return;
+    if (message.type === "bridge.route" && RESIDENT_TAB_ROUTE_SET.has(message.body["route"])) {
+      this.#emitCommand({ type: "route", route: message.body["route"] as ResidentTabRoute }); return;
     }
     if (message.type === "bridge.stop" && typeof message.body["deadlineMs"] === "number") {
       this.#emitCommand({ type: "stop", deadlineMs: message.body["deadlineMs"] }); return;
@@ -252,7 +255,15 @@ export class TabBridgeClient {
     }
   }
 
-  async #requestAction(action: "detach" | "restart" | "close", origin: TabAttachment | null, timeoutMs: number): Promise<boolean> {
+  /**
+   * Asks the server to act for the client that controls this tab, as `origin`: leave it, restart or close the tab,
+   * or open the tab bar's Plus Menu dialog (`configure-plus`).
+   */
+  async requestAction(
+    action: "detach" | "restart" | "close" | "configure-plus",
+    origin: TabAttachment | null = this.captureAttachment(),
+    timeoutMs = 1_000,
+  ): Promise<boolean> {
     if (!this.available || origin === null || (action === "restart" && !this.#supports("bridge-restart"))) return false;
     const requestId = ++this.#request;
     const result = new Promise<boolean>(resolvePromise => this.#pending.set(requestId, resolvePromise));

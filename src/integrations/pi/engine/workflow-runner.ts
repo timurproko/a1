@@ -489,8 +489,8 @@ export class PiWorkflowRunner {
             : workflowResult(request.command, "failed", "Usage: /name <name>", undefined, "warning");
         }
         requireCapability(session.setSessionName, "setSessionName").call(session, argument);
-        const normalized = manager?.getSessionName();
-        const actual = typeof normalized === "string" ? normalized : argument;
+        this.#ports.emitView();
+        const actual = sessionNameOr(manager?.getSessionName(), argument);
         return workflowResult(
           request.command,
           "completed",
@@ -627,4 +627,12 @@ export class PiWorkflowRunner {
     }
   }
 
+}
+
+/**
+ * The name the session normalized the request to, or the request when it reports none. `/name`
+ * publishes a view right after setting it, so a resident tab takes the name as its tab name.
+ */
+function sessionNameOr(normalized: unknown, requested: string): string {
+  return typeof normalized === "string" ? normalized : requested;
 }

@@ -269,8 +269,11 @@ export class OwnedSettingsManager {
     id: string,
     value: Readonly<Record<string, unknown>>,
   ): Promise<OwnedUiSettingsChangeOutcome> {
-    if (backend !== "agent") return failed("only an agent setting holds a structured value");
-    return await this.#changeAgentValue(id, value as AgentJsonValue);
+    if (backend === "agent") return await this.#changeAgentValue(id, value as AgentJsonValue);
+    // Invariant: a flagged A1 setting stores its enabled parts as one value, in declaration order.
+    const flags = findOwnedUiSettingsEntry(this.sections(), id, "a1")?.flags ?? [];
+    if (flags.length === 0) return failed(`${id} holds no structured value`);
+    return await this.change("a1", id, flags.filter(flag => value[flag.key] === true).map(flag => flag.key).join(","));
   }
 
   async change(

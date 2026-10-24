@@ -207,7 +207,7 @@ setInterval(() => {}, 1000);
 
     let holder_before_replacement = holder_pids(&credentials_root);
     let epoch_before_replacement = registry_epoch(&credentials_root);
-    // Invariant: Settings may be prewarmed; only the one Agent holder is required here.
+    // Invariant: utility tabs may be prewarmed; only the one Agent holder is required here.
     assert_eq!(agent_holder_pids(&credentials_root).len(), 1);
     for pid in server_pids(&credentials_root) {
         terminate(pid);
@@ -1240,12 +1240,10 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
             .as_array()
             .expect("tab list")
             .iter()
-            .filter(|tab| !tab["tabId"]
-                .as_str()
-                .is_some_and(|id| id.starts_with("settings-")))
+            .filter(|tab| !tab["tabId"].as_str().is_some_and(is_utility_tab))
             .count(),
         2,
-        "prewarmed Settings does not count as an Agent tab"
+        "prewarmed utility tabs do not count as Agent tabs"
     );
 
     let mut second = AttachFixture::spawn_view(
@@ -1313,7 +1311,7 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
 
     let default_tab = holders_before_client_loss
         .iter()
-        .find(|(tab, _, _)| tab != &second_tab && !tab.starts_with("settings-"))
+        .find(|(tab, _, _)| tab != &second_tab && !is_utility_tab(tab))
         .expect("default tab")
         .0
         .clone();
@@ -3010,7 +3008,7 @@ fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
     }
     // Invariant: the streaming holder kept draining its child the whole time, so both holders are
     // still alive and the server still answers maintenance promptly.
-    // Invariant: the attach client may prewarm a hidden Settings holder meanwhile; only the two
+    // Invariant: the attach client may prewarm hidden utility holders meanwhile; only the two
     // Agent holders are counted, and every holder is reaped by cleanup.
     cleanup.pids.extend(holder_pids(&credentials_root));
     assert_eq!(agent_holder_pids(&credentials_root).len(), 2);
@@ -3652,6 +3650,13 @@ fn holder_identities(root: &Path) -> Vec<(String, u32, String)> {
     identities.sort();
     identities
 }
+/// A prewarmed singleton utility tab, such as Settings or Changelog, rather than an Agent.
+fn is_utility_tab(tab_id: &str) -> bool {
+    ["settings-", "changelog-"]
+        .iter()
+        .any(|prefix| tab_id.starts_with(prefix))
+}
+
 fn agent_holder_pids(root: &Path) -> Vec<u32> {
     RegistryStore::read(&root.join("registry.json"))
         .ok()
@@ -3660,7 +3665,7 @@ fn agent_holder_pids(root: &Path) -> Vec<u32> {
             registry
                 .tabs
                 .into_iter()
-                .filter(|tab| !tab.tab_id.starts_with("settings-"))
+                .filter(|tab| !is_utility_tab(&tab.tab_id))
                 .filter_map(|tab| tab.holder_pid)
                 .collect()
         })
