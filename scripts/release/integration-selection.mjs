@@ -4,7 +4,7 @@ const MAX_OWNERS = 64;
 const MAX_SCOPES = 64;
 const MAX_REASONS = 64;
 const SELECT_REASONS = new Set(["coarse-owner", "changed-test", "shared-support", "invalidator", "conservative-fallback"]);
-const EXCLUDE_REASONS = new Set(["unrelated", "exhaustive-cadence", "docs-only", "version-only"]);
+const EXCLUDE_REASONS = new Set(["unrelated", "direct-impact-cadence", "exhaustive-cadence", "docs-only", "version-only"]);
 
 /**
  * Build a complete integration decision document. Digests bind content, not trust:
@@ -17,7 +17,7 @@ export function createIntegrationSelection({ base, head, ownership, mode = "cons
     decisions = ownership.owners.map(owner => ({
       owner: owner.id,
       selected: mode === "conservative" && owner.cadence === "pull-request",
-      reasons: [{ code: mode === "exempt" ? exemption : owner.cadence === "pull-request" ? "conservative-fallback" : "exhaustive-cadence", paths: [] }],
+      reasons: [{ code: mode === "exempt" ? exemption : owner.cadence === "pull-request" ? "conservative-fallback" : owner.cadence === "direct-impact" ? "direct-impact-cadence" : "exhaustive-cadence", paths: [] }],
     }));
   }
   if (!Array.isArray(decisions) || decisions.length !== ownership.owners.length) throw new TypeError("incomplete integration decisions");
@@ -86,6 +86,14 @@ function assertPayload(value, authority) {
       && (decision.selected || decision.reasons.some(reason => reason.code !== "exhaustive-cadence"))) {
       throw new TypeError("exhaustive integration owner requires explicit cadence deferral");
     }
+    if (owner.cadence === "direct-impact" && value.mode !== "exempt") {
+      if (!decision.selected && decision.reasons.some(reason => reason.code !== "direct-impact-cadence")) {
+        throw new TypeError("direct-impact integration deferral contradicts selection mode");
+      }
+      if (decision.selected && decision.reasons.some(reason => !["changed-test", "shared-support"].includes(reason.code))) {
+        throw new TypeError("direct-impact integration owner lacks direct changed authority");
+      }
+    }
     if (value.mode === "conservative" && owner.cadence === "pull-request" && !decision.selected) throw new TypeError("conservative selection must include every pull-request owner");
     if (value.mode === "exempt" && (decision.selected || decision.reasons.some(reason => reason.code !== value.exemption))) throw new TypeError("exempt selection must explicitly exclude every owner");
   }
@@ -102,7 +110,7 @@ function assertOwnership(ownership) {
     exactKeys(owner, ["id", "cadence", "scopes", "targets"], "owner");
     if (!identifier(owner.id) || ids.has(owner.id)) throw new TypeError("invalid or duplicate integration owner");
     ids.add(owner.id);
-    if (!["pull-request", "exhaustive"].includes(owner.cadence)) throw new TypeError("integration owner requires supported cadence");
+    if (!["pull-request", "direct-impact", "exhaustive"].includes(owner.cadence)) throw new TypeError("integration owner requires supported cadence");
     if (!Array.isArray(owner.scopes) || owner.scopes.length === 0 || owner.scopes.length > MAX_SCOPES
       || owner.scopes.some(scope => !identifier(scope)) || new Set(owner.scopes).size !== owner.scopes.length) throw new TypeError("integration scopes invalid or unbounded");
     if (!Array.isArray(owner.targets) || owner.targets.length === 0 || owner.targets.length > 16) throw new TypeError("integration targets missing or unbounded");

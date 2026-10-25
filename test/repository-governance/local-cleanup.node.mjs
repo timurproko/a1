@@ -24,12 +24,15 @@ async function fixture(t, branch = false, registered = true, beforeDiscovery = a
   const temporary = await canonical(await mkdtemp(join(tmpdir(), "local-cleanup-")));
   t.after(() => rm(temporary, { recursive: true, force: true }));
   const primary = join(temporary, "primary"); await mkdir(primary);
-  await git(primary, "init", "-b", "develop"); await git(primary, "config", "core.autocrlf", "false"); await git(primary, "config", "user.name", "Fixture"); await git(primary, "config", "user.email", "fixture@example.invalid");
+  await git(primary, "init", "-b", "develop");
+  // Performance: write the private repository's configuration once instead of starting four Git
+  // config/remote processes per scenario. Git still reads and exercises this real configuration.
+  await writeFile(join(primary, ".git", "config"), "\n[core]\n\tautocrlf = false\n[user]\n\tname = Fixture\n\temail = fixture@example.invalid\n[remote \"origin\"]\n\turl = https://github.com/owner/repo.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n", { flag: "a" });
   await writeFile(join(primary, "tracked.txt"), "base\n");
   await mkdir(join(primary, "vendor")); await writeFile(join(primary, "vendor", ".gitmodules"), "");
   await mkdir(join(primary, "node_modules-cache")); await writeFile(join(primary, "node_modules-cache", "tracked.txt"), "ordinary content\n");
   await writeFile(join(primary, ".gitignore"), "/node_modules\nnode_modules/\nsecret.txt\n/.artifacts\n/.artifacts-user\n/artifacts/\n.builds\ndist/\n/native/process-guardian/target\n/native/terminal-host/target\n/src/integrations/pi/engine/pi-settings-metadata.json\n/src/integrations/pi/engine/pi-settings-metadata-user.json\n/target/\n/native/other/target/\n/native/process-guardian/target-user/\n");
-  await git(primary, "add", "."); await git(primary, "commit", "-m", "fixture"); await git(primary, "remote", "add", "origin", "https://github.com/owner/repo.git");
+  await git(primary, "add", "."); await git(primary, "commit", "-m", "fixture");
   await beforeDiscovery(primary);
   const path = join(primary, ".worktrees", "example");
   await git(primary, "worktree", "add", ...(branch ? ["-b", "feature/example"] : ["--detach"]), path);
