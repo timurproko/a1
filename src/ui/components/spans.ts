@@ -1,4 +1,4 @@
-import { displayWidth } from "./text.js";
+import { displayWidth, graphemeWidth } from "./text.js";
 
 /**
  * Ported from the A1 UI reference implementation (`core/presentation/spans.ts`).
@@ -59,7 +59,7 @@ export function overlaySpan(
       continue;
     }
     for (const { segment } of GRAPHEMES.segment(token)) {
-      const width = displayWidth(segment);
+      const width = graphemeWidth(segment);
       if (column + width <= from) head += segment;
       else if (column >= to) tail += segment;
       else if (column < from) head += " ".repeat(from - column);
