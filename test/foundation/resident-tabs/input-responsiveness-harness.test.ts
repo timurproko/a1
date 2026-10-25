@@ -1,5 +1,6 @@
 import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { fixtureRoleEntrySource, firstCompletedResponse, matchedResponseIndex, summarizeInputResponses } from "../../../scripts/development/resident-input-responsiveness.mjs";
 
 const samples = (duration: number) => Array.from({ length: 40 }, () => duration);
@@ -7,7 +8,10 @@ const samples = (duration: number) => Array.from({ length: 40 }, () => duration)
 describe("real-A1 input responsiveness verdict", () => {
   it("pins detached role custody to the exact artifact without inherited shell overrides", () => {
     const artifact = "D:/fixture/quoted'path/host.node";
-    for (const env of [{}, { A1_TERMINAL_HOST_PATH: "wrong-release.node", A1_DEV_INSTANCE_ID: "old" }]) {
+    for (const env of [{}, {
+      [PRODUCT_IDENTITY.environment.terminalHostPath]: "wrong-release.node",
+      [PRODUCT_IDENTITY.environment.developmentInstanceId]: "old",
+    }]) {
       const loaded: string[] = [];
       const calls: unknown[] = [];
       const process = { env, execPath: "node.exe", argv: ["node.exe", "fixed.cjs", "holder", "--tab", "synthetic"], exitCode: -1 };

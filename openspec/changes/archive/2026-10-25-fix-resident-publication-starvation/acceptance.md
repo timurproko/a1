@@ -22,10 +22,10 @@ The maintainer integration decision accepts these scenarios:
     "Real-A1 typing, menu navigation and wheel responses remain within the solo-relative responsiveness envelope.",
     "Delayed or missing healthy presentation fails the responsiveness verdict while deliberate stopped-stage and slow-sink controls remain isolated."
   ],
-  "archiveDigest": "a62098e107ad6caba275b78986d59ac75f55c6096f81d4ed16b0d90dae4d7bfd",
+  "archiveDigest": "94195f4f44a11f345cf364bdd0b7159fe6a1cc56b8f523fd58cdb1c9474927b8",
   "specDigest": "812cfa7d002d4cb3bce7c814a019302a54db09084edb2cfe23495468866403f5",
   "tasksDigest": "224e5d7e20fa94a5dfc5bda833841fcd9301e5be319d209dc7e5c731025ef85f",
-  "evidenceDigest": "e9afbbbc52d8ea3e7c8d1996fbe0cffbe6e3c92b97104c59ca3aa58ee84f5e55",
+  "evidenceDigest": "e8c0c8e063cf5588b1ee456fe25eef08e290a58c18cf6a17ab43c9c30af7f3b7",
   "knownGaps": []
 }
 ```

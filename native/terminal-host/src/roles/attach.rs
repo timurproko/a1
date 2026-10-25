@@ -1582,22 +1582,23 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         if let Some(error) = client.stream.failure() {
             return Err(error);
         }
+        // Performance: a queued key must not wait behind decoding/composing the next complete
+        // grid. One input then one bounded server round preserves both sides' forward progress.
+        let input = input_rx.try_recv();
+        let had_input = input.is_ok();
+        let disconnected = matches!(input, Err(mpsc::TryRecvError::Disconnected));
+        if let Ok(next) = input && client.input(&mut core, next?)? {
+            return Ok(());
+        }
         if client.drain_server(&mut core, &message_rx, &ingress_bytes)? {
             return Ok(());
         }
         client.tick(&mut core)?;
-        let next = match input_rx.try_recv() {
-            Ok(next) => next?,
-            Err(mpsc::TryRecvError::Empty) => {
-                let _ = wake_rx.recv_timeout(Duration::from_millis(8));
-                continue;
-            }
-            Err(mpsc::TryRecvError::Disconnected) => {
-                return Err("outer terminal input stopped".to_owned());
-            }
-        };
-        if client.input(&mut core, next)? {
-            return Ok(());
+        if disconnected {
+            return Err("outer terminal input stopped".to_owned());
+        }
+        if !had_input {
+            let _ = wake_rx.recv_timeout(Duration::from_millis(8));
         }
     }
 }
@@ -1605,7 +1606,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
 /// The child surface this client presents and the frame state it was committed with.
 struct Presented {
     surface: Vec<u8>,
-    structured: Option<protocol::StructuredSurface>,
+    structured: Option<Arc<protocol::StructuredSurface>>,
     tab_id: Option<String>,
     incarnation: u64,
     revision: u64,
@@ -1633,16 +1634,15 @@ impl Presented {
         }
     }
 
-    fn install(&mut self, surface: &Surface, effective_status: &str) {
+    fn install(&mut self, surface: Surface, effective_status: &str) {
         let same_child = self.tab_id.as_deref() == Some(surface.tab_id.as_str())
             && self.incarnation == surface.incarnation;
         if !same_child {
             self.startup_drew_content = false;
             self.quiet_startup_handoff = false;
         }
-        let blank = surface_is_blank(surface);
         if effective_status == "starting" {
-            if blank {
+            if surface_is_blank(&surface) {
                 self.quiet_startup_handoff =
                     self.quiet_startup_handoff || self.startup_drew_content;
             } else {
@@ -1655,11 +1655,11 @@ impl Presented {
         }
 
         self.surface = without_bell(&surface.bytes);
-        self.structured = surface.structured.clone();
-        self.tab_id = Some(surface.tab_id.clone());
+        self.structured = surface.structured.map(Arc::new);
+        self.tab_id = Some(surface.tab_id);
         self.incarnation = surface.incarnation;
         self.revision = surface.revision;
-        self.geometry_generation = surface
+        self.geometry_generation = self
             .structured
             .as_ref()
             .map_or(self.geometry_generation, |structured| {
@@ -1672,7 +1672,7 @@ impl Presented {
             surface
                 .cursor
                 .map(FinalCursor::At)
-                .or_else(|| surface.modes.as_ref().map(|_| FinalCursor::Hidden))
+                .or_else(|| self.modes.as_ref().map(|_| FinalCursor::Hidden))
         };
     }
 }
@@ -2350,13 +2350,14 @@ impl Client {
             tab.accent = surface.accent.clone();
             effective_status.clone_from(&tab.status);
         }
-        self.presented.install(&surface, &effective_status);
+        self.presented.install(surface, &effective_status);
         let mut deferred = VecDeque::new();
         for effect in std::mem::take(&mut self.pending_terminal_effects) {
-            if effect.tab_id != surface.tab_id || effect.incarnation != surface.incarnation {
+            if self.presented.tab_id.as_deref() != Some(effect.tab_id.as_str())
+                || effect.incarnation != self.presented.incarnation {
                 continue;
             }
-            if effect.revision <= surface.revision {
+            if effect.revision <= self.presented.revision {
                 self.apply_terminal_effect(&effect)?;
             } else {
                 deferred.push_back(effect);
@@ -2929,7 +2930,7 @@ impl Client {
                     self.columns,
                     self.outer_rows,
                     self.time_format.tab_bar_position.child_row_offset(),
-                    self.presented.structured.as_ref(),
+                    self.presented.structured.as_deref(),
                 ));
         }
         self.terminal.restore()?;
@@ -3745,7 +3746,7 @@ mod tests {
         assert!(curtain.should_reveal(started + RESIZE_RECOVERY, Some("tab-1"), &presented));
         assert!(curtain.should_reveal(started + RESIZE_SETTLE, None, &presented));
 
-        presented.structured = Some(protocol::StructuredSurface::default());
+        presented.structured = Some(Arc::new(protocol::StructuredSurface::default()));
         presented.geometry_generation = 20;
         let structured = ResizeCurtain::new(started, Some("tab-1".into()), &presented);
         assert!(!structured.should_reveal(started + RESIZE_SETTLE, Some("tab-1"), &presented));
@@ -3879,7 +3880,7 @@ mod tests {
                 row: 0,
             }));
 
-            presented.install(&startup_surface(1, "", structured), "starting");
+            presented.install(startup_surface(1, "", structured), "starting");
             assert!(!presented.quiet_startup_handoff);
             assert_eq!(
                 presented.cursor, cursor,
@@ -3887,31 +3888,31 @@ mod tests {
             );
 
             presented.install(
-                &startup_surface(2, "Trust project folder?", structured),
+                startup_surface(2, "Trust project folder?", structured),
                 "starting",
             );
             assert!(!presented.quiet_startup_handoff);
             assert_eq!(presented.cursor, cursor);
 
-            presented.install(&startup_surface(3, "", structured), "starting");
+            presented.install(startup_surface(3, "", structured), "starting");
             assert!(presented.quiet_startup_handoff);
             assert_eq!(presented.cursor, Some(FinalCursor::Hidden));
 
-            presented.install(&startup_surface(4, "", structured), "starting");
+            presented.install(startup_surface(4, "", structured), "starting");
             assert!(
                 presented.quiet_startup_handoff,
                 "consecutive blank revisions stay quiet"
             );
             assert_eq!(presented.cursor, Some(FinalCursor::Hidden));
 
-            presented.install(&startup_surface(5, "owned shell", structured), "starting");
+            presented.install(startup_surface(5, "owned shell", structured), "starting");
             assert!(!presented.quiet_startup_handoff);
             assert_eq!(
                 presented.cursor, cursor,
                 "the first shell frame restores its cursor"
             );
 
-            presented.install(&startup_surface(6, "", structured), "idle");
+            presented.install(startup_surface(6, "", structured), "idle");
             assert!(!presented.quiet_startup_handoff);
             assert_eq!(
                 presented.cursor, cursor,
