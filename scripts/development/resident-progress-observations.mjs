@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 export const progressObservationSchema = "a1-resident-progress-observation-v1";
 export const progressStages = Object.freeze([
-  "engine-delivery", "child-render-write", "pty-ingest", "holder-commit", "attach-receipt", "outer-paint",
+  "engine-delivery", "child-render-write", "child-input-phase", "pty-input-write", "pty-ingest", "holder-commit", "attach-receipt", "outer-paint",
   "pipe-frame-read", "pipe-write-complete", "outer-write-complete", "wake-gap", "wake-repaint-requested", "fixture-stop-ack",
 ]);
 const connectionStages = new Set(["pipe-frame-read", "pipe-write-complete", "outer-write-complete", "wake-gap", "wake-repaint-requested"]);

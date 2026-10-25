@@ -297,6 +297,62 @@ fn surface_message(
     })
 }
 
+/// Input completion is payload-free evidence, distinct from output ingestion and rendering.
+fn spawn_pty_writer(
+    mut writer: Box<dyn Write + Send>,
+    receiver: mpsc::Receiver<(Vec<u8>, usize)>,
+    results: mpsc::Sender<Result<usize, String>>,
+    wake: mpsc::SyncSender<()>,
+    tab_id: String,
+    incarnation: u64,
+) {
+    thread::spawn(move || {
+        let mut sequence = 0u64;
+        while let Ok((bytes, admitted)) = receiver.recv() {
+            if crate::fault_injection::enabled("A1_TABS_FAULT_BLOCK_PTY_WRITE") {
+                loop {
+                    thread::sleep(Duration::from_secs(1));
+                }
+            }
+            let started = std::time::Instant::now();
+            let result = writer
+                .write_all(&bytes)
+                .and_then(|()| writer.flush())
+                .map(|()| admitted)
+                .map_err(|error| format!("write resident PTY input: {error}"));
+            let failed = result.is_err();
+            sequence = sequence.saturating_add(1);
+            progress_observation::observe(
+                "holder",
+                "pty-input-write",
+                ProgressMetadata {
+                    tab_id: Some(&tab_id),
+                    incarnation,
+                    event_sequence: sequence,
+                    bytes: bytes.len(),
+                    count: 1,
+                    event_kind: Some(if failed {
+                        "failed"
+                    } else if admitted == 0 {
+                        "control"
+                    } else {
+                        "input"
+                    }),
+                    duration_us: Some(
+                        started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64
+                    ),
+                    ..ProgressMetadata::default()
+                },
+            );
+            let delivered = results.send(result).is_ok();
+            let _ = wake.try_send(());
+            if !delivered || failed {
+                break;
+            }
+        }
+    });
+}
+
 /// Keep the PTY-ingestion diagnostic passive and its sequence local to this holder incarnation.
 fn observe_pty_ingestion(config: &HolderLaunchConfig, bytes: usize, sequence: &mut u64) {
     *sequence = sequence.saturating_add(1);
@@ -789,7 +845,7 @@ fn run_holder(
         .master
         .try_clone_reader()
         .map_err(|error| format!("clone resident PTY reader: {error}"))?;
-    let mut pty_writer = pair
+    let pty_writer = pair
         .master
         .take_writer()
         .map_err(|error| format!("take resident PTY writer: {error}"))?;
@@ -798,27 +854,14 @@ fn run_holder(
     // Performance: PTY, command, and write-completion threads wake the holder loop directly so
     // input and output never wait out an idle poll; capacity one keeps wakes coalesced.
     let (wake_tx, wake_rx) = mpsc::sync_channel::<()>(1);
-    let writer_wake = wake_tx.clone();
-    thread::spawn(move || {
-        while let Ok((bytes, admitted)) = write_rx.recv() {
-            if crate::fault_injection::enabled("A1_TABS_FAULT_BLOCK_PTY_WRITE") {
-                loop {
-                    thread::sleep(Duration::from_secs(1));
-                }
-            }
-            let result = pty_writer
-                .write_all(&bytes)
-                .and_then(|()| pty_writer.flush())
-                .map(|()| admitted)
-                .map_err(|error| format!("write resident PTY input: {error}"));
-            let failed = result.is_err();
-            let delivered = write_result_tx.send(result).is_ok();
-            let _ = writer_wake.try_send(());
-            if !delivered || failed {
-                break;
-            }
-        }
-    });
+    spawn_pty_writer(
+        pty_writer,
+        write_rx,
+        write_result_tx,
+        wake_tx.clone(),
+        config.tab_id.clone(),
+        config.incarnation,
+    );
     // Concurrency: bounded transport applies backpressure at the PTY reader instead of letting a hidden or
     // disconnected child grow process memory without limit.
     let (output_tx, output_rx) = mpsc::sync_channel::<Vec<u8>>(64);
@@ -1428,7 +1471,10 @@ fn run_holder(
                 return Ok(());
             }
         }
-        round.wait(&wake_rx, synchronization.wake_timeout(std::time::Instant::now()));
+        round.wait(
+            &wake_rx,
+            synchronization.wake_timeout(std::time::Instant::now()),
+        );
     }
 }
 
@@ -1914,6 +1960,51 @@ mod synchronization_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn input_writer_preserves_control_order_and_admission_credits() {
+        #[derive(Clone)]
+        struct Capture(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+        impl Write for Capture {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let capture = Capture(Default::default());
+        let (sender, receiver) = mpsc::channel();
+        let (results, completions) = mpsc::channel();
+        let (wake, _) = mpsc::sync_channel(1);
+        spawn_pty_writer(
+            Box::new(capture.clone()),
+            receiver,
+            results,
+            wake,
+            "tab-test".into(),
+            1,
+        );
+        for (bytes, admitted) in [
+            (b"one".to_vec(), 3),
+            (b"|".to_vec(), 0),
+            (b"two".to_vec(), 3),
+        ] {
+            sender.send((bytes, admitted)).unwrap();
+        }
+        drop(sender);
+        for expected in [3, 0, 3] {
+            assert_eq!(
+                completions
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap()
+                    .unwrap(),
+                expected
+            );
+        }
+        assert_eq!(*capture.0.lock().unwrap(), b"one|two");
+    }
     fn shell(script: &str) -> std::process::Child {
         let mut command = if cfg!(windows) {
             let mut command = std::process::Command::new("cmd");
