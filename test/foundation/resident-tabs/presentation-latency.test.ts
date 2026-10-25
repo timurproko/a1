@@ -21,7 +21,7 @@ function observations(delayUs = 1_000, incarnation = 1, start = 1_000_000): Prog
 }
 
 function report(records: ProgressObservation[], windows?: { startedUnixUs: number; barrierUnixUs: number; viewedTabIds?: string[] }[]) {
-  // Delayed paints can finish after later receipts; sequence the synthetic per-process events
+  // Invariant: delayed paints can finish after later receipts; sequence the synthetic per-process events
   // by their actual completion time rather than inventing a backwards-clock fault.
   const sequences = new Map<string, number>();
   const chronological = [...records].sort((left, right) => left.timestampUnixUs - right.timestampUnixUs)

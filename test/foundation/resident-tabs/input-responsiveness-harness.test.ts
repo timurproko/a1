@@ -43,7 +43,7 @@ describe("real-A1 input responsiveness verdict", () => {
     const hashes = ["first", "second", "third"];
     const snapshot = { complete: true, markerOccurrences: 1, markerDigest: "third" };
     expect(matchedResponseIndex(hashes, snapshot, -1, 3)).toBe(2);
-    // A state for an input not sent yet, unrelated animation, or an open/torn frame is no response.
+    // Invariant: unsent input, unrelated animation, or an open/torn frame is no response.
     expect(matchedResponseIndex(hashes, snapshot, -1, 2)).toBe(-1);
     expect(matchedResponseIndex(hashes, { ...snapshot, markerDigest: "animation" }, -1, 3)).toBe(-1);
     expect(matchedResponseIndex(hashes, { ...snapshot, complete: false }, -1, 3)).toBe(-1);

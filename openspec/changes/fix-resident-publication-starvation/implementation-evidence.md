@@ -28,6 +28,10 @@ All checks ran in the owning worktree. Native builds used its copied, manifest-v
 
 In that exact-artifact run, real-input p95 direct/resident was 2.91/23.17 ms for typing, 2.23/35.27 ms for navigation and 5.96/32.12 ms for wheel scrolling. Resident maximums were 23.83, 57.80 and 33.20 ms respectively. Healthy commit-to-paint p95 was 3.38, 3.05 and 3.80 ms across the three agents, with 159, 157 and 220 matched samples. These are local Windows observations, not promises of identical microsecond timings or physical pixels on every terminal.
 
+## Reconciled develop
+
+Merged current `origin/develop` at `08875648` (PR #833) without conflicts. Post-merge typecheck, the 68 focused TypeScript/governance cases, strict change validation, architecture and code-documentation checks passed. The exact-artifact harness was rerun against the reconciled tree: all 18 scenarios, temporal parity, fragmented transactions and four stopped-stage controls passed again with zero faults. Resident typing/navigation/wheel p95 was 31.22/37.96/32.03 ms; direct was 2.38/2.32/6.69 ms. All three stayed within the unchanged 49 ms solo-relative envelope. Healthy commit-to-paint p95 was 3.01/3.21/3.34 ms with 154/155/215 matched samples. The small run-to-run differences are observations, not a reason to relax budgets.
+
 ## Known-gap dispositions
 
 - The user's exact installed cohort and live Windows Terminal symptom were not captured. Disposition: this repair fixes demonstrated publication starvation and adds real-A1 regressions; do not claim a reproduction of that exact incident.

@@ -1,4 +1,4 @@
-// Exact-artifact fixture only: native Ghostty owns terminal interpretation. JavaScript supplies
+// Provenance: exact-artifact fixture only; native Ghostty owns terminal interpretation. JavaScript supplies
 // synthetic input and correlates completed semantic states with one local monotonic send clock.
 const sampleCount = 40;
 const cadenceMs = 30;
