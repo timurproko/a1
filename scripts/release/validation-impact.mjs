@@ -9,7 +9,7 @@ import { loadIntegrationOwners } from "./integration-owners.mjs";
 import { loadValidationOwnership, selectValidationOwnership, validationSelectionDigest } from "./validation-ownership.mjs";
 
 const execFileAsync = promisify(execFile);
-// Generic validation-authority changes exercise bounded policy contracts; exhaustive rendering is selected only by rendering surfaces.
+// Rationale: generic validation-authority changes exercise bounded policy contracts; exhaustive rendering is selected only by rendering surfaces.
 const FULL_EXACT = new Set();
 const FULL_PREFIXES = Object.freeze([
   "test/support/rendering/",
