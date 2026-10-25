@@ -1,9 +1,4 @@
-/**
- * Display-width text handling. Terminals lay out by column, not by code unit,
- * so measuring with `String.length` mis-sizes CJK, emoji, and combining marks,
- * and counting styling escapes as visible width breaks every layout that uses
- * colour.
- */
+/** Terminal-column geometry: preserve graphemes, Unicode cell widths and ANSI styling. */
 
 const ANSI_PATTERN = /\[[0-9;:?]*[ -/]*[@-~]|[\]_][^]*(?:|\\)|[@-Z\\-_]/g;
 const SEGMENTER = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -65,7 +60,7 @@ function couldBeEmoji(grapheme: string): boolean {
 }
 
 /** Width of one grapheme cluster: two for emoji, else the widest code point it contains. */
-function graphemeWidth(grapheme: string): number {
+export function graphemeWidth(grapheme: string): number {
   if (couldBeEmoji(grapheme) && RGI_EMOJI_PATTERN.test(grapheme)) return 2;
   let width = 0;
   for (const character of grapheme) {
@@ -127,8 +122,10 @@ export function displayColumnSlice(text: string, requestedFrom: number, requeste
 
 /** Columns this text occupies once styling is removed. */
 export function displayWidth(text: string): number {
+  const plain = stripAnsi(text);
+  if (!/[^\x20-\x7e]/u.test(plain)) return plain.length;
   let width = 0;
-  for (const { segment } of SEGMENTER.segment(stripAnsi(text))) width += graphemeWidth(segment);
+  for (const { segment } of SEGMENTER.segment(plain)) width += graphemeWidth(segment);
   return width;
 }
 

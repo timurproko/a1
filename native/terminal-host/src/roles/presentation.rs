@@ -6,6 +6,7 @@
 //! surfaces of earlier revisions, and clear-only or contradictory frames are discarded here, so
 //! the loop in `attach.rs` never paints an intermediate state the user should not see.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::protocol::{
@@ -388,7 +389,7 @@ pub struct DesiredPresentation {
     pub revision: u64,
     pub geometry_generation: u64,
     pub strip: String,
-    pub structured: Option<StructuredSurface>,
+    pub structured: Option<Arc<StructuredSurface>>,
     pub legacy_body: Vec<u8>,
     pub overlay: Option<String>,
     pub cursor: Option<FinalCursor>,
@@ -411,7 +412,7 @@ pub struct PresentationComposer {
     tab_id: Option<String>,
     incarnation: u64,
     strip: String,
-    structured: Option<StructuredSurface>,
+    structured: Option<Arc<StructuredSurface>>,
     legacy_body: Vec<u8>,
     overlay: Option<String>,
     cursor: Option<FinalCursor>,
@@ -442,9 +443,7 @@ impl PresentationComposer {
         &self,
         desired: &DesiredPresentation,
     ) -> Result<Option<PreparedPresentation>, String> {
-        if let Some(surface) = desired.structured.as_ref() {
-            surface.validate()?;
-        }
+        validate_new_surface(&self.structured, &desired.structured)?;
         let identity_changed =
             self.tab_id != desired.tab_id || self.incarnation != desired.incarnation;
         let geometry_changed = self.columns != desired.columns
@@ -605,6 +604,18 @@ fn changed_overlay_rows(
     rows
 }
 
+/// Immutable current cells are shared across chrome offers and completed-write baselines.
+fn same_surface(previous: &Option<Arc<StructuredSurface>>, next: &Option<Arc<StructuredSurface>>) -> bool {
+    matches!((previous, next), (Some(previous), Some(next)) if Arc::ptr_eq(previous, next))
+}
+
+fn validate_new_surface(previous: &Option<Arc<StructuredSurface>>, next: &Option<Arc<StructuredSurface>>) -> Result<(), String> {
+    if !same_surface(previous, next) && let Some(surface) = next {
+        surface.validate()?;
+    }
+    Ok(())
+}
+
 fn render_body(
     current: &PresentationComposer,
     desired: &DesiredPresentation,
@@ -614,7 +625,10 @@ fn render_body(
     overlay_damage: &std::collections::BTreeSet<usize>,
     output: &mut Vec<u8>,
 ) -> Result<bool, String> {
-    let Some(surface) = desired.structured.as_ref() else {
+    if !force && overlay_damage.is_empty() && same_surface(&current.structured, &desired.structured) {
+        return Ok(false);
+    }
+    let Some(surface) = desired.structured.as_deref() else {
         if force || current.legacy_body != desired.legacy_body || !overlay_damage.is_empty() {
             output.extend_from_slice(&relocate_legacy_body(
                 &sanitize_legacy_body(&desired.legacy_body),
@@ -627,7 +641,7 @@ fn render_body(
         }
         return Ok(false);
     };
-    let prior = (!force).then_some(current.structured.as_ref()).flatten();
+    let prior = (!force).then_some(current.structured.as_deref()).flatten();
     render_palette_damage(output, prior, surface, force);
     let visible_rows =
         usize::from(surface.rows).min(usize::from(desired.outer_rows.saturating_sub(1)));
@@ -1729,7 +1743,7 @@ mod tests {
                 .as_ref()
                 .map_or(0, |value| value.geometry_generation),
             strip: "\x1b[1;1HSTRIP".into(),
-            structured: surface,
+            structured: surface.map(Arc::new),
             legacy_body,
             overlay: None,
             cursor: Some(FinalCursor::Hidden),
@@ -1743,6 +1757,46 @@ mod tests {
             clear: false,
             dimmed: false,
         }
+    }
+
+    #[test]
+    fn chrome_offers_and_completed_baselines_share_one_immutable_grid() {
+        let initial = desired(Some(structured_fixture()), Vec::new());
+        let grid = initial.structured.as_ref().unwrap().clone();
+        let mut composer = PresentationComposer::default();
+        composer.prepare(&initial).unwrap().unwrap().acknowledge(&mut composer);
+        for index in 0..32 {
+            let mut chrome = initial.clone();
+            chrome.strip = format!("\x1b[1;1Hclock {index}");
+            let prepared = composer.prepare(&chrome).unwrap().unwrap();
+            assert!(Arc::ptr_eq(prepared.next.structured.as_ref().unwrap(), &grid));
+            assert!(prepared.bytes.len() < 128, "chrome repainted the body");
+            prepared.acknowledge(&mut composer);
+            assert!(Arc::ptr_eq(composer.structured.as_ref().unwrap(), &grid));
+        }
+    }
+
+    #[test]
+    fn a_new_copy_on_write_grid_is_validated_without_mutating_the_painted_base() {
+        let initial = desired(Some(structured_fixture()), Vec::new());
+        let mut composer = PresentationComposer::default();
+        composer.prepare(&initial).unwrap().unwrap().acknowledge(&mut composer);
+        let mut invalid = initial.clone();
+        Arc::make_mut(invalid.structured.as_mut().unwrap()).row_data[0].cells.pop();
+        assert!(composer.prepare(&invalid).is_err());
+        assert_eq!(composer.structured.as_ref().unwrap().row_data[0].cells.len(), 3);
+    }
+
+    #[test]
+    fn removing_an_overlay_restores_cells_even_when_the_child_grid_is_shared() {
+        let mut initial = desired(Some(structured_fixture()), Vec::new());
+        initial.overlay = Some("\x1b[2;1HBOX".into());
+        let mut composer = PresentationComposer::default();
+        composer.prepare(&initial).unwrap().unwrap().acknowledge(&mut composer);
+        let mut revealed = initial.clone();
+        revealed.overlay = None;
+        let prepared = composer.prepare(&revealed).unwrap().unwrap();
+        assert!(String::from_utf8_lossy(&prepared.bytes).contains('界'));
     }
 
     #[test]

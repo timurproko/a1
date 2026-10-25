@@ -8,40 +8,8 @@ const OBSERVATION_DIRECTORY_ENV = PRODUCT_IDENTITY.environment.residentProgressO
 const OBSERVATION_RUN_ENV = PRODUCT_IDENTITY.environment.residentProgressRunId;
 const MAX_PENDING_BYTES = 256 * 1024;
 
-interface ProgressFields {
-  readonly eventSequence?: number;
-  readonly revision?: number;
-  readonly geometryGeneration?: number;
-  readonly bytes?: number;
-  readonly count?: number;
-  readonly eventKind?: string;
-  readonly frameId?: number;
-  readonly renderCause?: string;
-  readonly fragmentCount?: number;
-  readonly transactionKind?: "synchronized-output" | "ordinary";
-}
-
-interface ProgressRecord extends ProgressFields {
-  readonly schema: "a1-resident-progress-observation-v1";
-  readonly runId: string;
-  readonly role: "child";
-  readonly stage: "engine-delivery" | "child-render-write";
-  readonly pid: number;
-  readonly processInstance: string;
-  readonly timestampUnixUs: number;
-  readonly clockErrorUs: number;
-  readonly sequence: number;
-  readonly tabId: string;
-  readonly incarnation: number;
-  readonly lostBefore: number;
-}
-
-export interface ResidentProgressObserverPort {
-  readonly tabId: string;
-  engineDelivery(event: unknown): void;
-  childRenderWrite(bytes: number, fragments: number, transaction: "synchronized-output" | "ordinary",
-    frameId?: number, renderCause?: string): void;
-}
+import type { ProgressFields, ProgressRecord, ResidentInputPhase, ResidentProgressObserverPort } from "./progress-observation-schema.js";
+export type { ResidentProgressObserverPort } from "./progress-observation-schema.js";
 
 class ResidentProgressObserver implements ResidentProgressObserverPort {
   readonly #directory: string;
@@ -54,7 +22,10 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
   #engineSequence = 0;
   #pendingBytes = 0;
   #lost = 0;
-  #writing: Promise<void> = Promise.resolve();
+  #writing = false;
+  #pending: string[] = [];
+  #scheduled = false;
+  #directoryReady = false;
   #failed = false;
 
   get tabId(): string { return this.#tabId; }
@@ -75,6 +46,10 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
       eventKind: eventKind(event),
       count: 1,
     });
+  }
+
+  inputPhase(phase: ResidentInputPhase, revision: number): void {
+    this.#observe("child-input-phase", { eventKind: phase, revision, count: 1 });
   }
 
   childRenderWrite(bytes: number, fragments: number, transaction: "synchronized-output" | "ordinary",
@@ -101,7 +76,7 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
       pid: process.pid,
       processInstance: this.#processInstance,
       timestampUnixUs: Math.round((performance.timeOrigin + performance.now()) * 1_000),
-      // Rationale: timeOrigin is calibrated to the Unix epoch; retain a conservative cross-process error.
+      // Rationale: epoch-calibrated timeOrigin retains conservative cross-process clock error.
       clockErrorUs: 1_000,
       sequence: ++this.#sequence,
       tabId: this.#tabId,
@@ -117,20 +92,42 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
     }
     this.#lost = 0;
     this.#pendingBytes += length;
-    this.#writing = this.#writing.then(async () => {
-      await mkdir(this.#directory, { recursive: true });
-      await appendFile(this.#path, line, "utf8");
-    }).catch(() => {
+    this.#pending.push(line);
+    this.#schedule();
+  }
+
+  #schedule(): void {
+    if (this.#scheduled || this.#writing || this.#failed) return;
+    this.#scheduled = true;
+    // Performance: check-phase batches yield to input and amortize file opens and promises.
+    setImmediate(() => { this.#scheduled = false; void this.#flush(); });
+  }
+
+  async #flush(): Promise<void> {
+    if (this.#failed || this.#pending.length === 0) return;
+    this.#writing = true;
+    const batch = this.#pending.join("");
+    this.#pending = [];
+    try {
+      if (!this.#directoryReady) {
+        await mkdir(this.#directory, { recursive: true });
+        this.#directoryReady = true;
+      }
+      await appendFile(this.#path, batch, "utf8");
+    } catch {
       this.#failed = true;
-    }).finally(() => {
-      this.#pendingBytes -= length;
-    });
+      this.#pending = [];
+    } finally {
+      this.#pendingBytes -= Buffer.byteLength(batch);
+      this.#writing = false;
+      if (this.#pending.length > 0) this.#schedule();
+    }
   }
 }
 
 let observer: ResidentProgressObserver | null | undefined;
 
-/** Returns the opt-in payload-free observer for a resident child, or null on ordinary launches. */
+/** Opt-in payload-free child observer; ordinary launches return null. */
 export function residentProgressObserver(
   environment: NodeJS.ProcessEnv = process.env,
 ): ResidentProgressObserverPort | null {
@@ -144,8 +141,7 @@ export function residentProgressObserver(
     : null;
   if (environment === process.env) {
     observer = value;
-    // Security: test evidence paths and tab identity are not child/tool configuration. Retain them only in
-    // this observer instance so extensions and spawned tools cannot append to the fixture trace.
+    // Security: keep evidence paths and identity private; erase them before extensions/tools inherit env.
     for (const name of [
       OBSERVATION_DIRECTORY_ENV,
       OBSERVATION_RUN_ENV,

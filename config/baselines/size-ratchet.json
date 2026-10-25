@@ -128,10 +128,10 @@
       "lines": 160
     },
     "native/terminal-host/src/roles/holder.rs::run_holder": {
-      "lines": 779
+      "lines": 753
     },
     "native/terminal-host/src/roles/presentation.rs::PresentationComposer::prepare": {
-      "lines": 122
+      "lines": 120
     },
     "native/terminal-host/src/roles/quit_outro.rs::fall_plan": {
       "lines": 111

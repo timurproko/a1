@@ -1,6 +1,7 @@
 //! How the attach client reveals its frame after a resize: the whole frame draws faint for
 //! `REVEAL_FADE`, then at full intensity. Opening or switching tabs draws at once, without a fade.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::roles::presentation::{DesiredPresentation, FinalCursor};
@@ -98,7 +99,7 @@ pub fn fade_presentation(mut desired: DesiredPresentation) -> DesiredPresentatio
         desired.legacy_body = force_faint_ansi(&desired.legacy_body);
     }
     if let Some(surface) = desired.structured.as_mut() {
-        for style in &mut surface.styles {
+        for style in &mut Arc::make_mut(surface).styles {
             style.faint = true;
         }
         desired.overlay = Some(desired.overlay.map_or_else(
@@ -128,10 +129,10 @@ mod tests {
             revision: 2,
             geometry_generation: 3,
             strip: "\x1b[0mstrip".into(),
-            structured: Some(protocol::StructuredSurface {
+            structured: Some(Arc::new(protocol::StructuredSurface {
                 styles: vec![protocol::SurfaceStyle::default()],
                 ..protocol::StructuredSurface::default()
-            }),
+            })),
             legacy_body: b"\x1b[0mlegacy".to_vec(),
             overlay: Some("\x1b[0moverlay".into()),
             cursor: Some(FinalCursor::At(protocol::SurfaceCursor {
@@ -145,6 +146,16 @@ mod tests {
             clear: true,
             dimmed: false,
         }
+    }
+
+    #[test]
+    fn fading_shared_cells_copies_without_dimming_the_original_commit() {
+        let original = desired();
+        let grid = original.structured.as_ref().unwrap().clone();
+        let faded = fade_presentation(original);
+        assert!(!grid.styles[0].faint);
+        assert!(faded.structured.as_ref().unwrap().styles[0].faint);
+        assert!(!Arc::ptr_eq(&grid, faded.structured.as_ref().unwrap()));
     }
 
     #[test]

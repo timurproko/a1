@@ -220,10 +220,13 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
           },
         }),
       } : { layoutRoot: pinnedLayoutRoot(this.#delegatingLayoutParts()) }),
-      ...(input?.onEvent === undefined ? {} : {
+      ...(input?.onEvent === undefined && progressObserver === null ? {} : {
         inputDiagnostics: {
-          onEvent: input.onEvent,
-          ...(input.now === undefined ? {} : { now: input.now }),
+          onEvent: event => {
+            input?.onEvent?.(event);
+            progressObserver?.inputPhase?.(event.phase, event.revision);
+          },
+          ...(input?.now === undefined ? {} : { now: input.now }),
         },
       }),
       ...(options.terminal === undefined ? {} : { terminal: options.terminal }),

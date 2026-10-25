@@ -6,6 +6,9 @@ use napi_derive::napi;
 use crate::session_lock::SessionLock;
 
 #[cfg(feature = "resident-fixtures")]
+mod frame_observer;
+
+#[cfg(feature = "resident-fixtures")]
 use serde::Serialize;
 #[cfg(feature = "resident-fixtures")]
 use sha2::{Digest, Sha256};
@@ -261,6 +264,18 @@ fn marker_cells(
         }
     }
     evidence
+}
+
+/// Fixture certificates must time the shipping optimization profile, not debug builds.
+#[cfg(feature = "resident-fixtures")]
+#[napi]
+pub fn fixture_build_profile() -> String {
+    if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    }
+    .to_owned()
 }
 
 #[napi]

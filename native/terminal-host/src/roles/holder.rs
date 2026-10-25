@@ -52,8 +52,8 @@ const SYNCHRONIZED_OUTPUT_RECOVERY_DELAY: Duration = Duration::from_millis(250);
 // markers when it parses them, so a frame's cells can arrive after its end marker (and a render
 // pass can land between its markers). Only a PTY that relays bytes verbatim delimits frames.
 const MARKERS_DELIMIT_FRAMES: bool = !cfg!(windows);
-/// Bound on waiting for the render pass that follows a relayed end marker.
-const RENDER_PASS_WAIT: Duration = Duration::from_millis(40);
+/// Bound on waiting for a relayed render pass: a longer fallback stalls interactive navigation.
+const RENDER_PASS_WAIT: Duration = Duration::from_millis(16);
 /// Quiet gap after re-rendered output: one render pass can span several pipe reads.
 const RENDER_PASS_SETTLE: Duration = Duration::from_millis(2);
 const HOLDER_IDLE_WAKE: Duration = Duration::from_millis(8);
@@ -64,8 +64,10 @@ struct SynchronizationState {
     deadline: Option<std::time::Instant>,
     recovered: bool,
     markers_delimit_frames: bool,
-    /// Set by a relayed end marker: the frame is parsed but its render pass has not arrived.
+    /// Hard bound for the oldest unpublished render pass; newer markers cannot renew it.
     render_pass_due: Option<std::time::Instant>,
+    /// A relayed end marker still needs its following render pass, unless the hard bound expires.
+    awaiting_render_pass: bool,
     /// Earliest publication of re-rendered output, so one pass is not split across commits.
     settled_at: Option<std::time::Instant>,
     /// Platform: a re-rendering PTY can also leave its cursor past the final column.
@@ -80,6 +82,7 @@ impl SynchronizationState {
             recovered: false,
             markers_delimit_frames,
             render_pass_due: None,
+            awaiting_render_pass: false,
             settled_at: None,
             conpty_cursor: ConptyCursorRepair::new(!markers_delimit_frames),
         }
@@ -117,7 +120,7 @@ impl SynchronizationState {
             SynchronizedOutputBoundary::Begin => {
                 // Protocol: bytes preceding a begin marker belong to the prior coherent state unless
                 // that state is still waiting for its re-rendered cells.
-                let publishable = self.render_pass_due.is_none_or(|due| now >= due);
+                let publishable = self.may_publish(now);
                 self.begin(now);
                 publishable
             }
@@ -126,7 +129,9 @@ impl SynchronizationState {
                 if self.markers_delimit_frames {
                     return true;
                 }
-                self.render_pass_due = now.checked_add(RENDER_PASS_WAIT);
+                self.render_pass_due
+                    .get_or_insert_with(|| now + RENDER_PASS_WAIT);
+                self.awaiting_render_pass = true;
                 false
             }
             SynchronizedOutputBoundary::Reset => {
@@ -141,8 +146,20 @@ impl SynchronizationState {
         if self.markers_delimit_frames {
             return;
         }
-        self.render_pass_due = None;
+        if !self.open {
+            self.awaiting_render_pass = false;
+            // Performance: continuous fragments may renew quiet settling, never its hard bound.
+            self.render_pass_due
+                .get_or_insert_with(|| now + RENDER_PASS_WAIT);
+        }
         self.settled_at = now.checked_add(RENDER_PASS_SETTLE);
+    }
+
+    /// Consumes a publication decision, including equal captures, without closing parser state.
+    fn published(&mut self) {
+        self.render_pass_due = None;
+        self.awaiting_render_pass = false;
+        self.settled_at = None;
     }
 
     fn recover_if_due(&mut self, now: std::time::Instant) -> bool {
@@ -155,8 +172,8 @@ impl SynchronizationState {
 
     fn may_publish(&self, now: std::time::Instant) -> bool {
         (!self.open || self.recovered)
-            && self.render_pass_due.is_none_or(|due| now >= due)
-            && self.settled_at.is_none_or(|at| now >= at)
+            && (self.render_pass_due.is_some_and(|due| now >= due)
+                || (!self.awaiting_render_pass && self.settled_at.is_none_or(|at| now >= at)))
     }
 
     /// How long the loop may sleep before a pending publication decision is due.
@@ -278,6 +295,79 @@ fn surface_message(
         revision,
         status: status.into(),
     })
+}
+
+/// Input completion is payload-free evidence, distinct from output ingestion and rendering.
+fn spawn_pty_writer(
+    mut writer: Box<dyn Write + Send>,
+    receiver: mpsc::Receiver<(Vec<u8>, usize)>,
+    results: mpsc::Sender<Result<usize, String>>,
+    wake: mpsc::SyncSender<()>,
+    tab_id: String,
+    incarnation: u64,
+) {
+    thread::spawn(move || {
+        let mut sequence = 0u64;
+        while let Ok((bytes, admitted)) = receiver.recv() {
+            if crate::fault_injection::enabled("A1_TABS_FAULT_BLOCK_PTY_WRITE") {
+                loop {
+                    thread::sleep(Duration::from_secs(1));
+                }
+            }
+            let started = std::time::Instant::now();
+            let result = writer
+                .write_all(&bytes)
+                .and_then(|()| writer.flush())
+                .map(|()| admitted)
+                .map_err(|error| format!("write resident PTY input: {error}"));
+            let failed = result.is_err();
+            sequence = sequence.saturating_add(1);
+            progress_observation::observe(
+                "holder",
+                "pty-input-write",
+                ProgressMetadata {
+                    tab_id: Some(&tab_id),
+                    incarnation,
+                    event_sequence: sequence,
+                    bytes: bytes.len(),
+                    count: 1,
+                    event_kind: Some(if failed {
+                        "failed"
+                    } else if admitted == 0 {
+                        "control"
+                    } else {
+                        "input"
+                    }),
+                    duration_us: Some(
+                        started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64
+                    ),
+                    ..ProgressMetadata::default()
+                },
+            );
+            let delivered = results.send(result).is_ok();
+            let _ = wake.try_send(());
+            if !delivered || failed {
+                break;
+            }
+        }
+    });
+}
+
+/// Keep the PTY-ingestion diagnostic passive and its sequence local to this holder incarnation.
+fn observe_pty_ingestion(config: &HolderLaunchConfig, bytes: usize, sequence: &mut u64) {
+    *sequence = sequence.saturating_add(1);
+    progress_observation::observe(
+        "holder",
+        "pty-ingest",
+        ProgressMetadata {
+            tab_id: Some(&config.tab_id),
+            incarnation: config.incarnation,
+            event_sequence: *sequence,
+            bytes,
+            count: 1,
+            ..ProgressMetadata::default()
+        },
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -755,7 +845,7 @@ fn run_holder(
         .master
         .try_clone_reader()
         .map_err(|error| format!("clone resident PTY reader: {error}"))?;
-    let mut pty_writer = pair
+    let pty_writer = pair
         .master
         .take_writer()
         .map_err(|error| format!("take resident PTY writer: {error}"))?;
@@ -764,27 +854,14 @@ fn run_holder(
     // Performance: PTY, command, and write-completion threads wake the holder loop directly so
     // input and output never wait out an idle poll; capacity one keeps wakes coalesced.
     let (wake_tx, wake_rx) = mpsc::sync_channel::<()>(1);
-    let writer_wake = wake_tx.clone();
-    thread::spawn(move || {
-        while let Ok((bytes, admitted)) = write_rx.recv() {
-            if crate::fault_injection::enabled("A1_TABS_FAULT_BLOCK_PTY_WRITE") {
-                loop {
-                    thread::sleep(Duration::from_secs(1));
-                }
-            }
-            let result = pty_writer
-                .write_all(&bytes)
-                .and_then(|()| pty_writer.flush())
-                .map(|()| admitted)
-                .map_err(|error| format!("write resident PTY input: {error}"));
-            let failed = result.is_err();
-            let delivered = write_result_tx.send(result).is_ok();
-            let _ = writer_wake.try_send(());
-            if !delivered || failed {
-                break;
-            }
-        }
-    });
+    spawn_pty_writer(
+        pty_writer,
+        write_rx,
+        write_result_tx,
+        wake_tx.clone(),
+        config.tab_id.clone(),
+        config.incarnation,
+    );
     // Concurrency: bounded transport applies backpressure at the PTY reader instead of letting a hidden or
     // disconnected child grow process memory without limit.
     let (output_tx, output_rx) = mpsc::sync_channel::<Vec<u8>>(64);
@@ -851,7 +928,8 @@ fn run_holder(
     let mut changed = false;
     loop {
         watchdog.bump();
-        if let Ok(reconnected) = reconnect_rx.try_recv() {
+        let mut round = super::ready_round::ReadyRound::default();
+        if let Ok(reconnected) = round.receive(&reconnect_rx) {
             let (replacement, epoch) = reconnected?;
             reconnecting = false;
             if epoch >= highest_epoch {
@@ -886,7 +964,7 @@ fn run_holder(
             }
         }
         for _ in 0..8 {
-            let Ok(result) = write_result_rx.try_recv() else {
+            let Ok(result) = round.receive(&write_result_rx) else {
                 break;
             };
             let event = match result {
@@ -899,7 +977,7 @@ fn run_holder(
         // Concurrency: one hot producer cannot monopolize the holder loop indefinitely.
         let command_round_started = std::time::Instant::now();
         for _ in 0..8 {
-            let Ok(command) = command_rx.try_recv() else {
+            let Ok(command) = round.receive(&command_rx) else {
                 break;
             };
             if matches!(command, HolderCommand::Disconnected) {
@@ -1168,23 +1246,11 @@ fn run_holder(
         let output_round_started = std::time::Instant::now();
         let mut output_bytes = 0usize;
         for _ in 0..32 {
-            let Ok(bytes) = output_rx.try_recv() else {
+            let Ok(bytes) = round.receive(&output_rx) else {
                 break;
             };
             output_bytes = output_bytes.saturating_add(bytes.len());
-            pty_event_sequence = pty_event_sequence.saturating_add(1);
-            progress_observation::observe(
-                "holder",
-                "pty-ingest",
-                ProgressMetadata {
-                    tab_id: Some(&config.tab_id),
-                    incarnation: config.incarnation,
-                    event_sequence: pty_event_sequence,
-                    bytes: bytes.len(),
-                    count: 1,
-                    ..ProgressMetadata::default()
-                },
-            );
+            observe_pty_ingestion(&config, bytes.len(), &mut pty_event_sequence);
             recovery_output.extend(&bytes);
             while recovery_output.len() > 2 * 1024 * 1024 {
                 recovery_output.pop_front();
@@ -1240,6 +1306,7 @@ fn run_holder(
                         revision,
                         &mut effect_sequence,
                     )?;
+                    synchronization.published();
                     changed = false;
                 }
                 geometry_deadline = None;
@@ -1276,6 +1343,7 @@ fn run_holder(
                 revision,
                 &mut effect_sequence,
             )?;
+            synchronization.published();
             changed = false;
             geometry_deadline = None;
         }
@@ -1302,6 +1370,7 @@ fn run_holder(
                 revision,
                 &mut effect_sequence,
             )?;
+            synchronization.published();
         }
         if !synchronization.open
             && geometry_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline)
@@ -1319,6 +1388,7 @@ fn run_holder(
                 SurfaceCommitKind::ProvisionalGeometry,
                 "idle",
             )?;
+            synchronization.published();
             geometry_deadline = None;
         }
         if stop_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
@@ -1326,17 +1396,7 @@ fn run_holder(
             stop_deadline = None;
         }
         if heartbeat.elapsed() >= Duration::from_secs(5) {
-            let _ = server.offer_control(wire::frame(
-                "holder.heartbeat",
-                None,
-                wire::HolderReady {
-                    tab_id: config.tab_id.clone(),
-                    pid: std::process::id(),
-                    incarnation: config.incarnation,
-                    child_pid,
-                    child_start_identity: child_identity.start.clone(),
-                },
-            )?);
+            offer_holder_heartbeat(&server, &config, child_pid, &child_identity.start)?;
             heartbeat = std::time::Instant::now();
         }
         if !child_exited
@@ -1368,6 +1428,7 @@ fn run_holder(
                     revision,
                     &mut effect_sequence,
                 )?;
+                synchronization.published();
                 synchronization.close();
             }
             let recovery_root = tab_data_dir.join("recovery");
@@ -1410,7 +1471,10 @@ fn run_holder(
                 return Ok(());
             }
         }
-        let _ = wake_rx.recv_timeout(synchronization.wake_timeout(std::time::Instant::now()));
+        round.wait(
+            &wake_rx,
+            synchronization.wake_timeout(std::time::Instant::now()),
+        );
     }
 }
 
@@ -1432,6 +1496,27 @@ fn child_exit_frames(
         )?,
         wire::frame("holder.exit", None, exit.clone())?,
     ])
+}
+
+/// Sends bounded heartbeat metadata without changing the parser loop's failure policy.
+fn offer_holder_heartbeat(
+    server: &HolderServerPeer,
+    config: &HolderLaunchConfig,
+    child_pid: u32,
+    child_start_identity: &str,
+) -> Result<(), String> {
+    let _ = server.offer_control(wire::frame(
+        "holder.heartbeat",
+        None,
+        wire::HolderReady {
+            tab_id: config.tab_id.clone(),
+            pid: std::process::id(),
+            incarnation: config.incarnation,
+            child_pid,
+            child_start_identity: child_start_identity.to_owned(),
+        },
+    )?);
+    Ok(())
 }
 
 fn offer_child_exit(
@@ -1869,8 +1954,57 @@ fn connect_retry(address: &str, retry_forever: bool) -> Result<endpoint::Endpoin
 }
 
 #[cfg(test)]
+#[path = "holder/synchronization_tests.rs"]
+mod synchronization_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn input_writer_preserves_control_order_and_admission_credits() {
+        #[derive(Clone)]
+        struct Capture(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+        impl Write for Capture {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let capture = Capture(Default::default());
+        let (sender, receiver) = mpsc::channel();
+        let (results, completions) = mpsc::channel();
+        let (wake, _) = mpsc::sync_channel(1);
+        spawn_pty_writer(
+            Box::new(capture.clone()),
+            receiver,
+            results,
+            wake,
+            "tab-test".into(),
+            1,
+        );
+        for (bytes, admitted) in [
+            (b"one".to_vec(), 3),
+            (b"|".to_vec(), 0),
+            (b"two".to_vec(), 3),
+        ] {
+            sender.send((bytes, admitted)).unwrap();
+        }
+        drop(sender);
+        for expected in [3, 0, 3] {
+            assert_eq!(
+                completions
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap()
+                    .unwrap(),
+                expected
+            );
+        }
+        assert_eq!(*capture.0.lock().unwrap(), b"one|two");
+    }
     fn shell(script: &str) -> std::process::Child {
         let mut command = if cfg!(windows) {
             let mut command = std::process::Command::new("cmd");
@@ -1967,11 +2101,12 @@ mod tests {
             synchronization.wake_timeout(ended + RENDER_PASS_WAIT - Duration::from_millis(3)),
             Duration::from_millis(3)
         );
-        let rendered = ended + Duration::from_millis(23);
+        let rendered = ended + Duration::from_millis(8);
         synchronization.note_output(rendered);
         assert!(!synchronization.may_publish(rendered));
         assert_eq!(synchronization.wake_timeout(rendered), RENDER_PASS_SETTLE);
         assert!(synchronization.may_publish(rendered + RENDER_PASS_SETTLE));
+        synchronization.published();
         assert_eq!(
             synchronization.wake_timeout(rendered + RENDER_PASS_SETTLE),
             HOLDER_IDLE_WAKE

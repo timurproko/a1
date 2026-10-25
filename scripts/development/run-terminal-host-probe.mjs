@@ -44,6 +44,11 @@ export function partitionRoleTests(names, { index, count }) {
   return selected;
 }
 
+/** Production optimization with fixture controls retained for the same negative-control matrix. */
+export function performanceBuildArguments(manifest) {
+  return ["build", "--release", "--locked", "--manifest-path", manifest, "--lib", "--features", "node-addon,resident-fixtures,fault-injection"];
+}
+
 function partitionFromArguments(argv, env) {
   const flag = argv.indexOf("--partition");
   if (flag >= 0) return parsePartition(argv[flag + 1]);
@@ -84,7 +89,8 @@ async function main() {
   // Invariant: the real-process Vitest fixture must see the addon before test collection; otherwise
   // its native assertions would skip while the old executable target no longer exists.
   run(cargo, ["build", "--manifest-path", manifest, "--lib", "--features", "node-addon,resident-fixtures,fault-injection"], environment);
-  const builtAddon = resolve("native/terminal-host/target/debug", platform() === "win32" ? "terminal_host_contracts.dll" : platform() === "darwin" ? "libterminal_host_contracts.dylib" : "libterminal_host_contracts.so");
+  const library = platform() === "win32" ? "terminal_host_contracts.dll" : platform() === "darwin" ? "libterminal_host_contracts.dylib" : "libterminal_host_contracts.so";
+  const builtAddon = resolve("native/terminal-host/target/debug", library);
   const debugAddon = resolve(".artifacts/terminal-host/terminal-host.node");
   await mkdir(resolve(".artifacts/terminal-host"), { recursive: true });
   await copyFile(builtAddon, debugAddon);
@@ -110,6 +116,14 @@ async function main() {
     runRole(debugAddon, [flag], environment, PROBE_TIMEOUT_MS);
   }
   run(process.execPath, [resolve("scripts/release/verify-native-artifacts.mjs"), "--local"], environment, PROBE_TIMEOUT_MS);
+  // Provenance: preserve the debug tests/probes and feature-free shipping artifact above. Timing
+  // uses shipping optimization with the SAME fixture controls, never debug overhead or looser budgets.
+  run(cargo, performanceBuildArguments(manifest), environment, RELEASE_BUILD_TIMEOUT_MS);
+  const performanceDirectory = resolve(".artifacts/terminal-host/performance");
+  const performanceAddon = resolve(performanceDirectory, "terminal-host.node");
+  await mkdir(performanceDirectory, { recursive: true });
+  await copyFile(resolve("native/terminal-host/target/release", library), performanceAddon);
+  run(process.execPath, ["-e", "if(require(process.argv[1]).fixtureBuildProfile?.()!=='release') process.exit(2);", performanceAddon], environment, PROBE_TIMEOUT_MS);
   console.log(`Terminal host addon, contracts/durability/controller boundary, fixed-role launch, retained model, native input/selection probes, and release artifact OK${partition?.skip ? " (role tests ran in their partitions)" : ""}`);
 }
 

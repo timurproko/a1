@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { displayColumnSlice, displayWidth, displayWordColumnRange, padToWidth, stripAnsi, truncateToWidth } from "../../../src/ui/components/index.js";
 
 const RESET = "[0m";
@@ -15,6 +15,19 @@ describe("display width", () => {
   it("counts ordinary text by character", () => {
     expect(displayWidth("")).toBe(0);
     expect(displayWidth("hello")).toBe(5);
+  });
+
+  it("measures printable ASCII without allocating grapheme iterators, including styled text", () => {
+    const segment = vi.spyOn(Intl.Segmenter.prototype, "segment");
+    try {
+      expect(displayWidth("LatencyModel39 ")).toBe(15);
+      expect(displayWidth(`${RED}LatencyModel39 ${RESET}`)).toBe(15);
+      expect(displayWidth(" ".repeat(4_096))).toBe(4_096);
+      expect(segment).not.toHaveBeenCalled();
+      expect(displayWidth("a\t\u007fb")).toBe(5);
+      expect(displayWidth("abc\n")).toBe(3);
+      expect(segment).toHaveBeenCalledTimes(2);
+    } finally { segment.mockRestore(); }
   });
 
   it("counts CJK and fullwidth forms as two columns", () => {

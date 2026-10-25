@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 export const progressObservationSchema = "a1-resident-progress-observation-v1";
 export const progressStages = Object.freeze([
-  "engine-delivery", "child-render-write", "pty-ingest", "holder-commit", "attach-receipt", "outer-paint",
+  "engine-delivery", "child-render-write", "child-input-phase", "pty-input-write", "pty-ingest", "holder-commit", "attach-receipt", "outer-paint",
   "pipe-frame-read", "pipe-write-complete", "outer-write-complete", "wake-gap", "wake-repaint-requested", "fixture-stop-ack",
 ]);
 const connectionStages = new Set(["pipe-frame-read", "pipe-write-complete", "outer-write-complete", "wake-gap", "wake-repaint-requested"]);
@@ -194,10 +194,8 @@ export function progressLatencyReport(records, tabIds, activeWindows = null) {
     const pty = tab.filter(record => record.stage === "pty-ingest");
     const renderToPty = matchForward(render, pty, boundaries);
     const commits = tab.filter(record => record.stage === "holder-commit");
-    const paintsByRevision = new Map(tab.filter(record => record.stage === "outer-paint" && record.revision > 0)
-      .map(record => [record.revision, record]));
-    const commitToPaint = commits.map(record => paintsByRevision.has(record.revision)
-      ? durationMs(record, paintsByRevision.get(record.revision), boundaries) : Number.NaN).filter(Number.isFinite);
+    const presentation = healthyPresentationSamples(tab, commits, activeWindows, boundaries);
+    const commitToPaint = presentation.durations;
     const commitTimes = tab.filter(record => record.stage === "holder-commit")
       .sort((left, right) => left.timestampUnixUs - right.timestampUnixUs);
     // Invariant: a holder owes commits only while its child has new output. Settled turns, stopped-stage
@@ -215,6 +213,9 @@ export function progressLatencyReport(records, tabIds, activeWindows = null) {
     };
     if (engineToRender.length < 40) allFaults.push(`${tabId}: fewer than 40 matched engine-to-render samples`);
     if (renderToPty.length < 40) allFaults.push(`${tabId}: fewer than 40 matched renderer-to-PTY samples`);
+    if (commitToPaint.length < 40) allFaults.push(`${tabId}: fewer than 40 matched healthy commit-to-paint samples`);
+    if (perTab[tabId].commitToPaint.p95Ms > 33) allFaults.push(`${tabId}: healthy commit-to-paint p95 exceeded 33 ms`);
+    for (const index of presentation.missingWindows) allFaults.push(`${tabId}: healthy viewed window ${index + 1} has no matched presentation`);
     if (perTab[tabId].holderWorstGapMs !== null && perTab[tabId].holderWorstGapMs > 1_000) allFaults.push(`${tabId}: holder no-progress gap exceeded 1000 ms`);
   }
   // Rationale: local I/O completion durations are not physical presentation or idle-read latency.
@@ -223,6 +224,41 @@ export function progressLatencyReport(records, tabIds, activeWindows = null) {
       .map(record => record.durationUs / 1_000)),
   ]));
   return { perTab, faults: allFaults, localCompletions };
+}
+
+// Rationale: activation re-offers may deliberately reuse a commit made while hidden; that age is not live
+// delivery latency. The first receipt/paint of each incarnation/revision fixes its causal sample.
+function healthyPresentationSamples(tab, commits, windows, boundaries) {
+  const key = record => `${record.incarnation}:${record.revision}`;
+  const first = stage => {
+    const values = new Map();
+    for (const record of tab.filter(value => value.stage === stage && value.revision > 0)
+      .sort((left, right) => left.timestampUnixUs - right.timestampUnixUs)) {
+      if (!values.has(key(record))) values.set(key(record), record);
+    }
+    return values;
+  };
+  const receipts = first("attach-receipt");
+  const paints = first("outer-paint");
+  const durations = [];
+  const matchedWindows = new Set();
+  for (const commit of commits) {
+    const receipt = receipts.get(key(commit));
+    if (receipt?.eventKind === "activation" || receipt?.eventKind === "stale") continue;
+    const paint = paints.get(key(commit));
+    if (paint === undefined) continue; // Invariant: superseded complete states may be coalesced.
+    const duration = durationMs(commit, paint, boundaries);
+    if (!Number.isFinite(duration)) continue;
+    const eligible = windows === null ? [0] : windows.flatMap((window, index) =>
+      commit.timestampUnixUs >= window.startedUnixUs && paint.timestampUnixUs <= window.barrierUnixUs
+        && (window.viewedTabIds === undefined || window.viewedTabIds.includes(commit.tabId)) ? [index] : []);
+    if (eligible.length === 0) continue;
+    durations.push(duration);
+    for (const index of eligible) matchedWindows.add(index);
+  }
+  const missingWindows = (windows ?? []).flatMap((window, index) =>
+    window.viewedTabIds?.includes(tab[0]?.tabId) && !matchedWindows.has(index) ? [index] : []);
+  return { durations, missingWindows };
 }
 
 function increasing(records, field) {

@@ -74,7 +74,7 @@ export function evaluateStoppedStageControl(records: readonly ProgressObservatio
   stopBoundary?: StopObservationBoundary;
 };
 export function progressLatencyReport(records: readonly ProgressObservation[], tabIds: readonly string[],
-  activeWindows?: readonly { readonly startedUnixUs: number; readonly barrierUnixUs: number }[] | null): {
+  activeWindows?: readonly { readonly startedUnixUs: number; readonly barrierUnixUs: number; readonly viewedTabIds?: readonly string[] }[] | null): {
   perTab: Record<string, {
     engineToRender: LatencySummary;
     renderToPty: LatencySummary;

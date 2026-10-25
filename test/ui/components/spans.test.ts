@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   backgroundSgrSpan,
   displayWidth,
@@ -20,6 +20,17 @@ describe("overlaying a span on a rendered row", () => {
     const result = overlaySpan(image + "        ", 7, 8, "┃");
     expect(result.split(image)).toHaveLength(2);
     expect(stripAnsi(result)).toBe("       ┃");
+  });
+
+  it.each([
+    ["x".repeat(80), 10, 20, "0123456789", "x".repeat(10) + "0123456789" + "x".repeat(60)],
+    ["a界e\u0301👩‍💻z", 1, 3, "XY", "aXYe\u0301👩‍💻z"],
+  ] as const)("segments a plain row once without re-segmenting each grapheme: %s", (line, from, to, span, expected) => {
+    const segment = vi.spyOn(Intl.Segmenter.prototype, "segment");
+    try {
+      expect(overlaySpan(line, from, to, span)).toBe(expected);
+      expect(segment).toHaveBeenCalledTimes(1);
+    } finally { segment.mockRestore(); }
   });
 
   it("replaces the named columns and keeps the rest", () => {
