@@ -1,0 +1,36 @@
+## Delivered behavior
+
+The holder retains the oldest pending ConPTY publication deadline across later end markers and continuous output fragments. Publication consumption clears that wait, pass-readiness and quiet-settle state without closing a parser transaction. The fallback is 16 ms, the following-pass quiet interval remains 2 ms, and open transactions retain the existing non-renewable 250 ms typed recovery escape. Unix verbatim boundary publication is unchanged. A small heartbeat extraction preserves failure policy and lowers the existing holder-loop size ratchet from 779 to 774 lines.
+
+The progress report now fails healthy live commit-to-first-completed-paint p95 over 33 ms, fewer than forty matched samples per tab, or a declared viewed healthy window without a matched paint. Incarnation and revision identify a sample; the first receipt distinguishes live delivery from activation/stale retained re-offers. Coalesced intermediate surfaces remain legal, and later strip paints cannot replace the first delivery timestamp. Deliberate paused-sink/stopped-stage windows are not healthy measurement windows. Existing clock and loss checks remain in force.
+
+The exact-artifact harness adds forty real-A1 input responses each for typing, Models navigation and transcript wheel scrolling at matched 100×29 child geometry. Input is sent normally at 30 ms cadence; the resident path need not pause for each paint. A fixture-only incremental Ghostty observer matches complete synthetic semantic states, accepts valid later coalesced states as acknowledgement of earlier input, and rejects unrelated, stale, open or missing states. Direct target hashes use the final state in an ordinary inter-input interval and time its first observed occurrence, rather than accidentally treating a partial ConPTY menu repaint as the expected final state. Resident p95 must remain within direct p95 plus the existing 16+33 ms input/presentation envelope; a one-second stall fails independently of p95.
+
+## Diagnostic corrections during implementation
+
+The first non-renewable implementation retained the previous 40 ms fallback. Preliminary input runs still reported sluggish navigation, so that wait was tightened instead of raising the responsiveness threshold. These preliminary runs were not an exact-artifact before/after benchmark: investigation also found that WMI-launched fixture roles could lose the initiating shell's addon override and load the addon beside dist. The harness now generates one fixed role entry that pins the requested addon for every detached role and records its source digest. A focused test checks both absent and misleading inherited overrides. Production launch and update behavior is unchanged.
+
+Direct ConPTY observation can also expose a changed partial grid after its relayed end marker but before the remaining cells. The direct oracle now selects the completed inter-input result and retains its first actual observation time. A negative case rejects the early partial hash as the expected resident result. Neither correction forces rendering, replaces the owned UI, or inflates the latency budget.
+
+## Focused local evidence
+
+All checks ran in the owning worktree. Native builds used its copied, manifest-verified prebuilt Windows Ghostty library and private Cargo target; no live user tabs or system sleep state were manipulated.
+
+- `npm run build`: passed, including a source-built release addon.
+- `npm run typecheck`: passed.
+- `cargo test --manifest-path native/terminal-host/Cargo.toml --lib roles::holder::`: 23 passed. Six new cases cover sustained between-marker cells, non-renewable deadlines, continuous fragments, publication consumption, open-transaction recovery and actual retained-cell advancement without a pause.
+- `cargo test --manifest-path native/terminal-host/Cargo.toml --lib roles::attach::`: 43 passed.
+- Fixture addon compilation with `node-addon,resident-fixtures`: passed; the incremental native observer remains absent from release addons.
+- Focused Vitest files for progress observations, healthy presentation latency, real-input verdicts and terminal architecture: 68 passed. Negative cases cover 200 ms presentation delay, missing samples, incarnation mismatch, stale/activation re-offers, invalid clocks, late duplicate paints, incomplete input frames, long tail stalls, transient direct hashes, and detached artifact custody.
+- Architecture and code-documentation governance: passed. The size baseline was lowered, not relaxed.
+- Strict validation of `fix-resident-publication-starvation`: passed.
+- The touched exact-artifact Windows parallel-progress harness passed all 18 first-response/view scenarios, direct/resident temporal parity, slow transport, interaction/resize pressure, detached server replacement, fragmented synchronized output and all four stopped-stage controls with zero report faults. The fragmented control observed 24 child writes with up to 64 fragments, 25 normal complete commits and zero recovery commits.
+
+In that exact-artifact run, real-input p95 direct/resident was 2.91/23.17 ms for typing, 2.23/35.27 ms for navigation and 5.96/32.12 ms for wheel scrolling. Resident maximums were 23.83, 57.80 and 33.20 ms respectively. Healthy commit-to-paint p95 was 3.38, 3.05 and 3.80 ms across the three agents, with 159, 157 and 220 matched samples. These are local Windows observations, not promises of identical microsecond timings or physical pixels on every terminal.
+
+## Known-gap dispositions
+
+- The user's exact installed cohort and live Windows Terminal symptom were not captured. Disposition: this repair fixes demonstrated publication starvation and adds real-A1 regressions; do not claim a reproduction of that exact incident.
+- Physical pixels, sleep/wake and other operating systems are not certified by this local headless Windows run. Disposition: preserve those distinctions; finalized-head CI owns platform validation and optional manual interaction does not gate implementation completion.
+- Existing resident cohorts retain their loaded native code. Disposition: preserve no-forced-recycle updates, never stop user tabs automatically, and use the isolated development launcher for review.
+- Full-grid transport optimization remains unimplemented. Disposition: defer speculative optimization; measured healthy commit-to-paint latency is already within budget, and no wire deltas or protocol-generation changes are needed for this repair.

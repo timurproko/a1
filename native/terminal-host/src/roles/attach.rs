@@ -2569,6 +2569,13 @@ impl Client {
                     .map_or(0, |structured| structured.geometry_generation),
                 bytes: payload.len(),
                 count: 1,
+                event_kind: Some(if surface.stale {
+                    "stale"
+                } else if self.view.requested.as_deref() == Some(surface.tab_id.as_str()) {
+                    "activation"
+                } else {
+                    "live"
+                }),
                 ..ProgressMetadata::default()
             },
         );

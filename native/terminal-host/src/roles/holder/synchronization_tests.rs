@@ -25,7 +25,7 @@ fn sustained_between_marker_frames_publish_before_input_stops() {
             state.published();
         }
     }
-    assert_eq!(publications.first(), Some(&42));
+    assert_eq!(publications.first(), Some(&18));
     assert!(publications.len() >= 8, "{publications:?}");
     assert!(publications.windows(2).all(|pair| pair[1] - pair[0] <= 60));
 }
@@ -38,9 +38,9 @@ fn later_end_markers_never_renew_the_pending_deadline() {
     state.note_output(started + Duration::from_millis(1));
     state.observe(End, started + Duration::from_millis(2));
     let due = state.render_pass_due.unwrap();
-    state.observe(Begin, started + Duration::from_millis(30));
-    state.note_output(started + Duration::from_millis(31));
-    state.observe(End, started + Duration::from_millis(32));
+    state.observe(Begin, started + Duration::from_millis(10));
+    state.note_output(started + Duration::from_millis(11));
+    state.observe(End, started + Duration::from_millis(12));
     assert_eq!(state.render_pass_due, Some(due));
     assert!(!state.may_publish(due - Duration::from_millis(1)));
     assert!(state.may_publish(due));
@@ -52,10 +52,10 @@ fn continuous_post_end_fragments_cannot_extend_the_hard_bound() {
     let mut state = SynchronizationState::new(false);
     state.observe(Begin, started);
     state.observe(End, started);
-    for ms in 1..=40 {
+    for ms in 1..=16 {
         let now = started + Duration::from_millis(ms);
         state.note_output(now);
-        assert_eq!(state.may_publish(now), ms == 40);
+        assert_eq!(state.may_publish(now), ms == 16);
         assert_eq!(state.render_pass_due, Some(started + RENDER_PASS_WAIT));
     }
 }
@@ -66,8 +66,8 @@ fn pending_deadline_does_not_expose_an_open_transaction() {
     let mut state = SynchronizationState::new(false);
     state.observe(Begin, started);
     state.observe(End, started);
-    state.observe(Begin, started + Duration::from_millis(30));
-    state.note_output(started + Duration::from_millis(31));
+    state.observe(Begin, started + Duration::from_millis(10));
+    state.note_output(started + Duration::from_millis(11));
     assert!(!state.may_publish(started + RENDER_PASS_WAIT));
     assert!(!state.observe(Begin, started + RENDER_PASS_WAIT));
     assert!(!state.may_publish(started + Duration::from_millis(200)));
@@ -117,19 +117,30 @@ fn native_retained_cells_advance_during_sustained_relayed_frames() {
             changed = true;
             let publish = match boundary {
                 Some(boundary) => state.observe(boundary, now),
-                None => { state.note_output(now); false }
+                None => {
+                    state.note_output(now);
+                    false
+                }
             };
             if publish {
-                // A begin boundary precedes the new frame's cells, just as in the holder loop.
-                let _ = CommittedSurface::capture(&mut terminal, &mut builder, 0, state.commit_kind()).unwrap();
+                // Protocol: a begin boundary precedes the new frame's cells, just as in the holder loop.
+                let _ =
+                    CommittedSurface::capture(&mut terminal, &mut builder, 0, state.commit_kind())
+                        .unwrap();
                 state.published();
                 changed = false;
             }
         }
         if changed && state.may_publish(now) {
-            let capture = CommittedSurface::capture(&mut terminal, &mut builder, 0, state.commit_kind()).unwrap();
+            let capture =
+                CommittedSurface::capture(&mut terminal, &mut builder, 0, state.commit_kind())
+                    .unwrap();
             let surface = capture.retained.structured().unwrap();
-            let text: String = surface.row_data[0].cells.iter().map(|cell| cell.text.as_str()).collect();
+            let text: String = surface.row_data[0]
+                .cells
+                .iter()
+                .map(|cell| cell.text.as_str())
+                .collect();
             seen.push((ms, text));
             assert!(!state.open);
             state.published();
@@ -137,7 +148,7 @@ fn native_retained_cells_advance_during_sustained_relayed_frames() {
         }
     }
     assert!(seen.len() >= 8, "{seen:?}");
-    assert_eq!(seen[0].0, 42);
-    assert!(seen[0].1.starts_with("01"), "{seen:?}");
+    assert_eq!(seen[0].0, 18);
+    assert!(seen[0].1.starts_with("00"), "{seen:?}");
     assert!(seen.last().unwrap().1.starts_with("19"), "{seen:?}");
 }

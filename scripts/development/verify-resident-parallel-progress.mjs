@@ -7,6 +7,7 @@ import { basename, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import process from "node:process";
 import { createHash, randomUUID } from "node:crypto";
+import { fixtureRoleEntrySource, measureRealInputResponsiveness } from "./resident-input-responsiveness.mjs";
 import {
   evaluateProgressScenario,
   evaluateStoppedStageControl,
@@ -16,7 +17,7 @@ import {
 
 const productIdentity = JSON.parse(await readFile(new URL("../../src/product-identity.json", import.meta.url), "utf8"));
 const tabsEndpointEnvironment = productIdentity.environment.tabsEndpoint;
-const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
+let hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
 const firstOrders = permutations([0, 1, 2]);
 const scenarioTimeoutMs = 20_000;
 const childStartupTimeoutMs = 60_000;
@@ -260,7 +261,10 @@ function sendChunk(response, scenarioId, tabIndex, index, finished) {
     object: "chat.completion.chunk",
     created: 1,
     model: "parallel-stream",
-    choices: [{ index: 0, delta: finished ? {} : { content: marker }, finish_reason: finished ? "stop" : null }],
+    choices: [{ index: 0, delta: scenarioId === "input-wheel"
+      ? { content: finished ? "```\n" : `${index === 0 ? "\n```text\n" : ""}${Array.from({ length: 4 }, (_, line) =>
+        `Wheel${String((index * 4 + line) % 100).padStart(2, "0")}`).join("\n")}\n` }
+      : finished ? {} : { content: marker }, finish_reason: finished ? "stop" : null }],
   })}\n\n`);
 }
 
@@ -428,7 +432,7 @@ async function runScenarios(attach, context, provider, tabIds) {
         return tabIds.every(tabId => next.records.some(record => record.tabId === tabId && record.stage === "engine-delivery"
           && record.eventKind === "agent_settled" && record.timestampUnixUs >= barrierUnixUs));
       }, `${id} engine settlement`);
-      results.push({ ...result, order, initialView: tabIds[initialView], window: { startedUnixUs, barrierUnixUs } });
+      results.push({ ...result, order, initialView: tabIds[initialView], window: { startedUnixUs, barrierUnixUs, viewedTabIds: tabIds } });
       if (!result.passed) throw new Error(result.faults.join("; "));
     }
   }
@@ -929,11 +933,16 @@ async function writeFixtureProfile(profile, baseUrl) {
   await writeFile(join(profile, "models.json"), `${JSON.stringify({
     providers: { fixture: { baseUrl, api: "openai-completions", apiKey: "fixture", models: [{
       id: "parallel-stream", name: "Parallel stream fixture", contextWindow: 32_000, maxTokens: 4_096,
-    }] } },
+    }, ...Array.from({ length: 80 }, (_, index) => ({
+      id: `LatencyModel${String(index).padStart(2, "0")}`,
+      name: `LatencyModel${String(index).padStart(2, "0")}`,
+      contextWindow: 32_000, maxTokens: 4_096,
+    }))] } },
   }, null, 2)}\n`);
   const fallbackAgentDir = join(profile, ".pi", "agent");
   await mkdir(fallbackAgentDir, { recursive: true });
   await writeFile(join(profile, "auth.json"), "{}\n");
+  await writeFile(join(profile, "keybindings.json"), `${JSON.stringify({ "app.model.select": "f6" })}\n`);
   await writeFile(join(fallbackAgentDir, "auth.json"), "{}\n");
   await writeFile(join(profile, "settings.json"), `${JSON.stringify({
     defaultProvider: "fixture",
@@ -963,6 +972,11 @@ async function collect(host) {
     runId,
     endpoint: process.platform === "win32" ? `\\\\.\\pipe\\a1-resident-parallel-${process.pid}-${Date.now()}` : join(root, "resident.sock"),
   };
+  // Provenance: WMI creation does not inherit the initiating shell's addon override. Pin the
+  // fixture addon in the fixed role entry itself so every detached holder/server uses the exact
+  // measured artifact, not the release addon beside dist's normal environment-gated entry.
+  hostEntry = join(root, "fixture-role-entry.cjs");
+  await writeFile(hostEntry, fixtureRoleEntrySource(resolve(host)));
   const provider = new LoopbackProvider();
   const baseUrl = await provider.start();
   context.environment = {
@@ -1001,9 +1015,42 @@ async function collect(host) {
     attach = await createAttach(spawn, host, context);
     phase("real tabs");
     tabIds = await createRealTabs(host, context);
-    phase("temporal parity");
-    const temporalParity = await compareDirectAndResidentTemporalState(spawn, host, attach, context, provider, tabIds);
-    if (!temporalParity.passed) throw new Error(temporalParity.faults.join("; "));
+    let temporalParity;
+    if (!process.argv.includes("--input-only")) {
+      phase("temporal parity");
+      temporalParity = await compareDirectAndResidentTemporalState(spawn, host, attach, context, provider, tabIds);
+      if (!temporalParity.passed) throw new Error(temporalParity.faults.join("; "));
+    }
+    phase("input responsiveness");
+    await selectTab(attach, context, 0, tabIds[0]);
+    const direct = await createDirect(spawn, context);
+    let inputResponsiveness;
+    try {
+      inputResponsiveness = await measureRealInputResponsiveness({
+        addon: createRequire(import.meta.url)(resolve(host)), direct, resident: attach,
+        prepareWheel: async endpoint => {
+          const scenario = provider.scenario("input-wheel", [0], 1);
+          try {
+            endpoint.terminal.write("scenario=input-wheel;tab=0");
+            endpoint.terminal.write("\r");
+            await waitUntil(() => scenario.requests.has(0), "wheel fixture provider request");
+            scenario.start();
+            await withTimeout(scenario.partialReady, "wheel fixture partial");
+            scenario.release();
+            await withTimeout(scenario.completed, "wheel fixture completion");
+            await delay(150);
+          } finally { scenario.releaseEngine(); scenario.release(); }
+        },
+      });
+    } catch (error) {
+      await mkdir(".artifacts/input-fixture", { recursive: true });
+      await writeFile(".artifacts/input-fixture/direct-debug.bin", direct.output(), "utf8");
+      await writeFile(".artifacts/input-fixture/resident-debug.bin", attach.output(), "utf8");
+      throw error;
+    } finally { stopAttach(direct); }
+    process.stderr.write(`[input-responsiveness] ${JSON.stringify(inputResponsiveness)}\n`);
+    if (!inputResponsiveness.passed) throw new Error(inputResponsiveness.faults.join("; "));
+    if (process.argv.includes("--input-only")) return { inputResponsiveness, passed: true };
     phase("scenarios");
     const scenarios = await runScenarios(attach, context, provider, tabIds);
     phase("slow transport");
@@ -1019,7 +1066,7 @@ async function collect(host) {
     const stoppedStageControls = await runStoppedStageControls(attach, context, provider, tabIds);
     const observations = await currentObservations(context);
     const latency = progressLatencyReport(observations.records, tabIds, scenarios.map(scenario => scenario.window));
-    const faults = [...observations.faults, ...latency.faults];
+    const faults = [...observations.faults, ...latency.faults, ...inputResponsiveness.faults];
     return {
       schema: "a1-resident-parallel-progress-v1",
       platform: `${process.platform}-${process.arch}`,
@@ -1027,6 +1074,7 @@ async function collect(host) {
       artifact: {
         host: resolve(host),
         hostSha256: createHash("sha256").update(await readFile(resolve(host))).digest("hex"),
+        roleEntrySha256: createHash("sha256").update(await readFile(hostEntry)).digest("hex"),
         release: context.release,
         releaseHead: gitHead(context.release),
       },
@@ -1036,6 +1084,7 @@ async function collect(host) {
         stoppedStageControls: stoppedStageControls.length, chunksPerTurn: 60 },
       tabs: tabIds,
       temporalParity,
+      inputResponsiveness,
       scenarios,
       slowTransport,
       interactionPressure,

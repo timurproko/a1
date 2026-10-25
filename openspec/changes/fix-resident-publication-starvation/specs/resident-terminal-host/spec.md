@@ -8,7 +8,7 @@ The holder SHALL retain the earliest pending Windows render-pass publication dea
 
 - **WHEN** Windows receives complete transactions every 30 ms with changed cells between begin and end markers and no post-end cells
 - **THEN** the holder publishes changed retained state during the sustained sequence without waiting for input to stop
-- **AND** later end markers do not renew the first pending 40 ms fallback
+- **AND** later end markers do not renew the first pending 16 ms fallback
 
 #### Scenario: Render-pass output keeps extending the quiet interval
 

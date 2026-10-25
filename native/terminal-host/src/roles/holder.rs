@@ -52,8 +52,8 @@ const SYNCHRONIZED_OUTPUT_RECOVERY_DELAY: Duration = Duration::from_millis(250);
 // markers when it parses them, so a frame's cells can arrive after its end marker (and a render
 // pass can land between its markers). Only a PTY that relays bytes verbatim delimits frames.
 const MARKERS_DELIMIT_FRAMES: bool = !cfg!(windows);
-/// Bound on waiting for the render pass that follows a relayed end marker.
-const RENDER_PASS_WAIT: Duration = Duration::from_millis(40);
+/// Bound on waiting for a relayed render pass: a longer fallback stalls interactive navigation.
+const RENDER_PASS_WAIT: Duration = Duration::from_millis(16);
 /// Quiet gap after re-rendered output: one render pass can span several pipe reads.
 const RENDER_PASS_SETTLE: Duration = Duration::from_millis(2);
 const HOLDER_IDLE_WAKE: Duration = Duration::from_millis(8);
@@ -1347,17 +1347,7 @@ fn run_holder(
             stop_deadline = None;
         }
         if heartbeat.elapsed() >= Duration::from_secs(5) {
-            let _ = server.offer_control(wire::frame(
-                "holder.heartbeat",
-                None,
-                wire::HolderReady {
-                    tab_id: config.tab_id.clone(),
-                    pid: std::process::id(),
-                    incarnation: config.incarnation,
-                    child_pid,
-                    child_start_identity: child_identity.start.clone(),
-                },
-            )?);
+            offer_holder_heartbeat(&server, &config, child_pid, &child_identity.start)?;
             heartbeat = std::time::Instant::now();
         }
         if !child_exited
@@ -1454,6 +1444,27 @@ fn child_exit_frames(
         )?,
         wire::frame("holder.exit", None, exit.clone())?,
     ])
+}
+
+/// Sends bounded heartbeat metadata without changing the parser loop's failure policy.
+fn offer_holder_heartbeat(
+    server: &HolderServerPeer,
+    config: &HolderLaunchConfig,
+    child_pid: u32,
+    child_start_identity: &str,
+) -> Result<(), String> {
+    let _ = server.offer_control(wire::frame(
+        "holder.heartbeat",
+        None,
+        wire::HolderReady {
+            tab_id: config.tab_id.clone(),
+            pid: std::process::id(),
+            incarnation: config.incarnation,
+            child_pid,
+            child_start_identity: child_start_identity.to_owned(),
+        },
+    )?);
+    Ok(())
 }
 
 fn offer_child_exit(
@@ -1993,11 +2004,12 @@ mod tests {
             synchronization.wake_timeout(ended + RENDER_PASS_WAIT - Duration::from_millis(3)),
             Duration::from_millis(3)
         );
-        let rendered = ended + Duration::from_millis(23);
+        let rendered = ended + Duration::from_millis(8);
         synchronization.note_output(rendered);
         assert!(!synchronization.may_publish(rendered));
         assert_eq!(synchronization.wake_timeout(rendered), RENDER_PASS_SETTLE);
         assert!(synchronization.may_publish(rendered + RENDER_PASS_SETTLE));
+        synchronization.published();
         assert_eq!(
             synchronization.wake_timeout(rendered + RENDER_PASS_SETTLE),
             HOLDER_IDLE_WAKE
