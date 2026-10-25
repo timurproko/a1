@@ -12,4 +12,4 @@
 ## 3. Delivery
 
 - [x] 3.1 Update architecture documentation and record focused implementation evidence and explicit known-gap dispositions without claiming a live maintainer-session reproduction.
-- [ ] 3.2 Complete targeted native/TypeScript checks, typecheck and strict change validation; reconcile and push current develop and validate the final delivery body before the final implementation marker.
+- [x] 3.2 Complete targeted native/TypeScript checks, typecheck and strict change validation; reconcile and push current develop and validate the final delivery body before the final implementation marker.
