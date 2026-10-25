@@ -16,6 +16,7 @@ mod owned_settings;
 pub mod presentation;
 pub mod progress_observation;
 pub mod quit_outro;
+mod ready_round;
 pub mod recovery_artifacts;
 pub mod registry;
 pub mod release_holds;

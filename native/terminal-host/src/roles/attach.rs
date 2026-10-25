@@ -1584,22 +1584,20 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         }
         // Performance: a queued key must not wait behind decoding/composing the next complete
         // grid. One input then one bounded server round preserves both sides' forward progress.
-        let input = input_rx.try_recv();
-        let had_input = input.is_ok();
+        let mut round = super::ready_round::ReadyRound::default();
+        let input = round.receive(&input_rx);
         let disconnected = matches!(input, Err(mpsc::TryRecvError::Disconnected));
         if let Ok(next) = input && client.input(&mut core, next?)? {
             return Ok(());
         }
-        if client.drain_server(&mut core, &message_rx, &ingress_bytes)? {
+        if client.drain_server(&mut core, &message_rx, &ingress_bytes, &mut round)? {
             return Ok(());
         }
         client.tick(&mut core)?;
         if disconnected {
             return Err("outer terminal input stopped".to_owned());
         }
-        if !had_input {
-            let _ = wake_rx.recv_timeout(Duration::from_millis(8));
-        }
+        round.wait(&wake_rx, Duration::from_millis(8));
     }
 }
 
@@ -2373,11 +2371,12 @@ impl Client {
         core: &mut State,
         messages: &mpsc::Receiver<ServerIngress>,
         ingress_bytes: &Arc<AtomicUsize>,
+        round: &mut super::ready_round::ReadyRound,
     ) -> Result<bool, String> {
         let round_started = Instant::now();
         let mut round_bytes = 0usize;
         for _ in 0..8 {
-            let Ok(message) = messages.try_recv() else {
+            let Ok(message) = round.receive(messages) else {
                 break;
             };
             let payload = match message {

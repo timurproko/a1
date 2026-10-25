@@ -1060,7 +1060,17 @@ async function collect(host) {
       throw error;
     } finally { stopAttach(direct); }
     process.stderr.write(`[input-responsiveness] ${JSON.stringify(inputResponsiveness)}\n`);
-    if (!inputResponsiveness.passed) throw new Error(inputResponsiveness.faults.join("; "));
+    if (!inputResponsiveness.passed) {
+      // Rationale: CI already uploads stdout as the report. Retain payload-free stage diagnostics
+      // on a failed input gate too, without pretending the remaining scenarios ran or passed.
+      const observed = await currentObservations(context);
+      const failure = { schema: "a1-resident-parallel-progress-v1", platform: `${process.platform}-${process.arch}`,
+        runId, tabs: tabIds, scenarios: [], inputResponsiveness, observations: observed.records.length,
+        diagnostics: observed, passed: false, faults: [...inputResponsiveness.faults, ...observed.faults] };
+      await new Promise((resolve, reject) => process.stdout.write(`${JSON.stringify(failure, null, 2)}\n`,
+        error => error ? reject(error) : resolve()));
+      throw new Error(inputResponsiveness.faults.join("; "));
+    }
     if (process.argv.includes("--input-only")) return { inputResponsiveness, passed: true };
     phase("scenarios");
     const scenarios = await runScenarios(attach, context, provider, tabIds);

@@ -297,6 +297,23 @@ fn surface_message(
     })
 }
 
+/// Keep the PTY-ingestion diagnostic passive and its sequence local to this holder incarnation.
+fn observe_pty_ingestion(config: &HolderLaunchConfig, bytes: usize, sequence: &mut u64) {
+    *sequence = sequence.saturating_add(1);
+    progress_observation::observe(
+        "holder",
+        "pty-ingest",
+        ProgressMetadata {
+            tab_id: Some(&config.tab_id),
+            incarnation: config.incarnation,
+            event_sequence: *sequence,
+            bytes,
+            count: 1,
+            ..ProgressMetadata::default()
+        },
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 fn commit_retained_surface(
     terminal: &mut GhosttyTerminal,
@@ -868,7 +885,8 @@ fn run_holder(
     let mut changed = false;
     loop {
         watchdog.bump();
-        if let Ok(reconnected) = reconnect_rx.try_recv() {
+        let mut round = super::ready_round::ReadyRound::default();
+        if let Ok(reconnected) = round.receive(&reconnect_rx) {
             let (replacement, epoch) = reconnected?;
             reconnecting = false;
             if epoch >= highest_epoch {
@@ -903,7 +921,7 @@ fn run_holder(
             }
         }
         for _ in 0..8 {
-            let Ok(result) = write_result_rx.try_recv() else {
+            let Ok(result) = round.receive(&write_result_rx) else {
                 break;
             };
             let event = match result {
@@ -916,7 +934,7 @@ fn run_holder(
         // Concurrency: one hot producer cannot monopolize the holder loop indefinitely.
         let command_round_started = std::time::Instant::now();
         for _ in 0..8 {
-            let Ok(command) = command_rx.try_recv() else {
+            let Ok(command) = round.receive(&command_rx) else {
                 break;
             };
             if matches!(command, HolderCommand::Disconnected) {
@@ -1185,23 +1203,11 @@ fn run_holder(
         let output_round_started = std::time::Instant::now();
         let mut output_bytes = 0usize;
         for _ in 0..32 {
-            let Ok(bytes) = output_rx.try_recv() else {
+            let Ok(bytes) = round.receive(&output_rx) else {
                 break;
             };
             output_bytes = output_bytes.saturating_add(bytes.len());
-            pty_event_sequence = pty_event_sequence.saturating_add(1);
-            progress_observation::observe(
-                "holder",
-                "pty-ingest",
-                ProgressMetadata {
-                    tab_id: Some(&config.tab_id),
-                    incarnation: config.incarnation,
-                    event_sequence: pty_event_sequence,
-                    bytes: bytes.len(),
-                    count: 1,
-                    ..ProgressMetadata::default()
-                },
-            );
+            observe_pty_ingestion(&config, bytes.len(), &mut pty_event_sequence);
             recovery_output.extend(&bytes);
             while recovery_output.len() > 2 * 1024 * 1024 {
                 recovery_output.pop_front();
@@ -1422,7 +1428,7 @@ fn run_holder(
                 return Ok(());
             }
         }
-        let _ = wake_rx.recv_timeout(synchronization.wake_timeout(std::time::Instant::now()));
+        round.wait(&wake_rx, synchronization.wake_timeout(std::time::Instant::now()));
     }
 }
 
