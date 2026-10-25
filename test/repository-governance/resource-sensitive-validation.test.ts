@@ -129,7 +129,9 @@ describe("resource-sensitive validation partition", () => {
     expect(new Set(combined).size).toBe(combined.length);
     const full = await createTierPlan(["full-release"]);
     const fullPaths = full.vitest!.invocations.flatMap(item => selectedPaths(item.arguments, all));
-    expect(fullPaths.sort()).toEqual(all.sort());
+    const supersededSmoke = new Set<string>(suites.scopes["rendering-smoke"].tests);
+    expect(suites.fullReleaseSupersedes["rendering-stability"]).toContain("rendering-smoke");
+    expect(fullPaths.sort()).toEqual(all.filter(path => !supersededSmoke.has(path)).sort());
     expect(new Set(fullPaths).size).toBe(fullPaths.length);
   });
 
