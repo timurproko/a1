@@ -14,6 +14,25 @@ export function fixtureRoleEntrySource(artifact) {
     + `process.exitCode = addon.runRole(process.argv.slice(2), { executable: process.execPath, entry: __filename, artifact });\n`;
 }
 
+/** Refuse a debug or unidentified native artifact instead of weakening the performance budget. */
+export function assertOptimizedFixture(addon) {
+  if (typeof addon?.fixtureBuildProfile !== "function" || addon.fixtureBuildProfile() !== "release") {
+    throw new Error("performance certification requires a release-profile fixture addon");
+  }
+  return "release";
+}
+
+/** Reject unequal rendering work before comparing latency: both paths keep the same completed turn. */
+export function assertMatchingInputBaseline(direct, resident, expectedMarkers = 60) {
+  if (!Number.isSafeInteger(expectedMarkers) || expectedMarkers < 0
+    || !direct.complete || !resident.complete
+    || direct.markerOccurrences !== expectedMarkers || resident.markerOccurrences !== expectedMarkers
+    || !/^[a-f0-9]{64}$/u.test(direct.markerDigest) || direct.markerDigest !== resident.markerDigest) {
+    throw new Error(`unequal input baselines: direct=${direct.markerOccurrences}, resident=${resident.markerOccurrences}, expected=${expectedMarkers}`);
+  }
+  return { markerOccurrences: expectedMarkers, semanticDigest: direct.markerDigest, matched: true };
+}
+
 export function summarizeInputResponses(direct, resident) {
   const faults = [];
   const summarize = (values, name) => {
@@ -74,6 +93,18 @@ class FrameOracle {
     return this.#native.observe(Buffer.alloc(0), marker);
   }
   listen(listener) { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
+  async echo(prompt) {
+    if (this.#native.containsAsciiLiteral(prompt)) return;
+    await new Promise((resolve, reject) => {
+      const cancel = this.listen(snapshot => {
+        if (!snapshot.complete || !this.#native.containsAsciiLiteral(prompt)) return;
+        clearTimeout(timer);
+        cancel();
+        resolve();
+      });
+      const timer = setTimeout(() => { cancel(); reject(new Error("fixture prompt produced no complete input echo")); }, 10_000);
+    });
+  }
   async changed(before, timeout = stallMs) {
     return new Promise((resolve, reject) => {
       const cancel = this.listen((snapshot, receivedAt) => {
@@ -92,6 +123,16 @@ async function waitMarker(oracle, marker) {
   const baseline = oracle.snapshot(marker);
   if (baseline.complete && baseline.markerOccurrences > 0) return baseline;
   return (await oracle.changed(baseline.markerDigest, 10_000)).snapshot;
+}
+
+/** Scenario setup is not timed: acknowledge the visible editor text before sending a separate Enter. */
+export async function submitFixturePrompt(addon, endpoint, prompt, resident) {
+  const oracle = new FrameOracle(addon, endpoint, resident);
+  try {
+    endpoint.terminal.write(prompt);
+    await oracle.echo(prompt);
+    endpoint.terminal.write("\r");
+  } finally { oracle.close(); }
 }
 
 async function directSequence(endpoint, oracle, marker, bytes) {

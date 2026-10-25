@@ -1,9 +1,12 @@
 export function fixtureRoleEntrySource(artifact: string): string;
+export function assertOptimizedFixture(addon: { readonly fixtureBuildProfile?: () => string }): "release";
 export interface InputResponseSnapshot {
   readonly complete: boolean;
   readonly markerOccurrences: number;
   readonly markerDigest: string;
 }
+export function assertMatchingInputBaseline(direct: InputResponseSnapshot, resident: InputResponseSnapshot,
+  expectedMarkers?: number): { readonly markerOccurrences: number; readonly semanticDigest: string; readonly matched: true };
 export interface InputResponseSummary {
   readonly count: number;
   readonly p95Ms: number | null;
@@ -30,10 +33,13 @@ export interface InputFixtureEndpoint {
   };
   output(): string;
 }
+export function submitFixturePrompt(addon: Parameters<typeof measureRealInputResponsiveness>[0]["addon"],
+  endpoint: InputFixtureEndpoint, prompt: string, resident: boolean): Promise<void>;
 export function measureRealInputResponsiveness(options: {
   readonly addon: {
     readonly TerminalFrameObserver: new (columns: number, rows: number, skipRows: number) => {
       observe(bytes: Uint8Array, marker: string): InputResponseSnapshot;
+      containsAsciiLiteral(literal: string): boolean;
     };
   };
   readonly direct: InputFixtureEndpoint;

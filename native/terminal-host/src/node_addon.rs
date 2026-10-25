@@ -266,6 +266,18 @@ fn marker_cells(
     evidence
 }
 
+/// Fixture certificates must time the shipping optimization profile, not debug builds.
+#[cfg(feature = "resident-fixtures")]
+#[napi]
+pub fn fixture_build_profile() -> String {
+    if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    }
+    .to_owned()
+}
+
 #[napi]
 pub fn run_role(arguments: Vec<String>, host: RoleHost) -> Result<u32> {
     crate::launch::set_host_command(host.executable, [host.entry], host.artifact)

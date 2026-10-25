@@ -16,7 +16,7 @@ pub struct ObservedTerminalFrame {
     pub first_marker_row: Option<u32>,
 }
 
-/// Never exported by a release addon. Each hermetic endpoint keeps its own parser and row cache.
+/// Never exported by a feature-free shipping addon. Each fixture keeps its own parser and row cache.
 #[napi]
 pub struct TerminalFrameObserver {
     terminal: GhosttyTerminal,
@@ -48,6 +48,36 @@ impl TerminalFrameObserver {
             skip_rows: skip_rows as u16,
             open: false,
         })
+    }
+
+    /// Setup acknowledgement only: never substitutes literal matching for numbered timing markers.
+    #[napi]
+    pub fn contains_ascii_literal(&self, text: String) -> Result<bool> {
+        if text.is_empty()
+            || text.len() > 128
+            || !text.bytes().all(|value| value.is_ascii_graphic())
+        {
+            return Err(Error::new(
+                Status::InvalidArg,
+                "fixture echo text is out of bounds",
+            ));
+        }
+        if self.open {
+            return Ok(false);
+        }
+        let surface = self.retained.structured().map_err(node_error)?;
+        Ok(surface
+            .row_data
+            .iter()
+            .skip(usize::from(self.skip_rows))
+            .any(|row| {
+                row.cells.windows(text.len()).any(|cells| {
+                    cells
+                        .iter()
+                        .zip(text.bytes())
+                        .all(|(cell, byte)| cell.text.as_bytes() == [byte])
+                })
+            }))
     }
 
     /// Accepts each physical byte once. Empty bytes query the last closed parser state with a
