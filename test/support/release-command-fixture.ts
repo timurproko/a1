@@ -38,11 +38,11 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
     const previous = role; role = next;
     try { return operation(); } finally { role = previous; }
   };
-  const git = (args: readonly string[], where = cwd): string => {
+  const git = (args: readonly string[], where = cwd, input?: string): string => {
     const execute = () => execFileSync("git", [
       "-c", "user.name=Release Fixture", "-c", "user.email=release@example.test",
       "-c", "commit.gpgsign=false", "-c", `core.hooksPath=${hooks}`, "-c", "core.autocrlf=false", "-C", where, ...args,
-    ], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], env }).trim();
+    ], { encoding: "utf8", stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"], env, ...(input === undefined ? {} : { input }) }).trim();
     return trace ? trace.measure(`${role}-${args[0]}`, execute) : execute();
   };
   git(["init", "--bare", remote], directory);
@@ -67,8 +67,9 @@ export async function releaseFixture(version = "0.1.8-dev", trace?: NativeRegres
   await writeFile(join(cwd, "unrelated.txt"), "keep this\n");
   git(["add", "."]); git(["commit", "-m", "fixture stable baseline"]);
   const baselineHead = git(["rev-parse", "HEAD"]);
-  git(["tag", `v${baselineVersion}`, baselineHead]);
-  git(["branch", "master", baselineHead]);
+  // Performance: one real atomic ref transaction replaces two Git process launches; no mutable
+  // repository is shared and setup still executes inside the owning scenario's timing boundary.
+  git(["update-ref", "--stdin"], cwd, `start\ncreate refs/tags/v${baselineVersion} ${baselineHead}\ncreate refs/heads/master ${baselineHead}\nprepare\ncommit\n`);
   const { manifest, lock, installer } = await writeVersions(version);
   git(["add", "package.json", "package-lock.json", "packages/a1-install/package.json"]);
   git(["commit", "-m", "open fixture development"]);

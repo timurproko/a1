@@ -7,7 +7,7 @@ const target = { platform: "win32", architecture: "x64", node: 22 } as const;
 const owners: IntegrationImpactOwner[] = [
   { id: "startup", cadence: "pull-request", scopes: ["startup"], targets: [target],
     entries: ["test/startup.test.ts"], tests: ["test/startup.test.ts"], support: ["test/support/startup/"] },
-  { id: "images", cadence: "pull-request", scopes: ["images"], targets: [target],
+  { id: "images", cadence: "direct-impact", scopes: ["images"], targets: [target],
     entries: ["test/images.test.ts"], tests: ["test/images.test.ts"], support: ["test/support/images/"] },
   { id: "predecessor", cadence: "exhaustive", scopes: ["predecessor"], targets: [target],
     entries: ["test/predecessor.test.ts"], tests: ["test/predecessor.test.ts"], support: ["test/support/predecessor/"] },
@@ -31,7 +31,7 @@ describe("coarse integration ownership", () => {
   it("selects integration owners linked by the reviewed coarse path owner", () => {
     const result = classify([{ status: "M", path: "src/start.ts" }], core("impact", ["startup"]));
     expect(decision(result, "startup")).toMatchObject({ selected: true, reasons: [expect.objectContaining({ code: "coarse-owner" })] });
-    expect(decision(result, "images").selected).toBe(false);
+    expect(decision(result, "images")).toMatchObject({ selected: false, reasons: [{ code: "direct-impact-cadence", paths: [] }] });
   });
 
   it("defers a directly changed exhaustive test with its affected path", () => {
@@ -48,9 +48,13 @@ describe("coarse integration ownership", () => {
     expect(decision(classify([change]), "startup").reasons).toEqual(expect.arrayContaining([expect.objectContaining({ code: "shared-support" })]));
   });
 
-  it("selects every pull-request owner and defers exhaustive owners for conservative and manual comparisons", () => {
+  it("selects critical pull-request owners and defers direct-impact and exhaustive owners for conservative comparisons", () => {
     const conservative = classify([{ status: "M", path: "config/validation-ownership.json" }], core("conservative"));
     expect(conservative.selection.owners.filter(owner => owner.cadence === "pull-request").every(owner => owner.selected)).toBe(true);
+    expect(decision(conservative, "images")).toMatchObject({ cadence: "direct-impact", selected: false, reasons: [{ code: "direct-impact-cadence", paths: [] }] });
+    const direct = selectIntegrationImpact({ baseId, headId, changes: [{ status: "M", path: "test/support/images/fixture.ts" }],
+      owners: structuredClone(owners), coreSelection: core("conservative") });
+    expect(decision(direct, "images")).toMatchObject({ selected: true, reasons: [{ code: "shared-support", paths: ["test/support/images/fixture.ts"] }] });
     expect(decision(conservative, "predecessor")).toMatchObject({ cadence: "exhaustive", selected: false, reasons: [{ code: "exhaustive-cadence", paths: [] }] });
     const manual = selectIntegrationImpact({ baseId, headId, owners: structuredClone(owners), coreSelection: core("conservative"), manualNoComparison: true });
     expect(manual).toMatchObject({ fallback: "manual-no-comparison", selection: { mode: "conservative" } });

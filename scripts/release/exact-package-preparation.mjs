@@ -137,14 +137,15 @@ export function installArguments(prefix, candidatePath) {
 }
 
 async function installedPackageIdentity(packageRoot) {
-  const manifest = JSON.parse(await readFile(resolve(packageRoot, "package.json"), "utf8"));
-  validatePackageIdentity(manifest);
+  let manifest;
   const files = [];
   let bytes = 0;
   await visit(packageRoot);
+  validatePackageIdentity(manifest);
   files.sort((left, right) => left.path.localeCompare(right.path));
-  const inventory = files.map(file => ({ path: file.path, size: file.bytes.length, sha256: sha256(file.bytes) }));
-  return { name: manifest.name, version: manifest.version, files: inventory.length, bytes, sha256: digest(inventory) };
+  // Performance: hash each payload buffer immediately and discard it. The same walk also reads
+  // the manifest, avoiding a duplicate read without caching or skipping any consumer verification.
+  return { name: manifest.name, version: manifest.version, files: files.length, bytes, sha256: digest(files) };
 
   async function visit(path) {
     const relativePath = relative(packageRoot, path).split(sep).join("/");
@@ -162,7 +163,8 @@ async function installedPackageIdentity(packageRoot) {
     const content = await readFile(path);
     bytes += content.length;
     if (bytes > MAX_BYTES) throw new Error("exact-package installed identity exceeds bounds");
-    files.push({ path: relative(packageRoot, path).split(sep).join("/"), bytes: content });
+    if (relativePath === "package.json") manifest = JSON.parse(content.toString("utf8"));
+    files.push({ path: relativePath, size: content.length, sha256: sha256(content) });
   }
 }
 

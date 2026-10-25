@@ -23,30 +23,30 @@ describe("attempt-aware modular development aggregate", () => {
 
   it("requires exact-head evidence for every conservative target", () => {
     const fixture = conservativeFixture();
-    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", deferredOwners: ["update-performance", "update-predecessor"], evidenceCount: 24, reused: [] });
+    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", deferredOwners: ["update-performance", "update-predecessor"], evidenceCount: 3, reused: [] });
   });
 
   it("requires every terminal-host test partition beside its build job and keeps them distinct", () => {
-    const missing = conservativeFixture();
+    const missing = terminalHostFixture();
     missing.outcomes = missing.outcomes.filter((value: any) => value.authority.partition !== "2/3" || value.authority.platform !== "linux");
     missing.envelopes = missing.envelopes.filter((value: any) => value.partition !== "2/3" || value.platform !== "linux");
     expect(() => requireModularValidation(missing)).toThrow("required modular outcome missing: terminal-host/linux/node24/partition 2/3");
 
-    const duplicated = conservativeFixture();
+    const duplicated = terminalHostFixture();
     const partition = duplicated.outcomes.find((value: any) => value.authority.partition === "1/3" && value.authority.platform === "win32");
     duplicated.outcomes.push(structuredClone(partition));
     expect(() => requireModularValidation(duplicated)).toThrow("duplicate modular validation outcome authority");
 
     // Invariant: partition evidence never stands in for the build-and-probe job, and the build job never stands in for a partition.
-    const withoutBuild = conservativeFixture();
+    const withoutBuild = terminalHostFixture();
     withoutBuild.outcomes = withoutBuild.outcomes.filter((value: any) => !(value.authority.job === "terminal-host" && value.authority.platform === "darwin" && !value.authority.partition));
     withoutBuild.envelopes = withoutBuild.envelopes.filter((value: any) => !(value.job === "terminal-host" && value.platform === "darwin" && !value.partition));
     expect(() => requireModularValidation(withoutBuild)).toThrow("required modular outcome missing: terminal-host/darwin/node24");
 
-    const malformed = conservativeFixture();
+    const malformed = terminalHostFixture();
     malformed.outcomes.find((value: any) => value.authority.partition === "3/3").authority.partition = "three";
     expect(() => requireModularValidation(malformed)).toThrow("validation outcome authority identity is invalid");
-    const malformedEnvelope = conservativeFixture();
+    const malformedEnvelope = terminalHostFixture();
     malformedEnvelope.envelopes.find((value: any) => value.partition === "3/3").partition = "3";
     expect(() => requireModularValidation(malformedEnvelope)).toThrow("modular validation envelope is malformed");
   });
@@ -54,25 +54,25 @@ describe("attempt-aware modular development aggregate", () => {
   it("reuses successful prior-attempt jobs only within the same run/head/selection", () => {
     const fixture = conservativeFixture();
     fixture.runAttempt = 2;
-    const startup = fixture.outcomes.find((value: any) => value.authority.job === "startup");
-    const rerun = structuredClone(startup); rerun.authority.runAttempt = 2;
+    const pi = fixture.outcomes.find((value: any) => value.authority.job === "pi");
+    const rerun = structuredClone(pi); rerun.authority.runAttempt = 2;
     fixture.outcomes.push(rerun);
     fixture.envelopes.push(envelope(rerun.authority, "success"));
     const result = requireModularValidation(fixture);
-    expect(result.reused).toHaveLength(23);
-    expect(result.reused).not.toContainEqual(expect.objectContaining({ job: "startup:win32:x64:22" }));
-    expect(result.reused).toContainEqual(expect.objectContaining({ job: "terminal-host:linux:x64:24:2/3" }));
+    expect(result.reused).toHaveLength(2);
+    expect(result.reused).not.toContainEqual(expect.objectContaining({ job: "pi:win32:x64:24" }));
+    expect(result.reused).toContainEqual(expect.objectContaining({ job: "resource:win32:x64:24" }));
     expect(result.reused.every(entry => entry.attempt === 1)).toBe(true);
   });
 
   it("retains a prior failed attempt while accepting its successful current rerun", () => {
     const fixture = conservativeFixture(); fixture.runAttempt = 2;
-    const startup = fixture.outcomes.find((value: any) => value.authority.job === "startup");
-    startup.passed = false; startup.outcomes[0].exitCode = 1;
-    fixture.envelopes.find((value: any) => value.job === "startup").status = "failure";
-    const rerun = structuredClone(startup); rerun.passed = true; rerun.outcomes[0].exitCode = 0; rerun.authority.runAttempt = 2;
+    const pi = fixture.outcomes.find((value: any) => value.authority.job === "pi");
+    pi.passed = false; pi.outcomes[0].exitCode = 1;
+    fixture.envelopes.find((value: any) => value.job === "pi").status = "failure";
+    const rerun = structuredClone(pi); rerun.passed = true; rerun.outcomes[0].exitCode = 0; rerun.authority.runAttempt = 2;
     fixture.outcomes.push(rerun); fixture.envelopes.push(envelope(rerun.authority, "success"));
-    expect(requireModularValidation(fixture)).toMatchObject({ evidenceCount: 24 });
+    expect(requireModularValidation(fixture)).toMatchObject({ evidenceCount: 3 });
   });
 
   it("uses only current outcomes when all jobs are rerun", () => {
@@ -82,12 +82,12 @@ describe("attempt-aware modular development aggregate", () => {
     });
     fixture.outcomes.push(...rerun);
     fixture.envelopes.push(...rerun.map((value: any) => envelope(value.authority, "success")));
-    expect(requireModularValidation(fixture)).toMatchObject({ evidenceCount: 24, reused: [] });
+    expect(requireModularValidation(fixture)).toMatchObject({ evidenceCount: 3, reused: [] });
   });
 
   it("gives a current-attempt failure precedence over an older success", () => {
     const fixture = conservativeFixture(); fixture.runAttempt = 2;
-    const authority = structuredClone(fixture.outcomes.find((value: any) => value.authority.job === "startup").authority);
+    const authority = structuredClone(fixture.outcomes.find((value: any) => value.authority.job === "pi").authority);
     authority.runAttempt = 2;
     fixture.envelopes.push(envelope(authority, "failure"));
     expect(() => requireModularValidation(fixture)).toThrow("current-attempt modular job did not succeed");
@@ -125,8 +125,7 @@ describe("attempt-aware modular development aggregate", () => {
   });
 
   it("accepts bounded exclusions and rejects evidence from an excluded owner", () => {
-    const decisions = owners.map((owner: any) => ({ owner: owner.id, selected: owner.id === "startup",
-      reasons: [{ code: owner.id === "startup" ? "coarse-owner" : owner.cadence === "exhaustive" ? "exhaustive-cadence" : "unrelated", paths: owner.id === "startup" ? ["src/foundation/startup/index.ts"] : [] }] }));
+    const decisions = directDecisions("startup", "src/foundation/startup/index.ts");
     const selection = createIntegrationSelection({ base, head, ownership, mode: "impact", decisions });
     const outcomes = [coreOutcome(1), outcome(selection.selectionId, "startup", "win32", 22, ["startup"], ["package-startup"], 1)];
     const fixture = impactFixture(selection, outcomes, 1, []);
@@ -137,8 +136,7 @@ describe("attempt-aware modular development aggregate", () => {
   });
 
   it("requires every scheduled matrix entry and tolerates only entries the selection left unscheduled", () => {
-    const decisions = owners.map((owner: any) => ({ owner: owner.id, selected: owner.id === "startup",
-      reasons: [{ code: owner.id === "startup" ? "coarse-owner" : owner.cadence === "exhaustive" ? "exhaustive-cadence" : "unrelated", paths: owner.id === "startup" ? ["src/foundation/startup/index.ts"] : [] }] }));
+    const decisions = directDecisions("startup", "src/foundation/startup/index.ts");
     const selection = createIntegrationSelection({ base, head, ownership, mode: "impact", decisions });
     const fixture = impactFixture(selection, [coreOutcome(1), outcome(selection.selectionId, "startup", "win32", 22, ["startup"], ["package-startup"], 1)], 1, []);
     const matrix = selectDevelopmentValidationMatrix({ impact: fixture.impact, registry });
@@ -153,9 +151,10 @@ describe("attempt-aware modular development aggregate", () => {
 
   it("rejects exhaustive evidence as a substitute for cadence deferral", () => {
     const fixture = conservativeFixture();
-    const promoted = fixture.outcomes.find((value: any) => value.authority.job === "promoted");
-    promoted.authority.owners.push("update-predecessor");
-    promoted.authority.selected.push("update-predecessor");
+    const unexpected = outcome(fixture.impact.integration.selection.selectionId, "promoted", "win32", 24,
+      ["update-predecessor"], ["update-predecessor"], 1);
+    fixture.outcomes.push(unexpected);
+    fixture.envelopes.push(envelope(unexpected.authority, "success"));
     expect(() => requireModularValidation(fixture)).toThrow("excluded owner produced unexpected evidence");
   });
 });
@@ -163,26 +162,28 @@ describe("attempt-aware modular development aggregate", () => {
 function conservativeFixture(): any {
   const selection = createIntegrationSelection({ base, head, ownership, mode: "conservative", decisions: owners.map((owner: any) => owner.cadence === "pull-request" ? ({
     owner: owner.id, selected: true, reasons: [{ code: "conservative-fallback", paths: [] }],
-  }) : ({ owner: owner.id, selected: false, reasons: [{ code: "exhaustive-cadence", paths: [] }] })) });
+  }) : ({ owner: owner.id, selected: false, reasons: [{ code: owner.cadence === "direct-impact" ? "direct-impact-cadence" : "exhaustive-cadence", paths: [] }] })) });
   const outcomes = [
     coreOutcome(1), resourceOutcome(1),
     outcome(selection.selectionId, "pi", "win32", 24, ["pi-release-resume"], ["pi-engine-conformance", "package-smoke", "release-update"], 1),
-    outcome(selection.selectionId, "promoted", "win32", 24, ["launch-integration", "structured-runtime"], ["launch-integration", "structured-runtime-integration"], 1),
-    outcome(selection.selectionId, "package", "win32", 22, ["package-contracts"], ["package-contracts"], 1),
-    outcome(selection.selectionId, "startup", "win32", 22, ["startup"], ["package-startup"], 1),
-    outcome(selection.selectionId, "compatibility", "win32", 22, ["image-compatibility", "history-compatibility"], ["image-compatibility", "history-compatibility"], 1),
-    outcome(selection.selectionId, "containment", "linux", 24, ["image-compatibility", "history-compatibility", "unix-containment"], ["image-compatibility", "history-compatibility", "unix-containment", "package-smoke"], 1),
-    outcome(selection.selectionId, "containment", "darwin", 24, ["image-compatibility", "history-compatibility", "unix-containment"], ["image-compatibility", "history-compatibility", "unix-containment", "package-smoke"], 1),
-    outcome(selection.selectionId, "terminal-host", "win32", 24, ["terminal-host"], ["terminal-host"], 1),
-    outcome(selection.selectionId, "terminal-host", "linux", 24, ["terminal-host"], ["terminal-host"], 1),
-    outcome(selection.selectionId, "terminal-host", "darwin", 24, ["terminal-host"], ["terminal-host"], 1),
-    ...["win32", "linux", "darwin"].flatMap(platform => ["1/3", "2/3", "3/3"].map(partition =>
-      outcome(selection.selectionId, "terminal-host", platform, 24, ["terminal-host"], ["terminal-host"], 1, partition))),
-    outcome(selection.selectionId, "resident-chaos", "win32", 24, ["resident-chaos"], ["resident-chaos"], 1),
-    outcome(selection.selectionId, "resident-chaos", "linux", 24, ["resident-chaos"], ["resident-chaos"], 1),
-    outcome(selection.selectionId, "resident-chaos", "darwin", 24, ["resident-chaos"], ["resident-chaos"], 1),
   ];
   return impactFixture(selection, outcomes, 1, ["test/resource.test.ts"]);
+}
+function directDecisions(selectedOwner: string, path: string) {
+  return owners.map((owner: any) => ({ owner: owner.id, selected: owner.id === selectedOwner,
+    reasons: [{ code: owner.id === selectedOwner ? "shared-support" : owner.cadence === "direct-impact" ? "direct-impact-cadence" : owner.cadence === "exhaustive" ? "exhaustive-cadence" : "unrelated",
+      paths: owner.id === selectedOwner ? [path] : [] }] }));
+}
+function terminalHostFixture(): any {
+  const selection = createIntegrationSelection({ base, head, ownership, mode: "impact", decisions: directDecisions("terminal-host", "native/terminal-host/src/lib.rs") });
+  const outcomes = [
+    coreOutcome(1),
+    ...["win32", "linux", "darwin"].flatMap(platform => [
+      outcome(selection.selectionId, "terminal-host", platform, 24, ["terminal-host"], ["terminal-host"], 1),
+      ...["1/3", "2/3", "3/3"].map(partition => outcome(selection.selectionId, "terminal-host", platform, 24, ["terminal-host"], ["terminal-host"], 1, partition)),
+    ]),
+  ];
+  return impactFixture(selection, outcomes, 1, []);
 }
 function impactFixture(selection: any, outcomes: any[], runAttempt: number, resourceTests: string[]) {
   return { impact: { base, head, selectionId, prCore: { resourceTests }, integration: { selection } }, owners, outcomes,

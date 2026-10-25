@@ -55,7 +55,11 @@ describe("integration owner registry", () => {
       "resident-chaos": ["win32-x64-node24", "linux-x64-node24", "darwin-arm64-node24"],
     });
     expect(owners.filter(owner => owner.cadence === "exhaustive").map(owner => owner.id)).toEqual(["update-performance", "update-predecessor"]);
-    expect(owners.filter(owner => owner.cadence === "pull-request").map(owner => owner.id)).toEqual(owners.map(owner => owner.id).filter(id => !["update-performance", "update-predecessor"].includes(id)));
+    expect(owners.filter(owner => owner.cadence === "pull-request").map(owner => owner.id)).toEqual(["pi-release-resume"]);
+    expect(owners.filter(owner => owner.cadence === "direct-impact").map(owner => owner.id)).toEqual([
+      "package-contracts", "startup", "image-compatibility", "history-compatibility", "unix-containment",
+      "launch-integration", "terminal-host", "resident-chaos",
+    ]);
   });
 
   it("includes exact integration cadence in generated ownership evidence", async () => {
@@ -101,7 +105,11 @@ describe("integration owner registry", () => {
   it("keeps full/release plans deduplicated while all four runtime lanes remain declared", async () => {
     const paths = await discover(resolve("test"));
     const full = await planPaths(["full-release"], paths);
-    expect(full.sort()).toEqual(paths.sort());
+    const superseded = new Set([
+      "test/integrations/pi/tui-runtime/rendering-smoke.test.ts",
+      "test/integrations/pi/tui-runtime/input-responsiveness-smoke.test.ts",
+    ]);
+    expect(full.sort()).toEqual(paths.filter(path => !superseded.has(path)).sort());
     noDuplicates("full-release", full);
     const lanes = (matrix: { include: { os: string; node: number }[] }) => matrix.include.map(value => `${value.os}:node${value.node}`).sort();
     const allLanes = ["macos-15:node24", "ubuntu-24.04:node24", "windows-2025:node22", "windows-2025:node24"];
