@@ -58,6 +58,39 @@ describe("real-A1 input responsiveness verdict", () => {
     expect(disposed).toBe(true);
   });
 
+  it("replays large history within the native per-call bound without dropping or recoding bytes", async () => {
+    const prompt = "scenario=large-history;tab=0";
+    // Invariant: the multibyte character straddles the replay chunk boundary.
+    const history = "x".repeat(64 * 1024 - 1) + "界" + "y".repeat(2 * 1024 * 1024) + prompt;
+    const expected = Buffer.from(history, "utf8");
+    const chunks: Buffer[] = [];
+    const writes: string[] = [];
+    let disposed = false;
+    const addon = { TerminalFrameObserver: class {
+      observe(bytes: Uint8Array, marker: string) {
+        if (bytes.length > 2 * 1024 * 1024) throw new Error("frame observer input is out of bounds");
+        expect(marker).toBe("Type");
+        chunks.push(Buffer.from(bytes));
+        return { complete: true, markerOccurrences: 0, markerDigest: "empty" };
+      }
+      containsAsciiLiteral(literal: string) {
+        expect(literal).toBe(prompt);
+        expect(Buffer.concat(chunks).equals(expected)).toBe(true);
+        return true;
+      }
+    } };
+    await submitFixturePrompt(addon, {
+      output: () => history,
+      terminal: {
+        write: bytes => { writes.push(bytes); },
+        onData: () => ({ dispose: () => { disposed = true; } }),
+      },
+    }, prompt, true);
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(writes).toEqual([prompt, "\r"]);
+    expect(disposed).toBe(true);
+  });
+
   it("refuses debug or unidentified native profiles rather than relaxing latency budgets", () => {
     expect(assertOptimizedFixture({ fixtureBuildProfile: () => "release" })).toBe("release");
     for (const addon of [{}, { fixtureBuildProfile: () => "debug" }, { fixtureBuildProfile: () => "unknown" }]) {

@@ -78,7 +78,13 @@ class FrameOracle {
   #error;
   constructor(addon, endpoint, resident) {
     this.#native = new addon.TerminalFrameObserver(100, resident ? 30 : 29, resident ? 1 : 0);
-    this.#native.observe(Buffer.from(endpoint.output(), "utf8"), this.#marker);
+    // Rationale: cumulative fixture history can exceed the native per-call limit. Replay every
+    // byte in order; Ghostty retains partial UTF-8 and escape sequences across bounded writes.
+    const history = Buffer.from(endpoint.output(), "utf8");
+    const chunkBytes = 64 * 1024;
+    for (let offset = 0; offset < history.length; offset += chunkBytes) {
+      this.#native.observe(history.subarray(offset, offset + chunkBytes), this.#marker);
+    }
     this.#subscription = endpoint.terminal.onData(data => {
       const receivedAt = performance.now();
       try {
