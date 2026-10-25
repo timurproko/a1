@@ -64,8 +64,10 @@ struct SynchronizationState {
     deadline: Option<std::time::Instant>,
     recovered: bool,
     markers_delimit_frames: bool,
-    /// Set by a relayed end marker: the frame is parsed but its render pass has not arrived.
+    /// Hard bound for the oldest unpublished render pass; newer markers cannot renew it.
     render_pass_due: Option<std::time::Instant>,
+    /// A relayed end marker still needs its following render pass, unless the hard bound expires.
+    awaiting_render_pass: bool,
     /// Earliest publication of re-rendered output, so one pass is not split across commits.
     settled_at: Option<std::time::Instant>,
     /// Platform: a re-rendering PTY can also leave its cursor past the final column.
@@ -80,6 +82,7 @@ impl SynchronizationState {
             recovered: false,
             markers_delimit_frames,
             render_pass_due: None,
+            awaiting_render_pass: false,
             settled_at: None,
             conpty_cursor: ConptyCursorRepair::new(!markers_delimit_frames),
         }
@@ -117,7 +120,7 @@ impl SynchronizationState {
             SynchronizedOutputBoundary::Begin => {
                 // Protocol: bytes preceding a begin marker belong to the prior coherent state unless
                 // that state is still waiting for its re-rendered cells.
-                let publishable = self.render_pass_due.is_none_or(|due| now >= due);
+                let publishable = self.may_publish(now);
                 self.begin(now);
                 publishable
             }
@@ -126,7 +129,9 @@ impl SynchronizationState {
                 if self.markers_delimit_frames {
                     return true;
                 }
-                self.render_pass_due = now.checked_add(RENDER_PASS_WAIT);
+                self.render_pass_due
+                    .get_or_insert_with(|| now + RENDER_PASS_WAIT);
+                self.awaiting_render_pass = true;
                 false
             }
             SynchronizedOutputBoundary::Reset => {
@@ -141,8 +146,20 @@ impl SynchronizationState {
         if self.markers_delimit_frames {
             return;
         }
-        self.render_pass_due = None;
+        if !self.open {
+            self.awaiting_render_pass = false;
+            // Performance: continuous fragments may renew quiet settling, never its hard bound.
+            self.render_pass_due
+                .get_or_insert_with(|| now + RENDER_PASS_WAIT);
+        }
         self.settled_at = now.checked_add(RENDER_PASS_SETTLE);
+    }
+
+    /// Consumes a publication decision, including equal captures, without closing parser state.
+    fn published(&mut self) {
+        self.render_pass_due = None;
+        self.awaiting_render_pass = false;
+        self.settled_at = None;
     }
 
     fn recover_if_due(&mut self, now: std::time::Instant) -> bool {
@@ -155,8 +172,8 @@ impl SynchronizationState {
 
     fn may_publish(&self, now: std::time::Instant) -> bool {
         (!self.open || self.recovered)
-            && self.render_pass_due.is_none_or(|due| now >= due)
-            && self.settled_at.is_none_or(|at| now >= at)
+            && (self.render_pass_due.is_some_and(|due| now >= due)
+                || (!self.awaiting_render_pass && self.settled_at.is_none_or(|at| now >= at)))
     }
 
     /// How long the loop may sleep before a pending publication decision is due.
@@ -1240,6 +1257,7 @@ fn run_holder(
                         revision,
                         &mut effect_sequence,
                     )?;
+                    synchronization.published();
                     changed = false;
                 }
                 geometry_deadline = None;
@@ -1276,6 +1294,7 @@ fn run_holder(
                 revision,
                 &mut effect_sequence,
             )?;
+            synchronization.published();
             changed = false;
             geometry_deadline = None;
         }
@@ -1302,6 +1321,7 @@ fn run_holder(
                 revision,
                 &mut effect_sequence,
             )?;
+            synchronization.published();
         }
         if !synchronization.open
             && geometry_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline)
@@ -1319,6 +1339,7 @@ fn run_holder(
                 SurfaceCommitKind::ProvisionalGeometry,
                 "idle",
             )?;
+            synchronization.published();
             geometry_deadline = None;
         }
         if stop_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
@@ -1368,6 +1389,7 @@ fn run_holder(
                     revision,
                     &mut effect_sequence,
                 )?;
+                synchronization.published();
                 synchronization.close();
             }
             let recovery_root = tab_data_dir.join("recovery");
@@ -1867,6 +1889,10 @@ fn connect_retry(address: &str, retry_forever: bool) -> Result<endpoint::Endpoin
         }
     }
 }
+
+#[cfg(test)]
+#[path = "holder/synchronization_tests.rs"]
+mod synchronization_tests;
 
 #[cfg(test)]
 mod tests {

@@ -1,7 +1,7 @@
 ## 1. Non-starving holder publication
 
-- [ ] 1.1 Separate earliest pending ConPTY publication deadline from the newest transaction and quiet-settle state; consume it only with a publication decision while preserving open-transaction recovery and Unix boundaries.
-- [ ] 1.2 Add deterministic sustained-frame, between-marker, post-marker fragmentation, deadline consumption and recovery regressions covering repeated input without an idle pause.
+- [x] 1.1 Separate earliest pending ConPTY publication deadline from the newest transaction and quiet-settle state; consume it only with a publication decision while preserving open-transaction recovery and Unix boundaries.
+- [x] 1.2 Add deterministic sustained-frame, between-marker, post-marker fragmentation, deadline consumption and recovery regressions covering repeated input without an idle pause.
 
 ## 2. Enforced responsiveness evidence
 
