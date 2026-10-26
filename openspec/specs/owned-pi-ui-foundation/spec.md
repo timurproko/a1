@@ -2401,7 +2401,7 @@ Bare A1 SHALL support one explicit optional repository-context association per s
 
 The runtime SHALL publish bounded liveness with exact platform process identity. A worktree claim MAY transfer only after clean release or verified absence of the recorded process identity; elapsed time, heartbeat age, transcript inactivity, Git cleanliness, missing pull request, branch age, or PID alone SHALL NOT authorize takeover. Unverifiable ownership SHALL fail closed. Clean unlink, successful stream transfer, and orderly runtime disposal SHALL release live authority without granting cleanup authority. Restart or resume SHALL activate a persisted association only after safely reacquiring its worktree; a conflicting live owner SHALL force startup-context fallback.
 
-`a1 session worktrees` SHALL provide a bounded read-only inventory of canonical same-repository Git worktrees as `current`, `busy`, `available`, or `unverifiable`. It SHALL expose path, branch, and status but no session ID, process ID, session file, prompt, transcript, or credential data and SHALL NOT reserve, recover, release, edit, clean, or delete anything. Its result is advisory; `a1 session link-worktree` SHALL atomically revalidate and acquire the target claim before updating the durable association. Exactly one of two racing runtime generations SHALL succeed. A failed link or stream switch SHALL leave the prior association and claims unchanged.
+`a1 session worktrees` SHALL provide a bounded read-only inventory of canonical same-repository Git worktrees as `current`, `busy`, `available`, or `unverifiable`. A registration whose directory or Git pointer no longer exists SHALL be reported as `unverifiable` with the path and branch Git recorded for it rather than failing the inventory. It SHALL expose path, branch, and status but no session ID, process ID, session file, prompt, transcript, or credential data and SHALL NOT reserve, recover, release, edit, clean, or delete anything. Its result is advisory; `a1 session link-worktree` SHALL atomically revalidate and acquire the target claim before updating the durable association. Exactly one of two racing runtime generations SHALL succeed. A failed link or stream switch SHALL leave the prior association and claims unchanged.
 
 The association and claim operations SHALL validate active session/runtime identity, canonical worktree identity, non-detached branch state, and same Git common-directory identity as the session's startup repository. They SHALL NOT change tool cwd, session cwd, Git state, GitHub state, Git worktree locks, worktree cleanup registration, acceptance, merge, deletion, or cleanup authority. Missing, malformed, foreign, detached, deleted, reused, conflicting, or otherwise invalid state SHALL fail closed without making A1 startup or the running session fail.
 
@@ -2418,6 +2418,14 @@ The badge, association, claim, and inventory are declared bare-A1 behavior. The 
 - **THEN** every validated same-repository worktree SHALL be reported deterministically as current, busy, available, or unverifiable
 - **AND** the operation SHALL NOT claim or mutate any worktree, session association, Git state, or cleanup state
 - **AND** SHALL NOT reveal another session's or process's identity or content
+
+#### Scenario: Inventory contains a deleted worktree
+
+- **GIVEN** a registered same-repository worktree whose directory was deleted without `git worktree prune`
+- **WHEN** a bare-A1 session invokes `a1 session worktrees`
+- **THEN** the inventory SHALL still succeed and report every live worktree with its ordinary status
+- **AND** the stale registration SHALL appear as unverifiable with the path and branch Git recorded for it and no agent
+- **AND** linking a live worktree SHALL remain unaffected by the stale registration
 
 #### Scenario: Link a delivery worktree created after session startup
 
