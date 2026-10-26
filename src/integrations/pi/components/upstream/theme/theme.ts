@@ -112,6 +112,11 @@ const ACCENT_PALETTE: Readonly<Record<UiAccentColor, Readonly<Record<PiTerminalT
   pink: Object.freeze({ dark: okhslColor(337, 0.72, 0.67), light: okhslColor(337, 0.75, 0.48) }),
 });
 
+/** Canonical named color used by both the interactive theme and pre-load palette generation. */
+export function namedPiAccent(color: UiAccentColor, appearance: PiTerminalTheme): Color {
+  return ACCENT_PALETTE[color][appearance];
+}
+
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.max(minimum, Math.min(maximum, value));
 }
@@ -151,7 +156,7 @@ let activeBaseTheme: Theme | undefined;
 let activeTheme: Theme | undefined;
 let activeThemeName: string | undefined;
 let activeThemeMode: PiColorMode | undefined;
-let activeAccentColor: UiAccentColor = "purple";
+let activeAccentColor: UiAccentColor = "blue";
 let packageBorderProjectionEnabled = true;
 let themeWatcher: FSWatcher | undefined;
 let themeReloadTimer: NodeJS.Timeout | undefined;

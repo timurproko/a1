@@ -2,7 +2,7 @@ import type { OwnedUiBackgroundStyle, OwnedUiTimeFormat, UiAccentColor } from ".
 
 export const OWNED_UI_SETTINGS_VERSION = 19;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
-  "purple", "blue", "cyan", "green", "orange", "pink",
+  "blue", "purple", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
 
 export type OwnedUiSettingValue = string | number | boolean;
@@ -72,7 +72,7 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     section: APPEARANCE_SECTION,
     description: "Color used by highlighted interface controls, list markers, and tonal interface surfaces.",
     application: "live",
-    defaultValue: "purple",
+    defaultValue: "blue",
     allowedValues: UI_ACCENT_COLOR_CHOICES,
   }),
   backgroundStyle: Object.freeze({

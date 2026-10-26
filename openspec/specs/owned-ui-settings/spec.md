@@ -909,21 +909,25 @@ The owned Settings screen SHALL keep its standing shortcut guidance visible afte
 
 ### Requirement: The UI accent is a live Appearance setting
 
-Bare A1 SHALL expose one persisted A1 setting `accentColor`, labeled `Accent color`, in an `Appearance` section after `Generic`, followed by the `Background` and `Quit animation` settings. It SHALL offer `purple`, `blue`, `cyan`, `green`, `orange`, and `pink` in that order, SHALL default to `purple`, and SHALL declare live application. Every displayed value SHALL name an explicit A1 palette color and receive the same semantic-family projection behavior. The setting SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage or presented as an engine descriptor.
+Bare A1 SHALL expose one persisted A1 setting `accentColor`, labeled `Accent color`, in an `Appearance` section after `Generic`, followed by the `Background` and `Quit animation` settings. It SHALL offer `blue`, `purple`, `cyan`, `green`, `orange`, and `pink` in that order, SHALL default to `blue`, and SHALL declare live application. Every displayed value SHALL name an explicit A1 palette color and receive the same semantic-family projection behavior. The setting SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage or presented as an engine descriptor.
 
-Introducing the setting SHALL advance the owned settings version with forward migrations that preserve existing and unknown values, while an earlier stored `default` accent value SHALL migrate to `purple`. A missing, malformed, or unsupported stored value SHALL resolve to `purple` without blocking startup. The setting SHALL remain visible and editable when engine settings are absent or unavailable. `a1 pi` SHALL neither expose nor apply it.
+Existing compatibility transforms SHALL preserve existing and unknown values, including an earlier stored `default` accent value which SHALL still migrate to `purple`. A missing, malformed, or unsupported stored value SHALL resolve to `blue` without blocking startup. Explicit stored `purple` and all other named choices SHALL retain their values. The setting SHALL remain visible and editable when engine settings are absent or unavailable. `a1 pi` SHALL neither expose nor apply it.
 
 #### Scenario: Present the Appearance section
 - **WHEN** bare A1 opens the owned settings screen
 - **THEN** one `Appearance` section after `Generic` SHALL contain `Accent color`, `Background`, and `Quit animation` in that order
-- **AND** the accent value menu SHALL offer `purple`, `blue`, `cyan`, `green`, `orange`, and `pink` in order
+- **AND** the accent value menu SHALL offer `blue`, `purple`, `cyan`, `green`, `orange`, and `pink` in order
 - **AND** each accent choice SHALL show a square preview of its effective accent while the current-value check remains in the standard text color
 
 #### Scenario: Resolve an older or invalid profile
 - **WHEN** a profile predates `accentColor`, omits it, or stores a value outside the declared choices
 - **THEN** migration and validation SHALL preserve every other existing and unknown value
 - **AND** an earlier `default` accent value SHALL become `purple`
-- **AND** `accentColor` SHALL resolve to `purple` without blocking startup
+- **AND** an omitted or invalid `accentColor` SHALL resolve to `blue` without blocking startup
+
+#### Scenario: Keep an explicit earlier choice
+- **WHEN** a profile stores a valid named accent, including `purple`
+- **THEN** that value SHALL remain the effective accent across restart and update
 
 #### Scenario: Change the accent live
 - **WHEN** the reader selects another accent color
@@ -934,7 +938,7 @@ Introducing the setting SHALL advance the owned settings version with forward mi
 - **AND** no Pi settings document SHALL change
 
 #### Scenario: Select the initial purple palette
-- **WHEN** the reader selects `purple` or has no stored accent preference
+- **WHEN** the reader explicitly selects `purple`
 - **THEN** the active interface SHALL project A1's purple palette across the same semantic family as every other choice
 - **AND** every family tone SHALL be derived from the selected primary purple by the same transform used for every named or future custom accent
 - **AND** dialog bars SHALL use its darker neighboring-hue border tone rather than the base Pi border

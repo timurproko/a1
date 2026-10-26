@@ -6,6 +6,7 @@ import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import type { UpdateChannel } from "./types.js";
+import { earlyAccentPalette, earlyTerminalAppearance, earlyTerminalColorMode, resolveEarlyAccentColor } from "./early-accent.js";
 import { SHARED_PROGRESS_ACCENT_ANSI } from "./progress-palette.generated.js";
 import { isNewerRelease, releaseChannelOf } from "./latest-release.js";
 import {
@@ -402,17 +403,21 @@ const ACTIVATION_PROGRESS: Readonly<Record<UpdateActivationPhase, { at: number; 
 interface UpdateProgress { set(percent: number, creepTo?: number): void; finish(): void; clear(): void }
 
 /** Renders the terminal-only update meter; the visual preview shares this exact frame. */
-export function renderUpdateProgressBar(percent: number): string {
+export function renderUpdateProgressBar(percent: number, accent = SHARED_PROGRESS_ACCENT_ANSI): string {
   const bounded = Math.min(100, Math.max(0, Math.round(percent)));
   const filled = Math.round((bounded / 100) * PROGRESS_BAR_WIDTH);
-  // Rationale: the completed run follows the pinned Pi controls' semantic accent,
-  // while the track and percentage retain the update meter's neutral treatment.
+  // Rationale: the completed run follows the A1 profile accent; the track and
+  // percentage retain the update meter's neutral treatment.
   const gray = "\u001b[38;2;128;128;128m";
   const track = "\u001b[38;2;102;102;102m";
-  return `${SHARED_PROGRESS_ACCENT_ANSI}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_BAR_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
+  return `${accent}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_BAR_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
 }
 
-function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdateProgress {
+function updateProgressAccent(environment: NodeJS.ProcessEnv): string {
+  return earlyAccentPalette(resolveEarlyAccentColor(environment), earlyTerminalAppearance(environment), earlyTerminalColorMode(environment)).accent;
+}
+
+function createUpdateProgress(output: UpdateOutput, enabled: boolean, accent = SHARED_PROGRESS_ACCENT_ANSI): UpdateProgress {
   let visible = false;
   let current = 0;
   let shown = -1;
@@ -422,7 +427,7 @@ function createUpdateProgress(output: UpdateOutput, enabled: boolean): UpdatePro
     if (rounded === shown) return;
     shown = rounded;
     visible = true;
-    output.stdout(`\r${renderUpdateProgressBar(rounded)}`);
+    output.stdout(`\r${renderUpdateProgressBar(rounded, accent)}`);
   };
   const stopCreep = () => {
     if (timer !== null) { clearInterval(timer); timer = null; }
@@ -743,13 +748,13 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   // Rationale: no full stop after a version: it already ends in a dot-separated identifier,
   // and a trailing one reads as part of the version rather than as punctuation.
   output.stdout(`${PRODUCT_TEXT.commandName} update: ${runningVersion} → ${targetVersion}\n`);
-  const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true));
+  const environment = options.environment ?? process.env;
+  const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true), updateProgressAccent(environment));
 
   const managed = await measure("global-root", async () => await resolveManagedNpmInstallation(options.packageRoot, fileSystem, runner, output));
   if (managed.installation === null) return managed.exitCode;
   const { packageRoot, globalRoot, npmCliRoot } = managed.installation;
 
-  const environment = options.environment ?? process.env;
   const paths = resolveProductPaths(environment);
   const lifecycle = options.lifecycle ?? createUpdateLifecycleCoordinator(environment, fileSystem, output);
   const transactionStore = options.transactionStore ?? new UpdateTransactionStore(paths.dataDir);

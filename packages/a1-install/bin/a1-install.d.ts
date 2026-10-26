@@ -6,7 +6,8 @@ export type InstallerTarget =
 export function parseArguments(argv: string[]): { target: InstallerTarget; verbose: boolean; help: boolean };
 export function installerHelp(): string;
 export const SHARED_PROGRESS_ACCENT_ANSI: string;
-export function renderProgressBar(percent: number): string;
+export function resolveInstallerAccentColor(environment?: NodeJS.ProcessEnv, home?: () => string): string;
+export function renderProgressBar(percent: number, accent?: string): string;
 export function classifyProgressLine(line: string, fallback?: string): string;
 export function conciseFailure(stage: string, diagnostics: string): string;
 export function resolvePublishedPreview(stdout: string, requested: string): string;
