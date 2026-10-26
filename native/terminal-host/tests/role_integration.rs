@@ -614,11 +614,20 @@ setInterval(() => {}, 1000);
         .spawn()
         .expect("occupying tab create");
     std::thread::sleep(Duration::from_millis(500));
+    let before_create = attach.retained_len();
     attach.write(b"\x1ba");
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !attach.output_since(before_create).contains("\x1b[2J") && Instant::now() < deadline {
+        attach.settle(Duration::from_millis(50));
+    }
+    let pending = attach.output_since(before_create);
     assert!(
-        attach.output_containing("Starting Agent…", Duration::from_secs(2)),
-        "the pending Agent should be painted before its holder gets a start slot: {}",
-        attach.output_text()
+        pending.contains("\x1b[2J") && pending.contains("Agent"),
+        "the pending tab should paint before its holder gets a start slot: {pending}"
+    );
+    assert!(
+        !pending.contains("Starting Agent") && !pending.contains(text(&release)),
+        "pending body must contain no text or footer: {pending}"
     );
 
     // Invariant: input after New Agent belongs to that requested target. It must not leak to the

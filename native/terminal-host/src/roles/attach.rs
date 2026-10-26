@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{
@@ -55,6 +55,34 @@ pub const RESTORE_OUTER_MODES: &[u8] =
     b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l";
 pub const RESET_OUTER_COLORS: &[u8] = b"\x1b]104\x07\x1b]110\x07\x1b]111\x07\x1b]112\x07";
 const PENDING_AGENT_ID: &str = "pending-agent-local";
+
+struct PendingAgent {
+    /// IDs present before the click; a new registry row may arrive before `tab.created`.
+    known_ids: HashSet<String>,
+    real_id: Option<String>,
+}
+
+fn show_pending_agent(shown: &mut Vec<StripTab>, pending: &PendingAgent) {
+    shown.retain(|tab| {
+        (pending.known_ids.contains(&tab.id) && pending.real_id.as_deref() != Some(tab.id.as_str()))
+            || core_attach::is_utility_tab(&tab.id)
+    });
+    let at = shown
+        .iter()
+        .rposition(|tab| core_attach::is_utility_tab(&tab.id))
+        .unwrap_or(shown.len());
+    shown.insert(
+        at,
+        StripTab {
+            id: PENDING_AGENT_ID.into(),
+            name: "Agent".into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
+        },
+    );
+}
 const ATTACH_SERVER_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
 const ATTACH_INGRESS_BYTES: usize = 4 * 1024 * 1024;
@@ -1834,7 +1862,7 @@ struct Client {
     view: ViewModel,
     tabs: Vec<StripTab>,
     /// Only the attach client sees this visual intent; it is never a server tab identity.
-    pending_agent: Option<Option<String>>,
+    pending_agent: Option<PendingAgent>,
     chip_priority: Vec<String>,
     swap_in_flight: Option<String>,
     bindings: TabBindings,
@@ -1969,7 +1997,16 @@ impl Client {
             match effect {
                 Effect::Send(request) => {
                     if request == Request::Create {
-                        self.pending_agent = Some(None);
+                        let known_ids = self
+                            .tabs
+                            .iter()
+                            .chain(self.view.staged_tabs().into_iter().flatten())
+                            .map(|tab| tab.id.clone())
+                            .collect();
+                        self.pending_agent = Some(PendingAgent {
+                            known_ids,
+                            real_id: None,
+                        });
                     } else if matches!(request, Request::Open(_)) && !core.view.pending_agent_visible {
                         self.pending_agent = None;
                     }
@@ -1982,7 +2019,7 @@ impl Client {
                     if !core.view.pending_agent_visible {
                         self.pending_agent = None;
                     } else if let Some(pending) = self.pending_agent.as_mut() {
-                        *pending = Some(tab_id.clone());
+                        pending.real_id = Some(tab_id.clone());
                     }
                     self.request_view(tab_id)?;
                 }
@@ -2014,7 +2051,7 @@ impl Client {
             }
         }
         if !core.view.pending_agent_visible
-            && self.pending_agent.as_ref().is_some_and(Option::is_none)
+            && self.pending_agent.as_ref().is_some_and(|pending| pending.real_id.is_none())
         {
             self.pending_agent = None;
         }
@@ -2146,25 +2183,8 @@ impl Client {
         let strip_viewed = strip_active_view(&self.view, self.swap_in_flight.as_deref());
         let pending = core.view.pending_agent_visible && self.pending_agent.is_some();
         let mut shown = shown_tabs(&self.tabs, strip_viewed, core.view.shown());
-        if pending {
-            if let Some(Some(id)) = &self.pending_agent {
-                shown.retain(|tab| &tab.id != id);
-            }
-            let at = shown
-                .iter()
-                .rposition(|tab| core_attach::is_utility_tab(&tab.id))
-                .unwrap_or(shown.len());
-            shown.insert(
-                at,
-                StripTab {
-                    id: PENDING_AGENT_ID.into(),
-                    name: "Agent".into(),
-                    name_source: "default".into(),
-                    status: "idle".into(),
-                    accent: None,
-                    title_animation: None,
-                },
-            );
+        if let Some(intent) = self.pending_agent.as_ref().filter(|_| pending) {
+            show_pending_agent(&mut shown, intent);
         }
         let strip_viewed = if pending {
             Some(PENDING_AGENT_ID)
@@ -2302,19 +2322,15 @@ impl Client {
         }))
     }
 
-    fn starting_agent(&self) -> Vec<u8> {
-        let home = std::env::var("HOME")
-            .or_else(|_| std::env::var("USERPROFILE"))
-            .ok();
-        let cwd = landing::display_cwd(&self.create.cwd, home.as_deref());
-        landing::render_starting(&landing::LandingInput {
+    fn empty_agent(&self) -> Vec<u8> {
+        landing::render_empty(&landing::LandingInput {
             columns: self.columns,
             body_rows: self.outer_rows.saturating_sub(1),
-            version: self.version.as_deref(),
-            accent: self.time_format.accent_color,
+            version: None,
+            accent: None,
             truecolor: !palette_fallback_requested(),
-            half_blocks: landing::half_blocks_supported(),
-            cwd: &cwd,
+            half_blocks: false,
+            cwd: "",
             background: landing::canvas_background(
                 self.time_format.background_style,
                 self.time_format.accent_color,
@@ -2375,7 +2391,7 @@ impl Client {
         clear: bool,
         dimmed: bool,
     ) -> Result<(), String> {
-        let pending_body = pending.then(|| self.starting_agent());
+        let pending_body = pending.then(|| self.empty_agent());
         let child_surface = landing.is_none() && !pending;
         let desired = DesiredPresentation {
             tab_id: if pending {
@@ -2455,10 +2471,9 @@ impl Client {
             effective_status.clone_from(&tab.status);
         }
         if requested
-            && self
-                .pending_agent
-                .as_ref()
-                .is_some_and(|id| id.as_deref() == Some(surface.tab_id.as_str()))
+            && self.pending_agent.as_ref().is_some_and(|intent| {
+                intent.real_id.as_deref() == Some(surface.tab_id.as_str())
+            })
         {
             self.pending_agent = None;
         }
@@ -3755,6 +3770,51 @@ mod tests {
             session_dir: None,
             view_tab,
         }
+    }
+
+    #[test]
+    fn pending_agent_hides_early_registry_chip_before_and_after_created() {
+        let tab = |id: &str| StripTab {
+            id: id.into(),
+            name: "Agent".into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
+        };
+        let mut pending = PendingAgent {
+            known_ids: ["old".to_owned()].into_iter().collect(),
+            real_id: None,
+        };
+        for real_id in [None, Some("new")] {
+            pending.real_id = real_id.map(str::to_owned);
+            let mut shown = vec![tab("old"), tab("new")];
+            show_pending_agent(&mut shown, &pending);
+            assert_eq!(
+                shown.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+                ["old", PENDING_AGENT_ID]
+            );
+            let frame = strip::render_interactive_at(
+                &shown, Some(PENDING_AGENT_ID), 80, None, TimeFormat::TwentyFour, None, 1, true,
+            );
+            assert_eq!(drawn_chip_ids(&frame), ["old", PENDING_AGENT_ID]);
+            assert!(!frame.bytes.contains("new"));
+        }
+        let mut from_landing = vec![tab("new")];
+        show_pending_agent(
+            &mut from_landing,
+            &PendingAgent { known_ids: HashSet::new(), real_id: None },
+        );
+        assert_eq!(
+            from_landing.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+            [PENDING_AGENT_ID]
+        );
+        // Once the complete real surface commits, the ordinary registry topology owns one chip.
+        let committed = vec![tab("old"), tab("new")];
+        assert_eq!(
+            committed.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+            ["old", "new"]
+        );
     }
 
     #[test]

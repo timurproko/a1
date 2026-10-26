@@ -246,12 +246,12 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     render_body(input, false)
 }
 
-/// A coherent, cursor-free screen while a user-created Agent is not yet registered or drawn.
-pub fn render_starting(input: &LandingInput<'_>) -> Vec<u8> {
+/// A text-free, cursor-free body while a user-created Agent is not yet drawn.
+pub fn render_empty(input: &LandingInput<'_>) -> Vec<u8> {
     render_body(input, true)
 }
 
-fn render_body(input: &LandingInput<'_>, starting: bool) -> Vec<u8> {
+fn render_body(input: &LandingInput<'_>, empty: bool) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
     let fg = |rgb| foreground(rgb, input.truecolor);
@@ -261,28 +261,25 @@ fn render_body(input: &LandingInput<'_>, starting: bool) -> Vec<u8> {
             slot.push_str(&content);
         }
     };
-    let cwd_row = body_rows.saturating_sub(2);
-    place(
-        cwd_row,
-        format!("{}{}\x1b[0m", fg(DIM), clip_left(input.cwd, columns)),
-    );
-    // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
-    if let Some(version) = input.version.filter(|version| !version.is_empty())
-        && cwd_row + 1 < body_rows
-    {
-        let version = clip(&format!("v{version}"), columns);
-        place(cwd_row + 1, format!("{}{version}\x1b[0m", fg(DIM)));
-    }
-    if starting && cwd_row > 0 {
+    if !empty {
+        let cwd_row = body_rows.saturating_sub(2);
         place(
-            cwd_row - 1,
-            format!("{}{}\x1b[0m", fg(DIM), clip("Starting Agent…", columns)),
+            cwd_row,
+            format!("{}{}\x1b[0m", fg(DIM), clip_left(input.cwd, columns)),
         );
-    } else if !starting && input.half_blocks && cwd_row >= WORDMARK.len() {
-        let accent = fg(accent_colors(input.accent).accent);
-        for (offset, line) in WORDMARK.iter().enumerate() {
-            let row = cwd_row - WORDMARK.len() + offset;
-            place(row, wordmark_row(line, &accent, columns));
+        // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
+        if let Some(version) = input.version.filter(|version| !version.is_empty())
+            && cwd_row + 1 < body_rows
+        {
+            let version = clip(&format!("v{version}"), columns);
+            place(cwd_row + 1, format!("{}{version}\x1b[0m", fg(DIM)));
+        }
+        if input.half_blocks && cwd_row >= WORDMARK.len() {
+            let accent = fg(accent_colors(input.accent).accent);
+            for (offset, line) in WORDMARK.iter().enumerate() {
+                let row = cwd_row - WORDMARK.len() + offset;
+                place(row, wordmark_row(line, &accent, columns));
+            }
         }
     }
 
@@ -374,23 +371,21 @@ mod tests {
     }
 
     #[test]
-    fn starting_agent_replaces_the_wordmark_with_a_coherent_cursor_free_body() {
-        let grid = cells(&render_starting(&input(80, 23)), 80, 23);
-        assert_eq!(grid[20], "Starting Agent…");
-        assert_eq!(grid[21], "~/src/a1");
-        assert_eq!(grid[22], "v0.2.7");
-        assert!(!grid.iter().any(|row| row.contains(WORDMARK[0])));
-        assert_eq!(
-            cells(&render_starting(&input(8, 3)), 8, 3),
-            ["Starting", "~/src/a1", "v0.2.7"]
-        );
-        let painted = String::from_utf8(render_starting(&LandingInput {
+    fn pending_agent_body_is_empty_even_when_landing_has_text_and_canvas() {
+        for (columns, rows) in [(80, 23), (8, 3), (2, 1)] {
+            let grid = cells(&render_empty(&input(columns, rows)), columns, rows);
+            assert!(grid.iter().all(String::is_empty), "{grid:#?}");
+        }
+        let painted = String::from_utf8(render_empty(&LandingInput {
             background: Some([26, 27, 28]),
             ..input(80, 23)
-        }))
-        .unwrap();
-        assert!(painted.contains("Starting Agent…"));
+        })).unwrap();
+        assert!(!painted.contains("Starting Agent"));
+        assert!(!painted.contains("~/src/a1"));
         assert!(painted.contains("\x1b[48;2;26;27;28m"));
+        for row in 2..=24 {
+            assert!(painted.contains(&format!("\x1b[{row};1H\x1b[0m\x1b[2K")));
+        }
     }
 
     #[test]
