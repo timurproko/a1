@@ -21,6 +21,8 @@ pub struct RoleHello {
     pub generation: u16,
     pub build: String,
     #[serde(default)]
+    pub release_id: String,
+    #[serde(default)]
     pub features: Vec<String>,
     pub token: Vec<u8>,
     #[serde(default)]
@@ -37,6 +39,18 @@ pub struct RoleHello {
     pub child_start_identity: Option<String>,
     #[serde(default)]
     pub highest_epoch: u64,
+}
+
+impl RoleHello {
+    /// Common native-role admission fields, including exact immutable release identity.
+    pub fn resident(role: &str, token: &[u8]) -> Result<Self, String> {
+        Ok(Self {
+            role: role.into(), generation: protocol::GENERATION, build: "a1-terminal-host".into(),
+            release_id: super::scope::release_id()?, features: Vec::new(), token: token.to_vec(),
+            tab_id: None, pid: Some(std::process::id()), start_identity: None, incarnation: 0,
+            child_pid: None, child_start_identity: None, highest_epoch: 0,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

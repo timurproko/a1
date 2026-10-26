@@ -43,6 +43,8 @@ pub struct TabRecord {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegistryDocument {
+    #[serde(default)]
+    pub release_id: String,
     pub registry_revision: u64,
     pub epoch: u64,
     pub boot_id: String,
@@ -405,6 +407,7 @@ mod tests {
     }
     fn document(epoch: u64) -> RegistryDocument {
         RegistryDocument {
+            release_id: String::new(),
             registry_revision: 1,
             epoch,
             boot_id: "boot".into(),

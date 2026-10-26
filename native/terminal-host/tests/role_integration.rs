@@ -7,7 +7,15 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::time::{Duration, Instant};
 
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
-use terminal_host_contracts::endpoint;
+mod endpoint {
+    pub use terminal_host_contracts::endpoint::*;
+
+    pub fn endpoint_token(profile: &std::path::Path) -> Result<String, String> {
+        terminal_host_contracts::roles::scope::fixture_token(
+            profile, std::path::Path::new(env!("CARGO_BIN_EXE_role-host")),
+        )
+    }
+}
 use terminal_host_contracts::roles::registry::RegistryStore;
 
 static ROLE_TEST_SERIAL: Mutex<()> = Mutex::new(());
@@ -1112,6 +1120,7 @@ fn recovery_refuses_unverifiable_owners_and_enforces_the_start_budget() {
         serde_json::to_vec(&serde_json::json!({
             "pid": std::process::id(),
             "startIdentity": "not-the-test-process",
+            "releaseId": terminal_host_contracts::roles::scope::fixture_release_id(&executable).expect("fixture release"),
             "endpoint": address,
             "generation": 1,
             "verified": true,
@@ -2343,6 +2352,7 @@ fn a_bridge_status_survives_the_surfaces_of_the_holder_it_reports_under() {
             role: "bridge".into(),
             generation: 1,
             build: "a1".into(),
+            release_id: terminal_host_contracts::roles::scope::fixture_release_id(&executable).unwrap(),
             features: vec!["bridge-status".into()],
             token: credentials.derive("bridge", &tab_id, incarnation).to_vec(),
             tab_id: Some(tab_id.clone()),
@@ -2957,6 +2967,7 @@ fn a_slow_client_never_delays_the_viewed_tabs_input_or_output() {
             role: "attach".into(),
             generation: terminal_host_contracts::protocol::GENERATION,
             build: "fixture".into(),
+            release_id: terminal_host_contracts::roles::scope::fixture_release_id(&executable).unwrap(),
             features: Vec::new(),
             token: credentials.client_token.to_vec(),
             tab_id: Some(streaming_tab.clone()),
@@ -3145,6 +3156,7 @@ fn host_stop_refuses_an_unverifiable_owner_and_changes_nothing() {
         serde_json::to_vec(&serde_json::json!({
             "pid": own.pid,
             "startIdentity": format!("{}-reused", own.start),
+            "releaseId": terminal_host_contracts::roles::scope::fixture_release_id(&executable).expect("fixture release"),
             "endpoint": address,
             "generation": 1,
             "verified": true,
@@ -3560,7 +3572,7 @@ fn start_servers_concurrently(
     assert_eq!(
         outcomes.matches("\"outcome\":\"started\"").count(),
         1,
-        "{outcomes}"
+        "{outcomes}\n{}\n{}", String::from_utf8_lossy(&first.stderr), String::from_utf8_lossy(&second.stderr)
     );
     assert_eq!(
         outcomes.matches("\"outcome\":\"already-running\"").count(),

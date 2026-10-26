@@ -2,6 +2,7 @@ export interface TabLaunchCredentials {
   readonly tabId: string;
   readonly token: string;
   readonly endpoint: string;
+  readonly releaseId?: string;
 }
 
 export function formatResidentFallbackNotice(reason: string): string;

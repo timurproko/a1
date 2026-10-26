@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { assignFreshSessionRuntimeId, consumeTabLaunchContext, waitForStandbyPromotion } from "../../../bin/tab-launch-context.js";
 
 const exec = promisify(execFile);
@@ -43,6 +44,13 @@ describe("resident tab credential consumption", () => {
       env: environment as NodeJS.ProcessEnv,
     });
     expect(JSON.parse(child.stdout)).toEqual([null, null, null]);
+  });
+
+  it("pins and consumes release identity without leaking it to extensions", () => {
+    const environment = { A1_TAB_ID: "tab", A1_TAB_TOKEN: "token", A1_TAB_ENDPOINT: "endpoint", [PRODUCT_IDENTITY.environment.tabReleaseId]: "release-a" };
+    const context = consumeTabLaunchContext(["--tab", "--tab-data-dir", "recovery", "--tab-incarnation", "1"], environment);
+    expect(context.tabCredentials?.releaseId).toBe("release-a");
+    expect(environment).toEqual({});
   });
 
   it("waits for a split-safe authenticated holder promotion marker", async () => {

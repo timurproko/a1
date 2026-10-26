@@ -1299,7 +1299,7 @@ struct Handshake {
 /// registry; returns once the server admitted this client.
 fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
     let token =
-        crate::endpoint::endpoint_token(options.profile).map_err(|error| error.to_string())?;
+        super::scope::token(options.profile)?;
     let credentials =
         ProfileCredentials::load_or_create(&options.data_dir.join("tabs").join(token))?;
     let mut stream = endpoint::connect(options.endpoint).map_err(|error| error.to_string())?;
@@ -1311,6 +1311,7 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
             role: "attach".into(),
             generation: protocol::GENERATION,
             build: "a1-terminal-host".into(),
+            release_id: super::scope::release_id()?,
             features: vec![
                 "double-ctrl-c".into(),
                 protocol::FEATURE_SEMANTIC_INPUT.into(),
@@ -1333,6 +1334,7 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
         return Err("resident server refused attach".to_owned());
     }
     let (_, welcome): (Option<u64>, Welcome) = wire::body(&payload)?;
+    super::scope::admit(&welcome.release_id)?;
     // Compatibility: semantic input and typed effects are generation-1 features; a server that
     // lacks them keeps the byte path and applies no child terminal effects.
     let channel = InputChannel::new(protocol::negotiated(

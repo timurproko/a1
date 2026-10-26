@@ -45,6 +45,7 @@ pub fn connect(address: &str, token: &[u8]) -> Result<Connection, ConnectError> 
             role: "maintain".into(),
             generation: protocol::GENERATION,
             build: "a1".into(),
+            release_id: super::scope::release_id().map_err(ConnectError::Refused)?,
             features: vec![],
             token: token.to_vec(),
             tab_id: None,
@@ -68,6 +69,8 @@ pub fn connect(address: &str, token: &[u8]) -> Result<Connection, ConnectError> 
     let kind = wire::kind(&payload).map_err(ConnectError::Refused)?;
     match kind.message_type.as_str() {
         "welcome" => {
+            let (_, welcome): (_, crate::protocol::Welcome) = wire::body(&payload).map_err(ConnectError::Refused)?;
+            super::scope::admit(&welcome.release_id).map_err(ConnectError::Refused)?;
             endpoint::clear_handshake_deadline(&stream).map_err(|_| ConnectError::Unresponsive)?;
             Ok(Connection {
                 stream,

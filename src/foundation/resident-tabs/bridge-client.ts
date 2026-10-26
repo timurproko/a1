@@ -5,7 +5,7 @@ import { RESIDENT_TAB_ROUTES, type ResidentTabRoute } from "./routes.js";
 export type ResidentTabStatus = "starting" | "working" | "needs-input" | "done-unseen" | "done" | "aborted" | "error" | "idle" | "unresponsive" | "crashed" | "restarting" | "failed";
 export { residentUtilityRoute, type ResidentTabRoute } from "./routes.js";
 const RESIDENT_TAB_ROUTE_SET: ReadonlySet<unknown> = new Set<ResidentTabRoute>(RESIDENT_TAB_ROUTES);
-export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string }
+export interface TabBridgeCredentials { readonly tabId: string; readonly token: string; readonly endpoint: string; readonly releaseId?: string }
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
 export type TabBridgeCommand =
   | { readonly type: "visibility"; readonly visible: boolean }
@@ -88,7 +88,7 @@ export class TabBridgeClient {
       this.#startWaiter = finish;
       transport.once("connect", () => {
         this.#send("hello", {
-          role: "bridge", generation: 1, build: this.#options.build ?? "a1",
+          role: "bridge", generation: 1, build: this.#options.build ?? "a1", releaseId: this.#options.credentials.releaseId,
           features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-route", "bridge-stop", "bridge-shortcuts", "controller-boundary", "recovery-journal"],
           token: [...Buffer.from(this.#options.credentials.token, "base64")], tabId: this.#options.credentials.tabId,
           pid: this.#options.pid ?? process.pid, startIdentity: this.#options.startIdentity ?? `${process.pid}:node`,
@@ -219,6 +219,8 @@ export class TabBridgeClient {
 
   #receive(message: ResidentEnvelope): void {
     if (message.type === "welcome" && message.body["generation"] === 1) {
+      const id = this.#options.credentials.releaseId;
+      if (id !== undefined && message.body["releaseId"] !== id) { this.#fail(false); return; }
       const advertised = message.body["features"];
       this.#features = new Set(Array.isArray(advertised) ? advertised.filter((feature): feature is string => typeof feature === "string") : []);
       this.#connected = true;

@@ -727,15 +727,15 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
 fn run_holder(
     _profile: &Path,
     ready: &Path,
-    config: HolderLaunchConfig,
+    mut config: HolderLaunchConfig,
     respawned: bool,
 ) -> Result<(), String> {
     progress_observation::configure_from_launch_environment(&config.environment);
     crate::roles::fixture_control::configure_from_launch_environment(&config.environment);
     crate::fault_injection::install(&config.server.fault_environment);
     crate::fault_injection::validate_environment()?;
-    let profile_token = crate::endpoint::endpoint_token(Path::new(&config.server.profile))
-        .map_err(|error| error.to_string())?;
+    super::scope::pin_launch(&mut config.release_root, &mut config.node_executable)?;
+    let profile_token = super::scope::token(Path::new(&config.server.profile))?;
     let diagnostics_root = Path::new(&config.server.data_dir)
         .join("tabs")
         .join(&profile_token)
@@ -821,8 +821,7 @@ fn run_holder(
             config.incarnation.to_string(),
         );
     }
-    command.env("A1_TAB_TOKEN", BASE64.encode(&config.bridge_token));
-    command.env("A1_TAB_ENDPOINT", &config.endpoint);
+    configure_bridge(&mut command, &config)?;
     let mut child = pair
         .slave
         .spawn_command(command)
@@ -1831,6 +1830,7 @@ fn connect_holder(
             role: "holder".into(),
             generation: protocol::GENERATION,
             build: "a1-terminal-host".into(),
+            release_id: super::scope::release_id()?,
             features: HOLDER_FEATURES
                 .iter()
                 .map(|feature| (*feature).into())
@@ -1861,8 +1861,16 @@ fn connect_holder(
     }
     endpoint::clear_handshake_deadline(&stream).map_err(|error| error.to_string())?;
     let (_, welcome): (Option<u64>, Welcome) = wire::body(&welcome)?;
+    super::scope::admit(&welcome.release_id)?;
     crate::fault_injection::crash_at("holder-after-ready");
     Ok((stream, welcome.epoch))
+}
+
+fn configure_bridge(command: &mut CommandBuilder, config: &HolderLaunchConfig) -> Result<(), String> {
+    command.env("A1_TAB_RELEASE_ID", super::scope::release_id()?);
+    command.env("A1_TAB_TOKEN", BASE64.encode(&config.bridge_token));
+    command.env("A1_TAB_ENDPOINT", &config.endpoint);
+    Ok(())
 }
 
 fn spawn_command_reader(

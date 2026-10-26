@@ -1,17 +1,33 @@
 // Provenance: exact-artifact fixture only; native Ghostty owns terminal interpretation. JavaScript supplies
 // synthetic input and correlates completed semantic states with one local monotonic send clock.
+import { mkdtemp, realpath, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 const sampleCount = 40;
 const cadenceMs = 30;
 const stallMs = 1_000;
 const overheadMs = 16 + 33;
 
-/** Keep detached WMI roles on the exact fixture addon even without inherited overrides. */
+/** Keep every detached generation on the exact fixture addon without inherited overrides. */
 export function fixtureRoleEntrySource(artifact) {
   return `const artifact = ${JSON.stringify(artifact)};\n`
     + `process.env.A1_DEV_INSTANCE_ID = "resident-parallel-validation";\n`
     + `process.env.A1_TERMINAL_HOST_PATH = artifact;\n`
     + `const addon = require(artifact);\n`
     + `process.exitCode = addon.runRole(process.argv.slice(2), { executable: process.execPath, entry: __filename, artifact });\n`;
+}
+
+/** Keep canonical Unix socket names short even when Darwin's user temporary root is deep. */
+export async function createResidentFixtureRoot(prefix) {
+  return await mkdtemp(join(process.platform === "win32" ? tmpdir() : "/tmp", prefix));
+}
+
+/** Materialize fixed role custody once, before any server or holder launch. */
+export async function writeFixtureRoleEntry(root, artifact) {
+  const entry = join(root, "fixture-role-entry.cjs");
+  await writeFile(entry, fixtureRoleEntrySource(await realpath(artifact)));
+  return entry;
 }
 
 /** Refuse a debug or unidentified native artifact instead of weakening the performance budget. */

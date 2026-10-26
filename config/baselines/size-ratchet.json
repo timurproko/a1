@@ -110,7 +110,7 @@
       "lines": 112
     },
     "native/terminal-host/src/protocol.rs::fixture_set": {
-      "lines": 367
+      "lines": 360
     },
     "native/terminal-host/src/roles/entry.rs::controller_boundary_child": {
       "lines": 109
@@ -122,13 +122,13 @@
       "lines": 155
     },
     "native/terminal-host/src/roles/entry.rs::resident_internal_command": {
-      "lines": 126
+      "lines": 116
     },
     "native/terminal-host/src/roles/entry.rs::resident_server_command": {
       "lines": 160
     },
     "native/terminal-host/src/roles/holder.rs::run_holder": {
-      "lines": 753
+      "lines": 752
     },
     "native/terminal-host/src/roles/presentation.rs::PresentationComposer::prepare": {
       "lines": 120
@@ -161,7 +161,7 @@
       "lines": 157
     },
     "native/terminal-host/src/roles/server/mod.rs::run_server_child": {
-      "lines": 317
+      "lines": 306
     },
     "native/terminal-host/src/roles/server/mod.rs::serve_peer": {
       "lines": 147

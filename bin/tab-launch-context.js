@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 
-const TAB_ENVIRONMENT_NAMES = ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT"];
+const TAB_ENVIRONMENT_NAMES = ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT", "A1_TAB_RELEASE_ID"];
 
 /** @param {string} reason */
 export function formatResidentFallbackNotice(reason) {
@@ -83,12 +83,12 @@ export function consumeTabLaunchContext(arguments_, environment) {
   const incarnationArgument = uiArguments.indexOf("--tab-incarnation");
   const tabIncarnation = incarnationArgument === -1 ? undefined : Number(uiArguments[incarnationArgument + 1]);
   if (incarnationArgument !== -1) uiArguments.splice(incarnationArgument, 2);
-  const [tabId, token, endpoint] = TAB_ENVIRONMENT_NAMES.map(name => environment[name]);
+  const [tabId, token, endpoint, releaseId] = TAB_ENVIRONMENT_NAMES.map(name => environment[name]);
   for (const name of TAB_ENVIRONMENT_NAMES) delete environment[name];
   if (!tabMode) return { uiArguments, tabCredentials: undefined, tabStandby: false };
   if (!tabId || !token || !endpoint || !tabDataDir || tabDataDir.includes("\0")
     || typeof tabIncarnation !== "number" || !Number.isSafeInteger(tabIncarnation) || tabIncarnation < 1) {
     throw new Error("A1 tab mode requires bridge credentials, recovery directory, and incarnation");
   }
-  return { uiArguments, tabCredentials: { tabId, token, endpoint }, tabDataDir, tabIncarnation, tabStandby };
+  return { uiArguments, tabCredentials: { tabId, token, endpoint, ...(releaseId === undefined ? {} : { releaseId }) }, tabDataDir, tabIncarnation, tabStandby };
 }

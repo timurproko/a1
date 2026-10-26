@@ -36,6 +36,7 @@
     "suggestionDiagnostics": "A1_SUGGESTION_DIAGNOSTICS",
     "tabEndpoint": "A1_TAB_ENDPOINT",
     "tabId": "A1_TAB_ID",
+    "tabReleaseId": "A1_TAB_RELEASE_ID",
     "tabToken": "A1_TAB_TOKEN",
     "tabsEndpoint": "A1_TABS_ENDPOINT",
     "terminalHostPath": "A1_TERMINAL_HOST_PATH",

@@ -22,6 +22,7 @@ pub mod registry;
 pub mod release_holds;
 pub mod reveal;
 pub mod server;
+pub mod scope;
 pub mod strip;
 mod terminal_output;
 pub mod wire;

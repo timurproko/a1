@@ -408,13 +408,25 @@ async function residentReleaseHolds(dataDir: string, reader?: ResidentHoldReader
   const report = await (reader ?? ((directory, releaseRoots) => readResidentReleaseHolds({ dataDir: directory, releaseRoots })))(dataDir, roots);
   const everything = () => [...new Set(records.map(record => record.releaseId))].map(releaseId => ({ authority: "resident" as const, releaseId }));
   if (!report.complete) return everything();
-  const byRoot = new Map(records.map(record => [comparablePath(record.releaseRoot), record.releaseId]));
-  const store = comparablePath(resolve(dataDir, "releases"));
+  if (report.releaseRoots.length === 0) return [];
+  // Rationale: native Windows extended paths and Unix aliases must match the catalog's spelling.
+  const byRoot = new Map<string, string>();
+  for (const record of records) {
+    const canonical = await realpath(record.releaseRoot).catch(() => record.releaseRoot);
+    byRoot.set(comparablePath(canonical), record.releaseId);
+  }
+  const directory = await realpath(resolve(dataDir, "releases")).catch(() => null);
+  if (directory === null) return everything();
+  const store = comparablePath(directory);
   const holds = new Set<string>();
   for (const root of report.releaseRoots) {
-    const releaseId = byRoot.get(comparablePath(root));
+    // Security: an unresolved live root may alias managed content; uncertainty must retain it.
+    const canonical = await realpath(root).catch(() => null);
+    if (canonical === null) return everything();
+    const key = comparablePath(canonical);
+    const releaseId = byRoot.get(key);
     if (releaseId) holds.add(releaseId);
-    else if (comparablePath(root).startsWith(`${store}${sep}`)) return everything();
+    else if (key.startsWith(`${store}${sep}`)) return everything();
   }
   return [...holds].sort().map(releaseId => ({ authority: "resident" as const, releaseId }));
 }

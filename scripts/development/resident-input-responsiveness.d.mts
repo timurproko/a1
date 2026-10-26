@@ -1,4 +1,6 @@
 export function fixtureRoleEntrySource(artifact: string): string;
+export function createResidentFixtureRoot(prefix: string): Promise<string>;
+export function writeFixtureRoleEntry(root: string, artifact: string): Promise<string>;
 export function assertOptimizedFixture(addon: { readonly fixtureBuildProfile?: () => string }): "release";
 export interface InputResponseSnapshot {
   readonly complete: boolean;
