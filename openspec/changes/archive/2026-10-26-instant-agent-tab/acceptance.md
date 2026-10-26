@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-26-instant-agent-tab/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-26-instant-agent-tab/acceptance.md",
   "finalizedDate": "2026-10-26",
-  "specBaseSha": "9525032c2c6d40dff58f20976ed8009054913c94",
+  "specBaseSha": "939b1527555dbc80fb9c10f02be89cafdcc3121e",
   "acceptanceScenarios": [
     "A newly requested Agent immediately shows one selected tab with an empty transcript, ruled prompt, visual caret, and both footer rows without loading text or child cursor.",
     "Closing that pending tab by shortcut or context menu immediately restores the previous Agent or landing without delivering the pending prompt to another tab.",
