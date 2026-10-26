@@ -144,7 +144,7 @@ describe("owned settings manager", () => {
       const appearance = target.sections().find(section => section.id === "appearance")?.entries;
       const accent = appearance?.[0];
       const background = appearance?.[1];
-      expect(accent).toMatchObject({ id: "accentColor", backend: "a1", value: "purple", effectiveValue: "purple", editable: true, application: "live" });
+      expect(accent).toMatchObject({ id: "accentColor", backend: "a1", value: "blue", effectiveValue: "blue", editable: true, application: "live" });
       expect(background).toMatchObject({ id: "backgroundStyle", backend: "a1", value: "transparent", effectiveValue: "transparent", editable: true, application: "live" });
       expect(group?.entries.slice(-3).map(candidate => candidate.id)).toEqual(["promptSuggestions", "skillsPresentation", "promptImageLimit"]);
 
@@ -217,7 +217,7 @@ describe("owned settings manager", () => {
     await peer.change("a1", "accentColor", "orange");
     await peer.change("a1", "promptHistoryEnabled", false);
     await peer.change("a1", "promptHistoryScope", "shared");
-    expect(target.value("accentColor")).toBe("purple");
+    expect(target.value("accentColor")).toBe("blue");
     expect(target.refresh()).toBe(true);
     expect(notified).toBe(1);
     expect(target.value("accentColor")).toBe("orange");
@@ -273,7 +273,7 @@ describe("owned settings manager", () => {
     expect(JSON.parse(readFileSync(target.file, "utf8"))).toEqual({
       theme: "dark",
       [namespace]: {
-        futureSetting: "keep", scrollbarSpeed: "high", promptSuggestions: false,
+        futureSetting: "keep", scrollbarSpeed: "high", accentColor: "purple", promptSuggestions: false,
       },
     });
   });
@@ -286,7 +286,7 @@ describe("owned settings manager", () => {
     const animate: boolean = target.value("quitAnimation");
     const accent: "purple" | "blue" | "cyan" | "green" | "orange" | "pink" = target.value("accentColor");
     const background: "transparent" | "accent" | "dark" = target.value("backgroundStyle");
-    expect([speed, limit, scope, animate, accent, background]).toEqual(["normal", 100, "unique", true, "purple", "transparent"]);
+    expect([speed, limit, scope, animate, accent, background]).toEqual(["normal", 100, "unique", true, "blue", "transparent"]);
     await target.change("a1", "scrollbarSpeed", "fast");
     expect(target.value("scrollbarSpeed")).toBe("fast");
     // Invariant: an injected declaration set that omits a setting still answers with the table default.

@@ -30,10 +30,14 @@ Targeted tests cover default blue and menu ordering, explicit purple and other c
 
 ## Risks / Trade-offs
 
-- **[Installer duplicates settings parsing]** → Keep its read-only built-in implementation small, bounded and fixture-tested against main-package cases; ship the palette asset as the single color-data contract.
+- **[Early readers duplicate settings parsing]** → Architecture keeps the dependency-free installer, release foundation, and pre-trust Settings owner separate. Keep each read-only implementation small and bounded; fixture-test their results and generate all three palette assets from one named theme projection.
 - **[Trust reads project state too soon]** → Pass only the resolved global profile identity; assert untrusted project settings have no effect.
 - **[Default changes a formerly unstored purple preference]** → Preserve any explicit stored purple; report the unavoidable omitted-value ambiguity rather than fabricating a migration.
 - **[Theme mismatch by mode]** → Test dark/light and color capability behavior against the named A1 palette, not hard-coded purple SGR bytes.
+
+## Startup budget
+
+Pre-trust palette resolution adds two reachable modules (`ui/settings/early-accent.ts` and its generated named palette). The startup reachability baseline is repinned from 200 files / 1,853,932 bytes to 202 files / 1,860,801 bytes; Pi's public-artifact budget and optional-module list are unchanged. The eager path does not import the interactive theme, project settings, installer, or release updater. This is an explicit first-prompt correctness cost, not an unrestricted size relaxation.
 
 ## Migration Plan
 

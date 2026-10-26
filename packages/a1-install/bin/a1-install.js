@@ -2,10 +2,11 @@
 
 import { spawn } from "node:child_process";
 import { access, lstat, readFile, realpath } from "node:fs/promises";
-import { lstatSync, realpathSync } from "node:fs";
+import { lstatSync, realpathSync, readFileSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { SHARED_PROGRESS_ACCENT_ANSI } from "./progress-palette.js";
+import { SHARED_PROGRESS_ACCENT_ANSI, SHARED_PROGRESS_PALETTE } from "./progress-palette.js";
 
 export { SHARED_PROGRESS_ACCENT_ANSI };
 
@@ -93,12 +94,33 @@ export function installerHelp() {
   ].join("\n");
 }
 
-export function renderProgressBar(percent) {
+// The bootstrap cannot import the main package's settings manager or its dependencies.
+// Mirror only its bounded, read-only global A1 accent resolution before acquisition.
+export function resolveInstallerAccentColor(environment = process.env, home = homedir) {
+  try {
+    const selectedHome = environment.A1_PROFILE_HOME ?? home();
+    if (!isAbsolute(selectedHome) || selectedHome.includes("\0")) return "blue";
+    const file = join(selectedHome, ".a1", "agent", "settings.json");
+    if (statSync(file).size > 256 * 1024) return "blue";
+    const raw = readFileSync(file, "utf8");
+    if (Buffer.byteLength(raw, "utf8") > 256 * 1024) return "blue";
+    const root = JSON.parse(raw.replace(/^\uFEFF/u, ""));
+    const value = root && typeof root === "object" && !Array.isArray(root)
+      && root.a1 && typeof root.a1 === "object" && !Array.isArray(root.a1)
+      ? root.a1.accentColor : undefined;
+    if (value === "default") return "purple";
+    return typeof value === "string" && Object.hasOwn(SHARED_PROGRESS_PALETTE, value) ? value : "blue";
+  } catch {
+    return "blue";
+  }
+}
+
+export function renderProgressBar(percent, accent = SHARED_PROGRESS_ACCENT_ANSI) {
   const bounded = Math.min(100, Math.max(0, Math.round(percent)));
   const filled = Math.round((bounded / 100) * PROGRESS_WIDTH);
   const gray = "\u001b[38;2;128;128;128m";
   const track = "\u001b[38;2;102;102;102m";
-  return `${SHARED_PROGRESS_ACCENT_ANSI}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
+  return `${accent}${"━".repeat(filled)}${track}${"─".repeat(PROGRESS_WIDTH - filled)}${gray} ${bounded}%\u001b[39m`;
 }
 
 export function classifyProgressLine(line, fallback = "Installing") {
@@ -150,6 +172,7 @@ class ProgressDisplay {
     this.timer = null;
     this.visible = false;
     this.maxWidth = PROGRESS_WIDTH + 6;
+    this.accent = options.accent ?? SHARED_PROGRESS_ACCENT_ANSI;
   }
 
   set(percent, _label, creepTo = percent) {
@@ -172,7 +195,7 @@ class ProgressDisplay {
     this.shown = rounded;
     if (!this.visible) this.output.write("\u001b[?25l");
     this.visible = true;
-    this.output.write(`\r${renderProgressBar(rounded)}\u001b[K`);
+    this.output.write(`\r${renderProgressBar(rounded, this.accent)}\u001b[K`);
   }
 
   finish() {
@@ -500,7 +523,19 @@ export async function runInstaller(argv, options = {}) {
     throw new InstallationFailure("Node.js 22.19.0 or newer is required");
   }
 
-  const progress = options.progress ?? new ProgressDisplay(stdout, options.tty ?? stdout.isTTY === true, options.progressOptions);
+  const accentColor = resolveInstallerAccentColor(environment);
+  const background = Number.parseInt(String(environment.COLORFGBG ?? "").split(";").at(-1) ?? "", 10);
+  const appearance = Number.isInteger(background) && (background === 7 || background === 15 || background >= 231) ? "light" : "dark";
+  const program = (environment.TERM_PROGRAM ?? "").toLowerCase();
+  const known = ["kitty", "ghostty", "wezterm", "rex", "warpterminal", "iterm.app", "alacritty", "vscode", "zed"];
+  const trueColor = environment.PI_TRUE_COLOR === "1" || (environment.PI_TRUE_COLOR !== "0" && (
+    /^(truecolor|24bit)$/iu.test(environment.COLORTERM ?? "")
+    || (environment.TERM ?? "").endsWith("-direct") || process.platform === "win32"
+    || environment.WT_SESSION !== undefined || known.includes(program)
+  ));
+  const mode = trueColor ? "truecolor" : "256color";
+  const accent = SHARED_PROGRESS_PALETTE[accentColor][appearance][mode].accent;
+  const progress = options.progress ?? new ProgressDisplay(stdout, options.tty ?? stdout.isTTY === true, { ...options.progressOptions, accent });
   const runner = options.runner ?? createDefaultProcessRunner(environment);
   let activeChild = null;
   let killTimer = null;

@@ -1,5 +1,6 @@
 import type { Readable, Writable } from "node:stream";
 import { EMERGENCY_TERMINAL_RESET } from "../../foundation/terminal-cleanup/terminal-reset.js";
+import { preTrustPalette, preTrustTerminalAppearance, preTrustTerminalColorMode, readPreTrustAccent } from "../../ui/settings/early-accent.js";
 
 export type OwnedProjectTrustChoiceId =
   | "trust"
@@ -26,6 +27,7 @@ export interface ConsoleProjectTrustPromptOptions {
   readonly input?: RawTtyInput;
   readonly output?: Writable & { readonly isTTY?: boolean; readonly columns?: number; readonly rows?: number };
   readonly presentation?: "bare" | "comparison";
+  readonly environment?: NodeJS.ProcessEnv;
 }
 
 const ENTER_ALTERNATE_SCREEN = "\u001b[?1049h";
@@ -66,8 +68,8 @@ export function createConsoleProjectTrustPrompt(
     }
     if (choices.length === 0) throw new Error("project trust choices are unavailable");
     const comparison = options.presentation === "comparison";
-    const renderBareDialog = comparison
-      ? undefined : (await import("./project-trust-dialog.js")).renderProjectTrustDialog;
+    const renderBareDialog = comparison ? undefined : (await import("./project-trust-dialog.js")).renderProjectTrustDialog;
+    const palette = comparison ? null : trustPaletteOptions(options.environment ?? process.env);
 
     const wasRaw = input.isRaw === true;
     let selected = 0;
@@ -97,7 +99,7 @@ export function createConsoleProjectTrustPrompt(
     const render = (): void => {
       const width = Math.max(renderBareDialog ? 1 : 20, output.columns ?? 80);
       const rows = Math.max(1, output.rows ?? 24);
-      const lines = (renderBareDialog?.(cwd, choices.map(choice => choice.label), selected, width, rows) ?? [
+      const lines = (renderBareDialog?.(cwd, choices.map(choice => choice.label), selected, width, rows, palette!.accent, palette!.border) ?? [
         `${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`,
         cwd,
         "",
@@ -204,6 +206,10 @@ export function createConsoleProjectTrustPrompt(
       restore();
     }
   };
+}
+
+function trustPaletteOptions(environment: NodeJS.ProcessEnv) {
+  return preTrustPalette(readPreTrustAccent(environment), preTrustTerminalAppearance(environment), preTrustTerminalColorMode(environment));
 }
 
 function optionRow(label: string, selected: boolean): string {

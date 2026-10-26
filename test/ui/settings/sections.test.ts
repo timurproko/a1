@@ -88,8 +88,8 @@ describe("owned UI settings sections", () => {
     });
     expect(findOwnedUiSettingsEntry(sections, "quitEffect", "a1")).toBeNull();
     expect(findOwnedUiSettingsEntry(sections, "accentColor", "a1")).toMatchObject({
-      label: "Accent color", value: "purple", origin: "default", application: "live",
-      choices: ["purple", "blue", "cyan", "green", "orange", "pink"],
+      label: "Accent color", value: "blue", origin: "default", application: "live",
+      choices: ["blue", "purple", "cyan", "green", "orange", "pink"],
     });
     expect(findOwnedUiSettingsEntry(sections, "backgroundStyle", "a1")).toMatchObject({
       label: "Background", value: "transparent", origin: "default", application: "live",

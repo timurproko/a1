@@ -65,8 +65,8 @@ describe("owned UI setting declarations", () => {
       label: "Accent color",
       section: { id: "appearance", title: "Appearance" },
       application: "live",
-      defaultValue: "purple",
-      allowedValues: ["purple", "blue", "cyan", "green", "orange", "pink"],
+      defaultValue: "blue",
+      allowedValues: ["blue", "purple", "cyan", "green", "orange", "pink"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "accentColor")?.description)
       .toMatch(/list markers.*tonal interface surfaces/i);
@@ -372,7 +372,7 @@ describe("owned UI settings migrations", () => {
     });
     expect(resolved).toMatchObject({ version: OWNED_UI_SETTINGS_VERSION, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "accentColor"))
-      .toMatchObject({ value: "purple", source: "default" });
+      .toMatchObject({ value: "blue", source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck"))
       .toMatchObject({ value: "no", source: "stored" });
     expect(resolved.preserved).toEqual({ future: true });
@@ -390,7 +390,7 @@ describe("owned UI settings migrations", () => {
       document: { version: 13, values: { accentColor: "violet" } },
     });
     expect(invalid.settings.find(setting => setting.declaration.id === "accentColor"))
-      .toMatchObject({ value: "purple", source: "default" });
+      .toMatchObject({ value: "blue", source: "default" });
     expect(invalid.notices).toEqual([expect.objectContaining({ code: "value-rejected", settingId: "accentColor" })]);
   });
 

@@ -1,9 +1,11 @@
 import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { CHILD_DIAGNOSTIC_LIMIT, renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
 import { SHARED_PROGRESS_ACCENT_ANSI } from "../../../src/foundation/release/progress-palette.generated.js";
+import { earlyAccentPalette } from "../../../src/foundation/release/early-accent.js";
 import {
   createNpmProcessRunner,
   PRODUCT_PACKAGE,
@@ -160,6 +162,14 @@ describe("update progress presentation", () => {
       + `\u001b[38;2;102;102;102m${"─".repeat(40 - filled)}`
       + `\u001b[38;2;128;128;128m ${percent}%\u001b[39m`,
     );
+  });
+
+  it("paints an explicit saved accent without changing meter cells or neutral roles", () => {
+    const accent = earlyAccentPalette("green").accent;
+    const frame = renderUpdateProgressBar(25, accent);
+    expect(frame).toContain(`${accent}${"━".repeat(10)}`);
+    expect(stripVTControlCharacters(frame)).toBe(`${"━".repeat(10)}${"─".repeat(30)} 25%`);
+    expect(frame).toContain("\u001b[38;2;128;128;128m 25%\u001b[39m");
   });
 });
 
@@ -600,6 +610,25 @@ describe("A1 self-update orchestration", () => {
     const percents = harness.stdout.join("").split("\r")
       .map(frame => /(\d+)%/.exec(frame)?.[1]).filter((value): value is string => value !== undefined).map(Number);
     expect(percents).toEqual([...percents].sort((left, right) => left - right));
+  });
+
+  it("binds the progress meter to the saved global A1 profile before updating", async () => {
+    const home = mkdtempSync(resolve(tmpdir(), "a1-update-accent-"));
+    try {
+      const agent = resolve(home, ".a1", "agent");
+      mkdirSync(agent, { recursive: true });
+      writeFileSync(resolve(agent, "settings.json"), JSON.stringify({ a1: { accentColor: "green" } }));
+      const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
+      await expect(runSelfUpdate({
+        ...harness,
+        environment: { ...harness.environment, A1_PROFILE_HOME: home, COLORTERM: "truecolor" },
+        progress: true,
+      })).resolves.toBe(0);
+      expect(harness.stdout.join("")).toContain(`${earlyAccentPalette("green").accent}━`);
+      expect(harness.stdout.join("")).not.toContain(`${earlyAccentPalette("blue").accent}━`);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
   });
 
   it("aligns the 40-column progress bar with the development update text", async () => {
