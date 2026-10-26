@@ -626,8 +626,14 @@ setInterval(() => {}, 1000);
         "the pending tab should paint before its holder gets a start slot: {pending}"
     );
     assert!(
-        !pending.contains("Starting Agent") && !pending.contains(text(&release)),
-        "pending body must contain no text or footer: {pending}"
+        pending.contains(&"─".repeat(40)) && pending.contains(text(&release)),
+        "pending Agent should show the ruled editor and cwd footer before its holder starts: {pending}"
+    );
+    assert!(
+        !pending.contains("Starting Agent")
+            && !pending.contains("Preparing")
+            && !pending.contains("\x1b[?25h"),
+        "pending Agent must not show loading text or a child cursor: {pending}"
     );
 
     // Invariant: input after New Agent belongs to that requested target. It must not leak to the

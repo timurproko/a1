@@ -246,12 +246,13 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     render_body(input, false)
 }
 
-/// A text-free, cursor-free body while a user-created Agent is not yet drawn.
-pub fn render_empty(input: &LandingInput<'_>) -> Vec<u8> {
+/// The visual-only empty Agent shell shown before its first child frame. It owns no input or
+/// cursor; unknown model and usage values are left blank rather than fabricated.
+pub fn render_agent_preview(input: &LandingInput<'_>) -> Vec<u8> {
     render_body(input, true)
 }
 
-fn render_body(input: &LandingInput<'_>, empty: bool) -> Vec<u8> {
+fn render_body(input: &LandingInput<'_>, agent_preview: bool) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
     let fg = |rgb| foreground(rgb, input.truecolor);
@@ -261,12 +262,31 @@ fn render_body(input: &LandingInput<'_>, empty: bool) -> Vec<u8> {
             slot.push_str(&content);
         }
     };
-    if !empty {
-        let cwd_row = body_rows.saturating_sub(2);
+    let cwd_row = body_rows.saturating_sub(2);
+    if body_rows > 0 {
         place(
             cwd_row,
             format!("{}{}\x1b[0m", fg(DIM), clip_left(input.cwd, columns)),
         );
+    }
+    if agent_preview {
+        // The real empty editor is three rows above its two-row footer. The prompt row stays
+        // blank because neither a hardware cursor nor a fake ready-to-type caret is owned yet.
+        // In a short terminal preserve the cwd and show as much of the editor as fits above it.
+        let editor_rows = cwd_row.min(3);
+        let first = cwd_row - editor_rows;
+        let border = format!(
+            "{}{}\x1b[0m",
+            fg(accent_colors(input.accent).border),
+            "─".repeat(columns)
+        );
+        if editor_rows == 3 {
+            place(first, border.clone());
+        }
+        if editor_rows >= 2 {
+            place(cwd_row - 1, border);
+        }
+    } else {
         // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
         if let Some(version) = input.version.filter(|version| !version.is_empty())
             && cwd_row + 1 < body_rows
@@ -371,21 +391,37 @@ mod tests {
     }
 
     #[test]
-    fn pending_agent_body_is_empty_even_when_landing_has_text_and_canvas() {
-        for (columns, rows) in [(80, 23), (8, 3), (2, 1)] {
-            let grid = cells(&render_empty(&input(columns, rows)), columns, rows);
-            assert!(grid.iter().all(String::is_empty), "{grid:#?}");
-        }
-        let painted = String::from_utf8(render_empty(&LandingInput {
+    fn pending_agent_shows_a_plain_editor_and_cwd_without_startup_text_or_cursor() {
+        let grid = cells(&render_agent_preview(&input(80, 23)), 80, 23);
+        assert!(grid[..18].iter().all(String::is_empty), "{grid:#?}");
+        assert_eq!(grid[18], "─".repeat(80));
+        assert_eq!(grid[19], "", "no fabricated caret or editable prompt");
+        assert_eq!(grid[20], "─".repeat(80));
+        assert_eq!(grid[21], "~/src/a1");
+        assert_eq!(grid[22], "", "unknown model and counters stay blank");
+        let short = cells(&render_agent_preview(&input(8, 3)), 8, 3);
+        assert_eq!(short, ["", "~/src/a1", ""]);
+        let tiny = cells(&render_agent_preview(&input(2, 1)), 2, 1);
+        assert_eq!(tiny, ["…1"]);
+        let painted = String::from_utf8(render_agent_preview(&LandingInput {
             background: Some([26, 27, 28]),
+            accent: Some("blue"),
             ..input(80, 23)
-        })).unwrap();
-        assert!(!painted.contains("Starting Agent"));
-        assert!(!painted.contains("~/src/a1"));
+        }))
+        .unwrap();
+        assert!(!painted.contains("Starting Agent") && !painted.contains("Preparing"));
+        assert!(!painted.contains("\x1b[?25h") && !painted.contains("\x1b[7m"));
         assert!(painted.contains("\x1b[48;2;26;27;28m"));
+        assert!(painted.contains("\x1b[38;2;116;102;197m"));
         for row in 2..=24 {
             assert!(painted.contains(&format!("\x1b[{row};1H\x1b[0m\x1b[2K")));
         }
+        let palette = String::from_utf8(render_agent_preview(&LandingInput {
+            truecolor: false,
+            ..input(80, 23)
+        }))
+        .unwrap();
+        assert!(palette.contains("\x1b[38;5;") && !palette.contains("38;2;"));
     }
 
     #[test]

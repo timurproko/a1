@@ -2322,15 +2322,19 @@ impl Client {
         }))
     }
 
-    fn empty_agent(&self) -> Vec<u8> {
-        landing::render_empty(&landing::LandingInput {
+    fn pending_agent_shell(&self) -> Vec<u8> {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .ok();
+        let cwd = landing::display_cwd(&self.create.cwd, home.as_deref());
+        landing::render_agent_preview(&landing::LandingInput {
             columns: self.columns,
             body_rows: self.outer_rows.saturating_sub(1),
             version: None,
-            accent: None,
+            accent: self.time_format.accent_color,
             truecolor: !palette_fallback_requested(),
             half_blocks: false,
-            cwd: "",
+            cwd: &cwd,
             background: landing::canvas_background(
                 self.time_format.background_style,
                 self.time_format.accent_color,
@@ -2391,7 +2395,7 @@ impl Client {
         clear: bool,
         dimmed: bool,
     ) -> Result<(), String> {
-        let pending_body = pending.then(|| self.empty_agent());
+        let pending_body = pending.then(|| self.pending_agent_shell());
         let child_surface = landing.is_none() && !pending;
         let desired = DesiredPresentation {
             tab_id: if pending {

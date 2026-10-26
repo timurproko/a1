@@ -15,6 +15,12 @@
 - [x] 3.1 Add focused assertions for empty pending content, one chip before and after `tab.created` when a registry list arrives early, and a one-frame handoff to the real chip.
 - [x] 3.2 Update the role-level regression for the immediate empty Agent presentation while a holder start slot is occupied and preserved input isolation.
 
+## 4. Plain immediate Agent shell refinement
+
+- [x] 4.1 Render an empty transcript with a visible ruled prompt and cwd footer on the first client-side create paint, using the existing canvas/palette; omit startup messages, unknown status, and the child cursor.
+- [x] 4.2 Keep the single-chip, deferred-input, and first-complete-frame handoff semantics with the shell preview from both landing and existing-tab origins, including small terminals.
+- [x] 4.3 Add focused native rendering and role-level assertions for the plain shell preview and its replacement with the real frame; run typecheck, strict OpenSpec validation, and touched native tests.
+
 ## Evidence
 
 - Prior candidate `d63716ac` passed `npm run build:core`, `npm run typecheck`, focused native machine/attach/landing suites, and the targeted `resident-fixtures,fault-injection` startup-slot role test. Those results describe the superseded text-bearing, duplicate-chip presentation, not the refined candidate.
@@ -22,4 +28,6 @@
 - `npm run typecheck`, `openspec validate instant-agent-tab --strict`, and `git diff --check` passed for the refinement.
 - Focused native suites passed: `core::attach::machine::tests` (35), `roles::attach::tests` (44), `roles::landing::tests` (8), and `first_draw` (1); `TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed with the locally copied manifest-verified terminal-vt library.
 - The `resident-fixtures,fault-injection` role integration `input_waits_for_its_requested_tab_while_that_tab_waits_for_a_start_slot` passed, including an empty pending body before holder startup and deferred input isolation.
-- Known gaps: none in the approved refinement. Local native tests use the manifest-verified terminal-vt library because Zig is unavailable; final-head CI is the validation authority.
+- The shell refinement paints a blank transcript, three-row editor (rules and an empty, cursor-free input row), and cwd footer on the same pending-chip paint. No model, counters, version, or startup text is fabricated; the existing first-complete-frame and deferred-input paths remain unchanged.
+- The preview's 8-row landing/attach native tests and 44 attach native tests passed. The `resident-fixtures,fault-injection` startup-slot role regression passed with a ruled editor and cwd visible before the holder started, no loading text/cursor, and no old-tab input leakage. `npm run typecheck`, `openspec validate instant-agent-tab --strict`, and `git diff --check` passed. `cargo fmt --check` reports pre-existing formatting differences in numerous unrelated files, so no repository-wide format rewrite was applied.
+- Known gaps: no local interactive visual validation; final-head CI is the validation authority. Local native tests use the manifest-verified terminal-vt library because Zig is unavailable.
