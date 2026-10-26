@@ -28,3 +28,11 @@ Platform: Windows x64, Node 24.22.0. Native builds use the verified prebuilt Gho
 - Initial partial TypeScript compilation lacked normal generated runtime resources and could not start all observed real-A1 renderers. Disposition: run the normal build, not a partial compiler output; the full optimized 18-scenario run then passed without altering any harness deadline or gate.
 - Linux/macOS execution and installed-package two-terminal physical behavior were not exercised on this workstation. Disposition: retain independent platform CI verdicts and ordinary optional maintainer validation; Windows results do not certify another platform or physical terminal pixels.
 - Existing installed resident and solo processes were not restarted, migrated or terminated. Only isolated fixture processes belonging to this worktree were stopped.
+
+## CI repair: release-aware invalid-owner fixtures
+
+Development run `40298295274` failed Linux role partition 2/3 in `recovery_refuses_unverifiable_owners_and_enforces_the_start_budget`: its hand-written marker omitted `releaseId`, so release admission refused it before the intended invalid-start-identity check. The second hand-written PID-reuse marker in `host_stop_refuses_an_unverifiable_owner_and_changes_nothing` had the same stale shape. Both fixtures now declare their actual immutable fixture release so their original PID/start-identity and restart-budget assertions remain authoritative.
+
+Recovery also preserves the existing `host-recovery-blocked` diagnostic prefix when a marker's release is missing or mismatched. A separate real-process regression supplies both kinds of marker while naming a different release's live, identity-verified server; recovery and host stop must refuse, leave the marker bytes unchanged, and leave that server's exact native identity alive. This separates release refusal coverage from PID-reuse coverage instead of accepting either failure as a substitute.
+
+The two existing recovery/stop regressions and all three release-isolation integration cases passed locally on Windows, along with typecheck, architecture and documentation governance. No guard, assertion, timeout, restart budget or platform gate was relaxed. Fresh exact-head Linux/platform CI remains required; cancelled matrix lanes from the failed run are not treated as successful evidence.

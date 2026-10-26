@@ -255,6 +255,38 @@ fn release_isolation_preserves_old_work_recovery_and_maintenance_boundaries() {
 }
 
 #[test]
+fn release_isolation_refuses_foreign_or_missing_owner_release_without_signalling() {
+    let root = tempfile::tempdir().unwrap();
+    let (a, b) = hosts(root.path());
+    b.call(&["server", "--detach"]);
+    let foreign_marker = b.marker();
+    let foreign_owner = terminal_host_contracts::identity::ProcessIdentity {
+        pid: foreign_marker["pid"].as_u64().unwrap() as u32,
+        start: foreign_marker["startIdentity"].as_str().unwrap().into(),
+    };
+    std::fs::create_dir_all(a.state()).unwrap();
+    for missing in [true, false] {
+        let mut marker = foreign_marker.clone();
+        if missing { marker.as_object_mut().unwrap().remove("releaseId"); }
+        let bytes = serde_json::to_vec(&marker).unwrap();
+        let path = a.state().join("server.json");
+        std::fs::write(&path, &bytes).unwrap();
+        let recovery = a.command(&["server", "--detach"]).output().unwrap();
+        assert!(!recovery.status.success());
+        assert!(String::from_utf8_lossy(&recovery.stderr).contains("host-recovery-blocked"));
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        let stop = a.command(&["tabs", "host-stop"]).output().unwrap();
+        assert_eq!(stop.status.code(), Some(3));
+        let report: serde_json::Value = serde_json::from_slice(&stop.stdout).unwrap();
+        assert_eq!(report["host"], "unverifiable");
+        assert_eq!(std::fs::read(&path).unwrap(), bytes);
+        assert_eq!(b.marker(), foreign_marker);
+        assert_eq!(terminal_host_contracts::identity::inspect_process(foreign_owner.pid).unwrap(), Some(foreign_owner.clone()));
+    }
+    std::fs::remove_file(a.state().join("server.json")).unwrap();
+}
+
+#[test]
 fn release_isolation_does_not_partition_session_writer_leases() {
     let root = tempfile::tempdir().unwrap();
     let (a, b) = hosts(root.path());

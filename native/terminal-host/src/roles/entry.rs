@@ -640,7 +640,8 @@ fn recover_recorded_server(root: &std::path::Path) -> Result<(), String> {
     };
     let record: ResidentServerMetadata = serde_json::from_slice(&bytes)
         .map_err(|_| "host-recovery-blocked: owner marker is unreadable".to_owned())?;
-    contracts::roles::scope::admit(&record.release_id)?;
+    contracts::roles::scope::admit(&record.release_id)
+        .map_err(|error| format!("host-recovery-blocked: {error}"))?;
     let expected = contracts::identity::ProcessIdentity {
         pid: record.pid,
         start: record.start_identity,

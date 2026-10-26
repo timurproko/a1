@@ -1120,6 +1120,7 @@ fn recovery_refuses_unverifiable_owners_and_enforces_the_start_budget() {
         serde_json::to_vec(&serde_json::json!({
             "pid": std::process::id(),
             "startIdentity": "not-the-test-process",
+            "releaseId": terminal_host_contracts::roles::scope::fixture_release_id(&executable).expect("fixture release"),
             "endpoint": address,
             "generation": 1,
             "verified": true,
@@ -3155,6 +3156,7 @@ fn host_stop_refuses_an_unverifiable_owner_and_changes_nothing() {
         serde_json::to_vec(&serde_json::json!({
             "pid": own.pid,
             "startIdentity": format!("{}-reused", own.start),
+            "releaseId": terminal_host_contracts::roles::scope::fixture_release_id(&executable).expect("fixture release"),
             "endpoint": address,
             "generation": 1,
             "verified": true,
