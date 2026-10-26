@@ -1048,8 +1048,13 @@ mod tests {
             let normal = tab_accent(Some(accent_name));
             let initializing = mix(normal, Rgb(255, 255, 255), 0.42);
             assert_ne!(initializing, normal, "{accent_name}");
-            let pending_frame = render(&[pending], Some(PENDING_AGENT_ID), 80);
-            let real_frame = render(&[real], Some("agent-2"), 80);
+            // Invariant: assert RGB chip shades regardless of the CI runner's terminal palette.
+            let frame = |tab: StripTab, viewed: &str| render_frame(
+                &[tab], Some(viewed), 80, None, TimeFormat::Twelve, None,
+                Instant::now(), true, true,
+            );
+            let pending_frame = frame(pending, PENDING_AGENT_ID);
+            let real_frame = frame(real, "agent-2");
             assert!(pending_frame.bytes.contains(&tinted_background(initializing, true)), "{accent_name}");
             assert!(real_frame.bytes.contains(&tinted_background(normal, true)), "{accent_name}");
             assert_ne!(tinted_background(initializing, true), tinted_background(normal, true), "{accent_name}");
