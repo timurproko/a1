@@ -50,6 +50,13 @@ interface GitWorktreeIdentity {
   readonly branch: string | null;
 }
 
+/** A registered worktree whose directory or Git pointer is gone; Git lists it as prunable until someone prunes it. */
+interface StaleGitWorktree {
+  readonly stale: true;
+  readonly root: string;
+  readonly branch: string | null;
+}
+
 interface SessionRepositoryRecord {
   readonly schema: typeof CONTEXT_SCHEMA;
   readonly sessionId: string;
@@ -263,6 +270,10 @@ export async function listSessionRepositoryWorktrees(
   const contended = await mutationLockExists(options);
   const entries: SessionWorktreeInventoryEntry[] = [];
   for (const selected of worktrees) {
+    if ("stale" in selected) {
+      entries.push({ cwd: selected.root, branch: selected.branch ?? "(detached)", status: "unverifiable", agentId: null });
+      continue;
+    }
     if (selected.branch === null) {
       entries.push({ cwd: selected.root, branch: "(detached)", status: "unverifiable", agentId: null });
       continue;
@@ -539,7 +550,11 @@ async function readGitWorktreeIdentity(path: string, requireWorktreeRoot: boolea
   return { root, commonDir, gitDir, branch };
 }
 
-async function listGitWorktrees(cwd: string, commonDir: string, signal?: AbortSignal): Promise<readonly GitWorktreeIdentity[]> {
+async function listGitWorktrees(
+  cwd: string,
+  commonDir: string,
+  signal?: AbortSignal,
+): Promise<readonly (GitWorktreeIdentity | StaleGitWorktree)[]> {
   const { stdout } = await executeGit(["worktree", "list", "--porcelain", "-z"], cwd, MAX_RECORD_BYTES * 16, signal);
   const records: Array<{ root: string; branch: string | null }> = [];
   let current: { root: string; branch: string | null } | null = null;
@@ -553,10 +568,12 @@ async function listGitWorktrees(cwd: string, commonDir: string, signal?: AbortSi
     else if (current !== null && field.startsWith("branch refs/heads/")) current.branch = field.slice("branch refs/heads/".length);
   }
   if (current !== null) records.push(current);
-  return await Promise.all(records.map(async record => {
-    const root = await realpath(record.root);
+  return await Promise.all(records.map(async (record): Promise<GitWorktreeIdentity | StaleGitWorktree> => {
+    const root = await realpath(record.root).catch(error => { if (isMissingPathError(error)) return null; throw error; });
+    if (root === null) return { stale: true, root: resolve(record.root), branch: record.branch };
     const dotGit = join(root, ".git");
-    const metadata = await lstat(dotGit);
+    const metadata = await lstat(dotGit).catch(error => { if (isMissingPathError(error)) return null; throw error; });
+    if (metadata === null) return { stale: true, root, branch: record.branch };
     let gitDir: string;
     if (metadata.isDirectory() && !metadata.isSymbolicLink()) gitDir = await realpath(dotGit);
     else if (metadata.isFile() && !metadata.isSymbolicLink() && metadata.size > 0 && metadata.size <= MAX_RECORD_BYTES) {
@@ -566,6 +583,11 @@ async function listGitWorktrees(cwd: string, commonDir: string, signal?: AbortSi
     } else throw new Error("worktree Git identity is invalid");
     return { root, commonDir, gitDir, branch: record.branch };
   }));
+}
+
+/** True for the errors a deleted directory or file produces, which mark a registered worktree as stale rather than broken. */
+function isMissingPathError(error: unknown): boolean {
+  return error instanceof Error && "code" in error && (error.code === "ENOENT" || error.code === "ENOTDIR");
 }
 
 async function executeGit(
