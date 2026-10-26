@@ -22,9 +22,9 @@ The maintainer integration decision accepts these scenarios:
     "Extension status rows and every custom plugin footer line receive the same gutters and reduced inner width.",
     "Narrow and over-wide footer output remains width-safe while the explicit Pi comparison footer stays unchanged."
   ],
-  "archiveDigest": "f3dc91f3a77d704171ec61140b148a4ab59b4ae94c7eaa77a0417ac3eb14766e",
+  "archiveDigest": "4adc2e0cf375e9594ccf72e1e1f82df38a42652c7b002180c48ea1b62a26a806",
   "specDigest": "2408beaaba2e166f43a08cd2d3d71d96f3e2fdbc20d1daa961b5320862daf4b1",
-  "tasksDigest": "f46870a2a653313dae47c89734f278dd012508b97e8237a6bf1addfd6662f9c7",
+  "tasksDigest": "ba1a36547a3d1a6bd24c497ca6d11ff33696bf8281bae5e302c6288308e6b04a",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
