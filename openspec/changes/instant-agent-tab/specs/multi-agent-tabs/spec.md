@@ -43,6 +43,12 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - **THEN** only the selected pending Agent chip SHALL appear beside the previously existing tabs
 - **AND** the real Agent chip SHALL replace it, never appear beside it or blink out later
 
+#### Scenario: Close before Agent startup completes
+- **WHEN** the user invokes the close shortcut or closes the provisional chip from its context menu before the Agent's first frame
+- **THEN** the pending chip and shell SHALL disappear immediately, the previous view or landing SHALL return, and queued input for that creation SHALL be discarded
+- **AND** the server SHALL cancel that exact creation before starting a holder when possible, or stop its holder and child if already launched
+- **AND** a late create acknowledgement, registry list, or child frame SHALL NOT reveal a ghost Agent or close an unrelated new tab
+
 #### Scenario: Creation is refused
 - **WHEN** a pending Agent creation fails before a tab is registered
 - **THEN** its pending chip and body SHALL disappear, the prior coherent view or landing SHALL return with an actionable notice, and buffered input SHALL NOT reach the prior Agent

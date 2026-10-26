@@ -344,7 +344,7 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>) ->
         );
     }
     if let Some(footer) = footer {
-        // The real empty editor is three rows above its two-row footer. In a short terminal
+        // Invariant: the real empty editor is three rows above its two-row footer. In a short terminal
         // preserve the footer and show as much of the editor as fits above it.
         let editor_rows = cwd_row.min(3);
         let first = cwd_row - editor_rows;

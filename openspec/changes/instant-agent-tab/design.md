@@ -18,12 +18,15 @@
 4. Keep provisional presentation local rather than eagerly inserting an unconfirmed registry record on the server. This makes process-launch latency irrelevant to the first visual response and avoids durable ghost tabs when creation fails. Do not solve the symptom solely by shortening `FIRST_DRAW_WAIT` or prewarming more Agent processes: neither guarantees immediate feedback and both change resource or visual semantics.
 5. Add deterministic presentation tests covering the immediate plain editor/footer (including a fake caret and the model/usage footer but without a child cursor or loading text) and exactly one chip when registry updates arrive before `tab.created`, after acknowledgement, and at commit; retain role-level coverage for first paint before server response, failure, burst creation, deferred input, landing and existing-tab origins, pointer activity, and no-draw fallback. Avoid wall-clock timing assertions; assert that the first event produces visible pending state without waiting for an asynchronous response.
 
+6. Treat a close command or pending-chip context-menu close as cancellation of this creation, never as a close of the previously viewed tab. Immediately restore that view or landing and discard the pending input. Identify the request across client/server messages so a late `tab.created` cannot activate or close a subsequent Agent. If the server has not registered a tab, abandon the start; if it already registered or launched a holder, request its normal shutdown and clear its tab rather than leaving an unseen process. Continue to permit ordinary close once the real Agent is visible.
+7. Repair the finalized delivery's missing `.openspec.yaml` artifact and the failed CI documentation/architecture gates in the same PR. Split long state-machine/presentation functions without changing their behavior; keep the protocol and cancellation checks covered by targeted tests.
+
 ## Risks / Trade-offs
 
 - The user sees a non-interactive complete-shell approximation until the real UI draws. The preview's cached model/context can differ if the new session selects other settings; status remains display-only and is replaced by the first authoritative Agent frame. Without a prior Agent frame, the footer uses neutral `no-model` and zero-context values rather than claiming a configured model.
 - Premature forwarding to the old child could leak a prompt; pending presentation and deferred target ownership must remain aligned.
 - An early registry list can precede `tab.created` and expose a second chip; keep an immutable pre-create ID snapshot so the provisional and new registry chip never render together, while committed topology remains authoritative.
-- If the server refuses or the child never draws, recover the old view or bounded fallback without a stuck provisional screen.
+- If the server refuses or the child never draws, recover the old view or bounded fallback without a stuck provisional screen. A cancellation racing with holder promotion may launch the holder briefly; it must then be stopped without exposing its chip or sending its buffered input.
 
 ## Migration Plan
 

@@ -165,9 +165,13 @@ pub struct Context<'a, T> {
     pub landing: bool,
 }
 
+/// The pending chip is a client-only view intent; it is never a registry identity.
+pub const PENDING_AGENT_ID: &str = "pending-agent-local";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Request {
     Create,
+    CancelCreate,
     /// Shows the kind's one tab: the server starts it, or reveals the running one and places it last.
     Open(UtilityKind),
     /// Starts the kind's tab hidden, so opening it later is immediate.
@@ -586,6 +590,7 @@ impl State {
     }
 
     fn open_rename<T: TabView>(&mut self, context: &Context<'_, T>, tab_id: String) {
+        if tab_id == PENDING_AGENT_ID { return; }
         let name = context
             .tabs
             .iter()
@@ -601,8 +606,30 @@ impl State {
         tab_id: String,
         effects: &mut Vec<Effect>,
     ) {
+        if tab_id == PENDING_AGENT_ID && self.view.pending_agent_visible {
+            self.close_pending_agent(context, effects);
+            return;
+        }
         self.close_fallback = close_fallback_for(&self.shown(context), context.viewed, &tab_id);
         effects.push(Effect::Send(Request::Close(tab_id)));
+    }
+
+    /// Invariant: the provisional view owns the close action, never the previously viewed tab.
+    fn close_pending_agent<T: TabView>(&mut self, context: &Context<'_, T>, effects: &mut Vec<Effect>) {
+        let awaiting_create = self.view.pending_created_activation;
+        self.view.pending_created_activation = false;
+        self.view.pending_agent_visible = false;
+        self.view.pending_agent_cancelled = false;
+        self.deferred.discard_created();
+        if let Some(tab_id) = context.requested {
+            self.deferred.discard_tab(tab_id);
+            effects.push(Effect::Send(Request::Close(tab_id.to_owned())));
+            effects.push(Effect::CancelViewRequest);
+        } else if awaiting_create {
+            effects.push(Effect::Send(Request::CancelCreate));
+        }
+        self.user_input_pending = false;
+        self.mode = Mode::Idle;
     }
 
     /// Invariant: one Agent opens at a time. New-Agent input while an Agent this client asked for
@@ -648,7 +675,9 @@ impl State {
             "tabs.new" => self.create_agent(context, effects),
             "tabs.commands" => self.mode = Mode::Palette(CommandPalette::default()),
             "tabs.close" => {
-                if let Some(tab_id) = context.viewed {
+                if self.view.pending_agent_visible {
+                    self.close_pending_agent(context, effects);
+                } else if let Some(tab_id) = context.viewed {
                     self.close(context, tab_id.to_owned(), effects);
                 }
             }
@@ -722,7 +751,7 @@ impl State {
         kind: UtilityKind,
         effects: &mut Vec<Effect>,
     ) {
-        // An explicit utility choice replaces the local Agent preview; its late response must
+        // Invariant: an explicit utility choice replaces the local Agent preview; its late response must
         // not reclaim the screen or retain input bound to the abandoned preview.
         if self.view.pending_agent_visible {
             self.view.pending_agent_visible = false;
@@ -1022,6 +1051,7 @@ impl State {
                 effects.push(Effect::Paint { clear: false });
             }
             MouseKind::Down(MouseButton::Left) => match target {
+                Some(StripHitKind::View(tab_id)) if tab_id == PENDING_AGENT_ID => {}
                 Some(StripHitKind::View(tab_id)) => {
                     let previous_marker = self.mode.drag().is_some_and(|drag| drag.shown);
                     self.mode = Mode::Drag(TabDrag {
@@ -1157,20 +1187,7 @@ impl State {
                 effects.push(paint);
             }
             ServerEvent::CreateFailed { notice } => {
-                let cancelled = self.view.pending_agent_cancelled;
-                if !cancelled {
-                    if let Some(target) = context.requested {
-                        self.deferred.discard_tab(target);
-                    }
-                    effects.push(Effect::CancelViewRequest);
-                }
-                self.deferred.discard_created();
-                self.view.pending_created_activation = false;
-                self.view.pending_agent_visible = false;
-                self.view.pending_agent_cancelled = false;
-                self.user_input_pending = false;
-                self.notice = Some(notice);
-                effects.push(paint);
+                self.create_failed(context.requested, notice, effects);
             }
             ServerEvent::Renamed { accepted, message } => {
                 if accepted {
@@ -1229,6 +1246,29 @@ impl State {
         }
     }
 
+    /// Invariant: refusal abandons only the locally pending Agent; buffered input never falls
+    /// back into the old tab, even when the user explicitly changed views during startup.
+    fn create_failed(
+        &mut self,
+        requested: Option<&str>,
+        notice: String,
+        effects: &mut Vec<Effect>,
+    ) {
+        if !self.view.pending_agent_cancelled {
+            if let Some(target) = requested {
+                self.deferred.discard_tab(target);
+            }
+            effects.push(Effect::CancelViewRequest);
+        }
+        self.deferred.discard_created();
+        self.view.pending_created_activation = false;
+        self.view.pending_agent_visible = false;
+        self.view.pending_agent_cancelled = false;
+        self.user_input_pending = false;
+        self.notice = Some(notice);
+        effects.push(Effect::Paint { clear: false });
+    }
+
     fn show_notice(&mut self, message: Option<String>, effects: &mut Vec<Effect>) {
         if message.is_some() {
             self.notice = message;
@@ -1247,7 +1287,7 @@ impl State {
         }
         self.view.pending_created_activation = false;
         if self.view.pending_agent_cancelled && UtilityKind::of(&tab_id).is_none() {
-            // A later explicit view wins over the Agent this client started. Never deliver its
+            // Invariant: a later explicit view wins over the Agent this client started. Never deliver its
             // buffered input to the old child or steal the view when startup finishes.
             self.deferred.discard_created();
             self.user_input_pending = false;
@@ -1255,7 +1295,7 @@ impl State {
             return;
         }
         self.deferred.retarget_created(&tab_id);
-        // The real child still waits for a complete first frame; the local starting body stays
+        // Invariant: the real child waits for a complete first frame; the local preview stays
         // in view until then, rather than exposing a blank child or its cursor.
         effects.push(Effect::View(tab_id.clone()));
         effects.push(Effect::AwaitFirstDraw(tab_id));
@@ -1713,6 +1753,44 @@ mod tests {
     }
 
     #[test]
+    fn closing_pending_agent_never_closes_the_old_tab_or_leaks_input() {
+        let mut fixture = Fixture::new(&["a"], "a");
+        let mut state = fixture.state();
+        fixture.step(&mut state, shortcut("tabs.new"));
+        state.route_input(None, vec![b"private".to_vec()]);
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.close")),
+            [Effect::Send(Request::CancelCreate), PAINT]);
+        assert!(!state.view.pending_agent_visible);
+        assert!(!state.view.pending_created_activation);
+        assert!(state.deferred.resolve("a").0.is_empty());
+        assert_eq!(fixture.viewed.as_deref(), Some("a"));
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.new")),
+            [Effect::Send(Request::Create), PAINT]);
+
+        fixture.step(&mut state, server(ServerEvent::Created { tab_id: "b".into() }));
+        fixture.requested = Some("b".into());
+        state.route_input(Some("b"), vec![b"secret".to_vec()]);
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.close")),
+            [Effect::Send(Request::Close("b".into())), Effect::CancelViewRequest, PAINT]);
+        assert!(!state.view.pending_agent_visible);
+        assert!(state.deferred.resolve("b").0.is_empty());
+        assert_eq!(fixture.viewed.as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn pending_chip_context_menu_closes_only_that_agent() {
+        let mut fixture = Fixture::new(&["a"], "a");
+        fixture.strip.hits.push((20, 32, StripHitKind::View(PENDING_AGENT_ID.into())));
+        let mut state = fixture.state();
+        fixture.step(&mut state, shortcut("tabs.new"));
+        fixture.step(&mut state, mouse(MouseKind::Down(MouseButton::Right), 22, 0));
+        assert!(state.mode.popup().is_some());
+        let close = fixture.step(&mut state, mouse(MouseKind::Down(MouseButton::Left), 22, 1));
+        assert!(close.contains(&Effect::Send(Request::CancelCreate)));
+        assert!(!close.contains(&Effect::Send(Request::Close("a".into()))));
+    }
+
+    #[test]
     fn failed_or_superseded_creation_drops_its_pending_view_and_input() {
         let fixture = Fixture::new(&["a", "b"], "a");
         let mut state = fixture.state();
@@ -1791,6 +1869,11 @@ mod tests {
             [Effect::Send(Request::Create), PAINT]
         );
         assert!(state.view.pending_created_activation);
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.close")),
+            [Effect::Send(Request::CancelCreate), PAINT],
+            "closing the pending Agent must not close the previously viewed b"
+        );
         assert_eq!(
             fixture.step(&mut state, shortcut("tabs.close")),
             [Effect::Send(Request::Close("b".into())), PAINT]

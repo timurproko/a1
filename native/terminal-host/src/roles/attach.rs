@@ -54,12 +54,26 @@ pub const ENTER_OUTER_MODES: &[u8] =
 pub const RESTORE_OUTER_MODES: &[u8] =
     b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l";
 pub const RESET_OUTER_COLORS: &[u8] = b"\x1b]104\x07\x1b]110\x07\x1b]111\x07\x1b]112\x07";
-const PENDING_AGENT_ID: &str = "pending-agent-local";
+use core_attach::PENDING_AGENT_ID;
 
 struct PendingAgent {
     /// IDs present before the click; a new registry row may arrive before `tab.created`.
     known_ids: HashSet<String>,
+    request_id: u64,
     real_id: Option<String>,
+}
+
+struct CancelledAgent {
+    request_id: u64,
+    known_ids: HashSet<String>,
+}
+
+fn take_cancelled_agent(cancelled: &mut Vec<CancelledAgent>, request_id: Option<u64>) -> bool {
+    let Some(index) = cancelled.iter().position(|entry| Some(entry.request_id) == request_id) else {
+        return false;
+    };
+    cancelled.remove(index);
+    true
 }
 
 /// Read only the last complete Agent footer as a visual template. The next Agent's usage is
@@ -1924,6 +1938,9 @@ struct Client {
     tabs: Vec<StripTab>,
     /// Only the attach client sees this visual intent; it is never a server tab identity.
     pending_agent: Option<PendingAgent>,
+    cancelled_agents: Vec<CancelledAgent>,
+    hidden_cancelled_tabs: HashSet<String>,
+    next_create_request_id: u64,
     preview_footer: Option<landing::AgentPreviewFooter>,
     chip_priority: Vec<String>,
     swap_in_flight: Option<String>,
@@ -1992,6 +2009,9 @@ impl Client {
             view,
             tabs: Vec::new(),
             pending_agent: None,
+            cancelled_agents: Vec::new(),
+            hidden_cancelled_tabs: HashSet::new(),
+            next_create_request_id: 1,
             preview_footer: None,
             chip_priority: Vec::new(),
             swap_in_flight: None,
@@ -2066,17 +2086,33 @@ impl Client {
                             .chain(self.view.staged_tabs().into_iter().flatten())
                             .map(|tab| tab.id.clone())
                             .collect();
+                        let request_id = self.next_create_request_id;
+                        self.next_create_request_id = self.next_create_request_id.wrapping_add(1).max(1);
                         self.pending_agent = Some(PendingAgent {
                             known_ids,
+                            request_id,
                             real_id: None,
                         });
+                    } else if request == Request::CancelCreate {
+                        if let Some(pending) = self.pending_agent.as_ref() {
+                            self.cancelled_agents.push(CancelledAgent {
+                                request_id: pending.request_id,
+                                known_ids: pending.known_ids.clone(),
+                            });
+                        }
+                    } else if let Request::Close(ref tab_id) = request
+                        && self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab_id)
+                    {
+                        self.hidden_cancelled_tabs.insert(tab_id.clone());
                     } else if matches!(request, Request::Open(_)) && !core.view.pending_agent_visible {
                         self.pending_agent = None;
                     }
                     if matches!(request, Request::Reorder { .. }) {
                         self.chip_priority.clear();
                     }
+                    let cancelled = request == Request::CancelCreate;
                     self.send(request)?;
+                    if cancelled { self.pending_agent = None; }
                 }
                 Effect::View(tab_id) => {
                     if !core.view.pending_agent_visible {
@@ -2136,7 +2172,10 @@ impl Client {
     fn send(&mut self, request: Request) -> Result<(), String> {
         let stream = &mut self.stream;
         match request {
-            Request::Create => wire::send(stream, "tab.create", None, self.create.clone()),
+            Request::Create => wire::send(stream, "tab.create", self.pending_agent.as_ref().map(|pending| pending.request_id), self.create.clone()),
+            Request::CancelCreate => wire::send(stream, "tab.cancel-create", None, serde_json::json!({
+                "requestId": self.pending_agent.as_ref().ok_or("missing pending Agent")?.request_id
+            })),
             Request::Open(kind) => {
                 let message = format!("tab.open-{}", kind.name());
                 wire::send(stream, &message, None, self.create.clone())
@@ -2242,18 +2281,35 @@ impl Client {
             return Ok(());
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
-        let rename = core.mode.rename().map(RenameEditor::display);
-        let strip_viewed = strip_active_view(&self.view, self.swap_in_flight.as_deref());
         let pending = core.view.pending_agent_visible && self.pending_agent.is_some();
+        let shown = self.prepare_strip(core, pending);
+        self.render_strip(core, &shown, pending);
+        let overlay = self.overlay(core);
+        let landing = self.landing();
+        self.present(
+            overlay,
+            landing,
+            pending,
+            clear,
+            core.mode.palette().is_some(),
+        )
+    }
+
+    /// Assemble and animate the strip's locally pending and registered chips before layout.
+    fn prepare_strip(&mut self, core: &State, pending: bool) -> Vec<StripTab> {
+        let strip_viewed = strip_active_view(&self.view, self.swap_in_flight.as_deref());
         let mut shown = shown_tabs(&self.tabs, strip_viewed, core.view.shown());
+        shown.retain(|tab| {
+            if self.hidden_cancelled_tabs.contains(&tab.id) { return false; }
+            self.cancelled_agents.iter().all(|cancelled| {
+                cancelled.known_ids.contains(&tab.id)
+                    || core_attach::is_utility_tab(&tab.id)
+                    || self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab.id.as_str())
+            })
+        });
         if let Some(intent) = self.pending_agent.as_ref().filter(|_| pending) {
             show_pending_agent(&mut shown, intent);
         }
-        let strip_viewed = if pending {
-            Some(PENDING_AGENT_ID)
-        } else {
-            strip_viewed
-        };
         apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
@@ -2263,7 +2319,18 @@ impl Client {
         );
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
-        let mut prioritized = prioritized_chips(&shown, &self.chip_priority);
+        shown
+    }
+
+    /// Lay out the visible chips, maintain hover, and expose only authoritative hit targets.
+    fn render_strip(&mut self, core: &mut State, shown: &[StripTab], pending: bool) {
+        let rename = core.mode.rename().map(RenameEditor::display);
+        let strip_viewed = if pending {
+            Some(PENDING_AGENT_ID)
+        } else {
+            strip_active_view(&self.view, self.swap_in_flight.as_deref())
+        };
+        let mut prioritized = prioritized_chips(shown, &self.chip_priority);
         if pending {
             prioritized.retain(|tab| tab.id != PENDING_AGENT_ID);
             prioritized.insert(
@@ -2279,7 +2346,7 @@ impl Client {
         let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
             let mut frame = strip::render_interactive_at(
-                &shown,
+                shown,
                 strip_viewed,
                 self.columns,
                 hovered,
@@ -2305,7 +2372,7 @@ impl Client {
                 );
             }
             if let Some(drag) = drag.as_ref() {
-                let drag_order = prioritized_chips(&shown, &drawn_chip_ids(&frame));
+                let drag_order = prioritized_chips(shown, &drawn_chip_ids(&frame));
                 append_drag_marker(
                     &mut frame,
                     Some(drag),
@@ -2328,13 +2395,9 @@ impl Client {
             strip_frame = render(None);
         }
         self.strip_frame = strip_frame;
-        // The provisional chip is visual only: it cannot be selected or sent to the server.
-        self.strip_frame
-            .hits
-            .retain(|(_, _, hit)| !matches!(hit, StripHit::View(id) if id == PENDING_AGENT_ID));
-        self.strip_frame
-            .hidden_tabs
-            .retain(|id| id != PENDING_AGENT_ID);
+        // Invariant: the provisional chip is only a local hit target for its close menu; it is
+        // never used as a server tab ID or made available for child input.
+        self.strip_frame.hidden_tabs.retain(|id| id != PENDING_AGENT_ID);
         if self.strip_frame.hidden_tabs.is_empty() {
             self.chip_priority.clear();
         }
@@ -2343,16 +2406,7 @@ impl Client {
             .hits
             .iter()
             .find_map(|(start, _, hit)| matches!(hit, StripHit::Overflow).then_some(*start));
-        core.refresh_overflow(&shown, &self.strip_frame.hidden_tabs, overflow_anchor);
-        let overlay = self.overlay(core);
-        let landing = self.landing();
-        self.present(
-            overlay,
-            landing,
-            pending,
-            clear,
-            core.mode.palette().is_some(),
-        )
+        core.refresh_overflow(shown, &self.strip_frame.hidden_tabs, overflow_anchor);
     }
 
     /// Invariant: the landing is the body only while no tab is viewed after tabs were shown, so a
@@ -2667,14 +2721,21 @@ impl Client {
                 }
             }
             "tab.created" | "tab.selected" => {
-                let (_, target): (_, TabTarget) = wire::body(payload)?;
-                ServerEvent::Created {
-                    tab_id: target.tab_id,
+                let (request_id, target): (_, TabTarget) = wire::body(payload)?;
+                if message_type == "tab.created" && take_cancelled_agent(&mut self.cancelled_agents, request_id) {
+                    self.hidden_cancelled_tabs.insert(target.tab_id.clone());
+                    self.send(Request::Close(target.tab_id))?;
+                    return Ok(None);
                 }
+                ServerEvent::Created { tab_id: target.tab_id }
             }
-            "tab.create-failed" | "tab.create-refused" => ServerEvent::CreateFailed {
-                notice: tab_create_failure_notice(result()?.message.as_deref()),
-            },
+            "tab.create-failed" | "tab.create-refused" => {
+                let (request_id, response): (_, wire::ResultBody) = wire::body(payload)?;
+                if take_cancelled_agent(&mut self.cancelled_agents, request_id) {
+                    return Ok(None);
+                }
+                ServerEvent::CreateFailed { notice: tab_create_failure_notice(response.message.as_deref()) }
+            }
             "tab.renamed" => {
                 let wire::ResultBody { accepted, message } = result()?;
                 ServerEvent::Renamed { accepted, message }
@@ -2829,7 +2890,15 @@ impl Client {
                 .iter()
                 .any(|tab| &tab.tab_id == id && &tab.name == name && tab.name_source == "user")
         });
-        let next_tabs = self.registry_tabs(core, list.tabs);
+        let visible = list.tabs.into_iter().filter(|tab| {
+            if self.hidden_cancelled_tabs.contains(&tab.tab_id) { return false; }
+            self.cancelled_agents.iter().all(|cancelled| {
+                cancelled.known_ids.contains(&tab.tab_id)
+                    || core_attach::is_utility_tab(&tab.tab_id)
+                    || self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab.tab_id.as_str())
+            })
+        }).collect();
+        let next_tabs = self.registry_tabs(core, visible);
         // Invariant: a hidden utility tab never surfaces by itself. When only those remain, they
         // stay hidden and running beside the landing, so they open without a start.
         let utility_visible = core.utilities_visible(self.view.viewed.as_deref());
@@ -3845,6 +3914,20 @@ mod tests {
     }
 
     #[test]
+    fn cancelled_create_response_cannot_consume_another_request() {
+        let mut pending = vec![
+            CancelledAgent { request_id: 7, known_ids: HashSet::new() },
+            CancelledAgent { request_id: 8, known_ids: HashSet::new() },
+        ];
+        assert!(!take_cancelled_agent(&mut pending, None));
+        assert!(!take_cancelled_agent(&mut pending, Some(9)));
+        assert!(take_cancelled_agent(&mut pending, Some(7)));
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].request_id, 8);
+        assert!(take_cancelled_agent(&mut pending, Some(8)));
+    }
+
+    #[test]
     fn cached_agent_footer_reuses_model_and_context_but_never_old_usage() {
         let line = "$14.125 (sub) ↑5k 43.2%/272k (auto)           gpt-5.6-sol • high";
         let mut surface = protocol::StructuredSurface {
@@ -3893,6 +3976,7 @@ mod tests {
         };
         let mut pending = PendingAgent {
             known_ids: ["old".to_owned()].into_iter().collect(),
+            request_id: 1,
             real_id: None,
         };
         for real_id in [None, Some("new")] {
@@ -3912,13 +3996,13 @@ mod tests {
         let mut from_landing = vec![tab("new")];
         show_pending_agent(
             &mut from_landing,
-            &PendingAgent { known_ids: HashSet::new(), real_id: None },
+            &PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None },
         );
         assert_eq!(
             from_landing.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
             [PENDING_AGENT_ID]
         );
-        // Once the complete real surface commits, the ordinary registry topology owns one chip.
+        // Invariant: once the complete real surface commits, the ordinary registry topology owns one chip.
         let committed = vec![tab("old"), tab("new")];
         assert_eq!(
             committed.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),

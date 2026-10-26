@@ -31,6 +31,7 @@ pub(super) fn acquire_start_permit(
     state: &Arc<Mutex<RuntimeState>>,
     tab_id: &str,
     start: &mut AttachStart,
+    cancelled: Option<&AtomicBool>,
 ) -> Result<(StartPermit, std::time::Duration), String> {
     crate::roles::scope::pin_launch(&mut start.release_root, &mut start.node_executable)?;
     let deadline = std::time::Instant::now() + start_permit_deadline();
@@ -40,6 +41,9 @@ pub(super) fn acquire_start_permit(
         InteractiveStartWaiter { state }
     };
     loop {
+        if cancelled.is_some_and(|flag| flag.load(Ordering::Acquire)) {
+            return Err("tab start cancelled".into());
+        }
         {
             let mut locked = lock_state(&state)?;
             if locked.active_starts < locked.max_concurrent_starts {
