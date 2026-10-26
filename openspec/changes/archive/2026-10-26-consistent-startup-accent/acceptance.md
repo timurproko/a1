@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-26-consistent-startup-accent/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-26-consistent-startup-accent/acceptance.md",
   "finalizedDate": "2026-10-26",
-  "specBaseSha": "1f02b2e4d00bba6a70ff2b24e6752a7f05a445e4",
+  "specBaseSha": "e9340bc72d5ad0c2a21ef4f2d11ce724cd10854c",
   "acceptanceScenarios": [
     "New profiles show blue first and use blue throughout bare A1 unless another Accent color is selected.",
     "An explicit saved color paints the pre-resource trust heading, selection, and rule without loading project resources.",
@@ -25,7 +25,7 @@ The maintainer integration decision accepts these scenarios:
     "Changing Accent color persists across later launches and leaves comparison mode unchanged."
   ],
   "archiveDigest": "b03ade64b558ee8a6d783c7dd61214010dc29b7a0b4d740c5de4369f85e7b8de",
-  "specDigest": "51fd734ba83e504563658d90e5c7c336195745c6b79e5c40089ac80cd6eb326f",
+  "specDigest": "4af3c584c6d229ca6a9a80ed292a9bfc1b7bee3a456496f5768dc16f2c99525e",
   "tasksDigest": "a9fbe545100ba7d5bfcbcea910ba343d116e1c4906e11bbb0398af660aa27d8d",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
