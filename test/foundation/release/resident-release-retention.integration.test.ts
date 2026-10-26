@@ -17,11 +17,9 @@ import { readResidentReleaseHolds } from "../../../src/foundation/resident-tabs/
 
 // Rationale: the native terminal-host lane builds these fixture binaries before it runs this file;
 // other lanes have no native build, so the real-process test runs only where the binaries exist.
-const executable = process.platform === "win32" ? ".exe" : "";
 const hostAddon = resolve(".artifacts/terminal-host/terminal-host.node");
 const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
-const fakeTab = resolve("native/terminal-host/target/debug", `fake-tab${executable}`);
-const nativeIt = existsSync(hostAddon) && existsSync(hostEntry) && existsSync(fakeTab) ? it : it.skip;
+const nativeIt = existsSync(hostAddon) && existsSync(hostEntry) ? it : it.skip;
 const hostEnvironment = (addon: string, endpoint: string, extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => {
   const environment = {
     ...process.env,
@@ -49,9 +47,9 @@ describe("resident release retention with real processes", () => {
     const fixture = await releaseFixture(4);
     await activateAll(fixture.store, fixture.releases);
     const [heldByTab, unheld, , active] = fixture.releases;
-    // Invariant: the server records the release it runs from, so the fixture host runs from the
-    // active release layout; a host outside any release would make every release be kept.
-    const releaseHost = await installHost(active!.releaseRoot);
+    // Invariant: host and child share their immutable release; the active pointer is not launch authority.
+    const releaseHost = await installHost(heldByTab!.releaseRoot);
+    const inspectorHost = await installHost(active!.releaseRoot);
     const profile = resolve(fixture.root, "profile");
     await mkdir(profile, { recursive: true });
     // Platform: Unix socket paths have a short limit, so the runtime directory lives directly under /tmp.
@@ -73,7 +71,7 @@ describe("resident release retention with real processes", () => {
     stops.push(() => { run(["tabs", "host-stop", ...common]); });
 
     expect(run(["server", "--detach", ...common]).status).toBe(0);
-    const created = run(["internal", "tab-create", ...common, "--cwd", heldByTab!.releaseRoot, "--release-root", heldByTab!.releaseRoot, "--node-executable", fakeTab]);
+    const created = run(["internal", "tab-create", ...common, "--cwd", heldByTab!.releaseRoot, "--release-root", heldByTab!.releaseRoot, "--node-executable", process.execPath]);
     expect(created.status, created.stderr).toBe(0);
     const tabId = JSON.parse(created.stdout).tabId as string;
     const stateDir = JSON.parse(run(["tabs", "host-status", ...common]).stdout.trim().split("\n").at(-1)!).stateDir as string;
@@ -89,9 +87,9 @@ describe("resident release retention with real processes", () => {
       // by loading that exact addon; the inspection itself is the production command.
       verify: async () => undefined,
       run: async (_command, arguments_, timeoutMs) => runBoundedHostCommand(
-        { executable: process.execPath, entry: releaseHost.entry },
+        { executable: process.execPath, entry: inspectorHost.entry },
         arguments_,
-        { environment: hostEnvironment(releaseHost.addon, endpoint), maxStdoutBytes: 1024 * 1024, timeoutMs, label: "fixture release-hold inspection" },
+        { environment: hostEnvironment(inspectorHost.addon, endpoint), maxStdoutBytes: 1024 * 1024, timeoutMs, label: "fixture release-hold inspection" },
       ),
     });
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
@@ -106,6 +104,7 @@ describe("resident release retention with real processes", () => {
     await until(async () => !existsSync(resolve(stateDir, "server.json")));
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
     expect((await fixture.store.read()).releases[heldByTab!.releaseId]).toBeUndefined();
+    await expect(lstat(heldByTab!.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
   }, 180_000);
 
   nativeIt("an update mid-turn never signals a streaming resident tab or its server", async () => {
@@ -133,7 +132,7 @@ describe("resident release retention with real processes", () => {
     stops.push(() => { run(["tabs", "host-stop", ...common]); });
     expect(run(["server", "--detach", ...common]).status).toBe(0);
     const created = run(
-      ["internal", "tab-create", ...common, "--cwd", release.releaseRoot, "--release-root", release.releaseRoot, "--node-executable", fakeTab],
+      ["internal", "tab-create", ...common, "--cwd", release.releaseRoot, "--release-root", release.releaseRoot, "--node-executable", process.execPath],
       { TERMINAL_HOST_FAKE_TAB_MODE: "stream", TERMINAL_HOST_FAKE_TAB_STREAM_BYTES: "4096" },
     );
     expect(created.status, created.stderr).toBe(0);
@@ -169,15 +168,27 @@ describe("resident release retention with real processes", () => {
 async function installHost(releaseRoot: string): Promise<{ readonly addon: string; readonly entry: string }> {
   const nativeDirectory = resolve(releaseRoot, "dist", "native", `${process.platform}-${process.arch}`);
   const entryDirectory = resolve(releaseRoot, "dist", "foundation", "resident-tabs");
+  const binDirectory = resolve(releaseRoot, "bin");
   // Rationale: materialized releases may be read-only; the fixture adds a complete release-shaped
   // role host before use so detached descendants resolve the same addon without development overrides.
   for (const path of [releaseRoot, resolve(releaseRoot, "dist")]) await chmod(path, 0o755).catch(() => undefined);
-  await Promise.all([mkdir(nativeDirectory, { recursive: true }), mkdir(entryDirectory, { recursive: true })]);
+  await Promise.all([nativeDirectory, entryDirectory, binDirectory].map(path => mkdir(path, { recursive: true })));
   const addon = resolve(nativeDirectory, "terminal-host.node");
   const entry = resolve(entryDirectory, "host-entry.js");
   await Promise.all([
     copyFile(hostAddon, addon),
     copyFile(hostEntry, entry),
+    // Rationale: the holder pins real Node, so provide the fixed UI entry instead of replacing Node with fake-tab.
+    writeFile(resolve(binDirectory, "ui.js"), `
+      const streaming = process.env.TERMINAL_HOST_FAKE_TAB_MODE === "stream";
+      const bytes = Math.min(4096, Math.max(1, Number(process.env.TERMINAL_HOST_FAKE_TAB_STREAM_BYTES) || 128));
+      const chunk = "x".repeat(bytes);
+      let sequence = 0;
+      process.stdout.write("fixture ready\\r\\n");
+      setInterval(() => {
+        if (streaming) process.stdout.write(sequence++ + " " + chunk + "\\r\\n");
+      }, 40);
+    `),
     copyFile(resolve("dist/product-identity.js"), resolve(releaseRoot, "dist/product-identity.js")),
     copyFile(resolve("dist/product-identity.json"), resolve(releaseRoot, "dist/product-identity.json")),
   ]);
