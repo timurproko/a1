@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-26-instant-agent-tab/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-26-instant-agent-tab/acceptance.md",
   "finalizedDate": "2026-10-26",
-  "specBaseSha": "f46546828455b6e496867136544e2dc6891d9f76",
+  "specBaseSha": "9525032c2c6d40dff58f20976ed8009054913c94",
   "acceptanceScenarios": [
     "Creating an Agent immediately selects one new chip and displays an empty, cursor-free body until the Agent UI draws.",
     "An early registry update never adds a second new Agent chip; the real chip replaces the provisional one with the first complete screen.",
