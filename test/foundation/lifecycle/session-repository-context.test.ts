@@ -127,6 +127,23 @@ describe("session repository context and live worktree claims", () => {
       .resolves.toEqual({ cwd: firstPath, branch: "fix/example" });
   });
 
+  it("reports a registered worktree whose directory is gone as unverifiable instead of failing", async () => {
+    const fixture = await repositoryFixture();
+    const firstPath = await realpath(fixture.worktree);
+    const stalePath = await realpath(fixture.secondWorktree);
+    await rm(fixture.secondWorktree, { recursive: true, force: true });
+    await register(fixture, fixture.identity, fixture.firstRuntime);
+    await setSessionRepositoryContext(fixture.identity, fixture.worktree, runtimeOptions(fixture, fixture.firstRuntime));
+
+    const inventory = await listSessionRepositoryWorktrees(fixture.identity, runtimeOptions(fixture, fixture.firstRuntime));
+    expect(inventory.find(entry => entry.cwd === firstPath)?.status).toBe("current");
+    const stale = inventory.find(entry => entry.branch === "fix/example-two");
+    expect(stale).toMatchObject({ status: "unverifiable", agentId: null });
+    expect(stale?.cwd.toLowerCase()).toBe(stalePath.toLowerCase());
+    await expect(readSessionRepositoryContext(fixture.identity, { dataDir: fixture.dataDir }))
+      .resolves.toEqual({ cwd: firstPath, branch: "fix/example" });
+  });
+
   it("ignores heartbeat age while a claim owner remains exactly live", async () => {
     const fixture = await repositoryFixture();
     const canonicalWorktree = await realpath(fixture.worktree);
