@@ -24,10 +24,10 @@ The maintainer integration decision accepts these scenarios:
     "Release collection conservatively retains live, legacy and unverifiable resident artifacts.",
     "Shared sessions retain one process-owned writer across all release namespaces without automatic takeover or prompt replay."
   ],
-  "archiveDigest": "c66701ba977b79cf33abe34d83c3d3ccb18b5fc7684e37b14884d99198cdc784",
+  "archiveDigest": "294c6d6289c0c72f9eea55c673fc2070ea80763f6a5b57f3a41e85eb75ee9157",
   "specDigest": "60aefd8fa6c18de9215cf638080c0ed93a3aa3c49447fdb775f97931c59ad91f",
   "tasksDigest": "9c4be3745d6314c3ead29c1bd0f2ac925e14d18cbefb323dfad5d0f26475ab74",
-  "evidenceDigest": "2622b06c0b1b1683e241bff1c65abc7bdfd7baceb6c41262eeb9345d2f9e969b",
+  "evidenceDigest": "29a836c855d8a8d32d2601c31c76e96c8c290e0074d3c172722a68c4ea1dfe0e",
   "knownGaps": []
 }
 ```

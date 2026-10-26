@@ -126,10 +126,15 @@ impl Drop for Host {
 fn fixture_runtime() -> tempfile::TempDir {
     // Platform: Darwin's canonical per-user temp root can exhaust the socket budget before its suffix.
     #[cfg(unix)]
-    let runtime = tempfile::Builder::new()
-        .prefix("rt-")
-        .tempdir_in("/tmp")
-        .unwrap();
+    let runtime = {
+        use std::os::unix::fs::PermissionsExt;
+        // Security: create owner-private storage without a chmod window or reliance on the umask.
+        tempfile::Builder::new()
+            .prefix("rt-")
+            .permissions(std::fs::Permissions::from_mode(0o700))
+            .tempdir_in("/tmp")
+            .unwrap()
+    };
     #[cfg(not(unix))]
     let runtime = tempfile::tempdir().unwrap();
     runtime
@@ -145,8 +150,6 @@ fn hosts(root: &Path) -> (Host, Host) {
     }
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&runtime, std::fs::Permissions::from_mode(0o700)).unwrap();
         let longest = std::fs::canonicalize(&runtime)
             .unwrap()
             .join("a1-tabs-00000000000000000000.sock");
