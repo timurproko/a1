@@ -243,16 +243,90 @@ fn wordmark_row(line: &str, accent: &str, columns: usize) -> String {
 /// wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
 /// folder stays in place when a tab opens or closes, whichever edge the strip is on.
 pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
-    render_body(input, false)
+    render_body(input, None)
 }
 
-/// The visual-only empty Agent shell shown before its first child frame. It owns no input or
-/// cursor; unknown model and usage values are left blank rather than fabricated.
-pub fn render_agent_preview(input: &LandingInput<'_>) -> Vec<u8> {
-    render_body(input, true)
+/// Display-only footer hints from a prior complete Agent frame. The new tab always starts with
+/// zero usage; hints never become its authoritative model or context state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentPreviewFooter {
+    pub context: String,
+    pub subscription: bool,
+    pub auto: bool,
+    pub model: String,
+    pub thinking: Option<(String, [u8; 3])>,
 }
 
-fn render_body(input: &LandingInput<'_>, agent_preview: bool) -> Vec<u8> {
+impl Default for AgentPreviewFooter {
+    fn default() -> Self {
+        Self {
+            context: "0".into(),
+            subscription: false,
+            auto: true,
+            model: "no-model".into(),
+            thinking: None,
+        }
+    }
+}
+
+/// The visual-only idle Agent shell shown before its first child frame. Its inverse-space caret
+/// is not the hardware cursor, and its footer is replaced by the first real Agent frame.
+pub fn render_agent_preview(
+    input: &LandingInput<'_>,
+    footer: Option<&AgentPreviewFooter>,
+) -> Vec<u8> {
+    let fallback = AgentPreviewFooter::default();
+    render_body(input, Some(footer.unwrap_or(&fallback)))
+}
+
+/// Align the blank session's zeroed counters and best-known model as the real footer does.
+fn preview_status_row(footer: &AgentPreviewFooter, columns: usize, truecolor: bool) -> String {
+    if columns == 0 {
+        return String::new();
+    }
+    let left = format!(
+        "{}0.0%/{}{}",
+        if footer.subscription { "$0.000 (sub) " } else { "" },
+        footer.context,
+        if footer.auto { " (auto)" } else { "" }
+    );
+    let suffix = footer
+        .thinking
+        .as_ref()
+        .map(|(text, _)| format!(" • {text}"))
+        .unwrap_or_default();
+    let right = format!("{}{}", footer.model, suffix);
+    let right_width = UnicodeWidthStr::width(right.as_str());
+    if right_width >= columns {
+        return format!("{}{}\x1b[0m", foreground(DIM, truecolor), clip(&right, columns));
+    }
+    let left = clip(&left, columns.saturating_sub(right_width + 2));
+    let left_width = UnicodeWidthStr::width(left.as_str());
+    let separator = " ".repeat(columns - left_width - right_width);
+    let model = format!("{}{}", foreground(DIM, truecolor), footer.model);
+    let thinking = footer
+        .thinking
+        .as_ref()
+        .map(|(text, rgb)| {
+            format!(
+                "{} • {}{}",
+                foreground(DIM, truecolor),
+                foreground(*rgb, truecolor),
+                text
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        "{}{}{}{}{}\x1b[0m",
+        foreground(DIM, truecolor),
+        left,
+        separator,
+        model,
+        thinking
+    )
+}
+
+fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
     let fg = |rgb| foreground(rgb, input.truecolor);
@@ -269,10 +343,9 @@ fn render_body(input: &LandingInput<'_>, agent_preview: bool) -> Vec<u8> {
             format!("{}{}\x1b[0m", fg(DIM), clip_left(input.cwd, columns)),
         );
     }
-    if agent_preview {
-        // The real empty editor is three rows above its two-row footer. The prompt row stays
-        // blank because neither a hardware cursor nor a fake ready-to-type caret is owned yet.
-        // In a short terminal preserve the cwd and show as much of the editor as fits above it.
+    if let Some(footer) = footer {
+        // The real empty editor is three rows above its two-row footer. In a short terminal
+        // preserve the footer and show as much of the editor as fits above it.
         let editor_rows = cwd_row.min(3);
         let first = cwd_row - editor_rows;
         let border = format!(
@@ -285,6 +358,10 @@ fn render_body(input: &LandingInput<'_>, agent_preview: bool) -> Vec<u8> {
         }
         if editor_rows >= 2 {
             place(cwd_row - 1, border);
+            place(cwd_row - 2, "\x1b[7m \x1b[27m".into());
+        }
+        if cwd_row + 1 < body_rows {
+            place(cwd_row + 1, preview_status_row(footer, columns, input.truecolor));
         }
     } else {
         // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
@@ -392,25 +469,27 @@ mod tests {
 
     #[test]
     fn pending_agent_shows_a_plain_editor_and_cwd_without_startup_text_or_cursor() {
-        let grid = cells(&render_agent_preview(&input(80, 23)), 80, 23);
+        let grid = cells(&render_agent_preview(&input(80, 23), None), 80, 23);
         assert!(grid[..18].iter().all(String::is_empty), "{grid:#?}");
         assert_eq!(grid[18], "─".repeat(80));
-        assert_eq!(grid[19], "", "no fabricated caret or editable prompt");
+        assert_eq!(grid[19], "", "the inverse-space caret has no text content");
         assert_eq!(grid[20], "─".repeat(80));
         assert_eq!(grid[21], "~/src/a1");
-        assert_eq!(grid[22], "", "unknown model and counters stay blank");
-        let short = cells(&render_agent_preview(&input(8, 3)), 8, 3);
-        assert_eq!(short, ["", "~/src/a1", ""]);
-        let tiny = cells(&render_agent_preview(&input(2, 1)), 2, 1);
+        assert!(grid[22].starts_with("0.0%/0 (auto)"), "{grid:#?}");
+        assert!(grid[22].ends_with("no-model"), "{grid:#?}");
+        let short = cells(&render_agent_preview(&input(8, 3), None), 8, 3);
+        assert_eq!(short, ["", "~/src/a1", "no-model"]);
+        let tiny = cells(&render_agent_preview(&input(2, 1), None), 2, 1);
         assert_eq!(tiny, ["…1"]);
         let painted = String::from_utf8(render_agent_preview(&LandingInput {
             background: Some([26, 27, 28]),
             accent: Some("blue"),
             ..input(80, 23)
-        }))
+        }, None))
         .unwrap();
+        assert!(painted.contains("\x1b[7m \x1b[27m"), "the visual caret is present");
         assert!(!painted.contains("Starting Agent") && !painted.contains("Preparing"));
-        assert!(!painted.contains("\x1b[?25h") && !painted.contains("\x1b[7m"));
+        assert!(!painted.contains("\x1b[?25h"));
         assert!(painted.contains("\x1b[48;2;26;27;28m"));
         assert!(painted.contains("\x1b[38;2;116;102;197m"));
         for row in 2..=24 {
@@ -419,7 +498,7 @@ mod tests {
         let palette = String::from_utf8(render_agent_preview(&LandingInput {
             truecolor: false,
             ..input(80, 23)
-        }))
+        }, None))
         .unwrap();
         assert!(palette.contains("\x1b[38;5;") && !palette.contains("38;2;"));
     }

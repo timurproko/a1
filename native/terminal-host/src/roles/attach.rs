@@ -62,6 +62,67 @@ struct PendingAgent {
     real_id: Option<String>,
 }
 
+/// Read only the last complete Agent footer as a visual template. The next Agent's usage is
+/// rebuilt at zero and never inherited from an unrelated tab.
+fn agent_preview_footer(surface: &protocol::StructuredSurface) -> Option<landing::AgentPreviewFooter> {
+    if surface.commit_kind != protocol::SurfaceCommitKind::Complete
+        || surface.rows < 5
+        || surface.row_data.len() != usize::from(surface.rows)
+    {
+        return None;
+    }
+    let row = surface.row_data.last()?;
+    let line = row
+        .cells
+        .iter()
+        .filter(|cell| cell.width > 0)
+        .map(|cell| cell.text.as_str())
+        .collect::<String>();
+    let (left, right) = line.trim_end().rsplit_once("  ")?;
+    let model = right.trim();
+    if model.is_empty() || model.len() > 160 || model.chars().any(char::is_control) {
+        return None;
+    }
+    let context = left.split_whitespace().find_map(|part| {
+        let (percent, window) = part.split_once("%/")?;
+        (!percent.is_empty()
+            && window.len() <= 24
+            && !window.is_empty()
+            && window.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '.'))
+        .then(|| window.to_owned())
+    })?;
+    let (model, thinking) = match model.rsplit_once(" • ") {
+        Some((name, level))
+            if !name.is_empty()
+                && matches!(level, "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") =>
+        {
+            let color = row
+                .cells
+                .iter()
+                .rev()
+                .find(|cell| cell.width > 0 && !cell.text.trim().is_empty())
+                .and_then(|cell| surface.styles.get(usize::from(cell.style)))
+                .and_then(|style| match style.foreground {
+                    protocol::SurfaceColor::Rgb(rgb) => Some(rgb),
+                    protocol::SurfaceColor::Palette(index) => {
+                        surface.palette.get(usize::from(index)).copied()
+                    }
+                    protocol::SurfaceColor::Default => None,
+                })
+                .unwrap_or(landing::accent_colors(None).accent);
+            (name.to_owned(), Some((level.to_owned(), color)))
+        }
+        _ => (model.to_owned(), None),
+    };
+    Some(landing::AgentPreviewFooter {
+        context,
+        subscription: left.contains("(sub)"),
+        auto: left.contains("(auto)"),
+        model,
+        thinking,
+    })
+}
+
 fn show_pending_agent(shown: &mut Vec<StripTab>, pending: &PendingAgent) {
     shown.retain(|tab| {
         (pending.known_ids.contains(&tab.id) && pending.real_id.as_deref() != Some(tab.id.as_str()))
@@ -1863,6 +1924,7 @@ struct Client {
     tabs: Vec<StripTab>,
     /// Only the attach client sees this visual intent; it is never a server tab identity.
     pending_agent: Option<PendingAgent>,
+    preview_footer: Option<landing::AgentPreviewFooter>,
     chip_priority: Vec<String>,
     swap_in_flight: Option<String>,
     bindings: TabBindings,
@@ -1930,6 +1992,7 @@ impl Client {
             view,
             tabs: Vec::new(),
             pending_agent: None,
+            preview_footer: None,
             chip_priority: Vec::new(),
             swap_in_flight: None,
             bindings: TabBindings::load(options.profile),
@@ -2339,7 +2402,7 @@ impl Client {
                 self.time_format.background_style,
                 self.time_format.accent_color,
             ),
-        })
+        }, self.preview_footer.as_ref())
     }
 
     fn overlay(&self, core: &State) -> Option<String> {
@@ -2480,6 +2543,11 @@ impl Client {
             })
         {
             self.pending_agent = None;
+        }
+        if !core_attach::is_utility_tab(&surface.tab_id)
+            && let Some(footer) = surface.structured.as_ref().and_then(agent_preview_footer)
+        {
+            self.preview_footer = Some(footer);
         }
         self.presented.install(surface, &effective_status);
         let mut deferred = VecDeque::new();
@@ -3774,6 +3842,43 @@ mod tests {
             session_dir: None,
             view_tab,
         }
+    }
+
+    #[test]
+    fn cached_agent_footer_reuses_model_and_context_but_never_old_usage() {
+        let line = "$14.125 (sub) ↑5k 43.2%/272k (auto)           gpt-5.6-sol • high";
+        let mut surface = protocol::StructuredSurface {
+            columns: 80,
+            rows: 23,
+            row_data: vec![protocol::SurfaceRow::default(); 23],
+            styles: vec![protocol::SurfaceStyle::default(), protocol::SurfaceStyle {
+                foreground: protocol::SurfaceColor::Rgb([223, 122, 199]),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        surface.row_data[22].cells = line.chars().enumerate().map(|(index, ch)| protocol::SurfaceCell {
+            text: ch.to_string(),
+            style: u16::from(index >= line.chars().count() - "high".len()),
+            ..Default::default()
+        }).collect();
+        let hint = agent_preview_footer(&surface).expect("complete Agent footer");
+        assert_eq!(hint.context, "272k");
+        assert!(hint.subscription && hint.auto);
+        assert_eq!(hint.model, "gpt-5.6-sol");
+        assert_eq!(hint.thinking, Some(("high".into(), [223, 122, 199])));
+        let bytes = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: 80, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "~/repo", background: None,
+        }, Some(&hint))).unwrap();
+        assert!(bytes.contains("$0.000 (sub) 0.0%/272k (auto)"));
+        assert!(bytes.contains("gpt-5.6-sol") && bytes.contains("223;122;199mhigh"));
+        assert!(!bytes.contains("14.125") && !bytes.contains("43.2%") && !bytes.contains("↑5k"));
+        surface.commit_kind = protocol::SurfaceCommitKind::ProvisionalGeometry;
+        assert!(agent_preview_footer(&surface).is_none(), "provisional geometry is not a model hint");
+        surface.commit_kind = protocol::SurfaceCommitKind::Complete;
+        surface.row_data.pop();
+        assert!(agent_preview_footer(&surface).is_none(), "incomplete frames are never cached");
     }
 
     #[test]

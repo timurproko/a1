@@ -626,8 +626,10 @@ setInterval(() => {}, 1000);
         "the pending tab should paint before its holder gets a start slot: {pending}"
     );
     assert!(
-        pending.contains(&"─".repeat(40)) && pending.contains(text(&release)),
-        "pending Agent should show the ruled editor and cwd footer before its holder starts: {pending}"
+        pending.contains(&"─".repeat(40)) && pending.contains(text(&release))
+            && pending.contains("\x1b[7m \x1b[27m")
+            && pending.contains("0.0%/0 (auto)") && pending.contains("no-model"),
+        "pending Agent should show the complete idle editor/footer before its holder starts: {pending}"
     );
     assert!(
         !pending.contains("Starting Agent")
