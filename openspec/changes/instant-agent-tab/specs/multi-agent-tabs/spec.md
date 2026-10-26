@@ -106,7 +106,7 @@ While the attach client has no tab to show and no view request pending, it SHALL
 #### Scenario: The landing wordmark has a clean a
 - **WHEN** the landing is visible with half-block glyphs supported
 - **THEN** its accent-colored `a1` wordmark SHALL NOT render a stray full block to the left of the `a`'s middle row
-- **AND** an aligned middle-row left stroke SHALL make the `a` recognizable without increasing the wordmark's width or moving its placement
+- **AND** its middle row SHALL have a lower-half left descender with the upper half of that cell empty, matching the approved `a` shape without increasing the wordmark's width or moving its placement
 - **AND** the cwd and version rows SHALL each start after the same one-cell gutter as the Agent footer
 
 #### Scenario: The landing follows the background setting
