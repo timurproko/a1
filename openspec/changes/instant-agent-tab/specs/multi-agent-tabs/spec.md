@@ -40,8 +40,9 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 
 #### Scenario: Pending footer matches the committed Agent UI
 - **WHEN** an Agent is created while an existing Agent has a complete footer
-- **THEN** the provisional footer SHALL preserve the real footer's left and right gutters, path/branch/PR presentation, and styling while resetting the new tab's usage to zero
-- **AND** no previous prompt or conversation text SHALL leak into the provisional body
+- **THEN** the provisional footer SHALL preserve the real footer's left and right gutters and styled model/context presentation while resetting the new tab's usage to zero, but its path SHALL show only the new Agent's launch cwd without replaying another Agent's branch or PR link
+- **AND** no previous prompt, conversation text, branch, or PR link SHALL leak into the provisional body
+- **AND** the new Agent's real footer SHALL add its resolved branch and PR together after repository metadata refresh; before that, its plain cwd SHALL stay visible without blocking the body or input
 - **WHEN** no complete Agent footer exists
 - **THEN** the same owned footer layout SHALL show neutral model/context values without claiming unseen session metadata
 
@@ -58,7 +59,7 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 
 #### Scenario: The real footer appears after the chip fills
 - **WHEN** a pending Agent commits its first complete frame and the selected chip begins its truecolor fill
-- **THEN** the already visible provisional path and status rows SHALL remain stable while the real body and editor update
+- **THEN** the already visible plain cwd path and provisional status row SHALL remain stable while the real body and editor update
 - **AND** the latest real footer SHALL appear in one paint when the chip reaches its active shade, without briefly showing intermediate Agent status or inherited usage
 - **AND** cancel, tab switch, or resize SHALL discard the held footer; without truecolor animation the real footer SHALL appear immediately
 
@@ -73,7 +74,7 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - **THEN** its pending chip and body SHALL disappear, the prior coherent view or landing SHALL return with an actionable notice, and buffered input SHALL NOT reach the prior Agent
 
 ### Requirement: The empty resident shell presents the a1 landing
-While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body: the launch cwd, formatted and placed as an Agent tab's footer shows it (flush left on the second-to-last body row, with the home directory as `~`, in the footer's dim color), the running version as `v<version>` in the footer's dim color on the row below it, and the three-row half-block `a1` wordmark in the profile's accent color on the rows above it (omitted where half-block glyphs are unsupported or rows run out), so the folder stays in place when a tab opens or closes at either strip position. The landing body SHALL be painted with the canvas the `backgroundStyle` setting gives Agent tabs, and SHALL leave the terminal background when it is `transparent`. When an Agent is added from the landing, the single pending Agent chip and complete idle editor/footer SHALL replace the landing on the initiating event; the first drawn Agent frame SHALL replace that pending presentation without a wipe or fade. A hidden utility tab SHALL retain its existing first-draw handoff. The landing SHALL hold no input: keys, paste, and body mouse input SHALL reach no child, while tab shortcuts, the `+` launcher and its popups, strip hover, strip mouse input, and the double-`Ctrl+C` detach SHALL behave exactly as with tabs. The landing SHALL render no cursor and SHALL never be shown while a tab is viewed.
+While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body: the launch cwd, formatted and placed as an Agent tab's footer shows it (one-cell left gutter on the second-to-last body row, with the home directory as `~`, in the footer's dim color), the running version as `v<version>` with the same left gutter in the footer's dim color on the row below it, and the three-row half-block `a1` wordmark in the profile's accent color on the rows above it (omitted where half-block glyphs are unsupported or rows run out), so the folder stays in place when a tab opens or closes at either strip position. The landing body SHALL be painted with the canvas the `backgroundStyle` setting gives Agent tabs, and SHALL leave the terminal background when it is `transparent`. When an Agent is added from the landing, the single pending Agent chip and complete idle editor/footer SHALL replace the landing on the initiating event; the first drawn Agent frame SHALL replace that pending presentation without a wipe or fade. A hidden utility tab SHALL retain its existing first-draw handoff. The landing SHALL hold no input: keys, paste, and body mouse input SHALL reach no child, while tab shortcuts, the `+` launcher and its popups, strip hover, strip mouse input, and the double-`Ctrl+C` detach SHALL behave exactly as with tabs. The landing SHALL render no cursor and SHALL never be shown while a tab is viewed.
 
 #### Scenario: Last tab closes into the landing
 - **WHEN** the final Agent or Settings tab closes while the attach client stays open and the strip is at the top
@@ -82,7 +83,7 @@ While the attach client has no tab to show and no view request pending, it SHALL
 
 #### Scenario: The folder does not move when a tab opens
 - **WHEN** the user creates an Agent from the landing at either tab bar position
-- **THEN** the Agent's footer SHALL show the cwd on the same row and column as the landing showed it
+- **THEN** the Agent's footer SHALL show the cwd on the same row and one-cell-gutter column as the landing showed it
 
 #### Scenario: Start an Agent from the landing
 - **WHEN** the user presses the `New A1 tab` shortcut or chooses `+ Agent` from the launcher on the landing
@@ -105,7 +106,8 @@ While the attach client has no tab to show and no view request pending, it SHALL
 #### Scenario: The landing wordmark has a clean a
 - **WHEN** the landing is visible with half-block glyphs supported
 - **THEN** its accent-colored `a1` wordmark SHALL NOT render a stray full block to the left of the `a`'s middle row
-- **AND** its placement and the footer rows SHALL remain unchanged
+- **AND** an aligned middle-row left stroke SHALL make the `a` recognizable without increasing the wordmark's width or moving its placement
+- **AND** the cwd and version rows SHALL each start after the same one-cell gutter as the Agent footer
 
 #### Scenario: The landing follows the background setting
 - **WHEN** `backgroundStyle` is `accent` or `dark` and the landing is shown
