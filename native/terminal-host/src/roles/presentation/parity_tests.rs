@@ -437,6 +437,10 @@ fn compose_parity_frame(
     }
 }
 
+/// ConPTY sometimes holds its read handle open after the child exits; this marks the final frame.
+#[cfg(windows)]
+const CONPTY_PARITY_END: &[u8] = b"A1_CONPTY_PARITY_END_4A86E9";
+
 // Rationale: the test binary doubles as the PTY child, avoiding a Node/shell/toolchain dependency.
 #[cfg(windows)]
 #[test]
@@ -518,6 +522,9 @@ fn conpty_parity_child() {
     std::thread::sleep(std::time::Duration::from_millis(150));
     drop(terminal_output);
     assert_eq!(unsafe { GetConsoleOutputCP() }, original_code_page);
+    // Invariant: the parent captures completed frames without depending on ConPTY's EOF.
+    std::io::stdout().write_all(CONPTY_PARITY_END).unwrap();
+    std::io::stdout().flush().unwrap();
     std::process::exit(0);
 }
 
@@ -556,6 +563,58 @@ fn conpty_rail_only_row_changes_reach_the_grid() {
     }
 }
 
+/// Collect fixture bytes through the child completion marker, not a delayed ConPTY pipe EOF.
+#[cfg(windows)]
+fn conpty_capture_output(
+    mut reader: impl std::io::Read,
+    writer: std::sync::Arc<std::sync::Mutex<impl std::io::Write>>,
+) -> (std::io::Result<()>, Vec<u8>)
+{
+    let mut bytes = Vec::new();
+    let mut buffer = [0u8; 4096];
+    let result = loop {
+        match reader.read(&mut buffer) {
+            Ok(0) => break Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof, "ConPTY completion marker missing",
+            )),
+            Ok(count) => {
+                let previous = bytes.len();
+                bytes.extend_from_slice(&buffer[..count]);
+                if let Some(end) = bytes.windows(CONPTY_PARITY_END.len())
+                    .position(|window| window == CONPTY_PARITY_END)
+                {
+                    bytes.truncate(end);
+                    break Ok(());
+                }
+                // Platform: answer ConPTY's startup cursor-position query before it starts
+                // the child; it is terminal I/O, not a child content frame.
+                if bytes[previous.saturating_sub(3)..].windows(4)
+                    .any(|window| window == b"\x1b[6n")
+                {
+                    let mut writer = writer.lock().unwrap();
+                    writer.write_all(b"\x1b[1;1R").unwrap();
+                    writer.flush().unwrap();
+                }
+            }
+            Err(error) => break Err(error),
+        }
+    };
+    (result, bytes)
+}
+
+#[cfg(windows)]
+#[test]
+fn conpty_capture_stops_at_completion_marker_and_rejects_missing_marker() {
+    use std::sync::{Arc, Mutex};
+    let writer = Arc::new(Mutex::new(Vec::<u8>::new()));
+    let stream = [b"frame".as_slice(), CONPTY_PARITY_END, b"ignored"].concat();
+    let (result, bytes) = conpty_capture_output(std::io::Cursor::new(stream), writer.clone());
+    result.unwrap();
+    assert_eq!(bytes, b"frame");
+    let (missing, _) = conpty_capture_output(std::io::Cursor::new(b"frame"), writer);
+    assert_eq!(missing.unwrap_err().kind(), std::io::ErrorKind::UnexpectedEof);
+}
+
 #[cfg(windows)]
 fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns: u16) -> Vec<u8> {
     let rows = if case == "hover" {
@@ -566,7 +625,6 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
         12
     };
     use portable_pty::{CommandBuilder, NativePtySystem, PtySize, PtySystem};
-    use std::io::{Read, Write};
     let pair = NativePtySystem::default()
         .openpty(PtySize {
             rows: rows + u16::from(resident_output),
@@ -590,32 +648,14 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
     );
     let mut child = pair.slave.spawn_command(command).unwrap();
     drop(pair.slave);
-    let mut reader = pair.master.try_clone_reader().unwrap();
-    let mut writer = pair.master.take_writer().unwrap();
+    let reader = pair.master.try_clone_reader().unwrap();
+    // Invariant: keep ConPTY's input pipe alive until the child exits; closing it when the
+    // completion marker arrives can terminate the child before its normal exit.
+    let writer = std::sync::Arc::new(std::sync::Mutex::new(pair.master.take_writer().unwrap()));
+    let read_writer = std::sync::Arc::clone(&writer);
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
-        let mut bytes = Vec::new();
-        let mut buffer = [0u8; 4096];
-        let result = loop {
-            match reader.read(&mut buffer) {
-                Ok(0) => break Ok(()),
-                Ok(count) => {
-                    let previous = bytes.len();
-                    bytes.extend_from_slice(&buffer[..count]);
-                    // Platform: ConPTY's startup cursor-position query must be answered before it starts
-                    // the child. It is terminal I/O, not a child content frame.
-                    if bytes[previous.saturating_sub(3)..]
-                        .windows(4)
-                        .any(|window| window == b"\x1b[6n")
-                    {
-                        writer.write_all(b"\x1b[1;1R").unwrap();
-                        writer.flush().unwrap();
-                    }
-                }
-                Err(error) => break Err(error),
-            }
-        };
-        let _ = sender.send((result, bytes));
+        let _ = sender.send(conpty_capture_output(reader, read_writer));
     });
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
     let mut failure = None;
@@ -634,10 +674,10 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
     drop(pair.master);
+    drop(writer);
     let (result, bytes) = receiver
         .recv_timeout(std::time::Duration::from_secs(10))
         .expect("PTY output completed");
-    result.unwrap();
     if let Some(status) = failure {
         let text = String::from_utf8_lossy(&bytes);
         let tail: String = text
@@ -650,6 +690,7 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
             .collect();
         panic!("ConPTY fixture child failed ({status:?}); output tail: {tail:?}");
     }
+    result.unwrap();
     bytes
 }
 
