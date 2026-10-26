@@ -22,6 +22,7 @@ import {
 import { SHARED_PROGRESS_ACCENT_ANSI as UPDATE_PROGRESS_ACCENT_ANSI } from "../../../src/foundation/release/progress-palette.generated.js";
 import { earlyAccentPalette, resolveEarlyAccentColor } from "../../../src/foundation/release/early-accent.js";
 import { preTrustPalette, readPreTrustAccent } from "../../../src/ui/settings/early-accent.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 const roots: string[] = [];
 const exactTarget = ["--develop", "0.2.1-dev.591"];
@@ -155,7 +156,7 @@ describe("installer command contract", () => {
     expect(readPreTrustAccent(environment)).toBe("blue");
     await mkdir(dirname(file), { recursive: true });
     for (const value of ["purple", "cyan", "green", "orange", "pink", "blue", "default", "invalid"]) {
-      await writeFile(file, JSON.stringify({ a1: { accentColor: value } }));
+      await writeFile(file, JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: value } }));
       const expected = (value === "default" ? "purple" : value === "invalid" ? "blue" : value) as "blue" | "purple" | "cyan" | "green" | "orange" | "pink";
       expect(resolveInstallerAccentColor(environment)).toBe(expected);
       expect(resolveEarlyAccentColor(environment)).toBe(expected);
@@ -288,7 +289,7 @@ describe("installer orchestration", () => {
     await setup.materialize();
     const profile = resolve(setup.root, ".a1", "agent");
     await mkdir(profile, { recursive: true });
-    await writeFile(resolve(profile, "settings.json"), JSON.stringify({ a1: { accentColor: "pink" } }));
+    await writeFile(resolve(profile, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "pink" } }));
     const stdout = capture();
     const stderr = capture();
     const runner = {

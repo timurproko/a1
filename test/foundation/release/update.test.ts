@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { CHILD_DIAGNOSTIC_LIMIT, renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
 import { SHARED_PROGRESS_ACCENT_ANSI } from "../../../src/foundation/release/progress-palette.generated.js";
 import { earlyAccentPalette } from "../../../src/foundation/release/early-accent.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import {
   createNpmProcessRunner,
   PRODUCT_PACKAGE,
@@ -617,7 +618,7 @@ describe("A1 self-update orchestration", () => {
     try {
       const agent = resolve(home, ".a1", "agent");
       mkdirSync(agent, { recursive: true });
-      writeFileSync(resolve(agent, "settings.json"), JSON.stringify({ a1: { accentColor: "green" } }));
+      writeFileSync(resolve(agent, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "green" } }));
       const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
       await expect(runSelfUpdate({
         ...harness,

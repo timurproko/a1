@@ -26,7 +26,7 @@ export function resolveEarlyAccentColor(
     const namespace = root[PRODUCT_IDENTITY.commandName];
     if (!isRecord(namespace)) return "blue";
     const value = namespace.accentColor;
-    if (value === "default") return "purple"; // Existing compatibility transform.
+    if (value === "default") return "purple"; // Compatibility: preserve explicitly saved legacy defaults.
     return isAccentColor(value) ? value : "blue";
   } catch {
     return "blue";

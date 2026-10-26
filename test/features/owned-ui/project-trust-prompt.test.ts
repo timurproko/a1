@@ -3,6 +3,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import { createConsoleProjectTrustPrompt } from "../../../src/features/owned-ui/index.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { EMERGENCY_TERMINAL_RESET } from "../../../src/foundation/terminal-cleanup/index.js";
 import { preTrustPalette } from "../../../src/ui/settings/early-accent.js";
 const earlyAccentPalette = (color: "blue" | "pink" | "orange", appearance: "dark" | "light" = "dark", mode: "truecolor" | "256color" = "truecolor") => preTrustPalette(color, appearance, mode);
@@ -114,10 +115,10 @@ describe("bounded project trust terminal preflight", () => {
     try {
       const profile = resolve(home, ".a1", "agent");
       await mkdir(profile, { recursive: true });
-      await writeFile(resolve(profile, "settings.json"), JSON.stringify({ a1: { accentColor: "pink" } }));
+      await writeFile(resolve(profile, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "pink" } }));
       const project = resolve(home, "project");
       await mkdir(resolve(project, ".a1", "agent"), { recursive: true });
-      await writeFile(resolve(project, ".a1", "agent", "settings.json"), JSON.stringify({ a1: { accentColor: "orange" } }));
+      await writeFile(resolve(project, ".a1", "agent", "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "orange" } }));
       const output = new TtyOutput();
       const prompt = createConsoleProjectTrustPrompt({
         input: new TtyInput("\r"), output,

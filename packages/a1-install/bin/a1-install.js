@@ -94,7 +94,7 @@ export function installerHelp() {
   ].join("\n");
 }
 
-// The bootstrap cannot import the main package's settings manager or its dependencies.
+// Invariant: the bootstrap cannot import the main package's settings manager or its dependencies.
 // Mirror only its bounded, read-only global A1 accent resolution before acquisition.
 export function resolveInstallerAccentColor(environment = process.env, home = homedir) {
   try {
@@ -105,9 +105,10 @@ export function resolveInstallerAccentColor(environment = process.env, home = ho
     const raw = readFileSync(file, "utf8");
     if (Buffer.byteLength(raw, "utf8") > 256 * 1024) return "blue";
     const root = JSON.parse(raw.replace(/^\uFEFF/u, ""));
-    const value = root && typeof root === "object" && !Array.isArray(root)
-      && root.a1 && typeof root.a1 === "object" && !Array.isArray(root.a1)
-      ? root.a1.accentColor : undefined;
+    const settings = root && typeof root === "object" && !Array.isArray(root)
+      ? Object.getOwnPropertyDescriptor(root, "a1")?.value : undefined;
+    const value = settings && typeof settings === "object" && !Array.isArray(settings)
+      ? settings.accentColor : undefined;
     if (value === "default") return "purple";
     return typeof value === "string" && Object.hasOwn(SHARED_PROGRESS_PALETTE, value) ? value : "blue";
   } catch {
