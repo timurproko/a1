@@ -37,7 +37,7 @@ use crate::roles::owned_settings;
 use crate::roles::presentation::Frame;
 use crate::roles::presentation::{
     DesiredPresentation, FinalCursor, Offer, PresentationComposer, TopologyAction, ViewModel,
-    surface_is_blank,
+    complete_surface_body_without_footer, surface_is_blank,
 };
 use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::reveal::Reveal;
@@ -196,6 +196,16 @@ fn actual_agent_footer_rows(
         styles: surface.styles.clone(),
         links: surface.links.clone(),
     })
+}
+
+fn should_hold_activation_footer(truecolor: bool, has_structured_body: bool) -> bool {
+    truecolor && has_structured_body
+}
+
+fn body_with_held_footer(surface: &protocol::StructuredSurface, footer: &[u8]) -> Option<Vec<u8>> {
+    let mut body = complete_surface_body_without_footer(surface).ok()?;
+    body.extend_from_slice(footer);
+    Some(body)
 }
 
 fn fill_on_agent_handoff(pending: Option<&PendingAgent>, tab_id: &str, requested: bool, now: Instant) -> Option<strip::ChipFill> {
@@ -2057,6 +2067,7 @@ struct Client {
     preview_footer: Option<landing::AgentPreviewFooter>,
     chip_priority: Vec<String>,
     chip_fill: Option<strip::ChipFill>,
+    preview_footer_hold: Option<Vec<u8>>,
     swap_in_flight: Option<String>,
     bindings: TabBindings,
     channel: InputChannel,
@@ -2131,6 +2142,7 @@ impl Client {
             preview_footer: None,
             chip_priority: Vec::new(),
             chip_fill: None,
+            preview_footer_hold: None,
             swap_in_flight: None,
             bindings: TabBindings::load(options.profile),
             channel: handshake.channel,
@@ -2197,7 +2209,7 @@ impl Client {
             match effect {
                 Effect::Send(request) => {
                     if request == Request::Create {
-                        self.chip_fill = None;
+                        self.clear_chip_fill();
                         key_trace(self.key_trace_path.as_deref(), "effect=create");
                         let known_ids = self
                             .tabs
@@ -2222,7 +2234,7 @@ impl Client {
                         }
                     } else if let Request::Close(ref tab_id) = request {
                         if self.chip_fill.as_ref().is_some_and(|fill| fill.tab_id == *tab_id) {
-                            self.chip_fill = None;
+                            self.clear_chip_fill();
                         }
                         key_trace(self.key_trace_path.as_deref(), "effect=close");
                         self.closed_tab_ids.insert(tab_id.clone());
@@ -2241,7 +2253,7 @@ impl Client {
                 }
                 Effect::View(tab_id) => {
                     if self.chip_fill.as_ref().is_some_and(|fill| fill.tab_id != tab_id) {
-                        self.chip_fill = None;
+                        self.clear_chip_fill();
                     }
                     if !core.view.pending_agent_visible {
                         self.pending_agent = None;
@@ -2252,7 +2264,7 @@ impl Client {
                 }
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
                 Effect::CancelViewRequest => {
-                    self.chip_fill = None;
+                    self.clear_chip_fill();
                     key_trace(self.key_trace_path.as_deref(), "effect=cancel-view");
                     self.pending_agent = None;
                     self.view.cancel_request();
@@ -2571,12 +2583,12 @@ impl Client {
         }))
     }
 
-    fn pending_agent_shell(&self) -> Vec<u8> {
+    fn pending_agent_shell(&self, footer_only: bool) -> Vec<u8> {
         let home = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
             .ok();
         let cwd = landing::display_cwd(&self.create.cwd, home.as_deref());
-        landing::render_agent_preview(&landing::LandingInput {
+        let input = landing::LandingInput {
             columns: self.columns,
             body_rows: self.outer_rows.saturating_sub(1),
             version: None,
@@ -2588,7 +2600,12 @@ impl Client {
                 self.time_format.background_style,
                 self.time_format.accent_color,
             ),
-        }, self.preview_footer.as_ref())
+        };
+        if footer_only {
+            landing::render_agent_preview_footer(&input, self.preview_footer.as_ref())
+        } else {
+            landing::render_agent_preview(&input, self.preview_footer.as_ref())
+        }
     }
 
     fn overlay(&self, core: &State) -> Option<String> {
@@ -2644,8 +2661,18 @@ impl Client {
         clear: bool,
         dimmed: bool,
     ) -> Result<(), String> {
-        let pending_body = pending.then(|| self.pending_agent_shell());
+        let pending_body = pending.then(|| self.pending_agent_shell(false));
         let child_surface = landing.is_none() && !pending;
+        // Invariant: only the footer stays provisional. Reconstruct each latest complete real
+        // surface so its editor and input remain live throughout the bounded chip fill.
+        let held_body = if child_surface {
+            self.preview_footer_hold.as_deref().and_then(|footer| {
+                self.presented.structured.as_deref()
+                    .and_then(|surface| body_with_held_footer(surface, footer))
+            })
+        } else {
+            None
+        };
         let desired = DesiredPresentation {
             tab_id: if pending {
                 Some(PENDING_AGENT_ID.into())
@@ -2656,9 +2683,10 @@ impl Client {
             revision: self.presented.revision,
             geometry_generation: self.presented.geometry_generation,
             strip: self.strip_frame.bytes.clone(),
-            structured: self.presented.structured.clone().filter(|_| child_surface),
+            structured: self.presented.structured.clone().filter(|_| child_surface && held_body.is_none()),
             legacy_body: pending_body
                 .or(landing)
+                .or(held_body)
                 .unwrap_or_else(|| self.presented.surface.clone()),
             overlay,
             cursor: if pending || dimmed {
@@ -2724,9 +2752,13 @@ impl Client {
             effective_status.clone_from(&tab.status);
         }
         if let Some(fill) = fill_on_agent_handoff(self.pending_agent.as_ref(), &surface.tab_id, requested, Instant::now()) {
-            // Invariant: the body and real chip commit together; only its background fills later.
-            self.chip_fill = Some(fill);
-            self.last_strip_frame = Instant::now();
+            // Invariant: the preview footer is frozen before the real Agent's first status is cached.
+            // Without a complete structured frame or truecolor fill the real footer shows at once.
+            if should_hold_activation_footer(!palette_fallback_requested(), surface.structured.is_some()) {
+                self.preview_footer_hold = Some(self.pending_agent_shell(true));
+                self.chip_fill = Some(fill);
+                self.last_strip_frame = Instant::now();
+            }
             self.pending_agent = None;
         }
         if !core_attach::is_utility_tab(&surface.tab_id)
@@ -3198,12 +3230,18 @@ impl Client {
         Ok(())
     }
 
+    fn clear_chip_fill(&mut self) {
+        self.chip_fill = None;
+        self.preview_footer_hold = None;
+    }
+
     /// Finish a canceled or elapsed chip fill and repaint its last partial frame once.
     fn tick_strip_animation(&mut self, core: &mut State, now: Instant) -> Result<(), String> {
         let fill_active = self.chip_fill.as_ref().is_some_and(|fill| {
             self.view.viewed.as_deref() == Some(fill.tab_id.as_str()) && strip::fill_active(fill, now)
         });
-        if !fill_active && self.chip_fill.take().is_some() {
+        if !fill_active && self.chip_fill.is_some() {
+            self.clear_chip_fill();
             self.paint(core, false)?;
         }
         if (strip::animations_active(&self.tabs) || fill_active)
@@ -3436,6 +3474,7 @@ impl Client {
         self.outer_rows = outer_rows;
         self.geometry_generation = self.geometry_generation.saturating_add(1);
         self.columns = columns;
+        self.clear_chip_fill();
         self.create.columns = columns;
         self.create.rows = rows;
         self.reveal.fade = None;
@@ -4209,6 +4248,13 @@ mod tests {
         assert!(output.contains("gpt-5.6-sol • high"));
         assert!(!output.contains("14.125") && !output.contains("43.2%") && !output.contains("↑5k"));
         assert!(!output.contains("unused fallback"));
+        let held = String::from_utf8(landing::render_agent_preview_footer(&landing::LandingInput {
+            columns: columns as u16, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "unused fallback", background: None,
+        }, Some(&footer))).unwrap();
+        assert!(held.contains("fix/instant-agent-tab") && held.contains("https://github.com/timurproko/a1/pull/837"));
+        assert!(held.contains("$0.000 (sub) 0.0%/272k (auto)"));
+        assert!(!held.contains("\x1b[22;1H") && !held.contains("14.125"));
         let narrow = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
             columns: 24, body_rows: 23, version: None, accent: None,
             truecolor: true, half_blocks: false, cwd: "narrow cwd", background: None,
@@ -4221,6 +4267,45 @@ mod tests {
             truecolor: true, half_blocks: false, cwd: "unused fallback", background: None,
         }, Some(&malformed))).unwrap();
         assert!(recovered.contains("unused fallback") && !recovered.contains("14.125"));
+    }
+
+    #[test]
+    fn live_agent_body_holds_preview_footer_until_the_latest_real_status_is_revealed() {
+        let columns = 32usize;
+        let mut real = protocol::StructuredSurface {
+            columns: columns as u16, rows: 5,
+            row_data: vec![protocol::SurfaceRow { cells: vec![protocol::SurfaceCell::default(); columns] }; 5],
+            styles: vec![protocol::SurfaceStyle::default()],
+            ..Default::default()
+        };
+        for (index, character) in "READY".chars().enumerate() {
+            real.row_data[0].cells[index].text = character.to_string();
+        }
+        for (index, character) in "INTERMEDIATE STATUS".chars().enumerate() {
+            real.row_data[4].cells[index].text = character.to_string();
+        }
+        let preview = landing::render_agent_preview_footer(&landing::LandingInput {
+            columns: columns as u16, body_rows: 5, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "~/repo", background: None,
+        }, None);
+        let held = String::from_utf8(body_with_held_footer(&real, &preview).unwrap()).unwrap();
+        assert!(held.contains("READY") && held.contains("~/repo") && held.contains("no-model"));
+        assert!(!held.contains("INTERMEDIATE STATUS"), "transient Agent status never reaches the terminal");
+        for (index, character) in "LATEST STATUS      ".chars().enumerate() {
+            real.row_data[4].cells[index].text = character.to_string();
+        }
+        let next = String::from_utf8(body_with_held_footer(&real, &preview).unwrap()).unwrap();
+        assert!(!next.contains("LATEST STATUS"), "later status stays hidden during the fill");
+        let released = String::from_utf8(crate::roles::presentation::complete_surface_bytes(&real).unwrap()).unwrap();
+        assert!(released.contains("READY") && released.contains("LATEST STATUS"));
+        assert!(!released.contains("no-model"), "the latest real footer replaces the preview on release");
+    }
+
+    #[test]
+    fn palette_and_unstructured_fallbacks_show_real_status_immediately() {
+        assert!(should_hold_activation_footer(true, true));
+        assert!(!should_hold_activation_footer(false, true), "palette mode has no chip fill to wait for");
+        assert!(!should_hold_activation_footer(true, false), "legacy bodies cannot safely hold status rows");
     }
 
     #[test]

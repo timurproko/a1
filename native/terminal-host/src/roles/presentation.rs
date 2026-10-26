@@ -904,10 +904,20 @@ fn push_osc_rgb(output: &mut Vec<u8>, command: u8, index: Option<usize>, color: 
 /// Reconstructs a complete positioned ANSI fallback from one coherent structured commit. This is
 /// used only for negotiated legacy peers and never introduces synchronized-output delimiters.
 pub(crate) fn complete_surface_bytes(surface: &StructuredSurface) -> Result<Vec<u8>, String> {
+    complete_surface_rows(surface, surface.row_data.len())
+}
+
+/// The child stays live while the host retains the provisional footer through chip activation.
+/// Never emit transient real status cells that would flash before the held footer is drawn.
+pub(crate) fn complete_surface_body_without_footer(surface: &StructuredSurface) -> Result<Vec<u8>, String> {
+    complete_surface_rows(surface, surface.row_data.len().saturating_sub(2))
+}
+
+fn complete_surface_rows(surface: &StructuredSurface, rows: usize) -> Result<Vec<u8>, String> {
     surface.validate()?;
     let mut output = Vec::new();
     render_palette_damage(&mut output, None, surface, true);
-    for (row_index, row) in surface.row_data.iter().enumerate() {
+    for (row_index, row) in surface.row_data.iter().take(rows).enumerate() {
         render_surface_row(
             &mut output,
             row,

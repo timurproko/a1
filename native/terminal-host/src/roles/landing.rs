@@ -243,7 +243,7 @@ fn wordmark_row(line: &str, accent: &str, columns: usize) -> String {
 /// wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
 /// folder stays in place when a tab opens or closes, whichever edge the strip is on.
 pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
-    render_body(input, None)
+    render_body(input, None, false)
 }
 
 /// Rows rendered by the real Agent's owned footer. Retaining cells preserves its path metadata,
@@ -289,7 +289,17 @@ pub fn render_agent_preview(
     footer: Option<&AgentPreviewFooter>,
 ) -> Vec<u8> {
     let fallback = AgentPreviewFooter::default();
-    render_body(input, Some(footer.unwrap_or(&fallback)))
+    render_body(input, Some(footer.unwrap_or(&fallback)), false)
+}
+
+/// Repaint just the provisional footer while the real Agent's chip finishes its fill.
+/// Child/editor rows remain owned by the real frame; cached links and gutters stay intact.
+pub fn render_agent_preview_footer(
+    input: &LandingInput<'_>,
+    footer: Option<&AgentPreviewFooter>,
+) -> Vec<u8> {
+    let fallback = AgentPreviewFooter::default();
+    render_body(input, Some(footer.unwrap_or(&fallback)), true)
 }
 
 /// Cold fallback when no actual Agent footer exists yet; the owned shell renders the footer
@@ -347,7 +357,7 @@ fn preview_status_content(footer: &AgentPreviewFooter, columns: usize, truecolor
     )
 }
 
-fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>) -> Vec<u8> {
+fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, footer_only: bool) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
     let fg = |rgb| foreground(rgb, input.truecolor);
@@ -406,7 +416,7 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>) ->
     // landing matches the Agent canvas that replaces it.
     let canvas = input.background.map(|rgb| background(rgb, input.truecolor));
     let mut bytes = String::new();
-    for (index, content) in rows.iter().enumerate() {
+    for (index, content) in rows.iter().enumerate().skip(if footer_only { cwd_row } else { 0 }) {
         let row = index + 2;
         bytes.push_str(&format!("\x1b[{row};1H\x1b[0m\x1b[2K"));
         if let Some(canvas) = canvas.as_deref() {
@@ -426,7 +436,7 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>) ->
                 input.columns, &actual.styles, &actual.links).is_err() {
                 let mut fallback = footer.cloned().unwrap_or_default();
                 fallback.actual = None;
-                return render_body(input, Some(&fallback));
+                return render_body(input, Some(&fallback), footer_only);
             }
         }
         output.extend(footer_bytes);
@@ -497,6 +507,18 @@ mod tests {
         assert_eq!(grid[22], "v0.2.7");
         // Invariant: the landing's a starts one cell in while the Agent caret remains at column zero.
         assert!(grid[19].starts_with(" ▀"), "the a has no protruding left block");
+    }
+
+    #[test]
+    fn held_pending_footer_paints_only_the_two_bottom_rows() {
+        let wide = input(80, 23);
+        let footer = String::from_utf8(render_agent_preview_footer(&wide, None)).unwrap();
+        assert!(footer.contains("\x1b[23;1H") && footer.contains("\x1b[24;1H"));
+        assert!(!footer.contains("\x1b[22;1H") && !footer.contains("\x1b[7m"));
+        assert!(footer.contains("~/src/a1") && footer.contains("no-model"));
+        let short = String::from_utf8(render_agent_preview_footer(&input(8, 3), None)).unwrap();
+        assert!(short.contains("\x1b[3;1H") && short.contains("\x1b[4;1H"));
+        assert!(!short.contains("\x1b[2;1H"));
     }
 
     #[test]

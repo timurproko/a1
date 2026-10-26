@@ -584,6 +584,47 @@ setInterval(() => {}, 1000);
 }
 
 #[test]
+fn new_agent_footer_stays_provisional_until_its_chip_fills() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    std::fs::write(directory(&release, "bin").join("ui.js"), r#"
+const initial = process.env.A1_TAB_ID === "tab-1";
+const footer = (model) => process.stdout.write(`\x1b[22;1H cwd\x1b[23;1H 0.0%/123k (auto)          ${model}\x1b[1;1H`);
+footer(initial ? "old-model" : "intermediate-model");
+process.stdout.write(initial ? "initial-ready" : "second-ready");
+if (!initial) setTimeout(() => footer("latest-model"), 80);
+setInterval(() => {}, 1000);
+"#).expect("fake Agent");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
+    let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
+    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(attach.output_containing("initial-ready", Duration::from_secs(20)));
+    assert!(attach.output_containing("old-model", Duration::from_secs(5)));
+    let from = attach.retained_len();
+    attach.write(b"\x1ba");
+    assert!(attach.output_containing("second-ready", Duration::from_secs(20)), "{}", attach.output_text());
+    assert!(!attach.output_since(from).contains("intermediate-model"),
+        "intermediate child status flashed during the chip fill: {}", attach.output_text());
+    assert!(attach.output_containing("latest-model", Duration::from_secs(8)),
+        "latest real status did not appear after the fill: {}", attach.output_text());
+    assert!(attach.child.try_wait().unwrap().is_none(), "attach exited during status handoff");
+    attach.write(b"\x1bw");
+    attach.settle(Duration::from_millis(500));
+    assert!(attach.child.try_wait().unwrap().is_none(), "closing the new Agent detached A1");
+    attach.write(b"\x03\x03");
+    attach.wait(Duration::from_secs(8));
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
 fn closing_a_registered_agent_before_first_draw_stops_its_child_without_a_ghost() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
