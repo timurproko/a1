@@ -36,7 +36,7 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 #### Scenario: Create a tab normally
 - **WHEN** the user requests a new Agent from a tab or landing
 - **THEN** the first paint SHALL show a single pending Agent chip and an empty transcript, ruled prompt with a visual caret, and full two-row footer without the previous child content, loading text, child cursor, or a clear-only frame
-- **AND** the first input-ready complete surface SHALL replace them together with the real chip, body, status bar, and editor without an intermediate duplicate chip
+- **AND** the first input-ready complete surface SHALL replace them together with the real chip, body, and editor without an intermediate duplicate chip; during truecolor chip fill the displayed provisional footer SHALL stay steady until the latest real Agent footer is revealed at fill completion
 
 #### Scenario: Pending footer matches the committed Agent UI
 - **WHEN** an Agent is created while an existing Agent has a complete footer
@@ -54,7 +54,13 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - **WHEN** the user creates an Agent with any supported accent scheme, including the default purple
 - **THEN** its selected provisional chip SHALL use a lighter shade derived from that accent, and the real chip and body SHALL replace the preview together on the first complete frame
 - **AND** the real chip's background SHALL fill from left to right from that initializing shade into its configured normal selected shade without moving its title or hit target, then settle fully to the selected shade
-- **AND** the child body SHALL NOT wait for this chip-only animation, no scheme SHALL fall back to blue, and closing or switching during the fill SHALL NOT leave a stale active chip
+- **AND** the child body and input SHALL NOT wait for this chip-only animation, no scheme SHALL fall back to blue, and closing or switching during the fill SHALL NOT leave a stale active chip
+
+#### Scenario: The real footer appears after the chip fills
+- **WHEN** a pending Agent commits its first complete frame and the selected chip begins its truecolor fill
+- **THEN** the already visible provisional path and status rows SHALL remain stable while the real body and editor update
+- **AND** the latest real footer SHALL appear in one paint when the chip reaches its active shade, without briefly showing intermediate Agent status or inherited usage
+- **AND** cancel, tab switch, or resize SHALL discard the held footer; without truecolor animation the real footer SHALL appear immediately
 
 #### Scenario: Close before Agent startup completes
 - **WHEN** the user invokes the close shortcut or closes the provisional chip from its context menu before the Agent's first frame
