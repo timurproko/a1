@@ -615,7 +615,11 @@ setInterval(() => {}, 1000);
         .expect("occupying tab create");
     std::thread::sleep(Duration::from_millis(500));
     attach.write(b"\x1ba");
-    std::thread::sleep(Duration::from_millis(300));
+    assert!(
+        attach.output_containing("Starting Agent…", Duration::from_secs(2)),
+        "the pending Agent should be painted before its holder gets a start slot: {}",
+        attach.output_text()
+    );
 
     // Invariant: input after New Agent belongs to that requested target. It must not leak to the
     // old viewed child while the lifecycle slot is occupied, and is delivered once the target runs.

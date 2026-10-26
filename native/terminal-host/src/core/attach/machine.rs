@@ -125,6 +125,9 @@ pub struct View {
     /// Concurrency: a shortcut can arrive after the server created a tab but before its
     /// registry snapshot reaches this client; the requested ordinal waits for that snapshot.
     pub pending_created_activation: bool,
+    /// A locally requested Agent still owns the screen; an explicit switch cancels its reveal.
+    pub pending_agent_visible: bool,
+    pub pending_agent_cancelled: bool,
 }
 
 #[derive(Debug, Default)]
@@ -322,6 +325,7 @@ impl State {
         if self.exited {
             return effects;
         }
+        let user_action = matches!(event, Event::Key { .. } | Event::Mouse(_));
         match event {
             Event::Server(server) => self.server(context, server, &mut effects),
             Event::Tick => self.tick(context, now, &mut effects),
@@ -344,6 +348,12 @@ impl State {
                     _ => {}
                 }
             }
+        }
+        if user_action && self.view.pending_agent_visible
+            && effects.iter().any(|effect| matches!(effect, Effect::View(_)))
+        {
+            self.view.pending_agent_visible = false;
+            self.view.pending_agent_cancelled = self.view.pending_created_activation;
         }
         effects
     }
@@ -607,6 +617,10 @@ impl State {
 
     fn create(&mut self, request: Request, effects: &mut Vec<Effect>) {
         self.view.pending_created_activation = true;
+        if request == Request::Create {
+            self.view.pending_agent_visible = true;
+            self.view.pending_agent_cancelled = false;
+        }
         effects.push(Effect::Send(request));
     }
 
@@ -708,6 +722,12 @@ impl State {
         kind: UtilityKind,
         effects: &mut Vec<Effect>,
     ) {
+        // An explicit utility choice replaces the local Agent preview; its late response must
+        // not reclaim the screen or retain input bound to the abandoned preview.
+        if self.view.pending_agent_visible {
+            self.view.pending_agent_visible = false;
+            self.view.pending_agent_cancelled = self.view.pending_created_activation;
+        }
         // Invariant: an explicit open owns the view, so a prewarm still starting no longer hides it.
         self.view.prewarm(kind).pending = false;
         let Some(tab_id) = utility_toggle_closes(context.viewed, kind) else {
@@ -839,6 +859,10 @@ impl State {
         }
         if let Some(menu) = self.mode.take_popup() {
             self.popup_mouse(context, menu, mouse, effects);
+            return;
+        }
+        if self.view.pending_agent_visible && mouse.row != 0 {
+            self.child_primary_drag = false;
             return;
         }
         if self.drag_mouse(context, mouse, now, effects) {
@@ -1133,14 +1157,20 @@ impl State {
                 effects.push(paint);
             }
             ServerEvent::CreateFailed { notice } => {
-                if let Some(target) = context.requested {
-                    self.deferred.discard_tab(target);
+                let cancelled = self.view.pending_agent_cancelled;
+                if !cancelled {
+                    if let Some(target) = context.requested {
+                        self.deferred.discard_tab(target);
+                    }
+                    effects.push(Effect::CancelViewRequest);
                 }
                 self.deferred.discard_created();
                 self.view.pending_created_activation = false;
+                self.view.pending_agent_visible = false;
+                self.view.pending_agent_cancelled = false;
                 self.user_input_pending = false;
                 self.notice = Some(notice);
-                effects.extend([Effect::CancelViewRequest, paint]);
+                effects.push(paint);
             }
             ServerEvent::Renamed { accepted, message } => {
                 if accepted {
@@ -1216,9 +1246,17 @@ impl State {
             return;
         }
         self.view.pending_created_activation = false;
+        if self.view.pending_agent_cancelled && UtilityKind::of(&tab_id).is_none() {
+            // A later explicit view wins over the Agent this client started. Never deliver its
+            // buffered input to the old child or steal the view when startup finishes.
+            self.deferred.discard_created();
+            self.user_input_pending = false;
+            effects.push(Effect::Send(Request::List));
+            return;
+        }
         self.deferred.retarget_created(&tab_id);
-        // Invariant: a created tab and a revealed hidden tab alike keep the previous frame until
-        // they draw, so neither shows a blank body with a bare cursor.
+        // The real child still waits for a complete first frame; the local starting body stays
+        // in view until then, rather than exposing a blank child or its cursor.
         effects.push(Effect::View(tab_id.clone()));
         effects.push(Effect::AwaitFirstDraw(tab_id));
         effects.push(Effect::Send(Request::List));
@@ -1235,6 +1273,7 @@ impl State {
         effects: &mut Vec<Effect>,
     ) {
         if requested {
+            self.view.pending_agent_visible = false;
             if let Some(kind) = UtilityKind::of(tab_id) {
                 self.view.prewarm(kind).shown = true;
             }
@@ -1626,6 +1665,121 @@ mod tests {
             fixture.step(&mut state, shortcut("tabs.new")),
             [Effect::Send(Request::Create), PAINT]
         );
+    }
+
+    #[test]
+    fn new_agent_pending_view_is_immediate_and_does_not_forward_body_pointer() {
+        let fixture = Fixture::new(&["a"], "a");
+        let mut state = fixture.state();
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.new")),
+            [Effect::Send(Request::Create), PAINT]
+        );
+        assert!(state.view.pending_agent_visible);
+        assert_eq!(fixture.step(&mut state, mouse(MouseKind::Moved, 5, 3)), []);
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Down(MouseButton::Left), 5, 3)),
+            []
+        );
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Char('x'))),
+            [Effect::ForwardKey]
+        );
+        assert!(state.route_input(None, vec![b"x".to_vec()]).is_none());
+        let created = fixture.step(
+            &mut state,
+            server(ServerEvent::Created { tab_id: "b".into() }),
+        );
+        assert!(created.contains(&Effect::View("b".into())));
+        assert!(
+            state.view.pending_agent_visible,
+            "the local body stays through first draw"
+        );
+        assert!(state.route_input(Some("b"), vec![b"y".to_vec()]).is_none());
+        let committed = fixture.step(
+            &mut state,
+            server(ServerEvent::Commit {
+                tab_id: "b".into(),
+                status: "idle".into(),
+                requested: true,
+            }),
+        );
+        assert!(!state.view.pending_agent_visible);
+        assert!(
+            committed
+                .iter()
+                .any(|effect| matches!(effect, Effect::Write(_)))
+        );
+    }
+
+    #[test]
+    fn failed_or_superseded_creation_drops_its_pending_view_and_input() {
+        let fixture = Fixture::new(&["a", "b"], "a");
+        let mut state = fixture.state();
+        fixture.step(&mut state, shortcut("tabs.new"));
+        state.route_input(None, vec![b"private".to_vec()]);
+        assert_eq!(
+            fixture.step(
+                &mut state,
+                server(ServerEvent::CreateFailed {
+                    notice: "launch failed".into()
+                })
+            ),
+            [Effect::CancelViewRequest, PAINT]
+        );
+        assert!(!state.view.pending_agent_visible);
+        assert_eq!(state.notice.as_deref(), Some("launch failed"));
+        assert!(state.deferred.resolve("b").0.is_empty());
+
+        fixture.step(&mut state, shortcut("tabs.new"));
+        state.route_input(None, vec![b"private".to_vec()]);
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.next")),
+            [Effect::View("b".into()), PAINT]
+        );
+        assert!(!state.view.pending_agent_visible);
+        assert_eq!(
+            fixture.step(
+                &mut state,
+                server(ServerEvent::Created { tab_id: "c".into() })
+            ),
+            [Effect::Send(Request::List)]
+        );
+        assert!(state.deferred.resolve("c").0.is_empty());
+        fixture.step(&mut state, shortcut("tabs.new"));
+        fixture.step(&mut state, shortcut("tabs.next"));
+        assert_eq!(
+            fixture.step(&mut state, server(ServerEvent::CreateFailed { notice: "refused".into() })),
+            [PAINT],
+            "a failed create must not cancel an unrelated user-requested view"
+        );
+    }
+
+    #[test]
+    fn switching_after_created_but_before_first_draw_hides_the_starting_agent() {
+        let mut fixture = Fixture::new(&["a", "b"], "a");
+        let mut state = fixture.state();
+        fixture.step(&mut state, shortcut("tabs.new"));
+        fixture.step(&mut state, server(ServerEvent::Created { tab_id: "c".into() }));
+        fixture.requested = Some("c".into());
+        assert_eq!(fixture.step(&mut state, shortcut("tabs.next")), [Effect::View("b".into()), PAINT]);
+        assert!(!state.view.pending_agent_visible);
+        assert!(!state.view.pending_agent_cancelled);
+        fixture.requested = Some("b".into());
+        fixture.step(&mut state, server(ServerEvent::Commit { tab_id: "b".into(), status: "idle".into(), requested: true }));
+        assert!(!state.view.pending_agent_visible);
+    }
+
+    #[test]
+    fn opening_utility_while_agent_starts_does_not_reveal_the_late_agent() {
+        let fixture = Fixture::new(&["a"], "a");
+        let mut state = fixture.state();
+        fixture.step(&mut state, shortcut("tabs.new"));
+        let opened = fixture.step(&mut state, shortcut("tabs.settings"));
+        assert!(opened.contains(&Effect::Send(Request::Open(UtilityKind::Settings))));
+        assert!(!state.view.pending_agent_visible);
+        assert_eq!(fixture.step(&mut state, server(ServerEvent::Created { tab_id: "b".into() })),
+            [Effect::Send(Request::List)]);
     }
 
     #[test]

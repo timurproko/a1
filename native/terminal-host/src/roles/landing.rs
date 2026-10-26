@@ -243,6 +243,15 @@ fn wordmark_row(line: &str, accent: &str, columns: usize) -> String {
 /// wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
 /// folder stays in place when a tab opens or closes, whichever edge the strip is on.
 pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
+    render_body(input, false)
+}
+
+/// A coherent, cursor-free screen while a user-created Agent is not yet registered or drawn.
+pub fn render_starting(input: &LandingInput<'_>) -> Vec<u8> {
+    render_body(input, true)
+}
+
+fn render_body(input: &LandingInput<'_>, starting: bool) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
     let fg = |rgb| foreground(rgb, input.truecolor);
@@ -264,7 +273,12 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
         let version = clip(&format!("v{version}"), columns);
         place(cwd_row + 1, format!("{}{version}\x1b[0m", fg(DIM)));
     }
-    if input.half_blocks && cwd_row >= WORDMARK.len() {
+    if starting && cwd_row > 0 {
+        place(
+            cwd_row - 1,
+            format!("{}{}\x1b[0m", fg(DIM), clip("Starting Agent…", columns)),
+        );
+    } else if !starting && input.half_blocks && cwd_row >= WORDMARK.len() {
         let accent = fg(accent_colors(input.accent).accent);
         for (offset, line) in WORDMARK.iter().enumerate() {
             let row = cwd_row - WORDMARK.len() + offset;
@@ -357,6 +371,26 @@ mod tests {
             grid[19].starts_with('█'),
             "the wordmark's full left block is the cell the Agent caret takes"
         );
+    }
+
+    #[test]
+    fn starting_agent_replaces_the_wordmark_with_a_coherent_cursor_free_body() {
+        let grid = cells(&render_starting(&input(80, 23)), 80, 23);
+        assert_eq!(grid[20], "Starting Agent…");
+        assert_eq!(grid[21], "~/src/a1");
+        assert_eq!(grid[22], "v0.2.7");
+        assert!(!grid.iter().any(|row| row.contains(WORDMARK[0])));
+        assert_eq!(
+            cells(&render_starting(&input(8, 3)), 8, 3),
+            ["Starting", "~/src/a1", "v0.2.7"]
+        );
+        let painted = String::from_utf8(render_starting(&LandingInput {
+            background: Some([26, 27, 28]),
+            ..input(80, 23)
+        }))
+        .unwrap();
+        assert!(painted.contains("Starting Agent…"));
+        assert!(painted.contains("\x1b[48;2;26;27;28m"));
     }
 
     #[test]

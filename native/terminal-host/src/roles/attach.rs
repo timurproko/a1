@@ -54,6 +54,7 @@ pub const ENTER_OUTER_MODES: &[u8] =
 pub const RESTORE_OUTER_MODES: &[u8] =
     b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l";
 pub const RESET_OUTER_COLORS: &[u8] = b"\x1b]104\x07\x1b]110\x07\x1b]111\x07\x1b]112\x07";
+const PENDING_AGENT_ID: &str = "pending-agent-local";
 const ATTACH_SERVER_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
 const ATTACH_INGRESS_BYTES: usize = 4 * 1024 * 1024;
@@ -1832,6 +1833,8 @@ struct Client {
     terminal: OuterTerminal,
     view: ViewModel,
     tabs: Vec<StripTab>,
+    /// Only the attach client sees this visual intent; it is never a server tab identity.
+    pending_agent: Option<Option<String>>,
     chip_priority: Vec<String>,
     swap_in_flight: Option<String>,
     bindings: TabBindings,
@@ -1898,6 +1901,7 @@ impl Client {
             terminal,
             view,
             tabs: Vec::new(),
+            pending_agent: None,
             chip_priority: Vec::new(),
             swap_in_flight: None,
             bindings: TabBindings::load(options.profile),
@@ -1964,14 +1968,27 @@ impl Client {
         for effect in effects {
             match effect {
                 Effect::Send(request) => {
+                    if request == Request::Create {
+                        self.pending_agent = Some(None);
+                    } else if matches!(request, Request::Open(_)) && !core.view.pending_agent_visible {
+                        self.pending_agent = None;
+                    }
                     if matches!(request, Request::Reorder { .. }) {
                         self.chip_priority.clear();
                     }
                     self.send(request)?;
                 }
-                Effect::View(tab_id) => self.request_view(tab_id)?,
+                Effect::View(tab_id) => {
+                    if !core.view.pending_agent_visible {
+                        self.pending_agent = None;
+                    } else if let Some(pending) = self.pending_agent.as_mut() {
+                        *pending = Some(tab_id.clone());
+                    }
+                    self.request_view(tab_id)?;
+                }
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
                 Effect::CancelViewRequest => {
+                    self.pending_agent = None;
                     self.view.cancel_request();
                     if self.swap_in_flight.take().is_some() {
                         self.chip_priority.clear();
@@ -1995,6 +2012,11 @@ impl Client {
                 Effect::SavePlusMenu(menu) => self.save_plus_menu(core, menu),
                 forward => forwarded.push(forward),
             }
+        }
+        if !core.view.pending_agent_visible
+            && self.pending_agent.as_ref().is_some_and(Option::is_none)
+        {
+            self.pending_agent = None;
         }
         Ok(forwarded)
     }
@@ -2115,14 +2137,40 @@ impl Client {
         if !should_paint_strip(
             self.presented.tab_id.is_some(),
             self.has_shown_tabs,
-            core.notice.is_some(),
+            core.notice.is_some() || core.view.pending_agent_visible,
         ) {
             return Ok(());
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
         let rename = core.mode.rename().map(RenameEditor::display);
         let strip_viewed = strip_active_view(&self.view, self.swap_in_flight.as_deref());
+        let pending = core.view.pending_agent_visible && self.pending_agent.is_some();
         let mut shown = shown_tabs(&self.tabs, strip_viewed, core.view.shown());
+        if pending {
+            if let Some(Some(id)) = &self.pending_agent {
+                shown.retain(|tab| &tab.id != id);
+            }
+            let at = shown
+                .iter()
+                .rposition(|tab| core_attach::is_utility_tab(&tab.id))
+                .unwrap_or(shown.len());
+            shown.insert(
+                at,
+                StripTab {
+                    id: PENDING_AGENT_ID.into(),
+                    name: "Agent".into(),
+                    name_source: "default".into(),
+                    status: "idle".into(),
+                    accent: None,
+                    title_animation: None,
+                },
+            );
+        }
+        let strip_viewed = if pending {
+            Some(PENDING_AGENT_ID)
+        } else {
+            strip_viewed
+        };
         apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
@@ -2132,7 +2180,18 @@ impl Client {
         );
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
-        let prioritized = prioritized_chips(&shown, &self.chip_priority);
+        let mut prioritized = prioritized_chips(&shown, &self.chip_priority);
+        if pending {
+            prioritized.retain(|tab| tab.id != PENDING_AGENT_ID);
+            prioritized.insert(
+                0,
+                shown
+                    .iter()
+                    .find(|tab| tab.id == PENDING_AGENT_ID)
+                    .expect("pending chip")
+                    .clone(),
+            );
+        }
         let drag = core.mode.drag().cloned();
         let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
@@ -2148,7 +2207,7 @@ impl Client {
                     .strip_terminal_row(self.outer_rows),
                 plus,
             );
-            if !self.chip_priority.is_empty() && !frame.hidden_tabs.is_empty() {
+            if (pending || !self.chip_priority.is_empty()) && !frame.hidden_tabs.is_empty() {
                 frame = strip::render_interactive_at(
                     &prioritized,
                     strip_viewed,
@@ -2186,6 +2245,13 @@ impl Client {
             strip_frame = render(None);
         }
         self.strip_frame = strip_frame;
+        // The provisional chip is visual only: it cannot be selected or sent to the server.
+        self.strip_frame
+            .hits
+            .retain(|(_, _, hit)| !matches!(hit, StripHit::View(id) if id == PENDING_AGENT_ID));
+        self.strip_frame
+            .hidden_tabs
+            .retain(|id| id != PENDING_AGENT_ID);
         if self.strip_frame.hidden_tabs.is_empty() {
             self.chip_priority.clear();
         }
@@ -2197,13 +2263,19 @@ impl Client {
         core.refresh_overflow(&shown, &self.strip_frame.hidden_tabs, overflow_anchor);
         let overlay = self.overlay(core);
         let landing = self.landing();
-        self.present(overlay, landing, clear, core.mode.palette().is_some())
+        self.present(
+            overlay,
+            landing,
+            pending,
+            clear,
+            core.mode.palette().is_some(),
+        )
     }
 
     /// Invariant: the landing is the body only while no tab is viewed after tabs were shown, so a
     /// first launch, a resize, or a pending switch never flashes it over a child surface.
     fn landing_shown(&self) -> bool {
-        self.view.viewed.is_none() && self.has_shown_tabs
+        self.view.viewed.is_none() && self.has_shown_tabs && self.pending_agent.is_none()
     }
 
     fn landing(&self) -> Option<Vec<u8>> {
@@ -2228,6 +2300,26 @@ impl Client {
                 self.time_format.accent_color,
             ),
         }))
+    }
+
+    fn starting_agent(&self) -> Vec<u8> {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .ok();
+        let cwd = landing::display_cwd(&self.create.cwd, home.as_deref());
+        landing::render_starting(&landing::LandingInput {
+            columns: self.columns,
+            body_rows: self.outer_rows.saturating_sub(1),
+            version: self.version.as_deref(),
+            accent: self.time_format.accent_color,
+            truecolor: !palette_fallback_requested(),
+            half_blocks: landing::half_blocks_supported(),
+            cwd: &cwd,
+            background: landing::canvas_background(
+                self.time_format.background_style,
+                self.time_format.accent_color,
+            ),
+        })
     }
 
     fn overlay(&self, core: &State) -> Option<String> {
@@ -2279,25 +2371,37 @@ impl Client {
         &mut self,
         overlay: Option<String>,
         landing: Option<Vec<u8>>,
+        pending: bool,
         clear: bool,
         dimmed: bool,
     ) -> Result<(), String> {
-        let child_surface = landing.is_none();
+        let pending_body = pending.then(|| self.starting_agent());
+        let child_surface = landing.is_none() && !pending;
         let desired = DesiredPresentation {
-            tab_id: self.view.viewed.clone(),
+            tab_id: if pending {
+                Some(PENDING_AGENT_ID.into())
+            } else {
+                self.view.viewed.clone()
+            },
             incarnation: self.presented.incarnation,
             revision: self.presented.revision,
             geometry_generation: self.presented.geometry_generation,
             strip: self.strip_frame.bytes.clone(),
             structured: self.presented.structured.clone().filter(|_| child_surface),
-            legacy_body: landing.unwrap_or_else(|| self.presented.surface.clone()),
+            legacy_body: pending_body
+                .or(landing)
+                .unwrap_or_else(|| self.presented.surface.clone()),
             overlay,
-            cursor: if dimmed {
+            cursor: if pending || dimmed {
                 Some(FinalCursor::Hidden)
             } else {
                 self.presented.cursor
             },
-            modes: self.presented.modes.clone(),
+            modes: if pending {
+                None
+            } else {
+                self.presented.modes.clone()
+            },
             columns: self.columns,
             outer_rows: self.outer_rows,
             child_row_offset: self.time_format.tab_bar_position.child_row_offset(),
@@ -2349,6 +2453,14 @@ impl Client {
             }
             tab.accent = surface.accent.clone();
             effective_status.clone_from(&tab.status);
+        }
+        if requested
+            && self
+                .pending_agent
+                .as_ref()
+                .is_some_and(|id| id.as_deref() == Some(surface.tab_id.as_str()))
+        {
+            self.pending_agent = None;
         }
         self.presented.install(surface, &effective_status);
         let mut deferred = VecDeque::new();
