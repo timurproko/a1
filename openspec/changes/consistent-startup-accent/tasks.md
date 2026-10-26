@@ -22,7 +22,7 @@
 ## 4. Focused completion evidence
 
 - [x] 4.1 Run typecheck, affected tests, and strict OpenSpec validation; record outcomes and dispose of any known gaps.
-- [x] 4.2
+- [x] 4.2 Review the final diff for project-resource reads, installer runtime dependencies, global color leaks, hard-coded purple, comparison changes, and altered terminal transcript/geometry.
 
 ## Evidence
 
@@ -31,4 +31,4 @@
 - `node --import tsx scripts/pi/sync-progress-palette.ts --check` and `npx --no-install openspec validate consistent-startup-accent --strict` passed.
 - Profile fixtures cover explicit named colors, legacy `default` to purple, invalid/unreadable/oversized input, isolation from untrusted project settings, and byte-equivalent named palettes in trust, update, and installer.
 - Known-gap disposition: a previously omitted purple default has no stored provenance; as approved, it becomes blue on upgrade. Explicit purple (including legacy `default`) remains purple. No other known gap.
-- Diff review: no project resource read before trust, installer remains Node-builtins-only, no comparison palette changes, and progress transcript geometry/neutral roles remain unchanged. Review the final diff for project-resource reads, installer runtime dependencies, global color leaks, hard-coded purple, comparison changes, and altered terminal transcript/geometry.
+- Diff review: no project resource read before trust, installer remains Node-builtins-only, no comparison palette changes, and progress transcript geometry/neutral roles remain unchanged.
