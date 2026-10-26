@@ -533,6 +533,57 @@ fn blocked_registry_sync_times_out_without_stalling_server_progress() {
 }
 
 #[test]
+fn closing_a_pending_agent_from_landing_keeps_the_attach_alive() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    std::fs::write(directory(&release, "bin").join("ui.js"), r#"
+if (process.stdin.isTTY) process.stdin.setRawMode(true);
+process.stdin.on("data", bytes => process.stdout.write(`echo:${bytes.toString("hex")}\r\n`));
+process.stdout.write("fake-a1-ready\r\n");
+setInterval(() => {}, 1000);
+"#).expect("fake child");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
+    let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
+    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(attach.output_containing("fake-a1-ready", Duration::from_secs(20)));
+    attach.write(b"\x1bw");
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json")).unwrap().unwrap();
+        if registry.tabs.iter().all(|tab| tab.kind != "agent" || tab.desired != "running") { break; }
+        assert!(Instant::now() < deadline, "old tab did not close: {registry:?}");
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    assert!(attach.child.try_wait().unwrap().is_none(), "closing the old tab must keep A1 on the landing: {}", attach.output_text());
+    attach.write(b"\x1ba");
+    assert!(attach.output_containing("no-model", Duration::from_secs(2)),
+        "pending preview absent after the landing: {}", attach.output_text());
+    attach.write(b"\x1bw");
+    attach.settle(Duration::from_millis(600));
+    assert!(attach.child.try_wait().unwrap().is_none(), "closing a pending tab must not detach A1: {}", attach.output_text());
+    let before_reopen = attach.retained_len();
+    attach.write(b"\x1ba");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !attach.output_since(before_reopen).contains("fake-a1-ready") && Instant::now() < deadline {
+        attach.settle(Duration::from_millis(50));
+    }
+    assert!(attach.output_since(before_reopen).contains("fake-a1-ready"),
+        "a later Agent did not open after cancellation");
+    assert!(attach.child.try_wait().unwrap().is_none(), "A1 exited before a later Agent could open");
+    attach.write(b"\x03\x03");
+    attach.wait(Duration::from_secs(8));
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
 fn closing_a_registered_agent_before_first_draw_stops_its_child_without_a_ghost() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
@@ -627,6 +678,12 @@ setInterval(() => {}, 1000);
     };
     let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
     assert!(attach.output_containing("fake-a1-ready", Duration::from_secs(30)));
+    attach.write(b"\x1ba\x1bw");
+    attach.settle(Duration::from_millis(600));
+    assert!(attach.child.try_wait().unwrap().is_none(), "an immediate pending close detached A1");
+    attach.write(b"still-here\n");
+    assert!(attach.output_containing("echo:still-here", Duration::from_secs(8)),
+        "old Agent did not survive immediate pending close: {}", attach.output_text());
     let occupying = Command::new(&executable)
         .args(["internal", "tab-create", "--profile", text(&profile), "--data-dir", text(&data),
             "--runtime-dir", text(&runtime), "--cwd", text(&release), "--release-root", text(&release),

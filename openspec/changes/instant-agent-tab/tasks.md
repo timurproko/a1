@@ -29,10 +29,15 @@
 
 ## 6. Close an Agent while its provisional tab is visible
 
-- [x] 6.1 Make the close shortcut and provisional-chip context menu target the pending request, not the previously viewed tab; restore the prior coherent view immediately and discard deferred input.
+- [x] 6.1 Make the close shortcut and provisional-chip context menu target the pending request, not the previously viewed tab; restore the prior coherent view or landing immediately without exiting A1, and discard deferred input.
 - [x] 6.2 Send request-scoped cancellation through the resident protocol so the server abandons a queued start or stops a holder/child already launched; ignore late responses without affecting later creates.
-- [x] 6.3 Cover before and after registration, interleaved requests, cancellation while waiting on the start slot, and no ghost tab in native core/attach/server/role tests.
+- [x] 6.3 Cover before and after registration, interleaved requests, cancellation while waiting on the start slot, and no ghost tab in native core/attach/server/role tests; reproduce an immediate-close exit and assert the attach stays alive.
 - [x] 6.4 Repair the CI-reported architecture and documentation-comment violations and provide the missing OpenSpec `.openspec.yaml`; run targeted checks and update known-gap evidence.
+
+## 7. Accent-aware provisional chip
+
+- [x] 7.1 Give the pending chip a lighter shade derived from its configured accent while leaving each real Agent chip's active shade intact across all supported accent colors.
+- [x] 7.2 Assert pending-versus-active chip colors for every accent and preserve narrow-strip and first-frame handoff behavior.
 
 ## Evidence
 
@@ -48,4 +53,6 @@
 - Closing the provisional chip by shortcut or context menu discards buffered input and restores the old view immediately. The client matches each create response by its wire request ID, hides a late cancelled registry tab, and closes only that tab. The server checks a per-connection cancellation token before a queued start acquires a permit and after any holder launch or standby promotion; cancellation of a running holder uses the ordinary tab stop path. The wire envelope kind now decodes camel-case `requestId`, so the server's token matches the actual create request.
 - Native machine (37), attach (46), and server (37) tests cover close gestures, request matching, and failure recovery. Resident role tests cover closing an already registered holder before first draw and verifying its process exits, plus cancellation behind an occupied startup slot while preserving the old Agent and starting a later Agent with separately owned input. `npm run typecheck`, `openspec validate instant-agent-tab --strict`, `cargo check --tests`, architecture governance, code-documentation governance, and `git diff --check` passed locally with `TERMINAL_HOST_LOCAL_BUILD=1` and the manifest-verified prebuilt terminal-vt library.
 - The prior finalized CI head failed because the archive omitted `.openspec.yaml` and documentation comments/size ratchets rejected several touched functions. The restored active change now contains `.openspec.yaml`; scoped helper extractions, corrected comments, and reduced size-ratchet entries pass local governance. Trusted finalization must republish its archive and run CI for the new exact head.
+- Reproduced a last-Agent/landing race: a late surface or startup selection re-adopted a closed Agent after the landing appeared, leaving a stale requested view that blocked reopening (and could hand control back to the terminal). The attach role now ignores unsolicited acknowledgements for closed IDs; the view model never re-adopts a stale initial surface after the first view is consumed or the last tab disappears. A resident role regression closes the last Agent, opens and immediately closes a pending Agent from the landing, stays attached, and opens another Agent; fast immediate-close from an existing Agent, queued-slot cancellation, and post-registration holder shutdown also pass.
+- The selected provisional chip now uses an accent-derived lighter shade while its real chip keeps the normal selected shade. The attach test verifies all six configured accent values reach the provisional chip; the strip test asserts distinct selected colors for every scheme, including purple and blue, without changing the actual Agent child theme. Focused native attach (48), presentation (28), and strip (35) suites passed; `cargo check --tests`, typecheck, architecture and code-documentation governance, strict OpenSpec validation, and `git diff --check` passed with the verified prebuilt terminal-vt library.
 - Known gaps: an uncached cold start cannot show the actual model/context before that Agent reports it; the neutral fallback occupies the full footer row. Interactive visual validation remains optional and final-head CI is authoritative. Native tests use the manifest-verified terminal-vt library because Zig is unavailable.

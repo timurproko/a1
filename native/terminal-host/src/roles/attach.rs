@@ -68,6 +68,23 @@ struct CancelledAgent {
     known_ids: HashSet<String>,
 }
 
+/// Startup may acknowledge its initial Agent after the user has already closed it and its
+/// registry row disappeared; that stale acknowledgement must not request its old view again.
+fn is_stale_unrequested_agent(
+    request_id: Option<u64>,
+    tab_id: &str,
+    tabs: &[StripTab],
+    staged: Option<&Vec<StripTab>>,
+    closed: &HashSet<String>,
+    cancelled: &HashSet<String>,
+) -> bool {
+    cancelled.contains(tab_id)
+        || (request_id.is_none()
+            && !core_attach::is_utility_tab(tab_id)
+            && (closed.contains(tab_id)
+                || !tabs.iter().chain(staged.into_iter().flatten()).any(|tab| tab.id == tab_id)))
+}
+
 fn take_cancelled_agent(cancelled: &mut Vec<CancelledAgent>, request_id: Option<u64>) -> bool {
     let Some(index) = cancelled.iter().position(|entry| Some(entry.request_id) == request_id) else {
         return false;
@@ -1940,6 +1957,7 @@ struct Client {
     pending_agent: Option<PendingAgent>,
     cancelled_agents: Vec<CancelledAgent>,
     hidden_cancelled_tabs: HashSet<String>,
+    closed_tab_ids: HashSet<String>,
     next_create_request_id: u64,
     preview_footer: Option<landing::AgentPreviewFooter>,
     chip_priority: Vec<String>,
@@ -2011,6 +2029,7 @@ impl Client {
             pending_agent: None,
             cancelled_agents: Vec::new(),
             hidden_cancelled_tabs: HashSet::new(),
+            closed_tab_ids: HashSet::new(),
             next_create_request_id: 1,
             preview_footer: None,
             chip_priority: Vec::new(),
@@ -2100,10 +2119,11 @@ impl Client {
                                 known_ids: pending.known_ids.clone(),
                             });
                         }
-                    } else if let Request::Close(ref tab_id) = request
-                        && self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab_id)
-                    {
-                        self.hidden_cancelled_tabs.insert(tab_id.clone());
+                    } else if let Request::Close(ref tab_id) = request {
+                        self.closed_tab_ids.insert(tab_id.clone());
+                        if self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab_id) {
+                            self.hidden_cancelled_tabs.insert(tab_id.clone());
+                        }
                     } else if matches!(request, Request::Open(_)) && !core.view.pending_agent_visible {
                         self.pending_agent = None;
                     }
@@ -2722,6 +2742,10 @@ impl Client {
             }
             "tab.created" | "tab.selected" => {
                 let (request_id, target): (_, TabTarget) = wire::body(payload)?;
+                if is_stale_unrequested_agent(request_id, &target.tab_id, &self.tabs, self.view.staged_tabs(),
+                    &self.closed_tab_ids, &self.hidden_cancelled_tabs) {
+                    return Ok(None);
+                }
                 if message_type == "tab.created" && take_cancelled_agent(&mut self.cancelled_agents, request_id) {
                     self.hidden_cancelled_tabs.insert(target.tab_id.clone());
                     self.send(Request::Close(target.tab_id))?;
@@ -3914,6 +3938,21 @@ mod tests {
     }
 
     #[test]
+    fn late_initial_selection_cannot_restore_a_closed_agent() {
+        let tabs = vec![StripTab {
+            id: "old".into(), name: "Old".into(), name_source: "default".into(),
+            status: "idle".into(), accent: None, title_animation: None,
+        }];
+        let closed: HashSet<String> = ["old".into()].into_iter().collect();
+        let cancelled: HashSet<String> = ["cancelled".into()].into_iter().collect();
+        assert!(is_stale_unrequested_agent(None, "old", &tabs, None, &closed, &cancelled));
+        assert!(is_stale_unrequested_agent(None, "unlisted", &tabs, None, &closed, &cancelled));
+        assert!(is_stale_unrequested_agent(Some(7), "cancelled", &tabs, None, &closed, &cancelled));
+        assert!(!is_stale_unrequested_agent(Some(8), "new", &tabs, None, &closed, &cancelled));
+        assert!(!is_stale_unrequested_agent(None, "old", &tabs, None, &HashSet::new(), &HashSet::new()));
+    }
+
+    #[test]
     fn cancelled_create_response_cannot_consume_another_request() {
         let mut pending = vec![
             CancelledAgent { request_id: 7, known_ids: HashSet::new() },
@@ -3962,6 +4001,17 @@ mod tests {
         surface.commit_kind = protocol::SurfaceCommitKind::Complete;
         surface.row_data.pop();
         assert!(agent_preview_footer(&surface).is_none(), "incomplete frames are never cached");
+    }
+
+    #[test]
+    fn pending_chip_inherits_every_owned_accent_before_its_real_surface() {
+        let intent = PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None };
+        for (accent, _) in landing::LANDING_ACCENTS {
+            let mut tabs = Vec::new();
+            show_pending_agent(&mut tabs, &intent);
+            apply_owned_accent(&mut tabs, Some(accent));
+            assert_eq!(tabs[0].accent.as_deref(), Some(accent));
+        }
     }
 
     #[test]

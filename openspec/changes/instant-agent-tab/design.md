@@ -20,13 +20,15 @@
 
 6. Treat a close command or pending-chip context-menu close as cancellation of this creation, never as a close of the previously viewed tab. Immediately restore that view or landing and discard the pending input. Identify the request across client/server messages so a late `tab.created` cannot activate or close a subsequent Agent. If the server has not registered a tab, abandon the start; if it already registered or launched a holder, request its normal shutdown and clear its tab rather than leaving an unseen process. Continue to permit ordinary close once the real Agent is visible.
 7. Repair the finalized delivery's missing `.openspec.yaml` artifact and the failed CI documentation/architecture gates in the same PR. Split long state-machine/presentation functions without changing their behavior; keep the protocol and cancellation checks covered by targeted tests.
+8. After a last-tab close, ignore late selection acknowledgements for that closed ID and never re-adopt its unlisted surface as a new initial view; keep the landing attached and able to open another Agent. Assert this in a role-level close/reopen test.
+9. Tint the provisional selected chip from its configured accent with one consistent lighter initializing shade, then render the real chip with its normal active shade. Apply the same projection to all six supported accents (including the default purple), with per-accent rendering assertions; do not invent a blue-only state or change the real child theme.
 
 ## Risks / Trade-offs
 
 - The user sees a non-interactive complete-shell approximation until the real UI draws. The preview's cached model/context can differ if the new session selects other settings; status remains display-only and is replaced by the first authoritative Agent frame. Without a prior Agent frame, the footer uses neutral `no-model` and zero-context values rather than claiming a configured model.
 - Premature forwarding to the old child could leak a prompt; pending presentation and deferred target ownership must remain aligned.
 - An early registry list can precede `tab.created` and expose a second chip; keep an immutable pre-create ID snapshot so the provisional and new registry chip never render together, while committed topology remains authoritative.
-- If the server refuses or the child never draws, recover the old view or bounded fallback without a stuck provisional screen. A cancellation racing with holder promotion may launch the holder briefly; it must then be stopped without exposing its chip or sending its buffered input.
+- If the server refuses or the child never draws, recover the old view or bounded fallback without a stuck provisional screen. A cancellation racing with holder promotion may launch the holder briefly; it must then be stopped without exposing its chip or sending its buffered input. When cancellation leaves no Agent tabs, the attach client must remain alive on its landing rather than treating the empty tab list or a cancelled create response as detach.
 
 ## Migration Plan
 

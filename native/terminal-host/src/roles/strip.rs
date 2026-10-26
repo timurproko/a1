@@ -1,5 +1,7 @@
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use crate::core::attach::PENDING_AGENT_ID;
+
 // Compatibility: preserve the historical timing constant; the sweep now uses accent shades.
 pub const TITLE_RAINBOW_MS: u128 = 600;
 pub const TITLE_TYPE_MS_PER_CHAR: u128 = 45;
@@ -517,10 +519,15 @@ fn chip(
     let icon = if glyph.is_empty() { " " } else { &glyph };
     let fixed = chip_fixed_width();
     let accent_color = tab_accent(tab.accent.as_deref());
+    let selected_color = if tab.id == PENDING_AGENT_ID {
+        mix(accent_color, Rgb(255, 255, 255), 0.42)
+    } else {
+        accent_color
+    };
     let background = if active {
         format!(
             "{}\x1b[38;2;255;255;255m",
-            tinted_background(accent_color, truecolor)
+            tinted_background(selected_color, truecolor)
         )
     } else if hovered {
         "\x1b[48;2;48;48;48m\x1b[38;2;170;170;170m".to_owned()
@@ -944,6 +951,24 @@ mod tests {
 
     fn typing_end(to: &str) -> u128 {
         TITLE_RAINBOW_MS + to.graphemes(true).count() as u128 * TITLE_TYPE_MS_PER_CHAR
+    }
+
+    #[test]
+    fn every_accent_has_a_distinct_provisional_and_real_selected_shade() {
+        for (accent_name, _) in crate::roles::landing::LANDING_ACCENTS {
+            let mut pending = tab(PENDING_AGENT_ID, "Agent");
+            pending.accent = Some(accent_name.into());
+            let mut real = tab("agent-2", "Agent");
+            real.accent = Some(accent_name.into());
+            let normal = tab_accent(Some(accent_name));
+            let initializing = mix(normal, Rgb(255, 255, 255), 0.42);
+            assert_ne!(initializing, normal, "{accent_name}");
+            let pending_frame = render(&[pending], Some(PENDING_AGENT_ID), 80);
+            let real_frame = render(&[real], Some("agent-2"), 80);
+            assert!(pending_frame.bytes.contains(&tinted_background(initializing, true)), "{accent_name}");
+            assert!(real_frame.bytes.contains(&tinted_background(normal, true)), "{accent_name}");
+            assert_ne!(tinted_background(initializing, true), tinted_background(normal, true), "{accent_name}");
+        }
     }
 
     #[test]

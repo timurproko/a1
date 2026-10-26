@@ -43,9 +43,14 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - **THEN** only the selected pending Agent chip SHALL appear beside the previously existing tabs
 - **AND** the real Agent chip SHALL replace it, never appear beside it or blink out later
 
+#### Scenario: Accent-aware pending chip settles on the real Agent
+- **WHEN** the user creates an Agent with any supported accent scheme, including the default purple
+- **THEN** its selected provisional chip SHALL use a lighter shade derived from that accent, and the real chip SHALL replace it in the configured accent's normal selected shade on the first complete frame
+- **AND** no scheme SHALL fall back to blue or lose its accent during the handoff
+
 #### Scenario: Close before Agent startup completes
 - **WHEN** the user invokes the close shortcut or closes the provisional chip from its context menu before the Agent's first frame
-- **THEN** the pending chip and shell SHALL disappear immediately, the previous view or landing SHALL return, and queued input for that creation SHALL be discarded
+- **THEN** the pending chip and shell SHALL disappear immediately, the previous view or landing SHALL return, and A1 SHALL remain attached even when no other Agent is running; queued input for that creation SHALL be discarded
 - **AND** the server SHALL cancel that exact creation before starting a holder when possible, or stop its holder and child if already launched
 - **AND** a late create acknowledgement, registry list, or child frame SHALL NOT reveal a ghost Agent or close an unrelated new tab
 
