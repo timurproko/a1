@@ -678,7 +678,7 @@ setInterval(() => {}, 1000);
     };
     let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
     assert!(attach.output_containing("fake-a1-ready", Duration::from_secs(30)));
-    attach.write(b"\x1ba\x1bw");
+    attach.write(b"\x1ba\x1bw\x1bw");
     attach.settle(Duration::from_millis(600));
     assert!(attach.child.try_wait().unwrap().is_none(), "an immediate pending close detached A1");
     attach.write(b"still-here\n");

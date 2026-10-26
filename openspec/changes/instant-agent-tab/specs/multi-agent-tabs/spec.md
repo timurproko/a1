@@ -38,6 +38,13 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - **THEN** the first paint SHALL show a single pending Agent chip and an empty transcript, ruled prompt with a visual caret, and full two-row footer without the previous child content, loading text, child cursor, or a clear-only frame
 - **AND** the first input-ready complete surface SHALL replace them together with the real chip, body, status bar, and editor without an intermediate duplicate chip
 
+#### Scenario: Pending footer matches the committed Agent UI
+- **WHEN** an Agent is created while an existing Agent has a complete footer
+- **THEN** the provisional footer SHALL preserve the real footer's left and right gutters, path/branch/PR presentation, and styling while resetting the new tab's usage to zero
+- **AND** no previous prompt or conversation text SHALL leak into the provisional body
+- **WHEN** no complete Agent footer exists
+- **THEN** the same owned footer layout SHALL show neutral model/context values without claiming unseen session metadata
+
 #### Scenario: A registry list precedes the create acknowledgement
 - **WHEN** the server publishes the new Agent in a registry list before `tab.created` or before the Agent's first complete surface
 - **THEN** only the selected pending Agent chip SHALL appear beside the previously existing tabs

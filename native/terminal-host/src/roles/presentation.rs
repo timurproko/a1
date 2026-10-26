@@ -920,7 +920,7 @@ pub(crate) fn complete_surface_bytes(surface: &StructuredSurface) -> Result<Vec<
     Ok(output)
 }
 
-fn render_surface_row(
+pub(super) fn render_surface_row(
     output: &mut Vec<u8>,
     row: &SurfaceRow,
     row_index: usize,

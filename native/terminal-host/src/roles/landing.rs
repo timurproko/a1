@@ -246,6 +246,17 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     render_body(input, None)
 }
 
+/// Rows rendered by the real Agent's owned footer. Retaining cells preserves its path metadata,
+/// hyperlinks, gutters, and styles without maintaining a second native footer layout.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentFooterRows {
+    pub columns: u16,
+    pub path: crate::protocol::SurfaceRow,
+    pub status: crate::protocol::SurfaceRow,
+    pub styles: Vec<crate::protocol::SurfaceStyle>,
+    pub links: Vec<crate::protocol::SurfaceLink>,
+}
+
 /// Display-only footer hints from a prior complete Agent frame. The new tab always starts with
 /// zero usage; hints never become its authoritative model or context state.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -255,6 +266,7 @@ pub struct AgentPreviewFooter {
     pub auto: bool,
     pub model: String,
     pub thinking: Option<(String, [u8; 3])>,
+    pub actual: Option<AgentFooterRows>,
 }
 
 impl Default for AgentPreviewFooter {
@@ -265,6 +277,7 @@ impl Default for AgentPreviewFooter {
             auto: true,
             model: "no-model".into(),
             thinking: None,
+            actual: None,
         }
     }
 }
@@ -279,8 +292,16 @@ pub fn render_agent_preview(
     render_body(input, Some(footer.unwrap_or(&fallback)))
 }
 
-/// Align the blank session's zeroed counters and best-known model as the real footer does.
+/// Cold fallback when no actual Agent footer exists yet; the owned shell renders the footer
+/// inside one cell at either side. Cached complete footer rows always take precedence.
 fn preview_status_row(footer: &AgentPreviewFooter, columns: usize, truecolor: bool) -> String {
+    if columns <= 2 { return " ".repeat(columns); }
+    let gutter = 1;
+    let content = preview_status_content(footer, columns - gutter * 2, truecolor);
+    format!("{}{}{}", " ".repeat(gutter), content, " ".repeat(gutter))
+}
+
+fn preview_status_content(footer: &AgentPreviewFooter, columns: usize, truecolor: bool) -> String {
     if columns == 0 {
         return String::new();
     }
@@ -337,11 +358,12 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>) ->
         }
     };
     let cwd_row = body_rows.saturating_sub(2);
-    if body_rows > 0 {
-        place(
-            cwd_row,
-            format!("{}{}\x1b[0m", fg(DIM), clip_left(input.cwd, columns)),
-        );
+    let actual = footer.and_then(|footer| footer.actual.as_ref())
+        .filter(|actual| actual.columns == input.columns && body_rows >= 2);
+    if body_rows > 0 && actual.is_none() && (footer.is_none() || columns > 2) {
+        let gutter = usize::from(footer.is_some());
+        place(cwd_row, format!("{}{}{}\x1b[0m", " ".repeat(gutter), fg(DIM),
+            clip_left(input.cwd, columns - gutter * 2)));
     }
     if let Some(footer) = footer {
         // Invariant: the real empty editor is three rows above its two-row footer. In a short terminal
@@ -360,7 +382,7 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>) ->
             place(cwd_row - 1, border);
             place(cwd_row - 2, "\x1b[7m \x1b[27m".into());
         }
-        if cwd_row + 1 < body_rows {
+        if cwd_row + 1 < body_rows && actual.is_none() {
             place(cwd_row + 1, preview_status_row(footer, columns, input.truecolor));
         }
     } else {
@@ -396,7 +418,20 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>) ->
         }
     }
     bytes.push_str("\x1b[0m");
-    bytes.into_bytes()
+    let mut output = bytes.into_bytes();
+    if let Some(actual) = actual {
+        let mut footer_bytes = Vec::new();
+        for (row_index, row) in [(cwd_row, &actual.path), (cwd_row + 1, &actual.status)] {
+            if super::presentation::render_surface_row(&mut footer_bytes, row, row_index,
+                input.columns, &actual.styles, &actual.links).is_err() {
+                let mut fallback = footer.cloned().unwrap_or_default();
+                fallback.actual = None;
+                return render_body(input, Some(&fallback));
+            }
+        }
+        output.extend(footer_bytes);
+    }
+    output
 }
 
 #[cfg(test)]
@@ -474,13 +509,14 @@ mod tests {
         assert_eq!(grid[18], "─".repeat(80));
         assert_eq!(grid[19], "", "the inverse-space caret has no text content");
         assert_eq!(grid[20], "─".repeat(80));
-        assert_eq!(grid[21], "~/src/a1");
-        assert!(grid[22].starts_with("0.0%/0 (auto)"), "{grid:#?}");
+        assert_eq!(grid[21], " ~/src/a1");
+        assert!(grid[22].starts_with(" 0.0%/0 (auto)"), "{grid:#?}");
         assert!(grid[22].ends_with("no-model"), "{grid:#?}");
         let short = cells(&render_agent_preview(&input(8, 3), None), 8, 3);
-        assert_eq!(short, ["", "~/src/a1", "no-model"]);
+        assert_eq!(short, ["", " …rc/a1", " no-mod"]);
         let tiny = cells(&render_agent_preview(&input(2, 1), None), 2, 1);
-        assert_eq!(tiny, ["…1"]);
+        assert_eq!(tiny, [""]);
+        assert_eq!(cells(&render_agent_preview(&input(1, 3), None), 1, 3), ["", "", ""]);
         let painted = String::from_utf8(render_agent_preview(&LandingInput {
             background: Some([26, 27, 28]),
             accent: Some("blue"),

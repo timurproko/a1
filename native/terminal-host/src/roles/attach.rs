@@ -145,12 +145,56 @@ fn agent_preview_footer(surface: &protocol::StructuredSurface) -> Option<landing
         }
         _ => (model.to_owned(), None),
     };
-    Some(landing::AgentPreviewFooter {
+    let mut footer = landing::AgentPreviewFooter {
         context,
         subscription: left.contains("(sub)"),
         auto: left.contains("(auto)"),
         model,
         thinking,
+        actual: None,
+    };
+    footer.actual = actual_agent_footer_rows(surface, &footer);
+    Some(footer)
+}
+
+/// Reuses the last owned footer's painted cells and metadata while zeroing only usage on the
+/// left. The right model, colored thinking, path, PR hyperlink, and gutters stay authoritative.
+fn actual_agent_footer_rows(
+    surface: &protocol::StructuredSurface,
+    footer: &landing::AgentPreviewFooter,
+) -> Option<landing::AgentFooterRows> {
+    let mut status = surface.row_data.last()?.clone();
+    let path = surface.row_data.get(usize::from(surface.rows).checked_sub(2)?)?.clone();
+    if !path.cells.iter().any(|cell| !cell.text.trim().is_empty())
+        || status.cells.len() != usize::from(surface.columns)
+        || path.cells.len() != usize::from(surface.columns)
+    {
+        return None;
+    }
+    let text = status.cells.iter().filter(|cell| cell.width > 0)
+        .map(|cell| cell.text.as_str()).collect::<String>();
+    let (_, right) = text.trim_end().rsplit_once("  ")?;
+    let right_width = unicode_width::UnicodeWidthStr::width(right.trim());
+    let right_start = usize::from(surface.columns).checked_sub(right_width + 1)?;
+    let first = (0..right_start).find(|&index| !status.cells[index].text.trim().is_empty())?;
+    let left = format!("{}0.0%/{}{}",
+        if footer.subscription { "$0.000 (sub) " } else { "" },
+        footer.context,
+        if footer.auto { " (auto)" } else { "" });
+    if left.chars().count() + first + 2 > right_start { return None; }
+    let style = status.cells[first].style;
+    for cell in &mut status.cells[first..right_start] {
+        *cell = protocol::SurfaceCell { style, ..Default::default() };
+    }
+    for (index, character) in left.chars().enumerate() {
+        status.cells[first + index].text = character.to_string();
+    }
+    Some(landing::AgentFooterRows {
+        columns: surface.columns,
+        path,
+        status,
+        styles: surface.styles.clone(),
+        links: surface.links.clone(),
     })
 }
 
@@ -608,6 +652,28 @@ fn render_notice_at(message: &str, columns: u16, row: u16) -> String {
 const MAX_SETTINGS_BYTES: u64 = 256 * 1024;
 const SETTINGS_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const OUTER_RESUME_GAP: Duration = Duration::from_secs(5);
+const PENDING_CLOSE_REPEAT_QUIET: Duration = Duration::from_millis(500);
+
+/// A held close key must not turn one pending-tab cancellation into a close of its old Agent.
+fn suppress_pending_close_repeat(
+    until: &mut Option<Instant>,
+    action: Option<&str>,
+    kind: crossterm::event::KeyEventKind,
+    pending: bool,
+    now: Instant,
+) -> bool {
+    if kind == crossterm::event::KeyEventKind::Release { return false; }
+    if action != Some("tabs.close") {
+        *until = None;
+        return false;
+    }
+    if until.is_some_and(|deadline| now < deadline) {
+        *until = Some(now + PENDING_CLOSE_REPEAT_QUIET);
+        return true;
+    }
+    if pending { *until = Some(now + PENDING_CLOSE_REPEAT_QUIET); }
+    false
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PresentationSettings {
@@ -1958,6 +2024,7 @@ struct Client {
     cancelled_agents: Vec<CancelledAgent>,
     hidden_cancelled_tabs: HashSet<String>,
     closed_tab_ids: HashSet<String>,
+    pending_close_quiet_until: Option<Instant>,
     next_create_request_id: u64,
     preview_footer: Option<landing::AgentPreviewFooter>,
     chip_priority: Vec<String>,
@@ -2030,6 +2097,7 @@ impl Client {
             cancelled_agents: Vec::new(),
             hidden_cancelled_tabs: HashSet::new(),
             closed_tab_ids: HashSet::new(),
+            pending_close_quiet_until: None,
             next_create_request_id: 1,
             preview_footer: None,
             chip_priority: Vec::new(),
@@ -3159,6 +3227,10 @@ impl Client {
     /// Returns `true` when the key detached this client.
     fn key(&mut self, core: &mut State, key: crossterm::event::KeyEvent) -> Result<bool, String> {
         let action = self.bindings.action(&key).map(str::to_owned);
+        if suppress_pending_close_repeat(&mut self.pending_close_quiet_until, action.as_deref(), key.kind,
+            core.view.pending_agent_visible, Instant::now()) {
+            return Ok(false);
+        }
         let event = core_attach::Event::Key {
             key: (&key).into(),
             action,
@@ -3938,6 +4010,24 @@ mod tests {
     }
 
     #[test]
+    fn a_held_close_key_cancels_only_the_pending_agent() {
+        use crossterm::event::KeyEventKind::{Press, Release, Repeat};
+        let at = Instant::now();
+        let mut until = None;
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Press, true, at));
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Release, false, at));
+        for millis in [20, 200, 600] {
+            assert!(suppress_pending_close_repeat(&mut until, Some("tabs.close"), Repeat,
+                false, at + Duration::from_millis(millis)));
+        }
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Press,
+            false, at + Duration::from_millis(1200)));
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.new"), Press,
+            false, at + Duration::from_millis(1201)));
+        assert_eq!(until, None);
+    }
+
+    #[test]
     fn late_initial_selection_cannot_restore_a_closed_agent() {
         let tabs = vec![StripTab {
             id: "old".into(), name: "Old".into(), name_source: "default".into(),
@@ -4001,6 +4091,71 @@ mod tests {
         surface.commit_kind = protocol::SurfaceCommitKind::Complete;
         surface.row_data.pop();
         assert!(agent_preview_footer(&surface).is_none(), "incomplete frames are never cached");
+    }
+
+    #[test]
+    fn pending_footer_replays_real_gutters_branch_and_pr_without_old_usage() {
+        let columns = 80usize;
+        let mut surface = protocol::StructuredSurface {
+            columns: columns as u16,
+            rows: 23,
+            row_data: vec![protocol::SurfaceRow {
+                cells: vec![protocol::SurfaceCell::default(); columns],
+            }; 23],
+            styles: vec![protocol::SurfaceStyle::default(), protocol::SurfaceStyle {
+                foreground: protocol::SurfaceColor::Rgb([126, 136, 142]),
+                ..Default::default()
+            }],
+            links: vec![protocol::SurfaceLink {
+                id: None, uri: "https://github.com/timurproko/a1/pull/837".into(),
+            }],
+            ..Default::default()
+        };
+        let path = " D:/Git/a1 (fix/instant-agent-tab) #837";
+        for (index, character) in path.chars().enumerate() {
+            surface.row_data[21].cells[index].text = character.to_string();
+            surface.row_data[21].cells[index].style = 1;
+            if index >= path.len() - 4 {
+                surface.row_data[21].cells[index].link = Some(0);
+            }
+        }
+        let left = " $14.125 (sub) ↑5k 43.2%/272k (auto)";
+        let right = "gpt-5.6-sol • high";
+        for (index, character) in left.chars().enumerate() {
+            surface.row_data[22].cells[index].text = character.to_string();
+            surface.row_data[22].cells[index].style = 1;
+        }
+        let right_start = columns - 1 - right.chars().count();
+        for (index, character) in right.chars().enumerate() {
+            surface.row_data[22].cells[right_start + index].text = character.to_string();
+            surface.row_data[22].cells[right_start + index].style = 1;
+        }
+        let footer = agent_preview_footer(&surface).expect("complete owned footer");
+        let actual = footer.actual.as_ref().expect("actual source rows, not a guessed layout");
+        assert_eq!(actual.path.cells[0].text, " ");
+        assert_eq!(actual.status.cells[columns - 1].text, " ");
+        let output = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: columns as u16, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "unused fallback", background: None,
+        }, Some(&footer))).unwrap();
+        assert!(output.contains("fix/instant-agent-tab"));
+        assert!(output.contains("https://github.com/timurproko/a1/pull/837"));
+        assert!(output.contains("$0.000 (sub) 0.0%/272k (auto)"));
+        assert!(output.contains("gpt-5.6-sol • high"));
+        assert!(!output.contains("14.125") && !output.contains("43.2%") && !output.contains("↑5k"));
+        assert!(!output.contains("unused fallback"));
+        let narrow = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: 24, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "narrow cwd", background: None,
+        }, Some(&footer))).unwrap();
+        assert!(narrow.contains("narrow cwd") && !narrow.contains("fix/instant-agent-tab"));
+        let mut malformed = footer.clone();
+        malformed.actual.as_mut().unwrap().styles.clear();
+        let recovered = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: columns as u16, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "unused fallback", background: None,
+        }, Some(&malformed))).unwrap();
+        assert!(recovered.contains("unused fallback") && !recovered.contains("14.125"));
     }
 
     #[test]
