@@ -342,8 +342,7 @@ pub(super) fn serve_bridge(
             } else if request.action == "close" {
                 let authorized = state.lock().ok().is_some_and(|locked| {
                     allows_controller_request(&locked.registry.tabs, &tab_id)
-                        && locked.attachment.current(&tab_id)
-                            == Some((request.client_id.as_str(), request.controller_revision))
+                        && locked.attachment.current(&tab_id) == Some((request.client_id.as_str(), request.controller_revision))
                 });
                 if authorized {
                     close_tab(&state, &tab_id, kind.request_id)?
@@ -353,8 +352,7 @@ pub(super) fn serve_bridge(
             } else if request.action == "restart" {
                 request_child_restart(&state, &tab_id, |locked| {
                     allows_controller_request(&locked.registry.tabs, &tab_id)
-                        && locked.attachment.current(&tab_id)
-                            == Some((request.client_id.as_str(), request.controller_revision))
+                        && locked.attachment.current(&tab_id) == Some((request.client_id.as_str(), request.controller_revision))
                 })?
             } else {
                 false

@@ -198,6 +198,11 @@ fn actual_agent_footer_rows(
     })
 }
 
+fn fill_on_agent_handoff(pending: Option<&PendingAgent>, tab_id: &str, requested: bool, now: Instant) -> Option<strip::ChipFill> {
+    pending.filter(|intent| requested && intent.real_id.as_deref() == Some(tab_id))
+        .map(|_| strip::ChipFill { tab_id: tab_id.to_owned(), started_at: now })
+}
+
 fn show_pending_agent(shown: &mut Vec<StripTab>, pending: &PendingAgent) {
     shown.retain(|tab| {
         (pending.known_ids.contains(&tab.id) && pending.real_id.as_deref() != Some(tab.id.as_str()))
@@ -2051,6 +2056,7 @@ struct Client {
     next_create_request_id: u64,
     preview_footer: Option<landing::AgentPreviewFooter>,
     chip_priority: Vec<String>,
+    chip_fill: Option<strip::ChipFill>,
     swap_in_flight: Option<String>,
     bindings: TabBindings,
     channel: InputChannel,
@@ -2124,6 +2130,7 @@ impl Client {
             next_create_request_id: 1,
             preview_footer: None,
             chip_priority: Vec::new(),
+            chip_fill: None,
             swap_in_flight: None,
             bindings: TabBindings::load(options.profile),
             channel: handshake.channel,
@@ -2190,6 +2197,7 @@ impl Client {
             match effect {
                 Effect::Send(request) => {
                     if request == Request::Create {
+                        self.chip_fill = None;
                         key_trace(self.key_trace_path.as_deref(), "effect=create");
                         let known_ids = self
                             .tabs
@@ -2213,6 +2221,9 @@ impl Client {
                             });
                         }
                     } else if let Request::Close(ref tab_id) = request {
+                        if self.chip_fill.as_ref().is_some_and(|fill| fill.tab_id == *tab_id) {
+                            self.chip_fill = None;
+                        }
                         key_trace(self.key_trace_path.as_deref(), "effect=close");
                         self.closed_tab_ids.insert(tab_id.clone());
                         if self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab_id) {
@@ -2229,6 +2240,9 @@ impl Client {
                     if cancelled { self.pending_agent = None; }
                 }
                 Effect::View(tab_id) => {
+                    if self.chip_fill.as_ref().is_some_and(|fill| fill.tab_id != tab_id) {
+                        self.chip_fill = None;
+                    }
                     if !core.view.pending_agent_visible {
                         self.pending_agent = None;
                     } else if let Some(pending) = self.pending_agent.as_mut() {
@@ -2238,6 +2252,7 @@ impl Client {
                 }
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
                 Effect::CancelViewRequest => {
+                    self.chip_fill = None;
                     key_trace(self.key_trace_path.as_deref(), "effect=cancel-view");
                     self.pending_agent = None;
                     self.view.cancel_request();
@@ -2460,7 +2475,7 @@ impl Client {
         let drag = core.mode.drag().cloned();
         let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
-            let mut frame = strip::render_interactive_at(
+            let mut frame = strip::render_interactive_filled_at(
                 shown,
                 strip_viewed,
                 self.columns,
@@ -2471,9 +2486,10 @@ impl Client {
                     .tab_bar_position
                     .strip_terminal_row(self.outer_rows),
                 plus,
+                self.chip_fill.as_ref(),
             );
             if (pending || !self.chip_priority.is_empty()) && !frame.hidden_tabs.is_empty() {
-                frame = strip::render_interactive_at(
+                frame = strip::render_interactive_filled_at(
                     &prioritized,
                     strip_viewed,
                     self.columns,
@@ -2484,6 +2500,7 @@ impl Client {
                         .tab_bar_position
                         .strip_terminal_row(self.outer_rows),
                     plus,
+                    self.chip_fill.as_ref(),
                 );
             }
             if let Some(drag) = drag.as_ref() {
@@ -2706,11 +2723,10 @@ impl Client {
             tab.accent = surface.accent.clone();
             effective_status.clone_from(&tab.status);
         }
-        if requested
-            && self.pending_agent.as_ref().is_some_and(|intent| {
-                intent.real_id.as_deref() == Some(surface.tab_id.as_str())
-            })
-        {
+        if let Some(fill) = fill_on_agent_handoff(self.pending_agent.as_ref(), &surface.tab_id, requested, Instant::now()) {
+            // Invariant: the body and real chip commit together; only its background fills later.
+            self.chip_fill = Some(fill);
+            self.last_strip_frame = Instant::now();
             self.pending_agent = None;
         }
         if !core_attach::is_utility_tab(&surface.tab_id)
@@ -3160,12 +3176,7 @@ impl Client {
                 },
             );
         }
-        if strip::animations_active(&self.tabs)
-            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs)
-        {
-            self.paint(core, false)?;
-            self.last_strip_frame = Instant::now();
-        }
+        self.tick_strip_animation(core, now)?;
         if self.time_format.refresh() {
             self.paint(core, false)?;
         }
@@ -3183,6 +3194,27 @@ impl Client {
         if self.last_list.elapsed() >= Duration::from_millis(500) {
             self.send(Request::List)?;
             self.last_list = Instant::now();
+        }
+        Ok(())
+    }
+
+    /// Finish a canceled or elapsed chip fill and repaint its last partial frame once.
+    fn tick_strip_animation(&mut self, core: &mut State, now: Instant) -> Result<(), String> {
+        let fill_active = self.chip_fill.as_ref().is_some_and(|fill| {
+            self.view.viewed.as_deref() == Some(fill.tab_id.as_str()) && strip::fill_active(fill, now)
+        });
+        if !fill_active && self.chip_fill.take().is_some() {
+            self.paint(core, false)?;
+        }
+        if (strip::animations_active(&self.tabs) || fill_active)
+            && self.last_strip_frame.elapsed() >= if fill_active {
+                Duration::from_millis(25)
+            } else {
+                strip::animation_interval(&self.tabs)
+            }
+        {
+            self.paint(core, false)?;
+            self.last_strip_frame = now;
         }
         Ok(())
     }
@@ -4189,6 +4221,19 @@ mod tests {
             truecolor: true, half_blocks: false, cwd: "unused fallback", background: None,
         }, Some(&malformed))).unwrap();
         assert!(recovered.contains("unused fallback") && !recovered.contains("14.125"));
+    }
+
+    #[test]
+    fn only_a_committed_pending_agents_first_frame_starts_the_chip_fill() {
+        let now = Instant::now();
+        let mut pending = PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None };
+        assert!(fill_on_agent_handoff(Some(&pending), "agent-2", true, now).is_none());
+        pending.real_id = Some("agent-2".into());
+        assert!(fill_on_agent_handoff(Some(&pending), "agent-3", true, now).is_none());
+        assert!(fill_on_agent_handoff(Some(&pending), "agent-2", false, now).is_none());
+        assert!(fill_on_agent_handoff(None, "agent-2", true, now).is_none());
+        assert_eq!(fill_on_agent_handoff(Some(&pending), "agent-2", true, now),
+            Some(strip::ChipFill { tab_id: "agent-2".into(), started_at: now }));
     }
 
     #[test]

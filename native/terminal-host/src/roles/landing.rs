@@ -5,9 +5,9 @@
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-/// Invariant: the middle row sits where an Agent's editor draws its caret, so the full block that
-/// starts it is the cell the cursor takes when a tab opens.
-const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "█▀▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
+/// Invariant: the middle row sits where an Agent's editor draws its caret, but the landing
+/// wordmark has no stray full block to the left of its `a`.
+const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", " ▀▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
 
 /// The owned dark theme's `dim` foreground, which an Agent footer draws its cwd and status in;
 /// `landing_accents.json` pins it with the accents.
@@ -495,11 +495,8 @@ mod tests {
             "the second-to-last body row, flush left"
         );
         assert_eq!(grid[22], "v0.2.7");
-        // Invariant: an Agent's editor caret sits two rows above its footer cwd, at column zero.
-        assert!(
-            grid[19].starts_with('█'),
-            "the wordmark's full left block is the cell the Agent caret takes"
-        );
+        // Invariant: the landing's a starts one cell in while the Agent caret remains at column zero.
+        assert!(grid[19].starts_with(" ▀"), "the a has no protruding left block");
     }
 
     #[test]
