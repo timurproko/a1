@@ -12,6 +12,7 @@ import {
   installerHelp,
   parseArguments,
   renderProgressBar,
+  resolveInstallerAccentColor,
   resolveInstallerNpmCli,
   resolvePublishedPreview,
   runInstaller,
@@ -19,7 +20,9 @@ import {
   SHARED_PROGRESS_ACCENT_ANSI as INSTALLER_PROGRESS_ACCENT_ANSI,
 } from "../../../packages/a1-install/bin/a1-install.js";
 import { SHARED_PROGRESS_ACCENT_ANSI as UPDATE_PROGRESS_ACCENT_ANSI } from "../../../src/foundation/release/progress-palette.generated.js";
-import { loadPiTheme } from "../../../src/integrations/pi/components/upstream/theme/theme.js";
+import { earlyAccentPalette, resolveEarlyAccentColor } from "../../../src/foundation/release/early-accent.js";
+import { preTrustPalette, readPreTrustAccent } from "../../../src/ui/settings/early-accent.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 const roots: string[] = [];
 const exactTarget = ["--develop", "0.2.1-dev.591"];
@@ -125,10 +128,10 @@ describe("installer command contract", () => {
     expect(invoked.stderr).toBe("");
   });
 
-  it("renders the pinned Pi accent while classifying phases internally", () => {
+  it("renders the blue A1 default while classifying phases internally", () => {
     const rendered = renderProgressBar(31);
     expect(INSTALLER_PROGRESS_ACCENT_ANSI).toBe(UPDATE_PROGRESS_ACCENT_ANSI);
-    expect(INSTALLER_PROGRESS_ACCENT_ANSI).toBe(loadPiTheme("dark", "truecolor").getFgAnsi("accent"));
+    expect(INSTALLER_PROGRESS_ACCENT_ANSI).toBe(earlyAccentPalette("blue").accent);
     expect(rendered).toContain(`${INSTALLER_PROGRESS_ACCENT_ANSI}${"━".repeat(12)}`);
     expect(rendered).toContain("\u001b[38;2;128;128;128m 31%");
     expect(rendered).not.toMatch(/Preparing|Resolving|Downloading|Installing|Activating|Verifying/u);
@@ -136,11 +139,41 @@ describe("installer command contract", () => {
     expect(classifyProgressLine("arbitrary package output", "Resolving packages")).toBe("Resolving packages");
   });
 
-  it("keeps generated palette provenance synchronized with the pinned Pi release", () => {
+  it("keeps generated palette provenance synchronized with the named A1 accents", () => {
     const checked = spawnSync(process.execPath, ["--import", "tsx", "scripts/pi/sync-progress-palette.ts", "--check"], { encoding: "utf8" });
     expect(checked.error).toBeUndefined();
     expect(checked.status, checked.stderr).toBe(0);
-    expect(checked.stdout).toContain("Progress palette matches the pinned Pi accent.");
+    expect(checked.stdout).toContain("Progress palette matches the named A1 accents.");
+  });
+
+  it("resolves the same selected profile accent as self-update without depending on installed A1", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-installer-accent-"));
+    roots.push(root);
+    const file = resolve(root, ".a1", "agent", "settings.json");
+    const environment = { A1_PROFILE_HOME: root };
+    expect(resolveInstallerAccentColor(environment)).toBe("blue");
+    expect(resolveEarlyAccentColor(environment)).toBe("blue");
+    expect(readPreTrustAccent(environment)).toBe("blue");
+    await mkdir(dirname(file), { recursive: true });
+    for (const value of ["purple", "cyan", "green", "orange", "pink", "blue", "default", "invalid"]) {
+      await writeFile(file, JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: value } }));
+      const expected = (value === "default" ? "purple" : value === "invalid" ? "blue" : value) as "blue" | "purple" | "cyan" | "green" | "orange" | "pink";
+      expect(resolveInstallerAccentColor(environment)).toBe(expected);
+      expect(resolveEarlyAccentColor(environment)).toBe(expected);
+      expect(readPreTrustAccent(environment)).toBe(expected);
+      for (const appearance of ["dark", "light"] as const) for (const mode of ["truecolor", "256color"] as const) {
+        expect(preTrustPalette(expected, appearance, mode))
+          .toEqual(earlyAccentPalette(expected, appearance, mode));
+      }
+    }
+    await writeFile(file, "{");
+    expect(resolveInstallerAccentColor(environment)).toBe("blue");
+    expect(resolveEarlyAccentColor(environment)).toBe("blue");
+    expect(readPreTrustAccent(environment)).toBe("blue");
+    await writeFile(file, " ".repeat(256 * 1024 + 1));
+    expect(resolveInstallerAccentColor(environment)).toBe("blue");
+    expect(resolveEarlyAccentColor(environment)).toBe("blue");
+    expect(readPreTrustAccent(environment)).toBe("blue");
   });
 
   it("maps diagnostics without replaying them", () => {
@@ -249,6 +282,36 @@ describe("installer orchestration", () => {
     expect(installCall?.at(-1)).toBe("@timurproko/a1@0.2.1-dev.591");
     expect(installCall?.at(-1)).not.toMatch(/@(latest|next)$/u);
     expect(stdout.read()).not.toMatch(/deprecated|funding|lifecycle|packages|vulnerabilities|npm available/iu);
+  });
+
+  it("paints a delegated install meter from the saved profile while hiding child output", async () => {
+    const setup = await fixture();
+    await setup.materialize();
+    const profile = resolve(setup.root, ".a1", "agent");
+    await mkdir(profile, { recursive: true });
+    await writeFile(resolve(profile, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "pink" } }));
+    const stdout = capture();
+    const stderr = capture();
+    const runner = {
+      npmCli: resolve(setup.root, "npm-cli.js"),
+      async npm(args: string[]) {
+        return args[0] === "view"
+          ? { code: 0, signal: null, stdout: '"0.2.1-dev.591"', stderr: "" }
+          : { code: 0, signal: null, stdout: setup.globalRoot, stderr: "" };
+      },
+      async node() { return { code: 0, signal: null, stdout: "child meter must remain hidden", stderr: "" }; },
+    };
+    const code = await runInstaller(exactTarget, {
+      stdout: stdout.stream, stderr: stderr.stream, runner, tty: true,
+      platform: process.platform,
+      environment: { PATH: `${setup.launcherDirectory}${delimiter}${process.env.PATH ?? ""}`, A1_PROFILE_HOME: setup.root, COLORTERM: "truecolor" },
+      handleSignals: false,
+    });
+    expect(code).toBe(0);
+    expect(stdout.read()).toContain(`${earlyAccentPalette("pink").accent}━`);
+    expect(stdout.read()).not.toContain("child meter must remain hidden");
+    expect(stdout.read()).toContain("a1 successfully installed\n");
+    expect(stderr.read()).toBe("");
   });
 
   it("delegates an existing installation with canonical npm context to the safe updater", async () => {

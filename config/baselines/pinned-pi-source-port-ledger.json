@@ -3605,7 +3605,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized theme port: retain pinned theme schema, variable/color resolution, built-in and custom loading, terminal detection, and layout defaults while constructing the public package-root Theme class, projecting A1's optional semantic accent, and deriving its owned fullscreen canvas.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "7598e711ef977359c4db2e1c4d2075907814348f688c4104a679758e5f041dd3",
+      "localSha256": "6b5181b7745ea8559f1d336ec7ba0fd734c611c51380cf44043b27241570cf8a",
       "approvedDeviations": [
         {
           "id": "theme-public-api-boundary",
@@ -3622,7 +3622,7 @@
         {
           "id": "semantic-accent-projection",
           "reason": "Bare A1 can project a profile-selected color over only the active Theme's semantic accent token without coupling to Pi's current variable name or RGB value.",
-          "upstreamBehavior": "The default choice and comparison profile retain the active Pi theme's exact accent; base replacement and custom-theme reload reapply any explicit A1 selection.",
+          "upstreamBehavior": "The comparison profile retains the active Pi theme's exact accent; base replacement and custom-theme reload reapply the selected A1 color, including the blue default.",
           "acceptanceTest": "test/integrations/pi/components/pinned-theme-parity.test.ts"
         }
       ],

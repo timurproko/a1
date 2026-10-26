@@ -317,7 +317,7 @@ describe("the settings screen", () => {
     expect(lines.findIndex(line => line.trim() === "Appearance")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
     expect(lines.some(line => line.includes("Quit animation") && line.includes("yes"))).toBe(true);
     expect(lines.some(line => line.trim() === "Appearance")).toBe(true);
-    expect(lines.some(line => line.includes("Accent color") && line.includes("purple"))).toBe(true);
+    expect(lines.some(line => line.includes("Accent color") && line.includes("blue"))).toBe(true);
     expect(lines.some(line => line.includes("Background") && line.includes("transparent"))).toBe(true);
     expect(lines.findIndex(line => line.includes("Accent color"))).toBeLessThan(lines.findIndex(line => line.includes("Background")));
     expect(lines.findIndex(line => line.includes("Background"))).toBeLessThan(lines.findIndex(line => line.includes("Quit animation")));
@@ -345,17 +345,17 @@ describe("the settings screen", () => {
     const { app: target, session, writes } = await app();
     screen(target);
     target.onInput?.(`${ESC}[1;2B`, HOST);
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
     target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
-    expect(session.value("accentColor")).toBe("blue");
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
+    expect(session.value("accentColor")).toBe("purple");
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
     expect(writes).toEqual([]);
 
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
-    expect(session.value("accentColor")).toBe("purple");
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
+    expect(session.value("accentColor")).toBe("blue");
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
   });
 
   it("changes and undoes the owned background without writing Pi settings", async () => {
@@ -1235,11 +1235,11 @@ describe("the value dropdown behind the screen", () => {
     const { app: target } = await app();
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Accent color"));
-    const valueColumn = (lines[row] ?? "").indexOf("purple") + 1;
+    const valueColumn = (lines[row] ?? "").indexOf("blue") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
 
     const opened = target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n");
-    expect(opened).toContain("<highlight><text>✓</text></highlight><highlight> \u001b[35m■\u001b[39m purple");
+    expect(opened).toContain("<highlight><text>✓</text></highlight><highlight> \u001b[34m■\u001b[39m blue");
     for (const ansi of [34, 36, 32, 33, 31]) expect(opened).toContain(`\u001b[${ansi}m■\u001b[39m`);
     expect(opened).not.toContain("<accent>✓</accent>");
   });
