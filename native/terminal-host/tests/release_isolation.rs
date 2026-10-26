@@ -3,6 +3,7 @@
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use terminal_host_contracts::roles::{registry::RegistryStore, scope};
 
@@ -11,6 +12,7 @@ struct Host {
     profile: PathBuf,
     data: PathBuf,
     runtime: PathBuf,
+    _runtime_owner: Arc<tempfile::TempDir>,
     release: PathBuf,
 }
 
@@ -121,10 +123,23 @@ impl Drop for Host {
     }
 }
 
+fn fixture_runtime() -> tempfile::TempDir {
+    // Platform: Darwin's canonical per-user temp root can exhaust the socket budget before its suffix.
+    #[cfg(unix)]
+    let runtime = tempfile::Builder::new()
+        .prefix("rt-")
+        .tempdir_in("/tmp")
+        .unwrap();
+    #[cfg(not(unix))]
+    let runtime = tempfile::tempdir().unwrap();
+    runtime
+}
+
 fn hosts(root: &Path) -> (Host, Host) {
     let profile = root.join("profile");
     let data = root.join("data");
-    let runtime = root.join("runtime");
+    let runtime_owner = Arc::new(fixture_runtime());
+    let runtime = runtime_owner.path().to_path_buf();
     for path in [&profile, &data, &runtime] {
         std::fs::create_dir_all(path).unwrap();
     }
@@ -132,6 +147,14 @@ fn hosts(root: &Path) -> (Host, Host) {
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(&runtime, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let longest = std::fs::canonicalize(&runtime)
+            .unwrap()
+            .join("a1-tabs-00000000000000000000.sock");
+        assert!(
+            longest.as_os_str().len() < 96,
+            "fixture default endpoint exceeds native socket budget: {}",
+            longest.display()
+        );
     }
     let make = |id: &str| {
         let release = root.join(id);
@@ -148,6 +171,7 @@ fn hosts(root: &Path) -> (Host, Host) {
             profile: profile.clone(),
             data: data.clone(),
             runtime: runtime.clone(),
+            _runtime_owner: runtime_owner.clone(),
             release,
         }
     };
@@ -155,6 +179,44 @@ fn hosts(root: &Path) -> (Host, Host) {
         make("same-version-payload-a"),
         make("same-version-payload-b"),
     )
+}
+
+#[test]
+fn release_isolation_fixture_runtime_is_private_short_and_shared_until_last_owner() {
+    let first = Arc::new(fixture_runtime());
+    let path = first.path().to_path_buf();
+    let second = first.clone();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let canonical = std::fs::canonicalize(&path).unwrap();
+        assert!(
+            canonical
+                .join("a1-tabs-00000000000000000000.sock")
+                .as_os_str()
+                .len()
+                < 96
+        );
+        assert_eq!(
+            std::fs::metadata(&canonical).unwrap().permissions().mode() & 0o077,
+            0
+        );
+    }
+    let darwin = Path::new(
+        "/private/var/folders/ab/0123456789abcdef0123456789abcd/T/.tmp123456/runtime",
+    )
+    .join("a1-tabs-00000000000000000000.sock");
+    assert!(
+        darwin.as_os_str().len() >= 96,
+        "the original Darwin-shaped fixture must exceed the budget"
+    );
+    drop(first);
+    assert!(
+        path.is_dir(),
+        "the other release must retain the shared runtime"
+    );
+    drop(second);
+    assert!(!path.exists());
 }
 
 #[test]
