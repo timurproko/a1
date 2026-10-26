@@ -16,7 +16,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-10-26-instant-agent-tab/",
   "acceptanceManifest": "openspec/changes/archive/2026-10-26-instant-agent-tab/acceptance.md",
   "finalizedDate": "2026-10-26",
-  "specBaseSha": "1f02b2e4d00bba6a70ff2b24e6752a7f05a445e4",
+  "specBaseSha": "e9340bc72d5ad0c2a21ef4f2d11ce724cd10854c",
   "acceptanceScenarios": [
     "Creating an Agent from the launcher, shortcut, or palette immediately shows one pending tab and a starting body instead of the previous Agent.",
     "Input entered during startup reaches only the new Agent when its complete screen replaces the pending presentation.",
