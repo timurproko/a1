@@ -6,8 +6,8 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 /// Invariant: the middle row sits where an Agent's editor draws its caret, but the landing
-/// wordmark has no stray full block to the left of its `a`.
-const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", " ▀▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
+/// wordmark's left stroke stays inside the `a`, not in a protruding extra cell.
+const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", " █▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
 
 /// The owned dark theme's `dim` foreground, which an Agent footer draws its cwd and status in;
 /// `landing_accents.json` pins it with the accents.
@@ -246,12 +246,11 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     render_body(input, None, false)
 }
 
-/// Rows rendered by the real Agent's owned footer. Retaining cells preserves its path metadata,
-/// hyperlinks, gutters, and styles without maintaining a second native footer layout.
+/// Rows rendered by the real Agent's owned footer. Retain the status cells and styles as hints;
+/// the previous tab's path and hyperlinks must not appear in the new Agent's preview.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AgentFooterRows {
     pub columns: u16,
-    pub path: crate::protocol::SurfaceRow,
     pub status: crate::protocol::SurfaceRow,
     pub styles: Vec<crate::protocol::SurfaceStyle>,
     pub links: Vec<crate::protocol::SurfaceLink>,
@@ -370,10 +369,10 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, fo
     let cwd_row = body_rows.saturating_sub(2);
     let actual = footer.and_then(|footer| footer.actual.as_ref())
         .filter(|actual| actual.columns == input.columns && body_rows >= 2);
-    if body_rows > 0 && actual.is_none() && (footer.is_none() || columns > 2) {
-        let gutter = usize::from(footer.is_some());
-        place(cwd_row, format!("{}{}{}\x1b[0m", " ".repeat(gutter), fg(DIM),
-            clip_left(input.cwd, columns - gutter * 2)));
+    if body_rows > 0 && columns > 2 {
+        // Invariant: landing and pending paths use the real footer's gutter without replaying
+        // an older Agent's branch/PR from the cached status.
+        place(cwd_row, format!(" {}{}\x1b[0m", fg(DIM), clip_left(input.cwd, columns - 2)));
     }
     if let Some(footer) = footer {
         // Invariant: the real empty editor is three rows above its two-row footer. In a short terminal
@@ -398,10 +397,10 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, fo
     } else {
         // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
         if let Some(version) = input.version.filter(|version| !version.is_empty())
-            && cwd_row + 1 < body_rows
+            && cwd_row + 1 < body_rows && columns > 1
         {
-            let version = clip(&format!("v{version}"), columns);
-            place(cwd_row + 1, format!("{}{version}\x1b[0m", fg(DIM)));
+            let version = clip(&format!("v{version}"), columns.saturating_sub(1));
+            place(cwd_row + 1, format!(" {}{version}\x1b[0m", fg(DIM)));
         }
         if input.half_blocks && cwd_row >= WORDMARK.len() {
             let accent = fg(accent_colors(input.accent).accent);
@@ -431,13 +430,11 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, fo
     let mut output = bytes.into_bytes();
     if let Some(actual) = actual {
         let mut footer_bytes = Vec::new();
-        for (row_index, row) in [(cwd_row, &actual.path), (cwd_row + 1, &actual.status)] {
-            if super::presentation::render_surface_row(&mut footer_bytes, row, row_index,
-                input.columns, &actual.styles, &actual.links).is_err() {
-                let mut fallback = footer.cloned().unwrap_or_default();
-                fallback.actual = None;
-                return render_body(input, Some(&fallback), footer_only);
-            }
+        if super::presentation::render_surface_row(&mut footer_bytes, &actual.status, cwd_row + 1,
+            input.columns, &actual.styles, &actual.links).is_err() {
+            let mut fallback = footer.cloned().unwrap_or_default();
+            fallback.actual = None;
+            return render_body(input, Some(&fallback), footer_only);
         }
         output.extend(footer_bytes);
     }
@@ -501,12 +498,13 @@ mod tests {
         assert_eq!(grid[19], WORDMARK[1].trim_end());
         assert_eq!(grid[20], WORDMARK[2].trim_end());
         assert_eq!(
-            grid[21], "~/src/a1",
-            "the second-to-last body row, flush left"
+            grid[21], " ~/src/a1",
+            "the second-to-last body row matches the Agent footer's one-cell gutter"
         );
-        assert_eq!(grid[22], "v0.2.7");
-        // Invariant: the landing's a starts one cell in while the Agent caret remains at column zero.
-        assert!(grid[19].starts_with(" ▀"), "the a has no protruding left block");
+        assert_eq!(grid[22], " v0.2.7");
+        // Invariant: the left stroke fills an existing cell, never the protruding column zero.
+        assert!(grid[19].starts_with(" █▀▀█"), "the a has an aligned left stroke");
+        assert_eq!(WORDMARK.iter().map(|row| row.chars().count()).collect::<Vec<_>>(), [9, 9, 9]);
     }
 
     #[test]
@@ -567,12 +565,13 @@ mod tests {
         let short = cells(&render(&input(40, 3)), 40, 3);
         assert_eq!(
             short,
-            ["", "~/src/a1", "v0.2.7"],
+            ["", " ~/src/a1", " v0.2.7"],
             "no room for the wordmark"
         );
-        assert_eq!(cells(&render(&input(40, 1)), 40, 1), ["~/src/a1"]);
+        assert_eq!(cells(&render(&input(40, 1)), 40, 1), [" ~/src/a1"]);
         let narrow = cells(&render(&input(6, 23)), 6, 23);
-        assert_eq!(narrow[21], "…rc/a1");
+        assert_eq!(narrow[21], " …/a1");
+        assert_eq!(narrow[22], " v0.2.");
     }
 
     #[test]
@@ -602,7 +601,7 @@ mod tests {
             23,
         );
         assert!(plain.iter().all(|row| !row.contains('▀')));
-        assert_eq!(plain[21..], ["~/src/a1", "v0.2.7"]);
+        assert_eq!(plain[21..], [" ~/src/a1", " v0.2.7"]);
         let unversioned = cells(
             &render(&LandingInput {
                 version: None,
@@ -709,14 +708,14 @@ mod tests {
             "the last-tab close clears the prior surface once"
         );
         assert!(
-            top.contains("\x1b[23;1H\x1b[0m\x1b[2K\x1b["),
+            top.contains("\x1b[23;1H\x1b[0m\x1b[2K \x1b["),
             "the cwd on child row 21"
         );
         assert!(top.ends_with("\x1b[?25l\x1b[?2026l"), "no cursor shows");
         let bottom =
             String::from_utf8(composer.prepare(&desired(0)).unwrap().unwrap().bytes).unwrap();
         assert!(
-            bottom.contains("\x1b[22;1H\x1b[0m\x1b[2K\x1b["),
+            bottom.contains("\x1b[22;1H\x1b[0m\x1b[2K \x1b["),
             "above a bottom strip the cwd moves with the child rows"
         );
     }

@@ -157,14 +157,14 @@ fn agent_preview_footer(surface: &protocol::StructuredSurface) -> Option<landing
     Some(footer)
 }
 
-/// Reuses the last owned footer's painted cells and metadata while zeroing only usage on the
-/// left. The right model, colored thinking, path, PR hyperlink, and gutters stay authoritative.
+/// Reuses the last owned status row while zeroing old usage on the left. The next Agent's
+/// path is drawn from its own cwd; old branch and PR links must never be inherited.
 fn actual_agent_footer_rows(
     surface: &protocol::StructuredSurface,
     footer: &landing::AgentPreviewFooter,
 ) -> Option<landing::AgentFooterRows> {
     let mut status = surface.row_data.last()?.clone();
-    let path = surface.row_data.get(usize::from(surface.rows).checked_sub(2)?)?.clone();
+    let path = surface.row_data.get(usize::from(surface.rows).checked_sub(2)?)?;
     if !path.cells.iter().any(|cell| !cell.text.trim().is_empty())
         || status.cells.len() != usize::from(surface.columns)
         || path.cells.len() != usize::from(surface.columns)
@@ -191,7 +191,6 @@ fn actual_agent_footer_rows(
     }
     Some(landing::AgentFooterRows {
         columns: surface.columns,
-        path,
         status,
         styles: surface.styles.clone(),
         links: surface.links.clone(),
@@ -4236,23 +4235,23 @@ mod tests {
         }
         let footer = agent_preview_footer(&surface).expect("complete owned footer");
         let actual = footer.actual.as_ref().expect("actual source rows, not a guessed layout");
-        assert_eq!(actual.path.cells[0].text, " ");
         assert_eq!(actual.status.cells[columns - 1].text, " ");
         let output = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
             columns: columns as u16, body_rows: 23, version: None, accent: None,
-            truecolor: true, half_blocks: false, cwd: "unused fallback", background: None,
+            truecolor: true, half_blocks: false, cwd: "new Agent cwd", background: None,
         }, Some(&footer))).unwrap();
-        assert!(output.contains("fix/instant-agent-tab"));
-        assert!(output.contains("https://github.com/timurproko/a1/pull/837"));
+        assert!(output.contains("new Agent cwd"));
+        assert!(!output.contains("fix/instant-agent-tab"));
+        assert!(!output.contains("https://github.com/timurproko/a1/pull/837"));
         assert!(output.contains("$0.000 (sub) 0.0%/272k (auto)"));
         assert!(output.contains("gpt-5.6-sol • high"));
         assert!(!output.contains("14.125") && !output.contains("43.2%") && !output.contains("↑5k"));
-        assert!(!output.contains("unused fallback"));
         let held = String::from_utf8(landing::render_agent_preview_footer(&landing::LandingInput {
             columns: columns as u16, body_rows: 23, version: None, accent: None,
-            truecolor: true, half_blocks: false, cwd: "unused fallback", background: None,
+            truecolor: true, half_blocks: false, cwd: "new Agent cwd", background: None,
         }, Some(&footer))).unwrap();
-        assert!(held.contains("fix/instant-agent-tab") && held.contains("https://github.com/timurproko/a1/pull/837"));
+        assert!(held.contains("new Agent cwd"));
+        assert!(!held.contains("fix/instant-agent-tab") && !held.contains("https://github.com/timurproko/a1/pull/837"));
         assert!(held.contains("$0.000 (sub) 0.0%/272k (auto)"));
         assert!(!held.contains("\x1b[22;1H") && !held.contains("14.125"));
         let narrow = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {

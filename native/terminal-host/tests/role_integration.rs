@@ -594,10 +594,10 @@ fn new_agent_footer_stays_provisional_until_its_chip_fills() {
     let release = directory(root.path(), "release");
     std::fs::write(directory(&release, "bin").join("ui.js"), r#"
 const initial = process.env.A1_TAB_ID === "tab-1";
-const footer = (model) => process.stdout.write(`\x1b[22;1H cwd\x1b[23;1H 0.0%/123k (auto)          ${model}\x1b[1;1H`);
-footer(initial ? "old-model" : "intermediate-model");
+const footer = (model, path) => process.stdout.write(`\x1b[22;1H ${path}\x1b[23;1H 0.0%/123k (auto)          ${model}\x1b[1;1H`);
+footer(initial ? "old-model" : "intermediate-model", initial ? "cwd (old-branch) #123" : "cwd");
 process.stdout.write(initial ? "initial-ready" : "second-ready");
-if (!initial) setTimeout(() => footer("latest-model"), 80);
+if (!initial) setTimeout(() => footer("latest-model", "cwd (new-branch) #456"), 80);
 setInterval(() => {}, 1000);
 "#).expect("fake Agent");
     let address = fixture_endpoint(&runtime);
@@ -608,13 +608,19 @@ setInterval(() => {}, 1000);
     let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
     assert!(attach.output_containing("initial-ready", Duration::from_secs(20)));
     assert!(attach.output_containing("old-model", Duration::from_secs(5)));
+    assert!(attach.output_containing("old-branch", Duration::from_secs(5)));
     let from = attach.retained_len();
     attach.write(b"\x1ba");
     assert!(attach.output_containing("second-ready", Duration::from_secs(20)), "{}", attach.output_text());
     assert!(!attach.output_since(from).contains("intermediate-model"),
         "intermediate child status flashed during the chip fill: {}", attach.output_text());
+    assert!(!attach.output_since(from).contains("old-branch"),
+        "an older Agent's repository metadata leaked into the pending path: {}", attach.output_text());
     assert!(attach.output_containing("latest-model", Duration::from_secs(8)),
         "latest real status did not appear after the fill: {}", attach.output_text());
+    assert!(attach.output_since(from).contains("new-branch) #456"),
+        "the new Agent's resolved branch and PR should appear together: {}", attach.output_text());
+    assert!(!attach.output_since(from).contains("old-branch"));
     assert!(attach.child.try_wait().unwrap().is_none(), "attach exited during status handoff");
     attach.write(b"\x1bw");
     attach.settle(Duration::from_millis(500));
