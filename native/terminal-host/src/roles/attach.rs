@@ -745,8 +745,8 @@ fn read_time_format(path: &Path) -> TimeFormat {
 }
 
 /// Development diagnostics: when `A1_ATTACH_KEY_TRACE` names a file, the attach client appends
-/// every outer key event and each detach-chord decision, so a terminal's key reporting can be
-/// compared with what the chord expects. Key codes only; never pasted text or child output.
+/// outer gestures, create/close effects, and the final exit path, so a terminal's input and
+/// resident cancellation can be compared without recording pasted text or child output.
 fn key_trace(path: Option<&Path>, line: &str) {
     let Some(path) = path else {
         return;
@@ -1769,6 +1769,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     loop {
         watchdog.bump();
         if let Some(error) = client.stream.failure() {
+            key_trace(client.key_trace_path.as_deref(), "exit=outbound-stream-failure");
             return Err(error);
         }
         // Performance: a queued key must not wait behind decoding/composing the next complete
@@ -1776,14 +1777,36 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         let mut round = super::ready_round::ReadyRound::default();
         let input = round.receive(&input_rx);
         let disconnected = matches!(input, Err(mpsc::TryRecvError::Disconnected));
-        if let Ok(next) = input && client.input(&mut core, next?)? {
-            return Ok(());
+        if let Ok(next) = input {
+            match next.and_then(|next| client.input(&mut core, next)) {
+                Ok(true) => {
+                    key_trace(client.key_trace_path.as_deref(), "exit=input-detach");
+                    return Ok(());
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    key_trace(client.key_trace_path.as_deref(), "exit=input-error");
+                    return Err(error);
+                }
+            }
         }
-        if client.drain_server(&mut core, &message_rx, &ingress_bytes, &mut round)? {
-            return Ok(());
+        match client.drain_server(&mut core, &message_rx, &ingress_bytes, &mut round) {
+            Ok(true) => {
+                key_trace(client.key_trace_path.as_deref(), "exit=server-detach");
+                return Ok(());
+            }
+            Ok(false) => {}
+            Err(error) => {
+                key_trace(client.key_trace_path.as_deref(), "exit=server-error");
+                return Err(error);
+            }
         }
-        client.tick(&mut core)?;
+        if let Err(error) = client.tick(&mut core) {
+            key_trace(client.key_trace_path.as_deref(), "exit=tick-error");
+            return Err(error);
+        }
         if disconnected {
+            key_trace(client.key_trace_path.as_deref(), "exit=outer-input-stopped");
             return Err("outer terminal input stopped".to_owned());
         }
         round.wait(&wake_rx, Duration::from_millis(8));
@@ -2167,6 +2190,7 @@ impl Client {
             match effect {
                 Effect::Send(request) => {
                     if request == Request::Create {
+                        key_trace(self.key_trace_path.as_deref(), "effect=create");
                         let known_ids = self
                             .tabs
                             .iter()
@@ -2181,6 +2205,7 @@ impl Client {
                             real_id: None,
                         });
                     } else if request == Request::CancelCreate {
+                        key_trace(self.key_trace_path.as_deref(), "effect=cancel-create");
                         if let Some(pending) = self.pending_agent.as_ref() {
                             self.cancelled_agents.push(CancelledAgent {
                                 request_id: pending.request_id,
@@ -2188,6 +2213,7 @@ impl Client {
                             });
                         }
                     } else if let Request::Close(ref tab_id) = request {
+                        key_trace(self.key_trace_path.as_deref(), "effect=close");
                         self.closed_tab_ids.insert(tab_id.clone());
                         if self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab_id) {
                             self.hidden_cancelled_tabs.insert(tab_id.clone());
@@ -2212,6 +2238,7 @@ impl Client {
                 }
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
                 Effect::CancelViewRequest => {
+                    key_trace(self.key_trace_path.as_deref(), "effect=cancel-view");
                     self.pending_agent = None;
                     self.view.cancel_request();
                     if self.swap_in_flight.take().is_some() {
@@ -2724,7 +2751,10 @@ impl Client {
             };
             let payload = match message {
                 ServerIngress::Frame(payload) => payload,
-                ServerIngress::Failed(error) => return Err(error),
+                ServerIngress::Failed(error) => {
+                    key_trace(self.key_trace_path.as_deref(), "server=connection-failed");
+                    return Err(error);
+                },
             };
             let _reservation = IngressReservation {
                 bytes: ingress_bytes.clone(),
@@ -2752,6 +2782,7 @@ impl Client {
                 self.run(core, core_attach::Event::Server(ServerEvent::ConfigurePlus))?;
             }
             "detach" => {
+                key_trace(self.key_trace_path.as_deref(), "server=detach");
                 core.exit();
                 wire::send(&mut self.stream, "detach", None, wire::ResultBody::ok())?;
                 self.terminal.restore()?;
@@ -2759,11 +2790,13 @@ impl Client {
                 return Ok(true);
             }
             "refused" => {
+                key_trace(self.key_trace_path.as_deref(), "server=refused");
                 core.exit();
                 self.terminal.restore()?;
                 return Err("a1 is attached in another terminal".to_owned());
             }
             "error" => {
+                key_trace(self.key_trace_path.as_deref(), "server=error");
                 let (_, result): (_, wire::ResultBody) = wire::body(payload)?;
                 return Err(result
                     .message

@@ -676,11 +676,16 @@ setInterval(() => {}, 1000);
         credentials_root: credentials_root.clone(),
         pids: server_pids(&credentials_root),
     };
-    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    let trace_path = root.path().join("attach-close.trace");
+    let mut attach = AttachFixture::spawn_configured(&executable, &address, &profile, &data, &release,
+        &node_executable(), None, &[("A1_ATTACH_KEY_TRACE", trace_path.to_str().unwrap())]);
     assert!(attach.output_containing("fake-a1-ready", Duration::from_secs(30)));
     attach.write(b"\x1ba\x1bw\x1bw");
     attach.settle(Duration::from_millis(600));
     assert!(attach.child.try_wait().unwrap().is_none(), "an immediate pending close detached A1");
+    let trace = std::fs::read_to_string(&trace_path).unwrap();
+    assert!(trace.contains("effect=create") && trace.contains("effect=cancel-create"), "{trace}");
+    assert!(!trace.contains("exit="), "closing the pending Agent exited: {trace}");
     attach.write(b"still-here\n");
     assert!(attach.output_containing("echo:still-here", Duration::from_secs(8)),
         "old Agent did not survive immediate pending close: {}", attach.output_text());
@@ -721,6 +726,7 @@ setInterval(() => {}, 1000);
     assert!(!attach.output_text().contains("echo:cancelled-private"));
     attach.write(b"\x03\x03");
     attach.wait(Duration::from_secs(8));
+    assert!(std::fs::read_to_string(&trace_path).unwrap().contains("exit=input-detach"));
     cleanup.pids.extend(holder_pids(&credentials_root));
 }
 
