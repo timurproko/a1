@@ -48,6 +48,8 @@ import {
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
 import { onPiThemeChange, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import {
+  piShellTruncateToWidth,
+  piShellVisibleWidth,
   type PiShellClipboardContent,
   type PiShellComponentPort,
   type PiKeybindingsHost,
@@ -981,7 +983,9 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderFooter(width: number): readonly string[] {
-    return (this.#extensions.footer ?? this.#footer).render(width);
+    const footer = this.#extensions.footer ?? this.#footer;
+    if (!this.#customViewport) return footer.render(width);
+    return renderInsetFooter(footer, width);
   }
 
   #setToolsExpanded(expanded: boolean): void {
@@ -993,6 +997,20 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#document.invalidate("tools-expanded");
     this.invalidate();
   }
+}
+
+const FOOTER_GUTTER_RESET = "\u001b[0m";
+
+/** Bare A1 owns one terminal-cell gutter around every built-in or extension footer row. */
+function renderInsetFooter(footer: PiShellComponentPort, width: number): readonly string[] {
+  const outerWidth = Math.max(0, width);
+  const innerWidth = Math.max(0, outerWidth - 2);
+  return footer.render(innerWidth).map(row => {
+    if (outerWidth === 0) return "";
+    const content = piShellTruncateToWidth(row, innerWidth);
+    const rightPadding = Math.max(0, outerWidth - piShellVisibleWidth(content) - 1);
+    return ` ${content}${FOOTER_GUTTER_RESET}${" ".repeat(rightPadding)}`;
+  });
 }
 
 const SCROLLBAR_CELL_RESET = "\u001b[22;23;24;25;27;28;29;39;54;55m";
