@@ -6,6 +6,7 @@
 //! makes the answer incomplete, and the caller then keeps every release.
 
 use std::path::Path;
+use std::io::Read;
 
 use serde::{Deserialize, Serialize};
 
@@ -45,6 +46,7 @@ enum Liveness {
 }
 
 const MAX_UNCERTAIN: usize = 32;
+const MAX_NAMESPACES: usize = 4096;
 
 /// The installed release root of the loaded addon, `<root>/dist/native/<target>/terminal-host.node`.
 /// A development build outside that layout has none.
@@ -68,10 +70,11 @@ where
     let mut uncertain = Vec::new();
     match std::fs::read_dir(data_dir.join("tabs")) {
         Ok(entries) => {
-            for entry in entries {
+            for (index, entry) in entries.enumerate() {
+                if index >= MAX_NAMESPACES { uncertain.push("resident namespace limit reached".into()); break; }
                 match entry {
-                    Ok(entry) if entry.path().is_dir() => profiles.push(entry.path()),
-                    Ok(_) => {}
+                    Ok(entry) if safe_namespace(&entry.path()) => profiles.push(entry.path()),
+                    Ok(_) => uncertain.push("resident namespace ownership unverified".into()),
                     Err(_) => uncertain.push("tabs directory entry unreadable".to_owned()),
                 }
             }
@@ -82,7 +85,17 @@ where
     scan(&profiles, uncertain, inspect)
 }
 
-/// The holds of one profile's state directory only, as used when that profile's host is stopped.
+fn safe_namespace(path: &Path) -> bool {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else { return false; };
+    if !metadata.is_dir() || metadata.file_type().is_symlink() { return false; }
+    #[cfg(unix)] {
+        use std::os::unix::fs::MetadataExt;
+        if metadata.uid() != unsafe { libc::geteuid() } || metadata.mode() & 0o022 != 0 { return false; }
+    }
+    true
+}
+
+/// The holds of one profile/release directory only, as used when that host is stopped.
 pub fn collect_profile<F>(profile: &Path, inspect: F) -> ReleaseHolds
 where
     F: Fn(u32) -> Result<Option<ProcessIdentity>, String>,
@@ -95,6 +108,7 @@ where
     F: Fn(u32) -> Result<Option<ProcessIdentity>, String>,
 {
     let mut roots = std::collections::BTreeSet::new();
+    let mut remaining = 16 * 1024 * 1024;
     uncertain.truncate(MAX_UNCERTAIN);
     let mut note = |reason: String| {
         if uncertain.len() < MAX_UNCERTAIN {
@@ -113,7 +127,7 @@ where
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_default();
-        match std::fs::read(profile.join("server.json")) {
+        match read_record(&profile.join("server.json"), &mut remaining) {
             Ok(bytes) => match parse_owner_marker(&bytes).ok_or(()) {
                 Ok(marker) => match liveness(marker.pid, &marker.start_identity) {
                     Liveness::Live => match marker.release_root {
@@ -130,7 +144,7 @@ where
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             Err(_) => note(format!("{token}: owner marker unreadable")),
         }
-        match RegistryStore::read(&profile.join("registry.json")) {
+        match read_registry(&profile.join("registry.json"), &mut remaining) {
             Ok(None) => {}
             Ok(Some(document)) => {
                 for tab in document.tabs {
@@ -155,6 +169,26 @@ where
         }
     }
     finish(roots, uncertain)
+}
+
+fn read_record(path: &Path, remaining: &mut usize) -> std::io::Result<Vec<u8>> {
+    let metadata = std::fs::symlink_metadata(path)?;
+    if !metadata.is_file() || metadata.len() > *remaining as u64 {
+        return Err(std::io::Error::other("resident record boundary or size limit"));
+    }
+    let mut bytes = Vec::new();
+    std::fs::File::open(path)?.take(*remaining as u64 + 1).read_to_end(&mut bytes)?;
+    if bytes.len() > *remaining { return Err(std::io::Error::other("resident record budget exceeded")); }
+    *remaining -= bytes.len();
+    Ok(bytes)
+}
+
+fn read_registry(path: &Path, remaining: &mut usize) -> Result<Option<super::registry::RegistryDocument>, String> {
+    match read_record(path, remaining) {
+        Ok(bytes) => RegistryStore::parse(&bytes).map(Some),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 fn finish(roots: std::collections::BTreeSet<String>, uncertain: Vec<String>) -> ReleaseHolds {
@@ -259,6 +293,37 @@ mod tests {
         let result = holds(root.path());
         assert!(result.complete);
         assert!(result.release_roots.is_empty());
+    }
+
+    #[test]
+    fn flat_release_namespaces_and_legacy_records_are_collected_together() {
+        let root = tempfile::tempdir().unwrap();
+        for (namespace, release) in [("legacy", "/legacy"), ("release-a", "/a"), ("release-b", "/b")] {
+            profile(root.path(), namespace, Some(&format!("{{\"pid\":10,\"startIdentity\":\"s10\",\"releaseRoot\":\"{release}\"}}")), None);
+        }
+        let result = holds(root.path());
+        assert!(result.complete);
+        assert_eq!(result.release_roots, ["/a", "/b", "/legacy"]);
+    }
+
+    #[test]
+    fn a_stopped_release_is_not_held_by_another_live_namespace() {
+        let root = tempfile::tempdir().unwrap();
+        profile(root.path(), "release-a", Some(r#"{"pid":10,"startIdentity":"s10","releaseRoot":"/a"}"#), None);
+        profile(root.path(), "release-b", Some(r#"{"pid":99,"startIdentity":"gone","releaseRoot":"/b"}"#), None);
+        let result = holds(root.path());
+        assert!(result.complete);
+        assert_eq!(result.release_roots, ["/a"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn linked_namespace_is_not_followed_or_reported_absent() {
+        let root = tempfile::tempdir().unwrap();
+        let outside = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(root.path().join("tabs")).unwrap();
+        std::os::unix::fs::symlink(outside.path(), root.path().join("tabs/linked")).unwrap();
+        assert!(!holds(root.path()).complete);
     }
 
     #[test]

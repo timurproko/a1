@@ -136,6 +136,25 @@ Structured complete surfaces SHALL be negotiated independently on holder-to-serv
 - **WHEN** dimensions, cells, attributes, links or encoded state exceed negotiated bounds
 - **THEN** validation SHALL reject before unbounded allocation and preserve the last coherent view or an explicit bounded failure state
 
+### Requirement: Credentials survive server replacement without entering the registry
+Clients SHALL authenticate with a random owner-only token scoped to the canonical profile and immutable release. One random owner-only secret outside each namespace's registry SHALL derive that namespace's holder and bridge credentials from tab identity and incarnation. A replacement server SHALL reproduce credentials only from its matching namespace and SHALL adopt a matching-release holder only after credential, pid, native start identity and boot identity verification. Exact release admission SHALL precede optional capabilities. Endpoint, token, secret, lease and registry access SHALL remain owner-only. Unverifiable processes and different-release or legacy namespaces SHALL remain untouched.
+
+#### Scenario: Process identifier reuse
+- **WHEN** a recorded holder pid now belongs to an unrelated process
+- **THEN** the server SHALL NOT adopt or terminate it and SHALL treat the recorded holder as gone
+
+#### Scenario: Holder survives a server restart
+- **WHEN** a server exits while its holder survives and a later launch of that same release recovers it
+- **THEN** the matching server SHALL readmit the verified holder and restore its retained screen without adopting another cohort
+
+#### Scenario: Another local user connects
+- **WHEN** another operating-system user connects to the endpoint
+- **THEN** endpoint access control SHALL refuse that process
+
+#### Scenario: Equal tab identities in two releases
+- **WHEN** two release namespaces use the same tab identity and incarnation
+- **THEN** their independent secrets and exact release admission SHALL prevent cross-release holder or bridge authority
+
 ## ADDED Requirements
 
 ### Requirement: Release-isolated hosts preserve shared-session writer exclusion

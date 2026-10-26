@@ -100,8 +100,8 @@ if (standby) {
   writeFileSync(join(dataDir, "standby-ready"), "ready\\n");
   await waitForStandbyPromotion(process.stdin, join(dataDir, "standby-promote"));
 }
-const credentials = { tabId: process.env.A1_TAB_ID, token: process.env.A1_TAB_TOKEN, endpoint: process.env.A1_TAB_ENDPOINT };
-for (const name of ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT"]) delete process.env[name];
+const credentials = { tabId: process.env.A1_TAB_ID, token: process.env.A1_TAB_TOKEN, endpoint: process.env.A1_TAB_ENDPOINT, releaseId: process.env.A1_TAB_RELEASE_ID };
+for (const name of ["A1_TAB_ID", "A1_TAB_TOKEN", "A1_TAB_ENDPOINT", "A1_TAB_RELEASE_ID"]) delete process.env[name];
 const bridge = new TabBridgeClient({ credentials });
 if (!await bridge.start()) throw new Error("fixture bridge did not connect");
 bridge.onCommand(command => { if (command.type === "stop") { bridge.close(); process.exit(0); } });

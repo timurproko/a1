@@ -129,6 +129,26 @@ describe("resident tab launch contracts", () => {
     bridge.close();
   });
 
+  it.each(["other-release", undefined])("refuses a bridge welcome outside its pinned release: %s", async releaseId => {
+    class Transport extends EventEmitter {
+      sent: ResidentEnvelope[] = [];
+      write(bytes: Uint8Array) { this.sent.push(...new ResidentFrameDecoder().push(bytes)); return true; }
+      destroy() { this.emit("close"); }
+    }
+    const transport = new Transport();
+    const bridge = new TabBridgeClient({
+      credentials: { tabId: "tab-1", token: "dG9rZW4=", endpoint: "fixture", releaseId: "own-release" },
+      connect: () => transport,
+    });
+    const started = bridge.start();
+    transport.emit("connect");
+    expect(transport.sent[0]?.body["releaseId"]).toBe("own-release");
+    transport.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, releaseId, features: [] } }));
+    await expect(started).resolves.toBe(false);
+    expect(bridge.available).toBe(false);
+    bridge.close();
+  });
+
   it("replays a route command that arrives before composition subscribes", async () => {
     class Transport extends EventEmitter {
       write(_bytes: Uint8Array) { return true; }

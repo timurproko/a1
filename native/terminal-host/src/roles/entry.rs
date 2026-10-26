@@ -146,12 +146,14 @@ struct ResidentServerMetadata {
     detachment_mode: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     release_root: Option<String>,
+    #[serde(default)]
+    release_id: String,
 }
 
 fn recorded_server_endpoint(root: &std::path::Path) -> Option<String> {
     let bytes = fs::read(root.join("server.json")).ok()?;
     let marker: ResidentServerMetadata = serde_json::from_slice(&bytes).ok()?;
-    marker.verified.then_some(marker.endpoint)
+    (marker.verified && contracts::roles::scope::admit(&marker.release_id).is_ok()).then_some(marker.endpoint)
 }
 
 fn resident_server_command(arguments: &[String]) -> Result<(), String> {
@@ -165,13 +167,12 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
         .map_err(|error| format!("create resident data directory: {error}"))?;
     fs::create_dir_all(&runtime)
         .map_err(|error| format!("create resident runtime directory: {error}"))?;
-    let credentials_root = data
-        .join("tabs")
-        .join(contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?);
+    let token = contracts::roles::scope::token(&profile)?;
+    let credentials_root = data.join("tabs").join(&token);
     let credentials =
         contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
     let endpoint = resident_endpoint(&profile, &runtime)?;
-    let start_gate_path = runtime.join("server-start.lock");
+    let start_gate_path = runtime.join(format!("server-start-{token}.lock"));
     match fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -303,6 +304,7 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
         verified: true,
         detachment_mode: observation.mode,
         release_root: contracts::roles::release_holds::own_release_root(),
+        release_id: contracts::roles::scope::release_id()?,
     };
     let bytes = serde_json::to_vec_pretty(&metadata).map_err(|error| error.to_string())?;
     contracts::durable::replace(&credentials_root.join("server.json"), &bytes)
@@ -346,9 +348,7 @@ fn tabs_command(arguments: &[String]) -> Result<u8, String> {
     let data = required_role_path(arguments, "--data-dir")?;
     let runtime = required_role_path(arguments, "--runtime-dir")?;
     let outcome = tabs_outcome(command, tab_id.as_deref(), &profile, &data, &runtime)?;
-    let state_dir = data
-        .join("tabs")
-        .join(contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?);
+    let state_dir = data.join("tabs").join(contracts::roles::scope::token(&profile)?);
     let mut report = outcome.report;
     if let Some(object) = report.as_object_mut() {
         object.insert("schema".into(), "a1-tabs-maintenance-v1".into());
@@ -370,7 +370,7 @@ fn tabs_outcome(
     runtime: &std::path::Path,
 ) -> Result<TabsOutcome, String> {
     use contracts::roles::maintain::{self, ConnectError};
-    let token = contracts::endpoint::endpoint_token(profile).map_err(|error| error.to_string())?;
+    let token = contracts::roles::scope::token(profile)?;
     let root = data.join("tabs").join(token);
     let Some(credentials) =
         contracts::roles::credentials::ProfileCredentials::load_existing(&root)?
@@ -469,6 +469,7 @@ fn recorded_owner(root: &std::path::Path) -> OwnerState {
     let Ok(marker) = serde_json::from_slice::<ResidentServerMetadata>(&bytes) else {
         return OwnerState::Unverifiable(0);
     };
+    if contracts::roles::scope::admit(&marker.release_id).is_err() { return OwnerState::Unverifiable(marker.pid); }
     let expected = contracts::identity::ProcessIdentity {
         pid: marker.pid,
         start: marker.start_identity,
@@ -639,6 +640,7 @@ fn recover_recorded_server(root: &std::path::Path) -> Result<(), String> {
     };
     let record: ResidentServerMetadata = serde_json::from_slice(&bytes)
         .map_err(|_| "host-recovery-blocked: owner marker is unreadable".to_owned())?;
+    contracts::roles::scope::admit(&record.release_id)?;
     let expected = contracts::identity::ProcessIdentity {
         pid: record.pid,
         start: record.start_identity,
@@ -703,7 +705,7 @@ fn resident_probe_command(arguments: &[String]) -> Result<(), String> {
     let profile = required_role_path(arguments, "--profile")?;
     let data = required_role_path(arguments, "--data-dir")?;
     let runtime = required_role_path(arguments, "--runtime-dir")?;
-    let token = contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?;
+    let token = contracts::roles::scope::token(&profile)?;
     let credentials_root = data.join("tabs").join(token);
     let credentials =
         contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
@@ -775,7 +777,7 @@ fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
     let profile = required_role_path(arguments, "--profile")?;
     let data = required_role_path(arguments, "--data-dir")?;
     let runtime = required_role_path(arguments, "--runtime-dir")?;
-    let token = contracts::endpoint::endpoint_token(&profile).map_err(|error| error.to_string())?;
+    let token = contracts::roles::scope::token(&profile)?;
     let credentials_root = data.join("tabs").join(token);
     let credentials =
         contracts::roles::credentials::ProfileCredentials::load_or_create(&credentials_root)?;
@@ -792,18 +794,8 @@ fn resident_internal_command(arguments: &[String]) -> Result<(), String> {
         "hello",
         Some(1),
         contracts::roles::wire::RoleHello {
-            role: "internal".into(),
-            generation: contracts::protocol::GENERATION,
-            build: "a1-terminal-host".into(),
             features: vec!["internal-tab-management".into()],
-            token: credentials.client_token.to_vec(),
-            tab_id: None,
-            pid: Some(std::process::id()),
-            start_identity: None,
-            incarnation: 0,
-            child_pid: None,
-            child_start_identity: None,
-            highest_epoch: 0,
+            ..contracts::roles::wire::RoleHello::resident("internal", &credentials.client_token)?
         },
     )?;
     for expected in ["welcome", "attached"] {
@@ -957,7 +949,7 @@ fn resident_endpoint(
     if let Some(override_value) = env::var_os("A1_TABS_ENDPOINT") {
         return Ok(override_value.to_string_lossy().into_owned());
     }
-    let token = contracts::endpoint::endpoint_token(profile).map_err(|error| error.to_string())?;
+    let token = contracts::roles::scope::token(profile)?;
     if cfg!(windows) {
         Ok(format!(r"\\.\pipe\a1-tabs-{token}"))
     } else {

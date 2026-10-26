@@ -30,7 +30,9 @@ pub(super) fn start_permit_deadline() -> std::time::Duration {
 pub(super) fn acquire_start_permit(
     state: &Arc<Mutex<RuntimeState>>,
     tab_id: &str,
+    start: &mut AttachStart,
 ) -> Result<(StartPermit, std::time::Duration), String> {
+    crate::roles::scope::pin_launch(&mut start.release_root, &mut start.node_executable)?;
     let deadline = std::time::Instant::now() + start_permit_deadline();
     let _waiter = {
         let mut locked = lock_state(&state)?;

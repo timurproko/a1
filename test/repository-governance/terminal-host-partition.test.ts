@@ -18,6 +18,13 @@ describe("terminal-host role test partitions", () => {
       .toBeGreaterThan(probe.indexOf('resolve("scripts/release/verify-native-artifacts.mjs")'));
   });
 
+  it("keeps release-isolation integration in the main native lane when role partitions run elsewhere", async () => {
+    const probe = await readFile("scripts/development/run-terminal-host-probe.mjs", "utf8");
+    const start = probe.indexOf("if (partition?.skip)");
+    const branch = probe.slice(start, probe.indexOf("} else {", start));
+    expect(branch).toContain('"--test", "release_isolation", "--features", ROLE_TEST_FEATURES');
+  });
+
   it("reads every #[test] function of the role integration suite from its source", async () => {
     const names = roleTestNames(await readFile("native/terminal-host/tests/role_integration.rs", "utf8"));
     expect(names.length).toBeGreaterThanOrEqual(20);

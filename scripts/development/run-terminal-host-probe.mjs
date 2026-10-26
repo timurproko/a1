@@ -79,6 +79,8 @@ async function main() {
   if (partition?.skip) {
     // Rationale: the partition jobs own the role suite; this job keeps the unit tests and everything after them.
     run(cargo, ["test", "--manifest-path", manifest, "--lib", "--bins", "--features", ROLE_TEST_FEATURES], environment);
+    // Invariant: release-isolation integration stays in the main lane, outside the legacy role partitions.
+    run(cargo, ["test", "--manifest-path", manifest, "--test", "release_isolation", "--features", ROLE_TEST_FEATURES], environment);
   } else {
     run(cargo, ["test", "--manifest-path", manifest, "--features", ROLE_TEST_FEATURES], environment);
   }

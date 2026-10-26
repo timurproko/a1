@@ -242,6 +242,14 @@
       "semantics": "Resident tab identity consumed before extension loading"
     },
     {
+      "role": "tabReleaseId",
+      "key": "A1_TAB_RELEASE_ID",
+      "exposure": "integration",
+      "owner": "bin/tab-launch-context.js",
+      "evidence": "test/foundation/resident-tabs/tab-launch-context.test.ts",
+      "semantics": "Pinned immutable resident release identity consumed before extension loading"
+    },
+    {
       "role": "tabToken",
       "key": "A1_TAB_TOKEN",
       "exposure": "integration",

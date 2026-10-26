@@ -28,7 +28,7 @@ pub(super) fn start_holder(
     tab_id: String,
     mut start: AttachStart,
 ) -> Result<(), String> {
-    let (_permit, spacing) = acquire_start_permit(state, &tab_id)?;
+    let (_permit, spacing) = acquire_start_permit(state, &tab_id, &mut start)?;
     crate::fault_injection::delay("A1_TABS_FAULT_DELAY_TAB_START_MS");
     sanitize_tab_environment(&mut start.environment);
     if !spacing.is_zero() {

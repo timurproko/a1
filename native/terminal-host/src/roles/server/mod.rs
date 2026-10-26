@@ -740,14 +740,12 @@ fn bind_owned_endpoint(
     profile: &Path,
     config: &ServerLaunchConfig,
 ) -> Result<OwnerEndpoint, String> {
+    let _ = profile;
+    if config.endpoint.is_empty() { return Err("resident release endpoint is missing".into()); }
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     let mut stale_removed = false;
     loop {
-        let bound = if config.endpoint.is_empty() {
-            OwnerEndpoint::bind(profile, Path::new(&config.runtime_dir))
-        } else {
-            OwnerEndpoint::bind_name(config.endpoint.clone())
-        };
+        let bound = OwnerEndpoint::bind_name(config.endpoint.clone());
         let error = match bound {
             Ok(endpoint) => return Ok(endpoint),
             Err(error) => error,
@@ -775,7 +773,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     crate::fault_injection::install(&config.fault_environment);
     crate::fault_injection::validate_environment()?;
     let data = Path::new(&config.data_dir);
-    let token = crate::endpoint::endpoint_token(profile).map_err(|error| error.to_string())?;
+    let token = crate::roles::scope::token(profile)?;
     let root = data.join("tabs").join(token);
     std::fs::create_dir_all(&root)
         .map_err(|error| format!("create resident registry root: {error}"))?;
@@ -816,10 +814,12 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     let mut system = crate::identity::current_system().map_err(|error| error.to_string())?;
     system.os_session = config.os_session_identity.clone();
     let (existing, startup_notice) = RegistryStore::recover(&root.join("registry.json"))?;
+    if let Some(document) = &existing { crate::roles::scope::admit(&document.release_id)?; }
     let epoch = existing
         .as_ref()
         .map_or(1, |document| document.epoch.saturating_add(1));
     let mut registry = existing.unwrap_or_else(|| RegistryDocument {
+        release_id: crate::roles::scope::release_id().unwrap_or_default(),
         registry_revision: 0,
         epoch,
         boot_id: system.boot.clone(),
@@ -897,20 +897,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     commit_registry(registry_store.clone(), registry.clone())?;
     crate::fault_injection::crash_at("after-epoch");
     if !config.endpoint.is_empty() {
-        let owner = crate::identity::inspect_process(std::process::id())
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| "inspect server owner identity".to_owned())?;
-        let marker = serde_json::to_vec_pretty(&serde_json::json!({
-            "pid": owner.pid,
-            "startIdentity": owner.start,
-            "endpoint": &config.endpoint,
-            "generation": protocol::GENERATION,
-            "verified": true,
-            "detachmentMode": "resident-child",
-        }))
-        .map_err(|error| error.to_string())?;
-        crate::durable::replace(root.join("server.json"), &marker)
-            .map_err(|error| error.to_string())?;
+        crate::roles::scope::write_owner_marker(&root, &config.endpoint)?;
         crate::fault_injection::crash_at("after-marker");
     }
     std::fs::write(ready, format!("{}:server\n", std::process::id()))
@@ -1310,6 +1297,7 @@ pub fn probe(address: &str, token: &[u8]) -> Result<(), String> {
             role: "probe".into(),
             generation: protocol::GENERATION,
             build: "a1".into(),
+            release_id: crate::roles::scope::release_id()?,
             features: vec![],
             token: token.to_vec(),
             tab_id: None,
@@ -1328,6 +1316,7 @@ pub fn probe(address: &str, token: &[u8]) -> Result<(), String> {
         return Err(format!("resident probe refused: {}", kind.message_type));
     }
     let (_, welcome): (_, Welcome) = wire::body(&payload)?;
+    crate::roles::scope::admit(&welcome.release_id)?;
     if welcome.generation != protocol::GENERATION {
         return Err("resident server generation is incompatible".to_owned());
     }
@@ -1345,9 +1334,13 @@ fn read_peer_hello(
     if wire::kind(&payload)?.message_type != "hello" {
         return Err("first resident message is not hello".to_owned());
     }
-    let hello = wire::body(&payload)?;
+    let (request_id, hello): (_, RoleHello) = wire::body(&payload)?;
+    if let Err(reason) = crate::roles::scope::admit(&hello.release_id) {
+        wire::send(stream, "refused", request_id, wire::ResultBody::refused(reason.clone()))?;
+        return Err(reason);
+    }
     endpoint::clear_handshake_deadline(stream).map_err(|error| error.to_string())?;
-    Ok(hello)
+    Ok((request_id, hello))
 }
 
 fn serve_peer(
@@ -1646,6 +1639,7 @@ fn welcome(epoch: u64) -> Welcome {
     Welcome {
         generation: protocol::GENERATION,
         build: "a1-terminal-host".into(),
+        release_id: crate::roles::scope::release_id().unwrap_or_default(),
         features: vec![
             "resident-multi-tab".into(),
             "slow-client-isolation".into(),
@@ -1936,6 +1930,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs: vec![record("tab", 1, "running", None)],
         };
         let before = crate::roles::counters::snapshot(1).unresponsive_transitions;
@@ -1993,6 +1988,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs: vec![record("agent-1", 1, "running", None), changelog],
         };
         insert_new_tab(&mut registry, record("agent-2", 2, "running", None));
@@ -2029,6 +2025,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs: vec![first, settings],
         };
         let names = |registry: &RegistryDocument| {
@@ -2077,6 +2074,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs: vec![
                 record("closed-0", 0, "stopped", None),
                 record("agent-1", 1, "running", None),
@@ -2141,6 +2139,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs: vec![record("agent-1", 1, "running", None), settings, stopped],
         };
         insert_new_tab(&mut registry, record("agent-2", 4, "running", None));
@@ -2170,6 +2169,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs,
         };
         let original = registry.clone();
@@ -2256,6 +2256,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: String::new(),
+            release_id: String::new(),
             tabs: Vec::new(),
         };
         bump_registry_revision(&mut document);
