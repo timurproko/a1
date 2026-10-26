@@ -5,4 +5,4 @@
 
 ## 2. Delivery
 
-- [ ] 2.1 Complete typecheck, the touched test, and strict change validation; reconcile and push current develop before the final implementation marker.
+- [x] 2.1 Complete typecheck, the touched test, and strict change validation; reconcile and push current develop before the final implementation marker.
