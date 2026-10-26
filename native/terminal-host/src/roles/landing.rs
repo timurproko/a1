@@ -5,9 +5,9 @@
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-/// Invariant: the middle row sits where an Agent's editor draws its caret, but the landing
-/// wordmark's left stroke stays inside the `a`, not in a protruding extra cell.
-const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", " █▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
+/// Invariant: the `a` has the reference's lower-half left descender, never a stray full block;
+/// the three-row wordmark still occupies the same nine columns above the Agent editor's caret.
+const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "▄█▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
 
 /// The owned dark theme's `dim` foreground, which an Agent footer draws its cwd and status in;
 /// `landing_accents.json` pins it with the accents.
@@ -239,8 +239,8 @@ fn wordmark_row(line: &str, accent: &str, columns: usize) -> String {
 }
 
 /// The landing body, addressed as rows below a top strip. Every row is cleared; the launch cwd
-/// sits on the second-to-last body row, flush left, with `a1 v<version>` below it and the
-/// wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
+/// sits on the second-to-last body row after the footer's one-cell gutter, with the version
+/// below it and the wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
 /// folder stays in place when a tab opens or closes, whichever edge the strip is on.
 pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     render_body(input, None, false)
@@ -502,9 +502,29 @@ mod tests {
             "the second-to-last body row matches the Agent footer's one-cell gutter"
         );
         assert_eq!(grid[22], " v0.2.7");
-        // Invariant: the left stroke fills an existing cell, never the protruding column zero.
-        assert!(grid[19].starts_with(" █▀▀█"), "the a has an aligned left stroke");
+        // Invariant: the reference's lower-half descender never becomes a full-height block.
+        assert!(grid[19].starts_with("▄█▀▀█"), "the a has a short left descender");
         assert_eq!(WORDMARK.iter().map(|row| row.chars().count()).collect::<Vec<_>>(), [9, 9, 9]);
+    }
+
+    #[test]
+    fn reference_logo_has_only_a_lower_half_left_descender_at_full_and_clipped_widths() {
+        let halves = WORDMARK.iter().flat_map(|line| {
+            let painted = |upper: bool| line.chars().map(|ch| match (upper, ch) {
+                (true, '▀' | '█') | (false, '▄' | '█') => '█',
+                _ => ' ',
+            }).collect::<String>();
+            [painted(true), painted(false)]
+        }).collect::<Vec<_>>();
+        assert_eq!(halves, [
+            " ███   █ ", "    █ ██ ", " ████  █ ", "██  █  █ ", " ████ ███", "         ",
+        ]);
+        let clipped = cells(&render(&input(5, 23)), 5, 23);
+        assert_eq!(clipped[18], " ▀▀▀▄");
+        assert_eq!(clipped[19], "▄█▀▀█");
+        assert_eq!(clipped[20], " ▀▀▀▀");
+        let pending = cells(&render_agent_preview(&input(80, 23), None), 80, 23);
+        assert_eq!(pending[19], "", "the Agent's visual caret is not a landing logo");
     }
 
     #[test]
