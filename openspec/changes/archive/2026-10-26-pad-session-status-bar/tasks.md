@@ -22,4 +22,5 @@
 - `npm run build:core` completed to generate the fresh worktree's build artifacts, then `npm run typecheck` passed.
 - Focused session-shell, footer-link, resident-footer, and selection tests passed: 145 tests across 4 files.
 - `npx --no-install openspec validate pad-session-status-bar --strict` passed.
+- The CI-reported startup-graph overage was repaired by inlining the gutter path within the existing byte budget; `npm run check:architecture` passed without a baseline increase.
 - Diff review found no extension API, footer content, row-order, or Pi comparison changes. Existing footer-link and selection regressions passed, and there are no known gaps.

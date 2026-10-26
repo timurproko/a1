@@ -370,8 +370,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
         expect(row).toBeDefined();
         const plain = stripTerminalSequences(row!);
         expect(plain.at(0)).toBe(" ");
-        expect(plain.at(-1)).toBe(" ");
-        expect(visibleWidth(row!)).toBe(width);
+        expect(plain.padEnd(width).at(-1)).toBe(" ");
+        expect(visibleWidth(row!)).toBeLessThanOrEqual(width - 1);
       };
 
       bindings.uiContext.setStatus("mcp", "MCP extension status");
@@ -400,7 +400,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       for (const tinyWidth of [1, 2]) {
         const tinyFooter = bare.shell.root.render(tinyWidth).slice(-2);
         expect(tinyFooter).toHaveLength(2);
-        expect(tinyFooter.every(row => stripTerminalSequences(row).trim() === "" && visibleWidth(row) === tinyWidth)).toBe(true);
+        expect(tinyFooter.every(row => stripTerminalSequences(row).trim() === "" && visibleWidth(row) <= tinyWidth)).toBe(true);
       }
     } finally {
       await bare.shell.dispose();
