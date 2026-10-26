@@ -1951,6 +1951,17 @@ mod tests {
     }
 
     #[test]
+    fn stopping_agent_cannot_detach_its_former_controller() {
+        let running = record("older", 1, "running", None);
+        let stopping = record("closing", 2, "stopped", None);
+        let tabs = vec![running, stopping];
+        assert!(bridge::allows_controller_request(&tabs, "older"));
+        assert!(!bridge::allows_controller_request(&tabs, "closing"),
+            "a stopped child's bridge can request detach before its controller switches tabs");
+        assert!(!bridge::allows_controller_request(&tabs, "missing"));
+    }
+
+    #[test]
     fn default_attach_selects_the_first_ordered_running_agent() {
         let mut settings = record("settings-1", 1, "running", None);
         settings.kind = "settings".into();

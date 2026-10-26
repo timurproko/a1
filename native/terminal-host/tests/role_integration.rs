@@ -2476,6 +2476,93 @@ fn host_stop_killed_at_each_step_leaves_no_orphan_or_duplicate_host() {
 }
 
 #[test]
+fn stopped_agent_bridge_cannot_detach_a_client_still_viewing_it() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    std::fs::write(directory(&release, "bin").join("ui.js"),
+        "process.stdout.write('ready\\r\\n'); setInterval(() => {}, 1000);").unwrap();
+    let node = node_executable();
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
+    let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
+    let mut created = Vec::new();
+    for _ in 0..2 {
+        let result = Command::new(&executable)
+            .args(["internal", "tab-create", "--profile", text(&profile), "--data-dir", text(&data),
+                "--runtime-dir", text(&runtime), "--cwd", text(&release), "--release-root", text(&release),
+                "--node-executable", &node])
+            .env("A1_TABS_ENDPOINT", &address).current_dir(&release).output().expect("create Agent");
+        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+        created.push(serde_json::from_slice::<serde_json::Value>(&result.stdout).unwrap()["tabId"]
+            .as_str().unwrap().to_owned());
+    }
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    let credentials = terminal_host_contracts::roles::credentials::ProfileCredentials::load_existing(&credentials_root)
+        .unwrap().unwrap();
+    let mut attach = endpoint::connect(&address).unwrap();
+    let hello = terminal_host_contracts::roles::wire::RoleHello {
+        role: "attach".into(), generation: terminal_host_contracts::protocol::GENERATION,
+        build: "fixture".into(), release_id: terminal_host_contracts::roles::scope::fixture_release_id(&executable).unwrap(),
+        features: Vec::new(), token: credentials.client_token.to_vec(), tab_id: Some(created[1].clone()),
+        pid: Some(std::process::id()), start_identity: None, incarnation: 0, child_pid: None,
+        child_start_identity: None, highest_epoch: 0,
+    };
+    terminal_host_contracts::roles::wire::send(&mut attach, "hello", Some(1), hello).unwrap();
+    let wire = terminal_host_contracts::roles::wire::read_payload;
+    assert_eq!(terminal_host_contracts::roles::wire::kind(&wire(&mut attach).unwrap().unwrap()).unwrap().message_type, "welcome");
+    assert_eq!(terminal_host_contracts::roles::wire::kind(&wire(&mut attach).unwrap().unwrap()).unwrap().message_type, "attached");
+    let incarnation = RegistryStore::read(&credentials_root.join("registry.json")).unwrap().unwrap()
+        .tabs.iter().find(|tab| tab.tab_id == created[1]).unwrap().incarnation;
+    let mut bridge = endpoint::connect(&address).unwrap();
+    terminal_host_contracts::roles::wire::send(&mut bridge, "hello", Some(2),
+        terminal_host_contracts::roles::wire::RoleHello {
+            role: "bridge".into(), generation: 1, build: "fixture".into(),
+            release_id: terminal_host_contracts::roles::scope::fixture_release_id(&executable).unwrap(),
+            features: vec!["controller-boundary".into()],
+            token: credentials.derive("bridge", &created[1], incarnation).to_vec(),
+            tab_id: Some(created[1].clone()), pid: Some(std::process::id()), start_identity: None,
+            incarnation: 0, child_pid: None, child_start_identity: None, highest_epoch: 0,
+        }).unwrap();
+    assert_eq!(terminal_host_contracts::roles::wire::kind(&wire(&mut bridge).unwrap().unwrap()).unwrap().message_type, "welcome");
+    let attachment = wire(&mut bridge).unwrap().unwrap();
+    assert_eq!(terminal_host_contracts::roles::wire::kind(&attachment).unwrap().message_type, "attachment");
+    let (_, controller): (_, terminal_host_contracts::protocol::BridgeAttachment) =
+        terminal_host_contracts::roles::wire::body(&attachment).unwrap();
+    terminal_host_contracts::roles::wire::send(&mut attach, "tab.close", Some(3),
+        serde_json::json!({ "tabId": created[1] })).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        assert!(Instant::now() < deadline, "tab close did not complete");
+        let frame = wire(&mut attach).unwrap().unwrap();
+        if terminal_host_contracts::roles::wire::kind(&frame).unwrap().message_type == "tab.closed" { break; }
+    }
+    // Invariant: this raw attach deliberately does not switch tabs on close. A late bridge
+    // request remains bound to its old controller and view; without the stopped-tab guard A1 exits.
+    terminal_host_contracts::roles::wire::send(&mut bridge, "bridge.request", Some(4),
+        serde_json::json!({ "action": "detach", "clientId": controller.client_id,
+            "controllerRevision": controller.controller_revision })).unwrap();
+    let result = loop {
+        let frame = wire(&mut bridge).unwrap().unwrap();
+        if terminal_host_contracts::roles::wire::kind(&frame).unwrap().message_type == "bridge.result" { break frame; }
+    };
+    let (_, decision): (_, terminal_host_contracts::roles::wire::ResultBody) =
+        terminal_host_contracts::roles::wire::body(&result).unwrap();
+    assert!(!decision.accepted, "a closing Agent detached the resident client");
+    let registry = RegistryStore::read(&credentials_root.join("registry.json")).unwrap().unwrap();
+    assert_eq!(registry.tabs.iter().filter(|tab| tab.kind == "agent" && tab.desired == "running").count(), 1);
+    drop(bridge);
+    drop(attach);
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
 fn a_bridge_status_survives_the_surfaces_of_the_holder_it_reports_under() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");

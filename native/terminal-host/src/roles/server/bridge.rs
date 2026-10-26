@@ -341,8 +341,9 @@ pub(super) fn serve_bridge(
                 offer_to_requesting_controller(&state, &tab_id, &request, message)?
             } else if request.action == "close" {
                 let authorized = state.lock().ok().is_some_and(|locked| {
-                    locked.attachment.current(&tab_id)
-                        == Some((request.client_id.as_str(), request.controller_revision))
+                    allows_controller_request(&locked.registry.tabs, &tab_id)
+                        && locked.attachment.current(&tab_id)
+                            == Some((request.client_id.as_str(), request.controller_revision))
                 });
                 if authorized {
                     close_tab(&state, &tab_id, kind.request_id)?
@@ -351,8 +352,9 @@ pub(super) fn serve_bridge(
                 }
             } else if request.action == "restart" {
                 request_child_restart(&state, &tab_id, |locked| {
-                    locked.attachment.current(&tab_id)
-                        == Some((request.client_id.as_str(), request.controller_revision))
+                    allows_controller_request(&locked.registry.tabs, &tab_id)
+                        && locked.attachment.current(&tab_id)
+                            == Some((request.client_id.as_str(), request.controller_revision))
                 })?
             } else {
                 false
@@ -478,8 +480,14 @@ fn controller_message(action: &str) -> Option<&'static str> {
     }
 }
 
+/// A child being closed can still hold its old controller until the client sees the registry
+/// update. Its late quit/stop callback must not turn that tab close into an A1 detach.
+pub(super) fn allows_controller_request(tabs: &[TabRecord], tab_id: &str) -> bool {
+    tabs.iter().any(|tab| tab.tab_id == tab_id && tab.desired == "running")
+}
+
 /// Sends `message` to the client that controls the tab and views it, when the request came from
-/// that controller; returns whether it did.
+/// that controller and the tab is still wanted; returns whether it did.
 fn offer_to_requesting_controller(
     state: &Arc<Mutex<RuntimeState>>,
     tab_id: &str,
@@ -487,8 +495,9 @@ fn offer_to_requesting_controller(
     message: &str,
 ) -> Result<bool, String> {
     let locked = lock_state(state)?;
-    if locked.attachment.current(tab_id)
-        != Some((request.client_id.as_str(), request.controller_revision))
+    if !allows_controller_request(&locked.registry.tabs, tab_id)
+        || locked.attachment.current(tab_id)
+            != Some((request.client_id.as_str(), request.controller_revision))
     {
         return Ok(false);
     }
