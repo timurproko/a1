@@ -1,6 +1,6 @@
 import { VERSION } from "@earendil-works/pi-coding-agent";
 import { type AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
-import { stripTerminalSequences } from "@earendil-works/pi-tui";
+import { stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it, vi } from "vitest";
 // Performance: this integration file exercises real cold emitted entries; dedicated tests retain source-loader coverage.
 vi.mock("../../../src/app/session-shell/paste-executor.js", async importOriginal => {
@@ -353,6 +353,80 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     bindings.uiContext.setStatus("mcp", undefined);
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("MCP: 1 server enabled");
     await shell.dispose();
+  });
+
+  it("insets every bare-A1 footer row, including custom extension lines", async () => {
+    const width = 40;
+    const bare = await fixture([], [], true);
+    try {
+      await vi.waitFor(() => expect(bare.engine.session.calls).toContain("bindExtensions"));
+      const bindings = bare.engine.session.extensionBindings as {
+        uiContext: {
+          setStatus(key: string, text: string | undefined): void;
+          setFooter(factory: (() => { render(width: number): string[]; invalidate(): void }) | undefined): void;
+        };
+      };
+      const expectGutters = (row: string | undefined) => {
+        expect(row).toBeDefined();
+        const plain = stripTerminalSequences(row!);
+        expect(plain.at(0)).toBe(" ");
+        expect(plain.padEnd(width).at(-1)).toBe(" ");
+        expect(visibleWidth(row!)).toBeLessThanOrEqual(width - 1);
+      };
+
+      bindings.uiContext.setStatus("mcp", "MCP extension status");
+      const builtIn = bare.shell.root.render(width);
+      expectGutters(builtIn.find(row => stripTerminalSequences(row).includes("D:/work")));
+      expectGutters(builtIn.find(row => stripTerminalSequences(row).includes("gpt-5")));
+      expectGutters(builtIn.find(row => stripTerminalSequences(row).includes("MCP extension status")));
+
+      const requestedWidths: number[] = [];
+      bindings.uiContext.setFooter(() => ({
+        render: requestedWidth => {
+          requestedWidths.push(requestedWidth);
+          return [
+            `custom footer ${"x".repeat(80)}`,
+            `\u001b[31mstyled footer ${"y".repeat(80)}`,
+          ];
+        },
+        invalidate() {},
+      }));
+      requestedWidths.length = 0;
+      const custom = bare.shell.root.render(width);
+      expect(requestedWidths).toContain(width - 2);
+      expectGutters(custom.find(row => stripTerminalSequences(row).includes("custom footer")));
+      expectGutters(custom.find(row => stripTerminalSequences(row).includes("styled footer")));
+
+      for (const tinyWidth of [1, 2]) {
+        const tinyFooter = bare.shell.root.render(tinyWidth).slice(-2);
+        expect(tinyFooter).toHaveLength(2);
+        expect(tinyFooter.every(row => stripTerminalSequences(row).trim() === "" && visibleWidth(row) <= tinyWidth)).toBe(true);
+      }
+    } finally {
+      await bare.shell.dispose();
+    }
+
+    const comparison = await fixture();
+    try {
+      await vi.waitFor(() => expect(comparison.engine.session.calls).toContain("bindExtensions"));
+      const requestedWidths: number[] = [];
+      const bindings = comparison.engine.session.extensionBindings as {
+        uiContext: { setFooter(factory: (() => { render(width: number): string[]; invalidate(): void }) | undefined): void };
+      };
+      bindings.uiContext.setFooter(() => ({
+        render: requestedWidth => {
+          requestedWidths.push(requestedWidth);
+          return ["comparison footer"];
+        },
+        invalidate() {},
+      }));
+      requestedWidths.length = 0;
+      const row = comparison.shell.root.render(width).find(candidate => stripTerminalSequences(candidate).includes("comparison footer"));
+      expect(requestedWidths).toContain(width);
+      expect(stripTerminalSequences(row ?? "")).toBe("comparison footer");
+    } finally {
+      await comparison.shell.dispose();
+    }
   });
 
   it("rebinds extension UI and clears stale command presentation before reload status", async () => {
