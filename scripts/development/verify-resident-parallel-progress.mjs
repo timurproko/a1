@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import process from "node:process";
 import { createHash, randomUUID } from "node:crypto";
-import { assertMatchingInputBaseline, assertOptimizedFixture, fixtureRoleEntrySource, measureRealInputResponsiveness, submitFixturePrompt } from "./resident-input-responsiveness.mjs";
+import { assertMatchingInputBaseline, assertOptimizedFixture, createResidentFixtureRoot, writeFixtureRoleEntry, measureRealInputResponsiveness, submitFixturePrompt } from "./resident-input-responsiveness.mjs";
 import {
   evaluateProgressScenario,
   evaluateStoppedStageControl,
@@ -17,7 +16,7 @@ import {
 
 const productIdentity = JSON.parse(await readFile(new URL("../../src/product-identity.json", import.meta.url), "utf8"));
 const tabsEndpointEnvironment = productIdentity.environment.tabsEndpoint;
-let hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
+let hostEntry;
 const firstOrders = permutations([0, 1, 2]);
 const scenarioTimeoutMs = 20_000;
 const childStartupTimeoutMs = 60_000;
@@ -949,7 +948,7 @@ async function collect(host) {
   const nativeProfile = assertOptimizedFixture(nativeAddon);
   await prepareNodePty();
   const { spawn } = await import("node-pty");
-  const root = await mkdtemp(join(tmpdir(), "a1-resident-parallel-"));
+  const root = await createResidentFixtureRoot("a1-resident-parallel-");
   const runId = randomUUID();
   const context = {
     root, nativeAddon,
@@ -968,8 +967,7 @@ async function collect(host) {
   // Provenance: WMI creation does not inherit the initiating shell's addon override. Pin the
   // fixture addon in the fixed role entry itself so every detached holder/server uses the exact
   // measured artifact, not the release addon beside dist's normal environment-gated entry.
-  hostEntry = join(root, "fixture-role-entry.cjs");
-  await writeFile(hostEntry, fixtureRoleEntrySource(resolve(host)));
+  hostEntry = await writeFixtureRoleEntry(root, host);
   const provider = new LoopbackProvider();
   const baseUrl = await provider.start();
   context.environment = {

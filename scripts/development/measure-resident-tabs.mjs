@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
+import { createResidentFixtureRoot, writeFixtureRoleEntry } from "./resident-input-responsiveness.mjs";
 
 const productIdentity = JSON.parse(await readFile(new URL("../../src/product-identity.json", import.meta.url), "utf8"));
 const tabsEndpointEnvironment = productIdentity.environment.tabsEndpoint;
-const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
+let hostEntry;
 
 function hostEnvironment(host, environment = process.env) {
   return { ...environment, A1_DEV_INSTANCE_ID: environment.A1_DEV_INSTANCE_ID ?? "terminal-host-validation", A1_TERMINAL_HOST_PATH: resolve(host) };
@@ -196,7 +196,8 @@ async function collectMeasurements(host) {
   // which makes every PTY launch fail in posix_spawnp before the host can start.
   await prepareNodePty();
   const { spawn } = await import("node-pty");
-  const root = await mkdtemp(join(tmpdir(), "a1-resident-measure-"));
+  const root = await createResidentFixtureRoot("a1-resident-measure-");
+  hostEntry = await writeFixtureRoleEntry(root, host);
   const context = {
     root,
     profile: join(root, "profile"), data: join(root, "data"), runtime: join(root, "runtime"),
@@ -268,11 +269,15 @@ async function collectMeasurements(host) {
       outputToPresentMs: milliseconds(value.receivedNs - value.processedNs),
     }));
     samples[0] = { ...samples[0], ...sample };
-    return { samples, context, tabIds: JSON.parse(internal(host, context, "tab-list")).tabs.map(tab => tab.tabId) };
+    return { samples };
   } finally {
     for (const attachment of attachments) {
       try { attachment.terminal.kill(); } catch {}
     }
+    // Invariant: warm-up and failed samples must not leave resident work behind for the next measured run.
+    const stopped = JSON.parse(run(host, ["tabs", "host-stop", "--profile", context.profile, "--data-dir", context.data, "--runtime-dir", context.runtime], { env: context.environment }));
+    if (!["stopped", "none"].includes(stopped.host)) throw new Error("measurement fixture host did not stop");
+    await rm(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
   }
 }
 
@@ -289,11 +294,7 @@ async function main() {
   const host = argument("--host") ?? process.env.A1_TERMINAL_HOST_PATH;
   let samples;
   if (host) {
-    const collected = await collectMeasurements(resolve(host));
-    samples = collected.samples;
-    for (const tabId of collected.tabIds) {
-      try { internal(resolve(host), collected.context, "tab-close", ["--tab", tabId]); } catch {}
-    }
+    samples = (await collectMeasurements(resolve(host))).samples;
   } else {
     const samplesFile = argument("--samples");
     if (!samplesFile) throw new Error("usage: measure-resident-tabs.mjs --host <terminal-host.node> --direct-startup-budget-ms N");
