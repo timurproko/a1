@@ -44,6 +44,15 @@
 - [x] 8.1 Derive the provisional footer from the actual Agent presentation where available rather than a parallel handcrafted layout; retain the current session metadata and source-defined left/right gutters without inheriting old usage.
 - [x] 8.2 Cover cached and cold-start footers, narrow geometry, branch/PR metadata, and the exact transition into the committed Agent frame in focused native/owned-UI tests.
 
+## 9. Fill the real Agent chip on handoff
+
+- [ ] 9.1 Start a short left-to-right background fill from the pending accent shade to the selected Agent accent on the first complete-frame handoff; keep the body/editor handoff immediate and preserve chip hit widths.
+- [ ] 9.2 Cover all accent schemes, clipping/overflow, palette fallback, bounded completion, and create/close/reopen timing with focused strip and attach tests.
+
+## 10. Clean landing wordmark
+
+- [ ] 10.1 Remove the stray left full block from the middle row of the empty landing's `a` without moving the wordmark, footer, or visual Agent caret; update the landing regression.
+
 ## Evidence
 
 - Prior candidate `d63716ac` passed `npm run build:core`, `npm run typecheck`, focused native machine/attach/landing suites, and the targeted `resident-fixtures,fault-injection` startup-slot role test. Those results describe the superseded text-bearing, duplicate-chip presentation, not the refined candidate.
@@ -63,4 +72,5 @@
 - The maintainer's previous candidate still exited after a fast add/close. A burst of two close-key events reproduced the missing behavior: the first cancelled the pending Agent and the repeat closed its older Agent. The attach now extends a 500 ms quiet interval while repeated close keys arrive, preserving the old Agent; a deliberate later close remains possible. The queued-slot role regression now sends `Alt+A`, two immediate `Alt+W` events, and verifies the old Agent still echoes; landing close/reopen and already-registered holder shutdown also pass. This directly covers the repeated-key path, while the exact interactive gesture in the report remains unconfirmed.
 - The preview now replays the last complete Agent's actual styled footer rows, including owned gutters, branch/PR hyperlink, and right-aligned model; it resets only the usage cells. No prior complete frame exists on a cold start, so the neutral fallback uses the same one-cell footer gutters and leaves unavailable metadata absent. Native footer tests cover cached actual rows, zeroed usage, malformed or resized fallback, and narrow geometry; the owned shell's 34 tests validate its footer layout. Focused native attach (50) and landing (8) suites, three cancellation role regressions, typecheck, strict OpenSpec validation, architecture/documentation governance and `git diff --check` pass locally.
 - Interactive trace obtained (no further maintainer retest requested): two ordinary Alt+A/Alt+W cycles targeted new Agents correctly; the second produced `effect=close`, `effect=cancel-view`, `server=detach`, `exit=server-detach`. The server formerly accepted a closing child's controller-bound detach while its tab was still viewed. The native regression keeps that view bound after close, sends the late bridge detach, and fails before the running-desire guard but passes after it; it asserts an older Agent stays running. The bridge guard applies to detach, configure-plus, close and restart. Queued-start, landing, and registered-holder role regressions pass. The isolated real-UI fixture failed Pi startup before the first frame and was removed; it was not evidence for this close path. No further user manual validation is required; CI remains authoritative.
+- Refinement approved after manual close validation: animate only the chip background as the real Agent arrives; do not wait to draw its shell or delay/alter close. The screenshot's left full block in the empty landing `a` is a separate wordmark correction. Both remain unchecked until code and focused tests are complete.
 - Known gaps: an uncached cold start cannot show the actual model/context before that Agent reports it; the neutral fallback occupies the full footer row. Native tests use the manifest-verified terminal-vt library because Zig is unavailable.

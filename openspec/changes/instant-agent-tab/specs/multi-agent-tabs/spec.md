@@ -50,10 +50,11 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - **THEN** only the selected pending Agent chip SHALL appear beside the previously existing tabs
 - **AND** the real Agent chip SHALL replace it, never appear beside it or blink out later
 
-#### Scenario: Accent-aware pending chip settles on the real Agent
+#### Scenario: Accent-aware pending chip fills into the real Agent
 - **WHEN** the user creates an Agent with any supported accent scheme, including the default purple
-- **THEN** its selected provisional chip SHALL use a lighter shade derived from that accent, and the real chip SHALL replace it in the configured accent's normal selected shade on the first complete frame
-- **AND** no scheme SHALL fall back to blue or lose its accent during the handoff
+- **THEN** its selected provisional chip SHALL use a lighter shade derived from that accent, and the real chip and body SHALL replace the preview together on the first complete frame
+- **AND** the real chip's background SHALL fill from left to right from that initializing shade into its configured normal selected shade without moving its title or hit target, then settle fully to the selected shade
+- **AND** the child body SHALL NOT wait for this chip-only animation, no scheme SHALL fall back to blue, and closing or switching during the fill SHALL NOT leave a stale active chip
 
 #### Scenario: Close before Agent startup completes
 - **WHEN** the user invokes the close shortcut or closes the provisional chip from its context menu before the Agent's first frame
@@ -94,6 +95,11 @@ While the attach client has no tab to show and no view request pending, it SHALL
 #### Scenario: The wordmark hands over to the Agent caret
 - **WHEN** the user starts an Agent from the landing
 - **THEN** no wipe or fade SHALL run: the complete idle editor/footer SHALL replace the landing, then the Agent's first drawn frame SHALL replace it at once
+
+#### Scenario: The landing wordmark has a clean a
+- **WHEN** the landing is visible with half-block glyphs supported
+- **THEN** its accent-colored `a1` wordmark SHALL NOT render a stray full block to the left of the `a`'s middle row
+- **AND** its placement and the footer rows SHALL remain unchanged
 
 #### Scenario: The landing follows the background setting
 - **WHEN** `backgroundStyle` is `accent` or `dark` and the landing is shown
