@@ -24,7 +24,7 @@ The maintainer integration decision accepts these scenarios:
     "Self-update and standalone install meters show the same selected color, with a blue fallback and unchanged neutral progress text.",
     "Changing Accent color persists across later launches and leaves comparison mode unchanged."
   ],
-  "archiveDigest": "2a7a10cabcf315b252b53e9b2960238718cbda98619867b7454b9a380972e74c",
+  "archiveDigest": "b03ade64b558ee8a6d783c7dd61214010dc29b7a0b4d740c5de4369f85e7b8de",
   "specDigest": "51fd734ba83e504563658d90e5c7c336195745c6b79e5c40089ac80cd6eb326f",
   "tasksDigest": "a9fbe545100ba7d5bfcbcea910ba343d116e1c4906e11bbb0398af660aa27d8d",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
