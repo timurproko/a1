@@ -185,7 +185,7 @@
       "lines": 325
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 286
+      "lines": 280
     },
     "src/composition/resident-tab-bridge.ts::bindResidentTabBridge": {
       "lines": 123

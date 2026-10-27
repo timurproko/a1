@@ -82,7 +82,15 @@ The changelog tab reads the packaged release-notes catalog and renders it as the
 
 ### 6. Measure the saving
 
-Before and after the change, the utility tab's child resident set size and its time to first paint are measured on the same machine with `scripts/development/measure-resident-tabs.mjs` or an equivalent probe. The numbers are recorded in this design as implementation evidence.
+On 2026-10-27, an equivalent composition probe ran five isolated Node 24.22.0 processes per path on Windows x64. Each process used the same fresh local profile, cwd, 100×30 recording terminal, Settings route, built A1 bytes, and `--expose-gc`; the full path created the normal owned composition and Pi engine/session before opening Settings, while the slim path created the utility composition. The median result was:
+
+| Settings child path | Resident set size | Time to Settings first paint |
+|---|---:|---:|
+| Full Agent composition | 174.6 MiB | 614.3 ms |
+| Slim utility composition | 143.0 MiB | 459.7 ms |
+| Difference | -31.6 MiB (-18.1%) | -154.6 ms (-25.2%) |
+
+The absolute values include the development build, Node runtime, and recording terminal and are not release budgets. The paired result isolates the composition change on one machine; the native holder and attach client were outside both samples.
 
 ## Risks
 

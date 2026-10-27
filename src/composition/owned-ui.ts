@@ -1,10 +1,9 @@
-import { unwatchFile, watchFile } from "node:fs";
 import { SuggestionDiagnosticCapture } from "../features/prompt-suggestions/diagnostics.js";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
 import { PromptHistoryService } from "../features/prompt-history/service.js";
 import { PromptImageSidecar } from "../features/prompt-history/image-sidecar.js";
 import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
-import { resolveLaunchProfilePaths, resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
+import { resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
 import type { AvailableRelease, StartupReleaseCheckOptions, StartupUpdateMode } from "../foundation/release/latest-release.js";
 import { MAX_CLIPBOARD_TEXT_BYTES } from "../contracts/owned-ui/index.js";
@@ -25,7 +24,7 @@ import {
   sessionTerminalHostOptions,
   type OwnedUiSessionShellOptions,
 } from "../app/session-shell/session-shell.js";
-import { OwnedSettingsManager } from "../ui/settings/manager.js";
+import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 import { createPiTerminalBridge } from "../integrations/pi/tui-runtime/presentation-adapter.js";
 import type { OwnedUiApplicationPort, PresentationTerminalPort } from "../contracts/presentation/index.js";
 import type {
@@ -44,6 +43,7 @@ import { bindResidentTabBridge, closeResidentUtilityRoute, correlateResidentTabS
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { SessionRuntimeRegistry } from "./session-runtime-registry.js";
 import { readPackageVersion, StartupReleaseNote } from "./startup-route.js";
+import { createOwnedSettingsManager, watchSharedSettings } from "./owned-settings.js";
 
 export type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 export { bindResidentTabBridge, correlateResidentTabSubmission } from "./resident-tab-bridge.js";
@@ -104,20 +104,14 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     inspectProcess: options.inspectProcess,
   });
   const productPaths = resolveProductPaths();
-  const profilePaths = resolveLaunchProfilePaths();
   // Rationale: the manager reads the engine's settings port lazily, after the session exists.
   let backend: ComposedSessionBackend;
   const settings = options.profileId === undefined
     ? null
-    : new OwnedSettingsManager({
-      profileDir: profilePaths.agentProfile,
+    : createOwnedSettingsManager({
       profileId: options.profileId,
-      namespace: PRODUCT_IDENTITY.commandName,
-      legacyConfigDir: productPaths.configDir,
       agentProvider: () => backend.settingsPort(),
-      ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabBarPlusMenu"] } : {}),
-      hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
-      agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
+      ...(options.hideTabSettings ? { hideTabSettings: true } : {}),
     });
   const tabBridge = options.tab?.bridge ?? null;
   if (tabBridge !== null) await tabBridge.start().catch(() => false);
@@ -451,19 +445,7 @@ function createStartupReleaseUpdateObservation(input: StartupReleaseUpdateObserv
   };
 }
 
-const SHARED_SETTINGS_POLL_MS = 250;
-
-/** Rereads the shared settings document whenever its stat changes; returns the stop. */
-export function watchSharedSettings(settings: Pick<OwnedSettingsManager, "file" | "refresh">): () => void {
-  const file = settings.file;
-  const listener = (): void => {
-    try { settings.refresh(); } catch {
-      // Compatibility: an unreadable peer write resolves on the next stat change.
-    }
-  };
-  watchFile(file, { interval: SHARED_SETTINGS_POLL_MS, persistent: false }, listener);
-  return () => unwatchFile(file, listener);
-}
+export { watchSharedSettings } from "./owned-settings.js";
 
 function settingsRouteOptions(
   tabBridge: TabBridgeClient | null,

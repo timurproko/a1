@@ -1,6 +1,6 @@
 import { isRecord, readThinkingLevel, stringProperty } from "./message-values.js";
 import { collectionResult } from "./resource-catalog.js";
-import { MODEL_THINKING_DEFAULT, PiSettingsBridge, type PiSettingsModelChoice } from "./settings-bridge.js";
+import { MODEL_THINKING_DEFAULT, PiSettingsBridge, supportedThinkingLevels, type PiSettingsModelChoice } from "./settings-bridge.js";
 import { workflowResult } from "./workflow-support.js";
 import type { PiSettingOwnerHandlers } from "./settings-bridge.js";
 import type { AgentSession, AgentSessionRuntime } from "../startup-public.js";
@@ -363,17 +363,6 @@ function agentJsonValue(value: unknown): AgentJsonValue {
 
 function isThinkingLevel(value: unknown): value is "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" {
   return typeof value === "string" && ["off", "minimal", "low", "medium", "high", "xhigh", "max"].includes(value);
-}
-
-/** The engine's own rule: no reasoning means "off" only; xhigh and max exist only where the model maps them. */
-function supportedThinkingLevels(model: { readonly reasoning?: boolean; readonly thinkingLevelMap?: Readonly<Record<string, unknown>> }): readonly string[] {
-  if (!model.reasoning) return ["off"];
-  return ["off", "minimal", "low", "medium", "high", "xhigh", "max"].filter(level => {
-    const mapped = model.thinkingLevelMap?.[level];
-    if (mapped === null) return false;
-    if (level === "xhigh" || level === "max") return mapped !== undefined;
-    return true;
-  });
 }
 
 function settingLabel(callback: PiPinnedSettingsCallback): string {

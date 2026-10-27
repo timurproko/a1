@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { bindResidentTabBridge, correlateResidentTabSubmission, residentStartupPresentation } from "../../src/composition/owned-ui.js";
+import { residentRouteHostOptions } from "../../src/composition/resident-tab-bridge.js";
 import { formatResidentFallbackNotice } from "../../bin/tab-launch-context.js";
 
 function fixture(start: () => Promise<boolean> = async () => true) {
@@ -145,6 +146,17 @@ describe("resident tab composition bridge", () => {
     expect(value.bridge.status).toHaveBeenLastCalledWith("idle", false, 0, 0);
     // Invariant: visibility is a no-op for the child; it neither renames nor stops the session.
     expect(value.backend.workflows.executeWorkflow).not.toHaveBeenCalled();
+  });
+
+  it("requests the tab bar Plus Menu from a utility route", () => {
+    const bridge = {
+      tabId: "settings-one",
+      available: true,
+      captureAttachment: () => ({ clientId: "client", controllerRevision: 1 }),
+      requestAction: vi.fn(async () => true),
+    };
+    expect(residentRouteHostOptions(bridge as never).configurePlusMenu?.()).toBe(true);
+    expect(bridge.requestAction).toHaveBeenCalledWith("configure-plus");
   });
 
   it("opens the owned settings route from a host command without editor input", async () => {
