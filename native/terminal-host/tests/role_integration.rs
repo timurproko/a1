@@ -586,34 +586,57 @@ setInterval(() => {}, 1000);
 #[test]
 fn new_agent_footer_stays_provisional_until_its_chip_fills() {
     let _serial = serialize_role_fixture();
+    for (mode, latest) in [
+        ("rgb", "footer(\"latest-model\", \"cwd (new-branch) #456\");"),
+        ("palette", r#"if (process.stdin.isTTY) process.stdin.setRawMode(true);
+process.stdin.on("data", bytes => {
+  if (bytes.toString().includes("!")) footer("latest-model", "cwd (new-branch) #456");
+});"#),
+    ] {
+        check_agent_footer_in_mode(mode, latest);
+    }
+}
+
+fn check_agent_footer_in_mode(mode: &str, latest: &str) {
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
     let data = directory(root.path(), "data");
     let runtime = directory(root.path(), "runtime");
     protect_runtime(&runtime);
     let release = directory(root.path(), "release");
-    std::fs::write(directory(&release, "bin").join("ui.js"), r#"
+    let script = r#"
 const initial = process.env.A1_TAB_ID === "tab-1";
 const footer = (model, path) => process.stdout.write(`\x1b[22;1H ${path}\x1b[23;1H 0.0%/123k (auto)          ${model}\x1b[1;1H`);
 footer(initial ? "old-model" : "intermediate-model", initial ? "cwd (old-branch) #123" : "cwd");
 process.stdout.write(initial ? "initial-ready" : "second-ready");
-if (!initial) setTimeout(() => footer("latest-model", "cwd (new-branch) #456"), 80);
+if (!initial) { TEST_LATEST }
 setInterval(() => {}, 1000);
-"#).expect("fake Agent");
+"#.replace("TEST_LATEST", latest);
+    std::fs::write(directory(&release, "bin").join("ui.js"), script).expect("fake Agent");
     let address = fixture_endpoint(&runtime);
     let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
     let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
-    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    // Invariant: the footer hold belongs to the truecolor chip fill. CI shells commonly
+    // advertise only 256 colors; the palette path intentionally shows real status immediately.
+    let mut attach = AttachFixture::spawn_configured(&executable, &address, &profile, &data,
+        &release, &node_executable(), None,
+        &[("TERMINAL_HOST_COLOR_MODE", mode), ("COLORTERM", "truecolor")]);
     assert!(attach.output_containing("initial-ready", Duration::from_secs(20)));
     assert!(attach.output_containing("old-model", Duration::from_secs(5)));
     assert!(attach.output_containing("old-branch", Duration::from_secs(5)));
     let from = attach.retained_len();
     attach.write(b"\x1ba");
     assert!(attach.output_containing("second-ready", Duration::from_secs(20)), "{}", attach.output_text());
-    assert!(!attach.output_since(from).contains("intermediate-model"),
-        "intermediate child status flashed during the chip fill: {}", attach.output_text());
+    if mode == "rgb" {
+        assert!(!attach.output_since(from).contains("intermediate-model"),
+            "intermediate child status flashed during the chip fill: {}", attach.output_text());
+    } else {
+        assert!(attach.output_containing("intermediate-model", Duration::from_secs(8)),
+            "palette mode must show real status without a fill: {}", attach.output_text());
+        attach.write(b"!");
+    }
     assert!(!attach.output_since(from).contains("old-branch"),
         "an older Agent's repository metadata leaked into the pending path: {}", attach.output_text());
     assert!(attach.output_containing("latest-model", Duration::from_secs(8)),
