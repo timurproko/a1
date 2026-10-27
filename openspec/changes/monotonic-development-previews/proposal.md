@@ -4,8 +4,9 @@ A development preview is versioned `X.Y.Z-dev.<pull-request-number>`. Pull reque
 
 ## What Changes
 
-- A development publication stamps `X.Y.Z-dev.<count>.<pr>`, where `<count>` is the first-parent commit count of the selected `develop` commit and `<pr>` is the merged pull request number. The count rises with every merge, so a later publication always sorts above an earlier one under semver precedence, and the pull request stays visible as the last identifier.
-- Every consumer of the preview grammar accepts both the published `-dev.<pr>` form and the new `-dev.<count>.<pr>` form: `a1 update --develop <pr>` resolves by the trailing pull request identifier, and the full-version selector, channel detection, the installer package, and the candidate evidence check accept both shapes.
+- A development publication is versioned `X.Y.Z-dev.<count>`, where `<count>` is the first-parent commit count of the selected `develop` commit. The count rises with every merge, so a later publication always sorts above an earlier one under semver precedence. The merged pull request number and the source commit are recorded in the published application and installer manifests as publication metadata instead of being encoded in the version.
+- `a1 update --develop <pr>` and the installer's `--develop <pr>` resolve a preview by the pull request recorded in the registry's published manifests, falling back to the version suffix for previews published before this change; the full-version selector, channel detection, and the candidate evidence check are unchanged because the version keeps one decimal identifier.
+- `a1 version` appends the recorded pull request to the `Current` and `Develop` lines, as `0.2.7-dev.1218 (#828)`, and omits it when none is recorded or reachable.
 - An explicit `a1 update` that finds the update lease held by a dead process whose durable transaction names a different target settles that transaction first through the existing rollback path, reclaims the lease, and installs the requested target, reporting the interrupted target it settled. It no longer reports a dead attempt as "in progress".
 - A completed explicit update invalidates the startup release-check cache, so the next interactive launch compares the installed version against the registry's current channel head rather than a result recorded before the update.
 
@@ -17,14 +18,14 @@ A development preview is versioned `X.Y.Z-dev.<pull-request-number>`. Pull reque
 
 ### Modified Capabilities
 
-- `continuous-integration`: preview versions carry a monotonic develop commit count before the pull request number.
-- `cli-self-update`: the preview grammar accepts the two-part suffix; a dead owner's foreign transaction is settled before a manual update; an explicit update invalidates the release-check cache.
-- `a1-shell`: `a1 update --develop <pr>` and the full-version form select previews published in either shape.
+- `continuous-integration`: preview versions use the monotonic develop commit count; the merged pull request and source commit are recorded in the published manifests.
+- `cli-self-update`: a numbered preview is resolved by recorded pull request; a dead owner's foreign transaction is settled before a manual update; an explicit update invalidates the release-check cache.
+- `a1-shell`: `a1 update --develop <pr>` selects by recorded pull request; `a1 version` shows the recorded pull request beside development versions.
 
 ## Impact
 
-- **Publication:** `.github/workflows/publish.yml` version derivation and `scripts/release/publication-client.mjs`; `scripts/governance/candidate-evidence.mjs` preview check.
-- **CLI:** `src/cli/dispatch.ts` selector grammar, `src/foundation/release/latest-release.ts` channel detection and cache, `src/foundation/release/update.ts` named-preview resolution, lease handling, and cache invalidation, `src/foundation/release/update-execution-lease.ts` dead-owner reconciliation.
-- **Installer:** `packages/a1-install/bin/a1-install.js` version patterns and named-preview match.
+- **Publication:** `.github/workflows/publish.yml` version derivation and manifest stamping, `scripts/release/publication-client.mjs`.
+- **CLI:** `src/foundation/release/update.ts` named-preview resolution, lease handling, and cache invalidation; `src/foundation/release/update-execution-lease.ts` dead-owner reconciliation; `src/foundation/release/latest-release.ts` cache helper; `src/cli/version-stats.ts` display.
+- **Installer:** `packages/a1-install/bin/a1-install.js` named-preview resolution.
 - **Documentation:** the version form where `docs/` describes `-dev.N`.
-- No dependency changes. Existing installs on `0.2.7-dev.<pr>` update to the first `0.2.7-dev.<count>.<pr>` publication because the develop commit count (1218 today) already exceeds every published pull request number.
+- No dependency changes. Existing installs on `0.2.7-dev.<pr>` update to the first `0.2.7-dev.<count>` publication because the develop commit count (1218 today) already exceeds every published pull request number.

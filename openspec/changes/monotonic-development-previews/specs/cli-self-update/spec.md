@@ -5,16 +5,17 @@
 ### Requirement: A preview can be installed by name
 The value after `--develop` SHALL say which preview to move to. A positive decimal
 SHALL name a preview by its pull request number, and a full version SHALL name it
-outright. A preview is published as `<version>-dev.<pull-request>` or as
-`<version>-dev.<count>.<pull-request>`, so the pull request number alone SHALL be
-enough to identify one in either shape, and the version in front of it SHALL NOT
-have to be supplied.
+outright. A preview records its merged pull request in its published manifest, so the
+pull request number alone SHALL be enough to identify one, and the version in front
+of it SHALL NOT have to be supplied. A preview published before pull requests were
+recorded carries the number as the trailing identifier of its `<version>-dev.<pr>`
+version, and the pull request number SHALL still identify it.
 
-The named preview SHALL be resolved against the versions the registry actually
-published rather than constructed from the name. A name matching nothing SHALL be
-refused and named in the refusal; a name matching more than one published version
-SHALL be refused rather than resolved to a guess. Nothing SHALL be installed in
-either case.
+The named preview SHALL be resolved against the versions and manifests the registry
+actually published rather than constructed from the name. A name matching nothing
+SHALL be refused and named in the refusal; a name matching more than one published
+version SHALL be refused rather than resolved to a guess. Nothing SHALL be installed
+in either case.
 
 What may be named there is a preview. A published release named there SHALL be
 refused, SHALL be told apart from a preview in the refusal, and SHALL point at the
@@ -25,11 +26,15 @@ An empty or unusable name SHALL be refused before anything is asked of the
 registry.
 
 #### Scenario: A commit is named
-- **WHEN** the user runs `a1 update --develop <pr>` for a pull request whose preview was published as `<version>-dev.<pr>` or `<version>-dev.<count>.<pr>`
+- **WHEN** the user runs `a1 update --develop <pr>` for a pull request that a published preview records in its manifest
 - **THEN** A1 SHALL install that preview, whatever version it carries
 
+#### Scenario: An older preview is named
+- **WHEN** the user runs `a1 update --develop <pr>` and no published manifest records that pull request but exactly one published preview ends in `-dev.<pr>`
+- **THEN** A1 SHALL install that preview
+
 #### Scenario: A full version is named
-- **WHEN** the user runs `a1 update --develop <version>` for a published preview version in either shape
+- **WHEN** the user runs `a1 update --develop <version>` for a published preview version
 - **THEN** A1 SHALL install that version
 
 #### Scenario: A release is named
@@ -41,36 +46,12 @@ registry.
 - **THEN** A1 SHALL refuse, name what it could not find, and install nothing
 
 #### Scenario: The name matches more than one version
-- **WHEN** a pull request number appears as the last identifier of more than one published version
+- **WHEN** a pull request number is recorded by, or trails, more than one published version
 - **THEN** A1 SHALL refuse, list what it found, and ask for a version instead
 
 #### Scenario: The newest preview is wanted
 - **WHEN** the user runs `a1 update --develop` with no value
 - **THEN** A1 SHALL install whatever the preview channel currently points at, subject to the channel-head downgrade rule
-
-### Requirement: Development preview selectors are strict
-A value after `--develop` SHALL be either a positive decimal or an exact semantic
-version matching `<major>.<minor>.<patch>-dev.<positive-decimal>` or
-`<major>.<minor>.<patch>-dev.<positive-decimal>.<positive-decimal>`. A stable
-version, zero, source hash, dotted pair without a version, unknown flag, second
-value, or missing value for another option SHALL fail before registry discovery or
-installation.
-
-#### Scenario: Zero is selected
-- **WHEN** the user runs `a1 update --develop 0`
-- **THEN** A1 SHALL fail without registry or installation work
-
-#### Scenario: Stable version is selected
-- **WHEN** the user runs `a1 update --develop 0.1.8`
-- **THEN** A1 SHALL fail without registry or installation work
-
-#### Scenario: A dotted pair without a version is selected
-- **WHEN** the user runs `a1 update --develop 1218.828`
-- **THEN** A1 SHALL fail without registry or installation work
-
-#### Scenario: Extra selector is supplied
-- **WHEN** the user runs `a1 update --develop 107 108`
-- **THEN** A1 SHALL fail without registry or installation work
 
 ### Requirement: Automatic self-update is single-owner and restart-safe
 

@@ -2,21 +2,25 @@
 
 Each numbered section is one Implementation item.
 
-## 1. Monotonic preview version at publication
+## 1. Counter version and recorded pull request at publication
 
-- [ ] 1.1 In `.github/workflows/publish.yml`, compute the first-parent commit count of the selected source commit in the version step and stamp `${base}-dev.${count}.${pullRequest}` for development publication; keep the existing single-association check and the stable path unchanged.
-- [ ] 1.2 In `scripts/release/publication-client.mjs`, derive the same `${base}-dev.${count}.${pullRequest}` for the development target from the local clone, and update `scripts/governance/candidate-evidence.mjs` to accept both preview shapes. Tests: `test/repository-governance/publication-client.test.ts` covers the two-part version, the count source, and registry verification of that version; the policy test covers the candidate check.
+- [ ] 1.1 In `.github/workflows/publish.yml`, compute the first-parent commit count of the selected source commit in the version step, stamp `${base}-dev.${count}` for development publication, and set `publication.pullRequest` and `publication.source` on the application and installer manifests before packing; stable publication records `publication.source` only. Keep the single-association check unchanged.
+- [ ] 1.2 In `scripts/release/publication-client.mjs`, derive the same `${base}-dev.${count}` for the development target from the local clone and expose the pull request beside it. Tests: `test/repository-governance/publication-client.test.ts` covers the counter version, its count source, the pull request association, and registry verification of that version.
 
-## 2. Preview grammar accepts both shapes
+## 2. Numbered preview by recorded pull request
 
-- [ ] 2.1 Accept `X.Y.Z-dev.<n>` and `X.Y.Z-dev.<n>.<n>` in `DEVELOPMENT_BUILD` (`src/foundation/release/latest-release.ts`), `isDevelopmentTarget` (`src/cli/dispatch.ts`), and the installer patterns in `packages/a1-install/bin/a1-install.js`. Tests: channel detection, selector parsing, and installer version validation for both shapes.
-- [ ] 2.2 Resolve `--develop <pr>` in `src/foundation/release/update.ts` and the installer against published versions ending in `-dev.<pr>` or `-dev.<count>.<pr>`, keeping the "more than one preview" refusal. Tests: a numbered selector matches each shape, and a number present in both shapes is refused as ambiguous.
-- [ ] 2.3 Describe the version form where `docs/` names `-dev.N`.
+- [ ] 2.1 In `src/foundation/release/update.ts`, resolve `--develop <pr>` by the `publication.pullRequest` recorded in published manifests, falling back to the `-dev.<pr>` suffix for older previews, keeping the "more than one preview" and "published no preview" refusals. Tests: a number matching a recorded pull request, one matching only an old suffix, one matching nothing, and one matching more than one version.
+- [ ] 2.2 Apply the same resolution to `packages/a1-install/bin/a1-install.js`. Tests: the installer's named-preview tests cover the recorded-pull-request path and the suffix fallback.
 
-## 3. Dead owner with a foreign transaction
+## 3. `a1 version` shows the recorded pull request
 
-- [ ] 3.1 In `src/foundation/release/update-execution-lease.ts` and `src/foundation/release/update.ts`, when the lease owner is not alive and the active transaction names another target, let a manual update roll that transaction back to its prior cohort, finish it as rolled back, remove the stale lease, print one line naming the interrupted target, and continue with the requested target; automatic mode keeps failing closed. Tests: `test/foundation/release/update-execution-lease.test.ts` and the update tests cover the dead-owner settle, the live-owner refusal, and the automatic-mode refusal.
+- [ ] 3.1 In `src/cli/version-stats.ts`, append ` (#<pr>)` to `Current` from the installed manifest and to `Develop` from the head version's registry manifest, omitting it without a diagnostic when absent or unreachable. Tests: a development build with and without recorded pull requests, a stable build unchanged, and registry failure keeping the existing unavailable behavior.
 
-## 4. Explicit update invalidates the release-check cache
+## 4. Dead owner with a foreign transaction
 
-- [ ] 4.1 Add a cache-invalidation helper to `src/foundation/release/latest-release.ts` and call it from `runSelfUpdate` after a successful explicit update. Tests: the cache file is removed after success and untouched after a failed or refused update.
+- [ ] 4.1 In `src/foundation/release/update-execution-lease.ts` and `src/foundation/release/update.ts`, when the lease owner is not alive and the active transaction names another target, let a manual update roll that transaction back to its prior cohort, finish it as rolled back, remove the stale lease, print one line naming the interrupted target, and continue with the requested target; automatic mode keeps failing closed. Tests: `test/foundation/release/update-execution-lease.test.ts` and the update tests cover the dead-owner settle, the live-owner refusal, and the automatic-mode refusal.
+
+## 5. Explicit update invalidates the release-check cache
+
+- [ ] 5.1 Add a cache-invalidation helper to `src/foundation/release/latest-release.ts` and call it from `runSelfUpdate` after a successful explicit update. Tests: the cache file is removed after success and untouched after a failed or refused update.
+- [ ] 5.2 Describe the counter version and recorded pull request where `docs/` names `-dev.N`.
