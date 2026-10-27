@@ -17,6 +17,7 @@ import {
 const caps = getCapabilities();
 let previousKeybindings: ReturnType<typeof getKeybindings>;
 beforeEach(() => {
+  setPiAccentColor("purple");
   previousKeybindings = getKeybindings();
   setKeybindings(KeybindingsManager.fromOwnedBindings());
 });

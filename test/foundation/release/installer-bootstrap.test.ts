@@ -527,8 +527,9 @@ describe("installer orchestration", () => {
     };
     const code = await runInstaller([], {
       stdout: stdout.stream, stderr: stderr.stream, runner, signal: controller.signal,
-      platform: process.platform, environment: { PATH: process.env.PATH ?? "" }, handleSignals: false,
-      progressOptions: { interval: 1 },
+      platform: process.platform,
+      environment: { PATH: process.env.PATH ?? "", A1_PROFILE_HOME: setup.root, PI_TRUE_COLOR: "1" },
+      handleSignals: false, progressOptions: { interval: 1 },
     });
     expect(code).toBe(130);
     expect(stderr.read()).toBe("installation cancelled\n");
