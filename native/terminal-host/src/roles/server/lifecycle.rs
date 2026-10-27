@@ -689,11 +689,14 @@ fn attach_start_tab(
         let start = locked.core.set_starting(&tab_id, true);
         return (tab_id, start);
     }
-    // Invariant: admission named the tab this start creates and subscribed the client to it, so
-    // the reserved id is the one started; without a reservation the start names its own.
-    let reserved = locked.first_agent_reservations.remove(client_id);
     if let Some(first) = first_agent_start(&locked.registry.tabs) {
-        let tab_id = reserved.unwrap_or(first.tab_id);
+        // Invariant: admission named the tab this start creates and subscribed the client to it,
+        // so the client's viewed tab is the one started; an Agent that stopped since admission is
+        // dropped and its id reused rather than leaving the client subscribed to nothing.
+        let tab_id = locked
+            .clients
+            .get(client_id)
+            .map_or(first.tab_id, |client| client.viewed_tab.clone());
         locked
             .registry
             .tabs

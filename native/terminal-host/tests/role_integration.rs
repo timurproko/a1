@@ -144,7 +144,8 @@ fn attach_after_every_agent_exited_starts_a_new_agent_instead_of_an_empty_screen
         .expect("tab id")
         .to_owned();
     cleanup.pids.extend(holder_pids(&credentials_root));
-    // A client closes the only Agent, as Alt+W does, and leaves: the record stays, stopped.
+    // Rationale: a client closes the only Agent, as Alt+W does, and leaves; the record stays,
+    // stopped, which is the registry a later bare attach must start from.
     let credentials =
         terminal_host_contracts::roles::credentials::ProfileCredentials::load_existing(
             &credentials_root,

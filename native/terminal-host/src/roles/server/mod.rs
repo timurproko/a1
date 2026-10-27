@@ -444,9 +444,6 @@ struct RuntimeState {
     bridges: HashMap<String, BridgePeer>,
     pending_controller_transfers: HashMap<String, PendingControllerTransfer>,
     standby: Option<StandbyTab>,
-    /// The fresh Agent id admission named for a client whose `attach.start` will start it, so the
-    /// surface subscription taken at admission and the started tab agree.
-    first_agent_reservations: HashMap<String, String>,
     holders: HashMap<String, HolderSession>,
     holder_geometries: HashMap<String, HolderGeometry>,
     launches: HashMap<String, AttachStart>,
@@ -509,17 +506,10 @@ impl RuntimeState {
     }
 
     /// The tab an admitted attach without a requested tab views: the running default, or the
-    /// fresh Agent this client's `attach.start` will start, reserved under the client so both
-    /// name the same tab.
-    fn attach_view_tab(&mut self, client_id: &str) -> String {
-        match first_agent_start(&self.registry.tabs) {
-            Some(first) => {
-                self.first_agent_reservations
-                    .insert(client_id.to_owned(), first.tab_id.clone());
-                first.tab_id
-            }
-            None => self.default_tab(),
-        }
+    /// fresh Agent this client's `attach.start` will start, which then reads the id back from the
+    /// client session so admission's subscription and the started tab agree.
+    fn attach_view_tab(&self) -> String {
+        first_agent_start(&self.registry.tabs).map_or_else(|| self.default_tab(), |first| first.tab_id)
     }
 }
 
@@ -996,7 +986,6 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         bridges: HashMap::new(),
         pending_controller_transfers: HashMap::new(),
         standby: None,
-        first_agent_reservations: HashMap::new(),
         holders: HashMap::new(),
         holder_geometries: HashMap::new(),
         launches,

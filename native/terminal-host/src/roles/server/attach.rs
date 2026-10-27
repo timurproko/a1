@@ -474,7 +474,7 @@ pub(super) fn serve_attach(
         }
         let viewed_tab = requested_tab
             .filter(|tab_id| locked.registry.tabs.iter().any(|tab| &tab.tab_id == tab_id))
-            .unwrap_or_else(|| locked.attach_view_tab(&client_id));
+            .unwrap_or_else(|| locked.attach_view_tab());
         let (revision, controller) =
             if allow_control && locked.attachment.current(&viewed_tab).is_none() {
                 (
@@ -832,7 +832,6 @@ pub(super) fn serve_attach(
         }
     }
     let mut locked = lock_state(&state)?;
-    locked.first_agent_reservations.remove(&client_id);
     if let Some(session) = locked.clients.remove(&client_id) {
         if session.controller {
             locked
