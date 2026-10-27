@@ -155,17 +155,21 @@ function createUtilityApplication(
     options.bridge.accent(accent);
   });
   let disposed = false;
+  let started = false;
   let stopResolve!: () => void;
+  let unsubscribeBridge = () => {};
   const stopped = new Promise<void>(resolvePromise => { stopResolve = resolvePromise; });
-  const unsubscribeBridge = options.bridge.onCommand(command => handleBridgeCommand(command, presenter, options.route, () => {
-    stopResolve();
-    void terminalHost.dispose().catch(() => undefined);
-  }));
   return {
     get disposed() { return disposed; },
     start: () => {
+      if (started || disposed) return;
+      started = true;
       presenter.start();
       terminalHost.attach(presenter);
+      unsubscribeBridge = options.bridge.onCommand(command => handleBridgeCommand(command, presenter, options.route, () => {
+        stopResolve();
+        void terminalHost.dispose().catch(() => undefined);
+      }));
       options.bridge.status("idle");
       void offline?.modelsReady.then(() => settings.load()).catch(() => undefined);
     },
@@ -241,6 +245,7 @@ class UtilityTabPresenter implements OwnedUiHostedPresenter {
 
   presentRoute(): void {
     if (this.#released || this.#routeHandle !== null) return;
+    if (!this.#terminal.running || !this.#terminal.attached) return;
     const surface = this.#routeHost.open(this.#route);
     if (surface === null) throw new Error(`utility route is unavailable: ${this.#route}`);
     this.#surface = surface;

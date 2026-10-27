@@ -10,8 +10,10 @@ import { TestPresentationTerminal } from "../features/owned-ui/neutral-port-doub
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
-function bridge(tabId: string) {
-  let command: ((value: { type: string; route?: "settings" | "changelog"; deadlineMs?: number }) => void) | undefined;
+type BridgeCommand = { type: string; route?: "settings" | "changelog"; deadlineMs?: number };
+
+function bridge(tabId: string, replay?: BridgeCommand) {
+  let command: ((value: BridgeCommand) => void) | undefined;
   return {
     tabId,
     available: true,
@@ -24,9 +26,13 @@ function bridge(tabId: string) {
     requestClose: vi.fn(async () => true),
     requestDetach: vi.fn(async () => true),
     consumeControllerBoundaryInput: vi.fn((data: string) => data),
-    onCommand: vi.fn((listener: typeof command) => { command = listener; return vi.fn(); }),
+    onCommand: vi.fn((listener: typeof command) => {
+      command = listener;
+      if (replay !== undefined) listener?.(replay);
+      return vi.fn();
+    }),
     close: vi.fn(),
-    command: (value: { type: string; route?: "settings" | "changelog"; deadlineMs?: number }) => command?.(value),
+    command: (value: BridgeCommand) => command?.(value),
   };
 }
 
@@ -42,7 +48,7 @@ describe("slim utility tab composition", () => {
     { route: "changelog" as const, tabId: "changelog-one", expected: "1.2.3" },
   ])("presents the pinned $route route and reports bridge state", async ({ route, tabId, expected }) => {
     const terminal = new TestPresentationTerminal();
-    const tabBridge = bridge(tabId);
+    const tabBridge = bridge(tabId, { type: "route", route });
     const composition = await composeUtilityTab({
       route,
       bridge: tabBridge as never,
