@@ -6,6 +6,7 @@ use crate::endpoint;
 use crate::protocol::{self, Envelope, ProtocolError};
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct EnvelopeKind {
     #[serde(rename = "type")]
     pub message_type: String,

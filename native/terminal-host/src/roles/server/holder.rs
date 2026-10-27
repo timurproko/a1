@@ -22,18 +22,28 @@ pub(super) fn insert_new_tab(registry: &mut RegistryDocument, tab: TabRecord) {
     }
 }
 
+/// Invariant: an interrupted create must not start a holder after waiting for its launch spacing.
+fn wait_start_spacing(spacing: std::time::Duration, cancelled: Option<&AtomicBool>) -> Result<(), String> {
+    if !spacing.is_zero() {
+        std::thread::sleep(spacing);
+    }
+    if cancelled.is_some_and(|flag| flag.load(Ordering::Acquire)) {
+        return Err("tab start cancelled".into());
+    }
+    Ok(())
+}
+
 pub(super) fn start_holder(
     profile: &Path,
     state: &Arc<Mutex<RuntimeState>>,
     tab_id: String,
     mut start: AttachStart,
+    cancelled: Option<&AtomicBool>,
 ) -> Result<(), String> {
-    let (_permit, spacing) = acquire_start_permit(state, &tab_id, &mut start)?;
+    let (_permit, spacing) = acquire_start_permit(state, &tab_id, &mut start, cancelled)?;
     crate::fault_injection::delay("A1_TABS_FAULT_DELAY_TAB_START_MS");
     sanitize_tab_environment(&mut start.environment);
-    if !spacing.is_zero() {
-        std::thread::sleep(spacing);
-    }
+    wait_start_spacing(spacing, cancelled)?;
     // Invariant: a tab told to stop while its start waited for a slot never launches a holder;
     // the permit's release takes the tab out of the starting set, so a stop can complete.
     let stopped_meanwhile = state.lock().ok().is_some_and(|locked| {

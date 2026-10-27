@@ -1733,6 +1733,8 @@ struct LifecycleRequest {
     message_type: String,
     request_id: Option<u64>,
     payload: Vec<u8>,
+    /// Only this client's matching create request can cancel its queued or running start.
+    cancelled: Option<Arc<AtomicBool>>,
 }
 
 /// One client's lifecycle requests that are queued or running.
@@ -1946,6 +1948,17 @@ mod tests {
             "missing",
             "child-unresponsive"
         ));
+    }
+
+    #[test]
+    fn stopping_agent_cannot_detach_its_former_controller() {
+        let running = record("older", 1, "running", None);
+        let stopping = record("closing", 2, "stopped", None);
+        let tabs = vec![running, stopping];
+        assert!(bridge::allows_controller_request(&tabs, "older"));
+        assert!(!bridge::allows_controller_request(&tabs, "closing"),
+            "a stopped child's bridge can request detach before its controller switches tabs");
+        assert!(!bridge::allows_controller_request(&tabs, "missing"));
     }
 
     #[test]
@@ -2629,6 +2642,19 @@ mod tests {
     }
 
     #[test]
+    fn create_cancellation_matches_only_this_connections_request() {
+        let current = Mutex::new(None);
+        let frame = wire::frame("tab.create", Some(7), wire::ResultBody::ok()).unwrap();
+        let token = begin_client_create(&current, &wire::kind(&frame[4..]).unwrap()).unwrap();
+        let wrong = wire::frame("tab.cancel-create", None, serde_json::json!({ "requestId": 8 })).unwrap();
+        cancel_client_create(&current, &wrong[4..]).unwrap();
+        assert!(!token.load(Ordering::Acquire));
+        let matching = wire::frame("tab.cancel-create", None, serde_json::json!({ "requestId": 7 })).unwrap();
+        cancel_client_create(&current, &matching[4..]).unwrap();
+        assert!(token.load(Ordering::Acquire));
+    }
+
+    #[test]
     fn a_full_lifecycle_refusal_reaches_the_client_without_waiting() {
         let (tx, rx) = mpsc::sync_channel(CONTROL_LANE_FRAMES);
         let peer = Peer {
@@ -2638,10 +2664,13 @@ mod tests {
             surface_signaled: Arc::new(AtomicBool::new(false)),
             surface_replaced: Arc::new(AtomicBool::new(false)),
         };
+        let encoded = wire::frame("tab.create", Some(7), wire::ResultBody::ok()).unwrap();
+        assert_eq!(wire::kind(&encoded[4..]).unwrap().request_id, Some(7));
         let request = LifecycleRequest {
             message_type: "tab.create".into(),
             request_id: Some(7),
             payload: Vec::new(),
+            cancelled: None,
         };
         refuse_lifecycle(&peer, &request, "busy".into());
         let frame = rx.try_recv().expect("refusal frame");

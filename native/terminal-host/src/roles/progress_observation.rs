@@ -201,16 +201,7 @@ fn start_sink_at(directory: PathBuf, run_id: String) -> Option<ObservationSink> 
             let Ok(file) = OpenOptions::new().create(true).append(true).open(path) else {
                 return;
             };
-            let mut writer = BufWriter::with_capacity(16 * 1024, file);
-            while let Ok(record) = receiver.recv() {
-                if writer
-                    .write_all(&record)
-                    .and_then(|()| writer.flush())
-                    .is_err()
-                {
-                    return;
-                }
-            }
+            let _ = write_observations(receiver, BufWriter::with_capacity(16 * 1024, file));
         })
         .ok()?;
     Some(ObservationSink {
@@ -220,6 +211,25 @@ fn start_sink_at(directory: PathBuf, run_id: String) -> Option<ObservationSink> 
         state: Mutex::new(ObservationState::default()),
         started: Instant::now(),
     })
+}
+
+/// Drain an already available burst before flushing; idle observations remain visible at once.
+/// The bounded queue still reports overflow rather than blocking any live terminal work.
+fn write_observations(
+    receiver: mpsc::Receiver<Vec<u8>>,
+    mut writer: impl Write,
+) -> std::io::Result<()> {
+    while let Ok(record) = receiver.recv() {
+        writer.write_all(&record)?;
+        for _ in 1..64 {
+            match receiver.try_recv() {
+                Ok(record) => writer.write_all(&record)?,
+                Err(_) => break,
+            }
+        }
+        writer.flush()?;
+    }
+    Ok(())
 }
 
 fn timestamp_unix_us() -> u64 {
@@ -234,6 +244,39 @@ fn timestamp_unix_us() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn observation_writer_batches_bursts_and_keeps_each_record_visible_in_order() {
+        #[derive(Default)]
+        struct CountingWriter {
+            bytes: Vec<u8>,
+            flushes: usize,
+        }
+        impl Write for CountingWriter {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.bytes.extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                self.flushes += 1;
+                Ok(())
+            }
+        }
+        let (sender, receiver) = mpsc::sync_channel(OBSERVATION_QUEUE_CAPACITY);
+        for index in 0..129 {
+            sender.send(format!("{index}\n").into_bytes()).unwrap();
+        }
+        drop(sender);
+        let mut writer = CountingWriter::default();
+        write_observations(receiver, &mut writer).unwrap();
+        assert_eq!(writer.flushes, 3);
+        assert_eq!(
+            String::from_utf8(writer.bytes).unwrap(),
+            (0..129)
+                .map(|index| format!("{index}\n"))
+                .collect::<String>()
+        );
+    }
 
     #[test]
     fn progress_record_is_payload_free_and_carries_loss() {

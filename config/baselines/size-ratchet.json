@@ -137,7 +137,7 @@
       "lines": 111
     },
     "native/terminal-host/src/roles/server/attach.rs::serve_attach": {
-      "lines": 405
+      "lines": 398
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
       "lines": 350
@@ -152,10 +152,10 @@
       "lines": 575
     },
     "native/terminal-host/src/roles/server/holder.rs::start_holder": {
-      "lines": 192
+      "lines": 191
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
-      "lines": 208
+      "lines": 193
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::stop_tabs": {
       "lines": 157
@@ -168,9 +168,6 @@
     },
     "native/terminal-host/src/roles/server/standby.rs::promote_standby": {
       "lines": 106
-    },
-    "native/terminal-host/src/roles/strip.rs::render_frame": {
-      "lines": 122
     },
     "src/app/session-shell/paste-executor.ts::startPasteExecutor": {
       "lines": 122

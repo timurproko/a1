@@ -533,6 +533,316 @@ fn blocked_registry_sync_times_out_without_stalling_server_progress() {
 }
 
 #[test]
+fn closing_a_pending_agent_from_landing_keeps_the_attach_alive() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    std::fs::write(directory(&release, "bin").join("ui.js"), r#"
+if (process.stdin.isTTY) process.stdin.setRawMode(true);
+process.stdin.on("data", bytes => process.stdout.write(`echo:${bytes.toString("hex")}\r\n`));
+process.stdout.write("fake-a1-ready\r\n");
+setInterval(() => {}, 1000);
+"#).expect("fake child");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
+    let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
+    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(attach.output_containing("fake-a1-ready", Duration::from_secs(20)));
+    attach.write(b"\x1bw");
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json")).unwrap().unwrap();
+        if registry.tabs.iter().all(|tab| tab.kind != "agent" || tab.desired != "running") { break; }
+        assert!(Instant::now() < deadline, "old tab did not close: {registry:?}");
+        std::thread::sleep(Duration::from_millis(30));
+    }
+    assert!(attach.child.try_wait().unwrap().is_none(), "closing the old tab must keep A1 on the landing: {}", attach.output_text());
+    attach.write(b"\x1ba");
+    assert!(attach.output_containing("no-model", Duration::from_secs(2)),
+        "pending preview absent after the landing: {}", attach.output_text());
+    attach.write(b"\x1bw");
+    attach.settle(Duration::from_millis(600));
+    assert!(attach.child.try_wait().unwrap().is_none(), "closing a pending tab must not detach A1: {}", attach.output_text());
+    let before_reopen = attach.retained_len();
+    attach.write(b"\x1ba");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while !attach.output_since(before_reopen).contains("fake-a1-ready") && Instant::now() < deadline {
+        attach.settle(Duration::from_millis(50));
+    }
+    assert!(attach.output_since(before_reopen).contains("fake-a1-ready"),
+        "a later Agent did not open after cancellation");
+    assert!(attach.child.try_wait().unwrap().is_none(), "A1 exited before a later Agent could open");
+    attach.write(b"\x03\x03");
+    attach.wait(Duration::from_secs(8));
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
+fn new_agent_footer_stays_provisional_until_its_chip_fills() {
+    let _serial = serialize_role_fixture();
+    for (mode, latest) in [
+        ("rgb", "footer(\"latest-model\", \"cwd (new-branch) #456\");"),
+        ("palette", r#"if (process.stdin.isTTY) process.stdin.setRawMode(true);
+process.stdin.on("data", bytes => {
+  if (bytes.toString().includes("!")) footer("latest-model", "cwd (new-branch) #456");
+});"#),
+    ] {
+        check_agent_footer_in_mode(mode, latest);
+    }
+}
+
+fn check_agent_footer_in_mode(mode: &str, latest: &str) {
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    let script = r#"
+const initial = process.env.A1_TAB_ID === "tab-1";
+const footer = (model, path) => process.stdout.write(`\x1b[22;1H ${path}\x1b[23;1H 0.0%/123k (auto)          ${model}\x1b[1;1H`);
+footer(initial ? "old-model" : "intermediate-model", initial ? "cwd (old-branch) #123" : "cwd");
+process.stdout.write(initial ? "initial-ready" : "second-ready");
+if (!initial) { TEST_LATEST }
+setInterval(() => {}, 1000);
+"#.replace("TEST_LATEST", latest);
+    std::fs::write(directory(&release, "bin").join("ui.js"), script).expect("fake Agent");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
+    let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
+    // Invariant: the footer hold belongs to the truecolor chip fill. CI shells commonly
+    // advertise only 256 colors; the palette path intentionally shows real status immediately.
+    let mut attach = AttachFixture::spawn_configured(&executable, &address, &profile, &data,
+        &release, &node_executable(), None,
+        &[("TERMINAL_HOST_COLOR_MODE", mode), ("COLORTERM", "truecolor")]);
+    assert!(attach.output_containing("initial-ready", Duration::from_secs(20)));
+    assert!(attach.output_containing("old-model", Duration::from_secs(5)));
+    assert!(attach.output_containing("old-branch", Duration::from_secs(5)));
+    let from = attach.retained_len();
+    attach.write(b"\x1ba");
+    assert!(attach.output_containing("second-ready", Duration::from_secs(20)), "{}", attach.output_text());
+    if mode == "rgb" {
+        assert!(!attach.output_since(from).contains("intermediate-model"),
+            "intermediate child status flashed during the chip fill: {}", attach.output_text());
+    } else {
+        assert!(attach.output_containing("intermediate-model", Duration::from_secs(8)),
+            "palette mode must show real status without a fill: {}", attach.output_text());
+        attach.write(b"!");
+    }
+    assert!(!attach.output_since(from).contains("old-branch"),
+        "an older Agent's repository metadata leaked into the pending path: {}", attach.output_text());
+    assert!(attach.output_containing("latest-model", Duration::from_secs(8)),
+        "latest real status did not appear after the fill: {}", attach.output_text());
+    assert!(attach.output_since(from).contains("new-branch) #456"),
+        "the new Agent's resolved branch and PR should appear together: {}", attach.output_text());
+    assert!(!attach.output_since(from).contains("old-branch"));
+    assert!(attach.child.try_wait().unwrap().is_none(), "attach exited during status handoff");
+    attach.write(b"\x1bw");
+    attach.settle(Duration::from_millis(500));
+    assert!(attach.child.try_wait().unwrap().is_none(), "closing the new Agent detached A1");
+    attach.write(b"\x03\x03");
+    attach.wait(Duration::from_secs(8));
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
+fn closing_a_registered_agent_before_first_draw_stops_its_child_without_a_ghost() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    std::fs::write(directory(&release, "bin").join("ui.js"), r#"
+if (process.stdin.isTTY) process.stdin.setRawMode(true);
+process.stdin.on("data", bytes => process.stdout.write(`echo:${bytes.toString("hex")}\r\n`));
+if (process.env.A1_TAB_ID === "tab-1") process.stdout.write("fake-a1-ready\r\n");
+else setTimeout(() => process.stdout.write("late-ready\r\n"), 6000);
+setInterval(() => {}, 1000);
+"#).expect("fake child");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
+    let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
+    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(attach.output_containing("fake-a1-ready", Duration::from_secs(20)));
+    attach.write(b"\x1ba");
+    let deadline = Instant::now() + Duration::from_secs(10);
+    let (new_id, holder_pid) = loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json")).unwrap().unwrap();
+        if let Some(tab) = registry.tabs.iter().find(|tab| tab.kind == "agent" && tab.tab_id != "tab-1")
+            && let Some(pid) = tab.holder_pid
+        {
+            break (tab.tab_id.clone(), pid);
+        }
+        assert!(Instant::now() < deadline, "new Agent holder was never registered");
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    let before_close = attach.retained_len();
+    attach.write(b"\x1bw");
+    let deadline = Instant::now() + Duration::from_secs(12);
+    loop {
+        let registry = RegistryStore::read(&credentials_root.join("registry.json")).unwrap().unwrap();
+        if !registry.tabs.iter().any(|tab| tab.tab_id == new_id && tab.desired == "running") { break; }
+        assert!(Instant::now() < deadline, "cancelled holder remained running: {registry:?}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    let deadline = Instant::now() + Duration::from_secs(12);
+    while terminal_host_contracts::identity::inspect_process(holder_pid).unwrap().is_some() && Instant::now() < deadline {
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    assert!(terminal_host_contracts::identity::inspect_process(holder_pid).unwrap().is_none(),
+        "cancelled Agent holder process is still alive");
+    // Invariant: registry shutdown does not imply the attach has completed its view handoff.
+    // Wait for the old surface to be re-presented before testing its keyboard input.
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while !attach.output_since(before_close).contains("fake-a1-ready") && Instant::now() < deadline {
+        attach.settle(Duration::from_millis(50));
+    }
+    assert!(attach.output_since(before_close).contains("fake-a1-ready"),
+        "old Agent view was not restored after close: {}", attach.output_text());
+    attach.write(b"z");
+    assert!(attach.output_containing("echo:7a", Duration::from_secs(8)),
+        "old Agent no longer receives input: {}", attach.output_text());
+    assert!(!attach.output_text().contains("late-ready"), "cancelled child drew after close");
+    attach.write(b"\x03\x03");
+    attach.wait(Duration::from_secs(8));
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
+fn closing_a_pending_agent_cancels_its_queued_start_without_closing_the_old_agent() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    std::fs::write(directory(&release, "bin").join("ui.js"), r#"
+process.stdin.setEncoding("utf8");
+if (process.stdin.isTTY) process.stdin.setRawMode(true);
+let typed = "";
+process.stdin.on("data", value => {
+  for (const ch of value) {
+    if (ch === "\r" || ch === "\n") {
+      if (typed) process.stdout.write(`echo:${typed}\r\n`);
+      typed = "";
+    } else typed += ch;
+  }
+});
+process.stdout.write("fake-a1-ready\r\n");
+setInterval(() => {}, 1000);
+"#).expect("fake child");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server.args(["--max-concurrent-starts", "1"])
+        .env("A1_TABS_FAULT_DELAY_TAB_START_MS", "8000");
+    assert!(server.output().expect("server").status.success());
+    let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let trace_path = root.path().join("attach-close.trace");
+    let mut attach = AttachFixture::spawn_configured(&executable, &address, &profile, &data, &release,
+        &node_executable(), None, &[("A1_ATTACH_KEY_TRACE", trace_path.to_str().unwrap())]);
+    assert!(attach.output_containing("fake-a1-ready", Duration::from_secs(30)));
+    attach.write(b"\x1ba\x1bw\x1bw");
+    attach.settle(Duration::from_millis(600));
+    assert!(attach.child.try_wait().unwrap().is_none(), "an immediate pending close detached A1");
+    let trace = std::fs::read_to_string(&trace_path).unwrap();
+    assert!(trace.contains("effect=create") && trace.contains("effect=cancel-create"), "{trace}");
+    assert!(!trace.contains("exit="), "closing the pending Agent exited: {trace}");
+    attach.write(b"still-here\n");
+    assert!(attach.output_containing("echo:still-here", Duration::from_secs(8)),
+        "old Agent did not survive immediate pending close: {}", attach.output_text());
+    let occupying = Command::new(&executable)
+        .args(["internal", "tab-create", "--profile", text(&profile), "--data-dir", text(&data),
+            "--runtime-dir", text(&runtime), "--cwd", text(&release), "--release-root", text(&release),
+            "--node-executable", &node_executable()])
+        .env("A1_TABS_ENDPOINT", &address)
+        .current_dir(&release).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().unwrap();
+    std::thread::sleep(Duration::from_millis(500));
+    let first = attach.retained_len();
+    attach.write(b"\x1ba");
+    assert!(attach.output_containing("no-model", Duration::from_secs(2)));
+    attach.write(b"cancelled-private\n");
+    let before_close = attach.retained_len();
+    attach.write(b"\x1bw");
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !attach.output_since(before_close).contains("fake-a1-ready") && Instant::now() < deadline {
+        attach.settle(Duration::from_millis(50));
+    }
+    assert!(attach.output_since(before_close).contains("fake-a1-ready"),
+        "closing the pending tab must repaint the old Agent immediately: {}", attach.output_text());
+    let after_close = RegistryStore::read(&credentials_root.join("registry.json")).unwrap().unwrap();
+    assert!(after_close.tabs.iter().filter(|tab| tab.kind == "agent").count() <= 2,
+        "closing a provisional tab must not register another Agent: {after_close:?}");
+    assert!(!attach.output_since(first).contains("echo:cancelled-private"));
+    attach.write(b"restored\n");
+    assert!(attach.output_containing("echo:restored", Duration::from_secs(15)), "{}", attach.output_text());
+    attach.write(b"\x1ba");
+    attach.write(b"new-private\n");
+    let result = occupying.wait_with_output().unwrap();
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    assert!(attach.output_containing("echo:new-private", Duration::from_secs(35)),
+        "a later Agent did not receive its own deferred input: {}", attach.output_text());
+    let registry = RegistryStore::read(&credentials_root.join("registry.json")).unwrap().unwrap();
+    assert_eq!(registry.tabs.iter().filter(|tab| tab.kind == "agent" && tab.desired == "running").count(), 3,
+        "only the old, occupying, and later Agents should run: {registry:?}");
+    assert!(!attach.output_text().contains("echo:cancelled-private"));
+    attach.write(b"\x03\x03");
+    attach.wait(Duration::from_secs(8));
+    assert!(std::fs::read_to_string(&trace_path).unwrap().contains("exit=input-detach"));
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+// Platform: ConPTY can move to the editor row with a newline inside the inverse-space
+// caret's style span; the rendered cell is still an inverse blank, not a child cursor.
+fn has_visual_caret(output: &str) -> bool {
+    output.split("\x1b[7m").skip(1)
+        .filter_map(|after| after.split_once("\x1b[27m"))
+        .any(|(inverse, _)| inverse.bytes().filter(|byte| *byte == b' ').count() == 1
+            && inverse.len() <= 3
+            && inverse.bytes().all(|byte| matches!(byte, b' ' | b'\n' | b'\r')))
+}
+
+fn latest_cleared_frame(output: &str) -> Option<&str> {
+    output.rsplit_once("\x1b[2J").map(|(_, frame)| frame)
+}
+
+#[test]
+fn pending_frame_excludes_a_prior_child_cursor() {
+    let output = "old Agent\x1b[?25h\x1b[?2026l\x1b[?2026h\x1b[2JAgent\x1b[7m \x1b[27mno-model\x1b[?25l";
+    let pending = latest_cleared_frame(output).unwrap();
+    assert!(pending.contains("Agent") && pending.contains("no-model"));
+    assert!(has_visual_caret(pending) && !pending.contains("\x1b[?25h"));
+    assert!(latest_cleared_frame("old Agent\x1b[?25h").is_none());
+}
+
+#[test]
+fn visual_caret_survives_conpty_row_moves_without_accepting_printable_text() {
+    assert!(has_visual_caret("\x1b[7m \x1b[27m"));
+    assert!(has_visual_caret("\x1b[7m\n \x1b[27m"));
+    assert!(has_visual_caret("\x1b[7m\r\n \x1b[27m"));
+    for output in ["\x1b[7mX\x1b[27m", "\x1b[7m   X\x1b[27m", "\x1b[7m \x1b[0m", "\x1b[7m  \x1b[27m"] {
+        assert!(!has_visual_caret(output), "not a single visual blank: {output:?}");
+    }
+}
+
+#[test]
 fn input_waits_for_its_requested_tab_while_that_tab_waits_for_a_start_slot() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
@@ -614,8 +924,32 @@ setInterval(() => {}, 1000);
         .spawn()
         .expect("occupying tab create");
     std::thread::sleep(Duration::from_millis(500));
+    let before_create = attach.retained_len();
     attach.write(b"\x1ba");
-    std::thread::sleep(Duration::from_millis(300));
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !attach.output_since(before_create).contains("no-model") && Instant::now() < deadline {
+        attach.settle(Duration::from_millis(50));
+    }
+    let output = attach.output_since(before_create);
+    // Platform: a final old-child frame may arrive after the capture offset, including its
+    // visible cursor. Only the latest cleared frame belongs to the pending Agent's shell.
+    let pending = latest_cleared_frame(&output).unwrap_or("");
+    assert!(
+        pending.contains("Agent"),
+        "the pending tab should paint before its holder gets a start slot: {output}"
+    );
+    assert!(
+        pending.contains(&"─".repeat(40)) && pending.contains(text(&release))
+            && has_visual_caret(pending)
+            && pending.contains("0.0%/0 (auto)") && pending.contains("no-model"),
+        "pending Agent should show the complete idle editor/footer before its holder starts: {output}"
+    );
+    assert!(
+        !pending.contains("Starting Agent")
+            && !pending.contains("Preparing")
+            && !pending.contains("\x1b[?25h"),
+        "pending Agent must not show loading text or a child cursor: {output}"
+    );
 
     // Invariant: input after New Agent belongs to that requested target. It must not leak to the
     // old viewed child while the lifecycle slot is occupied, and is delivered once the target runs.
@@ -2254,6 +2588,93 @@ fn host_stop_killed_at_each_step_leaves_no_orphan_or_duplicate_host() {
         let after = tabs(&executable, &["list"], &profile, &data, &runtime, &address);
         assert_eq!(after.1["host"], "none", "{point}: {}", after.1);
     }
+}
+
+#[test]
+fn stopped_agent_bridge_cannot_detach_a_client_still_viewing_it() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    std::fs::write(directory(&release, "bin").join("ui.js"),
+        "process.stdout.write('ready\\r\\n'); setInterval(() => {}, 1000);").unwrap();
+    let node = node_executable();
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
+    let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
+    let mut created = Vec::new();
+    for _ in 0..2 {
+        let result = Command::new(&executable)
+            .args(["internal", "tab-create", "--profile", text(&profile), "--data-dir", text(&data),
+                "--runtime-dir", text(&runtime), "--cwd", text(&release), "--release-root", text(&release),
+                "--node-executable", &node])
+            .env("A1_TABS_ENDPOINT", &address).current_dir(&release).output().expect("create Agent");
+        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+        created.push(serde_json::from_slice::<serde_json::Value>(&result.stdout).unwrap()["tabId"]
+            .as_str().unwrap().to_owned());
+    }
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    let credentials = terminal_host_contracts::roles::credentials::ProfileCredentials::load_existing(&credentials_root)
+        .unwrap().unwrap();
+    let mut attach = endpoint::connect(&address).unwrap();
+    let hello = terminal_host_contracts::roles::wire::RoleHello {
+        role: "attach".into(), generation: terminal_host_contracts::protocol::GENERATION,
+        build: "fixture".into(), release_id: terminal_host_contracts::roles::scope::fixture_release_id(&executable).unwrap(),
+        features: Vec::new(), token: credentials.client_token.to_vec(), tab_id: Some(created[1].clone()),
+        pid: Some(std::process::id()), start_identity: None, incarnation: 0, child_pid: None,
+        child_start_identity: None, highest_epoch: 0,
+    };
+    terminal_host_contracts::roles::wire::send(&mut attach, "hello", Some(1), hello).unwrap();
+    let wire = terminal_host_contracts::roles::wire::read_payload;
+    assert_eq!(terminal_host_contracts::roles::wire::kind(&wire(&mut attach).unwrap().unwrap()).unwrap().message_type, "welcome");
+    assert_eq!(terminal_host_contracts::roles::wire::kind(&wire(&mut attach).unwrap().unwrap()).unwrap().message_type, "attached");
+    let incarnation = RegistryStore::read(&credentials_root.join("registry.json")).unwrap().unwrap()
+        .tabs.iter().find(|tab| tab.tab_id == created[1]).unwrap().incarnation;
+    let mut bridge = endpoint::connect(&address).unwrap();
+    terminal_host_contracts::roles::wire::send(&mut bridge, "hello", Some(2),
+        terminal_host_contracts::roles::wire::RoleHello {
+            role: "bridge".into(), generation: 1, build: "fixture".into(),
+            release_id: terminal_host_contracts::roles::scope::fixture_release_id(&executable).unwrap(),
+            features: vec!["controller-boundary".into()],
+            token: credentials.derive("bridge", &created[1], incarnation).to_vec(),
+            tab_id: Some(created[1].clone()), pid: Some(std::process::id()), start_identity: None,
+            incarnation: 0, child_pid: None, child_start_identity: None, highest_epoch: 0,
+        }).unwrap();
+    assert_eq!(terminal_host_contracts::roles::wire::kind(&wire(&mut bridge).unwrap().unwrap()).unwrap().message_type, "welcome");
+    let attachment = wire(&mut bridge).unwrap().unwrap();
+    assert_eq!(terminal_host_contracts::roles::wire::kind(&attachment).unwrap().message_type, "attachment");
+    let (_, controller): (_, terminal_host_contracts::protocol::BridgeAttachment) =
+        terminal_host_contracts::roles::wire::body(&attachment).unwrap();
+    terminal_host_contracts::roles::wire::send(&mut attach, "tab.close", Some(3),
+        serde_json::json!({ "tabId": created[1] })).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        assert!(Instant::now() < deadline, "tab close did not complete");
+        let frame = wire(&mut attach).unwrap().unwrap();
+        if terminal_host_contracts::roles::wire::kind(&frame).unwrap().message_type == "tab.closed" { break; }
+    }
+    // Invariant: this raw attach deliberately does not switch tabs on close. A late bridge
+    // request remains bound to its old controller and view; without the stopped-tab guard A1 exits.
+    terminal_host_contracts::roles::wire::send(&mut bridge, "bridge.request", Some(4),
+        serde_json::json!({ "action": "detach", "clientId": controller.client_id,
+            "controllerRevision": controller.controller_revision })).unwrap();
+    let result = loop {
+        let frame = wire(&mut bridge).unwrap().unwrap();
+        if terminal_host_contracts::roles::wire::kind(&frame).unwrap().message_type == "bridge.result" { break frame; }
+    };
+    let (_, decision): (_, terminal_host_contracts::roles::wire::ResultBody) =
+        terminal_host_contracts::roles::wire::body(&result).unwrap();
+    assert!(!decision.accepted, "a closing Agent detached the resident client");
+    let registry = RegistryStore::read(&credentials_root.join("registry.json")).unwrap().unwrap();
+    assert_eq!(registry.tabs.iter().filter(|tab| tab.kind == "agent" && tab.desired == "running").count(), 1);
+    drop(bridge);
+    drop(attach);
+    cleanup.pids.extend(holder_pids(&credentials_root));
 }
 
 #[test]
