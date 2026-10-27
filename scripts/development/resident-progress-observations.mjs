@@ -59,7 +59,7 @@ export function validateProgressObservations(records, runId) {
     if (record?.clockDiscontinuity !== undefined && typeof record.clockDiscontinuity !== "boolean") faults.push(`${label}: invalid clock discontinuity`);
     if (!Number.isSafeInteger(record?.incarnation) || record.incarnation < 0) faults.push(`${label}: invalid incarnation`);
     if (!Number.isSafeInteger(record?.lostBefore) || record.lostBefore < 0) faults.push(`${label}: invalid loss count`);
-    else if (record.lostBefore > 0) faults.push(`${label}: ${record.lostBefore} observations lost before this record`);
+    else if (record.lostBefore > 0) faults.push(`${label} (${record.role ?? "unknown"}/${record.stage ?? "unknown"}, ${record.processInstance ?? "unknown"}): ${record.lostBefore} observations lost before this record`);
     if (record?.fragmentCount !== undefined
       && (!Number.isSafeInteger(record.fragmentCount) || record.fragmentCount < 1 || record.fragmentCount > 4_096)) {
       faults.push(`${label}: invalid fragment count`);
