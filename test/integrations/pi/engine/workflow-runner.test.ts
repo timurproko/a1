@@ -177,10 +177,12 @@ describe("PiWorkflowRunner", () => {
   });
 
   it("runs session workflows against the session and reports the normalized name", async () => {
-    const { runner, session } = harness();
+    const { runner, session, state } = harness();
+    const views = state.views;
     expect(await runner.executeWorkflow({ command: "name", argument: " Renamed " })).toMatchObject({
       outcome: "completed", message: "Session name set: renamed", detail: expect.stringContaining("normalized"),
     });
+    expect(state.views).toBe(views + 1);
     expect(await runner.executeBashWorkflow("ls", true)).toMatchObject({ command: "ls", output: "ok", exitCode: 0, excludeFromContext: true });
     runner.abortBashWorkflow();
     expect(session.calls).toEqual(["name:Renamed", "bash:ls:true", "abortBash"]);

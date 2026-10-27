@@ -1,7 +1,4 @@
 import { DIALOG_CLOSE_SHORTCUT_HINT, displayShortcutKeyLabel } from "../../contracts/presentation/index.js";
-
-const ACCENT = "\u001b[38;2;167;152;215m";
-const BORDER = "\u001b[38;2;97;133;204m";
 const MUTED = "\u001b[38;2;157;165;169m";
 const DIM = "\u001b[38;2;126;136;142m";
 const RESET_FG = "\u001b[39m";
@@ -16,12 +13,14 @@ export function renderProjectTrustDialog(
   selected: number,
   terminalWidth: number,
   terminalRows: number,
+  accent: string,
+  border: string,
 ): readonly string[] {
   const width = Math.max(1, terminalWidth);
-  const rule = `${BORDER}${"─".repeat(width)}${RESET_FG}`;
-  const title = ` ${BOLD}${ACCENT}Trust project folder?${RESET_FG}${RESET_BOLD}`;
+  const rule = `${border}${"─".repeat(width)}${RESET_FG}`;
+  const title = ` ${BOLD}${accent}Trust project folder?${RESET_FG}${RESET_BOLD}`;
   const path = ` ${MUTED}${sanitize(cwd)}${RESET_FG}`;
-  const choices = options.map((label, index) => choice(label, selected === index));
+  const choices = options.map((label, index) => choice(label, selected === index, accent));
   const closeKey = displayShortcutKeyLabel(DIALOG_CLOSE_SHORTCUT_HINT.key);
   const hint = ` ${DIM}↑↓${MUTED} navigate  ${DIM}Enter${MUTED} select  ${DIM}${closeKey}${MUTED} ${DIALOG_CLOSE_SHORTCUT_HINT.action}${RESET_FG}`;
   const explanation = wrap(EXPLANATION, Math.max(1, width - 2)).map(line => ` ${line}`);
@@ -38,8 +37,8 @@ export function renderProjectTrustDialog(
   return [choices[selected] ?? choices[0] ?? ""];
 }
 
-function choice(label: string, selected: boolean): string {
-  return selected ? ` ${ACCENT}→ ${label}${RESET_FG}` : `   ${label}`;
+function choice(label: string, selected: boolean, accent: string): string {
+  return selected ? ` ${accent}→ ${label}${RESET_FG}` : `   ${label}`;
 }
 
 function choiceWindow(choices: readonly string[], selected: number, capacity: number): readonly string[] {

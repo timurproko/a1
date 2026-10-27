@@ -7,6 +7,7 @@ import {
   KeybindingsManager,
   applyPiTheme,
   createPiShellEditor,
+  setPiAccentColor,
 } from "../../../../src/integrations/pi/components/index.js";
 import { createPinnedEditorHarness } from "./pinned-editor-upstream-fixture.js";
 
@@ -18,6 +19,8 @@ describe("pinned editor and input parity", () => {
   it("keeps comparison autocomplete below the input and byte-identical to an independently run pinned editor", async () => {
     const agentDir = await mkdtemp(join(tmpdir(), "comparison-autocomplete-"));
     try {
+      applyPiTheme("dark");
+      setPiAccentColor("purple");
       const upstream = await createPinnedEditorHarness(agentDir);
       const actual = createPiShellEditor({ ...tuiOptions(), keybindingProfile: "pi", agentDir, onSubmit() {} });
       const provider: AutocompleteProvider = {
@@ -52,6 +55,7 @@ describe("pinned editor and input parity", () => {
     await writeFile(join(agentDir, "keybindings.json"), JSON.stringify({ "app.model.cycleForward": ["ctrl+y"] }));
     try {
       applyPiTheme("dark");
+      setPiAccentColor("purple");
       const upstream = await createPinnedEditorHarness(agentDir);
       const logs: string[] = [];
       const actual = createPiShellEditor({

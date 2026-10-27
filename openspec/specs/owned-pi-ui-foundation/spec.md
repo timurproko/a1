@@ -1846,7 +1846,7 @@ Path-aware word boundaries SHALL affect only semantic word movement and word del
 - **THEN** word movement and deletion SHALL retain the pinned Pi boundary behavior rather than the bare-A1 path-aware override
 
 ### Requirement: Bare A1 declares shared input and status-level presentation
-Bare A1 SHALL use the shared input presentation and status-level color behavior as an explicit A1-owned customization over the pinned shell. The ordinary main user prompt SHALL render one blank cell before its `❯` marker, followed by the existing marker-to-content spacing. Auxiliary A1-owned Agent search and compact text-entry inputs SHALL use the same reusable rules, caret, placeholder, and content geometry without rendering a chevron or greater-than prompt marker. This customization SHALL supersede pinned editor border coloring and thinking-label styling only in bare A1; it SHALL render shared input rules through the same active semantic `border` role as modal bars and SHALL NOT change pinned `a1 pi` presentation, extension-provided custom editors, engine semantics, or other footer values. Bare-A1 keyboard defaults SHALL follow the declared level-cycle and model-selector shortcut policy instead of pinned defaults.
+Bare A1 SHALL use the shared input presentation and status-level color behavior as an explicit A1-owned customization over the pinned shell. The ordinary main user prompt SHALL render one blank cell before its `❯` marker, followed by the existing marker-to-content spacing. Bare-A1 standard dialog search inputs SHALL render exact ASCII `> ` before their caret or query, with the `>` resolved through the live semantic accent role. Marker-free full-screen application search and compact non-search text-entry inputs SHALL continue using the reusable rules, caret, placeholder, and content geometry without a dialog marker. This customization SHALL supersede pinned editor border coloring and thinking-label styling only in bare A1; it SHALL render shared input rules through the same active semantic `border` role as modal bars and SHALL NOT change pinned `a1 pi` presentation, extension-provided custom editors, engine semantics, or other footer values. Bare-A1 keyboard defaults SHALL follow the declared level-cycle and model-selector shortcut policy instead of pinned defaults.
 
 #### Scenario: Open the pinned comparison profile
 - **WHEN** the user starts `a1 pi`
@@ -1857,14 +1857,22 @@ Bare A1 SHALL use the shared input presentation and status-level color behavior 
 - **THEN** the input SHALL use the shared modal-border rules and render exactly one blank cell before the `❯` prompt marker
 - **AND** prompt history, paste chips, selection and copy, suggestions, streaming, submission, and bash execution SHALL retain their existing semantics
 
+#### Scenario: Use a standard dialog search input
+- **WHEN** a bare-A1 standard dialog offers typing-based search
+- **THEN** its input SHALL render exact ASCII `> ` with the `>` in the active semantic accent role
+- **AND** focus, editing, filtering, submission, cancellation, IME placement, clipping, and pointer geometry SHALL remain unchanged
+
 #### Scenario: Use an auxiliary Agent input
-- **WHEN** an A1-owned Agent selector, search, or compact text-entry surface requests the shared input presentation
-- **THEN** the input SHALL render its caret, placeholder, and text without a chevron or greater-than prompt marker
-- **AND** its existing focus, editing, submission, and cancellation behavior SHALL remain unchanged
+- **WHEN** an A1-owned Agent standard selector or dialog offers typing-based search
+- **THEN** the input SHALL render exact ASCII `> ` with the `>` in the active semantic accent role
+- **WHEN** full-screen Settings search or an explicitly marker-free compact non-search text-entry surface requests the shared input presentation
+- **THEN** the input SHALL render its caret, placeholder, and text without an agent or dialog prompt marker
+- **AND** each surface's existing focus, editing, submission, and cancellation behavior SHALL remain unchanged
 
 #### Scenario: Change the owned accent live
-- **WHEN** the active bare-A1 accent changes while the default agent editor is visible
-- **THEN** both input rules SHALL repaint with the same derived border tone as modal rules
+- **WHEN** the active bare-A1 accent changes while the default agent editor or a standard dialog search input is visible
+- **THEN** shared input rules SHALL repaint with the same derived border tone as modal rules
+- **AND** a visible standard-dialog `>` SHALL repaint with the new semantic accent
 - **AND** the input SHALL retain its text, cursor, selection, focus, prefix choice, and geometry
 
 ### Requirement: The status-bar level name carries the existing thinking color
@@ -2037,7 +2045,7 @@ Space SHALL toggle the selected model's membership in the session's cycling scop
 
 The dialog SHALL compare its current scope and order with the last successfully saved scope. Whenever they differ, the title row SHALL read `Models (unsaved)`, with `(unsaved)` immediately after the title. Ctrl+S SHALL persist the current scope and order while leaving the dialog open; only a successful save SHALL clear `(unsaved)`. An empty explicit scope SHALL preserve the existing all-model cycling fallback.
 
-While a real catalog refresh runs in the background, the dialog SHALL show a muted `(refreshing)` marker on the title row, SHALL NOT render the full progress sentence in its body, and SHALL keep `(refreshing)` visible for at least one second so fast completion cannot reduce it to an unreadable flash. After both a successful refresh and the minimum-visible interval, the dialog SHALL remove `(refreshing)` directly without showing `(refreshed)` or a success sentence. The refresh marker SHALL coexist with `(unsaved)` without hiding or clearing the dirty state. Timeout and failure outcomes SHALL remove the title refresh marker after the minimum-visible interval and remain visible as actionable warning details in the body.
+Catalog refresh SHALL run in the background without adding `(refreshing)` to the title or rendering a progress or successful-completion sentence in the dialog body. A successful refresh SHALL silently update available rows while preserving the user's query, surviving selection, pending scope edits, and dirty state. Timeout and failure outcomes SHALL keep the same state and remain visible as actionable bounded warning details in the body without changing the title.
 
 #### Scenario: Advertise the unified bare-A1 command
 - **WHEN** bare A1 builds its slash-command catalog
@@ -2081,17 +2089,16 @@ While a real catalog refresh runs in the background, the dialog SHALL show a mut
 
 #### Scenario: Refresh model catalogs
 - **WHEN** the Models dialog starts its real background catalog refresh
-- **THEN** the title SHALL show muted `(refreshing)`, including alongside `(unsaved)` when the scope is dirty
-- **AND** the full progress sentence SHALL not appear in the dialog body
-- **AND** quick completion SHALL leave `(refreshing)` visible until one second has elapsed from refresh start
-- **WHEN** catalog refresh then succeeds and the minimum-visible interval has elapsed
+- **THEN** the title SHALL remain `Models` or `Models (unsaved)` according to dirty state
+- **AND** neither `(refreshing)` nor the full progress sentence SHALL appear in the dialog
+- **WHEN** catalog refresh then succeeds
 - **THEN** the dialog SHALL preserve the user's query, selected row where still available, pending scope edits, and dirty state while updating the available rows
-- **AND** the title SHALL remove `(refreshing)` directly without showing `(refreshed)` or a success sentence
+- **AND** the dialog SHALL not show `(refreshed)` or a success sentence
 
 #### Scenario: Model catalog refresh fails or times out
 - **WHEN** catalog refresh fails or times out while the Models dialog is open
 - **THEN** the dialog SHALL preserve the user's query, selected row where still available, pending scope edits, and dirty state without broadening availability to unauthenticated providers
-- **AND** after the one-second minimum-visible interval it SHALL remove `(refreshing)` and report the bounded warning details in the dialog body without showing `(refreshed)`
+- **AND** it SHALL report the bounded warning details in the dialog body without showing `(refreshing)` or `(refreshed)`
 
 #### Scenario: Invoke an explicit model-selection binding
 - **WHEN** the user invokes an explicitly configured model-selection shortcut in bare A1
@@ -2394,7 +2401,7 @@ Bare A1 SHALL support one explicit optional repository-context association per s
 
 The runtime SHALL publish bounded liveness with exact platform process identity. A worktree claim MAY transfer only after clean release or verified absence of the recorded process identity; elapsed time, heartbeat age, transcript inactivity, Git cleanliness, missing pull request, branch age, or PID alone SHALL NOT authorize takeover. Unverifiable ownership SHALL fail closed. Clean unlink, successful stream transfer, and orderly runtime disposal SHALL release live authority without granting cleanup authority. Restart or resume SHALL activate a persisted association only after safely reacquiring its worktree; a conflicting live owner SHALL force startup-context fallback.
 
-`a1 session worktrees` SHALL provide a bounded read-only inventory of canonical same-repository Git worktrees as `current`, `busy`, `available`, or `unverifiable`. It SHALL expose path, branch, and status but no session ID, process ID, session file, prompt, transcript, or credential data and SHALL NOT reserve, recover, release, edit, clean, or delete anything. Its result is advisory; `a1 session link-worktree` SHALL atomically revalidate and acquire the target claim before updating the durable association. Exactly one of two racing runtime generations SHALL succeed. A failed link or stream switch SHALL leave the prior association and claims unchanged.
+`a1 session worktrees` SHALL provide a bounded read-only inventory of canonical same-repository Git worktrees as `current`, `busy`, `available`, or `unverifiable`. A registration whose directory or Git pointer no longer exists SHALL be reported as `unverifiable` with the path and branch Git recorded for it rather than failing the inventory. It SHALL expose path, branch, and status but no session ID, process ID, session file, prompt, transcript, or credential data and SHALL NOT reserve, recover, release, edit, clean, or delete anything. Its result is advisory; `a1 session link-worktree` SHALL atomically revalidate and acquire the target claim before updating the durable association. Exactly one of two racing runtime generations SHALL succeed. A failed link or stream switch SHALL leave the prior association and claims unchanged.
 
 The association and claim operations SHALL validate active session/runtime identity, canonical worktree identity, non-detached branch state, and same Git common-directory identity as the session's startup repository. They SHALL NOT change tool cwd, session cwd, Git state, GitHub state, Git worktree locks, worktree cleanup registration, acceptance, merge, deletion, or cleanup authority. Missing, malformed, foreign, detached, deleted, reused, conflicting, or otherwise invalid state SHALL fail closed without making A1 startup or the running session fail.
 
@@ -2411,6 +2418,14 @@ The badge, association, claim, and inventory are declared bare-A1 behavior. The 
 - **THEN** every validated same-repository worktree SHALL be reported deterministically as current, busy, available, or unverifiable
 - **AND** the operation SHALL NOT claim or mutate any worktree, session association, Git state, or cleanup state
 - **AND** SHALL NOT reveal another session's or process's identity or content
+
+#### Scenario: Inventory contains a deleted worktree
+
+- **GIVEN** a registered same-repository worktree whose directory was deleted without `git worktree prune`
+- **WHEN** a bare-A1 session invokes `a1 session worktrees`
+- **THEN** the inventory SHALL still succeed and report every live worktree with its ordinary status
+- **AND** the stale registration SHALL appear as unverifiable with the path and branch Git recorded for it and no agent
+- **AND** linking a live worktree SHALL remain unaffected by the stale registration
 
 #### Scenario: Link a delivery worktree created after session startup
 
@@ -3512,7 +3527,12 @@ When the bare-A1 default editor applies a selected top-level slash-command row, 
 
 ### Requirement: Searchable dialog typing guidance uses shortcut roles
 
-Bare A1's Models, Skills, Thinking Level, Resume Session, and Session Tree dialogs SHALL present their typing-based search guidance as the exact visible text `Type search`. `Type` SHALL use the shared quiet key role, and `search` SHALL use the shared action-text role used by neighboring shortcut hints. Resume Session MAY additionally present its query grammar as quiet placeholder text inside its empty search field and consolidate its shortcut guidance into one row. These presentation changes SHALL NOT alter filtering semantics, keybindings, or the pinned `a1 pi` comparison profile; every other covered dialog SHALL retain its established input and hint order, spacing, and width handling.
+Bare A1's Models, legacy model selector, scoped-model configuration, Skills, Thinking Level, Resume Session, Session Tree, login provider, and logout provider dialogs SHALL render exact ASCII `> ` before their typing-based search field, with the `>` in the active semantic accent role. The Models, Skills, Thinking Level, Resume Session, and Session Tree dialogs SHALL continue presenting their typing guidance as the exact visible text `Type search`. `Type` SHALL use the shared quiet key role, and `search` SHALL use the shared action-text role used by neighboring shortcut hints. Resume Session MAY additionally present its query grammar as quiet placeholder text inside its empty search field and consolidate its shortcut guidance into one row. These presentation changes SHALL NOT alter filtering semantics, keybindings, focus, cursor placement, prompt width, input clipping, or the pinned `a1 pi` comparison profile; every other covered dialog SHALL retain its established input and hint order, spacing, and width handling.
+
+#### Scenario: Read and identify a searchable dialog
+- **WHEN** any declared bare-A1 standard searchable dialog is visible
+- **THEN** its search field SHALL begin with exact ASCII `> `
+- **AND** the `>` SHALL use the active semantic accent role while the query retains its established text and caret roles
 
 #### Scenario: Read typing guidance in a searchable dialog
 - **WHEN** the ordinary Models, Skills, Thinking Level, Resume Session, or Session Tree dialog is visible
@@ -3522,8 +3542,12 @@ Bare A1's Models, Skills, Thinking Level, Resume Session, and Session Tree dialo
 
 #### Scenario: Read Resume Session query grammar
 - **WHEN** Resume Session is visible with an empty search query
-- **THEN** its query grammar SHALL appear as quiet placeholder text in the input rather than as shortcut entries
+- **THEN** its query grammar SHALL appear as quiet placeholder text after the accent `> ` marker rather than as shortcut entries
 - **AND** `Type search` SHALL remain the first footer entry
+
+#### Scenario: Change the dialog accent live
+- **WHEN** the active accent changes while a standard searchable dialog remains open
+- **THEN** its `>` marker SHALL repaint from the live accent role without clearing or moving the query or caret
 
 #### Scenario: Use the comparison profile
 - **WHEN** a corresponding searchable surface is presented through `a1 pi`
@@ -3778,3 +3802,86 @@ This background composition SHALL preserve existing text, padding, wrapping, col
 #### Scenario: Keep the comparison profile unchanged
 - **WHEN** equivalent tool output is presented through `a1 pi`
 - **THEN** its pinned comparison component and terminal-control ordering SHALL remain unchanged by bare A1's enclosing-background composition
+
+### Requirement: Constrained A1 session footer reserves identity and truncates dimly
+When the bare-A1 footer must truncate path/branch or usage text, every inserted truncation marker SHALL be exactly one terminal-column `…` in the semantic dim foreground of the neighboring text, never a bright three-cell `...`. The path row SHALL retain its existing complete linked `#<number>` badge whenever the terminal can contain that badge; prefix truncation and smaller-width fallback SHALL NOT leak the hyperlink or foreground into another cell or row. On the usage row, the full model name SHALL take precedence over lower-priority usage and optional provider or thinking-level details whenever its complete name fits the terminal. Lower-priority usage SHALL truncate with the dim one-cell marker before model text is clipped. A thinking-level suffix SHALL keep its level color when it fits without clipping the model; the row SHALL remain width-bounded and ANSI-safe when even the model cannot fit. Untruncated rows and the Pi comparison profile SHALL retain their existing presentation.
+
+#### Scenario: Truncate the A1 path beside a pull request
+- **WHEN** a narrow A1 footer must shorten its repository path and branch to fit the linked `#827` badge
+- **THEN** the path prefix SHALL end with a single dim `…` and the complete `#827` SHALL retain its hyperlink
+- **AND** no bright three-cell `...` SHALL appear as a truncation marker
+
+#### Scenario: Preserve the model before usage
+- **WHEN** a narrow A1 footer can fit the complete current model name but cannot fit both that name and the complete usage row
+- **THEN** it SHALL show the full model name and truncate the lower-priority usage with a dim one-cell `…`
+- **AND** any thinking-level or provider detail that cannot fit SHALL be omitted without clipping the model name
+
+#### Scenario: Keep styled right-hand details when space remains
+- **WHEN** a model and thinking-level suffix both fit after usage truncation
+- **THEN** the complete model name SHALL remain dim and the complete level SHALL keep its existing level foreground
+- **AND** the marker and level style SHALL NOT leak into adjacent text or another row
+
+#### Scenario: A footer narrower than the model
+- **WHEN** the terminal cannot fit even the model's complete name
+- **THEN** the footer SHALL truncate safely within the available display width without leaking foreground or hyperlinks
+
+#### Scenario: Comparison and wide footer remain unchanged
+- **WHEN** the A1 footer fits without truncation or the Pi comparison profile renders its footer
+- **THEN** the existing text, width policy, and semantic coloring SHALL remain unchanged
+
+### Requirement: Pre-resource A1 presentation follows the global profile accent
+
+Before the bare-A1 theme or project resources are available, A1-owned interactive startup and safety presentation SHALL use the selected Accent color from the effective global A1 profile, or the blue declared default when no valid choice can be read. Its accent-colored title, selector cursor, and derived rule border SHALL use the same named semantic color family as the running bare-A1 UI. It SHALL NOT read project-local settings, project themes, extensions, or untrusted resources to choose a color, alter trust decision handling, or change the pinned `a1 pi` comparison presentation. An unreadable, malformed, unsupported, or absent global settings document SHALL not block a trust prompt.
+
+#### Scenario: Trust a project with a saved accent
+- **WHEN** the user launches bare A1 from an undecided project with an explicit global `accentColor`
+- **THEN** the project-trust heading, chosen option, and rule border SHALL reflect that accent family before project resources load
+- **AND** an untrusted project-local color SHALL have no effect on those colors
+
+#### Scenario: Trust a project without a valid accent
+- **WHEN** no valid A1 global accent can be read for the effective profile
+- **THEN** the trust dialog SHALL use the blue default accent family and retain its normal decision, input, and restoration behavior
+
+#### Scenario: Launch another profile or comparison mode
+- **WHEN** different profiles have different saved accents or `a1 pi` is started instead
+- **THEN** each bare-A1 startup presentation SHALL reflect only its own selected profile
+- **AND** the comparison route SHALL retain its existing pinned styling
+
+### Requirement: Bare A1 insets every session status-bar row
+
+Bare A1 SHALL reserve exactly one terminal cell between visible session footer/status-bar content and each horizontal terminal edge whenever the terminal is wide enough to contain content between those gutters. The shell SHALL apply this inset uniformly to the built-in repository path row, usage/model row, merged extension-status rows, and every row produced by an extension-provided custom footer. Footer components SHALL receive the inner content width so their own wrapping, truncation, and alignment fit within the gutters, and the shell SHALL keep returned rows ANSI-safe and width-bounded even when an extension returns over-wide content. At widths too small for content plus both gutters, the footer SHALL preserve its row allocation without drawing content in an edge cell. The explicit `a1 pi` comparison profile SHALL retain its pinned footer presentation.
+
+#### Scenario: Inset every built-in status-bar row
+
+- **WHEN** bare A1 renders its repository path and usage/model footer rows
+- **THEN** each row's first terminal cell and last terminal cell SHALL remain blank
+- **AND** the existing footer content, ordering, styling, and selection ownership SHALL remain between those gutters
+
+#### Scenario: Inset merged extension status
+
+- **WHEN** an extension contributes footer status text through the standard status API
+- **THEN** the resulting status row SHALL use the same one-cell left and right gutters as the built-in rows
+- **AND** its text SHALL remain within the inner width
+
+#### Scenario: Inset every custom extension footer line
+
+- **WHEN** an extension replaces the footer with a component that returns multiple rows
+- **THEN** every returned row SHALL receive the same one-cell left and right gutters
+- **AND** the component SHALL render against the reduced inner width without requiring plugin-specific padding
+
+#### Scenario: Bound an over-wide custom footer
+
+- **WHEN** a custom footer returns ANSI-styled content wider than the inner width
+- **THEN** the shell SHALL truncate it safely before the right gutter
+- **AND** styling SHALL NOT leak into the gutter or another row
+
+#### Scenario: Preserve gutters at tiny widths
+
+- **WHEN** the terminal is too narrow to show footer content between both gutters
+- **THEN** the footer SHALL preserve its row allocation without placing visible content in the first or last terminal cell
+- **AND** no rendered row SHALL exceed the terminal width
+
+#### Scenario: Keep the Pi comparison footer unchanged
+
+- **WHEN** the same footer state renders through the explicit `a1 pi` comparison profile
+- **THEN** it SHALL retain the pinned full-width footer bytes without the bare-A1 gutter customization

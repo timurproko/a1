@@ -134,7 +134,7 @@ Bare `a1` SHALL present a v2-style one-row tab strip at the top of the terminal 
 - **THEN** no tab strip, resident server, holder, or tab bridge SHALL be involved
 
 ### Requirement: Tab chips reproduce the approved v2 strip
-The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible, remaining tabs SHALL collapse into a keyboard-navigable `…` menu, and a trailing `+` SHALL always be reserved. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
+The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible when space permits, and a trailing `+` SHALL be reserved while at least one plus-menu kind is enabled. The muted single-column centered `⋯` overflow control SHALL appear only while some chips do not fit and SHALL open a keyboard- and mouse-navigable popup listing only tabs whose chips are not drawn, without checkmarks, in strip order. Each row SHALL reserve a one-cell status-glyph slot and separator before its name; it SHALL show the same current status glyph and semantic color as the chip when present, or a blank slot while idle. Names SHALL clip by display width without shifting the icon slot, leaking icon style into the title, or changing popup hit geometry. Choosing a popup row SHALL view exactly that tab with either top or bottom strip placement and place its chip in the currently active chip's strip slot when that chip was drawn and the two do not both fit, even if a different non-swap view request was pending; the displaced tab SHALL appear in the popup. Other visible chips SHALL remain visible when geometry permits, and a pending view request SHALL NOT briefly repaint the old viewed chip in the slot or replay the newly drawn chip's hidden-name transition. The popup SHALL track the current drawn chips across resize, reorder, creation, removal, and view changes; removed tabs SHALL NOT remain actionable. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
 
 #### Scenario: Wide names are clipped by display width
 - **WHEN** a tab name contains CJK characters or emoji wider than the chip allows
@@ -142,7 +142,7 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 
 #### Scenario: More tabs than fit
 - **WHEN** the terminal cannot fit every chip
-- **THEN** the viewed chip SHALL remain visible, `…` SHALL list hidden tabs, and assigned navigation or jump keys SHALL still reach them
+- **THEN** the viewed chip SHALL remain visible when space permits, `⋯` SHALL list only the tabs without drawn chips, next/previous navigation SHALL still reach every tab, and Alt+number SHALL select only a chip currently drawn in that numbered left-to-right position
 
 #### Scenario: Close button is always present
 - **WHEN** any visible tab chip is rendered or clicked after the legacy close-button behavior is removed
@@ -160,8 +160,62 @@ The strip SHALL use the v2 default top-row presentation as fixed behavior rather
 - **AND** one blank cell SHALL remain between the clock's final digit and the terminal's right edge
 
 #### Scenario: Clock with no tabs
-- **WHEN** every tab has been closed
+- **WHEN** every tab has been closed and at least one plus-menu kind is enabled
 - **THEN** the strip SHALL show `+` and the right-aligned clock
+
+#### Scenario: Only hidden tabs appear when some chips overflow
+- **WHEN** a terminal has three open tabs and its strip can show only one tab chip
+- **THEN** the overflow popup SHALL list only the other two tabs, in strip order and without checkmarks
+- **AND** selecting one SHALL view it in the strip and move the currently active chip into the popup
+
+#### Scenario: Strip menus are pointer-only
+- **WHEN** hidden chips exist and the user clicks the centered `⋯` control
+- **THEN** the hidden-tab popup SHALL open, with its existing pointer hover and keyboard Up/Down/Enter/Esc navigation
+- **WHEN** the configured plus menu includes a utility kind and the user clicks `+`, including when no tabs exist
+- **THEN** the add-tab popup SHALL open without creating a tab until an item is chosen
+- **WHEN** only Agent is enabled and the user clicks `+`
+- **THEN** one Agent SHALL be created directly without opening a popup
+- **AND** `+` SHALL be absent when no plus-menu kind is enabled
+- **AND** neither Alt+- nor Alt+= SHALL be assigned to or consumed by a tab-menu shortcut, even if a prior user binding names the removed menu actions
+
+#### Scenario: Jump shortcuts track only drawn chips
+- **WHEN** the strip draws two chips after a narrow resize or hidden-tab swap, regardless of their registry indexes
+- **THEN** Alt+1 SHALL select the first drawn chip and Alt+2 the second
+- **AND** Alt+3 SHALL do nothing, without scheduling a later selection if more tabs appear
+
+#### Scenario: An unrelated pending view cannot displace the active chip's swap slot
+- **WHEN** the committed active chip and a different chip with an ordinary pending view request are both drawn
+- **AND** the user selects a hidden tab from `⋯` before the ordinary request commits
+- **THEN** the hidden tab SHALL replace the committed active chip, not the different requested chip
+
+#### Scenario: Hidden-tab selection keeps the strip stable
+- **WHEN** the user chooses a hidden named tab and its view request is pending
+- **THEN** the incoming chip SHALL occupy the currently active chip's slot without a transient return of the displaced chip
+- **AND** any hidden automatic title animation already in progress SHALL NOT replay when that chip appears; other drawn chips SHALL retain their display
+
+#### Scenario: Hidden-tab status icons remain aligned
+- **WHEN** hidden tabs include a working tab, an attention-needing tab, and an idle tab
+- **THEN** each popup row SHALL reserve the same icon-and-separator cells before its name, showing the strip's current status glyph and color for working and attention states and a blank icon slot for idle
+- **AND** clipping a long name or hovering a row SHALL NOT shift the icon or alter the row's tab target
+
+#### Scenario: Swap a hidden tab while two chips fit
+- **WHEN** two chips are visible, the user views one of them, and they choose a hidden named tab from `⋯`
+- **THEN** the named tab SHALL occupy the currently active chip's position
+- **AND** the other visible chip SHALL remain drawn, while the displaced chip SHALL become a menu entry
+
+#### Scenario: Click a named tab in a bottom-positioned overflow popup
+- **WHEN** the tab bar is at the bottom and the user clicks the second hidden row, named `ask-me-something`, in an overflow popup
+- **THEN** the `ask-me-something` tab SHALL be viewed, not the first or previously viewed tab
+- **AND** clicking another drawn popup row SHALL view only that row's named tab
+
+#### Scenario: Visibility follows a resize
+- **WHEN** a strip expands to show more chips or shrinks to hide some chips while its popup is open
+- **THEN** the popup SHALL show only undrawn chips in order without stale rows or actions
+- **AND** the popup SHALL cease to be available when every tab fits
+
+#### Scenario: Overflow at an extreme width
+- **WHEN** the terminal is too narrow to show ordinary chip geometry beside the reserved controls
+- **THEN** the strip and popup SHALL stay within the terminal columns without wrapping or claiming a chip is visible when it was not drawn
 
 ### Requirement: Tab status comes from the tab bridge, not the screen
 Each chip SHALL show structured status:
@@ -220,23 +274,22 @@ Background attention SHALL be conveyed only by chip status icons. A1 SHALL NOT e
 - **THEN** the outer terminal SHALL NOT receive it
 
 ### Requirement: Tabs are managed from the strip, mouse, and assignable actions
-A1 SHALL create a new Agent tab in the client's launch cwd from `Alt+A`; clicking `+` SHALL open a v2-style launcher containing `+ Agent`, a disabled separator, and `Settings` with the effective Settings shortcut right-aligned. Agent SHALL use the same creation flow. Settings SHALL create or show the singleton global Settings utility tab; its default `Alt+,` action SHALL do the same from another tab and SHALL hide the Settings tab while it is viewed. `Alt+1` through `Alt+9` SHALL view those positions and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click on a tab SHALL view it. Right click on a visible Agent tab SHALL open a stable two-row context menu anchored beneath the pointer and clamped to the terminal, with `Close` first and `Rename` second; a Settings tab SHALL expose Close but SHALL NOT be renameable. Popup labels SHALL use effective shortcut assignments. Escape, a click elsewhere, a tab switch, or target removal SHALL dismiss a menu without action. Dragging an Agent chip after 250 ms or one column of movement SHALL calculate insertion from chip midpoints, preview only a real move with a v2 `│` marker, and issue one reorder with the captured expected revision on release; release away from the strip SHALL cancel. No tab-management slash command SHALL be exposed. A1 SHALL impose no configured or hard user tab count and SHALL never return a `tab-limit` refusal; only a concrete launch, persistence, containment, protocol, or operating-system resource failure MAY refuse creation. Each client SHALL keep its own viewed tab.
+A1 SHALL create a new Agent tab in the client's launch cwd from `Alt+A`; clicking `+` SHALL act as the configured plus menu requires, and by default SHALL create one Agent through the same creation flow. Settings SHALL create or show the singleton global Settings utility tab; its default `Alt+,` action SHALL do the same from another tab and SHALL hide the Settings tab while it is viewed. `Alt+1` through `Alt+9` SHALL view those positions and `Alt+0` the tenth. Actions for next, previous, move-right, and move-left SHALL exist for assignment but have no default keys. Left click on a tab SHALL view it. Right click on a visible Agent tab SHALL open a stable two-row context menu anchored beneath the pointer and clamped to the terminal, with `Close` first and `Rename` second; a Settings or Changelog tab SHALL expose Close but SHALL NOT be renameable. Popup labels SHALL use effective shortcut assignments. Escape, a click elsewhere, a tab switch, or target removal SHALL dismiss a menu without action. Dragging an Agent chip after 250 ms or one column of movement SHALL calculate insertion from chip midpoints, preview only a real move with a v2 `│` marker, and issue one reorder with the captured expected revision on release; release away from the strip SHALL cancel. No tab-management slash command SHALL be exposed. A1 SHALL impose no configured or hard user tab count and SHALL never return a `tab-limit` refusal; only a concrete launch, persistence, containment, protocol, or operating-system resource failure MAY refuse creation. Each client SHALL keep its own viewed tab.
 
 #### Scenario: Create from keyboard
 - **WHEN** the user presses `Alt+A`
 - **THEN** a new default-named Agent SHALL appear with its first complete surface and become viewed
 
 #### Scenario: Create from strip
-- **WHEN** the user clicks `+`
-- **THEN** a persistent popup SHALL show `+ Agent`, a separator line, and `Settings` in that order
-- **AND** Agent and Settings SHALL be independently hoverable and clickable
+- **WHEN** the user clicks `+` under the default plus menu
+- **THEN** the same creation flow as `Alt+A` SHALL run without a popup
 
 #### Scenario: Create from the grouped launcher
-- **WHEN** the user selects `+ Agent`
+- **WHEN** the plus menu offers more than Agent and the user selects `+ Agent`
 - **THEN** the same creation flow as `Alt+A` SHALL run
 
 #### Scenario: Open Settings from the grouped launcher
-- **WHEN** the user selects Settings with or without existing Agent tabs
+- **WHEN** the plus menu offers Settings and the user selects it with or without existing Agent tabs
 - **THEN** A1 SHALL create or activate the singleton Settings tab without visible command input
 
 #### Scenario: Open Settings from its action
@@ -679,8 +732,8 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - Input during automatic transfer SHALL be delivered once after acknowledgement, or refused before any prefix.
 - Pointer motion and focus reports SHALL never consume the input budget of a pending view or cause key or paste input to be refused.
 - The attach client SHALL NOT render an input-delivery notice row such as `Input was not sent; try again.` beneath the strip.
-- Successful create and close SHALL commit only complete final topology states.
-- A newly created Agent SHALL become visible only with its first drawn frame, or after a bounded fallback when the child never draws. The prior view SHALL remain until then and no cursor SHALL show.
+- Successful create and close SHALL commit only complete final topology states; locally pending presentation SHALL NOT enter the authoritative registry.
+- A user-created Agent SHALL immediately show exactly one selected locally pending chip and an empty transcript with a complete idle ruled editor with a visual block caret and a two-row cwd/model/usage footer in the configured canvas, without loading/preparation text, stale usage, old child surface, or a child cursor. The provisional footer MAY use the last complete Agent's model/context as display-only hints; if unavailable it SHALL use neutral values until the new Agent draws. A registry update arriving before or after `tab.created` SHALL NOT display a second Agent chip beside it. The real chip and child surface SHALL become visible together only with the first drawn frame, or after a bounded fallback when the child never draws.
 - When no tabs remain, the strip SHALL show hoverable `+` and the clock, the body SHALL show the landing, and no cursor SHALL show.
 - A tab switch or creation SHALL repaint the strip and body in place without first clearing the screen.
 
@@ -708,8 +761,44 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 - **THEN** no presented frame SHALL clear the screen or blank tab names before the new tab's content is painted
 
 #### Scenario: Create a tab normally
-- **WHEN** a new Agent reaches its first input-ready complete surface
-- **THEN** its chip, body, status bar, and editor SHALL appear together without a provisional flashing chip, blank body, stray cursor, or clear-only frame
+- **WHEN** the user requests a new Agent from a tab or landing
+- **THEN** the first paint SHALL show a single pending Agent chip and an empty transcript, ruled prompt with a visual caret, and full two-row footer without the previous child content, loading text, child cursor, or a clear-only frame
+- **AND** the first input-ready complete surface SHALL replace them together with the real chip, body, and editor without an intermediate duplicate chip; during truecolor chip fill the displayed provisional footer SHALL stay steady until the latest real Agent footer is revealed at fill completion
+
+#### Scenario: Pending footer matches the committed Agent UI
+- **WHEN** an Agent is created while an existing Agent has a complete footer
+- **THEN** the provisional footer SHALL preserve the real footer's left and right gutters and styled model/context presentation while resetting the new tab's usage to zero, but its path SHALL show only the new Agent's launch cwd without replaying another Agent's branch or PR link
+- **AND** no previous prompt, conversation text, branch, or PR link SHALL leak into the provisional body
+- **AND** the new Agent's real footer SHALL add its resolved branch and PR together after repository metadata refresh; before that, its plain cwd SHALL stay visible without blocking the body or input
+- **WHEN** no complete Agent footer exists
+- **THEN** the same owned footer layout SHALL show neutral model/context values without claiming unseen session metadata
+
+#### Scenario: A registry list precedes the create acknowledgement
+- **WHEN** the server publishes the new Agent in a registry list before `tab.created` or before the Agent's first complete surface
+- **THEN** only the selected pending Agent chip SHALL appear beside the previously existing tabs
+- **AND** the real Agent chip SHALL replace it, never appear beside it or blink out later
+
+#### Scenario: Accent-aware pending chip fills into the real Agent
+- **WHEN** the user creates an Agent with any supported accent scheme, including the default purple
+- **THEN** its selected provisional chip SHALL use a lighter shade derived from that accent, and the real chip and body SHALL replace the preview together on the first complete frame
+- **AND** the real chip's background SHALL fill from left to right from that initializing shade into its configured normal selected shade without moving its title or hit target, then settle fully to the selected shade
+- **AND** the child body and input SHALL NOT wait for this chip-only animation, no scheme SHALL fall back to blue, and closing or switching during the fill SHALL NOT leave a stale active chip
+
+#### Scenario: The real footer appears after the chip fills
+- **WHEN** a pending Agent commits its first complete frame and the selected chip begins its truecolor fill
+- **THEN** the already visible plain cwd path and provisional status row SHALL remain stable while the real body and editor update
+- **AND** the latest real footer SHALL appear in one paint when the chip reaches its active shade, without briefly showing intermediate Agent status or inherited usage
+- **AND** cancel, tab switch, or resize SHALL discard the held footer; without truecolor animation the real footer SHALL appear immediately
+
+#### Scenario: Close before Agent startup completes
+- **WHEN** the user invokes the close shortcut or closes the provisional chip from its context menu before the Agent's first frame
+- **THEN** the pending chip and shell SHALL disappear immediately, the previous view or landing SHALL return, and A1 SHALL remain attached even when no other Agent is running; queued input for that creation SHALL be discarded
+- **AND** the server SHALL cancel that exact creation before starting a holder when possible, or stop its holder and child if already launched
+- **AND** a late create acknowledgement, registry list, or child frame SHALL NOT reveal a ghost Agent or close an unrelated new tab
+
+#### Scenario: Creation is refused
+- **WHEN** a pending Agent creation fails before a tab is registered
+- **THEN** its pending chip and body SHALL disappear, the prior coherent view or landing SHALL return with an actionable notice, and buffered input SHALL NOT reach the prior Agent
 
 ### Requirement: Popup gestures preserve a usable v2 menu
 Every strip popup SHALL remain open through its opening pointer gesture. Motion SHALL hover enabled rows, a primary click SHALL invoke one row once, separators SHALL remain inert, and an outside press SHALL dismiss without child input. Releases alone SHALL not dismiss. Popup rows SHALL use v2's dark normal/hover colors, white labels, muted shortcuts, and padding; palette output SHALL remain dark without reverse video.
@@ -1005,7 +1094,7 @@ The resident tab presentation SHALL draw every scrollbar track and thumb cell in
 - **THEN** the retained resident rows match a complete capture of the child terminal and every rail cell stays in the gutter column
 
 ### Requirement: The empty resident shell presents the a1 landing
-While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body: the launch cwd, formatted and placed as an Agent tab's footer shows it (flush left on the second-to-last body row, with the home directory as `~`, in the footer's dim color), the running version as `v<version>` in the footer's dim color on the row below it, and the three-row half-block `a1` wordmark in the profile's accent color on the rows above it (omitted where half-block glyphs are unsupported or rows run out), so the folder stays in place when a tab opens or closes at either strip position. The landing body SHALL be painted with the canvas the `backgroundStyle` setting gives Agent tabs, and SHALL leave the terminal background when it is `transparent`. When the user starts an Agent from the landing, the wordmark's accent cells SHALL wipe away from the right within about 180 ms while its first cell turns white, so only the cell where the Agent's editor caret appears remains until that Agent's first frame commits; a refused creation SHALL restore the wordmark. The landing SHALL hold no input: keys, paste, and body mouse input SHALL reach no child, while tab shortcuts, the `+` launcher and its popups, strip hover, strip mouse input, and the double-`Ctrl+C` detach SHALL behave exactly as with tabs. The landing SHALL render no cursor and SHALL never be shown while a tab is viewed or requested.
+While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body: the launch cwd, formatted and placed as an Agent tab's footer shows it (one-cell left gutter on the second-to-last body row, with the home directory as `~`, in the footer's dim color), the running version as `v<version>` with the same left gutter in the footer's dim color on the row below it, and the three-row half-block `a1` wordmark in the profile's accent color on the rows above it (omitted where half-block glyphs are unsupported or rows run out), so the folder stays in place when a tab opens or closes at either strip position. The landing body SHALL be painted with the canvas the `backgroundStyle` setting gives Agent tabs, and SHALL leave the terminal background when it is `transparent`. When an Agent is added from the landing, the single pending Agent chip and complete idle editor/footer SHALL replace the landing on the initiating event; the first drawn Agent frame SHALL replace that pending presentation without a wipe or fade. A hidden utility tab SHALL retain its existing first-draw handoff. The landing SHALL hold no input: keys, paste, and body mouse input SHALL reach no child, while tab shortcuts, the `+` launcher and its popups, strip hover, strip mouse input, and the double-`Ctrl+C` detach SHALL behave exactly as with tabs. The landing SHALL render no cursor and SHALL never be shown while a tab is viewed.
 
 #### Scenario: Last tab closes into the landing
 - **WHEN** the final Agent or Settings tab closes while the attach client stays open and the strip is at the top
@@ -1014,7 +1103,7 @@ While the attach client has no tab to show and no view request pending, it SHALL
 
 #### Scenario: The folder does not move when a tab opens
 - **WHEN** the user creates an Agent from the landing at either tab bar position
-- **THEN** the Agent's footer SHALL show the cwd on the same row and column as the landing showed it
+- **THEN** the Agent's footer SHALL show the cwd on the same row and one-cell-gutter column as the landing showed it
 
 #### Scenario: Start an Agent from the landing
 - **WHEN** the user presses the `New A1 tab` shortcut or chooses `+ Agent` from the launcher on the landing
@@ -1024,10 +1113,21 @@ While the attach client has no tab to show and no view request pending, it SHALL
 - **WHEN** the user presses the `Open Settings tab` shortcut or chooses `Settings` from the `+` launcher on the landing
 - **THEN** the hidden Settings tab kept ready beside the landing SHALL be shown through the ordinary tab UI without starting a new process
 
+#### Scenario: Adding a tab hides the landing
+- **WHEN** the user adds an Agent from the landing
+- **THEN** the landing SHALL immediately give way to one pending Agent chip and a complete idle editor/footer, which the first drawn Agent frame SHALL replace at once
+- **WHEN** the user opens a utility tab from the landing
+- **THEN** the landing SHALL remain until the utility tab's first drawn frame replaces it
+
 #### Scenario: The wordmark hands over to the Agent caret
 - **WHEN** the user starts an Agent from the landing
-- **THEN** the wordmark SHALL wipe from the right until only a white cell remains where the Agent's caret appears
-- **AND** that cell SHALL hold until the Agent's first frame commits
+- **THEN** no wipe or fade SHALL run: the complete idle editor/footer SHALL replace the landing, then the Agent's first drawn frame SHALL replace it at once
+
+#### Scenario: The landing wordmark has a clean a
+- **WHEN** the landing is visible with half-block glyphs supported
+- **THEN** its accent-colored `a1` wordmark SHALL NOT render a stray full block to the left of the `a`'s middle row
+- **AND** its middle row SHALL have a lower-half left descender with the upper half of that cell empty, matching the approved `a` shape without increasing the wordmark's width or moving its placement
+- **AND** the cwd and version rows SHALL each start after the same one-cell gutter as the Agent footer
 
 #### Scenario: The landing follows the background setting
 - **WHEN** `backgroundStyle` is `accent` or `dark` and the landing is shown
@@ -1040,3 +1140,123 @@ While the attach client has no tab to show and no view request pending, it SHALL
 #### Scenario: Small terminal
 - **WHEN** the body has fewer rows or columns than the full header needs
 - **THEN** the header SHALL be clipped to the body without wrapping or overflowing it
+
+### Requirement: The plus menu is configurable
+A1 SHALL offer `Agent`, a multi-instance kind whose every invocation creates a new Agent tab in the launch cwd and whose launcher row carries the `+` marker, and every utility kind, `Settings` and `Changelog`, singleton toggles whose launcher rows carry `✓` while their tab is open. The A1 setting `tabBarPlusMenu` SHALL hold the kinds `+` offers, comma-joined in that order, and SHALL default to `Agent` alone. With only `Agent` enabled, clicking `+` SHALL create an Agent without a menu; with any other enabled set, clicking `+` SHALL open the launcher with one row per enabled kind in kind order and each row's effective shortcut right-aligned; with no kind enabled, the strip SHALL hide `+` and give its cells to the tabs. Right-clicking `+` SHALL open a one-row `Configure` popup whose selection opens the `Plus Menu` dialog as a modal over the dimmed active tab or landing, without switching tabs. The dialog SHALL describe itself as `Choose what the + button in the tab bar can add.`, list every kind with `●` when enabled and `○` when not, toggle the selected kind with `Space`, move with Up and Down, filter by typed text, store each toggle in `tabBarPlusMenu` at once under the settings document lock, apply it to `+` without a restart, ignore the pointer, and close with `Esc`. The search line SHALL draw its caret as a reversed white cell, as owned inputs do, and a blank row SHALL separate the description from it. The Settings `Plus menu` entry SHALL open the same modal over the Settings tab through the tab's controlling client, and SHALL open an equivalent dialog inside the Settings screen only when no tab bar can show it. When a modal closes, the strip SHALL draw at full intensity.
+
+#### Scenario: Default plus
+- **WHEN** the profile stores no plus menu and the user clicks `+`
+- **THEN** one Agent SHALL be created and no launcher SHALL open
+
+#### Scenario: Plus offers more kinds
+- **WHEN** the plus menu enables Agent, Settings, and Changelog and the user clicks `+`
+- **THEN** the launcher SHALL show `+ Agent`, `Settings`, and `Changelog` in that order with their effective shortcuts
+- **AND** Settings or Changelog SHALL show `✓` while its tab is open
+
+#### Scenario: Configure from the strip
+- **WHEN** the user right-clicks `+` and chooses `Configure`
+- **THEN** the `Plus Menu` dialog SHALL open over the dimmed active tab, list `Agent`, `Settings`, and `Changelog`, and the viewed tab SHALL NOT change
+
+#### Scenario: Toggle a kind
+- **WHEN** the dialog is open on `Changelog` and the user presses `Space`
+- **THEN** `Changelog` SHALL switch between `●` and `○` and the next click on `+` SHALL reflect the change
+
+#### Scenario: Configure from Settings
+- **WHEN** the user activates the Settings `Plus menu` entry in a resident Settings tab
+- **THEN** the `Plus Menu` modal SHALL open over the dimmed Settings tab
+
+#### Scenario: Nothing enabled
+- **WHEN** the user disables every kind
+- **THEN** the strip SHALL no longer show `+`, and the Settings `Plus menu` entry SHALL still open the dialog
+
+### Requirement: Tabs open at once and only a resize fades
+The attach client SHALL present one locally pending new Agent chip and an empty transcript and complete idle editor/footer with a visual caret but no child cursor on the first paint after a user create action, without awaiting process startup; its complete real surface SHALL replace the pending presentation as soon as its first drawn frame commits, without a fade. Revealed Settings and Changelog tabs SHALL retain the current content until their first drawn frame commits. A tab that never draws SHALL still show after the bounded first-draw wait. Only a resize reveal SHALL fade: once its curtain lifts the whole frame, the strip included, SHALL draw faint for one fade interval and then at full intensity, with no cursor shown during the fade. A starting tab's chip SHALL show no spinner. One tab SHALL open at a time: while a tab this client asked for is still starting or not yet shown, a new-Agent shortcut, `+` click, or menu entry SHALL start nothing.
+
+#### Scenario: A new tab draws at once
+- **WHEN** the user creates an Agent beside another tab
+- **THEN** the first paint SHALL show exactly one pending Agent chip and a complete idle editor/footer, then its first complete child frame SHALL replace that chip and shell together at full intensity without a fade or duplicate chip
+
+#### Scenario: A revealed utility tab draws at once
+- **WHEN** the user opens a hidden Settings or Changelog tab whose retained screen is still blank
+- **THEN** the current content SHALL stay until the tab draws, so no empty body or bare cursor shows, and the tab SHALL then show with no fade
+
+#### Scenario: A burst of new-Agent shortcuts opens one Agent at a time
+- **WHEN** the user presses the new-Agent shortcut repeatedly while an Agent is still opening
+- **THEN** no further Agent SHALL start until that Agent is shown, so no Agents start in the background and the newest Agent opened is the one in view
+
+#### Scenario: A starting tab has no spinner
+- **WHEN** an Agent tab is starting
+- **THEN** its chip SHALL show no glyph before its name
+
+#### Scenario: A resize fades the whole frame
+- **WHEN** a resize reveal runs
+- **THEN** the whole frame SHALL fade in with no cursor shown, and opening a tab SHALL never fade
+
+### Requirement: The command palette opens every tab kind
+The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal command palette over the dimmed strip and body from any tab, the landing, or the Settings tab. The palette SHALL show the title `Commands` with a dim `esc` hint, a search line that shows the dim placeholder `Search` while empty, one `Tabs` section in the owned section style, and the rows `Agent`, `Settings`, and `Changelog` in the owned list style with `→` and the accent selected background on the selected row and each effective shortcut right-aligned. Up and Down SHALL move the selection, printable keys and `Backspace` SHALL edit a case-insensitive label filter, `Enter` SHALL close the palette and run the selected entry exactly as its shortcut or launcher row would, and `Esc` SHALL close it without action. While the palette is open, no key, paste, or mouse input SHALL reach a child, and mouse input SHALL NOT act on the strip or the palette. A `tabs.changelog` action SHALL exist for assignment without a default key.
+
+#### Scenario: Open the palette
+- **WHEN** the user presses `Alt+/`
+- **THEN** the strip and body SHALL dim and the palette SHALL show `Agent  Alt+A`, `Settings  Alt+,`, and `Changelog` with the first row selected
+
+#### Scenario: Filter and run
+- **WHEN** the user types `chan` and presses `Enter`
+- **THEN** only `Changelog` SHALL remain listed and the Changelog tab SHALL open or be shown
+
+#### Scenario: Close without action
+- **WHEN** the palette is open and the user presses `Esc`
+- **THEN** the palette SHALL close, the frame SHALL return to full intensity, and no tab SHALL change
+
+#### Scenario: Mouse is inert
+- **WHEN** the palette is open and the user clicks anywhere
+- **THEN** nothing SHALL change and no mouse report SHALL reach a child
+
+### Requirement: Changelog is a singleton utility tab
+Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Changelog` that renders the owned changelog reference screen without owning an Agent session. The palette and `tabs.changelog` SHALL show it at once: the attach client SHALL keep one Changelog tab prewarmed and hidden, as it does Settings, starting it after Settings is ready and again after a Changelog tab closes, and SHALL create one only when none is running. Every utility tab, Settings and Changelog alike, SHALL follow one set of tab bar rules: opening one that is not in the strip SHALL place it last, its toggle SHALL hide the viewed one while its process keeps running, and a resident tab whose id names a utility route SHALL present that route as its pinned screen. Its registry record SHALL have the `changelog` kind. Its chip SHALL offer Close but not Rename. Its screen SHALL be the tab: it SHALL show no `Esc close` hint, and neither `Esc` nor one `Ctrl+C` SHALL close it. Resident Agents SHALL neither advertise nor execute `/changelog`; `a1 solo` and `a1 pi` SHALL keep their existing changelog command.
+
+#### Scenario: Open the changelog
+- **WHEN** the user runs Changelog from the palette with no Changelog tab
+- **THEN** one tab titled `Changelog` SHALL appear and show the changelog screen
+
+#### Scenario: Reuse the changelog
+- **WHEN** a Changelog tab exists and the user runs Changelog again
+- **THEN** that tab SHALL be shown without creating another
+
+#### Scenario: Changelog opens at once
+- **WHEN** Settings and Changelog are prewarmed and the user runs Changelog
+- **THEN** the hidden Changelog tab SHALL be shown without starting a process
+
+#### Scenario: A utility tab opens last
+- **WHEN** a hidden Changelog or Settings tab is opened after more Agents were added
+- **THEN** it SHALL join the strip as the last tab, while one already in the strip SHALL keep its slot
+
+#### Scenario: Closing the last Agent
+- **WHEN** a hidden Changelog or Settings tab is running and the user closes the last Agent
+- **THEN** the landing SHALL be shown and neither hidden tab SHALL take the view
+
+#### Scenario: Esc keeps the Changelog tab
+- **WHEN** the Changelog tab is viewed and the user presses `Esc`
+- **THEN** the tab SHALL stay open and its hint line SHALL show no `Esc close`
+
+#### Scenario: Changelog is not an Agent command
+- **WHEN** a resident Agent's slash-command autocomplete lists commands or the user enters `/changelog`
+- **THEN** `changelog` SHALL be absent and `/changelog` SHALL NOT open a screen in that Agent
+
+### Requirement: Tab rename selection uses the owned selection style
+While a tab is renamed inline, selected characters SHALL be drawn with the owned editor's selection background and the chip's own text color, never as reversed cells, in truecolor and palette modes alike.
+
+#### Scenario: Select a tab name
+- **WHEN** the user presses `Ctrl+A` in an inline tab rename
+- **THEN** the selected name SHALL show the editor's selection background with unchanged text color
+
+### Requirement: Tab names and session names stay in sync
+A resident Agent's tab name and its Pi session name SHALL name the same thing. A strip rename or an automatic name SHALL set the session name, and a session name the Agent's session otherwise sets, or that its resumed session carries, SHALL become the tab name with a user name source so automatic naming no longer replaces it. A default session name SHALL NOT replace a tab name. Because renaming the tab renames the session, a resident Agent SHALL omit `/name` from its command suggestions and refuse it with a notice pointing to the tab rename; direct A1 SHALL keep `/name`.
+
+#### Scenario: Rename the session from the Agent
+- **WHEN** the user runs `/name what is there` in a resident Agent named `what-is this`
+- **THEN** the Agent SHALL refuse it with a notice to rename the tab (`F2`), and the tab and session names SHALL stay `what-is this`
+- **AND** `/name` SHALL NOT appear among the Agent's command suggestions, while direct A1 SHALL still offer and run it
+
+#### Scenario: Rename the tab from the strip
+- **WHEN** the user renames the tab to `login fix` from the strip
+- **THEN** the Agent's session name SHALL become `login fix`

@@ -1,10 +1,30 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { parsePartition, partitionRoleTests, roleTestNames } from "../../scripts/development/run-terminal-host-probe.mjs";
+import { parsePartition, partitionRoleTests, performanceBuildArguments, roleTestNames } from "../../scripts/development/run-terminal-host-probe.mjs";
 import { ownerTargetJobs } from "../../scripts/release/require-modular-validation.mjs";
 import { DEVELOPMENT_VALIDATION_MATRIX, TERMINAL_HOST_TEST_PARTITIONS } from "../../scripts/release/validation-matrix.mjs";
 
 describe("terminal-host role test partitions", () => {
+  it("builds performance certificates with shipping optimization and every fixture control", async () => {
+    expect(performanceBuildArguments("fixture/Cargo.toml")).toEqual([
+      "build", "--release", "--locked", "--manifest-path", "fixture/Cargo.toml", "--lib", "--features",
+      "node-addon,resident-fixtures,fault-injection",
+    ]);
+    const workflow = await readFile(".github/workflows/ci.yml", "utf8");
+    expect(workflow).toContain('host=".artifacts/terminal-host/performance/${{ matrix.terminalHostAddon }}"');
+    const probe = await readFile("scripts/development/run-terminal-host-probe.mjs", "utf8");
+    expect(probe).toContain('const debugAddon = resolve(".artifacts/terminal-host/terminal-host.node")');
+    expect(probe.indexOf("run(cargo, performanceBuildArguments(manifest)"))
+      .toBeGreaterThan(probe.indexOf('resolve("scripts/release/verify-native-artifacts.mjs")'));
+  });
+
+  it("keeps release-isolation integration in the main native lane when role partitions run elsewhere", async () => {
+    const probe = await readFile("scripts/development/run-terminal-host-probe.mjs", "utf8");
+    const start = probe.indexOf("if (partition?.skip)");
+    const branch = probe.slice(start, probe.indexOf("} else {", start));
+    expect(branch).toContain('"--test", "release_isolation", "--features", ROLE_TEST_FEATURES');
+  });
+
   it("reads every #[test] function of the role integration suite from its source", async () => {
     const names = roleTestNames(await readFile("native/terminal-host/tests/role_integration.rs", "utf8"));
     expect(names.length).toBeGreaterThanOrEqual(20);

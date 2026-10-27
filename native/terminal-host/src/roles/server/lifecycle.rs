@@ -645,8 +645,9 @@ pub(super) fn reorder_registry(
     true
 }
 
-/// Restores Settings to the last live slot on an explicit open, not while prewarming or dragging.
-pub(super) fn move_settings_last(registry: &mut RegistryDocument, tab_id: &str) -> bool {
+/// Places a utility tab in the last live slot on an explicit open, not while prewarming or
+/// dragging, so every utility tab opens last.
+pub(super) fn move_utility_last(registry: &mut RegistryDocument, tab_id: &str) -> bool {
     let last = registry
         .tabs
         .iter()
@@ -689,6 +690,40 @@ fn attach_start_tab(locked: &mut RuntimeState, selected: Option<&str>) -> (Strin
     (tab_id, start)
 }
 
+/// Finishes a non-standby create. Cancellation before launch skips it; a race after launch stops
+/// its exact holder and lets the client suppress the late `tab.created` response.
+fn start_requested_agent(
+    state: &Arc<Mutex<RuntimeState>>,
+    profile: &Path,
+    tx: &Peer,
+    request_id: Option<u64>,
+    start: AttachStart,
+    cancelled: Option<&AtomicBool>,
+) -> Result<(), String> {
+    let is_cancelled = || cancelled.is_some_and(|flag| flag.load(Ordering::Acquire));
+    if is_cancelled() {
+        tx.offer_control(wire::frame("tab.create-failed", request_id, wire::ResultBody::refused("cancelled".into()))?)
+            .map_err(str::to_owned)?;
+        return Ok(());
+    }
+    let tab_id = format!("tab-{:016x}", rand::random::<u64>());
+    lock_state(state)?.core.set_starting(&tab_id, true);
+    match start_holder(profile, state, tab_id.clone(), start, cancelled) {
+        Ok(()) => {
+            if is_cancelled() { close_tab(state, &tab_id, request_id)?; }
+            tx.offer_control(wire::frame("tab.created", request_id, TabTarget { tab_id })?)
+                .map_err(str::to_owned)?;
+        }
+        Err(error) => {
+            if let Ok(mut locked) = state.lock() { locked.core.set_starting(&tab_id, false); }
+            tx.offer_control(wire::frame("tab.create-failed", request_id,
+                wire::ResultBody::refused(if is_cancelled() { "cancelled".into() } else { error }))?)
+                .map_err(str::to_owned)?;
+        }
+    }
+    Ok(())
+}
+
 /// Runs one lifecycle request from an attached client on that client's lifecycle worker.
 pub(super) fn handle_lifecycle(
     state: &Arc<Mutex<RuntimeState>>,
@@ -712,7 +747,7 @@ pub(super) fn handle_lifecycle(
             let (tab_id, should_start) =
                 attach_start_tab(&mut *lock_state(&state)?, selected.as_deref());
             if should_start
-                && let Err(error) = start_holder(&profile, &state, tab_id.clone(), start)
+                && let Err(error) = start_holder(&profile, &state, tab_id.clone(), start, None)
             {
                 if let Ok(mut locked) = state.lock() {
                     locked.core.set_starting(&tab_id, false);
@@ -729,6 +764,12 @@ pub(super) fn handle_lifecycle(
             }
         }
         "tab.create" => {
+            let cancelled = || request.cancelled.as_ref().is_some_and(|flag| flag.load(Ordering::Acquire));
+            if cancelled() {
+                tx.offer_control(wire::frame("tab.create-failed", request_id, wire::ResultBody::refused("cancelled".into()))?)
+                    .map_err(str::to_owned)?;
+                return Ok(());
+            }
             let (_, create): (_, TabCreate) = wire::body(payload)?;
             let mut start = AttachStart {
                 client_id: client_id.clone(),
@@ -745,6 +786,7 @@ pub(super) fn handle_lifecycle(
             sanitize_tab_environment(&mut start.environment);
             match promote_standby(&state, start.clone()) {
                 Ok(Some(tab_id)) => {
+                    if cancelled() { close_tab(&state, &tab_id, request_id)?; }
                     tx.offer_control(wire::frame(
                         "tab.created",
                         request_id,
@@ -764,29 +806,7 @@ pub(super) fn handle_lifecycle(
                     return Ok(());
                 }
             }
-            let tab_id = format!("tab-{:016x}", rand::random::<u64>());
-            lock_state(&state)?.core.set_starting(&tab_id, true);
-            match start_holder(&profile, &state, tab_id.clone(), start) {
-                Ok(()) => {
-                    tx.offer_control(wire::frame(
-                        "tab.created",
-                        request_id,
-                        TabTarget { tab_id },
-                    )?)
-                    .map_err(str::to_owned)?;
-                }
-                Err(error) => {
-                    if let Ok(mut locked) = state.lock() {
-                        locked.core.set_starting(&tab_id, false);
-                    }
-                    tx.offer_control(wire::frame(
-                        "tab.create-failed",
-                        request_id,
-                        wire::ResultBody::refused(error),
-                    )?)
-                    .map_err(str::to_owned)?;
-                }
-            }
+            start_requested_agent(&state, &profile, tx, request_id, start, request.cancelled.as_deref())?;
         }
         "tab.reorder" => {
             let (_, reorder): (_, wire::TabReorder) = wire::body(payload)?;
@@ -813,7 +833,7 @@ pub(super) fn handle_lifecycle(
         "tab.rename" => {
             let (_, rename): (_, wire::TabRename) = wire::body(payload)?;
             let name = rename.name.trim();
-            let valid = !is_settings_tab_id(&rename.tab_id)
+            let valid = !is_utility_tab_id(&rename.tab_id)
                 && !name.is_empty()
                 && name.chars().count() <= 64
                 && !name.chars().any(char::is_control);

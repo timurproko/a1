@@ -89,6 +89,8 @@ describe("resident tab shortcuts", () => {
       "tui.editor.deleteToLineEnd": ["ctrl+x"],
     }, () => [], "a1", true);
     expect(markdown).toContain("**Tabs**");
+    expect(markdown).not.toContain("Open hidden A1 tabs");
+    expect(markdown).not.toContain("Open add A1 tab menu");
     // Platform: pinned Pi labels Alt as Option on macOS, so the row names the live platform's modifier.
     expect(markdown).toContain(`\`${process.platform === "darwin" ? "Option" : "Alt"}+]\` | View next A1 tab`);
     expect(markdown).toContain("Unbound | Close A1 tab");
@@ -111,6 +113,10 @@ describe("resident tab shortcuts", () => {
   it("provides only the approved global defaults", () => {
     const { assignments } = projectResidentTabShortcuts();
     expect(assignments["tabs.new"]).toBe("alt+a");
+    expect(assignments).not.toHaveProperty("tabs.overflowMenu");
+    expect(assignments).not.toHaveProperty("tabs.addMenu");
+    expect(Object.values(assignments)).not.toContain("alt+-");
+    expect(Object.values(assignments)).not.toContain("alt+=");
     expect(assignments["tabs.close"]).toBe("alt+w");
     expect(assignments["tabs.rename"]).toBe("f2");
     expect(assignments["tabs.settings"]).toBe("alt+,");

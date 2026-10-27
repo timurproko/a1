@@ -10,7 +10,7 @@ describe("impact-aware validation workflows", () => {
     expect(source.match(/select-validation-impact\.mjs/g)).toHaveLength(1);
     expect(workflow.jobs.modular.needs).toBe("changes");
     expect(workflow.jobs.rendering.needs).toBe("changes");
-    expect(workflow.jobs.modular.strategy["fail-fast"]).toBe(false);
+    expect(workflow.jobs.modular.strategy["fail-fast"]).toBe(true);
     expect(workflow.jobs.modular.strategy).not.toHaveProperty("max-parallel");
     expect(workflow.jobs.modular.strategy.matrix).toBe("${{ fromJSON(needs.changes.outputs.modular-matrix) }}");
     expect(workflow.jobs.changes.outputs["modular-matrix"]).toContain("steps.matrix.outputs.modular_matrix");
@@ -154,7 +154,10 @@ describe("impact-aware validation workflows", () => {
     // Rationale: the role suite warmed every resident launch path before certification; one unmeasured pass
     // now does, and the measured pass keeps its budgets and runs exactly once.
     const certify = modular.steps.find((step: any) => step.name === "Certify terminal fidelity and resident latency").run as string;
-    expect(certify).toContain('host=".artifacts/terminal-host/${{ matrix.terminalHostAddon }}"');
+    expect(certify).toContain('host=".artifacts/terminal-host/performance/${{ matrix.terminalHostAddon }}"');
+    const hostArtifacts = modular.steps.find((step: any) => step.name === "Upload terminal host contract artifacts").with.path;
+    expect(hostArtifacts).toContain(".artifacts/terminal-host/${{ matrix.terminalHostAddon }}");
+    expect(hostArtifacts).toContain(".artifacts/terminal-host/performance/${{ matrix.terminalHostAddon }}");
     const measured = 'node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"';
     const warmUp = 'node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-warm-up-${{ matrix.platform }}-${{ matrix.architecture }}.json" || echo';
     expect(certify.indexOf("verify-terminal-fidelity.mjs")).toBeLessThan(certify.indexOf(warmUp));

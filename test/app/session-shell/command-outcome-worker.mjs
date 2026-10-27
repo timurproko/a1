@@ -108,7 +108,10 @@ const cases = JSON.parse(encodedCases);
 Math.random = () => 0;
 const results = [];
 for (const theme of ["dark", "light"]) {
-  if (ownedTheme) ownedTheme.applyPiTheme(theme, false, mode); else api.initTheme(theme, false);
+  if (ownedTheme) {
+    ownedTheme.applyPiTheme(theme, false, mode);
+    ownedTheme.setPiAccentColor("purple");
+  } else api.initTheme(theme, false);
   for (const padding of [0, 1]) {
     for (const entry of cases) {
       await rm(join(agentDir, "trust.json"), { force: true });

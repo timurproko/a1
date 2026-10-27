@@ -317,10 +317,11 @@ fn registry_tab_list(registry: &RegistryDocument) -> TabList {
     }
 }
 
-/// Reserves the singleton Settings process. Only revealing it, not prewarming it, restores
-/// its last live position; selecting an already visible tab bypasses this request entirely.
-fn reserve_settings_tab(
+/// Reserves the singleton utility process with this id prefix. Only revealing it, not prewarming
+/// it, restores its last live position; selecting an already visible tab bypasses this request entirely.
+fn reserve_utility_tab(
     state: &Arc<Mutex<RuntimeState>>,
+    prefix: &str,
     opening: bool,
 ) -> Result<(String, bool, Option<(RegistryStore, RegistryDocument)>), String> {
     let mut locked = lock_state(state)?;
@@ -328,24 +329,122 @@ fn reserve_settings_tab(
         .registry
         .tabs
         .iter()
-        .find(|tab| is_settings_tab_id(&tab.tab_id) && tab.desired != "stopped")
+        .find(|tab| tab.tab_id.starts_with(prefix) && tab.desired != "stopped")
         .map(|tab| tab.tab_id.clone())
         .or_else(|| {
             locked
                 .core
                 .starting_tabs()
-                .find(|tab_id| is_settings_tab_id(tab_id))
+                .find(|tab_id| tab_id.starts_with(prefix))
                 .map(str::to_owned)
         });
     if let Some(tab_id) = existing {
-        let reordered = (opening && lifecycle::move_settings_last(&mut locked.registry, &tab_id))
+        let reordered = (opening && lifecycle::move_utility_last(&mut locked.registry, &tab_id))
             .then(|| registry_snapshot(&locked));
         Ok((tab_id, false, reordered))
     } else {
-        let tab_id = format!("{SETTINGS_TAB_PREFIX}{:016x}", rand::random::<u64>());
+        let tab_id = format!("{prefix}{:016x}", rand::random::<u64>());
         let inserted = locked.core.set_starting(&tab_id, true);
         Ok((tab_id, inserted, None))
     }
+}
+
+/// Opens, reveals, or prewarms a singleton utility tab for a client, as `utility_request` reads
+/// its message.
+fn open_utility_tab(
+    state: &Arc<Mutex<RuntimeState>>,
+    profile: &Path,
+    tx: &Peer,
+    client_id: &str,
+    message_type: &str,
+    request_id: Option<u64>,
+    payload: &[u8],
+) -> Result<(), String> {
+    let (_, create): (_, TabCreate) = wire::body(payload)?;
+    let (prefix, opening) =
+        utility_request(message_type).ok_or_else(|| "unknown utility tab request".to_owned())?;
+    let (settings_tab_id, should_start, reordered) = reserve_utility_tab(state, prefix, opening)?;
+    commit_staged(reordered)?;
+    if should_start {
+        let mut start = AttachStart {
+            client_id: client_id.to_owned(),
+            tabs_max: usize::MAX,
+            cwd: create.cwd,
+            columns: create.columns,
+            rows: create.rows,
+            release_root: create.release_root,
+            node_executable: create.node_executable,
+            environment: create.environment,
+            session_file: None,
+            session_dir: None,
+        };
+        sanitize_tab_environment(&mut start.environment);
+        if let Err(error) = start_holder(profile, state, settings_tab_id.clone(), start, None) {
+            if let Ok(mut locked) = state.lock() {
+                locked.core.set_starting(&settings_tab_id, false);
+            }
+            return Err(error);
+        }
+    }
+    tx.offer_control(wire::frame(
+        if should_start {
+            "tab.created"
+        } else {
+            "tab.selected"
+        },
+        request_id,
+        TabTarget {
+            tab_id: settings_tab_id,
+        },
+    )?)
+    .map_err(str::to_owned)?;
+    Ok(())
+}
+
+/// Protocol: only this connection can cancel the create with its exact request ID.
+pub(super) fn begin_client_create(
+    current: &Mutex<Option<(u64, Arc<AtomicBool>)>>,
+    kind: &wire::EnvelopeKind,
+) -> Option<Arc<AtomicBool>> {
+    if kind.message_type != "tab.create" { return None; }
+    kind.request_id.map(|id| {
+        let flag = Arc::new(AtomicBool::new(false));
+        *current.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((id, flag.clone()));
+        flag
+    })
+}
+
+pub(super) fn cancel_client_create(
+    current: &Mutex<Option<(u64, Arc<AtomicBool>)>>,
+    payload: &[u8],
+) -> Result<(), String> {
+    let (_, value): (_, serde_json::Value) = wire::body(payload)?;
+    if let Some(request_id) = value.get("requestId").and_then(serde_json::Value::as_u64)
+        && let Some((id, flag)) = current.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref()
+        && *id == request_id
+    {
+        flag.store(true, Ordering::Release);
+    }
+    Ok(())
+}
+
+/// Protocol: each create's cancellation belongs to its authenticated attach connection.
+fn enqueue_attached_lifecycle(
+    state: &Arc<Mutex<RuntimeState>>,
+    queue: &mpsc::SyncSender<LifecycleRequest>,
+    tx: &Peer,
+    client_id: &str,
+    create_cancel: &Mutex<Option<(u64, Arc<AtomicBool>)>>,
+    kind: wire::EnvelopeKind,
+    payload: Vec<u8>,
+) -> Result<(), String> {
+    let cancelled = begin_client_create(create_cancel, &kind);
+    enqueue_lifecycle(state, queue, tx, client_id, LifecycleRequest {
+        message_type: kind.message_type,
+        request_id: kind.request_id,
+        payload,
+        cancelled,
+    })
 }
 
 pub(super) fn serve_attach(
@@ -445,6 +544,7 @@ pub(super) fn serve_attach(
     // tab lifecycle work; tab starts, stops, and registry commits run in order on the client's
     // lifecycle worker.
     let (lifecycle_tx, lifecycle_rx) = mpsc::sync_channel::<LifecycleRequest>(LIFECYCLE_QUEUE);
+    let create_cancel = Mutex::new(None::<(u64, Arc<AtomicBool>)>);
     thread::spawn({
         let state = state.clone();
         let profile = profile.clone();
@@ -463,6 +563,7 @@ pub(super) fn serve_attach(
                     message_type: kind.message_type.clone(),
                     request_id: kind.request_id,
                     payload,
+                    cancelled: None,
                 };
                 if let Err(error) = handle_lifecycle(&state, &profile, &tx, &client_id, &request) {
                     let message = lifecycle_failure_message(&request.message_type, &error);
@@ -470,64 +571,23 @@ pub(super) fn serve_attach(
                 }
             }
             "tab.create" | "tab.close" | "tab.restart" | "tab.rename" | "tab.reorder" => {
-                enqueue_lifecycle(
-                    &state,
-                    &lifecycle_tx,
-                    &tx,
-                    &client_id,
-                    LifecycleRequest {
-                        message_type: kind.message_type.clone(),
-                        request_id: kind.request_id,
-                        payload,
-                    },
-                )?;
+                enqueue_attached_lifecycle(&state, &lifecycle_tx, &tx, &client_id, &create_cancel, kind, payload)?;
             }
+            "tab.cancel-create" => cancel_client_create(&create_cancel, &payload)?,
             "tab.list" => {
                 let list = registry_tab_list(&lock_state(&state)?.registry);
                 tx.offer_control(wire::frame("tab.list", kind.request_id, list)?)
                     .map_err(str::to_owned)?;
             }
-            "tab.open-settings" | "tab.prewarm-settings" => {
-                let (_, create): (_, TabCreate) = wire::body(&payload)?;
-                let (settings_tab_id, should_start, reordered) =
-                    reserve_settings_tab(&state, kind.message_type == "tab.open-settings")?;
-                commit_staged(reordered)?;
-                if should_start {
-                    let mut start = AttachStart {
-                        client_id: client_id.clone(),
-                        tabs_max: usize::MAX,
-                        cwd: create.cwd,
-                        columns: create.columns,
-                        rows: create.rows,
-                        release_root: create.release_root,
-                        node_executable: create.node_executable,
-                        environment: create.environment,
-                        session_file: None,
-                        session_dir: None,
-                    };
-                    sanitize_tab_environment(&mut start.environment);
-                    if let Err(error) =
-                        start_holder(&profile, &state, settings_tab_id.clone(), start)
-                    {
-                        if let Ok(mut locked) = state.lock() {
-                            locked.core.set_starting(&settings_tab_id, false);
-                        }
-                        return Err(error);
-                    }
-                }
-                tx.offer_control(wire::frame(
-                    if should_start {
-                        "tab.created"
-                    } else {
-                        "tab.selected"
-                    },
-                    kind.request_id,
-                    TabTarget {
-                        tab_id: settings_tab_id,
-                    },
-                )?)
-                .map_err(str::to_owned)?;
-            }
+            message if utility_request(message).is_some() => open_utility_tab(
+                &state,
+                &profile,
+                &tx,
+                &client_id,
+                &kind.message_type,
+                kind.request_id,
+                &payload,
+            )?,
             "tab.view" => {
                 let (_, target): (_, ViewTarget) = wire::body(&payload)?;
                 let mut locked = lock_state(&state)?;

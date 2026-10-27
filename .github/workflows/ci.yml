@@ -561,7 +561,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.release-reopening != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
     strategy:
-      fail-fast: false
+      fail-fast: true
       # The trusted selection schedules only active entries; declared entries live in
       # scripts/release/validation-matrix.mjs, and the in-job resolver remains the second check.
       matrix: ${{ fromJSON(needs.changes.outputs.modular-matrix) }}
@@ -761,7 +761,9 @@ jobs:
         shell: bash
         run: |
           mkdir -p .artifacts/terminal-host
-          host=".artifacts/terminal-host/${{ matrix.terminalHostAddon }}"
+          # Provenance: debug unit/role coverage remains above; timed certificates use shipping
+          # optimization with all fixture controls retained and unchanged latency thresholds.
+          host=".artifacts/terminal-host/performance/${{ matrix.terminalHostAddon }}"
           node scripts/development/verify-terminal-fidelity.mjs --host "$host" > ".artifacts/terminal-host/fidelity-${{ matrix.platform }}-${{ matrix.architecture }}.json"
           # Invariant: the same built addon and certified parity child are driven directly and through
           # server, holder, and attach; the child-observed bytes must match case by case on this platform.
@@ -812,6 +814,7 @@ jobs:
           name: terminal-host-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
           path: |
             .artifacts/terminal-host/${{ matrix.terminalHostAddon }}
+            .artifacts/terminal-host/performance/${{ matrix.terminalHostAddon }}
             native/terminal-host/protocol/fixtures.json
             .artifacts/terminal-host/fidelity-${{ matrix.platform }}-${{ matrix.architecture }}.json
             .artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json

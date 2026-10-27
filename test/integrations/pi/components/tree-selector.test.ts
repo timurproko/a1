@@ -94,6 +94,7 @@ describe("bare-A1 session tree presentation", () => {
     expect(plain[2]).toBe(" Filter: all | no tools | user | labeled");
     expect(plain[3]).toBe("");
     expect(plain[4]).toBe(" >");
+    expect(cellStyle(rows[4]!, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
     expect(cellStyle(rows[2]!, "a")).toEqual(cellStyle(piTheme().fg("mdHeading", "a"), "a"));
     expect(cellStyle(rows[2]!, "s")).toEqual(cellStyle(piTheme().fg("muted", "s"), "s"));
     expect(plain.some(row => row.includes("Type to search:"))).toBe(false);

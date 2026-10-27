@@ -29,7 +29,8 @@ describe("bounded PR-core ownership", () => {
     const result = select([path]);
     expect(result.mode).toBe("impact");
     expect(result.owners.find(decision => decision.owner === owner)).toMatchObject({ selected: true });
-    expect(result.tests).toEqual(expect.arrayContaining(authority.ledger.filter((entry: any) => entry.owner === owner && entry.fastOwner === "fast-remainder").map((entry: any) => entry.test)));
+    const criticalTests = authority.policy.owners.find((candidate: any) => candidate.id === owner).criticalTests;
+    expect([...result.tests, ...result.resourceTests]).toEqual(expect.arrayContaining(criticalTests));
   });
 
   it("selects filesystem-heavy release cleanup only in the resource partition", () => {

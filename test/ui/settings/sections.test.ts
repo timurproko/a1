@@ -74,22 +74,22 @@ describe("owned UI settings sections", () => {
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
     expect(sections.map(section => [section.id, section.title])).toEqual([
-      ["generic", "Generic"], ["appearance", "Appearance"], ["scroll", "Scroll"], ["history", "History"], ["tabs", "Tabs"], ["agent", "Agent"],
+      ["generic", "Generic"], ["appearance", "Appearance"], ["scroll", "Scroll"], ["history", "History"], ["tabs", "Tab Bar"], ["agent", "Agent"],
     ]);
     const entries = (id: string) => sections.find(section => section.id === id)?.entries.map(entry => entry.id);
     expect(entries("generic")).toEqual(["updateCheck", "timeFormat"]);
     expect(entries("appearance")).toEqual(["accentColor", "backgroundStyle", "quitAnimation"]);
     expect(entries("scroll")).toEqual(["scrollbarAppearance", "scrollbarStyle", "scrollbarSpeed"]);
-    expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryMaxItems"]);
-    expect(entries("tabs")).toEqual(["tabsPosition", "tabsAutoName"]);
+    expect(entries("history")).toEqual(["promptHistoryEnabled", "promptHistoryScope", "promptHistoryMaxItems"]);
+    expect(entries("tabs")).toEqual(["tabsPosition", "tabBarPlusMenu", "tabsAutoName"]);
     expect(entries("quit")).toBeUndefined();
     expect(findOwnedUiSettingsEntry(sections, "quitAnimation", "a1")).toMatchObject({
       label: "Quit animation", value: true, origin: "default", application: "live", choices: [true, false],
     });
     expect(findOwnedUiSettingsEntry(sections, "quitEffect", "a1")).toBeNull();
     expect(findOwnedUiSettingsEntry(sections, "accentColor", "a1")).toMatchObject({
-      label: "Accent color", value: "purple", origin: "default", application: "live",
-      choices: ["purple", "blue", "cyan", "green", "orange", "pink"],
+      label: "Accent color", value: "blue", origin: "default", application: "live",
+      choices: ["blue", "purple", "cyan", "green", "orange", "pink"],
     });
     expect(findOwnedUiSettingsEntry(sections, "backgroundStyle", "a1")).toMatchObject({
       label: "Background", value: "transparent", origin: "default", application: "live",
@@ -128,7 +128,7 @@ describe("owned UI settings sections", () => {
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: null });
     expect(sections.find(section => section.id === "generic")?.entries.map(entry => entry.id)).toEqual(["updateCheck", "timeFormat"]);
     expect(sections.find(section => section.id === "tabs")?.entries.map(entry => entry.id)).toEqual([
-      "tabsPosition", "tabsAutoName",
+      "tabsPosition", "tabBarPlusMenu", "tabsAutoName",
     ]);
   });
 

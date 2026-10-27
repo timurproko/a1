@@ -1,12 +1,16 @@
-import { Container, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, Input, Spacer, Text, stripTerminalSequences } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
 import {
   addPiModalHeader,
   adoptPiModalFrame,
   adoptPiModalHeader,
+  adoptPiModalSearchInput,
   PiModalFrame,
   PiModalHeader,
+  PiModalSearchInput,
 } from "../../../../src/integrations/pi/components/modal-frame.js";
+import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
+import { cellStyle } from "../../../support/ansi-cell-style.js";
 
 const row = (text: string): Text => new Text(text, 0, 0);
 const plain = (rows: readonly string[]): string[] => rows.map(value => value.trimEnd());
@@ -75,6 +79,28 @@ describe("shared bare-A1 modal header", () => {
     expect(plain(frame.render(40))).toEqual(["rule", "title", "", "body"]);
   });
 
+  it("styles one explicitly adopted search Input with the live accent while preserving its controller", () => {
+    const frame = new Container();
+    const input = new Input();
+    input.handleInput("model");
+    input.focused = true;
+    frame.addChild(input);
+
+    const presentation = adoptPiModalSearchInput(frame, input);
+    const rendered = frame.render(20)[0]!;
+
+    expect(presentation).toBeInstanceOf(PiModalSearchInput);
+    expect(stripTerminalSequences(rendered).trimEnd()).toBe("> model");
+    expect(cellStyle(rendered, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
+    expect(rendered).toContain(`${piTheme().fg("accent", ">")} `);
+    expect(rendered).not.toContain(piTheme().fg("accent", "> "));
+    expect(presentation.focused).toBe(true);
+    presentation.focused = false;
+    expect(input.focused).toBe(false);
+    input.handleInput("s");
+    expect(stripTerminalSequences(frame.render(20)[0]!).trimEnd()).toBe("> models");
+  });
+
   it("rejects ambiguous child ranges instead of inferring a title from output", () => {
     const frame = new Container();
     frame.addChild(row("rule"));
@@ -83,5 +109,6 @@ describe("shared bare-A1 modal header", () => {
 
     expect(() => adoptPiModalHeader(frame, 0, 2)).toThrow(/optional single Spacer/u);
     expect(() => adoptPiModalHeader(frame, 2, 0)).toThrow(/positions/u);
+    expect(() => adoptPiModalSearchInput(frame, row("not input"))).toThrow(/not an Input/u);
   });
 });

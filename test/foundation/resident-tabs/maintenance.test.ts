@@ -30,7 +30,7 @@ describe("terminal-host maintenance runner", () => {
     expect(calls[0]?.[1]).toMatch(/active[\\/]dist[\\/]foundation[\\/]resident-tabs[\\/]host-entry\.js$/u);
   });
 
-  it("retries once with the recorded cohort's own verified host after a generation mismatch", async () => {
+  it("never retries another cohort after a generation mismatch", async () => {
     const calls: string[] = [];
     const result = await runTerminalHostMaintenance({
       ...base,
@@ -42,9 +42,9 @@ describe("terminal-host maintenance runner", () => {
           : { code: 4, stdout: report({ command: "host-stop", host: "incompatible", releaseRoot: "/cohort" }) };
       },
     });
-    expect(result).toMatchObject({ host: "stopped", exitCode: 0 });
-    expect(calls).toHaveLength(2);
-    expect(calls[1]).toMatch(/cohort/u);
+    expect(result).toMatchObject({ host: "incompatible", exitCode: 4 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).not.toMatch(/cohort/u);
   });
 
   it("never runs an unverified host, including an unverifiable cohort binary", async () => {
@@ -59,6 +59,19 @@ describe("terminal-host maintenance runner", () => {
     });
     expect(result).toMatchObject({ host: "incompatible", exitCode: 4 });
     expect(ran).toBe(1);
+  });
+
+  it("does not substitute another installed artifact when the invoking release is unavailable", async () => {
+    const checked: string[] = [];
+    let ran = false;
+    const result = await runTerminalHostMaintenance({
+      ...base, releaseRoots: ["/invoking", "/other"],
+      verify: async path => { checked.push(path); if (path.includes("invoking")) throw Error("missing"); },
+      run: async () => { ran = true; return { code: 0, stdout: report({ host: "running" }) }; },
+    });
+    expect(result.host).toBe("unavailable");
+    expect(checked).toHaveLength(1);
+    expect(ran).toBe(false);
   });
 
   it("reports a malformed or failed exchange as unavailable", async () => {

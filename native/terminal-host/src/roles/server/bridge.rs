@@ -156,14 +156,7 @@ pub(super) fn serve_bridge(
             serde_json::json!({ "visible": visible }),
         )?)
         .map_err(str::to_owned)?;
-        if is_settings_tab_id(&tab_id) {
-            tx.offer_control(wire::frame(
-                "bridge.route",
-                None,
-                serde_json::json!({ "route": "settings" }),
-            )?)
-            .map_err(str::to_owned)?;
-        }
+        offer_utility_route(&tx, &tab_id)?;
     }
     crate::fault_injection::crash_at("bridge-after-admit");
     while let Some(payload) = wire::read_payload(&mut stream)? {
@@ -312,7 +305,7 @@ pub(super) fn serve_bridge(
                 .registry
                 .tabs
                 .iter_mut()
-                .find(|tab| tab.tab_id == tab_id && !is_settings_tab_id(&tab_id))
+                .find(|tab| tab.tab_id == tab_id && !is_utility_tab_id(&tab_id))
             {
                 record.session_file = session.file.clone();
                 record.session_dir = session
@@ -320,21 +313,8 @@ pub(super) fn serve_bridge(
                     .as_deref()
                     .and_then(|file| Path::new(file).parent())
                     .map(|path| path.to_string_lossy().into_owned());
-                if let Some(name) = session.name {
-                    let name = name.trim();
-                    let source = session.name_source.as_deref().unwrap_or("user");
-                    let valid = !name.is_empty()
-                        && name.chars().count() <= 64
-                        && !name.chars().any(char::is_control);
-                    let auto_rejected = source == "auto" && record.name_source == "user";
-                    if valid && !auto_rejected {
-                        record.display_name = name.to_owned();
-                        record.name_source = match source {
-                            "default" | "auto" | "user" => source,
-                            _ => "user",
-                        }
-                        .into();
-                    }
+                if let Some(name) = session.name.as_deref() {
+                    apply_session_name(record, name, session.name_source.as_deref());
                 }
             }
             bump_registry_revision(&mut locked.registry);
@@ -357,30 +337,12 @@ pub(super) fn serve_bridge(
             }
         } else if kind.message_type == "bridge.request" {
             let (_, request): (_, BridgeRequest) = wire::body(&payload)?;
-            let accepted = if request.action == "detach" {
-                let locked = lock_state(&state)?;
-                if locked.attachment.current(&tab_id)
-                    == Some((request.client_id.as_str(), request.controller_revision))
-                {
-                    if let Some(client) = locked
-                        .clients
-                        .get(&request.client_id)
-                        .filter(|client| client.viewed_tab == tab_id)
-                    {
-                        let _ = client.peer.offer_control(wire::frame(
-                            "detach",
-                            None,
-                            wire::ResultBody::ok(),
-                        )?);
-                    }
-                    true
-                } else {
-                    false
-                }
+            let accepted = if let Some(message) = controller_message(&request.action) {
+                offer_to_requesting_controller(&state, &tab_id, &request, message)?
             } else if request.action == "close" {
                 let authorized = state.lock().ok().is_some_and(|locked| {
-                    locked.attachment.current(&tab_id)
-                        == Some((request.client_id.as_str(), request.controller_revision))
+                    allows_controller_request(&locked.registry.tabs, &tab_id)
+                        && locked.attachment.current(&tab_id) == Some((request.client_id.as_str(), request.controller_revision))
                 });
                 if authorized {
                     close_tab(&state, &tab_id, kind.request_id)?
@@ -389,8 +351,8 @@ pub(super) fn serve_bridge(
                 }
             } else if request.action == "restart" {
                 request_child_restart(&state, &tab_id, |locked| {
-                    locked.attachment.current(&tab_id)
-                        == Some((request.client_id.as_str(), request.controller_revision))
+                    allows_controller_request(&locked.registry.tabs, &tab_id)
+                        && locked.attachment.current(&tab_id) == Some((request.client_id.as_str(), request.controller_revision))
                 })?
             } else {
                 false
@@ -504,4 +466,76 @@ pub fn encoded_bridge_token(
     incarnation: u64,
 ) -> String {
     BASE64.encode(credentials.derive("bridge", tab_id, incarnation))
+}
+
+/// The message a child's request asks the client controlling its tab to act on: leave, or open
+/// the tab bar's Plus Menu dialog.
+fn controller_message(action: &str) -> Option<&'static str> {
+    match action {
+        "detach" => Some("detach"),
+        "configure-plus" => Some("plus.configure"),
+        _ => None,
+    }
+}
+
+/// A child being closed can still hold its old controller until the client sees the registry
+/// update. Its late quit/stop callback must not turn that tab close into an A1 detach.
+pub(super) fn allows_controller_request(tabs: &[TabRecord], tab_id: &str) -> bool {
+    tabs.iter().any(|tab| tab.tab_id == tab_id && tab.desired == "running")
+}
+
+/// Sends `message` to the client that controls the tab and views it, when the request came from
+/// that controller and the tab is still wanted; returns whether it did.
+fn offer_to_requesting_controller(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    request: &BridgeRequest,
+    message: &str,
+) -> Result<bool, String> {
+    let locked = lock_state(state)?;
+    if !allows_controller_request(&locked.registry.tabs, tab_id)
+        || locked.attachment.current(tab_id)
+            != Some((request.client_id.as_str(), request.controller_revision))
+    {
+        return Ok(false);
+    }
+    if let Some(client) = locked
+        .clients
+        .get(&request.client_id)
+        .filter(|client| client.viewed_tab == tab_id)
+    {
+        let _ = client
+            .peer
+            .offer_control(wire::frame(message, None, wire::ResultBody::ok())?);
+    }
+    Ok(true)
+}
+
+/// Sends an admitted utility tab's bridge the route its screen shows.
+fn offer_utility_route(tx: &Peer, tab_id: &str) -> Result<(), String> {
+    if let Some((route, _)) = utility_kind(tab_id) {
+        tx.offer_control(wire::frame(
+            "bridge.route",
+            None,
+            serde_json::json!({ "route": route }),
+        )?)
+        .map_err(str::to_owned)?;
+    }
+    Ok(())
+}
+
+/// Makes an Agent's session name its tab name. Invariant: a user name, from the strip or `/name`,
+/// is never replaced by an automatic one; any other valid name replaces the tab name.
+pub(super) fn apply_session_name(record: &mut TabRecord, name: &str, source: Option<&str>) {
+    let name = name.trim();
+    let source = match source.unwrap_or("user") {
+        source @ ("default" | "auto" | "user") => source,
+        _ => "user",
+    };
+    let valid =
+        !name.is_empty() && name.chars().count() <= 64 && !name.chars().any(char::is_control);
+    if valid && !(source == "auto" && record.name_source == "user") {
+        record.display_name = name.to_owned();
+        record.name_source = source.into();
+    }
 }

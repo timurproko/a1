@@ -30,7 +30,7 @@ export interface MaintenanceOptions {
   readonly profileRoot: string;
   readonly dataDir: string;
   readonly runtimeDir: string;
-  /** Installed release roots whose verified terminal host may run maintenance, in preference order. */
+  /** The first root is the invoking release; other roots never substitute for it. */
   readonly releaseRoots: readonly string[];
   readonly environment: NodeJS.ProcessEnv;
   readonly platform?: NodeJS.Platform;
@@ -40,25 +40,13 @@ export interface MaintenanceOptions {
   readonly run?: (command: TerminalHostCommand, arguments_: readonly string[], timeoutMs: number) => Promise<{ readonly code: number; readonly stdout: string }>;
 }
 
-const INCOMPATIBLE_EXIT = 4;
-
-/**
- * Runs one maintenance form through a verified terminal host. When the running host speaks
- * another protocol generation, it retries once with the addon from the release that host
- * recorded, after verifying that release's manifest; it never loads an unverified addon.
- */
+/** Runs maintenance only through the invoking release; another cohort is never a retry target. */
 export async function runTerminalHostMaintenance(options: MaintenanceOptions): Promise<MaintenanceReport> {
   const platform = options.platform ?? process.platform;
   const architecture = options.architecture ?? process.arch;
-  const command = await firstVerifiedHost(options, options.releaseRoots, platform, architecture);
-  if (command === undefined) return unavailable(options.action, "no verified terminal host is installed");
-  const report = await invoke(options, command);
-  if (report.exitCode !== INCOMPATIBLE_EXIT || typeof report.releaseRoot !== "string") return report;
-  const cohort = await firstVerifiedHost({ ...options, environment: {} }, [report.releaseRoot], platform, architecture);
-  if (cohort === undefined || cohort.entry === command.entry) {
-    return { ...report, message: "the running tabs use another version whose terminal host cannot be verified" };
-  }
-  return await invoke({ ...options, environment: installedEnvironment(options.environment) }, cohort);
+  const command = await firstVerifiedHost(options, options.releaseRoots.slice(0, 1), platform, architecture);
+  if (command === undefined) return unavailable(options.action, "the invoking release has no verified terminal host");
+  return await invoke(options, command);
 }
 
 function arguments_(options: MaintenanceOptions): string[] {
@@ -106,17 +94,10 @@ async function firstVerifiedHost(
       await (options.verify ?? verifyTerminalHostArtifact)(addon, platform, architecture);
       return { executable: process.execPath, entry: resolveTerminalHostEntryPath(root) };
     } catch {
-      // Rationale: an older retained release may predate the packaged host; try the next one.
+      // Invariant: a missing or altered invoking artifact fails closed.
     }
   }
   return undefined;
-}
-
-function installedEnvironment(environment: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const sanitized = { ...environment };
-  delete sanitized[PRODUCT_IDENTITY.environment.developmentInstanceId];
-  delete sanitized[PRODUCT_IDENTITY.environment.terminalHostPath];
-  return sanitized;
 }
 
 function unavailable(action: MaintenanceAction, message: string): MaintenanceReport {

@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{
@@ -18,26 +18,29 @@ use crossterm::event::{
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use crate::core::attach::{
-    self as core_attach, Context, Effect, Hover, KeyForward, PopupItem, PopupMenu, RenameEditor,
-    Request, ServerEvent, ShortcutLabels, State, StripLayout, StripSnapshot, TabDrag, TabView,
-    debounce_starting_glyphs, drag_marker_column, hold_status_glyphs, holder_idle_precedes_bridge,
-    shown_tabs,
+    self as core_attach, Context, Effect, Hover, KeyForward, PlusMenu, PopupItem, PopupMenu,
+    RenameEditor, Request, ServerEvent, ShortcutLabels, State, StripLayout, StripSnapshot, TabDrag,
+    TabView, debounce_starting_glyphs, drag_marker_column, hold_status_glyphs,
+    holder_idle_precedes_bridge, shown_tabs,
 };
 use crate::endpoint;
 use crate::protocol::{
     self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, TerminalEffect, TerminalModes,
     Welcome,
 };
+use crate::roles::command_palette;
 use crate::roles::credentials::ProfileCredentials;
 use crate::roles::landing;
 use crate::roles::outer_input::{self, InputChannel, Outgoing};
+use crate::roles::owned_settings;
 #[cfg(test)]
 use crate::roles::presentation::Frame;
 use crate::roles::presentation::{
     DesiredPresentation, FinalCursor, Offer, PresentationComposer, TopologyAction, ViewModel,
-    surface_is_blank,
+    complete_surface_body_without_footer, surface_is_blank,
 };
 use crate::roles::progress_observation::{self, ProgressMetadata};
+use crate::roles::reveal::Reveal;
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
 use crate::roles::terminal_output::TerminalOutput;
 use crate::roles::wire::{
@@ -51,6 +54,185 @@ pub const ENTER_OUTER_MODES: &[u8] =
 pub const RESTORE_OUTER_MODES: &[u8] =
     b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l";
 pub const RESET_OUTER_COLORS: &[u8] = b"\x1b]104\x07\x1b]110\x07\x1b]111\x07\x1b]112\x07";
+use core_attach::PENDING_AGENT_ID;
+
+struct PendingAgent {
+    /// IDs present before the click; a new registry row may arrive before `tab.created`.
+    known_ids: HashSet<String>,
+    request_id: u64,
+    real_id: Option<String>,
+}
+
+struct CancelledAgent {
+    request_id: u64,
+    known_ids: HashSet<String>,
+}
+
+/// Startup may acknowledge its initial Agent after the user has already closed it and its
+/// registry row disappeared; that stale acknowledgement must not request its old view again.
+fn is_stale_unrequested_agent(
+    request_id: Option<u64>,
+    tab_id: &str,
+    tabs: &[StripTab],
+    staged: Option<&Vec<StripTab>>,
+    closed: &HashSet<String>,
+    cancelled: &HashSet<String>,
+) -> bool {
+    cancelled.contains(tab_id)
+        || (request_id.is_none()
+            && !core_attach::is_utility_tab(tab_id)
+            && (closed.contains(tab_id)
+                || !tabs.iter().chain(staged.into_iter().flatten()).any(|tab| tab.id == tab_id)))
+}
+
+fn take_cancelled_agent(cancelled: &mut Vec<CancelledAgent>, request_id: Option<u64>) -> bool {
+    let Some(index) = cancelled.iter().position(|entry| Some(entry.request_id) == request_id) else {
+        return false;
+    };
+    cancelled.remove(index);
+    true
+}
+
+/// Read only the last complete Agent footer as a visual template. The next Agent's usage is
+/// rebuilt at zero and never inherited from an unrelated tab.
+fn agent_preview_footer(surface: &protocol::StructuredSurface) -> Option<landing::AgentPreviewFooter> {
+    if surface.commit_kind != protocol::SurfaceCommitKind::Complete
+        || surface.rows < 5
+        || surface.row_data.len() != usize::from(surface.rows)
+    {
+        return None;
+    }
+    let row = surface.row_data.last()?;
+    let line = row
+        .cells
+        .iter()
+        .filter(|cell| cell.width > 0)
+        .map(|cell| cell.text.as_str())
+        .collect::<String>();
+    let (left, right) = line.trim_end().rsplit_once("  ")?;
+    let model = right.trim();
+    if model.is_empty() || model.len() > 160 || model.chars().any(char::is_control) {
+        return None;
+    }
+    let context = left.split_whitespace().find_map(|part| {
+        let (percent, window) = part.split_once("%/")?;
+        (!percent.is_empty()
+            && window.len() <= 24
+            && !window.is_empty()
+            && window.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '.'))
+        .then(|| window.to_owned())
+    })?;
+    let (model, thinking) = match model.rsplit_once(" • ") {
+        Some((name, level))
+            if !name.is_empty()
+                && matches!(level, "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") =>
+        {
+            let color = row
+                .cells
+                .iter()
+                .rev()
+                .find(|cell| cell.width > 0 && !cell.text.trim().is_empty())
+                .and_then(|cell| surface.styles.get(usize::from(cell.style)))
+                .and_then(|style| match style.foreground {
+                    protocol::SurfaceColor::Rgb(rgb) => Some(rgb),
+                    protocol::SurfaceColor::Palette(index) => {
+                        surface.palette.get(usize::from(index)).copied()
+                    }
+                    protocol::SurfaceColor::Default => None,
+                })
+                .unwrap_or(landing::accent_colors(None).accent);
+            (name.to_owned(), Some((level.to_owned(), color)))
+        }
+        _ => (model.to_owned(), None),
+    };
+    let mut footer = landing::AgentPreviewFooter {
+        context,
+        subscription: left.contains("(sub)"),
+        auto: left.contains("(auto)"),
+        model,
+        thinking,
+        actual: None,
+    };
+    footer.actual = actual_agent_footer_rows(surface, &footer);
+    Some(footer)
+}
+
+/// Reuses the last owned status row while zeroing old usage on the left. The next Agent's
+/// path is drawn from its own cwd; old branch and PR links must never be inherited.
+fn actual_agent_footer_rows(
+    surface: &protocol::StructuredSurface,
+    footer: &landing::AgentPreviewFooter,
+) -> Option<landing::AgentFooterRows> {
+    let mut status = surface.row_data.last()?.clone();
+    let path = surface.row_data.get(usize::from(surface.rows).checked_sub(2)?)?;
+    if !path.cells.iter().any(|cell| !cell.text.trim().is_empty())
+        || status.cells.len() != usize::from(surface.columns)
+        || path.cells.len() != usize::from(surface.columns)
+    {
+        return None;
+    }
+    let text = status.cells.iter().filter(|cell| cell.width > 0)
+        .map(|cell| cell.text.as_str()).collect::<String>();
+    let (_, right) = text.trim_end().rsplit_once("  ")?;
+    let right_width = unicode_width::UnicodeWidthStr::width(right.trim());
+    let right_start = usize::from(surface.columns).checked_sub(right_width + 1)?;
+    let first = (0..right_start).find(|&index| !status.cells[index].text.trim().is_empty())?;
+    let left = format!("{}0.0%/{}{}",
+        if footer.subscription { "$0.000 (sub) " } else { "" },
+        footer.context,
+        if footer.auto { " (auto)" } else { "" });
+    if left.chars().count() + first + 2 > right_start { return None; }
+    let style = status.cells[first].style;
+    for cell in &mut status.cells[first..right_start] {
+        *cell = protocol::SurfaceCell { style, ..Default::default() };
+    }
+    for (index, character) in left.chars().enumerate() {
+        status.cells[first + index].text = character.to_string();
+    }
+    Some(landing::AgentFooterRows {
+        columns: surface.columns,
+        status,
+        styles: surface.styles.clone(),
+        links: surface.links.clone(),
+    })
+}
+
+fn should_hold_activation_footer(truecolor: bool, has_structured_body: bool) -> bool {
+    truecolor && has_structured_body
+}
+
+fn body_with_held_footer(surface: &protocol::StructuredSurface, footer: &[u8]) -> Option<Vec<u8>> {
+    let mut body = complete_surface_body_without_footer(surface).ok()?;
+    body.extend_from_slice(footer);
+    Some(body)
+}
+
+fn fill_on_agent_handoff(pending: Option<&PendingAgent>, tab_id: &str, requested: bool, now: Instant) -> Option<strip::ChipFill> {
+    pending.filter(|intent| requested && intent.real_id.as_deref() == Some(tab_id))
+        .map(|_| strip::ChipFill { tab_id: tab_id.to_owned(), started_at: now })
+}
+
+fn show_pending_agent(shown: &mut Vec<StripTab>, pending: &PendingAgent) {
+    shown.retain(|tab| {
+        (pending.known_ids.contains(&tab.id) && pending.real_id.as_deref() != Some(tab.id.as_str()))
+            || core_attach::is_utility_tab(&tab.id)
+    });
+    let at = shown
+        .iter()
+        .rposition(|tab| core_attach::is_utility_tab(&tab.id))
+        .unwrap_or(shown.len());
+    shown.insert(
+        at,
+        StripTab {
+            id: PENDING_AGENT_ID.into(),
+            name: "Agent".into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
+        },
+    );
+}
 const ATTACH_SERVER_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
 const ATTACH_INGRESS_BYTES: usize = 4 * 1024 * 1024;
@@ -64,11 +246,13 @@ const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
 
 /// The global tab declarations in the order that decides which action keeps a duplicated key;
 /// it mirrors the owned feature's declaration list, which the child projects and publishes.
-pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 18] = [
+pub const TAB_SHORTCUT_DECLARATIONS: [(&str, Option<&str>); 20] = [
     ("tabs.new", Some("alt+a")),
     ("tabs.close", Some("alt+w")),
     ("tabs.rename", Some("f2")),
     ("tabs.settings", Some("alt+,")),
+    ("tabs.changelog", None),
+    ("tabs.commands", Some("alt+/")),
     ("tabs.jump1", Some("alt+1")),
     ("tabs.jump2", Some("alt+2")),
     ("tabs.jump3", Some("alt+3")),
@@ -202,9 +386,8 @@ impl TabBindings {
     }
 
     fn action(&self, key: &crossterm::event::KeyEvent) -> Option<&str> {
-        self.by_key
-            .get(&key_token(key.code, key.modifiers))
-            .map(String::as_str)
+        let token = key_token(key.code, key.modifiers);
+        self.by_key.get(&token).map(String::as_str)
     }
 
     fn label(&self, action: &str) -> String {
@@ -242,6 +425,21 @@ fn clip_cells(value: &str, width: usize) -> String {
         used += next;
     }
     output
+}
+
+fn menu_icon(item: &PopupItem, inner: usize, truecolor: bool) -> (String, usize) {
+    let Some(status) = item.icon_status.as_deref() else {
+        return (String::new(), 0);
+    };
+    if inner == 0 {
+        return (String::new(), 0);
+    }
+    let icon = strip::popup_status_icon(status, item.icon_accent.as_deref(), truecolor);
+    if inner == 1 {
+        (icon, 1)
+    } else {
+        (format!("{icon} "), 2)
+    }
 }
 
 fn menu_text_parts(item: &PopupItem, inner: usize) -> (String, usize, String) {
@@ -468,6 +666,28 @@ fn render_notice_at(message: &str, columns: u16, row: u16) -> String {
 const MAX_SETTINGS_BYTES: u64 = 256 * 1024;
 const SETTINGS_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const OUTER_RESUME_GAP: Duration = Duration::from_secs(5);
+const PENDING_CLOSE_REPEAT_QUIET: Duration = Duration::from_millis(500);
+
+/// A held close key must not turn one pending-tab cancellation into a close of its old Agent.
+fn suppress_pending_close_repeat(
+    until: &mut Option<Instant>,
+    action: Option<&str>,
+    kind: crossterm::event::KeyEventKind,
+    pending: bool,
+    now: Instant,
+) -> bool {
+    if kind == crossterm::event::KeyEventKind::Release { return false; }
+    if action != Some("tabs.close") {
+        *until = None;
+        return false;
+    }
+    if until.is_some_and(|deadline| now < deadline) {
+        *until = Some(now + PENDING_CLOSE_REPEAT_QUIET);
+        return true;
+    }
+    if pending { *until = Some(now + PENDING_CLOSE_REPEAT_QUIET); }
+    false
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PresentationSettings {
@@ -476,6 +696,7 @@ struct PresentationSettings {
     background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
+    plus_menu: PlusMenu,
 }
 
 impl Default for PresentationSettings {
@@ -486,6 +707,7 @@ impl Default for PresentationSettings {
             background_style: None,
             accent_hover: accent_selected_background(None),
             tab_bar_position: TabBarPosition::Top,
+            plus_menu: PlusMenu::default(),
         }
     }
 }
@@ -523,6 +745,11 @@ fn read_presentation_settings(path: &Path) -> PresentationSettings {
                 .get("tabsPosition")
                 .and_then(serde_json::Value::as_str),
         ),
+        plus_menu: PlusMenu::from_setting(
+            owned_settings
+                .get("tabBarPlusMenu")
+                .and_then(serde_json::Value::as_str),
+        ),
     }
 }
 
@@ -532,8 +759,8 @@ fn read_time_format(path: &Path) -> TimeFormat {
 }
 
 /// Development diagnostics: when `A1_ATTACH_KEY_TRACE` names a file, the attach client appends
-/// every outer key event and each detach-chord decision, so a terminal's key reporting can be
-/// compared with what the chord expects. Key codes only; never pasted text or child output.
+/// outer gestures, create/close effects, and the final exit path, so a terminal's input and
+/// resident cancellation can be compared without recording pasted text or child output.
 fn key_trace(path: Option<&Path>, line: &str) {
     let Some(path) = path else {
         return;
@@ -631,6 +858,7 @@ struct TimeFormatWatch {
     background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
+    plus_menu: PlusMenu,
     checked_at: Instant,
 }
 
@@ -645,6 +873,7 @@ impl TimeFormatWatch {
             background_style: settings.background_style,
             accent_hover: settings.accent_hover,
             tab_bar_position: settings.tab_bar_position,
+            plus_menu: settings.plus_menu,
             checked_at: Instant::now(),
         }
     }
@@ -671,6 +900,7 @@ impl TimeFormatWatch {
         self.background_style = settings.background_style;
         self.accent_hover = settings.accent_hover;
         self.tab_bar_position = settings.tab_bar_position;
+        self.plus_menu = settings.plus_menu;
         changed
     }
 }
@@ -678,6 +908,13 @@ impl TimeFormatWatch {
 fn resumed_after_gap(previous: SystemTime, now: SystemTime) -> bool {
     now.duration_since(previous)
         .is_ok_and(|elapsed| elapsed >= OUTER_RESUME_GAP)
+}
+
+/// Consumes a gap once; subsequent ordinary ticks cannot keep forcing the cached repaint.
+pub(crate) fn take_resume_gap(previous: &mut SystemTime, now: SystemTime) -> bool {
+    let resumed = resumed_after_gap(*previous, now);
+    *previous = now;
+    resumed
 }
 
 fn clock_minute() -> u64 {
@@ -698,6 +935,33 @@ fn settings_signature(path: &Path) -> Option<(std::time::SystemTime, u64)> {
 const POPUP_HOVER_NEUTRAL: [u8; 3] = [48, 48, 48];
 
 impl PopupMenu {
+    /// Maps a displayed popup row to its action row. Items clipped above the screen cannot act.
+    fn terminal_row(&self, index: usize, position: TabBarPosition, outer_rows: u16) -> Option<u16> {
+        let body_rows = usize::from(outer_rows.saturating_sub(1));
+        let row = match position {
+            TabBarPosition::Top => index.checked_add(2)?,
+            TabBarPosition::Bottom => {
+                body_rows.checked_sub(self.items.len().saturating_sub(index + 1))?
+            }
+        };
+        (row > 0 && row <= body_rows).then_some(u16::try_from(row).ok()?)
+    }
+
+    fn mouse_row(
+        &self,
+        position: TabBarPosition,
+        outer_rows: u16,
+        pointer_row: u16,
+    ) -> Option<u16> {
+        self.items
+            .iter()
+            .enumerate()
+            .find(|(index, _)| {
+                self.terminal_row(*index, position, outer_rows) == pointer_row.checked_add(1)
+            })
+            .and_then(|(index, _)| u16::try_from(index + 1).ok())
+    }
+
     #[cfg(test)]
     fn render(&self) -> String {
         self.render_with_color(!palette_fallback_requested())
@@ -725,13 +989,9 @@ impl PopupMenu {
         let inner = usize::from(self.width).saturating_sub(2);
         let mut output = String::from("\x1b[s");
         for (index, item) in self.items.iter().enumerate() {
-            let row = match position {
-                TabBarPosition::Top => index + 2,
-                TabBarPosition::Bottom => usize::from(outer_rows)
-                    .saturating_sub(self.items.len())
-                    .saturating_add(index),
+            let Some(row) = self.terminal_row(index, position, outer_rows) else {
+                continue;
             };
-            let row = row.max(1);
             output.push_str(&format!("\x1b[{row};{}H", self.column.saturating_add(1)));
             if truecolor {
                 let hovered_background = format!("{};{};{}", hover[0], hover[1], hover[2]);
@@ -751,7 +1011,9 @@ impl PopupMenu {
                 if item.separator {
                     output.push_str(&"─".repeat(inner));
                 } else {
-                    let (label, gap, shortcut) = menu_text_parts(item, inner);
+                    let (icon, icon_width) = menu_icon(item, inner, true);
+                    let (label, gap, shortcut) = menu_text_parts(item, inner - icon_width);
+                    output.push_str(&icon);
                     output.push_str(&label);
                     output.push_str(&" ".repeat(gap));
                     if !shortcut.is_empty() {
@@ -770,7 +1032,9 @@ impl PopupMenu {
                 let label = if item.separator {
                     "─".repeat(inner)
                 } else {
-                    let (mut label, gap, shortcut) = menu_text_parts(item, inner);
+                    let (icon, icon_width) = menu_icon(item, inner, false);
+                    let (mut label, gap, shortcut) = menu_text_parts(item, inner - icon_width);
+                    label.insert_str(0, &icon);
                     label.push_str(&" ".repeat(gap));
                     if !shortcut.is_empty() {
                         // Compatibility: The palette counterpart of the truecolor muted shortcut.
@@ -956,6 +1220,7 @@ impl AttachServerWriter {
         let writer_bytes = reserved_bytes.clone();
         let writer_failed = failed.clone();
         thread::spawn(move || {
+            let _connection = endpoint::close_on_drop(&stream);
             while let Ok(frame) = receiver.recv() {
                 let result = stream
                     .write_all(&frame)
@@ -1156,6 +1421,10 @@ impl TabView for StripTab {
         &self.status
     }
 
+    fn accent(&self) -> Option<&str> {
+        self.accent.as_deref()
+    }
+
     fn set_status(&mut self, status: String) {
         self.status = status;
     }
@@ -1231,7 +1500,7 @@ struct Handshake {
 /// registry; returns once the server admitted this client.
 fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
     let token =
-        crate::endpoint::endpoint_token(options.profile).map_err(|error| error.to_string())?;
+        super::scope::token(options.profile)?;
     let credentials =
         ProfileCredentials::load_or_create(&options.data_dir.join("tabs").join(token))?;
     let mut stream = endpoint::connect(options.endpoint).map_err(|error| error.to_string())?;
@@ -1243,6 +1512,7 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
             role: "attach".into(),
             generation: protocol::GENERATION,
             build: "a1-terminal-host".into(),
+            release_id: super::scope::release_id()?,
             features: vec![
                 "double-ctrl-c".into(),
                 protocol::FEATURE_SEMANTIC_INPUT.into(),
@@ -1265,6 +1535,7 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
         return Err("resident server refused attach".to_owned());
     }
     let (_, welcome): (Option<u64>, Welcome) = wire::body(&payload)?;
+    super::scope::admit(&welcome.release_id)?;
     // Compatibility: semantic input and typed effects are generation-1 features; a server that
     // lacks them keeps the byte path and applies no child terminal effects.
     let channel = InputChannel::new(protocol::negotiated(
@@ -1404,11 +1675,7 @@ fn send_resize(
     )
 }
 
-/// How long the landing wordmark takes to wipe into the new Agent's caret, and its frame pace.
-const LANDING_WIPE: Duration = Duration::from_millis(180);
-const LANDING_WIPE_FRAME: Duration = Duration::from_millis(16);
 const RESIZE_SETTLE: Duration = Duration::from_millis(220);
-const RESIZE_FADE: Duration = Duration::from_millis(100);
 const RESIZE_RECOVERY: Duration = Duration::from_secs(1);
 
 /// Reads server frames on their own thread under the ingress byte budget, waking the main loop
@@ -1421,6 +1688,7 @@ fn spawn_server_reader(
     let ingress_bytes = Arc::new(AtomicUsize::new(0));
     let reader_ingress_bytes = ingress_bytes.clone();
     thread::spawn(move || {
+        let _connection = endpoint::close_on_drop(&reader);
         loop {
             let payload = match wire::read_payload(&mut reader) {
                 Ok(Some(payload)) => payload,
@@ -1490,6 +1758,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     );
     crate::fault_injection::freeze_role("attach");
     let handshake = handshake(&options)?;
+    let _connection = endpoint::close_on_drop(&handshake.stream);
     let reader = handshake
         .stream
         .try_clone()
@@ -1510,35 +1779,58 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     if let Some(list) = initial_tabs {
         client.install_tab_list(&mut core, list)?;
     }
+    core.plus_menu = client.time_format.plus_menu;
     loop {
         watchdog.bump();
         if let Some(error) = client.stream.failure() {
+            key_trace(client.key_trace_path.as_deref(), "exit=outbound-stream-failure");
             return Err(error);
         }
-        if client.drain_server(&mut core, &message_rx, &ingress_bytes)? {
-            return Ok(());
-        }
-        client.tick(&mut core)?;
-        let next = match input_rx.try_recv() {
-            Ok(next) => next?,
-            Err(mpsc::TryRecvError::Empty) => {
-                let _ = wake_rx.recv_timeout(Duration::from_millis(8));
-                continue;
+        // Performance: a queued key must not wait behind decoding/composing the next complete
+        // grid. One input then one bounded server round preserves both sides' forward progress.
+        let mut round = super::ready_round::ReadyRound::default();
+        let input = round.receive(&input_rx);
+        let disconnected = matches!(input, Err(mpsc::TryRecvError::Disconnected));
+        if let Ok(next) = input {
+            match next.and_then(|next| client.input(&mut core, next)) {
+                Ok(true) => {
+                    key_trace(client.key_trace_path.as_deref(), "exit=input-detach");
+                    return Ok(());
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    key_trace(client.key_trace_path.as_deref(), "exit=input-error");
+                    return Err(error);
+                }
             }
-            Err(mpsc::TryRecvError::Disconnected) => {
-                return Err("outer terminal input stopped".to_owned());
-            }
-        };
-        if client.input(&mut core, next)? {
-            return Ok(());
         }
+        match client.drain_server(&mut core, &message_rx, &ingress_bytes, &mut round) {
+            Ok(true) => {
+                key_trace(client.key_trace_path.as_deref(), "exit=server-detach");
+                return Ok(());
+            }
+            Ok(false) => {}
+            Err(error) => {
+                key_trace(client.key_trace_path.as_deref(), "exit=server-error");
+                return Err(error);
+            }
+        }
+        if let Err(error) = client.tick(&mut core) {
+            key_trace(client.key_trace_path.as_deref(), "exit=tick-error");
+            return Err(error);
+        }
+        if disconnected {
+            key_trace(client.key_trace_path.as_deref(), "exit=outer-input-stopped");
+            return Err("outer terminal input stopped".to_owned());
+        }
+        round.wait(&wake_rx, Duration::from_millis(8));
     }
 }
 
 /// The child surface this client presents and the frame state it was committed with.
 struct Presented {
     surface: Vec<u8>,
-    structured: Option<protocol::StructuredSurface>,
+    structured: Option<Arc<protocol::StructuredSurface>>,
     tab_id: Option<String>,
     incarnation: u64,
     revision: u64,
@@ -1566,16 +1858,15 @@ impl Presented {
         }
     }
 
-    fn install(&mut self, surface: &Surface, effective_status: &str) {
+    fn install(&mut self, surface: Surface, effective_status: &str) {
         let same_child = self.tab_id.as_deref() == Some(surface.tab_id.as_str())
             && self.incarnation == surface.incarnation;
         if !same_child {
             self.startup_drew_content = false;
             self.quiet_startup_handoff = false;
         }
-        let blank = surface_is_blank(surface);
         if effective_status == "starting" {
-            if blank {
+            if surface_is_blank(&surface) {
                 self.quiet_startup_handoff =
                     self.quiet_startup_handoff || self.startup_drew_content;
             } else {
@@ -1588,11 +1879,11 @@ impl Presented {
         }
 
         self.surface = without_bell(&surface.bytes);
-        self.structured = surface.structured.clone();
-        self.tab_id = Some(surface.tab_id.clone());
+        self.structured = surface.structured.map(Arc::new);
+        self.tab_id = Some(surface.tab_id);
         self.incarnation = surface.incarnation;
         self.revision = surface.revision;
-        self.geometry_generation = surface
+        self.geometry_generation = self
             .structured
             .as_ref()
             .map_or(self.geometry_generation, |structured| {
@@ -1605,7 +1896,7 @@ impl Presented {
             surface
                 .cursor
                 .map(FinalCursor::At)
-                .or_else(|| surface.modes.as_ref().map(|_| FinalCursor::Hidden))
+                .or_else(|| self.modes.as_ref().map(|_| FinalCursor::Hidden))
         };
     }
 }
@@ -1656,83 +1947,6 @@ impl ResizeCurtain {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-struct ResizeFade {
-    until: Instant,
-}
-
-impl ResizeFade {
-    fn new(now: Instant) -> Self {
-        Self {
-            until: now.checked_add(RESIZE_FADE).unwrap_or(now),
-        }
-    }
-
-    fn complete(self, now: Instant) -> bool {
-        now >= self.until
-    }
-}
-
-fn force_faint_ansi(bytes: &[u8]) -> Vec<u8> {
-    if bytes.is_empty() {
-        return Vec::new();
-    }
-    let mut output = Vec::with_capacity(bytes.len() + 32);
-    output.extend_from_slice(b"\x1b[2m");
-    let mut index = 0usize;
-    while index < bytes.len() {
-        if bytes.get(index..index + 2) != Some(b"\x1b[") {
-            output.push(bytes[index]);
-            index += 1;
-            continue;
-        }
-        let Some(offset) = bytes[index + 2..]
-            .iter()
-            .position(|byte| (0x40..=0x7e).contains(byte))
-        else {
-            output.extend_from_slice(&bytes[index..]);
-            break;
-        };
-        let end = index + 2 + offset;
-        output.extend_from_slice(&bytes[index..=end]);
-        if bytes[end] == b'm' {
-            // Protocol: every child or host SGR may change intensity. Reassert faint after it so
-            // resets, bold text, and explicit colors all remain inside the reveal treatment.
-            output.extend_from_slice(b"\x1b[2m");
-        }
-        index = end + 1;
-    }
-    output.extend_from_slice(b"\x1b[22m");
-    output
-}
-
-fn dim_presentation(mut desired: DesiredPresentation) -> DesiredPresentation {
-    if !desired.strip.is_empty() {
-        desired.strip = String::from_utf8(force_faint_ansi(desired.strip.as_bytes()))
-            .expect("host strip is utf-8");
-    }
-    if !desired.legacy_body.is_empty() {
-        desired.legacy_body = force_faint_ansi(&desired.legacy_body);
-    }
-    if let Some(surface) = desired.structured.as_mut() {
-        for style in &mut surface.styles {
-            style.faint = true;
-        }
-        desired.overlay = Some(desired.overlay.map_or_else(
-            || "\x1b[22m".to_owned(),
-            |overlay| {
-                String::from_utf8(force_faint_ansi(overlay.as_bytes()))
-                    .expect("host overlay is utf-8")
-            },
-        ));
-    } else if let Some(overlay) = desired.overlay.as_mut() {
-        *overlay =
-            String::from_utf8(force_faint_ansi(overlay.as_bytes())).expect("host overlay is utf-8");
-    }
-    desired.cursor = Some(FinalCursor::Hidden);
-    desired
-}
-
 fn changes_terminal_geometry(
     current_columns: u16,
     current_outer_rows: u16,
@@ -1781,6 +1995,7 @@ fn resize_curtain_presentation(
         outer_rows,
         child_row_offset: 1,
         clear: true,
+        dimmed: false,
     }
 }
 
@@ -1830,7 +2045,7 @@ fn should_paint_strip(has_surface: bool, has_shown_tabs: bool, notice: bool) -> 
 
 fn apply_owned_accent(tabs: &mut [StripTab], color: Option<&str>) {
     for tab in tabs {
-        if tab.id.starts_with("settings-") || tab.accent.is_none() {
+        if core_attach::is_utility_tab(&tab.id) || tab.accent.is_none() {
             tab.accent = color.map(str::to_owned);
         }
     }
@@ -1841,6 +2056,18 @@ struct Client {
     terminal: OuterTerminal,
     view: ViewModel,
     tabs: Vec<StripTab>,
+    /// Only the attach client sees this visual intent; it is never a server tab identity.
+    pending_agent: Option<PendingAgent>,
+    cancelled_agents: Vec<CancelledAgent>,
+    hidden_cancelled_tabs: HashSet<String>,
+    closed_tab_ids: HashSet<String>,
+    pending_close_quiet_until: Option<Instant>,
+    next_create_request_id: u64,
+    preview_footer: Option<landing::AgentPreviewFooter>,
+    chip_priority: Vec<String>,
+    chip_fill: Option<strip::ChipFill>,
+    preview_footer_hold: Option<Vec<u8>>,
+    swap_in_flight: Option<String>,
     bindings: TabBindings,
     channel: InputChannel,
     chord: DoubleCtrlC,
@@ -1867,12 +2094,11 @@ struct Client {
     settings_file: PathBuf,
     /// The running a1 package version the landing header names, when the release records one.
     version: Option<String>,
-    /// When the landing began handing over to an Agent this client asked for.
-    landing_wipe: Option<Instant>,
     /// Rationale: resize presentation has two bounded host-owned phases: an opaque curtain while
     /// geometry settles, followed by a faint complete frame before normal intensity returns.
     resize_curtain: Option<ResizeCurtain>,
-    resize_fade: Option<ResizeFade>,
+    /// The fade in progress and the new tab whose content is veiled until its first frame.
+    reveal: Reveal,
 }
 
 impl Client {
@@ -1899,12 +2125,24 @@ impl Client {
             time_format
                 .tab_bar_position
                 .strip_terminal_row(handshake.outer_rows),
+            !time_format.plus_menu.is_empty(),
         );
         let client = Self {
             stream: AttachServerWriter::start(handshake.stream),
             terminal,
             view,
             tabs: Vec::new(),
+            pending_agent: None,
+            cancelled_agents: Vec::new(),
+            hidden_cancelled_tabs: HashSet::new(),
+            closed_tab_ids: HashSet::new(),
+            pending_close_quiet_until: None,
+            next_create_request_id: 1,
+            preview_footer: None,
+            chip_priority: Vec::new(),
+            chip_fill: None,
+            preview_footer_hold: None,
+            swap_in_flight: None,
             bindings: TabBindings::load(options.profile),
             channel: handshake.channel,
             chord: DoubleCtrlC::new(options.clear_exit_ms),
@@ -1930,9 +2168,8 @@ impl Client {
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
             version: read_release_version(Path::new(options.release_root)),
-            landing_wipe: None,
             resize_curtain: None,
-            resize_fade: None,
+            reveal: Reveal::default(),
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
         // surface before presenting that list and the body as one first frame.
@@ -1969,10 +2206,71 @@ impl Client {
         let mut forwarded = Vec::new();
         for effect in effects {
             match effect {
-                Effect::Send(request) => self.send(request)?,
-                Effect::View(tab_id) => self.request_view(tab_id)?,
+                Effect::Send(request) => {
+                    if request == Request::Create {
+                        self.clear_chip_fill();
+                        key_trace(self.key_trace_path.as_deref(), "effect=create");
+                        let known_ids = self
+                            .tabs
+                            .iter()
+                            .chain(self.view.staged_tabs().into_iter().flatten())
+                            .map(|tab| tab.id.clone())
+                            .collect();
+                        let request_id = self.next_create_request_id;
+                        self.next_create_request_id = self.next_create_request_id.wrapping_add(1).max(1);
+                        self.pending_agent = Some(PendingAgent {
+                            known_ids,
+                            request_id,
+                            real_id: None,
+                        });
+                    } else if request == Request::CancelCreate {
+                        key_trace(self.key_trace_path.as_deref(), "effect=cancel-create");
+                        if let Some(pending) = self.pending_agent.as_ref() {
+                            self.cancelled_agents.push(CancelledAgent {
+                                request_id: pending.request_id,
+                                known_ids: pending.known_ids.clone(),
+                            });
+                        }
+                    } else if let Request::Close(ref tab_id) = request {
+                        if self.chip_fill.as_ref().is_some_and(|fill| fill.tab_id == *tab_id) {
+                            self.clear_chip_fill();
+                        }
+                        key_trace(self.key_trace_path.as_deref(), "effect=close");
+                        self.closed_tab_ids.insert(tab_id.clone());
+                        if self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab_id) {
+                            self.hidden_cancelled_tabs.insert(tab_id.clone());
+                        }
+                    } else if matches!(request, Request::Open(_)) && !core.view.pending_agent_visible {
+                        self.pending_agent = None;
+                    }
+                    if matches!(request, Request::Reorder { .. }) {
+                        self.chip_priority.clear();
+                    }
+                    let cancelled = request == Request::CancelCreate;
+                    self.send(request)?;
+                    if cancelled { self.pending_agent = None; }
+                }
+                Effect::View(tab_id) => {
+                    if self.chip_fill.as_ref().is_some_and(|fill| fill.tab_id != tab_id) {
+                        self.clear_chip_fill();
+                    }
+                    if !core.view.pending_agent_visible {
+                        self.pending_agent = None;
+                    } else if let Some(pending) = self.pending_agent.as_mut() {
+                        pending.real_id = Some(tab_id.clone());
+                    }
+                    self.request_view(tab_id)?;
+                }
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
-                Effect::CancelViewRequest => self.view.cancel_request(),
+                Effect::CancelViewRequest => {
+                    self.clear_chip_fill();
+                    key_trace(self.key_trace_path.as_deref(), "effect=cancel-view");
+                    self.pending_agent = None;
+                    self.view.cancel_request();
+                    if self.swap_in_flight.take().is_some() {
+                        self.chip_priority.clear();
+                    }
+                }
                 Effect::Renamed { tab_id, name } => {
                     if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.id == tab_id) {
                         tab.name = name;
@@ -1988,24 +2286,44 @@ impl Client {
                     }
                 }
                 Effect::Paint { clear } => self.paint(core, clear)?,
+                Effect::SavePlusMenu(menu) => self.save_plus_menu(core, menu),
                 forward => forwarded.push(forward),
             }
+        }
+        if !core.view.pending_agent_visible
+            && self.pending_agent.as_ref().is_some_and(|pending| pending.real_id.is_none())
+        {
+            self.pending_agent = None;
         }
         Ok(forwarded)
     }
 
-    fn send(&mut self, request: Request) -> Result<(), String> {
-        if request == Request::Create && self.landing_shown() {
-            self.landing_wipe = Some(Instant::now());
+    /// Stores the plus menu its dialog changed. A refused write restores the stored menu, so the
+    /// dialog and `+` never show a value the settings do not hold.
+    fn save_plus_menu(&mut self, core: &mut State, menu: PlusMenu) {
+        match owned_settings::write_plus_menu(&self.time_format.path, menu) {
+            Ok(()) => self.time_format.plus_menu = menu,
+            Err(error) => {
+                core.plus_menu = self.time_format.plus_menu;
+                core.notice = Some(format!("Plus menu not saved: {error}"));
+            }
         }
+    }
+
+    fn send(&mut self, request: Request) -> Result<(), String> {
         let stream = &mut self.stream;
         match request {
-            Request::Create => wire::send(stream, "tab.create", None, self.create.clone()),
-            Request::OpenSettings => {
-                wire::send(stream, "tab.open-settings", None, self.create.clone())
+            Request::Create => wire::send(stream, "tab.create", self.pending_agent.as_ref().map(|pending| pending.request_id), self.create.clone()),
+            Request::CancelCreate => wire::send(stream, "tab.cancel-create", None, serde_json::json!({
+                "requestId": self.pending_agent.as_ref().ok_or("missing pending Agent")?.request_id
+            })),
+            Request::Open(kind) => {
+                let message = format!("tab.open-{}", kind.name());
+                wire::send(stream, &message, None, self.create.clone())
             }
-            Request::PrewarmSettings => {
-                wire::send(stream, "tab.prewarm-settings", None, self.create.clone())
+            Request::Prewarm(kind) => {
+                let message = format!("tab.prewarm-{}", kind.name());
+                wire::send(stream, &message, None, self.create.clone())
             }
             Request::Close(tab_id) => wire::send(stream, "tab.close", None, TabTarget { tab_id }),
             Request::Restart(tab_id) => {
@@ -2036,6 +2354,20 @@ impl Client {
     }
 
     fn request_view(&mut self, tab_id: String) -> Result<(), String> {
+        let priority = swapped_chip_priority_for_view(
+            &self.strip_frame,
+            &self.view,
+            self.swap_in_flight.as_deref(),
+            &tab_id,
+        );
+        self.swap_in_flight = priority.as_ref().map(|_| tab_id.clone());
+        if let Some(priority) = priority {
+            self.chip_priority = priority;
+            settle_promoted_title(&mut self.tabs, &tab_id);
+            if let Some(staged) = self.view.staged_tabs_mut() {
+                settle_promoted_title(staged, &tab_id);
+            }
+        }
         self.request_generation = self.request_generation.saturating_add(1);
         self.view.request(&tab_id);
         self.view.expect_request_generation(self.request_generation);
@@ -2085,17 +2417,40 @@ impl Client {
         if !should_paint_strip(
             self.presented.tab_id.is_some(),
             self.has_shown_tabs,
-            core.notice.is_some(),
+            core.notice.is_some() || core.view.pending_agent_visible,
         ) {
             return Ok(());
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
-        let rename = core.mode.rename().map(RenameEditor::display);
-        let mut shown = shown_tabs(
-            &self.tabs,
-            self.view.viewed.as_deref(),
-            core.view.settings_shown,
-        );
+        let pending = core.view.pending_agent_visible && self.pending_agent.is_some();
+        let shown = self.prepare_strip(core, pending);
+        self.render_strip(core, &shown, pending);
+        let overlay = self.overlay(core);
+        let landing = self.landing();
+        self.present(
+            overlay,
+            landing,
+            pending,
+            clear,
+            core.mode.palette().is_some(),
+        )
+    }
+
+    /// Assemble and animate the strip's locally pending and registered chips before layout.
+    fn prepare_strip(&mut self, core: &State, pending: bool) -> Vec<StripTab> {
+        let strip_viewed = strip_active_view(&self.view, self.swap_in_flight.as_deref());
+        let mut shown = shown_tabs(&self.tabs, strip_viewed, core.view.shown());
+        shown.retain(|tab| {
+            if self.hidden_cancelled_tabs.contains(&tab.id) { return false; }
+            self.cancelled_agents.iter().all(|cancelled| {
+                cancelled.known_ids.contains(&tab.id)
+                    || core_attach::is_utility_tab(&tab.id)
+                    || self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab.id.as_str())
+            })
+        });
+        if let Some(intent) = self.pending_agent.as_ref().filter(|_| pending) {
+            show_pending_agent(&mut shown, intent);
+        }
         apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
@@ -2105,11 +2460,35 @@ impl Client {
         );
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
+        shown
+    }
+
+    /// Lay out the visible chips, maintain hover, and expose only authoritative hit targets.
+    fn render_strip(&mut self, core: &mut State, shown: &[StripTab], pending: bool) {
+        let rename = core.mode.rename().map(RenameEditor::display);
+        let strip_viewed = if pending {
+            Some(PENDING_AGENT_ID)
+        } else {
+            strip_active_view(&self.view, self.swap_in_flight.as_deref())
+        };
+        let mut prioritized = prioritized_chips(shown, &self.chip_priority);
+        if pending {
+            prioritized.retain(|tab| tab.id != PENDING_AGENT_ID);
+            prioritized.insert(
+                0,
+                shown
+                    .iter()
+                    .find(|tab| tab.id == PENDING_AGENT_ID)
+                    .expect("pending chip")
+                    .clone(),
+            );
+        }
         let drag = core.mode.drag().cloned();
+        let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
-            let mut frame = strip::render_interactive_at(
-                &shown,
-                self.view.viewed.as_deref(),
+            let mut frame = strip::render_interactive_filled_at(
+                shown,
+                strip_viewed,
                 self.columns,
                 hovered,
                 self.time_format.value,
@@ -2117,16 +2496,36 @@ impl Client {
                 self.time_format
                     .tab_bar_position
                     .strip_terminal_row(self.outer_rows),
+                plus,
+                self.chip_fill.as_ref(),
             );
-            append_drag_marker(
-                &mut frame,
-                drag.as_ref(),
-                &shown,
-                self.columns,
-                self.time_format
-                    .tab_bar_position
-                    .strip_terminal_row(self.outer_rows),
-            );
+            if (pending || !self.chip_priority.is_empty()) && !frame.hidden_tabs.is_empty() {
+                frame = strip::render_interactive_filled_at(
+                    &prioritized,
+                    strip_viewed,
+                    self.columns,
+                    hovered,
+                    self.time_format.value,
+                    rename.as_ref(),
+                    self.time_format
+                        .tab_bar_position
+                        .strip_terminal_row(self.outer_rows),
+                    plus,
+                    self.chip_fill.as_ref(),
+                );
+            }
+            if let Some(drag) = drag.as_ref() {
+                let drag_order = prioritized_chips(shown, &drawn_chip_ids(&frame));
+                append_drag_marker(
+                    &mut frame,
+                    Some(drag),
+                    &drag_order,
+                    self.columns,
+                    self.time_format
+                        .tab_bar_position
+                        .strip_terminal_row(self.outer_rows),
+                );
+            }
             frame
         };
         let hovered = core.hovered.as_ref().map(StripHover::from);
@@ -2139,28 +2538,30 @@ impl Client {
             strip_frame = render(None);
         }
         self.strip_frame = strip_frame;
-        let overlay = self.overlay(core);
-        let landing = self.landing(core);
-        self.present(overlay, landing, clear)
+        // Invariant: the provisional chip is only a local hit target for its close menu; it is
+        // never used as a server tab ID or made available for child input.
+        self.strip_frame.hidden_tabs.retain(|id| id != PENDING_AGENT_ID);
+        if self.strip_frame.hidden_tabs.is_empty() {
+            self.chip_priority.clear();
+        }
+        let overflow_anchor = self
+            .strip_frame
+            .hits
+            .iter()
+            .find_map(|(start, _, hit)| matches!(hit, StripHit::Overflow).then_some(*start));
+        core.refresh_overflow(shown, &self.strip_frame.hidden_tabs, overflow_anchor);
     }
 
     /// Invariant: the landing is the body only while no tab is viewed after tabs were shown, so a
     /// first launch, a resize, or a pending switch never flashes it over a child surface.
     fn landing_shown(&self) -> bool {
-        self.view.viewed.is_none() && self.has_shown_tabs
+        self.view.viewed.is_none() && self.has_shown_tabs && self.pending_agent.is_none()
     }
 
-    fn landing(&self, core: &State) -> Option<Vec<u8>> {
+    fn landing(&self) -> Option<Vec<u8>> {
         if !self.landing_shown() {
             return None;
         }
-        // Invariant: the wipe runs only while the Agent it hands over to is starting; a refused
-        // creation restores the wordmark.
-        let creating = core.view.pending_created_activation || self.view.requested.is_some();
-        let wipe = self
-            .landing_wipe
-            .filter(|_| creating)
-            .map(|started| started.elapsed().as_secs_f32() / LANDING_WIPE.as_secs_f32());
         // Invariant: the footer resolves home from `HOME`, then `USERPROFILE`.
         let home = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))
@@ -2174,12 +2575,36 @@ impl Client {
             truecolor: !palette_fallback_requested(),
             half_blocks: landing::half_blocks_supported(),
             cwd: &cwd,
-            wipe,
             background: landing::canvas_background(
                 self.time_format.background_style,
                 self.time_format.accent_color,
             ),
         }))
+    }
+
+    fn pending_agent_shell(&self, footer_only: bool) -> Vec<u8> {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .ok();
+        let cwd = landing::display_cwd(&self.create.cwd, home.as_deref());
+        let input = landing::LandingInput {
+            columns: self.columns,
+            body_rows: self.outer_rows.saturating_sub(1),
+            version: None,
+            accent: self.time_format.accent_color,
+            truecolor: !palette_fallback_requested(),
+            half_blocks: false,
+            cwd: &cwd,
+            background: landing::canvas_background(
+                self.time_format.background_style,
+                self.time_format.accent_color,
+            ),
+        };
+        if footer_only {
+            landing::render_agent_preview_footer(&input, self.preview_footer.as_ref())
+        } else {
+            landing::render_agent_preview(&input, self.preview_footer.as_ref())
+        }
     }
 
     fn overlay(&self, core: &State) -> Option<String> {
@@ -2190,7 +2615,20 @@ impl Client {
             .and_then(|id| self.tabs.iter().find(|tab| &tab.id == id))
             .filter(|tab| tab.status == "failed")
             .map(|_| "Tab failed · R retry · F start fresh · Alt+W close".to_owned());
-        if let Some(menu) = core.mode.popup() {
+        if let Some(palette) = core.mode.palette() {
+            Some(command_palette::render(
+                palette,
+                &self.bindings,
+                core.plus_menu,
+                self.columns,
+                self.outer_rows,
+                command_palette::PaletteStyle {
+                    truecolor: !palette_fallback_requested(),
+                    hover: self.time_format.accent_hover,
+                    accent: landing::accent_colors(self.time_format.accent_color).accent,
+                },
+            ))
+        } else if let Some(menu) = core.mode.popup() {
             Some(menu.render_styled_at(
                 !palette_fallback_requested(),
                 self.time_format.accent_hover,
@@ -2218,30 +2656,55 @@ impl Client {
         &mut self,
         overlay: Option<String>,
         landing: Option<Vec<u8>>,
+        pending: bool,
         clear: bool,
+        dimmed: bool,
     ) -> Result<(), String> {
-        let child_surface = landing.is_none();
+        let pending_body = pending.then(|| self.pending_agent_shell(false));
+        let child_surface = landing.is_none() && !pending;
+        // Invariant: only the footer stays provisional. Reconstruct each latest complete real
+        // surface so its editor and input remain live throughout the bounded chip fill.
+        let held_body = if child_surface {
+            self.preview_footer_hold.as_deref().and_then(|footer| {
+                self.presented.structured.as_deref()
+                    .and_then(|surface| body_with_held_footer(surface, footer))
+            })
+        } else {
+            None
+        };
         let desired = DesiredPresentation {
-            tab_id: self.view.viewed.clone(),
+            tab_id: if pending {
+                Some(PENDING_AGENT_ID.into())
+            } else {
+                self.view.viewed.clone()
+            },
             incarnation: self.presented.incarnation,
             revision: self.presented.revision,
             geometry_generation: self.presented.geometry_generation,
             strip: self.strip_frame.bytes.clone(),
-            structured: self.presented.structured.clone().filter(|_| child_surface),
-            legacy_body: landing.unwrap_or_else(|| self.presented.surface.clone()),
+            structured: self.presented.structured.clone().filter(|_| child_surface && held_body.is_none()),
+            legacy_body: pending_body
+                .or(landing)
+                .or(held_body)
+                .unwrap_or_else(|| self.presented.surface.clone()),
             overlay,
-            cursor: self.presented.cursor,
-            modes: self.presented.modes.clone(),
+            cursor: if pending || dimmed {
+                Some(FinalCursor::Hidden)
+            } else {
+                self.presented.cursor
+            },
+            modes: if pending {
+                None
+            } else {
+                self.presented.modes.clone()
+            },
             columns: self.columns,
             outer_rows: self.outer_rows,
             child_row_offset: self.time_format.tab_bar_position.child_row_offset(),
             clear,
+            dimmed,
         };
-        self.terminal.present(if self.resize_fade.is_some() {
-            dim_presentation(desired)
-        } else {
-            desired
-        })
+        self.terminal.present(self.reveal.present(desired))
     }
 
     fn apply_terminal_effect(&mut self, effect: &TerminalEffect) -> Result<(), String> {
@@ -2264,9 +2727,12 @@ impl Client {
         staged: Option<Vec<StripTab>>,
         requested: bool,
     ) -> Result<(), String> {
-        self.landing_wipe = None;
         if let Some(next) = staged {
             self.tabs = next;
+        }
+        if self.swap_in_flight.as_deref() == Some(surface.tab_id.as_str()) {
+            settle_promoted_title(&mut self.tabs, &surface.tab_id);
+            self.swap_in_flight = None;
         }
         self.run(
             core,
@@ -2284,13 +2750,29 @@ impl Client {
             tab.accent = surface.accent.clone();
             effective_status.clone_from(&tab.status);
         }
-        self.presented.install(&surface, &effective_status);
+        if let Some(fill) = fill_on_agent_handoff(self.pending_agent.as_ref(), &surface.tab_id, requested, Instant::now()) {
+            // Invariant: the preview footer is frozen before the real Agent's first status is cached.
+            // Without a complete structured frame or truecolor fill the real footer shows at once.
+            if should_hold_activation_footer(!palette_fallback_requested(), surface.structured.is_some()) {
+                self.preview_footer_hold = Some(self.pending_agent_shell(true));
+                self.chip_fill = Some(fill);
+                self.last_strip_frame = Instant::now();
+            }
+            self.pending_agent = None;
+        }
+        if !core_attach::is_utility_tab(&surface.tab_id)
+            && let Some(footer) = surface.structured.as_ref().and_then(agent_preview_footer)
+        {
+            self.preview_footer = Some(footer);
+        }
+        self.presented.install(surface, &effective_status);
         let mut deferred = VecDeque::new();
         for effect in std::mem::take(&mut self.pending_terminal_effects) {
-            if effect.tab_id != surface.tab_id || effect.incarnation != surface.incarnation {
+            if self.presented.tab_id.as_deref() != Some(effect.tab_id.as_str())
+                || effect.incarnation != self.presented.incarnation {
                 continue;
             }
-            if effect.revision <= surface.revision {
+            if effect.revision <= self.presented.revision {
                 self.apply_terminal_effect(&effect)?;
             } else {
                 deferred.push_back(effect);
@@ -2306,16 +2788,20 @@ impl Client {
         core: &mut State,
         messages: &mpsc::Receiver<ServerIngress>,
         ingress_bytes: &Arc<AtomicUsize>,
+        round: &mut super::ready_round::ReadyRound,
     ) -> Result<bool, String> {
         let round_started = Instant::now();
         let mut round_bytes = 0usize;
         for _ in 0..8 {
-            let Ok(message) = messages.try_recv() else {
+            let Ok(message) = round.receive(messages) else {
                 break;
             };
             let payload = match message {
                 ServerIngress::Frame(payload) => payload,
-                ServerIngress::Failed(error) => return Err(error),
+                ServerIngress::Failed(error) => {
+                    key_trace(self.key_trace_path.as_deref(), "server=connection-failed");
+                    return Err(error);
+                },
             };
             let _reservation = IngressReservation {
                 bytes: ingress_bytes.clone(),
@@ -2339,7 +2825,11 @@ impl Client {
             "surface" => self.surface(core, payload)?,
             "terminal.effect" => self.terminal_effect(payload)?,
             "tab.list" => self.tab_list(core, payload)?,
+            "plus.configure" => {
+                self.run(core, core_attach::Event::Server(ServerEvent::ConfigurePlus))?;
+            }
             "detach" => {
+                key_trace(self.key_trace_path.as_deref(), "server=detach");
                 core.exit();
                 wire::send(&mut self.stream, "detach", None, wire::ResultBody::ok())?;
                 self.terminal.restore()?;
@@ -2347,11 +2837,13 @@ impl Client {
                 return Ok(true);
             }
             "refused" => {
+                key_trace(self.key_trace_path.as_deref(), "server=refused");
                 core.exit();
                 self.terminal.restore()?;
                 return Err("a1 is attached in another terminal".to_owned());
             }
             "error" => {
+                key_trace(self.key_trace_path.as_deref(), "server=error");
                 let (_, result): (_, wire::ResultBody) = wire::body(payload)?;
                 return Err(result
                     .message
@@ -2397,15 +2889,25 @@ impl Client {
                 }
             }
             "tab.created" | "tab.selected" => {
-                let (_, target): (_, TabTarget) = wire::body(payload)?;
-                ServerEvent::Created {
-                    tab_id: target.tab_id,
-                    created: message_type == "tab.created",
+                let (request_id, target): (_, TabTarget) = wire::body(payload)?;
+                if is_stale_unrequested_agent(request_id, &target.tab_id, &self.tabs, self.view.staged_tabs(),
+                    &self.closed_tab_ids, &self.hidden_cancelled_tabs) {
+                    return Ok(None);
                 }
+                if message_type == "tab.created" && take_cancelled_agent(&mut self.cancelled_agents, request_id) {
+                    self.hidden_cancelled_tabs.insert(target.tab_id.clone());
+                    self.send(Request::Close(target.tab_id))?;
+                    return Ok(None);
+                }
+                ServerEvent::Created { tab_id: target.tab_id }
             }
-            "tab.create-failed" | "tab.create-refused" => ServerEvent::CreateFailed {
-                notice: tab_create_failure_notice(result()?.message.as_deref()),
-            },
+            "tab.create-failed" | "tab.create-refused" => {
+                let (request_id, response): (_, wire::ResultBody) = wire::body(payload)?;
+                if take_cancelled_agent(&mut self.cancelled_agents, request_id) {
+                    return Ok(None);
+                }
+                ServerEvent::CreateFailed { notice: tab_create_failure_notice(response.message.as_deref()) }
+            }
             "tab.renamed" => {
                 let wire::ResultBody { accepted, message } = result()?;
                 ServerEvent::Renamed { accepted, message }
@@ -2501,6 +3003,13 @@ impl Client {
                     .map_or(0, |structured| structured.geometry_generation),
                 bytes: payload.len(),
                 count: 1,
+                event_kind: Some(if surface.stale {
+                    "stale"
+                } else if self.view.requested.as_deref() == Some(surface.tab_id.as_str()) {
+                    "activation"
+                } else {
+                    "live"
+                }),
                 ..ProgressMetadata::default()
             },
         );
@@ -2553,18 +3062,23 @@ impl Client {
                 .iter()
                 .any(|tab| &tab.tab_id == id && &tab.name == name && tab.name_source == "user")
         });
-        let next_tabs = self.registry_tabs(core, list.tabs);
-        // Invariant: a hidden Settings tab never surfaces by itself. When it is all that remains,
-        // it stays hidden and running beside the landing, so Settings opens without a start.
-        let settings_visible = core.settings_visible(self.view.viewed.as_deref());
+        let visible = list.tabs.into_iter().filter(|tab| {
+            if self.hidden_cancelled_tabs.contains(&tab.tab_id) { return false; }
+            self.cancelled_agents.iter().all(|cancelled| {
+                cancelled.known_ids.contains(&tab.tab_id)
+                    || core_attach::is_utility_tab(&tab.tab_id)
+                    || self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab.tab_id.as_str())
+            })
+        }).collect();
+        let next_tabs = self.registry_tabs(core, visible);
+        // Invariant: a hidden utility tab never surfaces by itself. When only those remain, they
+        // stay hidden and running beside the landing, so they open without a start.
+        let utility_visible = core.utilities_visible(self.view.viewed.as_deref());
         if name_confirmed {
             core.pending_manual_name = None;
         }
-        if let Some(tab_id) = core.resolve_pending_jump(&next_tabs, revision) {
-            self.request_view(tab_id)?;
-        }
         let outcome = self.view.topology(&self.tabs, next_tabs, |candidates| {
-            core.fallback_view(candidates, settings_visible)
+            core.fallback_view(candidates, utility_visible)
         });
         core.drop_request(outcome.dropped_request.as_deref());
         if let Some(tab_id) = outcome.view_request {
@@ -2611,8 +3125,12 @@ impl Client {
                     .map_or((tab.name, tab.name_source), |(_, name)| {
                         (name.clone(), "user".into())
                     });
-                let title_animation =
-                    strip::reconcile_title_animation(previous, &name, &name_source, Instant::now());
+                let title_animation = if self.swap_in_flight.as_deref() == Some(tab.tab_id.as_str())
+                {
+                    None
+                } else {
+                    strip::reconcile_title_animation(previous, &name, &name_source, Instant::now())
+                };
                 StripTab {
                     id: tab.tab_id,
                     name,
@@ -2627,8 +3145,7 @@ impl Client {
 
     fn tick(&mut self, core: &mut State) -> Result<(), String> {
         let wall_now = SystemTime::now();
-        let resumed = resumed_after_gap(self.last_tick_wall, wall_now);
-        self.last_tick_wall = wall_now;
+        let resumed = take_resume_gap(&mut self.last_tick_wall, wall_now);
         let now = Instant::now();
         if let Some(Offer::Commit {
             surface,
@@ -2649,7 +3166,7 @@ impl Client {
                 self.has_shown_tabs,
                 core.notice.is_some(),
             ) {
-                self.resize_fade = Some(ResizeFade::new(now));
+                self.reveal.fade_frame(now);
                 self.paint(core, true)?;
             } else {
                 let mut blank = resize_curtain_presentation(
@@ -2661,28 +3178,40 @@ impl Client {
                 self.terminal.present(blank)?;
             }
         }
-        if self.resize_fade.is_some_and(|fade| fade.complete(now)) {
-            self.resize_fade = None;
+        if self.reveal.finish(now) {
             self.paint(core, true)?;
         }
         if resumed {
+            progress_observation::observe(
+                "attach",
+                "wake-gap",
+                ProgressMetadata {
+                    tab_id: self.view.viewed.as_deref(),
+                    incarnation: self.presented.incarnation,
+                    revision: self.presented.revision,
+                    ..ProgressMetadata::default()
+                },
+            );
             // Platform: after suspend, ConPTY may have discarded its last painted cells while
             // the writer still considers them current. Overwrite the full cached frame once.
+            // A gap is not evidence of a child hang and never authorizes process recovery.
             self.paint(core, true)?;
+            progress_observation::observe(
+                "attach",
+                "wake-repaint-requested",
+                ProgressMetadata {
+                    tab_id: self.view.viewed.as_deref(),
+                    incarnation: self.presented.incarnation,
+                    revision: self.presented.revision,
+                    ..ProgressMetadata::default()
+                },
+            );
         }
-        let wiping = self
-            .landing_wipe
-            .is_some_and(|started| started.elapsed() < LANDING_WIPE + LANDING_WIPE_FRAME);
-        if (strip::animations_active(&self.tabs)
-            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs))
-            || (wiping && self.last_strip_frame.elapsed() >= LANDING_WIPE_FRAME)
-        {
-            self.paint(core, false)?;
-            self.last_strip_frame = Instant::now();
-        }
+        self.tick_strip_animation(core, now)?;
         if self.time_format.refresh() {
             self.paint(core, false)?;
         }
+        core.plus_menu = self.time_format.plus_menu;
         // Invariant: A held glyph that no status replaced is released once its hold ends.
         if self.glyphs.expires.is_some_and(|until| self.now() >= until) {
             self.paint(core, false)?;
@@ -2696,6 +3225,33 @@ impl Client {
         if self.last_list.elapsed() >= Duration::from_millis(500) {
             self.send(Request::List)?;
             self.last_list = Instant::now();
+        }
+        Ok(())
+    }
+
+    fn clear_chip_fill(&mut self) {
+        self.chip_fill = None;
+        self.preview_footer_hold = None;
+    }
+
+    /// Finish a canceled or elapsed chip fill and repaint its last partial frame once.
+    fn tick_strip_animation(&mut self, core: &mut State, now: Instant) -> Result<(), String> {
+        let fill_active = self.chip_fill.as_ref().is_some_and(|fill| {
+            self.view.viewed.as_deref() == Some(fill.tab_id.as_str()) && strip::fill_active(fill, now)
+        });
+        if !fill_active && self.chip_fill.is_some() {
+            self.clear_chip_fill();
+            self.paint(core, false)?;
+        }
+        if (strip::animations_active(&self.tabs) || fill_active)
+            && self.last_strip_frame.elapsed() >= if fill_active {
+                Duration::from_millis(25)
+            } else {
+                strip::animation_interval(&self.tabs)
+            }
+        {
+            self.paint(core, false)?;
+            self.last_strip_frame = now;
         }
         Ok(())
     }
@@ -2758,8 +3314,11 @@ impl Client {
                     code => format!("{code:?}"),
                 };
                 format!(
-                    "{at} key kind={:?} code={code} mods={:?} state={:?}",
-                    key.kind, key.modifiers, key.state
+                    "{at} key kind={:?} code={code} mods={:?} state={:?} action={:?}",
+                    key.kind,
+                    key.modifiers,
+                    key.state,
+                    self.bindings.action(key)
                 )
             }
             _ => return,
@@ -2770,6 +3329,10 @@ impl Client {
     /// Returns `true` when the key detached this client.
     fn key(&mut self, core: &mut State, key: crossterm::event::KeyEvent) -> Result<bool, String> {
         let action = self.bindings.action(&key).map(str::to_owned);
+        if suppress_pending_close_repeat(&mut self.pending_close_quiet_until, action.as_deref(), key.kind,
+            core.view.pending_agent_visible, Instant::now()) {
+            return Ok(false);
+        }
         let event = core_attach::Event::Key {
             key: (&key).into(),
             action,
@@ -2812,7 +3375,12 @@ impl Client {
     fn detach(&mut self) -> Result<(), String> {
         // Invariant: a hidden Settings kept ready beside the landing leaves with this client, so no
         // Settings process outlives the last Agent or makes the next launch skip its first Agent.
-        if !self.tabs.is_empty() && self.tabs.iter().all(|tab| tab.id.starts_with("settings-")) {
+        if !self.tabs.is_empty()
+            && self
+                .tabs
+                .iter()
+                .all(|tab| core_attach::is_utility_tab(&tab.id))
+        {
             for tab_id in self
                 .tabs
                 .iter()
@@ -2829,7 +3397,7 @@ impl Client {
                     self.columns,
                     self.outer_rows,
                     self.time_format.tab_bar_position.child_row_offset(),
-                    self.presented.structured.as_ref(),
+                    self.presented.structured.as_deref(),
                 ));
         }
         self.terminal.restore()?;
@@ -2844,21 +3412,11 @@ impl Client {
     ) -> Result<(), String> {
         let position = self.time_format.tab_bar_position;
         let mut normalized: core_attach::AttachMouse = (&mouse).into();
-        normalized.row = if position == TabBarPosition::Bottom {
-            core.mode
-                .popup()
-                .and_then(|menu| {
-                    let start = self
-                        .outer_rows
-                        .saturating_sub(1)
-                        .saturating_sub(menu.items.len() as u16);
-                    (mouse.row >= start && mouse.row < self.outer_rows.saturating_sub(1))
-                        .then_some(mouse.row.saturating_sub(start).saturating_add(1))
-                })
-                .unwrap_or_else(|| position.logical_mouse_row(mouse.row, self.outer_rows))
-        } else {
-            position.logical_mouse_row(mouse.row, self.outer_rows)
-        };
+        normalized.row = core
+            .mode
+            .popup()
+            .and_then(|menu| menu.mouse_row(position, self.outer_rows, mouse.row))
+            .unwrap_or_else(|| position.logical_mouse_row(mouse.row, self.outer_rows));
         let forwarded = self.run(core, core_attach::Event::Mouse(normalized))?;
         if !forwarded.contains(&Effect::ForwardMouse) {
             return Ok(());
@@ -2915,9 +3473,10 @@ impl Client {
         self.outer_rows = outer_rows;
         self.geometry_generation = self.geometry_generation.saturating_add(1);
         self.columns = columns;
+        self.clear_chip_fill();
         self.create.columns = columns;
         self.create.rows = rows;
-        self.resize_fade = None;
+        self.reveal.fade = None;
         self.resize_curtain = Some(ResizeCurtain::new(
             Instant::now(),
             self.view.viewed.clone(),
@@ -2951,6 +3510,69 @@ impl From<&Hover> for StripHover {
             Hover::New => Self::New,
         }
     }
+}
+
+/// Invariant: while a view is pending the strip must not resurrect its displaced old chip.
+fn strip_active_view<'a>(view: &'a ViewModel, swapping: Option<&'a str>) -> Option<&'a str> {
+    swapping
+        .filter(|target| view.requested.as_deref() == Some(*target))
+        .or(view.viewed.as_deref())
+}
+
+/// A revealed chip shows its current name immediately; auto-naming itself remains unchanged.
+fn settle_promoted_title(tabs: &mut [StripTab], target: &str) {
+    if let Some(tab) = tabs.iter_mut().find(|tab| tab.id == target) {
+        tab.title_animation = None;
+    }
+}
+
+/// IDs of chips physically drawn in the current strip, in visual order.
+fn drawn_chip_ids(frame: &strip::StripFrame) -> Vec<String> {
+    frame
+        .hits
+        .iter()
+        .filter_map(|(_, _, hit)| match hit {
+            StripHit::View(id) => Some(id.clone()),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Swaps the requested hidden tab into the currently viewed chip's client-local slot.
+fn swapped_chip_priority(
+    frame: &strip::StripFrame,
+    viewed: Option<&str>,
+    target: &str,
+) -> Option<Vec<String>> {
+    if !frame.hidden_tabs.iter().any(|id| id == target) {
+        return None;
+    }
+    let mut chips = drawn_chip_ids(frame);
+    let slot = chips.iter().position(|id| Some(id.as_str()) == viewed)?;
+    chips[slot] = target.to_owned();
+    Some(chips)
+}
+
+/// A normal pending view cannot displace the active chip's slot; an overflow swap in flight can.
+fn swapped_chip_priority_for_view(
+    frame: &strip::StripFrame,
+    view: &ViewModel,
+    swapping: Option<&str>,
+    target: &str,
+) -> Option<Vec<String>> {
+    swapped_chip_priority(frame, strip_active_view(view, swapping), target)
+}
+
+/// Keeps the registry order untouched while promoting the client's chosen chip slots.
+fn prioritized_chips(tabs: &[StripTab], priority: &[String]) -> Vec<StripTab> {
+    let mut chips = tabs.to_vec();
+    chips.sort_by_key(|tab| {
+        priority
+            .iter()
+            .position(|id| id == &tab.id)
+            .unwrap_or(priority.len())
+    });
+    chips
 }
 
 fn strip_hover_present(frame: &strip::StripFrame, hovered: &StripHover) -> bool {
@@ -3059,6 +3681,37 @@ struct OuterWriter {
     failed: Arc<Mutex<Option<String>>>,
 }
 
+/// Commits a prepared presentation only after its complete outer write and flush succeeded.
+fn write_outer_presentation(
+    composer: &mut PresentationComposer,
+    out: &mut impl Write,
+    desired: &DesiredPresentation,
+) -> Result<(), String> {
+    let Some(prepared) = composer.prepare(desired)? else {
+        return Ok(());
+    };
+    out.write_all(&prepared.bytes)
+        .and_then(|()| out.flush())
+        .map_err(|error| format!("write outer presentation: {error}"))?;
+    if let Some(tab_id) = prepared.tab_id.as_deref() {
+        progress_observation::observe(
+            "attach",
+            "outer-paint",
+            ProgressMetadata {
+                tab_id: Some(tab_id),
+                incarnation: prepared.incarnation,
+                revision: prepared.revision,
+                geometry_generation: prepared.geometry_generation,
+                bytes: prepared.bytes.len(),
+                count: 1,
+                ..ProgressMetadata::default()
+            },
+        );
+    }
+    prepared.acknowledge(composer);
+    Ok(())
+}
+
 impl OuterWriter {
     fn start() -> Self {
         let (control, receiver) = mpsc::sync_channel::<OuterWrite>(OUTER_CONTROL_QUEUE_FRAMES);
@@ -3073,6 +3726,8 @@ impl OuterWriter {
         thread::spawn(move || {
             let mut composer = PresentationComposer::default();
             let mut out = TerminalOutput::new();
+            let mut viewed_tab = None::<String>;
+            let mut acknowledged_stop = None;
             loop {
                 let command = receiver.recv_timeout(Duration::from_millis(8));
                 let result = match command {
@@ -3104,48 +3759,39 @@ impl OuterWriter {
                 }
                 thread_signaled.store(false, Ordering::SeqCst);
                 let desired = thread_latest.lock().ok().and_then(|mut slot| slot.take());
+                if let Some(desired) = desired.as_ref() {
+                    viewed_tab.clone_from(&desired.tab_id);
+                }
+                let stopped = viewed_tab
+                    .as_deref()
+                    .filter(|tab_id| crate::roles::fixture_control::stopped("outer-paint", tab_id));
+                // Concurrency: this sole writer acknowledges only after earlier writes completed,
+                // including while idle. A marker's creation alone is not a completed-paint barrier.
+                if crate::roles::fixture_control::take_stop_acknowledgement(
+                    &mut acknowledged_stop,
+                    stopped,
+                ) {
+                    progress_observation::observe(
+                        "attach",
+                        "fixture-stop-ack",
+                        ProgressMetadata {
+                            tab_id: stopped,
+                            event_kind: Some("outer-paint"),
+                            count: 1,
+                            ..ProgressMetadata::default()
+                        },
+                    );
+                }
                 if let Some(desired) = desired {
-                    if desired.tab_id.as_deref().is_some_and(|tab_id| {
-                        crate::roles::fixture_control::stopped("outer-paint", tab_id)
-                    }) {
+                    if stopped.is_some() {
                         continue;
                     }
-                    match composer.prepare(&desired) {
-                        Ok(Some(prepared)) => {
-                            let result = out
-                                .write_all(&prepared.bytes)
-                                .and_then(|()| out.flush())
-                                .map_err(|error| format!("write outer presentation: {error}"));
-                            if let Err(error) = result {
-                                if let Ok(mut failed) = thread_failed.lock() {
-                                    *failed = Some(error);
-                                }
-                                return;
-                            }
-                            if let Some(tab_id) = prepared.tab_id.as_deref() {
-                                progress_observation::observe(
-                                    "attach",
-                                    "outer-paint",
-                                    ProgressMetadata {
-                                        tab_id: Some(tab_id),
-                                        incarnation: prepared.incarnation,
-                                        revision: prepared.revision,
-                                        geometry_generation: prepared.geometry_generation,
-                                        bytes: prepared.bytes.len(),
-                                        count: 1,
-                                        ..ProgressMetadata::default()
-                                    },
-                                );
-                            }
-                            prepared.acknowledge(&mut composer);
+                    if let Err(error) = write_outer_presentation(&mut composer, &mut out, &desired)
+                    {
+                        if let Ok(mut failed) = thread_failed.lock() {
+                            *failed = Some(error);
                         }
-                        Ok(None) => {}
-                        Err(error) => {
-                            if let Ok(mut failed) = thread_failed.lock() {
-                                *failed = Some(error);
-                            }
-                            return;
-                        }
+                        return;
                     }
                 }
             }
@@ -3301,7 +3947,7 @@ impl Drop for OuterTerminal {
 /// Agents left running after a detach; the global Settings tab is not an agent.
 fn running_agent_count(tabs: &[StripTab]) -> usize {
     tabs.iter()
-        .filter(|tab| !tab.id.starts_with("settings-"))
+        .filter(|tab| !core_attach::is_utility_tab(&tab.id))
         .count()
 }
 
@@ -3467,6 +4113,271 @@ mod tests {
     }
 
     #[test]
+    fn a_held_close_key_cancels_only_the_pending_agent() {
+        use crossterm::event::KeyEventKind::{Press, Release, Repeat};
+        let at = Instant::now();
+        let mut until = None;
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Press, true, at));
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Release, false, at));
+        for millis in [20, 200, 600] {
+            assert!(suppress_pending_close_repeat(&mut until, Some("tabs.close"), Repeat,
+                false, at + Duration::from_millis(millis)));
+        }
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Press,
+            false, at + Duration::from_millis(1200)));
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.new"), Press,
+            false, at + Duration::from_millis(1201)));
+        assert_eq!(until, None);
+    }
+
+    #[test]
+    fn late_initial_selection_cannot_restore_a_closed_agent() {
+        let tabs = vec![StripTab {
+            id: "old".into(), name: "Old".into(), name_source: "default".into(),
+            status: "idle".into(), accent: None, title_animation: None,
+        }];
+        let closed: HashSet<String> = ["old".into()].into_iter().collect();
+        let cancelled: HashSet<String> = ["cancelled".into()].into_iter().collect();
+        assert!(is_stale_unrequested_agent(None, "old", &tabs, None, &closed, &cancelled));
+        assert!(is_stale_unrequested_agent(None, "unlisted", &tabs, None, &closed, &cancelled));
+        assert!(is_stale_unrequested_agent(Some(7), "cancelled", &tabs, None, &closed, &cancelled));
+        assert!(!is_stale_unrequested_agent(Some(8), "new", &tabs, None, &closed, &cancelled));
+        assert!(!is_stale_unrequested_agent(None, "old", &tabs, None, &HashSet::new(), &HashSet::new()));
+    }
+
+    #[test]
+    fn cancelled_create_response_cannot_consume_another_request() {
+        let mut pending = vec![
+            CancelledAgent { request_id: 7, known_ids: HashSet::new() },
+            CancelledAgent { request_id: 8, known_ids: HashSet::new() },
+        ];
+        assert!(!take_cancelled_agent(&mut pending, None));
+        assert!(!take_cancelled_agent(&mut pending, Some(9)));
+        assert!(take_cancelled_agent(&mut pending, Some(7)));
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].request_id, 8);
+        assert!(take_cancelled_agent(&mut pending, Some(8)));
+    }
+
+    #[test]
+    fn cached_agent_footer_reuses_model_and_context_but_never_old_usage() {
+        let line = "$14.125 (sub) ↑5k 43.2%/272k (auto)           gpt-5.6-sol • high";
+        let mut surface = protocol::StructuredSurface {
+            columns: 80,
+            rows: 23,
+            row_data: vec![protocol::SurfaceRow::default(); 23],
+            styles: vec![protocol::SurfaceStyle::default(), protocol::SurfaceStyle {
+                foreground: protocol::SurfaceColor::Rgb([223, 122, 199]),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        surface.row_data[22].cells = line.chars().enumerate().map(|(index, ch)| protocol::SurfaceCell {
+            text: ch.to_string(),
+            style: u16::from(index >= line.chars().count() - "high".len()),
+            ..Default::default()
+        }).collect();
+        let hint = agent_preview_footer(&surface).expect("complete Agent footer");
+        assert_eq!(hint.context, "272k");
+        assert!(hint.subscription && hint.auto);
+        assert_eq!(hint.model, "gpt-5.6-sol");
+        assert_eq!(hint.thinking, Some(("high".into(), [223, 122, 199])));
+        let bytes = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: 80, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "~/repo", background: None,
+        }, Some(&hint))).unwrap();
+        assert!(bytes.contains("$0.000 (sub) 0.0%/272k (auto)"));
+        assert!(bytes.contains("gpt-5.6-sol") && bytes.contains("223;122;199mhigh"));
+        assert!(!bytes.contains("14.125") && !bytes.contains("43.2%") && !bytes.contains("↑5k"));
+        surface.commit_kind = protocol::SurfaceCommitKind::ProvisionalGeometry;
+        assert!(agent_preview_footer(&surface).is_none(), "provisional geometry is not a model hint");
+        surface.commit_kind = protocol::SurfaceCommitKind::Complete;
+        surface.row_data.pop();
+        assert!(agent_preview_footer(&surface).is_none(), "incomplete frames are never cached");
+    }
+
+    #[test]
+    fn pending_footer_replays_real_gutters_branch_and_pr_without_old_usage() {
+        let columns = 80usize;
+        let mut surface = protocol::StructuredSurface {
+            columns: columns as u16,
+            rows: 23,
+            row_data: vec![protocol::SurfaceRow {
+                cells: vec![protocol::SurfaceCell::default(); columns],
+            }; 23],
+            styles: vec![protocol::SurfaceStyle::default(), protocol::SurfaceStyle {
+                foreground: protocol::SurfaceColor::Rgb([126, 136, 142]),
+                ..Default::default()
+            }],
+            links: vec![protocol::SurfaceLink {
+                id: None, uri: "https://github.com/timurproko/a1/pull/837".into(),
+            }],
+            ..Default::default()
+        };
+        let path = " D:/Git/a1 (fix/instant-agent-tab) #837";
+        for (index, character) in path.chars().enumerate() {
+            surface.row_data[21].cells[index].text = character.to_string();
+            surface.row_data[21].cells[index].style = 1;
+            if index >= path.len() - 4 {
+                surface.row_data[21].cells[index].link = Some(0);
+            }
+        }
+        let left = " $14.125 (sub) ↑5k 43.2%/272k (auto)";
+        let right = "gpt-5.6-sol • high";
+        for (index, character) in left.chars().enumerate() {
+            surface.row_data[22].cells[index].text = character.to_string();
+            surface.row_data[22].cells[index].style = 1;
+        }
+        let right_start = columns - 1 - right.chars().count();
+        for (index, character) in right.chars().enumerate() {
+            surface.row_data[22].cells[right_start + index].text = character.to_string();
+            surface.row_data[22].cells[right_start + index].style = 1;
+        }
+        let footer = agent_preview_footer(&surface).expect("complete owned footer");
+        let actual = footer.actual.as_ref().expect("actual source rows, not a guessed layout");
+        assert_eq!(actual.status.cells[columns - 1].text, " ");
+        let output = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: columns as u16, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "new Agent cwd", background: None,
+        }, Some(&footer))).unwrap();
+        assert!(output.contains("new Agent cwd"));
+        assert!(!output.contains("fix/instant-agent-tab"));
+        assert!(!output.contains("https://github.com/timurproko/a1/pull/837"));
+        assert!(output.contains("$0.000 (sub) 0.0%/272k (auto)"));
+        assert!(output.contains("gpt-5.6-sol • high"));
+        assert!(!output.contains("14.125") && !output.contains("43.2%") && !output.contains("↑5k"));
+        let held = String::from_utf8(landing::render_agent_preview_footer(&landing::LandingInput {
+            columns: columns as u16, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "new Agent cwd", background: None,
+        }, Some(&footer))).unwrap();
+        assert!(held.contains("new Agent cwd"));
+        assert!(!held.contains("fix/instant-agent-tab") && !held.contains("https://github.com/timurproko/a1/pull/837"));
+        assert!(held.contains("$0.000 (sub) 0.0%/272k (auto)"));
+        assert!(!held.contains("\x1b[22;1H") && !held.contains("14.125"));
+        let narrow = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: 24, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "narrow cwd", background: None,
+        }, Some(&footer))).unwrap();
+        assert!(narrow.contains("narrow cwd") && !narrow.contains("fix/instant-agent-tab"));
+        let mut malformed = footer.clone();
+        malformed.actual.as_mut().unwrap().styles.clear();
+        let recovered = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: columns as u16, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "unused fallback", background: None,
+        }, Some(&malformed))).unwrap();
+        assert!(recovered.contains("unused fallback") && !recovered.contains("14.125"));
+    }
+
+    #[test]
+    fn live_agent_body_holds_preview_footer_until_the_latest_real_status_is_revealed() {
+        let columns = 32usize;
+        let mut real = protocol::StructuredSurface {
+            columns: columns as u16, rows: 5,
+            row_data: vec![protocol::SurfaceRow { cells: vec![protocol::SurfaceCell::default(); columns] }; 5],
+            styles: vec![protocol::SurfaceStyle::default()],
+            ..Default::default()
+        };
+        for (index, character) in "READY".chars().enumerate() {
+            real.row_data[0].cells[index].text = character.to_string();
+        }
+        for (index, character) in "INTERMEDIATE STATUS".chars().enumerate() {
+            real.row_data[4].cells[index].text = character.to_string();
+        }
+        let preview = landing::render_agent_preview_footer(&landing::LandingInput {
+            columns: columns as u16, body_rows: 5, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "~/repo", background: None,
+        }, None);
+        let held = String::from_utf8(body_with_held_footer(&real, &preview).unwrap()).unwrap();
+        assert!(held.contains("READY") && held.contains("~/repo") && held.contains("no-model"));
+        assert!(!held.contains("INTERMEDIATE STATUS"), "transient Agent status never reaches the terminal");
+        for (index, character) in "LATEST STATUS      ".chars().enumerate() {
+            real.row_data[4].cells[index].text = character.to_string();
+        }
+        let next = String::from_utf8(body_with_held_footer(&real, &preview).unwrap()).unwrap();
+        assert!(!next.contains("LATEST STATUS"), "later status stays hidden during the fill");
+        let released = String::from_utf8(crate::roles::presentation::complete_surface_bytes(&real).unwrap()).unwrap();
+        assert!(released.contains("READY") && released.contains("LATEST STATUS"));
+        assert!(!released.contains("no-model"), "the latest real footer replaces the preview on release");
+    }
+
+    #[test]
+    fn palette_and_unstructured_fallbacks_show_real_status_immediately() {
+        assert!(should_hold_activation_footer(true, true));
+        assert!(!should_hold_activation_footer(false, true), "palette mode has no chip fill to wait for");
+        assert!(!should_hold_activation_footer(true, false), "legacy bodies cannot safely hold status rows");
+    }
+
+    #[test]
+    fn only_a_committed_pending_agents_first_frame_starts_the_chip_fill() {
+        let now = Instant::now();
+        let mut pending = PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None };
+        assert!(fill_on_agent_handoff(Some(&pending), "agent-2", true, now).is_none());
+        pending.real_id = Some("agent-2".into());
+        assert!(fill_on_agent_handoff(Some(&pending), "agent-3", true, now).is_none());
+        assert!(fill_on_agent_handoff(Some(&pending), "agent-2", false, now).is_none());
+        assert!(fill_on_agent_handoff(None, "agent-2", true, now).is_none());
+        assert_eq!(fill_on_agent_handoff(Some(&pending), "agent-2", true, now),
+            Some(strip::ChipFill { tab_id: "agent-2".into(), started_at: now }));
+    }
+
+    #[test]
+    fn pending_chip_inherits_every_owned_accent_before_its_real_surface() {
+        let intent = PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None };
+        for (accent, _) in landing::LANDING_ACCENTS {
+            let mut tabs = Vec::new();
+            show_pending_agent(&mut tabs, &intent);
+            apply_owned_accent(&mut tabs, Some(accent));
+            assert_eq!(tabs[0].accent.as_deref(), Some(accent));
+        }
+    }
+
+    #[test]
+    fn pending_agent_hides_early_registry_chip_before_and_after_created() {
+        let tab = |id: &str| StripTab {
+            id: id.into(),
+            name: "Agent".into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
+        };
+        let mut pending = PendingAgent {
+            known_ids: ["old".to_owned()].into_iter().collect(),
+            request_id: 1,
+            real_id: None,
+        };
+        for real_id in [None, Some("new")] {
+            pending.real_id = real_id.map(str::to_owned);
+            let mut shown = vec![tab("old"), tab("new")];
+            show_pending_agent(&mut shown, &pending);
+            assert_eq!(
+                shown.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+                ["old", PENDING_AGENT_ID]
+            );
+            let frame = strip::render_interactive_at(
+                &shown, Some(PENDING_AGENT_ID), 80, None, TimeFormat::TwentyFour, None, 1, true,
+            );
+            assert_eq!(drawn_chip_ids(&frame), ["old", PENDING_AGENT_ID]);
+            assert!(!frame.bytes.contains("new"));
+        }
+        let mut from_landing = vec![tab("new")];
+        show_pending_agent(
+            &mut from_landing,
+            &PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None },
+        );
+        assert_eq!(
+            from_landing.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+            [PENDING_AGENT_ID]
+        );
+        // Invariant: once the complete real surface commits, the ordinary registry topology owns one chip.
+        let committed = vec![tab("old"), tab("new")];
+        assert_eq!(
+            committed.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+            ["old", "new"]
+        );
+    }
+
+    #[test]
     fn activation_carries_current_geometry_in_the_view_request() {
         let mut frames = Vec::new();
         send_view_with_geometry(&mut frames, "tab-2", 7, 132, 41, 9).unwrap();
@@ -3546,54 +4457,6 @@ mod tests {
     }
 
     #[test]
-    fn dimmed_resize_reveal_enforces_faint_and_hides_the_cursor() {
-        let ansi =
-            String::from_utf8(force_faint_ansi(b"\x1b[0mplain\x1b[38;2;1;2;3mcolored")).unwrap();
-        assert!(ansi.starts_with("\x1b[2m"));
-        assert!(ansi.contains("\x1b[0m\x1b[2mplain"));
-        assert!(ansi.contains("\x1b[38;2;1;2;3m\x1b[2mcolored"));
-        assert!(ansi.ends_with("\x1b[22m"));
-
-        let desired = DesiredPresentation {
-            tab_id: Some("tab-1".into()),
-            incarnation: 1,
-            revision: 2,
-            geometry_generation: 3,
-            strip: "\x1b[0mstrip".into(),
-            structured: Some(protocol::StructuredSurface {
-                styles: vec![protocol::SurfaceStyle::default()],
-                ..protocol::StructuredSurface::default()
-            }),
-            legacy_body: b"\x1b[0mlegacy".to_vec(),
-            overlay: Some("\x1b[0moverlay".into()),
-            cursor: Some(FinalCursor::At(protocol::SurfaceCursor {
-                column: 2,
-                row: 3,
-            })),
-            modes: None,
-            columns: 80,
-            outer_rows: 24,
-            child_row_offset: 1,
-            clear: true,
-        };
-        let dimmed = dim_presentation(desired);
-        assert!(dimmed.strip.contains("\x1b[0m\x1b[2mstrip"));
-        assert!(
-            String::from_utf8(dimmed.legacy_body)
-                .unwrap()
-                .contains("\x1b[2mlegacy")
-        );
-        assert!(dimmed.overlay.unwrap().contains("\x1b[2moverlay"));
-        assert!(dimmed.structured.unwrap().styles[0].faint);
-        assert_eq!(dimmed.cursor, Some(FinalCursor::Hidden));
-
-        let started = Instant::now();
-        let fade = ResizeFade::new(started);
-        assert!(!fade.complete(started + RESIZE_FADE - Duration::from_millis(1)));
-        assert!(fade.complete(started + RESIZE_FADE));
-    }
-
-    #[test]
     fn resize_curtain_waits_for_quiet_and_a_new_surface_but_has_a_bound() {
         assert_eq!(RESIZE_SETTLE, Duration::from_millis(220));
         let started = Instant::now();
@@ -3616,7 +4479,7 @@ mod tests {
         assert!(curtain.should_reveal(started + RESIZE_RECOVERY, Some("tab-1"), &presented));
         assert!(curtain.should_reveal(started + RESIZE_SETTLE, None, &presented));
 
-        presented.structured = Some(protocol::StructuredSurface::default());
+        presented.structured = Some(Arc::new(protocol::StructuredSurface::default()));
         presented.geometry_generation = 20;
         let structured = ResizeCurtain::new(started, Some("tab-1".into()), &presented);
         assert!(!structured.should_reveal(started + RESIZE_SETTLE, Some("tab-1"), &presented));
@@ -3750,7 +4613,7 @@ mod tests {
                 row: 0,
             }));
 
-            presented.install(&startup_surface(1, "", structured), "starting");
+            presented.install(startup_surface(1, "", structured), "starting");
             assert!(!presented.quiet_startup_handoff);
             assert_eq!(
                 presented.cursor, cursor,
@@ -3758,31 +4621,31 @@ mod tests {
             );
 
             presented.install(
-                &startup_surface(2, "Trust project folder?", structured),
+                startup_surface(2, "Trust project folder?", structured),
                 "starting",
             );
             assert!(!presented.quiet_startup_handoff);
             assert_eq!(presented.cursor, cursor);
 
-            presented.install(&startup_surface(3, "", structured), "starting");
+            presented.install(startup_surface(3, "", structured), "starting");
             assert!(presented.quiet_startup_handoff);
             assert_eq!(presented.cursor, Some(FinalCursor::Hidden));
 
-            presented.install(&startup_surface(4, "", structured), "starting");
+            presented.install(startup_surface(4, "", structured), "starting");
             assert!(
                 presented.quiet_startup_handoff,
                 "consecutive blank revisions stay quiet"
             );
             assert_eq!(presented.cursor, Some(FinalCursor::Hidden));
 
-            presented.install(&startup_surface(5, "owned shell", structured), "starting");
+            presented.install(startup_surface(5, "owned shell", structured), "starting");
             assert!(!presented.quiet_startup_handoff);
             assert_eq!(
                 presented.cursor, cursor,
                 "the first shell frame restores its cursor"
             );
 
-            presented.install(&startup_surface(6, "", structured), "idle");
+            presented.install(startup_surface(6, "", structured), "idle");
             assert!(!presented.quiet_startup_handoff);
             assert_eq!(
                 presented.cursor, cursor,
@@ -4015,6 +4878,37 @@ mod tests {
         );
     }
 
+    #[test]
+    fn popup_actions_have_no_default_or_legacy_user_binding() {
+        let configured = shortcut_bindings(&serde_json::json!({
+            "tabs.addMenu": "alt++", "tabs.overflowMenu": "alt+-",
+        }));
+        let projected = project_tab_shortcuts(&configured, &ShortcutBindings::new());
+        assert!(
+            !projected
+                .iter()
+                .any(|(action, _)| action == "tabs.addMenu" || action == "tabs.overflowMenu")
+        );
+        let bindings = TabBindings::from_assignments(&[
+            ("tabs.addMenu".into(), Some("alt+=".into())),
+            ("tabs.overflowMenu".into(), Some("alt+-".into())),
+        ]);
+        let key = |ch, modifiers| crossterm::event::KeyEvent::new(KeyCode::Char(ch), modifiers);
+        assert_eq!(bindings.action(&key('-', KeyModifiers::ALT)), None);
+        assert_eq!(bindings.action(&key('=', KeyModifiers::ALT)), None);
+        assert_eq!(bindings.action(&key('-', KeyModifiers::NONE)), None);
+        let defaults = TabBindings::from_assignments(&project_tab_shortcuts(
+            &ShortcutBindings::new(),
+            &ShortcutBindings::new(),
+        ));
+        assert_eq!(defaults.action(&key('-', KeyModifiers::ALT)), None);
+        assert_eq!(defaults.action(&key('=', KeyModifiers::ALT)), None);
+        assert_eq!(
+            defaults.action(&key('a', KeyModifiers::ALT)),
+            Some("tabs.new")
+        );
+    }
+
     const NONE: KeyModifiers = KeyModifiers::NONE;
     const SHIFT: KeyModifiers = KeyModifiers::SHIFT;
     const ALT: KeyModifiers = KeyModifiers::ALT;
@@ -4225,6 +5119,392 @@ mod tests {
     }
 
     #[test]
+    fn overflow_menu_lists_only_undrawn_chips_at_each_width() {
+        let tabs = (0..3)
+            .map(|index| StripTab {
+                id: format!("tab-{index}"),
+                name: format!("agent {index}"),
+                name_source: "default".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        for (columns, visible) in [(36, 1), (55, 3)] {
+            let frame = strip::render(&tabs, Some("tab-0"), columns);
+            let drawn = frame
+                .hits
+                .iter()
+                .filter(|(_, _, hit)| matches!(hit, StripHit::View(_)))
+                .count();
+            assert_eq!(drawn, visible);
+            let menu = PopupMenu::overflow(0, columns, &frame.hidden_tabs, &tabs);
+            assert_eq!(menu.items.len(), tabs.len() - visible);
+            for (index, item) in menu.items.iter().enumerate() {
+                assert_eq!(item.label, format!("agent {}", index + visible));
+                assert_eq!(
+                    item.action,
+                    Some(PopupAction::View(format!("tab-{}", index + visible)))
+                );
+            }
+            assert!(menu.column + menu.width <= columns);
+        }
+    }
+
+    #[test]
+    fn overflow_rows_reserve_a_live_status_glyph_without_coloring_the_title() {
+        let mut tabs = ["Agent2", "Agent3", "Agent4"]
+            .iter()
+            .enumerate()
+            .map(|(index, name)| StripTab {
+                id: format!("tab-{index}"),
+                name: (*name).into(),
+                name_source: "user".into(),
+                status: ["working", "needs-input", "idle"][index].into(),
+                accent: (index == 0).then(|| "blue".into()),
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        let hidden = tabs.iter().map(|tab| tab.id.clone()).collect::<Vec<_>>();
+        let mut menu = PopupMenu::overflow(0, 30, &hidden, &tabs);
+        assert_eq!(
+            menu.width, 10,
+            "each row reserves icon, separator, name, and edges"
+        );
+        assert_eq!(
+            menu.items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["Agent2", "Agent3", "Agent4"]
+        );
+        menu.hovered = Some(0);
+        let rgb = menu.render_styled_at(true, POPUP_HOVER_NEUTRAL, TabBarPosition::Bottom, 24);
+        assert!(
+            strip::TAB_SPINNER_FRAMES
+                .iter()
+                .any(|glyph| rgb.contains(&format!(
+                    "\x1b[38;2;91;141;239m{glyph}\x1b[38;2;255;255;255m Agent2"
+                )))
+        );
+        assert!(rgb.contains("\x1b[38;2;224;175;70m?\x1b[38;2;255;255;255m Agent3"));
+        assert!(rgb.contains("\x1b[38;2;255;255;255m   Agent4"));
+        assert!(
+            rgb.contains("\x1b[48;2;48;48;48m"),
+            "hover affects only background"
+        );
+        let palette = menu.render_styled_at(false, POPUP_HOVER_NEUTRAL, TabBarPosition::Bottom, 24);
+        assert!(strip::TAB_SPINNER_FRAMES.iter().any(|glyph|
+            palette.contains(&format!("\x1b[38;5;69m{glyph}\x1b[38;5;15m Agent2"))));
+        assert!(palette.contains("\x1b[38;5;221m?\x1b[38;5;15m Agent3"));
+        tabs[1].status = "done".into();
+        menu = PopupMenu::overflow(0, 4, &hidden, &tabs);
+        assert_eq!(menu.width, 4);
+        assert_eq!(menu_text_parts(&menu.items[0], 0).0, "");
+        assert_eq!(menu_icon(&menu.items[0], 2, true).1, 2);
+        let narrow = menu.render_styled_at(true, POPUP_HOVER_NEUTRAL, TabBarPosition::Bottom, 24);
+        assert!(narrow.contains("\x1b[38;2;90;190;120m✓\x1b[38;2;255;255;255m "));
+        assert_eq!(
+            menu.action_at(menu.column, 2),
+            Some(PopupAction::View("tab-1".into()))
+        );
+        assert_eq!(
+            menu.mouse_row(
+                TabBarPosition::Bottom,
+                24,
+                menu.terminal_row(1, TabBarPosition::Bottom, 24).unwrap() - 1
+            ),
+            Some(2)
+        );
+        tabs[2].name = "名🌙α".into();
+        menu = PopupMenu::overflow(0, 7, &hidden, &tabs);
+        assert_eq!(
+            menu_text_parts(&menu.items[2], 3).0,
+            "名",
+            "the reserved icon slot leaves a grapheme-safe title budget"
+        );
+        assert_eq!(
+            menu.action_at(menu.column, 3),
+            Some(PopupAction::View("tab-2".into()))
+        );
+    }
+
+    #[test]
+    fn pending_swap_keeps_the_new_chip_stable_and_settles_its_hidden_title() {
+        let mut tabs = (0..4)
+            .map(|index| StripTab {
+                id: format!("tab-{index}"),
+                name: format!("agent {index}"),
+                name_source: "auto".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        tabs[3].title_animation = Some(strip::TitleAnimation {
+            from: "Agent".into(),
+            started_at: Instant::now(),
+        });
+        let first =
+            strip::render_configured(&tabs, Some("tab-1"), 42, None, TimeFormat::TwentyFour);
+        let priority = swapped_chip_priority(&first, Some("tab-1"), "tab-3").unwrap();
+        settle_promoted_title(&mut tabs, "tab-3");
+        assert_eq!(tabs[3].title_animation, None);
+        assert_eq!(tabs[3].name, "agent 3");
+        assert!(
+            strip::reconcile_title_animation(Some(&tabs[3]), "new name", "auto", Instant::now())
+                .is_some(),
+            "later auto naming still animates normally"
+        );
+        let ordered = prioritized_chips(&tabs, &priority);
+        let mut view = ViewModel::new(Some("tab-1".into()));
+        view.request("tab-3");
+        assert_eq!(strip_active_view(&view, Some("tab-3")), Some("tab-3"));
+        assert_eq!(
+            strip_active_view(&view, None),
+            Some("tab-1"),
+            "ordinary pending views keep the old strip state"
+        );
+        let pending = strip::render_configured(
+            &ordered,
+            strip_active_view(&view, Some("tab-3")),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        let stale =
+            strip::render_configured(&ordered, Some("tab-1"), 42, None, TimeFormat::TwentyFour);
+        assert_ne!(
+            pending.hits, stale.hits,
+            "the old viewed chip must not return mid-swap"
+        );
+        view.cancel_request();
+        view.viewed = Some("tab-3".into());
+        let committed = strip::render_configured(
+            &ordered,
+            strip_active_view(&view, None),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(pending.hits, committed.hits);
+        assert_eq!(pending.hidden_tabs, committed.hidden_tabs);
+    }
+
+    #[test]
+    fn hidden_selection_replaces_committed_active_not_an_unrelated_pending_chip() {
+        let tabs = (0..4)
+            .map(|index| StripTab {
+                id: format!("tab-{index}"),
+                name: format!("agent {index}"),
+                name_source: "user".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        let first =
+            strip::render_configured(&tabs, Some("tab-0"), 42, None, TimeFormat::TwentyFour);
+        assert_eq!(drawn_chip_ids(&first), ["tab-0", "tab-1"]);
+        let mut view = ViewModel::new(Some("tab-0".into()));
+        view.request("tab-1");
+        assert_eq!(strip_active_view(&view, None), Some("tab-0"));
+        let priority = swapped_chip_priority_for_view(&first, &view, None, "tab-3").unwrap();
+        assert_eq!(
+            priority,
+            ["tab-3", "tab-1"],
+            "the pending next chip must retain its slot"
+        );
+        view.request("tab-3");
+        let pending = strip::render_configured(
+            &prioritized_chips(&tabs, &priority),
+            strip_active_view(&view, Some("tab-3")),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(drawn_chip_ids(&pending), ["tab-3", "tab-1"]);
+        assert_eq!(pending.hidden_tabs, ["tab-0", "tab-2"]);
+        let next = swapped_chip_priority_for_view(&pending, &view, Some("tab-3"), "tab-2").unwrap();
+        assert_eq!(
+            next,
+            ["tab-2", "tab-1"],
+            "a second swap replaces the new active chip"
+        );
+        view.cancel_request();
+        view.viewed = Some("tab-3".into());
+        let committed = strip::render_configured(
+            &prioritized_chips(&tabs, &priority),
+            strip_active_view(&view, None),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(drawn_chip_ids(&pending), drawn_chip_ids(&committed));
+        assert_eq!(pending.hidden_tabs, committed.hidden_tabs);
+    }
+
+    #[test]
+    fn choosing_hidden_tabs_swaps_the_viewed_chip_without_reordering_tabs() {
+        let tabs = (0..4)
+            .map(|index| StripTab {
+                id: format!("tab-{index}"),
+                name: format!("agent {index}"),
+                name_source: "user".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        let visible = |frame: &strip::StripFrame| {
+            frame
+                .hits
+                .iter()
+                .filter_map(|(_, _, hit)| {
+                    if let StripHit::View(id) = hit {
+                        Some(id.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+        };
+        let first =
+            strip::render_configured(&tabs, Some("tab-1"), 42, None, TimeFormat::TwentyFour);
+        assert_eq!(visible(&first), ["tab-0", "tab-1"]);
+        let priority = swapped_chip_priority(&first, Some("tab-1"), "tab-3").unwrap();
+        let swapped = strip::render_configured(
+            &prioritized_chips(&tabs, &priority),
+            Some("tab-3"),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(visible(&swapped), ["tab-0", "tab-3"]);
+        let menu = PopupMenu::overflow(0, 42, &swapped.hidden_tabs, &tabs);
+        assert_eq!(
+            menu.items
+                .iter()
+                .map(|item| item.label.as_str())
+                .collect::<Vec<_>>(),
+            ["agent 1", "agent 2"]
+        );
+        assert_eq!(
+            menu.action_at(menu.column, 1),
+            Some(PopupAction::View("tab-1".into()))
+        );
+        assert_eq!(
+            tabs.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+            ["tab-0", "tab-1", "tab-2", "tab-3"]
+        );
+        assert!(
+            swapped_chip_priority(&swapped, Some("tab-3"), "tab-0").is_none(),
+            "selecting an already visible chip does not swap"
+        );
+        let next = swapped_chip_priority(&swapped, Some("tab-3"), "tab-2").unwrap();
+        let next_frame = strip::render_configured(
+            &prioritized_chips(&tabs, &next),
+            Some("tab-2"),
+            42,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(visible(&next_frame), ["tab-0", "tab-2"]);
+
+        let single =
+            strip::render_configured(&tabs, Some("tab-0"), 30, None, TimeFormat::TwentyFour);
+        assert_eq!(visible(&single), ["tab-0"]);
+        let single_order = swapped_chip_priority(&single, Some("tab-0"), "tab-2").unwrap();
+        let single_frame = strip::render_configured(
+            &prioritized_chips(&tabs, &single_order),
+            Some("tab-2"),
+            30,
+            None,
+            TimeFormat::TwentyFour,
+        );
+        assert_eq!(visible(&single_frame), ["tab-2"]);
+        assert!(single_frame.hidden_tabs.contains(&"tab-0".into()));
+        let tiny = strip::render_configured(&tabs, Some("tab-0"), 3, None, TimeFormat::TwentyFour);
+        assert!(visible(&tiny).is_empty());
+        assert!(swapped_chip_priority(&tiny, Some("tab-0"), "tab-2").is_none());
+    }
+
+    #[test]
+    fn popup_mouse_targets_the_named_row_in_both_strip_positions() {
+        let names = ["Agent", "ask-me-something", "Agent", "Agent", "Settings"];
+        let tabs = names
+            .iter()
+            .enumerate()
+            .map(|(index, name)| StripTab {
+                id: format!("tab-{index}"),
+                name: (*name).into(),
+                name_source: "user".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            })
+            .collect::<Vec<_>>();
+        let hidden = [
+            "tab-0".into(),
+            "tab-1".into(),
+            "tab-2".into(),
+            "tab-3".into(),
+        ];
+        let mut menu = PopupMenu::overflow(10, 80, &hidden, &tabs);
+        for position in [TabBarPosition::Top, TabBarPosition::Bottom] {
+            for outer_rows in [7, 24] {
+                menu.hovered = Some(0);
+                for index in 0..hidden.len() {
+                    let physical = menu
+                        .terminal_row(index, position, outer_rows)
+                        .expect("visible popup row")
+                        - 1;
+                    let action_row = menu
+                        .mouse_row(position, outer_rows, physical)
+                        .expect("pointer row");
+                    assert_eq!(
+                        menu.action_at(menu.column, action_row),
+                        Some(PopupAction::View(format!("tab-{index}")))
+                    );
+                }
+                let named_row = menu.terminal_row(1, position, outer_rows).unwrap();
+                assert!(
+                    menu.render_styled_at(true, POPUP_HOVER_NEUTRAL, position, outer_rows)
+                        .contains(&format!("\x1b[{named_row};{}H", menu.column + 1))
+                );
+            }
+        }
+        let mut reordered = tabs.clone();
+        reordered.swap(1, 3);
+        menu = PopupMenu::overflow(10, 80, &hidden, &reordered);
+        let physical = menu.terminal_row(3, TabBarPosition::Bottom, 24).unwrap() - 1;
+        assert_eq!(
+            menu.action_at(
+                menu.column,
+                menu.mouse_row(TabBarPosition::Bottom, 24, physical)
+                    .unwrap()
+            ),
+            Some(PopupAction::View("tab-1".into()))
+        );
+        let fewer = PopupMenu::overflow(10, 80, &["tab-3".into(), "tab-1".into()], &reordered);
+        for position in [TabBarPosition::Top, TabBarPosition::Bottom] {
+            let physical = fewer.terminal_row(1, position, 24).unwrap() - 1;
+            assert_eq!(
+                fewer.action_at(
+                    fewer.column,
+                    fewer.mouse_row(position, 24, physical).unwrap()
+                ),
+                Some(PopupAction::View("tab-1".into())),
+                "named row survives a row-count change"
+            );
+        }
+        // Invariant: only the bottom three rows fit in a four-row terminal; clipped rows cannot act.
+        assert_eq!(menu.terminal_row(0, TabBarPosition::Bottom, 4), None);
+        assert_eq!(menu.mouse_row(TabBarPosition::Bottom, 4, 0), Some(2));
+        assert_eq!(menu.mouse_row(TabBarPosition::Bottom, 4, 3), None);
+    }
+
+    #[test]
     fn modeled_overlays_match_v2_menu_style_and_actions() {
         let profile = tempfile::tempdir().unwrap();
         let bindings = TabBindings::load(profile.path());
@@ -4251,10 +5531,13 @@ mod tests {
         menu.resize(80);
         assert_eq!(menu.column + menu.width, 80);
 
-        let mut add = PopupMenu::add(0, 80, &bindings, false);
+        let mut add = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
         assert_eq!(add.action_at(add.column, 1), Some(PopupAction::NewAgent));
         assert_eq!(add.action_at(add.column, 2), None);
-        assert_eq!(add.action_at(add.column, 3), Some(PopupAction::Settings));
+        assert_eq!(
+            add.action_at(add.column, 3),
+            Some(PopupAction::Utility(core_attach::UtilityKind::Settings))
+        );
         add.move_hover(1);
         assert_eq!(add.hovered, Some(0));
         add.move_hover(1);
@@ -4263,7 +5546,7 @@ mod tests {
         assert!(add_rendered.contains("+ Agent"));
         assert!(add_rendered.contains("  Settings"));
         assert!(add_rendered.contains("Alt+,"));
-        let checked = PopupMenu::add(0, 80, &bindings, true);
+        let checked = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [true, false]);
         assert!(checked.render().contains("✓ Settings"));
         assert_eq!(checked.width, add.width);
         for rendered in [add.render_with_color(true), add.render_with_color(false)] {
@@ -4371,8 +5654,16 @@ mod tests {
                 .contains(&format!("\x1b[1;{}H", last_end + 1)),
             "a status-driven strip repaint retains unchanged drag feedback"
         );
-        let mut bottom =
-            strip::render_interactive_at(&tabs, Some("a"), 80, None, TimeFormat::Twelve, None, 24);
+        let mut bottom = strip::render_interactive_at(
+            &tabs,
+            Some("a"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            24,
+            true,
+        );
         append_drag_marker(&mut bottom, Some(&drag), &tabs, 80, 24);
         assert!(bottom.bytes.contains(&format!("\x1b[24;{}H", last_end + 1)));
         assert!(bottom.bytes.contains('│'));
@@ -4396,7 +5687,7 @@ mod tests {
         std::fs::write(&file, br#"{"a1":{"accentColor":"cyan"}}"#).unwrap();
         assert_eq!(read_accent_hover(&file), [48, 60, 61]);
         let bindings = TabBindings::load(profile.path());
-        let mut menu = PopupMenu::add(0, 80, &bindings, false);
+        let mut menu = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
         menu.hovered = Some(0);
         let rendered = menu.render_styled(true, read_accent_hover(&file));
         assert!(rendered.contains("\x1b[48;2;48;60;61m"));
@@ -4462,13 +5753,14 @@ mod tests {
 
         std::fs::write(
             &file,
-            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom"}}"#,
+            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom","tabBarPlusMenu":"agent,settings,changelog"}}"#,
         )
         .unwrap();
         watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
         assert!(watch.refresh());
         assert_eq!(watch.tab_bar_position, TabBarPosition::Bottom);
         assert_eq!(read_tab_bar_position(&file), TabBarPosition::Bottom);
+        assert_eq!(watch.plus_menu, PlusMenu::ALL);
 
         std::fs::write(
             &file,
@@ -4494,6 +5786,10 @@ mod tests {
         assert_eq!(watch.accent_color, None);
         assert_eq!(watch.accent_hover, accent_selected_background(None));
         assert_eq!(watch.tab_bar_position, TabBarPosition::Top);
+        assert!(
+            watch.plus_menu.agent_only(),
+            "an absent plus menu adds nothing to Agent"
+        );
 
         std::fs::write(&file, b"not json").unwrap();
         assert_eq!(
@@ -4505,6 +5801,35 @@ mod tests {
             read_presentation_settings(&file),
             PresentationSettings::default()
         );
+    }
+
+    #[test]
+    fn outer_presentation_acknowledges_only_a_complete_successful_write() {
+        struct FlushFailure(Vec<u8>);
+        impl Write for FlushFailure {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Err(std::io::Error::other("fixture flush failure"))
+            }
+        }
+        let mut desired = resize_curtain_presentation(20, 8, true);
+        desired.clear = false;
+        let mut composer = PresentationComposer::default();
+        let mut failed = FlushFailure(Vec::new());
+        assert!(write_outer_presentation(&mut composer, &mut failed, &desired).is_err());
+        assert!(!failed.0.is_empty());
+        assert!(composer.prepare(&desired).unwrap().is_some());
+        let mut written = Vec::new();
+        write_outer_presentation(&mut composer, &mut written, &desired).unwrap();
+        assert!(written.starts_with(BEGIN_SYNCHRONIZED_UPDATE));
+        assert!(written.ends_with(END_SYNCHRONIZED_UPDATE));
+        assert!(composer.prepare(&desired).unwrap().is_none());
+        let bytes = written.len();
+        write_outer_presentation(&mut composer, &mut written, &desired).unwrap();
+        assert_eq!(written.len(), bytes);
     }
 
     #[test]

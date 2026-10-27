@@ -147,7 +147,7 @@ let root: string;
 
 function settingsApp(
   session: OwnedSettingsManager,
-  options: { readonly pinned?: boolean; readonly copyText?: (text: string) => void } = {},
+  options: { readonly pinned?: boolean; readonly copyText?: (text: string) => void; readonly configurePlusMenu?: () => boolean } = {},
 ): SettingsApp {
   return new SettingsApp(session, {
     ...options,
@@ -317,7 +317,7 @@ describe("the settings screen", () => {
     expect(lines.findIndex(line => line.trim() === "Appearance")).toBeLessThan(lines.findIndex(line => line.trim() === "Scroll"));
     expect(lines.some(line => line.includes("Quit animation") && line.includes("yes"))).toBe(true);
     expect(lines.some(line => line.trim() === "Appearance")).toBe(true);
-    expect(lines.some(line => line.includes("Accent color") && line.includes("purple"))).toBe(true);
+    expect(lines.some(line => line.includes("Accent color") && line.includes("blue"))).toBe(true);
     expect(lines.some(line => line.includes("Background") && line.includes("transparent"))).toBe(true);
     expect(lines.findIndex(line => line.includes("Accent color"))).toBeLessThan(lines.findIndex(line => line.includes("Background")));
     expect(lines.findIndex(line => line.includes("Background"))).toBeLessThan(lines.findIndex(line => line.includes("Quit animation")));
@@ -345,17 +345,17 @@ describe("the settings screen", () => {
     const { app: target, session, writes } = await app();
     screen(target);
     target.onInput?.(`${ESC}[1;2B`, HOST);
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
     target.onInput?.(`${ESC}[C`, HOST);
     await settleChanges();
-    expect(session.value("accentColor")).toBe("blue");
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
+    expect(session.value("accentColor")).toBe("purple");
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
     expect(writes).toEqual([]);
 
     target.onInput?.(CTRL_Z, HOST);
     await settleChanges();
-    expect(session.value("accentColor")).toBe("purple");
-    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*purple/);
+    expect(session.value("accentColor")).toBe("blue");
+    expect(find(target, "Accent color").trimStart()).toMatch(/^→.*blue/);
   });
 
   it("changes and undoes the owned background without writing Pi settings", async () => {
@@ -472,14 +472,48 @@ describe("the settings screen", () => {
     expect(writes).toEqual([]);
   });
 
+  it("opens the plus-menu dialog from its Tab Bar entry and toggles a kind with Space", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Plus menu");
+    target.onInput?.("\r", HOST);
+    let rows = screen(target).map(row => row.trimEnd());
+    expect(rows.some(row => row.includes("● Agent"))).toBe(true);
+    expect(rows.some(row => row.includes("○ Settings"))).toBe(true);
+    expect(rows.some(row => row.includes("○ Changelog"))).toBe(true);
+    target.onInput?.(`${ESC}[B`, HOST);
+    target.onInput?.(" ", HOST);
+    await settleChanges();
+    await session.load();
+    expect(session.value("tabBarPlusMenu")).toBe("agent,settings");
+    rows = screen(target).map(row => row.trimEnd());
+    expect(rows.some(row => row.includes("● Settings"))).toBe(true);
+    target.onInput?.(ESC, HOST);
+    expect(screen(target).some(row => row.includes("● Agent"))).toBe(false);
+  });
+
+  it("hands the plus menu to the tab bar's own dialog when one can show it", async () => {
+    const { session } = await app();
+    const requests: string[] = [];
+    let available = true;
+    const target = settingsApp(session, { configurePlusMenu: () => { requests.push("plus"); return available; } });
+    selectRow(target, "Plus menu");
+    target.onInput?.("\r", HOST);
+    expect(requests).toEqual(["plus"]);
+    expect(screen(target).some(row => row.includes("○ Settings")), "no in-screen dialog opens").toBe(false);
+    available = false;
+    target.onInput?.("\r", HOST);
+    expect(screen(target).some(row => row.includes("○ Settings")), "without a tab bar the screen's own dialog opens").toBe(true);
+  });
+
   it("changes the resident tab-bar position live and persists it", async () => {
     const { app: target, session, writes } = await app();
     selectRow(target, "Position");
     const rows = screen(target);
     const positionRow = rows.findIndex(line => /^→?\s*Position\s+top\b/.test(line.trimStart()));
     expect(positionRow).toBeGreaterThan(0);
-    expect(rows[positionRow - 1]?.trimStart()).toMatch(/^Tabs\b/u);
-    expect(rows[positionRow + 1]).toContain("Auto name");
+    expect(rows[positionRow - 1]?.trimStart()).toMatch(/^Tab Bar\b/u);
+    expect(rows[positionRow + 1]).toContain("Plus menu");
+    expect(rows[positionRow + 1]).toContain("configure");
     expect(find(target, "Position").trimStart()).toMatch(/^→.*top/);
 
     target.onInput?.(`${ESC}[C`, HOST);
@@ -830,14 +864,18 @@ describe("the settings screen", () => {
     let shown = screen(target).join("\n");
     expect(shown).toContain("Thinking Level (step 1/2)");
     expect(shown).toContain("Select a model to configure");
+    expect(screen(target).some(line => line.trimStart().startsWith(">"))).toBe(true);
+    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).toContain("<accent>></accent> ");
     expect(shown).toContain("gpt-5 [openai]");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
-    expect(shown).toContain("Type search · Enter select · Esc close");
+    expect(shown).toContain("Type search  Enter select  Esc close");
+    expect(shown).not.toContain(" · ");
     expect(shown).not.toContain("Ctrl+Z undo");
     expect(shown).not.toContain("Enter change");
 
     for (const character of "spark") target.onInput?.(character, HOST);
     shown = screen(target).join("\n");
+    expect(shown).toContain("> spark");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
     expect(shown).not.toContain("gpt-5 [openai]");
 
@@ -850,7 +888,8 @@ describe("the settings screen", () => {
     shown = screen(target).join("\n");
     expect(shown).toContain("Thinking Level (step 2/2)");
     expect(shown).toContain("Select default thinking level for gpt-5.3-codex-spark [openai]");
-    expect(shown).toContain("↑↓ navigate · Enter select · Esc back");
+    expect(shown).toContain("↑↓ navigate  Enter select  Esc back");
+    expect(shown).not.toContain(" · ");
     expect(shown).not.toContain("Thinking Level for");
     expect(shown).toContain("low");
     expect(shown).toContain("Light reasoning (~2k tokens)");
@@ -1196,11 +1235,11 @@ describe("the value dropdown behind the screen", () => {
     const { app: target } = await app();
     const lines = screen(target);
     const row = lines.findIndex(line => line.includes("Accent color"));
-    const valueColumn = (lines[row] ?? "").indexOf("purple") + 1;
+    const valueColumn = (lines[row] ?? "").indexOf("blue") + 1;
     target.onMouse?.({ kind: "press", button: 0, row: row + 1, column: valueColumn }, HOST);
 
     const opened = target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n");
-    expect(opened).toContain("<highlight><text>✓</text></highlight><highlight> \u001b[35m■\u001b[39m purple");
+    expect(opened).toContain("<highlight><text>✓</text></highlight><highlight> \u001b[34m■\u001b[39m blue");
     for (const ansi of [34, 36, 32, 33, 31]) expect(opened).toContain(`\u001b[${ansi}m■\u001b[39m`);
     expect(opened).not.toContain("<accent>✓</accent>");
   });

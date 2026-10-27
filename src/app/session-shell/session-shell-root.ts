@@ -48,6 +48,7 @@ import {
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
 import { onPiThemeChange, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import {
+  piShellTruncateToWidth,
   type PiShellClipboardContent,
   type PiShellComponentPort,
   type PiKeybindingsHost,
@@ -185,6 +186,13 @@ export interface OwnedUiShellPresentationOptions {
 /** Persistent prompt history: its store, its bound, the editor that recalls it, and the image sidecar. */
 export interface OwnedUiShellHistoryOptions {
   readonly store: import("../../contracts/owned-ui/index.js").PromptHistoryPort;
+  /** When present, session replacement selects a new store and sidecar, not the old session's recall. */
+  readonly sessionId?: string;
+  readonly scope?: "unique" | "shared";
+  readonly forSession?: (sessionId: string) => Pick<OwnedUiShellHistoryOptions, "store" | "imageSidecar">;
+  /** A live scope change selects the matching store for this session without copying records. */
+  readonly forScope?: (scope: "unique" | "shared", sessionId: string | null) => Pick<OwnedUiShellHistoryOptions, "store" | "imageSidecar"> | null;
+  readonly onScopeChange?: (listener: (scope: "unique" | "shared") => void) => () => void;
   readonly limit: number;
   readonly editor: import("../../integrations/pi/components/index.js").HistoryEditorConstructor;
   /** Optional per-profile filesystem sidecar for image chip payloads. When present, submit
@@ -240,20 +248,20 @@ export interface OwnedUiShellSharedServices {
 /** What composes an owned session shell, grouped by the collaborator that provides each part. */
 export interface OwnedUiSessionShellOptions {
   readonly engine: OwnedUiShellEngineOptions;
-  /** Opens the selectors and resolves the transcript renderers whose inputs are engine objects. */
+  /** Resolves selectors and engine-backed transcript renderers. */
   readonly presenters: OwnedUiSessionPresenters;
   readonly presentation?: OwnedUiShellPresentationOptions;
   readonly history?: OwnedUiShellHistoryOptions;
   readonly suggestions?: OwnedUiShellSuggestionOptions;
-  /** Supplied only to bare A1; absent retains the fixed eight-image comparison policy. */
+  /** Bare A1 only; absent keeps the eight-image comparison limit. */
   readonly promptImages?: OwnedUiShellPromptImagesOptions;
-  /** Supplied only to the bare-A1 composition; absent keeps the pinned per-skill command list. */
+  /** Bare A1 only; absent keeps pinned per-skill commands. */
   readonly skills?: OwnedUiShellSkillsOptions;
   readonly diagnostics?: OwnedUiShellDiagnosticOptions;
   readonly shared?: OwnedUiShellSharedServices;
 }
 
-/** Composes backend session state into the owned transcript, viewport, editor, and dock presentation. */
+/** Composes session state into the owned transcript, viewport, editor, and dock. */
 export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   readonly editor: PiShellEditorPort;
   readonly header: PiShellHeaderPort;
@@ -303,7 +311,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly requestHyperlinkCleanup?: (rows?: readonly number[]) => void;
       readonly enableDockInputReuse?: boolean;
       readonly persistentHistory?: boolean;
-      readonly hideSettingsCommand?: boolean;
+      readonly hideUtilityTabCommands?: boolean;
       readonly historyEditor?: import("../../integrations/pi/components/index.js").HistoryEditorConstructor;
       readonly onSubmit: (text: string) => void;
       readonly onPasteRejected?: (error: unknown) => void;
@@ -329,7 +337,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly keybindings?: PiKeybindingsHost;
       readonly promptImageLimit?: () => number;
       readonly skillsPresentation?: () => "collapse" | "expand";
-      /** A resident tab chip already shows the session name, so its footer omits the duplicate. */
+      /** Resident tab chips already show the session name. */
       readonly footerSessionName?: boolean;
     },
     startup: PiShellHeaderOptions = {},
@@ -416,8 +424,8 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       if (block.kind === "user") this.editor.addToHistory(block.text);
     }
     this.#document.sync(view.transcript);
-    // Invariant: colours come from the active theme, so rendered rows outlive their revision only
-    // until the theme under them changes.
+    // Invariant: rendered rows expire when
+    // their active theme changes.
     this.#themeUnsubscribe = onPiThemeChange(() => {
       this.invalidate();
       this.#componentRuntime.requestRender(true);
@@ -974,7 +982,10 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   }
 
   #renderFooter(width: number): readonly string[] {
-    return (this.#extensions.footer ?? this.#footer).render(width);
+    const footer = this.#extensions.footer ?? this.#footer;
+    if (!this.#customViewport) return footer.render(width);
+    width = Math.max(0, width - 2);
+    return footer.render(width).map(row => ` ${piShellTruncateToWidth(row, width)}`);
   }
 
   #setToolsExpanded(expanded: boolean): void {

@@ -45,12 +45,46 @@ pub use standby::sanitize_tab_environment;
 use standby::*;
 
 const SETTINGS_TAB_PREFIX: &str = "settings-";
+const CHANGELOG_TAB_PREFIX: &str = "changelog-";
+/// The singleton utility tab kinds: id prefix, registry kind, which is also the route its child
+/// presents, and title.
+const UTILITY_KINDS: [(&str, &str, &str); 2] = [
+    (SETTINGS_TAB_PREFIX, "settings", "Settings"),
+    (CHANGELOG_TAB_PREFIX, "changelog", "Changelog"),
+];
 /// Every new Agent tab starts with this one name; duplicates are allowed and auto-naming or a
 /// manual rename distinguishes them.
 const DEFAULT_AGENT_TAB_NAME: &str = "Agent";
 
-fn is_settings_tab_id(tab_id: &str) -> bool {
-    tab_id.starts_with(SETTINGS_TAB_PREFIX)
+/// The registry kind and title of a singleton utility tab, or `None` for an Agent.
+fn utility_kind(tab_id: &str) -> Option<(&'static str, &'static str)> {
+    UTILITY_KINDS
+        .iter()
+        .find(|(prefix, _, _)| tab_id.starts_with(prefix))
+        .map(|(_, kind, title)| (*kind, *title))
+}
+
+/// The utility tab a client message opens or prewarms, `tab.open-<kind>` or
+/// `tab.prewarm-<kind>` for each kind: its id prefix and whether the message opens it.
+fn utility_request(message_type: &str) -> Option<(&'static str, bool)> {
+    let (opening, kind) = message_type
+        .strip_prefix("tab.open-")
+        .map(|kind| (true, kind))
+        .or_else(|| {
+            message_type
+                .strip_prefix("tab.prewarm-")
+                .map(|kind| (false, kind))
+        })?;
+    UTILITY_KINDS
+        .iter()
+        .find(|(_, name, _)| *name == kind)
+        .map(|(prefix, _, _)| (*prefix, opening))
+}
+
+/// Invariant: utility tabs are never Agents: they cannot be renamed, own no session, trail new
+/// Agents, and never count as the Agent an attach views or starts.
+fn is_utility_tab_id(tab_id: &str) -> bool {
+    utility_kind(tab_id).is_some()
 }
 
 /// One non-blocking render slot per attached client. Replacing an unsent update forces the
@@ -377,6 +411,9 @@ struct StandbyTab {
     tab_id: String,
     start: AttachStart,
     incarnation: u64,
+    /// The verified identity of the launched standby holder, so discarding the standby can end
+    /// the holder whether or not it has connected.
+    holder: Option<ProcessIdentity>,
 }
 
 struct PendingControllerTransfer {
@@ -462,7 +499,7 @@ impl RuntimeState {
             .registry
             .tabs
             .iter()
-            .filter(|tab| !is_settings_tab_id(&tab.tab_id))
+            .filter(|tab| !is_utility_tab_id(&tab.tab_id))
             .cloned()
             .collect::<Vec<_>>();
         default_tab(&agents)
@@ -473,7 +510,7 @@ impl RuntimeState {
         self.registry
             .tabs
             .iter()
-            .all(|tab| is_settings_tab_id(&tab.tab_id))
+            .all(|tab| is_utility_tab_id(&tab.tab_id))
     }
 }
 
@@ -703,14 +740,12 @@ fn bind_owned_endpoint(
     profile: &Path,
     config: &ServerLaunchConfig,
 ) -> Result<OwnerEndpoint, String> {
+    let _ = profile;
+    if config.endpoint.is_empty() { return Err("resident release endpoint is missing".into()); }
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
     let mut stale_removed = false;
     loop {
-        let bound = if config.endpoint.is_empty() {
-            OwnerEndpoint::bind(profile, Path::new(&config.runtime_dir))
-        } else {
-            OwnerEndpoint::bind_name(config.endpoint.clone())
-        };
+        let bound = OwnerEndpoint::bind_name(config.endpoint.clone());
         let error = match bound {
             Ok(endpoint) => return Ok(endpoint),
             Err(error) => error,
@@ -738,7 +773,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     crate::fault_injection::install(&config.fault_environment);
     crate::fault_injection::validate_environment()?;
     let data = Path::new(&config.data_dir);
-    let token = crate::endpoint::endpoint_token(profile).map_err(|error| error.to_string())?;
+    let token = crate::roles::scope::token(profile)?;
     let root = data.join("tabs").join(token);
     std::fs::create_dir_all(&root)
         .map_err(|error| format!("create resident registry root: {error}"))?;
@@ -779,10 +814,12 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     let mut system = crate::identity::current_system().map_err(|error| error.to_string())?;
     system.os_session = config.os_session_identity.clone();
     let (existing, startup_notice) = RegistryStore::recover(&root.join("registry.json"))?;
+    if let Some(document) = &existing { crate::roles::scope::admit(&document.release_id)?; }
     let epoch = existing
         .as_ref()
         .map_or(1, |document| document.epoch.saturating_add(1));
     let mut registry = existing.unwrap_or_else(|| RegistryDocument {
+        release_id: crate::roles::scope::release_id().unwrap_or_default(),
         registry_revision: 0,
         epoch,
         boot_id: system.boot.clone(),
@@ -860,20 +897,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     commit_registry(registry_store.clone(), registry.clone())?;
     crate::fault_injection::crash_at("after-epoch");
     if !config.endpoint.is_empty() {
-        let owner = crate::identity::inspect_process(std::process::id())
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| "inspect server owner identity".to_owned())?;
-        let marker = serde_json::to_vec_pretty(&serde_json::json!({
-            "pid": owner.pid,
-            "startIdentity": owner.start,
-            "endpoint": &config.endpoint,
-            "generation": protocol::GENERATION,
-            "verified": true,
-            "detachmentMode": "resident-child",
-        }))
-        .map_err(|error| error.to_string())?;
-        crate::durable::replace(root.join("server.json"), &marker)
-            .map_err(|error| error.to_string())?;
+        crate::roles::scope::write_owner_marker(&root, &config.endpoint)?;
         crate::fault_injection::crash_at("after-marker");
     }
     std::fs::write(ready, format!("{}:server\n", std::process::id()))
@@ -1273,6 +1297,7 @@ pub fn probe(address: &str, token: &[u8]) -> Result<(), String> {
             role: "probe".into(),
             generation: protocol::GENERATION,
             build: "a1".into(),
+            release_id: crate::roles::scope::release_id()?,
             features: vec![],
             token: token.to_vec(),
             tab_id: None,
@@ -1291,10 +1316,31 @@ pub fn probe(address: &str, token: &[u8]) -> Result<(), String> {
         return Err(format!("resident probe refused: {}", kind.message_type));
     }
     let (_, welcome): (_, Welcome) = wire::body(&payload)?;
+    crate::roles::scope::admit(&welcome.release_id)?;
     if welcome.generation != protocol::GENERATION {
         return Err("resident server generation is incompatible".to_owned());
     }
     Ok(())
+}
+
+/// Reads the complete first envelope under its admission budget before clearing the deadline.
+fn read_peer_hello(
+    stream: &mut endpoint::EndpointStream,
+) -> Result<(Option<u64>, RoleHello), String> {
+    endpoint::set_handshake_deadline(stream, std::time::Duration::from_secs(4))
+        .map_err(|error| error.to_string())?;
+    let payload =
+        wire::read_payload(stream)?.ok_or_else(|| "peer closed before hello".to_owned())?;
+    if wire::kind(&payload)?.message_type != "hello" {
+        return Err("first resident message is not hello".to_owned());
+    }
+    let (request_id, hello): (_, RoleHello) = wire::body(&payload)?;
+    if let Err(reason) = crate::roles::scope::admit(&hello.release_id) {
+        wire::send(stream, "refused", request_id, wire::ResultBody::refused(reason.clone()))?;
+        return Err(reason);
+    }
+    endpoint::clear_handshake_deadline(stream).map_err(|error| error.to_string())?;
+    Ok((request_id, hello))
 }
 
 fn serve_peer(
@@ -1302,17 +1348,9 @@ fn serve_peer(
     state: Arc<Mutex<RuntimeState>>,
     profile: std::path::PathBuf,
 ) -> Result<(), String> {
+    let _connection = endpoint::close_on_drop(&stream);
     lock_state(&state)?.last_activity = std::time::Instant::now();
-    endpoint::set_handshake_deadline(&stream, std::time::Duration::from_secs(4))
-        .map_err(|error| error.to_string())?;
-    let payload =
-        wire::read_payload(&mut stream)?.ok_or_else(|| "peer closed before hello".to_owned())?;
-    endpoint::clear_handshake_deadline(&stream).map_err(|error| error.to_string())?;
-    let kind = wire::kind(&payload)?;
-    if kind.message_type != "hello" {
-        return Err("first resident message is not hello".to_owned());
-    }
-    let (request_id, hello): (_, RoleHello) = wire::body(&payload)?;
+    let (request_id, hello) = read_peer_hello(&mut stream)?;
     let supported =
         crate::fault_injection::server_generation_override().unwrap_or(protocol::GENERATION);
     if hello.generation != supported {
@@ -1326,127 +1364,20 @@ fn serve_peer(
             },
         );
     }
-    // Invariant: a holder or bridge belongs to the incarnation its token was derived with, which
-    // the registry names; a hello that omits its incarnation must not detach a bridge's status
-    // from the surfaces of the holder it runs under.
-    let (expected, admitted_incarnation) = {
-        let locked = lock_state(&state)?;
-        match hello.role.as_str() {
-            "attach" | "internal" | "probe" | "maintain" => {
-                (locked.credentials.client_token.to_vec(), hello.incarnation)
-            }
-            "holder" | "bridge" => {
-                let tab_id = hello.tab_id.as_deref().unwrap_or("");
-                let incarnation = locked
-                    .registry
-                    .tabs
-                    .iter()
-                    .find(|tab| tab.tab_id == tab_id)
-                    .map(|tab| {
-                        if hello.role == "holder"
-                            && tab.lifecycle == "restarting"
-                            && hello.incarnation.saturating_add(1) == tab.incarnation
-                        {
-                            hello.incarnation
-                        } else {
-                            tab.incarnation
-                        }
-                    })
-                    .or_else(|| {
-                        locked
-                            .standby
-                            .as_ref()
-                            .filter(|standby| standby.tab_id == tab_id)
-                            .map(|standby| standby.incarnation)
-                    })
-                    .unwrap_or(1);
-                (
-                    locked
-                        .credentials
-                        .derive(
-                            if hello.role == "holder" {
-                                "holder"
-                            } else {
-                                "bridge"
-                            },
-                            tab_id,
-                            incarnation,
-                        )
-                        .to_vec(),
-                    incarnation,
-                )
-            }
-            _ => return Err("unapproved resident peer role".to_owned()),
+    let (admitted_incarnation, epoch) = match admit_hello(&state, &hello) {
+        Ok(admitted) => admitted,
+        Err(reason) => {
+            // Protocol: a refusal names its reason so a holder the server will never admit, such as
+            // one without a registry or standby record, ends instead of asking for another server.
+            let _ = wire::send(
+                &mut stream,
+                "refused",
+                request_id,
+                wire::ResultBody::refused(reason.clone()),
+            );
+            return Err(reason);
         }
     };
-    if hello.token != expected {
-        return Err("resident credential rejected".to_owned());
-    }
-    let epoch = lock_state(&state)?.registry.epoch;
-    if hello.highest_epoch > epoch {
-        return Err("peer has observed a newer server epoch".to_owned());
-    }
-    if hello.role == "holder" {
-        let recorded = {
-            let locked = lock_state(&state)?;
-            let recorded = locked
-                .registry
-                .tabs
-                .iter()
-                .find(|tab| Some(tab.tab_id.as_str()) == hello.tab_id.as_deref())
-                .cloned();
-            let standby_matches = locked.standby.as_ref().is_some_and(|standby| {
-                Some(standby.tab_id.as_str()) == hello.tab_id.as_deref()
-                    && standby.incarnation == hello.incarnation
-            });
-            if recorded.is_none() && !standby_matches {
-                return Err("holder has no registry or standby record".to_owned());
-            }
-            recorded
-        };
-        let pending_respawn = recorded.as_ref().is_some_and(|recorded| {
-            recorded.lifecycle == "restarting"
-                && hello.incarnation.saturating_add(1) == recorded.incarnation
-        });
-        if recorded
-            .as_ref()
-            .is_some_and(|recorded| hello.incarnation != recorded.incarnation && !pending_respawn)
-        {
-            return Err("holder incarnation does not match the registry".to_owned());
-        }
-        if let Some(recorded_pid) = recorded.as_ref().and_then(|recorded| recorded.holder_pid) {
-            let pid = hello
-                .pid
-                .ok_or_else(|| "holder did not present a pid".to_owned())?;
-            let observed = inspect_identity_bounded(pid)?
-                .ok_or_else(|| "holder process is not live".to_owned())?;
-            if recorded_pid != pid
-                || recorded
-                    .as_ref()
-                    .and_then(|recorded| recorded.holder_start_identity.as_deref())
-                    != Some(observed.start.as_str())
-            {
-                return Err("holder identity does not match the registry".to_owned());
-            }
-        }
-        if let Some(recorded_child_pid) = recorded.as_ref().and_then(|recorded| recorded.child_pid)
-        {
-            let child_pid = hello
-                .child_pid
-                .ok_or_else(|| "holder did not present its child pid".to_owned())?;
-            let child = inspect_identity_bounded(child_pid)?
-                .ok_or_else(|| "holder child process is not live".to_owned())?;
-            if recorded_child_pid != child_pid
-                || recorded
-                    .as_ref()
-                    .and_then(|recorded| recorded.child_start_identity.as_deref())
-                    != Some(child.start.as_str())
-                || hello.child_start_identity.as_deref() != Some(child.start.as_str())
-            {
-                return Err("holder child identity does not match the registry".to_owned());
-            }
-        }
-    }
     if hello.role == "probe" {
         return wire::send(&mut stream, "welcome", request_id, welcome(epoch));
     }
@@ -1560,10 +1491,155 @@ fn serve_peer(
     }
 }
 
+/// Verifies a peer's hello against credentials, epoch, and the registry or standby record, and
+/// returns the incarnation it is admitted under with the current epoch. Every error is a refusal
+/// reason the peer may read; none includes peer-supplied text.
+fn admit_hello(state: &Arc<Mutex<RuntimeState>>, hello: &RoleHello) -> Result<(u64, u64), String> {
+    // Invariant: a holder or bridge belongs to the incarnation its token was derived with, which
+    // the registry names; a hello that omits its incarnation must not detach a bridge's status
+    // from the surfaces of the holder it runs under.
+    let (expected, admitted_incarnation) = {
+        let locked = lock_state(state)?;
+        expected_peer_credential(&locked, hello)?
+    };
+    if hello.token != expected {
+        return Err("resident credential rejected".to_owned());
+    }
+    let epoch = lock_state(&state)?.registry.epoch;
+    if hello.highest_epoch > epoch {
+        return Err("peer has observed a newer server epoch".to_owned());
+    }
+    verify_holder_record(state, hello)?;
+    Ok((admitted_incarnation, epoch))
+}
+
+/// The credential a peer must present and the incarnation it is admitted under: the client token
+/// for clients, or the holder or bridge token derived for the tab's recorded incarnation.
+fn expected_peer_credential(
+    locked: &RuntimeState,
+    hello: &RoleHello,
+) -> Result<(Vec<u8>, u64), String> {
+    Ok(match hello.role.as_str() {
+        "attach" | "internal" | "probe" | "maintain" => {
+            (locked.credentials.client_token.to_vec(), hello.incarnation)
+        }
+        "holder" | "bridge" => {
+            let tab_id = hello.tab_id.as_deref().unwrap_or("");
+            let incarnation = locked
+                .registry
+                .tabs
+                .iter()
+                .find(|tab| tab.tab_id == tab_id)
+                .map(|tab| {
+                    if hello.role == "holder"
+                        && tab.lifecycle == "restarting"
+                        && hello.incarnation.saturating_add(1) == tab.incarnation
+                    {
+                        hello.incarnation
+                    } else {
+                        tab.incarnation
+                    }
+                })
+                .or_else(|| {
+                    locked
+                        .standby
+                        .as_ref()
+                        .filter(|standby| standby.tab_id == tab_id)
+                        .map(|standby| standby.incarnation)
+                })
+                .unwrap_or(1);
+            (
+                locked
+                    .credentials
+                    .derive(
+                        if hello.role == "holder" {
+                            "holder"
+                        } else {
+                            "bridge"
+                        },
+                        tab_id,
+                        incarnation,
+                    )
+                    .to_vec(),
+                incarnation,
+            )
+        }
+        _ => return Err("unapproved resident peer role".to_owned()),
+    })
+}
+
+/// Verifies a holder's hello against its registry or standby record: the record must exist, name
+/// the hello's incarnation, and match the live holder and child identities it recorded.
+fn verify_holder_record(state: &Arc<Mutex<RuntimeState>>, hello: &RoleHello) -> Result<(), String> {
+    if hello.role != "holder" {
+        return Ok(());
+    }
+    let recorded = {
+        let locked = lock_state(&state)?;
+        let recorded = locked
+            .registry
+            .tabs
+            .iter()
+            .find(|tab| Some(tab.tab_id.as_str()) == hello.tab_id.as_deref())
+            .cloned();
+        let standby_matches = locked.standby.as_ref().is_some_and(|standby| {
+            Some(standby.tab_id.as_str()) == hello.tab_id.as_deref()
+                && standby.incarnation == hello.incarnation
+        });
+        if recorded.is_none() && !standby_matches {
+            return Err("holder has no registry or standby record".to_owned());
+        }
+        recorded
+    };
+    let pending_respawn = recorded.as_ref().is_some_and(|recorded| {
+        recorded.lifecycle == "restarting"
+            && hello.incarnation.saturating_add(1) == recorded.incarnation
+    });
+    if recorded
+        .as_ref()
+        .is_some_and(|recorded| hello.incarnation != recorded.incarnation && !pending_respawn)
+    {
+        return Err("holder incarnation does not match the registry".to_owned());
+    }
+    if let Some(recorded_pid) = recorded.as_ref().and_then(|recorded| recorded.holder_pid) {
+        let pid = hello
+            .pid
+            .ok_or_else(|| "holder did not present a pid".to_owned())?;
+        let observed = inspect_identity_bounded(pid)?
+            .ok_or_else(|| "holder process is not live".to_owned())?;
+        if recorded_pid != pid
+            || recorded
+                .as_ref()
+                .and_then(|recorded| recorded.holder_start_identity.as_deref())
+                != Some(observed.start.as_str())
+        {
+            return Err("holder identity does not match the registry".to_owned());
+        }
+    }
+    if let Some(recorded_child_pid) = recorded.as_ref().and_then(|recorded| recorded.child_pid) {
+        let child_pid = hello
+            .child_pid
+            .ok_or_else(|| "holder did not present its child pid".to_owned())?;
+        let child = inspect_identity_bounded(child_pid)?
+            .ok_or_else(|| "holder child process is not live".to_owned())?;
+        if recorded_child_pid != child_pid
+            || recorded
+                .as_ref()
+                .and_then(|recorded| recorded.child_start_identity.as_deref())
+                != Some(child.start.as_str())
+            || hello.child_start_identity.as_deref() != Some(child.start.as_str())
+        {
+            return Err("holder child identity does not match the registry".to_owned());
+        }
+    }
+    Ok(())
+}
+
 fn welcome(epoch: u64) -> Welcome {
     Welcome {
         generation: protocol::GENERATION,
         build: "a1-terminal-host".into(),
+        release_id: crate::roles::scope::release_id().unwrap_or_default(),
         features: vec![
             "resident-multi-tab".into(),
             "slow-client-isolation".into(),
@@ -1596,6 +1672,7 @@ fn writer_loop(
     surface_signaled: Arc<AtomicBool>,
     surface_replaced: Arc<AtomicBool>,
 ) {
+    let _connection = endpoint::close_on_drop(&stream);
     loop {
         match rx.recv_timeout(std::time::Duration::from_millis(8)) {
             Ok(frame) if !frame.is_empty() => {
@@ -1656,6 +1733,8 @@ struct LifecycleRequest {
     message_type: String,
     request_id: Option<u64>,
     payload: Vec<u8>,
+    /// Only this client's matching create request can cancel its queued or running start.
+    cancelled: Option<Arc<AtomicBool>>,
 }
 
 /// One client's lifecycle requests that are queued or running.
@@ -1853,6 +1932,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs: vec![record("tab", 1, "running", None)],
         };
         let before = crate::roles::counters::snapshot(1).unresponsive_transitions;
@@ -1871,6 +1951,17 @@ mod tests {
     }
 
     #[test]
+    fn stopping_agent_cannot_detach_its_former_controller() {
+        let running = record("older", 1, "running", None);
+        let stopping = record("closing", 2, "stopped", None);
+        let tabs = vec![running, stopping];
+        assert!(bridge::allows_controller_request(&tabs, "older"));
+        assert!(!bridge::allows_controller_request(&tabs, "closing"),
+            "a stopped child's bridge can request detach before its controller switches tabs");
+        assert!(!bridge::allows_controller_request(&tabs, "missing"));
+    }
+
+    #[test]
     fn default_attach_selects_the_first_ordered_running_agent() {
         let mut settings = record("settings-1", 1, "running", None);
         settings.kind = "settings".into();
@@ -1885,6 +1976,57 @@ mod tests {
     }
 
     #[test]
+    fn changelog_is_a_utility_tab_that_trails_new_agents_and_is_never_the_default() {
+        assert_eq!(utility_kind("settings-1"), Some(("settings", "Settings")));
+        assert_eq!(
+            utility_kind("changelog-1"),
+            Some(("changelog", "Changelog"))
+        );
+        assert_eq!(utility_kind("tab-1"), None);
+        assert!(is_utility_tab_id("changelog-1") && !is_utility_tab_id("tab-1"));
+        assert_eq!(
+            utility_request("tab.open-changelog"),
+            Some((CHANGELOG_TAB_PREFIX, true))
+        );
+        assert_eq!(
+            utility_request("tab.prewarm-settings"),
+            Some((SETTINGS_TAB_PREFIX, false))
+        );
+        assert_eq!(utility_request("tab.open-browser"), None);
+        assert_eq!(utility_request("tab.create"), None);
+        let mut changelog = record("changelog-1", 1, "running", None);
+        changelog.kind = "changelog".into();
+        let mut registry = RegistryDocument {
+            registry_revision: 1,
+            epoch: 1,
+            boot_id: "boot".into(),
+            os_session_id: "session".into(),
+            release_id: String::new(),
+            tabs: vec![record("agent-1", 1, "running", None), changelog],
+        };
+        insert_new_tab(&mut registry, record("agent-2", 2, "running", None));
+        let ids = registry
+            .tabs
+            .iter()
+            .map(|tab| tab.tab_id.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, ["agent-1", "agent-2", "changelog-1"]);
+        registry.tabs.retain(|tab| is_utility_tab_id(&tab.tab_id));
+        assert_eq!(
+            default_tab(
+                &registry
+                    .tabs
+                    .iter()
+                    .filter(|tab| !is_utility_tab_id(&tab.tab_id))
+                    .cloned()
+                    .collect::<Vec<_>>()
+            ),
+            "tab-1",
+            "a registry of utility tabs names the first Agent an attach starts"
+        );
+    }
+
+    #[test]
     fn settings_starts_last_and_drag_order_survives_agent_creation() {
         let mut settings = record("settings-1", 1, "running", None);
         settings.kind = "settings".into();
@@ -1896,6 +2038,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs: vec![first, settings],
         };
         let names = |registry: &RegistryDocument| {
@@ -1944,6 +2087,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs: vec![
                 record("closed-0", 0, "stopped", None),
                 record("agent-1", 1, "running", None),
@@ -1990,9 +2134,9 @@ mod tests {
             }
         ));
         assert_eq!(visible(&registry), ["settings-1", "agent-1", "agent-2"]);
-        assert!(lifecycle::move_settings_last(&mut registry, "settings-1"));
+        assert!(lifecycle::move_utility_last(&mut registry, "settings-1"));
         assert_eq!(visible(&registry), ["agent-1", "agent-2", "settings-1"]);
-        assert!(!lifecycle::move_settings_last(&mut registry, "settings-1"));
+        assert!(!lifecycle::move_utility_last(&mut registry, "settings-1"));
         assert_eq!(registry.registry_revision, 8);
     }
 
@@ -2008,6 +2152,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs: vec![record("agent-1", 1, "running", None), settings, stopped],
         };
         insert_new_tab(&mut registry, record("agent-2", 4, "running", None));
@@ -2037,6 +2182,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: "session".into(),
+            release_id: String::new(),
             tabs,
         };
         let original = registry.clone();
@@ -2123,6 +2269,7 @@ mod tests {
             epoch: 1,
             boot_id: "boot".into(),
             os_session_id: String::new(),
+            release_id: String::new(),
             tabs: Vec::new(),
         };
         bump_registry_revision(&mut document);
@@ -2350,6 +2497,41 @@ mod tests {
     }
 
     #[test]
+    fn a_session_name_becomes_the_tab_name_unless_automatic_after_a_user_name() {
+        let mut tab = record("tab-1", 1, "running", None);
+        bridge::apply_session_name(&mut tab, " fix-login ", Some("auto"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("fix-login", "auto")
+        );
+        bridge::apply_session_name(&mut tab, "what is there", Some("user"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("what is there", "user"),
+            "a /name over an automatic name renames the tab"
+        );
+        bridge::apply_session_name(&mut tab, "later-auto", Some("auto"));
+        assert_eq!(
+            tab.display_name, "what is there",
+            "an automatic name never replaces a user name"
+        );
+        bridge::apply_session_name(&mut tab, "again", Some("odd"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("again", "user")
+        );
+        for invalid in ["  ", "bell\u{7}", &"x".repeat(65)] {
+            bridge::apply_session_name(&mut tab, invalid, Some("user"));
+            assert_eq!(tab.display_name, "again");
+        }
+        bridge::apply_session_name(&mut tab, "Agent", Some("default"));
+        assert_eq!(
+            (tab.display_name.as_str(), tab.name_source.as_str()),
+            ("Agent", "default")
+        );
+    }
+
+    #[test]
     fn bridge_session_reads_the_child_name_source() {
         // Protocol: The child bridge client sends camelCase `nameSource`.
         let child: BridgeSession =
@@ -2460,6 +2642,19 @@ mod tests {
     }
 
     #[test]
+    fn create_cancellation_matches_only_this_connections_request() {
+        let current = Mutex::new(None);
+        let frame = wire::frame("tab.create", Some(7), wire::ResultBody::ok()).unwrap();
+        let token = begin_client_create(&current, &wire::kind(&frame[4..]).unwrap()).unwrap();
+        let wrong = wire::frame("tab.cancel-create", None, serde_json::json!({ "requestId": 8 })).unwrap();
+        cancel_client_create(&current, &wrong[4..]).unwrap();
+        assert!(!token.load(Ordering::Acquire));
+        let matching = wire::frame("tab.cancel-create", None, serde_json::json!({ "requestId": 7 })).unwrap();
+        cancel_client_create(&current, &matching[4..]).unwrap();
+        assert!(token.load(Ordering::Acquire));
+    }
+
+    #[test]
     fn a_full_lifecycle_refusal_reaches_the_client_without_waiting() {
         let (tx, rx) = mpsc::sync_channel(CONTROL_LANE_FRAMES);
         let peer = Peer {
@@ -2469,10 +2664,13 @@ mod tests {
             surface_signaled: Arc::new(AtomicBool::new(false)),
             surface_replaced: Arc::new(AtomicBool::new(false)),
         };
+        let encoded = wire::frame("tab.create", Some(7), wire::ResultBody::ok()).unwrap();
+        assert_eq!(wire::kind(&encoded[4..]).unwrap().request_id, Some(7));
         let request = LifecycleRequest {
             message_type: "tab.create".into(),
             request_id: Some(7),
             payload: Vec::new(),
+            cancelled: None,
         };
         refuse_lifecycle(&peer, &request, "busy".into());
         let frame = rx.try_recv().expect("refusal frame");

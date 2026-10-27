@@ -2,11 +2,11 @@
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, copyFileSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { copyFile, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
+import { createResidentFixtureRoot, writeFixtureRoleEntry } from "./resident-input-responsiveness.mjs";
 
 // Rationale: a bounded randomized run against the release-built terminal host. It kills servers,
 // holders, and agents, churns tabs, and checks after every action that no tab or holder is
@@ -23,7 +23,21 @@ const SERVER_START_BUDGET = 3;
 // Rationale: a margin past the 60-second budget window covers a start recorded just before the kill.
 const SERVER_START_WINDOW_SECONDS = 65;
 const MAX_DIAGNOSTIC_LINES = 120;
-const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
+/** Keep the certified native child under the real, release-pinned Node process and PTY. */
+export function chaosChildSource(executable) {
+  return `const { spawn } = require("node:child_process");
+const { mkdirSync, writeFileSync } = require("node:fs");
+const { join } = require("node:path");
+const directory = process.argv[process.argv.indexOf("--tab-data-dir") + 1];
+const child = spawn(${JSON.stringify(executable)}, process.argv.slice(2), { stdio: "inherit" });
+child.once("spawn", () => {
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "fixture-child.json"), JSON.stringify({ parent: process.pid, pid: child.pid }));
+});
+child.once("error", error => { console.error(error.message); process.exit(1); });
+child.once("exit", code => process.exit(code ?? 1));
+`;
+}
 
 export function percentile(values, fraction) {
   if (values.length === 0) return null;
@@ -200,7 +214,7 @@ function buildArtifacts() {
 
 async function main() {
   const built = process.argv.includes("--build") ? buildArtifacts() : null;
-  const host = built?.host ?? resolve(option("--host", ""));
+  const sourceHost = built?.host ?? resolve(option("--host", ""));
   const fakeTab = built?.fakeTab ?? resolve(option("--fake-tab", ""));
   const seconds = Number(option("--seconds", process.env.RESIDENT_CHAOS_SECONDS ?? String(DEFAULT_SECONDS)));
   const resultPath = option("--result", built ? `.artifacts/validation/resident-chaos-${process.platform}-${process.arch}.json` : null);
@@ -214,9 +228,17 @@ async function main() {
   }
   const random = createGenerator(seed);
   process.stderr.write(planned === null ? `resident chaos seed ${seed}\n` : `resident chaos replaying ${planned.length} actions of seed ${seed} from ${replayPath}\n`);
-  const root = await mkdtemp(join(tmpdir(), "a1-chaos-"));
+  const root = await createResidentFixtureRoot("a1-chaos-");
   const [profile, data, runtime, release] = ["profile", "data", "runtime", "release"].map(name => join(root, name));
-  for (const directory of [profile, data, runtime, release]) await mkdir(directory, { recursive: true, mode: 0o700 });
+  const nativeDirectory = join(release, "dist", "native", `${process.platform}-${process.arch}`);
+  const uiEntry = join(release, "bin", "ui.js");
+  for (const directory of [profile, data, runtime, nativeDirectory, dirname(uiEntry)]) await mkdir(directory, { recursive: true, mode: 0o700 });
+  // Provenance: retain the feature-free shipping bytes, but give their pinned Node a complete isolated release.
+  const host = join(nativeDirectory, "terminal-host.node");
+  await copyFile(sourceHost, host);
+  const hostEntry = await writeFixtureRoleEntry(root, host);
+  await writeFile(join(release, "package.json"), '{"type":"commonjs"}\n');
+  await writeFile(uiEntry, chaosChildSource(fakeTab));
   const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-tabs-chaos-${process.pid}-${randomBytes(4).toString("hex")}` : join(runtime, "resident.sock");
   const environment = { ...process.env, A1_TABS_ENDPOINT: endpoint, A1_DEV_INSTANCE_ID: process.env.A1_DEV_INSTANCE_ID ?? "terminal-host-validation", A1_TERMINAL_HOST_PATH: host };
   const common = ["--profile", profile, "--data-dir", data, "--runtime-dir", runtime];
@@ -281,17 +303,25 @@ async function main() {
     }
     if (chosen.kind === "create") {
       const started = performance.now();
-      const created = run(["internal", "tab-create", ...common, "--cwd", release, "--release-root", release, "--node-executable", fakeTab], {
+      const created = run(["internal", "tab-create", ...common, "--cwd", release, "--release-root", release, "--node-executable", process.execPath], {
         TERMINAL_HOST_FAKE_TAB_MODE: chosen.mode,
         TERMINAL_HOST_FAKE_TAB_STREAM_BYTES: String(chosen.bytes),
       });
       const tabId = created.status === 0 ? JSON.parse(created.stdout).tabId : null;
       if (tabId !== null) { entry.createdTab = ordinals.size; ordinals.set(tabId, ordinals.size); }
-      const ready = tabId === null ? null : await until(async () => (await registry()).tabs.some(tab => tab.tabId === tabId && tab.childPid), 15_000);
-      if (ready !== null) samples.coldTabCreateMs.push(performance.now() - started);
-      else await sleep(250);
+      const ready = tabId === null ? null : await until(async () => {
+        const tab = (await registry()).tabs.find(tab => tab.tabId === tabId && tab.childPid);
+        if (!tab) return false;
+        const witness = await readFile(join(await stateDirOnce(), tabId, "fixture-child.json"), "utf8").then(JSON.parse).catch(() => ({}));
+        return witness.parent === tab.childPid && typeof witness.pid === "number" && alive(witness.pid);
+      }, 15_000);
       entry.outcome = tabId === null ? "create-refused" : `create-${chosen.mode}`;
       count(entry.outcome);
+      if (ready !== null) samples.coldTabCreateMs.push(performance.now() - started);
+      else {
+        violations.push({ violation: "tab did not start its certified fixture child", step: entry.step, status: created.status, stderr: created.stderr.slice(-2000) });
+        break;
+      }
     } else if (chosen.kind === "kill-server") {
       const { pid } = await marker();
       // Invariant: holders replace a killed server, so it is killed only while a tab has a live holder.
@@ -340,16 +370,17 @@ async function main() {
     }
   }
 
+  if (samples.coldTabCreateMs.length === 0) violations.push("chaos exercised no ready fixture tabs");
   const finalListing = tabs(["list"]);
   violations.push(...listingViolations(finalListing.result?.tabs ?? []));
   const stopped = tabs(["host-stop"]);
   // Rationale: the result's `remainingReasons` names why each tab stayed, so the text keeps room for it.
   if (!["stopped", "none"].includes(stopped.host)) violations.push(`host stop reported ${stopped.host}: ${JSON.stringify(stopped).slice(0, 2000)}`);
   const orphanDeadline = Date.now() + 15_000;
-  let orphans = processesUsing([hostEntry, fakeTab], root);
+  let orphans = processesUsing([hostEntry, fakeTab, uiEntry], root);
   while (orphans.length > 0 && Date.now() < orphanDeadline) {
     await sleep(250);
-    orphans = processesUsing([hostEntry, fakeTab], root).filter(alive);
+    orphans = processesUsing([hostEntry, fakeTab, uiEntry], root).filter(alive);
   }
   if (orphans.length > 0) violations.push(`orphaned resident processes: ${orphans.map(pid => `${pid} (${describeProcess(pid)})`).join(", ")}`);
   for (const pid of orphans) kill(pid);

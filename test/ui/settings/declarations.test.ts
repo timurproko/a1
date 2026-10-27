@@ -45,11 +45,13 @@ describe("owned UI setting declarations", () => {
       "scrollbarStyle",
       "scrollbarSpeed",
       "promptHistoryEnabled",
+      "promptHistoryScope",
       "promptHistoryMaxItems",
       "promptSuggestions",
       "skillsPresentation",
       "promptImageLimit",
       "tabsPosition",
+      "tabBarPlusMenu",
       "tabsAutoName",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "timeFormat")).toMatchObject({
@@ -63,8 +65,8 @@ describe("owned UI setting declarations", () => {
       label: "Accent color",
       section: { id: "appearance", title: "Appearance" },
       application: "live",
-      defaultValue: "purple",
-      allowedValues: ["purple", "blue", "cyan", "green", "orange", "pink"],
+      defaultValue: "blue",
+      allowedValues: ["blue", "purple", "cyan", "green", "orange", "pink"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "accentColor")?.description)
       .toMatch(/list markers.*tonal interface surfaces/i);
@@ -104,14 +106,14 @@ describe("owned UI setting declarations", () => {
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMax")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsAutoName")).toMatchObject({
       label: "Auto name",
-      section: { id: "tabs", title: "Tabs" },
+      section: { id: "tabs", title: "Tab Bar" },
       application: "live",
       defaultValue: true,
       allowedValues: [true, false],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsPosition")).toMatchObject({
       label: "Position",
-      section: { id: "tabs", title: "Tabs" },
+      section: { id: "tabs", title: "Tab Bar" },
       application: "live",
       defaultValue: "top",
       allowedValues: ["top", "bottom"],
@@ -145,6 +147,9 @@ describe("owned UI setting declarations", () => {
   it("declares next-start persistent history controls without Pi-owned settings", () => {
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptHistoryEnabled")).toMatchObject({
       label: "Persistent history", section: { id: "history", title: "History" }, application: "restart", defaultValue: true, allowedValues: [true, false],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptHistoryScope")).toMatchObject({
+      label: "History scope", section: { id: "history", title: "History" }, application: "live", defaultValue: "unique", allowedValues: ["unique", "shared"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "promptHistoryMaxItems")).toMatchObject({
       label: "History limit", section: { id: "history", title: "History" }, application: "restart", defaultValue: 100, allowedValues: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
@@ -367,7 +372,7 @@ describe("owned UI settings migrations", () => {
     });
     expect(resolved).toMatchObject({ version: OWNED_UI_SETTINGS_VERSION, migrated: true, notices: [] });
     expect(resolved.settings.find(setting => setting.declaration.id === "accentColor"))
-      .toMatchObject({ value: "purple", source: "default" });
+      .toMatchObject({ value: "blue", source: "default" });
     expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck"))
       .toMatchObject({ value: "no", source: "stored" });
     expect(resolved.preserved).toEqual({ future: true });
@@ -385,7 +390,7 @@ describe("owned UI settings migrations", () => {
       document: { version: 13, values: { accentColor: "violet" } },
     });
     expect(invalid.settings.find(setting => setting.declaration.id === "accentColor"))
-      .toMatchObject({ value: "purple", source: "default" });
+      .toMatchObject({ value: "blue", source: "default" });
     expect(invalid.notices).toEqual([expect.objectContaining({ code: "value-rejected", settingId: "accentColor" })]);
   });
 

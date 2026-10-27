@@ -1,6 +1,6 @@
 import { lstat, mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { resolve, toNamespacedPath } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CohortStateStore,
@@ -171,14 +171,39 @@ describe("bounded immutable release cleanup", () => {
     await expect(lstat(heldByTab!.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
   });
 
+  it.each(["namespaced", "aliased"])("matches %s resident paths to the same managed release", async spelling => {
+    const fixture = await releaseFixture(4);
+    await activateAll(fixture.store, fixture.releases);
+    const [held, unheld] = fixture.releases;
+    const alias = resolve(fixture.root, "data-alias");
+    await symlink(fixture.dataDir, alias, "junction");
+    const reportedRoot = spelling === "namespaced"
+      ? toNamespacedPath(held!.releaseRoot)
+      : resolve(alias, "releases", held!.releaseId);
+    const residentHolds = async () => ({ complete: true, releaseRoots: [reportedRoot], uncertain: [] });
+
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
+    const state = await fixture.store.read();
+    expect(state.releases[held!.releaseId]).toBeDefined();
+    expect(state.releases[unheld!.releaseId]).toBeUndefined();
+    await expect(lstat(held!.releaseRoot)).resolves.toBeTruthy();
+
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, {
+      transactionStore: noTransaction,
+      residentHolds: async () => ({ complete: true, releaseRoots: [], uncertain: [] }),
+    });
+    expect((await fixture.store.read()).releases[held!.releaseId]).toBeUndefined();
+  });
+
   it("keeps every release when resident inspection is incomplete or names an unknown stored release", async () => {
     for (const report of [
       { complete: false, releaseRoots: [] as string[], uncertain: ["registry unreadable"] },
       { complete: true, releaseRoots: ["<store>/unknown-release"], uncertain: [] as string[] },
+      { complete: true, releaseRoots: ["<outside>/unresolvable-release"], uncertain: [] as string[] },
     ]) {
       const fixture = await releaseFixture(4);
       await activateAll(fixture.store, fixture.releases);
-      const roots = report.releaseRoots.map(root => root.replace("<store>", resolve(fixture.dataDir, "releases")));
+      const roots = report.releaseRoots.map(root => root.replace("<store>", resolve(fixture.dataDir, "releases")).replace("<outside>", fixture.root));
       await runBoundedReleaseCleanup(fixture.dataDir, undefined, {
         transactionStore: noTransaction,
         residentHolds: async () => ({ ...report, releaseRoots: roots }),

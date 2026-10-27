@@ -6,6 +6,7 @@ import type { OwnedUiTranscriptBlock, OwnedUiTranscriptBlockKind } from "../../.
 import {
   applyPiTheme,
   createPiShellTranscriptComponent,
+  setPiAccentColor,
 } from "../../../../src/integrations/pi/components/index.js";
 import { capturePinnedTranscriptFrames } from "./pinned-transcript-upstream-fixture.js";
 
@@ -23,6 +24,7 @@ function block(
 
 function actualFrames(width: number, resizedWidth: number) {
   applyPiTheme("dark");
+  setPiAccentColor("purple");
   const initialBlocks = {
     assistant: block("assistant", "assistant", "Hello 🌍", "live", 1, { stopReason: "pending", timestamp: 0 }),
     thinking: block("thinking", "thinking", "Plan 日本語", "live", 1, { stopReason: "pending", timestamp: 0 }),
@@ -81,6 +83,7 @@ describe("pinned transcript component lifecycle parity", () => {
     };
     pinned.initTheme("dark", false);
     applyPiTheme("dark");
+    setPiAccentColor("purple");
     const cases = [
       { value: block("system", "system", "System notice", "finalized", 1), expected: pinned.theme.fg("dim", "System notice") },
       { value: block("error", "error", "Failure café", "finalized", 1), expected: pinned.theme.fg("error", "Error: Failure café") },

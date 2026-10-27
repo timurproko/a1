@@ -1,10 +1,12 @@
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
+import { residentUtilityRoute, type ResidentTabRoute } from "../foundation/resident-tabs/routes.js";
 import type { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
 import { deriveResidentTabStatus, type ResidentTabTurnSettlement } from "../features/resident-tab/status-deriver.js";
 import { projectResidentTabShortcuts } from "../features/resident-tab/shortcut-projection.js";
 import { readShortcutBindingsFile } from "../features/resident-tab/shortcut-bindings-file.js";
 import type { PiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 import type { ComposedSessionBackend } from "./session-backend.js";
+import type { OwnedRouteHostOptions } from "./settings-route-host.js";
 
 /**
  * The keybindings the shells borrow. Inside a resident tab the host dispatches and labels the tab
@@ -25,11 +27,31 @@ export function residentTabKeybindings(
   return { ...keybindingsHost, reload: () => { keybindingsHost.reload(); publish(); } };
 }
 
+/**
+ * How owned screens are presented in a resident tab: a Settings or Changelog tab's screen is the tab, and the Plus menu entry opens
+ * the tab bar's own Plus Menu dialog while this tab's controlling client can show it.
+ */
+export function residentRouteHostOptions(tabBridge: TabBridgeClient | null): OwnedRouteHostOptions {
+  return {
+    ...(tabBridge === null ? {} : { tabRoute: residentUtilityRoute(tabBridge.tabId) }),
+    configurePlusMenu: () => {
+      if (tabBridge === null || !tabBridge.available || tabBridge.captureAttachment() === null) return false;
+      void tabBridge.requestAction("configure-plus");
+      return true;
+    },
+  };
+}
+
+/** Closes a utility tab when its own screen closes. Invariant: a utility tab's screen is the tab. */
+export function closeResidentUtilityRoute(tabBridge: Pick<TabBridgeClient, "tabId" | "requestClose">, route: string): void {
+  if (residentUtilityRoute(tabBridge.tabId) === route) void tabBridge.requestClose();
+}
+
 export async function bindResidentTabBridge(
   tabBridge: TabBridgeClient,
   backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows" | "generateResidentTabName">,
   recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
-  options: { readonly autoName?: boolean; readonly openRoute?: (route: "settings") => void } = {},
+  options: { readonly autoName?: boolean; readonly openRoute?: (route: ResidentTabRoute) => void } = {},
 ): Promise<() => void> {
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");

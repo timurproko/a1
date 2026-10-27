@@ -1,7 +1,7 @@
 import type { Worker } from "node:worker_threads";
 import { assertPromptHistorySubmission, PROMPT_HISTORY_MAX_ENTRY_BYTES, PROMPT_HISTORY_MAX_PENDING, PROMPT_HISTORY_MAX_TEXT_BYTES, type PromptHistoryFailure, type PromptHistoryPort, type PromptHistoryResult, type PromptHistorySnapshot, type PromptHistorySubmission } from "../../contracts/owned-ui/index.js";
 import type { HistoryWorkerRequest } from "./worker.js";
-import { resolvePromptHistoryPath } from "./paths.js";
+import { resolvePromptHistoryPath, type PromptHistoryScope } from "./paths.js";
 
 export type HistoryRecoveryState = "starting" | "ready" | "recovering" | "blocked-storage" | "closing" | "closed";
 export interface HistoryClock {
@@ -47,8 +47,8 @@ export class PromptHistoryService implements PromptHistoryPort {
   #closePromise: Promise<void> | undefined;
   #resolveClose: (() => void) | undefined;
 
-  readonly options: { dataDir: string; profileRoot: string; limit: number; createWorker?: () => Worker; clock?: HistoryClock; random?: () => number };
-  constructor(options: { dataDir: string; profileRoot: string; limit: number; createWorker?: () => Worker; clock?: HistoryClock; random?: () => number }) {
+  readonly options: { dataDir: string; profileRoot: string; limit: number; scope?: PromptHistoryScope; sessionId?: string; createWorker?: () => Worker; clock?: HistoryClock; random?: () => number };
+  constructor(options: { dataDir: string; profileRoot: string; limit: number; scope?: PromptHistoryScope; sessionId?: string; createWorker?: () => Worker; clock?: HistoryClock; random?: () => number }) {
     this.options = options;
     this.#clock = options.clock ?? clock;
   }
@@ -128,7 +128,7 @@ export class PromptHistoryService implements PromptHistoryPort {
     try {
       const { Worker } = await import("node:worker_threads");
       if (this.#isClosed() || generation !== this.#generation) return;
-      const location = resolvePromptHistoryPath(this.options.dataDir, this.options.profileRoot);
+      const location = resolvePromptHistoryPath(this.options.dataDir, this.options.profileRoot, process.platform, this.options.scope, this.options.sessionId);
       const source = import.meta.url.endsWith(".ts");
       const entry = new URL(source ? "./worker.ts" : "./worker.js", import.meta.url);
       const options = { workerData: { ...location, limit: this.options.limit }, stdout: true, stderr: true };

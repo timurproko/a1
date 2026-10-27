@@ -8,7 +8,7 @@ export interface ProgressObservation {
   readonly timestampUnixUs: number;
   readonly clockErrorUs: number;
   readonly sequence: number;
-  readonly tabId: string;
+  readonly tabId?: string;
   readonly incarnation: number;
   readonly eventSequence: number;
   readonly revision: number;
@@ -21,6 +21,11 @@ export interface ProgressObservation {
   readonly renderCause?: string;
   readonly fragmentCount?: number;
   readonly transactionKind?: "synchronized-output" | "ordinary";
+  readonly durationUs?: number;
+  readonly idleWaitUs?: number;
+  readonly monotonicUs?: number;
+  readonly clockEpoch?: number;
+  readonly clockDiscontinuity?: boolean;
 }
 
 export const progressObservationSchema: "a1-resident-progress-observation-v1";
@@ -46,6 +51,10 @@ export function evaluateProgressScenario(records: readonly ProgressObservation[]
   byTab: Record<string, Record<string, number>>;
   observedFirstOrder: string[];
 };
+export interface StopObservationBoundary {
+  readonly processInstance: string;
+  readonly sequence: number;
+}
 export function evaluateStoppedStageControl(records: readonly ProgressObservation[], control: {
   readonly id: string;
   readonly stage: "engine-delivery" | "child-render-write" | "holder-commit" | "outer-paint";
@@ -54,6 +63,7 @@ export function evaluateStoppedStageControl(records: readonly ProgressObservatio
   readonly startedUnixUs: number;
   readonly barrierUnixUs: number;
   readonly engineBaselines: Readonly<Record<string, number>>;
+  readonly stopBoundary?: StopObservationBoundary;
 }): {
   id: string;
   stage: string;
@@ -61,9 +71,10 @@ export function evaluateStoppedStageControl(records: readonly ProgressObservatio
   passed: boolean;
   faults: string[];
   counts: Record<string, Record<string, number>>;
+  stopBoundary?: StopObservationBoundary;
 };
 export function progressLatencyReport(records: readonly ProgressObservation[], tabIds: readonly string[],
-  activeWindows?: readonly { readonly startedUnixUs: number; readonly barrierUnixUs: number }[] | null): {
+  activeWindows?: readonly { readonly startedUnixUs: number; readonly barrierUnixUs: number; readonly viewedTabIds?: readonly string[] }[] | null): {
   perTab: Record<string, {
     engineToRender: LatencySummary;
     renderToPty: LatencySummary;
@@ -71,5 +82,6 @@ export function progressLatencyReport(records: readonly ProgressObservation[], t
     holderWorstGapMs: number | null;
   }>;
   faults: string[];
+  localCompletions: Record<string, LatencySummary>;
 };
 export interface LatencySummary { readonly count: number; readonly p50Ms: number | null; readonly p95Ms: number | null; readonly maximumMs: number | null }

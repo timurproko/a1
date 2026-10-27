@@ -95,6 +95,7 @@ import {
   shellResourceEntries,
   type OwnedUiSessionShellOptions,
   type OwnedUiShellPresentationOptions,
+  type OwnedUiShellHistoryOptions,
   type OwnedUiShellPromptImagesOptions,
   type OwnedUiShellSkillsOptions,
   type PinnedLayoutPart,
@@ -103,6 +104,12 @@ import {
 
 // Invariant: a disposed shell leaves the engine a host that holds no reference back to it.
 const DETACHED_WORKFLOW_INTERACTION: OwnedUiWorkflowInteractionHost = { prompt: async () => null, notify() {} };
+/** Resident Agents refuse the commands their tab bar serves instead, naming where they live. */
+const RESIDENT_UTILITY_TAB_REFUSALS: Readonly<Record<string, string>> = Object.freeze({
+  settings: "Settings is available from the global Settings tab.",
+  changelog: "The changelog opens as its own tab from the command palette (Alt+/).",
+  name: "Rename the session by renaming its tab (F2).",
+});
 
 export {
   OwnedUiSessionShellRoot,
@@ -144,7 +151,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #unsubscribeSkills: () => void;
   #installedCommandSignature = "";
   #promptHistory: PromptHistoryController | null = null;
-  #promptHistoryImageSidecar: import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort | undefined;
+  #historyBinding: { options: OwnedUiShellHistoryOptions; scope: "unique" | "shared"; sessionId: string | undefined; imageSidecar: import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort | undefined } | undefined;
   readonly #extensionBridge: PiExtensionUiBridge;
   readonly #stop = new SessionStopLatch();
   readonly #dialogs: SessionDialogCoordinator;
@@ -256,7 +263,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         }),
         enableDockInputReuse: inputPresentation?.viewportReuse !== false,
         footerSessionName: options.engine.residentTab === undefined,
-        hideSettingsCommand: options.engine.residentTab !== undefined,
+        hideUtilityTabCommands: options.engine.residentTab !== undefined,
         persistentHistory: this.#customViewport && promptHistory !== undefined,
         ...(promptHistory === undefined ? {} : { historyEditor: promptHistory.editor }),
         onSubmit: text => { void this.submit(text).catch(() => this.#submission.reportError()); },
@@ -409,9 +416,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         });
       };
       applyViewportSettings();
-      this.#unsubscribeSettings = this.#customViewport && viewportSettings
-        ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings))
-        : () => {};
+      const unsubscribeViewport = this.#customViewport && viewportSettings ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings)) : () => {};
+      const unsubscribeHistoryScope = this.#customViewport && promptHistory?.onScopeChange?.(scope => this.#rebindTranscript(scope));
+      this.#unsubscribeSettings = () => { unsubscribeViewport(); if (unsubscribeHistoryScope) unsubscribeHistoryScope(); };
       constructed.push(this.#unsubscribeSettings);
       this.#unbindSessionSettings = bindSessionSettings(this.backend.settings, initialPiSettings, {
         terminal: this.#terminal,
@@ -423,8 +430,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       }, { customViewport: this.#customViewport });
       constructed.push(this.#unbindSessionSettings);
       if (this.#customViewport && promptHistory !== undefined) {
-        this.#promptHistoryImageSidecar = promptHistory.imageSidecar;
-        const sidecar = this.#promptHistoryImageSidecar;
+        this.#historyBinding = { options: promptHistory, scope: promptHistory.scope ?? "unique", sessionId: promptHistory.sessionId, imageSidecar: promptHistory.imageSidecar };
         this.#promptHistory = new PromptHistoryController({
           editor: this.root.editor,
           store: promptHistory.store,
@@ -432,7 +438,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
           active: () => this.root.usesDefaultInputSurface(),
           render: () => this.#terminal.requestRender(),
-          rehydrate: value => this.root.rehydrateHistoryText(value, id => sidecar?.readAttachment(id) ?? null),
+          rehydrate: value => this.root.rehydrateHistoryText(value, id => this.#historyBinding?.imageSidecar?.readAttachment(id) ?? null),
         });
         constructed.push(() => { void this.#promptHistory?.close().catch(() => false); });
       }
@@ -1261,7 +1267,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       residentTab: this.#resident,
       cwd,
       promptHistory: () => this.#promptHistory,
-      imageSidecar: () => this.#promptHistoryImageSidecar,
+      imageSidecar: () => this.#historyBinding?.imageSidecar,
       disposed: () => this.#disposed,
       correlation: prefix => this.#correlation(prefix),
       lifecycle: () => this.view().lifecycle,
@@ -1292,12 +1298,52 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     ]);
   }
 
-  // Invariant: delivery recovery invalidates callbacks, not same-session local recall or its draft.
-  #rebindTranscript(): void {
-    if (this.#sessionBindingGeneration === this.backend.identity.sessionBindingGeneration) return;
-    this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
-    this.root.resetTranscript();
-    this.#promptHistory?.reset(this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
+  // Invariant: delivery recovery does not replace a store; conversation or live scope changes can.
+  #rebindTranscript(scope?: "unique" | "shared"): void {
+    const replaced = this.#sessionBindingGeneration !== this.backend.identity.sessionBindingGeneration;
+    if (!replaced && scope === undefined) return;
+    if (replaced) {
+      this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
+      this.root.resetTranscript();
+    }
+    const binding = this.#historyBinding;
+    if (binding?.options.forSession !== undefined || binding?.options.forScope !== undefined) {
+      const sessionId = this.backend.identity.currentHistorySessionId();
+      const selectedScope = scope ?? binding.scope;
+      if (selectedScope !== binding.scope || sessionId !== binding.sessionId) {
+        if (!replaced) this.root.editor.recall?.restoreDraft?.();
+        const previous = this.#promptHistory;
+        this.#promptHistory = null;
+        binding.imageSidecar = undefined;
+        binding.scope = selectedScope;
+        binding.sessionId = sessionId ?? undefined;
+        void previous?.close().catch(() => false);
+        const destination = binding.options.forScope !== undefined
+          ? binding.options.forScope(selectedScope, sessionId)
+          : sessionId === null ? null : binding.options.forSession!(sessionId);
+        if (destination !== null) {
+          binding.imageSidecar = destination.imageSidecar;
+          const controller = new PromptHistoryController({
+            editor: this.root.editor,
+            store: destination.store,
+            limit: binding.options.limit,
+            fallback: replaced ? this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []) : [],
+            active: () => this.root.usesDefaultInputSurface(),
+            render: () => this.#terminal.requestRender(),
+            rehydrate: value => this.root.rehydrateHistoryText(value, id => this.#historyBinding?.imageSidecar?.readAttachment(id) ?? null),
+          });
+          this.#promptHistory = controller;
+          if (this.#started) controller.start();
+        } else {
+          // Security: missing identity must not reopen Shared or retain another session's recall.
+          const fallback = replaced ? this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []).reverse() : [];
+          this.root.editor.recall?.reset();
+          this.root.editor.recall?.replace(fallback);
+        }
+        return;
+      }
+    }
+    if (replaced) this.#promptHistory?.reset(this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
   }
 
   #syncTerminalProgress(view: OwnedUiSessionViewModel): void {
@@ -1361,9 +1407,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const separator = body.search(/\s/);
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
-    if (name === "settings" && this.#resident.active) {
-      return rejected("Settings is available from the global Settings tab.");
-    }
+    const utilityTab = this.#resident.active ? RESIDENT_UTILITY_TAB_REFUSALS[name] : undefined;
+    if (utilityTab !== undefined) return rejected(utilityTab);
     if (this.#dialogs.claimsRoute(name)) return this.#dialogs.openRoute(name);
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {

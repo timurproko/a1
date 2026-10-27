@@ -94,7 +94,7 @@ describe("owned settings manager", () => {
     const manager = new OwnedSettingsManager({
       configDir: root,
       profileId: "a1",
-      hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition"],
+      hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabBarPlusMenu"],
     });
     expect(manager.sections().find(section => section.id === "tabs")).toBeUndefined();
     expect(manager.value("tabsAutoName")).toBe(true);
@@ -144,7 +144,7 @@ describe("owned settings manager", () => {
       const appearance = target.sections().find(section => section.id === "appearance")?.entries;
       const accent = appearance?.[0];
       const background = appearance?.[1];
-      expect(accent).toMatchObject({ id: "accentColor", backend: "a1", value: "purple", effectiveValue: "purple", editable: true, application: "live" });
+      expect(accent).toMatchObject({ id: "accentColor", backend: "a1", value: "blue", effectiveValue: "blue", editable: true, application: "live" });
       expect(background).toMatchObject({ id: "backgroundStyle", backend: "a1", value: "transparent", effectiveValue: "transparent", editable: true, application: "live" });
       expect(group?.entries.slice(-3).map(candidate => candidate.id)).toEqual(["promptSuggestions", "skillsPresentation", "promptImageLimit"]);
 
@@ -216,12 +216,15 @@ describe("owned settings manager", () => {
     target.onChange(() => { notified += 1; });
     await peer.change("a1", "accentColor", "orange");
     await peer.change("a1", "promptHistoryEnabled", false);
-    expect(target.value("accentColor")).toBe("purple");
+    await peer.change("a1", "promptHistoryScope", "shared");
+    expect(target.value("accentColor")).toBe("blue");
     expect(target.refresh()).toBe(true);
     expect(notified).toBe(1);
     expect(target.value("accentColor")).toBe("orange");
     expect(target.value("promptHistoryEnabled")).toBe(true);
     expect(target.pendingValue("promptHistoryEnabled")).toBe(false);
+    expect(target.value("promptHistoryScope")).toBe("shared");
+    expect(target.pendingValue("promptHistoryScope")).toBeNull();
     expect(target.refresh()).toBe(false);
     await target.change("a1", "accentColor", "green");
     notified = 0;
@@ -229,21 +232,32 @@ describe("owned settings manager", () => {
     expect(notified).toBe(0);
   });
 
-  it("preserves multiple pending history settings through reload and unrelated live saves", async () => {
+  it("applies live scope while preserving pending restart-only history settings", async () => {
     const session = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     await session.change("a1", "promptHistoryEnabled", false);
+    await session.change("a1", "promptHistoryScope", "shared");
     await session.change("a1", "promptHistoryMaxItems", 20);
     await session.change("a1", "promptSuggestions", false);
     await session.load();
     expect(session.value("promptHistoryEnabled")).toBe(true);
+    expect(session.value("promptHistoryScope")).toBe("shared");
     expect(session.value("promptHistoryMaxItems")).toBe(100);
     const entries = session.sections().flatMap(section => section.entries);
     expect(entries.find(entry => entry.id === "promptHistoryEnabled")).toMatchObject({ storedValue: false, effectiveValue: true, application: "next-start" });
+    expect(entries.find(entry => entry.id === "promptHistoryScope")).toMatchObject({ storedValue: "shared", effectiveValue: "shared", application: "live" });
     expect(entries.find(entry => entry.id === "promptHistoryMaxItems")).toMatchObject({ storedValue: 20, effectiveValue: 100 });
     const restarted = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     expect(restarted.value("promptHistoryEnabled")).toBe(false);
+    expect(restarted.value("promptHistoryScope")).toBe("shared");
     expect(restarted.value("promptHistoryMaxItems")).toBe(20);
     expect(restarted.value("promptSuggestions")).toBe(false);
+  });
+
+  it("defaults an invalid stored history scope without losing other saved values", () => {
+    writeFileSync(path.join(root, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { promptHistoryScope: "all", promptHistoryMaxItems: 20 } }));
+    const manager = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    expect(manager.value("promptHistoryScope")).toBe("unique");
+    expect(manager.value("promptHistoryMaxItems")).toBe(20);
   });
 
   it("normalizes recognizable flat legacy shapes on the next accepted change", async () => {
@@ -259,7 +273,7 @@ describe("owned settings manager", () => {
     expect(JSON.parse(readFileSync(target.file, "utf8"))).toEqual({
       theme: "dark",
       [namespace]: {
-        futureSetting: "keep", scrollbarSpeed: "high", promptSuggestions: false,
+        futureSetting: "keep", scrollbarSpeed: "high", accentColor: "purple", promptSuggestions: false,
       },
     });
   });
@@ -268,10 +282,11 @@ describe("owned settings manager", () => {
     const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     const speed: "normal" | "fast" | "high" = target.value("scrollbarSpeed");
     const limit: number = target.value("promptHistoryMaxItems");
+    const scope: "unique" | "shared" = target.value("promptHistoryScope");
     const animate: boolean = target.value("quitAnimation");
     const accent: "purple" | "blue" | "cyan" | "green" | "orange" | "pink" = target.value("accentColor");
     const background: "transparent" | "accent" | "dark" = target.value("backgroundStyle");
-    expect([speed, limit, animate, accent, background]).toEqual(["normal", 100, true, "purple", "transparent"]);
+    expect([speed, limit, scope, animate, accent, background]).toEqual(["normal", 100, "unique", true, "blue", "transparent"]);
     await target.change("a1", "scrollbarSpeed", "fast");
     expect(target.value("scrollbarSpeed")).toBe("fast");
     // Invariant: an injected declaration set that omits a setting still answers with the table default.

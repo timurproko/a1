@@ -148,20 +148,32 @@ The terminal host's I/O-free core SHALL admit input under exactly one controller
 - **THEN** the simulation test SHALL fail with the minimized event sequence
 
 ### Requirement: One authoritative resident server serves each user profile
-A1 SHALL run at most one authoritative resident terminal-host server per operating-system user and canonical A1 profile root on Windows x64, macOS, and Linux. Its endpoint SHALL be derived from the canonical profile home and runtime directory, SHALL be independent of the release cohort, and SHALL honor hermetic overrides. The endpoint SHALL provide discovery, while the owner-only operating-system exclusive registry-writer lease SHALL provide mutation authority. A starting server SHALL acquire that lease and increment the durable epoch before it serves. A starter that completes a handshake with a live server SHALL exit as already running and its caller SHALL attach to the winner. When the endpoint does not answer and the lease cannot be acquired, startup SHALL report blocked recovery, SHALL NOT start a second writer, and SHALL NOT signal the recorded owner. The server SHALL execute no A1, Pi, or extension code and SHALL own no pseudoterminal.
+A1 SHALL run at most one authoritative resident terminal-host server per operating-system user, canonical A1 profile root and immutable release identity on Windows x64, macOS and Linux. Different releases under one profile SHALL use separate hosts. Discovery endpoints and runtime authority SHALL include both canonical profile and immutable release identity, SHALL remain within platform limits, and SHALL honor hermetic overrides without permitting cross-release attachment. A matching protocol generation or displayed version alone SHALL NOT establish release equality. The endpoint SHALL provide discovery, while the owner-only operating-system exclusive registry-writer lease SHALL provide mutation authority within that exact namespace. A starting server SHALL acquire its namespace's lease and increment its durable epoch before it serves. A starter that completes an exact-release handshake with a live server SHALL exit as already running and its caller SHALL join that winner under the existing controller policy. When its endpoint does not answer and its lease cannot be acquired, startup SHALL report blocked recovery, SHALL NOT start a second writer in that namespace, and SHALL NOT signal another namespace's owner. The server SHALL execute no A1, Pi or extension code and SHALL own no pseudoterminal. Configuration and session-storage roots SHALL NOT be changed to implement runtime isolation.
 
 #### Scenario: Two launches race
-- **WHEN** two bare `a1` invocations of one profile start concurrently with resident tabs enabled and no server running
-- **THEN** exactly one server SHALL hold the writer lease and serve the endpoint
-- **AND** the other invocation SHALL either attach to it or be refused as attached elsewhere, without starting a second server
+- **WHEN** two invocations of the same immutable release and profile start concurrently with no matching server running
+- **THEN** exactly one server SHALL hold that namespace's writer lease and serve its endpoint
+- **AND** the other invocation SHALL join that winner or be refused under the existing controller policy without creating a second server
 
 #### Scenario: Endpoint silent while the lease is held
-- **WHEN** the endpoint does not answer but the registry-writer lease is still held
-- **THEN** startup SHALL report blocked recovery, bare `a1` SHALL use the direct fallback with its notice, and no process SHALL be signalled
+- **WHEN** the matching release's endpoint does not answer but its registry-writer lease is held
+- **THEN** startup SHALL report blocked recovery and use the ordinary direct fallback with its notice without signalling any unverified or different-release process
 
 #### Scenario: Different profiles
-- **WHEN** bare A1 runs with resident tabs enabled under two different profile roots
-- **THEN** each SHALL have its own server, registry, and tab without cross-visibility
+- **WHEN** the same release runs under two different canonical profile roots
+- **THEN** each SHALL have its own server, registry and tabs without cross-visibility
+
+#### Scenario: Different releases under one profile
+- **WHEN** release A already has a host and release B starts under the same profile with the same protocol generation
+- **THEN** B SHALL start or attach only to B's host and A's server, holders and children SHALL remain unchanged
+
+#### Scenario: Display version is not immutable identity
+- **WHEN** two immutable payload identities have the same displayed version
+- **THEN** their resident namespaces SHALL remain distinct
+
+#### Scenario: Wrong-release endpoint
+- **WHEN** an override or discovered endpoint responds with another immutable release identity
+- **THEN** the caller SHALL refuse that peer without adopting its state, negotiating a cross-release fallback, or signalling its owner
 
 ### Requirement: Each tab is owned by its own session holder
 Each tab SHALL be owned by exactly one native session holder process that creates and owns that tab's pseudoterminal (ConPTY on Windows), child process tree, and retained libghostty-vt terminal model with bounded scrollback, and that encodes input for the child's current terminal modes. The holder SHALL read and parse child output continuously whether or not any client views the tab, so the child never blocks on output. The holder SHALL answer the child's terminal queries from its own model. Holder input SHALL pass through a bounded queue: a paste SHALL be admitted only when it fits completely, an over-capacity paste SHALL be rejected visibly without delivering a prefix, and admitted bytes SHALL be written in order and never silently dropped. A server exit SHALL NOT terminate the holder, its child, or its retained model. When the child exits, the holder SHALL report the exit, the tab SHALL end without automatic restart, and its session SHALL remain resumable.
@@ -234,34 +246,42 @@ Viewing a tab SHALL deliver a complete committed retained surface of cells, attr
 - **AND** re-offering a cached revision SHALL not count as child-render progress
 
 ### Requirement: The tab registry is durable and lease-protected
-The server SHALL write the per-profile registry only while holding the owner-only OS-exclusive registry-writer lease and the current durable epoch. Every mutation SHALL recheck that authority and SHALL commit through milestone 1's durable atomic replacement before it is acknowledged. The registry SHALL record the tab's identity, kind, display name and name source, order, cwd, session location, desired state, lifecycle, incarnation, verified holder identity and release, last exit, registry revision, epoch, and boot identity. It SHALL NOT store credentials, environment values, prompt text, or terminal content. A failed write SHALL NOT be acknowledged and SHALL NOT stop the running tab.
+The server SHALL write only its canonical-profile and immutable-release registry while holding that namespace's owner-only OS-exclusive registry-writer lease and current durable epoch. Every mutation SHALL recheck that authority and SHALL commit through durable atomic replacement before acknowledgment. The registry SHALL record its release namespace and each tab's identity, kind, display name and name source, order, cwd, session location, desired state, lifecycle, incarnation, verified holder identity and release, last exit, registry revision, epoch and boot identity. It SHALL NOT store credentials, environment values, prompt text or terminal content. A failed write SHALL NOT be acknowledged and SHALL NOT stop the running tab. A registry or owner marker from another release or the legacy unversioned namespace SHALL NOT be adopted, overwritten or removed by this namespace.
 
 #### Scenario: Server killed right after a tab is created
-- **WHEN** the tab's creation is acknowledged and the server is then killed
-- **THEN** the next server SHALL find the tab's record with its session location and holder identity
+- **WHEN** creation is acknowledged and the matching server is killed
+- **THEN** its replacement SHALL find the tab's session location and holder identity only in the matching release namespace
 
 #### Scenario: Server without the writer lease
-- **WHEN** a server process no longer holds the registry-writer lease or its epoch is no longer current
-- **THEN** it SHALL reject the mutation without writing the registry or acknowledging success
+- **WHEN** a server lacks its namespace's registry-writer lease or current epoch
+- **THEN** it SHALL reject the mutation without writing or acknowledging success
 
 #### Scenario: Registry contents stay non-secret
-- **WHEN** the registry is read after a tab has run and been reattached
-- **THEN** it SHALL contain no token, derived credential, environment value, prompt text, or terminal content
+- **WHEN** a registry is read after tab execution and reattachment
+- **THEN** it SHALL contain no token, derived credential, environment value, prompt text or terminal content
+
+#### Scenario: Two release authorities coexist
+- **WHEN** two releases serve the same user profile concurrently
+- **THEN** each SHALL hold its independent registry lease and epoch without authorizing mutations in the other release's registry
 
 ### Requirement: Credentials survive server replacement without entering the registry
-Clients SHALL authenticate with a random owner-only client token. One random owner-only profile secret stored outside the registry SHALL derive the holder and bridge credentials from the tab identity and process incarnation. A server starting over an existing registry SHALL reproduce the expected credential from the secret and the recorded non-secret inputs, and SHALL adopt a recorded holder only after it presents that credential and its pid, native start identity, and boot identity verify. Endpoint, token, secret, lease, and registry access SHALL be restricted to the owning user. The server SHALL adopt, signal, or terminate a process only after that verification, and SHALL leave unverifiable processes untouched and reported.
+Clients SHALL authenticate with a random owner-only token scoped to the canonical profile and immutable release. One random owner-only secret outside each namespace's registry SHALL derive that namespace's holder and bridge credentials from tab identity and incarnation. A replacement server SHALL reproduce credentials only from its matching namespace and SHALL adopt a matching-release holder only after credential, pid, native start identity and boot identity verification. Exact release admission SHALL precede optional capabilities. Endpoint, token, secret, lease and registry access SHALL remain owner-only. Unverifiable processes and different-release or legacy namespaces SHALL remain untouched.
 
 #### Scenario: Process identifier reuse
 - **WHEN** a recorded holder pid now belongs to an unrelated process
-- **THEN** the server SHALL NOT adopt or terminate it and SHALL treat the tab's holder as gone
+- **THEN** the server SHALL NOT adopt or terminate it and SHALL treat the recorded holder as gone
 
 #### Scenario: Holder survives a server restart
-- **WHEN** the server exits while its holder keeps running, and a later bare `a1` starts a new server
-- **THEN** the new server SHALL re-admit the verified holder and the client SHALL view the same tab with its retained screen
+- **WHEN** a server exits while its holder survives and a later launch of that same release recovers it
+- **THEN** the matching server SHALL readmit the verified holder and restore its retained screen without adopting another cohort
 
 #### Scenario: Another local user connects
-- **WHEN** a process of another operating-system user connects to the endpoint
-- **THEN** endpoint access control SHALL refuse it
+- **WHEN** another operating-system user connects to the endpoint
+- **THEN** endpoint access control SHALL refuse that process
+
+#### Scenario: Equal tab identities in two releases
+- **WHEN** two release namespaces use the same tab identity and incarnation
+- **THEN** their independent secrets and exact release admission SHALL prevent cross-release holder or bridge authority
 
 ### Requirement: Slow clients never stall tabs
 Each client connection SHALL have a bounded reliable control lane and a single-slot render lane in which newer surface updates replace unsent ones. A client that falls behind SHALL receive a full surface once it drains. A client whose control lane overflows SHALL be disconnected with a typed reason rather than have individual control messages dropped. The server SHALL stream surface updates for a tab only to clients that view it. The server SHALL NOT block holders, other clients, or registry writes on a slow client, and holders SHALL NOT block children on output.
@@ -279,23 +299,27 @@ Each client connection SHALL have a bounded reliable control lane and a single-s
 - **THEN** its holder SHALL keep parsing the output and no client SHALL receive surface updates for that tab
 
 ### Requirement: The server heals itself without losing tabs or creating split brain
-When the server exits unexpectedly, attach clients SHALL show a non-blocking reconnecting indication, and any client or holder MAY start a replacement through the verified detached recovery path, with starts serialized so that at most one replacement start is in flight per profile. The replacement SHALL acquire the released writer lease, increment the durable epoch, derive expected holder credentials, verify native identities and incarnations, and re-admit surviving holders with their holder and child process identities unchanged. Tabs whose holders are gone or unverifiable SHALL leave the live set without a second writer being started for their session. A live recorded owner SHALL be terminated only after exact identity verification, and an unverifiable owner or unavailable lease SHALL block replacement. After three starts within sixty seconds, clients SHALL show a stopped state with restart and quit actions, and holders and children SHALL keep running.
+When a server exits unexpectedly, its attach clients SHALL show a non-blocking reconnecting indication, and a matching client or holder MAY start a replacement through the verified detached recovery path. Starts SHALL be serialized per canonical profile and immutable release identity. The replacement SHALL use the originating release's fixed Node, role-entry and addon custody even after another release activates, acquire only its namespace's released writer lease, increment that namespace's durable epoch, derive expected credentials, verify native identities and incarnations, and readmit only matching-release holders with their holder and child identities unchanged. Gone or unverifiable holders SHALL leave the live set without creating a second session writer. A recorded owner SHALL be signalled only within the requested namespace after exact identity verification; unavailable leases or unverifiable identities SHALL block replacement. The existing three-starts-within-sixty-seconds budget SHALL apply within each namespace; exhausting it SHALL leave holders and children running. Child restart, utility tabs and prewarm creation SHALL retain originating release custody rather than follow the mutable active-release pointer.
 
 #### Scenario: Server killed with no client attached
-- **WHEN** the server dies while no terminal runs `a1`
-- **THEN** a holder SHALL start the replacement, and the next `a1` SHALL reattach every tab with its current screen
+- **WHEN** a server dies without an attached terminal
+- **THEN** its holder SHALL recover that same release and the next launch of that release SHALL reattach its tabs with current screens
 
 #### Scenario: Server killed with two tabs
-- **WHEN** the server is killed while two tabs stream and a client is attached
-- **THEN** the replacement SHALL re-admit both holders, each holder and child SHALL keep its pid and native start identity, and the client SHALL show each tab's current surface after reconnecting
+- **WHEN** a matching server is killed while two tabs stream
+- **THEN** its replacement SHALL readmit both matching holders with unchanged holder and child native identities and restore current surfaces
 
 #### Scenario: Start budget exhausted
-- **WHEN** the server has been started three times within sixty seconds and exits again
-- **THEN** clients SHALL show the stopped state with restart and quit actions, no further automatic start SHALL occur, and every holder and child SHALL keep running
+- **WHEN** a release namespace exhausts its existing automatic server-start budget
+- **THEN** its clients SHALL show stopped state with restart and quit actions, its holders and children SHALL keep running, and another release's budget SHALL remain unaffected
 
 #### Scenario: Replacement races
-- **WHEN** a client and a holder request a replacement at the same time
-- **THEN** exactly one replacement SHALL start and the other requester SHALL join it
+- **WHEN** matching-release client and holder recovery requests race
+- **THEN** one replacement SHALL win that namespace's authority and the other requester SHALL join it
+
+#### Scenario: Another release becomes active before recovery
+- **WHEN** A's server dies after B becomes the globally active release
+- **THEN** A's surviving holders and clients SHALL recover A using A artifacts without attaching to B or modifying B's state
 
 ### Requirement: Crashed and hung tabs restart within a bounded budget
 When a tab's A1 process exits without a requested stop, or is terminated as unresponsive, the server SHALL restart it by instructing its holder to start `ui.js --tab --session <file>` for the tab's Pi session, with backoff of 1, 5, and 30 seconds, at most one start in flight per tab, and only after the previous child and its process tree are verified gone and the session-writer lock is acquired. The restart budget SHALL be persisted in the registry before each restart. After three restarts within ten minutes the tab SHALL become failed and SHALL NOT restart automatically until the user chooses retry, start fresh, or close. A restart SHALL NOT resend an interrupted prompt. If child standard error is separately available, it SHALL be stored only as private bounded recovery data, not as a diagnostic log.
@@ -414,42 +438,55 @@ During a resident bare-A1 launch, A1 SHALL expose only `tabsAutoName` as an Agen
 - **THEN** the earlier echo SHALL be ignored and the invalid metric SHALL fail rather than entering the p95 sample
 
 ### Requirement: Updates retain the active resident cohort
-Installing or activating a release SHALL NOT terminate the server, holders, or tab processes. Resident binaries and tab processes SHALL run from immutable release directories, and every release used by a live verified resident process SHALL be retained; when a recorded resident identity cannot be verified or read, its release SHALL be retained. In this version a same-generation newer client MAY attach with unsupported optional operations disabled, while the existing resident cohort remains on its release until all tabs stop. A generation mismatch SHALL report that the host must be stopped explicitly with `a1 tabs host stop`, SHALL use the direct single-agent path for that launch, and SHALL NOT kill or recycle tabs. Automatic endpoint handoff and idle release recycling require a later change.
+Installing or activating a release SHALL NOT terminate or migrate already-running servers, holders, tab processes or solo sessions. Resident processes SHALL use immutable release directories. A new launch SHALL select the host for its chosen immutable release, never reuse a different release's host merely because the protocol generation matches. A running older solo session SHALL NOT determine another release's multitab host. Existing unversioned legacy cohorts SHALL remain untouched and SHALL NOT be attach or recovery fallback destinations for new-format releases. Every release referenced by live verified resident processes SHALL remain retained across all namespaces; unreadable state or unavailable identity inspection SHALL remain conservative retention outcomes. A generation mismatch within the selected namespace SHALL use bounded incompatibility/fallback behavior without killing another cohort. Automatic migration, handoff and idle recycling remain outside this change.
 
 #### Scenario: Update mid-turn
-- **WHEN** `a1 update` runs while a tab streams
-- **THEN** the turn and resident process identities SHALL remain uninterrupted and their immutable release SHALL remain retained
+- **WHEN** B is installed and activated while A streams a turn
+- **THEN** A's server, holder, child and unfinished turn SHALL continue uninterrupted and A's immutable artifacts SHALL remain retained
+- **AND** a new B launch SHALL use B's independent host
 
 #### Scenario: Newer client with a different generation
-- **WHEN** bare `a1` from a newer release reaches a resident server of another protocol generation
-- **THEN** A1 SHALL print one notice naming `a1 tabs host stop`, run the direct single-agent path, and leave every resident process running
+- **WHEN** B launches while a different-generation A host remains running
+- **THEN** B SHALL use its own namespace without requiring A to stop or using A as its fallback host
 
 #### Scenario: Recorded resident identity cannot be inspected
-- **WHEN** release cleanup cannot read a resident registry or verify a recorded process identity
-- **THEN** every release that registry records SHALL be retained
+- **WHEN** GC cannot inspect a resident identity or safely read release-scoped or legacy state
+- **THEN** affected candidate releases SHALL remain retained rather than treating unavailable evidence as proof that no process uses them
+
+#### Scenario: Legacy host is still running
+- **WHEN** a new-format release launches beside a legacy unversioned host
+- **THEN** it SHALL create or attach its own release namespace without migrating, overwriting, adopting or stopping legacy state or processes
+
+#### Scenario: Older solo remains active
+- **WHEN** an older solo process remains running while the user launches a newer installed release in multitab mode
+- **THEN** the newer invocation SHALL use its own release's host and SHALL leave the solo process untouched
 
 ### Requirement: Resident tabs have non-interactive maintenance commands
-A1 SHALL provide `a1 tabs` to list tabs with identity, name, status, and cwd; `a1 tabs stop <id>` and `a1 tabs stop --all`; `a1 tabs host status` and `a1 tabs host stop`, which stops tabs gracefully before the server; and `a1 tabs doctor`, which creates a bounded redacted diagnostic bundle. These commands SHALL NOT start an interactive runtime, SHALL NOT start a server merely to report that none runs, SHALL verify the terminal-host artifact before executing it, and SHALL fail concisely with nonzero status on invalid arguments. The doctor bundle SHALL exclude secrets, tokens, derived credentials, environment values, prompt journals, draft checkpoints, last-screen snapshots, the private child-stderr recovery sink, and terminal content.
+A1 SHALL provide the existing `a1 tabs`, `a1 tabs stop <id>`, `a1 tabs stop --all`, `a1 tabs host status`, `a1 tabs host stop` and bounded redacted `a1 tabs doctor` commands scoped to the invoking immutable release and canonical profile. These commands SHALL NOT start an interactive runtime or a server merely to report absence, SHALL verify the terminal-host artifact, and SHALL reject invalid arguments concisely with nonzero status. No operation, including unresponsive-server fallback termination or colliding tab IDs, SHALL adopt, mutate or signal another release's or legacy namespace's processes. Host stop SHALL gracefully stop matching tabs before the matching server, with existing bounded identity-verified termination safeguards. Doctor SHALL exclude secrets, tokens, derived credentials, environment values, prompt journals, draft checkpoints, last screens, private child stderr and terminal content.
 
 #### Scenario: List with no server
-- **WHEN** the user runs `a1 tabs` and no server runs
-- **THEN** A1 SHALL report no running tabs and SHALL NOT start a server
+- **WHEN** the invoking release has no server but another release does
+- **THEN** listing SHALL report no matching running tabs without starting a server or listing the other release's tabs
 
 #### Scenario: Stop one tab
-- **WHEN** the user runs `a1 tabs stop <id>` for a working tab
-- **THEN** that tab's child SHALL receive a graceful shutdown before bounded verified termination, the tab SHALL be removed, its session SHALL remain resumable, and other tabs SHALL be unaffected
+- **WHEN** the user stops a matching tab
+- **THEN** the tab SHALL receive graceful shutdown before bounded verified termination, its session SHALL remain resumable, and other tabs and releases SHALL remain unaffected
 
 #### Scenario: Stop the host while the server is unresponsive
-- **WHEN** the user runs `a1 tabs host stop` and the identity-verified server does not answer within its deadline
-- **THEN** A1 SHALL terminate only that verified server, stop the surviving holders gracefully, and leave no resident process running
+- **WHEN** a release-local host stop cannot reach its identity-verified server within the deadline
+- **THEN** only that namespace's verified server and holders SHALL be stopped and other namespaces SHALL remain running
+
+#### Scenario: Colliding tab identities
+- **WHEN** A and B both contain the same local tab ID and B's stop command targets that ID
+- **THEN** only B's tab SHALL be eligible for termination
 
 #### Scenario: Doctor bundle with sensitive recovery data present
-- **WHEN** the user runs `a1 tabs doctor` while journals, last screens, and content in the private child-stderr sink exist
-- **THEN** the bundle SHALL contain structured logs, crash records, host status, and redacted registry data, and SHALL contain none of the excluded data
+- **WHEN** doctor collects a bundle with private recovery data present
+- **THEN** it SHALL contain only the selected namespace's bounded structured diagnostics and redacted state, excluding all sensitive recovery content
 
 #### Scenario: Invalid arguments
-- **WHEN** the user runs `a1 tabs stop` with no id and no `--all`
-- **THEN** A1 SHALL print one concise diagnostic, exit nonzero, and perform no I/O against resident processes
+- **WHEN** a stop command provides neither a tab ID nor the existing stop-all option
+- **THEN** it SHALL print a concise diagnostic, exit nonzero and perform no resident-process I/O
 
 ### Requirement: Host status reports resident identity and health
 `a1 tabs host status` SHALL report the server id, process id, build, release, protocol generation, epoch, uptime, observed detachment mode and any detachment verification failure reason, tab count by status, client count, the configured and hard limits, and the paths of the structured logs. It SHALL also report counters since server start for crash restarts, failed tabs, hang recoveries, unresponsive transitions, full-surface resyncs, and persistence, checkpoint, and bridge degradation. Counters SHALL be volatile and SHALL NOT contain prompt text, terminal content, or credentials.
@@ -463,11 +500,12 @@ A1 SHALL provide `a1 tabs` to list tabs with identity, name, status, and cwd; `a
 - **THEN** A1 SHALL report that no host runs, exit successfully, and SHALL NOT start a server
 
 ### Requirement: An idle resident server exits after ten minutes
-The resident server SHALL exit after ten minutes with no attached client and no user tab with a live holder. A prewarmed standby tab SHALL NOT keep the server alive; the server SHALL stop it before exiting. The server SHALL remove its endpoint and owner marker only while both still identify it.
+The resident server SHALL exit after ten minutes with no attached client and no user tab with a live holder. A prewarmed standby tab SHALL NOT keep the server alive; the server SHALL stop it before exiting. The server SHALL record the verified process identity of the standby holder it launched, and whenever it discards the standby or exits it SHALL offer that holder a graceful shutdown and then terminate it by that identity within a bounded deadline, whether or not the holder is connected. The server SHALL remove its endpoint and owner marker only while both still identify it.
 
 #### Scenario: Only a standby tab remains
 - **WHEN** every user tab is closed, no client is attached, and ten minutes pass
 - **THEN** the server SHALL stop the standby tab, remove its own endpoint and marker, and exit
+- **AND** the standby holder process SHALL NOT be running after the server has exited
 
 #### Scenario: Client returns before the deadline
 - **WHEN** a client attaches before the ten-minute interval ends
@@ -813,16 +851,19 @@ Resident concurrency evidence SHALL exercise at least three real owned A1 childr
 - **THEN** each platform SHALL retain its own verdict and no successful platform SHALL certify another
 
 ### Requirement: Resident presentation capabilities are negotiated and bounded
-Structured complete surfaces SHALL be negotiated independently on holder-to-server and server-to-attach connections. Generation-1 changes SHALL remain additive and respect existing encoded-frame, nesting, collection, input, and declared decoded-memory limits. Peers without the capability SHALL retain a complete legacy-surface route with an explicit fidelity limitation rather than interpreting structured state as legacy ANSI or automatically restarting live tabs. Invalid or oversized state SHALL fail locally with a typed outcome and SHALL not silently truncate the screen or allocate without bounds.
+Structured complete surfaces SHALL be negotiated independently on holder-to-server and server-to-attach connections only after exact release admission. Optional presentation capabilities SHALL NOT authorize attachment across immutable releases. Generation-1 changes SHALL remain additive and respect encoded-frame, nesting, collection, input and decoded-memory limits. Admitted peers without a capability SHALL retain a complete legacy-surface route with an explicit fidelity limitation rather than interpreting structured state as legacy ANSI or automatically restarting tabs. Invalid or oversized state SHALL fail locally with a typed outcome without silent truncation or unbounded allocation.
+
+#### Scenario: Capability differences within an admitted release
+- **WHEN** exact-release peers differ in optional structured-surface capability
+- **THEN** the connection SHALL use its negotiated complete legacy route or typed incompatibility outcome without claiming repaired parity or terminating tabs to upgrade them
 
 #### Scenario: New attach connects through an old resident cohort
-- **WHEN** attach supports structured surfaces but its server or a holder does not
-- **THEN** the affected connection SHALL use its negotiated complete legacy route or a typed incompatibility outcome
-- **AND** it SHALL not claim repaired parity or terminate existing tabs to upgrade them
+- **WHEN** a newer-release attach encounters an older release's cohort, even if it offers matching generation and surface capabilities
+- **THEN** exact release admission SHALL reject cross-release attachment before capability negotiation without terminating existing tabs
 
 #### Scenario: Snapshot exceeds a declared bound
-- **WHEN** dimensions, cells, attributes, links, or encoded data exceed the negotiated representation's bounds
-- **THEN** validation SHALL reject the state before the corresponding unbounded allocation and preserve the last coherent view or an explicit bounded failure state
+- **WHEN** dimensions, cells, attributes, links or encoded state exceed negotiated bounds
+- **THEN** validation SHALL reject before unbounded allocation and preserve the last coherent view or an explicit bounded failure state
 
 ### Requirement: Registry commits and viewer fan-out go through one path
 Every registry mutation in the resident server SHALL advance the revision through one bump function, stage its commit through one snapshot function while the lock is held, and commit after the lock is released through one commit path with bounded duration. Every lookup of the clients viewing a tab SHALL go through one viewer helper, and the runtime lock SHALL be taken through one function that reports a poisoned lock as one error. Holder respawn orders, the crash-restart budget, explicit child restart, surface subscription and bridge visibility pushes, and result bodies SHALL each have one implementation shared by the attach, holder, bridge, and lifecycle handlers.
@@ -939,3 +980,140 @@ While an attach client's outer terminal emits a burst of changed-size resize eve
 - **WHEN** resize events stop but the active holder does not publish current-geometry state within the bounded recovery interval
 - **THEN** A1 SHALL enter the bounded dim-to-normal reveal using the newest retained presentation
 - **AND** SHALL NOT leave the terminal permanently on the resize status
+
+### Requirement: A holder without a record ends instead of replacing its server
+When the server refuses a holder's hello for a definitive reason, it SHALL answer with a `refused` message naming that reason before closing the connection. A holder SHALL treat a refusal for no registry or standby record, a rejected credential, a newer server epoch, or an incarnation, holder identity, child identity, or role mismatch as definitive and SHALL exit, ending its child, without requesting a replacement server. A holder SHALL keep its bounded reconnect only for transient failures, and the interval between replacement requests SHALL grow to at least fifteen seconds. A standby holder SHALL NOT request a replacement server; it SHALL exit when its server disconnects or refuses it.
+
+#### Scenario: Orphaned standby holder meets a new server
+- **WHEN** a standby holder outlives the server that prewarmed it and a replacement server refuses its hello for having no record
+- **THEN** the holder SHALL exit within its handshake deadline and SHALL spawn no further replacement request
+
+#### Scenario: Registered holder loses its server
+- **WHEN** a holder with a registry record cannot connect because no server runs
+- **THEN** it SHALL keep requesting a replacement with a growing interval, exactly as before, and SHALL be re-admitted when one starts
+
+### Requirement: Role-spawned children never show a console window on Windows
+On Windows, every child process a resident role spawns through the host's fixed command path (replacement-server requests, bounded probes, and maintenance children) SHALL be created without a console window, and detached resident launches SHALL continue to receive no console at all.
+
+#### Scenario: Console-less holder requests a replacement server
+- **WHEN** a detached holder spawns a replacement-server request on Windows
+- **THEN** no console window SHALL appear for the request process
+
+### Requirement: Windows resident transport readiness is completion-driven
+
+On Windows, resident endpoint connection admission and frame transfer SHALL use bounded operating-system waits and overlapped completion rather than sleep-based pipe readiness polling. Readiness progress SHALL NOT depend on a successful or effective multimedia timer-period request. A pending read SHALL NOT serialize an independent write on the same connection. The transport SHALL preserve the existing owner-only admission, peer verification, first-instance protection, non-inherited custody, generation-1 frame bounds, reliable control ordering, latest-surface replacement, and slow-peer isolation. Unix endpoint semantics SHALL remain unchanged.
+
+#### Scenario: An idle connection receives interactive traffic under coarse timers
+
+- **WHEN** an existing Windows resident connection receives input or a surface after an idle period and its process has no effective short timer-period request
+- **THEN** the corresponding pipe operation SHALL progress from operating-system completion without waiting for a periodic readiness sleep
+- **AND** other peers and tab children SHALL retain independent progress
+
+#### Scenario: One direction is waiting for data
+
+- **WHEN** a Windows connection has a pending read and its owner admits a frame for writing
+- **THEN** the write SHALL progress independently of that read
+- **AND** admitted frame bytes SHALL retain their original order
+
+#### Scenario: A peer sends only part of its handshake
+
+- **WHEN** a Windows peer supplies only part of its first frame's length prefix or body
+- **THEN** the complete handshake SHALL remain bounded by its absolute four-second deadline rather than a first-byte readiness check
+- **AND** expiry SHALL fail only that connection after safely cancelling and draining its pending operation
+
+#### Scenario: Shutdown races with completion
+
+- **WHEN** timeout, peer disconnect, or owning-connection shutdown races with an overlapped completion
+- **THEN** the owner SHALL resolve or cancel and drain every affected operation before releasing its buffers, events, or final handle reference
+- **AND** operation-scoped cancellation SHALL NOT inadvertently cancel an independent operation or another peer's connection
+
+#### Scenario: A new client joins after a simulated wake gap
+
+- **WHEN** a simulated long attach clock gap occurs and a new client subsequently connects while prior connections remain live
+- **THEN** both existing and new connections SHALL continue completion-driven transfer under their normal ownership and queue bounds
+- **AND** the gap SHALL NOT authorize process restart, prompt replay, or replacement of a live session writer
+
+### Requirement: Wake responsiveness observations separate local completion from physical presentation
+
+The resident host SHALL provide opt-in, bounded, asynchronous, payload-free observations that identify attach wake-gap/repaint events and local monotonic transport and outer-write completion durations. Normal pending-read idle time SHALL NOT by itself be classified as a delivery-latency fault. Derived latency evidence SHALL use causally matched events and SHALL reject invalid or clock-discontinuity-crossing samples. Diagnostic pressure SHALL drop only observations with explicit loss accounting, never stall terminal I/O. Observation fields SHALL be additive and SHALL contain no terminal content, input text, prompts, transcripts, credentials, or environment values.
+
+#### Scenario: Attach detects one long clock gap
+
+- **WHEN** attach detects one qualifying long gap and then returns to ordinary ticks
+- **THEN** it SHALL retain its existing one-shot complete repaint behavior and emit the associated opt-in wake/repaint observation
+- **AND** it SHALL NOT repeatedly repaint solely because of that same gap or restart a resident process
+
+#### Scenario: Wall time changes while a trace is active
+
+- **WHEN** wall-clock time moves discontinuously or a wake gap separates observation epochs
+- **THEN** local completion durations SHALL remain monotonic
+- **AND** derived latency percentiles SHALL exclude invalid or cross-discontinuity samples instead of treating them as delivery evidence
+
+#### Scenario: Observation output falls behind
+
+- **WHEN** the opt-in observation queue reaches its existing bound
+- **THEN** terminal transfer SHALL continue without waiting for diagnostics
+- **AND** the next admitted observation SHALL report diagnostic loss without including terminal payloads
+
+#### Scenario: An automated wake-gap fixture passes
+
+- **WHEN** simulated-gap and transport fixtures pass without a physical sleep/wake run
+- **THEN** the result SHALL be described as simulated-gap and transport evidence only
+- **AND** it SHALL NOT claim physical wake recovery or equate outer-write completion with pixels presented by the terminal
+
+### Requirement: Windows publication does not debounce sustained input indefinitely
+
+The holder SHALL retain the earliest pending Windows render-pass publication deadline across subsequent synchronized-output markers and settling output until that publication decision is consumed. A newer frame SHALL NOT restart that deadline. Ordinary publication SHALL still withhold an open transaction, and malformed transactions SHALL retain the existing explicit bounded recovery path. Unix verbatim boundaries SHALL remain immediately publishable.
+
+#### Scenario: Repeated frames contain their cells between relayed markers
+
+- **WHEN** Windows receives complete transactions every 30 ms with changed cells between begin and end markers and no post-end cells
+- **THEN** the holder publishes changed retained state during the sustained sequence without waiting for input to stop
+- **AND** later end markers do not renew the first pending 16 ms fallback
+
+#### Scenario: Render-pass output keeps extending the quiet interval
+
+- **WHEN** post-marker output continues in fragments less than 2 ms apart
+- **THEN** quiet-settle activity does not extend the hard pending publication deadline
+- **AND** no ordinary publication exposes an open transaction
+
+#### Scenario: Publication consumes pending wait state
+
+- **WHEN** a complete or explicit recovery publication is consumed
+- **THEN** the next independent update receives its own bounded wait
+- **AND** an expired old deadline cannot bypass the next update's coherence gate
+
+### Requirement: Real-A1 responsiveness evidence rejects delayed presentation
+
+Healthy resident responsiveness evidence SHALL fail when matched commit-to-first-completed-outer-paint p95 exceeds 33 ms or a viewed healthy scenario supplies no matched presentation samples. Matches SHALL bind tab, incarnation and revision and SHALL exclude invalid clock intervals. Explicitly stopped-stage and slow-sink controls SHALL remain distinguishable from healthy windows. Coalescing obsolete complete surfaces SHALL remain permitted.
+
+#### Scenario: Healthy paint is consistently delayed
+
+- **WHEN** a healthy viewed scenario has matched completed paints 200 ms after its holder commits
+- **THEN** the responsiveness verdict fails even if all processes and animations continue progressing
+
+#### Scenario: A later strip repaint repeats a delivered revision
+
+- **WHEN** one revision first paints within budget and is painted again by later chrome changes
+- **THEN** delivery latency uses the first completed paint for that revision and incarnation
+
+#### Scenario: Actual input exercises owned UI rendering
+
+- **WHEN** the exact-artifact harness types synthetic text, navigates an owned menu and scrolls through the same real A1 UI directly and through resident roles at matching child dimensions
+- **THEN** it observes the resulting completed synthetic screen changes in order
+- **AND** it rejects missing changes, prolonged stalls and resident p95 overhead beyond the existing 16 ms input plus 33 ms presentation envelope relative to direct solo
+
+### Requirement: Release-isolated hosts preserve shared-session writer exclusion
+Host release partitioning SHALL NOT partition the process-owned session-writer lock or new-file reservation protocol. Existing-file authority SHALL continue to use verified OS file identity across profiles, releases and canonical aliases. A release-local registry that lacks another release's live tab SHALL NOT authorize a second writer. Conflict handling SHALL NOT silently fork, migrate, take over or replay a prompt; existing explicit conflict or explicit fork behavior SHALL remain available. A new host SHALL use the same shared profile configuration and session-storage roots selected before runtime partitioning.
+
+#### Scenario: Another release owns the selected session
+- **WHEN** A's process holds the writer lock and B selects the same session through any filesystem alias
+- **THEN** B SHALL report the existing writer conflict without writing session content or disturbing A
+
+#### Scenario: New-file reservation races across releases
+- **WHEN** A and B attempt to create the same new session concurrently
+- **THEN** exactly one process SHALL obtain writable admission and the loser SHALL write no session content
+
+#### Scenario: Writer exits before another release resumes
+- **WHEN** A's writer has exited and B later selects its session
+- **THEN** B MAY acquire the released lock through ordinary verified admission without automatically replaying any interrupted prompt

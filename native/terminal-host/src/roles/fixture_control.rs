@@ -27,6 +27,18 @@ pub fn stopped(stage: &str, tab_id: &str) -> bool {
     marker_exists(tab_id, stage, "stop")
 }
 
+/// Reports a newly observed stop once. This observes an existing control; it cannot activate one.
+pub(crate) fn take_stop_acknowledgement(
+    previous: &mut Option<String>,
+    stopped: Option<&str>,
+) -> bool {
+    if previous.as_deref() == stopped {
+        return false;
+    }
+    *previous = stopped.map(str::to_owned);
+    stopped.is_some()
+}
+
 pub fn delay(stage: &str, tab_id: &str, duration: Duration) {
     if marker_exists(tab_id, stage, "delay") {
         std::thread::sleep(duration.min(Duration::from_millis(50)));
@@ -61,6 +73,17 @@ fn marker_path(directory: &Path, tab_id: &str, stage: &str, action: &str) -> Opt
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stop_acknowledgements_are_once_per_observed_stop_and_reset_on_release() {
+        let mut previous = None;
+        assert!(!take_stop_acknowledgement(&mut previous, None));
+        assert!(take_stop_acknowledgement(&mut previous, Some("tab-a")));
+        assert!(!take_stop_acknowledgement(&mut previous, Some("tab-a")));
+        assert!(take_stop_acknowledgement(&mut previous, Some("tab-b")));
+        assert!(!take_stop_acknowledgement(&mut previous, None));
+        assert!(take_stop_acknowledgement(&mut previous, Some("tab-b")));
+    }
 
     #[test]
     fn marker_paths_are_bounded_and_cannot_escape_the_control_directory() {

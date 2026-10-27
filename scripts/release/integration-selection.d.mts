@@ -4,7 +4,7 @@ export interface IntegrationTarget {
   architecture: "x64" | "arm64";
   node: 22 | 24;
 }
-export type IntegrationCadence = "pull-request" | "exhaustive";
+export type IntegrationCadence = "pull-request" | "direct-impact" | "exhaustive";
 export interface IntegrationOwner {
   id: string;
   cadence: IntegrationCadence;

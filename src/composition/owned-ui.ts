@@ -40,7 +40,7 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
-import { bindResidentTabBridge, correlateResidentTabSubmission, currentBackendSessionFile, residentTabKeybindings } from "./resident-tab-bridge.js";
+import { bindResidentTabBridge, closeResidentUtilityRoute, correlateResidentTabSubmission, currentBackendSessionFile, residentRouteHostOptions, residentTabKeybindings } from "./resident-tab-bridge.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { SessionRuntimeRegistry } from "./session-runtime-registry.js";
 import { readPackageVersion, StartupReleaseNote } from "./startup-route.js";
@@ -57,17 +57,11 @@ export interface OwnedUiCompositionOptions {
   readonly sessionPath?: string;
   readonly sessionSelection?: SessionSelection;
   readonly sessionForkPrompt?: PiSessionForkPrompt;
-  /**
-   * A1 profile whose settings this session reads and writes. Omitted keeps the
-   * session settings-free, which is what the pinned comparison paths use.
-   */
+  /** A1 settings profile; comparison paths omit it. */
   readonly profileId?: string;
   /** Hide resident-only tab controls for the explicit direct single-agent launch. */
   readonly hideTabSettings?: boolean;
-  /**
-   * Whether A1's product-specific surfaces are reachable. Comparison profiles
-   * use the same composition with those surfaces withheld.
-   */
+  /** `off` withholds A1-specific surfaces from comparison profiles. */
   readonly ownedSurfaces?: "on" | "off";
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   /** Explicit local diagnostic destination; ignored by comparison/settings-free compositions. */
@@ -76,14 +70,12 @@ export interface OwnedUiCompositionOptions {
   readonly clipboardDiagnosticsPath?: string;
   /** Deterministic release-note seams for composition tests. */
   readonly packageVersion?: string;
+  readonly notificationVersion?: string | undefined;
   readonly releaseNotes?: ReleaseNoteCatalog;
   /** Startup release-availability seam; defaults to the throttled registry check. */
   readonly checkForNewerRelease?: (options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>;
-  /** Exact native process inspection injected by the shipped entry; absent SDK seams do not publish claims. */
   readonly inspectProcess?: (pid: number) => Promise<NativeProcessIdentity | null>;
-  /** Private credentials were consumed by the entry before composition or extensions loaded. */
   readonly tab?: { readonly bridge: TabBridgeClient; readonly dataDir: string; readonly incarnation: number };
-  /** One prompt-adjacent notice explaining why a resident launch fell back. */
   readonly residentFallbackNotice?: string;
 }
 
@@ -123,7 +115,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       namespace: PRODUCT_IDENTITY.commandName,
       legacyConfigDir: productPaths.configDir,
       agentProvider: () => backend.settingsPort(),
-      ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition"] } : {}),
+      ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabBarPlusMenu"] } : {}),
       hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
       agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
     });
@@ -205,9 +197,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       host.setAccentColor(accent);
       tabBridge?.accent(accent);
     });
-  // Rationale: every resident tab is its own process over one shared settings document, so a
-  // change saved in any tab reaches the others only by rereading that document.
-  const unwatchSharedSettings = settings === null || !ownedSurfaces || tabBridge === null
+  // Rationale: resident tabs and separate solo agents share a settings document; a live scope
+  // change saved in either reaches the others only by rereading that document.
+  const unwatchSharedSettings = settings === null || !ownedSurfaces
     ? () => {}
     : watchSharedSettings(settings);
   const unsubscribeAccent = (): void => { unwatchSharedSettings(); unsubscribeAccentChange(); };
@@ -229,9 +221,8 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
     session: () => import("./session-info-reference.js").then(m => m.loadSessionInfoReference(backend)),
   };
-  const routeHost = settings === null || !ownedSurfaces ? null : createOwnedRouteHost(
-    settings, references, settingsRouteOptions(tabBridge?.tabId.startsWith("settings-") === true, keybindings, backend.identity.agentDir, cwd),
-  );
+  const routeHost = settings === null || !ownedSurfaces ? null
+    : createOwnedRouteHost(settings, references, settingsRouteOptions(tabBridge, keybindings, backend.identity.agentDir, cwd));
   const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),
@@ -259,19 +250,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     // Rationale: one listener covers both the A1 presentation choice and the engine skill-command toggle.
     onChange: (listener: () => void) => settings.onChange(() => listener()),
   };
-  const historyLimit = settings?.value("promptHistoryMaxItems");
-  const historyProfileLocation = settings === null || !ownedSurfaces || !settings.value("promptHistoryEnabled")
-    ? null
-    : resolvePromptHistoryPath(resolvePromptHistoryDataDir(), backend.identity.agentDir);
-  const promptHistory = historyProfileLocation === null ? null : {
-    limit: typeof historyLimit === "number" ? historyLimit : 100,
-    store: new PromptHistoryService({
-      dataDir: resolvePromptHistoryDataDir(),
-      profileRoot: backend.identity.agentDir,
-      limit: typeof historyLimit === "number" ? historyLimit : 100,
-    }),
-    imageSidecar: new PromptImageSidecar(historyProfileLocation.imagesDir),
-  };
+  const promptHistory = createPromptHistoryConfiguration(settings, backend, ownedSurfaces);
   const clipboardDestination = options.clipboardDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.clipboardDiagnostics];
   const clipboardDiagnostics = settings !== null && ownedSurfaces && clipboardDestination?.trim()
     ? new ClipboardDiagnosticCapture(clipboardDestination) : null;
@@ -291,9 +270,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
         ...(tabBridge === null || tabRecovery === null ? {} : { residentTab: {
           requestDetach: () => tabBridge.requestDetach(),
-          closeOwnedRoute: route => {
-            if (tabBridge.tabId.startsWith("settings-") && route === "settings") void tabBridge.requestClose();
-          },
+          closeOwnedRoute: route => closeResidentUtilityRoute(tabBridge, route),
           reportStatus: status => tabBridge.status(status),
           admit: input => tabRecovery.admit({ ...input, incarnation: options.tab!.incarnation }),
           dispatched: () => tabRecovery.dispatched(),
@@ -363,7 +340,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     backend,
     configDir: productPaths.configDir,
     mode: settings === null || !ownedSurfaces ? "auto" : settings.value("updateCheck"),
-    packageVersion: releaseNote.packageVersion,
+    packageVersion: releaseNote.packageVersion, notificationVersion: options.notificationVersion,
     checkForNewerRelease: options.checkForNewerRelease,
   });
   const exitNoticePath = process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
@@ -406,11 +383,36 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   return { application, settings };
 }
 
+function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null, backend: ComposedSessionBackend, ownedSurfaces: boolean) {
+  const limit = settings?.value("promptHistoryMaxItems") ?? 100;
+  const scope = settings?.value("promptHistoryScope") ?? "unique";
+  const enabled = settings !== null && ownedSurfaces && settings.value("promptHistoryEnabled");
+  const sessionId = enabled ? backend.identity.currentHistorySessionId() : null;
+  if (settings === null || !enabled || (scope === "unique" && sessionId === null)) return null;
+  const dataDir = resolvePromptHistoryDataDir();
+  const forScope = (selected: "unique" | "shared", id: string | null) => {
+    if (selected === "unique" && id === null) return null;
+    const location = resolvePromptHistoryPath(dataDir, backend.identity.agentDir, process.platform, selected, id ?? "");
+    return {
+      store: new PromptHistoryService({ dataDir, profileRoot: backend.identity.agentDir, limit, scope: selected, sessionId: id ?? "" }),
+      imageSidecar: new PromptImageSidecar(location.imagesDir),
+    };
+  };
+  return {
+    limit, scope,
+    ...(sessionId === null ? {} : { sessionId }),
+    forScope,
+    onScopeChange: (listener: (scope: "unique" | "shared") => void) => settings.onChange(() => listener(settings.value("promptHistoryScope"))),
+    ...forScope(scope, sessionId)!,
+  };
+}
+
 interface StartupReleaseUpdateObservationOptions {
   readonly backend: ComposedSessionBackend;
   readonly configDir: string;
   readonly mode: StartupUpdateMode;
   readonly packageVersion: string | null;
+  readonly notificationVersion: string | undefined;
   readonly checkForNewerRelease: ((options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>) | undefined;
 }
 
@@ -423,8 +425,9 @@ function createStartupReleaseUpdateObservation(input: StartupReleaseUpdateObserv
     const check = input.checkForNewerRelease
       ?? (await import("../foundation/release/latest-release.js")).checkForNewerRelease;
     const runningVersion = input.packageVersion ?? await readPackageVersion();
+    const discoveryVersion = input.mode === "notify" ? input.notificationVersion ?? runningVersion : runningVersion;
     const release = await check({
-      runningVersion,
+      runningVersion: discoveryVersion,
       configDir: input.configDir,
       interactive: process.stdout.isTTY === true,
       settingMode: input.mode,
@@ -463,13 +466,13 @@ export function watchSharedSettings(settings: Pick<OwnedSettingsManager, "file" 
 }
 
 function settingsRouteOptions(
-  settingsPinned: boolean,
+  tabBridge: TabBridgeClient | null,
   keybindings: ReturnType<typeof residentTabKeybindings>,
   agentDir: string,
   cwd: string,
 ): OwnedRouteHostOptions {
   return {
-    settingsPinned,
+    ...residentRouteHostOptions(tabBridge),
     keybindings,
     agentDir,
     cwd,

@@ -9,17 +9,17 @@
  * another. Evidence names cases, sequences, and digests, never input content.
  */
 import { spawnSync } from "node:child_process";
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createResidentFixtureRoot, writeFixtureRoleEntry } from "./resident-input-responsiveness.mjs";
 import { KEY_TRANSPORT_CASES } from "./interaction-parity/matrix.mjs";
 import { compareCandidates, digestContent, validateObservations } from "./interaction-parity/observations.mjs";
 
 export const PARITY_REPORT_SCHEMA = "a1-interaction-parity-v1";
 const CASE_TIMEOUT_MS = 20_000;
 const RECORD_PATTERN = /in#(\d+):([0-9a-f]*);/gu;
-const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
+let hostEntry;
 
 /**
  * The bytes a direct terminal sends for one matrix step; `null` for steps the key child cannot see.
@@ -263,7 +263,8 @@ async function main() {
     : KEY_TRANSPORT_CASES;
   await prepareNodePty();
   const { spawn } = await import("node-pty");
-  const root = await mkdtemp(join(tmpdir(), "a1-interaction-parity-"));
+  const root = await createResidentFixtureRoot("a1-interaction-parity-");
+  hostEntry = await writeFixtureRoleEntry(root, host);
   const context = { profile: join(root, "profile"), data: join(root, "data"), runtime: join(root, "runtime"), release: join(root, "release") };
   for (const directory of Object.values(context)) { await mkdir(directory, { recursive: true }); if (process.platform !== "win32") await chmod(directory, 0o700); }
   await mkdir(join(context.release, "bin"), { recursive: true });
@@ -308,7 +309,10 @@ async function main() {
   const json = `${JSON.stringify(report, null, 2)}\n`;
   if (out) await writeFile(out, json);
   process.stdout.write(json);
-  if (!report.passed) process.exitCode = 1;
+  if (!report.passed) {
+    console.error(`interaction parity failed: ${failures.map(failure => `${failure.candidate}: ${failure.reason}`).join("; ") || `${report.divergences.length} byte divergences`}`);
+    process.exitCode = 1;
+  }
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {

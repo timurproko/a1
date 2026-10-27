@@ -11,6 +11,11 @@ const developmentDirectory = JSON.parse(
   readFileSync(new URL("../../src/product-identity.json", import.meta.url), "utf8"),
 ).state.developmentDirectory;
 
+/** How many list-and-terminate passes a stop makes before it reports survivors. */
+export const STOP_PASS_LIMIT = 8;
+/** The pause after a pass that terminated something, so restarts and handle release can settle. */
+export const STOP_PASS_DELAY_MS = 500;
+
 /**
  * Mirrors `resolveDevelopmentLaunchEnvironment`: every `./scripts/dev` launch of a checkout runs
  * its materialized release from `<tmp>/<developmentDirectory>/<checkoutId>/`.
@@ -71,34 +76,68 @@ function listProcesses() {
   });
 }
 
+function terminateProcess(pid) {
+  process.kill(pid, "SIGKILL");
+}
+
+const defaultSleep = async durationMs => await new Promise(resolveDelay => setTimeout(resolveDelay, durationMs));
+
 /**
+ * Stops every process running this checkout's code and keeps going until none is left.
+ *
  * Rationale: a local rebuild replaces `dist/`, and on Windows a running resident host keeps the
- * native addon locked, so `clean` fails with EPERM. A development checkout's own running A1 is
- * disposable test state; stop it before cleaning. CI and other checkouts are never touched.
+ * native addon locked, so `clean` fails with EPERM; a development launch that ends must not leave
+ * its instance behind either. A development checkout's own running A1 is disposable test state.
+ * Its resident roles restart one another (a holder requests a replacement server, the server
+ * restarts holders), so one pass over a snapshot of pids does not converge: every pass lists
+ * again and terminates what it finds until a pass finds nothing or the bound is reached. CI and
+ * other checkouts are never touched.
+ *
+ * @returns {Promise<{ stopped: number[], survivors: number[] }>} the pids terminated across all
+ * passes and the pids still running this checkout's code when the stop gave up.
  */
-export function stopCheckoutProcesses({ root = repositoryRoot, environment = process.env } = {}) {
-  if (environment.CI) return [];
-  let processes;
-  try {
-    processes = listProcesses();
-  } catch {
-    return [];
-  }
-  const stopped = [];
-  for (const { pid } of selectCheckoutProcesses(processes, root)) {
+export async function stopCheckoutProcesses({
+  root = repositoryRoot,
+  environment = process.env,
+  list = listProcesses,
+  terminate = terminateProcess,
+  sleep = defaultSleep,
+  passLimit = STOP_PASS_LIMIT,
+} = {}) {
+  const stopped = new Set();
+  if (environment.CI) return { stopped: [], survivors: [] };
+  const remaining = () => {
     try {
-      process.kill(pid, "SIGKILL");
-      stopped.push(pid);
+      return selectCheckoutProcesses(list(), root).map(({ pid }) => pid);
     } catch {
-      // Rationale: a process that already exited needs no stop.
+      return null;
     }
+  };
+  for (let pass = 0; pass < passLimit; pass += 1) {
+    const found = remaining();
+    if (found === null) return { stopped: [...stopped], survivors: [] };
+    if (found.length === 0) return { stopped: [...stopped], survivors: [] };
+    for (const pid of found) {
+      try {
+        terminate(pid);
+        stopped.add(pid);
+      } catch {
+        // Rationale: a process that already exited needs no stop; a refusal shows up as a survivor.
+      }
+    }
+    await sleep(STOP_PASS_DELAY_MS);
   }
-  return stopped;
+  return { stopped: [...stopped], survivors: remaining() ?? [] };
+}
+
+/** The one line a caller prints when a stop did not converge; nothing when it did. */
+export function describeSurvivors(survivors) {
+  if (survivors.length === 0) return "";
+  return `A1 process(es) from this checkout are still running after the stop: ${survivors.join(", ")}.\n`;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  const stopped = stopCheckoutProcesses();
-  if (stopped.length > 0) {
-    process.stderr.write(`Stopped ${stopped.length} running A1 process(es) from this checkout before rebuilding.\n`);
-  }
+  const { survivors } = await stopCheckoutProcesses();
+  process.stderr.write(describeSurvivors(survivors));
+  if (survivors.length > 0) process.exitCode = 1;
 }

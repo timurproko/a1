@@ -7,7 +7,9 @@ const theme = {
   ...PLAIN_THEME,
   fg: (token: string, text: string) => token === "border"
     ? `\u001b[38;2;201;202;203m${text}\u001b[39m`
-    : `\u001b[38;2;101;102;103m${text}\u001b[39m`,
+    : token === "accent"
+      ? `\u001b[38;2;51;52;53m${text}\u001b[39m`
+      : `\u001b[38;2;101;102;103m${text}\u001b[39m`,
 };
 
 
@@ -35,6 +37,14 @@ describe("shared prompt input presentation", () => {
     expect(cellStyle(search[2]!, "─")).toEqual({ foreground: "201;202;203", faint: false });
     expect(renderInputRow(new LineInput("hello"), 20, { ruled: false, theme }).lines).toHaveLength(1);
     expect(stripAnsi(renderInputRow(new LineInput("model"), 20, { ruled: false, promptGlyph: "> ", theme }).lines[0] ?? "").trimEnd()).toBe("> model");
+    const dialogSearch = renderInputRow(new LineInput("model"), 20, {
+      ruled: false,
+      promptGlyph: "> ",
+      promptRole: "accent",
+      theme,
+    }).lines[0]!;
+    expect(cellStyle(dialogSearch, ">")).toEqual({ foreground: "51;52;53", faint: false });
+    expect(cellStyle(dialogSearch, "m")).toEqual({ foreground: "default", faint: false });
   });
 
   it("retains semantic annotations and aligns continuation and menu rows", () => {

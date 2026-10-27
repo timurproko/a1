@@ -58,6 +58,14 @@
       "semantics": "Caller-supplied diagnostics path and trace context; retain pending exposure review"
     },
     {
+      "role": "developmentHistoryDataDir",
+      "key": "A1_DEV_HISTORY_DATA_DIR",
+      "exposure": "review",
+      "owner": "src/features/launch/development-launch.ts",
+      "evidence": "test/features/launch/development-launch.test.ts",
+      "semantics": "Developer checkout-wide history root; retain pending exposure review"
+    },
+    {
       "role": "developmentInstanceId",
       "key": "A1_DEV_INSTANCE_ID",
       "exposure": "review",
@@ -232,6 +240,14 @@
       "owner": "bin/ui.js",
       "evidence": "test/foundation/resident-tabs/resident-tabs.test.ts",
       "semantics": "Resident tab identity consumed before extension loading"
+    },
+    {
+      "role": "tabReleaseId",
+      "key": "A1_TAB_RELEASE_ID",
+      "exposure": "integration",
+      "owner": "bin/tab-launch-context.js",
+      "evidence": "test/foundation/resident-tabs/tab-launch-context.test.ts",
+      "semantics": "Pinned immutable resident release identity consumed before extension loading"
     },
     {
       "role": "tabToken",

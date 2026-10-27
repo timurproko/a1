@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { createServer } from "node:http";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { createRequire } from "node:module";
 import process from "node:process";
 import { createHash, randomUUID } from "node:crypto";
+import { assertMatchingInputBaseline, assertOptimizedFixture, createResidentFixtureRoot, writeFixtureRoleEntry, measureRealInputResponsiveness, submitFixturePrompt } from "./resident-input-responsiveness.mjs";
 import {
   evaluateProgressScenario,
   evaluateStoppedStageControl,
@@ -16,7 +16,7 @@ import {
 
 const productIdentity = JSON.parse(await readFile(new URL("../../src/product-identity.json", import.meta.url), "utf8"));
 const tabsEndpointEnvironment = productIdentity.environment.tabsEndpoint;
-const hostEntry = resolve("dist/foundation/resident-tabs/host-entry.js");
+let hostEntry;
 const firstOrders = permutations([0, 1, 2]);
 const scenarioTimeoutMs = 20_000;
 const childStartupTimeoutMs = 60_000;
@@ -260,7 +260,10 @@ function sendChunk(response, scenarioId, tabIndex, index, finished) {
     object: "chat.completion.chunk",
     created: 1,
     model: "parallel-stream",
-    choices: [{ index: 0, delta: finished ? {} : { content: marker }, finish_reason: finished ? "stop" : null }],
+    choices: [{ index: 0, delta: scenarioId === "input-wheel"
+      ? { content: finished ? "```\n" : `${index === 0 ? "\n```text\n" : ""}${Array.from({ length: 4 }, (_, line) =>
+        `Wheel${String((index * 4 + line) % 100).padStart(2, "0")}`).join("\n")}\n` }
+      : finished ? {} : { content: marker }, finish_reason: finished ? "stop" : null }],
   })}\n\n`);
 }
 
@@ -341,16 +344,22 @@ function stopAttach(attach) {
   attach.terminal.kill();
 }
 
+// Invariant: the attach client prewarms hidden Settings and Changelog tabs; only Agent tabs are real A1 tabs.
+function agentTabIds(host, context) {
+  return JSON.parse(internal(host, context, "tab-list")).tabs
+    .map(tab => tab.tabId)
+    .filter(tabId => !tabId.startsWith("settings-") && !tabId.startsWith("changelog-"));
+}
+
 async function createRealTabs(host, context) {
-  await waitUntil(() => JSON.parse(internal(host, context, "tab-list")).tabs.length === 1, "first real A1 tab");
+  await waitUntil(() => agentTabIds(host, context).length === 1, "first real A1 tab");
   for (let count = 2; count <= 3; count += 1) {
     internal(host, context, "tab-create", [
       "--cwd", context.root, "--release-root", context.release, "--node-executable", process.execPath,
     ]);
-    await waitUntil(() => JSON.parse(internal(host, context, "tab-list")).tabs.length === count, `${count} real A1 tabs`);
+    await waitUntil(() => agentTabIds(host, context).length === count, `${count} real A1 tabs`);
   }
-  const tabs = JSON.parse(internal(host, context, "tab-list")).tabs;
-  const tabIds = tabs.map(tab => tab.tabId);
+  const tabIds = agentTabIds(host, context);
   await waitUntil(async () => {
     const { records } = await currentObservations(context);
     return tabIds.every(tabId => records.some(record => record.stage === "child-render-write" && record.tabId === tabId));
@@ -379,8 +388,7 @@ async function runScenarios(attach, context, provider, tabIds) {
       const startedUnixUs = epochUs();
       for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
         await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
-        attach.terminal.write(`scenario=${id};tab=${tabIndex}`);
-        attach.terminal.write("\r");
+        await submitFixturePrompt(context.nativeAddon, attach, `scenario=${id};tab=${tabIndex}`, true);
         await waitUntil(() => scenario.requests.has(tabIndex), `${id} tab ${tabIndex + 1} provider request`);
       }
       await withTimeout(scenario.requestsReady, `${id} provider requests`);
@@ -422,7 +430,7 @@ async function runScenarios(attach, context, provider, tabIds) {
         return tabIds.every(tabId => next.records.some(record => record.tabId === tabId && record.stage === "engine-delivery"
           && record.eventKind === "agent_settled" && record.timestampUnixUs >= barrierUnixUs));
       }, `${id} engine settlement`);
-      results.push({ ...result, order, initialView: tabIds[initialView], window: { startedUnixUs, barrierUnixUs } });
+      results.push({ ...result, order, initialView: tabIds[initialView], window: { startedUnixUs, barrierUnixUs, viewedTabIds: tabIds } });
       if (!result.passed) throw new Error(result.faults.join("; "));
     }
   }
@@ -433,8 +441,7 @@ async function beginThreeTabScenario(attach, context, provider, tabIds, id, orde
   const scenario = provider.scenario(id, order);
   for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
     await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
-    attach.terminal.write(`scenario=${id};tab=${tabIndex}`);
-    attach.terminal.write("\r");
+    await submitFixturePrompt(context.nativeAddon, attach, `scenario=${id};tab=${tabIndex}`, true);
     await waitUntil(() => scenario.requests.has(tabIndex), `${id} tab ${tabIndex + 1} provider request`);
   }
   await withTimeout(scenario.requestsReady, `${id} provider requests`);
@@ -588,8 +595,7 @@ async function runDetachedReconnectVariant(spawnPty, host, attach, context, prov
   const scenario = provider.scenario(id, [1, 2, 0]);
   for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
     await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
-    attach.terminal.write(`scenario=${id};tab=${tabIndex}`);
-    attach.terminal.write("\r");
+    await submitFixturePrompt(context.nativeAddon, attach, `scenario=${id};tab=${tabIndex}`, true);
     await waitUntil(() => scenario.requests.has(tabIndex), `${id} tab ${tabIndex + 1} provider request`);
   }
   await withTimeout(scenario.requestsReady, `${id} provider requests`);
@@ -644,15 +650,13 @@ async function runDetachedReconnectVariant(spawnPty, host, attach, context, prov
   }
 }
 
-async function compareDirectAndResidentTemporalState(spawnPty, host, attach, context, provider, tabIds) {
+async function compareDirectAndResidentTemporalState(host, attach, context, provider, tabIds, direct) {
   const id = "temporal-parity";
   const marker = `P${id.replaceAll("-", "").slice(-2)}T1C`;
   const directScenario = provider.scenario(id, [0], 1);
-  const direct = await createDirect(spawnPty, context);
   let directOutput;
   try {
-    direct.terminal.write(`scenario=${id};tab=0`);
-    direct.terminal.write("\r");
+    await submitFixturePrompt(context.nativeAddon, direct, `scenario=${id};tab=0`, false);
     await waitUntil(() => directScenario.requests.has(0), `${id} direct provider request`);
     directScenario.start();
     await withTimeout(directScenario.partialReady, `${id} direct unfinished partial`);
@@ -665,13 +669,11 @@ async function compareDirectAndResidentTemporalState(spawnPty, host, attach, con
   } finally {
     directScenario.releaseEngine();
     directScenario.release();
-    try { stopAttach(direct); } catch { /* Invariant: direct fixture cleanup cannot mask its verdict. */ }
   }
 
   const residentScenario = provider.scenario(id, [0], 1);
   await selectTab(attach, context, 0, tabIds[0]);
-  attach.terminal.write(`scenario=${id};tab=0`);
-  attach.terminal.write("\r");
+  await submitFixturePrompt(context.nativeAddon, attach, `scenario=${id};tab=0`, true);
   await waitUntil(() => residentScenario.requests.has(0), `${id} resident provider request`);
   residentScenario.start();
   await withTimeout(residentScenario.partialReady, `${id} resident unfinished partial`);
@@ -737,8 +739,7 @@ async function characterizeFragmentedTransactions(attach, context, provider, tab
   const scenario = provider.scenario(id, [2, 0, 1]);
   for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
     await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
-    attach.terminal.write(`scenario=${id};tab=${tabIndex}`);
-    attach.terminal.write("\r");
+    await submitFixturePrompt(context.nativeAddon, attach, `scenario=${id};tab=${tabIndex}`, true);
     await waitUntil(() => scenario.requests.has(tabIndex), `${id} tab ${tabIndex + 1} provider request`);
   }
   await withTimeout(scenario.requestsReady, `${id} provider requests`);
@@ -840,8 +841,7 @@ async function runStoppedStageControls(attach, context, provider, tabIds) {
     if (stage === "engine-delivery") scenario.blockedEngineTab = targetIndex;
     for (let tabIndex = 0; tabIndex < 3; tabIndex += 1) {
       await selectTab(attach, context, tabIndex, tabIds[tabIndex]);
-      attach.terminal.write(`scenario=${id};tab=${tabIndex}`);
-      attach.terminal.write("\r");
+      await submitFixturePrompt(context.nativeAddon, attach, `scenario=${id};tab=${tabIndex}`, true);
       await waitUntil(() => scenario.requests.has(tabIndex), `${id} tab ${tabIndex + 1} provider request`);
     }
     await withTimeout(scenario.requestsReady, `${id} provider requests`);
@@ -851,21 +851,44 @@ async function runStoppedStageControls(attach, context, provider, tabIds) {
     const engineBaselines = currentEngineBaselines(before.records, tabIds);
     const marker = stage === "engine-delivery" ? null : join(context.controls, `${targetTabId}.${stage}.stop`);
     if (marker !== null) await writeFile(marker, "", { mode: 0o600 });
-    const startedUnixUs = epochUs();
-    scenario.start();
     try {
-      await waitUntil(async () => {
-        const observations = await currentObservations(context);
-        return evaluateStoppedStageControl(observations.records, {
-          id, stage, targetTabId, tabIds, startedUnixUs, barrierUnixUs: epochUs(), engineBaselines,
-        }).passed;
-      }, `${id} isolated stop`);
+      let stopBoundary;
+      if (stage === "outer-paint") {
+        const sequences = new Map();
+        for (const record of before.records) sequences.set(record.processInstance,
+          Math.max(sequences.get(record.processInstance) ?? 0, record.sequence));
+        await waitUntil(async () => {
+          const observations = await currentObservations(context);
+          if (observations.faults.length > 0) throw new Error(observations.faults.join("; "));
+          const acknowledgement = observations.records.find(record => record.stage === "fixture-stop-ack"
+            && record.eventKind === stage && record.tabId === targetTabId
+            && record.sequence > (sequences.get(record.processInstance) ?? 0));
+          if (!acknowledgement) return false;
+          stopBoundary = { processInstance: acknowledgement.processInstance, sequence: acknowledgement.sequence };
+          return true;
+        }, `${id} writer stop acknowledgement`);
+      }
+      const startedUnixUs = epochUs();
+      const causalBoundary = stopBoundary === undefined ? {} : { stopBoundary };
+      scenario.start();
+      let evidence;
+      try {
+        await waitUntil(async () => {
+          const observations = await currentObservations(context);
+          evidence = evaluateStoppedStageControl(observations.records, {
+            id, stage, targetTabId, tabIds, startedUnixUs, barrierUnixUs: epochUs(), engineBaselines, ...causalBoundary,
+          });
+          return evidence.passed;
+        }, `${id} isolated stop`);
+      } catch (error) {
+        throw new Error(`${error instanceof Error ? error.message : String(error)} ${JSON.stringify(evidence)}`);
+      }
       await delay(250);
       const barrierUnixUs = epochUs();
       const stopped = await currentObservations(context);
       if (stopped.faults.length > 0) throw new Error(stopped.faults.join("; "));
       const result = evaluateStoppedStageControl(stopped.records, {
-        id, stage, targetTabId, tabIds, startedUnixUs, barrierUnixUs, engineBaselines,
+        id, stage, targetTabId, tabIds, startedUnixUs, barrierUnixUs, engineBaselines, ...causalBoundary,
       });
       if (!result.passed) throw new Error(result.faults.join("; "));
       if (marker !== null) await rm(marker, { force: true });
@@ -900,11 +923,16 @@ async function writeFixtureProfile(profile, baseUrl) {
   await writeFile(join(profile, "models.json"), `${JSON.stringify({
     providers: { fixture: { baseUrl, api: "openai-completions", apiKey: "fixture", models: [{
       id: "parallel-stream", name: "Parallel stream fixture", contextWindow: 32_000, maxTokens: 4_096,
-    }] } },
+    }, ...Array.from({ length: 80 }, (_, index) => ({
+      id: `LatencyModel${String(index).padStart(2, "0")}`,
+      name: `LatencyModel${String(index).padStart(2, "0")}`,
+      contextWindow: 32_000, maxTokens: 4_096,
+    }))] } },
   }, null, 2)}\n`);
   const fallbackAgentDir = join(profile, ".pi", "agent");
   await mkdir(fallbackAgentDir, { recursive: true });
   await writeFile(join(profile, "auth.json"), "{}\n");
+  await writeFile(join(profile, "keybindings.json"), `${JSON.stringify({ "app.model.select": "f6" })}\n`);
   await writeFile(join(fallbackAgentDir, "auth.json"), "{}\n");
   await writeFile(join(profile, "settings.json"), `${JSON.stringify({
     defaultProvider: "fixture",
@@ -916,12 +944,14 @@ async function writeFixtureProfile(profile, baseUrl) {
 }
 
 async function collect(host) {
+  const nativeAddon = createRequire(import.meta.url)(resolve(host));
+  const nativeProfile = assertOptimizedFixture(nativeAddon);
   await prepareNodePty();
   const { spawn } = await import("node-pty");
-  const root = await mkdtemp(join(tmpdir(), "a1-resident-parallel-"));
+  const root = await createResidentFixtureRoot("a1-resident-parallel-");
   const runId = randomUUID();
   const context = {
-    root,
+    root, nativeAddon,
     profile: join(root, "profile"),
     data: join(root, "data"),
     runtime: join(root, "runtime"),
@@ -934,6 +964,10 @@ async function collect(host) {
     runId,
     endpoint: process.platform === "win32" ? `\\\\.\\pipe\\a1-resident-parallel-${process.pid}-${Date.now()}` : join(root, "resident.sock"),
   };
+  // Provenance: WMI creation does not inherit the initiating shell's addon override. Pin the
+  // fixture addon in the fixed role entry itself so every detached holder/server uses the exact
+  // measured artifact, not the release addon beside dist's normal environment-gated entry.
+  hostEntry = await writeFixtureRoleEntry(root, host);
   const provider = new LoopbackProvider();
   const baseUrl = await provider.start();
   context.environment = {
@@ -972,9 +1006,70 @@ async function collect(host) {
     attach = await createAttach(spawn, host, context);
     phase("real tabs");
     tabIds = await createRealTabs(host, context);
-    phase("temporal parity");
-    const temporalParity = await compareDirectAndResidentTemporalState(spawn, host, attach, context, provider, tabIds);
-    if (!temporalParity.passed) throw new Error(temporalParity.faults.join("; "));
+    let temporalParity;
+    await selectTab(attach, context, 0, tabIds[0]);
+    const direct = await createDirect(spawn, context);
+    let inputResponsiveness;
+    try {
+      if (!process.argv.includes("--input-only")) {
+        phase("temporal parity");
+        temporalParity = await compareDirectAndResidentTemporalState(host, attach, context, provider, tabIds, direct);
+        if (!temporalParity.passed) throw new Error(temporalParity.faults.join("; "));
+      }
+      phase("input responsiveness");
+      let inputBaseline;
+      if (temporalParity !== undefined) {
+        const addon = nativeAddon;
+        const marker = `P${temporalParity.id.replaceAll("-", "").slice(-2)}T1C`;
+        // Invariant: keep BOTH completed transcripts. Recreating only solo benchmarks an empty
+        // backdrop against resident's streamed conversation and invalidates the latency oracle.
+        await waitUntil(() => {
+          const directSeed = addon.inspectTerminalSnapshot(Buffer.from(direct.output(), "utf8"), 100, 29, 0, marker);
+          const residentSeed = addon.inspectTerminalSnapshot(Buffer.from(attach.output(), "utf8"), 100, 30, 1, marker);
+          try {
+            inputBaseline = assertMatchingInputBaseline(
+              { ...directSeed, complete: !directSeed.openSynchronizedOutput },
+              { ...residentSeed, complete: !residentSeed.openSynchronizedOutput },
+            );
+            return true;
+          } catch { return false; }
+        }, "matching completed transcript baselines before input timing");
+      }
+      inputResponsiveness = await measureRealInputResponsiveness({
+        addon: nativeAddon, direct, resident: attach,
+        prepareWheel: async endpoint => {
+          const scenario = provider.scenario("input-wheel", [0], 1);
+          try {
+            await submitFixturePrompt(nativeAddon, endpoint, "scenario=input-wheel;tab=0", endpoint === attach);
+            await waitUntil(() => scenario.requests.has(0), "wheel fixture provider request");
+            scenario.start();
+            await withTimeout(scenario.partialReady, "wheel fixture partial");
+            scenario.release();
+            await withTimeout(scenario.completed, "wheel fixture completion");
+            await delay(150);
+          } finally { scenario.releaseEngine(); scenario.release(); }
+        },
+      });
+      if (inputBaseline !== undefined) inputResponsiveness.baseline = inputBaseline;
+    } catch (error) {
+      await mkdir(".artifacts/input-fixture", { recursive: true });
+      await writeFile(".artifacts/input-fixture/direct-debug.bin", direct.output(), "utf8");
+      await writeFile(".artifacts/input-fixture/resident-debug.bin", attach.output(), "utf8");
+      throw error;
+    } finally { stopAttach(direct); }
+    process.stderr.write(`[input-responsiveness] ${JSON.stringify(inputResponsiveness)}\n`);
+    if (!inputResponsiveness.passed) {
+      // Rationale: CI already uploads stdout as the report. Retain payload-free stage diagnostics
+      // on a failed input gate too, without pretending the remaining scenarios ran or passed.
+      const observed = await currentObservations(context);
+      const failure = { schema: "a1-resident-parallel-progress-v1", platform: `${process.platform}-${process.arch}`,
+        runId, tabs: tabIds, scenarios: [], inputResponsiveness, observations: observed.records.length,
+        diagnostics: observed, passed: false, faults: [...inputResponsiveness.faults, ...observed.faults] };
+      await new Promise((resolve, reject) => process.stdout.write(`${JSON.stringify(failure, null, 2)}\n`,
+        error => error ? reject(error) : resolve()));
+      throw new Error(inputResponsiveness.faults.join("; "));
+    }
+    if (process.argv.includes("--input-only")) return { inputResponsiveness, passed: true };
     phase("scenarios");
     const scenarios = await runScenarios(attach, context, provider, tabIds);
     phase("slow transport");
@@ -990,14 +1085,16 @@ async function collect(host) {
     const stoppedStageControls = await runStoppedStageControls(attach, context, provider, tabIds);
     const observations = await currentObservations(context);
     const latency = progressLatencyReport(observations.records, tabIds, scenarios.map(scenario => scenario.window));
-    const faults = [...observations.faults, ...latency.faults];
+    const faults = [...observations.faults, ...latency.faults, ...inputResponsiveness.faults];
     return {
       schema: "a1-resident-parallel-progress-v1",
       platform: `${process.platform}-${process.arch}`,
       runId,
       artifact: {
         host: resolve(host),
+        profile: nativeProfile,
         hostSha256: createHash("sha256").update(await readFile(resolve(host))).digest("hex"),
+        roleEntrySha256: createHash("sha256").update(await readFile(hostEntry)).digest("hex"),
         release: context.release,
         releaseHead: gitHead(context.release),
       },
@@ -1007,6 +1104,7 @@ async function collect(host) {
         stoppedStageControls: stoppedStageControls.length, chunksPerTurn: 60 },
       tabs: tabIds,
       temporalParity,
+      inputResponsiveness,
       scenarios,
       slowTransport,
       interactionPressure,

@@ -1,5 +1,5 @@
 import { resolveProductPaths } from "../foundation/lifecycle/index.js";
-import { CohortStateStore } from "../foundation/release/index.js";
+import { materializeRelease } from "../foundation/release/index.js";
 import {
   readResidentTabLaunchSettings,
   runTerminalHostMaintenance,
@@ -12,7 +12,7 @@ import type { TabsRequest } from "./tabs-request.js";
 export type { TabsRequest } from "./tabs-request.js";
 
 export interface TabsCommandOptions {
-  /** The running package root; its terminal host is a candidate after the active release. */
+  /** The invoking package, never a different active or retained release. */
   readonly packageRoot?: string;
   readonly environment?: NodeJS.ProcessEnv;
   readonly stdout?: (message: string) => void;
@@ -28,7 +28,7 @@ export async function runTabsCommand(request: TabsRequest, options: TabsCommandO
   const stderr = options.stderr ?? (message => process.stderr.write(message));
   const paths = resolveProductPaths(environment);
   const profileRoot = environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir;
-  const releaseRoots = await installedReleaseRoots(paths.dataDir, options.packageRoot);
+  const releaseRoots = await invokingReleaseRoots(paths.dataDir, options.packageRoot, environment);
   const maintenance = options.maintenance ?? runTerminalHostMaintenance;
   const report = await maintenance({
     action: request.action === "doctor" ? "host-status" : request.action,
@@ -68,19 +68,15 @@ export async function runTabsCommand(request: TabsRequest, options: TabsCommandO
   return report.exitCode === 0 ? 0 : 1;
 }
 
-async function installedReleaseRoots(dataDir: string, packageRoot: string | undefined): Promise<string[]> {
-  const roots: string[] = [];
+async function invokingReleaseRoots(dataDir: string, packageRoot: string | undefined, environment: NodeJS.ProcessEnv): Promise<string[]> {
+  if (!packageRoot) return [];
+  if (environment[PRODUCT_IDENTITY.environment.developmentInstanceId]) return [packageRoot];
   try {
-    const state = await new CohortStateStore(dataDir).read();
-    for (const id of [state.references.active, state.references.rollback]) {
-      if (id && state.releases[id]) roots.push(state.releases[id].releaseRoot);
-    }
-    roots.push(...Object.values(state.releases).map(record => record.releaseRoot));
+    // Invariant: immutable materialization selects exact payload bytes without activating or starting a host.
+    return [(await materializeRelease(packageRoot, dataDir)).releaseRoot];
   } catch {
-    // Rationale: unreadable release state still leaves the running package's own host.
+    return [];
   }
-  if (packageRoot) roots.push(packageRoot);
-  return [...new Set(roots)];
 }
 
 const NO_TABS = "No resident tabs are running.\n";

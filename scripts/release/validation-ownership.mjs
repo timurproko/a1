@@ -8,16 +8,19 @@ const MAX_TESTS = 2048;
 const TEST_TREE_SOURCE = /\.[cm]?[jt]sx?$/u;
 const MAX_TEST_TREE_FILES = 8192;
 const MAX_TEST_TREE_BYTES = 64 * 1024 * 1024;
+const MAX_REACHING_TESTS_PER_PATH = 24;
 const SPECIFIER = /(?:\bfrom|\bimport|\brequire\s*\(|\bvi\.mock\s*\()\s*\(?\s*["'](\.\.?\/[^"'\n]+)["']/gu;
 
 /** Load and validate the bounded path/test ownership policy. */
 export async function loadValidationOwnership(repository = process.cwd()) {
   const root = resolve(repository);
-  const [policy, suites, tests, supportGraph] = await Promise.all([
+  const [policy, suites, tests, supportGraph, consumerGraph, integrationRegistry] = await Promise.all([
     readFile(resolve(root, "config/validation-ownership.json"), "utf8").then(JSON.parse),
     readFile(resolve(root, "config/validation-suites.json"), "utf8").then(JSON.parse),
     discoverTests(resolve(root, "test"), root),
     buildSupportGraph(root).catch(() => null),
+    buildSupportGraph(root, { includeProduct: true }).catch(() => null),
+    readFile(resolve(root, "config/integration-owners.json"), "utf8").then(JSON.parse),
   ]);
   assertPolicy(policy);
   if (suites?.schema !== "a1-validation-suites-v1") throw new TypeError("validation ownership requires the supported suite registry");
@@ -30,6 +33,11 @@ export async function loadValidationOwnership(repository = process.cwd()) {
   });
   for (const test of policy.mandatoryTests) {
     if (!tests.includes(test)) throw new TypeError(`mandatory PR-core test does not exist: ${test}`);
+  }
+  for (const owner of policy.owners) for (const test of owner.criticalTests) {
+    const entry = testOwners.find(candidate => candidate.test === test);
+    if (!entry) throw new TypeError(`critical PR test does not exist: ${test}`);
+    if (entry.owner !== owner.id) throw new TypeError(`critical PR test belongs to another owner: ${test}`);
   }
 
   const fast = suites.scopes?.["fast-remainder"];
@@ -53,16 +61,28 @@ export async function loadValidationOwnership(repository = process.cwd()) {
     fastOwner: resourceTests.has(entry.test) ? "fast-resource-sensitive" : excluded.has(entry.test) ? null : "fast-remainder",
     completeOwners: suiteOwners.get(entry.test) ?? [],
   }));
-  return { policy, suites, tests, ledger, supportGraph, policyId: digest(policy) };
+  if (integrationRegistry.schema !== "a1-integration-owner-registry-v2" || !Array.isArray(integrationRegistry.owners) || integrationRegistry.owners.length > 64) throw new TypeError("invalid refinement integration authority");
+  const integrationTests = new Map();
+  for (const owner of integrationRegistry.owners) for (const test of owner.tests ?? []) {
+    const owners = integrationTests.get(test) ?? [];
+    owners.push(owner.id);
+    integrationTests.set(test, owners);
+  }
+  for (const rule of policy.refinements ?? []) {
+    if (rule.testPaths.some(pattern => !tests.some(test => matches(test, pattern)))) throw new TypeError(`refinement has an unowned test pattern: ${rule.id}`);
+    if (rule.integrationOwners.some(id => !(integrationRegistry.owners ?? []).some(owner => owner.id === id))) throw new TypeError(`unknown refinement integration: ${rule.id}`);
+  }
+  return { policy, suites, tests, ledger, supportGraph, consumerGraph, integrationTests, policyId: digest(policy) };
 }
 
 /**
- * Reverse static import graph of the test tree, so a shared support path can name the retained tests that reach it.
- * Only relative specifiers inside `test/` form edges; anything unresolvable is dropped, which can only widen the
- * declared-owner fallback in selection.
+ * Reverse bounded relative-import graph. The default stays inside the test tree for shared-support
+ * ownership; includeProduct adds operational roots only to supplement a reviewed refinement's explicit
+ * test floor. Unavailable graphs disable refinement, never the coarse owner or mandatory PR core.
  */
-export async function buildSupportGraph(root) {
-  const files = await discoverTestTree(resolve(root, "test"), root);
+export async function buildSupportGraph(root, { includeProduct = false } = {}) {
+  const files = (await Promise.all((includeProduct ? ["test", "src", "scripts", "bin"] : ["test"])
+    .map(directory => discoverTestTree(resolve(root, directory), root)))).flat();
   if (files.length > MAX_TEST_TREE_FILES) throw new TypeError("test tree is unbounded");
   const present = new Set(files);
   const importers = new Map();
@@ -72,7 +92,7 @@ export async function buildSupportGraph(root) {
     bytes += source.length;
     if (bytes > MAX_TEST_TREE_BYTES) throw new TypeError("test tree is too large to scan");
     for (const match of source.matchAll(SPECIFIER)) {
-      const target = resolveTestSpecifier(file, match[1], present);
+      const target = resolveTestSpecifier(file, match[1], present, includeProduct);
       if (!target) continue;
       const values = importers.get(target) ?? new Set();
       values.add(file);
@@ -94,12 +114,13 @@ export async function buildSupportGraph(root) {
     }
     return [...reached].sort();
   }
-  return { files: files.length, reachingTests };
+  return { files: files.length, reachingTests, hasPath: path => present.has(path) };
 }
 
-function resolveTestSpecifier(file, specifier, present) {
-  const base = posix.normalize(posix.join(posix.dirname(file), specifier));
-  if (!base.startsWith("test/")) return null;
+function resolveTestSpecifier(file, specifier, present, includeProduct) {
+  let base = posix.normalize(posix.join(posix.dirname(file), specifier));
+  if (includeProduct && base.startsWith("dist/")) base = `src/${base.slice(5)}`;
+  if (!(includeProduct ? ["test/", "src/", "scripts/", "bin/"].some(prefix => base.startsWith(prefix)) : base.startsWith("test/"))) return null;
   const candidates = [base, base.replace(/\.js$/u, ".ts"), base.replace(/\.mjs$/u, ".mts"), base.replace(/\.cjs$/u, ".cts"),
     `${base}.ts`, `${base}.mts`, `${base}.js`, `${base}.mjs`, `${base}/index.ts`, `${base}/index.js`];
   return candidates.find(candidate => present.has(candidate)) ?? null;
@@ -156,10 +177,37 @@ export function selectValidationOwnership({ authority, changes, manualNoComparis
     return { owner: owner.id, selected, reasons, integrationOwners: [...owner.integrationOwners] };
   });
   const selectedOwners = new Set(decisions.filter(decision => decision.selected).map(decision => decision.owner));
-  const selectedLedger = mode === "exempt" ? [] : ledger.filter(entry => entry.prCore || selectedOwners.has(entry.owner));
+  const additionalTests = new Set();
+  for (const path of paths) {
+    if (testOwner.has(path)) additionalTests.add(path);
+    for (const graph of [authority.supportGraph, authority.consumerGraph]) {
+      for (const test of (graph?.reachingTests?.(path) ?? []).slice(0, MAX_REACHING_TESTS_PER_PATH)) additionalTests.add(test);
+    }
+  }
+  if (mode === "impact" && authority.consumerGraph) for (const decision of decisions.filter(item => item.selected)) {
+    const reasons = ownerReasons.get(decision.owner);
+    if (!reasons.length || reasons.some(reason => reason.code !== "owned-path")) continue;
+    const rules = (policy.refinements ?? []).filter(rule => rule.owner === decision.owner);
+    const relevant = [...new Set(reasons.map(reason => reason.path))];
+    const active = rules.filter(rule => relevant.some(path => rule.paths.some(pattern => matches(path, pattern))));
+    if (relevant.some(path => !authority.consumerGraph.hasPath(path) || !active.some(rule => rule.paths.some(pattern => matches(path, pattern))))) continue;
+    const consumerIntegrations = new Set(active.flatMap(rule => rule.integrationOwners));
+    const refinementTests = new Set(ledger.filter(entry => active.some(rule => rule.testPaths.some(pattern => matches(entry.test, pattern)))).map(entry => entry.test));
+    for (const path of relevant) for (const test of authority.consumerGraph.reachingTests(path).slice(0, MAX_REACHING_TESTS_PER_PATH)) refinementTests.add(test);
+    for (const test of refinementTests) {
+      additionalTests.add(test);
+      for (const owner of authority.integrationTests?.get(test) ?? []) consumerIntegrations.add(owner);
+    }
+    decision.integrationOwners = [...consumerIntegrations];
+    decision.reasons.push({ code: "reviewed-subarea", paths: active.map(rule => rule.id) });
+  }
+  const retained = new Set(mode === "exempt" ? [] : policy.mandatoryTests);
+  for (const owner of policy.owners.filter(owner => selectedOwners.has(owner.id))) for (const test of owner.criticalTests) retained.add(test);
+  for (const test of additionalTests) retained.add(test);
+  const selectedLedger = mode === "exempt" ? [] : ledger.filter(entry => retained.has(entry.test));
   const tests = selectedLedger.filter(entry => entry.fastOwner === "fast-remainder").map(entry => entry.test);
   const resourceTests = selectedLedger.filter(entry => entry.fastOwner === "fast-resource-sensitive").map(entry => entry.test);
-  const integrationOwners = [...new Set(policy.owners.filter(owner => selectedOwners.has(owner.id)).flatMap(owner => owner.integrationOwners))].sort();
+  const integrationOwners = [...new Set(decisions.filter(owner => selectedOwners.has(owner.owner)).flatMap(owner => owner.integrationOwners))].sort();
   return {
     schema: "a1-pr-core-selection-v1",
     mode,
@@ -207,7 +255,20 @@ function assertPolicy(policy) {
   if (ids.size !== policy.owners.length) throw new TypeError("duplicate validation owner");
   for (const owner of policy.owners) {
     if (!/^[a-z][a-z0-9-]{0,63}$/u.test(owner.id) || !Array.isArray(owner.paths) || !Array.isArray(owner.testPaths)
-      || owner.testPaths.length === 0 || !Array.isArray(owner.integrationOwners)) throw new TypeError("invalid validation owner");
+      || owner.testPaths.length === 0 || !Array.isArray(owner.criticalTests) || owner.criticalTests.length === 0
+      || owner.criticalTests.length > 5 || new Set(owner.criticalTests).size !== owner.criticalTests.length
+      || !Array.isArray(owner.integrationOwners)) throw new TypeError("invalid validation owner");
+  }
+  const refinements = policy.refinements ?? [];
+  if (!Array.isArray(refinements) || refinements.length > 64 || new Set(refinements.map(rule => rule.id)).size !== refinements.length) throw new TypeError("invalid ownership refinements");
+  for (const rule of refinements) {
+    const owner = policy.owners.find(item => item.id === rule.owner);
+    if (!owner || Object.keys(rule).some(key => !["id", "owner", "paths", "testPaths", "integrationOwners"].includes(key))
+      || !/^[a-z][a-z0-9-]{0,63}$/u.test(rule.id ?? "")
+      || ![rule.paths, rule.testPaths, rule.integrationOwners].every(value => Array.isArray(value) && value.length <= MAX_TESTS)
+      || !rule.paths.length || !rule.testPaths.length
+      || [...rule.paths, ...rule.testPaths].some(path => typeof path !== "string" || path.includes("..") || path.includes("\\") || path.startsWith("/"))
+      || rule.paths.some(path => !owner.paths.some(pattern => matches(path, pattern)))) throw new TypeError("invalid reviewed ownership subarea");
   }
   for (const shared of policy.shared) if (!Array.isArray(shared.paths) || !Array.isArray(shared.owners)
     || shared.owners.some(owner => !ids.has(owner))) throw new TypeError("invalid shared validation ownership");

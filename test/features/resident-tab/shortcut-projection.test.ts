@@ -23,7 +23,7 @@ afterEach(async () => { while (cleanups.length) await cleanups.pop()!(); });
 describe("resident tab shortcut projection", () => {
   it("covers every global declaration in declaration order", () => {
     expect(RESIDENT_TAB_GLOBAL_SHORTCUTS.map(shortcut => shortcut.id)).toEqual([
-      "tabs.new", "tabs.close", "tabs.rename", "tabs.settings",
+      "tabs.new", "tabs.close", "tabs.rename", "tabs.settings", "tabs.changelog", "tabs.commands",
       ...Array.from({ length: 10 }, (_, index) => `tabs.jump${index + 1}`),
       "tabs.next", "tabs.previous", "tabs.moveRight", "tabs.moveLeft",
     ]);
@@ -33,6 +33,16 @@ describe("resident tab shortcut projection", () => {
   // Invariant: the native resolver replays the same cases, so both sides dispatch one contract.
   it.each((cases as { cases: ProjectionCase[] }).cases.map(entry => [entry.name, entry] as const))("%s", (_name, entry) => {
     expect(projectResidentTabShortcuts({ configured: entry.configured, reserved: entry.reserved }).assignments).toEqual(entry.assignments);
+  });
+
+  it("ignores legacy menu bindings without changing other tab shortcuts", () => {
+    const { assignments } = projectResidentTabShortcuts({
+      configured: { "tabs.overflowMenu": "alt+-", "tabs.addMenu": "alt+=", "tabs.next": "alt+]" },
+    });
+    expect(assignments).not.toHaveProperty("tabs.overflowMenu");
+    expect(assignments).not.toHaveProperty("tabs.addMenu");
+    expect(assignments["tabs.new"]).toBe("alt+a");
+    expect(assignments["tabs.next"]).toBe("alt+]");
   });
 
   it("names why a key was refused", () => {

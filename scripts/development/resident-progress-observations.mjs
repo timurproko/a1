@@ -3,8 +3,10 @@ import { join } from "node:path";
 
 export const progressObservationSchema = "a1-resident-progress-observation-v1";
 export const progressStages = Object.freeze([
-  "engine-delivery", "child-render-write", "pty-ingest", "holder-commit", "attach-receipt", "outer-paint",
+  "engine-delivery", "child-render-write", "child-input-phase", "pty-input-write", "pty-ingest", "holder-commit", "attach-receipt", "outer-paint",
+  "pipe-frame-read", "pipe-write-complete", "outer-write-complete", "wake-gap", "wake-repaint-requested", "fixture-stop-ack",
 ]);
+const connectionStages = new Set(["pipe-frame-read", "pipe-write-complete", "outer-write-complete", "wake-gap", "wake-repaint-requested"]);
 const stageSet = new Set(progressStages);
 const sensitiveKeys = /content|cells|text|prompt|message|token|credential|header|clipboard|path|session/i;
 
@@ -36,6 +38,7 @@ export function validateProgressObservations(records, runId) {
   const faults = [];
   const priorSequence = new Map();
   const priorTimestamp = new Map();
+  const priorClock = new Map();
   const identities = new Set();
   for (const [index, record] of records.entries()) {
     const label = `record ${index + 1}`;
@@ -47,10 +50,16 @@ export function validateProgressObservations(records, runId) {
     if (!Number.isSafeInteger(record?.sequence) || record.sequence <= 0) faults.push(`${label}: invalid sequence`);
     if (!Number.isSafeInteger(record?.timestampUnixUs) || record.timestampUnixUs <= 0) faults.push(`${label}: invalid timestamp`);
     if (!Number.isSafeInteger(record?.clockErrorUs) || record.clockErrorUs < 0 || record.clockErrorUs > 5_000) faults.push(`${label}: invalid clock error`);
-    if (typeof record?.tabId !== "string" || record.tabId.length === 0 || record.tabId.length > 128) faults.push(`${label}: invalid tab id`);
+    if (!(record?.tabId === undefined && connectionStages.has(record?.stage))
+      && (typeof record?.tabId !== "string" || record.tabId.length === 0 || record.tabId.length > 128)) faults.push(`${label}: invalid tab id`);
+    for (const field of ["durationUs", "idleWaitUs", "monotonicUs", "clockEpoch"]) {
+      if (record?.[field] !== undefined && (!Number.isSafeInteger(record[field]) || record[field] < 0)) faults.push(`${label}: invalid ${field}`);
+    }
+    if ((record?.monotonicUs === undefined) !== (record?.clockEpoch === undefined)) faults.push(`${label}: incomplete monotonic clock`);
+    if (record?.clockDiscontinuity !== undefined && typeof record.clockDiscontinuity !== "boolean") faults.push(`${label}: invalid clock discontinuity`);
     if (!Number.isSafeInteger(record?.incarnation) || record.incarnation < 0) faults.push(`${label}: invalid incarnation`);
     if (!Number.isSafeInteger(record?.lostBefore) || record.lostBefore < 0) faults.push(`${label}: invalid loss count`);
-    else if (record.lostBefore > 0) faults.push(`${label}: ${record.lostBefore} observations lost before this record`);
+    else if (record.lostBefore > 0) faults.push(`${label} (${record.role ?? "unknown"}/${record.stage ?? "unknown"}, ${record.processInstance ?? "unknown"}): ${record.lostBefore} observations lost before this record`);
     if (record?.fragmentCount !== undefined
       && (!Number.isSafeInteger(record.fragmentCount) || record.fragmentCount < 1 || record.fragmentCount > 4_096)) {
       faults.push(`${label}: invalid fragment count`);
@@ -65,7 +74,13 @@ export function validateProgressObservations(records, runId) {
     if (record?.sequence <= previousSequence) faults.push(`${label}: duplicate or reordered process sequence`);
     priorSequence.set(processKey, record?.sequence);
     const previousTimestamp = priorTimestamp.get(processKey) ?? 0;
-    if (record?.timestampUnixUs + (record?.clockErrorUs ?? 0) < previousTimestamp) faults.push(`${label}: process clock moved backwards`);
+    const previousClock = priorClock.get(processKey);
+    const declaredBoundary = record?.clockDiscontinuity === true && Number.isSafeInteger(record?.clockEpoch)
+      && record.clockEpoch > (previousClock?.epoch ?? 0);
+    if (record?.timestampUnixUs + (record?.clockErrorUs ?? 0) < previousTimestamp && !declaredBoundary) faults.push(`${label}: process clock moved backwards`);
+    if (record?.clockDiscontinuity === true && !declaredBoundary) faults.push(`${label}: clock discontinuity without a new epoch`);
+    if (previousClock && (record?.clockEpoch < previousClock.epoch || record?.monotonicUs < previousClock.monotonic)) faults.push(`${label}: monotonic clock moved backwards`);
+    if (record?.clockEpoch !== undefined) priorClock.set(processKey, { epoch: record.clockEpoch, monotonic: record.monotonicUs });
     priorTimestamp.set(processKey, record?.timestampUnixUs);
     const identity = `${processKey}:${record?.sequence}`;
     if (identities.has(identity)) faults.push(`${label}: duplicate observation identity`);
@@ -132,7 +147,11 @@ export function evaluateStoppedStageControl(records, control) {
       pty: tab.filter(record => record.stage === "pty-ingest").length,
       holder: tab.filter(record => record.stage === "holder-commit").length,
       receipt: tab.filter(record => record.stage === "attach-receipt").length,
-      painter: tab.filter(record => record.stage === "outer-paint").length,
+      // Concurrency: an earlier paint can complete before the writer acknowledges the stop but
+      // receive a wall timestamp inside this window. Only its causal sequence excludes it.
+      painter: tab.filter(record => record.stage === "outer-paint" && (!control.stopBoundary
+        || record.processInstance !== control.stopBoundary.processInstance
+        || record.sequence > control.stopBoundary.sequence)).length,
     }];
   }));
   const target = counts[control.targetTabId];
@@ -159,32 +178,32 @@ export function evaluateStoppedStageControl(records, control) {
     }
   }
   return { id: control.id, stage: control.stage, targetTabId: control.targetTabId,
-    passed: faults.length === 0, faults, counts };
+    passed: faults.length === 0, faults, counts,
+    ...(control.stopBoundary === undefined ? {} : { stopBoundary: control.stopBoundary }) };
 }
 
 export function progressLatencyReport(records, tabIds, activeWindows = null) {
   const perTab = {};
   const allFaults = [];
+  const boundaries = clockBoundaries(records);
   for (const tabId of tabIds) {
     const tab = records.filter(record => record.tabId === tabId);
     const engine = new Map(tab.filter(record => record.stage === "engine-delivery").map(record => [record.eventSequence, record]));
     const render = tab.filter(record => record.stage === "child-render-write" && engine.has(record.eventSequence));
-    const engineToRender = render.map(record => durationMs(engine.get(record.eventSequence), record)).filter(Number.isFinite);
+    const engineToRender = render.map(record => durationMs(engine.get(record.eventSequence), record, boundaries)).filter(Number.isFinite);
     const pty = tab.filter(record => record.stage === "pty-ingest");
-    const renderToPty = matchForward(render, pty);
+    const renderToPty = matchForward(render, pty, boundaries);
     const commits = tab.filter(record => record.stage === "holder-commit");
-    const paintsByRevision = new Map(tab.filter(record => record.stage === "outer-paint" && record.revision > 0)
-      .map(record => [record.revision, record]));
-    const commitToPaint = commits.map(record => paintsByRevision.has(record.revision)
-      ? durationMs(record, paintsByRevision.get(record.revision)) : Number.NaN).filter(Number.isFinite);
-    const commitTimes = tab.filter(record => record.stage === "holder-commit").map(record => record.timestampUnixUs)
-      .sort((left, right) => left - right);
+    const presentation = healthyPresentationSamples(tab, commits, activeWindows, boundaries);
+    const commitToPaint = presentation.durations;
+    const commitTimes = tab.filter(record => record.stage === "holder-commit")
+      .sort((left, right) => left.timestampUnixUs - right.timestampUnixUs);
     // Invariant: a holder owes commits only while its child has new output. Settled turns, stopped-stage
     // controls, server replacement, and paused sinks are idle by design, so gaps are measured only
     // inside the supplied windows where every tab streams and animates.
     const gaps = (activeWindows ?? [{ startedUnixUs: -Infinity, barrierUnixUs: Infinity }]).flatMap(window => {
-      const inside = commitTimes.filter(value => value >= window.startedUnixUs && value <= window.barrierUnixUs);
-      return inside.slice(1).map((value, index) => (value - inside[index]) / 1_000);
+      const inside = commitTimes.filter(value => value.timestampUnixUs >= window.startedUnixUs && value.timestampUnixUs <= window.barrierUnixUs);
+      return inside.slice(1).map((value, index) => durationMs(inside[index], value, boundaries)).filter(Number.isFinite);
     });
     perTab[tabId] = {
       engineToRender: summary(engineToRender),
@@ -194,9 +213,52 @@ export function progressLatencyReport(records, tabIds, activeWindows = null) {
     };
     if (engineToRender.length < 40) allFaults.push(`${tabId}: fewer than 40 matched engine-to-render samples`);
     if (renderToPty.length < 40) allFaults.push(`${tabId}: fewer than 40 matched renderer-to-PTY samples`);
+    if (commitToPaint.length < 40) allFaults.push(`${tabId}: fewer than 40 matched healthy commit-to-paint samples`);
+    if (perTab[tabId].commitToPaint.p95Ms > 33) allFaults.push(`${tabId}: healthy commit-to-paint p95 exceeded 33 ms`);
+    for (const index of presentation.missingWindows) allFaults.push(`${tabId}: healthy viewed window ${index + 1} has no matched presentation`);
     if (perTab[tabId].holderWorstGapMs !== null && perTab[tabId].holderWorstGapMs > 1_000) allFaults.push(`${tabId}: holder no-progress gap exceeded 1000 ms`);
   }
-  return { perTab, faults: allFaults };
+  // Rationale: local I/O completion durations are not physical presentation or idle-read latency.
+  const localCompletions = Object.fromEntries(["pipe-frame-read", "pipe-write-complete", "outer-write-complete"].map(stage => [stage,
+    summary(records.filter(record => record.stage === stage && Number.isSafeInteger(record.durationUs) && record.durationUs >= 0)
+      .map(record => record.durationUs / 1_000)),
+  ]));
+  return { perTab, faults: allFaults, localCompletions };
+}
+
+// Rationale: activation re-offers may deliberately reuse a commit made while hidden; that age is not live
+// delivery latency. The first receipt/paint of each incarnation/revision fixes its causal sample.
+function healthyPresentationSamples(tab, commits, windows, boundaries) {
+  const key = record => `${record.incarnation}:${record.revision}`;
+  const first = stage => {
+    const values = new Map();
+    for (const record of tab.filter(value => value.stage === stage && value.revision > 0)
+      .sort((left, right) => left.timestampUnixUs - right.timestampUnixUs)) {
+      if (!values.has(key(record))) values.set(key(record), record);
+    }
+    return values;
+  };
+  const receipts = first("attach-receipt");
+  const paints = first("outer-paint");
+  const durations = [];
+  const matchedWindows = new Set();
+  for (const commit of commits) {
+    const receipt = receipts.get(key(commit));
+    if (receipt?.eventKind === "activation" || receipt?.eventKind === "stale") continue;
+    const paint = paints.get(key(commit));
+    if (paint === undefined) continue; // Invariant: superseded complete states may be coalesced.
+    const duration = durationMs(commit, paint, boundaries);
+    if (!Number.isFinite(duration)) continue;
+    const eligible = windows === null ? [0] : windows.flatMap((window, index) =>
+      commit.timestampUnixUs >= window.startedUnixUs && paint.timestampUnixUs <= window.barrierUnixUs
+        && (window.viewedTabIds === undefined || window.viewedTabIds.includes(commit.tabId)) ? [index] : []);
+    if (eligible.length === 0) continue;
+    durations.push(duration);
+    for (const index of eligible) matchedWindows.add(index);
+  }
+  const missingWindows = (windows ?? []).flatMap((window, index) =>
+    window.viewedTabIds?.includes(tab[0]?.tabId) && !matchedWindows.has(index) ? [index] : []);
+  return { durations, missingWindows };
 }
 
 function increasing(records, field) {
@@ -208,13 +270,43 @@ function increasing(records, field) {
   });
 }
 
-function durationMs(left, right) {
-  const durationUs = right.timestampUnixUs - left.timestampUnixUs;
-  const uncertaintyUs = left.clockErrorUs + right.clockErrorUs;
-  return durationUs + uncertaintyUs < 0 ? Number.NaN : Math.max(0, durationUs) / 1_000;
+function processKey(record) { return `${record.role}:${record.pid}:${record.processInstance}`; }
+
+function clockBoundaries(records) {
+  const previous = new Map();
+  const boundaries = [];
+  for (const record of [...records].sort((left, right) => left.sequence - right.sequence)) {
+    const key = processKey(record);
+    const prior = previous.get(key);
+    const backwards = prior && record.timestampUnixUs + record.clockErrorUs < prior.timestampUnixUs;
+    if (record.clockDiscontinuity === true || record.stage === "wake-gap" || backwards
+      || (prior?.clockEpoch !== undefined && record.clockEpoch !== prior.clockEpoch)) {
+      boundaries.push(backwards
+        ? { start: record.timestampUnixUs, end: prior.timestampUnixUs, backwards: true }
+        : { start: record.timestampUnixUs, end: record.timestampUnixUs, backwards: false });
+    }
+    previous.set(key, record);
+  }
+  return boundaries;
 }
 
-function matchForward(source, target) {
+function durationMs(left, right, boundaries) {
+  const durationUs = right.timestampUnixUs - left.timestampUnixUs;
+  if (!Number.isFinite(durationUs) || durationUs < 0 || left.incarnation !== right.incarnation) return Number.NaN;
+  if (boundaries.some(boundary => boundary.backwards
+    ? left.timestampUnixUs <= boundary.end && right.timestampUnixUs >= boundary.start
+    : left.timestampUnixUs < boundary.start && right.timestampUnixUs >= boundary.start)) return Number.NaN;
+  if (processKey(left) === processKey(right)) {
+    if (left.clockEpoch !== right.clockEpoch) return Number.NaN;
+    if (left.monotonicUs !== undefined && right.monotonicUs !== undefined) {
+      const local = right.monotonicUs - left.monotonicUs;
+      return Number.isSafeInteger(local) && local >= 0 ? local / 1_000 : Number.NaN;
+    }
+  }
+  return durationUs / 1_000;
+}
+
+function matchForward(source, target, boundaries) {
   const sortedTarget = [...target].sort((left, right) => left.timestampUnixUs - right.timestampUnixUs);
   let targetIndex = 0;
   const durations = [];
@@ -223,7 +315,8 @@ function matchForward(source, target) {
       && sortedTarget[targetIndex].timestampUnixUs + sortedTarget[targetIndex].clockErrorUs
         < item.timestampUnixUs - item.clockErrorUs) targetIndex += 1;
     if (targetIndex >= sortedTarget.length) break;
-    durations.push(durationMs(item, sortedTarget[targetIndex]));
+    const duration = durationMs(item, sortedTarget[targetIndex], boundaries);
+    if (Number.isFinite(duration)) durations.push(duration);
     targetIndex += 1;
   }
   return durations;

@@ -2,7 +2,7 @@ import type { OwnedUiBackgroundStyle, OwnedUiTimeFormat, UiAccentColor } from ".
 
 export const OWNED_UI_SETTINGS_VERSION = 19;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
-  "purple", "blue", "cyan", "green", "orange", "pink",
+  "blue", "purple", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
 
 export type OwnedUiSettingValue = string | number | boolean;
@@ -17,6 +17,11 @@ export interface OwnedUiSettingDeclaration {
   readonly application: OwnedUiSettingApplication;
   readonly defaultValue: OwnedUiSettingValue;
   readonly allowedValues: readonly OwnedUiSettingValue[];
+  /**
+   * Parts of a structured setting, edited through their own dialog: the value is the comma-separated
+   * keys of the enabled parts in this order.
+   */
+  readonly flags?: readonly { readonly key: string; readonly label: string; readonly description: string }[];
 }
 
 const MAX_ID_LENGTH = 64;
@@ -26,7 +31,19 @@ const GENERIC_SECTION = Object.freeze({ id: "generic", title: "Generic" });
 const APPEARANCE_SECTION = Object.freeze({ id: "appearance", title: "Appearance" });
 const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
 const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
-const TABS_SECTION = Object.freeze({ id: "tabs", title: "Tabs" });
+const TABS_SECTION = Object.freeze({ id: "tabs", title: "Tab Bar" });
+
+/** The tab kinds the strip's `+` can offer, in the order it shows them. */
+const PLUS_MENU_KINDS = Object.freeze([
+  Object.freeze({ key: "agent", label: "Agent", description: "Add a new Agent tab every time." }),
+  Object.freeze({ key: "settings", label: "Settings", description: "Show the one Settings tab." }),
+  Object.freeze({ key: "changelog", label: "Changelog", description: "Show the one Changelog tab." }),
+]);
+
+/** Every enabled subset of the plus-menu kinds, each in kind order. */
+const PLUS_MENU_VALUES = Object.freeze([
+  "", "agent", "settings", "changelog", "agent,settings", "agent,changelog", "settings,changelog", "agent,settings,changelog",
+] as const);
 
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   updateCheck: Object.freeze({
@@ -55,7 +72,7 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     section: APPEARANCE_SECTION,
     description: "Color used by highlighted interface controls, list markers, and tonal interface surfaces.",
     application: "live",
-    defaultValue: "purple",
+    defaultValue: "blue",
     allowedValues: UI_ACCENT_COLOR_CHOICES,
   }),
   backgroundStyle: Object.freeze({
@@ -109,10 +126,19 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     id: "promptHistoryEnabled",
     label: "Persistent history",
     section: Object.freeze({ id: "history", title: "History" }),
-    description: "Retain reusable prompts across sessions. Applies on next start; disabling does not erase saved history or stop existing instances.",
+    description: "Retain reusable prompts after restart. Applies on next start; disabling does not erase saved history or stop existing instances.",
     application: "restart",
     defaultValue: true,
     allowedValues: Object.freeze([true, false] as const),
+  }),
+  promptHistoryScope: Object.freeze({
+    id: "promptHistoryScope",
+    label: "History scope",
+    section: Object.freeze({ id: "history", title: "History" }),
+    description: "Unique shows each agent session's history; Shared shows the profile-wide history. Switches running agents without moving or erasing saved prompts.",
+    application: "live",
+    defaultValue: "unique",
+    allowedValues: Object.freeze(["unique", "shared"] as const),
   }),
   promptHistoryMaxItems: Object.freeze({
     id: "promptHistoryMaxItems",
@@ -158,6 +184,16 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "live",
     defaultValue: "top",
     allowedValues: Object.freeze(["top", "bottom"] as const),
+  }),
+  tabBarPlusMenu: Object.freeze({
+    id: "tabBarPlusMenu",
+    label: "Plus menu",
+    section: TABS_SECTION,
+    description: "The tabs + offers. With only Agent, + adds an Agent at once; with more, it opens a menu; with none, + is hidden.",
+    application: "live",
+    defaultValue: "agent",
+    allowedValues: PLUS_MENU_VALUES,
+    flags: PLUS_MENU_KINDS,
   }),
   tabsAutoName: Object.freeze({
     id: "tabsAutoName",

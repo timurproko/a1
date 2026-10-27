@@ -390,26 +390,48 @@ A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` a
 - **THEN** A1's stored scrollbar appearance, style, and speed SHALL NOT modify that interface's scrollbar or wheel behavior
 
 ### Requirement: Prompt history settings declare persistence and retention boundaries
-A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true and `promptHistoryMaxItems` as an integer allowing 10 through 100 in steps of 10, defaulting to 100. They SHALL appear in bare A1's History settings section as `Persistent history` and `History limit`, using existing shared settings controls, profile-local A1 settings persistence, validation, and stored/effective-state presentation. Both SHALL declare a `next-start` application boundary. No Pi settings document or separate history settings file SHALL be used, and `a1 pi` SHALL neither expose nor apply these A1 settings.
+A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `promptHistoryMaxItems` as an integer allowing 10 through 100 in steps of 10 and defaulting to 100, and `promptHistoryScope` as `unique` (default) or `shared`. They SHALL appear in bare A1's History settings section as `Persistent history`, `History limit`, and `History scope`, using existing shared settings controls, profile-local A1 settings persistence, validation, and stored/effective-state presentation. `promptHistoryEnabled` and `promptHistoryMaxItems` SHALL declare a `next-start` application boundary; `promptHistoryScope` SHALL be live and apply to running bare-A1 agents sharing that profile. Unique SHALL select a durable history per agent session, while Shared SHALL retain the former profile-wide history. Saving a scope SHALL switch each running agent's selected durable history and image sidecars without migrating, merging, deleting, or rerouting already-submitted prompts; unsent drafts SHALL remain intact. No Pi settings document or separate history settings file SHALL be used, and `a1 pi` SHALL neither expose nor apply these A1 settings.
 
 #### Scenario: Start without stored history settings
-- **WHEN** a bare-A1 profile has no stored history settings
-- **THEN** its next-start effective values SHALL enable persistence with a 100-entry count limit
+- **WHEN** a bare-A1 profile has no stored history settings, including an existing profile created before History scope was introduced
+- **THEN** its effective values SHALL enable persistence with a 100-entry count limit and Unique scope
 - **AND** byte retention limits SHALL still apply independently
+- **AND** any old shared profile history SHALL remain intact, but SHALL NOT appear in the new session's unique durable recall
 
 #### Scenario: Change retention
 - **WHEN** the user saves a valid history limit
 - **THEN** the settings surface SHALL show that it applies on the next start rather than claiming a live effect
-- **AND** the next enabled launch SHALL apply that count to the shared profile store, pruning oldest entries if necessary
-- **AND** existing writers SHALL follow the store's newly applied limit without restoring their older startup limit
+- **AND** the next enabled launch SHALL apply that count to its selected history store, pruning oldest entries if necessary
+- **AND** existing writers using that store SHALL follow its newly applied limit without restoring their older startup limit
 
 #### Scenario: Reject an invalid limit
 - **WHEN** a stored history limit is not one of 10, 20, 30, 40, 50, 60, 70, 80, 90, or 100
 - **THEN** existing settings validation SHALL reject that value and resolve the declared default without blocking startup
 
+#### Scenario: Set scope to Shared
+- **WHEN** the user saves Shared scope or starts a new enabled agent with Shared selected
+- **THEN** that agent SHALL read and write the unchanged profile-wide history store used before this setting existed
+- **AND** other sessions in Shared mode SHALL see its committed prompts
+
+#### Scenario: Reject an invalid scope
+- **WHEN** a stored history scope is neither `unique` nor `shared`
+- **THEN** existing settings validation SHALL reject that value and resolve Unique without blocking startup
+
+#### Scenario: Change scope while agents are running
+- **WHEN** the user saves another scope while an agent is already running
+- **THEN** that agent SHALL select the newly chosen store and show its own existing entries, preserving any unsent draft
+- **AND** submissions already captured SHALL finish in their original store, while future submissions use the newly selected one
+- **AND** no existing history store SHALL be copied, merged, or erased
+
+#### Scenario: Switch scope across resident tabs and solo processes
+- **WHEN** one agent changes History scope while other agents in the same profile are running
+- **THEN** each SHALL apply the saved scope on its next accepted settings notification, showing the selected store's recall rather than appending the other store's entries
+- **AND** a prompt submitted before that agent observes the change SHALL remain in its then-selected store
+- **AND** persistence enablement and retention count SHALL remain next-start settings
+
 #### Scenario: Disable history for subsequent launches
 - **WHEN** the user disables persistent history and restarts A1
-- **THEN** that process SHALL not create, read, write, or poll the durable history store
+- **THEN** that process SHALL not create, read, write, or poll the durable history store in either scope
 - **AND** it SHALL keep existing current-session history behavior
 - **AND** disabling SHALL leave retained records intact rather than claiming to erase them
 
@@ -420,7 +442,7 @@ A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true and `pro
 
 #### Scenario: Re-enable persistence
 - **WHEN** the user re-enables history and starts a new enabled process
-- **THEN** compatible previously retained records SHALL become available again under the configured count and byte limits
+- **THEN** compatible previously retained records in that process's selected scope SHALL become available again under the configured count and byte limits
 
 #### Scenario: Keep history settings profile-local
 - **WHEN** different A1 profiles store different history settings or the Pi comparison starts
@@ -792,14 +814,14 @@ When the owned Settings screen opens a structured-setting dialog, the dialog's o
 
 ### Requirement: The per-model thinking setting uses the pinned stepped selector
 
-The owned Settings screen SHALL present the Agent `modelThinkingLevels` structured setting through a keyboard-only two-step selector matching A1's modal hierarchy rather than through the generic object-part panel. Both steps SHALL use the title `Thinking Level` followed on the same line by a muted `(step N/2)` marker. Step 1 SHALL show the muted next-line description `Select a model to configure`, a focused searchable input using the ASCII `> ` prompt marker, and the models supplied by the setting descriptor. A bracketed provider suffix such as `[openai-codex]` SHALL use the muted role on selected and unselected model rows, matching the Models dialog. A selected model or thinking-level row SHALL place exactly one space between its arrow cursor and visible label; unselected levels SHALL NOT reserve hidden checkmark spacing. Typing SHALL filter model labels, Up/Down SHALL move the selected model, Enter SHALL advance to that model's supported level choices, and Escape SHALL close from step 1.
+The owned Settings screen SHALL present the Agent `modelThinkingLevels` structured setting through a keyboard-only two-step selector matching A1's modal hierarchy rather than through the generic object-part panel. Both steps SHALL use the title `Thinking Level` followed on the same line by a muted `(step N/2)` marker. Step 1 SHALL show the muted next-line description `Select a model to configure`, a focused searchable input using the exact ASCII `> ` prompt marker with the `>` in the active semantic accent role, and the models supplied by the setting descriptor. A bracketed provider suffix such as `[openai-codex]` SHALL use the muted role on selected and unselected model rows, matching the Models dialog. A selected model or thinking-level row SHALL place exactly one space between its arrow cursor and visible label; unselected levels SHALL NOT reserve hidden checkmark spacing. Typing SHALL filter model labels, Up/Down SHALL move the selected model, Enter SHALL advance to that model's supported level choices, and Escape SHALL close from step 1.
 
 Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted next-line description `Select default thinking level for {model label}`, offer only the supported levels declared for that model, and add pinned Pi's clear-override choice when that model has an override. The model label SHALL NOT replace or extend the title. Enter on clear override SHALL remove that model's override; Enter on a level SHALL write the whole updated object through the Agent backend and return to step 1 so another model can be configured. Escape SHALL return to step 1 without writing. The footer SHALL describe only the active step's keyboard behavior, including `Type search`, `Enter select`, and `Esc close` on step 1 and `Esc back` on step 2, rather than showing the main Settings adjustment or undo hints.
 
 #### Scenario: Open per-model thinking levels
 
 - **WHEN** the user opens the `modelThinkingLevels` setting
-- **THEN** the dialog SHALL show `Thinking Level` with a muted `(step 1/2)`, the muted next-line description `Select a model to configure`, a focused search input beginning with ASCII `> `, and descriptor-supplied model rows
+- **THEN** the dialog SHALL show `Thinking Level` with a muted `(step 1/2)`, the muted next-line description `Select a model to configure`, a focused search input beginning with exact ASCII `> ` whose `>` uses the active accent role, and descriptor-supplied model rows
 - **AND** bracketed provider suffixes SHALL be muted as they are in the Models dialog
 - **AND** its footer SHALL show `Type search`, `Enter select`, and `Esc close` rather than generic Settings guidance
 
@@ -807,6 +829,7 @@ Step 2 SHALL retain the `Thinking Level` title with `(step 2/2)`, show the muted
 
 - **WHEN** the user types a query in step 1
 - **THEN** only matching descriptor-supplied model labels SHALL remain
+- **AND** the marker, query, caret, and clipping SHALL retain shared input geometry
 - **WHEN** the user navigates and presses Enter on a model
 - **THEN** step 2 SHALL keep the `Thinking Level` title with muted `(step 2/2)`
 - **AND** the next line SHALL say `Select default thinking level for {model label}` in the muted role
@@ -886,21 +909,25 @@ The owned Settings screen SHALL keep its standing shortcut guidance visible afte
 
 ### Requirement: The UI accent is a live Appearance setting
 
-Bare A1 SHALL expose one persisted A1 setting `accentColor`, labeled `Accent color`, in an `Appearance` section after `Generic`, followed by the `Background` and `Quit animation` settings. It SHALL offer `purple`, `blue`, `cyan`, `green`, `orange`, and `pink` in that order, SHALL default to `purple`, and SHALL declare live application. Every displayed value SHALL name an explicit A1 palette color and receive the same semantic-family projection behavior. The setting SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage or presented as an engine descriptor.
+Bare A1 SHALL expose one persisted A1 setting `accentColor`, labeled `Accent color`, in an `Appearance` section after `Generic`, followed by the `Background` and `Quit animation` settings. It SHALL offer `blue`, `purple`, `cyan`, `green`, `orange`, and `pink` in that order, SHALL default to `blue`, and SHALL declare live application. Every displayed value SHALL name an explicit A1 palette color and receive the same semantic-family projection behavior. The setting SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage or presented as an engine descriptor.
 
-Introducing the setting SHALL advance the owned settings version with forward migrations that preserve existing and unknown values, while an earlier stored `default` accent value SHALL migrate to `purple`. A missing, malformed, or unsupported stored value SHALL resolve to `purple` without blocking startup. The setting SHALL remain visible and editable when engine settings are absent or unavailable. `a1 pi` SHALL neither expose nor apply it.
+Existing compatibility transforms SHALL preserve existing and unknown values, including an earlier stored `default` accent value which SHALL still migrate to `purple`. A missing, malformed, or unsupported stored value SHALL resolve to `blue` without blocking startup. Explicit stored `purple` and all other named choices SHALL retain their values. The setting SHALL remain visible and editable when engine settings are absent or unavailable. `a1 pi` SHALL neither expose nor apply it.
 
 #### Scenario: Present the Appearance section
 - **WHEN** bare A1 opens the owned settings screen
 - **THEN** one `Appearance` section after `Generic` SHALL contain `Accent color`, `Background`, and `Quit animation` in that order
-- **AND** the accent value menu SHALL offer `purple`, `blue`, `cyan`, `green`, `orange`, and `pink` in order
+- **AND** the accent value menu SHALL offer `blue`, `purple`, `cyan`, `green`, `orange`, and `pink` in order
 - **AND** each accent choice SHALL show a square preview of its effective accent while the current-value check remains in the standard text color
 
 #### Scenario: Resolve an older or invalid profile
 - **WHEN** a profile predates `accentColor`, omits it, or stores a value outside the declared choices
 - **THEN** migration and validation SHALL preserve every other existing and unknown value
 - **AND** an earlier `default` accent value SHALL become `purple`
-- **AND** `accentColor` SHALL resolve to `purple` without blocking startup
+- **AND** an omitted or invalid `accentColor` SHALL resolve to `blue` without blocking startup
+
+#### Scenario: Keep an explicit earlier choice
+- **WHEN** a profile stores a valid named accent, including `purple`
+- **THEN** that value SHALL remain the effective accent across restart and update
 
 #### Scenario: Change the accent live
 - **WHEN** the reader selects another accent color
@@ -911,7 +938,7 @@ Introducing the setting SHALL advance the owned settings version with forward mi
 - **AND** no Pi settings document SHALL change
 
 #### Scenario: Select the initial purple palette
-- **WHEN** the reader selects `purple` or has no stored accent preference
+- **WHEN** the reader explicitly selects `purple`
 - **THEN** the active interface SHALL project A1's purple palette across the same semantic family as every other choice
 - **AND** every family tone SHALL be derived from the selected primary purple by the same transform used for every named or future custom accent
 - **AND** dialog bars SHALL use its darker neighboring-hue border tone rather than the base Pi border
@@ -1103,11 +1130,11 @@ Bare A1 SHALL declare the persisted A1 setting `timeFormat`, labeled `Time forma
 - **AND** the pinned comparison presentation SHALL retain its own timestamp behavior
 
 ### Requirement: Tabs settings expose tab-bar position
-During resident launches, the owned Settings screen SHALL expose `Tab bar position` in the existing Tabs section with exactly `top` and `bottom` choices, in that order, and `top` as the default. The setting SHALL use A1-owned profile-local persistence and live application. Direct `a1 solo` and `a1 pi` SHALL continue to omit the Tabs section and SHALL NOT apply this setting to their interfaces.
+During resident launches, the owned Settings screen SHALL expose `Tab bar position` in the existing section titled `Tab Bar` with exactly `top` and `bottom` choices, in that order, and `top` as the default. The setting SHALL use A1-owned profile-local persistence and live application. Direct `a1 solo` and `a1 pi` SHALL continue to omit the Tab Bar section and SHALL NOT apply this setting to their interfaces.
 
 #### Scenario: Inspect resident Tabs settings
-- **WHEN** the resident Settings utility presents the Tabs section
-- **THEN** it SHALL include `Auto name` and `Tab bar position`
+- **WHEN** the resident Settings utility presents the Tab Bar section
+- **THEN** it SHALL include `Auto name`, `Tab bar position`, and `Plus menu`
 - **AND** `Tab bar position` SHALL offer `top` and `bottom`
 
 #### Scenario: Resolve the default position
@@ -1124,7 +1151,7 @@ During resident launches, the owned Settings screen SHALL expose `Tab bar positi
 - **THEN** no tab-bar position entry SHALL be shown or applied
 
 ### Requirement: Settings text inputs omit prompt markers
-The owned Settings search input and every Settings-owned auxiliary filter, including the per-model thinking selector search, SHALL render no chevron or ASCII greater-than prompt marker. Their top and bottom rules, content inset, placeholder, block caret, filtering, navigation, and cancellation behavior SHALL remain unchanged. This requirement supersedes earlier Settings requirements that specified `❯` or `> ` for these inputs.
+The owned full-screen Settings search input SHALL render no chevron or ASCII greater-than prompt marker. Its top and bottom rules, content inset, placeholder, block caret, filtering, navigation, and cancellation behavior SHALL remain unchanged. Settings-owned standard dialog searches, including the per-model Thinking Level selector's step-one model search, SHALL instead use the shared exact ASCII `> ` standard-dialog marker with the `>` in the active semantic accent role. Non-search structured text entries SHALL retain their established presentation.
 
 #### Scenario: Open Settings search
 - **WHEN** the user opens the `search settings` input
@@ -1133,8 +1160,13 @@ The owned Settings search input and every Settings-owned auxiliary filter, inclu
 
 #### Scenario: Filter per-model thinking settings
 - **WHEN** the per-model Thinking Level selector shows its step-one search input
-- **THEN** typed text and the empty placeholder SHALL use the marker-free input row
-- **AND** model filtering, navigation, selection, and Escape behavior SHALL remain unchanged
+- **THEN** exact ASCII `> ` SHALL precede the empty caret or typed query
+- **AND** the `>` SHALL use the active semantic accent role
+- **AND** model filtering, navigation, selection, focus, and Escape behavior SHALL remain unchanged
+
+#### Scenario: Render a non-search structured text entry
+- **WHEN** Settings presents a structured text editor that is not a search field
+- **THEN** this requirement SHALL NOT add a search marker to that entry
 
 ### Requirement: Settings empty results use concise application copy
 
@@ -1146,3 +1178,14 @@ The owned Settings screen SHALL present its centered no-result state with the ex
 - **THEN** the centered empty state SHALL show `👀` on the row directly above `No settings found`
 - **AND** the message row SHALL remain at its lowered position
 - **AND** the message SHALL NOT end with a period
+
+### Requirement: Tab Bar settings expose the plus menu
+During resident launches, the `Tab Bar` section SHALL expose `Plus menu` with the value `configure`. Activating it SHALL open the plus-menu dialog, which lists `Agent`, `Settings`, and `Changelog` with `●` for each kind `+` offers and `○` otherwise and toggles the selected kind with `Space`. The enabled kinds SHALL be stored as the A1 setting `tabBarPlusMenu` in A1-owned profile-local persistence and applied to attached resident clients without a restart; the default SHALL be `Agent` alone. Direct `a1 solo` and `a1 pi` SHALL continue to omit the section.
+
+#### Scenario: Open the plus-menu dialog from Settings
+- **WHEN** the user selects `Plus menu` in the Tab Bar section and presses `Enter`
+- **THEN** the plus-menu dialog SHALL open with `Agent` marked `●` and `Settings` and `Changelog` marked `○` under the default
+
+#### Scenario: Store a toggle
+- **WHEN** the user toggles `Settings` on in the dialog
+- **THEN** `tabBarPlusMenu` SHALL store `agent` and `settings` in kind order and no Pi or Agent setting SHALL be written

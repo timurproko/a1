@@ -3,12 +3,12 @@ use super::*;
 pub(super) fn insert_new_tab(registry: &mut RegistryDocument, tab: TabRecord) {
     // Invariant: newly created Agent tabs precede a trailing Settings tab by default; a
     // Settings tab the user dragged elsewhere keeps its durable position.
-    let at = if !is_settings_tab_id(&tab.tab_id)
+    let at = if !is_utility_tab_id(&tab.tab_id)
         && let Some(last_live) = registry
             .tabs
             .iter()
             .rposition(|last| last.desired != "stopped")
-        && is_settings_tab_id(&registry.tabs[last_live].tab_id)
+        && is_utility_tab_id(&registry.tabs[last_live].tab_id)
     {
         // Invariant: stopped records can trail a hidden Settings tab. They must not make
         // newly created Agents appear after Settings when it is opened later.
@@ -22,18 +22,28 @@ pub(super) fn insert_new_tab(registry: &mut RegistryDocument, tab: TabRecord) {
     }
 }
 
+/// Invariant: an interrupted create must not start a holder after waiting for its launch spacing.
+fn wait_start_spacing(spacing: std::time::Duration, cancelled: Option<&AtomicBool>) -> Result<(), String> {
+    if !spacing.is_zero() {
+        std::thread::sleep(spacing);
+    }
+    if cancelled.is_some_and(|flag| flag.load(Ordering::Acquire)) {
+        return Err("tab start cancelled".into());
+    }
+    Ok(())
+}
+
 pub(super) fn start_holder(
     profile: &Path,
     state: &Arc<Mutex<RuntimeState>>,
     tab_id: String,
     mut start: AttachStart,
+    cancelled: Option<&AtomicBool>,
 ) -> Result<(), String> {
-    let (_permit, spacing) = acquire_start_permit(state, &tab_id)?;
+    let (_permit, spacing) = acquire_start_permit(state, &tab_id, &mut start, cancelled)?;
     crate::fault_injection::delay("A1_TABS_FAULT_DELAY_TAB_START_MS");
     sanitize_tab_environment(&mut start.environment);
-    if !spacing.is_zero() {
-        std::thread::sleep(spacing);
-    }
+    wait_start_spacing(spacing, cancelled)?;
     // Invariant: a tab told to stop while its start waited for a slot never launches a holder;
     // the permit's release takes the tab out of the starting set, so a stop can complete.
     let stopped_meanwhile = state.lock().ok().is_some_and(|locked| {
@@ -70,11 +80,7 @@ pub(super) fn start_holder(
             .credentials
             .derive("bridge", &tab_id, incarnation)
             .to_vec();
-        let display_name = if is_settings_tab_id(&tab_id) {
-            "Settings".into()
-        } else {
-            DEFAULT_AGENT_TAB_NAME.to_owned()
-        };
+        let display_name = utility_kind(&tab_id).map_or(DEFAULT_AGENT_TAB_NAME, |(_, title)| title);
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -87,15 +93,12 @@ pub(super) fn start_holder(
             &mut locked.registry,
             TabRecord {
                 tab_id: tab_id.clone(),
-                kind: if is_settings_tab_id(&tab_id) {
-                    "settings"
-                } else {
-                    "agent"
-                }
-                .into(),
+                kind: utility_kind(&tab_id)
+                    .map_or("agent", |(kind, _)| kind)
+                    .into(),
                 created_at,
-                display_name,
-                name_source: if is_settings_tab_id(&tab_id) {
+                display_name: display_name.into(),
+                name_source: if is_utility_tab_id(&tab_id) {
                     "system"
                 } else {
                     "default"

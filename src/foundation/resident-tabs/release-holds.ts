@@ -1,4 +1,4 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { runBoundedHostCommand } from "./bounded-host-command.js";
@@ -67,17 +67,8 @@ async function hasResidentRecords(dataDir: string): Promise<boolean> {
   } catch (error) {
     return !(error instanceof Error && "code" in error && error.code === "ENOENT");
   }
-  for (const profile of profiles) {
-    for (const record of ["server.json", "registry.json"]) {
-      try {
-        await stat(resolve(dataDir, "tabs", profile, record));
-        return true;
-      } catch (error) {
-        if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) return true;
-      }
-    }
-  }
-  return false;
+  // Invariant: native inspection, not a following stat, judges unknown or linked namespace entries.
+  return profiles.length > 0;
 }
 
 function incomplete(reason: string): ResidentReleaseHoldReport {

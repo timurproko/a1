@@ -1,7 +1,13 @@
 import { Readable, Writable } from "node:stream";
+import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { describe, expect, it } from "vitest";
 import { createConsoleProjectTrustPrompt } from "../../../src/features/owned-ui/index.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { EMERGENCY_TERMINAL_RESET } from "../../../src/foundation/terminal-cleanup/index.js";
+import { preTrustPalette } from "../../../src/ui/settings/early-accent.js";
+const earlyAccentPalette = (color: "blue" | "pink" | "orange", appearance: "dark" | "light" = "dark", mode: "truecolor" | "256color" = "truecolor") => preTrustPalette(color, appearance, mode);
+import { resolve } from "node:path";
 import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 
 class TtyInput extends Readable {
@@ -70,7 +76,7 @@ describe("bounded project trust terminal preflight", () => {
   ] as const)("maps selector keys %j to %s", async (keys, expected) => {
     const input = new TtyInput(keys);
     const output = new TtyOutput();
-    const prompt = createConsoleProjectTrustPrompt({ input, output });
+    const prompt = createConsoleProjectTrustPrompt({ input, output, environment: { A1_PROFILE_HOME: resolve("missing-trust-profile"), COLORTERM: "truecolor" } });
     await expect(prompt(request())).resolves.toBe(expected);
     expect(output.text).toContain("Trust project folder?");
     expect(output.text).toContain("D:/work");
@@ -92,16 +98,53 @@ describe("bounded project trust terminal preflight", () => {
     const hintIndex = lastFrame.findIndex(line => line.includes("↑↓"));
     const hint = lastFrame[hintIndex]!;
     expect(firstVisibleTextColumn(hint)).toBe(firstVisibleTextColumn(heading));
-    expect(heading).toContain("\u001b[38;2;167;152;215mTrust project folder?");
-    expect(lastFrame.find(line => line.includes("→ "))).toContain("\u001b[38;2;167;152;215m→ ");
+    expect(heading).toContain(`${earlyAccentPalette("blue").accent}Trust project folder?`);
+    expect(lastFrame.find(line => line.includes("→ "))).toContain(`${earlyAccentPalette("blue").accent}→ `);
     expect(lastFrame.findIndex(line => line.includes("─"))).toBeGreaterThanOrEqual(0);
     expect(lastFrame.findLastIndex(line => line.includes("─"))).toBe(17);
     const rules = lastFrame.filter(line => line.includes("─"));
     expect(rules).toHaveLength(2);
-    expect(rules.every(line => line.startsWith("\u001b[38;2;97;133;204m"))).toBe(true);
+    expect(rules.every(line => line.startsWith(earlyAccentPalette("blue").border))).toBe(true);
     expect(rules.every(line => line.replace(/\u001b\[[0-9;:]*m/gu, "").length === output.columns)).toBe(true);
     expect(lastFrame[hintIndex + 1]).toBe(rules[1]);
     expect(input.rawTransitions).toEqual([true, false]);
+  });
+
+  it("uses the global profile accent before trust, ignoring project-local settings", async () => {
+    const home = await mkdtemp(resolve(tmpdir(), "a1-trust-accent-"));
+    try {
+      const profile = resolve(home, ".a1", "agent");
+      await mkdir(profile, { recursive: true });
+      await writeFile(resolve(profile, "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "pink" } }));
+      const project = resolve(home, "project");
+      await mkdir(resolve(project, ".a1", "agent"), { recursive: true });
+      await writeFile(resolve(project, ".a1", "agent", "settings.json"), JSON.stringify({ [PRODUCT_IDENTITY.commandName]: { accentColor: "orange" } }));
+      const output = new TtyOutput();
+      const prompt = createConsoleProjectTrustPrompt({
+        input: new TtyInput("\r"), output,
+        environment: { A1_PROFILE_HOME: home, COLORTERM: "truecolor" },
+      });
+      await expect(prompt(request(project))).resolves.toBe("trust");
+      const frame = frames(output.text).find(part => part.includes("Trust project folder?"))!;
+      expect(frame).toContain(`${earlyAccentPalette("pink").accent}Trust project folder?`);
+      expect(frame).toContain(`${earlyAccentPalette("pink").accent}→ Trust`);
+      expect(frame).toContain(`${earlyAccentPalette("pink").border}─`);
+      expect(frame).not.toContain(earlyAccentPalette("orange").accent);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  });
+
+  it("respects light-terminal and 256-color palette roles before loading UI themes", async () => {
+    const output = new TtyOutput();
+    const prompt = createConsoleProjectTrustPrompt({
+      input: new TtyInput("\r"), output,
+      environment: { A1_PROFILE_HOME: resolve("missing-trust-profile"), COLORFGBG: "0;15", TERM: "xterm-256color", PI_TRUE_COLOR: "0" },
+    });
+    await prompt(request());
+    const frame = frames(output.text).find(part => part.includes("Trust project folder?"))!;
+    expect(frame).toContain(`${earlyAccentPalette("blue", "light", "256color").accent}Trust project folder?`);
+    expect(frame).toContain(`${earlyAccentPalette("blue", "light", "256color").border}─`);
   });
 
   it("exits startup on Escape after restoring the terminal", async () => {

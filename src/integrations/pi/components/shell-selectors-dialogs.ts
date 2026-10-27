@@ -25,7 +25,7 @@ import {
 } from "@earendil-works/pi-tui";
 import type { OwnedUiDialog } from "../../../contracts/owned-ui/index.js";
 import { ScopedModelsSelectorComponent } from "./upstream/components/scoped-models-selector.js";
-import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader } from "./modal-frame.js";
+import { addPiModalSelectFooter, adoptPiModalFrame, adoptPiModalHeader, adoptPiModalSearchInput } from "./modal-frame.js";
 import { ModelsDialogComponent, type ModelsDialogCallbacks, type ModelsDialogConfig } from "./models-dialog.js";
 import { TrustSelectorComponent, type TrustDecision, type TrustOption, type TrustUpdate } from "./upstream/components/trust-selector.js";
 import {
@@ -167,6 +167,7 @@ export function createPiShellModelSelector(options: PiShellModelSelectorOptions)
     options.onSelectAsDefault,
     options.defaultModel,
   );
+  adoptPiModalSearchInput(selector, selector.getSearchInput());
   adoptPiModalFrame(selector, { topIndex: 0, bottomIndex: selector.children.length - 1 });
   return componentPort(selector);
 }
@@ -440,6 +441,8 @@ export function createPiShellAuthProviderSelector(
     const selected = providers.find(provider => provider.providerId === providerId && provider.authType === authType);
     if (selected) onSelect(selected.id);
   }, onCancel, initialSearchInput);
+  // Provenance: OAuth selector slot is top rule, spacer, title, spacer, then its search Input.
+  adoptPiModalSearchInput(selector, selector.children[4]!);
   addPiModalSelectFooter(selector);
   const preInsetContent = [selector.children[2]!, selector.children[6]!];
   const header = adoptPiModalHeader(selector, 0, 2);

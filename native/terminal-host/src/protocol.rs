@@ -157,6 +157,8 @@ pub struct Hello {
 pub struct Welcome {
     pub generation: u16,
     pub build: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub release_id: String,
     #[serde(default)]
     pub features: Vec<String>,
     pub frame_limit: u32,
@@ -968,6 +970,14 @@ impl FrameDecoder {
     }
 }
 
+fn fixture_welcome() -> Welcome {
+    Welcome {
+        generation: GENERATION, build: "fixture".into(), release_id: String::new(),
+        features: vec!["controller-boundary".into()], frame_limit: MAX_FRAME_BYTES as u32,
+        input_limit: MAX_INPUT_BYTES as u32, epoch: 0,
+    }
+}
+
 pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
     let fixtures = vec![
         (
@@ -989,14 +999,7 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
             encode_frame(&Envelope {
                 message_type: "welcome".to_owned(),
                 request_id: Some(1),
-                body: Welcome {
-                    generation: GENERATION,
-                    build: "fixture".to_owned(),
-                    features: vec!["controller-boundary".to_owned()],
-                    frame_limit: MAX_FRAME_BYTES as u32,
-                    input_limit: MAX_INPUT_BYTES as u32,
-                    epoch: 0,
-                },
+                body: fixture_welcome(),
             })?,
         ),
         (

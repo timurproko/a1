@@ -26,8 +26,8 @@ use crate::roles::child_input::{self, SemanticEncoder};
 use crate::roles::conpty_cursor::ConptyCursorRepair;
 use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::wire::{
-    self, HolderExit, HolderLaunchConfig, HolderRespawn, Input, PasteStart, Resize, RoleHello,
-    Surface, SurfaceSubscription,
+    self, HolderExit, HolderLaunchConfig, HolderRespawn, Input, PasteStart, Resize, ResultBody,
+    RoleHello, Surface, SurfaceSubscription,
 };
 
 pub const HOLDER_INPUT_CAPACITY: usize = 1024 * 1024;
@@ -52,8 +52,8 @@ const SYNCHRONIZED_OUTPUT_RECOVERY_DELAY: Duration = Duration::from_millis(250);
 // markers when it parses them, so a frame's cells can arrive after its end marker (and a render
 // pass can land between its markers). Only a PTY that relays bytes verbatim delimits frames.
 const MARKERS_DELIMIT_FRAMES: bool = !cfg!(windows);
-/// Bound on waiting for the render pass that follows a relayed end marker.
-const RENDER_PASS_WAIT: Duration = Duration::from_millis(40);
+/// Bound on waiting for a relayed render pass: a longer fallback stalls interactive navigation.
+const RENDER_PASS_WAIT: Duration = Duration::from_millis(16);
 /// Quiet gap after re-rendered output: one render pass can span several pipe reads.
 const RENDER_PASS_SETTLE: Duration = Duration::from_millis(2);
 const HOLDER_IDLE_WAKE: Duration = Duration::from_millis(8);
@@ -64,8 +64,10 @@ struct SynchronizationState {
     deadline: Option<std::time::Instant>,
     recovered: bool,
     markers_delimit_frames: bool,
-    /// Set by a relayed end marker: the frame is parsed but its render pass has not arrived.
+    /// Hard bound for the oldest unpublished render pass; newer markers cannot renew it.
     render_pass_due: Option<std::time::Instant>,
+    /// A relayed end marker still needs its following render pass, unless the hard bound expires.
+    awaiting_render_pass: bool,
     /// Earliest publication of re-rendered output, so one pass is not split across commits.
     settled_at: Option<std::time::Instant>,
     /// Platform: a re-rendering PTY can also leave its cursor past the final column.
@@ -80,6 +82,7 @@ impl SynchronizationState {
             recovered: false,
             markers_delimit_frames,
             render_pass_due: None,
+            awaiting_render_pass: false,
             settled_at: None,
             conpty_cursor: ConptyCursorRepair::new(!markers_delimit_frames),
         }
@@ -117,7 +120,7 @@ impl SynchronizationState {
             SynchronizedOutputBoundary::Begin => {
                 // Protocol: bytes preceding a begin marker belong to the prior coherent state unless
                 // that state is still waiting for its re-rendered cells.
-                let publishable = self.render_pass_due.is_none_or(|due| now >= due);
+                let publishable = self.may_publish(now);
                 self.begin(now);
                 publishable
             }
@@ -126,7 +129,9 @@ impl SynchronizationState {
                 if self.markers_delimit_frames {
                     return true;
                 }
-                self.render_pass_due = now.checked_add(RENDER_PASS_WAIT);
+                self.render_pass_due
+                    .get_or_insert_with(|| now + RENDER_PASS_WAIT);
+                self.awaiting_render_pass = true;
                 false
             }
             SynchronizedOutputBoundary::Reset => {
@@ -141,8 +146,20 @@ impl SynchronizationState {
         if self.markers_delimit_frames {
             return;
         }
-        self.render_pass_due = None;
+        if !self.open {
+            self.awaiting_render_pass = false;
+            // Performance: continuous fragments may renew quiet settling, never its hard bound.
+            self.render_pass_due
+                .get_or_insert_with(|| now + RENDER_PASS_WAIT);
+        }
         self.settled_at = now.checked_add(RENDER_PASS_SETTLE);
+    }
+
+    /// Consumes a publication decision, including equal captures, without closing parser state.
+    fn published(&mut self) {
+        self.render_pass_due = None;
+        self.awaiting_render_pass = false;
+        self.settled_at = None;
     }
 
     fn recover_if_due(&mut self, now: std::time::Instant) -> bool {
@@ -155,8 +172,8 @@ impl SynchronizationState {
 
     fn may_publish(&self, now: std::time::Instant) -> bool {
         (!self.open || self.recovered)
-            && self.render_pass_due.is_none_or(|due| now >= due)
-            && self.settled_at.is_none_or(|at| now >= at)
+            && (self.render_pass_due.is_some_and(|due| now >= due)
+                || (!self.awaiting_render_pass && self.settled_at.is_none_or(|at| now >= at)))
     }
 
     /// How long the loop may sleep before a pending publication decision is due.
@@ -278,6 +295,79 @@ fn surface_message(
         revision,
         status: status.into(),
     })
+}
+
+/// Input completion is payload-free evidence, distinct from output ingestion and rendering.
+fn spawn_pty_writer(
+    mut writer: Box<dyn Write + Send>,
+    receiver: mpsc::Receiver<(Vec<u8>, usize)>,
+    results: mpsc::Sender<Result<usize, String>>,
+    wake: mpsc::SyncSender<()>,
+    tab_id: String,
+    incarnation: u64,
+) {
+    thread::spawn(move || {
+        let mut sequence = 0u64;
+        while let Ok((bytes, admitted)) = receiver.recv() {
+            if crate::fault_injection::enabled("A1_TABS_FAULT_BLOCK_PTY_WRITE") {
+                loop {
+                    thread::sleep(Duration::from_secs(1));
+                }
+            }
+            let started = std::time::Instant::now();
+            let result = writer
+                .write_all(&bytes)
+                .and_then(|()| writer.flush())
+                .map(|()| admitted)
+                .map_err(|error| format!("write resident PTY input: {error}"));
+            let failed = result.is_err();
+            sequence = sequence.saturating_add(1);
+            progress_observation::observe(
+                "holder",
+                "pty-input-write",
+                ProgressMetadata {
+                    tab_id: Some(&tab_id),
+                    incarnation,
+                    event_sequence: sequence,
+                    bytes: bytes.len(),
+                    count: 1,
+                    event_kind: Some(if failed {
+                        "failed"
+                    } else if admitted == 0 {
+                        "control"
+                    } else {
+                        "input"
+                    }),
+                    duration_us: Some(
+                        started.elapsed().as_micros().min(u128::from(u64::MAX)) as u64
+                    ),
+                    ..ProgressMetadata::default()
+                },
+            );
+            let delivered = results.send(result).is_ok();
+            let _ = wake.try_send(());
+            if !delivered || failed {
+                break;
+            }
+        }
+    });
+}
+
+/// Keep the PTY-ingestion diagnostic passive and its sequence local to this holder incarnation.
+fn observe_pty_ingestion(config: &HolderLaunchConfig, bytes: usize, sequence: &mut u64) {
+    *sequence = sequence.saturating_add(1);
+    progress_observation::observe(
+        "holder",
+        "pty-ingest",
+        ProgressMetadata {
+            tab_id: Some(&config.tab_id),
+            incarnation: config.incarnation,
+            event_sequence: *sequence,
+            bytes,
+            count: 1,
+            ..ProgressMetadata::default()
+        },
+    );
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -424,6 +514,7 @@ enum PendingPaste {
 }
 
 struct HolderServerPeer {
+    _connection: endpoint::ConnectionGuard,
     control: mpsc::SyncSender<Vec<u8>>,
     surface: Arc<Mutex<Option<HolderSurfaceOffer>>>,
     surface_signaled: Arc<AtomicBool>,
@@ -432,6 +523,7 @@ impl HolderServerPeer {
     fn start(
         mut stream: endpoint::EndpointStream,
     ) -> Result<(Self, endpoint::EndpointStream), String> {
+        let connection = endpoint::close_on_drop(&stream);
         let reader = stream
             .try_clone()
             .map_err(|error| format!("clone holder server stream: {error}"))?;
@@ -441,6 +533,7 @@ impl HolderServerPeer {
         let writer_surface = surface.clone();
         let writer_signaled = surface_signaled.clone();
         thread::spawn(move || {
+            let _connection = endpoint::close_on_drop(&stream);
             loop {
                 match control_rx.recv_timeout(Duration::from_millis(8)) {
                     Ok(frame) if !frame.is_empty() => {
@@ -486,6 +579,7 @@ impl HolderServerPeer {
         });
         Ok((
             Self {
+                _connection: connection,
                 control,
                 surface,
                 surface_signaled,
@@ -633,15 +727,15 @@ pub fn run_holder_child(_profile: &Path, ready: &Path, context: &[u8]) -> Result
 fn run_holder(
     _profile: &Path,
     ready: &Path,
-    config: HolderLaunchConfig,
+    mut config: HolderLaunchConfig,
     respawned: bool,
 ) -> Result<(), String> {
     progress_observation::configure_from_launch_environment(&config.environment);
     crate::roles::fixture_control::configure_from_launch_environment(&config.environment);
     crate::fault_injection::install(&config.server.fault_environment);
     crate::fault_injection::validate_environment()?;
-    let profile_token = crate::endpoint::endpoint_token(Path::new(&config.server.profile))
-        .map_err(|error| error.to_string())?;
+    super::scope::pin_launch(&mut config.release_root, &mut config.node_executable)?;
+    let profile_token = super::scope::token(Path::new(&config.server.profile))?;
     let diagnostics_root = Path::new(&config.server.data_dir)
         .join("tabs")
         .join(&profile_token)
@@ -727,8 +821,7 @@ fn run_holder(
             config.incarnation.to_string(),
         );
     }
-    command.env("A1_TAB_TOKEN", BASE64.encode(&config.bridge_token));
-    command.env("A1_TAB_ENDPOINT", &config.endpoint);
+    configure_bridge(&mut command, &config)?;
     let mut child = pair
         .slave
         .spawn_command(command)
@@ -751,7 +844,7 @@ fn run_holder(
         .master
         .try_clone_reader()
         .map_err(|error| format!("clone resident PTY reader: {error}"))?;
-    let mut pty_writer = pair
+    let pty_writer = pair
         .master
         .take_writer()
         .map_err(|error| format!("take resident PTY writer: {error}"))?;
@@ -760,27 +853,14 @@ fn run_holder(
     // Performance: PTY, command, and write-completion threads wake the holder loop directly so
     // input and output never wait out an idle poll; capacity one keeps wakes coalesced.
     let (wake_tx, wake_rx) = mpsc::sync_channel::<()>(1);
-    let writer_wake = wake_tx.clone();
-    thread::spawn(move || {
-        while let Ok((bytes, admitted)) = write_rx.recv() {
-            if crate::fault_injection::enabled("A1_TABS_FAULT_BLOCK_PTY_WRITE") {
-                loop {
-                    thread::sleep(Duration::from_secs(1));
-                }
-            }
-            let result = pty_writer
-                .write_all(&bytes)
-                .and_then(|()| pty_writer.flush())
-                .map(|()| admitted)
-                .map_err(|error| format!("write resident PTY input: {error}"));
-            let failed = result.is_err();
-            let delivered = write_result_tx.send(result).is_ok();
-            let _ = writer_wake.try_send(());
-            if !delivered || failed {
-                break;
-            }
-        }
-    });
+    spawn_pty_writer(
+        pty_writer,
+        write_rx,
+        write_result_tx,
+        wake_tx.clone(),
+        config.tab_id.clone(),
+        config.incarnation,
+    );
     // Concurrency: bounded transport applies backpressure at the PTY reader instead of letting a hidden or
     // disconnected child grow process memory without limit.
     let (output_tx, output_rx) = mpsc::sync_channel::<Vec<u8>>(64);
@@ -841,13 +921,14 @@ fn run_holder(
     let mut child_exit_report: Option<HolderExit> = None;
     let (reconnect_tx, reconnect_rx) =
         mpsc::sync_channel::<Result<(endpoint::EndpointStream, u64), String>>(1);
-    let mut reconnecting = false;
+    let (mut reconnecting, mut standby) = (false, config.standby);
     let mut server_connected = true;
     // Invariant: unpublished parser changes carry across rounds until a commit publishes them.
     let mut changed = false;
     loop {
         watchdog.bump();
-        if let Ok(reconnected) = reconnect_rx.try_recv() {
+        let mut round = super::ready_round::ReadyRound::default();
+        if let Ok(reconnected) = round.receive(&reconnect_rx) {
             let (replacement, epoch) = reconnected?;
             reconnecting = false;
             if epoch >= highest_epoch {
@@ -882,7 +963,7 @@ fn run_holder(
             }
         }
         for _ in 0..8 {
-            let Ok(result) = write_result_rx.try_recv() else {
+            let Ok(result) = round.receive(&write_result_rx) else {
                 break;
             };
             let event = match result {
@@ -895,7 +976,7 @@ fn run_holder(
         // Concurrency: one hot producer cannot monopolize the holder loop indefinitely.
         let command_round_started = std::time::Instant::now();
         for _ in 0..8 {
-            let Ok(command) = command_rx.try_recv() else {
+            let Ok(command) = round.receive(&command_rx) else {
                 break;
             };
             if matches!(command, HolderCommand::Disconnected) {
@@ -903,23 +984,14 @@ fn run_holder(
                 subscription = None;
                 pending_effects.clear();
                 if !reconnecting {
-                    reconnecting = true;
-                    let reconnect_tx = reconnect_tx.clone();
-                    let reconnect_wake = wake_tx.clone();
-                    let reconnect_config = config.clone();
-                    let reconnect_child = child_identity.clone();
-                    let reconnect_diagnostics = diagnostics_root.clone();
-                    let reconnect_epoch = highest_epoch;
-                    thread::spawn(move || {
-                        let result = reconnect_holder(
-                            &reconnect_config,
-                            Some(&reconnect_child),
-                            reconnect_epoch,
-                            &reconnect_diagnostics,
-                        );
-                        let _ = reconnect_tx.send(result);
-                        let _ = reconnect_wake.try_send(());
-                    });
+                    reconnecting = begin_reconnect(
+                        (&config, standby),
+                        &child_identity,
+                        &diagnostics_root,
+                        highest_epoch,
+                        &reconnect_tx,
+                        &wake_tx,
+                    )?;
                 }
             } else if let HolderCommand::Respawn(respawn) = command {
                 if respawn.tab_id != config.tab_id || respawn.incarnation <= config.incarnation {
@@ -951,6 +1023,7 @@ fn run_holder(
                     )?);
                 }
             } else if matches!(&command, HolderCommand::Promote) {
+                standby = false;
                 // Platform: Windows ConPTY may drop the in-band OSC marker, so the private tab
                 // data directory carries the same promotion out of band; the child accepts either.
                 let promotion = tab_data_dir.join("standby-promote");
@@ -1172,23 +1245,11 @@ fn run_holder(
         let output_round_started = std::time::Instant::now();
         let mut output_bytes = 0usize;
         for _ in 0..32 {
-            let Ok(bytes) = output_rx.try_recv() else {
+            let Ok(bytes) = round.receive(&output_rx) else {
                 break;
             };
             output_bytes = output_bytes.saturating_add(bytes.len());
-            pty_event_sequence = pty_event_sequence.saturating_add(1);
-            progress_observation::observe(
-                "holder",
-                "pty-ingest",
-                ProgressMetadata {
-                    tab_id: Some(&config.tab_id),
-                    incarnation: config.incarnation,
-                    event_sequence: pty_event_sequence,
-                    bytes: bytes.len(),
-                    count: 1,
-                    ..ProgressMetadata::default()
-                },
-            );
+            observe_pty_ingestion(&config, bytes.len(), &mut pty_event_sequence);
             recovery_output.extend(&bytes);
             while recovery_output.len() > 2 * 1024 * 1024 {
                 recovery_output.pop_front();
@@ -1244,6 +1305,7 @@ fn run_holder(
                         revision,
                         &mut effect_sequence,
                     )?;
+                    synchronization.published();
                     changed = false;
                 }
                 geometry_deadline = None;
@@ -1280,6 +1342,7 @@ fn run_holder(
                 revision,
                 &mut effect_sequence,
             )?;
+            synchronization.published();
             changed = false;
             geometry_deadline = None;
         }
@@ -1306,6 +1369,7 @@ fn run_holder(
                 revision,
                 &mut effect_sequence,
             )?;
+            synchronization.published();
         }
         if !synchronization.open
             && geometry_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline)
@@ -1323,6 +1387,7 @@ fn run_holder(
                 SurfaceCommitKind::ProvisionalGeometry,
                 "idle",
             )?;
+            synchronization.published();
             geometry_deadline = None;
         }
         if stop_deadline.is_some_and(|deadline| std::time::Instant::now() >= deadline) {
@@ -1330,17 +1395,7 @@ fn run_holder(
             stop_deadline = None;
         }
         if heartbeat.elapsed() >= Duration::from_secs(5) {
-            let _ = server.offer_control(wire::frame(
-                "holder.heartbeat",
-                None,
-                wire::HolderReady {
-                    tab_id: config.tab_id.clone(),
-                    pid: std::process::id(),
-                    incarnation: config.incarnation,
-                    child_pid,
-                    child_start_identity: child_identity.start.clone(),
-                },
-            )?);
+            offer_holder_heartbeat(&server, &config, child_pid, &child_identity.start)?;
             heartbeat = std::time::Instant::now();
         }
         if !child_exited
@@ -1372,6 +1427,7 @@ fn run_holder(
                     revision,
                     &mut effect_sequence,
                 )?;
+                synchronization.published();
                 synchronization.close();
             }
             let recovery_root = tab_data_dir.join("recovery");
@@ -1414,7 +1470,10 @@ fn run_holder(
                 return Ok(());
             }
         }
-        let _ = wake_rx.recv_timeout(synchronization.wake_timeout(std::time::Instant::now()));
+        round.wait(
+            &wake_rx,
+            synchronization.wake_timeout(std::time::Instant::now()),
+        );
     }
 }
 
@@ -1436,6 +1495,27 @@ fn child_exit_frames(
         )?,
         wire::frame("holder.exit", None, exit.clone())?,
     ])
+}
+
+/// Sends bounded heartbeat metadata without changing the parser loop's failure policy.
+fn offer_holder_heartbeat(
+    server: &HolderServerPeer,
+    config: &HolderLaunchConfig,
+    child_pid: u32,
+    child_start_identity: &str,
+) -> Result<(), String> {
+    let _ = server.offer_control(wire::frame(
+        "holder.heartbeat",
+        None,
+        wire::HolderReady {
+            tab_id: config.tab_id.clone(),
+            pid: std::process::id(),
+            incarnation: config.incarnation,
+            child_pid,
+            child_start_identity: child_start_identity.to_owned(),
+        },
+    )?);
+    Ok(())
 }
 
 fn offer_child_exit(
@@ -1488,32 +1568,21 @@ fn input_rejected_message(error: InputAdmissionError) -> &'static str {
 /// Longest one replacement request may take before the holder abandons it and retries.
 const SERVER_REPLACEMENT_DEADLINE: Duration = Duration::from_secs(15);
 
-/// Waits for a replacement request with a deadline and returns its exit and the outcome it
-/// printed. Its stdout is read on a thread and not to end-of-file, because a detached server
-/// that inherited the pipe would hold it open for its whole life.
+/// Waits within one deadline for request exit and its complete outcome line. A detached server
+/// may inherit stdout, so a complete line ends the reader without waiting for end-of-file.
 fn wait_for_replacement(
     mut child: std::process::Child,
     deadline: Duration,
 ) -> Result<(std::process::ExitStatus, String), String> {
-    let printed = Arc::new(Mutex::new(Vec::<u8>::new()));
-    if let Some(mut stdout) = child.stdout.take() {
-        let printed = printed.clone();
-        thread::spawn(move || {
-            let mut buffer = [0_u8; 1024];
-            while let Ok(count) = stdout.read(&mut buffer) {
-                if count == 0 {
-                    break;
-                }
-                if let Ok(mut printed) = printed.lock() {
-                    printed.extend_from_slice(&buffer[..count]);
-                    if printed.len() > 64 * 1024 {
-                        break;
-                    }
-                }
-            }
-        });
-    }
     let started = std::time::Instant::now();
+    let (outcome_tx, outcome_rx) = mpsc::sync_channel(1);
+    if let Some(stdout) = child.stdout.take() {
+        thread::spawn(move || {
+            let _ = outcome_tx.send(read_replacement_output(stdout));
+        });
+    } else {
+        let _ = outcome_tx.send(Ok(String::new()));
+    }
     let status = loop {
         if let Some(status) = child
             .try_wait()
@@ -1528,19 +1597,36 @@ fn wait_for_replacement(
         }
         thread::sleep(Duration::from_millis(20));
     };
-    // Concurrency: the outcome line is written before the request exits; allow the reader a
-    // moment to collect it without waiting on a pipe a detached server may still hold.
-    let collected = std::time::Instant::now();
+    // Concurrency: process exit does not prove the reader ran. Wait for its result within the
+    // original deadline, not an arbitrary grace period that can return an empty or partial line.
+    let printed = outcome_rx
+        .recv_timeout(deadline.saturating_sub(started.elapsed()))
+        .map_err(|_| "server replacement request timed out".to_owned())??;
+    Ok((status, printed))
+}
+
+/// Reads the first bounded outcome line, leaving a descendant's still-open pipe irrelevant.
+fn read_replacement_output(mut stdout: impl Read) -> Result<String, String> {
+    let mut printed = Vec::new();
+    let mut buffer = [0_u8; 1024];
     loop {
-        let text = printed
-            .lock()
-            .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
-            .unwrap_or_default();
-        if text.contains("\"outcome\"") || collected.elapsed() >= Duration::from_millis(500) {
-            return Ok((status, text));
+        let count = stdout
+            .read(&mut buffer)
+            .map_err(|error| format!("read server replacement outcome: {error}"))?;
+        if count == 0 {
+            break;
         }
-        thread::sleep(Duration::from_millis(10));
+        let newline = buffer[..count].iter().position(|byte| *byte == b'\n');
+        let length = newline.map_or(count, |index| index + 1);
+        if printed.len() + length > 64 * 1024 {
+            return Err("server replacement outcome exceeded byte limit".to_owned());
+        }
+        printed.extend_from_slice(&buffer[..length]);
+        if newline.is_some() {
+            break;
+        }
     }
+    Ok(String::from_utf8_lossy(&printed).into_owned())
 }
 
 /// Asks for a replacement server. Ok(false) means the registry no longer wants any tab to run.
@@ -1575,6 +1661,39 @@ fn request_server_replacement(config: &HolderLaunchConfig) -> Result<bool, Strin
     } else {
         Err(format!("server replacement stopped with {status}"))
     }
+}
+
+/// Starts the one reconnect thread for a lost server connection and reports that it is running,
+/// or ends a holder that is still a standby, which no replacement server could admit (see
+/// [`disconnect_ends_holder`]). `standby` is the holder's current state, not its launch config:
+/// a promoted standby is a user tab and reconnects like one.
+fn begin_reconnect(
+    (config, standby): (&HolderLaunchConfig, bool),
+    child: &crate::identity::ProcessIdentity,
+    diagnostics_root: &Path,
+    highest_epoch: u64,
+    reconnect_tx: &mpsc::SyncSender<Result<(endpoint::EndpointStream, u64), String>>,
+    wake_tx: &mpsc::SyncSender<()>,
+) -> Result<bool, String> {
+    if let Some(reason) = disconnect_ends_holder(standby) {
+        let _ = crate::roles::diagnostics::append_log(
+            diagnostics_root,
+            &format!("holder-{}", config.tab_id),
+            "standby-server-lost",
+        );
+        return Err(reason.to_owned());
+    }
+    let reconnect_tx = reconnect_tx.clone();
+    let wake_tx = wake_tx.clone();
+    let config = config.clone();
+    let child = child.clone();
+    let diagnostics_root = diagnostics_root.to_path_buf();
+    thread::spawn(move || {
+        let result = reconnect_holder(&config, Some(&child), highest_epoch, &diagnostics_root);
+        let _ = reconnect_tx.send(result);
+        let _ = wake_tx.try_send(());
+    });
+    Ok(true)
 }
 
 fn reconnect_holder(
@@ -1625,18 +1744,67 @@ fn reconnect_holder(
                     match error.as_str() {
                         "server refused holder handshake" => "server-replacement-refused",
                         "server closed holder handshake" => "server-replacement-handshake-closed",
+                        refused if refused.starts_with(REFUSED_PREFIX) => {
+                            "server-replacement-refused"
+                        }
                         _ => "server-replacement-connect-failed",
                     },
                 );
+                // Invariant: a definitive refusal ends the holder. Retrying would spawn a
+                // replacement request every backoff forever, as an orphaned standby once did.
+                if refusal_is_definitive(&error) {
+                    let _ = crate::roles::diagnostics::append_log(
+                        diagnostics_root,
+                        &role,
+                        "server-replacement-refused-definitively",
+                    );
+                    return Err(error);
+                }
             }
         }
         thread::sleep(backoff);
-        backoff = backoff.saturating_mul(2).min(Duration::from_secs(2));
+        backoff = backoff.saturating_mul(2).min(REPLACEMENT_BACKOFF_CAP);
     }
 }
 
 /// Long enough for a server to verify the holder and child identities it admits.
 const HOLDER_HANDSHAKE: Duration = Duration::from_secs(10);
+
+/// The longest pause between two replacement-server requests while a server stays unreachable.
+const REPLACEMENT_BACKOFF_CAP: Duration = Duration::from_secs(15);
+
+const REFUSED_PREFIX: &str = "server refused holder: ";
+
+fn refusal_error(reason: &str) -> String {
+    format!("{REFUSED_PREFIX}{reason}")
+}
+
+/// Whether a connect error is a refusal the server derived from durable records or credentials.
+/// No later server admits such a holder, so asking for a replacement server would only repeat the
+/// refusal; the holder ends and its tab is recorded as ended. Connection loss, closed handshakes,
+/// inspection timeouts, and liveness checks stay transient.
+pub fn refusal_is_definitive(error: &str) -> bool {
+    let Some(reason) = error.strip_prefix(REFUSED_PREFIX) else {
+        return false;
+    };
+    matches!(
+        reason,
+        "holder has no registry or standby record"
+            | "resident credential rejected"
+            | "peer has observed a newer server epoch"
+            | "holder incarnation does not match the registry"
+            | "holder identity does not match the registry"
+            | "holder child identity does not match the registry"
+            | "unapproved resident peer role"
+    )
+}
+
+/// What a holder does when its server connection ends. A standby is in-memory state of the server
+/// that prewarmed it: no replacement server has a record for it and the replacement prewarms its
+/// own, so a standby ends with its server instead of requesting one.
+pub fn disconnect_ends_holder(standby: bool) -> Option<&'static str> {
+    standby.then_some("standby holder lost its server")
+}
 
 fn connect_holder(
     config: &HolderLaunchConfig,
@@ -1662,6 +1830,7 @@ fn connect_holder(
             role: "holder".into(),
             generation: protocol::GENERATION,
             build: "a1-terminal-host".into(),
+            release_id: super::scope::release_id()?,
             features: HOLDER_FEATURES
                 .iter()
                 .map(|feature| (*feature).into())
@@ -1682,13 +1851,26 @@ fn connect_holder(
         .map_err(|error| error.to_string())?;
     let welcome = wire::read_payload(&mut stream)?
         .ok_or_else(|| "server closed holder handshake".to_owned())?;
-    if wire::kind(&welcome)?.message_type != "welcome" {
+    let kind = wire::kind(&welcome)?;
+    if kind.message_type == "refused" {
+        let (_, refusal): (Option<u64>, ResultBody) = wire::body(&welcome)?;
+        return Err(refusal_error(refusal.message.as_deref().unwrap_or("")));
+    }
+    if kind.message_type != "welcome" {
         return Err("server refused holder handshake".to_owned());
     }
     endpoint::clear_handshake_deadline(&stream).map_err(|error| error.to_string())?;
     let (_, welcome): (Option<u64>, Welcome) = wire::body(&welcome)?;
+    super::scope::admit(&welcome.release_id)?;
     crate::fault_injection::crash_at("holder-after-ready");
     Ok((stream, welcome.epoch))
+}
+
+fn configure_bridge(command: &mut CommandBuilder, config: &HolderLaunchConfig) -> Result<(), String> {
+    command.env("A1_TAB_RELEASE_ID", super::scope::release_id()?);
+    command.env("A1_TAB_TOKEN", BASE64.encode(&config.bridge_token));
+    command.env("A1_TAB_ENDPOINT", &config.endpoint);
+    Ok(())
 }
 
 fn spawn_command_reader(
@@ -1697,6 +1879,7 @@ fn spawn_command_reader(
     wake: mpsc::SyncSender<()>,
 ) {
     thread::spawn(move || {
+        let _connection = endpoint::close_on_drop(&stream);
         while let Ok(Some(payload)) = wire::read_payload(&mut stream) {
             let Ok(kind) = wire::kind(&payload) else {
                 break;
@@ -1779,8 +1962,57 @@ fn connect_retry(address: &str, retry_forever: bool) -> Result<endpoint::Endpoin
 }
 
 #[cfg(test)]
+#[path = "holder/synchronization_tests.rs"]
+mod synchronization_tests;
+
+#[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn input_writer_preserves_control_order_and_admission_credits() {
+        #[derive(Clone)]
+        struct Capture(std::sync::Arc<std::sync::Mutex<Vec<u8>>>);
+        impl Write for Capture {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+        let capture = Capture(Default::default());
+        let (sender, receiver) = mpsc::channel();
+        let (results, completions) = mpsc::channel();
+        let (wake, _) = mpsc::sync_channel(1);
+        spawn_pty_writer(
+            Box::new(capture.clone()),
+            receiver,
+            results,
+            wake,
+            "tab-test".into(),
+            1,
+        );
+        for (bytes, admitted) in [
+            (b"one".to_vec(), 3),
+            (b"|".to_vec(), 0),
+            (b"two".to_vec(), 3),
+        ] {
+            sender.send((bytes, admitted)).unwrap();
+        }
+        drop(sender);
+        for expected in [3, 0, 3] {
+            assert_eq!(
+                completions
+                    .recv_timeout(Duration::from_secs(5))
+                    .unwrap()
+                    .unwrap(),
+                expected
+            );
+        }
+        assert_eq!(*capture.0.lock().unwrap(), b"one|two");
+    }
     fn shell(script: &str) -> std::process::Child {
         let mut command = if cfg!(windows) {
             let mut command = std::process::Command::new("cmd");
@@ -1877,11 +2109,12 @@ mod tests {
             synchronization.wake_timeout(ended + RENDER_PASS_WAIT - Duration::from_millis(3)),
             Duration::from_millis(3)
         );
-        let rendered = ended + Duration::from_millis(23);
+        let rendered = ended + Duration::from_millis(8);
         synchronization.note_output(rendered);
         assert!(!synchronization.may_publish(rendered));
         assert_eq!(synchronization.wake_timeout(rendered), RENDER_PASS_SETTLE);
         assert!(synchronization.may_publish(rendered + RENDER_PASS_SETTLE));
+        synchronization.published();
         assert_eq!(
             synchronization.wake_timeout(rendered + RENDER_PASS_SETTLE),
             HOLDER_IDLE_WAKE
@@ -1961,6 +2194,56 @@ mod tests {
     }
 
     #[test]
+    fn replacement_output_waits_for_a_complete_fragmented_line_not_eof() {
+        struct Fragmented(std::collections::VecDeque<&'static [u8]>);
+        impl Read for Fragmented {
+            fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+                let next = self
+                    .0
+                    .pop_front()
+                    .expect("must not wait for EOF after the outcome line");
+                buffer[..next.len()].copy_from_slice(next);
+                Ok(next.len())
+            }
+        }
+        let output = Fragmented(std::collections::VecDeque::from([
+            &b"{\"outcome\":"[..],
+            &b"\"not-"[..],
+            &b"needed\"}\n"[..],
+        ]));
+        assert_eq!(
+            read_replacement_output(output).unwrap(),
+            "{\"outcome\":\"not-needed\"}\n"
+        );
+        assert_eq!(
+            read_replacement_output(&b"{\"outcome\":\"started\"}"[..]).unwrap(),
+            "{\"outcome\":\"started\"}"
+        );
+    }
+
+    #[test]
+    fn replacement_output_keeps_its_byte_bound_and_propagates_read_failure() {
+        assert_eq!(
+            read_replacement_output(&vec![b'x'; 64 * 1024 + 1][..]).unwrap_err(),
+            "server replacement outcome exceeded byte limit"
+        );
+        struct Failed;
+        impl Read for Failed {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::BrokenPipe,
+                    "fixture failure",
+                ))
+            }
+        }
+        assert!(
+            read_replacement_output(Failed)
+                .unwrap_err()
+                .starts_with("read server replacement outcome:")
+        );
+    }
+
+    #[test]
     fn replacement_requests_are_bounded_and_read_their_outcome() {
         let (status, printed) = wait_for_replacement(
             shell("echo {\"outcome\":\"not-needed\"}"),
@@ -1995,6 +2278,60 @@ mod tests {
             assert!(printed.contains("\"started\""), "{printed}");
             assert!(started.elapsed() < Duration::from_secs(5));
         }
+    }
+
+    #[test]
+    fn definitive_refusals_end_the_holder_and_transient_failures_do_not() {
+        for reason in [
+            "holder has no registry or standby record",
+            "resident credential rejected",
+            "peer has observed a newer server epoch",
+            "holder incarnation does not match the registry",
+            "holder identity does not match the registry",
+            "holder child identity does not match the registry",
+            "unapproved resident peer role",
+        ] {
+            assert!(refusal_is_definitive(&refusal_error(reason)), "{reason}");
+        }
+        for transient in [
+            refusal_error("identity inspection deadline exceeded"),
+            refusal_error("holder process is not live"),
+            refusal_error(""),
+            "server refused holder handshake".to_owned(),
+            "server closed holder handshake".to_owned(),
+            "connection refused".to_owned(),
+            // Invariant: only the exact prefixed form counts; the bare reason is not a refusal.
+            "holder has no registry or standby record".to_owned(),
+        ] {
+            assert!(!refusal_is_definitive(&transient), "{transient}");
+        }
+        assert!(REPLACEMENT_BACKOFF_CAP >= Duration::from_secs(15));
+    }
+
+    #[test]
+    fn a_refused_hello_answer_carries_its_reason_through_the_wire() {
+        let frame = wire::frame(
+            "refused",
+            Some(1),
+            ResultBody::refused("holder has no registry or standby record".into()),
+        )
+        .expect("refused frame");
+        let payload = &frame[4..];
+        assert_eq!(wire::kind(payload).unwrap().message_type, "refused");
+        let (request, body): (Option<u64>, ResultBody) = wire::body(payload).unwrap();
+        assert_eq!(request, Some(1));
+        assert!(!body.accepted);
+        let error = refusal_error(body.message.as_deref().unwrap_or(""));
+        assert!(refusal_is_definitive(&error));
+    }
+
+    #[test]
+    fn a_standby_ends_on_disconnect_and_a_user_tab_holder_reconnects() {
+        assert_eq!(
+            disconnect_ends_holder(true),
+            Some("standby holder lost its server")
+        );
+        assert_eq!(disconnect_ends_holder(false), None);
     }
 
     #[test]

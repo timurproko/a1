@@ -6,6 +6,7 @@
 //! surfaces of earlier revisions, and clear-only or contradictory frames are discarded here, so
 //! the loop in `attach.rs` never paints an intermediate state the user should not see.
 
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::protocol::{
@@ -74,6 +75,8 @@ pub struct ViewModel {
     staged_tabs: Option<Vec<StripTab>>,
     pending_surface: Option<Surface>,
     committed_revision: Option<u64>,
+    /// Startup adopts its first unlisted surface once, never a late frame after the last close.
+    initial_adoption_consumed: bool,
     expected_request_generation: u64,
     request_started: Option<Instant>,
     stale_candidate: Option<(Surface, Instant)>,
@@ -185,13 +188,15 @@ impl ViewModel {
 
     /// Clears every view after the last tab closed.
     pub fn clear(&mut self) {
+        let consumed = self.initial_adoption_consumed || self.viewed.is_some() || self.committed_revision.is_some();
         *self = Self::default();
+        self.initial_adoption_consumed = consumed;
     }
 
     /// Protocol: the server selects its default tab before attach.start can report the ID, so the
     /// first surface becomes the requested view when nothing is viewed or requested yet.
     pub fn adopt_initial(&mut self, tab_id: &str) {
-        if self.viewed.is_none() && self.requested.is_none() {
+        if !self.initial_adoption_consumed && self.viewed.is_none() && self.requested.is_none() {
             self.requested = Some(tab_id.to_owned());
         }
     }
@@ -212,21 +217,9 @@ impl ViewModel {
             .max(surface.request_generation);
         self.adopt_initial(&surface.tab_id);
         let requested = self.is_requested(&surface.tab_id);
-        // Protocol: a retained re-offer may commit a requested view only after the bounded wait
-        // for the holder's fresh frame, so the old coherent frame stays visible instead of a
-        // surface that predates the switch.
-        if requested && surface.stale && self.viewed.is_some() {
-            let deadline = self
-                .request_started
-                .unwrap_or(now)
-                .checked_add(STALE_SURFACE_WAIT)
-                .unwrap_or(now);
-            self.stale_candidate = Some((surface, deadline));
-            return Offer::Parked;
-        }
-        // Invariant: from an empty strip too, the created tab waits for its first drawn frame, so
-        // its body, status bar, and editor appear together without a bare cursor.
-        // The first view of a session, such as the tab attached at launch, waits the same way.
+        // Invariant: from an empty strip too, a created or revealed tab waits for its first drawn
+        // frame, fresh or retained, so its body, status bar, and editor appear together without a
+        // bare cursor. The first view of a session, such as the tab attached at launch, waits too.
         let first_view = self.committed_revision.is_none();
         if requested
             && (first_view || self.first_draw.as_deref() == Some(surface.tab_id.as_str()))
@@ -236,6 +229,18 @@ impl ViewModel {
                 .request_started
                 .get_or_insert(now)
                 .checked_add(FIRST_DRAW_WAIT)
+                .unwrap_or(now);
+            self.stale_candidate = Some((surface, deadline));
+            return Offer::Parked;
+        }
+        // Protocol: a retained re-offer may commit a requested view only after the bounded wait
+        // for the holder's fresh frame, so the old coherent frame stays visible instead of a
+        // surface that predates the switch.
+        if requested && surface.stale && self.viewed.is_some() {
+            let deadline = self
+                .request_started
+                .unwrap_or(now)
+                .checked_add(STALE_SURFACE_WAIT)
                 .unwrap_or(now);
             self.stale_candidate = Some((surface, deadline));
             return Offer::Parked;
@@ -269,6 +274,7 @@ impl ViewModel {
             return Offer::Dropped;
         }
         self.committed_revision = Some(surface.revision);
+        self.initial_adoption_consumed = true;
         Offer::Commit {
             surface,
             tabs,
@@ -316,6 +322,9 @@ impl ViewModel {
         }
         let mut view_request = None;
         let viewed_missing = self.viewed.as_deref().is_some_and(|viewed| !listed(viewed));
+        if viewed_missing {
+            self.initial_adoption_consumed = true;
+        }
         if viewed_missing && self.requested.is_none() {
             // Invariant: only the fallback chooses the next view. A hidden Settings tab never takes
             // it by itself, so with nothing else left the view empties and the landing shows.
@@ -342,6 +351,7 @@ impl ViewModel {
                 self.staged_tabs = None;
                 self.first_draw = None;
                 self.committed_revision = Some(surface.revision);
+                self.initial_adoption_consumed = true;
                 return Topology {
                     dropped_request,
                     view_request,
@@ -388,7 +398,7 @@ pub struct DesiredPresentation {
     pub revision: u64,
     pub geometry_generation: u64,
     pub strip: String,
-    pub structured: Option<StructuredSurface>,
+    pub structured: Option<Arc<StructuredSurface>>,
     pub legacy_body: Vec<u8>,
     pub overlay: Option<String>,
     pub cursor: Option<FinalCursor>,
@@ -398,6 +408,8 @@ pub struct DesiredPresentation {
     /// Number of outer rows before child row zero: one for a top strip, zero for a bottom strip.
     pub child_row_offset: u16,
     pub clear: bool,
+    /// A modal is open: the strip and body draw faint beneath the overlay.
+    pub dimmed: bool,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -409,12 +421,13 @@ pub struct PresentationComposer {
     tab_id: Option<String>,
     incarnation: u64,
     strip: String,
-    structured: Option<StructuredSurface>,
+    structured: Option<Arc<StructuredSurface>>,
     legacy_body: Vec<u8>,
     overlay: Option<String>,
     cursor: Option<FinalCursor>,
     cursor_style: Option<(String, bool)>,
     modes: Option<TerminalModes>,
+    dimmed: bool,
 }
 
 #[derive(Debug)]
@@ -439,9 +452,7 @@ impl PresentationComposer {
         &self,
         desired: &DesiredPresentation,
     ) -> Result<Option<PreparedPresentation>, String> {
-        if let Some(surface) = desired.structured.as_ref() {
-            surface.validate()?;
-        }
+        validate_new_surface(&self.structured, &desired.structured)?;
         let identity_changed =
             self.tab_id != desired.tab_id || self.incarnation != desired.incarnation;
         let geometry_changed = self.columns != desired.columns
@@ -460,7 +471,8 @@ impl PresentationComposer {
             || desired.clear
             || identity_changed
             || geometry_changed
-            || structured_base_invalid;
+            || structured_base_invalid
+            || self.dimmed != desired.dimmed;
         let mut output = Vec::new();
         let overlay_damage = changed_overlay_rows(self, desired);
 
@@ -487,22 +499,16 @@ impl PresentationComposer {
             &mut output,
         )?;
 
+        if desired.dimmed {
+            output = faint(&output);
+        }
         let overlay_changed = self.overlay != desired.overlay;
         if let Some(overlay) = desired.overlay.as_deref()
             && (force || overlay_changed || body_changed)
         {
             output.extend_from_slice(overlay.as_bytes());
         }
-        let cursor = match desired.cursor {
-            Some(FinalCursor::At(cursor))
-                if cursor.column < desired.columns
-                    && cursor.row < desired.outer_rows.saturating_sub(1) =>
-            {
-                Some(FinalCursor::At(cursor))
-            }
-            Some(_) => Some(FinalCursor::Hidden),
-            None => None,
-        };
+        let cursor = clamped_cursor(desired);
         let cursor_style = desired
             .modes
             .as_ref()
@@ -551,6 +557,7 @@ impl PresentationComposer {
             cursor,
             cursor_style,
             modes: desired.modes.clone(),
+            dimmed: desired.dimmed,
         };
         Ok(Some(PreparedPresentation {
             bytes,
@@ -564,6 +571,20 @@ impl PresentationComposer {
 
     pub fn invalidate(&mut self) {
         self.valid = false;
+    }
+}
+
+/// The final cursor, hidden when it falls outside the child rows.
+fn clamped_cursor(desired: &DesiredPresentation) -> Option<FinalCursor> {
+    match desired.cursor {
+        Some(FinalCursor::At(cursor))
+            if cursor.column < desired.columns
+                && cursor.row < desired.outer_rows.saturating_sub(1) =>
+        {
+            Some(FinalCursor::At(cursor))
+        }
+        Some(_) => Some(FinalCursor::Hidden),
+        None => None,
     }
 }
 
@@ -592,6 +613,18 @@ fn changed_overlay_rows(
     rows
 }
 
+/// Immutable current cells are shared across chrome offers and completed-write baselines.
+fn same_surface(previous: &Option<Arc<StructuredSurface>>, next: &Option<Arc<StructuredSurface>>) -> bool {
+    matches!((previous, next), (Some(previous), Some(next)) if Arc::ptr_eq(previous, next))
+}
+
+fn validate_new_surface(previous: &Option<Arc<StructuredSurface>>, next: &Option<Arc<StructuredSurface>>) -> Result<(), String> {
+    if !same_surface(previous, next) && let Some(surface) = next {
+        surface.validate()?;
+    }
+    Ok(())
+}
+
 fn render_body(
     current: &PresentationComposer,
     desired: &DesiredPresentation,
@@ -601,7 +634,10 @@ fn render_body(
     overlay_damage: &std::collections::BTreeSet<usize>,
     output: &mut Vec<u8>,
 ) -> Result<bool, String> {
-    let Some(surface) = desired.structured.as_ref() else {
+    if !force && overlay_damage.is_empty() && same_surface(&current.structured, &desired.structured) {
+        return Ok(false);
+    }
+    let Some(surface) = desired.structured.as_deref() else {
         if force || current.legacy_body != desired.legacy_body || !overlay_damage.is_empty() {
             output.extend_from_slice(&relocate_legacy_body(
                 &sanitize_legacy_body(&desired.legacy_body),
@@ -614,7 +650,7 @@ fn render_body(
         }
         return Ok(false);
     };
-    let prior = (!force).then_some(current.structured.as_ref()).flatten();
+    let prior = (!force).then_some(current.structured.as_deref()).flatten();
     render_palette_damage(output, prior, surface, force);
     let visible_rows =
         usize::from(surface.rows).min(usize::from(desired.outer_rows.saturating_sub(1)));
@@ -707,6 +743,36 @@ fn relocate_legacy_body(bytes: &[u8], child_row_offset: u16) -> Result<Vec<u8>, 
         index = end + 1;
     }
     Ok(output)
+}
+
+/// Re-asserts faint after every SGR, so a modal's backdrop stays dim whatever styles it carries.
+/// Private-marker sequences such as `CSI > 4 ; 1 m` are not SGR and are left alone.
+fn faint(bytes: &[u8]) -> Vec<u8> {
+    const FAINT: &[u8] = b"[2m";
+    let mut output = Vec::with_capacity(bytes.len() + bytes.len() / 8 + FAINT.len());
+    output.extend_from_slice(FAINT);
+    let mut index = 0usize;
+    while index < bytes.len() {
+        if bytes[index..].starts_with(b"[")
+            && let Some(end) = bytes[index + 2..]
+                .iter()
+                .position(|byte| (0x40..=0x7e).contains(byte))
+                .map(|offset| index + 2 + offset)
+        {
+            output.extend_from_slice(&bytes[index..=end]);
+            let private = bytes
+                .get(index + 2)
+                .is_some_and(|byte| (b'<'..=b'?').contains(byte));
+            if bytes[end] == b'm' && !private {
+                output.extend_from_slice(FAINT);
+            }
+            index = end + 1;
+            continue;
+        }
+        output.push(bytes[index]);
+        index += 1;
+    }
+    output
 }
 
 fn sanitize_legacy_body(bytes: &[u8]) -> Vec<u8> {
@@ -838,10 +904,20 @@ fn push_osc_rgb(output: &mut Vec<u8>, command: u8, index: Option<usize>, color: 
 /// Reconstructs a complete positioned ANSI fallback from one coherent structured commit. This is
 /// used only for negotiated legacy peers and never introduces synchronized-output delimiters.
 pub(crate) fn complete_surface_bytes(surface: &StructuredSurface) -> Result<Vec<u8>, String> {
+    complete_surface_rows(surface, surface.row_data.len())
+}
+
+/// The child stays live while the host retains the provisional footer through chip activation.
+/// Never emit transient real status cells that would flash before the held footer is drawn.
+pub(crate) fn complete_surface_body_without_footer(surface: &StructuredSurface) -> Result<Vec<u8>, String> {
+    complete_surface_rows(surface, surface.row_data.len().saturating_sub(2))
+}
+
+fn complete_surface_rows(surface: &StructuredSurface, rows: usize) -> Result<Vec<u8>, String> {
     surface.validate()?;
     let mut output = Vec::new();
     render_palette_damage(&mut output, None, surface, true);
-    for (row_index, row) in surface.row_data.iter().enumerate() {
+    for (row_index, row) in surface.row_data.iter().take(rows).enumerate() {
         render_surface_row(
             &mut output,
             row,
@@ -854,7 +930,7 @@ pub(crate) fn complete_surface_bytes(surface: &StructuredSurface) -> Result<Vec<
     Ok(output)
 }
 
-fn render_surface_row(
+pub(super) fn render_surface_row(
     output: &mut Vec<u8>,
     row: &SurfaceRow,
     row_index: usize,
@@ -1260,6 +1336,22 @@ mod tests {
     }
 
     #[test]
+    fn a_closed_last_tab_cannot_re_adopt_its_late_surface() {
+        let now = Instant::now();
+        let mut view = ViewModel::new(Some("old".into()));
+        assert!(matches!(view.offer(surface("old", 1, false), now, true), Offer::Commit { .. }));
+        view.topology(&[tab("old")], vec![], |_| None);
+        assert_eq!(view.viewed, None);
+        assert_eq!(view.offer(surface("old", 2, false), now, false), Offer::Dropped);
+        assert_eq!(view.requested, None);
+        view.clear();
+        assert_eq!(view.offer(surface("old", 3, false), now, false), Offer::Dropped);
+        assert_eq!(view.requested, None);
+        view.request("next");
+        assert_eq!(view.offer(surface("next", 1, false), now, false), Offer::Staged);
+    }
+
+    #[test]
     fn create_and_select_commit_only_with_topology_and_a_complete_surface() {
         let mut view = ViewModel::new(None);
         let now = Instant::now();
@@ -1326,6 +1418,16 @@ mod tests {
             }
         ));
         assert_eq!(view.viewed.as_deref(), Some("b"));
+
+        // Invariant: A revealed tab's blank retained surface waits for its draw, not the stale wait.
+        let mut revealed = ViewModel::new(Some("a".into()));
+        revealed.request_at("b", now);
+        revealed.await_first_draw("b");
+        let mut retained = blank.clone();
+        retained.stale = true;
+        assert_eq!(revealed.offer(retained, now, true), Offer::Parked);
+        assert_eq!(revealed.expire(now + STALE_SURFACE_WAIT, |_| true), None);
+        assert_eq!(revealed.viewed.as_deref(), Some("a"));
 
         // Invariant: A child that never draws still becomes visible after the bounded wait.
         let mut silent = ViewModel::new(Some("a".into()));
@@ -1676,7 +1778,7 @@ mod tests {
                 .as_ref()
                 .map_or(0, |value| value.geometry_generation),
             strip: "\x1b[1;1HSTRIP".into(),
-            structured: surface,
+            structured: surface.map(Arc::new),
             legacy_body,
             overlay: None,
             cursor: Some(FinalCursor::Hidden),
@@ -1688,7 +1790,100 @@ mod tests {
             outer_rows: 3,
             child_row_offset: 1,
             clear: false,
+            dimmed: false,
         }
+    }
+
+    #[test]
+    fn chrome_offers_and_completed_baselines_share_one_immutable_grid() {
+        let initial = desired(Some(structured_fixture()), Vec::new());
+        let grid = initial.structured.as_ref().unwrap().clone();
+        let mut composer = PresentationComposer::default();
+        composer.prepare(&initial).unwrap().unwrap().acknowledge(&mut composer);
+        for index in 0..32 {
+            let mut chrome = initial.clone();
+            chrome.strip = format!("\x1b[1;1Hclock {index}");
+            let prepared = composer.prepare(&chrome).unwrap().unwrap();
+            assert!(Arc::ptr_eq(prepared.next.structured.as_ref().unwrap(), &grid));
+            assert!(prepared.bytes.len() < 128, "chrome repainted the body");
+            prepared.acknowledge(&mut composer);
+            assert!(Arc::ptr_eq(composer.structured.as_ref().unwrap(), &grid));
+        }
+    }
+
+    #[test]
+    fn a_new_copy_on_write_grid_is_validated_without_mutating_the_painted_base() {
+        let initial = desired(Some(structured_fixture()), Vec::new());
+        let mut composer = PresentationComposer::default();
+        composer.prepare(&initial).unwrap().unwrap().acknowledge(&mut composer);
+        let mut invalid = initial.clone();
+        Arc::make_mut(invalid.structured.as_mut().unwrap()).row_data[0].cells.pop();
+        assert!(composer.prepare(&invalid).is_err());
+        assert_eq!(composer.structured.as_ref().unwrap().row_data[0].cells.len(), 3);
+    }
+
+    #[test]
+    fn removing_an_overlay_restores_cells_even_when_the_child_grid_is_shared() {
+        let mut initial = desired(Some(structured_fixture()), Vec::new());
+        initial.overlay = Some("\x1b[2;1HBOX".into());
+        let mut composer = PresentationComposer::default();
+        composer.prepare(&initial).unwrap().unwrap().acknowledge(&mut composer);
+        let mut revealed = initial.clone();
+        revealed.overlay = None;
+        let prepared = composer.prepare(&revealed).unwrap().unwrap();
+        assert!(String::from_utf8_lossy(&prepared.bytes).contains('界'));
+    }
+
+    #[test]
+    fn a_modal_dims_the_strip_and_body_but_not_its_overlay_and_repaints_on_toggle() {
+        let surface = structured_fixture();
+        let mut composer = PresentationComposer::default();
+        let plain = desired(Some(surface.clone()), Vec::new());
+        composer
+            .prepare(&plain)
+            .unwrap()
+            .unwrap()
+            .acknowledge(&mut composer);
+        let mut dimmed = plain.clone();
+        dimmed.dimmed = true;
+        dimmed.overlay = Some("\x1b[2;1H\x1b[0;1mBOX\x1b[0m".into());
+        let prepared = composer.prepare(&dimmed).unwrap().unwrap();
+        let bytes = String::from_utf8(prepared.bytes.clone()).unwrap();
+        let body = bytes.split("\x1b[2;1H\x1b[0;1mBOX").next().unwrap();
+        assert!(
+            body.contains("\x1b[2m\x1b[1;1HSTRIP"),
+            "the strip draws faint"
+        );
+        let sequences = body.split("\x1b[").skip(1).collect::<Vec<_>>();
+        for (index, sequence) in sequences.iter().enumerate() {
+            let end = sequence
+                .find(|value: char| ('\x40'..='\x7e').contains(&value))
+                .unwrap();
+            if sequence.as_bytes()[end] == b'm' && !sequence.starts_with("2m") {
+                assert!(
+                    sequences
+                        .get(index + 1)
+                        .is_some_and(|next| next.starts_with("2m")),
+                    "every body SGR is followed by faint: {sequence:?}"
+                );
+            }
+        }
+        assert!(
+            bytes.contains("\x1b[2;1H\x1b[0;1mBOX\x1b[0m"),
+            "the overlay stays bright"
+        );
+        prepared.acknowledge(&mut composer);
+        let restored = String::from_utf8(composer.prepare(&plain).unwrap().unwrap().bytes).unwrap();
+        assert!(
+            restored.contains("STRIP"),
+            "closing the modal repaints everything"
+        );
+        assert!(!restored.contains("\x1b[2m"));
+        assert_eq!(
+            faint(b"\x1b[>4;1m\x1b[31mx"),
+            b"\x1b[2m\x1b[>4;1m\x1b[31m\x1b[2mx".to_vec(),
+            "private-marker sequences are not SGR"
+        );
     }
 
     #[test]

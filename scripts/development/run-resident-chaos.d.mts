@@ -1,4 +1,5 @@
 export const CHAOS_SCHEMA: "a1-resident-chaos-v2";
+export function chaosChildSource(executable: string): string;
 
 export type ChaosAction =
   | { kind: "create"; mode: "stream" | "echo"; bytes: number }

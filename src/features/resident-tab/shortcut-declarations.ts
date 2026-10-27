@@ -1,5 +1,6 @@
 export type ResidentTabAction =
-  | "tabs.new" | "tabs.close" | "tabs.rename" | "tabs.settings" | "tabs.retry" | "tabs.fresh"
+  | "tabs.new" | "tabs.close" | "tabs.rename" | "tabs.settings" | "tabs.changelog" | "tabs.commands"
+  | "tabs.retry" | "tabs.fresh"
   | "tabs.next" | "tabs.previous" | "tabs.moveRight" | "tabs.moveLeft"
   | `tabs.jump${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10}`;
 
@@ -27,6 +28,8 @@ export const RESIDENT_TAB_SHORTCUTS: readonly ResidentTabShortcut[] = Object.fre
   { id: "tabs.close", defaultKey: "alt+w", scope: "global", description: "Close A1 tab" },
   { id: "tabs.rename", defaultKey: "f2", scope: "global", description: "Rename A1 tab" },
   { id: "tabs.settings", defaultKey: "alt+,", scope: "global", description: "Open Settings tab" },
+  { id: "tabs.changelog", defaultKey: null, scope: "global", description: "Open Changelog tab" },
+  { id: "tabs.commands", defaultKey: "alt+/", scope: "global", description: "Open command palette" },
   ...jumps,
   { id: "tabs.next", defaultKey: null, scope: "global", description: "View next A1 tab" },
   { id: "tabs.previous", defaultKey: null, scope: "global", description: "View previous A1 tab" },

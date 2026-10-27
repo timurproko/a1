@@ -30,7 +30,10 @@ pub(super) fn start_permit_deadline() -> std::time::Duration {
 pub(super) fn acquire_start_permit(
     state: &Arc<Mutex<RuntimeState>>,
     tab_id: &str,
+    start: &mut AttachStart,
+    cancelled: Option<&AtomicBool>,
 ) -> Result<(StartPermit, std::time::Duration), String> {
+    crate::roles::scope::pin_launch(&mut start.release_root, &mut start.node_executable)?;
     let deadline = std::time::Instant::now() + start_permit_deadline();
     let _waiter = {
         let mut locked = lock_state(&state)?;
@@ -38,6 +41,9 @@ pub(super) fn acquire_start_permit(
         InteractiveStartWaiter { state }
     };
     loop {
+        if cancelled.is_some_and(|flag| flag.load(Ordering::Acquire)) {
+            return Err("tab start cancelled".into());
+        }
         {
             let mut locked = lock_state(&state)?;
             if locked.active_starts < locked.max_concurrent_starts {
@@ -188,11 +194,14 @@ pub(super) fn promote_standby(
 }
 
 pub(super) fn discard_standby(state: &Arc<Mutex<RuntimeState>>) {
-    let holder = state.lock().ok().and_then(|mut locked| {
+    let discarded = state.lock().ok().and_then(|mut locked| {
         let standby = locked.standby.take()?;
         locked.surfaces.remove(&standby.tab_id);
-        locked.holders.get(&standby.tab_id).cloned()
+        Some((locked.holders.get(&standby.tab_id).cloned(), standby.holder))
     });
+    let Some((holder, identity)) = discarded else {
+        return;
+    };
     if let Some(holder) = holder {
         let _ = holder.peer.offer_control(
             wire::frame(
@@ -202,6 +211,12 @@ pub(super) fn discard_standby(state: &Arc<Mutex<RuntimeState>>) {
             )
             .unwrap_or_default(),
         );
+    }
+    // Invariant: a standby never outlives its server. A holder that never connected received no
+    // offer, and one that ignores the offer would otherwise ask every later server for a record it
+    // cannot have; the identity recorded at launch bounds both.
+    if let Some(identity) = identity {
+        end_standby_holder(&identity);
     }
 }
 
@@ -233,6 +248,7 @@ pub(super) fn launch_standby(
             tab_id: tab_id.clone(),
             start: start.clone(),
             incarnation,
+            holder: None,
         });
         let context = HolderLaunchConfig {
             endpoint: locked.endpoint.clone(),
@@ -272,31 +288,73 @@ pub(super) fn launch_standby(
         }
         return Err("standby start gate timed out".into());
     }
-    let result = launch::launch_resident_with_config(ResidentRole::Holder, &profile, &context)
-        .map_err(|error| error.to_string())
-        .and_then(|(mut process, observation)| {
-            match inspect_identity_bounded(observation.process.pid) {
-                Ok(Some(identity)) if identity.start == observation.process.start => Ok(()),
-                Ok(_) => {
-                    let _ = process.terminate();
-                    Err("standby holder identity could not be verified".into())
-                }
-                Err(error) => {
-                    let _ = process.terminate();
-                    Err(error)
-                }
-            }
-        });
+    let result = launch_verified_standby_holder(&profile, &context);
     release_start_gate(state);
-    if result.is_err()
-        && let Ok(mut locked) = state.lock()
-        && locked
-            .standby
-            .as_ref()
-            .is_some_and(|value| value.tab_id == tab_id)
-    {
-        locked.standby = None;
-        remove_holder_session(&mut locked, &tab_id);
+    record_standby_launch(state, &tab_id, &result);
+    result.map(|_| ())
+}
+
+/// Launches the standby holder and confirms the identity the launch observed, ending a holder
+/// whose identity cannot be confirmed.
+fn launch_verified_standby_holder(
+    profile: &std::path::Path,
+    context: &HolderLaunchConfig,
+) -> Result<ProcessIdentity, String> {
+    let (mut process, observation) =
+        launch::launch_resident_with_config(ResidentRole::Holder, profile, context)
+            .map_err(|error| error.to_string())?;
+    match inspect_identity_bounded(observation.process.pid) {
+        Ok(Some(identity)) if identity.start == observation.process.start => Ok(identity),
+        Ok(_) => {
+            let _ = process.terminate();
+            Err("standby holder identity could not be verified".into())
+        }
+        Err(error) => {
+            let _ = process.terminate();
+            Err(error)
+        }
     }
-    result
+}
+
+/// Records a launched standby holder's identity on its standby record, or drops the record when
+/// the launch failed.
+fn record_standby_launch(
+    state: &Arc<Mutex<RuntimeState>>,
+    tab_id: &str,
+    result: &Result<ProcessIdentity, String>,
+) {
+    let Ok(mut locked) = state.lock() else {
+        return;
+    };
+    if !locked
+        .standby
+        .as_ref()
+        .is_some_and(|standby| standby.tab_id == tab_id)
+    {
+        return;
+    }
+    match result {
+        // Invariant: the server that launched a standby can always end it; the identity is
+        // recorded before the holder has connected, so a holder that never connects is not left
+        // behind when the standby is discarded or the server exits.
+        Ok(identity) => {
+            if let Some(standby) = locked.standby.as_mut() {
+                standby.holder = Some(identity.clone());
+            }
+        }
+        Err(_) => {
+            locked.standby = None;
+            remove_holder_session(&mut locked, tab_id);
+        }
+    }
+}
+
+/// How long a discarded standby holder gets to leave after the shutdown offer before it is ended
+/// by its verified identity, and how long the forced end may take.
+const STANDBY_END_GRACE: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Ends a discarded standby holder by the identity recorded at launch. The shutdown offer that
+/// preceded this lets a connected holder leave on its own; verification keeps a reused pid safe.
+fn end_standby_holder(identity: &ProcessIdentity) {
+    let _ = crate::identity::terminate_verified(identity, STANDBY_END_GRACE, STANDBY_END_GRACE);
 }
