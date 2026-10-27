@@ -373,6 +373,19 @@ export interface PiSettingsModelChoice {
   readonly levels: readonly string[];
 }
 
+/** The engine's rule: no reasoning means "off" only; xhigh and max exist only where the model maps them. */
+export function supportedThinkingLevels(
+  model: { readonly reasoning?: boolean; readonly thinkingLevelMap?: Readonly<Record<string, unknown>> },
+): readonly string[] {
+  if (!model.reasoning) return ["off"];
+  return ["off", "minimal", "low", "medium", "high", "xhigh", "max"].filter(level => {
+    const mapped = model.thinkingLevelMap?.[level];
+    if (mapped === null) return false;
+    if (level === "xhigh" || level === "max") return mapped !== undefined;
+    return true;
+  });
+}
+
 /** The choice that clears a per-model override; the engine then applies its global default. */
 export const MODEL_THINKING_DEFAULT = "default";
 

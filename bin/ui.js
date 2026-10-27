@@ -7,6 +7,9 @@ const { uiArguments, tabCredentials, tabDataDir, tabIncarnation, tabStandby } = 
 // Invariant: one terminal module identity per process, decided before any A1 or Pi module loads.
 const { installPinnedPiTuiResolver } = await import("./module-resolver.js");
 installPinnedPiTuiResolver(new URL("..", import.meta.url).pathname.replace(/^\/(.:)/, "$1").replace(/\/$/, ""));
+const utilityRoute = tabCredentials === undefined
+  ? null
+  : (await import("../dist/foundation/resident-tabs/routes.js")).residentUtilityRoute(tabCredentials.tabId);
 const startup = await import("../dist/foundation/startup/startup-runtime.js");
 startup.enableEnvironmentCompileCache(process.env);
 const { hidesTabSettings, readLaunchContext } = await import("../dist/foundation/launch-context/index.js");
@@ -32,79 +35,105 @@ const fatal = profile === "a1" ? installFatalExit({
   ...(launchContext.releaseId === undefined ? {} : { releaseId: launchContext.releaseId }),
   dispose: () => runningApplication?.dispose(),
 }) : undefined;
-const [{ fileURLToPath }, identity, descriptor] = await Promise.all([
+const [{ fileURLToPath }, identity] = await Promise.all([
   import("node:url"),
   import("./module-identity.js"),
-  import("../dist/foundation/startup/startup-descriptor.js"),
 ]);
 const packageRootPath = fileURLToPath(new URL("..", import.meta.url));
 identity.configurePinnedPiPublicPackage(packageRootPath);
-// Performance: begin the exact launch graph together while the trace write is pending.
-// Direct owned-module entries avoid evaluating unrelated barrel exports before first paint.
-const modules = descriptor.loadDeclaredStartupGraph();
-await startup.markStartupPhase(process.env, "ui-entry");
-const [
-  { runSelectedInteractiveRuntime },
-  { parseSessionSelection },
-  { createConsoleProjectTrustPrompt },
-  { createConsoleSessionForkPrompt },
-  { runOwnedUi, terminateOwnedUiProcess },
-  { composeOwnedUi },
-] = await modules;
 
-if (tabStandby) await waitForStandbyPromotion(process.stdin, tabDataDir === undefined ? undefined : join(tabDataDir, "standby-promote"));
-
-// Compatibility: before the composition uses pinned Pi's terminal stack: confirm A1 and Pi
-// resolve it to the same copy, so extensions and the owned UI share one module identity.
-identity.assertSinglePiTuiModuleAtLaunch(packageRootPath, (/** @type {string} */ message) => process.stderr.write(message));
-await startup.markStartupPhase(process.env, "ui-modules-loaded");
-
-const sessionSelection = parseSessionSelection(uiArguments);
-Promise.resolve().then(async () => {
-  const tab = tabCredentials === undefined ? undefined : {
-    bridge: new (await import("../dist/foundation/resident-tabs/bridge-client.js")).TabBridgeClient({ credentials: tabCredentials }),
-    dataDir: /** @type {string} */ (tabDataDir),
-    incarnation: /** @type {number} */ (tabIncarnation),
-  };
-  if (sessionSelection && profile !== "a1") throw new Error("session selection requires the normal A1 profile");
-  return runSelectedInteractiveRuntime(profile, {
-    ownedUi: async (profileId, ownedSurfaces) => {
-      const processInspector = ownedSurfaces
-        ? await import("../dist/foundation/process-containment/native-process-inspector.js")
-          .then(module => module.createNativeProcessInspector(process.env, process.platform, launchContext.releaseRoot))
-          .catch(() => null)
-        : null;
-      const { application, settings } = await composeOwnedUi({
-        cwd: process.cwd(),
-        profileId,
-        ownedSurfaces,
-        notificationVersion: launchContext.updateVersion,
-        ...(hidesTabSettings(launchContext) ? { hideTabSettings: true } : {}),
-        ...(processInspector === null ? {} : { inspectProcess: pid => processInspector.observe(pid) }),
-        projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
-        sessionForkPrompt: createConsoleSessionForkPrompt(),
-        ...(sessionSelection === undefined ? {} : { sessionSelection }),
-        ...(tab === undefined ? {} : { tab }),
-        ...(launchContext.residentFallback === undefined ? {} : {
-          residentFallbackNotice: formatResidentFallbackNotice(launchContext.residentFallback),
-        }),
-      });
-      runningApplication = application;
-      return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });
-    },
-  });
-}).then(
-  code => {
-    fatal?.remove();
-    return terminateOwnedUiProcess(code);
-  },
-  error => {
-    const sessionSelectionError = error?.name === "PiSessionSelectionError";
-    const trustExit = error?.name === "ProjectTrustPromptExitError";
-    if (fatal && !sessionSelectionError && !trustExit) { fatal.fail(error); return; }
-    fatal?.remove();
-    if (trustExit) return terminateOwnedUiProcess(error.exitCode);
-    console.error(error instanceof Error ? error.message : String(error));
-    process.exitCode = sessionSelectionError ? error.exitCode : 1;
-  },
+// Compatibility: before either composition uses pinned Pi's terminal stack, confirm A1 and Pi
+// resolve it to the same copy so every owned screen shares one module identity.
+const assertPiTuiIdentity = () => identity.assertSinglePiTuiModuleAtLaunch(
+  packageRootPath,
+  (/** @type {string} */ message) => process.stderr.write(message),
 );
+
+if (utilityRoute !== null) {
+  if (profile !== "a1" || tabCredentials === undefined) throw new Error("utility tabs require the normal A1 tab profile");
+  await startup.markStartupPhase(process.env, "ui-entry");
+  assertPiTuiIdentity();
+  const utility = await import("../dist/composition/utility-tab.js");
+  await startup.markStartupPhase(process.env, "ui-modules-loaded");
+  const bridge = new (await import("../dist/foundation/resident-tabs/bridge-client.js")).TabBridgeClient({ credentials: tabCredentials });
+  completeRun(utility.runUtilityTab({
+    route: utilityRoute,
+    bridge,
+    cwd: process.cwd(),
+    profileId: profile,
+    onApplication: application => { runningApplication = application; },
+  }), utility.terminateOwnedUiProcess);
+} else {
+  const descriptor = await import("../dist/foundation/startup/startup-descriptor.js");
+  // Performance: begin the exact Agent launch graph together while the trace write is pending.
+  // Direct owned-module entries avoid evaluating unrelated barrel exports before first paint.
+  const modules = descriptor.loadDeclaredStartupGraph();
+  await startup.markStartupPhase(process.env, "ui-entry");
+  const [
+    { runSelectedInteractiveRuntime },
+    { parseSessionSelection },
+    { createConsoleProjectTrustPrompt },
+    { createConsoleSessionForkPrompt },
+    { runOwnedUi, terminateOwnedUiProcess },
+    { composeOwnedUi },
+  ] = await modules;
+
+  if (tabStandby) await waitForStandbyPromotion(process.stdin, tabDataDir === undefined ? undefined : join(tabDataDir, "standby-promote"));
+  assertPiTuiIdentity();
+  await startup.markStartupPhase(process.env, "ui-modules-loaded");
+
+  const sessionSelection = parseSessionSelection(uiArguments);
+  completeRun(Promise.resolve().then(async () => {
+    const tab = tabCredentials === undefined ? undefined : {
+      bridge: new (await import("../dist/foundation/resident-tabs/bridge-client.js")).TabBridgeClient({ credentials: tabCredentials }),
+      dataDir: /** @type {string} */ (tabDataDir),
+      incarnation: /** @type {number} */ (tabIncarnation),
+    };
+    if (sessionSelection && profile !== "a1") throw new Error("session selection requires the normal A1 profile");
+    return runSelectedInteractiveRuntime(profile, {
+      ownedUi: async (profileId, ownedSurfaces) => {
+        const processInspector = ownedSurfaces
+          ? await import("../dist/foundation/process-containment/native-process-inspector.js")
+            .then(module => module.createNativeProcessInspector(process.env, process.platform, launchContext.releaseRoot))
+            .catch(() => null)
+          : null;
+        const { application, settings } = await composeOwnedUi({
+          cwd: process.cwd(),
+          profileId,
+          ownedSurfaces,
+          notificationVersion: launchContext.updateVersion,
+          ...(hidesTabSettings(launchContext) ? { hideTabSettings: true } : {}),
+          ...(processInspector === null ? {} : { inspectProcess: pid => processInspector.observe(pid) }),
+          projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
+          sessionForkPrompt: createConsoleSessionForkPrompt(),
+          ...(sessionSelection === undefined ? {} : { sessionSelection }),
+          ...(tab === undefined ? {} : { tab }),
+          ...(launchContext.residentFallback === undefined ? {} : {
+            residentFallbackNotice: formatResidentFallbackNotice(launchContext.residentFallback),
+          }),
+        });
+        runningApplication = application;
+        return await runOwnedUi({ application, ...(settings === null ? {} : { settings }) });
+      },
+    });
+  }), terminateOwnedUiProcess);
+}
+
+/** @param {Promise<number>} run @param {(code: number) => Promise<never>} terminate */
+function completeRun(run, terminate) {
+  run.then(
+    code => {
+      fatal?.remove();
+      return terminate(code);
+    },
+    error => {
+      const sessionSelectionError = error?.name === "PiSessionSelectionError";
+      const trustExit = error?.name === "ProjectTrustPromptExitError";
+      if (fatal && !sessionSelectionError && !trustExit) { fatal.fail(error); return; }
+      fatal?.remove();
+      if (trustExit) return terminate(error.exitCode);
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exitCode = sessionSelectionError ? error.exitCode : 1;
+    },
+  );
+}
