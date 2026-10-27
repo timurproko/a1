@@ -2043,6 +2043,13 @@ fn should_paint_strip(has_surface: bool, has_shown_tabs: bool, notice: bool) -> 
     has_surface || has_shown_tabs || notice
 }
 
+/// Whether an installed registry list with nothing to show counts as the strip shown empty, so
+/// the landing paints from it. A tab the server is starting for this attach is listed, and a
+/// locally pending Agent owns the screen, so neither reaches the landing this way.
+fn empty_list_shows_strip(tabs_empty: bool, pending_agent: bool) -> bool {
+    tabs_empty && !pending_agent
+}
+
 fn apply_owned_accent(tabs: &mut [StripTab], color: Option<&str>) {
     for tab in tabs {
         if core_attach::is_utility_tab(&tab.id) || tab.accent.is_none() {
@@ -2354,6 +2361,7 @@ impl Client {
     }
 
     fn request_view(&mut self, tab_id: String) -> Result<(), String> {
+        key_trace(self.key_trace_path.as_deref(), &format!("view={tab_id}"));
         let priority = swapped_chip_priority_for_view(
             &self.strip_frame,
             &self.view,
@@ -2552,8 +2560,9 @@ impl Client {
         core.refresh_overflow(shown, &self.strip_frame.hidden_tabs, overflow_anchor);
     }
 
-    /// Invariant: the landing is the body only while no tab is viewed after tabs were shown, so a
-    /// first launch, a resize, or a pending switch never flashes it over a child surface.
+    /// Invariant: the landing is the body only while no tab is viewed after the strip was shown,
+    /// with tabs or empty, so a first launch of a starting tab, a resize, or a pending switch never
+    /// flashes it over a child surface.
     fn landing_shown(&self) -> bool {
         self.view.viewed.is_none() && self.has_shown_tabs && self.pending_agent.is_none()
     }
@@ -2727,6 +2736,7 @@ impl Client {
         staged: Option<Vec<StripTab>>,
         requested: bool,
     ) -> Result<(), String> {
+        key_trace(self.key_trace_path.as_deref(), "commit=surface");
         if let Some(next) = staged {
             self.tabs = next;
         }
@@ -3071,6 +3081,10 @@ impl Client {
             })
         }).collect();
         let next_tabs = self.registry_tabs(core, visible);
+        key_trace(
+            self.key_trace_path.as_deref(),
+            &format!("list={}:{}", revision, next_tabs.len()),
+        );
         // Invariant: a hidden utility tab never surfaces by itself. When only those remain, they
         // stay hidden and running beside the landing, so they open without a start.
         let utility_visible = core.utilities_visible(self.view.viewed.as_deref());
@@ -3097,6 +3111,11 @@ impl Client {
                     self.view.clear();
                     self.presented = Presented::new();
                     self.pending_terminal_effects.clear();
+                    // Invariant: a list with nothing to show is the strip shown empty, so the
+                    // landing paints from the first such list; a tab the server is starting for
+                    // this attach is listed and keeps its first-draw gate instead.
+                    self.has_shown_tabs |=
+                        empty_list_shows_strip(self.tabs.is_empty(), self.pending_agent.is_some());
                     self.paint(core, true)
                 } else if changed {
                     self.paint(core, false)
@@ -4527,6 +4546,26 @@ mod tests {
         assert!(
             !should_paint_strip(false, false, false),
             "a staged registry alone must not enter the screen"
+        );
+    }
+
+    #[test]
+    fn a_first_list_with_nothing_to_show_paints_the_landing() {
+        assert!(
+            empty_list_shows_strip(true, false),
+            "stopped-only or empty registries show the landing from their first list"
+        );
+        assert!(
+            !empty_list_shows_strip(false, false),
+            "a listed starting tab keeps the first-draw gate"
+        );
+        assert!(
+            !empty_list_shows_strip(true, true),
+            "a locally pending Agent keeps the screen"
+        );
+        assert!(
+            should_paint_strip(false, empty_list_shows_strip(true, false), false),
+            "the empty strip paints with the landing"
         );
     }
 

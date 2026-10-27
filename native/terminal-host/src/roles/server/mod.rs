@@ -505,12 +505,11 @@ impl RuntimeState {
         default_tab(&agents)
     }
 
-    /// A registry holding only Settings starts its first Agent like an empty one.
-    fn agentless(&self) -> bool {
-        self.registry
-            .tabs
-            .iter()
-            .all(|tab| is_utility_tab_id(&tab.tab_id))
+    /// The tab an admitted attach without a requested tab views: the running default, or the
+    /// fresh Agent this client's `attach.start` will start, which then reads the id back from the
+    /// client session so admission's subscription and the started tab agree.
+    fn attach_view_tab(&self) -> String {
+        first_agent_start(&self.registry.tabs).map_or_else(|| self.default_tab(), |first| first.tab_id)
     }
 }
 
@@ -525,6 +524,38 @@ fn default_tab(tabs: &[TabRecord]) -> String {
         })
         .map(|tab| tab.tab_id.clone())
         .unwrap_or_else(|| "tab-1".into())
+}
+
+/// The Agent an attach without a session selection starts, with the stopped Agent records it
+/// drops first.
+pub(super) struct FirstAgentStart {
+    pub(super) tab_id: String,
+    pub(super) dropped: Vec<String>,
+}
+
+/// `None` while an Agent runs, so the attach views the default tab. Otherwise the registry holds
+/// no Agent worth viewing: a stopped Agent record no holder owns is dropped rather than counted,
+/// and the new Agent takes a fresh identity so it never adopts a stopped tab's directory, draft,
+/// or recovery screen. A profile that never had an Agent keeps its first-launch `tab-1`.
+pub(super) fn first_agent_start(tabs: &[TabRecord]) -> Option<FirstAgentStart> {
+    let agents = tabs
+        .iter()
+        .filter(|tab| !is_utility_tab_id(&tab.tab_id))
+        .collect::<Vec<_>>();
+    if agents.iter().any(|tab| tab.desired != "stopped") {
+        return None;
+    }
+    let dropped = agents
+        .iter()
+        .filter(|tab| tab.holder_pid.is_none())
+        .map(|tab| tab.tab_id.clone())
+        .collect::<Vec<_>>();
+    let tab_id = if agents.is_empty() {
+        "tab-1".into()
+    } else {
+        format!("tab-{:016x}", rand::random::<u64>())
+    };
+    Some(FirstAgentStart { tab_id, dropped })
 }
 
 fn recovered_launches(
@@ -1973,6 +2004,40 @@ mod tests {
         let mut stopped = record("tab-stopped", 4, "stopped", None);
         stopped.order = 0;
         assert_eq!(default_tab(&[settings, second, first, stopped]), "tab-1");
+    }
+
+    #[test]
+    fn attach_starts_a_fresh_agent_only_when_every_agent_has_stopped() {
+        let empty = first_agent_start(&[]).expect("an empty registry starts an Agent");
+        assert_eq!(empty.tab_id, "tab-1");
+        assert!(empty.dropped.is_empty());
+        let mut settings = record("settings-1", 1, "running", None);
+        settings.kind = "settings".into();
+        let utility_only = first_agent_start(std::slice::from_ref(&settings))
+            .expect("a utility-only registry starts an Agent");
+        assert_eq!(utility_only.tab_id, "tab-1");
+        assert!(utility_only.dropped.is_empty());
+
+        let exited = record("tab-1", 2, "stopped", None);
+        let stopping = record("tab-2", 3, "stopped", Some(4242));
+        let start = first_agent_start(&[settings.clone(), exited.clone(), stopping])
+            .expect("stopped Agents start a new one");
+        assert!(
+            start.tab_id.starts_with("tab-") && start.tab_id != "tab-1",
+            "a new Agent beside stopped records takes a fresh identity: {}",
+            start.tab_id
+        );
+        assert_eq!(
+            start.dropped,
+            ["tab-1"],
+            "only the holder-less stopped record is dropped"
+        );
+
+        let running = record("tab-3", 4, "running", Some(1));
+        assert!(
+            first_agent_start(&[settings, exited, running]).is_none(),
+            "a running Agent is viewed instead"
+        );
     }
 
     #[test]
