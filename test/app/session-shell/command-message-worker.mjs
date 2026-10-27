@@ -35,7 +35,10 @@ for (const mode of modes) {
 setCapabilities({ ...getCapabilities(), trueColor: mode === "truecolor", hyperlinks: false });
 for (const theme of ["dark", "light"]) {
   if (pinned) pinned.initTheme(theme, false);
-  else ownedTheme.applyPiTheme(theme, false, mode);
+  else {
+    ownedTheme.applyPiTheme(theme, false, mode);
+    ownedTheme.setPiAccentColor("purple");
+  }
   for (const padding of [0, 1]) {
     for (const entry of cases) {
       let name;

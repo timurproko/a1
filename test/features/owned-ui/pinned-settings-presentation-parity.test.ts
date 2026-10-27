@@ -7,7 +7,7 @@ import {
   type ListViewRow,
   type UiTheme,
 } from "../../../src/ui/components/index.js";
-import { applyPiTheme, piTheme } from "../../../src/integrations/pi/components/index.js";
+import { applyPiTheme, piTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
 import { assertIndependentRawTerminalParity } from "./pi-raw-terminal-parity.js";
 import {
   PI_PARITY_COLOR_MODES,
@@ -41,6 +41,7 @@ function pinnedRows(width: number): readonly string[] {
 
 function ownedRows(width: number, mode: PiParityColorMode, theme: UiTheme = ownedTheme()): readonly string[] {
   applyPiTheme("dark", false, mode);
+  setPiAccentColor("purple");
   const valueColumn = valueColumnFor(rows);
   return rows.map((row, index) => renderListRow(row, {
     selected: index === 0,

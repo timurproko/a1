@@ -4,7 +4,10 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The failures came from three independently introduced test-evidence gaps, not the status-bar change at `939b152`: `1f02b2e` pushed the delivery skill past its enforced size, while `f465468` changed the default semantic accent from pinned purple to A1 blue without refreshing A1-owned frame fixtures or making exact upstream-comparison tests select purple explicitly.
+- Keep both color contracts exact: A1-owned diagnostic fixtures record the blue default byte-for-byte, while tests claiming pinned Pi parity explicitly select the purple comparison accent before comparing full ANSI rows. No ANSI, geometry, assertion, timeout, budget, or coverage normalization is widened.
+- Make the installer cancellation fixture hermetic by selecting an empty profile home and truecolor mode; this prevents the developer profile and ambient terminal capability from changing the expected accent.
+- The Windows Node 24 update-performance failure is environmental: the same head passed on Windows Node 22, and a focused Windows Node 24 reproduction completed far below the unchanged 30-second budget. Keep the budget unchanged and require the selected exact-head PR Full regression to prove the final candidate.
 
 ## Evidence
 
@@ -98,3 +101,9 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
     - `e9340bc` fix(session): tolerate stale worktree registrations in inventory (#839)
     - `1f02b2e` docs(agents): stale worktree entries never block delivery (#838)
     - `4be74e6` fix(resident): isolate hosts by immutable release (#835)
+
+- Focused reproduction on candidate head `f881daa` with Windows Node 24 reproduced 23 failures across the 12 recorded test files:
+  - exact parity rows differed only at the intentional semantic accent (`167;152;215`/`38;5;140` pinned purple versus `130;160;241`/`38;5;111` A1 blue);
+  - the delivery skill contained 649 whitespace-delimited words against the unchanged `<600` contract; and
+  - the installer cancellation fixture inherited the local profile's cyan accent, confirming that its environment was not isolated.
+- The isolated update-performance test passed locally on Windows Node `v24.22.0` in 9.21 seconds with the 30-second budget unchanged. The failed run's Windows Node 22 package shard also passed in 13.25 seconds, while only Windows Node 24 reported a 40.58-second activation.

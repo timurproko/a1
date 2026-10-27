@@ -8,6 +8,7 @@ import {
   RetryStatusIndicator,
   WorkingStatusIndicator,
   applyPiTheme,
+  setPiAccentColor,
 } from "../../../../src/integrations/pi/components/index.js";
 
 function tuiFacade(): never {
@@ -20,6 +21,7 @@ describe("pinned status indicator parity", () => {
   it("matches independent pinned working, retry, compaction, branch, idle, countdown, and fixed-width rows", async () => {
     vi.useFakeTimers();
     applyPiTheme("dark");
+    setPiAccentColor("purple");
     const path = resolve("node_modules/@earendil-works/pi-coding-agent/dist/modes/interactive/components/status-indicator.js");
     const pinned = await import(pathToFileURL(path).href) as typeof import("../../../../src/integrations/pi/components/upstream/components/status-indicator.js");
     const leftUi = tuiFacade();

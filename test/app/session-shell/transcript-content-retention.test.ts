@@ -2,9 +2,10 @@ import { join, resolve } from "node:path";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { pathToFileURL } from "node:url";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getCapabilities, setCapabilities, Text } from "@earendil-works/pi-tui";
 import { createEditToolDefinition, ToolExecutionComponent } from "@earendil-works/pi-coding-agent";
+import { setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
 import { createTuiFacade } from "../../../src/integrations/pi/components/shell-shared-facade.js";
 import { stripAnsi } from "../../../src/ui/components/text.js";
 import { readVisibleHyperlinks } from "../../../src/ui/components/visible-hyperlinks.js";
@@ -12,6 +13,7 @@ import { assistantCall, TranscriptFixtureSession, transcriptLifecycleFixture } f
 
 const fixtures: Awaited<ReturnType<typeof transcriptLifecycleFixture>>[] = [];
 const capabilities = getCapabilities();
+beforeEach(() => setPiAccentColor("purple"));
 afterEach(async () => {
   await Promise.all(fixtures.splice(0).map(fixture => fixture.dispose()));
   setCapabilities(capabilities);
