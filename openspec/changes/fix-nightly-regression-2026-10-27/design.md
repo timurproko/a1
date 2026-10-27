@@ -107,3 +107,8 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
   - the delivery skill contained 649 whitespace-delimited words against the unchanged `<600` contract; and
   - the installer cancellation fixture inherited the local profile's cyan accent, confirming that its environment was not isolated.
 - The isolated update-performance test passed locally on Windows Node `v24.22.0` in 9.21 seconds with the 30-second budget unchanged. The failed run's Windows Node 22 package shard also passed in 13.25 seconds, while only Windows Node 24 reported a 40.58-second activation.
+- Focused implementation evidence on reconciled head `1808ba7`:
+  - `npm run typecheck` passed;
+  - the 13 affected Vitest files passed with 146 tests passing and 2 platform skips, including update activation in 8.29 seconds; and
+  - `openspec validate fix-nightly-regression-2026-10-27 --strict` passed.
+- Pre-finalization observation: the generated repair remains draft, so Development validation and PR Full regression are correctly absent before completion. No known implementation gap remains; the finalization-triggered selected exact-head PR Full regression must still pass before handoff.
