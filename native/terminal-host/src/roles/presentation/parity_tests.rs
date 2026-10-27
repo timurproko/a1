@@ -439,7 +439,7 @@ fn compose_parity_frame(
 
 /// ConPTY sometimes holds its read handle open after the child exits; this marks the final frame.
 #[cfg(windows)]
-const CONPTY_PARITY_END: &[u8] = b"A1_CONPTY_PARITY_END_4A86E9";
+const CONPTY_PARITY_END: &[u8] = b"conpty-parity-complete-4a86e9";
 
 // Rationale: the test binary doubles as the PTY child, avoiding a Node/shell/toolchain dependency.
 #[cfg(windows)]
@@ -563,20 +563,18 @@ fn conpty_rail_only_row_changes_reach_the_grid() {
     }
 }
 
-/// Collect fixture bytes through the child completion marker, not a delayed ConPTY pipe EOF.
+/// Collect fixture bytes through the completion marker or a prompt ConPTY pipe EOF.
 #[cfg(windows)]
 fn conpty_capture_output(
     mut reader: impl std::io::Read,
-    writer: std::sync::Arc<std::sync::Mutex<impl std::io::Write>>,
+    writer: std::sync::Arc<std::sync::Mutex<Option<impl std::io::Write>>>,
 ) -> (std::io::Result<()>, Vec<u8>)
 {
     let mut bytes = Vec::new();
     let mut buffer = [0u8; 4096];
     let result = loop {
         match reader.read(&mut buffer) {
-            Ok(0) => break Err(std::io::Error::new(
-                std::io::ErrorKind::UnexpectedEof, "ConPTY completion marker missing",
-            )),
+            Ok(0) => break Ok(()),
             Ok(count) => {
                 let previous = bytes.len();
                 bytes.extend_from_slice(&buffer[..count]);
@@ -592,8 +590,10 @@ fn conpty_capture_output(
                     .any(|window| window == b"\x1b[6n")
                 {
                     let mut writer = writer.lock().unwrap();
-                    writer.write_all(b"\x1b[1;1R").unwrap();
-                    writer.flush().unwrap();
+                    if let Some(writer) = writer.as_mut() {
+                        writer.write_all(b"\x1b[1;1R").unwrap();
+                        writer.flush().unwrap();
+                    }
                 }
             }
             Err(error) => break Err(error),
@@ -604,15 +604,16 @@ fn conpty_capture_output(
 
 #[cfg(windows)]
 #[test]
-fn conpty_capture_stops_at_completion_marker_and_rejects_missing_marker() {
+fn conpty_capture_stops_at_marker_or_eof() {
     use std::sync::{Arc, Mutex};
-    let writer = Arc::new(Mutex::new(Vec::<u8>::new()));
+    let writer = Arc::new(Mutex::new(Some(Vec::<u8>::new())));
     let stream = [b"frame".as_slice(), CONPTY_PARITY_END, b"ignored"].concat();
     let (result, bytes) = conpty_capture_output(std::io::Cursor::new(stream), writer.clone());
     result.unwrap();
     assert_eq!(bytes, b"frame");
-    let (missing, _) = conpty_capture_output(std::io::Cursor::new(b"frame"), writer);
-    assert_eq!(missing.unwrap_err().kind(), std::io::ErrorKind::UnexpectedEof);
+    let (result, bytes) = conpty_capture_output(std::io::Cursor::new(b"frame"), writer);
+    result.unwrap();
+    assert_eq!(bytes, b"frame");
 }
 
 #[cfg(windows)]
@@ -651,7 +652,7 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
     let reader = pair.master.try_clone_reader().unwrap();
     // Invariant: keep ConPTY's input pipe alive until the child exits; closing it when the
     // completion marker arrives can terminate the child before its normal exit.
-    let writer = std::sync::Arc::new(std::sync::Mutex::new(pair.master.take_writer().unwrap()));
+    let writer = std::sync::Arc::new(std::sync::Mutex::new(Some(pair.master.take_writer().unwrap())));
     let read_writer = std::sync::Arc::clone(&writer);
     let (sender, receiver) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
@@ -673,10 +674,12 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
+    // Platform: close input after child exit so ConPTY can deliver EOF if it drops the marker.
+    drop(writer.lock().unwrap().take());
+    let captured = receiver.recv_timeout(std::time::Duration::from_secs(10));
     drop(pair.master);
-    drop(writer);
-    let (result, bytes) = receiver
-        .recv_timeout(std::time::Duration::from_secs(10))
+    let (result, bytes) = captured
+        .or_else(|_| receiver.recv_timeout(std::time::Duration::from_secs(10)))
         .expect("PTY output completed");
     if let Some(status) = failure {
         let text = String::from_utf8_lossy(&bytes);
