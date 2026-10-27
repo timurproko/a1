@@ -7,8 +7,13 @@ import {
   availableRelease,
   checkForNewerRelease,
   distTagsUrl,
+  invalidateReleaseCheckCache,
   isNewerRelease,
+  packageDocumentUrl,
   parseDistTags,
+  parsePublishedVersions,
+  queryPublishedVersions,
+  recordedPullRequest,
   releaseChannelOf,
   startupReleaseCheckSkipReason,
   type RegistryFetcher,
@@ -61,6 +66,47 @@ describe("release channel and comparison", () => {
     expect(parseDistTags([], "registry").error).toMatch(/non-object/);
     expect(distTagsUrl()).toBe("https://registry.npmjs.org/-/package/%40timurproko%2Fa1/dist-tags");
     expect(distTagsUrl("https://mirror.example/npm/")).toBe("https://mirror.example/npm/-/package/%40timurproko%2Fa1/dist-tags");
+  });
+
+  it("reads every published version with the pull request its manifest records", async () => {
+    expect(packageDocumentUrl()).toBe("https://registry.npmjs.org/%40timurproko%2Fa1");
+    expect(packageDocumentUrl("https://mirror.example/npm/")).toBe("https://mirror.example/npm/%40timurproko%2Fa1");
+    expect(recordedPullRequest({ publication: { pullRequest: 828 } })).toBe(828);
+    expect(recordedPullRequest({ publication: { pullRequest: "828" } })).toBeNull();
+    expect(recordedPullRequest({ publication: { pullRequest: 0 } })).toBeNull();
+    expect(recordedPullRequest({})).toBeNull();
+    expect(recordedPullRequest(null)).toBeNull();
+
+    const document = {
+      name: "@timurproko/a1",
+      versions: {
+        "0.2.7-dev.835": { version: "0.2.7-dev.835" },
+        "0.2.7-dev.1218": { version: "0.2.7-dev.1218", publication: { pullRequest: 828, source: "a".repeat(40) } },
+        "not a version": {},
+      },
+    };
+    expect(parsePublishedVersions(document)).toEqual({
+      versions: [{ version: "0.2.7-dev.835", pullRequest: null }, { version: "0.2.7-dev.1218", pullRequest: 828 }],
+      error: null,
+    });
+    expect(parsePublishedVersions([]).error).toMatch(/non-object/);
+    expect(parsePublishedVersions({ versions: [] }).error).toMatch(/lists no versions/);
+
+    const urls: string[] = [];
+    const fetcher: RegistryFetcher = async url => { urls.push(url); return { ok: true, status: 200, text: async () => JSON.stringify(document) }; };
+    await expect(queryPublishedVersions(fetcher, "https://mirror.example/npm")).resolves.toMatchObject({ error: null });
+    expect(urls).toEqual(["https://mirror.example/npm/%40timurproko%2Fa1"]);
+    await expect(queryPublishedVersions(async () => ({ ok: false, status: 503, text: async () => "" }))).resolves.toEqual({ versions: [], error: "registry responded with status 503" });
+    await expect(queryPublishedVersions(async () => { throw new Error("offline"); })).resolves.toEqual({ versions: [], error: "offline" });
+  });
+
+  it("forgets the startup release check on request and tolerates an absent cache", async () => {
+    const configDir = await mkdtemp(join(tmpdir(), "a1-release-cache-"));
+    roots.push(configDir);
+    await writeFile(join(configDir, "update-check.json"), JSON.stringify({ version: 1, channel: "development", latest: "0.2.7-dev.835", checkedAt: NOW }));
+    await invalidateReleaseCheckCache(configDir);
+    expect(await readdir(configDir)).toEqual([]);
+    await expect(invalidateReleaseCheckCache(configDir)).resolves.toBeUndefined();
   });
 });
 

@@ -58,7 +58,14 @@ describe("deliberate publication pipeline", () => {
     expect(source).toContain("commits/$SOURCE_SHA/pulls");
     expect(source).toContain('pull?.merge_commit_sha === process.env.SOURCE_SHA');
     expect(source).toContain("expected exactly one");
-    expect(source).toContain("`${base}-dev.${pullRequest}`");
+    // Invariant: the preview version counts develop's first-parent history so later merges always
+    // sort above earlier ones; the pull request is recorded in both manifests instead of the version.
+    expect(source).toContain('["rev-list", "--count", "--first-parent", process.env.SOURCE_SHA]');
+    expect(source).toContain("`${base}-dev.${count}`");
+    expect(source).not.toContain("`${base}-dev.${pullRequest}`");
+    expect(source).toContain('npm pkg set "publication.source=$SOURCE_SHA"');
+    expect(source).toContain('npm pkg set "publication.pullRequest=$PULL_REQUEST" --json');
+    expect(source).toContain("RELEASE_PULL_REQUEST: ${{ needs.plan.outputs.pull_request }}");
     expect(source).not.toContain("github.run_number");
   });
 

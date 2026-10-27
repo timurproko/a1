@@ -1,5 +1,6 @@
 import { tmpdir } from "node:os";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it, vi } from "vitest";
@@ -24,7 +25,8 @@ import {
   type UpdateTransactionJournal,
   type UpdateTransactionPhase,
 } from "../../../src/foundation/release/index.js";
-import { acquireUpdateExecutionLease } from "../../../src/foundation/release/update-execution-lease.js";
+import { acquireUpdateExecutionLease, UPDATE_EXECUTION_LEASE_FILENAME } from "../../../src/foundation/release/update-execution-lease.js";
+import { UpdateTransactionStore } from "../../../src/foundation/release/update-transaction.js";
 
 interface Invocation {
   command: string;
@@ -143,6 +145,18 @@ function createHarness(options: {
 }
 
 const success = (stdout = ""): ProcessResult => ({ code: 0, stdout });
+
+/** A registry package document whose per-version manifests are the given objects. */
+function published(versions: Record<string, unknown>) {
+  const urls: string[] = [];
+  return {
+    urls,
+    fetcher: async (url: string) => {
+      urls.push(url);
+      return { ok: true, status: 200, text: async () => JSON.stringify({ name: PRODUCT_PACKAGE, versions }) };
+    },
+  };
+}
 const installArguments = (version: string, globalRoot = TEST_GLOBAL_ROOT) => updateNpmInstallArguments(globalRoot, version);
 
 describe("update progress presentation", () => {
@@ -267,12 +281,11 @@ describe("A1 self-update orchestration", () => {
     harness.fileSystem.realpath = async path => path;
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
-      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.107", "1.3.0-dev.108"]));
       if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
       return success();
     };
 
-    await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(0);
+    await expect(runSelfUpdate({ ...harness, fetcher: published({ "1.3.0-dev.107": {}, "1.3.0-dev.108": {} }).fetcher, channel: "next", target: "107" })).resolves.toBe(0);
 
     expect(harness.invocations.at(-1)).toEqual({ command: "npm", arguments: installArguments("1.3.0-dev.107"), request: { captureStdout: true } });
     expect(harness.stdout.join("")).toContain("1.3.0-dev.108 → 1.3.0-dev.107");
@@ -324,17 +337,39 @@ describe("A1 self-update orchestration", () => {
     harness.fileSystem.realpath = async path => path;
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
-      if (arguments_.includes("versions")) return success(JSON.stringify(["1.2.9-dev.106", "1.3.0-dev.107", "1.3.0"]));
       if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
       return success();
     };
+    const registry = published({ "1.2.9-dev.106": {}, "1.3.0-dev.107": {}, "1.3.0": {} });
 
-    await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(0);
+    await expect(runSelfUpdate({ ...harness, fetcher: registry.fetcher, channel: "next", target: "107" })).resolves.toBe(0);
 
-    // Invariant: the published list is consulted rather than constructing a version from the
-    // currently installed base.
-    expect(harness.invocations[0]).toEqual({ command: "npm", arguments: ["view", PRODUCT_PACKAGE, "versions", "--json"], request: { captureStdout: true } });
+    // Invariant: the registry's published manifests are consulted rather than constructing a
+    // version from the currently installed base.
+    expect(registry.urls).toEqual(["https://registry.npmjs.org/%40timurproko%2Fa1"]);
+    expect(harness.invocations.some(call => call.arguments.includes("versions"))).toBe(false);
     expect(harness.stdout.join("")).toContain("1.3.0-dev.106 → 1.3.0-dev.107");
+  });
+
+  it("resolves a development number by the pull request a published manifest records", async () => {
+    const harness = createHarness({ current: "0.2.7-dev.835" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
+      return success();
+    };
+    const registry = published({ "0.2.7-dev.835": {}, "0.2.7-dev.1218": { publication: { pullRequest: 828, source: "a".repeat(40) } } });
+
+    await expect(runSelfUpdate({ ...harness, fetcher: registry.fetcher, channel: "next", target: "828" })).resolves.toBe(0);
+    expect(harness.stdout.join("")).toContain("0.2.7-dev.835 → 0.2.7-dev.1218");
+
+    // Invariant: a preview published before pull requests were recorded is still named by its number.
+    const older = createHarness({ current: "0.2.7-dev.1218" });
+    older.fileSystem.realpath = async path => path;
+    older.runner = harness.runner;
+    await expect(runSelfUpdate({ ...older, fetcher: registry.fetcher, channel: "next", target: "835" })).resolves.toBe(0);
+    expect(older.stdout.join("")).toContain("0.2.7-dev.1218 → 0.2.7-dev.835");
   });
 
   it("accepts a full preview version as well as a development number", async () => {
@@ -342,12 +377,11 @@ describe("A1 self-update orchestration", () => {
     harness.fileSystem.realpath = async path => path;
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
-      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.107"]));
       if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
       return success();
     };
 
-    await expect(runSelfUpdate({ ...harness, channel: "next", target: "1.3.0-dev.107" })).resolves.toBe(0);
+    await expect(runSelfUpdate({ ...harness, fetcher: published({ "1.3.0-dev.107": {} }).fetcher, channel: "next", target: "1.3.0-dev.107" })).resolves.toBe(0);
     expect(harness.stdout.join("")).toContain("→ 1.3.0-dev.107");
   });
 
@@ -355,11 +389,10 @@ describe("A1 self-update orchestration", () => {
     const harness = createHarness({ current: "1.3.0-dev.0" });
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
-      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0", "1.3.0-dev.7eabe9e"]));
       return success();
     };
 
-    await expect(runSelfUpdate({ ...harness, channel: "next", target: "1.3.0" })).resolves.toBe(1);
+    await expect(runSelfUpdate({ ...harness, fetcher: published({ "1.3.0": {}, "1.3.0-dev.7eabe9e": {} }).fetcher, channel: "next", target: "1.3.0" })).resolves.toBe(1);
 
     expect(harness.stderr.join("")).toContain("1.3.0 is a release, not a preview");
     expect(harness.stderr.join("")).toContain("a1 update");
@@ -369,11 +402,10 @@ describe("A1 self-update orchestration", () => {
     const harness = createHarness({ current: "1.3.0-dev.106" });
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
-      if (arguments_.includes("versions")) return success(JSON.stringify(["1.3.0-dev.106"]));
       return success();
     };
 
-    await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(1);
+    await expect(runSelfUpdate({ ...harness, fetcher: published({ "1.3.0-dev.106": {} }).fetcher, channel: "next", target: "107" })).resolves.toBe(1);
 
     expect(harness.stderr.join("")).toContain("published no preview for 107");
     // Invariant: nothing is installed when the target cannot be resolved.
@@ -384,12 +416,100 @@ describe("A1 self-update orchestration", () => {
     const harness = createHarness({ current: "1.3.0-dev.106" });
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
-      if (arguments_.includes("versions")) return success(JSON.stringify(["1.2.9-dev.107", "1.3.0-dev.107"]));
       return success();
     };
 
-    await expect(runSelfUpdate({ ...harness, channel: "next", target: "107" })).resolves.toBe(1);
+    await expect(runSelfUpdate({ ...harness, fetcher: published({ "1.2.9-dev.107": {}, "1.3.0-dev.107": {} }).fetcher, channel: "next", target: "107" })).resolves.toBe(1);
     expect(harness.stderr.join("")).toContain("more than one preview");
+
+    // Invariant: a number recorded by one manifest and trailing another version is ambiguous too.
+    const mixed = createHarness({ current: "1.3.0-dev.106" });
+    mixed.runner = harness.runner;
+    await expect(runSelfUpdate({ ...mixed, fetcher: published({ "0.2.7-dev.828": {}, "0.3.0-dev.1300": { publication: { pullRequest: 828 } } }).fetcher, channel: "next", target: "828" })).resolves.toBe(1);
+    expect(mixed.stderr.join("")).toContain("more than one preview for 828: 0.2.7-dev.828, 0.3.0-dev.1300");
+  });
+
+  it("reports a registry that cannot list its published manifests and installs nothing", async () => {
+    const harness = createHarness({ current: "1.3.0-dev.106" });
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      return success();
+    };
+
+    await expect(runSelfUpdate({
+      ...harness, channel: "next", target: "107",
+      fetcher: async () => ({ ok: false, status: 503, text: async () => "" }),
+    })).resolves.toBe(1);
+    expect(harness.stderr.join("")).toContain("could not list the published versions: registry responded with status 503");
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+  });
+
+  it("forgets the startup release check after a successful update and keeps it after a refused one", async () => {
+    const configDir = resolve(tmpdir(), "a1-update-test-config", `${process.pid}-${Date.now()}`);
+    await mkdir(configDir, { recursive: true });
+    const cache = resolve(configDir, "update-check.json");
+    await writeFile(cache, JSON.stringify({ version: 1, channel: "development", latest: "1.3.0-dev.106", checkedAt: Date.now() }));
+    const refused = createHarness({ current: "1.3.0-dev.106" });
+    refused.runner = async (command, arguments_, request) => {
+      refused.invocations.push({ command, arguments: arguments_, request });
+      return success();
+    };
+    await expect(runSelfUpdate({
+      ...refused, channel: "next", target: "107", fetcher: published({ "1.3.0-dev.106": {} }).fetcher,
+      environment: { ...refused.environment, A1_CONFIG_DIR: configDir },
+    })).resolves.toBe(1);
+    await expect(readFile(cache, "utf8")).resolves.toContain("1.3.0-dev.106");
+
+    const harness = createHarness({ current: "1.3.0-dev.106" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
+      return success();
+    };
+    await expect(runSelfUpdate({
+      ...harness, channel: "next", target: "107", fetcher: published({ "1.3.0-dev.107": {} }).fetcher,
+      environment: { ...harness.environment, A1_CONFIG_DIR: configDir },
+    })).resolves.toBe(0);
+    await expect(readFile(cache, "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await rm(configDir, { recursive: true, force: true });
+  });
+
+  it("rolls back a dead owner's transaction for another target before installing the requested preview", async () => {
+    const dataDir = resolve(tmpdir(), "a1-update-test-dead-owner", `${process.pid}-${Date.now()}`);
+    await mkdir(dataDir, { recursive: true });
+    const harness = createHarness({ current: "0.2.7-dev.828" });
+    harness.fileSystem.realpath = async path => path;
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "root") return success(harness.globalRoot + NEWLINE);
+      return success();
+    };
+    const durable = new UpdateTransactionStore(dataDir);
+    await durable.begin({ channel: "next", targetVersion: "0.2.7-dev.835", packageRoot: harness.packageRoot, priorActiveReleaseId: null });
+    await durable.advance("supervisor-verified");
+    await writeFile(resolve(dataDir, UPDATE_EXECUTION_LEASE_FILENAME), JSON.stringify({
+      schema: 1, ownerId: "dead-automatic-worker", pid: 2_000_000_000, pidStartIdentity: "gone",
+      packageRoot: harness.packageRoot, channel: "next", targetVersion: "0.2.7-dev.835", mode: "automatic",
+      acquiredAt: new Date(0).toISOString(),
+    }));
+
+    // Invariant: the durable journal in the data directory is the one the lease reconciles, so the
+    // mocked journal is left out and the real store is used.
+    const { transactionStore: _mockedJournal, ...durableHarness } = harness;
+    await expect(runSelfUpdate({
+      ...durableHarness, channel: "next", target: "828",
+      fetcher: published({ "0.2.7-dev.828": {}, "0.2.7-dev.835": {} }).fetcher,
+      environment: { A1_DATA_DIR: dataDir },
+    })).resolves.toBe(0);
+
+    expect(harness.stdout.join("")).toContain("a1 rolled back the interrupted 0.2.7-dev.835 update");
+    expect(harness.stdout.join("")).toContain("a1 updated successfully to 0.2.7-dev.828");
+    expect(harness.stderr.join("")).not.toContain("already in progress");
+    // Invariant: the settled transaction and the dead lease are gone, so nothing blocks the next update.
+    await expect(durable.read()).resolves.toBeNull();
+    await expect(readFile(resolve(dataDir, UPDATE_EXECUTION_LEASE_FILENAME), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await rm(dataDir, { recursive: true, force: true });
   });
   it("prints the shortened no-change message when the target is already active", async () => {
     const harness = createHarness({ responses: [success("1.2.3\n"), success(`${resolve("fixtures", "global")}\n`)] });

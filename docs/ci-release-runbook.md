@@ -206,8 +206,15 @@ npm run develop
 
 The command fetches authoritative `origin/develop`, resolves the unique merged pull
 request associated with that exact commit through GitHub, and derives
-`<major.minor.patch>-dev.<pull-request number>`. Thus GitHub's `develop (#107)`
-source produces `0.1.8-dev.107`. It first checks npm; if the immutable version
+`<major.minor.patch>-dev.<count>`, where the count is the first-parent commit count of
+that commit. Pull request numbers follow opening order, not merge order, so a version
+built from them could sort below an install from an earlier merge; the count rises with
+every merge, so a later publication always sorts above an earlier one. The merged pull
+request and the source commit are recorded in both published manifests as
+`publication.pullRequest` and `publication.source`, which `a1 version` shows as
+`0.2.7-dev.1218 (#828)` and `a1 update --develop 828` resolves. Previews published
+before this change keep their `-dev.<pull-request>` versions and stay selectable by that
+number. It first checks npm; if the immutable version
 already exists for both the application and installer packages it reports that
 version without dispatching package work. If either immutable artifact is missing,
 it dispatches GitHub Actions, waits, and verifies both published versions. It never

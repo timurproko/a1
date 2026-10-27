@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
-import { describePublicationFailure, dispatchPublication, dispatchStableValidation, waitForStableValidation } from "../../scripts/release/publication-client.mjs";
+import { describePublicationFailure, dispatchPublication, dispatchStableValidation, resolveDevelopPreview, waitForStableValidation } from "../../scripts/release/publication-client.mjs";
 
 type Call = { executable: string; args: string[] };
 
@@ -27,6 +27,34 @@ const annotationsResponse = JSON.stringify([
   "Process completed with exit code 1.",
   "startup budget failed for pi warm: 2438ms exceeds 2000ms; dominant phases: ui-entry 741ms",
 ]);
+
+describe("development preview version", () => {
+  const source = "b".repeat(40);
+  const pulls = (number: number) => JSON.stringify([
+    { number: 7, merged_at: null, base: { ref: "develop" }, merge_commit_sha: source },
+    { number, merged_at: "2026-10-27T14:00:00Z", base: { ref: "develop" }, merge_commit_sha: source },
+  ]);
+
+  it("derives the version from the first-parent commit count and reports the merged pull request beside it", async () => {
+    // Invariant: pull request 828 merged after 835, yet its count sorts above; the number is reported,
+    // not encoded.
+    await expect(resolveDevelopPreview(source, {
+      manifestText: JSON.stringify({ name: "@timurproko/a1", version: "0.2.7-dev" }),
+      repository: "owner/app",
+      pullsText: pulls(828),
+      commitCount: "1218\n",
+    })).resolves.toEqual({ source, pullRequest: 828, version: "0.2.7-dev.1218", packageName: "@timurproko/a1" });
+  });
+
+  it("refuses a count that is not a positive integer", async () => {
+    await expect(resolveDevelopPreview(source, {
+      manifestText: JSON.stringify({ name: "@timurproko/a1", version: "0.2.7-dev" }),
+      repository: "owner/app",
+      pullsText: pulls(828),
+      commitCount: "fatal: bad revision",
+    })).rejects.toThrow(/could not count develop commits/u);
+  });
+});
 
 describe("publication failure reporting", () => {
   it("names the failed jobs and their recorded messages once each without the generic exit-code line", () => {

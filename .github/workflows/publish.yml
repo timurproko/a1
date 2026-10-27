@@ -303,6 +303,7 @@ jobs:
         run: |
           set -euo pipefail
           node --input-type=module <<'NODE' >> "$GITHUB_OUTPUT"
+          import { execFileSync } from "node:child_process";
           import { readFile } from "node:fs/promises";
           const manifest = JSON.parse(await readFile("package.json", "utf8"));
           const installerManifest = JSON.parse(await readFile("packages/a1-install/package.json", "utf8"));
@@ -335,7 +336,12 @@ jobs:
               throw new Error(`selected develop commit has ${matches.length} unique merged pull request associations; expected exactly one`);
             }
             pullRequest = String(matches[0].number);
-            version = `${base}-dev.${pullRequest}`;
+            // Rationale: pull request numbers follow opening order, not merge order. The first-parent
+            // commit count of the selected develop commit rises with every merge, so a later publication
+            // always sorts above an earlier one; the pull request is recorded in the manifests instead.
+            const count = execFileSync("git", ["rev-list", "--count", "--first-parent", process.env.SOURCE_SHA], { encoding: "utf8" }).trim();
+            if (!/^[1-9]\d*$/.test(count)) throw new Error(`could not count develop commits for ${process.env.SOURCE_SHA}: ${JSON.stringify(count)}`);
+            version = `${base}-dev.${count}`;
             channel = "next";
           }
 
@@ -661,7 +667,15 @@ jobs:
         shell: bash
         env:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
-        run: npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
+          SOURCE_SHA: ${{ needs.plan.outputs.source }}
+          PULL_REQUEST: ${{ needs.plan.outputs.pull_request }}
+        run: |
+          set -euo pipefail
+          npm version "$RELEASE_VERSION" --no-git-tag-version --allow-same-version
+          # Rationale: the manifest records where the preview came from, since its version no longer
+          # encodes the pull request; readers resolve `--develop <pr>` and `a1 version` from it.
+          npm pkg set "publication.source=$SOURCE_SHA"
+          if [ -n "$PULL_REQUEST" ]; then npm pkg set "publication.pullRequest=$PULL_REQUEST" --json; fi
 
       - name: Record verified candidate build
         if: needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'
@@ -692,6 +706,8 @@ jobs:
         if: needs.plan.outputs.installer_build == 'true' && needs.plan.outputs.mode != 'stable'
         env:
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
+          RELEASE_SOURCE: ${{ needs.plan.outputs.source }}
+          RELEASE_PULL_REQUEST: ${{ needs.plan.outputs.pull_request }}
         run: node scripts/release/prepare-installer-package.mjs
 
       - name: Download the immutable registry installer package

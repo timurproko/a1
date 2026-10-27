@@ -33,7 +33,7 @@ async function main() {
   ]);
   if (published === null) throw new Error(`publication succeeded but npm does not serve ${preview.packageName}@${preview.version}`);
   if (installerPublished === null) throw new Error(`publication succeeded but npm does not serve ${installer.name}@${preview.version}`);
-  log(`published ${preview.version}`);
+  log(`published ${preview.version} (#${preview.pullRequest})`);
 }
 
 try {

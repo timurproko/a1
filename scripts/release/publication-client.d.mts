@@ -9,6 +9,8 @@ export function resolveDevelopPreview(source: string, options?: {
   manifestText?: string;
   repository?: string;
   pullsText?: string;
+  /** The first-parent commit count of `source`; read from the local clone when omitted. */
+  commitCount?: string;
 }): Promise<{ source: string; pullRequest: number; version: string; packageName: string }>;
 export function registryVersion(packageName: string, version: string, fetchImpl?: typeof fetch): Promise<Record<string, unknown> | null>;
 export function describePublicationFailure(runId: number | string, options?: { run?: PublicationRunner; repository?: string }): string;
