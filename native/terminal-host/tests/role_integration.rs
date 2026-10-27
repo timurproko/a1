@@ -688,6 +688,7 @@ setInterval(() => {}, 1000);
         assert!(Instant::now() < deadline, "new Agent holder was never registered");
         std::thread::sleep(Duration::from_millis(20));
     };
+    let before_close = attach.retained_len();
     attach.write(b"\x1bw");
     let deadline = Instant::now() + Duration::from_secs(12);
     loop {
@@ -702,6 +703,14 @@ setInterval(() => {}, 1000);
     }
     assert!(terminal_host_contracts::identity::inspect_process(holder_pid).unwrap().is_none(),
         "cancelled Agent holder process is still alive");
+    // Invariant: registry shutdown does not imply the attach has completed its view handoff.
+    // Wait for the old surface to be re-presented before testing its keyboard input.
+    let deadline = Instant::now() + Duration::from_secs(8);
+    while !attach.output_since(before_close).contains("fake-a1-ready") && Instant::now() < deadline {
+        attach.settle(Duration::from_millis(50));
+    }
+    assert!(attach.output_since(before_close).contains("fake-a1-ready"),
+        "old Agent view was not restored after close: {}", attach.output_text());
     attach.write(b"z");
     assert!(attach.output_containing("echo:7a", Duration::from_secs(8)),
         "old Agent no longer receives input: {}", attach.output_text());
@@ -810,6 +819,19 @@ fn has_visual_caret(output: &str) -> bool {
             && inverse.bytes().all(|byte| matches!(byte, b' ' | b'\n' | b'\r')))
 }
 
+fn latest_cleared_frame(output: &str) -> Option<&str> {
+    output.rsplit_once("\x1b[2J").map(|(_, frame)| frame)
+}
+
+#[test]
+fn pending_frame_excludes_a_prior_child_cursor() {
+    let output = "old Agent\x1b[?25h\x1b[?2026l\x1b[?2026h\x1b[2JAgent\x1b[7m \x1b[27mno-model\x1b[?25l";
+    let pending = latest_cleared_frame(output).unwrap();
+    assert!(pending.contains("Agent") && pending.contains("no-model"));
+    assert!(has_visual_caret(pending) && !pending.contains("\x1b[?25h"));
+    assert!(latest_cleared_frame("old Agent\x1b[?25h").is_none());
+}
+
 #[test]
 fn visual_caret_survives_conpty_row_moves_without_accepting_printable_text() {
     assert!(has_visual_caret("\x1b[7m \x1b[27m"));
@@ -905,25 +927,28 @@ setInterval(() => {}, 1000);
     let before_create = attach.retained_len();
     attach.write(b"\x1ba");
     let deadline = Instant::now() + Duration::from_secs(2);
-    while !attach.output_since(before_create).contains("\x1b[2J") && Instant::now() < deadline {
+    while !attach.output_since(before_create).contains("no-model") && Instant::now() < deadline {
         attach.settle(Duration::from_millis(50));
     }
-    let pending = attach.output_since(before_create);
+    let output = attach.output_since(before_create);
+    // Platform: a final old-child frame may arrive after the capture offset, including its
+    // visible cursor. Only the latest cleared frame belongs to the pending Agent's shell.
+    let pending = latest_cleared_frame(&output).unwrap_or("");
     assert!(
-        pending.contains("\x1b[2J") && pending.contains("Agent"),
-        "the pending tab should paint before its holder gets a start slot: {pending}"
+        pending.contains("Agent"),
+        "the pending tab should paint before its holder gets a start slot: {output}"
     );
     assert!(
         pending.contains(&"─".repeat(40)) && pending.contains(text(&release))
-            && has_visual_caret(&pending)
+            && has_visual_caret(pending)
             && pending.contains("0.0%/0 (auto)") && pending.contains("no-model"),
-        "pending Agent should show the complete idle editor/footer before its holder starts: {pending}"
+        "pending Agent should show the complete idle editor/footer before its holder starts: {output}"
     );
     assert!(
         !pending.contains("Starting Agent")
             && !pending.contains("Preparing")
             && !pending.contains("\x1b[?25h"),
-        "pending Agent must not show loading text or a child cursor: {pending}"
+        "pending Agent must not show loading text or a child cursor: {output}"
     );
 
     // Invariant: input after New Agent belongs to that requested target. It must not leak to the
