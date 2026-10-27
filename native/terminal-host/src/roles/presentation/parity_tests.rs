@@ -437,10 +437,6 @@ fn compose_parity_frame(
     }
 }
 
-/// ConPTY sometimes holds its read handle open after the child exits; this marks the final frame.
-#[cfg(windows)]
-const CONPTY_PARITY_END: &[u8] = b"conpty-parity-complete-4a86e9";
-
 // Rationale: the test binary doubles as the PTY child, avoiding a Node/shell/toolchain dependency.
 #[cfg(windows)]
 #[test]
@@ -522,9 +518,6 @@ fn conpty_parity_child() {
     std::thread::sleep(std::time::Duration::from_millis(150));
     drop(terminal_output);
     assert_eq!(unsafe { GetConsoleOutputCP() }, original_code_page);
-    // Invariant: the parent captures completed frames without depending on ConPTY's EOF.
-    std::io::stdout().write_all(CONPTY_PARITY_END).unwrap();
-    std::io::stdout().flush().unwrap();
     std::process::exit(0);
 }
 
@@ -563,7 +556,7 @@ fn conpty_rail_only_row_changes_reach_the_grid() {
     }
 }
 
-/// Collect fixture bytes through the completion marker or a prompt ConPTY pipe EOF.
+/// Drain ConPTY's output until EOF, answering any startup cursor-position query.
 #[cfg(windows)]
 fn conpty_capture_output(
     mut reader: impl std::io::Read,
@@ -578,12 +571,6 @@ fn conpty_capture_output(
             Ok(count) => {
                 let previous = bytes.len();
                 bytes.extend_from_slice(&buffer[..count]);
-                if let Some(end) = bytes.windows(CONPTY_PARITY_END.len())
-                    .position(|window| window == CONPTY_PARITY_END)
-                {
-                    bytes.truncate(end);
-                    break Ok(());
-                }
                 // Platform: answer ConPTY's startup cursor-position query before it starts
                 // the child; it is terminal I/O, not a child content frame.
                 if bytes[previous.saturating_sub(3)..].windows(4)
@@ -604,16 +591,24 @@ fn conpty_capture_output(
 
 #[cfg(windows)]
 #[test]
-fn conpty_capture_stops_at_marker_or_eof() {
+fn conpty_capture_drains_through_eof_and_answers_cursor_query() {
+    use std::io::Read;
     use std::sync::{Arc, Mutex};
+    struct SingleByte<R>(R);
+    impl<R: Read> Read for SingleByte<R> {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            let count = buffer.len().min(1);
+            self.0.read(&mut buffer[..count])
+        }
+    }
     let writer = Arc::new(Mutex::new(Some(Vec::<u8>::new())));
-    let stream = [b"frame".as_slice(), CONPTY_PARITY_END, b"ignored"].concat();
-    let (result, bytes) = conpty_capture_output(std::io::Cursor::new(stream), writer.clone());
+    let stream = b"frame\x1b[6nlast-cell";
+    let (result, bytes) = conpty_capture_output(
+        SingleByte(std::io::Cursor::new(stream)), writer.clone(),
+    );
     result.unwrap();
-    assert_eq!(bytes, b"frame");
-    let (result, bytes) = conpty_capture_output(std::io::Cursor::new(b"frame"), writer);
-    result.unwrap();
-    assert_eq!(bytes, b"frame");
+    assert_eq!(bytes, stream);
+    assert_eq!(writer.lock().unwrap().as_ref().unwrap(), b"\x1b[1;1R");
 }
 
 #[cfg(windows)]
@@ -650,8 +645,8 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
     let mut child = pair.slave.spawn_command(command).unwrap();
     drop(pair.slave);
     let reader = pair.master.try_clone_reader().unwrap();
-    // Invariant: keep ConPTY's input pipe alive until the child exits; closing it when the
-    // completion marker arrives can terminate the child before its normal exit.
+    // Invariant: keep ConPTY's input pipe alive until child exit for startup queries, then
+    // close it before draining EOF. The reader's clone must not keep the input pipe open.
     let writer = std::sync::Arc::new(std::sync::Mutex::new(Some(pair.master.take_writer().unwrap())));
     let read_writer = std::sync::Arc::clone(&writer);
     let (sender, receiver) = std::sync::mpsc::channel();
@@ -674,12 +669,12 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    // Platform: close input after child exit so ConPTY can deliver EOF if it drops the marker.
+    // Platform: ConPTY can hold its output pipe until input and pseudo console close.
+    // Closing either before the child finishes can discard output or terminate the fixture.
     drop(writer.lock().unwrap().take());
-    let captured = receiver.recv_timeout(std::time::Duration::from_secs(10));
     drop(pair.master);
-    let (result, bytes) = captured
-        .or_else(|_| receiver.recv_timeout(std::time::Duration::from_secs(10)))
+    let (result, bytes) = receiver
+        .recv_timeout(std::time::Duration::from_secs(10))
         .expect("PTY output completed");
     if let Some(status) = failure {
         let text = String::from_utf8_lossy(&bytes);
