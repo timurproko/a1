@@ -800,6 +800,26 @@ setInterval(() => {}, 1000);
     cleanup.pids.extend(holder_pids(&credentials_root));
 }
 
+// Platform: ConPTY can move to the editor row with a newline inside the inverse-space
+// caret's style span; the rendered cell is still an inverse blank, not a child cursor.
+fn has_visual_caret(output: &str) -> bool {
+    output.split("\x1b[7m").skip(1)
+        .filter_map(|after| after.split_once("\x1b[27m"))
+        .any(|(inverse, _)| inverse.bytes().filter(|byte| *byte == b' ').count() == 1
+            && inverse.len() <= 3
+            && inverse.bytes().all(|byte| matches!(byte, b' ' | b'\n' | b'\r')))
+}
+
+#[test]
+fn visual_caret_survives_conpty_row_moves_without_accepting_printable_text() {
+    assert!(has_visual_caret("\x1b[7m \x1b[27m"));
+    assert!(has_visual_caret("\x1b[7m\n \x1b[27m"));
+    assert!(has_visual_caret("\x1b[7m\r\n \x1b[27m"));
+    for output in ["\x1b[7mX\x1b[27m", "\x1b[7m   X\x1b[27m", "\x1b[7m \x1b[0m", "\x1b[7m  \x1b[27m"] {
+        assert!(!has_visual_caret(output), "not a single visual blank: {output:?}");
+    }
+}
+
 #[test]
 fn input_waits_for_its_requested_tab_while_that_tab_waits_for_a_start_slot() {
     let _serial = serialize_role_fixture();
@@ -895,7 +915,7 @@ setInterval(() => {}, 1000);
     );
     assert!(
         pending.contains(&"─".repeat(40)) && pending.contains(text(&release))
-            && pending.contains("\x1b[7m \x1b[27m")
+            && has_visual_caret(&pending)
             && pending.contains("0.0%/0 (auto)") && pending.contains("no-model"),
         "pending Agent should show the complete idle editor/footer before its holder starts: {pending}"
     );
