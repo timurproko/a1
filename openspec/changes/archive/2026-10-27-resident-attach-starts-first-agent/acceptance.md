@@ -26,9 +26,9 @@ The maintainer integration decision accepts these scenarios:
     "Admission never selects a stopped record as the initial view, and the tab it names is the tab `attach.start` starts.",
     "A first registry list with nothing to show paints the landing with `+` and the clock instead of an empty screen, and a listed starting tab keeps its first-draw gate."
   ],
-  "archiveDigest": "05ac89de2fd896c93ab4f0f60ccae3b8603c327fd9c5e6d18a4813ea2e694f34",
+  "archiveDigest": "10a2f1f512d89332014e8614252567f97bdef0dad42b61a7e80aa4a0e2164b52",
   "specDigest": "e67cdedac49fa8f64e4a4b5b15811b462b77ab137455ae28c36d421554114f92",
-  "tasksDigest": "5059ab207b6025eb1f0ffe21b2de77f4e67f1440435958156d851994a39e4683",
+  "tasksDigest": "2c285f5bc656f1f59681b1f3c8d24ff105423931c3613b9172422440ac95aeb3",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
