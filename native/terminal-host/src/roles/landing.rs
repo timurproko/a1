@@ -5,9 +5,9 @@
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-/// Invariant: the middle row sits where an Agent's editor draws its caret, so the full block that
-/// starts it is the cell the cursor takes when a tab opens.
-const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "█▀▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
+/// Invariant: the `a` has the reference's lower-half left descender, never a stray full block;
+/// the three-row wordmark still occupies the same nine columns above the Agent editor's caret.
+const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "▄█▀▀█  █ ", " ▀▀▀▀ ▀▀▀"];
 
 /// The owned dark theme's `dim` foreground, which an Agent footer draws its cwd and status in;
 /// `landing_accents.json` pins it with the accents.
@@ -239,10 +239,124 @@ fn wordmark_row(line: &str, accent: &str, columns: usize) -> String {
 }
 
 /// The landing body, addressed as rows below a top strip. Every row is cleared; the launch cwd
-/// sits on the second-to-last body row, flush left, with `a1 v<version>` below it and the
-/// wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
+/// sits on the second-to-last body row after the footer's one-cell gutter, with the version
+/// below it and the wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
 /// folder stays in place when a tab opens or closes, whichever edge the strip is on.
 pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
+    render_body(input, None, false)
+}
+
+/// Rows rendered by the real Agent's owned footer. Retain the status cells and styles as hints;
+/// the previous tab's path and hyperlinks must not appear in the new Agent's preview.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentFooterRows {
+    pub columns: u16,
+    pub status: crate::protocol::SurfaceRow,
+    pub styles: Vec<crate::protocol::SurfaceStyle>,
+    pub links: Vec<crate::protocol::SurfaceLink>,
+}
+
+/// Display-only footer hints from a prior complete Agent frame. The new tab always starts with
+/// zero usage; hints never become its authoritative model or context state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AgentPreviewFooter {
+    pub context: String,
+    pub subscription: bool,
+    pub auto: bool,
+    pub model: String,
+    pub thinking: Option<(String, [u8; 3])>,
+    pub actual: Option<AgentFooterRows>,
+}
+
+impl Default for AgentPreviewFooter {
+    fn default() -> Self {
+        Self {
+            context: "0".into(),
+            subscription: false,
+            auto: true,
+            model: "no-model".into(),
+            thinking: None,
+            actual: None,
+        }
+    }
+}
+
+/// The visual-only idle Agent shell shown before its first child frame. Its inverse-space caret
+/// is not the hardware cursor, and its footer is replaced by the first real Agent frame.
+pub fn render_agent_preview(
+    input: &LandingInput<'_>,
+    footer: Option<&AgentPreviewFooter>,
+) -> Vec<u8> {
+    let fallback = AgentPreviewFooter::default();
+    render_body(input, Some(footer.unwrap_or(&fallback)), false)
+}
+
+/// Repaint just the provisional footer while the real Agent's chip finishes its fill.
+/// Child/editor rows remain owned by the real frame; cached links and gutters stay intact.
+pub fn render_agent_preview_footer(
+    input: &LandingInput<'_>,
+    footer: Option<&AgentPreviewFooter>,
+) -> Vec<u8> {
+    let fallback = AgentPreviewFooter::default();
+    render_body(input, Some(footer.unwrap_or(&fallback)), true)
+}
+
+/// Cold fallback when no actual Agent footer exists yet; the owned shell renders the footer
+/// inside one cell at either side. Cached complete footer rows always take precedence.
+fn preview_status_row(footer: &AgentPreviewFooter, columns: usize, truecolor: bool) -> String {
+    if columns <= 2 { return " ".repeat(columns); }
+    let gutter = 1;
+    let content = preview_status_content(footer, columns - gutter * 2, truecolor);
+    format!("{}{}{}", " ".repeat(gutter), content, " ".repeat(gutter))
+}
+
+fn preview_status_content(footer: &AgentPreviewFooter, columns: usize, truecolor: bool) -> String {
+    if columns == 0 {
+        return String::new();
+    }
+    let left = format!(
+        "{}0.0%/{}{}",
+        if footer.subscription { "$0.000 (sub) " } else { "" },
+        footer.context,
+        if footer.auto { " (auto)" } else { "" }
+    );
+    let suffix = footer
+        .thinking
+        .as_ref()
+        .map(|(text, _)| format!(" • {text}"))
+        .unwrap_or_default();
+    let right = format!("{}{}", footer.model, suffix);
+    let right_width = UnicodeWidthStr::width(right.as_str());
+    if right_width >= columns {
+        return format!("{}{}\x1b[0m", foreground(DIM, truecolor), clip(&right, columns));
+    }
+    let left = clip(&left, columns.saturating_sub(right_width + 2));
+    let left_width = UnicodeWidthStr::width(left.as_str());
+    let separator = " ".repeat(columns - left_width - right_width);
+    let model = format!("{}{}", foreground(DIM, truecolor), footer.model);
+    let thinking = footer
+        .thinking
+        .as_ref()
+        .map(|(text, rgb)| {
+            format!(
+                "{} • {}{}",
+                foreground(DIM, truecolor),
+                foreground(*rgb, truecolor),
+                text
+            )
+        })
+        .unwrap_or_default();
+    format!(
+        "{}{}{}{}{}\x1b[0m",
+        foreground(DIM, truecolor),
+        left,
+        separator,
+        model,
+        thinking
+    )
+}
+
+fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, footer_only: bool) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
     let fg = |rgb| foreground(rgb, input.truecolor);
@@ -253,22 +367,47 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
         }
     };
     let cwd_row = body_rows.saturating_sub(2);
-    place(
-        cwd_row,
-        format!("{}{}\x1b[0m", fg(DIM), clip_left(input.cwd, columns)),
-    );
-    // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
-    if let Some(version) = input.version.filter(|version| !version.is_empty())
-        && cwd_row + 1 < body_rows
-    {
-        let version = clip(&format!("v{version}"), columns);
-        place(cwd_row + 1, format!("{}{version}\x1b[0m", fg(DIM)));
+    let actual = footer.and_then(|footer| footer.actual.as_ref())
+        .filter(|actual| actual.columns == input.columns && body_rows >= 2);
+    if body_rows > 0 && columns > 2 {
+        // Invariant: landing and pending paths use the real footer's gutter without replaying
+        // an older Agent's branch/PR from the cached status.
+        place(cwd_row, format!(" {}{}\x1b[0m", fg(DIM), clip_left(input.cwd, columns - 2)));
     }
-    if input.half_blocks && cwd_row >= WORDMARK.len() {
-        let accent = fg(accent_colors(input.accent).accent);
-        for (offset, line) in WORDMARK.iter().enumerate() {
-            let row = cwd_row - WORDMARK.len() + offset;
-            place(row, wordmark_row(line, &accent, columns));
+    if let Some(footer) = footer {
+        // Invariant: the real empty editor is three rows above its two-row footer. In a short terminal
+        // preserve the footer and show as much of the editor as fits above it.
+        let editor_rows = cwd_row.min(3);
+        let first = cwd_row - editor_rows;
+        let border = format!(
+            "{}{}\x1b[0m",
+            fg(accent_colors(input.accent).border),
+            "─".repeat(columns)
+        );
+        if editor_rows == 3 {
+            place(first, border.clone());
+        }
+        if editor_rows >= 2 {
+            place(cwd_row - 1, border);
+            place(cwd_row - 2, "\x1b[7m \x1b[27m".into());
+        }
+        if cwd_row + 1 < body_rows && actual.is_none() {
+            place(cwd_row + 1, preview_status_row(footer, columns, input.truecolor));
+        }
+    } else {
+        // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
+        if let Some(version) = input.version.filter(|version| !version.is_empty())
+            && cwd_row + 1 < body_rows && columns > 1
+        {
+            let version = clip(&format!("v{version}"), columns.saturating_sub(1));
+            place(cwd_row + 1, format!(" {}{version}\x1b[0m", fg(DIM)));
+        }
+        if input.half_blocks && cwd_row >= WORDMARK.len() {
+            let accent = fg(accent_colors(input.accent).accent);
+            for (offset, line) in WORDMARK.iter().enumerate() {
+                let row = cwd_row - WORDMARK.len() + offset;
+                place(row, wordmark_row(line, &accent, columns));
+            }
         }
     }
 
@@ -276,7 +415,7 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
     // landing matches the Agent canvas that replaces it.
     let canvas = input.background.map(|rgb| background(rgb, input.truecolor));
     let mut bytes = String::new();
-    for (index, content) in rows.iter().enumerate() {
+    for (index, content) in rows.iter().enumerate().skip(if footer_only { cwd_row } else { 0 }) {
         let row = index + 2;
         bytes.push_str(&format!("\x1b[{row};1H\x1b[0m\x1b[2K"));
         if let Some(canvas) = canvas.as_deref() {
@@ -288,7 +427,18 @@ pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
         }
     }
     bytes.push_str("\x1b[0m");
-    bytes.into_bytes()
+    let mut output = bytes.into_bytes();
+    if let Some(actual) = actual {
+        let mut footer_bytes = Vec::new();
+        if super::presentation::render_surface_row(&mut footer_bytes, &actual.status, cwd_row + 1,
+            input.columns, &actual.styles, &actual.links).is_err() {
+            let mut fallback = footer.cloned().unwrap_or_default();
+            fallback.actual = None;
+            return render_body(input, Some(&fallback), footer_only);
+        }
+        output.extend(footer_bytes);
+    }
+    output
 }
 
 #[cfg(test)]
@@ -348,15 +498,82 @@ mod tests {
         assert_eq!(grid[19], WORDMARK[1].trim_end());
         assert_eq!(grid[20], WORDMARK[2].trim_end());
         assert_eq!(
-            grid[21], "~/src/a1",
-            "the second-to-last body row, flush left"
+            grid[21], " ~/src/a1",
+            "the second-to-last body row matches the Agent footer's one-cell gutter"
         );
-        assert_eq!(grid[22], "v0.2.7");
-        // Invariant: an Agent's editor caret sits two rows above its footer cwd, at column zero.
-        assert!(
-            grid[19].starts_with('█'),
-            "the wordmark's full left block is the cell the Agent caret takes"
-        );
+        assert_eq!(grid[22], " v0.2.7");
+        // Invariant: the reference's lower-half descender never becomes a full-height block.
+        assert!(grid[19].starts_with("▄█▀▀█"), "the a has a short left descender");
+        assert_eq!(WORDMARK.iter().map(|row| row.chars().count()).collect::<Vec<_>>(), [9, 9, 9]);
+    }
+
+    #[test]
+    fn reference_logo_has_only_a_lower_half_left_descender_at_full_and_clipped_widths() {
+        let halves = WORDMARK.iter().flat_map(|line| {
+            let painted = |upper: bool| line.chars().map(|ch| match (upper, ch) {
+                (true, '▀' | '█') | (false, '▄' | '█') => '█',
+                _ => ' ',
+            }).collect::<String>();
+            [painted(true), painted(false)]
+        }).collect::<Vec<_>>();
+        assert_eq!(halves, [
+            " ███   █ ", "    █ ██ ", " ████  █ ", "██  █  █ ", " ████ ███", "         ",
+        ]);
+        let clipped = cells(&render(&input(5, 23)), 5, 23);
+        assert_eq!(clipped[18], " ▀▀▀▄");
+        assert_eq!(clipped[19], "▄█▀▀█");
+        assert_eq!(clipped[20], " ▀▀▀▀");
+        let pending = cells(&render_agent_preview(&input(80, 23), None), 80, 23);
+        assert_eq!(pending[19], "", "the Agent's visual caret is not a landing logo");
+    }
+
+    #[test]
+    fn held_pending_footer_paints_only_the_two_bottom_rows() {
+        let wide = input(80, 23);
+        let footer = String::from_utf8(render_agent_preview_footer(&wide, None)).unwrap();
+        assert!(footer.contains("\x1b[23;1H") && footer.contains("\x1b[24;1H"));
+        assert!(!footer.contains("\x1b[22;1H") && !footer.contains("\x1b[7m"));
+        assert!(footer.contains("~/src/a1") && footer.contains("no-model"));
+        let short = String::from_utf8(render_agent_preview_footer(&input(8, 3), None)).unwrap();
+        assert!(short.contains("\x1b[3;1H") && short.contains("\x1b[4;1H"));
+        assert!(!short.contains("\x1b[2;1H"));
+    }
+
+    #[test]
+    fn pending_agent_shows_a_plain_editor_and_cwd_without_startup_text_or_cursor() {
+        let grid = cells(&render_agent_preview(&input(80, 23), None), 80, 23);
+        assert!(grid[..18].iter().all(String::is_empty), "{grid:#?}");
+        assert_eq!(grid[18], "─".repeat(80));
+        assert_eq!(grid[19], "", "the inverse-space caret has no text content");
+        assert_eq!(grid[20], "─".repeat(80));
+        assert_eq!(grid[21], " ~/src/a1");
+        assert!(grid[22].starts_with(" 0.0%/0 (auto)"), "{grid:#?}");
+        assert!(grid[22].ends_with("no-model"), "{grid:#?}");
+        let short = cells(&render_agent_preview(&input(8, 3), None), 8, 3);
+        assert_eq!(short, ["", " …rc/a1", " no-mod"]);
+        let tiny = cells(&render_agent_preview(&input(2, 1), None), 2, 1);
+        assert_eq!(tiny, [""]);
+        assert_eq!(cells(&render_agent_preview(&input(1, 3), None), 1, 3), ["", "", ""]);
+        let painted = String::from_utf8(render_agent_preview(&LandingInput {
+            background: Some([26, 27, 28]),
+            accent: Some("blue"),
+            ..input(80, 23)
+        }, None))
+        .unwrap();
+        assert!(painted.contains("\x1b[7m \x1b[27m"), "the visual caret is present");
+        assert!(!painted.contains("Starting Agent") && !painted.contains("Preparing"));
+        assert!(!painted.contains("\x1b[?25h"));
+        assert!(painted.contains("\x1b[48;2;26;27;28m"));
+        assert!(painted.contains("\x1b[38;2;116;102;197m"));
+        for row in 2..=24 {
+            assert!(painted.contains(&format!("\x1b[{row};1H\x1b[0m\x1b[2K")));
+        }
+        let palette = String::from_utf8(render_agent_preview(&LandingInput {
+            truecolor: false,
+            ..input(80, 23)
+        }, None))
+        .unwrap();
+        assert!(palette.contains("\x1b[38;5;") && !palette.contains("38;2;"));
     }
 
     #[test]
@@ -368,12 +585,13 @@ mod tests {
         let short = cells(&render(&input(40, 3)), 40, 3);
         assert_eq!(
             short,
-            ["", "~/src/a1", "v0.2.7"],
+            ["", " ~/src/a1", " v0.2.7"],
             "no room for the wordmark"
         );
-        assert_eq!(cells(&render(&input(40, 1)), 40, 1), ["~/src/a1"]);
+        assert_eq!(cells(&render(&input(40, 1)), 40, 1), [" ~/src/a1"]);
         let narrow = cells(&render(&input(6, 23)), 6, 23);
-        assert_eq!(narrow[21], "…rc/a1");
+        assert_eq!(narrow[21], " …/a1");
+        assert_eq!(narrow[22], " v0.2.");
     }
 
     #[test]
@@ -403,7 +621,7 @@ mod tests {
             23,
         );
         assert!(plain.iter().all(|row| !row.contains('▀')));
-        assert_eq!(plain[21..], ["~/src/a1", "v0.2.7"]);
+        assert_eq!(plain[21..], [" ~/src/a1", " v0.2.7"]);
         let unversioned = cells(
             &render(&LandingInput {
                 version: None,
@@ -510,14 +728,14 @@ mod tests {
             "the last-tab close clears the prior surface once"
         );
         assert!(
-            top.contains("\x1b[23;1H\x1b[0m\x1b[2K\x1b["),
+            top.contains("\x1b[23;1H\x1b[0m\x1b[2K \x1b["),
             "the cwd on child row 21"
         );
         assert!(top.ends_with("\x1b[?25l\x1b[?2026l"), "no cursor shows");
         let bottom =
             String::from_utf8(composer.prepare(&desired(0)).unwrap().unwrap().bytes).unwrap();
         assert!(
-            bottom.contains("\x1b[22;1H\x1b[0m\x1b[2K\x1b["),
+            bottom.contains("\x1b[22;1H\x1b[0m\x1b[2K \x1b["),
             "above a bottom strip the cwd moves with the child rows"
         );
     }

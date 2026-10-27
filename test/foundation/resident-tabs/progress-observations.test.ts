@@ -137,7 +137,7 @@ describe("resident progress observations", () => {
     const bad = { ...record({ stage: "holder-commit", tabId: "tab-a", timestampUnixUs: 500,
       pid: 4, sequence: 1, revision: 2, lostBefore: 3 }), content: "forbidden" } as ProgressObservation;
     expect(validateProgressObservations([first, bad], RUN)).toEqual(expect.arrayContaining([
-      expect.stringContaining("observations lost"),
+      "record 2 (holder/holder-commit, process-4): 3 observations lost before this record",
       expect.stringContaining("payload-bearing field content"),
       expect.stringContaining("duplicate or reordered process sequence"),
       expect.stringContaining("process clock moved backwards"),

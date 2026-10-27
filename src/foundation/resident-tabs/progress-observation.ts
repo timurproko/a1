@@ -108,6 +108,8 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
     this.#writing = true;
     const batch = this.#pending.join("");
     this.#pending = [];
+    // Rationale: cap pending only.
+    this.#pendingBytes = 0;
     try {
       if (!this.#directoryReady) {
         await mkdir(this.#directory, { recursive: true });
@@ -118,7 +120,6 @@ class ResidentProgressObserver implements ResidentProgressObserverPort {
       this.#failed = true;
       this.#pending = [];
     } finally {
-      this.#pendingBytes -= Buffer.byteLength(batch);
       this.#writing = false;
       if (this.#pending.length > 0) this.#schedule();
     }

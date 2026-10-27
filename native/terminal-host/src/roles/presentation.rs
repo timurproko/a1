@@ -75,6 +75,8 @@ pub struct ViewModel {
     staged_tabs: Option<Vec<StripTab>>,
     pending_surface: Option<Surface>,
     committed_revision: Option<u64>,
+    /// Startup adopts its first unlisted surface once, never a late frame after the last close.
+    initial_adoption_consumed: bool,
     expected_request_generation: u64,
     request_started: Option<Instant>,
     stale_candidate: Option<(Surface, Instant)>,
@@ -186,13 +188,15 @@ impl ViewModel {
 
     /// Clears every view after the last tab closed.
     pub fn clear(&mut self) {
+        let consumed = self.initial_adoption_consumed || self.viewed.is_some() || self.committed_revision.is_some();
         *self = Self::default();
+        self.initial_adoption_consumed = consumed;
     }
 
     /// Protocol: the server selects its default tab before attach.start can report the ID, so the
     /// first surface becomes the requested view when nothing is viewed or requested yet.
     pub fn adopt_initial(&mut self, tab_id: &str) {
-        if self.viewed.is_none() && self.requested.is_none() {
+        if !self.initial_adoption_consumed && self.viewed.is_none() && self.requested.is_none() {
             self.requested = Some(tab_id.to_owned());
         }
     }
@@ -270,6 +274,7 @@ impl ViewModel {
             return Offer::Dropped;
         }
         self.committed_revision = Some(surface.revision);
+        self.initial_adoption_consumed = true;
         Offer::Commit {
             surface,
             tabs,
@@ -317,6 +322,9 @@ impl ViewModel {
         }
         let mut view_request = None;
         let viewed_missing = self.viewed.as_deref().is_some_and(|viewed| !listed(viewed));
+        if viewed_missing {
+            self.initial_adoption_consumed = true;
+        }
         if viewed_missing && self.requested.is_none() {
             // Invariant: only the fallback chooses the next view. A hidden Settings tab never takes
             // it by itself, so with nothing else left the view empties and the landing shows.
@@ -343,6 +351,7 @@ impl ViewModel {
                 self.staged_tabs = None;
                 self.first_draw = None;
                 self.committed_revision = Some(surface.revision);
+                self.initial_adoption_consumed = true;
                 return Topology {
                     dropped_request,
                     view_request,
@@ -895,10 +904,20 @@ fn push_osc_rgb(output: &mut Vec<u8>, command: u8, index: Option<usize>, color: 
 /// Reconstructs a complete positioned ANSI fallback from one coherent structured commit. This is
 /// used only for negotiated legacy peers and never introduces synchronized-output delimiters.
 pub(crate) fn complete_surface_bytes(surface: &StructuredSurface) -> Result<Vec<u8>, String> {
+    complete_surface_rows(surface, surface.row_data.len())
+}
+
+/// The child stays live while the host retains the provisional footer through chip activation.
+/// Never emit transient real status cells that would flash before the held footer is drawn.
+pub(crate) fn complete_surface_body_without_footer(surface: &StructuredSurface) -> Result<Vec<u8>, String> {
+    complete_surface_rows(surface, surface.row_data.len().saturating_sub(2))
+}
+
+fn complete_surface_rows(surface: &StructuredSurface, rows: usize) -> Result<Vec<u8>, String> {
     surface.validate()?;
     let mut output = Vec::new();
     render_palette_damage(&mut output, None, surface, true);
-    for (row_index, row) in surface.row_data.iter().enumerate() {
+    for (row_index, row) in surface.row_data.iter().take(rows).enumerate() {
         render_surface_row(
             &mut output,
             row,
@@ -911,7 +930,7 @@ pub(crate) fn complete_surface_bytes(surface: &StructuredSurface) -> Result<Vec<
     Ok(output)
 }
 
-fn render_surface_row(
+pub(super) fn render_surface_row(
     output: &mut Vec<u8>,
     row: &SurfaceRow,
     row_index: usize,
@@ -1314,6 +1333,22 @@ mod tests {
         assert_eq!(view.viewed.as_deref(), Some("b"));
         assert_eq!(view.requested.as_deref(), Some("b"));
         assert!(!view.has_staged_tabs());
+    }
+
+    #[test]
+    fn a_closed_last_tab_cannot_re_adopt_its_late_surface() {
+        let now = Instant::now();
+        let mut view = ViewModel::new(Some("old".into()));
+        assert!(matches!(view.offer(surface("old", 1, false), now, true), Offer::Commit { .. }));
+        view.topology(&[tab("old")], vec![], |_| None);
+        assert_eq!(view.viewed, None);
+        assert_eq!(view.offer(surface("old", 2, false), now, false), Offer::Dropped);
+        assert_eq!(view.requested, None);
+        view.clear();
+        assert_eq!(view.offer(surface("old", 3, false), now, false), Offer::Dropped);
+        assert_eq!(view.requested, None);
+        view.request("next");
+        assert_eq!(view.offer(surface("next", 1, false), now, false), Offer::Staged);
     }
 
     #[test]

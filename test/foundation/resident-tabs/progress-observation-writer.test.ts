@@ -49,6 +49,26 @@ describe("payload-free child progress writer", () => {
       .toEqual(["receipt", "semantic-start", "semantic-end"].map(phase => ["child-input-phase", phase, 42]));
   });
 
+  it("reserves a fresh bounded queue while a full batch is being written", async () => {
+    let finishWrite: (() => void) | undefined;
+    vi.mocked(appendFile).mockImplementationOnce(() => new Promise<void>(resolve => { finishWrite = resolve; }));
+    const sink = observer();
+    for (let index = 0; index < 600; index++) sink.childRenderWrite(index, 1, "ordinary");
+    await vi.runAllTimersAsync();
+    expect(appendFile).toHaveBeenCalledTimes(1);
+    expect(Buffer.byteLength(String(vi.mocked(appendFile).mock.calls[0]![1]))).toBeLessThan(256 * 1024);
+    for (let index = 600; index < 1_200; index++) sink.childRenderWrite(index, 1, "ordinary");
+    expect(appendFile).toHaveBeenCalledTimes(1);
+    finishWrite!();
+    await vi.runAllTimersAsync();
+    expect(appendFile).toHaveBeenCalledTimes(2);
+    expect(Buffer.byteLength(String(vi.mocked(appendFile).mock.calls[1]![1]))).toBeLessThan(256 * 1024);
+    expect(vi.mocked(appendFile).mock.calls.slice(0, 2).reduce((bytes, call) => bytes + Buffer.byteLength(String(call[1])), 0))
+      .toBeGreaterThan(256 * 1024);
+    expect(records().length).toBe(1_200);
+    expect(validateProgressObservations(records(), "writer-test")).toEqual([]);
+  });
+
   it("keeps its byte cap and reports dropped diagnostics rather than silently losing them", async () => {
     const sink = observer();
     for (let index = 0; index < 2_000; index++) sink.childRenderWrite(index, 1, "ordinary");

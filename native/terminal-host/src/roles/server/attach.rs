@@ -379,7 +379,7 @@ fn open_utility_tab(
             session_dir: None,
         };
         sanitize_tab_environment(&mut start.environment);
-        if let Err(error) = start_holder(profile, state, settings_tab_id.clone(), start) {
+        if let Err(error) = start_holder(profile, state, settings_tab_id.clone(), start, None) {
             if let Ok(mut locked) = state.lock() {
                 locked.core.set_starting(&settings_tab_id, false);
             }
@@ -399,6 +399,52 @@ fn open_utility_tab(
     )?)
     .map_err(str::to_owned)?;
     Ok(())
+}
+
+/// Protocol: only this connection can cancel the create with its exact request ID.
+pub(super) fn begin_client_create(
+    current: &Mutex<Option<(u64, Arc<AtomicBool>)>>,
+    kind: &wire::EnvelopeKind,
+) -> Option<Arc<AtomicBool>> {
+    if kind.message_type != "tab.create" { return None; }
+    kind.request_id.map(|id| {
+        let flag = Arc::new(AtomicBool::new(false));
+        *current.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((id, flag.clone()));
+        flag
+    })
+}
+
+pub(super) fn cancel_client_create(
+    current: &Mutex<Option<(u64, Arc<AtomicBool>)>>,
+    payload: &[u8],
+) -> Result<(), String> {
+    let (_, value): (_, serde_json::Value) = wire::body(payload)?;
+    if let Some(request_id) = value.get("requestId").and_then(serde_json::Value::as_u64)
+        && let Some((id, flag)) = current.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref()
+        && *id == request_id
+    {
+        flag.store(true, Ordering::Release);
+    }
+    Ok(())
+}
+
+/// Protocol: each create's cancellation belongs to its authenticated attach connection.
+fn enqueue_attached_lifecycle(
+    state: &Arc<Mutex<RuntimeState>>,
+    queue: &mpsc::SyncSender<LifecycleRequest>,
+    tx: &Peer,
+    client_id: &str,
+    create_cancel: &Mutex<Option<(u64, Arc<AtomicBool>)>>,
+    kind: wire::EnvelopeKind,
+    payload: Vec<u8>,
+) -> Result<(), String> {
+    let cancelled = begin_client_create(create_cancel, &kind);
+    enqueue_lifecycle(state, queue, tx, client_id, LifecycleRequest {
+        message_type: kind.message_type,
+        request_id: kind.request_id,
+        payload,
+        cancelled,
+    })
 }
 
 pub(super) fn serve_attach(
@@ -498,6 +544,7 @@ pub(super) fn serve_attach(
     // tab lifecycle work; tab starts, stops, and registry commits run in order on the client's
     // lifecycle worker.
     let (lifecycle_tx, lifecycle_rx) = mpsc::sync_channel::<LifecycleRequest>(LIFECYCLE_QUEUE);
+    let create_cancel = Mutex::new(None::<(u64, Arc<AtomicBool>)>);
     thread::spawn({
         let state = state.clone();
         let profile = profile.clone();
@@ -516,6 +563,7 @@ pub(super) fn serve_attach(
                     message_type: kind.message_type.clone(),
                     request_id: kind.request_id,
                     payload,
+                    cancelled: None,
                 };
                 if let Err(error) = handle_lifecycle(&state, &profile, &tx, &client_id, &request) {
                     let message = lifecycle_failure_message(&request.message_type, &error);
@@ -523,18 +571,9 @@ pub(super) fn serve_attach(
                 }
             }
             "tab.create" | "tab.close" | "tab.restart" | "tab.rename" | "tab.reorder" => {
-                enqueue_lifecycle(
-                    &state,
-                    &lifecycle_tx,
-                    &tx,
-                    &client_id,
-                    LifecycleRequest {
-                        message_type: kind.message_type.clone(),
-                        request_id: kind.request_id,
-                        payload,
-                    },
-                )?;
+                enqueue_attached_lifecycle(&state, &lifecycle_tx, &tx, &client_id, &create_cancel, kind, payload)?;
             }
+            "tab.cancel-create" => cancel_client_create(&create_cancel, &payload)?,
             "tab.list" => {
                 let list = registry_tab_list(&lock_state(&state)?.registry);
                 tx.offer_control(wire::frame("tab.list", kind.request_id, list)?)

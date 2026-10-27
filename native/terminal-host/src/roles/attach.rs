@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::{
@@ -37,7 +37,7 @@ use crate::roles::owned_settings;
 use crate::roles::presentation::Frame;
 use crate::roles::presentation::{
     DesiredPresentation, FinalCursor, Offer, PresentationComposer, TopologyAction, ViewModel,
-    surface_is_blank,
+    complete_surface_body_without_footer, surface_is_blank,
 };
 use crate::roles::progress_observation::{self, ProgressMetadata};
 use crate::roles::reveal::Reveal;
@@ -54,6 +54,185 @@ pub const ENTER_OUTER_MODES: &[u8] =
 pub const RESTORE_OUTER_MODES: &[u8] =
     b"\x1b[?1006l\x1b[?1003l\x1b[?1000l\x1b[?1004l\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l";
 pub const RESET_OUTER_COLORS: &[u8] = b"\x1b]104\x07\x1b]110\x07\x1b]111\x07\x1b]112\x07";
+use core_attach::PENDING_AGENT_ID;
+
+struct PendingAgent {
+    /// IDs present before the click; a new registry row may arrive before `tab.created`.
+    known_ids: HashSet<String>,
+    request_id: u64,
+    real_id: Option<String>,
+}
+
+struct CancelledAgent {
+    request_id: u64,
+    known_ids: HashSet<String>,
+}
+
+/// Startup may acknowledge its initial Agent after the user has already closed it and its
+/// registry row disappeared; that stale acknowledgement must not request its old view again.
+fn is_stale_unrequested_agent(
+    request_id: Option<u64>,
+    tab_id: &str,
+    tabs: &[StripTab],
+    staged: Option<&Vec<StripTab>>,
+    closed: &HashSet<String>,
+    cancelled: &HashSet<String>,
+) -> bool {
+    cancelled.contains(tab_id)
+        || (request_id.is_none()
+            && !core_attach::is_utility_tab(tab_id)
+            && (closed.contains(tab_id)
+                || !tabs.iter().chain(staged.into_iter().flatten()).any(|tab| tab.id == tab_id)))
+}
+
+fn take_cancelled_agent(cancelled: &mut Vec<CancelledAgent>, request_id: Option<u64>) -> bool {
+    let Some(index) = cancelled.iter().position(|entry| Some(entry.request_id) == request_id) else {
+        return false;
+    };
+    cancelled.remove(index);
+    true
+}
+
+/// Read only the last complete Agent footer as a visual template. The next Agent's usage is
+/// rebuilt at zero and never inherited from an unrelated tab.
+fn agent_preview_footer(surface: &protocol::StructuredSurface) -> Option<landing::AgentPreviewFooter> {
+    if surface.commit_kind != protocol::SurfaceCommitKind::Complete
+        || surface.rows < 5
+        || surface.row_data.len() != usize::from(surface.rows)
+    {
+        return None;
+    }
+    let row = surface.row_data.last()?;
+    let line = row
+        .cells
+        .iter()
+        .filter(|cell| cell.width > 0)
+        .map(|cell| cell.text.as_str())
+        .collect::<String>();
+    let (left, right) = line.trim_end().rsplit_once("  ")?;
+    let model = right.trim();
+    if model.is_empty() || model.len() > 160 || model.chars().any(char::is_control) {
+        return None;
+    }
+    let context = left.split_whitespace().find_map(|part| {
+        let (percent, window) = part.split_once("%/")?;
+        (!percent.is_empty()
+            && window.len() <= 24
+            && !window.is_empty()
+            && window.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '.'))
+        .then(|| window.to_owned())
+    })?;
+    let (model, thinking) = match model.rsplit_once(" • ") {
+        Some((name, level))
+            if !name.is_empty()
+                && matches!(level, "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") =>
+        {
+            let color = row
+                .cells
+                .iter()
+                .rev()
+                .find(|cell| cell.width > 0 && !cell.text.trim().is_empty())
+                .and_then(|cell| surface.styles.get(usize::from(cell.style)))
+                .and_then(|style| match style.foreground {
+                    protocol::SurfaceColor::Rgb(rgb) => Some(rgb),
+                    protocol::SurfaceColor::Palette(index) => {
+                        surface.palette.get(usize::from(index)).copied()
+                    }
+                    protocol::SurfaceColor::Default => None,
+                })
+                .unwrap_or(landing::accent_colors(None).accent);
+            (name.to_owned(), Some((level.to_owned(), color)))
+        }
+        _ => (model.to_owned(), None),
+    };
+    let mut footer = landing::AgentPreviewFooter {
+        context,
+        subscription: left.contains("(sub)"),
+        auto: left.contains("(auto)"),
+        model,
+        thinking,
+        actual: None,
+    };
+    footer.actual = actual_agent_footer_rows(surface, &footer);
+    Some(footer)
+}
+
+/// Reuses the last owned status row while zeroing old usage on the left. The next Agent's
+/// path is drawn from its own cwd; old branch and PR links must never be inherited.
+fn actual_agent_footer_rows(
+    surface: &protocol::StructuredSurface,
+    footer: &landing::AgentPreviewFooter,
+) -> Option<landing::AgentFooterRows> {
+    let mut status = surface.row_data.last()?.clone();
+    let path = surface.row_data.get(usize::from(surface.rows).checked_sub(2)?)?;
+    if !path.cells.iter().any(|cell| !cell.text.trim().is_empty())
+        || status.cells.len() != usize::from(surface.columns)
+        || path.cells.len() != usize::from(surface.columns)
+    {
+        return None;
+    }
+    let text = status.cells.iter().filter(|cell| cell.width > 0)
+        .map(|cell| cell.text.as_str()).collect::<String>();
+    let (_, right) = text.trim_end().rsplit_once("  ")?;
+    let right_width = unicode_width::UnicodeWidthStr::width(right.trim());
+    let right_start = usize::from(surface.columns).checked_sub(right_width + 1)?;
+    let first = (0..right_start).find(|&index| !status.cells[index].text.trim().is_empty())?;
+    let left = format!("{}0.0%/{}{}",
+        if footer.subscription { "$0.000 (sub) " } else { "" },
+        footer.context,
+        if footer.auto { " (auto)" } else { "" });
+    if left.chars().count() + first + 2 > right_start { return None; }
+    let style = status.cells[first].style;
+    for cell in &mut status.cells[first..right_start] {
+        *cell = protocol::SurfaceCell { style, ..Default::default() };
+    }
+    for (index, character) in left.chars().enumerate() {
+        status.cells[first + index].text = character.to_string();
+    }
+    Some(landing::AgentFooterRows {
+        columns: surface.columns,
+        status,
+        styles: surface.styles.clone(),
+        links: surface.links.clone(),
+    })
+}
+
+fn should_hold_activation_footer(truecolor: bool, has_structured_body: bool) -> bool {
+    truecolor && has_structured_body
+}
+
+fn body_with_held_footer(surface: &protocol::StructuredSurface, footer: &[u8]) -> Option<Vec<u8>> {
+    let mut body = complete_surface_body_without_footer(surface).ok()?;
+    body.extend_from_slice(footer);
+    Some(body)
+}
+
+fn fill_on_agent_handoff(pending: Option<&PendingAgent>, tab_id: &str, requested: bool, now: Instant) -> Option<strip::ChipFill> {
+    pending.filter(|intent| requested && intent.real_id.as_deref() == Some(tab_id))
+        .map(|_| strip::ChipFill { tab_id: tab_id.to_owned(), started_at: now })
+}
+
+fn show_pending_agent(shown: &mut Vec<StripTab>, pending: &PendingAgent) {
+    shown.retain(|tab| {
+        (pending.known_ids.contains(&tab.id) && pending.real_id.as_deref() != Some(tab.id.as_str()))
+            || core_attach::is_utility_tab(&tab.id)
+    });
+    let at = shown
+        .iter()
+        .rposition(|tab| core_attach::is_utility_tab(&tab.id))
+        .unwrap_or(shown.len());
+    shown.insert(
+        at,
+        StripTab {
+            id: PENDING_AGENT_ID.into(),
+            name: "Agent".into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
+        },
+    );
+}
 const ATTACH_SERVER_QUEUE_BYTES: usize = 4 * 1024 * 1024;
 const ATTACH_SERVER_QUEUE_FRAMES: usize = 64;
 const ATTACH_INGRESS_BYTES: usize = 4 * 1024 * 1024;
@@ -487,6 +666,28 @@ fn render_notice_at(message: &str, columns: u16, row: u16) -> String {
 const MAX_SETTINGS_BYTES: u64 = 256 * 1024;
 const SETTINGS_POLL_INTERVAL: Duration = Duration::from_millis(250);
 const OUTER_RESUME_GAP: Duration = Duration::from_secs(5);
+const PENDING_CLOSE_REPEAT_QUIET: Duration = Duration::from_millis(500);
+
+/// A held close key must not turn one pending-tab cancellation into a close of its old Agent.
+fn suppress_pending_close_repeat(
+    until: &mut Option<Instant>,
+    action: Option<&str>,
+    kind: crossterm::event::KeyEventKind,
+    pending: bool,
+    now: Instant,
+) -> bool {
+    if kind == crossterm::event::KeyEventKind::Release { return false; }
+    if action != Some("tabs.close") {
+        *until = None;
+        return false;
+    }
+    if until.is_some_and(|deadline| now < deadline) {
+        *until = Some(now + PENDING_CLOSE_REPEAT_QUIET);
+        return true;
+    }
+    if pending { *until = Some(now + PENDING_CLOSE_REPEAT_QUIET); }
+    false
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 struct PresentationSettings {
@@ -558,8 +759,8 @@ fn read_time_format(path: &Path) -> TimeFormat {
 }
 
 /// Development diagnostics: when `A1_ATTACH_KEY_TRACE` names a file, the attach client appends
-/// every outer key event and each detach-chord decision, so a terminal's key reporting can be
-/// compared with what the chord expects. Key codes only; never pasted text or child output.
+/// outer gestures, create/close effects, and the final exit path, so a terminal's input and
+/// resident cancellation can be compared without recording pasted text or child output.
 fn key_trace(path: Option<&Path>, line: &str) {
     let Some(path) = path else {
         return;
@@ -1582,6 +1783,7 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
     loop {
         watchdog.bump();
         if let Some(error) = client.stream.failure() {
+            key_trace(client.key_trace_path.as_deref(), "exit=outbound-stream-failure");
             return Err(error);
         }
         // Performance: a queued key must not wait behind decoding/composing the next complete
@@ -1589,14 +1791,36 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         let mut round = super::ready_round::ReadyRound::default();
         let input = round.receive(&input_rx);
         let disconnected = matches!(input, Err(mpsc::TryRecvError::Disconnected));
-        if let Ok(next) = input && client.input(&mut core, next?)? {
-            return Ok(());
+        if let Ok(next) = input {
+            match next.and_then(|next| client.input(&mut core, next)) {
+                Ok(true) => {
+                    key_trace(client.key_trace_path.as_deref(), "exit=input-detach");
+                    return Ok(());
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    key_trace(client.key_trace_path.as_deref(), "exit=input-error");
+                    return Err(error);
+                }
+            }
         }
-        if client.drain_server(&mut core, &message_rx, &ingress_bytes, &mut round)? {
-            return Ok(());
+        match client.drain_server(&mut core, &message_rx, &ingress_bytes, &mut round) {
+            Ok(true) => {
+                key_trace(client.key_trace_path.as_deref(), "exit=server-detach");
+                return Ok(());
+            }
+            Ok(false) => {}
+            Err(error) => {
+                key_trace(client.key_trace_path.as_deref(), "exit=server-error");
+                return Err(error);
+            }
         }
-        client.tick(&mut core)?;
+        if let Err(error) = client.tick(&mut core) {
+            key_trace(client.key_trace_path.as_deref(), "exit=tick-error");
+            return Err(error);
+        }
         if disconnected {
+            key_trace(client.key_trace_path.as_deref(), "exit=outer-input-stopped");
             return Err("outer terminal input stopped".to_owned());
         }
         round.wait(&wake_rx, Duration::from_millis(8));
@@ -1832,7 +2056,17 @@ struct Client {
     terminal: OuterTerminal,
     view: ViewModel,
     tabs: Vec<StripTab>,
+    /// Only the attach client sees this visual intent; it is never a server tab identity.
+    pending_agent: Option<PendingAgent>,
+    cancelled_agents: Vec<CancelledAgent>,
+    hidden_cancelled_tabs: HashSet<String>,
+    closed_tab_ids: HashSet<String>,
+    pending_close_quiet_until: Option<Instant>,
+    next_create_request_id: u64,
+    preview_footer: Option<landing::AgentPreviewFooter>,
     chip_priority: Vec<String>,
+    chip_fill: Option<strip::ChipFill>,
+    preview_footer_hold: Option<Vec<u8>>,
     swap_in_flight: Option<String>,
     bindings: TabBindings,
     channel: InputChannel,
@@ -1898,7 +2132,16 @@ impl Client {
             terminal,
             view,
             tabs: Vec::new(),
+            pending_agent: None,
+            cancelled_agents: Vec::new(),
+            hidden_cancelled_tabs: HashSet::new(),
+            closed_tab_ids: HashSet::new(),
+            pending_close_quiet_until: None,
+            next_create_request_id: 1,
+            preview_footer: None,
             chip_priority: Vec::new(),
+            chip_fill: None,
+            preview_footer_hold: None,
             swap_in_flight: None,
             bindings: TabBindings::load(options.profile),
             channel: handshake.channel,
@@ -1964,14 +2207,65 @@ impl Client {
         for effect in effects {
             match effect {
                 Effect::Send(request) => {
+                    if request == Request::Create {
+                        self.clear_chip_fill();
+                        key_trace(self.key_trace_path.as_deref(), "effect=create");
+                        let known_ids = self
+                            .tabs
+                            .iter()
+                            .chain(self.view.staged_tabs().into_iter().flatten())
+                            .map(|tab| tab.id.clone())
+                            .collect();
+                        let request_id = self.next_create_request_id;
+                        self.next_create_request_id = self.next_create_request_id.wrapping_add(1).max(1);
+                        self.pending_agent = Some(PendingAgent {
+                            known_ids,
+                            request_id,
+                            real_id: None,
+                        });
+                    } else if request == Request::CancelCreate {
+                        key_trace(self.key_trace_path.as_deref(), "effect=cancel-create");
+                        if let Some(pending) = self.pending_agent.as_ref() {
+                            self.cancelled_agents.push(CancelledAgent {
+                                request_id: pending.request_id,
+                                known_ids: pending.known_ids.clone(),
+                            });
+                        }
+                    } else if let Request::Close(ref tab_id) = request {
+                        if self.chip_fill.as_ref().is_some_and(|fill| fill.tab_id == *tab_id) {
+                            self.clear_chip_fill();
+                        }
+                        key_trace(self.key_trace_path.as_deref(), "effect=close");
+                        self.closed_tab_ids.insert(tab_id.clone());
+                        if self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab_id) {
+                            self.hidden_cancelled_tabs.insert(tab_id.clone());
+                        }
+                    } else if matches!(request, Request::Open(_)) && !core.view.pending_agent_visible {
+                        self.pending_agent = None;
+                    }
                     if matches!(request, Request::Reorder { .. }) {
                         self.chip_priority.clear();
                     }
+                    let cancelled = request == Request::CancelCreate;
                     self.send(request)?;
+                    if cancelled { self.pending_agent = None; }
                 }
-                Effect::View(tab_id) => self.request_view(tab_id)?,
+                Effect::View(tab_id) => {
+                    if self.chip_fill.as_ref().is_some_and(|fill| fill.tab_id != tab_id) {
+                        self.clear_chip_fill();
+                    }
+                    if !core.view.pending_agent_visible {
+                        self.pending_agent = None;
+                    } else if let Some(pending) = self.pending_agent.as_mut() {
+                        pending.real_id = Some(tab_id.clone());
+                    }
+                    self.request_view(tab_id)?;
+                }
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
                 Effect::CancelViewRequest => {
+                    self.clear_chip_fill();
+                    key_trace(self.key_trace_path.as_deref(), "effect=cancel-view");
+                    self.pending_agent = None;
                     self.view.cancel_request();
                     if self.swap_in_flight.take().is_some() {
                         self.chip_priority.clear();
@@ -1996,6 +2290,11 @@ impl Client {
                 forward => forwarded.push(forward),
             }
         }
+        if !core.view.pending_agent_visible
+            && self.pending_agent.as_ref().is_some_and(|pending| pending.real_id.is_none())
+        {
+            self.pending_agent = None;
+        }
         Ok(forwarded)
     }
 
@@ -2014,7 +2313,10 @@ impl Client {
     fn send(&mut self, request: Request) -> Result<(), String> {
         let stream = &mut self.stream;
         match request {
-            Request::Create => wire::send(stream, "tab.create", None, self.create.clone()),
+            Request::Create => wire::send(stream, "tab.create", self.pending_agent.as_ref().map(|pending| pending.request_id), self.create.clone()),
+            Request::CancelCreate => wire::send(stream, "tab.cancel-create", None, serde_json::json!({
+                "requestId": self.pending_agent.as_ref().ok_or("missing pending Agent")?.request_id
+            })),
             Request::Open(kind) => {
                 let message = format!("tab.open-{}", kind.name());
                 wire::send(stream, &message, None, self.create.clone())
@@ -2115,14 +2417,40 @@ impl Client {
         if !should_paint_strip(
             self.presented.tab_id.is_some(),
             self.has_shown_tabs,
-            core.notice.is_some(),
+            core.notice.is_some() || core.view.pending_agent_visible,
         ) {
             return Ok(());
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
-        let rename = core.mode.rename().map(RenameEditor::display);
+        let pending = core.view.pending_agent_visible && self.pending_agent.is_some();
+        let shown = self.prepare_strip(core, pending);
+        self.render_strip(core, &shown, pending);
+        let overlay = self.overlay(core);
+        let landing = self.landing();
+        self.present(
+            overlay,
+            landing,
+            pending,
+            clear,
+            core.mode.palette().is_some(),
+        )
+    }
+
+    /// Assemble and animate the strip's locally pending and registered chips before layout.
+    fn prepare_strip(&mut self, core: &State, pending: bool) -> Vec<StripTab> {
         let strip_viewed = strip_active_view(&self.view, self.swap_in_flight.as_deref());
         let mut shown = shown_tabs(&self.tabs, strip_viewed, core.view.shown());
+        shown.retain(|tab| {
+            if self.hidden_cancelled_tabs.contains(&tab.id) { return false; }
+            self.cancelled_agents.iter().all(|cancelled| {
+                cancelled.known_ids.contains(&tab.id)
+                    || core_attach::is_utility_tab(&tab.id)
+                    || self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab.id.as_str())
+            })
+        });
+        if let Some(intent) = self.pending_agent.as_ref().filter(|_| pending) {
+            show_pending_agent(&mut shown, intent);
+        }
         apply_owned_accent(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
@@ -2132,12 +2460,34 @@ impl Client {
         );
         debounce_starting_glyphs(&mut shown, &mut self.glyphs.starting_since, now);
         self.glyphs.expires = hold_glyphs(&mut shown, &mut self.glyphs.held, now);
-        let prioritized = prioritized_chips(&shown, &self.chip_priority);
+        shown
+    }
+
+    /// Lay out the visible chips, maintain hover, and expose only authoritative hit targets.
+    fn render_strip(&mut self, core: &mut State, shown: &[StripTab], pending: bool) {
+        let rename = core.mode.rename().map(RenameEditor::display);
+        let strip_viewed = if pending {
+            Some(PENDING_AGENT_ID)
+        } else {
+            strip_active_view(&self.view, self.swap_in_flight.as_deref())
+        };
+        let mut prioritized = prioritized_chips(shown, &self.chip_priority);
+        if pending {
+            prioritized.retain(|tab| tab.id != PENDING_AGENT_ID);
+            prioritized.insert(
+                0,
+                shown
+                    .iter()
+                    .find(|tab| tab.id == PENDING_AGENT_ID)
+                    .expect("pending chip")
+                    .clone(),
+            );
+        }
         let drag = core.mode.drag().cloned();
         let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
-            let mut frame = strip::render_interactive_at(
-                &shown,
+            let mut frame = strip::render_interactive_filled_at(
+                shown,
                 strip_viewed,
                 self.columns,
                 hovered,
@@ -2147,9 +2497,10 @@ impl Client {
                     .tab_bar_position
                     .strip_terminal_row(self.outer_rows),
                 plus,
+                self.chip_fill.as_ref(),
             );
-            if !self.chip_priority.is_empty() && !frame.hidden_tabs.is_empty() {
-                frame = strip::render_interactive_at(
+            if (pending || !self.chip_priority.is_empty()) && !frame.hidden_tabs.is_empty() {
+                frame = strip::render_interactive_filled_at(
                     &prioritized,
                     strip_viewed,
                     self.columns,
@@ -2160,10 +2511,11 @@ impl Client {
                         .tab_bar_position
                         .strip_terminal_row(self.outer_rows),
                     plus,
+                    self.chip_fill.as_ref(),
                 );
             }
             if let Some(drag) = drag.as_ref() {
-                let drag_order = prioritized_chips(&shown, &drawn_chip_ids(&frame));
+                let drag_order = prioritized_chips(shown, &drawn_chip_ids(&frame));
                 append_drag_marker(
                     &mut frame,
                     Some(drag),
@@ -2186,6 +2538,9 @@ impl Client {
             strip_frame = render(None);
         }
         self.strip_frame = strip_frame;
+        // Invariant: the provisional chip is only a local hit target for its close menu; it is
+        // never used as a server tab ID or made available for child input.
+        self.strip_frame.hidden_tabs.retain(|id| id != PENDING_AGENT_ID);
         if self.strip_frame.hidden_tabs.is_empty() {
             self.chip_priority.clear();
         }
@@ -2194,16 +2549,13 @@ impl Client {
             .hits
             .iter()
             .find_map(|(start, _, hit)| matches!(hit, StripHit::Overflow).then_some(*start));
-        core.refresh_overflow(&shown, &self.strip_frame.hidden_tabs, overflow_anchor);
-        let overlay = self.overlay(core);
-        let landing = self.landing();
-        self.present(overlay, landing, clear, core.mode.palette().is_some())
+        core.refresh_overflow(shown, &self.strip_frame.hidden_tabs, overflow_anchor);
     }
 
     /// Invariant: the landing is the body only while no tab is viewed after tabs were shown, so a
     /// first launch, a resize, or a pending switch never flashes it over a child surface.
     fn landing_shown(&self) -> bool {
-        self.view.viewed.is_none() && self.has_shown_tabs
+        self.view.viewed.is_none() && self.has_shown_tabs && self.pending_agent.is_none()
     }
 
     fn landing(&self) -> Option<Vec<u8>> {
@@ -2228,6 +2580,31 @@ impl Client {
                 self.time_format.accent_color,
             ),
         }))
+    }
+
+    fn pending_agent_shell(&self, footer_only: bool) -> Vec<u8> {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .ok();
+        let cwd = landing::display_cwd(&self.create.cwd, home.as_deref());
+        let input = landing::LandingInput {
+            columns: self.columns,
+            body_rows: self.outer_rows.saturating_sub(1),
+            version: None,
+            accent: self.time_format.accent_color,
+            truecolor: !palette_fallback_requested(),
+            half_blocks: false,
+            cwd: &cwd,
+            background: landing::canvas_background(
+                self.time_format.background_style,
+                self.time_format.accent_color,
+            ),
+        };
+        if footer_only {
+            landing::render_agent_preview_footer(&input, self.preview_footer.as_ref())
+        } else {
+            landing::render_agent_preview(&input, self.preview_footer.as_ref())
+        }
     }
 
     fn overlay(&self, core: &State) -> Option<String> {
@@ -2279,25 +2656,48 @@ impl Client {
         &mut self,
         overlay: Option<String>,
         landing: Option<Vec<u8>>,
+        pending: bool,
         clear: bool,
         dimmed: bool,
     ) -> Result<(), String> {
-        let child_surface = landing.is_none();
+        let pending_body = pending.then(|| self.pending_agent_shell(false));
+        let child_surface = landing.is_none() && !pending;
+        // Invariant: only the footer stays provisional. Reconstruct each latest complete real
+        // surface so its editor and input remain live throughout the bounded chip fill.
+        let held_body = if child_surface {
+            self.preview_footer_hold.as_deref().and_then(|footer| {
+                self.presented.structured.as_deref()
+                    .and_then(|surface| body_with_held_footer(surface, footer))
+            })
+        } else {
+            None
+        };
         let desired = DesiredPresentation {
-            tab_id: self.view.viewed.clone(),
+            tab_id: if pending {
+                Some(PENDING_AGENT_ID.into())
+            } else {
+                self.view.viewed.clone()
+            },
             incarnation: self.presented.incarnation,
             revision: self.presented.revision,
             geometry_generation: self.presented.geometry_generation,
             strip: self.strip_frame.bytes.clone(),
-            structured: self.presented.structured.clone().filter(|_| child_surface),
-            legacy_body: landing.unwrap_or_else(|| self.presented.surface.clone()),
+            structured: self.presented.structured.clone().filter(|_| child_surface && held_body.is_none()),
+            legacy_body: pending_body
+                .or(landing)
+                .or(held_body)
+                .unwrap_or_else(|| self.presented.surface.clone()),
             overlay,
-            cursor: if dimmed {
+            cursor: if pending || dimmed {
                 Some(FinalCursor::Hidden)
             } else {
                 self.presented.cursor
             },
-            modes: self.presented.modes.clone(),
+            modes: if pending {
+                None
+            } else {
+                self.presented.modes.clone()
+            },
             columns: self.columns,
             outer_rows: self.outer_rows,
             child_row_offset: self.time_format.tab_bar_position.child_row_offset(),
@@ -2350,6 +2750,21 @@ impl Client {
             tab.accent = surface.accent.clone();
             effective_status.clone_from(&tab.status);
         }
+        if let Some(fill) = fill_on_agent_handoff(self.pending_agent.as_ref(), &surface.tab_id, requested, Instant::now()) {
+            // Invariant: the preview footer is frozen before the real Agent's first status is cached.
+            // Without a complete structured frame or truecolor fill the real footer shows at once.
+            if should_hold_activation_footer(!palette_fallback_requested(), surface.structured.is_some()) {
+                self.preview_footer_hold = Some(self.pending_agent_shell(true));
+                self.chip_fill = Some(fill);
+                self.last_strip_frame = Instant::now();
+            }
+            self.pending_agent = None;
+        }
+        if !core_attach::is_utility_tab(&surface.tab_id)
+            && let Some(footer) = surface.structured.as_ref().and_then(agent_preview_footer)
+        {
+            self.preview_footer = Some(footer);
+        }
         self.presented.install(surface, &effective_status);
         let mut deferred = VecDeque::new();
         for effect in std::mem::take(&mut self.pending_terminal_effects) {
@@ -2383,7 +2798,10 @@ impl Client {
             };
             let payload = match message {
                 ServerIngress::Frame(payload) => payload,
-                ServerIngress::Failed(error) => return Err(error),
+                ServerIngress::Failed(error) => {
+                    key_trace(self.key_trace_path.as_deref(), "server=connection-failed");
+                    return Err(error);
+                },
             };
             let _reservation = IngressReservation {
                 bytes: ingress_bytes.clone(),
@@ -2411,6 +2829,7 @@ impl Client {
                 self.run(core, core_attach::Event::Server(ServerEvent::ConfigurePlus))?;
             }
             "detach" => {
+                key_trace(self.key_trace_path.as_deref(), "server=detach");
                 core.exit();
                 wire::send(&mut self.stream, "detach", None, wire::ResultBody::ok())?;
                 self.terminal.restore()?;
@@ -2418,11 +2837,13 @@ impl Client {
                 return Ok(true);
             }
             "refused" => {
+                key_trace(self.key_trace_path.as_deref(), "server=refused");
                 core.exit();
                 self.terminal.restore()?;
                 return Err("a1 is attached in another terminal".to_owned());
             }
             "error" => {
+                key_trace(self.key_trace_path.as_deref(), "server=error");
                 let (_, result): (_, wire::ResultBody) = wire::body(payload)?;
                 return Err(result
                     .message
@@ -2468,14 +2889,25 @@ impl Client {
                 }
             }
             "tab.created" | "tab.selected" => {
-                let (_, target): (_, TabTarget) = wire::body(payload)?;
-                ServerEvent::Created {
-                    tab_id: target.tab_id,
+                let (request_id, target): (_, TabTarget) = wire::body(payload)?;
+                if is_stale_unrequested_agent(request_id, &target.tab_id, &self.tabs, self.view.staged_tabs(),
+                    &self.closed_tab_ids, &self.hidden_cancelled_tabs) {
+                    return Ok(None);
                 }
+                if message_type == "tab.created" && take_cancelled_agent(&mut self.cancelled_agents, request_id) {
+                    self.hidden_cancelled_tabs.insert(target.tab_id.clone());
+                    self.send(Request::Close(target.tab_id))?;
+                    return Ok(None);
+                }
+                ServerEvent::Created { tab_id: target.tab_id }
             }
-            "tab.create-failed" | "tab.create-refused" => ServerEvent::CreateFailed {
-                notice: tab_create_failure_notice(result()?.message.as_deref()),
-            },
+            "tab.create-failed" | "tab.create-refused" => {
+                let (request_id, response): (_, wire::ResultBody) = wire::body(payload)?;
+                if take_cancelled_agent(&mut self.cancelled_agents, request_id) {
+                    return Ok(None);
+                }
+                ServerEvent::CreateFailed { notice: tab_create_failure_notice(response.message.as_deref()) }
+            }
             "tab.renamed" => {
                 let wire::ResultBody { accepted, message } = result()?;
                 ServerEvent::Renamed { accepted, message }
@@ -2630,7 +3062,15 @@ impl Client {
                 .iter()
                 .any(|tab| &tab.tab_id == id && &tab.name == name && tab.name_source == "user")
         });
-        let next_tabs = self.registry_tabs(core, list.tabs);
+        let visible = list.tabs.into_iter().filter(|tab| {
+            if self.hidden_cancelled_tabs.contains(&tab.tab_id) { return false; }
+            self.cancelled_agents.iter().all(|cancelled| {
+                cancelled.known_ids.contains(&tab.tab_id)
+                    || core_attach::is_utility_tab(&tab.tab_id)
+                    || self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab.tab_id.as_str())
+            })
+        }).collect();
+        let next_tabs = self.registry_tabs(core, visible);
         // Invariant: a hidden utility tab never surfaces by itself. When only those remain, they
         // stay hidden and running beside the landing, so they open without a start.
         let utility_visible = core.utilities_visible(self.view.viewed.as_deref());
@@ -2767,12 +3207,7 @@ impl Client {
                 },
             );
         }
-        if strip::animations_active(&self.tabs)
-            && self.last_strip_frame.elapsed() >= strip::animation_interval(&self.tabs)
-        {
-            self.paint(core, false)?;
-            self.last_strip_frame = Instant::now();
-        }
+        self.tick_strip_animation(core, now)?;
         if self.time_format.refresh() {
             self.paint(core, false)?;
         }
@@ -2790,6 +3225,33 @@ impl Client {
         if self.last_list.elapsed() >= Duration::from_millis(500) {
             self.send(Request::List)?;
             self.last_list = Instant::now();
+        }
+        Ok(())
+    }
+
+    fn clear_chip_fill(&mut self) {
+        self.chip_fill = None;
+        self.preview_footer_hold = None;
+    }
+
+    /// Finish a canceled or elapsed chip fill and repaint its last partial frame once.
+    fn tick_strip_animation(&mut self, core: &mut State, now: Instant) -> Result<(), String> {
+        let fill_active = self.chip_fill.as_ref().is_some_and(|fill| {
+            self.view.viewed.as_deref() == Some(fill.tab_id.as_str()) && strip::fill_active(fill, now)
+        });
+        if !fill_active && self.chip_fill.is_some() {
+            self.clear_chip_fill();
+            self.paint(core, false)?;
+        }
+        if (strip::animations_active(&self.tabs) || fill_active)
+            && self.last_strip_frame.elapsed() >= if fill_active {
+                Duration::from_millis(25)
+            } else {
+                strip::animation_interval(&self.tabs)
+            }
+        {
+            self.paint(core, false)?;
+            self.last_strip_frame = now;
         }
         Ok(())
     }
@@ -2867,6 +3329,10 @@ impl Client {
     /// Returns `true` when the key detached this client.
     fn key(&mut self, core: &mut State, key: crossterm::event::KeyEvent) -> Result<bool, String> {
         let action = self.bindings.action(&key).map(str::to_owned);
+        if suppress_pending_close_repeat(&mut self.pending_close_quiet_until, action.as_deref(), key.kind,
+            core.view.pending_agent_visible, Instant::now()) {
+            return Ok(false);
+        }
         let event = core_attach::Event::Key {
             key: (&key).into(),
             action,
@@ -3007,6 +3473,7 @@ impl Client {
         self.outer_rows = outer_rows;
         self.geometry_generation = self.geometry_generation.saturating_add(1);
         self.columns = columns;
+        self.clear_chip_fill();
         self.create.columns = columns;
         self.create.rows = rows;
         self.reveal.fade = None;
@@ -3643,6 +4110,271 @@ mod tests {
             session_dir: None,
             view_tab,
         }
+    }
+
+    #[test]
+    fn a_held_close_key_cancels_only_the_pending_agent() {
+        use crossterm::event::KeyEventKind::{Press, Release, Repeat};
+        let at = Instant::now();
+        let mut until = None;
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Press, true, at));
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Release, false, at));
+        for millis in [20, 200, 600] {
+            assert!(suppress_pending_close_repeat(&mut until, Some("tabs.close"), Repeat,
+                false, at + Duration::from_millis(millis)));
+        }
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Press,
+            false, at + Duration::from_millis(1200)));
+        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.new"), Press,
+            false, at + Duration::from_millis(1201)));
+        assert_eq!(until, None);
+    }
+
+    #[test]
+    fn late_initial_selection_cannot_restore_a_closed_agent() {
+        let tabs = vec![StripTab {
+            id: "old".into(), name: "Old".into(), name_source: "default".into(),
+            status: "idle".into(), accent: None, title_animation: None,
+        }];
+        let closed: HashSet<String> = ["old".into()].into_iter().collect();
+        let cancelled: HashSet<String> = ["cancelled".into()].into_iter().collect();
+        assert!(is_stale_unrequested_agent(None, "old", &tabs, None, &closed, &cancelled));
+        assert!(is_stale_unrequested_agent(None, "unlisted", &tabs, None, &closed, &cancelled));
+        assert!(is_stale_unrequested_agent(Some(7), "cancelled", &tabs, None, &closed, &cancelled));
+        assert!(!is_stale_unrequested_agent(Some(8), "new", &tabs, None, &closed, &cancelled));
+        assert!(!is_stale_unrequested_agent(None, "old", &tabs, None, &HashSet::new(), &HashSet::new()));
+    }
+
+    #[test]
+    fn cancelled_create_response_cannot_consume_another_request() {
+        let mut pending = vec![
+            CancelledAgent { request_id: 7, known_ids: HashSet::new() },
+            CancelledAgent { request_id: 8, known_ids: HashSet::new() },
+        ];
+        assert!(!take_cancelled_agent(&mut pending, None));
+        assert!(!take_cancelled_agent(&mut pending, Some(9)));
+        assert!(take_cancelled_agent(&mut pending, Some(7)));
+        assert_eq!(pending.len(), 1);
+        assert_eq!(pending[0].request_id, 8);
+        assert!(take_cancelled_agent(&mut pending, Some(8)));
+    }
+
+    #[test]
+    fn cached_agent_footer_reuses_model_and_context_but_never_old_usage() {
+        let line = "$14.125 (sub) ↑5k 43.2%/272k (auto)           gpt-5.6-sol • high";
+        let mut surface = protocol::StructuredSurface {
+            columns: 80,
+            rows: 23,
+            row_data: vec![protocol::SurfaceRow::default(); 23],
+            styles: vec![protocol::SurfaceStyle::default(), protocol::SurfaceStyle {
+                foreground: protocol::SurfaceColor::Rgb([223, 122, 199]),
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        surface.row_data[22].cells = line.chars().enumerate().map(|(index, ch)| protocol::SurfaceCell {
+            text: ch.to_string(),
+            style: u16::from(index >= line.chars().count() - "high".len()),
+            ..Default::default()
+        }).collect();
+        let hint = agent_preview_footer(&surface).expect("complete Agent footer");
+        assert_eq!(hint.context, "272k");
+        assert!(hint.subscription && hint.auto);
+        assert_eq!(hint.model, "gpt-5.6-sol");
+        assert_eq!(hint.thinking, Some(("high".into(), [223, 122, 199])));
+        let bytes = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: 80, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "~/repo", background: None,
+        }, Some(&hint))).unwrap();
+        assert!(bytes.contains("$0.000 (sub) 0.0%/272k (auto)"));
+        assert!(bytes.contains("gpt-5.6-sol") && bytes.contains("223;122;199mhigh"));
+        assert!(!bytes.contains("14.125") && !bytes.contains("43.2%") && !bytes.contains("↑5k"));
+        surface.commit_kind = protocol::SurfaceCommitKind::ProvisionalGeometry;
+        assert!(agent_preview_footer(&surface).is_none(), "provisional geometry is not a model hint");
+        surface.commit_kind = protocol::SurfaceCommitKind::Complete;
+        surface.row_data.pop();
+        assert!(agent_preview_footer(&surface).is_none(), "incomplete frames are never cached");
+    }
+
+    #[test]
+    fn pending_footer_replays_real_gutters_branch_and_pr_without_old_usage() {
+        let columns = 80usize;
+        let mut surface = protocol::StructuredSurface {
+            columns: columns as u16,
+            rows: 23,
+            row_data: vec![protocol::SurfaceRow {
+                cells: vec![protocol::SurfaceCell::default(); columns],
+            }; 23],
+            styles: vec![protocol::SurfaceStyle::default(), protocol::SurfaceStyle {
+                foreground: protocol::SurfaceColor::Rgb([126, 136, 142]),
+                ..Default::default()
+            }],
+            links: vec![protocol::SurfaceLink {
+                id: None, uri: "https://github.com/timurproko/a1/pull/837".into(),
+            }],
+            ..Default::default()
+        };
+        let path = " D:/Git/a1 (fix/instant-agent-tab) #837";
+        for (index, character) in path.chars().enumerate() {
+            surface.row_data[21].cells[index].text = character.to_string();
+            surface.row_data[21].cells[index].style = 1;
+            if index >= path.len() - 4 {
+                surface.row_data[21].cells[index].link = Some(0);
+            }
+        }
+        let left = " $14.125 (sub) ↑5k 43.2%/272k (auto)";
+        let right = "gpt-5.6-sol • high";
+        for (index, character) in left.chars().enumerate() {
+            surface.row_data[22].cells[index].text = character.to_string();
+            surface.row_data[22].cells[index].style = 1;
+        }
+        let right_start = columns - 1 - right.chars().count();
+        for (index, character) in right.chars().enumerate() {
+            surface.row_data[22].cells[right_start + index].text = character.to_string();
+            surface.row_data[22].cells[right_start + index].style = 1;
+        }
+        let footer = agent_preview_footer(&surface).expect("complete owned footer");
+        let actual = footer.actual.as_ref().expect("actual source rows, not a guessed layout");
+        assert_eq!(actual.status.cells[columns - 1].text, " ");
+        let output = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: columns as u16, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "new Agent cwd", background: None,
+        }, Some(&footer))).unwrap();
+        assert!(output.contains("new Agent cwd"));
+        assert!(!output.contains("fix/instant-agent-tab"));
+        assert!(!output.contains("https://github.com/timurproko/a1/pull/837"));
+        assert!(output.contains("$0.000 (sub) 0.0%/272k (auto)"));
+        assert!(output.contains("gpt-5.6-sol • high"));
+        assert!(!output.contains("14.125") && !output.contains("43.2%") && !output.contains("↑5k"));
+        let held = String::from_utf8(landing::render_agent_preview_footer(&landing::LandingInput {
+            columns: columns as u16, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "new Agent cwd", background: None,
+        }, Some(&footer))).unwrap();
+        assert!(held.contains("new Agent cwd"));
+        assert!(!held.contains("fix/instant-agent-tab") && !held.contains("https://github.com/timurproko/a1/pull/837"));
+        assert!(held.contains("$0.000 (sub) 0.0%/272k (auto)"));
+        assert!(!held.contains("\x1b[22;1H") && !held.contains("14.125"));
+        let narrow = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: 24, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "narrow cwd", background: None,
+        }, Some(&footer))).unwrap();
+        assert!(narrow.contains("narrow cwd") && !narrow.contains("fix/instant-agent-tab"));
+        let mut malformed = footer.clone();
+        malformed.actual.as_mut().unwrap().styles.clear();
+        let recovered = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
+            columns: columns as u16, body_rows: 23, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "unused fallback", background: None,
+        }, Some(&malformed))).unwrap();
+        assert!(recovered.contains("unused fallback") && !recovered.contains("14.125"));
+    }
+
+    #[test]
+    fn live_agent_body_holds_preview_footer_until_the_latest_real_status_is_revealed() {
+        let columns = 32usize;
+        let mut real = protocol::StructuredSurface {
+            columns: columns as u16, rows: 5,
+            row_data: vec![protocol::SurfaceRow { cells: vec![protocol::SurfaceCell::default(); columns] }; 5],
+            styles: vec![protocol::SurfaceStyle::default()],
+            ..Default::default()
+        };
+        for (index, character) in "READY".chars().enumerate() {
+            real.row_data[0].cells[index].text = character.to_string();
+        }
+        for (index, character) in "INTERMEDIATE STATUS".chars().enumerate() {
+            real.row_data[4].cells[index].text = character.to_string();
+        }
+        let preview = landing::render_agent_preview_footer(&landing::LandingInput {
+            columns: columns as u16, body_rows: 5, version: None, accent: None,
+            truecolor: true, half_blocks: false, cwd: "~/repo", background: None,
+        }, None);
+        let held = String::from_utf8(body_with_held_footer(&real, &preview).unwrap()).unwrap();
+        assert!(held.contains("READY") && held.contains("~/repo") && held.contains("no-model"));
+        assert!(!held.contains("INTERMEDIATE STATUS"), "transient Agent status never reaches the terminal");
+        for (index, character) in "LATEST STATUS      ".chars().enumerate() {
+            real.row_data[4].cells[index].text = character.to_string();
+        }
+        let next = String::from_utf8(body_with_held_footer(&real, &preview).unwrap()).unwrap();
+        assert!(!next.contains("LATEST STATUS"), "later status stays hidden during the fill");
+        let released = String::from_utf8(crate::roles::presentation::complete_surface_bytes(&real).unwrap()).unwrap();
+        assert!(released.contains("READY") && released.contains("LATEST STATUS"));
+        assert!(!released.contains("no-model"), "the latest real footer replaces the preview on release");
+    }
+
+    #[test]
+    fn palette_and_unstructured_fallbacks_show_real_status_immediately() {
+        assert!(should_hold_activation_footer(true, true));
+        assert!(!should_hold_activation_footer(false, true), "palette mode has no chip fill to wait for");
+        assert!(!should_hold_activation_footer(true, false), "legacy bodies cannot safely hold status rows");
+    }
+
+    #[test]
+    fn only_a_committed_pending_agents_first_frame_starts_the_chip_fill() {
+        let now = Instant::now();
+        let mut pending = PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None };
+        assert!(fill_on_agent_handoff(Some(&pending), "agent-2", true, now).is_none());
+        pending.real_id = Some("agent-2".into());
+        assert!(fill_on_agent_handoff(Some(&pending), "agent-3", true, now).is_none());
+        assert!(fill_on_agent_handoff(Some(&pending), "agent-2", false, now).is_none());
+        assert!(fill_on_agent_handoff(None, "agent-2", true, now).is_none());
+        assert_eq!(fill_on_agent_handoff(Some(&pending), "agent-2", true, now),
+            Some(strip::ChipFill { tab_id: "agent-2".into(), started_at: now }));
+    }
+
+    #[test]
+    fn pending_chip_inherits_every_owned_accent_before_its_real_surface() {
+        let intent = PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None };
+        for (accent, _) in landing::LANDING_ACCENTS {
+            let mut tabs = Vec::new();
+            show_pending_agent(&mut tabs, &intent);
+            apply_owned_accent(&mut tabs, Some(accent));
+            assert_eq!(tabs[0].accent.as_deref(), Some(accent));
+        }
+    }
+
+    #[test]
+    fn pending_agent_hides_early_registry_chip_before_and_after_created() {
+        let tab = |id: &str| StripTab {
+            id: id.into(),
+            name: "Agent".into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
+        };
+        let mut pending = PendingAgent {
+            known_ids: ["old".to_owned()].into_iter().collect(),
+            request_id: 1,
+            real_id: None,
+        };
+        for real_id in [None, Some("new")] {
+            pending.real_id = real_id.map(str::to_owned);
+            let mut shown = vec![tab("old"), tab("new")];
+            show_pending_agent(&mut shown, &pending);
+            assert_eq!(
+                shown.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+                ["old", PENDING_AGENT_ID]
+            );
+            let frame = strip::render_interactive_at(
+                &shown, Some(PENDING_AGENT_ID), 80, None, TimeFormat::TwentyFour, None, 1, true,
+            );
+            assert_eq!(drawn_chip_ids(&frame), ["old", PENDING_AGENT_ID]);
+            assert!(!frame.bytes.contains("new"));
+        }
+        let mut from_landing = vec![tab("new")];
+        show_pending_agent(
+            &mut from_landing,
+            &PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None },
+        );
+        assert_eq!(
+            from_landing.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+            [PENDING_AGENT_ID]
+        );
+        // Invariant: once the complete real surface commits, the ordinary registry topology owns one chip.
+        let committed = vec![tab("old"), tab("new")];
+        assert_eq!(
+            committed.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+            ["old", "new"]
+        );
     }
 
     #[test]

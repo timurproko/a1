@@ -430,6 +430,12 @@ impl Run<'_> {
                 self.model.created += 1;
                 Ok(())
             }
+            Request::CancelCreate => {
+                if let Some(index) = self.model.creating.iter().rposition(|id| id.starts_with("tab-")) {
+                    self.model.creating.remove(index);
+                }
+                Ok(())
+            }
             Request::Close(tab_id) => {
                 self.model.tabs.retain(|tab| tab.id != tab_id);
                 self.install(true)
@@ -464,7 +470,8 @@ impl Run<'_> {
             Mode::Popup(menu) => menu.tab_id.clone(),
             _ => None,
         };
-        if named.is_some_and(|id| !self.model.listed(&id)) {
+        if named.is_some_and(|id| !self.model.listed(&id)
+            && !(self.state.view.pending_agent_visible && id == crate::core::attach::PENDING_AGENT_ID)) {
             return self.fail("a prompt names a tab the registry no longer lists");
         }
         Ok(())

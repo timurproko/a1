@@ -197,10 +197,13 @@ describe("PiEngineRuntime", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(probe).toHaveBeenCalledTimes(1);
     expect(probe).toHaveBeenLastCalledWith("D:/resolved", "feature/show-pr-id-status-bar", expect.any(AbortSignal));
-
+    expect(engine.gitBranch).toBeNull();
+    expect(engine.pullRequest).toBeNull();
+    // Invariant: repository refresh publishes branch and PR together, never a partial footer.
     pending[0]!.resolve({ number: 540, url: "https://github.com/timurproko/a1/pull/540" });
     await Promise.resolve();
     expect(engine.pullRequest).toEqual({ number: 540, url: "https://github.com/timurproko/a1/pull/540" });
+    expect(engine.gitBranch).toBe("feature/show-pr-id-status-bar");
     expect(calls.at(-1)).toBe("view");
     calls.length = 0;
 
