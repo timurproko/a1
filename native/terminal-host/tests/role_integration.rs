@@ -87,6 +87,209 @@ fn cold_attach_enters_the_screen_with_a_named_tab_not_an_empty_strip() {
 }
 
 #[test]
+fn attach_after_every_agent_exited_starts_a_new_agent_instead_of_an_empty_screen() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    let bin = directory(&release, "bin");
+    std::fs::write(
+        bin.join("ui.js"),
+        "process.stdout.write('fake-a1-ready\\r\\n'); setInterval(() => {}, 1000);\n",
+    )
+    .expect("fake child");
+    let node = node_executable();
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let created = Command::new(&executable)
+        .args([
+            "internal",
+            "tab-create",
+            "--profile",
+            text(&profile),
+            "--data-dir",
+            text(&data),
+            "--runtime-dir",
+            text(&runtime),
+            "--cwd",
+            text(&release),
+            "--release-root",
+            text(&release),
+            "--node-executable",
+            &node,
+        ])
+        .env("A1_TABS_ENDPOINT", &address)
+        .current_dir(&release)
+        .output()
+        .expect("create Agent");
+    assert!(
+        created.status.success(),
+        "{}",
+        String::from_utf8_lossy(&created.stderr)
+    );
+    let exited_id = serde_json::from_slice::<serde_json::Value>(&created.stdout)
+        .expect("create report")["tabId"]
+        .as_str()
+        .expect("tab id")
+        .to_owned();
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    // A client closes the only Agent, as Alt+W does, and leaves: the record stays, stopped.
+    let credentials =
+        terminal_host_contracts::roles::credentials::ProfileCredentials::load_existing(
+            &credentials_root,
+        )
+        .expect("credentials")
+        .expect("profile credentials");
+    let wire = terminal_host_contracts::roles::wire::read_payload;
+    let kind_of = |frame: &[u8]| {
+        terminal_host_contracts::roles::wire::kind(frame)
+            .expect("frame kind")
+            .message_type
+    };
+    {
+        let mut closer = endpoint::connect(&address).expect("raw attach");
+        terminal_host_contracts::roles::wire::send(
+            &mut closer,
+            "hello",
+            Some(1),
+            terminal_host_contracts::roles::wire::RoleHello {
+                role: "attach".into(),
+                generation: terminal_host_contracts::protocol::GENERATION,
+                build: "fixture".into(),
+                release_id: terminal_host_contracts::roles::scope::fixture_release_id(&executable)
+                    .expect("fixture release id"),
+                features: Vec::new(),
+                token: credentials.client_token.to_vec(),
+                tab_id: Some(exited_id.clone()),
+                pid: Some(std::process::id()),
+                start_identity: None,
+                incarnation: 0,
+                child_pid: None,
+                child_start_identity: None,
+                highest_epoch: 0,
+            },
+        )
+        .expect("hello");
+        assert_eq!(kind_of(&wire(&mut closer).unwrap().unwrap()), "welcome");
+        assert_eq!(kind_of(&wire(&mut closer).unwrap().unwrap()), "attached");
+        terminal_host_contracts::roles::wire::send(
+            &mut closer,
+            "tab.close",
+            Some(2),
+            serde_json::json!({ "tabId": exited_id }),
+        )
+        .expect("close");
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            assert!(Instant::now() < deadline, "tab close did not complete");
+            if kind_of(&wire(&mut closer).unwrap().unwrap()) == "tab.closed" {
+                break;
+            }
+        }
+    }
+    let registry_path = credentials_root.join("registry.json");
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let stopped = RegistryStore::read(&registry_path)
+            .ok()
+            .flatten()
+            .is_some_and(|registry| {
+                registry.tabs.iter().any(|tab| {
+                    tab.tab_id == exited_id
+                        && tab.desired == "stopped"
+                        && tab.lifecycle == "stopped"
+                        && tab.holder_pid.is_none()
+                })
+            });
+        if stopped {
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "the closed Agent never settled as a stopped record: {:?}",
+            RegistryStore::read(&registry_path).ok().flatten().map(|registry| registry
+                .tabs
+                .iter()
+                .map(|tab| (tab.tab_id.clone(), tab.desired.clone(), tab.lifecycle.clone()))
+                .collect::<Vec<_>>())
+        );
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
+    let trace_path = root.path().join("attach-after-stopped.trace");
+    let mut attach = AttachFixture::spawn_configured(
+        &executable,
+        &address,
+        &profile,
+        &data,
+        &release,
+        &node,
+        None,
+        &[("A1_ATTACH_KEY_TRACE", trace_path.to_str().unwrap())],
+    );
+    let shown = attach.output_containing("fake-a1-ready", Duration::from_secs(25));
+    if !shown {
+        let mut diagnostics = format!(
+            "\n--- attach alive: {:?} ---\n--- trace ---\n{}",
+            attach.child.try_wait().map(|status| status.is_none()),
+            std::fs::read_to_string(&trace_path).unwrap_or_default()
+        );
+        if let Ok(entries) = std::fs::read_dir(credentials_root.join("diagnostics")) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                diagnostics.push_str(&format!(
+                    "\n--- {} ---\n{}",
+                    path.display(),
+                    std::fs::read_to_string(&path).unwrap_or_default()
+                ));
+            }
+        }
+        panic!(
+            "a profile whose Agents all exited must start and show a new Agent: {:?}\n{diagnostics}",
+            attach.output_text()
+        );
+    }
+    let output = String::from_utf8_lossy(&attach.retained);
+    assert!(output.contains("Agent"), "the new Agent has its chip: {output}");
+    let registry = RegistryStore::read(&registry_path)
+        .expect("registry")
+        .expect("registry document");
+    let agents = registry
+        .tabs
+        .iter()
+        .filter(|tab| tab.kind == "agent")
+        .collect::<Vec<_>>();
+    assert_eq!(
+        agents.len(),
+        1,
+        "the stopped record is dropped and one new Agent runs: {:?}",
+        registry
+            .tabs
+            .iter()
+            .map(|tab| (&tab.tab_id, &tab.desired))
+            .collect::<Vec<_>>()
+    );
+    assert_ne!(
+        agents[0].tab_id, exited_id,
+        "the new Agent takes a fresh identity"
+    );
+    assert_eq!(agents[0].desired, "running");
+    cleanup.pids.extend(holder_pids(&credentials_root));
+    attach.child.kill().expect("stop fixture attach");
+}
+
+#[test]
 fn server_holder_and_attach_survive_client_loss_and_retain_output() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");

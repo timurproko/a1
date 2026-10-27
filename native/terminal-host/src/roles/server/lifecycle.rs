@@ -666,9 +666,13 @@ pub(super) fn move_utility_last(registry: &mut RegistryDocument, tab_id: &str) -
 }
 
 /// The tab an `attach.start` views and whether it starts that tab's holder: the tab holding the
-/// selected session, a new tab for a session no tab holds, or the default tab, started when the
-/// profile has no Agent.
-fn attach_start_tab(locked: &mut RuntimeState, selected: Option<&str>) -> (String, bool) {
+/// selected session, a new tab for a session no tab holds, a new Agent when no Agent runs (stopped
+/// Agent records no holder owns are dropped first), or the running default tab.
+fn attach_start_tab(
+    locked: &mut RuntimeState,
+    selected: Option<&str>,
+    client_id: &str,
+) -> (String, bool) {
     if let Some(selected) = selected
         && let Some(tab) = locked.registry.tabs.iter().find(|tab| {
             tab.session_file
@@ -685,9 +689,19 @@ fn attach_start_tab(locked: &mut RuntimeState, selected: Option<&str>) -> (Strin
         let start = locked.core.set_starting(&tab_id, true);
         return (tab_id, start);
     }
-    let tab_id = locked.default_tab();
-    let start = locked.agentless() && locked.core.set_starting(&tab_id, true);
-    (tab_id, start)
+    // Invariant: admission named the tab this start creates and subscribed the client to it, so
+    // the reserved id is the one started; without a reservation the start names its own.
+    let reserved = locked.first_agent_reservations.remove(client_id);
+    if let Some(first) = first_agent_start(&locked.registry.tabs) {
+        let tab_id = reserved.unwrap_or(first.tab_id);
+        locked
+            .registry
+            .tabs
+            .retain(|tab| !first.dropped.contains(&tab.tab_id));
+        let start = locked.core.set_starting(&tab_id, true);
+        return (tab_id, start);
+    }
+    (locked.default_tab(), false)
 }
 
 /// Finishes a non-standby create. Cancellation before launch skips it; a race after launch stops
@@ -745,7 +759,7 @@ pub(super) fn handle_lifecycle(
                 .as_deref()
                 .map(canonical_session_identity);
             let (tab_id, should_start) =
-                attach_start_tab(&mut *lock_state(&state)?, selected.as_deref());
+                attach_start_tab(&mut *lock_state(&state)?, selected.as_deref(), &client_id);
             if should_start
                 && let Err(error) = start_holder(&profile, &state, tab_id.clone(), start, None)
             {

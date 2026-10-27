@@ -7,9 +7,13 @@ fn attach_admission(
     controller_revision: u64,
     registry_revision: u64,
 ) -> BridgeAttachment {
-    // Invariant: an empty registry has only a provisional default. Let the first real surface
-    // choose the view after attach.start creates the tab instead of pinning an absent tab.
-    let mut admission = if tabs.iter().any(|tab| tab.tab_id == viewed_tab) {
+    // Invariant: an empty registry has only a provisional default, and a stopped record is no
+    // better. Let the first real surface choose the view after attach.start creates the tab
+    // instead of pinning an absent or exited tab.
+    let mut admission = if tabs
+        .iter()
+        .any(|tab| tab.tab_id == viewed_tab && tab.desired != "stopped")
+    {
         BridgeAttachment::selected(client_id, controller_revision, viewed_tab.to_owned())
     } else {
         BridgeAttachment::new(client_id, controller_revision)
@@ -128,6 +132,11 @@ mod tests {
         let initial = admission.initial_tabs.expect("registered tab snapshot");
         assert_eq!(initial.revision, 2);
         assert_eq!(initial.tabs[0].tab_id, "tab-1");
+        // Invariant: a stopped record is as provisional as no record; attach.start replaces it.
+        let stopped = super::super::tests::record("tab-1", 1, "stopped", None);
+        let admission = attach_admission(&[stopped], "tab-1", "client", 1, 3);
+        assert_eq!(admission.selected_tab, None);
+        assert!(admission.initial_tabs.is_none());
     }
 }
 
@@ -465,7 +474,7 @@ pub(super) fn serve_attach(
         }
         let viewed_tab = requested_tab
             .filter(|tab_id| locked.registry.tabs.iter().any(|tab| &tab.tab_id == tab_id))
-            .unwrap_or_else(|| locked.default_tab());
+            .unwrap_or_else(|| locked.attach_view_tab(&client_id));
         let (revision, controller) =
             if allow_control && locked.attachment.current(&viewed_tab).is_none() {
                 (
@@ -823,6 +832,7 @@ pub(super) fn serve_attach(
         }
     }
     let mut locked = lock_state(&state)?;
+    locked.first_agent_reservations.remove(&client_id);
     if let Some(session) = locked.clients.remove(&client_id) {
         if session.controller {
             locked
