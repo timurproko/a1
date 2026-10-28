@@ -343,7 +343,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       && this.#selectionRevision === preview.revision
       && samePosition(this.#cursor(), preview.reservedCursor)
       && this.#selection === undefined) {
-      // Project only presentation; the semantic reservation remains in the editor.
+      // Invariant: painting does not commit the reserved edit.
       const original = { lines: [...state.lines], cursor: this.#cursor(), selection: this.#selection };
       this.#pasteState.preview = undefined;
       try {
@@ -473,7 +473,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     if (event.button !== 0) return false;
     if (this.#pasteState.preview !== undefined) {
       this.#pasteState.preview = undefined;
-      // Do not map preview coordinates onto a hidden semantic reservation.
+      // Invariant: preview coordinates cannot address a hidden marker.
       this.#geometry = undefined;
       this.#pointerSelecting = event.kind === "press";
       this.#requestRender();
