@@ -74,7 +74,7 @@ describe("A1 CLI dispatch", () => {
     expect(cliHelp(PRERELEASE)).toContain("session worktrees");
     expect(cliHelp(PRERELEASE)).toContain("session unlink-worktree");
     expect(cliHelp(PRERELEASE)).toContain("a1 solo");
-    expect(cliUsage(PRERELEASE)).toContain("solo");
+    expect(cliUsage(PRERELEASE)).toContain("solo --session <path|id>");
     expect(parseCliCommand(["solo"], RELEASE)).toEqual({ kind: "launch", profileId: "a1", launchMode: "solo" });
   });
 
@@ -92,6 +92,23 @@ describe("A1 CLI dispatch", () => {
       expect(commands.update).not.toHaveBeenCalled();
       expect(cliHelp(capabilities)).toContain("--session <path|id>");
       expect(cliHelp(capabilities)).toContain("--session-dir <dir> --session <path|id>");
+    }
+  });
+
+  it.each([PRERELEASE, RELEASE])("dispatches solo session selection with both option orders (%j)", async capabilities => {
+    for (const rest of [
+      ["--session", "saved-id"],
+      ["--session-dir", "D:/session's store", "--session", "saved-id"],
+      ["--session", "saved-id", "--session-dir", "D:/session's store"],
+    ]) {
+      const args = ["solo", ...rest];
+      const selection = { target: "saved-id", ...(rest.length === 2 ? {} : { sessionDir: "D:/session's store" }) };
+      const commands = handlers();
+      expect(parseCliCommand(args, capabilities)).toEqual({ kind: "launch", profileId: "a1", launchMode: "solo", sessionSelection: selection });
+      expect(await dispatchCli(args, commands, output(), capabilities)).toBe(0);
+      expect(commands.launch).toHaveBeenCalledExactlyOnceWith({ kind: "interactive", profileId: "a1", launchMode: "solo", sessionSelection: selection });
+      expect(cliHelp(capabilities)).toContain("a1 solo --session <path|id>");
+      expect(cliHelp(capabilities)).toContain("a1 solo --session-dir <dir> --session <path|id>");
     }
   });
 
@@ -218,7 +235,9 @@ describe("A1 CLI dispatch", () => {
     ["update", "--models", "extra"],
     ["update", "--all"],
     ["help", "extra"],
-    ["solo", "extra"],
+    ["solo", "extra"], ["solo", "--session"], ["solo", "--session-dir", "dir"],
+    ["solo", "--session", "id", "extra"], ["solo", "--session", "id", "--session", "other"],
+    ["solo", "--session", "id", "--unknown", "value"],
     ["--help", "extra"],
     ["version", "extra"],
     ["--version", "extra"],

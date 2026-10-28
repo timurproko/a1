@@ -34,4 +34,8 @@ Carry the direct-solo launch mode to the existing resume formatter at the sessio
 
 ## Planning clarification
 
-The maintainer clarified that the requested case is an **exited solo session**, not a live multi-agent handoff. The resident attach client already directs users to run bare `a1`; no resident mode change or special new occupied-session guidance is needed. Implementation still awaits explicit plan approval.
+The maintainer clarified that the requested case is an **exited solo session**, not a live multi-agent handoff. The resident attach client already directs users to run bare `a1`; no resident mode change or special new occupied-session guidance is needed. The maintainer approved this scope and explicitly requested implementation.
+
+## Implementation gap disposition
+
+No known behavior gap remains. Focused local typecheck, parser, launch, shell, resolver, governance, and strict OpenSpec checks passed. Exact packaged-entry tests for the exited-solo hint, custom store quoting, invalid targets, and occupied-writer refusal are written and await post-readiness CI; they are not claimed as locally run.

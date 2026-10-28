@@ -18,6 +18,16 @@ describe("session lifecycle", () => {
     expect(transcript).not.toHaveBeenCalled();
   });
 
+  it("prints a solo-form hint only for an exited persisted solo session", () => {
+    const transcript = vi.fn(() => "rows");
+    const output = composeExitText({ terminalMode: "fullscreen", customViewport: true, exitMode: "transcript",
+      resume, soloResumeHint: true, transcript });
+    expect(output).toBe("\u001b[2mTo resume this session:\u001b[22m a1 solo --session s1");
+    expect(composeExitText({ terminalMode: "fullscreen", customViewport: true, exitMode: "transcript",
+      resume: null, soloResumeHint: true, transcript })).toBe("");
+    expect(transcript).not.toHaveBeenCalled();
+  });
+
   it("prints the pinned transcript before the hint, and either one alone when the other is empty", () => {
     expect(composeExitText({ terminalMode: "fullscreen", customViewport: false, exitMode: "transcript", resume, transcript: () => "rows" }))
       .toBe("rows\n\n\u001b[2mTo resume this session:\u001b[22m a1 --session s1");
@@ -27,6 +37,8 @@ describe("session lifecycle", () => {
   it("quotes a non-default session directory for the shell", () => {
     expect(formatSessionResumeCommand({ sessionId: "s1", sessionDir: "/it's here", usesDefaultSessionDir: false }))
       .toBe("a1 --session-dir '/it'\\''s here' --session s1");
+    expect(formatSessionResumeCommand({ sessionId: "s1", sessionDir: "/it's here", usesDefaultSessionDir: false }, true))
+      .toBe("a1 solo --session-dir '/it'\\''s here' --session s1");
     expect(quoteCommandArgument("plain/path")).toBe("plain/path");
     expect(quoteCommandArgument("")).toBe("''");
   });

@@ -103,6 +103,7 @@ if (utilityRoute !== null) {
           ownedSurfaces,
           notificationVersion: launchContext.updateVersion,
           ...(hidesTabSettings(launchContext) ? { hideTabSettings: true } : {}),
+          soloResumeHint: profile === "a1" && launchContext.launchMode === "solo",
           ...(processInspector === null ? {} : { inspectProcess: pid => processInspector.observe(pid) }),
           projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
           sessionForkPrompt: createConsoleSessionForkPrompt(),

@@ -140,6 +140,8 @@ export interface OwnedUiShellEngineOptions {
 /** Terminal, startup, viewport, and presentation-cadence seams; production leaves most at their defaults. */
 export interface OwnedUiShellPresentationOptions {
   readonly terminal?: OwnedUiTerminalPort;
+  /** Explicit direct solo launch, not a resident fallback or comparison launch. */
+  readonly soloResumeHint?: boolean;
   readonly startup?: OwnedUiStartupOptions;
   /** Live profile-local settings, supplied only to the bare-A1 composition. */
   readonly viewportSettings?: OwnedUiViewportSettingsPort;

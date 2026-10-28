@@ -21,8 +21,8 @@ export function interactiveLaunchIntent(
   sessionSelection?: SessionSelection,
   launchMode: InteractiveLaunchMode = profileId === "a1" ? "tabs" : "solo",
 ): InteractiveLaunchIntent {
-  if (sessionSelection !== undefined && (profileId !== "a1" || launchMode === "solo")) {
-    throw new Error("session selection requires the normal tabbed A1 launch");
+  if (sessionSelection !== undefined && profileId !== "a1") {
+    throw new Error("session selection requires the A1 profile");
   }
   if (profileId === "pi" && launchMode !== "solo") throw new Error("the Pi comparison launch is always solo");
   sessionSelectionArguments(sessionSelection);
