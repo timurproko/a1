@@ -947,40 +947,6 @@ Whenever an authoritative attach controller reports new terminal geometry, A1 SH
 - **THEN** background fitting SHALL leave the other client's viewed or controlled tab unchanged
 - **AND** the spectator SHALL fit the controller-sized presentation without resizing any shared child
 
-### Requirement: Active outer resize uses a stable dimension curtain
-
-While an attach client's outer terminal emits a burst of changed-size resize events, A1 SHALL replace the complete tab strip, active child surface, overlays, and cursor with a host-owned curtain showing a centered `🖥️` mark on the row above a separately centered `Resize <columns> x <rows>` message for the latest terminal dimensions, with both rows in the quiet presentation role. A resize notification matching the attach client's already established dimensions SHALL NOT start the curtain or alter geometry state. A1 SHALL continue routing geometry and accepting fresh holder state behind the curtain but SHALL NOT present intermediate active-TUI frames. After resize events remain quiet for the 220 ms settle interval and the viewed holder has published current-geometry state, A1 SHALL first restore the complete UI in one synchronized dimmed presentation with the child cursor hidden, then SHALL force the current complete presentation at normal intensity after a short bounded fade interval. Ordinary paints during that interval SHALL remain dimmed, and another resize SHALL cancel the reveal and restore the curtain. If current holder state does not arrive within the bounded recovery interval, A1 SHALL use the newest retained complete presentation for the same dim-to-normal reveal rather than leave the curtain indefinitely.
-
-#### Scenario: Initial unchanged resize notification stays invisible
-
-- **WHEN** attach startup receives a resize notification matching its established terminal columns and rows
-- **THEN** A1 SHALL NOT show the resize curtain
-- **AND** SHALL preserve the ordinary startup presentation path
-
-#### Scenario: Continuous window resize shows only current dimensions
-
-- **WHEN** the user drags the outer terminal boundary and multiple resize events arrive
-- **THEN** every visible intermediate frame SHALL contain only the centered `🖥️` mark and punctuation-free resize message for the latest columns and rows
-- **AND** no tab strip, child content, overlay, or child cursor SHALL be visible behind it
-
-#### Scenario: Resize completion fades in the current UI
-
-- **WHEN** resize events stop and the active holder publishes a surface for the final geometry
-- **THEN** A1 SHALL retain the curtain for the 220 ms settle interval and then show the complete strip and child UI dimmed with no child cursor
-- **AND** SHALL restore the current complete UI at normal intensity after the short fade interval without exposing intermediate reflow
-
-#### Scenario: Resize resumes during the dimmed reveal
-
-- **WHEN** another outer resize event arrives while the settled UI is still dimmed
-- **THEN** A1 SHALL cancel the reveal immediately
-- **AND** SHALL replace the dimmed UI with the centered curtain for the new dimensions
-
-#### Scenario: Resize publication stalls
-
-- **WHEN** resize events stop but the active holder does not publish current-geometry state within the bounded recovery interval
-- **THEN** A1 SHALL enter the bounded dim-to-normal reveal using the newest retained presentation
-- **AND** SHALL NOT leave the terminal permanently on the resize status
-
 ### Requirement: A holder without a record ends instead of replacing its server
 When the server refuses a holder's hello for a definitive reason, it SHALL answer with a `refused` message naming that reason before closing the connection. A holder SHALL treat a refusal for no registry or standby record, a rejected credential, a newer server epoch, or an incarnation, holder identity, child identity, or role mismatch as definitive and SHALL exit, ending its child, without requesting a replacement server. A holder SHALL keep its bounded reconnect only for transient failures, and the interval between replacement requests SHALL grow to at least fifteen seconds. A standby holder SHALL NOT request a replacement server; it SHALL exit when its server disconnects or refuses it.
 
@@ -1117,3 +1083,28 @@ Host release partitioning SHALL NOT partition the process-owned session-writer l
 #### Scenario: Writer exits before another release resumes
 - **WHEN** A's writer has exited and B later selects its session
 - **THEN** B MAY acquire the released lock through ordinary verified admission without automatically replaying any interrupted prompt
+
+### Requirement: Active outer resize repaints the complete frame directly
+
+When an attach client's outer terminal reports changed geometry, A1 SHALL immediately update the host's geometry and generation, forward the new size to the viewed child, and repaint the retained complete strip and child frame at the current dimensions in one synchronized presentation. A1 SHALL NOT show a resize-only curtain, centered status, dimmed reveal, or fade, whether the resize is a quick snap, a prolonged drag, or a background terminal-tab geometry change. Subsequent current-geometry child surfaces SHALL replace the retained rows normally. A resize notification matching already established dimensions SHALL remain a no-op. Focus gain SHALL request a complete current-size repaint without replaying stale resize feedback. Startup first-draw and tab-switch coherence rules SHALL remain unchanged.
+
+#### Scenario: Initial unchanged resize notification stays invisible
+
+- **WHEN** attach startup receives a resize notification matching its established terminal columns and rows
+- **THEN** A1 SHALL preserve the ordinary startup presentation path without repainting or showing a resize message
+
+#### Scenario: Continuous window resize keeps the current frame
+
+- **WHEN** the user drags the outer terminal boundary and multiple resize events arrive
+- **THEN** each accepted geometry SHALL be forwarded and the complete retained frame SHALL repaint at the new size
+- **AND** no centered resize status, blank-only frame, or resize fade SHALL appear
+
+#### Scenario: A fresh surface completes resize
+
+- **WHEN** the active holder publishes a surface for the final geometry
+- **THEN** A1 SHALL paint the latest child content at full intensity without waiting for a settle or recovery timer
+
+#### Scenario: Inactive terminal tab returns after resize
+
+- **WHEN** another terminal tab was active while the A1 terminal changed dimensions and the user returns
+- **THEN** A1 SHALL repaint the current complete frame without replaying a resize-only curtain or fading the child cursor

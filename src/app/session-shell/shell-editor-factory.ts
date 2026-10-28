@@ -2,6 +2,7 @@ import { caretCell } from "../../ui/components/line-input.js";
 import { PromptInput } from "../../ui/components/prompt-input.js";
 import { backgroundSgrSpan, hyperlinkSgrSpan } from "../../ui/components/spans.js";
 import { faint, stripAnsi } from "../../ui/components/text.js";
+import { paintTextSelection } from "../../ui/components/text-selection.js";
 import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
 import { piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import {
@@ -47,14 +48,9 @@ export function createShellEditor(ports: ShellEditorPorts): PiShellEditorPort {
     ...handlers,
     keybindingProfile: customViewport ? "a1" : "pi",
     ...(handlers.keybindings === undefined ? {} : { keybindings: handlers.keybindings }),
-    paintEditorSelection: (line, from, to, atomic) => backgroundSgrSpan(
-      line,
-      from,
-      to,
-      atomic ? "\u001b[7m" : "\u001b[27m\u001b[48;2;38;79;120m",
-      atomic ? "\u001b[27m" : "\u001b[49m",
-      piShellVisibleWidth,
-    ),
+    paintEditorSelection: (line, from, to, atomic) => atomic
+      ? backgroundSgrSpan(line, from, to, "\u001b[7m", "\u001b[27m", piShellVisibleWidth)
+      : paintTextSelection(line, from, to, piShellVisibleWidth, true),
     transformPastedContent: content => {
       try {
         return promptChips.transformPastedContent(content, editor.getText());

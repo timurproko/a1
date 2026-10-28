@@ -109,7 +109,6 @@ pub(super) fn promote_standby(
             .cloned()
             .ok_or_else(|| "standby holder disappeared".to_owned())?;
         locked.standby = None;
-        let order = locked.registry.tabs.len() as u32;
         let display_name = DEFAULT_AGENT_TAB_NAME.to_owned();
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -118,13 +117,13 @@ pub(super) fn promote_standby(
             .to_string();
         let previous = locked.registry.clone();
         prune_stopped_records(&mut locked.registry.tabs);
-        locked.registry.tabs.push(TabRecord {
+        append_live_tab(&mut locked.registry, TabRecord {
             tab_id: standby.tab_id.clone(),
             kind: "agent".into(),
             created_at,
             display_name,
             name_source: "default".into(),
-            order,
+            order: 0,
             cwd: start.cwd.clone(),
             session_file: None,
             session_dir: None,

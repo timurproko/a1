@@ -48,12 +48,23 @@ function numbered(count: number): readonly string[] {
   return Array.from({ length: count }, (_row, index) => `row ${String(index + 1).padStart(2, "0")}`);
 }
 
-function app(rows: readonly string[] | ((width: number) => readonly string[]), overrides: Partial<OwnedUiViewportSettings> = {}, title = "Reference") {
+function app(
+  rows: readonly string[] | ((width: number) => readonly string[]),
+  overrides: Partial<OwnedUiViewportSettings> = {},
+  title = "Reference",
+  selection?: { readonly copyOnSelect: () => boolean; readonly copyText: (text: string) => boolean | void },
+) {
   const calls: number[] = [];
   const provider: ReferenceDocumentProvider = {
     rows: width => { calls.push(width); return typeof rows === "function" ? rows(width) : rows; },
   };
-  return { app: new ReferenceScreenApp({ id: "reference", title, document: provider, scrollSettings: settings(overrides) }), calls };
+  return {
+    app: new ReferenceScreenApp({
+      id: "reference", title, document: provider, scrollSettings: settings(overrides),
+      ...(selection === undefined ? {} : { selection }),
+    }),
+    calls,
+  };
 }
 
 function sectioned(sections: readonly ReferenceDocumentSection[], title = "Reference"): ReferenceScreenApp {
@@ -193,6 +204,153 @@ describe("ReferenceScreenApp frame", () => {
     expect(footer).not.toContain("close");
   });
 
+  it("selects Changelog text and applies automatic or explicit copy at release time", () => {
+    let automatic = true;
+    const copyText = vi.fn();
+    const { app: target } = app(["alpha beta", "gamma"], {}, "Changelog", {
+      copyOnSelect: () => automatic,
+      copyText,
+    });
+    const selectedTheme: UiTheme = { ...NAMING_THEME, highlight: text => `<selected>${text}</selected>` };
+    screen(target, { ...HOST, theme: selectedTheme });
+
+    target.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, HOST);
+    expect(copyText).toHaveBeenLastCalledWith("alpha");
+    const selectedRow = screen(target, { ...HOST, theme: selectedTheme })[2] ?? "";
+    expect(selectedRow).toContain("\u001b[48;2;38;79;120m");
+    expect(selectedRow).not.toContain("<selected>");
+
+    automatic = false;
+    target.onMouse?.({ kind: "press", button: 0, row: 4, column: 2 }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row: 4, column: 2 }, HOST);
+    target.onMouse?.({ kind: "press", button: 0, row: 4, column: 2 }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row: 4, column: 2 }, HOST);
+    expect(copyText).toHaveBeenCalledTimes(1);
+    expect(target.onInput?.(INTERRUPT, HOST)).toEqual({ consumed: true });
+    expect(copyText).toHaveBeenLastCalledWith("gamma");
+    expect(screen(target, { ...HOST, theme: selectedTheme })[3]).not.toContain("\u001b[48;2;38;79;120m");
+    expect(target.onInput?.(INTERRUPT, HOST)).toEqual({ consumed: false });
+  });
+
+  it("acknowledges accepted automatic copy above the footer and replaces its one-second timer", () => {
+    vi.useFakeTimers();
+    const copyText = vi.fn(() => true);
+    const requestRender = vi.fn();
+    const fg = vi.fn((_token: UiThemeToken, text: string) => text);
+    const host = { ...HOST, requestRender, theme: { ...NAMING_THEME, fg } };
+    const { app: target } = app(["alpha", "longer", ...numbered(20)], { scrollbarAppearance: "always" }, "Changelog", {
+      copyOnSelect: () => true,
+      copyText,
+    });
+    screen(target, host);
+
+    target.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, host);
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, host);
+    target.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, host);
+    expect(copyText).toHaveBeenLastCalledWith("alpha");
+    expect(screen(target, host)[TOP + BODY - 1]?.slice(0, -RAIL_COLUMNS)).toMatch(/copied 5 chars to clipboard$/);
+    expect(fg).toHaveBeenCalledWith("accent", "copied 5 chars to clipboard");
+    expect(requestRender).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(500);
+    target.onInput?.(DOWN, host);
+    screen(target, host);
+    target.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, host);
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 6 }, host);
+    target.onMouse?.({ kind: "release", button: 0, row: 3, column: 6 }, host);
+    expect(copyText).toHaveBeenLastCalledWith("longer");
+    expect(screen(target, host)[TOP + BODY - 1]?.slice(0, -RAIL_COLUMNS)).toMatch(/copied 6 chars to clipboard$/);
+    vi.advanceTimersByTime(500);
+    expect(screen(target, host).join("\n")).toContain("copied 6 chars to clipboard");
+    const narrowRect = { width: 12, height: RECT.height };
+    const narrow = screen(target, { ...HOST, requestRender }, narrowRect);
+    expect(finalizeFrame(narrow, narrowRect, "reference acknowledgement")).toEqual(narrow);
+    vi.advanceTimersByTime(500);
+    expect(screen(target, host).join("\n")).not.toContain("copied");
+    expect(requestRender.mock.calls.length).toBeGreaterThanOrEqual(3);
+
+    target.onClose?.(host);
+  });
+
+  it("does not acknowledge disabled or refused automatic copy", () => {
+    const refused = app(["alpha"], {}, "Changelog", {
+      copyOnSelect: () => true,
+      copyText: () => false,
+    }).app;
+    const selectedTheme: UiTheme = { ...NAMING_THEME, highlight: text => `<selected>${text}</selected>` };
+    screen(refused, { ...HOST, theme: selectedTheme });
+    refused.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, HOST);
+    refused.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, HOST);
+    refused.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, HOST);
+    const refusedFrame = screen(refused, { ...HOST, theme: selectedTheme });
+    expect(refusedFrame.join("\n")).not.toContain("copied");
+    expect(refusedFrame[2]).toContain("\u001b[48;2;38;79;120m");
+    expect(refusedFrame[2]).not.toContain("<selected>");
+
+    const copyText = vi.fn();
+    const disabled = app(["alpha"], {}, "Changelog", {
+      copyOnSelect: () => false,
+      copyText,
+    }).app;
+    screen(disabled);
+    disabled.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, HOST);
+    disabled.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, HOST);
+    disabled.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, HOST);
+    expect(copyText).not.toHaveBeenCalled();
+    expect(screen(disabled).join("\n")).not.toContain("copied");
+  });
+
+  it("keeps non-selectable reference routes free of copy acknowledgement", () => {
+    const { app: target } = app(["alpha"], {}, "Hotkeys");
+    screen(target);
+    target.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, HOST);
+    expect(screen(target).join("\n")).not.toContain("copied");
+  });
+
+  it("supports line and multi-row selection with ANSI-safe text while scrolling", () => {
+    const copyText = vi.fn();
+    const styled = `${ESC}[31malpha beta${ESC}[39m`;
+    const { app: target } = app([styled, "gamma delta", ...numbered(20)], {}, "Changelog", {
+      copyOnSelect: () => false,
+      copyText,
+    });
+    screen(target);
+
+    for (let click = 0; click < 3; click += 1) {
+      target.onMouse?.({ kind: "press", button: 0, row: 3, column: 3 }, HOST);
+      target.onMouse?.({ kind: "release", button: 0, row: 3, column: 3 }, HOST);
+    }
+    target.onInput?.(DOWN, HOST);
+    expect(target.onInput?.(INTERRUPT, HOST)).toEqual({ consumed: true });
+    expect(copyText).toHaveBeenLastCalledWith("alpha beta");
+
+    screen(target);
+    target.onMouse?.({ kind: "press", button: 0, row: 2, column: 1 }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, HOST);
+    target.onMouse?.({ kind: "wheel-down", button: 0, row: 4, column: 10 }, HOST);
+    expect(target.onInput?.(INTERRUPT, HOST)).toEqual({ consumed: true });
+    expect(copyText).toHaveBeenLastCalledWith("alpha beta\ngamma");
+  });
+
+  it("gives the scrollbar press precedence over Changelog selection", () => {
+    const copyText = vi.fn();
+    const { app: target } = app(numbered(70), { scrollbarAppearance: "always" }, "Changelog", {
+      copyOnSelect: () => true,
+      copyText,
+    });
+    screen(target);
+    expect(target.onMouse?.({ kind: "press", button: 0, row: TOP + 1, column: RAIL_COLUMN }, HOST)).toEqual({ consumed: true });
+    target.onMouse?.({ kind: "motion", button: 0, row: TOP + BODY, column: RAIL_COLUMN }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row: TOP + BODY, column: RAIL_COLUMN }, HOST);
+    expect(copyText).not.toHaveBeenCalled();
+    expect(body(target)[0]).toBe(`row ${String(70 - BODY + 1).padStart(2, "0")}`);
+  });
+
   it("shows a loading notice until a pending provider is ready, then renders the document once", async () => {
     let ready!: () => void;
     let rows: readonly string[] | null = null;
@@ -249,8 +407,8 @@ describe("ReferenceScreenApp frame", () => {
     expect(hiddenCalls).toEqual([RECT.width]);
   });
 
-  it("keeps the frame contract at small rectangles", () => {
-    const { app: target } = app(numbered(20));
+  it("keeps the selectable frame contract at small rectangles", () => {
+    const { app: target } = app(numbered(20), {}, "Changelog", { copyOnSelect: () => true, copyText: () => {} });
     for (const rect of [{ width: 0, height: 0 }, { width: 3, height: 1 }, { width: 5, height: 2 }, { width: 1, height: 3 }, { width: 12, height: 4 }]) {
       const lines = target.render(rect, HOST);
       expect(lines).toHaveLength(rect.height);

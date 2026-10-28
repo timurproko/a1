@@ -841,13 +841,15 @@ setInterval(() => {}, 1000);
             "palette mode must show real status without a fill: {}", attach.output_text());
         attach.write(b"!");
     }
-    assert!(!attach.output_since(from).contains("old-branch"),
-        "an older Agent's repository metadata leaked into the pending path: {}", attach.output_text());
+    // Invariant: input may race an in-flight repaint of the still-viewed old Agent.
+    // Inspect the newly drawn Agent frame, not every byte since the shortcut was pressed.
+    assert!(!latest_cleared_frame(&attach.output_since(from)).expect("new Agent frame").contains("old-branch"),
+        "an older Agent's repository metadata leaked into the new view: {}", attach.output_text());
     assert!(attach.output_containing("latest-model", Duration::from_secs(8)),
         "latest real status did not appear after the fill: {}", attach.output_text());
     assert!(attach.output_since(from).contains("new-branch) #456"),
         "the new Agent's resolved branch and PR should appear together: {}", attach.output_text());
-    assert!(!attach.output_since(from).contains("old-branch"));
+    assert!(!latest_cleared_frame(&attach.output_since(from)).expect("latest Agent frame").contains("old-branch"));
     assert!(attach.child.try_wait().unwrap().is_none(), "attach exited during status handoff");
     attach.write(b"\x1bw");
     attach.settle(Duration::from_millis(500));
@@ -858,7 +860,7 @@ setInterval(() => {}, 1000);
 }
 
 #[test]
-fn closing_a_registered_agent_before_first_draw_stops_its_child_without_a_ghost() {
+fn a_registered_agent_keeps_its_preview_past_the_old_wait_and_closes_without_a_ghost() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
@@ -878,8 +880,12 @@ setInterval(() => {}, 1000);
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
     let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
-    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    let trace_path = root.path().join("cancel-view.trace");
+    let mut attach = AttachFixture::spawn_configured(&executable, &address, &profile, &data,
+        &release, &node_executable(), None,
+        &[("A1_ATTACH_KEY_TRACE", trace_path.to_str().unwrap())]);
     assert!(attach.output_containing("fake-a1-ready", Duration::from_secs(20)));
+    let opening = attach.retained_len();
     attach.write(b"\x1ba");
     let deadline = Instant::now() + Duration::from_secs(10);
     let (new_id, holder_pid) = loop {
@@ -892,7 +898,18 @@ setInterval(() => {}, 1000);
         assert!(Instant::now() < deadline, "new Agent holder was never registered");
         std::thread::sleep(Duration::from_millis(20));
     };
+    attach.settle(Duration::from_millis(2500));
+    let since_opening = attach.output_since(opening);
+    let delayed = latest_cleared_frame(&since_opening).expect("pending frame");
+    assert!(
+        delayed.contains("Agent") && delayed.contains("no-model") && has_visual_caret(delayed),
+        "the complete Agent preview did not survive blank child frames: {}",
+        attach.output_text()
+    );
+    assert!(!delayed.contains("\x1b[?25h"), "a blank child cursor became visible");
+    assert!(!attach.output_since(opening).contains("late-ready"));
     let before_close = attach.retained_len();
+    let trace_before_close = std::fs::read_to_string(&trace_path).unwrap().len();
     attach.write(b"\x1bw");
     let deadline = Instant::now() + Duration::from_secs(12);
     loop {
@@ -915,6 +932,9 @@ setInterval(() => {}, 1000);
     }
     assert!(attach.output_since(before_close).contains("fake-a1-ready"),
         "old Agent view was not restored after close: {}", attach.output_text());
+    let trace = std::fs::read_to_string(&trace_path).unwrap();
+    assert!(trace[trace_before_close..].contains("view=tab-1"),
+        "closing an uncommitted Agent did not reclaim the old view: {trace}");
     attach.write(b"z");
     assert!(attach.output_containing("echo:7a", Duration::from_secs(8)),
         "old Agent no longer receives input: {}", attach.output_text());
@@ -1025,6 +1045,13 @@ fn has_visual_caret(output: &str) -> bool {
 
 fn latest_cleared_frame(output: &str) -> Option<&str> {
     output.rsplit_once("\x1b[2J").map(|(_, frame)| frame)
+}
+
+#[test]
+fn new_agent_frame_excludes_an_in_flight_old_view_repaint() {
+    let output = "\x1b[2JAgent cwd (old-branch) #123\x1b[2JAgent second-ready cwd";
+    assert!(!latest_cleared_frame(output).unwrap().contains("old-branch"));
+    assert!(latest_cleared_frame("\x1b[2JAgent cwd (old-branch) #123").unwrap().contains("old-branch"));
 }
 
 #[test]

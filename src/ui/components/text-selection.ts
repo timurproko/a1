@@ -1,6 +1,6 @@
+import { backgroundSgrSpan } from "./spans.js";
 import { displayWidth, stripAnsi } from "./text.js";
 
-/** A reported pointer cell plus its grapheme-aligned zero-based boundaries. */
 export interface TextSelectionPoint {
   readonly line: number;
   readonly column: number;
@@ -34,7 +34,6 @@ export interface TextSelectionLineContent {
   readonly selectable?: boolean;
 }
 
-/** Ordered zero-based, half-open display-column boundaries. */
 export interface OrderedTextSelection {
   readonly start: TextSelectionPoint;
   readonly end: TextSelectionPoint;
@@ -54,6 +53,21 @@ export interface TextSelectionPressInput {
 
 const GRAPHEMES = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 export const TEXT_SELECTION_MULTI_CLICK_MS = 500;
+const TEXT_SELECTION_BACKGROUND = "\u001b[48;2;38;79;120m";
+
+export function paintTextSelection(
+  line: string,
+  from: number,
+  to: number,
+  widthOf: (text: string) => number = displayWidth,
+  clearInverse = false,
+): string {
+  return backgroundSgrSpan(
+    line, from, to,
+    `${clearInverse ? "\u001b[27m" : ""}${TEXT_SELECTION_BACKGROUND}`,
+    "\u001b[49m", widthOf,
+  );
+}
 
 export function orderedTextSelection(selection: TextSelection | undefined): OrderedTextSelection | undefined {
   if (selection === undefined) return undefined;
@@ -70,8 +84,6 @@ export function orderedTextSelection(selection: TextSelection | undefined): Orde
   }
   if (!selection.cell && selection.dragged !== true) return undefined;
 
-  // Invariant: an accepted drag includes both endpoint graphemes, even after returning
-  // to its anchor. Only an unextended point press is empty; paint and copy stay half-open.
   const anchorFirst = comparePoints(anchor, head) <= 0;
   const first = anchorFirst ? anchor : head;
   const last = anchorFirst ? head : anchor;

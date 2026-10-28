@@ -190,7 +190,14 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   #lastClick: { time: number; line: number; col: number; count: number } | undefined;
   #redoStack: EditorSnapshot[] = [];
   #selectionRevision = 0;
-  #pasteGeneration = 0;
+  #pasteState: {
+    generation: number;
+    preview: {
+      marker: string; reservedText: string; lines: string[];
+      cursor: Position; selection: Selection | undefined;
+      reservedCursor: Position; revision: number;
+    } | undefined;
+  } = { generation: 0, preview: undefined };
   #terminalPaste: { parts: string[]; piece: string; tail: string; bytes: number; oversized: boolean } | undefined;
   #wordDirection: WordDirection | undefined;
   #geometry: {
@@ -220,6 +227,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   handleInput(data: string, next: (data?: string) => void): void {
+    this.#pasteState.preview = undefined;
     if (this.options.pasteEnabled === false ? discardTerminalPaste(this, data, value => this.handleInput(value, next)) : this.#handleTerminalPaste(data, next)) return;
     if (this.keybindings.matches(data, "owned.editor.selectAll")) {
       this.#selectAll();
@@ -251,7 +259,6 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       this.#redo();
       return;
     }
-
     if (this.keybindings.matches(data, "tui.editor.undo")) {
       const before = this.#snapshot();
       this.#clearSelection(false);
@@ -330,7 +337,25 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   render(width: number, next: () => string[]): string[] {
+    const preview = this.#pasteState.preview;
     const state = editorState(this.editor);
+    if (preview !== undefined && this.editor.getText() === preview.reservedText
+      && this.#selectionRevision === preview.revision
+      && samePosition(this.#cursor(), preview.reservedCursor)
+      && this.#selection === undefined) {
+      // Invariant: painting does not commit the reserved edit.
+      const original = { lines: [...state.lines], cursor: this.#cursor(), selection: this.#selection };
+      this.#pasteState.preview = undefined;
+      try {
+        this.#setRenderState(preview.lines, preview.cursor);
+        this.#selection = preview.selection;
+        return this.render(width, next);
+      } finally {
+        this.#setRenderState(original.lines, original.cursor);
+        this.#selection = original.selection;
+        this.#pasteState.preview = preview;
+      }
+    }
     const hidden = state.lines.map(line => this.options.hiddenRanges?.(line) ?? []);
     if (!hidden.some(ranges => ranges.length > 0)) return this.#renderVisible(width, next);
     const original = { ...state, lines: [...state.lines] };
@@ -408,6 +433,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   reset(): void {
+    this.#pasteState.preview = undefined;
     this.#selection = undefined;
     this.#pointerSelecting = false;
     this.#lastClick = undefined;
@@ -417,7 +443,8 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   cancelPendingPastes(): void {
-    this.#pasteGeneration += 1;
+    this.#pasteState.generation += 1;
+    this.#pasteState.preview = undefined;
     this.#terminalPaste = undefined;
     DISABLED_TERMINAL_PASTES.delete(this);
   }
@@ -444,6 +471,14 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
 
   handlePointer(event: OwnedEditorPointerEvent): boolean {
     if (event.button !== 0) return false;
+    if (this.#pasteState.preview !== undefined) {
+      this.#pasteState.preview = undefined;
+      // Invariant: preview coordinates cannot address a hidden marker.
+      this.#geometry = undefined;
+      this.#pointerSelecting = event.kind === "press";
+      this.#requestRender();
+      return true;
+    }
     if (event.kind === "press") return this.#pointerPress(event.column, event.row);
     if (event.kind === "motion") {
       if (!this.#pointerSelecting) return false;
@@ -646,15 +681,27 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     const begin = source === undefined ? this.options.beginClipboardPaste
       : this.options.beginTextPaste === undefined ? undefined : () => this.options.beginTextPaste!(source);
     if (begin !== undefined) {
-      const generation = this.#pasteGeneration;
+      const generation = this.#pasteState.generation;
       const restore = this.#orderedSelection() === undefined ? "" : this.#selectedText();
       const paste = begin();
       this.#redoStack = [];
-      if (this.#orderedSelection() !== undefined) this.#replaceSelection(paste.marker);
-      else this.editor.insertTextAtCursor(paste.marker);
+      const selected = this.#orderedSelection();
+      if (selected !== undefined) {
+        const lines = [...editorState(this.editor).lines];
+        const cursor = this.#cursor();
+        const selection = this.#selection;
+        const current = this.editor.getText();
+        const from = positionOffset(lines, selected.start);
+        const to = positionOffset(lines, selected.end);
+        const reservedText = current.slice(0, from) + normalizeInsertedText(paste.marker) + current.slice(to);
+        this.#replaceSelection(paste.marker);
+        this.#pasteState.preview = { marker: paste.marker, reservedText, lines, cursor, selection,
+          reservedCursor: this.#cursor(), revision: this.#selectionRevision };
+      } else this.editor.insertTextAtCursor(paste.marker);
       this.#requestRender();
       const replace = (text: string): void => {
-        if (generation === this.#pasteGeneration) this.#replacePasteMarker(paste.marker, paste.isCurrent?.() === false ? restore : text || restore);
+        if (this.#pasteState.preview?.marker === paste.marker) this.#pasteState.preview = undefined;
+        if (generation === this.#pasteState.generation) this.#replacePasteMarker(paste.marker, paste.isCurrent?.() === false ? restore : text || restore);
         paste.complete?.();
       };
       void paste.result.then(replace).catch(() => replace(restore));

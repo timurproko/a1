@@ -7,11 +7,12 @@ import {
   type ScrollbarGeometry,
   type ScrollbarStyle,
 } from "./scrollbar.js";
-import { backgroundSgrSpan, overlaySpan } from "./spans.js";
+import { overlaySpan } from "./spans.js";
 import { faint, truncateToWidth, displayWidth, stripAnsi } from "./text.js";
 import {
   extendTextSelection,
   orderedTextSelection,
+  paintTextSelection,
   pressTextSelection,
   releaseTextSelection,
   textSelectionLineExtendColumn,
@@ -229,7 +230,7 @@ const PLAIN_THEME: TranscriptViewportTheme = {
   sticky: (text, hovered) => hovered ? `\u001b[7m${text}\u001b[27m` : text,
   quietSticky: faint,
   bottomControl: (text, hovered) => hovered ? `\u001b[7m${text}\u001b[27m` : `\u001b[7m${text}\u001b[27m`,
-  selection: (line, from, to) => backgroundSgrSpan(line, from, to),
+  selection: paintTextSelection,
 };
 
 /**

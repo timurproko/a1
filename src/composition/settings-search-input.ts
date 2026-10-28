@@ -11,6 +11,7 @@ import {
 } from "../integrations/pi/components/shell-shared-facade.js";
 import { backgroundSgrSpan } from "../ui/components/spans.js";
 import { caretCell } from "../ui/components/line-input.js";
+import { paintTextSelection } from "../ui/components/text-selection.js";
 import { PromptInput } from "../ui/components/prompt-input.js";
 
 export interface SettingsSearchInputFactoryOptions {
@@ -53,14 +54,9 @@ function createSettingsSearchInput(
     requestRender: surface.requestRender,
     onSubmit: () => {},
     onCopyText: text => surface.copyText(text),
-    paintEditorSelection: (line, from, to, atomic) => backgroundSgrSpan(
-      line,
-      from,
-      to,
-      atomic ? "\u001b[7m" : "\u001b[27m\u001b[48;2;38;79;120m",
-      atomic ? "\u001b[27m" : "\u001b[49m",
-      piShellVisibleWidth,
-    ),
+    paintEditorSelection: (line, from, to, atomic) => atomic
+      ? backgroundSgrSpan(line, from, to, "\u001b[7m", "\u001b[27m", piShellVisibleWidth)
+      : paintTextSelection(line, from, to, piShellVisibleWidth, true),
     promptPresentation: {
       input: new PromptInput({ fg: (token, text) => surface.theme.fg(token, text) }, {
         measure: piShellVisibleWidth,

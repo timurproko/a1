@@ -23,10 +23,8 @@ import {
   composeSubmittedPromptRows,
   submittedPromptLayout,
 } from "../../ui/components/submitted-prompt.js";
-import {
-  backgroundSgrSpan,
-  nativeHyperlinkStyle,
-} from "../../ui/components/spans.js";
+import { nativeHyperlinkStyle } from "../../ui/components/spans.js";
+import { paintTextSelection } from "../../ui/components/text-selection.js";
 import { progressStatusFrame, progressStatusText } from "../../ui/components/progress-status.js";
 import type {
   TranscriptViewportFrame,
@@ -1233,11 +1231,5 @@ const VIEWPORT_THEME: TranscriptViewportTheme = {
     hovered ? "selectedBg" : "toolPendingBg",
     piTheme().fg("text", text),
   ),
-  selection: (line, from, to) => backgroundSgrSpan(
-    line,
-    from,
-    to,
-    "\u001b[48;2;38;79;120m",
-    "\u001b[49m",
-  ),
+  selection: paintTextSelection,
 };

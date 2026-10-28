@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -229,6 +229,59 @@ describe("owned reference routes", () => {
     lines = await settled(refreshed, current => current.some(line => line.trimEnd() === " Total: 2"), 60, 12);
     expect(sessionInfo).toHaveBeenCalledTimes(2);
     refreshed.close();
+  });
+
+  it("uses the live copy-on-select value and gives selected Changelog text first Ctrl+C", async () => {
+    const session = await manager();
+    const copyText = vi.fn();
+    const references = {
+      changelog: async () => ({ rows: () => ["alpha beta"] }),
+      hotkeys: async () => ({ sections: () => [{ title: "Keys", rows: ["alpha beta"] }] }),
+      session: sessionReference,
+    };
+    writeFileSync(session.file, JSON.stringify({ fullscreenCopyOnSelect: false }), "utf8");
+    const host = createOwnedRouteHost(session, references, { copyText });
+    const surface = host.open("changelog")!;
+    await settled(surface, current => current[2]?.startsWith("alpha") === true);
+    surface.handleMouse({ kind: "press", button: 0, row: 3, column: 1 });
+    surface.handleMouse({ kind: "motion", button: 0, row: 3, column: 5 });
+    surface.handleMouse({ kind: "release", button: 0, row: 3, column: 5 });
+    expect(copyText).not.toHaveBeenCalled();
+    expect(surface.handleInput(INTERRUPT)).toBe(true);
+    expect(copyText).toHaveBeenLastCalledWith("alpha");
+    expect(surface.isClosed()).toBe(false);
+    expect(surface.handleInput(INTERRUPT)).toBe(true);
+    expect(surface.isClosed()).toBe(true);
+
+    writeFileSync(session.file, JSON.stringify({ fullscreenCopyOnSelect: true }), "utf8");
+    const automatic = host.open("changelog")!;
+    await settled(automatic, current => current[2]?.startsWith("alpha") === true);
+    automatic.handleMouse({ kind: "press", button: 0, row: 3, column: 7 });
+    automatic.handleMouse({ kind: "motion", button: 0, row: 3, column: 10 });
+    automatic.handleMouse({ kind: "release", button: 0, row: 3, column: 10 });
+    expect(copyText).toHaveBeenLastCalledWith("beta");
+    automatic.close();
+
+    const copied = copyText.mock.calls.length;
+    const hotkeys = host.open("hotkeys")!;
+    await settled(hotkeys, current => current.some(line => line.startsWith("alpha")));
+    hotkeys.handleMouse({ kind: "press", button: 0, row: 5, column: 1 });
+    hotkeys.handleMouse({ kind: "motion", button: 0, row: 5, column: 5 });
+    hotkeys.handleMouse({ kind: "release", button: 0, row: 5, column: 5 });
+    expect(copyText).toHaveBeenCalledTimes(copied);
+    expect(hotkeys.handleInput(INTERRUPT)).toBe(true);
+    expect(hotkeys.isClosed()).toBe(true);
+
+    const pinnedHost = createOwnedRouteHost(session, references, { copyText, tabRoute: "changelog" });
+    const pinned = pinnedHost.open("changelog")!;
+    let exits = 0;
+    pinned.onExitRequested(() => { exits += 1; });
+    await settled(pinned, current => current[2]?.startsWith("alpha") === true);
+    expect(pinned.handleInput(INTERRUPT)).toBe(true);
+    expect(pinned.isClosed()).toBe(false);
+    expect(pinned.handleInput(INTERRUPT)).toBe(true);
+    expect(pinned.isClosed()).toBe(true);
+    expect(exits).toBe(1);
   });
 
   it("forwards keys and pointer reports and closes reference screens on one Ctrl+C", async () => {

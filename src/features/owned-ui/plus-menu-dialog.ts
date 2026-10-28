@@ -1,9 +1,11 @@
 import {
   LineInput,
-  displayWidth,
   handleLineInputKey,
+  padToWidth,
   renderInputRow,
+  renderShortcutHintsWithClose,
   truncateToWidth,
+  type ShortcutHintEntry,
 } from "../../ui/components/index.js";
 import type { UiTheme } from "../../ui/components/index.js";
 
@@ -18,7 +20,13 @@ export interface PlusMenuKind {
 
 const TITLE = "Plus Menu";
 const DESCRIPTION = "Choose what the + button in the tab bar can add.";
-const HINT = "Type search · ↑↓ navigate · Space toggle · Esc close";
+const HINTS: readonly ShortcutHintEntry[] = [
+  { key: "Type", action: "search" },
+  { key: "↑↓", action: "navigate" },
+  { key: "Space", action: "toggle" },
+  { key: "esc", action: "close" },
+];
+const PADDING_X = 2;
 
 /**
  * The plus-menu dialog: every tab kind with `●` when `+` offers it and `○` when not, filtered by typed
@@ -59,36 +67,40 @@ export class PlusMenuDialog {
   }
 
   lines(enabled: Readonly<Record<string, boolean | string>>, width: number, theme: UiTheme): readonly string[] {
-    const rule = theme.fg("border", "─".repeat(Math.max(0, width)));
-    const inset = width > 0 ? " " : "";
-    const contentWidth = Math.max(0, width - inset.length);
-    const row = (painted: string, raw: string): string => {
-      const clipped = truncateToWidth(painted, contentWidth);
-      return `${inset}${clipped}${" ".repeat(Math.max(0, contentWidth - displayWidth(raw)))}`;
+    const frameWidth = Math.max(0, width);
+    const left = Math.min(PADDING_X, frameWidth);
+    const right = Math.min(PADDING_X, frameWidth - left);
+    const contentWidth = Math.max(0, frameWidth - left - right);
+    const blank = " ".repeat(frameWidth);
+    const row = (painted: string, selected = false): string => {
+      const content = padToWidth(truncateToWidth(painted, contentWidth), contentWidth);
+      const rightPadding = " ".repeat(right);
+      return `${" ".repeat(left)}${selected ? theme.highlight(content) : content}${
+        selected ? theme.panel(rightPadding) : rightPadding
+      }`;
     };
     const shown = this.shown();
     const index = Math.min(this.#index, Math.max(0, shown.length - 1));
     const rows = shown.length === 0
-      ? [row(theme.fg("dim", "No tabs match"), "No tabs match")]
+      ? [row(theme.fg("dim", "No tabs match"))]
       : shown.map((kind, position) => {
         const selected = position === index;
         const cursor = selected ? "→ " : "  ";
         const marker = enabled[kind.key] === true ? "●" : "○";
-        const raw = `${cursor}${marker} ${kind.label}`;
         const content = `${selected ? theme.fg("accent", cursor) : cursor}${theme.fg("text", marker)} ${theme.fg("text", kind.label)}`;
-        return row(selected ? theme.highlight(content) : content, raw);
+        return row(content, selected);
       });
     return [
-      rule,
-      row(theme.bold(theme.fg("accent", TITLE)), TITLE),
-      row(theme.fg("dim", DESCRIPTION), DESCRIPTION),
-      "",
-      ...renderInputRow(this.#filter, width, { ruled: false, promptGlyph: "> ", theme }).lines,
-      "",
+      blank,
+      row(theme.bold(theme.fg("accent", TITLE))),
+      row(theme.fg("dim", DESCRIPTION)),
+      blank,
+      ...renderInputRow(this.#filter, contentWidth, { ruled: false, promptGlyph: "> ", theme }).lines.map(line => row(line)),
+      blank,
       ...rows,
-      "",
-      row(theme.fg("dim", HINT), HINT),
-      rule,
+      blank,
+      row(renderShortcutHintsWithClose(HINTS, theme, contentWidth)),
+      blank,
     ];
   }
 }

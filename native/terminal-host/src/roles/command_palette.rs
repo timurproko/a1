@@ -6,13 +6,24 @@ use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
 use crate::core::attach::{CommandPalette, PlusMenu, ShortcutLabels};
+use crate::roles::shortcut_hints::{self, ShortcutHint, ShortcutHintRole};
 
 const TITLE: &str = "Commands";
-const HINT: &str = "Type search · ↑↓ navigate · Enter open · Esc close";
+const HINTS: &[ShortcutHint<'static>] = &[
+    ShortcutHint::new("type", "search"),
+    ShortcutHint::new("↑↓", "navigate"),
+    ShortcutHint::new("enter", "open"),
+    ShortcutHint::new("esc", "close"),
+];
 const EMPTY: &str = "No commands match";
 const PLUS_TITLE: &str = "Plus Menu";
 const PLUS_DESCRIPTION: &str = "Choose what the + button in the tab bar can add.";
-const PLUS_HINT: &str = "Type search · ↑↓ navigate · Space toggle · Esc close";
+const PLUS_HINTS: &[ShortcutHint<'static>] = &[
+    ShortcutHint::new("type", "search"),
+    ShortcutHint::new("↑↓", "navigate"),
+    ShortcutHint::new("space", "toggle"),
+    ShortcutHint::new("esc", "close"),
+];
 const PLUS_EMPTY: &str = "No tabs match";
 const MAX_WIDTH: usize = 60;
 const PADDING: usize = 2;
@@ -31,6 +42,8 @@ enum Tone {
     Text,
     Muted,
     Accent,
+    HintKey,
+    HintAction,
     /// The search caret: a reversed white cell, as owned inputs draw it.
     Caret,
 }
@@ -47,13 +60,16 @@ impl PaletteStyle {
                 Tone::Text | Tone::Caret => [255, 255, 255],
                 Tone::Muted => [128, 128, 128],
                 Tone::Accent => self.accent,
+                Tone::HintKey => [126, 136, 142],
+                Tone::HintAction => [157, 165, 169],
             };
             let [br, bg, bb] = if selected { self.hover } else { [38, 38, 38] };
             format!("\x1b[0;48;2;{br};{bg};{bb};38;2;{r};{g};{b}{weight}m")
         } else {
             let foreground = match tone {
                 Tone::Text | Tone::Caret => 15,
-                Tone::Muted => 244,
+                Tone::Muted | Tone::HintKey => 244,
+                Tone::HintAction => 247,
                 Tone::Accent => 141,
             };
             let background = if selected { 238 } else { 235 };
@@ -98,6 +114,24 @@ fn row(style: PaletteStyle, width: usize, selected: bool, parts: &[(Tone, bool, 
 
 /// One entry's row: the cursor, then a command and its shortcut right-aligned, or a plus-menu
 /// kind with `●` when `+` offers it and `○` when not.
+fn hint_row(style: PaletteStyle, width: usize, hints: &[ShortcutHint<'_>]) -> String {
+    let inner = width.saturating_sub(PADDING * 2);
+    let rendered = shortcut_hints::render(hints, inner, |role, text| {
+        let tone = match role {
+            ShortcutHintRole::Key => Tone::HintKey,
+            ShortcutHintRole::Action => Tone::HintAction,
+        };
+        format!("{}{text}", style.paint(tone, false, false))
+    });
+    let mut output = style.paint(Tone::Text, false, false);
+    output.push_str(&" ".repeat(PADDING.min(width)));
+    output.push_str(&rendered.text);
+    output.push_str(&style.paint(Tone::Text, false, false));
+    output.push_str(&" ".repeat(inner.saturating_sub(rendered.cells)));
+    output.push_str(&" ".repeat(width.saturating_sub(inner + PADDING).min(PADDING)));
+    output
+}
+
 fn entry_row(
     style: PaletteStyle,
     width: usize,
@@ -144,10 +178,10 @@ pub fn render(
 ) -> String {
     let width = usize::from(columns).min(MAX_WIDTH);
     let configure = palette.is_plus_menu();
-    let (title, description, hint, empty) = if configure {
-        (PLUS_TITLE, PLUS_DESCRIPTION, PLUS_HINT, PLUS_EMPTY)
+    let (title, description, hints, empty) = if configure {
+        (PLUS_TITLE, PLUS_DESCRIPTION, PLUS_HINTS, PLUS_EMPTY)
     } else {
-        (TITLE, "", HINT, EMPTY)
+        (TITLE, "", HINTS, EMPTY)
     };
     let shown = palette.shown();
     let selected = palette.selected();
@@ -183,7 +217,7 @@ pub fn render(
         });
     }
     rows.push(row(style, width, false, &[]));
-    rows.push(row(style, width, false, &[(Tone::Muted, false, hint)]));
+    rows.push(hint_row(style, width, hints));
     rows.push(row(style, width, false, &[]));
 
     let top = usize::from(outer_rows).saturating_sub(rows.len()) / 2;
@@ -262,8 +296,14 @@ mod tests {
         assert!(rows[5].trim_end().ends_with("Alt+A"));
         assert!(rows[6].trim_end().ends_with("Alt+,"));
         assert_eq!(rows[7].trim(), "Changelog");
-        assert_eq!(rows[9].trim(), HINT);
+        assert_eq!(
+            rows[9].trim(),
+            "Type search  ↑↓ navigate  Enter open  Esc close"
+        );
         assert!(rendered.contains("48;2;58;56;66"));
+        assert!(rendered.contains("38;2;126;136;142mType"));
+        assert!(rendered.contains("38;2;157;165;169msearch"));
+        assert!(!rows[9].contains('·'));
     }
 
     #[test]
@@ -279,7 +319,10 @@ mod tests {
         assert_eq!(rows[6].trim(), "→ ● Agent");
         assert_eq!(rows[7].trim(), "○ Settings");
         assert_eq!(rows[8].trim(), "● Changelog");
-        assert_eq!(rows[10].trim(), PLUS_HINT);
+        assert_eq!(
+            rows[10].trim(),
+            "Type search  ↑↓ navigate  Space toggle  Esc close"
+        );
         assert!(
             !rows.iter().any(|row| row.contains("Alt+")),
             "kinds show no shortcuts"
@@ -318,5 +361,7 @@ mod tests {
             palette_mode,
         );
         assert!(rendered.contains("48;5;238") && !rendered.contains("48;2;"));
+        assert!(rendered.contains("48;5;235;38;5;244mType"));
+        assert!(rendered.contains("48;5;235;38;5;247msearch"));
     }
 }

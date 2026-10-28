@@ -203,6 +203,20 @@ describe("owned shared input and status presentation", () => {
     expect(input.getText()).toBe("");
   });
 
+  it("clamps a wrapped prompt drag beyond the editor and cuts the retained range", async () => {
+    const { input, copy } = await editor();
+    const text = "alpha beta gamma delta";
+    input.setText(text);
+    input.render(12);
+    input.handlePointer?.({ kind: "press", button: 0, column: 1, row: 2 });
+    input.handlePointer?.({ kind: "motion", button: 0, column: 99, row: 99 });
+    input.handlePointer?.({ kind: "release", button: 0, column: 99, row: 99 });
+    expect(input.selectedText?.()).toBe(text);
+    input.handleInput?.("\u0018");
+    expect(copy).toHaveBeenLastCalledWith(text, true);
+    expect(input.getText()).toBe("");
+  });
+
   it("links only the PR number in the owned footer and leaves the pinned profile unchanged", () => {
     applyPiTheme("dark", false, "truecolor");
     const state = view();

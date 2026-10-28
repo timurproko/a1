@@ -91,6 +91,27 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); }
   });
 
+  it("routes Ctrl+X by frame selection, editor selection, then last-message fallback", () => {
+    let editorSelection = false;
+    const target = new SessionViewportController({
+      enabled: true,
+      editor: editor({ hasSelection: () => editorSelection }),
+      requestRender() {},
+    });
+    try {
+      expect(target.handlePreInput("\u0018")).toEqual({ data: "", consumed: true, copyLastMessage: true });
+      target.compose({ documentRows: ["frame text"], dockRows: [], promptAnchors: [], width: 20, height: 1 });
+      target.setCopyOnSelect(false);
+      target.handlePreInput("\u001b[<0;1;1M\u001b[<32;5;1M\u001b[<0;5;1m");
+      expect(copiedText(target.handlePreInput("\u0018"))).toBe("frame");
+
+      editorSelection = true;
+      expect(target.handlePreInput("\u0018")).toEqual({ data: "\u0018", consumed: false });
+      editorSelection = false;
+      expect(target.handlePreInput("\u0018")).toEqual({ data: "", consumed: true, copyLastMessage: true });
+    } finally { target.clearPointerState(); }
+  });
+
   it("copies declared prompt and status rows automatically or through retained Ctrl+C", () => {
     const target = new SessionViewportController({ enabled: true, editor: editor(), requestRender() {} });
     const input = {
@@ -968,7 +989,7 @@ describe("session viewport interaction controller", () => {
     ]);
   });
 
-  it("copies editor-owned word and line selections exactly once when enabled", () => {
+  it("keeps prompt drags editor-owned while frame drags still honor copy-on-select", () => {
     const events: PiShellEditorPointerEvent[] = [];
     let click = 0;
     let selected: string | undefined;
@@ -993,27 +1014,26 @@ describe("session viewport interaction controller", () => {
 
     const clickPrompt = () => target.handlePreInput("\u001b[<0;3;4M\u001b[<0;3;4m");
     expect(copiedText(clickPrompt())).toBeUndefined();
-    expect(copiedText(clickPrompt())).toBe("expanded word");
+    expect(copiedText(clickPrompt())).toBeUndefined();
     expect(selected).toBe("expanded word");
-
-    target.setCopyOnSelect(false);
     expect(copiedText(clickPrompt())).toBeUndefined();
     expect(selected).toBe("expanded whole line");
     expect(target.handlePreInput("\u0003")).toEqual({ data: "\u0003", consumed: false });
 
     const beforeDragEvents = events.length;
-    target.setCopyOnSelect(true);
-    const drag = target.handlePreInput("\u001b[<0;3;4M\u001b[<32;6;4M\u001b[<0;6;4m");
-    expect(copiedText(drag)).toBeTruthy();
-    expect(events).toHaveLength(beforeDragEvents);
+    const promptDrag = target.handlePreInput("\u001b[<0;3;4M\u001b[<32;6;4M\u001b[<0;6;4m");
+    expect(copiedText(promptDrag)).toBeUndefined();
+    expect(events.slice(beforeDragEvents).map(event => event.kind)).toEqual(["press", "motion", "release"]);
+
+    const frameDrag = target.handlePreInput("\u001b[<0;3;1M\u001b[<32;6;1M\u001b[<0;6;1m");
+    expect(copiedText(frameDrag)).toBeTruthy();
 
     target.setCopyOnSelect(false);
-    expect(copiedText(target.handlePreInput("\u001b[<0;3;4M\u001b[<32;6;4M\u001b[<0;6;4m"))).toBeUndefined();
+    expect(copiedText(target.handlePreInput("\u001b[<0;3;1M\u001b[<32;6;1M\u001b[<0;6;1m"))).toBeUndefined();
     expect(copiedText(target.handlePreInput("\u0003"))).toBeTruthy();
-    expect(events).toHaveLength(beforeDragEvents);
   });
 
-  it("routes editor pointer input only through the declared editor frame", () => {
+  it("latches a drag that begins in the editor through motion and release", () => {
     const events: PiShellEditorPointerEvent[] = [];
     let ownsPointer = false;
     const target = new SessionViewportController({
@@ -1036,22 +1056,23 @@ describe("session viewport interaction controller", () => {
     expect(target.handlePreInput("\u001b[<32;4;5M").consumed).toBe(true);
     const dragRelease = target.handlePreInput("\u001b[<0;4;5m");
     expect(dragRelease.consumed).toBe(true);
-    expect(copiedText(dragRelease)).toBeTruthy();
-    expect(events).toEqual([]);
+    expect(copiedText(dragRelease)).toBeUndefined();
+    expect(events.map(event => [event.kind, event.row])).toEqual([
+      ["press", 1], ["motion", 2], ["release", 2],
+    ]);
 
-    target.handlePreInput("\u0003");
     target.handlePreInput("\u001b[<0;3;4M");
     target.handlePreInput("\u001b[<32;4;4M");
     const sameRowRelease = target.handlePreInput("\u001b[<0;4;4m");
-    expect(copiedText(sameRowRelease)).toBe("w-");
-    expect(events).toEqual([]);
+    expect(copiedText(sameRowRelease)).toBeUndefined();
+    expect(events.slice(3).map(event => [event.kind, event.row])).toEqual([
+      ["press", 1], ["motion", 1], ["release", 1],
+    ]);
 
-    target.handlePreInput("\u0003");
     target.handlePreInput("\u001b[<0;3;4M");
     target.handlePreInput("\u001b[<0;3;4m");
-    expect(events.map(event => [event.kind, event.row])).toEqual([
-      ["press", 1],
-      ["release", 1],
+    expect(events.slice(6).map(event => [event.kind, event.row])).toEqual([
+      ["press", 1], ["release", 1],
     ]);
   });
 

@@ -14,11 +14,12 @@ async function fixture(history: boolean) {
   let resolve!: (text: string) => void;
   const result = new Promise<string>(done => { resolve = done; });
   let failRender = false;
+  let current = true;
   const editor = createPiShellEditor({
     keybindingProfile: "a1", agentDir: directory, cwd: directory,
     ...(history ? { persistentHistory: true, historyEditor: await loadHistoryEditor() } : {}),
     getColumns: () => 24, getRows: () => 24, requestRender() {}, onSubmit() {},
-    beginClipboardPaste: () => ({ marker, result }),
+    beginClipboardPaste: () => ({ marker, result, isCurrent: () => current }),
     editorAtomicRanges: line => [...line.matchAll(/\[📷 [^\]]+\]/gu)].map(match => ({ start: match.index, end: match.index + match[0].length })),
     editorHiddenRanges: line => [...line.matchAll(/\[📷 screenshot-pending\]/gu)].map(match => ({ start: match.index, end: match.index + match[0].length })),
     decorateEditorRow: row => { if (failRender) throw new Error("render failed"); return row; },
@@ -29,6 +30,7 @@ async function fixture(history: boolean) {
     editor,
     complete: async (text: string) => { resolve(text); await result; await Promise.resolve(); },
     failRender: (enabled: boolean) => { failRender = enabled; },
+    cancel: () => { current = false; },
     dispose: () => rm(directory, { recursive: true, force: true }),
   };
 }
@@ -50,6 +52,81 @@ describe.each([false, true])("clipboard presentation with history=%s", history =
       expect(test.editor.getText()).toBe("one line\n👩‍💻 before pasted after");
       test.editor.handleInput?.("!");
       expect(test.editor.getText()).toBe("one line\n👩‍💻 before pasted after!");
+    } finally { await test.dispose(); }
+  });
+
+  it("replaces a pointer-selected word without an intermediate blank or lost highlight", async () => {
+    const test = await fixture(history);
+    try {
+      test.editor.setText("goiq middle goiq");
+      const rows = test.editor.render(24).map(stripTerminalSequences);
+      const row = rows.findIndex(line => line.includes("middle"));
+      const column = rows[row]!.indexOf("middle") + 2;
+      for (let click = 0; click < 2; click += 1) {
+        test.editor.handlePointer?.({ kind: "press", button: 0, column, row: row + 1 });
+        test.editor.handlePointer?.({ kind: "release", button: 0, column, row: row + 1 });
+      }
+      expect(test.editor.selectedText?.()).toBe("middle");
+      const selected = test.editor.render(24);
+      test.editor.handleInput?.("\x16");
+      expect(test.editor.getText()).toContain(marker);
+      expect(test.editor.render(24)).toEqual(selected);
+      await test.complete("new");
+      expect(test.editor.getText()).toBe("goiq new goiq");
+      expect(test.editor.render(24).map(stripTerminalSequences).join("\n")).toContain("goiq new goiq");
+    } finally { await test.dispose(); }
+  });
+
+  it("keeps a multiline selection painted until the replacement commits or restores", async () => {
+    const test = await fixture(history);
+    try {
+      test.editor.setText("first line\nsecond line");
+      test.editor.handleInput?.("\x01");
+      const selected = test.editor.render(24);
+      test.editor.handleInput?.("\x16");
+      const reserved = test.editor.getText();
+      expect(reserved).toContain(marker);
+      expect(test.editor.render(24)).toEqual(selected);
+      expect(test.editor.getText()).toBe(reserved);
+      test.failRender(true);
+      expect(() => test.editor.render(24)).toThrow("render failed");
+      expect(test.editor.getText()).toBe(reserved);
+      test.failRender(false);
+      expect(test.editor.render(24)).toEqual(selected);
+      await test.complete("replacement");
+      expect(test.editor.getText()).toBe("replacement");
+      expect(test.editor.render(24)).not.toEqual(selected);
+      test.editor.handleInput?.("\x1a");
+      expect(test.editor.getText()).toBe("first line\nsecond line");
+    } finally { await test.dispose(); }
+  });
+
+  it("restores selected text when a pending paste becomes stale", async () => {
+    const test = await fixture(history);
+    try {
+      test.editor.setText("before");
+      test.editor.handleInput?.("\x01");
+      const selected = test.editor.render(24);
+      test.editor.handleInput?.("\x16");
+      expect(test.editor.render(24)).toEqual(selected);
+      test.cancel();
+      await test.complete("discarded");
+      expect(test.editor.getText()).toBe("before");
+    } finally { await test.dispose(); }
+  });
+
+  it("does not replay a pending selection over subsequent input or a failed paste", async () => {
+    const test = await fixture(history);
+    try {
+      test.editor.setText("before");
+      test.editor.handleInput?.("\x01");
+      const selected = test.editor.render(24);
+      test.editor.handleInput?.("\x16");
+      expect(test.editor.render(24)).toEqual(selected);
+      test.editor.handleInput?.("!");
+      expect(test.editor.render(24)).not.toEqual(selected);
+      await test.complete("");
+      expect(test.editor.getText()).toBe("before!");
     } finally { await test.dispose(); }
   });
 

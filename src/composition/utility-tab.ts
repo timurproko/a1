@@ -126,7 +126,9 @@ function createUtilityRouteHost(
     agentDir,
     cwd,
     copyText: text => {
-      if (Buffer.byteLength(text) <= MAX_CLIPBOARD_TEXT_BYTES) void writeSystemClipboardText(text).catch(() => {});
+      if (Buffer.byteLength(text) > MAX_CLIPBOARD_TEXT_BYTES) return false;
+      void writeSystemClipboardText(text).catch(() => {});
+      return true;
     },
   }));
 }

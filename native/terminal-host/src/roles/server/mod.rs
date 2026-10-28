@@ -12,6 +12,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD as BASE64;
 
+use crate::core::tab_bar::TabKind;
 use crate::endpoint::{self, OwnerEndpoint};
 use crate::identity::ProcessIdentity;
 use crate::launch::{self, ResidentRole};
@@ -44,47 +45,17 @@ use registry::*;
 pub use standby::sanitize_tab_environment;
 use standby::*;
 
-const SETTINGS_TAB_PREFIX: &str = "settings-";
-const CHANGELOG_TAB_PREFIX: &str = "changelog-";
-/// The singleton utility tab kinds: id prefix, registry kind, which is also the route its child
-/// presents, and title.
-const UTILITY_KINDS: [(&str, &str, &str); 2] = [
-    (SETTINGS_TAB_PREFIX, "settings", "Settings"),
-    (CHANGELOG_TAB_PREFIX, "changelog", "Changelog"),
-];
-/// Every new Agent tab starts with this one name; duplicates are allowed and auto-naming or a
-/// manual rename distinguishes them.
-const DEFAULT_AGENT_TAB_NAME: &str = "Agent";
+/// Every new Agent tab starts with the provider's label; duplicates are allowed and auto-naming
+/// or a manual rename distinguishes them.
+const DEFAULT_AGENT_TAB_NAME: &str = TabKind::Agent.provider().label;
 
-/// The registry kind and title of a singleton utility tab, or `None` for an Agent.
-fn utility_kind(tab_id: &str) -> Option<(&'static str, &'static str)> {
-    UTILITY_KINDS
-        .iter()
-        .find(|(prefix, _, _)| tab_id.starts_with(prefix))
-        .map(|(_, kind, title)| (*kind, *title))
+fn tab_kind(tab_id: &str) -> TabKind {
+    TabKind::of_id(tab_id)
 }
 
-/// The utility tab a client message opens or prewarms, `tab.open-<kind>` or
-/// `tab.prewarm-<kind>` for each kind: its id prefix and whether the message opens it.
-fn utility_request(message_type: &str) -> Option<(&'static str, bool)> {
-    let (opening, kind) = message_type
-        .strip_prefix("tab.open-")
-        .map(|kind| (true, kind))
-        .or_else(|| {
-            message_type
-                .strip_prefix("tab.prewarm-")
-                .map(|kind| (false, kind))
-        })?;
-    UTILITY_KINDS
-        .iter()
-        .find(|(_, name, _)| *name == kind)
-        .map(|(prefix, _, _)| (*prefix, opening))
-}
-
-/// Invariant: utility tabs are never Agents: they cannot be renamed, own no session, trail new
-/// Agents, and never count as the Agent an attach views or starts.
-fn is_utility_tab_id(tab_id: &str) -> bool {
-    utility_kind(tab_id).is_some()
+/// The singleton tab a client message opens or prewarms and whether the message opens it.
+fn utility_request(message_type: &str) -> Option<(TabKind, bool)> {
+    TabKind::from_singleton_message(message_type)
 }
 
 /// One non-blocking render slot per attached client. Replacing an unsent update forces the
@@ -499,7 +470,7 @@ impl RuntimeState {
             .registry
             .tabs
             .iter()
-            .filter(|tab| !is_utility_tab_id(&tab.tab_id))
+            .filter(|tab| TabKind::from_name(&tab.kind).is_some_and(|kind| kind.provider().owns_session))
             .cloned()
             .collect::<Vec<_>>();
         default_tab(&agents)
@@ -515,7 +486,7 @@ impl RuntimeState {
 
 fn default_tab(tabs: &[TabRecord]) -> String {
     tabs.iter()
-        .filter(|tab| tab.desired != "stopped" && tab.kind == "agent")
+        .filter(|tab| tab.desired != "stopped" && TabKind::from_name(&tab.kind).is_some_and(|kind| kind.provider().owns_session))
         .min_by_key(|tab| tab.order)
         .or_else(|| {
             tabs.iter()
@@ -540,7 +511,7 @@ pub(super) struct FirstAgentStart {
 pub(super) fn first_agent_start(tabs: &[TabRecord]) -> Option<FirstAgentStart> {
     let agents = tabs
         .iter()
-        .filter(|tab| !is_utility_tab_id(&tab.tab_id))
+        .filter(|tab| TabKind::from_name(&tab.kind).is_some_and(|kind| kind.provider().owns_session))
         .collect::<Vec<_>>();
     if agents.iter().any(|tab| tab.desired != "stopped") {
         return None;
@@ -2041,24 +2012,19 @@ mod tests {
     }
 
     #[test]
-    fn changelog_is_a_utility_tab_that_trails_new_agents_and_is_never_the_default() {
-        assert_eq!(utility_kind("settings-1"), Some(("settings", "Settings")));
-        assert_eq!(
-            utility_kind("changelog-1"),
-            Some(("changelog", "Changelog"))
-        );
-        assert_eq!(utility_kind("tab-1"), None);
-        assert!(is_utility_tab_id("changelog-1") && !is_utility_tab_id("tab-1"));
-        assert_eq!(
-            utility_request("tab.open-changelog"),
-            Some((CHANGELOG_TAB_PREFIX, true))
-        );
-        assert_eq!(
-            utility_request("tab.prewarm-settings"),
-            Some((SETTINGS_TAB_PREFIX, false))
-        );
+    fn registered_kinds_drive_server_identity_messages_and_capabilities() {
+        assert_eq!(tab_kind("settings-1"), TabKind::Settings);
+        assert_eq!(tab_kind("changelog-1"), TabKind::Changelog);
+        assert_eq!(tab_kind("tab-1"), TabKind::Agent);
+        assert_eq!(utility_request("tab.open-changelog"), Some((TabKind::Changelog, true)));
+        assert_eq!(utility_request("tab.prewarm-settings"), Some((TabKind::Settings, false)));
         assert_eq!(utility_request("tab.open-browser"), None);
         assert_eq!(utility_request("tab.create"), None);
+        for kind in TabKind::ALL {
+            let provider = kind.provider();
+            assert_eq!(TabKind::from_name(provider.name), Some(kind));
+            assert_eq!(provider.renameable, provider.owns_session);
+        }
         let mut changelog = record("changelog-1", 1, "running", None);
         changelog.kind = "changelog".into();
         let mut registry = RegistryDocument {
@@ -2069,30 +2035,18 @@ mod tests {
             release_id: String::new(),
             tabs: vec![record("agent-1", 1, "running", None), changelog],
         };
-        insert_new_tab(&mut registry, record("agent-2", 2, "running", None));
+        append_live_tab(&mut registry, record("agent-2", 2, "running", None));
         let ids = registry
             .tabs
             .iter()
             .map(|tab| tab.tab_id.as_str())
             .collect::<Vec<_>>();
-        assert_eq!(ids, ["agent-1", "agent-2", "changelog-1"]);
-        registry.tabs.retain(|tab| is_utility_tab_id(&tab.tab_id));
-        assert_eq!(
-            default_tab(
-                &registry
-                    .tabs
-                    .iter()
-                    .filter(|tab| !is_utility_tab_id(&tab.tab_id))
-                    .cloned()
-                    .collect::<Vec<_>>()
-            ),
-            "tab-1",
-            "a registry of utility tabs names the first Agent an attach starts"
-        );
+        assert_eq!(ids, ["agent-1", "changelog-1", "agent-2"]);
+        assert_eq!(default_tab(&[]), "tab-1", "singleton tabs never become the default Agent");
     }
 
     #[test]
-    fn settings_starts_last_and_drag_order_survives_agent_creation() {
+    fn every_new_tab_appends_and_drag_order_survives_later_creation() {
         let mut settings = record("settings-1", 1, "running", None);
         settings.kind = "settings".into();
         settings.order = 1;
@@ -2116,8 +2070,8 @@ mod tests {
         assert_eq!(names(&registry), ["agent-1", "settings-1"]);
         let mut second = record("agent-2", 3, "running", None);
         second.order = 2;
-        insert_new_tab(&mut registry, second);
-        assert_eq!(names(&registry), ["agent-1", "agent-2", "settings-1"]);
+        append_live_tab(&mut registry, second);
+        assert_eq!(names(&registry), ["agent-1", "settings-1", "agent-2"]);
         assert_eq!(
             registry
                 .tabs
@@ -2136,7 +2090,7 @@ mod tests {
         ));
         assert_eq!(names(&registry), ["settings-1", "agent-1", "agent-2"]);
         assert_eq!(registry.tabs[0].order, 0, "dragged placement stays durable");
-        insert_new_tab(&mut registry, record("agent-3", 4, "running", None));
+        append_live_tab(&mut registry, record("agent-3", 4, "running", None));
         assert_eq!(
             names(&registry),
             ["settings-1", "agent-1", "agent-2", "agent-3"]
@@ -2199,14 +2153,14 @@ mod tests {
             }
         ));
         assert_eq!(visible(&registry), ["settings-1", "agent-1", "agent-2"]);
-        assert!(lifecycle::move_utility_last(&mut registry, "settings-1"));
+        assert!(lifecycle::move_live_tab_last(&mut registry, "settings-1"));
         assert_eq!(visible(&registry), ["agent-1", "agent-2", "settings-1"]);
-        assert!(!lifecycle::move_utility_last(&mut registry, "settings-1"));
+        assert!(!lifecycle::move_live_tab_last(&mut registry, "settings-1"));
         assert_eq!(registry.registry_revision, 8);
     }
 
     #[test]
-    fn stopped_records_do_not_push_new_agents_after_hidden_settings() {
+    fn stopped_records_do_not_affect_the_final_visible_slot() {
         let mut settings = record("settings-1", 2, "running", None);
         settings.kind = "settings".into();
         settings.order = 1;
@@ -2220,14 +2174,14 @@ mod tests {
             release_id: String::new(),
             tabs: vec![record("agent-1", 1, "running", None), settings, stopped],
         };
-        insert_new_tab(&mut registry, record("agent-2", 4, "running", None));
+        append_live_tab(&mut registry, record("agent-2", 4, "running", None));
         let visible = registry
             .tabs
             .iter()
             .filter(|tab| tab.desired != "stopped")
             .map(|tab| (tab.tab_id.as_str(), tab.order))
             .collect::<Vec<_>>();
-        assert_eq!(visible, [("agent-1", 0), ("agent-2", 1), ("settings-1", 2)]);
+        assert_eq!(visible, [("agent-1", 0), ("settings-1", 1), ("agent-2", 2)]);
         assert_eq!(registry.tabs.last().unwrap().desired, "stopped");
     }
 

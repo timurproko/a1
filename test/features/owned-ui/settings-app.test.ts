@@ -13,7 +13,7 @@ import {
 import { SettingsApp } from "../../../src/features/owned-ui/index.js";
 import { createSettingsSearchInputFactory } from "../../../src/composition/settings-search-input.js";
 import type { AppHostServices } from "../../../src/ui/apps/index.js";
-import { finalizeFrame, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
+import { configureDialogWidth, displayWidth, finalizeFrame, type UiTheme, type UiThemeToken } from "../../../src/ui/components/index.js";
 import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 
 const ESC = String.fromCharCode(27);
@@ -138,6 +138,17 @@ const NAMING_THEME: UiTheme = Object.freeze({
   panel: (text: string) => `<panel>${text}</panel>`,
 });
 const NAMING_HOST: AppHostServices = { ...HOST, theme: NAMING_THEME };
+const PANEL_BACKGROUND = "\u001b[48;2;38;38;38m";
+const MENU_BACKGROUND = "\u001b[48;2;55;55;55m";
+const PANEL_THEME: UiTheme = Object.freeze({
+  fg: (_token: UiThemeToken, text: string) => text,
+  bold: (text: string) => text,
+  plain: (text: string) => text,
+  highlight: (text: string) => text,
+  disabled: (text: string) => text,
+  panel: (text: string) => `${MENU_BACKGROUND}${text}\u001b[49m`,
+});
+const PANEL_HOST: AppHostServices = { ...HOST, theme: PANEL_THEME };
 const BOLD_NAMING_HOST: AppHostServices = {
   ...HOST,
   theme: { ...NAMING_THEME, bold: (text: string) => `<b>${text}</b>` },
@@ -147,9 +158,10 @@ let root: string;
 
 function settingsApp(
   session: OwnedSettingsManager,
-  options: { readonly pinned?: boolean; readonly copyText?: (text: string) => void; readonly configurePlusMenu?: () => boolean } = {},
+  options: { readonly pinned?: boolean; readonly copyText?: (text: string) => void; readonly configurePlusMenu?: () => boolean; readonly dialogPanel?: (text: string) => string } = {},
 ): SettingsApp {
   return new SettingsApp(session, {
+    dialogPanel: text => `${PANEL_BACKGROUND}${text}\u001b[49m`,
     ...options,
     searchInputFactory: createSettingsSearchInputFactory({ agentDir: root, cwd: root }),
   });
@@ -222,6 +234,15 @@ function screen(target: SettingsApp): string[] {
 
 function find(target: SettingsApp, needle: string): string {
   return screen(target).find(line => line.includes(needle)) ?? "";
+}
+
+/** Visible rows inside the centered 60-column configure panel. */
+function modalScreen(target: SettingsApp, width = 80, height = 24): string[] {
+  const panelWidth = configureDialogWidth(width);
+  const left = Math.max(0, Math.floor((width - panelWidth) / 2));
+  return target.render({ width, height }, { ...PANEL_HOST, getSize: () => ({ width, height }) })
+    .filter(line => line.includes(PANEL_BACKGROUND))
+    .map(line => stripTerminalSequences(line).slice(left, left + panelWidth).trimEnd());
 }
 
 function startSearch(target: SettingsApp, query: string): void {
@@ -480,6 +501,10 @@ describe("the settings screen", () => {
     expect(rows.some(row => row.includes("● Agent"))).toBe(true);
     expect(rows.some(row => row.includes("○ Settings"))).toBe(true);
     expect(rows.some(row => row.includes("○ Changelog"))).toBe(true);
+    const dialog = modalScreen(target);
+    expect(dialog.findIndex(row => row.trim() === "Plus Menu")).toBe(1);
+    expect(dialog.join("\n")).toContain("Type search  ↑↓ navigate  Space toggle  Esc close");
+    expect(dialog.join("\n")).not.toContain(" · ");
     target.onInput?.(`${ESC}[B`, HOST);
     target.onInput?.(" ", HOST);
     await settleChanges();
@@ -787,17 +812,16 @@ describe("the settings screen", () => {
     expect(find(target, "Anthropic extra usage")).toContain("true");
     expect(find(target, "Unknown tools")).toContain("false");
     expect(find(target, "Warnings")).toContain("Warnings");
-    expect(find(target, "Warn when Anthropic subscription auth may use paid extra usage")).not.toBe("");
+    expect(modalScreen(target).join("\n")).toContain("Warn when Anthropic subscription auth may use paid");
+    expect(modalScreen(target).join("\n")).toContain("extra usage");
     const dialogHint = find(target, "Enter change");
     expect(dialogHint).toContain("Ctrl+Z undo");
     expect(dialogHint).toContain("Esc close");
     expect(dialogHint).not.toContain("Space");
     expect(dialogHint).not.toContain(" to ");
-    const rendered = target.render({ width: 200, height: 48 }, NAMING_HOST);
-    const styledHint = rendered.find(line => line.includes("<dim>Enter</dim>")) ?? "";
-    const title = rendered.find(line => line.includes("Settings")) ?? "";
-    expect(firstVisibleTextColumn(styledHint)).toBe(firstVisibleTextColumn(title));
-    expect(styledHint).not.toBe("");
+    const rendered = target.render({ width: 80, height: 24 }, PANEL_HOST);
+    expect(rendered.some(line => line.includes(PANEL_BACKGROUND))).toBe(true);
+    expect(rendered.some(line => line.includes("\u001b[2m") && line.includes("\u001b[22;39;49m"))).toBe(true);
 
     target.onInput?.(SPACE, HOST);
     expect(find(target, "Anthropic extra usage")).toContain("true");
@@ -836,21 +860,28 @@ describe("the settings screen", () => {
     expect(screen(target).join("\n")).not.toContain("stored and applies");
   });
 
-  it("uses the structured dialog's top rule as the sole list boundary", async () => {
+  it("centers a panel-filled structured dialog over the dimmed Settings frame", async () => {
     const { app: target } = await app();
     selectRow(target, "Warnings");
     target.onInput?.(ENTER, HOST);
 
-    const lines = screen(target);
+    const frame = target.render({ width: 80, height: 24 }, PANEL_HOST);
+    const lines = modalScreen(target);
     const title = lines.findIndex(line => line.trim() === "Warnings");
     const firstPart = lines.findIndex(line => line.includes("Anthropic extra usage"));
-    const rule = "─".repeat(80);
-    expect(lines).toHaveLength(24);
-    expect(title).toBeGreaterThan(0);
-    expect(lines[title - 1]).toBe(rule);
-    expect(lines[title + 1]).toContain("Warn when Anthropic subscription auth may use paid extra usage");
-    expect(firstPart).toBeGreaterThan(title + 1);
-    expect(lines.at(-1)).toBe(rule);
+    expect(frame).toHaveLength(24);
+    expect(frame.every(line => line.includes("\u001b[2m"))).toBe(true);
+    expect(lines).toHaveLength(10);
+    expect(lines[0]?.trim()).toBe("");
+    expect(title).toBe(1);
+    expect(lines[title]?.indexOf("Warnings")).toBe(2);
+    expect([lines[title + 1]?.trim(), lines[title + 2]?.trim()].join(" "))
+      .toBe("Warn when Anthropic subscription auth may use paid extra usage");
+    expect(firstPart).toBeGreaterThan(title + 2);
+    expect(lines.at(-1)?.trim()).toBe("");
+    expect(lines.join("\n")).not.toContain("─");
+    expect(frame.some(line => line.includes(PANEL_BACKGROUND))).toBe(true);
+    expect(frame.some(line => line.includes(MENU_BACKGROUND))).toBe(false);
   });
 
   it("uses the owned per-model thinking search and stepped keyboard workflow", async () => {
@@ -861,10 +892,10 @@ describe("the settings screen", () => {
     selectRow(target, "Default thinking level per model");
     target.onInput?.(ENTER, HOST);
 
-    let shown = screen(target).join("\n");
+    let shown = modalScreen(target).join("\n");
     expect(shown).toContain("Thinking Level (step 1/2)");
     expect(shown).toContain("Select a model to configure");
-    expect(screen(target).some(line => line.trimStart().startsWith(">"))).toBe(true);
+    expect(modalScreen(target).some(line => line.trimStart().startsWith(">"))).toBe(true);
     expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).toContain("<accent>></accent> ");
     expect(shown).toContain("gpt-5 [openai]");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
@@ -874,32 +905,32 @@ describe("the settings screen", () => {
     expect(shown).not.toContain("Enter change");
 
     for (const character of "spark") target.onInput?.(character, HOST);
-    shown = screen(target).join("\n");
+    shown = modalScreen(target).join("\n");
     expect(shown).toContain("> spark");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
     expect(shown).not.toContain("gpt-5 [openai]");
 
-    const beforePointer = screen(target);
+    const beforePointer = modalScreen(target);
     target.onMouse?.({ kind: "press", button: 0, row: 20, column: 20 }, HOST);
-    expect(screen(target)).toEqual(beforePointer);
+    expect(modalScreen(target)).toEqual(beforePointer);
     expect(backing.writes).toHaveLength(0);
 
     target.onInput?.(ENTER, HOST);
-    shown = screen(target).join("\n");
+    shown = modalScreen(target).join("\n");
     expect(shown).toContain("Thinking Level (step 2/2)");
-    expect(shown).toContain("Select default thinking level for gpt-5.3-codex-spark [openai]");
+    expect(shown.replace(/\s*\n\s*/gu, " ")).toContain("Select default thinking level for gpt-5.3-codex-spark [openai]");
     expect(shown).toContain("↑↓ navigate  Enter select  Esc back");
     expect(shown).not.toContain(" · ");
     expect(shown).not.toContain("Thinking Level for");
     expect(shown).toContain("low");
     expect(shown).toContain("Light reasoning (~2k tokens)");
-    const selectedLevel = screen(target).find(line => line.includes("low") && line.includes("Light reasoning")) ?? "";
-    expect(selectedLevel.startsWith(" → low")).toBe(true);
-    expect(selectedLevel.startsWith(" →  low")).toBe(false);
+    const selectedLevel = modalScreen(target).find(line => line.includes("low") && line.includes("Light reasoning")) ?? "";
+    expect(selectedLevel.startsWith("  → low")).toBe(true);
+    expect(selectedLevel.startsWith("  →  low")).toBe(false);
     expect(shown).not.toContain("(clear override)");
     target.onInput?.(ESC, HOST);
-    expect(screen(target).join("\n")).toContain("Thinking Level (step 1/2)");
-    expect(screen(target).join("\n")).toContain("Esc close");
+    expect(modalScreen(target).join("\n")).toContain("Thinking Level (step 1/2)");
+    expect(modalScreen(target).join("\n")).toContain("Esc close");
     expect(backing.writes).toHaveLength(0);
 
     target.onInput?.(ENTER, HOST);
@@ -909,13 +940,13 @@ describe("the settings screen", () => {
       key: "modelThinkingLevels",
       value: { "openai/gpt-5": "high", "openai/gpt-5.3-codex-spark": "low" },
     });
-    shown = screen(target).join("\n");
+    shown = modalScreen(target).join("\n");
     expect(shown).toContain("Thinking Level (step 1/2)");
     expect(shown).toContain("Select a model to configure");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]  low");
 
     target.onInput?.(ENTER, HOST);
-    shown = screen(target).join("\n");
+    shown = modalScreen(target).join("\n");
     expect(shown).toContain("✓ low");
     expect(shown).toContain("(clear override)");
     expect(shown).toContain("Revert to global default");
@@ -930,6 +961,33 @@ describe("the settings screen", () => {
     });
     target.onInput?.(ESC, HOST);
     expect(screen(target).join("\n")).not.toContain("Thinking Level (step");
+  });
+
+  it("keeps the active model, input, and guidance in a compact centered dialog", async () => {
+    const backing = modelDialogPort();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent: backing.port });
+    await session.load();
+    const target = settingsApp(session);
+    selectRow(target, "Default thinking level per model");
+    target.onInput?.(ENTER, HOST);
+
+    const width = 48;
+    const height = 10;
+    const compactHost = { ...PANEL_HOST, getSize: () => ({ width, height }) };
+    const frame = target.render({ width, height }, compactHost);
+    let dialog = modalScreen(target, width, height).join("\n");
+    expect(frame).toHaveLength(height);
+    expect(frame.every(line => displayWidth(line) === width)).toBe(true);
+    expect(dialog).toContain("Thinking Level (step 1/2)");
+    expect(dialog.split("\n").some(line => line.trim() === ">")).toBe(true);
+    expect(dialog).toContain("gpt-5 [openai]");
+    expect(dialog).toContain("Type search  Enter select  Esc close");
+    expect(dialog).not.toContain("gpt-5.3-codex-spark");
+
+    target.onInput?.(DOWN, HOST);
+    dialog = modalScreen(target, width, height).join("\n");
+    expect(dialog).toContain("gpt-5.3-codex-spark [openai]");
+    expect(dialog).not.toContain("→ gpt-5 [openai]");
   });
 
   it("adjusts a flag with the arrows, as the list adjusts a value", async () => {
@@ -953,11 +1011,14 @@ describe("the settings screen", () => {
     for (const event of [
       { kind: "motion" as const, button: 0, row: row + 1, column: valueColumn },
       { kind: "press" as const, button: 0, row: row + 1, column: valueColumn },
-      { kind: "wheel-down" as const, button: 0, row: row + 1, column: valueColumn },
     ]) {
       expect(target.onMouse?.(event, HOST)).toEqual({ consumed: true, render: false });
     }
     expect(screen(target)).toEqual(before);
+    const dialog = modalScreen(target);
+    expect(target.onMouse?.({ kind: "wheel-down", button: 0, row: row + 1, column: valueColumn }, HOST))
+      .toEqual({ consumed: true });
+    expect(modalScreen(target)).toEqual(dialog);
     expect(writes).toHaveLength(0);
   });
 
@@ -967,15 +1028,14 @@ describe("the settings screen", () => {
     target.onInput?.(ENTER, HOST);
 
     const before = screen(target);
-    const beforeTitle = before.findIndex(line => line.trim() === "Warnings");
-    expect(beforeTitle).toBeGreaterThan(1);
+    const beforeDialog = modalScreen(target);
+    expect(beforeDialog.findIndex(line => line.trim() === "Warnings")).toBe(1);
     expect(target.onMouse?.({ kind: "wheel-up", button: 0, row: 2, column: 70 }, HOST))
       .toEqual({ consumed: true });
 
     const after = screen(target);
-    const afterTitle = after.findIndex(line => line.trim() === "Warnings");
-    expect(after.slice(0, afterTitle - 1)).not.toEqual(before.slice(0, beforeTitle - 1));
-    expect(after.slice(afterTitle - 1)).toEqual(before.slice(beforeTitle - 1));
+    expect(after).not.toEqual(before);
+    expect(modalScreen(target)).toEqual(beforeDialog);
     expect(writes).toHaveLength(0);
   });
 
