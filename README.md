@@ -145,13 +145,13 @@ Stuck on `0.2.2` and `a1 update` fails? Run the installer once, then use `a1 upd
 npm x -y -- @timurproko/a1-install
 ```
 
-The **Update** setting controls the at-most-daily startup check:
+The **Update** setting controls release discovery:
 
-- **Auto** (default) silently installs a verified update for the running channel, then shows `Update installed · Restart to update`.
-- **Notify** keeps the `Update Available` notice and leaves installation manual.
-- **No** performs no startup update check; updates remain available through the commands above.
+- **Auto** (default) checks the running release's stable or development channel at startup and every 15 minutes while open. It silently installs a verified update, then shows `Update installed · Restart to update`; existing sessions keep running until restarted.
+- **Notify** checks at startup (at most daily), keeps the `Update Available` notice, and leaves installation manual.
+- **No** performs no update check; updates remain available through the commands above.
 
-`A1_SKIP_VERSION_CHECK=1` also disables the startup check. Manual stable, development, and exact-version update commands remain available in every mode.
+`A1_SKIP_VERSION_CHECK=1` disables both Auto and Notify discovery. Manual stable, development, and exact-version update commands remain available in every mode.
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 

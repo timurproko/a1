@@ -50,7 +50,7 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     id: "updateCheck",
     label: "Update",
     section: GENERIC_SECTION,
-    description: "Auto installs verified channel updates silently, Notify shows the current update notice, and No leaves updates manual. Checks use the public npm registry; applies on next start.",
+    description: "Auto checks the running channel every 15 minutes while open and installs verified updates silently. Notify checks on startup and shows an update notice; No leaves updates manual. Applies on next start.",
     application: "restart",
     defaultValue: "auto",
     allowedValues: Object.freeze(["auto", "notify", "no"] as const),

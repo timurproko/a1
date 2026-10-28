@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { gt, prerelease, valid as validSemver } from "semver";
+import lockfile from "proper-lockfile";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 /** Published release channels: stable `X.Y.Z` on dist-tag `latest`, development `X.Y.Z-dev.N` on `next`. */
@@ -26,10 +27,11 @@ export interface AvailableRelease {
 }
 
 export const DEFAULT_NPM_REGISTRY = "https://registry.npmjs.org";
-export const UPDATE_CHECK_INTERVAL_MS = 24 * 60 * 60_000;
+export const UPDATE_CHECK_INTERVAL_MS = 15 * 60_000;
+export const NOTIFY_CHECK_INTERVAL_MS = 24 * 60 * 60_000;
 const STARTUP_FETCH_TIMEOUT_MS = 3_000;
 const CACHE_FILENAME = "update-check.json";
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const MAX_CACHE_BYTES = 4096;
 const MAX_PACKAGE_DOCUMENT_BYTES = 32 * 1024 * 1024;
 
@@ -138,15 +140,16 @@ export function parsePublishedVersions(document: unknown): PublishedVersions {
 
 /** Forget the startup release check so the next interactive launch asks the registry again. */
 export async function invalidateReleaseCheckCache(configDir: string): Promise<void> {
-  await rm(join(configDir, CACHE_FILENAME), { force: true });
+  await withCacheLock(configDir, async () => { await rm(join(configDir, CACHE_FILENAME), { force: true }); });
 }
 
 export function unavailableDistTags(error: string): DistTagVersions {
   return { release: null, develop: null, error };
 }
 
-export function createRegistryFetcher(timeoutMs: number): RegistryFetcher {
-  return async url => await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(timeoutMs) });
+export function createRegistryFetcher(timeoutMs: number, signal?: AbortSignal): RegistryFetcher {
+  return async url => await fetch(url, { headers: { accept: "application/json" },
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs) });
 }
 
 export interface StartupReleaseCheckOptions {
@@ -158,6 +161,9 @@ export interface StartupReleaseCheckOptions {
   /** The bare-A1 `updateCheck` setting; comparison profiles omit it and use auto. */
   readonly settingMode?: StartupUpdateMode;
   readonly fetcher?: RegistryFetcher;
+  readonly signal?: AbortSignal;
+  /** Remaining cache lifetime for a live Auto observer, when discovery succeeds. */
+  readonly onNextCheckDelay?: (milliseconds: number) => void;
   readonly now?: () => number;
 }
 
@@ -179,23 +185,31 @@ export function startupReleaseCheckSkipReason(options: StartupReleaseCheckOption
  * answer replaces the cache. Every failure resolves to null: the notice is best-effort.
  */
 export async function checkForNewerRelease(options: StartupReleaseCheckOptions): Promise<AvailableRelease | null> {
-  if (startupReleaseCheckSkipReason(options) !== null) return null;
+  if (options.signal?.aborted || startupReleaseCheckSkipReason(options) !== null) return null;
   const channel = releaseChannelOf(options.runningVersion)!;
   const environment = options.environment ?? process.env;
   const now = options.now ?? Date.now;
   const cachePath = join(options.configDir, CACHE_FILENAME);
   try {
-    let latest = await readFreshCache(cachePath, channel, now());
-    if (latest === null) {
+    const interval = options.settingMode === "notify" ? NOTIFY_CHECK_INTERVAL_MS : UPDATE_CHECK_INTERVAL_MS;
+    const latest = await withCacheLock(options.configDir, async () => {
+      if (options.signal?.aborted) return null;
+      const document = await readCache(cachePath);
+      const cached = freshVersion(document[channel], now(), interval);
+      if (cached !== null) return cached;
       const tags = await queryRegistryDistTags(
-        options.fetcher ?? createRegistryFetcher(STARTUP_FETCH_TIMEOUT_MS),
+        options.fetcher ?? createRegistryFetcher(STARTUP_FETCH_TIMEOUT_MS, options.signal),
         environment.npm_config_registry?.trim() || undefined,
       );
-      latest = channel === "stable" ? tags.release : tags.develop;
-      if (tags.error !== null || latest === null) return null;
-      await writeCache(options.configDir, cachePath, { version: CACHE_VERSION, channel, latest, checkedAt: now() }).catch(() => undefined);
-    }
-    return isNewerRelease(latest, options.runningVersion) ? availableRelease(channel, latest) : null;
+      const discovered = channel === "stable" ? tags.release : tags.develop;
+      if (tags.error !== null || discovered === null || options.signal?.aborted) return null;
+      const entry = { latest: discovered, checkedAt: now() };
+      await writeCache(options.configDir, cachePath, { ...document, [channel]: entry }).catch(() => undefined);
+      return entry;
+    });
+    if (options.signal?.aborted || latest === null) return null;
+    options.onNextCheckDelay?.(Math.min(interval, Math.max(1, interval - (now() - latest.checkedAt))));
+    return isNewerRelease(latest.latest, options.runningVersion) ? availableRelease(channel, latest.latest) : null;
   } catch {
     return null;
   }
@@ -210,30 +224,54 @@ export function availableRelease(channel: ReleaseChannel, version: string): Avai
   };
 }
 
+interface CacheEntry { readonly latest: string; readonly checkedAt: number }
 interface CacheDocument {
   readonly version: typeof CACHE_VERSION;
-  readonly channel: ReleaseChannel;
-  readonly latest: string;
-  readonly checkedAt: number;
+  readonly stable?: CacheEntry;
+  readonly development?: CacheEntry;
 }
 
-async function readFreshCache(path: string, channel: ReleaseChannel, now: number): Promise<string | null> {
-  let parsed: unknown;
+function validEntry(value: unknown, channel: ReleaseChannel): CacheEntry | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const entry = value as Partial<CacheEntry>;
+  return typeof entry.latest === "string" && releaseChannelOf(entry.latest) === channel
+    && typeof entry.checkedAt === "number" && Number.isFinite(entry.checkedAt) ? { latest: entry.latest, checkedAt: entry.checkedAt } : undefined;
+}
+
+async function readCache(path: string): Promise<CacheDocument> {
   try {
     const source = await readFile(path, "utf8");
-    if (source.length > MAX_CACHE_BYTES) return null;
-    parsed = JSON.parse(source);
-  } catch {
-    return null;
-  }
-  if (typeof parsed !== "object" || parsed === null) return null;
-  const cache = parsed as Partial<Record<keyof CacheDocument, unknown>>;
-  if (cache.version !== CACHE_VERSION || cache.channel !== channel) return null;
-  if (typeof cache.latest !== "string" || validSemver(cache.latest) === null) return null;
-  if (typeof cache.checkedAt !== "number" || !Number.isFinite(cache.checkedAt)) return null;
-  // Invariant: a timestamp from the future (clock moved back) is stale rather than fresh forever.
-  const age = now - cache.checkedAt;
-  return age >= 0 && age < UPDATE_CHECK_INTERVAL_MS ? cache.latest : null;
+    if (Buffer.byteLength(source, "utf8") > MAX_CACHE_BYTES) return { version: CACHE_VERSION };
+    const value: unknown = JSON.parse(source);
+    if (typeof value !== "object" || value === null || Array.isArray(value)) return { version: CACHE_VERSION };
+    const cache = value as Record<string, unknown>;
+    if (cache.version === 1) {
+      // Compatibility: an old cache has exactly one channel; do not infer a value for the other.
+      if (cache.channel !== "stable" && cache.channel !== "development") return { version: CACHE_VERSION };
+      const entry = validEntry(cache, cache.channel);
+      return entry ? { version: CACHE_VERSION, [cache.channel]: entry } : { version: CACHE_VERSION };
+    }
+    if (cache.version !== CACHE_VERSION) return { version: CACHE_VERSION };
+    const stable = validEntry(cache.stable, "stable");
+    const development = validEntry(cache.development, "development");
+    return { version: CACHE_VERSION, ...(stable ? { stable } : {}), ...(development ? { development } : {}) };
+  } catch { return { version: CACHE_VERSION }; }
+}
+
+function freshVersion(entry: CacheEntry | undefined, now: number, interval: number): CacheEntry | null {
+  if (!entry) return null;
+  // Invariant: a timestamp from the future is stale rather than fresh forever.
+  const age = now - entry.checkedAt;
+  return age >= 0 && age < interval ? entry : null;
+}
+
+async function withCacheLock<T>(directory: string, operation: () => Promise<T>): Promise<T> {
+  await mkdir(directory, { recursive: true });
+  const release = await lockfile.lock(join(directory, CACHE_FILENAME), {
+    realpath: false, stale: 30_000, update: 10_000,
+    retries: { retries: 20, factor: 1.2, minTimeout: 20, maxTimeout: 100, randomize: true },
+  });
+  try { return await operation(); } finally { await release(); }
 }
 
 async function writeCache(directory: string, path: string, document: CacheDocument): Promise<void> {

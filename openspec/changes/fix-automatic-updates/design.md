@@ -28,6 +28,6 @@ Only an approved active release newer than the executing version produces the ex
 - A failed update may need manual intervention. Preserve the 24-hour same-target cooldown, report failures only in bounded coordinator evidence, and retain explicit commands with diagnostics.
 - Activation without restarting leaves an old session running by design; the restart-ready status must not claim an install before approved active state exists.
 
-## Open Questions
+## Decision confirmed
 
-- Confirm the proposed fifteen-minute Auto discovery interval and background checks while an interactive session remains open before implementation. `Notify` remains startup-only unless explicitly refined.
+The maintainer approved the fifteen-minute Auto cadence and live-session checks. `Notify` remains startup-only.
