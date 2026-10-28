@@ -14,6 +14,8 @@ Owned Settings currently has two configure presentations. Resident Plus Menu is 
 
 The shared reference-screen app currently owns scrolling and scrollbar pointer input but treats every other document pointer report as consumed navigation chrome. Changelog and startup release-note rows therefore cannot use the owned selection and clipboard behavior already available in the session frame. The resident Changelog tab also reserves `Ctrl+C` for its two-press exit chord, so explicit copy must take precedence only while a selection exists.
 
+The centered Settings dialogs currently receive their panel background from a route-host literal (`55,55,55`), while the native Commands and Plus Menu component owns a darker neutral surface (`38,38,38`, ANSI 235). That makes Warnings and Thinking Level visibly lighter than the reference dialog and leaves palette ownership outside the reusable component boundary.
+
 ## Decisions
 
 ### 1. One tab-kind provider
@@ -91,6 +93,12 @@ On selection release, the screen reads the live `fullscreenCopyOnSelect` value. 
 
 Selection extraction excludes frame rules, footer hints, scrollbar cells, ANSI styling, and terminal padding while preserving selected line breaks and the release-note text visible at the selected columns. A non-selection key clears the retained selection before applying the existing screen action. Pointer ownership continues to give the scrollbar rail precedence, and selection drags may extend across visible document rows without activating content behind the screen.
 
+### 10. The dialog component owns the native-matching surface palette
+
+Add one component-level floating-dialog surface renderer to the shared UI theme boundary. It paints the canonical neutral background used by the native Commands and Plus Menu component: RGB `38,38,38` in truecolor mode and ANSI color `235` in 256-color mode, with a background reset after the surface span. The Settings route host maps its semantic `panel` role to this renderer according to the active Pi color mode instead of embedding a raw RGB sequence.
+
+The centered overlay and dialog-content components continue to consume only `theme.panel`; Warnings, both Thinking Level steps, fallback Plus Menu, generic structured settings, and future configure workflows receive the palette automatically. Selected rows remain on the accent-derived `selectedBg`, and titles, descriptions, inputs, and shortcut hints retain their existing semantic foreground roles. Native and TypeScript implementations keep separate language renderers but share explicit palette parity tests at their component boundaries.
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -103,3 +111,4 @@ Selection extraction excludes frame rules, footer hints, scrollbar cells, ANSI s
 - A fixed model window can push Thinking Level guidance off a short terminal. The selector computes its visible model rows from the modal's available height and retains selection-relative windowing.
 - Changelog selection can conflict with rail dragging or the resident interrupt chord. Pointer tests cover rail precedence, and input tests prove `Ctrl+C` copies only when a selection exists before restoring the host's established no-selection behavior.
 - Styled Markdown and hyperlink rows can make byte offsets diverge from terminal cells. Selection and extraction use shared ANSI-aware text primitives and regressions cover wrapped, styled, multi-row, word, and line selections.
+- A route-host or dialog-specific background can drift from the native reference again. Governance checks reject raw dialog RGB in the Settings host, while component tests cover truecolor, 256-color, panel fill, selected-row restoration, and native palette parity.
