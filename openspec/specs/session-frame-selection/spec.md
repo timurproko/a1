@@ -78,9 +78,9 @@ Double-click SHALL select the visible word at the pointed cell and triple-click 
 
 ### Requirement: Copy output matches selected visible text
 
-When automatic fullscreen copy is enabled, completing a pointer selection with eligible non-whitespace persistent transcript, ordinary prompt-input, footer/status-bar, or user-facing application-message text SHALL capture and submit that text for clipboard delivery without requiring a second keypress. User-facing application messages SHALL include visible status, warning, error, command-result, and notice text. This SHALL include complete-frame drags and editor-owned prompt word or line multi-click selection. When automatic fullscreen copy is disabled, release SHALL retain the visual selection without submitting clipboard work, and the existing explicit selection-copy action SHALL remain available. Before delivery, complete-frame copy SHALL trim Unicode whitespace from the beginning and end of the complete plain-text payload. It SHALL preserve whitespace between the first and last non-whitespace characters, including multiline indentation and internal blank lines, and SHALL NOT trim each visual row independently.
+When automatic fullscreen copy is enabled, completing a pointer selection with eligible non-whitespace persistent transcript, ordinary prompt-input, footer/status-bar, or user-facing application-message text SHALL capture and submit that text for clipboard delivery without requiring a second keypress. User-facing application messages SHALL include visible status, warning, error, command-result, and notice text. A complete-frame gesture that begins outside the prompt MAY span ordinary prompt-input text. Every pointer gesture that begins inside the prompt SHALL remain editor-owned through motion and release, including wrapped rows, motion beyond prompt bounds, and atomic chips. Editor-owned prompt drag, word, or line selection SHALL retain the selected draft range without submitting clipboard work or replacing the current clipboard, regardless of the automatic fullscreen copy setting. While that editor-owned range remains selected, clipboard paste SHALL replace it through the established asynchronous paste path, `Ctrl+C` SHALL copy it without changing the draft, and `Ctrl+X` SHALL copy and delete it. When automatic fullscreen copy is disabled, complete-frame release SHALL retain the visual selection without submitting clipboard work, and both `Ctrl+C` and the general message-copy action SHALL copy that active non-editable frame selection before any last-agent-message fallback. Before delivery, complete-frame copy SHALL trim Unicode whitespace from the beginning and end of the complete plain-text payload. It SHALL preserve whitespace between the first and last non-whitespace characters, including multiline indentation and internal blank lines, and SHALL NOT trim each visual row independently.
 
-The visual selected range MAY span every exposed base-frame row. Automatic and explicit `Ctrl+C` frame-copy output SHALL admit selected persistent transcript rows, selected ordinary prompt-input body rows, selected footer/status-bar rows, and selected user-facing application-message rows in frame order. Both routes SHALL exclude flexible alignment rows, autocomplete controls, input borders and presentation-only prompt chrome, prompt-input rows while the draft contains chip tags, scrollbar and selection controls, and other structural dock chrome. A range containing only eligible prompt-input, footer/status-bar, or application-message text SHALL copy automatically on release when enabled, or remain visibly selected and copy through `Ctrl+C` when automatic copying is disabled. A range containing only excluded rows or whitespace SHALL remain visibly selected but SHALL NOT submit or replace clipboard content through automatic copy or `Ctrl+C`; `Ctrl+C` SHALL clear such a retained visual-only selection without forwarding an interrupt.
+The visual selected range MAY span every exposed base-frame row. Automatic and explicit `Ctrl+C` frame-copy output SHALL admit selected persistent transcript rows, selected ordinary prompt-input body rows, selected footer/status-bar rows, and selected user-facing application-message rows in frame order. Both routes SHALL exclude flexible alignment rows, autocomplete controls, input borders and presentation-only prompt chrome, prompt-input rows while the draft contains chip tags, scrollbar and selection controls, and other structural dock chrome. A complete-frame range containing only eligible prompt-input, footer/status-bar, or application-message text SHALL copy automatically on release when enabled, or remain visibly selected and copy through `Ctrl+C` when automatic copying is disabled. A range containing only excluded rows or whitespace SHALL remain visibly selected but SHALL NOT submit or replace clipboard content through automatic copy or `Ctrl+C`; `Ctrl+C` SHALL clear such a retained visual-only selection without forwarding an interrupt.
 
 When one submitted prompt is the only eligible transcript source in the range, clipboard text SHALL contain only its semantic prompt text, excluding the `❯` prefix, prompt padding, and timestamp. When a submitted prompt participates in a larger eligible transcript range, copy SHALL preserve its currently selected visible prefix, alignment, and timestamp together with the surrounding selected transcript text. Selected ordinary prompt-input text SHALL preserve the selected semantic draft characters while excluding the `❯` prefix, padding, cursor markers, borders, counters, and autocomplete presentation. Selected application-message text SHALL preserve the selected visible message columns and wrapping while excluding message padding and presentation controls. Copy output SHALL otherwise preserve selected visible row boundaries while excluding ANSI and OSC controls, unselected right padding, scrollbar glyphs, and content covered by modal or overlay presentation.
 
@@ -112,9 +112,29 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **AND** clear the retained selection through the established copy-clearing behavior
 
 #### Scenario: Select ordinary prompt text with automatic copy enabled
-- **WHEN** the reader completes a frame drag or editor-owned word or line selection over non-whitespace ordinary prompt-input text while automatic fullscreen copy is enabled
+- **WHEN** a complete-frame gesture begins outside the editor, extends over non-whitespace ordinary prompt-input text, and automatic fullscreen copy is enabled
 - **THEN** A1 SHALL submit the exact selected semantic draft text once without its prefix, padding, cursor, borders, counters, or autocomplete presentation
-- **AND** the prompt selection SHALL remain visibly selected after release
+- **AND** the complete-frame prompt-row selection SHALL remain visibly selected after release
+
+#### Scenario: Drag an editable prompt selection
+- **WHEN** the reader begins a pointer drag inside ordinary prompt-input text and releases after selecting characters on the same or another wrapped prompt row
+- **THEN** the editor SHALL retain the exact selected draft range without automatic clipboard submission
+- **AND** moving beyond the prompt bounds before release SHALL clamp the selection to the nearest editor text edge without transferring ownership to the complete frame
+
+#### Scenario: Replace an editor-owned prompt selection
+- **WHEN** the reader selects a prompt word or line through editor-owned multi-click selection and invokes clipboard paste
+- **THEN** selection release SHALL NOT submit or replace clipboard content
+- **AND** paste SHALL replace the selected draft range with the existing clipboard content
+
+#### Scenario: Explicitly copy an editor-owned prompt selection
+- **WHEN** an editor-owned prompt drag, word, or line selection remains highlighted and the reader presses `Ctrl+C`
+- **THEN** A1 SHALL submit the exact selected semantic draft text through the established editor copy route
+- **AND** the editor SHALL retain its established explicit-copy selection-collapse behavior
+
+#### Scenario: Cut an editor-owned prompt selection
+- **WHEN** an editor-owned prompt drag, word, line, wrapped, or atomic-chip selection remains highlighted and the reader presses `Ctrl+X`
+- **THEN** A1 SHALL submit the exact selected semantic draft text through the established editor cut route
+- **AND** delete only that selected range without invoking last-agent-message copy or showing a last-agent success or failure notice
 
 #### Scenario: Select only the status bar
 - **WHEN** a completed visual range contains selected footer/status-bar text and automatic fullscreen copy is enabled
@@ -181,9 +201,14 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **THEN** A1 SHALL submit the normalized eligible payload through the bounded clipboard path regardless of the automatic-copy setting
 - **AND** clear the retained frame selection through the established copy-clearing behavior
 
+#### Scenario: Copy a frame selection through the general copy action
+- **WHEN** a released non-editable frame selection remains visible and the reader invokes the general message-copy action
+- **THEN** A1 SHALL submit and clear that selected payload through the same bounded path as `Ctrl+C`
+- **AND** SHALL NOT invoke last-agent-message copy or show its success or failure notice
+
 #### Scenario: Preserve semantic copy routes
-- **WHEN** the reader invokes `/copy` or copies or cuts a keyboard-selected prompt range
-- **THEN** those routes SHALL retain their existing semantic last-message or exact-editor-text behavior
+- **WHEN** the reader invokes `/copy`, or invokes the general message-copy action with no editor or frame selection
+- **THEN** the established last-agent-message workflow SHALL remain available
 - **AND** complete-frame filtering SHALL admit only declared application-message, ordinary prompt-input, and footer/status rows among dock content
 
 ### Requirement: Gesture ownership preserves interactive surfaces
