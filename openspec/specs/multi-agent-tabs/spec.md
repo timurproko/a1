@@ -1189,31 +1189,8 @@ A1 SHALL offer `Agent`, a multi-instance kind whose every invocation creates a n
 - **WHEN** the user disables every kind
 - **THEN** the strip SHALL no longer show `+`, and the Settings `Plus menu` entry SHALL still open the dialog
 
-### Requirement: Tabs open at once and only a resize fades
-The attach client SHALL present one locally pending new Agent chip and an empty transcript and complete idle editor/footer with a visual caret but no child cursor on the first paint after a user create action, without awaiting process startup; its complete real surface SHALL replace the pending presentation as soon as its first drawn frame commits, without a fade. Revealed Settings and Changelog tabs SHALL retain the current content until their first drawn frame commits. A tab that never draws SHALL still show after the bounded first-draw wait. Only a resize reveal SHALL fade: once its curtain lifts the whole frame, the strip included, SHALL draw faint for one fade interval and then at full intensity, with no cursor shown during the fade. A starting tab's chip SHALL show no spinner. One tab SHALL open at a time: while a tab this client asked for is still starting or not yet shown, a new-Agent shortcut, `+` click, or menu entry SHALL start nothing.
-
-#### Scenario: A new tab draws at once
-- **WHEN** the user creates an Agent beside another tab
-- **THEN** the first paint SHALL show exactly one pending Agent chip and a complete idle editor/footer, then its first complete child frame SHALL replace that chip and shell together at full intensity without a fade or duplicate chip
-
-#### Scenario: A revealed utility tab draws at once
-- **WHEN** the user opens a hidden Settings or Changelog tab whose retained screen is still blank
-- **THEN** the current content SHALL stay until the tab draws, so no empty body or bare cursor shows, and the tab SHALL then show with no fade
-
-#### Scenario: A burst of new-Agent shortcuts opens one Agent at a time
-- **WHEN** the user presses the new-Agent shortcut repeatedly while an Agent is still opening
-- **THEN** no further Agent SHALL start until that Agent is shown, so no Agents start in the background and the newest Agent opened is the one in view
-
-#### Scenario: A starting tab has no spinner
-- **WHEN** an Agent tab is starting
-- **THEN** its chip SHALL show no glyph before its name
-
-#### Scenario: A resize fades the whole frame
-- **WHEN** a resize reveal runs
-- **THEN** the whole frame SHALL fade in with no cursor shown, and opening a tab SHALL never fade
-
 ### Requirement: The command palette opens every tab kind
-The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal command palette over the dimmed strip and body from any tab, the landing, or the Settings tab. The palette SHALL show the title `Commands` with a dim `esc` hint, a search line that shows the dim placeholder `Search` while empty, one `Tabs` section in the owned section style, and the rows `Agent`, `Settings`, and `Changelog` in the owned list style with `→` and the accent selected background on the selected row and each effective shortcut right-aligned. Up and Down SHALL move the selection, printable keys and `Backspace` SHALL edit a case-insensitive label filter, `Enter` SHALL close the palette and run the selected entry exactly as its shortcut or launcher row would, and `Esc` SHALL close it without action. While the palette is open, no key, paste, or mouse input SHALL reach a child, and mouse input SHALL NOT act on the strip or the palette. A `tabs.changelog` action SHALL exist for assignment without a default key.
+The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal command palette over the dimmed strip and body from any tab, the landing, or the Settings tab. The palette SHALL show the title `Commands` with a dim `esc` hint, a search line that shows the dim placeholder `Search` while empty, one `Tabs` section in the owned section style, and the rows `Agent`, `Settings`, and `Changelog` in the owned list style with `→` and the accent selected background on the selected row and each effective shortcut right-aligned. Up and Down SHALL move the selection, printable keys and `Backspace` SHALL edit a case-insensitive label filter, `Enter` SHALL close the palette and run the selected entry exactly as its shortcut or launcher row would, and `Esc` SHALL close it without action. While the palette is open, no key, paste, or mouse input SHALL reach a child, and mouse input SHALL NOT act on the strip or the palette. A `tabs.changelog` action SHALL exist for assignment without a default key. The Commands and Plus Menu dialogs SHALL declare their footer guidance as semantic key-and-action entries and render it through one reusable native shortcut-hint component. Each shortcut key SHALL use the owned quiet gray role, each action description SHALL use the distinct lighter muted gray role, and adjacent entries SHALL have exactly two display cells between them with no middle dot or other separator glyph. The Commands footer SHALL read `Type search  ↑↓ navigate  Enter open  Esc close`; the Plus Menu footer SHALL read `Type search  ↑↓ navigate  Space toggle  Esc close`. Width clipping SHALL preserve graphemes and complete key/action style boundaries in truecolor and 256-color modes.
 
 #### Scenario: Open the palette
 - **WHEN** the user presses `Alt+/`
@@ -1230,6 +1207,11 @@ The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal comm
 #### Scenario: Mouse is inert
 - **WHEN** the palette is open and the user clicks anywhere
 - **THEN** nothing SHALL change and no mouse report SHALL reach a child
+
+#### Scenario: Style native tab-dialog shortcut hints
+- **WHEN** Commands or Plus Menu renders its footer in truecolor or 256-color mode
+- **THEN** every shortcut key SHALL use the quiet gray role and every action description SHALL use the distinct lighter muted gray role
+- **AND** entries SHALL be separated by exactly two spaces with no separator glyph
 
 ### Requirement: Changelog is a singleton utility tab
 Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Changelog` that renders the owned changelog reference screen without owning an Agent session. The palette and `tabs.changelog` SHALL show it at once: the attach client SHALL keep one Changelog tab prewarmed and hidden, as it does Settings, starting it after Settings is ready and again after a Changelog tab closes, and SHALL create one only when none is running. Every utility tab, Settings and Changelog alike, SHALL follow one set of tab bar rules: opening one that is not in the strip SHALL place it last, its toggle SHALL hide the viewed one while its process keeps running, and a resident tab whose id names a utility route SHALL present that route as its pinned screen. Its registry record SHALL have the `changelog` kind. Its chip SHALL offer Close but not Rename. Its screen SHALL be the tab: it SHALL show no `Esc close` hint, and neither `Esc` nor one `Ctrl+C` SHALL close it. Resident Agents SHALL neither advertise nor execute `/changelog`; `a1 solo` and `a1 pi` SHALL keep their existing changelog command.
@@ -1299,3 +1281,50 @@ A resident utility tab, Settings or Changelog, SHALL run a child process that ne
 #### Scenario: Agent tabs are unchanged
 - **WHEN** the client creates an Agent tab or promotes the standby
 - **THEN** its child SHALL run the full composition with the Pi engine
+
+### Requirement: Tabs open at once and resizes repaint without an overlay
+
+The attach client SHALL present one locally pending new Agent chip and an empty transcript and complete idle editor/footer with a visual caret but no child cursor on the first paint after a user create action, without awaiting process startup; its complete real surface SHALL replace the pending presentation as soon as its first nonblank drawn frame commits, without a fade. Blank child surfaces SHALL remain parked for any duration and SHALL NOT replace the pending Agent presentation or expose a child cursor merely because a first-draw timer elapsed. Revealed Settings and Changelog tabs SHALL retain the current content until their first nonblank drawn frame commits. An explicit create refusal, failed surface, holder loss, child exit, restart, or recovery outcome SHALL continue through its existing owned presentation rather than remain hidden behind the first-draw gate. Every changed-size resize SHALL repaint the retained complete frame at the current geometry without a resize-only curtain, dimming, or fade. Geometry SHALL continue reaching the child immediately, and a newer complete surface SHALL replace the retained frame when available. An inactive terminal tab SHALL NOT retain resize feedback that flashes on return; focus gain SHALL repaint a complete frame. A starting tab's chip SHALL show no spinner. One tab SHALL open at a time: while a tab this client asked for is still starting or not yet shown, a new-Agent shortcut, `+` click, or menu entry SHALL start nothing.
+
+#### Scenario: A new tab draws at once
+
+- **WHEN** the user creates an Agent beside another tab
+- **THEN** the first paint SHALL show exactly one pending Agent chip and a complete idle editor/footer, then its first complete nonblank child frame SHALL replace that chip and shell together at full intensity without a fade or duplicate chip
+
+#### Scenario: A blank Agent surface never becomes visible
+
+- **WHEN** a newly requested Agent publishes blank surfaces before, at, or after the former bounded first-draw wait
+- **THEN** the complete local startup preview SHALL remain visible with no child cursor
+- **AND** the first nonblank coherent Agent frame SHALL replace it in one commit
+
+#### Scenario: A revealed utility tab draws at once
+
+- **WHEN** the user opens a hidden Settings or Changelog tab whose retained screen is still blank
+- **THEN** the current content SHALL stay until the tab draws, so no empty body or bare cursor shows, and the tab SHALL then show with no fade
+
+#### Scenario: A startup failure remains visible
+
+- **WHEN** an Agent create, holder, or child fails before a nonblank frame commits
+- **THEN** the established failure or recovery presentation SHALL replace the startup preview
+- **AND** no blank child surface or bare cursor SHALL appear first
+
+#### Scenario: A burst of new-Agent shortcuts opens one Agent at a time
+
+- **WHEN** the user presses the new-Agent shortcut repeatedly while an Agent is still opening
+- **THEN** no further Agent SHALL start until that Agent is shown, so no Agents start in the background and the newest Agent opened is the one in view
+
+#### Scenario: A starting tab has no spinner
+
+- **WHEN** an Agent tab is starting
+- **THEN** its chip SHALL show no glyph before its name
+
+#### Scenario: Resize repaints the Agent frame directly
+
+- **WHEN** the outer terminal changes size during a quick snap or prolonged drag
+- **THEN** A1 SHALL repaint the complete retained strip and child frame at the new size without a resize-only overlay or fade
+- **AND** the newest complete child frame SHALL replace the retained content as it arrives
+
+#### Scenario: Switching back after a background resize
+
+- **WHEN** the terminal application resizes while the A1 terminal tab is unfocused and the user returns
+- **THEN** A1 SHALL forward the new geometry and repaint a complete frame at full intensity without flashing any resize feedback
