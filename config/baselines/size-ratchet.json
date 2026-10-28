@@ -182,7 +182,7 @@
       "lines": 109
     },
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController.handlePreInput": {
-      "lines": 319
+      "lines": 317
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
       "lines": 280

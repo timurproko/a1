@@ -274,9 +274,10 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input(`\u001b[<32;${column + 3};${row}M`);
       terminal.input(`\u001b[<0;${column + 3};${row}m`);
       expect(shell.root.hasActiveSelection()).toBe(true);
-      await vi.waitFor(() => expect(copied).toEqual(["/mo"]));
+      await nextImmediate();
+      expect(copied).toEqual([]);
       terminal.input("\u0003");
-      await vi.waitFor(() => expect(copied).toEqual(["/mo", "/mo"]));
+      await vi.waitFor(() => expect(copied).toEqual(["/mo"]));
       expect(shell.root.hasActiveSelection()).toBe(false);
       const ui = (engine.session.extensionBindings as { uiContext: ExtensionUIContext }).uiContext;
       ui.setEditorComponent(tui => new Editor(tui, {
@@ -449,6 +450,43 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       await vi.waitFor(() => expect(copied).toEqual(["this"]));
       expect(clipboardText).toBe("this");
       expect(shell.root.editor.selectedText?.()).toBeUndefined();
+    } finally { await shell.dispose(); }
+  });
+
+  it("copies and cuts pointer-dragged prompt text without last-message fallback", async () => {
+    const copied: string[] = [];
+    const { shell, terminal } = await fixture([], [], true, undefined, {
+      readText: async () => null,
+      writeText: async value => { copied.push(value); },
+    });
+    try {
+      terminal.resize(60, 12);
+      shell.root.setFullscreenCopyOnSelect(true);
+      const drag = (word: string) => {
+        shell.runtime.renderNow();
+        const rows = shell.root.render(60).map(stripTerminalSequences);
+        const row = rows.findIndex(line => line.includes(word)) + 1;
+        const column = rows[row - 1]!.indexOf(word) + 1;
+        terminal.input(`\u001b[<0;${column};${row}M\u001b[<32;${column + word.length};${row}M\u001b[<0;${column + word.length};${row}m`);
+      };
+
+      shell.root.editor.setText("copy dragged text");
+      drag("dragged");
+      await nextImmediate();
+      expect(copied).toEqual([]);
+      expect(shell.root.editor.selectedText?.()).toBe("dragged");
+      terminal.input("\u0003");
+      await vi.waitFor(() => expect(copied).toEqual(["dragged"]));
+      expect(shell.root.editor.getText()).toBe("copy dragged text");
+
+      shell.root.editor.setText("cut dragged text");
+      drag("dragged");
+      expect(shell.root.editor.selectedText?.()).toBe("dragged");
+      terminal.input("\u0018");
+      await vi.waitFor(() => expect(copied).toEqual(["dragged", "dragged"]));
+      expect(shell.root.editor.getText()).toBe("cut  text");
+      const frame = shell.root.render(60).map(stripTerminalSequences).join("\n");
+      expect(frame).not.toMatch(/No agent messages to copy yet|Copied last agent message to clipboard/u);
     } finally { await shell.dispose(); }
   });
 
@@ -647,6 +685,37 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       .toContain(`copied ${"Selectable assistant words".length} chars to clipboard`));
   });
 
+  it("copies a frame selection through Ctrl+X before last-agent fallback", async () => {
+    const copied: string[] = [];
+    const answer = "selected frame text and fallback tail";
+    const { shell, terminal, engine } = await fixture([
+      { role: "assistant", content: [{ type: "text", text: answer }], timestamp: Date.now() },
+    ], [], true, undefined, {
+      readText: async () => null,
+      writeText: async value => { copied.push(value); },
+    });
+    try {
+      Object.assign(engine.session, { getLastAssistantText: () => answer });
+      terminal.resize(60, 12);
+      shell.root.setFullscreenCopyOnSelect(false);
+      shell.runtime.renderNow();
+      const rows = shell.root.render(60).map(stripTerminalSequences);
+      const row = rows.findIndex(line => line.includes(answer)) + 1;
+      const column = rows[row - 1]!.indexOf("frame") + 1;
+      terminal.input(`\u001b[<0;${column};${row}M\u001b[<32;${column + 4};${row}M\u001b[<0;${column + 4};${row}m`);
+      terminal.input("\u0018");
+      await vi.waitFor(() => expect(copied).toEqual(["frame"]));
+      expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
+        .not.toMatch(/No agent messages to copy yet|Copied last agent message to clipboard/u);
+
+      expect(shell.root.hasActiveSelection()).toBe(false);
+      terminal.input("\u0018");
+      await vi.waitFor(() => expect(copied).toEqual(["frame", answer]));
+      await vi.waitFor(() => expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
+        .toContain("last agent message to clipboard"));
+    } finally { await shell.dispose(); }
+  });
+
   it("copies prompt and status selections according to the live auto-copy setting", async () => {
     const copied: string[] = [];
     const messages = [
@@ -681,7 +750,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       await vi.waitFor(() => expect(copied).toHaveLength(2));
       expect(copied[1]).toMatch(/^❯ ask me\s+\d{1,2}:\d{2} [AP]M\n\n answer body$/u);
 
-      terminal.input(`\u001b[<0;${inputColumn};${inputRow}M\u001b[<32;${inputColumn + 4};${inputRow}M\u001b[<0;${inputColumn + 4};${inputRow}m`);
+      terminal.input(`\u001b[<0;${inputColumn};${inputRow}M\u001b[<32;${inputColumn + 5};${inputRow}M\u001b[<0;${inputColumn + 5};${inputRow}m`);
       shell.runtime.renderNow();
       expect(shell.root.render(60)[inputRow - 1]).toContain("\u001b[48;2;38;79;120m");
       await nextImmediate();

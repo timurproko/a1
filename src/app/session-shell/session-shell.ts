@@ -593,6 +593,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       const snapshot = routed.copySelection;
       this.#trackCopy(this.#responseCopy?.submit(snapshot, this.#pendingClipboardWrite), copyCharacters(snapshot));
     }
+    if (routed.copyLastMessage) void this.runWorkflow({ command: "copy", argument: "" });
     if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
     return routed.data.length === 0 ? { consume: true } : { data: routed.data };
   }

@@ -1082,16 +1082,15 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     expect(shell.root.render(60).join("\n")).toContain(FAKE_CURSOR_START);
 
     const redrawsBeforeDrag = shell.runtime.fullRedraws;
+    clipboardText = "before-url-cut";
     terminal.input(`\u001b[<0;${chipColumn};${chipRow}M`);
     terminal.input(`\u001b[<32;${chipColumn + 1};${chipRow}M`);
     shell.runtime.renderNow();
     const heldChip = shell.root.render(60).join("\n");
     expect(shell.runtime.fullRedraws).toBe(redrawsBeforeDrag);
     expect(heldChip).toContain("\u001b[48;2;38;79;120m");
-    expect(heldChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
-    expect(stripTerminalSequences(heldChip)).toContain("https://example.com");
-    expect(visibleWidth(heldChip.split("\n").find(row => stripTerminalSequences(row).includes("https://")) ?? "")).toBe(60);
-    expect(shell.root.editor.getText()).toContain("https://example.com");
+    expect(visibleWidth(heldChip.split("\n").find(row => stripTerminalSequences(row).includes("example.com")) ?? "")).toBe(60);
+    expect(shell.root.editor.selectedText?.()).toBe("https://example.com/a/very/useful/resource");
 
     const writesBeforeRelease = terminal.writes.length;
     terminal.input(`\u001b[<0;${chipColumn + 1};${chipRow}m`);
@@ -1099,10 +1098,11 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     const draggedChip = shell.root.render(60).join("\n");
     expect(terminal.writes.slice(writesBeforeRelease).some(write => write.includes("\u001b[2J"))).toBe(false);
     expect(draggedChip).toContain("\u001b[48;2;38;79;120m");
-    expect(draggedChip).toContain("\u001b]8;;https://example.com/a/very/useful/resource\u001b\\");
-    terminal.input("\u007f");
-    await nextImmediate();
+    terminal.input("\u0018");
+    await vi.waitFor(() => expect(clipboardText).toBe("https://example.com/a/very/useful/resource"));
     expect(shell.root.editor.getText()).toBe("");
+    expect(stripTerminalSequences(shell.root.render(60).join("\n")))
+      .not.toMatch(/No agent messages to copy yet|Copied last agent message to clipboard/u);
 
     const imageBytes = screenshotPng(16, 16, false);
     const canonicalImageData = imageBytes.toString("base64");
@@ -1117,6 +1117,22 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     terminal.input("\u001b[D");
     terminal.input("\u0003");
     await vi.waitFor(() => expect(clipboardText).toBe(imageTag));
+
+    shell.runtime.renderNow();
+    const imageFrame = shell.root.render(60).map(row => stripTerminalSequences(row));
+    const imageRow = imageFrame.findIndex(row => row.includes(imageTag)) + 1;
+    const imageColumn = imageFrame[imageRow - 1]!.indexOf(imageTag) + 2;
+    clipboardText = "before-cut";
+    terminal.input(`\u001b[<0;${imageColumn};${imageRow}M\u001b[<32;${imageColumn + 1};${imageRow}M\u001b[<0;${imageColumn + 1};${imageRow}m`);
+    expect(shell.root.editor.selectedText?.()).toBe(imageTag);
+    terminal.input("\u0018");
+    await vi.waitFor(() => expect(clipboardText).toBe(imageTag));
+    expect(shell.root.editor.getText()).toBe("");
+    expect(stripTerminalSequences(shell.root.render(60).join("\n")))
+      .not.toMatch(/No agent messages to copy yet|Copied last agent message to clipboard/u);
+    terminal.input("\u001a");
+    expect(shell.root.editor.getText()).toBe(imageTag);
+
     await shell.submit(imageTag);
     expect(engine.session.calls).toContain(`prompt:${imageTag}`);
     expect(engine.session.promptOptions.at(-1)).toMatchObject({
@@ -1177,7 +1193,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     expect(trace.snapshot().totals.dispose!.count).toBe(1);
   });
 
-  it("keeps an uninterrupted LMB drag through adjacent URL chips visual-only", async () => {
+  it("keeps an uninterrupted LMB drag through adjacent URL chips editor-owned and atomic", async () => {
     const url = "https://example.com/a/very/useful/resource";
     let clipboardText = url;
     const { terminal, shell } = await fixture([], [], true, undefined, {
@@ -1206,7 +1222,8 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     terminal.input(`\u001b[<32;${secondBracketColumn};${promptRow + 1}M`);
     shell.runtime.renderNow();
     expect(shell.runtime.fullRedraws).toBe(redrawsBeforeDrag);
-    expect(shell.root.editor.hasSelection()).toBe(false);
+    expect(shell.root.editor.hasSelection()).toBe(true);
+    expect(shell.root.editor.selectedText?.()).toBe(`${url}${url}`);
     expect(shell.root.hasActiveSelection()).toBe(true);
     expect(shell.root.render(120).join("\n")).toContain("\u001b[48;2;38;79;120m");
 
@@ -1214,11 +1231,9 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     await nextImmediate();
     expect(clipboardText).toBe(url);
     expect(shell.root.hasActiveSelection()).toBe(true);
-    expect(shell.root.render(120).join("\n")).toContain("\u001b[48;2;38;79;120m");
-
-    terminal.input("\u0003");
-    await nextImmediate();
-    expect(clipboardText).toBe(url);
+    terminal.input("\u0018");
+    await vi.waitFor(() => expect(clipboardText).toBe(`${url}${url}`));
+    expect(shell.root.editor.getText()).toBe("");
     expect(shell.root.hasActiveSelection()).toBe(false);
     await shell.dispose();
   });

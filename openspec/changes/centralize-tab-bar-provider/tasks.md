@@ -62,6 +62,6 @@
 
 ## 11. Selection-first prompt copy and cut
 
-- [ ] 11.1 Keep pointer drags that begin in the prompt editor-owned through motion and release, including wrapped rows, out-of-bounds clamping, and atomic chips.
-- [ ] 11.2 Route `Ctrl+C` to copy and `Ctrl+X` to cut active prompt selections, while making the general message-copy action consume active non-editable frame selection before last-agent fallback.
-- [ ] 11.3 Preserve no-selection last-agent copy and `/copy`, prevent misleading last-agent notices while selection exists, and add focused shell/controller/editor regressions; record implementation evidence.
+- [x] 11.1 Keep pointer drags that begin in the prompt editor-owned through motion and release, including wrapped rows, out-of-bounds clamping, and atomic chips.
+- [x] 11.2 Route `Ctrl+C` to copy and `Ctrl+X` to cut active prompt selections, while making the general message-copy action consume active non-editable frame selection before last-agent fallback.
+- [x] 11.3 Preserve no-selection last-agent copy and `/copy`, prevent misleading last-agent notices while selection exists, and add focused shell/controller/editor regressions; record implementation evidence.

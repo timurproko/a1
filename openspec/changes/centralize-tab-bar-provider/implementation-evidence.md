@@ -65,6 +65,13 @@
 - Existing consumers continue using the same geometry for painting, hit testing, grab offsets, drag conversion, and track paging; no session, Settings, Changelog, or other surface owns a separate minimum.
 - Shared component coverage verifies very long content, one-row and two-row tracks, both thumb hit rows, proportional larger thumbs, top and bottom clamping, and drag-to-end conversion.
 
+## Selection-first prompt copy and cut
+
+- `SessionViewportController` now promotes the pending prompt press into an editor pointer gesture on first motion and keeps that owner through release, so wrapped rows and out-of-bounds motion retain the editor's clamped selection instead of becoming a complete-frame selection.
+- Explicit shortcut precedence is editor prompt selection first, non-editable frame selection second, and last-agent-message copy only when neither selection exists. `Ctrl+C` copies prompt text without editing it, while `Ctrl+X` copies and removes the selected prompt range; a retained frame selection is copied rather than invoking the last-message workflow.
+- Prompt copy-on-select remains disabled. URL and image chips snap to their complete atomic ranges, expand through the established clipboard presentation, cut without leaking image storage paths, and do not display last-agent success or empty-message notices.
+- Controller, shell, paste, and editor regressions cover drag ownership, autocomplete, wrapped and out-of-bounds rows, explicit copy and cut, frame-selection precedence, no-selection fallback, and atomic URL and image chips.
+
 ## Local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the blank-first-frame refinement.
@@ -85,6 +92,9 @@
 - `npx vitest run test/app/session-shell/session-shell-workflows.test.ts test/app/session-shell/session-shell-selection.test.ts test/repository-governance/owned-settings-interaction-boundary.test.ts` passed with 104 tests before the Changelog-selection refinement.
 - `npx vitest run test/ui/components/dialog-panel.test.ts test/features/owned-ui/settings-app.test.ts test/features/owned-ui/plus-menu-dialog.test.ts test/composition/settings-route-host.test.ts test/repository-governance/owned-settings-interaction-boundary.test.ts` passed with 96 focused tests after the shared dialog-palette refinement.
 - `npx vitest run test/app/session-shell/session-viewport-controller.test.ts test/app/session-shell/session-shell-selection.test.ts` passed with 151 tests.
+- `npx vitest run test/app/session-shell/session-shell-selection.test.ts` passed with 82 selection and shortcut-precedence tests after the selection-first refinement.
+- `npx vitest run test/app/session-shell/session-shell-paste.test.ts` passed with 85 clipboard and atomic-chip tests after the selection-first refinement.
+- `npx vitest run test/app/session-shell/session-viewport-controller.test.ts test/integrations/pi/components/prompt-input-ux.test.ts` passed with 104 controller and editor tests after the selection-first refinement.
 - `npm run check:docs-governance` passed.
 - `npx openspec validate centralize-tab-bar-provider --strict` passed.
 - `npm run test:fast` could not enter its suites because the candidate build's GitHub artifact lookup hit a network connection failure while resolving the required Windows terminal library; the focused and broader owned-UI suites above completed locally.
