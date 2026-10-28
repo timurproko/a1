@@ -48,7 +48,7 @@
 
 ## Changelog text selection
 
-- `ReferenceDocumentSelection` keeps Changelog and startup `What's New` selection in document-row coordinates, reuses shared drag, word, and line selection primitives, and paints visible cells through the active theme's selection background without discarding Markdown foreground or hyperlink styling.
+- `ReferenceDocumentSelection` keeps Changelog and startup `What's New` selection in document-row coordinates, reuses shared drag, word, and line selection primitives, and paints visible cells through the shared blue text-selection component without discarding Markdown foreground or hyperlink styling.
 - Selection extraction strips ANSI and terminal padding while retaining selected line breaks. Wheel, keyboard, and scrollbar scrolling leave the selection anchored to the same document rows; scrollbar presses retain precedence and compact frames keep the ordinary exact-dimension contract.
 - Selection release reads `fullscreenCopyOnSelect` from the shared Pi settings document through a lazily loaded utility-safe policy. Enabled selections submit once through the existing bounded clipboard callback; disabled selections remain painted without a clipboard write.
 - An active selection claims `Ctrl+C`, copies explicitly, and clears. With no selection, standalone Changelog retains one-interrupt close and the pinned resident Changelog retains its two-interrupt application-exit chord. Hotkeys and Session Info remain non-selectable.
@@ -72,6 +72,12 @@
 - Prompt copy-on-select remains disabled. URL and image chips snap to their complete atomic ranges, expand through the established clipboard presentation, cut without leaking image storage paths, and do not display last-agent success or empty-message notices.
 - Controller, shell, paste, and editor regressions cover drag ownership, autocomplete, wrapped and out-of-bounds rows, explicit copy and cut, frame-selection precedence, no-selection fallback, and atomic URL and image chips.
 
+## Shared text-selection surface
+
+- `paintTextSelection` owns the product blue selected-text background and ANSI-safe span composition in `src/ui/components/text-selection.ts`; recipient modules contain no copy of the selection RGB.
+- Agent frame selection, ordinary prompt selection, Settings search selection, Changelog, startup `What's New`, and the transcript viewport default all delegate to the shared painter. Atomic prompt chips retain their distinct reverse-video focus, and list/menu row highlighting remains theme-owned.
+- Component coverage verifies nested ANSI attributes, OSC hyperlinks, wide graphemes, and inverse clearing. Reference-screen coverage proves Changelog ignores a conflicting theme highlight, while governance coverage requires every recipient to consume the shared painter and forbids recipient-owned copies of its RGB.
+
 ## Local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the blank-first-frame refinement.
@@ -79,6 +85,8 @@
 - `npm run build:core` passed.
 - `npm run typecheck` passed after the prompt-selection, centered-dialog, Changelog-selection, and automatic-copy acknowledgement refinements.
 - `npm run check:architecture` passed with the acknowledgement state kept inside the selection component, the reference-screen class within its size threshold, and the startup graph within its byte budget.
+- `npx vitest run test/ui/components/text-selection.test.ts test/features/owned-ui/reference-screen-app.test.ts test/repository-governance/text-selection-style-boundary.test.ts test/features/owned-ui/settings-app.test.ts` passed with 122 shared-painter and recipient tests.
+- `npx vitest run test/app/session-shell/session-shell-selection.test.ts test/app/session-shell/session-shell-paste.test.ts` passed with 167 Agent selection, clipboard, and atomic-chip tests after routing through the shared painter.
 - `npx vitest run test/features/owned-ui test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts` passed with 213 tests.
 - `npx vitest run test/app/session-shell/session-shell-resident-utility-tabs.test.ts test/app/session-shell/session-shell-workflows.test.ts test/app/session-shell/session-shell-selection.test.ts` passed with 103 tests.
 - `npx vitest run test/ui/components/scrollbar.test.ts test/ui/components/selection-scrollbar-edge.test.ts` passed with 41 shared geometry, interaction, and gutter-selection tests.

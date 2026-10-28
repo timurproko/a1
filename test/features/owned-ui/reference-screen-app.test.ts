@@ -218,7 +218,9 @@ describe("ReferenceScreenApp frame", () => {
     target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, HOST);
     target.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, HOST);
     expect(copyText).toHaveBeenLastCalledWith("alpha");
-    expect(screen(target, { ...HOST, theme: selectedTheme })[2]).toContain("<selected>alpha</selected>");
+    const selectedRow = screen(target, { ...HOST, theme: selectedTheme })[2] ?? "";
+    expect(selectedRow).toContain("\u001b[48;2;38;79;120m");
+    expect(selectedRow).not.toContain("<selected>");
 
     automatic = false;
     target.onMouse?.({ kind: "press", button: 0, row: 4, column: 2 }, HOST);
@@ -228,7 +230,7 @@ describe("ReferenceScreenApp frame", () => {
     expect(copyText).toHaveBeenCalledTimes(1);
     expect(target.onInput?.(INTERRUPT, HOST)).toEqual({ consumed: true });
     expect(copyText).toHaveBeenLastCalledWith("gamma");
-    expect(screen(target, { ...HOST, theme: selectedTheme })[3]).not.toContain("<selected>");
+    expect(screen(target, { ...HOST, theme: selectedTheme })[3]).not.toContain("\u001b[48;2;38;79;120m");
     expect(target.onInput?.(INTERRUPT, HOST)).toEqual({ consumed: false });
   });
 
@@ -284,7 +286,8 @@ describe("ReferenceScreenApp frame", () => {
     refused.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, HOST);
     const refusedFrame = screen(refused, { ...HOST, theme: selectedTheme });
     expect(refusedFrame.join("\n")).not.toContain("copied");
-    expect(refusedFrame[2]).toContain("<selected>alpha</selected>");
+    expect(refusedFrame[2]).toContain("\u001b[48;2;38;79;120m");
+    expect(refusedFrame[2]).not.toContain("<selected>");
 
     const copyText = vi.fn();
     const disabled = app(["alpha"], {}, "Changelog", {

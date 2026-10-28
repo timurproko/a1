@@ -2,14 +2,32 @@ import { describe, expect, it } from "vitest";
 import {
   extendTextSelection,
   orderedTextSelection,
+  paintTextSelection,
   pressTextSelection,
   releaseTextSelection,
+  stripAnsi,
   textSelectionPointAt,
   textSelectionText,
   usefulTextLineContent,
 } from "../../../src/ui/components/index.js";
 
 describe("text selection", () => {
+  it("paints the shared blue background without losing styles, links, or graphemes", () => {
+    const link = "https://example.com/docs";
+    const source = `\u001b[31ma\u001b]8;;${link}\u001b\\\u001b[4m界\u001b]8;;\u001b\\\u001b[1mb`;
+    const painted = paintTextSelection(source, 1, 3);
+    expect(painted).toContain("\u001b[48;2;38;79;120m");
+    expect(painted).toContain(`\u001b]8;;${link}\u001b\\`);
+    expect(painted).toContain("\u001b[4m\u001b[48;2;38;79;120m界");
+    expect(painted).toContain("\u001b[49m");
+    expect(stripAnsi(painted)).toBe("a界b");
+  });
+
+  it("can clear reverse video while retaining the shared blue background", () => {
+    const painted = paintTextSelection("abc", 0, 2, undefined, true);
+    expect(painted).toContain("\u001b[27m\u001b[48;2;38;79;120mab");
+  });
+
   it("cycles LMB through point, word, line, then point", () => {
     const first = pressTextSelection({ line: 0, column: 2, contentWidth: 20, lineText: "alpha, beta", now: 1_000 });
     expect(first.kind).toBe("point");

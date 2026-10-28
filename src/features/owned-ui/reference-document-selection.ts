@@ -1,11 +1,11 @@
 import {
   COPY_ACKNOWLEDGEMENT_DURATION_MS,
-  backgroundSgrSpan,
   copyAcknowledgementText,
   displayWidth,
   extendTextSelection,
   orderedTextSelection,
   overlaySpan,
+  paintTextSelection,
   padToWidth,
   pressTextSelection,
   releaseTextSelection,
@@ -22,7 +22,6 @@ import {
 } from "../../ui/components/index.js";
 
 const INTERRUPT = "\u0003";
-const HIGHLIGHT_MARKER = "\u{e000}";
 
 export interface ReferenceDocumentSelectionOptions {
   readonly copyOnSelect: () => boolean;
@@ -114,7 +113,7 @@ export class ReferenceDocumentSelection {
       && documentRow >= ordered.start.line && documentRow <= ordered.end.line) {
       const from = documentRow === ordered.start.line ? ordered.start.column : 0;
       const to = documentRow === ordered.end.line ? ordered.end.column : width;
-      painted = paintSelection(painted, Math.max(0, from), Math.min(width, to), theme);
+      painted = paintTextSelection(painted, Math.max(0, from), Math.min(width, to));
     }
     return this.#acknowledgement.paint(painted, visibleRow === (frame?.visibleDocumentRows.length ?? 0) - 1, width, theme);
   }
@@ -226,18 +225,4 @@ function selectionStillMaps(selection: TextSelection, previous: readonly string[
     if (stripAnsi(previous[line] ?? "") !== stripAnsi(next[line] ?? "")) return false;
   }
   return true;
-}
-
-function paintSelection(line: string, from: number, to: number, theme: UiTheme): string {
-  if (to <= from || from >= displayWidth(line)) return line;
-  const sample = theme.highlight(HIGHLIGHT_MARKER);
-  const marker = sample.indexOf(HIGHLIGHT_MARKER);
-  if (marker < 0) return line;
-  return backgroundSgrSpan(
-    line,
-    from,
-    to,
-    sample.slice(0, marker),
-    sample.slice(marker + HIGHLIGHT_MARKER.length),
-  );
 }

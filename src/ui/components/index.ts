@@ -97,6 +97,7 @@ export {
   TEXT_SELECTION_MULTI_CLICK_MS,
   extendTextSelection,
   orderedTextSelection,
+  paintTextSelection,
   plainTextBetweenColumns,
   pressTextSelection,
   releaseTextSelection,

@@ -68,6 +68,6 @@
 
 ## 12. Shared text-selection surface
 
-- [ ] 12.1 Add one shared component-owned blue text-selection painter and route Agent frame selection, ordinary prompt selection, Settings search selection, Changelog, and `What's New` through it.
-- [ ] 12.2 Preserve ANSI foregrounds, attributes, hyperlinks, grapheme boundaries, exact frame dimensions, atomic-chip focus, and theme-owned list or menu row highlighting.
-- [ ] 12.3 Add focused component and recipient regressions that prove uniform selected-text styling and absence of recipient-owned selection RGB; record implementation evidence.
+- [x] 12.1 Add one shared component-owned blue text-selection painter and route Agent frame selection, ordinary prompt selection, Settings search selection, Changelog, and `What's New` through it.
+- [x] 12.2 Preserve ANSI foregrounds, attributes, hyperlinks, grapheme boundaries, exact frame dimensions, atomic-chip focus, and theme-owned list or menu row highlighting.
+- [x] 12.3 Add focused component and recipient regressions that prove uniform selected-text styling and absence of recipient-owned selection RGB; record implementation evidence.
