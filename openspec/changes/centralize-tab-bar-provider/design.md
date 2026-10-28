@@ -10,6 +10,8 @@ The owned prompt has another interaction conflict. Editor-owned double-click and
 
 Native tab dialogs have also bypassed the owned shortcut-hint grammar. The Commands and Plus Menu footers are constants painted as one muted span, so keys and actions have no semantic color boundary and entries use middle dots instead of the shared two-space gap. The TypeScript dialog component already owns the desired semantic model, but the native attach renderer needs an equivalent reusable boundary rather than more dialog-specific ANSI assembly.
 
+Owned Settings currently has two configure presentations. Resident Plus Menu is a centered floating surface over a dimmed screen, but Warnings, the Thinking Level selector, and generic structured values are rendered as a full-width panel docked at the bottom. The setting declaration should choose content and behavior, not a different frame style.
+
 ## Decisions
 
 ### 1. One tab-kind provider
@@ -71,6 +73,14 @@ Add a pure native shortcut-hint component that receives ordered semantic entries
 
 The Commands and Plus Menu dialogs declare their footers as entry arrays and render them through this component. The palette remains responsible only for its panel background and row placement; it maps the component's key and action roles to the established owned-dialog truecolor values, with stable 256-color fallbacks. Future native dialogs can reuse the same component without copying footer strings or styling decisions.
 
+### 8. Settings configure actions share one centered modal frame
+
+Replace the docked structured-value panel with a reusable overlay compositor in the shared component layer. It receives the already rendered Settings frame and semantic dialog rows, dims the complete backdrop, centers a compact surface up to the established dialog width, paints every cell with the floating-panel background, and restores full intensity inside the modal. ANSI-aware overlay composition preserves the styled Settings rows outside the panel and keeps the result at the requested terminal dimensions.
+
+Warnings and generic object-valued settings keep their title, selected-part description, rows, undo route, and shortcut hints. The Thinking Level selector keeps both steps, model search, filtering, level choices, and back/close behavior. The TypeScript Plus Menu fallback also uses the same frame, while resident Settings continues to delegate to the native Plus Menu. Dialog row capacity derives from terminal height so compact terminals retain title, active controls, and guidance instead of clipping fixed ten-row lists through the bottom edge.
+
+The overlay owns presentation only. Existing structured-setting keyboard and pointer policy, backend writes, undo history, search state, and list scroll state remain unchanged, and adding another structured setting automatically receives the shared frame without a dialog-specific branch.
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -79,3 +89,5 @@ The Commands and Plus Menu dialogs declare their footers as entry arrays and ren
 - Readers who relied on prompt multi-click auto-copy must use explicit `Ctrl+C`; focused regressions preserve that route and prove complete-frame copy-on-select still applies to transcript, prompt-row, message, and status selections.
 - Paste replacement is asynchronous and may reserve a hidden marker; shell-level coverage starts with external clipboard text, selects a prompt word through pointer input, and proves the final draft contains the replacement rather than the selected source.
 - A shared native renderer can accidentally count ANSI bytes as visible cells or split a wide grapheme. Component tests cover plain text, semantic color boundaries, truecolor and 256-color modes, separator removal, and narrow clipping before the palette integration assertions.
+- A centered Settings overlay can leak faint styling into the modal or clear dimming after the panel. ANSI-aware component tests cover intensity restoration, panel-width filling, tail-style replay, centering, and exact frame dimensions.
+- A fixed model window can push Thinking Level guidance off a short terminal. The selector computes its visible model rows from the modal's available height and retains selection-relative windowing.
