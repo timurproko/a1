@@ -87,7 +87,7 @@ The overlay owns presentation only. Existing structured-setting keyboard and poi
 
 ### 9. Changelog reference screens own selectable document text
 
-Enable selection only for Changelog-route documents, including startup `What's New`; Hotkeys and Session Info retain their current pointer behavior. The reference screen stores an ordered text selection against stable document-row indexes, paints visible selected cells through the theme's selection background, and keeps the selection anchored while keyboard, wheel, or scrollbar scrolling changes the visible window. Drag selection, double-click word selection, and triple-click line selection use the shared text-selection primitives and ANSI-aware cell coordinates.
+Enable selection only for Changelog-route documents, including startup `What's New`; Hotkeys and Session Info retain their current pointer behavior. The reference screen stores an ordered text selection against stable document-row indexes, paints visible selected cells through the shared text-selection component, and keeps the selection anchored while keyboard, wheel, or scrollbar scrolling changes the visible window. Drag selection, double-click word selection, and triple-click line selection use the shared text-selection primitives and ANSI-aware cell coordinates.
 
 On selection release, the screen reads the live `fullscreenCopyOnSelect` value. When enabled, it submits normalized plain text through the route host's existing bounded clipboard callback; when disabled, it retains the painted selection without touching the clipboard. `Ctrl+C` with a nonempty selection always copies explicitly, clears the selection, and consumes the interrupt. With no selection, input falls through unchanged: standalone Changelog keeps its host-close behavior and a pinned resident Changelog keeps its two-press application exit chord.
 
@@ -125,6 +125,14 @@ Keep complete-frame selection for gestures that begin outside the editor. Its ex
 
 The acknowledgement must describe the operation that actually occurred. Successful selected-text copy uses `copied N chars to clipboard`; prompt cut does not show a copy acknowledgement under its established behavior; last-agent fallback retains its existing last-message notice. Selection-present paths must never emit `Copied last agent message to clipboard` or `No agent messages to copy yet.`
 
+### 15. Selectable text shares one component-owned blue surface
+
+Add one shared text-selection painter in the UI component layer. It owns the established blue background currently used by Agent transcript and ordinary prompt selection, applies that background over a terminal-cell range, preserves the recipient's foreground, attributes, hyperlinks, and grapheme boundaries, and restores the prior styling after the selected span. Recipients pass only their line, selected columns, and optional width measure; they do not embed the blue RGB or reconstruct its reset sequence.
+
+Route Agent complete-frame selection, ordinary prompt-editor selection, Settings search-editor selection, Changelog, and startup `What's New` through this painter. Keep atomic-chip focus on its established reverse-video contract, because it represents one indivisible editor item rather than ordinary selected text. Keep list, value-menu, and dialog active-row `highlight` styling separate, because those rows represent navigation focus rather than copied text.
+
+The shared painter is presentation-only. It does not change selection ownership, extraction, copy-on-select, explicit copy or cut, acknowledgement, scrolling, or pointer behavior. Changelog therefore receives the same blue selected-text surface as Agent content without inheriting session-specific clipboard logic.
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -143,3 +151,5 @@ The acknowledgement must describe the operation that actually occurred. Successf
 - Increasing the minimum thumb height reduces travel on short tracks and can shift drag rounding. Geometry tests must cover very long content, one-row and two-row tracks, top and bottom clamping, hit rows, and drag-to-end behavior.
 - Changing prompt drag ownership can regress cross-frame selection or leave pointer state split between editor and viewport. Gesture tests must cover wrapped rows, leaving the prompt bounds, atomic chips, release cleanup, and frame selection that begins outside the editor.
 - The general copy action can duplicate clipboard submission if it consumes a frame selection and still invokes the last-message workflow. Dispatch must have one explicit claimed/unclaimed result and tests must reject both misleading success and no-message notices while a selection exists.
+- Reusing menu-row `highlight` for copied text lets accent customization change Changelog selection independently from Agent selection. Text-selection tests must assert the shared blue component output while menu and dialog row highlights remain theme-owned.
+- A shared background painter can erase Markdown foregrounds, OSC links, or combining graphemes if it slices ANSI bytes rather than terminal cells. Component and Changelog regressions must preserve those styles and exact frame width.

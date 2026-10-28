@@ -125,3 +125,27 @@ The modal SHALL show every part it offers with the one in hand marked, a descrip
 - **WHEN** the available rows or columns are smaller than the preferred configure-modal geometry
 - **THEN** the modal SHALL remain within the requested frame and retain its title, active control, selected choice, and shortcut guidance
 - **AND** no ANSI style sequence or wide grapheme SHALL be split at an overlay boundary
+
+### Requirement: One component paints ordinary selected text
+
+The component layer SHALL provide one shared painter for ordinary selectable text. It SHALL own the established blue selection background, RGB `38,79,120`, and SHALL apply it over a declared terminal-cell range without requiring a recipient to embed that RGB or its background reset. It SHALL preserve existing foreground colors, text attributes, OSC hyperlinks, complete graphemes, and visible width beneath and after the selected span.
+
+Agent complete-frame selection, ordinary prompt-editor selection, Settings search-editor selection, Changelog, and startup `What's New` SHALL consume this painter. Atomic-chip focus MAY retain its established reverse-video presentation, and list, value-menu, or dialog active-row highlighting SHALL remain theme-owned because those surfaces represent navigation focus rather than selected copyable text.
+
+#### Scenario: Paint the same selected text across recipients
+
+- **WHEN** Agent, Settings search, Changelog, or `What's New` paints an ordinary selected-text range
+- **THEN** the selected cells SHALL use the shared blue component background
+- **AND** the recipient SHALL NOT declare its own selection RGB or reset sequence
+
+#### Scenario: Preserve styled selected text
+
+- **WHEN** the selected range contains colored Markdown, an OSC hyperlink, a wide grapheme, or a combining sequence
+- **THEN** the shared painter SHALL preserve the visible foreground and attributes beneath the blue background
+- **AND** SHALL NOT split the hyperlink, grapheme, or terminal-cell range
+
+#### Scenario: Keep navigation highlights separate
+
+- **WHEN** a list, menu, dialog row, or atomic chip is focused without an ordinary text range selection
+- **THEN** its existing theme-owned highlight or atomic-focus presentation SHALL remain in effect
+- **AND** the shared selected-text painter SHALL NOT replace that navigation state
