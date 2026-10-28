@@ -1818,6 +1818,7 @@
           "hash": "1ee488c4a039273e7ae67193a6cbf8a1a8a5173248f398eaf633b72351cf31b7",
           "consumers": [
             "src/integrations/pi/engine/conformance.ts",
+            "src/integrations/pi/engine/offline-settings-port.ts",
             "src/integrations/pi/engine/package-integration.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -2549,6 +2550,7 @@
           "kind": "class",
           "hash": "bd45a6ccdf45b4f6f1efa18c7ce2bce9edd1f2c3206a6a5144fe65387b4e3951",
           "consumers": [
+            "src/integrations/pi/engine/offline-settings-port.ts",
             "src/integrations/pi/engine/package-integration.ts",
             "src/integrations/pi/engine/project-trust-preflight.ts",
             "src/integrations/pi/engine/runtime-integration.ts",
