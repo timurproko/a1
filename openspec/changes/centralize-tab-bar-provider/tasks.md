@@ -41,3 +41,9 @@
 - [x] 7.1 Add one component-level floating-dialog surface renderer with the native Plus Menu's truecolor and 256-color background palette.
 - [x] 7.2 Remove the Settings route-host panel RGB and route Warnings, both Thinking Level steps, fallback Plus Menu, generic structured settings, and future configure dialogs through the shared semantic panel renderer.
 - [x] 7.3 Add component, Settings integration, governance, and native-palette parity regressions for panel fill, selected-row restoration, color-mode fallback, and absence of dialog-specific background literals; record implementation evidence.
+
+## 8. Blank-free Agent startup
+
+- [ ] 8.1 Keep a newly requested Agent's blank surfaces parked without a timer-driven commit, preserving the complete local startup preview and hidden child cursor until a nonblank coherent frame arrives.
+- [ ] 8.2 Preserve explicit create, holder, child, failed-surface, restart, and recovery outcomes, and update the resident-tab architecture record to remove the blank first-draw fallback.
+- [ ] 8.3 Add focused native presentation regressions for repeated and delayed blank surfaces, the first nonblank commit, and explicit failure resolution; record implementation evidence.

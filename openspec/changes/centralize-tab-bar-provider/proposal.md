@@ -12,6 +12,8 @@ The owned Changelog and startup `What's New` reference screens are read-only but
 
 The centered Settings configure dialogs also use a lighter hardcoded gray surface than the native Plus Menu reference. Warnings and both Thinking Level steps therefore share geometry but not the intended dialog palette. The surface color should belong to the reusable dialog component, not the Settings route host or individual dialogs.
 
+A newly started Agent can also outlast the bounded first-draw wait while its child surface is still blank. The attach view then commits that blank surface and exposes only the child cursor, replacing the complete local Agent startup preview before any usable UI exists. A blank surface is not a coherent Agent presentation and should never become visible merely because a timer elapsed.
+
 ## What Changes
 
 - Introduce one native tab-bar provider contract that declares every tab kind and its label, shortcut action, multiplicity, activation behavior, prewarming, renameability, session ownership, route, and menu marker.
@@ -23,6 +25,7 @@ The centered Settings configure dialogs also use a lighter hardcoded gray surfac
 - Add one shared centered configure-modal frame for owned Settings. Warnings, both Thinking Level steps, fallback Plus Menu, generic structured settings, and future object-valued settings render in that frame over a dimmed Settings backdrop while preserving their existing controls and state.
 - Add owned text selection to the Changelog and `What's New` reference screens. Mouse selection paints through the shared semantic selection role, `Copy on select` controls automatic clipboard submission on release, and `Ctrl+C` explicitly copies and clears an active selection before existing close or interrupt behavior applies.
 - Move the canonical floating-dialog surface palette into the shared component theme boundary. Warnings, both Thinking Level steps, fallback Plus Menu, and future Settings configure dialogs use the native Plus Menu's dark surface in truecolor and 256-color modes without route- or dialog-specific RGB styling.
+- Keep a newly started Agent on its complete local startup preview while the child publishes only blank surfaces, with the cursor hidden. The first nonblank coherent frame replaces the preview; explicit launch, holder, or child failure continues through the existing failure and recovery presentation instead of revealing an empty terminal.
 
 ## Capabilities
 
@@ -32,7 +35,7 @@ The centered Settings configure dialogs also use a lighter hardcoded gray surfac
 
 ### Modified Capabilities
 
-- `multi-agent-tabs`: tab-kind registration, activation, toggle behavior, menu behavior, and kind-neutral append ordering.
+- `multi-agent-tabs`: tab-kind registration, activation, toggle behavior, kind-neutral append ordering, and blank-free Agent startup presentation.
 - `session-frame-selection`: distinguish editor-owned prompt selection from complete-frame copy-on-select so prompt replacement does not overwrite its paste source.
 - `owned-ui-settings`: present every configure workflow through the centered modal interaction used by Plus Menu.
 - `ui-components`: replace the docked structured-value panel with a reusable centered modal overlay and dimmed backdrop.
@@ -41,7 +44,7 @@ The centered Settings configure dialogs also use a lighter hardcoded gray surfac
 
 ## Impact
 
-- **Native attach core:** tab-kind provider declarations, activation dispatch, plus-menu and palette entries, visibility/prewarm state, context-menu capabilities, shared dialog shortcut-hint presentation, and tests.
+- **Native attach core:** tab-kind provider declarations, activation dispatch, plus-menu and palette entries, visibility/prewarm state, context-menu capabilities, blank-first-frame gating, shared dialog shortcut-hint presentation, and tests.
 - **Native server:** kind recognition, singleton reservation, registry validation, session ownership, bridge routes, creation/reveal ordering, and tests.
 - **Owned session shell:** prompt pointer-selection release, clipboard routing, and focused replacement-paste tests.
 - **Owned Settings and UI components:** centered structured-dialog geometry, canonical native-matching panel palette, dimmed backdrop composition, compact/narrow clipping, and Warnings, Thinking Level, and fallback Plus Menu regressions.

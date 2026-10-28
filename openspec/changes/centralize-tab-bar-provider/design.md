@@ -99,6 +99,12 @@ Add one component-level floating-dialog surface renderer to the shared UI compon
 
 The Settings app derives a dialog-local theme whose `panel` role is the supplied configure surface, so the centered overlay and dialog-content components continue consuming only `theme.panel`. Warnings, both Thinking Level steps, fallback Plus Menu, generic structured settings, and future configure workflows receive the palette automatically without changing ordinary value-menu presentation. Selected rows remain on the accent-derived `selectedBg`, and titles, descriptions, inputs, and shortcut hints retain their existing semantic foreground roles. Native and TypeScript implementations keep separate language renderers but share explicit palette parity tests at their component boundaries.
 
+### 11. Blank Agent surfaces never replace the startup preview
+
+Treat visible text as part of the coherence requirement for a newly requested Agent view. While its holder publishes only blank surfaces, the presentation view model keeps the request pending and leaves the complete local Agent startup preview in place with no child cursor. Repeated blank revisions do not weaken that gate and elapsed time alone cannot make one visible. The first nonblank surface commits the requested topology, releases deferred input, and replaces the preview as one frame.
+
+Do not interpret an explicit failure as an undrawn Agent. Existing create refusal, holder loss, child exit, failed-surface, restart, and recovery paths remain eligible to replace the preview with their owned notice or failure presentation. Removing the blank-surface timeout is preferred to drawing a new loading overlay after the view commits: the local preview already supplies the correct empty editor, footer, selected provisional chip, and input reservation without introducing a second startup state.
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -112,3 +118,4 @@ The Settings app derives a dialog-local theme whose `panel` role is the supplied
 - Changelog selection can conflict with rail dragging or the resident interrupt chord. Pointer tests cover rail precedence, and input tests prove `Ctrl+C` copies only when a selection exists before restoring the host's established no-selection behavior.
 - Styled Markdown and hyperlink rows can make byte offsets diverge from terminal cells. Selection and extraction use shared ANSI-aware text primitives and regressions cover wrapped, styled, multi-row, word, and line selections.
 - A route-host or dialog-specific background can drift from the native reference again. Governance checks reject raw dialog RGB in the Settings host, while component tests cover truecolor, 256-color, panel fill, selected-row restoration, and native palette parity.
+- An Agent whose child remains alive but never draws will retain its startup preview instead of exposing a terminal cursor. Holder and child failure paths must still resolve that request visibly, and repeated blank surfaces must not renew or bypass the gate.
