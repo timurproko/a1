@@ -59,3 +59,9 @@
 - [x] 10.1 Raise shared overflowing-scrollbar thumb geometry to a two-row minimum whenever the track permits, while bounding the thumb to the track.
 - [x] 10.2 Preserve top and bottom clamping, drag conversion, grab offsets, track paging, and proportional heights above the minimum without adding surface-specific branches.
 - [x] 10.3 Add focused shared-scrollbar regressions for very long content, one-row and two-row tracks, thumb hit rows, and drag-to-end behavior; record implementation evidence.
+
+## 11. Selection-first prompt copy and cut
+
+- [ ] 11.1 Keep pointer drags that begin in the prompt editor-owned through motion and release, including wrapped rows, out-of-bounds clamping, and atomic chips.
+- [ ] 11.2 Route `Ctrl+C` to copy and `Ctrl+X` to cut active prompt selections, while making the general message-copy action consume active non-editable frame selection before last-agent fallback.
+- [ ] 11.3 Preserve no-selection last-agent copy and `/copy`, prevent misleading last-agent notices while selection exists, and add focused shell/controller/editor regressions; record implementation evidence.

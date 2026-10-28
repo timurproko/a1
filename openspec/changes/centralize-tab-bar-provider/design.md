@@ -117,6 +117,14 @@ Change only the shared `scrollbarGeometry` minimum. For overflowing content, cla
 
 Keep thumb travel and position derived from the resulting height, so top and bottom positions still land exactly at the track ends. Drag conversion, grab offsets, track paging, appearance, style, wheel speed, and rail ownership continue consuming the same geometry contract without surface-specific branches.
 
+### 14. The visible selection owns copy and cut dispatch
+
+Latch a pointer gesture that begins inside the prompt to the editor for its full lifetime. The deferred press still distinguishes a click from a drag, but the first distinct motion dispatches the original press and current motion to the editor instead of promoting the gesture into complete-frame selection. Subsequent motion and release remain editor-owned even outside the prompt bounds, where the editor's established clamping selects to its nearest text edge. This gives drag, word, line, and keyboard selection one editable-range contract: `Ctrl+C` copies and collapses it, `Ctrl+X` copies and deletes it, and paste replaces it without automatic copy-on-select.
+
+Keep complete-frame selection for gestures that begin outside the editor. Its explicit-copy operation becomes reusable by both `Ctrl+C` and the general `app.message.copy` action. When that action fires, consume and submit an active frame selection first; only when no frame or editor selection exists may it invoke the last-agent-message workflow. A frame selection is non-editable, so `Ctrl+X` copies and clears it rather than deleting transcript, status, or application-message content. `/copy` remains an explicit last-agent-message workflow.
+
+The acknowledgement must describe the operation that actually occurred. Successful selected-text copy uses `copied N chars to clipboard`; prompt cut does not show a copy acknowledgement under its established behavior; last-agent fallback retains its existing last-message notice. Selection-present paths must never emit `Copied last agent message to clipboard` or `No agent messages to copy yet.`
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -133,3 +141,5 @@ Keep thumb travel and position derived from the resulting height, so top and bot
 - An Agent whose child remains alive but never draws will retain its startup preview instead of exposing a terminal cursor. Holder and child failure paths must still resolve that request visibly, and repeated blank surfaces must not renew or bypass the gate.
 - A transient Changelog acknowledgement can obscure document text or leak into copied content if treated as a document row. It must remain a presentation overlay, avoid the scrollbar cell, and clear through a repaint after the shared one-second lifetime.
 - Increasing the minimum thumb height reduces travel on short tracks and can shift drag rounding. Geometry tests must cover very long content, one-row and two-row tracks, top and bottom clamping, hit rows, and drag-to-end behavior.
+- Changing prompt drag ownership can regress cross-frame selection or leave pointer state split between editor and viewport. Gesture tests must cover wrapped rows, leaving the prompt bounds, atomic chips, release cleanup, and frame selection that begins outside the editor.
+- The general copy action can duplicate clipboard submission if it consumes a frame selection and still invokes the last-message workflow. Dispatch must have one explicit claimed/unclaimed result and tests must reject both misleading success and no-message notices while a selection exists.
