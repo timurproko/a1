@@ -82,3 +82,8 @@
 
 - [x] 14.1 Make an empty last-agent-message copy a silent no-op with no clipboard submission, for both the general copy action and `/copy`.
 - [x] 14.2 Cover empty and nonempty last-message copy outcomes, preserve successful acknowledgement, and record the selection contract and implementation evidence.
+
+## 15. Steady prompt selection during replacement paste
+
+- [ ] 15.1 Keep the selected prompt's visible text and highlight stable while a replacement clipboard paste prepares, without changing its hidden semantic marker or unselected paste.
+- [ ] 15.2 Replace the preview atomically when paste settles; cover failed and cancelled paste, intervening edits, multiline selection, undo, and exceptional render restoration in both editor variants, and record specification and evidence.

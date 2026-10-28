@@ -22,6 +22,8 @@ Prompt pointer selection also has split ownership that is invisible to the reade
 
 Text-selection presentation is also split. Agent transcript and prompt selection use a stable blue background declared independently in several recipients, while Changelog and `What's New` reuse the active-row highlight and therefore paint a brown surface. Selectable text should use one component-owned blue background everywhere, without changing menu-row highlighting or clipboard behavior.
 
+Async clipboard preparation reserves a hidden paste marker as soon as `Ctrl+V` replaces an editor-owned selection. The marker temporarily removes the selected word before the replacement is ready, producing a noticeable blank flash. Keep the original selection painted until the prepared text commits, without sacrificing marker-based edit ordering, undo, or paste cancellation.
+
 The last-agent-message copy fallback currently reports `No agent messages to copy yet.` when an Agent has not produced text. Pressing the general copy shortcut or invoking `/copy` in that ordinary empty state should do nothing visibly and leave the clipboard alone; successful copying should still report its existing acknowledgement.
 
 The native resize curtain clears the Agent frame while geometry settles. Delaying it avoids a quick flash but makes it absent in ordinary resizes; the direct repaint looks better without it. Remove both the curtain and its resize-only fade, keeping geometry forwarding immediate and coherent full-frame repainting on resize and terminal-tab focus return.
@@ -44,6 +46,7 @@ The native resize curtain clears the Agent frame while geometry settles. Delayin
 - Add one shared component-owned text-selection painter with the established blue background. Agent transcript selection, prompt-editor selection, Settings search selection, Changelog, and `What's New` consume it, while list and menu active-row highlights remain separate.
 - Remove the native resize curtain and resize-only fade. Repaint the retained frame for every changed geometry, forward the new size immediately to the child, and repaint on terminal-tab focus return without blanking or overlay feedback.
 - Make the empty last-agent-message copy workflow a silent no-op for the general copy action and `/copy`, without touching the clipboard or suppressing successful-copy feedback.
+- Preserve the selected prompt's visual text and blue highlight while a replacement paste prepares, then display the replacement directly in one repaint. Keep the hidden reservation in the semantic editor and respect intervening edits and failed or cancelled pastes.
 
 ## Capabilities
 
@@ -54,7 +57,7 @@ The native resize curtain clears the Agent frame while geometry settles. Delayin
 ### Modified Capabilities
 
 - `multi-agent-tabs`: tab-kind registration, activation, toggle behavior, kind-neutral append ordering, blank-free Agent startup presentation, and direct resize repainting.
-- `session-frame-selection`: keep prompt pointer selection editor-owned, make copy/cut shortcuts prioritize the visible selection before last-message fallback, keep empty last-message copy silent, and render selectable session text through the shared blue component.
+- `session-frame-selection`: keep prompt pointer selection editor-owned and visually steady through replacement paste, make copy/cut shortcuts prioritize the visible selection before last-message fallback, keep empty last-message copy silent, and render selectable session text through the shared blue component.
 - `owned-ui-settings`: present every configure workflow through the centered modal interaction used by Plus Menu.
 - `ui-components`: replace the docked structured-value panel with a reusable centered modal overlay and dimmed backdrop, keep overflowing scrollbar thumbs at least two rows tall when possible, and own the shared blue text-selection painter.
 - `ui-apps`: make Changelog reference documents selectable with clipboard acknowledgement and the shared blue text-selection surface while preserving their scrolling and screen lifecycle.

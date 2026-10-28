@@ -50,6 +50,16 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **THEN** selection release SHALL NOT submit or replace clipboard content
 - **AND** paste SHALL replace the selected draft range with the existing clipboard content
 
+#### Scenario: Keep a replacement selection visible while paste prepares
+- **WHEN** the reader pastes from the clipboard over an editor-owned prompt word, wrapped range, or multiline selection and preparation is still pending
+- **THEN** the original text and its selected highlight SHALL remain visually steady until the replacement is ready
+- **AND** the pending semantic reservation SHALL NOT be exposed or change clipboard content
+
+#### Scenario: Finish or interrupt a replacement paste
+- **WHEN** preparation succeeds, fails, or is cancelled, or the reader edits the prompt while the replacement is pending
+- **THEN** the visible preview SHALL not overwrite intervening input; completion SHALL display the replacement without a blank intermediate frame
+- **AND** the established semantic marker, undo, cancellation, and selection restoration behaviors SHALL remain intact
+
 #### Scenario: Explicitly copy an editor-owned prompt selection
 - **WHEN** an editor-owned prompt drag, word, or line selection remains highlighted and the reader presses `Ctrl+C`
 - **THEN** A1 SHALL submit the exact selected semantic draft text through the established editor copy route
