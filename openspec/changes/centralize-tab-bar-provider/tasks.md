@@ -53,3 +53,9 @@
 - [x] 9.1 Report accepted automatic-selection character counts from Changelog selection without changing clipboard text, retained selection, or explicit-copy behavior.
 - [x] 9.2 Render the shared one-second right-aligned accent `copied N chars to clipboard` acknowledgement above the reference footer, replacing and restarting it on newer automatic copies and clearing it on close.
 - [x] 9.3 Add focused selection and reference-screen regressions for enabled, disabled, repeated, expired, narrow, scrolling, and non-selectable-route behavior; record implementation evidence.
+
+## 10. Two-row scrollbar thumb minimum
+
+- [ ] 10.1 Raise shared overflowing-scrollbar thumb geometry to a two-row minimum whenever the track permits, while bounding the thumb to the track.
+- [ ] 10.2 Preserve top and bottom clamping, drag conversion, grab offsets, track paging, and proportional heights above the minimum without adding surface-specific branches.
+- [ ] 10.3 Add focused shared-scrollbar regressions for very long content, one-row and two-row tracks, thumb hit rows, and drag-to-end behavior; record implementation evidence.

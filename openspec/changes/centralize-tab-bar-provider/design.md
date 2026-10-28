@@ -111,6 +111,12 @@ Have reference selection report the accepted character count when a nonempty aut
 
 Show the acknowledgement only when `fullscreenCopyOnSelect` is enabled and the route accepted the clipboard submission. Disabled automatic copy remains silent and retains the selection. Explicit `Ctrl+C` keeps its existing copy-and-clear precedence without adding new behavior in this refinement. A newer automatic copy replaces the prior message and restarts the expiry timer; closing the screen cancels it.
 
+### 13. Shared scrollbar geometry keeps a two-row thumb target
+
+Change only the shared `scrollbarGeometry` minimum. For overflowing content, clamp the proportional rounded thumb height to at least two rows and at most the available track height. A one-row track remains a one-row thumb because geometry cannot exceed its track; every track of two or more rows receives a minimum two-row thumb.
+
+Keep thumb travel and position derived from the resulting height, so top and bottom positions still land exactly at the track ends. Drag conversion, grab offsets, track paging, appearance, style, wheel speed, and rail ownership continue consuming the same geometry contract without surface-specific branches.
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -126,3 +132,4 @@ Show the acknowledgement only when `fullscreenCopyOnSelect` is enabled and the r
 - A route-host or dialog-specific background can drift from the native reference again. Governance checks reject raw dialog RGB in the Settings host, while component tests cover truecolor, 256-color, panel fill, selected-row restoration, and native palette parity.
 - An Agent whose child remains alive but never draws will retain its startup preview instead of exposing a terminal cursor. Holder and child failure paths must still resolve that request visibly, and repeated blank surfaces must not renew or bypass the gate.
 - A transient Changelog acknowledgement can obscure document text or leak into copied content if treated as a document row. It must remain a presentation overlay, avoid the scrollbar cell, and clear through a repaint after the shared one-second lifetime.
+- Increasing the minimum thumb height reduces travel on short tracks and can shift drag rounding. Geometry tests must cover very long content, one-row and two-row tracks, top and bottom clamping, hit rows, and drag-to-end behavior.

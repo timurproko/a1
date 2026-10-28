@@ -16,6 +16,8 @@ A newly started Agent can also outlast the bounded first-draw wait while its chi
 
 Automatic copy from the session frame shows a short `copied N chars to clipboard` acknowledgement, but Changelog and `What's New` automatic selection copy is silent. The same live setting and clipboard action should produce the same visible confirmation so readers know their selection reached the clipboard.
 
+Very long documents can currently reduce the shared scrollbar thumb to one terminal row. That target is hard to see and grab precisely, so the shared geometry should keep the thumb at least two rows tall whenever the track has room.
+
 ## What Changes
 
 - Introduce one native tab-bar provider contract that declares every tab kind and its label, shortcut action, multiplicity, activation behavior, prewarming, renameability, session ownership, route, and menu marker.
@@ -29,6 +31,7 @@ Automatic copy from the session frame shows a short `copied N chars to clipboard
 - Move the canonical floating-dialog surface palette into the shared component theme boundary. Warnings, both Thinking Level steps, fallback Plus Menu, and future Settings configure dialogs use the native Plus Menu's dark surface in truecolor and 256-color modes without route- or dialog-specific RGB styling.
 - Keep a newly started Agent on its complete local startup preview while the child publishes only blank surfaces, with the cursor hidden. The first nonblank coherent frame replaces the preview; explicit launch, holder, or child failure continues through the existing failure and recovery presentation instead of revealing an empty terminal.
 - Show the shared transient `copied N chars to clipboard` acknowledgement when enabled Changelog or `What's New` copy-on-select submits a nonempty selection through the bounded clipboard route.
+- Raise the shared scrollbar thumb minimum from one row to two rows whenever the track permits, while preserving proportional sizing above the minimum and all drag, paging, and clamping behavior.
 
 ## Capabilities
 
@@ -41,7 +44,7 @@ Automatic copy from the session frame shows a short `copied N chars to clipboard
 - `multi-agent-tabs`: tab-kind registration, activation, toggle behavior, kind-neutral append ordering, and blank-free Agent startup presentation.
 - `session-frame-selection`: distinguish editor-owned prompt selection from complete-frame copy-on-select so prompt replacement does not overwrite its paste source.
 - `owned-ui-settings`: present every configure workflow through the centered modal interaction used by Plus Menu.
-- `ui-components`: replace the docked structured-value panel with a reusable centered modal overlay and dimmed backdrop.
+- `ui-components`: replace the docked structured-value panel with a reusable centered modal overlay and dimmed backdrop, and keep overflowing scrollbar thumbs at least two rows tall when possible.
 - `ui-apps`: make Changelog reference documents selectable with clipboard acknowledgement while preserving their scrolling and screen lifecycle.
 - `pi-settings-runtime`: apply the live fullscreen copy-on-select value to Changelog selection as another owned fullscreen selection surface.
 
@@ -50,7 +53,7 @@ Automatic copy from the session frame shows a short `copied N chars to clipboard
 - **Native attach core:** tab-kind provider declarations, activation dispatch, plus-menu and palette entries, visibility/prewarm state, context-menu capabilities, blank-first-frame gating, shared dialog shortcut-hint presentation, and tests.
 - **Native server:** kind recognition, singleton reservation, registry validation, session ownership, bridge routes, creation/reveal ordering, and tests.
 - **Owned session shell:** prompt pointer-selection release, clipboard routing, and focused replacement-paste tests.
-- **Owned Settings and UI components:** centered structured-dialog geometry, canonical native-matching panel palette, dimmed backdrop composition, compact/narrow clipping, and Warnings, Thinking Level, and fallback Plus Menu regressions.
+- **Owned Settings and UI components:** centered structured-dialog geometry, canonical native-matching panel palette, dimmed backdrop composition, compact/narrow clipping, shared scrollbar minimum-thumb geometry, and Warnings, Thinking Level, and fallback Plus Menu regressions.
 - **Owned reference screens:** Changelog selection state, semantic painting, clipboard callbacks and acknowledgement, live copy-on-select reads, explicit-copy precedence, and resident utility-tab coverage.
 - **Architecture:** the resident-tab design records the tab bar as the single owner of tab-kind behavior.
 - **Protocols and dependencies:** existing wire messages remain compatible; no dependency is added.
