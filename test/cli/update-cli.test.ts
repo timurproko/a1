@@ -65,6 +65,7 @@ import { appendFileSync } from "node:fs";
 const args = process.argv.slice(2);
 appendFileSync(process.env.FAKE_NPM_LOG, JSON.stringify(args) + "\\n");
 if (args[0] === "view" && args[2] === "dist-tags") console.log(JSON.stringify({ latest: process.env.FAKE_NPM_LATEST_TARGET, next: process.env.FAKE_NPM_NEXT_TARGET }));
+else if (args[0] === "view" && args[2] === "publication.pullRequest") console.log(process.env.FAKE_NPM_NEXT_PULL_REQUEST);
 else if (args[0] === "root") console.log(process.env.FAKE_NPM_ROOT);
 else if (args[0] === "install") console.log("fake npm install completed");
 else process.exitCode = 64;
@@ -119,14 +120,21 @@ else process.exitCode = 64;
         FAKE_NPM_ROOT: dirname(repository),
         FAKE_NPM_LATEST_TARGET: latestTarget!,
         FAKE_NPM_NEXT_TARGET: nextTarget!,
+        FAKE_NPM_NEXT_PULL_REQUEST: "828",
         NODE_OPTIONS: `--no-warnings --experimental-loader=${pathToFileURL(loader).href}`,
         PATH: fakeBin,
       },
       timeout: 15_000,
     });
-    expect(result.stdout).toBe(`Current: ${packageJson.version}\nDevelop: ${nextTarget}\nRelease: ${latestTarget}\n`);
+    // Invariant: a development build asks the development head's manifest for its recorded pull
+    // request after the dist-tags lookup and shows it beside the head; the installed source
+    // checkout records none, so the Current line stays bare.
+    expect(result.stdout).toBe(`Current: ${packageJson.version}\nDevelop: ${nextTarget} (#828)\nRelease: ${latestTarget}\n`);
     const versionCalls = (await readFile(npmLog, "utf8")).trim().split("\n").map(line => JSON.parse(line) as string[]);
-    expect(versionCalls).toEqual([["view", PRODUCT_PACKAGE, "dist-tags", "--json"]]);
+    expect(versionCalls).toEqual([
+      ["view", PRODUCT_PACKAGE, "dist-tags", "--json"],
+      ["view", `${PRODUCT_PACKAGE}@${nextTarget}`, "publication.pullRequest", "--json"],
+    ]);
 
     const help = await execFileAsync(process.execPath, [cli, "help"], {
       cwd: temporaryRoot,
