@@ -841,13 +841,15 @@ setInterval(() => {}, 1000);
             "palette mode must show real status without a fill: {}", attach.output_text());
         attach.write(b"!");
     }
-    assert!(!attach.output_since(from).contains("old-branch"),
-        "an older Agent's repository metadata leaked into the pending path: {}", attach.output_text());
+    // Invariant: input may race an in-flight repaint of the still-viewed old Agent.
+    // Inspect the newly drawn Agent frame, not every byte since the shortcut was pressed.
+    assert!(!latest_cleared_frame(&attach.output_since(from)).expect("new Agent frame").contains("old-branch"),
+        "an older Agent's repository metadata leaked into the new view: {}", attach.output_text());
     assert!(attach.output_containing("latest-model", Duration::from_secs(8)),
         "latest real status did not appear after the fill: {}", attach.output_text());
     assert!(attach.output_since(from).contains("new-branch) #456"),
         "the new Agent's resolved branch and PR should appear together: {}", attach.output_text());
-    assert!(!attach.output_since(from).contains("old-branch"));
+    assert!(!latest_cleared_frame(&attach.output_since(from)).expect("latest Agent frame").contains("old-branch"));
     assert!(attach.child.try_wait().unwrap().is_none(), "attach exited during status handoff");
     attach.write(b"\x1bw");
     attach.settle(Duration::from_millis(500));
@@ -1043,6 +1045,13 @@ fn has_visual_caret(output: &str) -> bool {
 
 fn latest_cleared_frame(output: &str) -> Option<&str> {
     output.rsplit_once("\x1b[2J").map(|(_, frame)| frame)
+}
+
+#[test]
+fn new_agent_frame_excludes_an_in_flight_old_view_repaint() {
+    let output = "\x1b[2JAgent cwd (old-branch) #123\x1b[2JAgent second-ready cwd";
+    assert!(!latest_cleared_frame(output).unwrap().contains("old-branch"));
+    assert!(latest_cleared_frame("\x1b[2JAgent cwd (old-branch) #123").unwrap().contains("old-branch"));
 }
 
 #[test]
