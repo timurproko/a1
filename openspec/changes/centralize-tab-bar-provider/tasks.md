@@ -26,6 +26,6 @@
 
 ## 5. Centered Settings configure dialogs
 
-- [ ] 5.1 Add one shared component that dims an existing frame and centers a width-bounded floating panel while preserving ANSI styles, exact terminal dimensions, and compact layouts.
-- [ ] 5.2 Route Warnings, generic structured settings, both Thinking Level steps, and the TypeScript Plus Menu fallback through the centered configure frame without changing their editing, undo, search, or persistence behavior.
-- [ ] 5.3 Add focused component and Settings regressions for backdrop dimming, panel background and centering, shared shortcut roles, adaptive row windows, narrow terminals, and future structured-setting reuse; record the implementation evidence.
+- [x] 5.1 Add one shared component that dims an existing frame and centers a width-bounded floating panel while preserving ANSI styles, exact terminal dimensions, and compact layouts.
+- [x] 5.2 Route Warnings, generic structured settings, both Thinking Level steps, and the TypeScript Plus Menu fallback through the centered configure frame without changing their editing, undo, search, or persistence behavior.
+- [x] 5.3 Add focused component and Settings regressions for backdrop dimming, panel background and centering, shared shortcut roles, adaptive row windows, narrow terminals, and future structured-setting reuse; record the implementation evidence.

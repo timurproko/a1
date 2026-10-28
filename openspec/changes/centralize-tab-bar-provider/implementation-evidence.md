@@ -25,13 +25,24 @@
 - Truecolor uses distinct quiet-key and lighter-muted action colors, while 256-color fallback uses separate palette roles. Palette coverage asserts the visible text, ANSI role boundaries, fallback colors, and absence of middle-dot separators.
 - Component coverage exercises shared casing and spacing plus narrow-width clipping across a wide grapheme without emitting a partial style span.
 
+## Centered Settings configure dialogs
+
+- `renderCenteredDialogOverlay` composes the complete Settings frame under reasserted terminal faint intensity, restores normal intensity inside a centered width-bounded surface, fills every modal row through the shared panel role, and uses ANSI-aware overlay replacement so bold/reset spans cannot brighten the backdrop or clear dimming after the panel.
+- Generic structured settings now window their declared rows by available height and render through the shared configure content. Warnings retains descriptions, toggles, undo, and writes while moving from the docked footer to the centered modal; selected rows fill the inner content width while outer padding stays on the panel background.
+- Both Thinking Level steps retain model filtering, provider suffix roles, level choices, step transitions, and active-step hints. Their row windows derive from terminal height, including a 48×10 regression that keeps the selected model, search input, and close guidance visible.
+- The TypeScript Plus Menu fallback uses the same two-column modal inset and semantic shortcut renderer as other configure workflows; resident Settings continues to delegate to the native centered Plus Menu.
+
 ## Local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed.
 - A focused `rustc --test` harness over the checked-in shortcut-hint and command-palette modules passed all 5 component and palette tests.
 - `npm run build:core` passed.
-- `npm run typecheck` passed after the prompt-selection refinement.
-- `npm run check:architecture` passed after lowering the three function-size ratchets exposed by exact-head CI and the prompt controller reduction.
+- `npm run typecheck` passed after the prompt-selection and centered-dialog refinements.
+- `npm run check:architecture` passed after the centered-dialog implementation retained the Settings function and method-count ratchets.
+- `npx vitest run test/features/owned-ui test/ui/components/dialog-panel.test.ts test/composition/settings-route-host.test.ts` passed with 212 tests.
+- `npx vitest run test/app/session-shell/session-shell-workflows.test.ts test/app/session-shell/session-shell-selection.test.ts test/repository-governance/owned-settings-interaction-boundary.test.ts` passed with 104 tests.
+- `npx vitest run test/ui/components/dialog-panel.test.ts test/features/owned-ui/plus-menu-dialog.test.ts test/features/owned-ui/settings-app.test.ts` passed with 85 focused tests.
 - `npx vitest run test/app/session-shell/session-viewport-controller.test.ts test/app/session-shell/session-shell-selection.test.ts` passed with 151 tests.
 - `npx openspec validate centralize-tab-bar-provider --strict` passed.
+- `npm run test:fast` could not enter its suites because the candidate build's GitHub artifact lookup hit a network connection failure while resolving the required Windows terminal library; the focused and broader owned-UI suites above completed locally.
 - The full native unit binary could not link locally because the contracts-only build omits the Ghostty VT symbols and no trusted Windows `terminal-vt` artifact or Zig toolchain was available; exact-head CI remains the native validation authority.

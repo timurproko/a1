@@ -22,12 +22,15 @@ describe("plus-menu dialog", () => {
     const record: Record<string, boolean> = { agent: true, settings: false, changelog: false };
     const toggle = (key: string) => { record[key] = !record[key]; };
     const rows = () => dialog.lines(record, 40, PLAIN_THEME).map(line => line.trimEnd());
-    expect(rows()).toContain(" → ● Agent");
-    expect(rows()).toContain("   ○ Settings");
+    expect(rows()).toContain("  → ● Agent");
+    expect(rows()).toContain("    ○ Settings");
+    expect(rows().join("\n")).toContain("Type search");
+    expect(rows().join("\n")).toContain("Esc close");
+    expect(rows().join("\n")).not.toContain(" · ");
     expect(dialog.handle("down", "\u001b[B", toggle)).toBe("handled");
     dialog.handle("space", " ", toggle);
     expect(record.settings).toBe(true);
-    expect(rows()).toContain(" → ● Settings");
+    expect(rows()).toContain("  → ● Settings");
     for (const character of "chan") dialog.handle(character, character, toggle);
     expect(dialog.shown().map(kind => kind.key)).toEqual(["changelog"]);
     dialog.handle("space", " ", toggle);

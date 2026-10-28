@@ -1,13 +1,13 @@
-import { dialogFrameGeometry, insetDialogContent } from "../../contracts/presentation/index.js";
+import type { PaneRect } from "./frame.js";
 import { LineInput, renderInputRow } from "./line-input.js";
 import { renderShortcutHintsWithClose, type ShortcutHintEntry } from "./shortcut-hints.js";
-import { displayWidth, truncateToWidth } from "./text.js";
+import { overlaySpan } from "./spans.js";
+import { displayWidth, padToWidth, truncateToWidth } from "./text.js";
 import type { UiTheme } from "./theme.js";
 
 /**
- * The panel a value with parts is edited in: at the foot of the screen, over the
- * surface it was opened from, ruled off above and below. It shows every part,
- * marks the one in hand, says what that part does, and says how to change it.
+ * Semantic content and overlay composition for Settings configure dialogs. The setting supplies
+ * rows and behavior; this component owns compact geometry, backdrop dimming, and panel placement.
  */
 
 export interface DialogRow {
@@ -49,24 +49,72 @@ export interface SteppedDialogPanelState {
 
 const LABEL_COLUMN_CAP = 30;
 const STEPPED_LABEL_COLUMN_CAP = 46;
+const CONFIGURE_MODAL_MAX_WIDTH = 60;
+const CONFIGURE_MODAL_PADDING_X = 2;
+const SGR = /\u001b\[[0-9;]*m/gu;
 
 interface DialogPanelLayout {
-  readonly rule: string;
+  readonly blank: string;
   readonly contentWidth: number;
-  contentRow(painted: string, raw?: string): string;
+  contentRow(painted: string, raw?: string, selected?: boolean): string;
 }
 
-/** One frame path for every semantic row, regardless of which dialog supplies the content. */
+/** The shared compact width used by Settings configure dialogs and native tab dialogs. */
+export function configureDialogWidth(width: number): number {
+  return Math.min(CONFIGURE_MODAL_MAX_WIDTH, Math.max(0, width));
+}
+
+/** Rows available to a selector after retaining its title, description, control, and guidance. */
+export function configureDialogChoiceCapacity(height: number, hasInput: boolean, descriptionRows = 1): number {
+  const wrappedDescriptionRows = Math.max(1, descriptionRows);
+  return Math.max(1, Math.max(0, height) - (hasInput ? 9 : 7) - (wrappedDescriptionRows - 1));
+}
+
+/** Number of modal rows a plain description occupies at the shared content width. */
+export function configureDialogTextRows(text: string, width: number): number {
+  return wrapText(text, Math.max(0, configureDialogWidth(width) - CONFIGURE_MODAL_PADDING_X * 2)).length;
+}
+
+/** One frame path for every semantic row, regardless of which configure dialog supplies content. */
 function dialogPanelLayout(width: number, theme: UiTheme): DialogPanelLayout {
-  const geometry = dialogFrameGeometry(width);
+  const frameWidth = Math.max(0, width);
+  const left = Math.min(CONFIGURE_MODAL_PADDING_X, frameWidth);
+  const right = Math.min(CONFIGURE_MODAL_PADDING_X, frameWidth - left);
+  const contentWidth = Math.max(0, frameWidth - left - right);
   return {
-    rule: theme.fg("border", "─".repeat(geometry.frameWidth)),
-    contentWidth: geometry.contentWidth,
-    contentRow: (painted, raw = painted) => insetDialogContent(
-      pad(truncateToWidth(painted, geometry.contentWidth), geometry.contentWidth, raw),
-      geometry,
-    ),
+    blank: " ".repeat(frameWidth),
+    contentWidth,
+    contentRow: (painted, raw = painted, selected = false) => {
+      const content = pad(truncateToWidth(painted, contentWidth), contentWidth, raw);
+      const rightPadding = " ".repeat(right);
+      return `${" ".repeat(left)}${selected ? theme.highlight(content) : content}${
+        selected ? theme.panel(rightPadding) : rightPadding
+      }`;
+    },
   };
+}
+
+/** Dims a completed screen and overlays one full-intensity panel without disturbing ANSI tails. */
+export function renderCenteredDialogOverlay(
+  frame: readonly string[],
+  dialogRows: readonly string[],
+  rect: PaneRect,
+  theme: UiTheme,
+): readonly string[] {
+  const width = Math.max(0, rect.width);
+  const height = Math.max(0, rect.height);
+  const panelWidth = configureDialogWidth(width);
+  const visibleDialog = dialogRows.slice(0, height);
+  const top = Math.max(0, Math.floor((height - visibleDialog.length) / 2));
+  const left = Math.max(0, Math.floor((width - panelWidth) / 2));
+
+  return Array.from({ length: height }, (_, row) => {
+    const backdrop = dimStyledLine(frame[row] ?? "", width);
+    const dialogRow = visibleDialog[row - top];
+    if (dialogRow === undefined || panelWidth === 0) return backdrop;
+    const panel = `\u001b[22;39;49m${theme.panel(padToWidth(dialogRow, panelWidth))}`;
+    return overlaySpan(backdrop, left, left + panelWidth, panel);
+  });
 }
 
 /** The column values start at: past the widest label, capped so one long name cannot push them off. */
@@ -75,10 +123,7 @@ export function dialogValueColumn(rows: readonly DialogRow[]): number {
   return 2 + widest + 2;
 }
 
-/**
- * The panel's lines. The first line is its rule, so the row at index N is drawn
- * one line below the panel's top.
- */
+/** The semantic rows for one generic configure modal. */
 export function renderDialogPanel(state: DialogPanelState, width: number, theme: UiTheme): readonly string[] {
   const labelColumn = Math.min(LABEL_COLUMN_CAP, Math.max(0, ...state.rows.map(row => displayWidth(row.label))));
   const layout = dialogPanelLayout(width, theme);
@@ -91,28 +136,28 @@ export function renderDialogPanel(state: DialogPanelState, width: number, theme:
     const content = selected
       ? `${theme.fg("accent", cursor)}${theme.fg("text", padded)}  ${theme.fg("muted", row.value)}`
       : `${cursor}${padded}  ${theme.fg("muted", row.value)}`;
-    const painted = selected ? theme.highlight(content) : content;
-    return layout.contentRow(painted, raw);
+    return layout.contentRow(content, raw, selected);
   });
 
   const description = state.rows[state.index]?.description ?? "";
+  const descriptionRows = wrapText(description, layout.contentWidth);
   const hint = typeof state.hint === "string"
     ? theme.fg("dim", state.hint)
     : renderShortcutHintsWithClose(state.hint, theme, layout.contentWidth, 0);
   const plainHint = typeof state.hint === "string" ? state.hint : " ".repeat(displayWidth(hint));
   return [
-    layout.rule,
+    layout.blank,
     layout.contentRow(theme.bold(theme.fg("accent", state.title)), state.title),
-    layout.contentRow(theme.fg("dim", description), description),
-    "",
+    ...descriptionRows.map(line => layout.contentRow(theme.fg("dim", line), line)),
+    layout.blank,
     ...rows,
-    "",
+    layout.blank,
     layout.contentRow(hint, plainHint),
-    layout.rule,
+    layout.blank,
   ];
 }
 
-/** Owned stepped-selector composition for structured settings with nested choices. */
+/** Owned stepped-selector content for structured settings with nested choices. */
 export function renderSteppedDialogPanel(
   state: SteppedDialogPanelState,
   width: number,
@@ -134,7 +179,7 @@ export function renderSteppedDialogPanel(
     const content = selected
       ? `${theme.fg("accent", cursor)}${label}${theme.fg("muted", suffix)}`
       : `${cursor}${label}${theme.fg("muted", suffix)}`;
-    return layout.contentRow(selected ? theme.highlight(content) : content, raw);
+    return layout.contentRow(content, raw, selected);
   });
   const input = state.input === undefined
     ? []
@@ -145,21 +190,22 @@ export function renderSteppedDialogPanel(
         promptRole: "accent",
         theme,
       }).lines.map(row => layout.contentRow(row)),
-      "",
+      layout.blank,
     ];
+  const descriptionRows = wrapText(state.description, layout.contentWidth);
   const step = `(step ${state.step}/${state.steps})`;
   const title = `${state.title} ${step}`;
   const paintedTitle = `${theme.bold(theme.fg("accent", state.title))} ${theme.fg("dim", step)}`;
   return [
-    layout.rule,
+    layout.blank,
     layout.contentRow(paintedTitle, title),
-    layout.contentRow(theme.fg("dim", state.description), state.description),
-    "",
+    ...descriptionRows.map(line => layout.contentRow(theme.fg("dim", line), line)),
+    layout.blank,
     ...input,
     ...rows,
-    "",
+    layout.blank,
     layout.contentRow(renderShortcutHintsWithClose(state.hint, theme, layout.contentWidth)),
-    layout.rule,
+    layout.blank,
   ];
 }
 
@@ -174,4 +220,26 @@ export function dialogRowAt(frame: DialogPanelFrame, row: number, column: number
 function pad(line: string, width: number, raw: string): string {
   const visible = displayWidth(raw);
   return visible >= width ? line : line + " ".repeat(width - visible);
+}
+
+function dimStyledLine(line: string, width: number): string {
+  const padded = padToWidth(line, width);
+  return `\u001b[2m${padded.replace(SGR, sequence => `${sequence}\u001b[2m`)}\u001b[22m`;
+}
+
+function wrapText(text: string, width: number): readonly string[] {
+  if (text.length === 0 || width <= 0) return [""];
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/u)) {
+    const candidate = `${line}${line.length === 0 ? "" : " "}${word}`;
+    if (line.length > 0 && displayWidth(candidate) > width) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line.length > 0) lines.push(truncateToWidth(line, width));
+  return lines.length === 0 ? [""] : lines;
 }

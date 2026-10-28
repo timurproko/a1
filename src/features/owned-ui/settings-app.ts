@@ -17,8 +17,12 @@ import {
   ShortcutRegistry,
   assertNoShortcutConflicts,
   blockJumpTarget,
+  configureDialogChoiceCapacity,
+  configureDialogTextRows,
+  configureDialogWidth,
   numericValues,
   RAIL_COLUMNS,
+  renderCenteredDialogOverlay,
   renderDialogPanel,
   renderSteppedDialogPanel,
   renderEmptyState,
@@ -296,12 +300,11 @@ export class SettingsApp implements UiApp {
 
   render(rect: PaneRect, host: AppHostServices): readonly string[] {
     const theme = host.theme ?? PLAIN_THEME;
-    const rows = this.#rows();
-    const selected = indexOfKey(rows, this.#selectedKey);
+    const rows = this.#rows(), selected = indexOfKey(rows, this.#selectedKey);
     const footer = this.#footerLines(rect.width, theme);
-    // Invariant: the shared search input and structured panel each begin with their own standard rule.
-    // That rule replaces the ordinary content/footer divider instead of stacking beneath it.
-    const dividerRows = this.#search.input === null && this.#structured === null ? SETTINGS_FOOTER_DIVIDER_ROWS : 0;
+    // Invariant: search owns its ruled footer. Configure dialogs float over the complete ordinary
+    // Settings frame, so the standing divider and guidance remain visible in the dimmed backdrop.
+    const dividerRows = this.#search.input === null ? SETTINGS_FOOTER_DIVIDER_ROWS : 0;
     const topRows = Math.min(SETTINGS_TOP_RULE_ROWS, rect.height);
     const contentHeight = Math.max(0, rect.height - topRows - dividerRows - footer.length);
     let titleRows = this.#scroll <= 0 ? Math.min(SETTINGS_TITLE_ROWS, contentHeight) : 0;
@@ -400,7 +403,8 @@ export class SettingsApp implements UiApp {
       rect,
       reservesRail ? RAIL_COLUMNS : 0,
     );
-    return frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill(""));
+    const complete = frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill("")), open = this.#structured;
+    return open === null ? complete : renderCenteredDialogOverlay(complete, this.#dialogLines(open, configureDialogWidth(rect.width), rect.height, theme), rect, theme);
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {
@@ -1151,8 +1155,8 @@ export class SettingsApp implements UiApp {
     return renderValueMenu(lines, state, frame, theme);
   }
 
-  #dialogLines(open: StructuredEdit, width: number, theme: UiTheme): readonly string[] {
-    if (open.modelDialog) return this.#modelDialogLines(open, width, theme);
+  #dialogLines(open: StructuredEdit, width: number, height: number, theme: UiTheme): readonly string[] {
+    if (open.modelDialog) return this.#modelDialogLines(open, width, height, theme);
     if (open.plusMenu !== null) return open.plusMenu.lines(open.record, width, theme);
     const rows = open.flags.map(key => {
       const declared = open.entry.flags.find(flag => flag.key === key);
@@ -1163,10 +1167,15 @@ export class SettingsApp implements UiApp {
         ...(declared?.description === undefined ? {} : { description: declared.description }),
       };
     });
-    return renderDialogPanel({ title: labelOf(open.entry), rows, index: open.index, hint: SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE) }, width, theme);
+    const visible = dialogWindow(
+      rows,
+      open.index,
+      configureDialogChoiceCapacity(height, false, configureDialogTextRows(rows[open.index]?.description ?? "", width)),
+    );
+    return renderDialogPanel({ title: labelOf(open.entry), rows: visible.rows, index: visible.index, hint: SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE) }, width, theme);
   }
 
-  #modelDialogLines(open: StructuredEdit, width: number, theme: UiTheme): readonly string[] {
+  #modelDialogLines(open: StructuredEdit, width: number, height: number, theme: UiTheme): readonly string[] {
     if (open.step === "model") {
       const flags = this.#filteredModelFlags(open);
       const stored = structuredValue(open.entry, open.record);
@@ -1176,12 +1185,17 @@ export class SettingsApp implements UiApp {
           ...modelLabelParts(flag.label ?? humanizeLabel(flag.key)),
           value: stored[flag.key] === undefined ? "" : String(stored[flag.key]),
         }));
-      const visible = dialogWindow(allRows, open.index, 10);
+      const description = "Select a model to configure";
+      const visible = dialogWindow(
+        allRows,
+        open.index,
+        configureDialogChoiceCapacity(height, true, configureDialogTextRows(description, width)),
+      );
       return renderSteppedDialogPanel({
         title: "Thinking Level",
         step: 1,
         steps: 2,
-        description: "Select a model to configure",
+        description,
         ...(open.filter === null ? {} : { input: open.filter }),
         rows: visible.rows,
         index: visible.index,
@@ -1195,12 +1209,17 @@ export class SettingsApp implements UiApp {
       label: choice.value === current ? `✓ ${choice.label}` : choice.label,
       value: choice.description,
     }));
-    const visible = dialogWindow(allRows, open.index, 10);
+    const description = `Select default thinking level for ${selected?.label ?? open.modelKey ?? "model"}`;
+    const visible = dialogWindow(
+      allRows,
+      open.index,
+      configureDialogChoiceCapacity(height, false, configureDialogTextRows(description, width)),
+    );
     return renderSteppedDialogPanel({
       title: "Thinking Level",
       step: 2,
       steps: 2,
-      description: `Select default thinking level for ${selected?.label ?? open.modelKey ?? "model"}`,
+      description,
       rows: visible.rows,
       index: visible.index,
       hint: MODEL_SHORTCUTS.hintEntries(MODEL_LEVEL_SCOPE),
@@ -1208,9 +1227,6 @@ export class SettingsApp implements UiApp {
   }
 
   #footerLines(width: number, theme: UiTheme): readonly string[] {
-    const open = this.#structured;
-    if (open !== null) return this.#dialogLines(open, width, theme);
-
     // Rationale: standing guidance is more useful than transient feedback; failures still
     // roll back without displacing the Settings interaction contract.
     const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#options.pinned

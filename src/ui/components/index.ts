@@ -1,4 +1,13 @@
-export { dialogRowAt, dialogValueColumn, renderDialogPanel, renderSteppedDialogPanel } from "./dialog-panel.js";
+export {
+  configureDialogChoiceCapacity,
+  configureDialogTextRows,
+  configureDialogWidth,
+  dialogRowAt,
+  dialogValueColumn,
+  renderCenteredDialogOverlay,
+  renderDialogPanel,
+  renderSteppedDialogPanel,
+} from "./dialog-panel.js";
 export type { DialogPanelFrame, DialogPanelState, DialogRow, SteppedDialogPanelState } from "./dialog-panel.js";
 export { FrameContractError, assertPaneRect, finalizeFrame, validateFrame } from "./frame.js";
 export type { PaneRect } from "./frame.js";
