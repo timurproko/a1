@@ -139,6 +139,10 @@ Remove the host-owned resize curtain, its threshold, recovery timer, and the res
 
 Keep terminal focus tracking only to request a complete repaint on focus gain. Inactive terminal tabs may still receive and forward geometry changes, but no resize-only presentation is stored for a later tab switch. No new overlay, dimming, fade, or timer is involved; tab switching and startup first-draw gating retain their existing behavior.
 
+### 17. Empty last-message copy is silent
+
+Treat an absent or empty last assistant text as an ordinary no-op in the owned copy workflow. Return a completed silent result without calling the clipboard writer. The shared workflow output already suppresses `messageKind: "silent"`, so both the general no-selection copy action and explicit `/copy` remain visually unchanged, with no failed/error message in the session. Keep the existing successful-copy acknowledgement and clipboard delivery for nonempty text. Do not suppress real clipboard failures or unrelated workflow errors.
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -156,6 +160,7 @@ Keep terminal focus tracking only to request a complete repaint on focus gain. I
 - A transient Changelog acknowledgement can obscure document text or leak into copied content if treated as a document row. It must remain a presentation overlay, avoid the scrollbar cell, and clear through a repaint after the shared one-second lifetime.
 - Increasing the minimum thumb height reduces travel on short tracks and can shift drag rounding. Geometry tests must cover very long content, one-row and two-row tracks, top and bottom clamping, hit rows, and drag-to-end behavior.
 - Changing prompt drag ownership can regress cross-frame selection or leave pointer state split between editor and viewport. Gesture tests must cover wrapped rows, leaving the prompt bounds, atomic chips, release cleanup, and frame selection that begins outside the editor.
+- Treating empty last-agent copy as a no-op must not overwrite the clipboard or turn a successful copy into silence. Cover the empty result and writer non-invocation separately from the nonempty acknowledgement.
 - The general copy action can duplicate clipboard submission if it consumes a frame selection and still invokes the last-message workflow. Dispatch must have one explicit claimed/unclaimed result and tests must reject both misleading success and no-message notices while a selection exists.
 - Reusing menu-row `highlight` for copied text lets accent customization change Changelog selection independently from Agent selection. Text-selection tests must assert the shared blue component output while menu and dialog row highlights remain theme-owned.
 - A shared background painter can erase Markdown foregrounds, OSC links, or combining graphemes if it slices ANSI bytes rather than terminal cells. Component and Changelog regressions must preserve those styles and exact frame width.

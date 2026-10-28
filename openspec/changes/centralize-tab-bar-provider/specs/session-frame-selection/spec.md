@@ -139,3 +139,13 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 - **WHEN** the reader invokes `/copy`, or invokes the general message-copy action with no editor or frame selection
 - **THEN** the established last-agent-message workflow SHALL remain available
 - **AND** complete-frame filtering SHALL admit only declared application-message, ordinary prompt-input, and footer/status rows among dock content
+
+#### Scenario: No agent message exists to copy
+- **WHEN** the reader invokes `/copy` or the general message-copy action with no selected text and the last agent message has no text
+- **THEN** the workflow SHALL complete silently without a clipboard submission or an error, status, or success notice
+- **AND** existing clipboard contents and the visible session SHALL remain unchanged
+
+#### Scenario: Copy an available last agent message
+- **WHEN** the reader invokes `/copy` or the general message-copy action with no selected text and the last agent message contains text
+- **THEN** the workflow SHALL submit that text to the clipboard through its existing route
+- **AND** retain its existing successful-copy acknowledgement

@@ -77,3 +77,8 @@
 - [x] 13.1 Remove the native resize curtain, its timer, and resize-only fade without changing the immediate geometry forwarding or already-sized resize no-op.
 - [x] 13.2 Repaint a complete retained frame at the new geometry, and keep full-frame focus-return repainting without a stale overlay or child-cursor flash.
 - [x] 13.3 Replace curtain tests with focused geometry, compositor, focus, and no-overlay regressions; reconcile both resident host and multi-agent tab specifications, architecture guidance, and implementation evidence.
+
+## 14. Silent empty last-message copy
+
+- [ ] 14.1 Make an empty last-agent-message copy a silent no-op with no clipboard submission, for both the general copy action and `/copy`.
+- [ ] 14.2 Cover empty and nonempty last-message copy outcomes, preserve successful acknowledgement, and record the selection contract and implementation evidence.
