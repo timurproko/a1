@@ -1,8 +1,11 @@
 import {
+  COPY_ACKNOWLEDGEMENT_DURATION_MS,
   backgroundSgrSpan,
+  copyAcknowledgementText,
   displayWidth,
   extendTextSelection,
   orderedTextSelection,
+  overlaySpan,
   padToWidth,
   pressTextSelection,
   releaseTextSelection,
@@ -10,6 +13,7 @@ import {
   textSelectionLineExtendColumn,
   textSelectionPointAt,
   textSelectionText,
+  truncateToWidth,
   usefulTextLineContent,
   type PaneMouseEvent,
   type TextSelection,
@@ -22,7 +26,7 @@ const HIGHLIGHT_MARKER = "\u{e000}";
 
 export interface ReferenceDocumentSelectionOptions {
   readonly copyOnSelect: () => boolean;
-  readonly copyText: (text: string) => void;
+  readonly copyText: (text: string) => boolean | void;
 }
 
 interface ReferenceSelectionFrame {
@@ -32,13 +36,47 @@ interface ReferenceSelectionFrame {
   readonly visibleDocumentRows: readonly (number | undefined)[];
 }
 
+class CopyAcknowledgement {
+  #message: string | undefined;
+  #timer: ReturnType<typeof setTimeout> | undefined;
+
+  paint(line: string, finalRow: boolean, width: number, theme: UiTheme): string {
+    if (!finalRow || this.#message === undefined || width === 0) return line;
+    const message = truncateToWidth(theme.fg("accent", this.#message), width);
+    return overlaySpan(line, width - displayWidth(message), width, message, { inheritStartStyle: true });
+  }
+
+  show(characters: number, requestRender: () => void): void {
+    this.#message = copyAcknowledgementText(characters);
+    this.#clearTimer();
+    this.#timer = setTimeout(() => {
+      this.#timer = undefined;
+      this.#message = undefined;
+      requestRender();
+    }, COPY_ACKNOWLEDGEMENT_DURATION_MS);
+    this.#timer.unref?.();
+    requestRender();
+  }
+
+  clear(): void {
+    this.#clearTimer();
+    this.#message = undefined;
+  }
+
+  #clearTimer(): void {
+    if (this.#timer !== undefined) clearTimeout(this.#timer);
+    this.#timer = undefined;
+  }
+}
+
 /** Selection state for an opted-in read-only reference document. */
 export class ReferenceDocumentSelection {
   readonly #copyOnSelect: () => boolean;
-  readonly #copyText: (text: string) => void;
+  readonly #copyText: (text: string) => boolean | void;
   #selection: TextSelection | undefined;
   #click: TextSelectionClick | undefined;
   #frame: ReferenceSelectionFrame | undefined;
+  readonly #acknowledgement = new CopyAcknowledgement();
 
   constructor(options: ReferenceDocumentSelectionOptions) {
     this.#copyOnSelect = options.copyOnSelect;
@@ -71,12 +109,14 @@ export class ReferenceDocumentSelection {
     const documentRow = frame?.visibleDocumentRows[visibleRow];
     const ordered = orderedTextSelection(this.#selection);
     const width = frame?.contentWidth ?? 0;
-    const padded = padToWidth(line, width);
-    if (documentRow === undefined || ordered === undefined
-      || documentRow < ordered.start.line || documentRow > ordered.end.line) return padded;
-    const from = documentRow === ordered.start.line ? ordered.start.column : 0;
-    const to = documentRow === ordered.end.line ? ordered.end.column : width;
-    return paintSelection(padded, Math.max(0, from), Math.min(width, to), theme);
+    let painted = padToWidth(line, width);
+    if (documentRow !== undefined && ordered !== undefined
+      && documentRow >= ordered.start.line && documentRow <= ordered.end.line) {
+      const from = documentRow === ordered.start.line ? ordered.start.column : 0;
+      const to = documentRow === ordered.end.line ? ordered.end.column : width;
+      painted = paintSelection(painted, Math.max(0, from), Math.min(width, to), theme);
+    }
+    return this.#acknowledgement.paint(painted, visibleRow === (frame?.visibleDocumentRows.length ?? 0) - 1, width, theme);
   }
 
   handleInput(data: string): { readonly consumed: boolean; readonly cleared: boolean } {
@@ -92,7 +132,7 @@ export class ReferenceDocumentSelection {
     return { consumed: false, cleared: true };
   }
 
-  handleMouse(event: PaneMouseEvent): { readonly consumed: boolean; readonly changed: boolean } {
+  handleMouse(event: PaneMouseEvent, requestRender?: () => void): { readonly consumed: boolean; readonly changed: boolean } {
     const frame = this.#frame;
     if (frame === undefined) return { consumed: false, changed: false };
     if (event.kind === "motion" && this.selecting) {
@@ -103,7 +143,10 @@ export class ReferenceDocumentSelection {
     }
     if (event.kind === "release" && this.selecting) {
       this.#selection = releaseTextSelection(this.#selection);
-      if (this.hasSelection && this.#copyOnSelect()) this.#submitSelection();
+      const copiedCharacters = this.hasSelection && this.#copyOnSelect() ? this.#submitSelection() : undefined;
+      if (copiedCharacters !== undefined && requestRender !== undefined) {
+        this.#acknowledgement.show(copiedCharacters, requestRender);
+      }
       return { consumed: true, changed: true };
     }
     if (event.kind !== "press" || event.button !== 0) return { consumed: false, changed: false };
@@ -132,6 +175,7 @@ export class ReferenceDocumentSelection {
     this.#selection = undefined;
     this.#click = undefined;
     this.#frame = undefined;
+    this.#acknowledgement.clear();
   }
 
   #extend(row: number, column: number): void {
@@ -149,16 +193,17 @@ export class ReferenceDocumentSelection {
     );
   }
 
-  #submitSelection(): void {
+  #submitSelection(): number | undefined {
     const frame = this.#frame;
     const ordered = orderedTextSelection(this.#selection);
-    if (frame === undefined || ordered === undefined) return;
+    if (frame === undefined || ordered === undefined) return undefined;
     const text = textSelectionText(
       ordered,
       frame.documentRows,
       line => usefulTextLineContent(frame.documentRows[line] ?? ""),
     ).trim();
-    if (text.length > 0) this.#copyText(text);
+    if (text.length === 0 || this.#copyText(text) === false) return undefined;
+    return text.length;
   }
 }
 

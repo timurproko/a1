@@ -265,7 +265,7 @@ export class ReferenceScreenApp implements UiApp {
     }
   }
 
-  onMouse(event: PaneMouseEvent, _host: AppHostServices): PaneInputResult {
+  onMouse(event: PaneMouseEvent, host: AppHostServices): PaneInputResult {
     if (event.kind === "wheel-up" || event.kind === "wheel-down") {
       // Invariant: the whole screen owns wheel scrolling; it must not depend on the pointer's row.
       const distance = scrollbarWheelRows(this.#scrollSettings().scrollbarSpeed);
@@ -273,12 +273,12 @@ export class ReferenceScreenApp implements UiApp {
       return { consumed: true };
     }
     if (this.#selection?.selecting === true) {
-      const selection = this.#selection.handleMouse(event);
+      const selection = this.#selection.handleMouse(event, () => host.requestRender());
       if (selection.consumed) return { consumed: true, render: selection.changed };
     }
     const rail = this.#railPointer(event);
     if (rail.owned) return { consumed: true };
-    const selection = this.#selection?.handleMouse(event);
+    const selection = this.#selection?.handleMouse(event, () => host.requestRender());
     if (selection?.consumed === true) return { consumed: true, render: selection.changed || rail.changed };
     return { consumed: event.kind !== "motion", render: selection?.changed === true || rail.changed };
   }

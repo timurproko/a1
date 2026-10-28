@@ -4,7 +4,7 @@ import type { ReferenceDocumentSelectionOptions } from "../features/owned-ui/ref
 /** Builds the Changelog selection clipboard policy without loading Pi's engine in a utility tab. */
 export function createReferenceSelectionOptions(
   settingsFile: string,
-  copyText: ((text: string) => void) | undefined,
+  copyText: ((text: string) => boolean | void) | undefined,
 ): ReferenceDocumentSelectionOptions {
   return {
     copyOnSelect: () => {
@@ -15,6 +15,6 @@ export function createReferenceSelectionOptions(
         return true;
       }
     },
-    copyText: copyText ?? (() => {}),
+    copyText: copyText ?? (() => false),
   };
 }

@@ -34,7 +34,7 @@ import type {
   OwnedUiWorkflowRoute,
   SuggestionDecision,
 } from "../../contracts/owned-ui/index.js";
-import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
+import { copyAcknowledgementText, type SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
 import { workflowCommandNames } from "../../integrations/pi/engine/workflows.js";
 import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
@@ -602,7 +602,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     void delivery?.then(({ outcome }) => {
       if (count === undefined || this.#disposed || !this.#terminal.running || intent !== this.#copyIntentSequence
         || outcome !== "delivered" && outcome !== "submitted-unverified") return;
-      this.root.showCopyAcknowledgement(`copied ${count} chars to clipboard`);
+      this.root.showCopyAcknowledgement(copyAcknowledgementText(count));
     });
   }
 

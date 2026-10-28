@@ -53,20 +53,30 @@
 - Selection release reads `fullscreenCopyOnSelect` from the shared Pi settings document through a lazily loaded utility-safe policy. Enabled selections submit once through the existing bounded clipboard callback; disabled selections remain painted without a clipboard write.
 - An active selection claims `Ctrl+C`, copies explicitly, and clears. With no selection, standalone Changelog retains one-interrupt close and the pinned resident Changelog retains its two-interrupt application-exit chord. Hotkeys and Session Info remain non-selectable.
 
+## Changelog copy acknowledgement
+
+- Automatic Changelog and startup `What's New` selection copy now treats the bounded clipboard callback's `false` result as refusal and returns an accepted UTF-16 character count without changing the retained selection or copied text. Resident and standalone clipboard adapters return that acceptance result while existing void callbacks remain compatible.
+- The selection-owned acknowledgement paints `copied N chars to clipboard` through the accent role on the final document row before the scrollbar columns. It uses the same shared text formatter and one-second duration as the session-frame acknowledgement, remains outside document extraction, and clips ANSI-safely on narrow screens.
+- A newer accepted automatic copy replaces the visible count and restarts the timer. Expiry requests a repaint, screen close cancels the timer, disabled copy-on-select and refused submissions remain silent, and explicit `Ctrl+C` keeps its existing copy-and-clear presentation behavior.
+
 ## Local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the blank-first-frame refinement.
 - A focused `rustc --test` harness over the checked-in shortcut-hint and command-palette modules passed all 5 component and palette tests.
 - `npm run build:core` passed.
-- `npm run typecheck` passed after the prompt-selection, centered-dialog, and Changelog-selection refinements.
-- `npm run check:architecture` passed with the selection implementation kept outside the startup graph and the reference-screen class within its field threshold.
+- `npm run typecheck` passed after the prompt-selection, centered-dialog, Changelog-selection, and automatic-copy acknowledgement refinements.
+- `npm run check:architecture` passed with the acknowledgement state kept inside the selection component, the reference-screen class within its size threshold, and the startup graph within its byte budget.
 - `npx vitest run test/features/owned-ui test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts` passed with 213 tests.
 - `npx vitest run test/app/session-shell/session-shell-resident-utility-tabs.test.ts test/app/session-shell/session-shell-workflows.test.ts test/app/session-shell/session-shell-selection.test.ts` passed with 103 tests.
-- `npx vitest run test/features/owned-ui/reference-screen-app.test.ts test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts` passed with 33 focused tests.
+- `npx vitest run test/features/owned-ui/reference-screen-app.test.ts` passed with 26 focused selection and acknowledgement tests.
+- `npx vitest run test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts test/app/session-shell/session-shell-resident-utility-tabs.test.ts` passed with 13 route and resident-tab tests.
+- `npx vitest run test/app/session-shell/dock-chrome.test.ts test/app/session-shell/session-shell-selection.test.ts test/ui/components/selection-copy.test.ts` passed with 98 shared acknowledgement and copy tests.
+- `npx vitest run test/features/owned-ui/reference-screen-app.test.ts test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts` passed with 33 focused tests before the automatic-copy acknowledgement refinement.
 - `npx vitest run test/features/owned-ui test/ui/components/dialog-panel.test.ts test/composition/settings-route-host.test.ts` passed with 212 tests before the Changelog-selection refinement.
 - `npx vitest run test/app/session-shell/session-shell-workflows.test.ts test/app/session-shell/session-shell-selection.test.ts test/repository-governance/owned-settings-interaction-boundary.test.ts` passed with 104 tests before the Changelog-selection refinement.
 - `npx vitest run test/ui/components/dialog-panel.test.ts test/features/owned-ui/settings-app.test.ts test/features/owned-ui/plus-menu-dialog.test.ts test/composition/settings-route-host.test.ts test/repository-governance/owned-settings-interaction-boundary.test.ts` passed with 96 focused tests after the shared dialog-palette refinement.
 - `npx vitest run test/app/session-shell/session-viewport-controller.test.ts test/app/session-shell/session-shell-selection.test.ts` passed with 151 tests.
+- `npm run check:docs-governance` passed.
 - `npx openspec validate centralize-tab-bar-provider --strict` passed.
 - `npm run test:fast` could not enter its suites because the candidate build's GitHub artifact lookup hit a network connection failure while resolving the required Windows terminal library; the focused and broader owned-UI suites above completed locally.
 - The focused native presentation unit command and the full native unit binary could not link locally because the contracts-only build omits the Ghostty VT symbols and no trusted Windows `terminal-vt` artifact or Zig toolchain was available; exact-head CI remains the native validation authority.

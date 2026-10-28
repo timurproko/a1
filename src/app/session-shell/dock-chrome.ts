@@ -1,4 +1,5 @@
 import type { ImageAttachmentError, OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
+import { COPY_ACKNOWLEDGEMENT_DURATION_MS } from "../../ui/components/selection-copy.js";
 import type { TranscriptViewportFrame } from "../../ui/components/transcript-viewport.js";
 import {
   renderPiShellCommandMessage,
@@ -10,8 +11,6 @@ import { PINNED_PI_LAYOUT, piTheme } from "../../integrations/pi/components/upst
 import { piShellTruncateToWidth } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { SessionViewportController, TailControlRegion } from "./session-viewport-controller.js";
 import { parseReleaseUpdateDiagnostic } from "./transcript-document.js";
-
-const COPY_ACKNOWLEDGEMENT_DURATION_MS = 1_000;
 
 // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
 export interface DockNotice {

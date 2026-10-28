@@ -4,16 +4,19 @@ import { stripAnsi } from "./text.js";
 /** Bound selected-source retention independently of history length and encoded payload size. */
 export const MAX_COPY_SOURCE_UNITS = 32 * 1024 * 1024;
 export const MAX_COPY_ROWS = 65_536;
+export const COPY_ACKNOWLEDGEMENT_DURATION_MS = 1_000;
+
+export function copyAcknowledgementText(characters: number): string {
+  return `copied ${characters} chars to clipboard`;
+}
 export type SelectionCopyPrompt = "first" | "continuation" | undefined;
 export interface SelectionCopyRow {
   readonly text: string;
   readonly prompt?: "first" | "continuation";
 }
-/** Immutable selected rows only; safe to transfer to an isolated text preparer. */
 export interface SelectionCopySnapshot {
   readonly selection: OrderedTextSelection;
   readonly revision: number;
-  /** Prompt copy/cut already supplies exact expanded text; do not apply transcript chrome stripping. */
   readonly literal?: boolean;
   readonly rows: readonly SelectionCopyRow[];
   readonly sourceUnits: number;
@@ -21,7 +24,6 @@ export interface SelectionCopySnapshot {
   readonly rejected?: "size";
 }
 
-/** Shares the viewport's semantic chrome exclusions with isolated copy preparation. */
 export function selectionCopyLineContent(text: string, prompt: SelectionCopyPrompt): TextSelectionLineContent {
   const plain = stripAnsi(text);
   if (prompt !== undefined) {
@@ -36,7 +38,6 @@ export function selectionCopyLineContent(text: string, prompt: SelectionCopyProm
   return usefulTextLineContent(plain, from);
 }
 
-/** Builds an immutable exact-text snapshot without changing editor-owned selection state. */
 export function literalSelectionCopySnapshot(text: string, revision = 0): SelectionCopySnapshot | null {
   if (text.trim().length === 0) return null;
   const selection = {

@@ -52,7 +52,7 @@ function app(
   rows: readonly string[] | ((width: number) => readonly string[]),
   overrides: Partial<OwnedUiViewportSettings> = {},
   title = "Reference",
-  selection?: { readonly copyOnSelect: () => boolean; readonly copyText: (text: string) => void },
+  selection?: { readonly copyOnSelect: () => boolean; readonly copyText: (text: string) => boolean | void },
 ) {
   const calls: number[] = [];
   const provider: ReferenceDocumentProvider = {
@@ -230,6 +230,82 @@ describe("ReferenceScreenApp frame", () => {
     expect(copyText).toHaveBeenLastCalledWith("gamma");
     expect(screen(target, { ...HOST, theme: selectedTheme })[3]).not.toContain("<selected>");
     expect(target.onInput?.(INTERRUPT, HOST)).toEqual({ consumed: false });
+  });
+
+  it("acknowledges accepted automatic copy above the footer and replaces its one-second timer", () => {
+    vi.useFakeTimers();
+    const copyText = vi.fn(() => true);
+    const requestRender = vi.fn();
+    const fg = vi.fn((_token: UiThemeToken, text: string) => text);
+    const host = { ...HOST, requestRender, theme: { ...NAMING_THEME, fg } };
+    const { app: target } = app(["alpha", "longer", ...numbered(20)], { scrollbarAppearance: "always" }, "Changelog", {
+      copyOnSelect: () => true,
+      copyText,
+    });
+    screen(target, host);
+
+    target.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, host);
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, host);
+    target.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, host);
+    expect(copyText).toHaveBeenLastCalledWith("alpha");
+    expect(screen(target, host)[TOP + BODY - 1]?.slice(0, -RAIL_COLUMNS)).toMatch(/copied 5 chars to clipboard$/);
+    expect(fg).toHaveBeenCalledWith("accent", "copied 5 chars to clipboard");
+    expect(requestRender).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(500);
+    target.onInput?.(DOWN, host);
+    screen(target, host);
+    target.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, host);
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 6 }, host);
+    target.onMouse?.({ kind: "release", button: 0, row: 3, column: 6 }, host);
+    expect(copyText).toHaveBeenLastCalledWith("longer");
+    expect(screen(target, host)[TOP + BODY - 1]?.slice(0, -RAIL_COLUMNS)).toMatch(/copied 6 chars to clipboard$/);
+    vi.advanceTimersByTime(500);
+    expect(screen(target, host).join("\n")).toContain("copied 6 chars to clipboard");
+    const narrowRect = { width: 12, height: RECT.height };
+    const narrow = screen(target, { ...HOST, requestRender }, narrowRect);
+    expect(finalizeFrame(narrow, narrowRect, "reference acknowledgement")).toEqual(narrow);
+    vi.advanceTimersByTime(500);
+    expect(screen(target, host).join("\n")).not.toContain("copied");
+    expect(requestRender.mock.calls.length).toBeGreaterThanOrEqual(3);
+
+    target.onClose?.(host);
+  });
+
+  it("does not acknowledge disabled or refused automatic copy", () => {
+    const refused = app(["alpha"], {}, "Changelog", {
+      copyOnSelect: () => true,
+      copyText: () => false,
+    }).app;
+    const selectedTheme: UiTheme = { ...NAMING_THEME, highlight: text => `<selected>${text}</selected>` };
+    screen(refused, { ...HOST, theme: selectedTheme });
+    refused.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, HOST);
+    refused.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, HOST);
+    refused.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, HOST);
+    const refusedFrame = screen(refused, { ...HOST, theme: selectedTheme });
+    expect(refusedFrame.join("\n")).not.toContain("copied");
+    expect(refusedFrame[2]).toContain("<selected>alpha</selected>");
+
+    const copyText = vi.fn();
+    const disabled = app(["alpha"], {}, "Changelog", {
+      copyOnSelect: () => false,
+      copyText,
+    }).app;
+    screen(disabled);
+    disabled.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, HOST);
+    disabled.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, HOST);
+    disabled.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, HOST);
+    expect(copyText).not.toHaveBeenCalled();
+    expect(screen(disabled).join("\n")).not.toContain("copied");
+  });
+
+  it("keeps non-selectable reference routes free of copy acknowledgement", () => {
+    const { app: target } = app(["alpha"], {}, "Hotkeys");
+    screen(target);
+    target.onMouse?.({ kind: "press", button: 0, row: 3, column: 1 }, HOST);
+    target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, HOST);
+    target.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, HOST);
+    expect(screen(target).join("\n")).not.toContain("copied");
   });
 
   it("supports line and multi-row selection with ANSI-safe text while scrolling", () => {

@@ -50,6 +50,6 @@
 
 ## 9. Changelog copy acknowledgement
 
-- [ ] 9.1 Report accepted automatic-selection character counts from Changelog selection without changing clipboard text, retained selection, or explicit-copy behavior.
-- [ ] 9.2 Render the shared one-second right-aligned accent `copied N chars to clipboard` acknowledgement above the reference footer, replacing and restarting it on newer automatic copies and clearing it on close.
-- [ ] 9.3 Add focused selection and reference-screen regressions for enabled, disabled, repeated, expired, narrow, scrolling, and non-selectable-route behavior; record implementation evidence.
+- [x] 9.1 Report accepted automatic-selection character counts from Changelog selection without changing clipboard text, retained selection, or explicit-copy behavior.
+- [x] 9.2 Render the shared one-second right-aligned accent `copied N chars to clipboard` acknowledgement above the reference footer, replacing and restarting it on newer automatic copies and clearing it on close.
+- [x] 9.3 Add focused selection and reference-screen regressions for enabled, disabled, repeated, expired, narrow, scrolling, and non-selectable-route behavior; record implementation evidence.

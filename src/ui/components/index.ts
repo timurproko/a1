@@ -42,7 +42,7 @@ export { progressStatusFrame, progressStatusText } from "./progress-status.js";
 export type { ProgressStatusFrameStyles, ProgressStatusMarker } from "./progress-status.js";
 export { FrameCache, RENDER_REVISION_KINDS, RenderRevisionTracker, ZERO_REVISIONS, normalizeRevisions, revisionsEqual } from "./revision.js";
 export type { RenderCacheContract, RenderRevisionKind, RenderRevisions } from "./revision.js";
-export { MAX_COPY_ROWS, MAX_COPY_SOURCE_UNITS, selectionCopyLineContent, selectionCopyRowText } from "./selection-copy.js";
+export { COPY_ACKNOWLEDGEMENT_DURATION_MS, MAX_COPY_ROWS, MAX_COPY_SOURCE_UNITS, copyAcknowledgementText, selectionCopyLineContent, selectionCopyRowText } from "./selection-copy.js";
 export type { SelectionCopyPrompt, SelectionCopyRow, SelectionCopySnapshot } from "./selection-copy.js";
 export {
   ScrollbarRails,

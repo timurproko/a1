@@ -29,7 +29,7 @@ export interface OwnedRouteHostOptions {
   readonly keybindings?: PiKeybindingsHost;
   readonly agentDir?: string;
   readonly cwd?: string;
-  readonly copyText?: (text: string) => void;
+  readonly copyText?: (text: string) => boolean | void;
 }
 
 /** Declares settings and lazy document routes. */
