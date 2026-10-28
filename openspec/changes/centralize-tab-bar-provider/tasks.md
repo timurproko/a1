@@ -20,6 +20,6 @@
 
 ## 4. Native dialog shortcut hints
 
-- [ ] 4.1 Add one reusable native semantic shortcut-hint component with display key casing, separate quiet-key and action-text roles, two-space entry gaps, and width-safe grapheme clipping.
-- [ ] 4.2 Route the Commands and Plus Menu footer entries through the component in truecolor and 256-color modes, removing dialog-specific literal strings and separator glyphs.
-- [ ] 4.3 Add focused component and palette regressions for visible text, semantic ANSI boundaries, fallback colors, narrow widths, and future shared use; record the implementation evidence.
+- [x] 4.1 Add one reusable native semantic shortcut-hint component with display key casing, separate quiet-key and action-text roles, two-space entry gaps, and width-safe grapheme clipping.
+- [x] 4.2 Route the Commands and Plus Menu footer entries through the component in truecolor and 256-color modes, removing dialog-specific literal strings and separator glyphs.
+- [x] 4.3 Add focused component and palette regressions for visible text, semantic ANSI boundaries, fallback colors, narrow widths, and future shared use; record the implementation evidence.
