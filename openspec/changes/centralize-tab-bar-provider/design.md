@@ -105,6 +105,12 @@ Treat visible text as part of the coherence requirement for a newly requested Ag
 
 Do not interpret an explicit failure as an undrawn Agent. Existing create refusal, holder loss, child exit, failed-surface, restart, and recovery paths remain eligible to replace the preview with their owned notice or failure presentation. Removing the blank-surface timeout is preferred to drawing a new loading overlay after the view commits: the local preview already supplies the correct empty editor, footer, selected provisional chip, and input reservation without introducing a second startup state.
 
+### 12. Changelog automatic copy uses the shared acknowledgement grammar
+
+Have reference selection report the accepted character count when a nonempty automatic selection is submitted to the bounded clipboard callback. The reference screen owns the transient visual state and paints `copied N chars to clipboard` in the active accent, right-aligned on the final document row immediately above its footer rule, matching the session frame's message text, placement relationship, and one-second lifetime. The acknowledgement overlays presentation only: it does not enter document rows, selection extraction, scrolling, or clipboard content.
+
+Show the acknowledgement only when `fullscreenCopyOnSelect` is enabled and the route accepted the clipboard submission. Disabled automatic copy remains silent and retains the selection. Explicit `Ctrl+C` keeps its existing copy-and-clear precedence without adding new behavior in this refinement. A newer automatic copy replaces the prior message and restarts the expiry timer; closing the screen cancels it.
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -119,3 +125,4 @@ Do not interpret an explicit failure as an undrawn Agent. Existing create refusa
 - Styled Markdown and hyperlink rows can make byte offsets diverge from terminal cells. Selection and extraction use shared ANSI-aware text primitives and regressions cover wrapped, styled, multi-row, word, and line selections.
 - A route-host or dialog-specific background can drift from the native reference again. Governance checks reject raw dialog RGB in the Settings host, while component tests cover truecolor, 256-color, panel fill, selected-row restoration, and native palette parity.
 - An Agent whose child remains alive but never draws will retain its startup preview instead of exposing a terminal cursor. Holder and child failure paths must still resolve that request visibly, and repeated blank surfaces must not renew or bypass the gate.
+- A transient Changelog acknowledgement can obscure document text or leak into copied content if treated as a document row. It must remain a presentation overlay, avoid the scrollbar cell, and clear through a repaint after the shared one-second lifetime.

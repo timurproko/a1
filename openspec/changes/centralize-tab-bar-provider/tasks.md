@@ -47,3 +47,9 @@
 - [x] 8.1 Keep a newly requested Agent's blank surfaces parked without a timer-driven commit, preserving the complete local startup preview and hidden child cursor until a nonblank coherent frame arrives.
 - [x] 8.2 Preserve explicit create, holder, child, failed-surface, restart, and recovery outcomes, and update the resident-tab architecture record to remove the blank first-draw fallback.
 - [x] 8.3 Add focused native presentation regressions for repeated and delayed blank surfaces, the first nonblank commit, and explicit failure resolution; record implementation evidence.
+
+## 9. Changelog copy acknowledgement
+
+- [ ] 9.1 Report accepted automatic-selection character counts from Changelog selection without changing clipboard text, retained selection, or explicit-copy behavior.
+- [ ] 9.2 Render the shared one-second right-aligned accent `copied N chars to clipboard` acknowledgement above the reference footer, replacing and restarting it on newer automatic copies and clearing it on close.
+- [ ] 9.3 Add focused selection and reference-screen regressions for enabled, disabled, repeated, expired, narrow, scrolling, and non-selectable-route behavior; record implementation evidence.

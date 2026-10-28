@@ -14,6 +14,8 @@ The centered Settings configure dialogs also use a lighter hardcoded gray surfac
 
 A newly started Agent can also outlast the bounded first-draw wait while its child surface is still blank. The attach view then commits that blank surface and exposes only the child cursor, replacing the complete local Agent startup preview before any usable UI exists. A blank surface is not a coherent Agent presentation and should never become visible merely because a timer elapsed.
 
+Automatic copy from the session frame shows a short `copied N chars to clipboard` acknowledgement, but Changelog and `What's New` automatic selection copy is silent. The same live setting and clipboard action should produce the same visible confirmation so readers know their selection reached the clipboard.
+
 ## What Changes
 
 - Introduce one native tab-bar provider contract that declares every tab kind and its label, shortcut action, multiplicity, activation behavior, prewarming, renameability, session ownership, route, and menu marker.
@@ -26,6 +28,7 @@ A newly started Agent can also outlast the bounded first-draw wait while its chi
 - Add owned text selection to the Changelog and `What's New` reference screens. Mouse selection paints through the shared semantic selection role, `Copy on select` controls automatic clipboard submission on release, and `Ctrl+C` explicitly copies and clears an active selection before existing close or interrupt behavior applies.
 - Move the canonical floating-dialog surface palette into the shared component theme boundary. Warnings, both Thinking Level steps, fallback Plus Menu, and future Settings configure dialogs use the native Plus Menu's dark surface in truecolor and 256-color modes without route- or dialog-specific RGB styling.
 - Keep a newly started Agent on its complete local startup preview while the child publishes only blank surfaces, with the cursor hidden. The first nonblank coherent frame replaces the preview; explicit launch, holder, or child failure continues through the existing failure and recovery presentation instead of revealing an empty terminal.
+- Show the shared transient `copied N chars to clipboard` acknowledgement when enabled Changelog or `What's New` copy-on-select submits a nonempty selection through the bounded clipboard route.
 
 ## Capabilities
 
@@ -39,7 +42,7 @@ A newly started Agent can also outlast the bounded first-draw wait while its chi
 - `session-frame-selection`: distinguish editor-owned prompt selection from complete-frame copy-on-select so prompt replacement does not overwrite its paste source.
 - `owned-ui-settings`: present every configure workflow through the centered modal interaction used by Plus Menu.
 - `ui-components`: replace the docked structured-value panel with a reusable centered modal overlay and dimmed backdrop.
-- `ui-apps`: make Changelog reference documents selectable while preserving their scrolling and screen lifecycle.
+- `ui-apps`: make Changelog reference documents selectable with clipboard acknowledgement while preserving their scrolling and screen lifecycle.
 - `pi-settings-runtime`: apply the live fullscreen copy-on-select value to Changelog selection as another owned fullscreen selection surface.
 
 ## Impact
@@ -48,6 +51,6 @@ A newly started Agent can also outlast the bounded first-draw wait while its chi
 - **Native server:** kind recognition, singleton reservation, registry validation, session ownership, bridge routes, creation/reveal ordering, and tests.
 - **Owned session shell:** prompt pointer-selection release, clipboard routing, and focused replacement-paste tests.
 - **Owned Settings and UI components:** centered structured-dialog geometry, canonical native-matching panel palette, dimmed backdrop composition, compact/narrow clipping, and Warnings, Thinking Level, and fallback Plus Menu regressions.
-- **Owned reference screens:** Changelog selection state, semantic painting, clipboard callbacks, live copy-on-select reads, explicit-copy precedence, and resident utility-tab coverage.
+- **Owned reference screens:** Changelog selection state, semantic painting, clipboard callbacks and acknowledgement, live copy-on-select reads, explicit-copy precedence, and resident utility-tab coverage.
 - **Architecture:** the resident-tab design records the tab bar as the single owner of tab-kind behavior.
 - **Protocols and dependencies:** existing wire messages remain compatible; no dependency is added.
