@@ -56,6 +56,6 @@
 
 ## 10. Two-row scrollbar thumb minimum
 
-- [ ] 10.1 Raise shared overflowing-scrollbar thumb geometry to a two-row minimum whenever the track permits, while bounding the thumb to the track.
-- [ ] 10.2 Preserve top and bottom clamping, drag conversion, grab offsets, track paging, and proportional heights above the minimum without adding surface-specific branches.
-- [ ] 10.3 Add focused shared-scrollbar regressions for very long content, one-row and two-row tracks, thumb hit rows, and drag-to-end behavior; record implementation evidence.
+- [x] 10.1 Raise shared overflowing-scrollbar thumb geometry to a two-row minimum whenever the track permits, while bounding the thumb to the track.
+- [x] 10.2 Preserve top and bottom clamping, drag conversion, grab offsets, track paging, and proportional heights above the minimum without adding surface-specific branches.
+- [x] 10.3 Add focused shared-scrollbar regressions for very long content, one-row and two-row tracks, thumb hit rows, and drag-to-end behavior; record implementation evidence.

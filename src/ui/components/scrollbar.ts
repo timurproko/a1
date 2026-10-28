@@ -7,7 +7,7 @@
 export interface ScrollbarGeometry {
   /** Rows in the track. */
   readonly trackHeight: number;
-  /** Thumb height in rows, at least one. */
+  /** Thumb height in rows, at least two when the track permits. */
   readonly thumbHeight: number;
   /** Zero-based row of the thumb's top within the track. */
   readonly thumbTop: number;
@@ -81,7 +81,7 @@ export function scrollbarGeometry(input: ScrollbarInput): ScrollbarGeometry | nu
 
   const maxScroll = contentLength - viewportHeight;
   const scroll = Math.min(Math.max(input.scroll, 0), maxScroll);
-  const thumbHeight = Math.max(1, Math.min(trackHeight, Math.round(trackHeight * viewportHeight / contentLength)));
+  const thumbHeight = Math.min(trackHeight, Math.max(2, Math.round(trackHeight * viewportHeight / contentLength)));
   const travel = trackHeight - thumbHeight;
   const thumbTop = maxScroll === 0 ? 0 : Math.min(travel, Math.round(travel * scroll / maxScroll));
   return { trackHeight, thumbHeight, thumbTop, maxScroll };

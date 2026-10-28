@@ -38,9 +38,22 @@ describe("scrollbar geometry", () => {
     expect(geometry(0, 40, 20)?.thumbHeight).toBe(5);
   });
 
-  it("keeps a one-row thumb however long the content is", () => {
+  it("keeps a two-row thumb for very long content when the track permits", () => {
     const long = scrollbarGeometry({ contentLength: 100_000, viewportHeight: 20, scroll: 0, trackHeight: TRACK });
-    expect(long?.thumbHeight).toBe(1);
+    expect(long?.thumbHeight).toBe(2);
+    expect(isThumbRow(long, 0)).toBe(true);
+    expect(isThumbRow(long, 1)).toBe(true);
+    expect(isThumbRow(long, 2)).toBe(false);
+    expect(scrollForThumbRow(long, TRACK)).toBe(long?.maxScroll);
+  });
+
+  it("bounds the minimum thumb to one-row and two-row tracks", () => {
+    const one = scrollbarGeometry({ contentLength: 100_000, viewportHeight: 20, scroll: 0, trackHeight: 1 });
+    const two = scrollbarGeometry({ contentLength: 100_000, viewportHeight: 20, scroll: 0, trackHeight: 2 });
+    expect(one?.thumbHeight).toBe(1);
+    expect(two?.thumbHeight).toBe(2);
+    expect(isThumbRow(one, 1)).toBe(false);
+    expect(isThumbRow(two, 1)).toBe(true);
   });
 
   it("moves the thumb with the scroll and stops it inside the track", () => {

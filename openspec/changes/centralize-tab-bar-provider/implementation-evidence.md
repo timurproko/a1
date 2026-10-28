@@ -59,6 +59,12 @@
 - The selection-owned acknowledgement paints `copied N chars to clipboard` through the accent role on the final document row before the scrollbar columns. It uses the same shared text formatter and one-second duration as the session-frame acknowledgement, remains outside document extraction, and clips ANSI-safely on narrow screens.
 - A newer accepted automatic copy replaces the visible count and restarts the timer. Expiry requests a repaint, screen close cancels the timer, disabled copy-on-select and refused submissions remain silent, and explicit `Ctrl+C` keeps its existing copy-and-clear presentation behavior.
 
+## Two-row scrollbar thumb minimum
+
+- `scrollbarGeometry` now clamps the proportional rounded thumb height to at least two rows and then to the available track height. Tracks of two or more rows therefore keep a two-row minimum, while a one-row track remains valid and bounded.
+- Existing consumers continue using the same geometry for painting, hit testing, grab offsets, drag conversion, and track paging; no session, Settings, Changelog, or other surface owns a separate minimum.
+- Shared component coverage verifies very long content, one-row and two-row tracks, both thumb hit rows, proportional larger thumbs, top and bottom clamping, and drag-to-end conversion.
+
 ## Local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the blank-first-frame refinement.
@@ -68,7 +74,10 @@
 - `npm run check:architecture` passed with the acknowledgement state kept inside the selection component, the reference-screen class within its size threshold, and the startup graph within its byte budget.
 - `npx vitest run test/features/owned-ui test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts` passed with 213 tests.
 - `npx vitest run test/app/session-shell/session-shell-resident-utility-tabs.test.ts test/app/session-shell/session-shell-workflows.test.ts test/app/session-shell/session-shell-selection.test.ts` passed with 103 tests.
-- `npx vitest run test/features/owned-ui/reference-screen-app.test.ts` passed with 26 focused selection and acknowledgement tests.
+- `npx vitest run test/ui/components/scrollbar.test.ts test/ui/components/selection-scrollbar-edge.test.ts` passed with 41 shared geometry, interaction, and gutter-selection tests.
+- `npx vitest run test/ui/components/transcript-viewport.test.ts test/features/owned-ui/reference-screen-app.test.ts` passed with 88 transcript and reference-screen tests.
+- `npx vitest run test/features/owned-ui/settings-app.test.ts` passed with 76 Settings tests.
+- `npx vitest run test/features/owned-ui/reference-screen-app.test.ts` passed with 26 focused selection and acknowledgement tests before the scrollbar refinement.
 - `npx vitest run test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts test/app/session-shell/session-shell-resident-utility-tabs.test.ts` passed with 13 route and resident-tab tests.
 - `npx vitest run test/app/session-shell/dock-chrome.test.ts test/app/session-shell/session-shell-selection.test.ts test/ui/components/selection-copy.test.ts` passed with 98 shared acknowledgement and copy tests.
 - `npx vitest run test/features/owned-ui/reference-screen-app.test.ts test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts` passed with 33 focused tests before the automatic-copy acknowledgement refinement.
