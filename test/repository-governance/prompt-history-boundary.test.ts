@@ -37,7 +37,11 @@ describe("prompt history ownership", () => {
     expect(composition).toContain("profileRoot: backend.identity.agentDir");
     expect(composition).toContain("const dataDir = resolvePromptHistoryDataDir();");
     expect(composition).not.toContain("dataDir: resolveProductPaths().dataDir");
-    expect(composition).toContain("profileDir: profilePaths.agentProfile");
-    expect(composition).toContain("legacyConfigDir: productPaths.configDir");
+    // Invariant: the settings manager both compositions share is built once, from the profile's
+    // agent directory and the legacy configuration directory, and the Agent composition uses it.
+    expect(composition).toContain('import { createOwnedSettingsManager, watchSharedSettings } from "./owned-settings.js";');
+    const settings = await readFile("src/composition/owned-settings.ts", "utf8");
+    expect(settings).toContain("profileDir: profilePaths.agentProfile");
+    expect(settings).toContain("legacyConfigDir: productPaths.configDir");
   });
 });

@@ -4,7 +4,10 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- **What failed.** Three source-shape tests that the bounded pull-request validation of #828 (`feat(tabs): run utility tabs as slim processes`) did not select, so they first ran in the nightly Full regression: `test/foundation/release/bootstrap-boundary.test.ts` expected the literal `if (trustExit) return terminateOwnedUiProcess(error.exitCode);` in `bin/ui.js`, `test/repository-governance/prompt-history-boundary.test.ts` expected the settings-manager construction lines in `src/composition/owned-ui.ts`, and `test/repository-governance/pinned-pi-public-api.test.ts` found the pinned Pi public API baseline stale. The failure is the same on every lane and is not environmental.
+- **Why.** #828 refactored `bin/ui.js` so both the Agent run and the new slim utility-tab run complete through one `completeRun(run, terminate)` helper that is passed `terminateOwnedUiProcess`; the trust-prompt exit now reads `if (trustExit) return terminate(error.exitCode);`. It also moved the shared settings-manager construction into `src/composition/owned-settings.ts`, and added `src/integrations/pi/engine/offline-settings-port.ts`, a new consumer of two pinned Pi exports that the baseline records consumers for. The behaviors the tests protect are intact; the literals and the baseline were not updated with the refactor.
+- **The fix.** The boundary tests assert the new shape without losing coverage: `bin/ui.js` must complete both the Agent run and the utility run through `terminateOwnedUiProcess` and route a trust-prompt exit through the shared terminator; the prompt-history test now requires the Agent composition to import the shared settings factory and checks the profile and legacy-config directories in `owned-settings.ts`. The pinned Pi public API baseline is regenerated with `scripts/pi/update-pinned-pi-public-api.mjs`; its only change is the new consumer file on two existing export records. No assertion, budget, timeout, or coverage is weakened.
+- **Observation, out of scope.** The macOS lane log also shows `Cannot find module .../src/foundation/launch-guardian/exit-watcher.js` once: the launch-guardian unit tests run `runLaunchGuardian` from the source tree, whose watcher path resolves beside the module, so the spawned watcher cannot start there. The tests that spawn it pass, and the message predates this run's suspect range, so it is noted here rather than changed in a regression repair.
 
 ## Evidence
 
@@ -60,3 +63,10 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
     - `e9340bc` fix(session): tolerate stale worktree registrations in inventory (#839)
     - `1f02b2e` docs(agents): stale worktree entries never block delivery (#838)
     - `4be74e6` fix(resident): isolate hosts by immutable release (#835)
+
+### Implementation evidence
+
+- Introducing commit: `41369d4` feat(tabs): run utility tabs as slim processes (#828). Its refactor of `bin/ui.js` and `src/composition/owned-ui.ts` and its new `offline-settings-port.ts` consumer are the only sources of the three failures; the nine other commits in the range touch none of the asserted files.
+- Reproduced locally on the failed head's tree with `npx vitest run test/foundation/release/bootstrap-boundary.test.ts test/repository-governance/prompt-history-boundary.test.ts test/repository-governance/pinned-pi-public-api.test.ts`: the same three tests failed with the same messages as the nightly lanes.
+- After the fix the same command passes all 18 tests in the three files. `scripts/pi/update-pinned-pi-public-api.mjs --check` reports the baseline current; the regenerated baseline differs only by `src/integrations/pi/engine/offline-settings-port.ts` joining the consumer lists of two existing export records.
+- Known gaps: none. The exit-watcher module message noted under Decisions is pre-existing stderr noise from passing tests and is left for its own change.
