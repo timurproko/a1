@@ -171,3 +171,34 @@ The screen SHALL draw the shared scrollbar rail beside the document, honoring th
 #### Scenario: Close the screen
 - **WHEN** the reader presses `Esc`, or presses the interrupt chord twice within its window on a host that closes on interrupt
 - **THEN** the screen SHALL close through the host, and the surface that opened it SHALL be restored exactly as after closing the settings screen
+
+### Requirement: Changelog reference documents support owned text selection
+
+The owned reference-screen app SHALL make document text selectable when it presents the Changelog route, including the startup `What's New` document. It SHALL support pointer drag selection, double-click word selection, and triple-click line selection using terminal-cell and ANSI-aware boundaries, paint the retained selection through the active semantic selection role, and extract plain text without rules, footer guidance, scrollbar cells, style sequences, or terminal padding. Hotkeys, Session Info, and other reference-screen routes SHALL retain their existing non-selectable pointer behavior unless separately opted in.
+
+The selection SHALL stay anchored to document rows while keyboard, wheel, or scrollbar scrolling changes the visible window. The scrollbar rail SHALL retain pointer precedence over document selection, resize SHALL retain only selection that still maps to the same document text, and every frame SHALL preserve its requested dimensions.
+
+On completion of a nonempty selection, the screen SHALL read the live `fullscreenCopyOnSelect` value. When enabled it SHALL submit the selected text to the existing bounded clipboard route; when disabled it SHALL retain the selection without writing the clipboard. `Ctrl+C` with a nonempty selection SHALL copy explicitly, clear the selection, and consume the interrupt. `Ctrl+C` with no selection SHALL preserve the screen host's existing behavior: a close-enabled standalone Changelog may close, while a pinned resident Changelog keeps its established two-press application exit chord.
+
+#### Scenario: Automatically copy a Changelog drag
+
+- **WHEN** `Copy on select` is enabled and the reader completes a nonempty drag across Changelog document text
+- **THEN** the selected plain text SHALL be written once to the clipboard
+- **AND** the screen SHALL retain the painted selection
+
+#### Scenario: Retain selection without automatic copy
+
+- **WHEN** `Copy on select` is disabled and the reader completes a Changelog word, line, or drag selection
+- **THEN** the screen SHALL retain and paint the selection without writing the clipboard
+- **AND** pressing `Ctrl+C` SHALL write that text once and clear the selection
+
+#### Scenario: Preserve the resident interrupt chord
+
+- **WHEN** the pinned Changelog tab has no active selection and receives `Ctrl+C`
+- **THEN** the reference screen SHALL leave the input unclaimed so the existing resident interrupt chord applies
+
+#### Scenario: Select while the document scrolls
+
+- **WHEN** a Changelog selection spans document rows and the reader scrolls or resizes the screen
+- **THEN** visible selected cells and copied text SHALL continue to describe the same document rows and columns
+- **AND** scrollbar interaction SHALL NOT become document selection
