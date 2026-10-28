@@ -968,7 +968,7 @@ describe("session viewport interaction controller", () => {
     ]);
   });
 
-  it("copies editor-owned word and line selections exactly once when enabled", () => {
+  it("keeps editor-owned selection out of copy-on-select while frame drags still honor it", () => {
     const events: PiShellEditorPointerEvent[] = [];
     let click = 0;
     let selected: string | undefined;
@@ -993,16 +993,13 @@ describe("session viewport interaction controller", () => {
 
     const clickPrompt = () => target.handlePreInput("\u001b[<0;3;4M\u001b[<0;3;4m");
     expect(copiedText(clickPrompt())).toBeUndefined();
-    expect(copiedText(clickPrompt())).toBe("expanded word");
+    expect(copiedText(clickPrompt())).toBeUndefined();
     expect(selected).toBe("expanded word");
-
-    target.setCopyOnSelect(false);
     expect(copiedText(clickPrompt())).toBeUndefined();
     expect(selected).toBe("expanded whole line");
     expect(target.handlePreInput("\u0003")).toEqual({ data: "\u0003", consumed: false });
 
     const beforeDragEvents = events.length;
-    target.setCopyOnSelect(true);
     const drag = target.handlePreInput("\u001b[<0;3;4M\u001b[<32;6;4M\u001b[<0;6;4m");
     expect(copiedText(drag)).toBeTruthy();
     expect(events).toHaveLength(beforeDragEvents);

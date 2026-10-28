@@ -152,7 +152,7 @@
       "lines": 575
     },
     "native/terminal-host/src/roles/server/holder.rs::start_holder": {
-      "lines": 191
+      "lines": 185
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
       "lines": 193
@@ -167,7 +167,7 @@
       "lines": 147
     },
     "native/terminal-host/src/roles/server/standby.rs::promote_standby": {
-      "lines": 106
+      "lines": 105
     },
     "src/app/session-shell/paste-executor.ts::startPasteExecutor": {
       "lines": 122
@@ -182,7 +182,7 @@
       "lines": 109
     },
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController.handlePreInput": {
-      "lines": 325
+      "lines": 319
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
       "lines": 280

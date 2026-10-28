@@ -412,37 +412,42 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     } finally { await shell.dispose(); }
   });
 
-  it("auto-copies editor-owned prompt word selection without collapsing it", async () => {
+  it("replaces editor-owned prompt selection without overwriting the clipboard", async () => {
     const copied: string[] = [];
+    let clipboardText = "replacement";
     const { shell, terminal } = await fixture([], [], true, undefined, {
-      readText: async () => null,
-      writeText: async value => { copied.push(value); },
+      readText: async () => clipboardText,
+      writeText: async value => { copied.push(value); clipboardText = value; },
     });
     try {
       terminal.resize(60, 12);
       shell.root.editor.setText("copy this line");
       shell.runtime.renderNow();
-      const rows = shell.root.render(60).map(stripTerminalSequences);
-      const inputRow = rows.findIndex(row => row.startsWith("copy this line")) + 1;
-      const column = rows[inputRow - 1]!.indexOf("copy") + 2;
-      const click = () => terminal.input(`\u001b[<0;${column};${inputRow}M\u001b[<0;${column};${inputRow}m`);
+      const pointer = (word: string) => {
+        const rows = shell.root.render(60).map(stripTerminalSequences);
+        const inputRow = rows.findIndex(row => row.startsWith(shell.root.editor.getText())) + 1;
+        const column = rows[inputRow - 1]!.indexOf(word) + 2;
+        return () => terminal.input(`\u001b[<0;${column};${inputRow}M\u001b[<0;${column};${inputRow}m`);
+      };
 
-      click();
+      const selectCopy = pointer("copy");
+      selectCopy(); selectCopy();
       await nextImmediate();
       expect(copied).toEqual([]);
-      click();
-      await vi.waitFor(() => expect(copied).toEqual(["copy"]));
+      expect(clipboardText).toBe("replacement");
       expect(shell.root.editor.selectedText?.()).toBe("copy");
-      await vi.waitFor(() => expect(shell.root.render(60).map(stripTerminalSequences).join("\n"))
-        .toContain("copied 4 chars to clipboard"));
 
-      shell.root.setFullscreenCopyOnSelect(false);
-      click();
-      await nextImmediate();
-      expect(copied).toEqual(["copy"]);
-      expect(shell.root.editor.selectedText?.()).toBe("copy this line");
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("replacement this line"));
+      expect(copied).toEqual([]);
+      expect(clipboardText).toBe("replacement");
+
+      const selectThis = pointer("this");
+      selectThis(); selectThis();
+      expect(shell.root.editor.selectedText?.()).toBe("this");
       terminal.input("\u0003");
-      await vi.waitFor(() => expect(copied).toEqual(["copy", "copy this line"]));
+      await vi.waitFor(() => expect(copied).toEqual(["this"]));
+      expect(clipboardText).toBe("this");
       expect(shell.root.editor.selectedText?.()).toBeUndefined();
     } finally { await shell.dispose(); }
   });
