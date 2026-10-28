@@ -52,7 +52,7 @@ export function createOwnedRouteHost(
       const title = session ? "Session Info" : changelog ? input ? "What's New" : "Changelog" : HOTKEYS_TITLE;
       const document = session ? references!.session() : changelog ? references!.changelog(input) : references!.hotkeys();
       const pinned = options.tabRoute === route;
-      return deferredSurface(route, title, () => loadReferenceSurface(settings, route, title, document, pinned));
+      return deferredSurface(route, title, () => loadReferenceSurface(settings, route, title, document, pinned, options));
     },
   };
 }
@@ -118,11 +118,16 @@ async function loadReferenceSurface(
   title: string,
   document: Promise<ReferenceDocumentProvider>,
   pinned: boolean,
+  options: OwnedRouteHostOptions,
 ): Promise<UiRouteSurface> {
   const id = route;
-  // Rationale: the app module and the document load together, so a document that fails
-  // to render is reported by the placeholder rather than by a screen that never fills.
-  const [{ ReferenceScreenApp }, content] = await Promise.all([import("../features/owned-ui/reference-screen-app.js"), document]);
+  const [{ ReferenceScreenApp }, content, selection] = await Promise.all([
+    import("../features/owned-ui/reference-screen-app.js"),
+    document,
+    route === CHANGELOG_ROUTE
+      ? import("./reference-selection-options.js").then(module => module.createReferenceSelectionOptions(settings.file, options.copyText))
+      : undefined,
+  ]);
   return hostApp(id, route, () => new ReferenceScreenApp({
     id,
     title,
@@ -133,7 +138,8 @@ async function loadReferenceSurface(
       scrollbarSpeed: settings.value("scrollbarSpeed"),
     }),
     pinned,
-  }), !pinned);
+    ...(selection === undefined ? {} : { selection }),
+  }), !pinned, selection !== undefined);
 }
 
 async function hostApp(

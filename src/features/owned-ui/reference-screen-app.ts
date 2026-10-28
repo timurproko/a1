@@ -1,4 +1,5 @@
 import type { OwnedUiViewportSettings } from "../../contracts/owned-ui/index.js";
+import { ReferenceDocumentSelection, type ReferenceDocumentSelectionOptions } from "./reference-document-selection.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT } from "../../contracts/presentation/index.js";
 import type { AppHostServices, UiApp } from "../../ui/apps/index.js";
 import {
@@ -98,6 +99,8 @@ export interface ReferenceScreenOptions {
   readonly scrollSettings: () => OwnedUiViewportSettings;
   /** The screen is a resident tab, such as the Changelog tab: it offers no screen-level close. */
   readonly pinned?: boolean;
+  /** Enables owned text selection for document routes that explicitly opt in. */
+  readonly selection?: ReferenceDocumentSelectionOptions;
 }
 
 /**
@@ -113,6 +116,7 @@ export class ReferenceScreenApp implements UiApp {
   readonly #document: ReferenceDocumentProvider;
   readonly #scrollSettings: () => OwnedUiViewportSettings;
   readonly #pinned: boolean;
+  readonly #selection: ReferenceDocumentSelection | undefined;
   #scroll = 0;
   #interruptArmed = false;
   #failure: string | null = null;
@@ -122,7 +126,6 @@ export class ReferenceScreenApp implements UiApp {
   readonly #rails = new ScrollbarRails();
   // Rationale: the rail as drawn in the last frame, or null when nothing can be pointed at.
   #railFrame: { readonly rail: RailPosition; readonly geometry: ScrollbarGeometry; readonly page: number } | null = null;
-  #bodyHeight = 0;
   // Invariant: a scroll lights the rail until this time; the timer repaints once it has passed.
   #activeUntil = 0;
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
@@ -134,6 +137,7 @@ export class ReferenceScreenApp implements UiApp {
     this.#document = options.document;
     this.#scrollSettings = options.scrollSettings;
     this.#pinned = options.pinned === true;
+    this.#selection = options.selection === undefined ? undefined : new ReferenceDocumentSelection(options.selection);
   }
 
   onActivate(host: AppHostServices): void {
@@ -151,6 +155,7 @@ export class ReferenceScreenApp implements UiApp {
   onClose(_host: AppHostServices): void {
     this.#clearActivityTimer();
     this.#rails.clear();
+    this.#selection?.clear();
   }
 
   render(rect: PaneRect, host: AppHostServices): readonly string[] {
@@ -160,9 +165,9 @@ export class ReferenceScreenApp implements UiApp {
     const reservesRail = settings.scrollbarAppearance !== "hidden";
     const contentWidth = reservesRail ? Math.max(0, rect.width - RAIL_COLUMNS) : rect.width;
     const bodyHeight = Math.max(0, rect.height - HEADER_ROWS - FOOTER_ROWS);
-    this.#bodyHeight = bodyHeight;
     const content = this.#content(contentWidth, theme);
     const body: string[] = [];
+    const visibleDocumentRows: Array<number | undefined> = [];
     let contentLength: number;
     let viewportLength = bodyHeight;
     if (content.kind === "sections") {
@@ -179,9 +184,20 @@ export class ReferenceScreenApp implements UiApp {
       for (let index = this.#scroll; index < this.#scroll + bodyHeight; index++) {
         const row = content.rows[index] ?? "";
         body.push(displayWidth(row) > contentWidth ? truncateToWidth(row, contentWidth) : row);
+        visibleDocumentRows.push(index < content.rows.length ? index : undefined);
       }
     }
     while (body.length < bodyHeight) body.push("");
+    while (visibleDocumentRows.length < bodyHeight) visibleDocumentRows.push(undefined);
+    this.#selection?.updateFrame({
+      bodyRowStart: HEADER_ROWS + 1,
+      contentWidth,
+      documentRows: content.kind === "flat" ? content.rows : [],
+      visibleDocumentRows,
+    });
+    const paintedBody = this.#selection === undefined
+      ? body
+      : body.map((row, index) => this.#selection!.paintVisibleRow(index, row, theme));
     const now = Date.now();
     // Rationale: every way of scrolling ends in this frame, so a moved document is noticed here
     // once rather than at each wheel, drag, and key branch.
@@ -202,7 +218,7 @@ export class ReferenceScreenApp implements UiApp {
       ? { rail: { key: this.id, column: rect.width, rowStart: HEADER_ROWS, trackHeight: geometry.trackHeight }, geometry, page: viewportLength }
       : null;
 
-    const withRail = withScrollbarRail(body.slice(0, bodyHeight), geometry, contentWidth, theme, { presentation });
+    const withRail = withScrollbarRail(paintedBody.slice(0, bodyHeight), geometry, contentWidth, theme, { presentation });
     const hint = this.#interruptArmed
       ? theme.fg("dim", " press ctrl+c again to exit a1")
       : renderShortcutHintsWithClose(this.#hintEntries(), theme, rect.width, 1);
@@ -215,10 +231,17 @@ export class ReferenceScreenApp implements UiApp {
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {
+    const explicitCopy = data === "\u0003" ? this.#selection?.handleInput(data) : undefined;
+    if (explicitCopy?.consumed === true) return { consumed: true };
     const action = REFERENCE_SCREEN_SHORTCUTS.resolve(KEYS[data] ?? data, SCOPE);
-    if (action === null) return { consumed: false };
+    if (action === null) {
+      const cleared = explicitCopy?.cleared ?? (this.#selection?.handleInput(data).cleared === true);
+      if (cleared) host.requestRender();
+      return { consumed: false };
+    }
     switch (action) {
       case "close":
+        this.#selection?.handleInput(data);
         if (!this.#pinned) host.close();
         return { consumed: true };
       case "up":
@@ -228,10 +251,10 @@ export class ReferenceScreenApp implements UiApp {
         this.#scrollBy(1);
         return { consumed: true };
       case "page-up":
-        this.#scrollBy(-Math.max(1, this.#bodyHeight));
+        this.#scrollBy(-Math.max(1, host.getSize().height - HEADER_ROWS - FOOTER_ROWS));
         return { consumed: true };
       case "page-down":
-        this.#scrollBy(Math.max(1, this.#bodyHeight));
+        this.#scrollBy(Math.max(1, host.getSize().height - HEADER_ROWS - FOOTER_ROWS));
         return { consumed: true };
       case "first":
         this.#scroll = 0;
@@ -249,9 +272,15 @@ export class ReferenceScreenApp implements UiApp {
       this.#scrollBy(event.kind === "wheel-down" ? distance : -distance);
       return { consumed: true };
     }
+    if (this.#selection?.selecting === true) {
+      const selection = this.#selection.handleMouse(event);
+      if (selection.consumed) return { consumed: true, render: selection.changed };
+    }
     const rail = this.#railPointer(event);
     if (rail.owned) return { consumed: true };
-    return { consumed: event.kind !== "motion", render: rail.changed };
+    const selection = this.#selection?.handleMouse(event);
+    if (selection?.consumed === true) return { consumed: true, render: selection.changed || rail.changed };
+    return { consumed: event.kind !== "motion", render: selection?.changed === true || rail.changed };
   }
 
   // Rationale: the rail takes its share of a pointer report first: hover, a thumb drag, or a

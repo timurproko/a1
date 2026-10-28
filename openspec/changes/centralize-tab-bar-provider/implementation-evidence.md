@@ -32,15 +32,25 @@
 - Both Thinking Level steps retain model filtering, provider suffix roles, level choices, step transitions, and active-step hints. Their row windows derive from terminal height, including a 48×10 regression that keeps the selected model, search input, and close guidance visible.
 - The TypeScript Plus Menu fallback uses the same two-column modal inset and semantic shortcut renderer as other configure workflows; resident Settings continues to delegate to the native centered Plus Menu.
 
+## Changelog text selection
+
+- `ReferenceDocumentSelection` keeps Changelog and startup `What's New` selection in document-row coordinates, reuses shared drag, word, and line selection primitives, and paints visible cells through the active theme's selection background without discarding Markdown foreground or hyperlink styling.
+- Selection extraction strips ANSI and terminal padding while retaining selected line breaks. Wheel, keyboard, and scrollbar scrolling leave the selection anchored to the same document rows; scrollbar presses retain precedence and compact frames keep the ordinary exact-dimension contract.
+- Selection release reads `fullscreenCopyOnSelect` from the shared Pi settings document through a lazily loaded utility-safe policy. Enabled selections submit once through the existing bounded clipboard callback; disabled selections remain painted without a clipboard write.
+- An active selection claims `Ctrl+C`, copies explicitly, and clears. With no selection, standalone Changelog retains one-interrupt close and the pinned resident Changelog retains its two-interrupt application-exit chord. Hotkeys and Session Info remain non-selectable.
+
 ## Local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed.
 - A focused `rustc --test` harness over the checked-in shortcut-hint and command-palette modules passed all 5 component and palette tests.
 - `npm run build:core` passed.
-- `npm run typecheck` passed after the prompt-selection and centered-dialog refinements.
-- `npm run check:architecture` passed after the centered-dialog implementation retained the Settings function and method-count ratchets.
-- `npx vitest run test/features/owned-ui test/ui/components/dialog-panel.test.ts test/composition/settings-route-host.test.ts` passed with 212 tests.
-- `npx vitest run test/app/session-shell/session-shell-workflows.test.ts test/app/session-shell/session-shell-selection.test.ts test/repository-governance/owned-settings-interaction-boundary.test.ts` passed with 104 tests.
+- `npm run typecheck` passed after the prompt-selection, centered-dialog, and Changelog-selection refinements.
+- `npm run check:architecture` passed with the selection implementation kept outside the startup graph and the reference-screen class within its field threshold.
+- `npx vitest run test/features/owned-ui test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts` passed with 213 tests.
+- `npx vitest run test/app/session-shell/session-shell-resident-utility-tabs.test.ts test/app/session-shell/session-shell-workflows.test.ts test/app/session-shell/session-shell-selection.test.ts` passed with 103 tests.
+- `npx vitest run test/features/owned-ui/reference-screen-app.test.ts test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts` passed with 33 focused tests.
+- `npx vitest run test/features/owned-ui test/ui/components/dialog-panel.test.ts test/composition/settings-route-host.test.ts` passed with 212 tests before the Changelog-selection refinement.
+- `npx vitest run test/app/session-shell/session-shell-workflows.test.ts test/app/session-shell/session-shell-selection.test.ts test/repository-governance/owned-settings-interaction-boundary.test.ts` passed with 104 tests before the Changelog-selection refinement.
 - `npx vitest run test/ui/components/dialog-panel.test.ts test/features/owned-ui/plus-menu-dialog.test.ts test/features/owned-ui/settings-app.test.ts` passed with 85 focused tests.
 - `npx vitest run test/app/session-shell/session-viewport-controller.test.ts test/app/session-shell/session-shell-selection.test.ts` passed with 151 tests.
 - `npx openspec validate centralize-tab-bar-provider --strict` passed.

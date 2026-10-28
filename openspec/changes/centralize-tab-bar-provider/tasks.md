@@ -32,6 +32,6 @@
 
 ## 6. Changelog text selection
 
-- [ ] 6.1 Add Changelog-only reference-screen selection state and semantic painting for drag, word, and line selection while preserving scrolling, scrollbar ownership, resize behavior, and exact frame dimensions.
-- [ ] 6.2 Route selection release through the live `Copy on select` value, and make `Ctrl+C` explicitly copy and clear an active selection before the existing standalone-close or resident interrupt behavior.
-- [ ] 6.3 Add focused reference-screen, route-host, and resident utility-tab regressions for automatic and explicit copy, disabled automatic copy, no-selection interrupt behavior, ANSI-safe extraction, and compact/scrolling interaction; record implementation evidence.
+- [x] 6.1 Add Changelog-only reference-screen selection state and semantic painting for drag, word, and line selection while preserving scrolling, scrollbar ownership, resize behavior, and exact frame dimensions.
+- [x] 6.2 Route selection release through the live `Copy on select` value, and make `Ctrl+C` explicitly copy and clear an active selection before the existing standalone-close or resident interrupt behavior.
+- [x] 6.3 Add focused reference-screen, route-host, and resident utility-tab regressions for automatic and explicit copy, disabled automatic copy, no-selection interrupt behavior, ANSI-safe extraction, and compact/scrolling interaction; record implementation evidence.
