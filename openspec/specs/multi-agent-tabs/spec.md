@@ -1213,7 +1213,7 @@ The attach client SHALL present one locally pending new Agent chip and an empty 
 - **THEN** the whole frame SHALL fade in with no cursor shown, and opening a tab SHALL never fade
 
 ### Requirement: The command palette opens every tab kind
-The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal command palette over the dimmed strip and body from any tab, the landing, or the Settings tab. The palette SHALL show the title `Commands` with a dim `esc` hint, a search line that shows the dim placeholder `Search` while empty, one `Tabs` section in the owned section style, and the rows `Agent`, `Settings`, and `Changelog` in the owned list style with `→` and the accent selected background on the selected row and each effective shortcut right-aligned. Up and Down SHALL move the selection, printable keys and `Backspace` SHALL edit a case-insensitive label filter, `Enter` SHALL close the palette and run the selected entry exactly as its shortcut or launcher row would, and `Esc` SHALL close it without action. While the palette is open, no key, paste, or mouse input SHALL reach a child, and mouse input SHALL NOT act on the strip or the palette. A `tabs.changelog` action SHALL exist for assignment without a default key.
+The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal command palette over the dimmed strip and body from any tab, the landing, or the Settings tab. The palette SHALL show the title `Commands` with a dim `esc` hint, a search line that shows the dim placeholder `Search` while empty, one `Tabs` section in the owned section style, and the rows `Agent`, `Settings`, and `Changelog` in the owned list style with `→` and the accent selected background on the selected row and each effective shortcut right-aligned. Up and Down SHALL move the selection, printable keys and `Backspace` SHALL edit a case-insensitive label filter, `Enter` SHALL close the palette and run the selected entry exactly as its shortcut or launcher row would, and `Esc` SHALL close it without action. While the palette is open, no key, paste, or mouse input SHALL reach a child, and mouse input SHALL NOT act on the strip or the palette. A `tabs.changelog` action SHALL exist for assignment without a default key. The Commands and Plus Menu dialogs SHALL declare their footer guidance as semantic key-and-action entries and render it through one reusable native shortcut-hint component. Each shortcut key SHALL use the owned quiet gray role, each action description SHALL use the distinct lighter muted gray role, and adjacent entries SHALL have exactly two display cells between them with no middle dot or other separator glyph. The Commands footer SHALL read `Type search  ↑↓ navigate  Enter open  Esc close`; the Plus Menu footer SHALL read `Type search  ↑↓ navigate  Space toggle  Esc close`. Width clipping SHALL preserve graphemes and complete key/action style boundaries in truecolor and 256-color modes.
 
 #### Scenario: Open the palette
 - **WHEN** the user presses `Alt+/`
@@ -1230,6 +1230,11 @@ The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal comm
 #### Scenario: Mouse is inert
 - **WHEN** the palette is open and the user clicks anywhere
 - **THEN** nothing SHALL change and no mouse report SHALL reach a child
+
+#### Scenario: Style native tab-dialog shortcut hints
+- **WHEN** Commands or Plus Menu renders its footer in truecolor or 256-color mode
+- **THEN** every shortcut key SHALL use the quiet gray role and every action description SHALL use the distinct lighter muted gray role
+- **AND** entries SHALL be separated by exactly two spaces with no separator glyph
 
 ### Requirement: Changelog is a singleton utility tab
 Bare A1 resident mode SHALL present at most one profile-global utility tab titled `Changelog` that renders the owned changelog reference screen without owning an Agent session. The palette and `tabs.changelog` SHALL show it at once: the attach client SHALL keep one Changelog tab prewarmed and hidden, as it does Settings, starting it after Settings is ready and again after a Changelog tab closes, and SHALL create one only when none is running. Every utility tab, Settings and Changelog alike, SHALL follow one set of tab bar rules: opening one that is not in the strip SHALL place it last, its toggle SHALL hide the viewed one while its process keeps running, and a resident tab whose id names a utility route SHALL present that route as its pinned screen. Its registry record SHALL have the `changelog` kind. Its chip SHALL offer Close but not Rename. Its screen SHALL be the tab: it SHALL show no `Esc close` hint, and neither `Esc` nor one `Ctrl+C` SHALL close it. Resident Agents SHALL neither advertise nor execute `/changelog`; `a1 solo` and `a1 pi` SHALL keep their existing changelog command.
@@ -1299,3 +1304,49 @@ A resident utility tab, Settings or Changelog, SHALL run a child process that ne
 #### Scenario: Agent tabs are unchanged
 - **WHEN** the client creates an Agent tab or promotes the standby
 - **THEN** its child SHALL run the full composition with the Pi engine
+
+### Requirement: Every tab kind uses one tab-bar provider contract
+
+The resident tab bar SHALL consume one registered provider contract for every tab kind. Each registration SHALL declare the kind's stable name, label, shortcut action, multiplicity, activation behavior, prewarm policy, renameability, Agent-session ownership, child route when present, and launcher marker. The command palette, plus launcher, shortcut dispatch, context menu, visibility handling, server reservation, registry validation, session handling, and route delivery SHALL use those registrations rather than separate Agent, Settings, Changelog, or utility-kind branches.
+
+A multi-instance create kind SHALL create one new tab on every activation. A singleton toggle kind SHALL create its one tab when absent, reveal and activate it when hidden, activate it without moving it when already shown, and hide it according to the shared toggle behavior when it is viewed. Adding a future kind SHALL require one provider registration and its child content, not another parallel tab lifecycle.
+
+#### Scenario: Activate every registered kind through one recipient
+
+- **WHEN** Agent, Settings, or Changelog is invoked from its shortcut, the command palette, or the plus launcher
+- **THEN** the tab bar SHALL pass that registered kind to the same activation recipient
+- **AND** the provider's multiplicity and activation policy SHALL determine whether a tab is created, activated, revealed, or hidden
+
+#### Scenario: Toggle a singleton tab
+
+- **WHEN** a registered singleton-toggle tab is absent, hidden, already shown, or currently viewed
+- **THEN** repeated activation SHALL respectively create it, reveal and activate it, activate it in its existing slot, or hide it through the shared toggle behavior
+
+#### Scenario: Apply kind capabilities
+
+- **WHEN** the tab bar or server needs to offer Rename, persist Agent session metadata, prewarm a singleton, validate a registry kind, or deliver a child route
+- **THEN** it SHALL query the registered kind capabilities rather than infer behavior from a concrete tab name or a utility category
+
+### Requirement: Newly added tabs append through the tab-bar ordering API
+
+The resident tab bar SHALL own one kind-neutral ordering API over live tabs. A newly created tab and a hidden tab that newly joins the strip SHALL be placed after every tab already shown in strip order. Selecting a tab already in the strip SHALL retain its current slot, including a slot established by drag-and-drop. Stopped durable registry records SHALL NOT affect the visible insertion destination. Cold creation, prewarmed promotion, and singleton reveal SHALL use the same ordering API and SHALL NOT branch on tab kind.
+
+#### Scenario: Create an Agent after Settings
+
+- **WHEN** an Agent is shown, Settings is opened after it, and another Agent is created
+- **THEN** the strip order SHALL be the first Agent, Settings, and the new Agent
+
+#### Scenario: Reveal a hidden singleton after later tabs
+
+- **WHEN** a singleton tab is prewarmed while hidden and other tabs are added before it is opened
+- **THEN** opening it SHALL place it after every tab currently shown
+
+#### Scenario: Keep an existing dragged slot
+
+- **WHEN** a shown singleton or multi-instance tab was dragged to a different slot and is activated again
+- **THEN** activation SHALL select it without changing its durable order
+
+#### Scenario: Ignore stopped records
+
+- **WHEN** stopped registry records occur before, between, or after the live tabs
+- **THEN** a new or newly shown tab SHALL still become the final visible tab
