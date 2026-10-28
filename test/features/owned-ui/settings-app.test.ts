@@ -138,14 +138,15 @@ const NAMING_THEME: UiTheme = Object.freeze({
   panel: (text: string) => `<panel>${text}</panel>`,
 });
 const NAMING_HOST: AppHostServices = { ...HOST, theme: NAMING_THEME };
-const PANEL_BACKGROUND = "\u001b[48;2;55;55;55m";
+const PANEL_BACKGROUND = "\u001b[48;2;38;38;38m";
+const MENU_BACKGROUND = "\u001b[48;2;55;55;55m";
 const PANEL_THEME: UiTheme = Object.freeze({
   fg: (_token: UiThemeToken, text: string) => text,
   bold: (text: string) => text,
   plain: (text: string) => text,
   highlight: (text: string) => text,
   disabled: (text: string) => text,
-  panel: (text: string) => `${PANEL_BACKGROUND}${text}\u001b[49m`,
+  panel: (text: string) => `${MENU_BACKGROUND}${text}\u001b[49m`,
 });
 const PANEL_HOST: AppHostServices = { ...HOST, theme: PANEL_THEME };
 const BOLD_NAMING_HOST: AppHostServices = {
@@ -157,9 +158,10 @@ let root: string;
 
 function settingsApp(
   session: OwnedSettingsManager,
-  options: { readonly pinned?: boolean; readonly copyText?: (text: string) => void; readonly configurePlusMenu?: () => boolean } = {},
+  options: { readonly pinned?: boolean; readonly copyText?: (text: string) => void; readonly configurePlusMenu?: () => boolean; readonly dialogPanel?: (text: string) => string } = {},
 ): SettingsApp {
   return new SettingsApp(session, {
+    dialogPanel: text => `${PANEL_BACKGROUND}${text}\u001b[49m`,
     ...options,
     searchInputFactory: createSettingsSearchInputFactory({ agentDir: root, cwd: root }),
   });
@@ -878,6 +880,8 @@ describe("the settings screen", () => {
     expect(firstPart).toBeGreaterThan(title + 2);
     expect(lines.at(-1)?.trim()).toBe("");
     expect(lines.join("\n")).not.toContain("─");
+    expect(frame.some(line => line.includes(PANEL_BACKGROUND))).toBe(true);
+    expect(frame.some(line => line.includes(MENU_BACKGROUND))).toBe(false);
   });
 
   it("uses the owned per-model thinking search and stepped keyboard workflow", async () => {

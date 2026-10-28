@@ -53,6 +53,18 @@ const CONFIGURE_MODAL_MAX_WIDTH = 60;
 const CONFIGURE_MODAL_PADDING_X = 2;
 const SGR = /\u001b\[[0-9;]*m/gu;
 
+/** Canonical native-matching background for every owned floating dialog surface. */
+export function renderFloatingDialogSurface(text: string, mode: "truecolor" | "256color"): string {
+  const background = mode === "truecolor" ? "\u001b[48;2;38;38;38m" : "\u001b[48;5;235m";
+  return `${background}${text}\u001b[49m`;
+}
+
+/** Existing raised-menu background, centralized beside the darker dialog surface. */
+export function renderFloatingMenuSurface(text: string, mode: "truecolor" | "256color"): string {
+  const background = mode === "truecolor" ? "\u001b[48;2;55;55;55m" : "\u001b[48;5;237m";
+  return `${background}${text}\u001b[49m`;
+}
+
 interface DialogPanelLayout {
   readonly blank: string;
   readonly contentWidth: number;

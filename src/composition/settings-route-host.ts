@@ -8,7 +8,6 @@ import { faint } from "../ui/components/text.js";
 import type { UiTheme, UiThemeToken } from "../ui/components/theme.js";
 import type { PiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 
-/** Styled document rows for one content width. */
 export type OwnedReferenceRows = NonNullable<ReferenceDocumentProvider["rows"]>;
 
 /** Documents supplied by composition so the route host never reads shell data itself. */
@@ -93,9 +92,10 @@ function deferredSurface(id: string, label: string, load: () => Promise<UiRouteS
 }
 
 async function loadSettingsSurface(settings: OwnedSettingsManager, options: OwnedRouteHostOptions): Promise<UiRouteSurface> {
-  const [{ SettingsApp }, { createSettingsSearchInputFactory }] = await Promise.all([
+  const [{ SettingsApp }, { createSettingsSearchInputFactory }, { renderFloatingDialogSurface, renderFloatingMenuSurface }] = await Promise.all([
     import("../features/owned-ui/settings-app.js"),
     import("./settings-search-input.js"),
+    import("../ui/components/dialog-panel.js"),
   ]);
   const pinned = options.tabRoute === SETTINGS_ROUTE;
   const searchInputFactory = createSettingsSearchInputFactory({
@@ -108,8 +108,9 @@ async function loadSettingsSurface(settings: OwnedSettingsManager, options: Owne
     pinned,
     searchInputFactory,
     configurePlusMenu: options.configurePlusMenu ?? null,
+    dialogPanel: text => renderFloatingDialogSurface(text, piTheme().getColorMode()),
     ...(options.copyText === undefined ? {} : { copyText: options.copyText }),
-  }), !pinned, true);
+  }), !pinned, true, text => renderFloatingMenuSurface(text, piTheme().getColorMode()));
 }
 
 async function loadReferenceSurface(
@@ -148,6 +149,7 @@ async function hostApp(
   create: () => UiApp,
   closeOnInterrupt = true,
   appInputBeforeInterrupt = false,
+  panel: (text: string) => string = text => text,
 ): Promise<UiRouteSurface> {
   const [{ UiAppHost }, { UiAppRegistry }] = await Promise.all([
     import("../ui/apps/host.js"),
@@ -164,7 +166,7 @@ async function hostApp(
     registry,
     closeOnInterrupt,
     appInputBeforeInterrupt,
-    theme: pinnedTheme(),
+    theme: pinnedTheme(panel),
     surface: {
       size: () => size,
       requestRender: () => onRender(),
@@ -192,8 +194,7 @@ async function hostApp(
   };
 }
 
-/** Maps A1 UI tokens onto the pinned Pi theme so owned screens match the shell. */
-function pinnedTheme(): UiTheme {
+function pinnedTheme(panel: (text: string) => string): UiTheme {
   return {
     fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
     bold: (text: string) => piTheme().bold(text),
@@ -201,6 +202,6 @@ function pinnedTheme(): UiTheme {
     accentPreview: (color: string, text: string) => renderPiAccentPreview(color, text),
     disabled: (text: string) => faint(piTheme().fg("dim", text)),
     highlight: (text: string) => piTheme().bg("selectedBg", text),
-    panel: (text: string) => `\u001b[48;2;55;55;55m${text}\u001b[49m`,
+    panel,
   };
 }

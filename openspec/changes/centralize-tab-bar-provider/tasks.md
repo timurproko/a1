@@ -38,6 +38,6 @@
 
 ## 7. Shared dialog surface palette
 
-- [ ] 7.1 Add one component-level floating-dialog surface renderer with the native Plus Menu's truecolor and 256-color background palette.
-- [ ] 7.2 Remove the Settings route-host panel RGB and route Warnings, both Thinking Level steps, fallback Plus Menu, generic structured settings, and future configure dialogs through the shared semantic panel renderer.
-- [ ] 7.3 Add component, Settings integration, governance, and native-palette parity regressions for panel fill, selected-row restoration, color-mode fallback, and absence of dialog-specific background literals; record implementation evidence.
+- [x] 7.1 Add one component-level floating-dialog surface renderer with the native Plus Menu's truecolor and 256-color background palette.
+- [x] 7.2 Remove the Settings route-host panel RGB and route Warnings, both Thinking Level steps, fallback Plus Menu, generic structured settings, and future configure dialogs through the shared semantic panel renderer.
+- [x] 7.3 Add component, Settings integration, governance, and native-palette parity regressions for panel fill, selected-row restoration, color-mode fallback, and absence of dialog-specific background literals; record implementation evidence.

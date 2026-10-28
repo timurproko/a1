@@ -261,7 +261,7 @@ export class SettingsApp implements UiApp {
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
   #renderedScroll: number | undefined;
 
-  readonly #options: { readonly pinned: boolean; readonly configurePlusMenu: (() => boolean) | null };
+  readonly #options: { readonly pinned: boolean; readonly configurePlusMenu: (() => boolean) | null; readonly dialogPanel: ((text: string) => string) | null };
 
   /**
    * `pinned` presents the screen as a resident Settings tab, which offers no screen-level close;
@@ -272,9 +272,14 @@ export class SettingsApp implements UiApp {
     readonly searchInputFactory: SettingsSearchInputFactory;
     readonly copyText?: (text: string) => void;
     readonly configurePlusMenu?: (() => boolean) | null;
+    readonly dialogPanel?: (text: string) => string;
   }) {
     this.#session = session;
-    this.#options = { pinned: options.pinned === true, configurePlusMenu: options.configurePlusMenu ?? null };
+    this.#options = {
+      pinned: options.pinned === true,
+      configurePlusMenu: options.configurePlusMenu ?? null,
+      dialogPanel: options.dialogPanel ?? null,
+    };
     this.#search = {
       input: null,
       scrollBefore: null,
@@ -403,8 +408,8 @@ export class SettingsApp implements UiApp {
       rect,
       reservesRail ? RAIL_COLUMNS : 0,
     );
-    const complete = frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill("")), open = this.#structured;
-    return open === null ? complete : renderCenteredDialogOverlay(complete, this.#dialogLines(open, configureDialogWidth(rect.width), rect.height, theme), rect, theme);
+    const complete = frame.slice(0, rect.height).concat(Array(Math.max(0, rect.height - frame.length)).fill("")), open = this.#structured, dialogTheme: UiTheme = this.#options.dialogPanel === null ? theme : { ...theme, panel: this.#options.dialogPanel };
+    return open === null ? complete : renderCenteredDialogOverlay(complete, this.#dialogLines(open, configureDialogWidth(rect.width), rect.height, dialogTheme), rect, dialogTheme);
   }
 
   onInput(data: string, host: AppHostServices): PaneInputResult {

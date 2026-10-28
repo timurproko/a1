@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { renderFloatingDialogSurface, renderFloatingMenuSurface } from "../../../src/ui/components/dialog-panel.js";
 import {
   LineInput,
   configureDialogWidth,
@@ -108,7 +109,7 @@ describe("shared dialog panel", () => {
     const panelTheme: UiTheme = {
       ...PLAIN_THEME,
       highlight: text => `\u001b[48;2;58;56;66m${text}\u001b[49m`,
-      panel: text => `\u001b[48;2;55;55;55m${text}\u001b[49m`,
+      panel: text => renderFloatingDialogSurface(text, "truecolor"),
     };
     const width = 80;
     const dialog = renderDialogPanel({
@@ -131,11 +132,14 @@ describe("shared dialog panel", () => {
     expect(rendered[0]).toContain("\u001b[2mbackground 0");
     expect(rendered[1]).toContain("\u001b[1m\u001b[2mbright\u001b[22m\u001b[2m tail");
     const title = rendered.find(row => stripAnsi(row).includes("Warnings")) ?? "";
-    expect(title).toContain("\u001b[22;39;49m\u001b[48;2;55;55;55m");
+    expect(title).toContain("\u001b[22;39;49m\u001b[48;2;38;38;38m");
     expect(stripAnsi(title).indexOf("Warnings")).toBe(12);
     expect(title.slice(title.indexOf("\u001b[49m") + 5)).toContain("\u001b[2m");
     const selected = rendered.find(row => stripAnsi(row).includes("Alpha")) ?? "";
-    expect(selected).toContain("\u001b[49m\u001b[48;2;55;55;55m  ");
+    expect(selected).toContain("\u001b[49m\u001b[48;2;38;38;38m  ");
+    expect(renderFloatingDialogSurface("panel", "256color")).toBe("\u001b[48;5;235mpanel\u001b[49m");
+    expect(renderFloatingMenuSurface("panel", "truecolor")).toBe("\u001b[48;2;55;55;55mpanel\u001b[49m");
+    expect(renderFloatingMenuSurface("panel", "256color")).toBe("\u001b[48;5;237mpanel\u001b[49m");
   });
 
   it("mutes a stepped model row's bracketed provider, including on the selected row", () => {

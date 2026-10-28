@@ -32,6 +32,13 @@
 - Both Thinking Level steps retain model filtering, provider suffix roles, level choices, step transitions, and active-step hints. Their row windows derive from terminal height, including a 48×10 regression that keeps the selected model, search input, and close guidance visible.
 - The TypeScript Plus Menu fallback uses the same two-column modal inset and semantic shortcut renderer as other configure workflows; resident Settings continues to delegate to the native centered Plus Menu.
 
+## Shared dialog surface palette
+
+- `renderFloatingDialogSurface` owns the native-matching RGB `38,38,38` and ANSI `235` configure-dialog backgrounds beside the existing raised-menu RGB `55,55,55` and ANSI `237` surface renderer.
+- Settings composition dynamically loads both component renderers, reads the active Pi color mode for each paint, and contains no raw dialog or menu background sequence.
+- `SettingsApp` derives one dialog-local semantic panel role for every structured workflow, so Warnings, both Thinking Level steps, generic structured settings, and fallback Plus Menu share the dark configure surface while ordinary value menus retain their established raised surface.
+- Component coverage verifies truecolor and 256-color output, full panel fill, and selected-row panel restoration. Settings integration distinguishes the dialog surface from the ordinary menu surface, and governance coverage checks parity with the native command-palette RGB and ANSI fallback declarations.
+
 ## Changelog text selection
 
 - `ReferenceDocumentSelection` keeps Changelog and startup `What's New` selection in document-row coordinates, reuses shared drag, word, and line selection primitives, and paints visible cells through the active theme's selection background without discarding Markdown foreground or hyperlink styling.
@@ -51,7 +58,7 @@
 - `npx vitest run test/features/owned-ui/reference-screen-app.test.ts test/composition/settings-route-host.test.ts test/composition/utility-tab.test.ts` passed with 33 focused tests.
 - `npx vitest run test/features/owned-ui test/ui/components/dialog-panel.test.ts test/composition/settings-route-host.test.ts` passed with 212 tests before the Changelog-selection refinement.
 - `npx vitest run test/app/session-shell/session-shell-workflows.test.ts test/app/session-shell/session-shell-selection.test.ts test/repository-governance/owned-settings-interaction-boundary.test.ts` passed with 104 tests before the Changelog-selection refinement.
-- `npx vitest run test/ui/components/dialog-panel.test.ts test/features/owned-ui/plus-menu-dialog.test.ts test/features/owned-ui/settings-app.test.ts` passed with 85 focused tests.
+- `npx vitest run test/ui/components/dialog-panel.test.ts test/features/owned-ui/settings-app.test.ts test/features/owned-ui/plus-menu-dialog.test.ts test/composition/settings-route-host.test.ts test/repository-governance/owned-settings-interaction-boundary.test.ts` passed with 96 focused tests after the shared dialog-palette refinement.
 - `npx vitest run test/app/session-shell/session-viewport-controller.test.ts test/app/session-shell/session-shell-selection.test.ts` passed with 151 tests.
 - `npx openspec validate centralize-tab-bar-provider --strict` passed.
 - `npm run test:fast` could not enter its suites because the candidate build's GitHub artifact lookup hit a network connection failure while resolving the required Windows terminal library; the focused and broader owned-UI suites above completed locally.
