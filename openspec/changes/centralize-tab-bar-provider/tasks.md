@@ -17,3 +17,9 @@
 - [x] 3.1 Stop editor-owned prompt word and line selection from submitting automatic copy work while retaining the selected range, complete-frame copy-on-select, and explicit editor copy and cut behavior.
 - [x] 3.2 Add a shell-level regression that starts with external clipboard text, selects a prompt word through pointer input, and proves `Ctrl+V` replaces the selected word without an intervening clipboard write.
 - [x] 3.3 Cover explicit `Ctrl+C` after editor-owned prompt selection and complete-frame automatic copy, update the selection specification, and record the focused implementation evidence.
+
+## 4. Native dialog shortcut hints
+
+- [ ] 4.1 Add one reusable native semantic shortcut-hint component with display key casing, separate quiet-key and action-text roles, two-space entry gaps, and width-safe grapheme clipping.
+- [ ] 4.2 Route the Commands and Plus Menu footer entries through the component in truecolor and 256-color modes, removing dialog-specific literal strings and separator glyphs.
+- [ ] 4.3 Add focused component and palette regressions for visible text, semantic ANSI boundaries, fallback colors, narrow widths, and future shared use; record the implementation evidence.

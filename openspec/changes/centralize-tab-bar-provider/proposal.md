@@ -4,6 +4,8 @@ Resident tab behavior is split between an Agent-only path, an attach-side `Utili
 
 Prompt selection has a separate clipboard conflict. With `Copy on select` enabled, double-clicking a word in the prompt immediately replaces the system clipboard with that word. A following paste therefore reinserts the selected word instead of replacing it with the text the reader copied before selecting the target.
 
+The native Commands and Plus Menu dialogs also build their shortcut footers as one literal muted string with middle-dot separators. Other owned dialogs use semantic key-and-action entries, painting shortcut keys in quiet gray and action descriptions in a distinct lighter gray. Keeping native tab dialogs outside that component contract makes their footer inconsistent and invites future dialogs to repeat the mismatch.
+
 ## What Changes
 
 - Introduce one native tab-bar provider contract that declares every tab kind and its label, shortcut action, multiplicity, activation behavior, prewarming, renameability, session ownership, route, and menu marker.
@@ -11,6 +13,7 @@ Prompt selection has a separate clipboard conflict. With `Copy on select` enable
 - Make the tab bar own placement independently of tab kind: a newly created tab or a hidden tab joining the strip is appended after the existing visible tabs, selecting an already shown tab retains its slot, and drag order remains durable.
 - Remove duplicated kind tables and type-specific ordering branches from attach and server behavior while retaining the established Agent and utility-tab outcomes.
 - Treat editor-owned prompt word and line selection like an editable text field: retain the selected range without automatic clipboard submission, let paste replace it from the existing clipboard, and keep explicit `Ctrl+C` and cut behavior unchanged. Complete-frame transcript, prompt-row, application-message, and status selections continue to honor `Copy on select`.
+- Add one reusable native shortcut-hint component for semantic key-and-action entries. Commands, Plus Menu, and future native tab dialogs use its display casing, separate gray roles, two-space entry gaps, separator-free text, and width-safe clipping.
 
 ## Capabilities
 
@@ -25,7 +28,7 @@ Prompt selection has a separate clipboard conflict. With `Copy on select` enable
 
 ## Impact
 
-- **Native attach core:** tab-kind provider declarations, activation dispatch, plus-menu and palette entries, visibility/prewarm state, context-menu capabilities, and tests.
+- **Native attach core:** tab-kind provider declarations, activation dispatch, plus-menu and palette entries, visibility/prewarm state, context-menu capabilities, shared dialog shortcut-hint presentation, and tests.
 - **Native server:** kind recognition, singleton reservation, registry validation, session ownership, bridge routes, creation/reveal ordering, and tests.
 - **Owned session shell:** prompt pointer-selection release, clipboard routing, and focused replacement-paste tests.
 - **Architecture:** the resident-tab design records the tab bar as the single owner of tab-kind behavior.

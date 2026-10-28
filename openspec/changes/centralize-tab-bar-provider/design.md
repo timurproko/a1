@@ -8,6 +8,8 @@ This creates two tab-bar problems. Behavior depends on which creation path ran, 
 
 The owned prompt has another interaction conflict. Editor-owned double-click and triple-click selection is currently included in fullscreen copy-on-select, so selecting a replacement target overwrites the clipboard before `Ctrl+V` reads it. The asynchronous paste path already replaces an editor selection correctly; it receives the wrong payload because selection release changed the clipboard first.
 
+Native tab dialogs have also bypassed the owned shortcut-hint grammar. The Commands and Plus Menu footers are constants painted as one muted span, so keys and actions have no semantic color boundary and entries use middle dots instead of the shared two-space gap. The TypeScript dialog component already owns the desired semantic model, but the native attach renderer needs an equivalent reusable boundary rather than more dialog-specific ANSI assembly.
+
 ## Decisions
 
 ### 1. One tab-kind provider
@@ -63,6 +65,12 @@ This makes prompt replacement follow normal editable-text behavior: the system c
 
 Pre-reading and privately retaining the old clipboard before every prompt selection was rejected. It would add hidden clipboard access, retain potentially sensitive content without a paste request, introduce permission and timing races, and make repeated selections depend on an invisible clipboard-history lease.
 
+### 7. Native dialogs share semantic shortcut hints
+
+Add a pure native shortcut-hint component that receives ordered semantic entries with a key and action. It applies the common display capitalization to named keys, emits each key in the quiet gray role and each action in the distinct lighter muted role, separates entries by exactly two cells, and clips at grapheme boundaries without splitting ANSI style state.
+
+The Commands and Plus Menu dialogs declare their footers as entry arrays and render them through this component. The palette remains responsible only for its panel background and row placement; it maps the component's key and action roles to the established owned-dialog truecolor values, with stable 256-color fallbacks. Future native dialogs can reuse the same component without copying footer strings or styling decisions.
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -70,3 +78,4 @@ Pre-reading and privately retaining the old clipboard before every prompt select
 - Standby promotion and cold creation must produce identical visible ordering; both paths receive the same append regression coverage.
 - Readers who relied on prompt multi-click auto-copy must use explicit `Ctrl+C`; focused regressions preserve that route and prove complete-frame copy-on-select still applies to transcript, prompt-row, message, and status selections.
 - Paste replacement is asynchronous and may reserve a hidden marker; shell-level coverage starts with external clipboard text, selects a prompt word through pointer input, and proves the final draft contains the replacement rather than the selected source.
+- A shared native renderer can accidentally count ANSI bytes as visible cells or split a wide grapheme. Component tests cover plain text, semantic color boundaries, truecolor and 256-color modes, separator removal, and narrow clipping before the palette integration assertions.
