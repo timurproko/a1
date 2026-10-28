@@ -19,9 +19,38 @@ describe("version stats", () => {
     expect(code).toBe(0);
     expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
     expect(harness.stderr).toEqual([]);
+    // Invariant: a development build also asks the head's manifest for its pull request; a reply
+    // that records none leaves the bare version.
     expect(calls).toEqual([
       { command: "npm", arguments_: ["view", "@timurproko/a1", "dist-tags", "--json"] },
+      { command: "npm", arguments_: ["view", "@timurproko/a1@1.2.0-dev.3", "publication.pullRequest", "--json"] },
     ]);
+  });
+
+  it("shows the pull request a development build and the development head record", async () => {
+    const harness = await createHarness("1.1.0-dev.1217", { publication: { pullRequest: 842, source: "a".repeat(40) } });
+    const code = await runVersionStats({ ...harness.options, runner: async (_command, arguments_) => {
+      if (arguments_[2] === "dist-tags") return { code: 0, stdout: JSON.stringify({ latest: "1.1.4", next: "1.1.0-dev.1218" }) };
+      return { code: 0, stdout: arguments_[1] === "@timurproko/a1@1.1.0-dev.1218" ? "828" : "" };
+    } });
+
+    expect(code).toBe(0);
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.1217 (#842)\nDevelop: 1.1.0-dev.1218 (#828)\nRelease: 1.1.4\n");
+    expect(harness.stderr).toEqual([]);
+
+    // Invariant: a head without a record, or whose lookup fails, prints the bare version and no diagnostic.
+    const unrecorded = await createHarness("1.1.0-dev.1217", { publication: { pullRequest: 842 } });
+    await runVersionStats({ ...unrecorded.options, runner: async (_command, arguments_) => {
+      if (arguments_[2] === "dist-tags") return { code: 0, stdout: JSON.stringify({ latest: "1.1.4", next: "1.1.0-dev.835" }) };
+      return { code: 1, stdout: "" };
+    } });
+    expect(unrecorded.stdout.join("")).toBe("Current: 1.1.0-dev.1217 (#842)\nDevelop: 1.1.0-dev.835\nRelease: 1.1.4\n");
+    expect(unrecorded.stderr).toEqual([]);
+
+    // Invariant: a stable build never carries a pull request, even when its manifest records one.
+    const stable = await createHarness("1.1.4", { publication: { pullRequest: 842 } });
+    await runVersionStats({ ...stable.options, runner: async () => ({ code: 0, stdout: JSON.stringify({ latest: "1.1.4", next: "1.1.0-dev.1218" }) }) });
+    expect(stable.stdout.join("")).toBe("Current: 1.1.4\nRelease: 1.1.4\n");
   });
 
   it("unwraps the one-element array npm 12 emits for dist-tags --json", async () => {
@@ -147,11 +176,11 @@ describe("version stats", () => {
   });
 });
 
-async function createHarness(version = "1.1.0-dev.2") {
+async function createHarness(version = "1.1.0-dev.2", manifest: Record<string, unknown> = {}) {
   const root = await mkdtemp(resolve(tmpdir(), "a1-version-stats-"));
   roots.push(root);
   await mkdir(root, { recursive: true });
-  await writeFile(resolve(root, "package.json"), JSON.stringify({ version }));
+  await writeFile(resolve(root, "package.json"), JSON.stringify({ version, ...manifest }));
   const stdout: string[] = [];
   const stderr: string[] = [];
   const options: VersionStatsOptions = {

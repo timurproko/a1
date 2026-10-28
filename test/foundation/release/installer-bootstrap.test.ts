@@ -88,6 +88,21 @@ describe("installer command contract", () => {
     expect(() => resolvePublishedPreview('["0.1.8-dev.107","0.2.0-dev.107"]', "107")).toThrow(/selected release was not found/u);
     expect(() => resolvePublishedPreview('["0.1.8-dev.108"]', "107")).toThrow(/selected release was not found/u);
     expect(() => resolvePublishedPreview("not json", "107")).toThrow(/could not resolve/u);
+
+    // Invariant: a registry package document resolves a number by the pull request a manifest
+    // records, falls back to the trailing number of an older preview, and refuses ambiguity.
+    const document = JSON.stringify({ versions: {
+      "0.2.7-dev.835": {},
+      "0.2.7-dev.1218": { publication: { pullRequest: 828 } },
+      "0.2.7": {},
+    } });
+    expect(resolvePublishedPreview(document, "828")).toBe("0.2.7-dev.1218");
+    expect(resolvePublishedPreview(document, "835")).toBe("0.2.7-dev.835");
+    expect(resolvePublishedPreview(document, "0.2.7-dev.1218")).toBe("0.2.7-dev.1218");
+    expect(() => resolvePublishedPreview(document, "0.2.7")).toThrow(/selected release was not found/u);
+    const ambiguous = JSON.stringify({ versions: { "0.2.7-dev.828": {}, "0.3.0-dev.1300": { publication: { pullRequest: 828 } } } });
+    expect(() => resolvePublishedPreview(ambiguous, "828")).toThrow(/selected release was not found/u);
+    expect(() => resolvePublishedPreview('{"name":"@timurproko/a1"}', "828")).toThrow(/could not resolve/u);
   });
 
   it("keeps help intentionally small", () => {
@@ -399,21 +414,26 @@ describe("installer orchestration", () => {
     const runner = {
       async npm(args: string[]) {
         npmCalls.push(args);
-        return args[0] === "view" && args[2] === "versions"
-          ? { code: 0, signal: null, stdout: '["0.2.1-dev.590","0.2.1-dev.591"]', stderr: "" }
-          : { code: 0, signal: null, stdout: setup.globalRoot, stderr: "" };
+        return { code: 0, signal: null, stdout: setup.globalRoot, stderr: "" };
       },
       async node(entry: string, args: string[]) {
         nodeCalls.push({ entry, args });
         return { code: 0, signal: null, stdout: "", stderr: "" };
       },
     };
+    const fetched: string[] = [];
+    const fetch = async (url: string) => {
+      fetched.push(url);
+      return { ok: true, status: 200, text: async () => JSON.stringify({ versions: { "0.2.1-dev.590": {}, "0.2.1-dev.591": { publication: { pullRequest: 591 } } } }) };
+    };
     const code = await runInstaller(["--develop", "591"], {
-      stdout: stdout.stream, stderr: stderr.stream, runner, platform: process.platform,
-      environment: { PATH: `${setup.launcherDirectory}${delimiter}${process.env.PATH ?? ""}` }, handleSignals: false,
+      stdout: stdout.stream, stderr: stderr.stream, runner, platform: process.platform, fetch,
+      environment: { PATH: `${setup.launcherDirectory}${delimiter}${process.env.PATH ?? ""}`, npm_config_registry: "https://mirror.example/npm/" }, handleSignals: false,
     });
     expect(code).toBe(0);
-    expect(npmCalls[0]).toContain("versions");
+    // Invariant: a named preview is found in the registry's package document, not in npm's version list.
+    expect(fetched).toEqual(["https://mirror.example/npm/%40timurproko%2Fa1"]);
+    expect(npmCalls.every(args => !args.includes("versions"))).toBe(true);
     expect(nodeCalls).toEqual([{ entry: resolve(setup.packageRoot, "bin", "cli.js"), args: ["update", "--develop", "0.2.1-dev.591"] }]);
     expect(stdout.read()).toBe("a1 successfully installed\n");
     expect(stderr.read()).toBe("");

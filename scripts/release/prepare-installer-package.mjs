@@ -17,6 +17,7 @@ const [sourceLicense, rootLicense] = await Promise.all([
   readFile(resolve("LICENSE"), "utf8"),
 ]);
 const version = process.env.RELEASE_VERSION ?? rootManifest.version;
+const publication = publicationMetadata(process.env);
 
 validateSourceManifest(sourceManifest);
 if (sourceLicense !== rootLicense) throw new Error("installer package license differs from the repository license");
@@ -32,7 +33,10 @@ await Promise.all([
   cp(resolve(sourceDirectory, "LICENSE"), resolve(stageDirectory, "LICENSE")),
 ]);
 await chmod(resolve(stageDirectory, "bin", "a1-install.js"), 0o755);
-await writeFile(resolve(stageDirectory, "package.json"), `${JSON.stringify({ ...sourceManifest, version }, null, 2)}\n`);
+await writeFile(
+  resolve(stageDirectory, "package.json"),
+  `${JSON.stringify({ ...sourceManifest, version, ...(publication ? { publication } : {}) }, null, 2)}\n`,
+);
 
 const npmVersion = crossSpawn.sync(npm, ["--version"], { cwd: process.cwd(), encoding: "utf8", env: process.env, windowsHide: true });
 if (npmVersion.status !== 0) throw new Error(npmVersion.stderr || `npm --version failed with ${npmVersion.status}`);
@@ -60,6 +64,17 @@ await writeFile(resolve(outputDirectory, "installer-pack-result.json"), `${JSON.
 await rm(stageDirectory, { recursive: true, force: true });
 if (repaired.length > 0) process.stdout.write(`Repaired installer executable modes: ${repaired.join(", ")}\n`);
 process.stdout.write(`Installer package: ${target}\n`);
+
+/**
+ * What the installer manifest records about its publication: the source commit and, for a
+ * development preview, the merged pull request. A local pack without that context records nothing.
+ */
+function publicationMetadata(environment) {
+  const source = (environment.RELEASE_SOURCE ?? "").trim();
+  if (!/^[a-f0-9]{40}$/u.test(source)) return null;
+  const pullRequest = (environment.RELEASE_PULL_REQUEST ?? "").trim();
+  return /^[1-9]\d*$/u.test(pullRequest) ? { source, pullRequest: Number(pullRequest) } : { source };
+}
 
 function validateSourceManifest(manifest) {
   if (typeof manifest?.name !== "string" || !manifest.name.startsWith("@") || !manifest.name.endsWith("/a1-install")) throw new Error("installer package name is invalid");

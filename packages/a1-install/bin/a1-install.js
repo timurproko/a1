@@ -27,6 +27,9 @@ const STABLE_VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$
 const DEVELOPMENT_VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)-dev\.[1-9]\d*$/u;
 const PREVIEW_NUMBER_PATTERN = /^[1-9]\d*$/u;
 const VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-dev\.[1-9]\d*)?$/u;
+const DEFAULT_REGISTRY = "https://registry.npmjs.org";
+const PACKAGE_DOCUMENT_TIMEOUT_MS = 30_000;
+const MAX_PACKAGE_DOCUMENT_BYTES = 32 * 1024 * 1024;
 
 class InstallationFailure extends Error {
   constructor(reason, details = "", exitCode = 1) {
@@ -303,14 +306,47 @@ async function runChild(command, args, options) {
 
 function targetSpec(target) {
   if (target.kind === "develop") return `${APPLICATION_PACKAGE}@next`;
+  if (target.kind === "preview") return `${APPLICATION_PACKAGE}@${target.requested}`;
   return `${APPLICATION_PACKAGE}@latest`;
 }
 
+/** A numbered preview needs the registry's manifests; a full version resolves through npm directly. */
+function previewNeedsPackageDocument(target) {
+  return target.kind === "preview" && PREVIEW_NUMBER_PATTERN.test(target.requested);
+}
+
 function resolutionArguments(target) {
-  if (target.kind === "preview") {
-    return ["view", APPLICATION_PACKAGE, "versions", "--json", "--loglevel=verbose", "--no-fund", "--no-audit"];
-  }
   return ["view", targetSpec(target), "version", "--json", "--loglevel=verbose", "--no-fund", "--no-audit"];
+}
+
+function packageDocumentUrl(environment) {
+  const registry = (environment.npm_config_registry ?? "").trim() || DEFAULT_REGISTRY;
+  return `${registry.replace(/\/+$/u, "")}/${encodeURIComponent(APPLICATION_PACKAGE)}`;
+}
+
+/**
+ * The registry's full package document, whose per-version manifests record the pull request a
+ * preview was published from; the version list and the abbreviated install document do not.
+ */
+async function fetchPackageDocument(fetchImpl, environment) {
+  let response;
+  try {
+    response = await fetchImpl(packageDocumentUrl(environment), {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(PACKAGE_DOCUMENT_TIMEOUT_MS),
+    });
+  } catch (error) {
+    throw new InstallationFailure("could not resolve the selected release", String(error));
+  }
+  if (!response.ok) throw new InstallationFailure("could not resolve the selected release", `registry responded with status ${response.status}`);
+  const text = await response.text();
+  if (text.length > MAX_PACKAGE_DOCUMENT_BYTES) throw new InstallationFailure("could not resolve the selected release", "registry package document is oversized");
+  return text;
+}
+
+function recordedPullRequest(manifest) {
+  const value = manifest?.publication?.pullRequest;
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
 function updateArguments(target, targetVersion) {
@@ -337,17 +373,32 @@ function parseResolvedVersion(stdout, target) {
   return value;
 }
 
-export function resolvePublishedPreview(stdout, requested) {
+/**
+ * The preview a `--develop` value names among the published versions: an exact full version, or a
+ * number that a manifest records as its pull request or that trails a `-dev.<number>` version
+ * published before pull requests were recorded. `source` is the registry's package document; a
+ * bare JSON list of versions is accepted as a document without records.
+ */
+export function resolvePublishedPreview(source, requested) {
   let published;
-  try { published = JSON.parse(String(stdout).trim() || "[]"); }
-  catch { throw new InstallationFailure("could not resolve the selected release", String(stdout)); }
-  const versions = (Array.isArray(published) ? published : [published])
-    .filter(value => typeof value === "string" && DEVELOPMENT_VERSION_PATTERN.test(value));
+  try { published = JSON.parse(String(source).trim() || "[]"); }
+  catch { throw new InstallationFailure("could not resolve the selected release", String(source)); }
+  const manifests = Array.isArray(published)
+    ? Object.fromEntries(published.filter(value => typeof value === "string").map(version => [version, {}]))
+    : published?.versions;
+  if (typeof manifests !== "object" || manifests === null) throw new InstallationFailure("could not resolve the selected release", String(source));
+  const previews = Object.entries(manifests)
+    .filter(([version]) => DEVELOPMENT_VERSION_PATTERN.test(version))
+    .map(([version, manifest]) => ({ version, pullRequest: recordedPullRequest(manifest) }));
+  const versions = previews.map(preview => preview.version);
   if (DEVELOPMENT_VERSION_PATTERN.test(requested)) {
     if (versions.includes(requested)) return requested;
     throw new InstallationFailure("the selected release was not found", `published no preview ${requested}`);
   }
-  const matches = versions.filter(version => version.endsWith(`-dev.${requested}`));
+  const number = Number(requested);
+  const matches = previews
+    .filter(preview => preview.pullRequest === number || preview.version.endsWith(`-dev.${requested}`))
+    .map(preview => preview.version);
   if (matches.length === 1) return matches[0];
   const detail = matches.length === 0
     ? `published no preview for ${requested}`
@@ -568,16 +619,23 @@ export async function runInstaller(argv, options = {}) {
   try {
     progress.set(3, "Preparing", 10);
     let phase = "Resolving version";
-    const resolveResult = await runner.npm(resolutionArguments(parsed.target), {
-      onChild: setActiveChild,
-      onStderrLine: line => { phase = classifyProgressLine(line, phase); progress.set(10, phase, 18); },
-    });
-    setActiveChild(null);
-    if (cancelled) throw new InstallationCancelled();
-    if (resolveResult.code !== 0) throw new InstallationFailure(conciseFailure("resolve", resolveResult.stderr), resolveResult.stderr);
-    const targetVersion = parsed.target.kind === "preview"
-      ? resolvePublishedPreview(resolveResult.stdout, parsed.target.requested)
-      : parseResolvedVersion(resolveResult.stdout, parsed.target);
+    let targetVersion;
+    if (previewNeedsPackageDocument(parsed.target)) {
+      // Rationale: a numbered preview is found by the pull request its published manifest records,
+      // which only the registry's full package document carries.
+      const document = await fetchPackageDocument(options.fetch ?? globalThis.fetch, environment);
+      if (cancelled) throw new InstallationCancelled();
+      targetVersion = resolvePublishedPreview(document, parsed.target.requested);
+    } else {
+      const resolveResult = await runner.npm(resolutionArguments(parsed.target), {
+        onChild: setActiveChild,
+        onStderrLine: line => { phase = classifyProgressLine(line, phase); progress.set(10, phase, 18); },
+      });
+      setActiveChild(null);
+      if (cancelled) throw new InstallationCancelled();
+      if (resolveResult.code !== 0) throw new InstallationFailure(conciseFailure("resolve", resolveResult.stderr), resolveResult.stderr);
+      targetVersion = parseResolvedVersion(resolveResult.stdout, parsed.target);
+    }
     progress.set(18, "Resolving packages", 24);
 
     const rootResult = await runner.npm(["root", "--global", "--loglevel=error", "--no-fund", "--no-audit"], { onChild: setActiveChild });

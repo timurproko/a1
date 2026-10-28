@@ -41,7 +41,11 @@ export async function resolveDevelopPreview(source, options = {}) {
     throw new Error(`develop commit ${source} has ${matches.length} unique merged pull request associations; expected exactly one`);
   }
   const number = matches[0].number;
-  return { source, pullRequest: number, version: `${base}-dev.${number}`, packageName: manifest.name };
+  // Rationale: the version carries the first-parent commit count so later merges sort above earlier
+  // ones whatever their pull request numbers; the pull request is recorded in the published manifests.
+  const count = (options.commitCount ?? git(["rev-list", "--count", "--first-parent", source])).trim();
+  if (!/^[1-9]\d*$/.test(count)) throw new Error(`could not count develop commits for ${source}: ${JSON.stringify(count)}`);
+  return { source, pullRequest: number, version: `${base}-dev.${count}`, packageName: manifest.name };
 }
 
 export async function registryVersion(packageName, version, fetchImpl = fetch) {
