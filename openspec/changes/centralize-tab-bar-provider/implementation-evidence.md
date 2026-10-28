@@ -78,17 +78,18 @@
 - Agent frame selection, ordinary prompt selection, Settings search selection, Changelog, startup `What's New`, and the transcript viewport default all delegate to the shared painter. Atomic prompt chips retain their distinct reverse-video focus, and list/menu row highlighting remains theme-owned.
 - Component coverage verifies nested ANSI attributes, OSC hyperlinks, wide graphemes, and inverse clearing. Reference-screen coverage proves Changelog ignores a conflicting theme highlight, while governance coverage requires every recipient to consume the shared painter and forbids recipient-owned copies of its RGB.
 
-## Focus-aware thresholded resize curtain
+## Direct resize without curtain or fade
 
-- `native/terminal-host/src/roles/attach.rs` arms a focused resize curtain for 120 ms without interrupting immediate wire geometry forwarding. A matching latest-generation child surface cancels the pending curtain and repaints at full intensity; sustained resize shows the centered curtain, then retains the existing settle/recovery and whole-frame fade.
-- Repeated geometry changes preserve the initial curtain deadline, but retarget the latest geometry and settle/recovery gates. Focus loss cancels pending or shown feedback and repaints; background terminal-tab resizes never arm it, and focus return repaints a complete cached frame.
-- Native unit coverage tests delay, fast coherent completion, prolonged resize, latest-generation retarget, recovery, and focus suppression. The earlier exact-head CI failures were independently repaired: the changed-file documentation gate now accepts prefixed implementation comments in `session-viewport-controller.ts`, and Linux native integration compilation no longer borrows a temporary output string. The method size ratchet was lowered from 317 to 316 after consolidating those comments.
+- `native/terminal-host/src/roles/attach.rs` removes the host-owned resize curtain, threshold, settle and recovery timers, and resize-only fade. Every changed geometry updates host and create dimensions; the attach-core Resize effect repaints the retained strip and active body without requesting a clear, while the client routes the new size to the resident child. An unchanged size remains a no-op.
+- The shared `PresentationComposer` clips and fills retained structured rows at the new dimensions, with no clear or resize overlay in the changed-size offer. A fresh child frame replaces those rows normally. Focus gain reasserts a complete frame in one synchronized write; there is no stale resize-only state to replay when changing terminal tabs.
+- Native unit coverage asserts that an unchanged size is inert; core resize requests a no-clear repaint and refits menus; geometry changes recompose retained strip and child rows without a clear/overlay/fade, fresh rows replace the retained body, and focus repaint contains the complete frame in one synchronized write. The obsolete resize reveal module and its curtain-only tests were removed.
+- Earlier exact-head CI repairs remain: documentation comments in `session-viewport-controller.ts` now use accepted prefixes, and Linux native integration compilation no longer borrows a temporary output string. The method size ratchet was lowered from 317 to 316 after consolidating those comments.
 
 ## Local checks
 
-- `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the resize and prior-CI repairs.
+- `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the direct-resize change and prior-CI repairs.
 - `npx vitest run test/app/session-shell/session-viewport-controller.test.ts` passed with 72 tests after the comment-only repair.
-- `npm run typecheck`, `npm run check:architecture`, `npm run check:docs-governance`, and `npx openspec validate centralize-tab-bar-provider --strict` passed for the threshold refinement.
+- `npm run typecheck`, `npm run check:architecture`, `npm run check:docs-governance`, and `npx openspec validate centralize-tab-bar-provider --strict` passed for the direct-resize refinement.
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the blank-first-frame refinement.
 - A focused `rustc --test` harness over the checked-in shortcut-hint and command-palette modules passed all 5 component and palette tests.

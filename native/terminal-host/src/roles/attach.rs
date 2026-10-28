@@ -40,7 +40,6 @@ use crate::roles::presentation::{
     complete_surface_body_without_footer, surface_is_blank,
 };
 use crate::roles::progress_observation::{self, ProgressMetadata};
-use crate::roles::reveal::Reveal;
 use crate::roles::strip::{self, StripHit, StripHover, StripTab, TimeFormat};
 use crate::roles::terminal_output::TerminalOutput;
 use crate::roles::wire::{
@@ -1675,10 +1674,6 @@ fn send_resize(
     )
 }
 
-const RESIZE_CURTAIN_DELAY: Duration = Duration::from_millis(120);
-const RESIZE_SETTLE: Duration = Duration::from_millis(220);
-const RESIZE_RECOVERY: Duration = Duration::from_secs(1);
-
 /// Reads server frames on their own thread under the ingress byte budget, waking the main loop
 /// after each one.
 fn spawn_server_reader(
@@ -1903,103 +1898,6 @@ impl Presented {
     }
 }
 
-#[derive(Debug, Clone)]
-struct ResizeCurtain {
-    show_at: Instant,
-    quiet_until: Instant,
-    recovery_until: Instant,
-    viewed_tab: Option<String>,
-    incarnation: u64,
-    revision: u64,
-    geometry_generation: u64,
-    shown: bool,
-}
-
-impl ResizeCurtain {
-    fn new(
-        now: Instant,
-        viewed_tab: Option<String>,
-        presented: &Presented,
-        geometry_generation: u64,
-    ) -> Self {
-        Self {
-            show_at: now.checked_add(RESIZE_CURTAIN_DELAY).unwrap_or(now),
-            quiet_until: now.checked_add(RESIZE_SETTLE).unwrap_or(now),
-            recovery_until: now.checked_add(RESIZE_RECOVERY).unwrap_or(now),
-            viewed_tab,
-            incarnation: presented.incarnation,
-            revision: presented.revision,
-            geometry_generation,
-            shown: false,
-        }
-    }
-
-    fn retarget(
-        &mut self,
-        now: Instant,
-        viewed_tab: Option<String>,
-        presented: &Presented,
-        geometry_generation: u64,
-    ) {
-        self.quiet_until = now.checked_add(RESIZE_SETTLE).unwrap_or(now);
-        self.recovery_until = now.checked_add(RESIZE_RECOVERY).unwrap_or(now);
-        self.viewed_tab = viewed_tab;
-        self.incarnation = presented.incarnation;
-        self.revision = presented.revision;
-        self.geometry_generation = geometry_generation;
-    }
-
-    fn surface_ready(&self, viewed_tab: Option<&str>, presented: &Presented) -> bool {
-        let Some(viewed_tab) = viewed_tab else {
-            return true;
-        };
-        if presented.tab_id.as_deref() != Some(viewed_tab) {
-            return false;
-        }
-        if self.viewed_tab.as_deref() != Some(viewed_tab)
-            || presented.incarnation != self.incarnation
-        {
-            return true;
-        }
-        if presented.structured.is_some() {
-            return presented.geometry_generation >= self.geometry_generation;
-        }
-        presented.revision > self.revision
-    }
-
-    fn should_show(&self, now: Instant, viewed_tab: Option<&str>, presented: &Presented) -> bool {
-        !self.shown
-            && now >= self.show_at
-            && !self.surface_ready(viewed_tab, presented)
-    }
-
-    fn should_reveal(&self, now: Instant, viewed_tab: Option<&str>, presented: &Presented) -> bool {
-        self.shown
-            && now >= self.quiet_until
-            && (self.surface_ready(viewed_tab, presented) || now >= self.recovery_until)
-    }
-}
-
-fn retarget_resize_curtain(
-    current: Option<ResizeCurtain>,
-    focused: bool,
-    now: Instant,
-    viewed_tab: Option<String>,
-    presented: &Presented,
-    geometry_generation: u64,
-) -> Option<ResizeCurtain> {
-    if !focused {
-        return None;
-    }
-    Some(match current {
-        Some(mut curtain) => {
-            curtain.retarget(now, viewed_tab, presented, geometry_generation);
-            curtain
-        }
-        None => ResizeCurtain::new(now, viewed_tab, presented, geometry_generation),
-    })
-}
-
 fn changes_terminal_geometry(
     current_columns: u16,
     current_outer_rows: u16,
@@ -2007,49 +1905,6 @@ fn changes_terminal_geometry(
     outer_rows: u16,
 ) -> bool {
     (columns, outer_rows) != (current_columns, current_outer_rows)
-}
-
-fn resize_curtain_overlay(columns: u16, outer_rows: u16, truecolor: bool) -> String {
-    let available = usize::from(columns);
-    let mark = clip_cells("🖥️", available);
-    let label = clip_cells(&format!("Resize {columns} x {outer_rows}"), available);
-    let mark_column = available.saturating_sub(UnicodeWidthStr::width(mark.as_str())) / 2 + 1;
-    let label_column = available.saturating_sub(UnicodeWidthStr::width(label.as_str())) / 2 + 1;
-    let middle = outer_rows / 2;
-    let label_row = middle + 1;
-    let style = if truecolor {
-        "\x1b[0;38;2;158;162;170m"
-    } else {
-        "\x1b[0;38;5;246m"
-    };
-    let mark_line = (middle > 0)
-        .then(|| format!("\x1b[{middle};{mark_column}H{mark}"))
-        .unwrap_or_default();
-    format!("{style}{mark_line}\x1b[{label_row};{label_column}H{label}\x1b[0m")
-}
-
-fn resize_curtain_presentation(
-    columns: u16,
-    outer_rows: u16,
-    truecolor: bool,
-) -> DesiredPresentation {
-    DesiredPresentation {
-        tab_id: None,
-        incarnation: 0,
-        revision: 0,
-        geometry_generation: 0,
-        strip: String::new(),
-        structured: None,
-        legacy_body: Vec::new(),
-        overlay: Some(resize_curtain_overlay(columns, outer_rows, truecolor)),
-        cursor: Some(FinalCursor::Hidden),
-        modes: None,
-        columns,
-        outer_rows,
-        child_row_offset: 1,
-        clear: true,
-        dimmed: false,
-    }
 }
 
 #[derive(Default)]
@@ -2154,12 +2009,6 @@ struct Client {
     settings_file: PathBuf,
     /// The running a1 package version the landing header names, when the release records one.
     version: Option<String>,
-    focused: bool,
-    /// Rationale: focused resize presentation waits briefly before an opaque curtain, then reveals
-    /// a faint complete frame before normal intensity returns.
-    resize_curtain: Option<ResizeCurtain>,
-    /// The fade in progress and the new tab whose content is veiled until its first frame.
-    reveal: Reveal,
 }
 
 impl Client {
@@ -2229,9 +2078,6 @@ impl Client {
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
             version: read_release_version(Path::new(options.release_root)),
-            focused: true,
-            resize_curtain: None,
-            reveal: Reveal::default(),
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
         // surface before presenting that list and the body as one first frame.
@@ -2470,17 +2316,6 @@ impl Client {
     }
 
     fn paint(&mut self, core: &mut State, clear: bool) -> Result<(), String> {
-        // Invariant: retained state may advance during resize, but only a latest-geometry surface
-        // may bypass an unshown curtain; a shown curtain remains stable through its reveal gate.
-        if let Some(curtain) = self.resize_curtain.as_ref() {
-            if !curtain.shown
-                && curtain.surface_ready(self.view.viewed.as_deref(), &self.presented)
-            {
-                self.resize_curtain = None;
-            } else {
-                return Ok(());
-            }
-        }
         // Invariant: first strip and complete child body enter the alternate screen together.
         // A failed launch notice and closing a previously shown last tab still paint.
         if !should_paint_strip(
@@ -2774,7 +2609,7 @@ impl Client {
             clear,
             dimmed,
         };
-        self.terminal.present(self.reveal.present(desired))
+        self.terminal.present(desired)
     }
 
     fn apply_terminal_effect(&mut self, effect: &TerminalEffect) -> Result<(), String> {
@@ -3237,10 +3072,6 @@ impl Client {
         {
             self.apply_commit(core, surface, tabs, requested)?;
         }
-        self.tick_resize_curtain(core, now)?;
-        if self.reveal.finish(now) {
-            self.paint(core, true)?;
-        }
         if resumed {
             progress_observation::observe(
                 "attach",
@@ -3289,47 +3120,6 @@ impl Client {
         Ok(())
     }
 
-    fn tick_resize_curtain(&mut self, core: &mut State, now: Instant) -> Result<(), String> {
-        if self.resize_curtain.as_ref().is_some_and(|curtain| {
-            !curtain.shown && curtain.surface_ready(self.view.viewed.as_deref(), &self.presented)
-        }) {
-            self.resize_curtain = None;
-            self.paint(core, true)?;
-        } else if self.resize_curtain.as_ref().is_some_and(|curtain| {
-            curtain.should_show(now, self.view.viewed.as_deref(), &self.presented)
-        }) {
-            self.terminal.present(resize_curtain_presentation(
-                self.columns,
-                self.outer_rows,
-                !palette_fallback_requested(),
-            ))?;
-            if let Some(curtain) = self.resize_curtain.as_mut() {
-                curtain.shown = true;
-            }
-        } else if self.resize_curtain.as_ref().is_some_and(|curtain| {
-            curtain.should_reveal(now, self.view.viewed.as_deref(), &self.presented)
-        }) {
-            self.resize_curtain = None;
-            if should_paint_strip(
-                self.presented.tab_id.is_some(),
-                self.has_shown_tabs,
-                core.notice.is_some(),
-            ) {
-                self.reveal.fade_frame(now);
-                self.paint(core, true)?;
-            } else {
-                let mut blank = resize_curtain_presentation(
-                    self.columns,
-                    self.outer_rows,
-                    !palette_fallback_requested(),
-                );
-                blank.overlay = None;
-                self.terminal.present(blank)?;
-            }
-        }
-        Ok(())
-    }
-
     fn clear_chip_fill(&mut self) {
         self.chip_fill = None;
         self.preview_footer_hold = None;
@@ -3374,15 +3164,13 @@ impl Client {
             Event::Resize(columns, rows) => self.resize(core, columns, rows)?,
             Event::FocusGained | Event::FocusLost => {
                 let gained = matches!(next, Event::FocusGained);
-                self.focused = gained;
-                let cancelled_resize = !gained && self.resize_curtain.take().is_some();
                 for forward in self.run(core, core_attach::Event::Focus { gained })? {
                     if let Effect::ForwardFocus { gained } = forward {
                         let legacy = if gained { b"\x1b[I" } else { b"\x1b[O" };
                         self.send_input(core, Some(InputEvent::Focus { gained }), legacy.to_vec())?;
                     }
                 }
-                if gained || cancelled_resize {
+                if gained {
                     self.paint(core, true)?;
                 }
             }
@@ -3582,23 +3370,6 @@ impl Client {
         self.clear_chip_fill();
         self.create.columns = columns;
         self.create.rows = rows;
-        self.reveal.fade = None;
-        let now = Instant::now();
-        self.resize_curtain = retarget_resize_curtain(
-            self.resize_curtain.take(),
-            self.focused,
-            now,
-            self.view.viewed.clone(),
-            &self.presented,
-            self.geometry_generation,
-        );
-        if self.resize_curtain.as_ref().is_some_and(|curtain| curtain.shown) {
-            self.terminal.present(resize_curtain_presentation(
-                columns,
-                outer_rows,
-                !palette_fallback_requested(),
-            ))?;
-        }
         self.run(core, core_attach::Event::Resize { columns })?;
         let resize = wire::frame(
             "resize",
@@ -3610,7 +3381,8 @@ impl Client {
                 geometry_generation: self.geometry_generation,
             },
         )?;
-        self.send_frames(core, vec![resize])
+        self.send_frames(core, vec![resize])?;
+        Ok(())
     }
 }
 
@@ -4543,84 +4315,6 @@ mod tests {
         assert!(!changes_terminal_geometry(80, 24, 80, 24));
         assert!(changes_terminal_geometry(80, 24, 81, 24));
         assert!(changes_terminal_geometry(80, 24, 80, 25));
-    }
-
-    #[test]
-    fn resize_curtain_is_centered_and_replaces_the_complete_ui() {
-        let desired = resize_curtain_presentation(80, 24, true);
-        assert!(desired.clear);
-        assert!(desired.tab_id.is_none());
-        assert!(desired.strip.is_empty());
-        assert!(desired.legacy_body.is_empty());
-        assert_eq!(desired.cursor, Some(FinalCursor::Hidden));
-
-        let prepared = PresentationComposer::default()
-            .prepare(&desired)
-            .unwrap()
-            .expect("complete resize curtain");
-        let bytes = String::from_utf8(prepared.bytes).unwrap();
-        assert!(bytes.starts_with(std::str::from_utf8(BEGIN_SYNCHRONIZED_UPDATE).unwrap()));
-        assert!(bytes.contains("\x1b[2J\x1b[H"));
-        assert!(bytes.contains("\x1b[0;38;2;158;162;170m"));
-        assert!(bytes.contains("\x1b[12;40H🖥️"));
-        assert!(bytes.contains("\x1b[13;34HResize 80 x 24"));
-        assert!(bytes.contains("\x1b[?25l"));
-        assert!(bytes.ends_with(std::str::from_utf8(END_SYNCHRONIZED_UPDATE).unwrap()));
-    }
-
-    #[test]
-    fn resize_curtain_waits_for_quiet_and_a_new_surface_but_has_a_bound() {
-        assert_eq!(RESIZE_CURTAIN_DELAY, Duration::from_millis(120));
-        assert_eq!(RESIZE_SETTLE, Duration::from_millis(220));
-        let started = Instant::now();
-        let mut presented = Presented::new();
-        presented.tab_id = Some("tab-1".into());
-        presented.incarnation = 3;
-        presented.revision = 7;
-        let mut curtain = ResizeCurtain::new(started, Some("tab-1".into()), &presented, 20);
-        assert!(!curtain.should_show(started, Some("tab-1"), &presented));
-        assert!(curtain.should_show(started + RESIZE_CURTAIN_DELAY, Some("tab-1"), &presented));
-        presented.revision = 8;
-        assert!(!curtain.should_show(started + RESIZE_CURTAIN_DELAY, Some("tab-1"), &presented));
-        assert!(!curtain.should_reveal(started + RESIZE_RECOVERY, Some("tab-1"), &presented));
-        presented.revision = 7;
-        curtain.shown = true;
-        assert!(!curtain.should_reveal(started + RESIZE_SETTLE, Some("tab-1"), &presented));
-        presented.revision = 8;
-        assert!(!curtain.should_reveal(started + RESIZE_SETTLE - Duration::from_millis(1), Some("tab-1"), &presented));
-        assert!(curtain.should_reveal(started + RESIZE_SETTLE, Some("tab-1"), &presented));
-        presented.revision = 7;
-        assert!(curtain.should_reveal(started + RESIZE_RECOVERY, Some("tab-1"), &presented));
-        assert!(curtain.should_reveal(started + RESIZE_SETTLE, None, &presented));
-
-        presented.structured = Some(Arc::new(protocol::StructuredSurface::default()));
-        presented.geometry_generation = 20;
-        let structured = ResizeCurtain::new(started, Some("tab-1".into()), &presented, 21);
-        assert!(!structured.surface_ready(Some("tab-1"), &presented));
-        presented.geometry_generation = 21;
-        assert!(structured.surface_ready(Some("tab-1"), &presented));
-    }
-
-    #[test]
-    fn resize_retarget_keeps_first_threshold_and_background_resize_never_arms_it() {
-        let started = Instant::now();
-        let mut presented = Presented::new();
-        presented.tab_id = Some("tab-1".into());
-        presented.structured = Some(Arc::new(protocol::StructuredSurface::default()));
-        presented.geometry_generation = 10;
-        let first = retarget_resize_curtain(None, true, started, Some("tab-1".into()), &presented, 11).unwrap();
-        let later = started + Duration::from_millis(80);
-        let mut continued = retarget_resize_curtain(Some(first), true, later, Some("tab-1".into()), &presented, 12).unwrap();
-        assert_eq!(continued.show_at, started + RESIZE_CURTAIN_DELAY);
-        assert_eq!(continued.quiet_until, later + RESIZE_SETTLE);
-        presented.geometry_generation = 11;
-        assert!(!continued.surface_ready(Some("tab-1"), &presented));
-        assert!(continued.should_show(started + RESIZE_CURTAIN_DELAY, Some("tab-1"), &presented));
-        continued.shown = true;
-        presented.geometry_generation = 12;
-        assert!(continued.should_reveal(later + RESIZE_SETTLE, Some("tab-1"), &presented));
-        assert!(retarget_resize_curtain(Some(continued), false, later, Some("tab-1".into()), &presented, 13).is_none());
-        assert!(retarget_resize_curtain(None, false, later, Some("tab-1".into()), &presented, 13).is_none());
     }
 
     #[test]
@@ -5981,8 +5675,23 @@ mod tests {
                 Err(std::io::Error::other("fixture flush failure"))
             }
         }
-        let mut desired = resize_curtain_presentation(20, 8, true);
-        desired.clear = false;
+        let desired = DesiredPresentation {
+            tab_id: Some("tab-1".into()),
+            incarnation: 1,
+            revision: 1,
+            geometry_generation: 1,
+            strip: "\x1b[1;1HSTRIP".into(),
+            structured: None,
+            legacy_body: b"\x1b[1;1HAGENT".to_vec(),
+            overlay: None,
+            cursor: Some(FinalCursor::Hidden),
+            modes: None,
+            columns: 20,
+            outer_rows: 8,
+            child_row_offset: 1,
+            clear: false,
+            dimmed: false,
+        };
         let mut composer = PresentationComposer::default();
         let mut failed = FlushFailure(Vec::new());
         assert!(write_outer_presentation(&mut composer, &mut failed, &desired).is_err());

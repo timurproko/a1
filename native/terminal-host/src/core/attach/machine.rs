@@ -341,7 +341,7 @@ impl State {
                         if let Mode::Popup(menu) = &mut self.mode {
                             menu.resize(columns);
                         }
-                        effects.push(Effect::Paint { clear: true });
+                        effects.push(Effect::Paint { clear: false });
                     }
                     Event::Focus { gained } => self.focus(context, gained, &mut effects),
                     _ => {}
@@ -2522,7 +2522,7 @@ mod tests {
         state.mode = Mode::Popup(PopupMenu::add(70, 80, &Labels, PlusMenu::ALL, [false; 2]));
         assert_eq!(
             fixture.step(&mut state, Event::Resize { columns: 20 }),
-            [Effect::Paint { clear: true }]
+            [Effect::Paint { clear: false }]
         );
         assert_eq!(state.columns, 20);
         let menu = state.mode.popup().expect("menu survives a resize");

@@ -1799,6 +1799,52 @@ mod tests {
     }
 
     #[test]
+    fn retained_surface_repaints_at_new_geometry_without_resize_overlay_or_fade() {
+        let current = desired(Some(structured_fixture()), Vec::new());
+        let mut composer = PresentationComposer::default();
+        composer.prepare(&current).unwrap().unwrap().acknowledge(&mut composer);
+
+        let mut resized = current.clone();
+        resized.columns = 6;
+        resized.outer_rows = 4;
+        let prepared = composer.prepare(&resized).unwrap().unwrap();
+        let bytes = String::from_utf8(prepared.bytes.clone()).unwrap();
+        assert!(bytes.as_bytes().starts_with(BEGIN_SYNCHRONIZED_UPDATE));
+        assert!(bytes.as_bytes().ends_with(END_SYNCHRONIZED_UPDATE));
+        assert!(bytes.contains("STRIP") && bytes.contains("界") && bytes.contains('B'));
+        assert!(!bytes.contains("\x1b[2J") && !bytes.contains("Resize "));
+        assert!(!resized.dimmed && resized.overlay.is_none());
+        prepared.acknowledge(&mut composer);
+
+        // Invariant: a later child frame supersedes the retained grid without a resize gate.
+        let mut fresh = resized.clone();
+        let surface = Arc::make_mut(fresh.structured.as_mut().unwrap());
+        surface.columns = 6;
+        surface.rows = 3;
+        surface.geometry_generation = 5;
+        for row in &mut surface.row_data {
+            row.cells.extend((0..3).map(|_| crate::protocol::SurfaceCell { text: " ".into(), ..Default::default() }));
+        }
+        surface.row_data.push(SurfaceRow { cells: (0..6).map(|_| crate::protocol::SurfaceCell { text: " ".into(), ..Default::default() }).collect() });
+        fresh.geometry_generation = 5;
+        fresh.revision = 2;
+        let prepared = composer.prepare(&fresh).unwrap().unwrap();
+        let bytes = String::from_utf8(prepared.bytes.clone()).unwrap();
+        assert!(bytes.contains("STRIP") && bytes.contains("界"));
+        assert!(!bytes.contains("Resize ") && !bytes.contains("\x1b[2m"));
+        prepared.acknowledge(&mut composer);
+
+        // Invariant: focus return reasserts one complete frame, never a blank-only resize offer.
+        let mut refocused = fresh;
+        refocused.clear = true;
+        let bytes = String::from_utf8(composer.prepare(&refocused).unwrap().unwrap().bytes).unwrap();
+        assert!(bytes.as_bytes().starts_with(BEGIN_SYNCHRONIZED_UPDATE));
+        assert!(bytes.as_bytes().ends_with(END_SYNCHRONIZED_UPDATE));
+        assert!(bytes.contains("\x1b[2J") && bytes.contains("STRIP") && bytes.contains("界"));
+        assert!(!bytes.contains("Resize ") && !bytes.contains("\x1b[2m"));
+    }
+
+    #[test]
     fn chrome_offers_and_completed_baselines_share_one_immutable_grid() {
         let initial = desired(Some(structured_fixture()), Vec::new());
         let grid = initial.structured.as_ref().unwrap().clone();

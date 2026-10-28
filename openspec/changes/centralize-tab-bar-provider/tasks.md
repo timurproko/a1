@@ -72,8 +72,8 @@
 - [x] 12.2 Preserve ANSI foregrounds, attributes, hyperlinks, grapheme boundaries, exact frame dimensions, atomic-chip focus, and theme-owned list or menu row highlighting.
 - [x] 12.3 Add focused component and recipient regressions that prove uniform selected-text styling and absence of recipient-owned selection RGB; record implementation evidence.
 
-## 13. Thresholded focus-aware resize curtain
+## 13. Direct resize repaint without overlay
 
-- [x] 13.1 Delay the resize curtain for 120 milliseconds while continuing to forward every geometry change immediately, and bypass the curtain when a coherent latest-generation frame arrives during that threshold.
-- [x] 13.2 Preserve the first threshold across prolonged focused resize reports, retarget settle and recovery to the latest geometry, and retain the existing whole-frame fade only after a shown curtain lifts.
-- [x] 13.3 Suppress and cancel resize curtains while the outer terminal tab is unfocused, repaint coherently on focus return, and add focused regressions for quick snap, prolonged resize, repeated geometry, and terminal-tab switching; record implementation evidence.
+- [x] 13.1 Remove the native resize curtain, its timer, and resize-only fade without changing the immediate geometry forwarding or already-sized resize no-op.
+- [x] 13.2 Repaint a complete retained frame at the new geometry, and keep full-frame focus-return repainting without a stale overlay or child-cursor flash.
+- [x] 13.3 Replace curtain tests with focused geometry, compositor, focus, and no-overlay regressions; reconcile both resident host and multi-agent tab specifications, architecture guidance, and implementation evidence.

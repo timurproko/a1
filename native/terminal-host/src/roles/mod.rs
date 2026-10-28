@@ -20,7 +20,6 @@ mod ready_round;
 pub mod recovery_artifacts;
 pub mod registry;
 pub mod release_holds;
-pub mod reveal;
 pub mod server;
 pub mod scope;
 mod shortcut_hints;
