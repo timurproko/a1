@@ -31,6 +31,18 @@ import type { OwnedUiPromptSuggestionGeneratorPort, OwnedUiViewportSettings, Own
 import { fixture, nextImmediate } from "./session-shell-fixture.js";
 
 describe("OwnedUiSessionShell transcript selection and scrolling", () => {
+  it("keeps empty last-message copy silent through the shortcut and explicit workflow", async () => {
+    const { shell, terminal, engine } = await fixture([], [], true);
+    try {
+      Object.assign(engine.session, { getLastAssistantText: () => "" });
+      terminal.resize(60, 12);
+      const before = shell.root.render(60).map(stripTerminalSequences).join("\n");
+      terminal.input("\u0018");
+      await nextImmediate();
+      expect(await shell.runWorkflow({ command: "copy", argument: "" })).toMatchObject({ outcome: "completed", diagnostic: null });
+      expect(shell.root.render(60).map(stripTerminalSequences).join("\n")).toBe(before);
+    } finally { await shell.dispose(); }
+  });
   it("blocks Pi fallback selection after A1 routing while retaining owned selection", async () => {
     const messages = Array.from({ length: 24 }, (_, index) => ({
       role: "assistant",

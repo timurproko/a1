@@ -85,10 +85,16 @@
 - Native unit coverage asserts that an unchanged size is inert; core resize requests a no-clear repaint and refits menus; geometry changes recompose retained strip and child rows without a clear/overlay/fade, fresh rows replace the retained body, and focus repaint contains the complete frame in one synchronized write. The obsolete resize reveal module and its curtain-only tests were removed.
 - Earlier exact-head CI repairs remain: documentation comments in `session-viewport-controller.ts` now use accepted prefixes, and Linux native integration compilation no longer borrows a temporary output string. The method size ratchet was lowered from 317 to 316 after consolidating those comments.
 
+## Silent empty last-message copy
+
+- `src/integrations/pi/engine/workflow-runner.ts` returns a completed silent result for missing or empty last assistant text before invoking any clipboard writer. The shared workflow output suppresses silent results for both the general no-selection copy shortcut and `/copy`; nonempty copy retains its success acknowledgement.
+- Workflow-runner regressions cover undefined and empty text, writer non-invocation, and a subsequent successful copy. A shell integration regression confirms the empty shortcut and explicit workflow leave the rendered frame unchanged.
+
 ## Local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the direct-resize change and prior-CI repairs.
 - `npx vitest run test/app/session-shell/session-viewport-controller.test.ts` passed with 72 tests after the comment-only repair.
+- `npx vitest run test/integrations/pi/engine/workflow-runner.test.ts` passed with 11 workflow tests; a focused shell selection run passed the empty-copy shortcut and workflow regression. `npm run typecheck` and strict OpenSpec validation passed after this refinement.
 - `npm run typecheck`, `npm run check:architecture`, `npm run check:docs-governance`, and `npx openspec validate centralize-tab-bar-provider --strict` passed for the direct-resize refinement.
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the blank-first-frame refinement.

@@ -476,7 +476,7 @@ export class PiWorkflowRunner {
       }
       case "copy": {
         const text = requireCapability(session.getLastAssistantText, "getLastAssistantText").call(session);
-        if (typeof text !== "string" || text.length === 0) return workflowResult(request.command, "failed", "No agent messages to copy yet.");
+        if (typeof text !== "string" || text.length === 0) return workflowResult(request.command, "completed", "", undefined, "silent");
         const acknowledged = await this.copyWorkflowText(text);
         return workflowResult(request.command, "completed", acknowledged ? "Copied last agent message to clipboard" : "Submitted last agent message to clipboard");
       }

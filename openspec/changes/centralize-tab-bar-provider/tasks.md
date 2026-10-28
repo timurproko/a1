@@ -80,5 +80,5 @@
 
 ## 14. Silent empty last-message copy
 
-- [ ] 14.1 Make an empty last-agent-message copy a silent no-op with no clipboard submission, for both the general copy action and `/copy`.
-- [ ] 14.2 Cover empty and nonempty last-message copy outcomes, preserve successful acknowledgement, and record the selection contract and implementation evidence.
+- [x] 14.1 Make an empty last-agent-message copy a silent no-op with no clipboard submission, for both the general copy action and `/copy`.
+- [x] 14.2 Cover empty and nonempty last-message copy outcomes, preserve successful acknowledgement, and record the selection contract and implementation evidence.

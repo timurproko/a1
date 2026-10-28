@@ -30,7 +30,8 @@ class FakeSession {
     this.calls.push(`cycle:${direction}`);
     return { model: { provider: "anthropic", id: "claude", name: "Claude", reasoning: true }, thinkingLevel: "high" };
   }
-  getLastAssistantText(): string { return "last answer"; }
+  lastAssistantText: string | undefined = "last answer";
+  getLastAssistantText(): string | undefined { return this.lastAssistantText; }
   setSessionName(name: string): void { this.name = name.toLowerCase(); this.calls.push(`name:${name}`); }
   getUserMessagesForForking(): readonly unknown[] { return [{ entryId: "entry-1", text: "First prompt" }]; }
   async exportToHtml(path?: string): Promise<string> { if (this.exportFails) throw new Error("disk full"); return path ?? "session.html"; }
@@ -174,6 +175,25 @@ describe("PiWorkflowRunner", () => {
     await runner.copyWorkflowText("again");
     expect(acknowledged).toEqual(["last answer"]);
     expect(state.copied).toEqual(["last answer", "again"]);
+  });
+
+  it("silently completes empty last-message copy without writing to the clipboard", async () => {
+    const { runner, session, state } = harness();
+    const attempted: string[] = [];
+    runner.bindClipboardWriter(async text => { attempted.push(text); return true; });
+    for (const empty of [undefined, ""]) {
+      session.lastAssistantText = empty;
+      expect(await runner.executeWorkflow({ command: "copy", argument: "" })).toMatchObject({
+        command: "copy", outcome: "completed", message: "", messageKind: "silent",
+      });
+    }
+    expect(attempted).toEqual([]);
+    expect(state.copied).toEqual([]);
+    session.lastAssistantText = "an answer";
+    expect(await runner.executeWorkflow({ command: "copy", argument: "" })).toMatchObject({
+      outcome: "completed", message: "Copied last agent message to clipboard",
+    });
+    expect(attempted).toEqual(["an answer"]);
   });
 
   it("runs session workflows against the session and reports the normalized name", async () => {
