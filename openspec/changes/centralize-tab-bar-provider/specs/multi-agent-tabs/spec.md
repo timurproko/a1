@@ -123,7 +123,7 @@ The resident attach client SHALL keep controller, subscription, and intentional-
 
 ### Requirement: Tabs open at once and only a resize fades
 
-The attach client SHALL present one locally pending new Agent chip and an empty transcript and complete idle editor/footer with a visual caret but no child cursor on the first paint after a user create action, without awaiting process startup; its complete real surface SHALL replace the pending presentation as soon as its first nonblank drawn frame commits, without a fade. Blank child surfaces SHALL remain parked for any duration and SHALL NOT replace the pending Agent presentation or expose a child cursor merely because a first-draw timer elapsed. Revealed Settings and Changelog tabs SHALL retain the current content until their first nonblank drawn frame commits. An explicit create refusal, failed surface, holder loss, child exit, restart, or recovery outcome SHALL continue through its existing owned presentation rather than remain hidden behind the first-draw gate. Only a resize reveal SHALL fade: once its curtain lifts the whole frame, the strip included, SHALL draw faint for one fade interval and then at full intensity, with no cursor shown during the fade. A starting tab's chip SHALL show no spinner. One tab SHALL open at a time: while a tab this client asked for is still starting or not yet shown, a new-Agent shortcut, `+` click, or menu entry SHALL start nothing.
+The attach client SHALL present one locally pending new Agent chip and an empty transcript and complete idle editor/footer with a visual caret but no child cursor on the first paint after a user create action, without awaiting process startup; its complete real surface SHALL replace the pending presentation as soon as its first nonblank drawn frame commits, without a fade. Blank child surfaces SHALL remain parked for any duration and SHALL NOT replace the pending Agent presentation or expose a child cursor merely because a first-draw timer elapsed. Revealed Settings and Changelog tabs SHALL retain the current content until their first nonblank drawn frame commits. An explicit create refusal, failed surface, holder loss, child exit, restart, or recovery outcome SHALL continue through its existing owned presentation rather than remain hidden behind the first-draw gate. Only a resize reveal SHALL fade. The attach client SHALL retain its last coherent frame and delay the curtain for at least 120 milliseconds after a focused resize begins. If a frame matching the latest geometry arrives before that threshold, it SHALL paint directly at full intensity without showing the curtain or running the fade. If the focused resize remains unresolved beyond the threshold, the curtain SHALL appear and, once it lifts, the whole frame including the strip SHALL draw faint for one fade interval and then at full intensity, with no cursor shown during the fade. Repeated geometry reports during one focused resize SHALL preserve the initial threshold deadline while retargeting the curtain and recovery gate to the latest geometry. A resize received while the outer terminal tab is unfocused SHALL update geometry without arming or showing the curtain; focus loss SHALL cancel any pending or visible curtain, and focus gain SHALL restore one complete coherent frame. A starting tab's chip SHALL show no spinner. One tab SHALL open at a time: while a tab this client asked for is still starting or not yet shown, a new-Agent shortcut, `+` click, or menu entry SHALL start nothing.
 
 #### Scenario: A new tab draws at once
 
@@ -159,8 +159,26 @@ The attach client SHALL present one locally pending new Agent chip and an empty 
 
 #### Scenario: A resize fades the whole frame
 
-- **WHEN** a resize reveal runs
-- **THEN** the whole frame SHALL fade in with no cursor shown, and opening a tab SHALL never fade
+- **WHEN** a focused resize remains unresolved beyond the curtain threshold and its matching frame later arrives
+- **THEN** the curtain SHALL lift into a whole-frame fade with no cursor shown, and opening a tab SHALL never fade
+
+#### Scenario: A quick snap resize does not flash the curtain
+
+- **WHEN** a focused terminal resize receives a frame for the latest geometry within 120 milliseconds
+- **THEN** the coherent frame SHALL paint directly at full intensity
+- **AND** the centered `Resize` curtain SHALL never be shown
+
+#### Scenario: A prolonged resize retains stable feedback
+
+- **WHEN** focused geometry reports continue beyond 120 milliseconds before a matching frame is ready
+- **THEN** the curtain SHALL appear once using the latest dimensions
+- **AND** later geometry reports SHALL NOT restart the initial threshold or move a brief flash to the end of the resize
+
+#### Scenario: An inactive terminal tab does not retain resize feedback
+
+- **WHEN** the terminal application resizes while the A1 terminal tab is unfocused
+- **THEN** A1 SHALL forward the new geometry without arming or showing the curtain
+- **AND** returning to the A1 terminal tab SHALL repaint a complete frame without flashing stale resize feedback
 
 ### Requirement: The command palette opens every tab kind
 The `tabs.commands` action, bound to `Alt+/` by default, SHALL open a modal command palette over the dimmed strip and body from any tab, the landing, or the Settings tab. The palette SHALL show the title `Commands` with a dim `esc` hint, a search line that shows the dim placeholder `Search` while empty, one `Tabs` section in the owned section style, and the rows `Agent`, `Settings`, and `Changelog` in the owned list style with `→` and the accent selected background on the selected row and each effective shortcut right-aligned. Up and Down SHALL move the selection, printable keys and `Backspace` SHALL edit a case-insensitive label filter, `Enter` SHALL close the palette and run the selected entry exactly as its shortcut or launcher row would, and `Esc` SHALL close it without action. While the palette is open, no key, paste, or mouse input SHALL reach a child, and mouse input SHALL NOT act on the strip or the palette. A `tabs.changelog` action SHALL exist for assignment without a default key. The Commands and Plus Menu dialogs SHALL declare their footer guidance as semantic key-and-action entries and render it through one reusable native shortcut-hint component. Each shortcut key SHALL use the owned quiet gray role, each action description SHALL use the distinct lighter muted gray role, and adjacent entries SHALL have exactly two display cells between them with no middle dot or other separator glyph. The Commands footer SHALL read `Type search  ↑↓ navigate  Enter open  Esc close`; the Plus Menu footer SHALL read `Type search  ↑↓ navigate  Space toggle  Esc close`. Width clipping SHALL preserve graphemes and complete key/action style boundaries in truecolor and 256-color modes.

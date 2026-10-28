@@ -22,6 +22,8 @@ Prompt pointer selection also has split ownership that is invisible to the reade
 
 Text-selection presentation is also split. Agent transcript and prompt selection use a stable blue background declared independently in several recipients, while Changelog and `What's New` reuse the active-row highlight and therefore paint a brown surface. Selectable text should use one component-owned blue background everywhere, without changing menu-row highlighting or clipboard behavior.
 
+The native resize curtain currently clears the complete Agent frame on the first geometry event. Short Windows snap transitions therefore show a barely visible `Resize` flash, and an inactive terminal tab can retain that curtain until the user switches back. Resize feedback should appear only after a focused resize remains unresolved for a short threshold; quick resizes and background terminal-tab geometry changes should repaint directly.
+
 ## What Changes
 
 - Introduce one native tab-bar provider contract that declares every tab kind and its label, shortcut action, multiplicity, activation behavior, prewarming, renameability, session ownership, route, and menu marker.
@@ -38,6 +40,7 @@ Text-selection presentation is also split. Agent transcript and prompt selection
 - Raise the shared scrollbar thumb minimum from one row to two rows whenever the track permits, while preserving proportional sizing above the minimum and all drag, paging, and clamping behavior.
 - Keep pointer drags that begin in the prompt editor-owned for the complete gesture. `Ctrl+C` copies the selected draft, `Ctrl+X` cuts it, and the general message-copy action copies an active non-editable frame selection before falling back to the last agent message when no selection exists.
 - Add one shared component-owned text-selection painter with the established blue background. Agent transcript selection, prompt-editor selection, Settings search selection, Changelog, and `What's New` consume it, while list and menu active-row highlights remain separate.
+- Delay the native resize curtain behind a short focused-resize threshold. A coherent frame arriving before the threshold paints directly, prolonged focused resizing keeps the curtain and fade, and inactive terminal-tab resizes never leave a curtain to flash on focus return.
 
 ## Capabilities
 
@@ -47,7 +50,7 @@ Text-selection presentation is also split. Agent transcript and prompt selection
 
 ### Modified Capabilities
 
-- `multi-agent-tabs`: tab-kind registration, activation, toggle behavior, kind-neutral append ordering, and blank-free Agent startup presentation.
+- `multi-agent-tabs`: tab-kind registration, activation, toggle behavior, kind-neutral append ordering, blank-free Agent startup presentation, and focus-aware thresholded resize feedback.
 - `session-frame-selection`: keep prompt pointer selection editor-owned, make copy/cut shortcuts prioritize the visible selection before last-message fallback, and render selectable session text through the shared blue component.
 - `owned-ui-settings`: present every configure workflow through the centered modal interaction used by Plus Menu.
 - `ui-components`: replace the docked structured-value panel with a reusable centered modal overlay and dimmed backdrop, keep overflowing scrollbar thumbs at least two rows tall when possible, and own the shared blue text-selection painter.
@@ -56,7 +59,7 @@ Text-selection presentation is also split. Agent transcript and prompt selection
 
 ## Impact
 
-- **Native attach core:** tab-kind provider declarations, activation dispatch, plus-menu and palette entries, visibility/prewarm state, context-menu capabilities, blank-first-frame gating, shared dialog shortcut-hint presentation, and tests.
+- **Native attach core:** tab-kind provider declarations, activation dispatch, plus-menu and palette entries, visibility/prewarm state, context-menu capabilities, blank-first-frame gating, focus-aware thresholded resize-curtain presentation, shared dialog shortcut-hint presentation, and tests.
 - **Native server:** kind recognition, singleton reservation, registry validation, session ownership, bridge routes, creation/reveal ordering, and tests.
 - **Owned session shell:** prompt pointer ownership, selection-aware copy/cut dispatch, shared transcript and editor selection painting, clipboard routing, and focused replacement-paste and shortcut tests.
 - **Owned Settings and UI components:** centered structured-dialog geometry, canonical native-matching panel palette, dimmed backdrop composition, compact/narrow clipping, shared scrollbar minimum-thumb geometry, and Warnings, Thinking Level, and fallback Plus Menu regressions.

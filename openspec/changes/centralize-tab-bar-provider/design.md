@@ -133,6 +133,14 @@ Route Agent complete-frame selection, ordinary prompt-editor selection, Settings
 
 The shared painter is presentation-only. It does not change selection ownership, extraction, copy-on-select, explicit copy or cut, acknowledgement, scrolling, or pointer behavior. Changelog therefore receives the same blue selected-text surface as Agent content without inheriting session-specific clipboard logic.
 
+### 16. Resize feedback has a focused minimum-display threshold
+
+Treat the resize curtain as a delayed fallback rather than the first response to every geometry report. On the first resize of a focused attach client, retain the last coherent frame, send the new geometry to the viewed child, and arm the curtain for 120 milliseconds. If a surface matching the latest geometry arrives before that threshold, discard the pending curtain and repaint the coherent frame directly at full intensity. If the threshold expires first, replace the frame with the centered `Resize C x R` curtain; repeated geometry reports update its dimensions and recovery target without restarting the initial threshold, so a prolonged interactive resize still receives stable feedback. Once a matching frame arrives after the established settle gate, retain the existing whole-frame faint reveal and recovery bound.
+
+Track outer-terminal focus from the already enabled focus-reporting mode. A resize received while the A1 terminal tab is unfocused still updates host and child geometry, but it does not arm or show the curtain. Losing focus cancels any pending or visible curtain and restores a coherent cached frame; gaining focus requests one complete repaint. This prevents Windows Terminal from storing a resize overlay in an inactive terminal tab and flashing it when the reader returns.
+
+Do not debounce the wire resize itself. Every accepted geometry change continues to update create geometry, generation, strip layout, and child PTY size immediately. Only host-owned curtain presentation is delayed or suppressed, so prompt wrapping and child layout still converge on the latest dimensions.
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -153,3 +161,6 @@ The shared painter is presentation-only. It does not change selection ownership,
 - The general copy action can duplicate clipboard submission if it consumes a frame selection and still invokes the last-message workflow. Dispatch must have one explicit claimed/unclaimed result and tests must reject both misleading success and no-message notices while a selection exists.
 - Reusing menu-row `highlight` for copied text lets accent customization change Changelog selection independently from Agent selection. Text-selection tests must assert the shared blue component output while menu and dialog row highlights remain theme-owned.
 - A shared background painter can erase Markdown foregrounds, OSC links, or combining graphemes if it slices ANSI bytes rather than terminal cells. Component and Changelog regressions must preserve those styles and exact frame width.
+- Delaying the resize curtain can expose a stale cropped frame briefly. The threshold is bounded to 120 milliseconds, geometry forwarding remains immediate, and a matching surface bypasses the curtain only when it is coherent for the latest generation.
+- Resetting the threshold on every drag report would move the curtain flash to the end of a resize instead of removing it. Repeated focused reports must preserve the first deadline while retargeting settle and recovery to the latest geometry.
+- An inactive Windows Terminal tab can receive geometry reports without being visible. Focus loss must cancel and repaint any existing curtain, background resizes must never arm one, and focus gain must restore a complete frame before the user interacts.
