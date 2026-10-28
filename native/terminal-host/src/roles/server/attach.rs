@@ -330,9 +330,10 @@ fn registry_tab_list(registry: &RegistryDocument) -> TabList {
 /// it, restores its last live position; selecting an already visible tab bypasses this request entirely.
 fn reserve_utility_tab(
     state: &Arc<Mutex<RuntimeState>>,
-    prefix: &str,
+    kind: TabKind,
     opening: bool,
 ) -> Result<(String, bool, Option<(RegistryStore, RegistryDocument)>), String> {
+    let prefix = kind.id_prefix();
     let mut locked = lock_state(state)?;
     let existing = locked
         .registry
@@ -348,7 +349,7 @@ fn reserve_utility_tab(
                 .map(str::to_owned)
         });
     if let Some(tab_id) = existing {
-        let reordered = (opening && lifecycle::move_utility_last(&mut locked.registry, &tab_id))
+        let reordered = (opening && lifecycle::move_live_tab_last(&mut locked.registry, &tab_id))
             .then(|| registry_snapshot(&locked));
         Ok((tab_id, false, reordered))
     } else {
@@ -370,9 +371,9 @@ fn open_utility_tab(
     payload: &[u8],
 ) -> Result<(), String> {
     let (_, create): (_, TabCreate) = wire::body(payload)?;
-    let (prefix, opening) =
-        utility_request(message_type).ok_or_else(|| "unknown utility tab request".to_owned())?;
-    let (settings_tab_id, should_start, reordered) = reserve_utility_tab(state, prefix, opening)?;
+    let (kind, opening) =
+        utility_request(message_type).ok_or_else(|| "unknown singleton tab request".to_owned())?;
+    let (settings_tab_id, should_start, reordered) = reserve_utility_tab(state, kind, opening)?;
     commit_staged(reordered)?;
     if should_start {
         let mut start = AttachStart {

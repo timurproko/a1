@@ -305,7 +305,7 @@ pub(super) fn serve_bridge(
                 .registry
                 .tabs
                 .iter_mut()
-                .find(|tab| tab.tab_id == tab_id && !is_utility_tab_id(&tab_id))
+                .find(|tab| tab.tab_id == tab_id && TabKind::from_name(&tab.kind).is_some_and(|kind| kind.provider().owns_session))
             {
                 record.session_file = session.file.clone();
                 record.session_dir = session
@@ -513,7 +513,7 @@ fn offer_to_requesting_controller(
 
 /// Sends an admitted utility tab's bridge the route its screen shows.
 fn offer_utility_route(tx: &Peer, tab_id: &str) -> Result<(), String> {
-    if let Some((route, _)) = utility_kind(tab_id) {
+    if let Some(route) = tab_kind(tab_id).provider().route {
         tx.offer_control(wire::frame(
             "bridge.route",
             None,

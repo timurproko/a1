@@ -645,9 +645,9 @@ pub(super) fn reorder_registry(
     true
 }
 
-/// Places a utility tab in the last live slot on an explicit open, not while prewarming or
-/// dragging, so every utility tab opens last.
-pub(super) fn move_utility_last(registry: &mut RegistryDocument, tab_id: &str) -> bool {
+/// Places any existing tab in the last live slot when it newly joins the strip. Selecting an
+/// already shown tab bypasses this operation, so drag order remains authoritative.
+pub(super) fn move_live_tab_last(registry: &mut RegistryDocument, tab_id: &str) -> bool {
     let last = registry
         .tabs
         .iter()
@@ -850,7 +850,7 @@ pub(super) fn handle_lifecycle(
         "tab.rename" => {
             let (_, rename): (_, wire::TabRename) = wire::body(payload)?;
             let name = rename.name.trim();
-            let valid = !is_utility_tab_id(&rename.tab_id)
+            let valid = tab_kind(&rename.tab_id).provider().renameable
                 && !name.is_empty()
                 && name.chars().count() <= 64
                 && !name.chars().any(char::is_control);

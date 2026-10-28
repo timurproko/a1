@@ -4,6 +4,7 @@ pub mod attach;
 pub mod holder;
 pub mod server;
 pub mod sim;
+pub mod tab_bar;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Effect {

@@ -1,21 +1,13 @@
 use super::*;
 
-pub(super) fn insert_new_tab(registry: &mut RegistryDocument, tab: TabRecord) {
-    // Invariant: newly created Agent tabs precede a trailing Settings tab by default; a
-    // Settings tab the user dragged elsewhere keeps its durable position.
-    let at = if !is_utility_tab_id(&tab.tab_id)
-        && let Some(last_live) = registry
-            .tabs
-            .iter()
-            .rposition(|last| last.desired != "stopped")
-        && is_utility_tab_id(&registry.tabs[last_live].tab_id)
-    {
-        // Invariant: stopped records can trail a hidden Settings tab. They must not make
-        // newly created Agents appear after Settings when it is opened later.
-        last_live
-    } else {
-        registry.tabs.len()
-    };
+/// Appends one new tab after every live tab without consulting its kind. Stopped records remain
+/// durable but never choose a visible insertion slot.
+pub(super) fn append_live_tab(registry: &mut RegistryDocument, tab: TabRecord) {
+    let at = registry
+        .tabs
+        .iter()
+        .rposition(|tab| tab.desired != "stopped")
+        .map_or(0, |index| index + 1);
     registry.tabs.insert(at, tab);
     for (index, tab) in registry.tabs.iter_mut().enumerate() {
         tab.order = index as u32;
@@ -80,7 +72,8 @@ pub(super) fn start_holder(
             .credentials
             .derive("bridge", &tab_id, incarnation)
             .to_vec();
-        let display_name = utility_kind(&tab_id).map_or(DEFAULT_AGENT_TAB_NAME, |(_, title)| title);
+        let provider = tab_kind(&tab_id).provider();
+        let display_name = provider.label;
         let created_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -89,21 +82,14 @@ pub(super) fn start_holder(
         locked.launches.insert(tab_id.clone(), start.clone());
         locked.registry.tabs.retain(|tab| tab.tab_id != tab_id);
         prune_stopped_records(&mut locked.registry.tabs);
-        insert_new_tab(
+        append_live_tab(
             &mut locked.registry,
             TabRecord {
                 tab_id: tab_id.clone(),
-                kind: utility_kind(&tab_id)
-                    .map_or("agent", |(kind, _)| kind)
-                    .into(),
+                kind: provider.name.into(),
                 created_at,
                 display_name: display_name.into(),
-                name_source: if is_utility_tab_id(&tab_id) {
-                    "system"
-                } else {
-                    "default"
-                }
-                .into(),
+                name_source: if provider.owns_session { "default" } else { "system" }.into(),
                 order: 0,
                 cwd: start.cwd.clone(),
                 session_file: start.session_file.clone(),

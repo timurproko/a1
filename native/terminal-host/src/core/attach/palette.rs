@@ -2,22 +2,7 @@
 //! and the plus-menu dialog, whose entries toggle the tab kinds `+` offers. Both filter by typed
 //! text and move with Up and Down.
 
-use super::{AttachKey, KeyCode};
-
-/// The command palette's entries in order: each label and the shortcut action that runs it.
-pub const PALETTE_ENTRIES: [(&str, &str); 3] = [
-    ("Agent", "tabs.new"),
-    ("Settings", "tabs.settings"),
-    ("Changelog", "tabs.changelog"),
-];
-
-/// The plus-menu dialog's entries in kind order: each label and its `tabBarPlusMenu` key, Agent
-/// and then every utility kind.
-pub const PLUS_MENU_ENTRIES: [(&str, &str); 3] = [
-    ("Agent", "agent"),
-    ("Settings", "settings"),
-    ("Changelog", "changelog"),
-];
+use super::{AttachKey, KeyCode, TabKind};
 
 /// What one key did to an open list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,7 +19,7 @@ pub enum PaletteKey {
 /// An open modal list: its entries, filter, and the row in hand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandPalette {
-    entries: &'static [(&'static str, &'static str)],
+    plus_menu: bool,
     pub filter: String,
     selected: usize,
 }
@@ -48,7 +33,7 @@ impl Default for CommandPalette {
 impl CommandPalette {
     pub fn commands() -> Self {
         Self {
-            entries: &PALETTE_ENTRIES,
+            plus_menu: false,
             filter: String::new(),
             selected: 0,
         }
@@ -57,27 +42,34 @@ impl CommandPalette {
     /// The plus-menu dialog, where `Space` toggles a kind instead of typing.
     pub fn plus_menu() -> Self {
         Self {
-            entries: &PLUS_MENU_ENTRIES,
+            plus_menu: true,
             ..Self::commands()
         }
     }
 
     pub fn is_plus_menu(&self) -> bool {
-        std::ptr::eq(self.entries, &PLUS_MENU_ENTRIES)
+        self.plus_menu
     }
 
-    /// How many entries the list holds before filtering.
+    /// How many provider entries the list holds before filtering.
     pub fn len(&self) -> usize {
-        self.entries.len()
+        TabKind::ALL.len()
     }
 
-    /// The entries the filter keeps, in entry order.
+    /// The entries the filter keeps, in provider order.
     pub fn shown(&self) -> Vec<(&'static str, &'static str)> {
         let needle = self.filter.trim().to_lowercase();
-        self.entries
-            .iter()
-            .copied()
-            .filter(|(label, _)| label.to_lowercase().contains(&needle))
+        TabKind::ALL
+            .into_iter()
+            .filter(|kind| kind.label().to_lowercase().contains(&needle))
+            .map(|kind| {
+                let value = if self.plus_menu {
+                    kind.name()
+                } else {
+                    kind.action()
+                };
+                (kind.label(), value)
+            })
             .collect()
     }
 

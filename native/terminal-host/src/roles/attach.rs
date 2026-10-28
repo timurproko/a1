@@ -5571,11 +5571,14 @@ mod tests {
         assert_eq!(menu.column + menu.width, 80);
 
         let mut add = PopupMenu::add(0, 80, &bindings, PlusMenu::ALL, [false; 2]);
-        assert_eq!(add.action_at(add.column, 1), Some(PopupAction::NewAgent));
+        assert_eq!(
+            add.action_at(add.column, 1),
+            Some(PopupAction::Activate(core_attach::TabKind::Agent))
+        );
         assert_eq!(add.action_at(add.column, 2), None);
         assert_eq!(
             add.action_at(add.column, 3),
-            Some(PopupAction::Utility(core_attach::UtilityKind::Settings))
+            Some(PopupAction::Activate(core_attach::TabKind::Settings))
         );
         add.move_hover(1);
         assert_eq!(add.hovered, Some(0));

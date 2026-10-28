@@ -9,7 +9,7 @@ use super::{
     AttachKey, AttachMouse, CloseFallback, CommandPalette, DRAG_HOLD, DeferredInput,
     DeferredInputTarget, KeyCode, MouseButton, MouseKind, PaletteKey, PlusMenu, PopupAction,
     PopupKind, PopupMenu, RenameEditor, ShortcutLabels, StripHitKind, StripLayout, StripSnapshot,
-    TabDrag, TabView, UtilityKind, apply_rename_control_key, close_fallback_for, failure_applies,
+    TabActivation, TabDrag, TabKind, TabView, UtilityKind, apply_rename_control_key, close_fallback_for, failure_applies,
     forward_pointer_motion, is_utility_tab, registry_index, rejection_notice, shown_tabs,
     update_drag, utility_toggle_closes,
 };
@@ -98,17 +98,14 @@ pub struct Prewarm {
 }
 
 impl View {
-    /// The kind's prewarm state.
-    pub fn prewarm(&mut self, kind: UtilityKind) -> &mut Prewarm {
-        match kind {
-            UtilityKind::Settings => &mut self.settings,
-            UtilityKind::Changelog => &mut self.changelog,
-        }
+    /// The singleton kind's prewarm state, indexed only by the shared provider.
+    pub fn prewarm(&mut self, kind: TabKind) -> &mut Prewarm {
+        &mut self.singletons[kind.singleton_index().expect("prewarm kind must be singleton")]
     }
 
-    /// Whether each kind's tab joined the strip, by kind.
-    pub fn shown(&self) -> [bool; 2] {
-        [self.settings.shown, self.changelog.shown]
+    /// Whether each singleton kind's tab joined the strip, in provider order.
+    pub fn shown(&self) -> [bool; TabKind::SINGLETON_COUNT] {
+        self.singletons.each_ref().map(|state| state.shown)
     }
 }
 
@@ -117,11 +114,9 @@ impl View {
 pub struct View {
     /// The viewed tab when the current prompt opened.
     pub prompt_view: Option<String>,
-    /// Invariant: a Settings tab joins the strip only once viewed in this session; the Settings
-    /// shortcut hides it again while its process keeps running for an instant reopen.
-    pub settings: Prewarm,
-    /// Invariant: a Changelog tab is prewarmed and joins the strip the same way, so it opens at once.
-    pub changelog: Prewarm,
+    /// Singleton-toggle visibility and prewarm state in provider order. A newly registered
+    /// singleton receives the same behavior without another concrete View field.
+    singletons: [Prewarm; TabKind::SINGLETON_COUNT],
     /// Concurrency: a shortcut can arrive after the server created a tab but before its
     /// registry snapshot reaches this client; the requested ordinal waits for that snapshot.
     pub pending_created_activation: bool,
@@ -582,8 +577,7 @@ impl State {
                     self.close(context, tab_id, effects);
                 }
             }
-            PopupAction::NewAgent => self.create_agent(context, effects),
-            PopupAction::Utility(kind) => self.toggle_utility(context, kind, effects),
+            PopupAction::Activate(kind) => self.activate_kind(context, kind, effects),
             PopupAction::ConfigurePlus => self.mode = Mode::Palette(CommandPalette::plus_menu()),
             PopupAction::View(tab_id) => effects.push(Effect::View(tab_id)),
         }
@@ -667,12 +661,11 @@ impl State {
         action: &str,
         effects: &mut Vec<Effect>,
     ) {
-        if let Some(kind) = UtilityKind::from_action(action) {
-            self.toggle_utility(context, kind, effects);
+        if let Some(kind) = TabKind::from_action(action) {
+            self.activate_kind(context, kind, effects);
             return;
         }
         match action {
-            "tabs.new" => self.create_agent(context, effects),
             "tabs.commands" => self.mode = Mode::Palette(CommandPalette::default()),
             "tabs.close" => {
                 if self.view.pending_agent_visible {
@@ -741,10 +734,23 @@ impl State {
         }
     }
 
-    /// A utility tab's toggle hides its viewed tab, returning to its nearest neighbour, and
+    /// Applies one registered kind through the provider's activation policy.
+    fn activate_kind<T: TabView + Clone>(
+        &mut self,
+        context: &Context<'_, T>,
+        kind: TabKind,
+        effects: &mut Vec<Effect>,
+    ) {
+        match kind.provider().activation {
+            TabActivation::Create => self.create_agent(context, effects),
+            TabActivation::Toggle => self.toggle_utility(context, kind, effects),
+        }
+    }
+
+    /// A singleton tab's toggle hides its viewed tab, returning to its nearest neighbour, and
     /// otherwise shows its one tab. Invariant: a tab already in the strip is switched to in its
     /// dragged slot; a hidden or absent one is asked of the server, which reuses a prewarmed
-    /// process and places it last, so every utility tab opens last.
+    /// process and sends it through the same final-live-slot API as every newly shown tab.
     fn toggle_utility<T: TabView + Clone>(
         &mut self,
         context: &Context<'_, T>,
@@ -1117,7 +1123,7 @@ impl State {
         // makes opening them as immediate as solo's in-process screens. The landing keeps them
         // ready too. Each kind waits for the one before it, so they never start at once.
         let mut ready = true;
-        for kind in UtilityKind::ALL {
+        for kind in TabKind::SINGLETONS {
             let exists = context
                 .tabs
                 .iter()
@@ -1340,13 +1346,13 @@ impl State {
     /// Whether `kind`'s tab is visible: shown in the strip or viewed now. Invariant: a hidden
     /// utility tab never surfaces by itself.
     pub fn utility_visible(&self, kind: UtilityKind, viewed: Option<&str>) -> bool {
-        self.view.shown()[kind.index()]
+        self.view.shown()[kind.singleton_index().expect("visible utility kind must be singleton")]
             || viewed.is_some_and(|id| UtilityKind::of(id) == Some(kind))
     }
 
     /// Every kind's visibility, by kind.
     pub fn utilities_visible(&self, viewed: Option<&str>) -> [bool; 2] {
-        UtilityKind::ALL.map(|kind| self.utility_visible(kind, viewed))
+        TabKind::SINGLETONS.map(|kind| self.utility_visible(kind, viewed))
     }
 
     /// The tab to view when the viewed tab leaves the registry. Invariant: a hidden utility tab
@@ -2154,10 +2160,7 @@ mod tests {
         assert_eq!(
             fixture.step(&mut state, key(KeyCode::Char(' '))),
             [
-                Effect::SavePlusMenu(PlusMenu {
-                    agent: false,
-                    utilities: [true, true]
-                }),
+                Effect::SavePlusMenu(PlusMenu::from_setting(Some("settings,changelog"))),
                 PAINT
             ],
             "Space toggles the selected kind, Agent first, and stores it at once"
@@ -2345,7 +2348,7 @@ mod tests {
     fn release_at_marker_after_last_settings_tab_requests_last_visible_slot() {
         let fixture = Fixture::new(&["a", "b", "settings-1"], "a");
         let mut state = fixture.state();
-        state.view.settings.shown = true;
+        state.view.prewarm(TabKind::Settings).shown = true;
         state.registry_revision = 9;
         fixture.step(&mut state, mouse(LEFT, 2, 0));
         fixture.step(&mut state, mouse(MouseKind::Drag(MouseButton::Left), 29, 0));
@@ -2638,13 +2641,13 @@ mod tests {
     fn settings_toggles_reuses_and_prewarms_one_hidden_tab() {
         let fixture = Fixture::new(&["a", "settings-1"], "settings-1");
         let mut state = fixture.state();
-        state.view.settings.shown = true;
+        state.view.prewarm(TabKind::Settings).shown = true;
         assert_eq!(
             fixture.step(&mut state, shortcut("tabs.settings")),
             [Effect::View("a".into()), PAINT]
         );
         assert!(
-            !state.view.settings.shown,
+            !state.view.prewarm(TabKind::Settings).shown,
             "hiding keeps the process for reuse"
         );
 
@@ -2654,13 +2657,13 @@ mod tests {
             hidden.step(&mut state, shortcut("tabs.settings")),
             [Effect::Send(Request::Open(UtilityKind::Settings)), PAINT]
         );
-        state.view.settings.shown = true;
+        state.view.prewarm(TabKind::Settings).shown = true;
         assert_eq!(
             hidden.step(&mut state, shortcut("tabs.settings")),
             [Effect::View("settings-1".into()), PAINT]
         );
         assert!(
-            state.view.settings.shown,
+            state.view.prewarm(TabKind::Settings).shown,
             "the first shortcut selects Settings"
         );
         let mut popup = PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [true, false]);
@@ -2671,19 +2674,19 @@ mod tests {
             [Effect::View("settings-1".into()), PAINT]
         );
         assert!(
-            state.view.settings.shown,
+            state.view.prewarm(TabKind::Settings).shown,
             "the checked menu item selects Settings"
         );
         let dragged = Fixture::new(&["settings-1", "a"], "a");
         let mut already_visible = dragged.state();
-        already_visible.view.settings.shown = true;
+        already_visible.view.prewarm(TabKind::Settings).shown = true;
         assert_eq!(
             dragged.step(&mut already_visible, shortcut("tabs.settings")),
             [Effect::View("settings-1".into()), PAINT],
             "an already visible Settings tab keeps its dragged slot"
         );
         let mut active = fixture.state();
-        active.view.settings.shown = true;
+        active.view.prewarm(TabKind::Settings).shown = true;
         let mut popup = PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [true, false]);
         popup.hovered = Some(2);
         active.mode = Mode::Popup(popup);
@@ -2692,7 +2695,7 @@ mod tests {
             [Effect::View("a".into()), PAINT]
         );
         assert!(
-            !active.view.settings.shown,
+            !active.view.prewarm(TabKind::Settings).shown,
             "clicking the checked item while active hides Settings"
         );
         let lone = Fixture::new(&["settings-1"], "settings-1");
@@ -2709,7 +2712,7 @@ mod tests {
             [Effect::Send(Request::Prewarm(UtilityKind::Settings))],
             "prewarm starts as soon as the first Agent is registered"
         );
-        assert!(state.view.settings.pending);
+        assert!(state.view.prewarm(TabKind::Settings).pending);
         let prewarmed = server(ServerEvent::Created {
             tab_id: "settings-2".into(),
         });
@@ -2718,7 +2721,7 @@ mod tests {
             [Effect::Send(Request::List)],
             "a prewarmed tab never takes the view"
         );
-        assert!(!state.view.settings.pending);
+        assert!(!state.view.prewarm(TabKind::Settings).pending);
         assert_eq!(
             absent.step(&mut state, shortcut("tabs.settings")),
             [Effect::Send(Request::Open(UtilityKind::Settings)), PAINT]
@@ -3061,7 +3064,7 @@ mod tests {
             [Effect::Send(Request::Open(UtilityKind::Changelog)), PAINT],
             "a hidden Changelog is revealed through the server, which places it last"
         );
-        state.view.changelog.shown = true;
+        state.view.prewarm(TabKind::Changelog).shown = true;
         assert_eq!(
             existing.step(&mut state, shortcut("tabs.changelog")),
             [Effect::View("changelog-1".into()), PAINT],
@@ -3069,13 +3072,13 @@ mod tests {
         );
         let viewed = Fixture::new(&["a", "changelog-1"], "changelog-1");
         let mut state = viewed.state();
-        state.view.changelog.shown = true;
+        state.view.prewarm(TabKind::Changelog).shown = true;
         assert_eq!(
             viewed.step(&mut state, shortcut("tabs.changelog")),
             [Effect::View("a".into()), PAINT],
             "its toggle hides the viewed Changelog and keeps the process"
         );
-        assert!(!state.view.changelog.shown);
+        assert!(!state.view.prewarm(TabKind::Changelog).shown);
     }
 
     #[test]

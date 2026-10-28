@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+use crate::core::tab_bar::TabKind;
 use crate::durable;
 use serde::{Deserialize, Serialize};
 
@@ -363,7 +364,7 @@ fn validate(document: &RegistryDocument) -> Result<(), String> {
     let mut ids = std::collections::HashSet::new();
     for tab in &document.tabs {
         if tab.tab_id.is_empty()
-            || !matches!(tab.kind.as_str(), "agent" | "settings" | "changelog")
+            || TabKind::from_name(&tab.kind).is_none()
             || !ids.insert(&tab.tab_id)
         {
             return Err("registry tab identity is invalid".to_owned());
