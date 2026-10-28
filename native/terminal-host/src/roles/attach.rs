@@ -2174,7 +2174,7 @@ impl Client {
                     self.clear_chip_fill();
                     key_trace(self.key_trace_path.as_deref(), "effect=cancel-view");
                     self.pending_agent = None;
-                    self.view.cancel_request();
+                    self.cancel_view_request()?;
                     if self.swap_in_flight.take().is_some() {
                         self.chip_priority.clear();
                     }
@@ -2259,6 +2259,19 @@ impl Client {
                 wire::send(stream, "tab.claimInput", None, wire::ResultBody::ok())
             }
         }
+    }
+
+    /// Invariant: cancelling a local preview returns server input ownership to the still-viewed
+    /// tab, even if the pending Agent's first coherent frame never committed locally.
+    fn cancel_view_request(&mut self) -> Result<(), String> {
+        let restore = self.view.requested.as_ref().filter(|requested| {
+            self.view.viewed.as_ref().is_some_and(|viewed| viewed != *requested)
+        }).and(self.view.viewed.clone());
+        self.view.cancel_request();
+        if let Some(tab_id) = restore {
+            self.request_view(tab_id)?;
+        }
+        Ok(())
     }
 
     fn request_view(&mut self, tab_id: String) -> Result<(), String> {

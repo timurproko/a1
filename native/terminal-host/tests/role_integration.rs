@@ -878,7 +878,10 @@ setInterval(() => {}, 1000);
     start_server(&executable, &profile, &data, &runtime, &address);
     let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
     let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
-    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    let trace_path = root.path().join("cancel-view.trace");
+    let mut attach = AttachFixture::spawn_configured(&executable, &address, &profile, &data,
+        &release, &node_executable(), None,
+        &[("A1_ATTACH_KEY_TRACE", trace_path.to_str().unwrap())]);
     assert!(attach.output_containing("fake-a1-ready", Duration::from_secs(20)));
     let opening = attach.retained_len();
     attach.write(b"\x1ba");
@@ -904,6 +907,7 @@ setInterval(() => {}, 1000);
     assert!(!delayed.contains("\x1b[?25h"), "a blank child cursor became visible");
     assert!(!attach.output_since(opening).contains("late-ready"));
     let before_close = attach.retained_len();
+    let trace_before_close = std::fs::read_to_string(&trace_path).unwrap().len();
     attach.write(b"\x1bw");
     let deadline = Instant::now() + Duration::from_secs(12);
     loop {
@@ -926,6 +930,9 @@ setInterval(() => {}, 1000);
     }
     assert!(attach.output_since(before_close).contains("fake-a1-ready"),
         "old Agent view was not restored after close: {}", attach.output_text());
+    let trace = std::fs::read_to_string(&trace_path).unwrap();
+    assert!(trace[trace_before_close..].contains("view=tab-1"),
+        "closing an uncommitted Agent did not reclaim the old view: {trace}");
     attach.write(b"z");
     assert!(attach.output_containing("echo:7a", Duration::from_secs(8)),
         "old Agent no longer receives input: {}", attach.output_text());
