@@ -31,6 +31,18 @@ const STARTUP_FETCH_TIMEOUT_MS = 3_000;
 const CACHE_FILENAME = "update-check.json";
 const CACHE_VERSION = 1;
 const MAX_CACHE_BYTES = 4096;
+const MAX_PACKAGE_DOCUMENT_BYTES = 32 * 1024 * 1024;
+
+/** One published version with the pull request its manifest records, when it records one. */
+export interface PublishedVersion {
+  readonly version: string;
+  readonly pullRequest: number | null;
+}
+
+export interface PublishedVersions {
+  readonly versions: readonly PublishedVersion[];
+  readonly error: string | null;
+}
 const DEVELOPMENT_BUILD = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-dev\.(0|[1-9]\d*)$/u;
 const RELEASE_PAGE = "https://github.com/timurproko/a1/releases/tag/v";
 
@@ -78,6 +90,55 @@ export async function queryRegistryDistTags(fetcher: RegistryFetcher, registry?:
   } catch (error) {
     return unavailableDistTags(errorMessage(error));
   }
+}
+
+export function packageDocumentUrl(registry: string = DEFAULT_NPM_REGISTRY): string {
+  return `${registry.replace(/\/+$/u, "")}/${encodeURIComponent(PRODUCT_TEXT.packageName)}`;
+}
+
+/** The pull request a published or installed manifest records under `publication.pullRequest`, when valid. */
+export function recordedPullRequest(manifest: unknown): number | null {
+  if (typeof manifest !== "object" || manifest === null) return null;
+  const publication = (manifest as { publication?: unknown }).publication;
+  if (typeof publication !== "object" || publication === null) return null;
+  const value = (publication as { pullRequest?: unknown }).pullRequest;
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+/**
+ * Every published version with its recorded pull request, read from the registry's full package
+ * document: its per-version manifests keep the publication metadata that version lists and the
+ * abbreviated install document leave out.
+ */
+export async function queryPublishedVersions(fetcher: RegistryFetcher, registry?: string): Promise<PublishedVersions> {
+  try {
+    const response = await fetcher(packageDocumentUrl(registry));
+    if (!response.ok) return { versions: [], error: `registry responded with status ${response.status}` };
+    const text = await response.text();
+    if (text.length > MAX_PACKAGE_DOCUMENT_BYTES) return { versions: [], error: "registry package document is oversized" };
+    return parsePublishedVersions(JSON.parse(text));
+  } catch (error) {
+    return { versions: [], error: errorMessage(error) };
+  }
+}
+
+export function parsePublishedVersions(document: unknown): PublishedVersions {
+  if (typeof document !== "object" || document === null || Array.isArray(document)) {
+    return { versions: [], error: "registry returned a non-object package document" };
+  }
+  const manifests = (document as { versions?: unknown }).versions;
+  if (typeof manifests !== "object" || manifests === null || Array.isArray(manifests)) {
+    return { versions: [], error: "registry package document lists no versions" };
+  }
+  const versions = Object.entries(manifests as Record<string, unknown>)
+    .filter(([version]) => validSemver(version) === version)
+    .map(([version, manifest]) => ({ version, pullRequest: recordedPullRequest(manifest) }));
+  return { versions, error: null };
+}
+
+/** Forget the startup release check so the next interactive launch asks the registry again. */
+export async function invalidateReleaseCheckCache(configDir: string): Promise<void> {
+  await rm(join(configDir, CACHE_FILENAME), { force: true });
 }
 
 export function unavailableDistTags(error: string): DistTagVersions {

@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-10-18T14:41:39.019Z",
+  "generatedAt": "2026-10-27T20:23:20.736Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -118,27 +118,27 @@
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:121:391",
+      "id": "openspec/specs/a1-shell/spec.md:137:391",
       "value": "addone",
-      "fingerprint": "a2d7405c54a8b6f37381a3ed913b47914944989840a46396b8d35b4d69b91351",
+      "fingerprint": "42b0f67b5bd211d8d9ee4c0f0596fd7661de2e387839f4fd163429682e01437f",
       "reason": "obsolete-package rejection requirement"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:133:52",
+      "id": "openspec/specs/a1-shell/spec.md:149:52",
       "value": "addone",
-      "fingerprint": "ed1a7d955de2c440f0a825535c12c45fc0ee7d06be6762f8139bf788da535435",
+      "fingerprint": "bed8a609d91f9ec4daebfbeeceb3aedf4bee0c4e99d0368da391784852b79f0b",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:136:322",
+      "id": "openspec/specs/a1-shell/spec.md:152:322",
       "value": "addone",
-      "fingerprint": "298c4f273707498d5dda6ed28f734bfdce7d52a2420e00f8c18d472e7f79c584",
+      "fingerprint": "beb7789d697851367e140f337548afc1d108d8d1457f21f3322e3ce586cf4f2b",
       "reason": "obsolete-package rejection requirement"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:140:84",
+      "id": "openspec/specs/a1-shell/spec.md:156:84",
       "value": "addone",
-      "fingerprint": "920a1406463c98d91f94ab7e0bae913b615fd93dd94b7d5a99dbc7821ec4c7a8",
+      "fingerprint": "e3190c4056a1e83cae93b8a1977a0a740bdc3ec80fe09232615710b455cf5c63",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {

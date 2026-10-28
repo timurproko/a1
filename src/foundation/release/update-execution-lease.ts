@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import lockfile from "proper-lockfile";
 import { processIsAlive } from "./process-cleanup.js";
 import type { UpdateChannel } from "./types.js";
-import { UpdateTransactionStore } from "./update-transaction.js";
+import { UpdateTransactionStore, type UpdateTransaction } from "./update-transaction.js";
 
 export const UPDATE_EXECUTION_LEASE_FILENAME = "update-execution.json";
 const LEASE_SCHEMA = 1;
@@ -26,7 +26,9 @@ export interface UpdateExecutionOwner {
 
 export type UpdateExecutionLeaseResult =
   | { readonly status: "acquired"; readonly owner: UpdateExecutionOwner; release(): Promise<void> }
-  | { readonly status: "busy"; readonly owner: UpdateExecutionOwner };
+  | { readonly status: "busy"; readonly owner: UpdateExecutionOwner }
+  /** A dead owner whose active transaction names another target; only a manual update may settle it. */
+  | { readonly status: "interrupted"; readonly owner: UpdateExecutionOwner; readonly transaction: UpdateTransaction };
 
 /**
  * Serializes every package replacement for one A1 data root. A dead owner is moved aside before a
@@ -81,9 +83,15 @@ export async function acquireUpdateExecutionLease(input: {
       const existing = await readUpdateExecutionOwner(input.dataDir);
       if (existing === null) continue;
       // Security: an uninspectable or reused pid stays conservative. A process known to be absent is
-      // reclaimed only when its durable transaction agrees with both owners.
+      // reclaimed only when its durable transaction agrees with both owners; a transaction that names
+      // another target is handed to a manual caller to settle, while automatic work fails closed.
       if (processIsAlive(existing.pid)) return { status: "busy", owner: existing };
-      if (!await staleLeaseMatchesTransaction(input.dataDir, existing, input)) return { status: "busy", owner: existing };
+      const foreign = await foreignActiveTransaction(input.dataDir, existing, input);
+      if (foreign !== null) {
+        return input.mode === "manual"
+          ? { status: "interrupted", owner: existing, transaction: foreign }
+          : { status: "busy", owner: existing };
+      }
       const stale = `${path}.stale-${existing.ownerId}-${randomUUID()}`;
       try {
         await rename(path, stale);
@@ -138,17 +146,28 @@ function validateOwner(value: UpdateExecutionOwner): void {
   }
 }
 
-async function staleLeaseMatchesTransaction(
+/**
+ * Removes a dead owner's lease once its transaction has been settled. A lease that another owner
+ * holds by now, or whose process turned out to be alive, is left alone.
+ */
+export async function reclaimDeadLease(dataDir: string, owner: UpdateExecutionOwner): Promise<void> {
+  if (processIsAlive(owner.pid)) return;
+  await releaseLease(resolve(dataDir, UPDATE_EXECUTION_LEASE_FILENAME), owner);
+}
+
+/** The active transaction when it or the request disagrees with the dead owner, else null. */
+async function foreignActiveTransaction(
   dataDir: string,
   owner: UpdateExecutionOwner,
   requested: Pick<UpdateExecutionOwner, "packageRoot" | "channel" | "targetVersion">,
-): Promise<boolean> {
+): Promise<UpdateTransaction | null> {
   const transaction = await new UpdateTransactionStore(dataDir).read();
-  if (transaction?.status !== "active") return true;
-  return transaction.channel === owner.channel && transaction.targetVersion === owner.targetVersion
+  if (transaction?.status !== "active") return null;
+  const matches = transaction.channel === owner.channel && transaction.targetVersion === owner.targetVersion
     && samePath(transaction.packageRoot, owner.packageRoot)
     && requested.channel === owner.channel && requested.targetVersion === owner.targetVersion
     && samePath(requested.packageRoot, owner.packageRoot);
+  return matches ? null : transaction;
 }
 
 function samePath(left: string, right: string): boolean {

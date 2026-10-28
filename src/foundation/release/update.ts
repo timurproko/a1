@@ -8,7 +8,10 @@ import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import type { UpdateChannel } from "./types.js";
 import { earlyAccentPalette, earlyTerminalAppearance, earlyTerminalColorMode, resolveEarlyAccentColor } from "./early-accent.js";
 import { SHARED_PROGRESS_ACCENT_ANSI } from "./progress-palette.generated.js";
-import { isNewerRelease, releaseChannelOf } from "./latest-release.js";
+import {
+  createRegistryFetcher, invalidateReleaseCheckCache, isNewerRelease, queryPublishedVersions, releaseChannelOf,
+  type PublishedVersion, type RegistryFetcher,
+} from "./latest-release.js";
 import {
   certifyMaterializedRelease,
   ensureSupervisor,
@@ -31,7 +34,7 @@ import {
   type UpdateMaterializationProgress,
 } from "./update-activation.js";
 import { UpdateTransactionStore, type UpdateRecoveryState, type UpdateTransaction, type UpdateTransactionPhase } from "./update-transaction.js";
-import { acquireUpdateExecutionLease, type UpdateExecutionOwner } from "./update-execution-lease.js";
+import { acquireUpdateExecutionLease, reclaimDeadLease, type UpdateExecutionOwner } from "./update-execution-lease.js";
 import {
   npmPrefixForGlobalRoot,
   removeUpdateRecoveryCapsule,
@@ -110,6 +113,8 @@ export interface SelfUpdateOptions {
   fileSystem?: UpdateFileSystem;
   output?: UpdateOutput;
   runner?: UpdateProcessRunner;
+  /** Reads the registry's package document when a preview is named; defaults to a bounded fetch. */
+  fetcher?: RegistryFetcher;
   lifecycle?: UpdateLifecycleCoordinator;
   transactionStore?: UpdateTransactionJournal;
   /** Test seam for protected global package replacement. */
@@ -175,6 +180,8 @@ const defaultFileSystem: UpdateFileSystem = {
  */
 export const PACKAGE_UNLOCK_PATIENCE_MS = 15_000;
 export const UPDATE_ALREADY_RUNNING_EXIT_CODE = 75;
+/** A named preview reads the registry's whole package document, which is larger than a dist-tag lookup. */
+const PREVIEW_LOOKUP_TIMEOUT_MS = 30_000;
 const PACKAGE_UNLOCK_INITIAL_DELAY_MS = 100;
 const PACKAGE_UNLOCK_MAX_DELAY_MS = 1_000;
 // Platform: Windows reports a held directory as EPERM or EBUSY; EACCES and ENOTEMPTY are the other
@@ -490,35 +497,34 @@ async function resolveChannelHead(runner: UpdateProcessRunner, distTag: string, 
 /**
  * Resolve a preview the caller named.
  *
- * A preview is published as `<version>-dev.<pull-request-number>`, so its decimal
- * development number is enough to identify it. A full version is accepted too.
- * The published list remains authoritative: nothing is constructed from the
- * installed package's base version.
+ * A decimal names the pull request a published preview records in its manifest, or the trailing
+ * number of a preview published as `<version>-dev.<pull-request>` before pull requests were
+ * recorded; a full version is accepted too. The registry's published manifests remain
+ * authoritative: nothing is constructed from the installed package's base version.
  */
-async function resolveRequestedPreview(runner: UpdateProcessRunner, requested: string, output: UpdateOutput): Promise<ResolvedTarget> {
-  const lookup = await runNpm(runner, ["view", PRODUCT_PACKAGE, "versions", "--json"], true, output, "list the published versions");
-  if (lookup.result === null) return { version: null, exitCode: lookup.exitCode };
-  let published: unknown;
-  try {
-    published = JSON.parse(lookup.result.stdout.trim() || "[]");
-  } catch {
-    output.stderr(`${PRODUCT_TEXT.diagnostic(`received a malformed version list from npm: ${JSON.stringify(lookup.result.stdout.trim())}.`)}\n`);
+async function resolveRequestedPreview(
+  fetcher: RegistryFetcher,
+  registry: string | undefined,
+  requested: string,
+  output: UpdateOutput,
+): Promise<ResolvedTarget> {
+  const published = await queryPublishedVersions(fetcher, registry);
+  if (published.error !== null) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`could not list the published versions: ${published.error}.`)}\n`);
     return { version: null, exitCode: 1 };
   }
-  const versions = (Array.isArray(published) ? published : [published]).filter((value): value is string => typeof value === "string");
-
-  const exact = versions.find(version => version === requested);
+  const exact = published.versions.find(entry => entry.version === requested);
   if (exact !== undefined) {
     // Rationale: naming a release here would install it through the preview path, which is a
     // different command with a different meaning.
-    if (!exact.includes("-dev.")) {
-      output.stderr(`${PRODUCT_TEXT.diagnostic(`${exact} is a release, not a preview; run ${PRODUCT_TEXT.commandName} update to move to the current release.`)}\n`);
+    if (!exact.version.includes("-dev.")) {
+      output.stderr(`${PRODUCT_TEXT.diagnostic(`${exact.version} is a release, not a preview; run ${PRODUCT_TEXT.commandName} update to move to the current release.`)}\n`);
       return { version: null, exitCode: 1 };
     }
-    return { version: exact, exitCode: 0 };
+    return { version: exact.version, exitCode: 0 };
   }
 
-  const matches = versions.filter(version => version.endsWith(`-dev.${requested}`));
+  const matches = previewsNumbered(published.versions, requested);
   if (matches.length === 1) return { version: matches[0]!, exitCode: 0 };
   if (matches.length > 1) {
     output.stderr(`${PRODUCT_TEXT.diagnostic(`found more than one preview for ${requested}: ${matches.join(", ")}. Name the version instead.`)}\n`);
@@ -526,6 +532,14 @@ async function resolveRequestedPreview(runner: UpdateProcessRunner, requested: s
   }
   output.stderr(`${PRODUCT_TEXT.diagnostic(`published no preview for ${requested}.`)}\n`);
   return { version: null, exitCode: 1 };
+}
+
+/** The published versions a preview number names: by recorded pull request, or by trailing identifier. */
+function previewsNumbered(versions: readonly PublishedVersion[], requested: string): string[] {
+  const number = Number(requested);
+  return versions
+    .filter(entry => entry.pullRequest === number || entry.version.endsWith(`-dev.${requested}`))
+    .map(entry => entry.version);
 }
 
 interface ManagedNpmInstallation {
@@ -647,6 +661,10 @@ async function launchersOwnPackage(globalRoot: string, fileSystem: UpdateFileSys
 
 async function resolveSelfUpdateTarget(input: {
   readonly runner: UpdateProcessRunner;
+  /** Reads the registry's package document for a named preview; a bounded fetch when omitted. */
+  readonly fetcher: RegistryFetcher | undefined;
+  /** The `npm_config_registry` value, when the user configured one. */
+  readonly registry: string | undefined;
   readonly output: UpdateOutput;
   readonly channel: UpdateChannel;
   readonly distTag: string;
@@ -658,7 +676,12 @@ async function resolveSelfUpdateTarget(input: {
   }
   return input.requested === undefined || input.requested.length === 0
     ? await resolveChannelHead(input.runner, input.distTag, input.output)
-    : await resolveRequestedPreview(input.runner, input.requested, input.output);
+    : await resolveRequestedPreview(
+      input.fetcher ?? createRegistryFetcher(PREVIEW_LOOKUP_TIMEOUT_MS),
+      input.registry?.trim() || undefined,
+      input.requested,
+      input.output,
+    );
 }
 
 function resolveExactAutomaticTarget(target: string, channel: UpdateChannel, output: UpdateOutput): ResolvedTarget {
@@ -681,8 +704,22 @@ async function withUpdateExecutionLease(
   output: UpdateOutput,
   operation: () => Promise<number>,
 ): Promise<number> {
-  const lease = await acquireUpdateExecutionLease(input);
-  if (lease.status === "busy") {
+  let lease = await acquireUpdateExecutionLease(input);
+  if (lease.status === "interrupted") {
+    // Rationale: the owner that targeted another version is gone. Its durable transaction is rolled
+    // back to the cohort that ran before it, so this request proceeds as an ordinary update of its
+    // own target instead of reporting a dead attempt as in progress.
+    const interrupted = lease.owner.targetVersion;
+    const rollback = await rollbackPriorCohort(input.dataDir, options.environment ?? process.env, lease.transaction.priorActiveReleaseId)
+      .catch(error => `rollback failed: ${errorMessage(error)}`);
+    const store = new UpdateTransactionStore(input.dataDir);
+    await store.finish("rolled-back", `interrupted ${interrupted} update settled by ${input.targetVersion}; ${rollback}`);
+    await store.clearCompleted().catch(() => undefined);
+    await reclaimDeadLease(input.dataDir, lease.owner);
+    output.stdout(`${PRODUCT_TEXT.commandName} rolled back the interrupted ${interrupted} update: ${rollback}\n`);
+    lease = await acquireUpdateExecutionLease(input);
+  }
+  if (lease.status !== "acquired") {
     options.onLeaseBusy?.(lease.owner);
     if ((options.mode ?? "manual") === "manual") {
       output.stderr(`${PRODUCT_TEXT.diagnostic(`update already in progress for ${lease.owner.targetVersion}`)}\n`);
@@ -732,8 +769,9 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
 
   const requested = options.target?.trim();
   const exactTarget = options.resolvedTarget?.trim();
+  const environment = options.environment ?? process.env;
   const resolved = await measure("target-resolution", async () => await resolveSelfUpdateTarget({
-    runner, output, channel, distTag, requested, exactTarget,
+    runner, output, channel, distTag, requested, exactTarget, fetcher: options.fetcher, registry: environment.npm_config_registry,
   }));
   if (resolved.version === null) return resolved.exitCode;
   const targetVersion = resolved.version;
@@ -748,7 +786,6 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
   // Rationale: no full stop after a version: it already ends in a dot-separated identifier,
   // and a trailing one reads as part of the version rather than as punctuation.
   output.stdout(`${PRODUCT_TEXT.commandName} update: ${runningVersion} → ${targetVersion}\n`);
-  const environment = options.environment ?? process.env;
   const progress = createUpdateProgress(output, options.progress ?? (options.output === undefined && process.stdout.isTTY === true), updateProgressAccent(environment));
 
   const managed = await measure("global-root", async () => await resolveManagedNpmInstallation(options.packageRoot, fileSystem, runner, output));
@@ -905,7 +942,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     await maintenance();
     // Concurrency: this is the launch cutover. No failure-prone update work follows success.
     await transactionStore.finish("completed");
-    await transactionStore.clearCompleted().catch(() => undefined);
+    await Promise.all([transactionStore.clearCompleted(), invalidateReleaseCheckCache(paths.configDir)]).catch(() => undefined);
     options.onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
     progress.finish();
     output.stdout(`${PRODUCT_TEXT.commandName} updated successfully to ${targetVersion}\n`);

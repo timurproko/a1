@@ -6,6 +6,7 @@ import {
   UPDATE_EXECUTION_LEASE_FILENAME,
   acquireUpdateExecutionLease,
   readUpdateExecutionOwner,
+  reclaimDeadLease,
 } from "../../../src/foundation/release/update-execution-lease.js";
 import { UpdateTransactionStore } from "../../../src/foundation/release/update-transaction.js";
 
@@ -80,7 +81,7 @@ describe("update execution lease", () => {
     await acquired.release();
   });
 
-  it("does not replace a dead owner's lease when its active transaction targets something else", async () => {
+  it("hands a dead owner's foreign transaction to a manual caller and keeps automatic callers out", async () => {
     const dataDir = await root();
     const ownerInput = input(dataDir);
     const transaction = new UpdateTransactionStore(dataDir);
@@ -104,11 +105,30 @@ describe("update execution lease", () => {
     };
     await writeFile(path, JSON.stringify(recorded));
 
-    await expect(acquireUpdateExecutionLease({ ...ownerInput, targetVersion: "1.2.4" })).resolves.toMatchObject({
+    // Invariant: automatic work never settles another target's transaction.
+    await expect(acquireUpdateExecutionLease({ ...ownerInput, targetVersion: "1.2.4", mode: "automatic" })).resolves.toMatchObject({
       status: "busy",
       owner: { ownerId: "dead-owner", targetVersion: "1.2.3" },
     });
     expect(JSON.parse(await readFile(path, "utf8"))).toEqual(recorded);
+
+    // Rationale: a manual caller learns which transaction was interrupted so it can roll it back,
+    // and nothing is rewritten until it does.
+    const interrupted = await acquireUpdateExecutionLease({ ...ownerInput, targetVersion: "1.2.4" });
+    expect(interrupted).toMatchObject({
+      status: "interrupted",
+      owner: { ownerId: "dead-owner", targetVersion: "1.2.3" },
+      transaction: { targetVersion: "1.2.3", status: "active" },
+    });
+    expect(JSON.parse(await readFile(path, "utf8"))).toEqual(recorded);
+
+    await transaction.finish("rolled-back", "settled by test");
+    await transaction.clearCompleted();
+    await reclaimDeadLease(dataDir, recorded as Parameters<typeof reclaimDeadLease>[1]);
+    await expect(readUpdateExecutionOwner(dataDir)).resolves.toBeNull();
+    const acquired = await acquireUpdateExecutionLease({ ...ownerInput, targetVersion: "1.2.4" });
+    expect(acquired.status).toBe("acquired");
+    if (acquired.status === "acquired") await acquired.release();
   });
 
   it("fails closed without replacing malformed ownership state", async () => {

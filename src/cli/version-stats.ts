@@ -27,19 +27,26 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
   const output = options.output ?? defaultOutput;
   const runner = options.runner ?? createVersionProcessRunner();
   let installed: string;
+  let installedPullRequest: number | null;
   try {
     const manifest = JSON.parse(await readFile(resolve(options.packageRoot, "package.json"), "utf8")) as { version?: unknown };
     installed = parseVersion(manifest.version, "installed package");
+    installedPullRequest = recordedPullRequest(manifest);
   } catch (error) {
     output.stderr(`${PRODUCT_TEXT.diagnostic(`could not read its installed version: ${message(error)}`)}\n`);
     return 1;
   }
 
   // Rationale: unlike Pi, stable builds also show the release channel head so users can see they are
-  // behind without starting a session. Only development builds show the preview channel.
+  // behind without starting a session. Only development builds show the preview channel, and only
+  // they carry the pull request a preview's manifest records; a missing record is silently omitted.
   const remote = await queryDistTags(runner, options.fetcher ?? defaultRegistryFetcher);
-  const develop = prerelease(installed) === null ? "" : `Develop: ${remote.develop ?? "unavailable"}\n`;
-  output.stdout(`Current: ${installed}\n${develop}Release: ${remote.release ?? "unavailable"}\n`);
+  const developmentBuild = prerelease(installed) !== null;
+  const headPullRequest = developmentBuild && remote.develop !== null ? await queryRecordedPullRequest(runner, remote.develop) : null;
+  const develop = developmentBuild
+    ? `Develop: ${remote.develop === null ? "unavailable" : withPullRequest(remote.develop, headPullRequest)}\n`
+    : "";
+  output.stdout(`Current: ${withPullRequest(installed, developmentBuild ? installedPullRequest : null)}\n${develop}Release: ${remote.release ?? "unavailable"}\n`);
   if (remote.error) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm dist-tags: ${remote.error}`)}\n`);
   return 0;
 }
@@ -99,6 +106,33 @@ function parseDistTags(metadata: unknown, source: "npm" | "registry"): RemoteVer
 
 function unavailable(error: string): RemoteVersions {
   return { release: null, develop: null, error };
+}
+
+function withPullRequest(version: string, pullRequest: number | null): string {
+  return pullRequest === null ? version : `${version} (#${pullRequest})`;
+}
+
+/** The pull request a manifest records under `publication.pullRequest`, when it is a positive integer. */
+function recordedPullRequest(manifest: unknown): number | null {
+  if (typeof manifest !== "object" || manifest === null) return null;
+  const publication = (manifest as { publication?: unknown }).publication;
+  if (typeof publication !== "object" || publication === null) return null;
+  const value = (publication as { pullRequest?: unknown }).pullRequest;
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
+}
+
+/** The pull request the published head records, read through npm; any failure means no record. */
+async function queryRecordedPullRequest(runner: VersionProcessRunner, version: string): Promise<number | null> {
+  try {
+    const result = await runner("npm", ["view", `${PRODUCT_TEXT.packageName}@${version}`, "publication.pullRequest", "--json"]);
+    if (result.code !== 0 || result.stdout.trim().length === 0) return null;
+    const parsed: unknown = JSON.parse(result.stdout);
+    // Compatibility: npm 12 wraps single-field `npm view --json` output in a one-element array.
+    const value: unknown = Array.isArray(parsed) && parsed.length === 1 ? parsed[0] : parsed;
+    return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 const defaultRegistryFetcher: RegistryFetcher = async url =>
