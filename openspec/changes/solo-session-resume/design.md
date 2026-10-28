@@ -1,12 +1,12 @@
 ## Context
 
-The screenshot shows a solo session printing `a1 --session <id>` on exit; the ordinary session command instead finds the still-running resident agent, while `a1 solo --session <id>` fails at the CLI's blanket solo-arguments rejection. Current `InteractiveLaunchIntent` and bootstrap also reject selection with `launchMode: "solo"`. The owned runtime already supports `sessionSelection` and resolves IDs/paths via the pinned Pi API; the direct and resident paths share a canonical session-writer lease. The former solo hint does not carry launch-mode information.
+The screenshot shows an exited solo session printing `a1 --session <id>`; the ordinary session command instead enters the resident UI, while `a1 solo --session <id>` fails at the CLI's blanket solo-arguments rejection. The separate resident attach message, `1 agent still running run a1 to return`, already describes the right action for a multi-agent tab and needs no change. Current `InteractiveLaunchIntent` and bootstrap also reject selection with `launchMode: "solo"`. The owned runtime already supports `sessionSelection` and resolves IDs/paths via the pinned Pi API; the direct and resident paths share a canonical session-writer lease. The former solo hint does not carry launch-mode information.
 
 ## Goals / Non-Goals
 
-**Goals:** Resume a saved A1 conversation explicitly in one direct solo UI with the same ID/history/cwd and no tab strip, using the same parser and session-selection semantics as the existing tabbed command. Preserve a fresh argument-free solo launch, safe session ownership, release/guardian retry, and a copy-pasteable mode-appropriate resume hint.
+**Goals:** Reopen an exited solo A1 conversation in one direct solo UI with the same ID/history/cwd and no tab strip, using the same parser and session-selection semantics as the existing tabbed command. Preserve a fresh argument-free solo launch, existing session-writer ownership, release/guardian retry, and a copy-pasteable solo exit hint.
 
-**Non-goals:** Auto-converting a running resident tab into a solo process, stealing/killing its writer, reinterpreting `a1 --session`, importing Pi's CLI, adding a second renderer, changing saved-session formats, or enabling Pi-comparison session selection.
+**Non-goals:** Changing resident detach/return messaging, auto-converting a running resident tab into a solo process, stealing/killing its writer, changing conflict diagnostics or `a1 --session`, importing Pi's CLI, adding a second renderer, changing saved-session formats, or enabling Pi-comparison session selection.
 
 ## Decisions
 
@@ -18,20 +18,20 @@ Support `a1 solo --session <path|id>` and `a1 solo --session-dir <dir> --session
 
 Carry `launchMode: "solo"` alongside the invocation-scoped `SessionSelection` through the immutable release/bootstrap/guardian path to the owned UI, including retry and development `./scripts/dev solo` routing. Relax the two mode-specific rejects but retain profile validation, shell-free argv encoding, and resident suppression for solo. No persistent or inherited `PI_SESSION_ID`/`PI_SESSION_FILE` inference. The direct path must not start or discover the resident host merely because a session was requested.
 
-### 3. Restore only with the single-writer lease
+### 3. Restore only with the existing single-writer lease
 
-Use the existing owned Pi resolver, project/cwd trust ordering, explicit path versus local/global ID semantics, and session-writer admission guard. A free saved session resumes with its original identity/context. If a resident tab or another solo process still owns it, fail with a concise conflict and actionable instruction to stop the owning tab/agent and retry. Do not silently fork, request that the resident host terminate a writer, or open a second writer. Closing a tab through the existing `a1 tabs stop <tab-id>`/tab UI releases ownership while leaving its saved session resumable. The ordinary tabbed `a1 --session` continues to focus a held tab.
+Use the existing owned Pi resolver, project/cwd trust ordering, explicit path versus local/global ID semantics, and session-writer admission guard. The exited, unoccupied solo session resumes with its original identity/context. Leave existing live-writer conflict handling untouched: do not silently open a second writer, request a resident host shutdown, or add a mode-transfer mechanism. Bare `a1` still reattaches to a running multi-agent host, and ordinary tabbed `a1 --session` still focuses a held tab.
 
-### 4. Make the exit hint match the runtime that exited
+### 4. Correct the exited solo session's hint
 
-Carry the direct-solo versus ordinary tabbed launch mode to the existing resume formatter at the session shell boundary (including the unclean-exit notice). A solo session prints `a1 solo --session <id>` with the existing optional `--session-dir` quoting; tabbed sessions keep `a1 --session <id>`. Hint text still appears only for a persisted session, and its arguments pass the same public grammar. Avoid inferring mode from session storage or transcript state.
+Carry the direct-solo launch mode to the existing resume formatter at the session shell boundary (including the unclean-exit notice). An exited solo session prints `a1 solo --session <id>` with the existing optional `--session-dir` quoting; keep existing tabbed hints as they are, and leave the resident attach message `run a1 to return` untouched for agents that are still running. Hint text still appears only for a persisted session, and its arguments pass the same public grammar. Avoid inferring mode from session storage or transcript state.
 
 ## Risks / Trade-offs
 
-- A still-running resident tab holds a real writer; accepting solo selection alone cannot make that tab disappear safely. The user must explicitly stop the tab before a true same-ID solo resume, unless the maintainer approves a separate ownership handoff design.
-- The hint may be copied from a solo session that has since been opened elsewhere. The live lease, not the hint, decides whether the later launch may write.
+- A running resident tab remains a separate case: bare `a1` returns to it. This change deliberately does not transfer a live tab to solo mode.
+- An exited solo hint may be copied after that session opens elsewhere. The existing live lease, not the hint, decides whether a later launch may write.
 - Launch transport crosses packaged and development entry points; focused parser and mode/hint tests must be paired with packaged-entry evidence that the selection reaches the direct owned runtime without resident initialization.
 
-## Open Question
+## Planning clarification
 
-Please confirm that an occupied session should **fail safely with guidance to stop its resident tab and retry**, rather than having `a1 solo --session` automatically close or transfer that live tab. The screenshot demonstrates an occupied writer, so this behavior is part of the approval decision.
+The maintainer clarified that the requested case is an **exited solo session**, not a live multi-agent handoff. The resident attach client already directs users to run bare `a1`; no resident mode change or special new occupied-session guidance is needed. Implementation still awaits explicit plan approval.

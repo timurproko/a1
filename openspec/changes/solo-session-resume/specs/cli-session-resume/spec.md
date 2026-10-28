@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Normal A1 accepts explicit session selection
-Stable and prerelease builds SHALL support `a1 --session <path|id>` and `a1 solo --session <path|id>`, each with an optional `--session-dir <dir>` before or after `--session`. Each option SHALL occur at most once and require a nonempty value. `--session-dir` alone, missing values, duplicate options, unknown trailing options, and extra positional arguments in either recognized grammar SHALL fail with a focused diagnostic and nonzero exit status before supervisor or interactive startup. Help SHALL list the supported forms, including argument-free `a1 solo` as the explicit direct single-agent launch. Bare `a1` SHALL reattach to the profile's resident tabs, creating one fresh tab only when none exist, and a tabbed session launch SHALL open the selected session as a new tab in the launching client or focus the tab already holding it. Argument-free `a1 solo` SHALL start a fresh direct session; solo session selection SHALL resume the selected session directly, without initializing resident infrastructure. Unsupported solo arguments SHALL fail rather than selecting another route. A session launch on a supported platform SHALL honor the shared canonical session-writer lease in both modes. When a direct launch selects a session held by another writer, A1 SHALL fail safely with a concise diagnostic identifying how to release the owner and retry; it SHALL NOT silently attach, fork, overwrite, kill the other writer, or start a second writer. Direct lease checks SHALL NOT initialize a resident host.
+Stable and prerelease builds SHALL support `a1 --session <path|id>` and `a1 solo --session <path|id>`, each with an optional `--session-dir <dir>` before or after `--session`. Each option SHALL occur at most once and require a nonempty value. `--session-dir` alone, missing values, duplicate options, unknown trailing options, and extra positional arguments in either recognized grammar SHALL fail with a focused diagnostic and nonzero exit status before supervisor or interactive startup. Help SHALL list the supported forms, including argument-free `a1 solo` as the explicit direct single-agent launch. Bare `a1` SHALL reattach to the profile's resident tabs, creating one fresh tab only when none exist, and a tabbed session launch SHALL open the selected session as a new tab in the launching client or focus the tab already holding it. Argument-free `a1 solo` SHALL start a fresh direct session; solo session selection SHALL resume the selected session directly, without initializing resident infrastructure. Unsupported solo arguments SHALL fail rather than selecting another route. A session launch on a supported platform SHALL honor the shared canonical session-writer lease in both modes. When a direct launch selects a session held by another writer, A1 SHALL retain its existing safe conflict behavior and SHALL NOT silently attach, overwrite, or start a second writer. Direct lease checks SHALL NOT initialize a resident host.
 
 #### Scenario: Select an existing session by ID
 - **WHEN** the user supplies `a1 --session <id>` for a saved A1 session
@@ -45,7 +45,7 @@ Stable and prerelease builds SHALL support `a1 --session <path|id>` and `a1 solo
 
 #### Scenario: Direct launch selects a held session
 - **WHEN** a direct fallback or `a1 solo --session <id>` selects a session held by a live resident tab or another solo process
-- **THEN** A1 SHALL refuse a second writer with guidance to stop the owning agent and retry, without closing or changing it automatically
+- **THEN** A1 SHALL preserve the existing safe conflict behavior without starting a second writer, changing the resident owner, or automatically transferring its mode
 
 ### Requirement: Installed-entry evidence proves the resume path
 Automated regression evidence SHALL exercise normal and solo A1's public installed entry and production launch transport against fresh disposable sessions persisted through that build's pinned public Pi APIs, not only an internal UI entry or a formatted string. Evidence SHALL cover a create/persist → exit → resume lifecycle for uncompacted and supported compacted history, record the Pi version, and compare context with direct same-pin reopening plus independent expected conversation markers/order. Unsupported synthetic retained-tail behavior SHALL NOT be a prerequisite for this CLI parity evidence or be reported as certified by it. Evidence SHALL cover default and custom directories, argument quoting, restored session identity/context, negative target resolution, and independent invocations. Tests SHALL isolate home/profile/release/control state and SHALL NOT depend on personal session files, credentials, network model calls, or an already-running user supervisor.
@@ -60,13 +60,17 @@ Automated regression evidence SHALL exercise normal and solo A1's public install
 
 ## ADDED Requirements
 
-### Requirement: Resume hints preserve the selected launch mode
-A1 SHALL emit a resume hint only for a persisted session. A direct `a1 solo` session SHALL print `a1 solo --session <id>` with its existing optional quoted `--session-dir <dir>` selection, including in a recoverable unclean-exit notice. A resident session SHALL retain the tabbed `a1 --session <id>` command. Both hints SHALL be accepted by the public CLI without adding inferred session selection to later fresh launches.
+### Requirement: An exited solo session advertises solo resume
+A1 SHALL emit a resume hint only for a persisted session. An exited direct `a1 solo` session SHALL print `a1 solo --session <id>` with its existing optional quoted `--session-dir <dir>` selection, including in a recoverable unclean-exit notice. Any existing tabbed resume hint SHALL keep the `a1 --session <id>` form; detaching from a still-running resident agent SHALL keep the `run a1 to return` message, not a new session-resume hint. A later fresh launch SHALL NOT inherit a previous selection.
 
 #### Scenario: Direct solo session exits with resumable history
 - **WHEN** a solo session persists its ID and exits
 - **THEN** its command SHALL reopen that ID in direct solo mode with the same profile and effective storage directory
 
-#### Scenario: Resident agent exits with resumable history
-- **WHEN** a resident agent persists its ID and exits
-- **THEN** its command SHALL retain the normal tabbed session-selection form
+#### Scenario: Resident client leaves an agent running
+- **WHEN** a client detaches from a resident host while an agent is still running
+- **THEN** the client SHALL direct the user to run bare `a1` to return without suggesting a solo resume command
+
+#### Scenario: Existing tabbed resume hint
+- **WHEN** a tabbed session already emits a resume hint for persisted history
+- **THEN** that hint SHALL retain the normal tabbed session-selection form

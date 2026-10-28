@@ -30,4 +30,4 @@ A supported tabbed or solo A1 session launch SHALL carry its validated target an
 
 #### Scenario: Select a held session for solo
 - **WHEN** `a1 solo --session <id>` names a session held by a live resident or solo agent
-- **THEN** direct launch SHALL refuse a second writer and leave the existing owner running without resident startup
+- **THEN** direct launch SHALL retain the existing safe conflict handling, leave the owner running, and start no second writer or resident host
