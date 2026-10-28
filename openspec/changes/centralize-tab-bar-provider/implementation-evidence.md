@@ -12,6 +12,13 @@
 - `move_live_tab_last` places a hidden singleton at the final live slot when it joins the strip; already shown tabs bypass it and retain dragged order.
 - Focused server regressions cover Agent → Settings → Agent ordering, dragged order, singleton message resolution, and stopped records around live tabs.
 
+## Blank-free Agent startup
+
+- `ViewModel` no longer converts a requested tab's blank first surface into a visible commit after elapsed time. Repeated blank revisions remain parked, preserving the previous coherent frame or complete local Agent startup preview with deferred input still bound to the requested tab.
+- The first nonblank surface commits the requested topology normally. A surface explicitly marked `failed` bypasses the blank gate so existing failure and recovery controls remain available, and `Presented` hides the child cursor when that failed surface itself is blank.
+- Presentation coverage advances repeated blank revisions far beyond the former two-second wait, verifies no expiry commit, then observes the first nonblank frame commit. It also covers blank failed-surface resolution and hidden failure cursor behavior.
+- The resident role fixture delays the new Agent's UI past the former wait, asserts that the complete preview and visual caret remain without a child cursor, and preserves close-before-first-draw ghost prevention.
+
 ## Prompt replacement
 
 - `SessionViewportController` leaves editor-owned prompt word and line selection highlighted without producing a copy-on-select snapshot; complete-frame selection still follows the live setting.
@@ -48,7 +55,7 @@
 
 ## Local checks
 
-- `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed.
+- `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the blank-first-frame refinement.
 - A focused `rustc --test` harness over the checked-in shortcut-hint and command-palette modules passed all 5 component and palette tests.
 - `npm run build:core` passed.
 - `npm run typecheck` passed after the prompt-selection, centered-dialog, and Changelog-selection refinements.
@@ -62,4 +69,4 @@
 - `npx vitest run test/app/session-shell/session-viewport-controller.test.ts test/app/session-shell/session-shell-selection.test.ts` passed with 151 tests.
 - `npx openspec validate centralize-tab-bar-provider --strict` passed.
 - `npm run test:fast` could not enter its suites because the candidate build's GitHub artifact lookup hit a network connection failure while resolving the required Windows terminal library; the focused and broader owned-UI suites above completed locally.
-- The full native unit binary could not link locally because the contracts-only build omits the Ghostty VT symbols and no trusted Windows `terminal-vt` artifact or Zig toolchain was available; exact-head CI remains the native validation authority.
+- The focused native presentation unit command and the full native unit binary could not link locally because the contracts-only build omits the Ghostty VT symbols and no trusted Windows `terminal-vt` artifact or Zig toolchain was available; exact-head CI remains the native validation authority.

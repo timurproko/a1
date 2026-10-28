@@ -19,10 +19,6 @@ use crate::roles::wire::Surface;
 /// fresh surface before a retained re-offer is committed instead.
 pub const STALE_SURFACE_WAIT: Duration = Duration::from_millis(120);
 
-/// How long a newly created tab keeps the previous coherent frame while its child has not drawn
-/// anything yet; afterwards the blank surface commits so a silent child cannot wedge the view.
-pub const FIRST_DRAW_WAIT: Duration = Duration::from_secs(2);
-
 const BEGIN_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026h";
 const END_SYNCHRONIZED_UPDATE: &[u8] = b"\x1b[?2026l";
 
@@ -151,8 +147,8 @@ impl ViewModel {
         }
     }
 
-    /// Marks the requested tab as newly created: until its child draws, or `FIRST_DRAW_WAIT`
-    /// passes, the previous view stays instead of a blank body without footer or editor.
+    /// Marks the requested tab as newly created: until its child draws, the previous view stays
+    /// instead of a blank body without footer or editor.
     pub fn await_first_draw(&mut self, tab_id: &str) {
         if self.is_requested(tab_id) {
             self.first_draw = Some(tab_id.to_owned());
@@ -223,14 +219,12 @@ impl ViewModel {
         let first_view = self.committed_revision.is_none();
         if requested
             && (first_view || self.first_draw.as_deref() == Some(surface.tab_id.as_str()))
+            && surface.status != "failed"
             && surface_is_blank(&surface)
         {
-            let deadline = self
-                .request_started
-                .get_or_insert(now)
-                .checked_add(FIRST_DRAW_WAIT)
-                .unwrap_or(now);
-            self.stale_candidate = Some((surface, deadline));
+            // Invariant: elapsed time cannot make an undrawn child coherent. Keep the existing
+            // screen or local Agent preview until visible UI arrives; explicit failure may commit.
+            self.stale_candidate = None;
             return Offer::Parked;
         }
         // Protocol: a retained re-offer may commit a requested view only after the bounded wait
@@ -1429,20 +1423,20 @@ mod tests {
         assert_eq!(revealed.expire(now + STALE_SURFACE_WAIT, |_| true), None);
         assert_eq!(revealed.viewed.as_deref(), Some("a"));
 
-        // Invariant: A child that never draws still becomes visible after the bounded wait.
+        // Invariant: elapsed time and repeated revisions never expose an undrawn child.
         let mut silent = ViewModel::new(Some("a".into()));
         silent.request_at("c", now);
         silent.await_first_draw("c");
         let mut empty = blank.clone();
         empty.tab_id = "c".into();
-        assert_eq!(silent.offer(empty, now, true), Offer::Parked);
-        assert!(matches!(
-            silent.expire(now + FIRST_DRAW_WAIT, |_| true),
-            Some(Offer::Commit {
-                requested: true,
-                ..
-            })
-        ));
+        assert_eq!(silent.offer(empty.clone(), now, true), Offer::Parked);
+        empty.revision += 1;
+        assert_eq!(silent.offer(empty, now + Duration::from_secs(30), true), Offer::Parked);
+        assert_eq!(silent.expire(now + Duration::from_secs(60), |_| true), None);
+        assert_eq!(silent.viewed.as_deref(), Some("a"));
+        let mut ready = surface("c", 10, false);
+        ready.tab_id = "c".into();
+        assert!(matches!(silent.offer(ready, now, true), Offer::Commit { requested: true, .. }));
 
         // Invariant: Creating the first tab from an empty strip waits for its drawn frame as well.
         let mut first = ViewModel::new(None);
@@ -1471,16 +1465,26 @@ mod tests {
             launch.offer(launch_blank.clone(), now + Duration::from_millis(500), true),
             Offer::Parked
         );
-        assert!(
-            matches!(
-                launch.expire(now + FIRST_DRAW_WAIT, |_| true),
-                Some(Offer::Commit {
-                    requested: true,
-                    ..
-                })
-            ),
-            "the launch wait is bounded from the first offer, not renewed by each blank frame"
-        );
+        assert_eq!(launch.expire(now + Duration::from_secs(60), |_| true), None);
+        assert_eq!(launch.viewed, None);
+        let mut launch_ready = surface("e", 10, false);
+        launch_ready.tab_id = "e".into();
+        assert!(matches!(
+            launch.offer(launch_ready, now + Duration::from_secs(60), true),
+            Offer::Commit { requested: true, .. }
+        ));
+
+        // Invariant: explicit failure resolves the startup gate instead of exposing an ordinary blank.
+        let mut failing = ViewModel::new(Some("a".into()));
+        failing.request_at("f", now);
+        failing.await_first_draw("f");
+        let mut failed = blank.clone();
+        failed.tab_id = "f".into();
+        failed.status = "failed".into();
+        assert!(matches!(
+            failing.offer(failed, now, true),
+            Offer::Commit { requested: true, .. }
+        ));
 
         // Invariant: Switching to an existing tab is not delayed by a blank body.
         let mut switch = ViewModel::new(Some("a".into()));

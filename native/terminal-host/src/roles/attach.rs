@@ -1859,6 +1859,7 @@ impl Presented {
     }
 
     fn install(&mut self, surface: Surface, effective_status: &str) {
+        let blank = surface_is_blank(&surface);
         let same_child = self.tab_id.as_deref() == Some(surface.tab_id.as_str())
             && self.incarnation == surface.incarnation;
         if !same_child {
@@ -1866,7 +1867,7 @@ impl Presented {
             self.quiet_startup_handoff = false;
         }
         if effective_status == "starting" {
-            if surface_is_blank(&surface) {
+            if blank {
                 self.quiet_startup_handoff =
                     self.quiet_startup_handoff || self.startup_drew_content;
             } else {
@@ -1890,7 +1891,7 @@ impl Presented {
                 structured.geometry_generation
             });
         self.modes = surface.modes.clone();
-        self.cursor = if self.quiet_startup_handoff {
+        self.cursor = if self.quiet_startup_handoff || (effective_status == "failed" && blank) {
             Some(FinalCursor::Hidden)
         } else {
             surface
@@ -4689,6 +4690,13 @@ mod tests {
             assert_eq!(
                 presented.cursor, cursor,
                 "ordinary blank surfaces keep their cursor"
+            );
+
+            presented.install(startup_surface(7, "", structured), "failed");
+            assert_eq!(
+                presented.cursor,
+                Some(FinalCursor::Hidden),
+                "a failed blank surface leaves only the owned failure presentation"
             );
         }
     }

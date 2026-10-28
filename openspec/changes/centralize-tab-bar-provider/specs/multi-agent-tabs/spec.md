@@ -48,6 +48,79 @@ The resident tab bar SHALL own one kind-neutral ordering API over live tabs. A n
 
 ## MODIFIED Requirements
 
+### Requirement: Resident lifecycle mechanics remain invisible
+The resident attach client SHALL keep controller, subscription, and intentional-stop mechanics invisible:
+- Input during automatic transfer SHALL be delivered once after acknowledgement, or refused before any prefix.
+- Pointer motion and focus reports SHALL never consume the input budget of a pending view or cause key or paste input to be refused.
+- The attach client SHALL NOT render an input-delivery notice row such as `Input was not sent; try again.` beneath the strip.
+- Successful create and close SHALL commit only complete final topology states; locally pending presentation SHALL NOT enter the authoritative registry.
+- A user-created Agent SHALL immediately show exactly one selected locally pending chip and an empty transcript with a complete idle ruled editor with a visual block caret and a two-row cwd/model/usage footer in the configured canvas, without loading/preparation text, stale usage, old child surface, or a child cursor. The provisional footer MAY use the last complete Agent's model/context as display-only hints; if unavailable it SHALL use neutral values until the new Agent draws. A registry update arriving before or after `tab.created` SHALL NOT display a second Agent chip beside it. The real chip and child surface SHALL become visible together only with the first nonblank drawn frame; blank child surfaces SHALL remain parked for any duration without exposing a child cursor, while explicit failure or recovery presentation SHALL remain visible.
+- When no tabs remain, the strip SHALL show hoverable `+` and the clock, the body SHALL show the landing, and no cursor SHALL show.
+- A tab switch or creation SHALL repaint the strip and body in place without first clearing the screen.
+
+#### Scenario: Type immediately after switching
+- **WHEN** the user switches tabs and immediately types, pastes, or clicks the child surface before controller acknowledgement
+- **THEN** the input SHALL reach the new tab exactly once after ownership is acknowledged
+- **AND** no read-only notice or takeover prompt SHALL appear
+
+#### Scenario: Move the pointer while a new Agent starts
+- **WHEN** the user chooses `+ Agent`, moves the pointer across the body many times, and types before the new Agent has drawn
+- **THEN** every typed key SHALL reach the new Agent exactly once after it becomes input-ready
+- **AND** no `Input was not sent` or other notice row SHALL appear
+
+#### Scenario: Close an Agent normally
+- **WHEN** an idle or confirmed-busy Agent tab is intentionally closed
+- **THEN** its chip SHALL disappear once without displaying `✗`, `X`, `read-only-viewer`, or its retained body as a failed surface
+
+#### Scenario: Close the last tab
+- **WHEN** the final Agent or Settings tab closes
+- **THEN** A1 SHALL clear the prior surface once and render `+`, the strip clock, and the landing
+- **AND** no notice background, child cursor, stale cell, or child text SHALL remain
+
+#### Scenario: Switch or create without a blank strip
+- **WHEN** the viewed tab changes to another tab or a newly created tab
+- **THEN** no presented frame SHALL clear the screen or blank tab names before the new tab's content is painted
+
+#### Scenario: Create a tab normally
+- **WHEN** the user requests a new Agent from a tab or landing
+- **THEN** the first paint SHALL show a single pending Agent chip and an empty transcript, ruled prompt with a visual caret, and full two-row footer without the previous child content, loading text, child cursor, or a clear-only frame
+- **AND** the first input-ready complete surface SHALL replace them together with the real chip, body, and editor without an intermediate duplicate chip; during truecolor chip fill the displayed provisional footer SHALL stay steady until the latest real Agent footer is revealed at fill completion
+
+#### Scenario: Pending footer matches the committed Agent UI
+- **WHEN** an Agent is created while an existing Agent has a complete footer
+- **THEN** the provisional footer SHALL preserve the real footer's left and right gutters and styled model/context presentation while resetting the new tab's usage to zero, but its path SHALL show only the new Agent's launch cwd without replaying another Agent's branch or PR link
+- **AND** no previous prompt, conversation text, branch, or PR link SHALL leak into the provisional body
+- **AND** the new Agent's real footer SHALL add its resolved branch and PR together after repository metadata refresh; before that, its plain cwd SHALL stay visible without blocking the body or input
+- **WHEN** no complete Agent footer exists
+- **THEN** the same owned footer layout SHALL show neutral model/context values without claiming unseen session metadata
+
+#### Scenario: A registry list precedes the create acknowledgement
+- **WHEN** the server publishes the new Agent in a registry list before `tab.created` or before the Agent's first complete surface
+- **THEN** only the selected pending Agent chip SHALL appear beside the previously existing tabs
+- **AND** the real Agent chip SHALL replace it, never appear beside it or blink out later
+
+#### Scenario: Accent-aware pending chip fills into the real Agent
+- **WHEN** the user creates an Agent with any supported accent scheme, including the default purple
+- **THEN** its selected provisional chip SHALL use a lighter shade derived from that accent, and the real chip and body SHALL replace the preview together on the first complete frame
+- **AND** the real chip's background SHALL fill from left to right from that initializing shade into its configured normal selected shade without moving its title or hit target, then settle fully to the selected shade
+- **AND** the child body and input SHALL NOT wait for this chip-only animation, no scheme SHALL fall back to blue, and closing or switching during the fill SHALL NOT leave a stale active chip
+
+#### Scenario: The real footer appears after the chip fills
+- **WHEN** a pending Agent commits its first complete frame and the selected chip begins its truecolor fill
+- **THEN** the already visible plain cwd path and provisional status row SHALL remain stable while the real body and editor update
+- **AND** the latest real footer SHALL appear in one paint when the chip reaches its active shade, without briefly showing intermediate Agent status or inherited usage
+- **AND** cancel, tab switch, or resize SHALL discard the held footer; without truecolor animation the real footer SHALL appear immediately
+
+#### Scenario: Close before Agent startup completes
+- **WHEN** the user invokes the close shortcut or closes the provisional chip from its context menu before the Agent's first frame
+- **THEN** the pending chip and shell SHALL disappear immediately, the previous view or landing SHALL return, and A1 SHALL remain attached even when no other Agent is running; queued input for that creation SHALL be discarded
+- **AND** the server SHALL cancel that exact creation before starting a holder when possible, or stop its holder and child if already launched
+- **AND** a late create acknowledgement, registry list, or child frame SHALL NOT reveal a ghost Agent or close an unrelated new tab
+
+#### Scenario: Creation is refused
+- **WHEN** a pending Agent creation fails before a tab is registered
+- **THEN** its pending chip and body SHALL disappear, the prior coherent view or landing SHALL return with an actionable notice, and buffered input SHALL NOT reach the prior Agent
+
 ### Requirement: Tabs open at once and only a resize fades
 
 The attach client SHALL present one locally pending new Agent chip and an empty transcript and complete idle editor/footer with a visual caret but no child cursor on the first paint after a user create action, without awaiting process startup; its complete real surface SHALL replace the pending presentation as soon as its first nonblank drawn frame commits, without a fade. Blank child surfaces SHALL remain parked for any duration and SHALL NOT replace the pending Agent presentation or expose a child cursor merely because a first-draw timer elapsed. Revealed Settings and Changelog tabs SHALL retain the current content until their first nonblank drawn frame commits. An explicit create refusal, failed surface, holder loss, child exit, restart, or recovery outcome SHALL continue through its existing owned presentation rather than remain hidden behind the first-draw gate. Only a resize reveal SHALL fade: once its curtain lifts the whole frame, the strip included, SHALL draw faint for one fade interval and then at full intensity, with no cursor shown during the fade. A starting tab's chip SHALL show no spinner. One tab SHALL open at a time: while a tab this client asked for is still starting or not yet shown, a new-Agent shortcut, `+` click, or menu entry SHALL start nothing.

@@ -858,7 +858,7 @@ setInterval(() => {}, 1000);
 }
 
 #[test]
-fn closing_a_registered_agent_before_first_draw_stops_its_child_without_a_ghost() {
+fn a_registered_agent_keeps_its_preview_past_the_old_wait_and_closes_without_a_ghost() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
     let profile = directory(root.path(), "profile");
@@ -880,6 +880,7 @@ setInterval(() => {}, 1000);
     let mut cleanup = Cleanup { credentials_root: credentials_root.clone(), pids: server_pids(&credentials_root) };
     let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
     assert!(attach.output_containing("fake-a1-ready", Duration::from_secs(20)));
+    let opening = attach.retained_len();
     attach.write(b"\x1ba");
     let deadline = Instant::now() + Duration::from_secs(10);
     let (new_id, holder_pid) = loop {
@@ -892,6 +893,15 @@ setInterval(() => {}, 1000);
         assert!(Instant::now() < deadline, "new Agent holder was never registered");
         std::thread::sleep(Duration::from_millis(20));
     };
+    attach.settle(Duration::from_millis(2500));
+    let delayed = latest_cleared_frame(&attach.output_since(opening)).expect("pending frame");
+    assert!(
+        delayed.contains("Agent") && delayed.contains("no-model") && has_visual_caret(delayed),
+        "the complete Agent preview did not survive blank child frames: {}",
+        attach.output_text()
+    );
+    assert!(!delayed.contains("\x1b[?25h"), "a blank child cursor became visible");
+    assert!(!attach.output_since(opening).contains("late-ready"));
     let before_close = attach.retained_len();
     attach.write(b"\x1bw");
     let deadline = Instant::now() + Duration::from_secs(12);
