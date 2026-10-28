@@ -18,7 +18,7 @@ The maintainer integration decision accepts these scenarios:
   "acceptanceScenarios": [
     "The 2026-10-28 Full regression failure on develop is repaired, and its failed lanes pass on the fix head without weakened assertions, budgets, timeouts, or coverage."
   ],
-  "archiveDigest": "394e0361d33d61e07299e7b2e52155907b51d0d12fc9be8db3b75020fe1e9708",
+  "archiveDigest": "b4ff21413bc18c09ecf8867bdbda530ae19fc5d474ff2bae259e0793d14e6c38",
   "specDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "tasksDigest": "dacb79ced8b85e6c12ef4b817ebfed7ec3341c9366b58a915451322ae24039fd",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
