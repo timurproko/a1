@@ -90,11 +90,17 @@
 - `src/integrations/pi/engine/workflow-runner.ts` returns a completed silent result for missing or empty last assistant text before invoking any clipboard writer. The shared workflow output suppresses silent results for both the general no-selection copy shortcut and `/copy`; nonempty copy retains its success acknowledgement.
 - Workflow-runner regressions cover undefined and empty text, writer non-invocation, and a subsequent successful copy. A shell integration regression confirms the empty shortcut and explicit workflow leave the rendered frame unchanged.
 
+## Steady selection during asynchronous paste
+
+- `src/integrations/pi/components/owned-editor-ux.ts` keeps the existing hidden semantic paste reservation, but temporarily projects the original editor lines, caret, and blue selection for painting while the reserved draft is unchanged. Settling replaces the marker directly; new input, pointer activity, cancellation, or changed selection stops the preview. A pointer event invalidates preview geometry rather than mapping a click onto a hidden semantic marker; exceptional paints restore semantic editor state in `finally`.
+- Focused tests for both ordinary and history editors cover double-clicked word replacement, multiline selection, pending edits, empty restoration, undo, hidden unselected markers, and render exceptions. A shell-level slow clipboard read preserves the selected prompt row until replacement. The owned startup-graph source-byte cap was re-pinned from 1,862,104 to the measured 1,864,409 for the additional editor presentation logic; size-ratchet class counts and thresholds were not raised.
+
 ## Local checks
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the direct-resize change and prior-CI repairs.
 - `npx vitest run test/app/session-shell/session-viewport-controller.test.ts` passed with 72 tests after the comment-only repair.
 - `npx vitest run test/integrations/pi/engine/workflow-runner.test.ts` passed with 11 workflow tests; a focused shell selection run passed the empty-copy shortcut and workflow regression. `npm run typecheck` and strict OpenSpec validation passed after this refinement.
+- `npx vitest run test/integrations/pi/components/editor-paste-presentation.test.ts` passed with 14 editor presentation tests, and focused shell coverage passed the slow selected-word paste test. `npm run typecheck` and strict OpenSpec validation passed after the paste-preview refinement.
 - `npm run typecheck`, `npm run check:architecture`, `npm run check:docs-governance`, and `npx openspec validate centralize-tab-bar-provider --strict` passed for the direct-resize refinement.
 
 - `TERMINAL_HOST_LOCAL_BUILD=1 TERMINAL_HOST_CONTRACTS_ONLY=1 cargo check --tests` passed after the blank-first-frame refinement.

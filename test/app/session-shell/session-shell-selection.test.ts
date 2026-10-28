@@ -465,6 +465,31 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     } finally { await shell.dispose(); }
   });
 
+  it("keeps a selected prompt word visible until a slow clipboard paste replaces it", async () => {
+    let finishRead!: (value: string) => void;
+    const pendingRead = new Promise<string>(resolve => { finishRead = resolve; });
+    const { shell, terminal } = await fixture([], [], true, undefined, { readText: () => pendingRead });
+    try {
+      terminal.resize(60, 12);
+      shell.root.editor.setText("goiq middle goiq");
+      shell.runtime.renderNow();
+      const rows = shell.root.render(60).map(stripTerminalSequences);
+      const inputRow = rows.findIndex(row => row.includes("goiq middle goiq")) + 1;
+      const column = rows[inputRow - 1]!.indexOf("middle") + 2;
+      for (let click = 0; click < 2; click += 1) {
+        terminal.input(`\u001b[<0;${column};${inputRow}M\u001b[<0;${column};${inputRow}m`);
+      }
+      expect(shell.root.editor.selectedText?.()).toBe("middle");
+      const selected = shell.root.render(60).map(stripTerminalSequences);
+      terminal.input("\u0016");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toContain("[📷 screenshot-"));
+      expect(shell.root.render(60).map(stripTerminalSequences)).toEqual(selected);
+      finishRead("new");
+      await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("goiq new goiq"));
+      expect(shell.root.render(60).map(stripTerminalSequences).join("\n")).toContain("goiq new goiq");
+    } finally { finishRead("new"); await shell.dispose(); }
+  });
+
   it("copies and cuts pointer-dragged prompt text without last-message fallback", async () => {
     const copied: string[] = [];
     const { shell, terminal } = await fixture([], [], true, undefined, {
