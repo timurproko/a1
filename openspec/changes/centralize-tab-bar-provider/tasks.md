@@ -29,3 +29,9 @@
 - [x] 5.1 Add one shared component that dims an existing frame and centers a width-bounded floating panel while preserving ANSI styles, exact terminal dimensions, and compact layouts.
 - [x] 5.2 Route Warnings, generic structured settings, both Thinking Level steps, and the TypeScript Plus Menu fallback through the centered configure frame without changing their editing, undo, search, or persistence behavior.
 - [x] 5.3 Add focused component and Settings regressions for backdrop dimming, panel background and centering, shared shortcut roles, adaptive row windows, narrow terminals, and future structured-setting reuse; record the implementation evidence.
+
+## 6. Changelog text selection
+
+- [ ] 6.1 Add Changelog-only reference-screen selection state and semantic painting for drag, word, and line selection while preserving scrolling, scrollbar ownership, resize behavior, and exact frame dimensions.
+- [ ] 6.2 Route selection release through the live `Copy on select` value, and make `Ctrl+C` explicitly copy and clear an active selection before the existing standalone-close or resident interrupt behavior.
+- [ ] 6.3 Add focused reference-screen, route-host, and resident utility-tab regressions for automatic and explicit copy, disabled automatic copy, no-selection interrupt behavior, ANSI-safe extraction, and compact/scrolling interaction; record implementation evidence.

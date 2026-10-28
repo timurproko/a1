@@ -8,6 +8,8 @@ The native Commands and Plus Menu dialogs also build their shortcut footers as o
 
 Settings has a related configure-surface mismatch. Plus Menu opens as a centered floating modal over a dimmed Settings screen, while Warnings, both Thinking Level steps, and generic structured settings replace the footer with a full-width docked panel. Configure actions should share one centered modal frame so current and future structured settings read as the same interaction.
 
+The owned Changelog and startup `What's New` reference screens are read-only but currently consume document pointer input without offering text selection. Readers should be able to select release-note text with the same automatic-copy setting and explicit `Ctrl+C` fallback as the owned session frame, without weakening the resident tab's interrupt chord when no selection exists.
+
 ## What Changes
 
 - Introduce one native tab-bar provider contract that declares every tab kind and its label, shortcut action, multiplicity, activation behavior, prewarming, renameability, session ownership, route, and menu marker.
@@ -17,6 +19,7 @@ Settings has a related configure-surface mismatch. Plus Menu opens as a centered
 - Treat editor-owned prompt word and line selection like an editable text field: retain the selected range without automatic clipboard submission, let paste replace it from the existing clipboard, and keep explicit `Ctrl+C` and cut behavior unchanged. Complete-frame transcript, prompt-row, application-message, and status selections continue to honor `Copy on select`.
 - Add one reusable native shortcut-hint component for semantic key-and-action entries. Commands, Plus Menu, and future native tab dialogs use its display casing, separate gray roles, two-space entry gaps, separator-free text, and width-safe clipping.
 - Add one shared centered configure-modal frame for owned Settings. Warnings, both Thinking Level steps, fallback Plus Menu, generic structured settings, and future object-valued settings render in that frame over a dimmed Settings backdrop while preserving their existing controls and state.
+- Add owned text selection to the Changelog and `What's New` reference screens. Mouse selection paints through the shared semantic selection role, `Copy on select` controls automatic clipboard submission on release, and `Ctrl+C` explicitly copies and clears an active selection before existing close or interrupt behavior applies.
 
 ## Capabilities
 
@@ -30,6 +33,8 @@ Settings has a related configure-surface mismatch. Plus Menu opens as a centered
 - `session-frame-selection`: distinguish editor-owned prompt selection from complete-frame copy-on-select so prompt replacement does not overwrite its paste source.
 - `owned-ui-settings`: present every configure workflow through the centered modal interaction used by Plus Menu.
 - `ui-components`: replace the docked structured-value panel with a reusable centered modal overlay and dimmed backdrop.
+- `ui-apps`: make Changelog reference documents selectable while preserving their scrolling and screen lifecycle.
+- `pi-settings-runtime`: apply the live fullscreen copy-on-select value to Changelog selection as another owned fullscreen selection surface.
 
 ## Impact
 
@@ -37,5 +42,6 @@ Settings has a related configure-surface mismatch. Plus Menu opens as a centered
 - **Native server:** kind recognition, singleton reservation, registry validation, session ownership, bridge routes, creation/reveal ordering, and tests.
 - **Owned session shell:** prompt pointer-selection release, clipboard routing, and focused replacement-paste tests.
 - **Owned Settings and UI components:** centered structured-dialog geometry, dimmed backdrop composition, compact/narrow clipping, and Warnings, Thinking Level, and fallback Plus Menu regressions.
+- **Owned reference screens:** Changelog selection state, semantic painting, clipboard callbacks, live copy-on-select reads, explicit-copy precedence, and resident utility-tab coverage.
 - **Architecture:** the resident-tab design records the tab bar as the single owner of tab-kind behavior.
 - **Protocols and dependencies:** existing wire messages remain compatible; no dependency is added.

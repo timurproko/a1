@@ -12,6 +12,8 @@ Native tab dialogs have also bypassed the owned shortcut-hint grammar. The Comma
 
 Owned Settings currently has two configure presentations. Resident Plus Menu is a centered floating surface over a dimmed screen, but Warnings, the Thinking Level selector, and generic structured values are rendered as a full-width panel docked at the bottom. The setting declaration should choose content and behavior, not a different frame style.
 
+The shared reference-screen app currently owns scrolling and scrollbar pointer input but treats every other document pointer report as consumed navigation chrome. Changelog and startup release-note rows therefore cannot use the owned selection and clipboard behavior already available in the session frame. The resident Changelog tab also reserves `Ctrl+C` for its two-press exit chord, so explicit copy must take precedence only while a selection exists.
+
 ## Decisions
 
 ### 1. One tab-kind provider
@@ -81,6 +83,14 @@ Warnings and generic object-valued settings keep their title, selected-part desc
 
 The overlay owns presentation only. Existing structured-setting keyboard and pointer policy, backend writes, undo history, search state, and list scroll state remain unchanged, and adding another structured setting automatically receives the shared frame without a dialog-specific branch.
 
+### 9. Changelog reference screens own selectable document text
+
+Enable selection only for Changelog-route documents, including startup `What's New`; Hotkeys and Session Info retain their current pointer behavior. The reference screen stores an ordered text selection against stable document-row indexes, paints visible selected cells through the theme's selection background, and keeps the selection anchored while keyboard, wheel, or scrollbar scrolling changes the visible window. Drag selection, double-click word selection, and triple-click line selection use the shared text-selection primitives and ANSI-aware cell coordinates.
+
+On selection release, the screen reads the live `fullscreenCopyOnSelect` value. When enabled, it submits normalized plain text through the route host's existing bounded clipboard callback; when disabled, it retains the painted selection without touching the clipboard. `Ctrl+C` with a nonempty selection always copies explicitly, clears the selection, and consumes the interrupt. With no selection, input falls through unchanged: standalone Changelog keeps its host-close behavior and a pinned resident Changelog keeps its two-press application exit chord.
+
+Selection extraction excludes frame rules, footer hints, scrollbar cells, ANSI styling, and terminal padding while preserving selected line breaks and the release-note text visible at the selected columns. A non-selection key clears the retained selection before applying the existing screen action. Pointer ownership continues to give the scrollbar rail precedence, and selection drags may extend across visible document rows without activating content behind the screen.
+
 ## Risks
 
 - Broadly replacing utility checks can accidentally allow a singleton tab to own Agent session metadata or become renameable. Provider-policy tests cover every registered kind and server tests cover those capability boundaries.
@@ -91,3 +101,5 @@ The overlay owns presentation only. Existing structured-setting keyboard and poi
 - A shared native renderer can accidentally count ANSI bytes as visible cells or split a wide grapheme. Component tests cover plain text, semantic color boundaries, truecolor and 256-color modes, separator removal, and narrow clipping before the palette integration assertions.
 - A centered Settings overlay can leak faint styling into the modal or clear dimming after the panel. ANSI-aware component tests cover intensity restoration, panel-width filling, tail-style replay, centering, and exact frame dimensions.
 - A fixed model window can push Thinking Level guidance off a short terminal. The selector computes its visible model rows from the modal's available height and retains selection-relative windowing.
+- Changelog selection can conflict with rail dragging or the resident interrupt chord. Pointer tests cover rail precedence, and input tests prove `Ctrl+C` copies only when a selection exists before restoring the host's established no-selection behavior.
+- Styled Markdown and hyperlink rows can make byte offsets diverge from terminal cells. Selection and extraction use shared ANSI-aware text primitives and regressions cover wrapped, styled, multi-row, word, and line selections.
