@@ -74,6 +74,6 @@
 
 ## 13. Thresholded focus-aware resize curtain
 
-- [ ] 13.1 Delay the resize curtain for 120 milliseconds while continuing to forward every geometry change immediately, and bypass the curtain when a coherent latest-generation frame arrives during that threshold.
-- [ ] 13.2 Preserve the first threshold across prolonged focused resize reports, retarget settle and recovery to the latest geometry, and retain the existing whole-frame fade only after a shown curtain lifts.
-- [ ] 13.3 Suppress and cancel resize curtains while the outer terminal tab is unfocused, repaint coherently on focus return, and add focused regressions for quick snap, prolonged resize, repeated geometry, and terminal-tab switching; record implementation evidence.
+- [x] 13.1 Delay the resize curtain for 120 milliseconds while continuing to forward every geometry change immediately, and bypass the curtain when a coherent latest-generation frame arrives during that threshold.
+- [x] 13.2 Preserve the first threshold across prolonged focused resize reports, retarget settle and recovery to the latest geometry, and retain the existing whole-frame fade only after a shown curtain lifts.
+- [x] 13.3 Suppress and cancel resize curtains while the outer terminal tab is unfocused, repaint coherently on focus return, and add focused regressions for quick snap, prolonged resize, repeated geometry, and terminal-tab switching; record implementation evidence.

@@ -308,11 +308,11 @@ export class SessionViewportController {
       pasteRequest = this.#nextPasteDiagnosticRequest();
       this.#emitPasteRoute(pasteRequest, "shortcut-received");
     }
-    // Keep bare A1 aliases active before the editor handles input.
+    // Invariant: activate A1 aliases before editor input.
     if (editorActive) this.#editor.activateKeybindings();
     // Protocol: bracketed paste is opaque input, even if its text resembles mouse reports.
     if (data.startsWith("\u001b[200~")) return { data, consumed: false };
-    // Windows terminals may forward Ctrl+V or terminal-owned paste.
+    // Platform: Windows terminals may forward Ctrl+V or terminal-owned paste.
     if (editorActive && this.#editor.matchesTerminalKey(data, "ctrl+v")) {
       pasteRequest ??= this.#nextPasteDiagnosticRequest();
       if (data !== "\u0016") this.#emitPasteRoute(pasteRequest, "shortcut-received");
@@ -327,7 +327,7 @@ export class SessionViewportController {
       this.#requestHyperlinkCleanup();
       this.#requestRender();
     }
-    // Viewport shortcuts never reach the prompt; plain Home/End do.
+    // Invariant: viewport shortcuts skip the prompt; Home/End do not.
     if (editorActive && allowWheel && this.#editor.matchesTerminalKey(data, "ctrl+home")) {
       if (this.#viewport.scrollTo(0, now)) {
         this.#scheduleActivityExpiry();
@@ -355,7 +355,7 @@ export class SessionViewportController {
       });
     }
     if ((data === "\u0003" || data === "\u0018") && this.#viewport.hasSelection) {
-      // The newest frame selection wins over an older editor selection.
+      // Invariant: the newest frame selection wins over an older editor selection.
       const copySelection = this.#viewport.captureSelectedText();
       this.#viewport.clearSelection();
       this.#stopSelectionAutoScroll();
@@ -388,7 +388,7 @@ export class SessionViewportController {
       const hits = frame.hits;
       const overModal = this.#modalAt(event.column, event.row);
       const wheel = event.kind === "wheel-up" || event.kind === "wheel-down";
-      // Latch each gesture to one surface.
+      // Invariant: latch each gesture to one surface.
       if (this.#pointerOwner === "drain" || !this.inputGeometryReady) {
         if (event.kind === "release") this.#pointerOwner = undefined;
         else if (event.kind === "press") this.#pointerOwner = "drain";
@@ -423,7 +423,7 @@ export class SessionViewportController {
       const wasOverBottom = hits.bottom !== null && previousPointer !== undefined
         && previousPointer.row === hits.bottom.row
         && previousPointer.column >= hits.bottom.columnStart && previousPointer.column <= hits.bottom.columnEnd;
-      // Every report updates the pointer position.
+      // Invariant: every report updates the pointer position.
       this.#pointerPosition = { column: event.column, row: event.row };
       repaint ||= wasOverBottom !== overBottom;
       const wasOverTailControl = tailControl !== undefined && previousPointer !== undefined
@@ -547,8 +547,7 @@ export class SessionViewportController {
         }
         if (event.row >= 1 && event.row <= frame.rows.length && event.column <= frame.descriptor.width) {
           if (editorFrame !== undefined && event.row >= editorFrame.rowStart && event.row <= editorFrame.rowEnd) {
-            // No-drag clicks remain editor-owned.
-            // First motion latches an editor drag.
+            // Invariant: no-drag clicks remain editor-owned; first motion latches an editor drag.
             this.#pendingEditorClick = { column: event.column, row: event.row };
           } else {
             this.#viewport.pressSelection(event.column, event.row, now);

@@ -894,7 +894,8 @@ setInterval(() => {}, 1000);
         std::thread::sleep(Duration::from_millis(20));
     };
     attach.settle(Duration::from_millis(2500));
-    let delayed = latest_cleared_frame(&attach.output_since(opening)).expect("pending frame");
+    let since_opening = attach.output_since(opening);
+    let delayed = latest_cleared_frame(&since_opening).expect("pending frame");
     assert!(
         delayed.contains("Agent") && delayed.contains("no-model") && has_visual_caret(delayed),
         "the complete Agent preview did not survive blank child frames: {}",
