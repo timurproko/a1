@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   UPDATE_CHECK_INTERVAL_MS,
+  NOTIFY_CHECK_INTERVAL_MS,
   availableRelease,
   checkForNewerRelease,
   distTagsUrl,
@@ -118,7 +119,7 @@ describe("startup release check", () => {
 
     expect(harness.urls).toEqual(["https://registry.npmjs.org/-/package/%40timurproko%2Fa1/dist-tags"]);
     expect(JSON.parse(await readFile(join(harness.configDir, "update-check.json"), "utf8")))
-      .toEqual({ version: 1, channel: "stable", latest: "0.3.1", checkedAt: NOW });
+      .toEqual({ version: 2, stable: { latest: "0.3.1", checkedAt: NOW } });
     expect(await readdir(harness.configDir)).toEqual(["update-check.json"]);
   });
 
@@ -144,10 +145,10 @@ describe("startup release check", () => {
   });
 
   it.each([
-    ["stale", { version: 1, channel: "stable", latest: "0.3.5", checkedAt: NOW - UPDATE_CHECK_INTERVAL_MS }],
+    ["stale", { version: 1, channel: "stable", latest: "0.3.5", checkedAt: NOW - NOTIFY_CHECK_INTERVAL_MS }],
     ["future", { version: 1, channel: "stable", latest: "0.3.5", checkedAt: NOW + 60_000 }],
     ["other-channel", { version: 1, channel: "development", latest: "0.3.5-dev.1", checkedAt: NOW }],
-    ["unknown-version", { version: 2, channel: "stable", latest: "0.3.5", checkedAt: NOW }],
+    ["unknown-version", { version: 3, channel: "stable", latest: "0.3.5", checkedAt: NOW }],
     ["malformed", "{not json"],
   ])("queries the registry instead of using a %s cache", async (_label, cache) => {
     const harness = await createHarness({ runningVersion: "0.3.0" });
@@ -163,11 +164,63 @@ describe("startup release check", () => {
     ["malformed data", async () => ({ ok: true, status: 200, text: async () => "{\"latest\":\"newest\"}" })],
   ] as const)("stays silent and keeps the previous cache on %s", async (_label, fetcher) => {
     const harness = await createHarness({ runningVersion: "0.3.0", fetcher: fetcher as RegistryFetcher });
-    const previous = JSON.stringify({ version: 1, channel: "stable", latest: "0.3.5", checkedAt: NOW - UPDATE_CHECK_INTERVAL_MS - 1 });
+    const previous = JSON.stringify({ version: 1, channel: "stable", latest: "0.3.5", checkedAt: NOW - NOTIFY_CHECK_INTERVAL_MS - 1 });
     await writeFile(join(harness.configDir, "update-check.json"), previous);
 
     await expect(checkForNewerRelease(harness.options)).resolves.toBeNull();
     expect(await readFile(join(harness.configDir, "update-check.json"), "utf8")).toBe(previous);
+  });
+
+  it("refreshes Auto after publication without restarting and preserves the other channel", async () => {
+    const harness = await createHarness({ runningVersion: "0.3.1-dev.640", settingMode: "auto" });
+    let clock = NOW;
+    let next = "0.3.1-dev.640";
+    const fetcher: RegistryFetcher = async () => ({ ok: true, status: 200,
+      text: async () => JSON.stringify({ latest: "0.3.0", next }) });
+    const options = { ...harness.options, now: () => clock, fetcher };
+    expect(await checkForNewerRelease(options)).toBeNull();
+    next = "0.3.1-dev.652";
+    clock += UPDATE_CHECK_INTERVAL_MS - 1;
+    expect(await checkForNewerRelease(options)).toBeNull();
+    clock += 1;
+    expect(await checkForNewerRelease(options)).toMatchObject({ version: next, channel: "development" });
+    expect(JSON.parse(await readFile(join(harness.configDir, "update-check.json"), "utf8")))
+      .toEqual({ version: 2, development: { latest: next, checkedAt: clock } });
+    const stable = { ...options, runningVersion: "0.2.0" };
+    expect(await checkForNewerRelease(stable)).toMatchObject({ version: "0.3.0", channel: "stable" });
+    expect(JSON.parse(await readFile(join(harness.configDir, "update-check.json"), "utf8")))
+      .toEqual({ version: 2, stable: { latest: "0.3.0", checkedAt: clock }, development: { latest: next, checkedAt: clock } });
+  });
+
+  it("schedules the next Auto probe at cache expiry instead of another full interval", async () => {
+    const harness = await createHarness({ settingMode: "auto" });
+    await writeFile(join(harness.configDir, "update-check.json"), JSON.stringify({ version: 1, channel: "stable",
+      latest: "0.3.1", checkedAt: NOW - UPDATE_CHECK_INTERVAL_MS + 1_000 }));
+    let delay: number | undefined;
+    expect(await checkForNewerRelease({ ...harness.options, onNextCheckDelay: value => { delay = value; } }))
+      .toMatchObject({ version: "0.3.1" });
+    expect(delay).toBe(1_000);
+    expect(harness.urls).toEqual([]);
+  });
+
+  it("does not publish a fetched result after the session is disposed", async () => {
+    const harness = await createHarness({ settingMode: "auto" });
+    const controller = new AbortController();
+    const fetcher: RegistryFetcher = async () => {
+      controller.abort();
+      return { ok: true, status: 200, text: async () => JSON.stringify({ latest: "0.3.1", next: "0.3.1-dev.652" }) };
+    };
+    expect(await checkForNewerRelease({ ...harness.options, fetcher, signal: controller.signal })).toBeNull();
+    await expect(readFile(join(harness.configDir, "update-check.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("serializes concurrent stale refreshes and keeps Notify on the 24-hour window", async () => {
+    const harness = await createHarness({ settingMode: "auto" });
+    await Promise.all(Array.from({ length: 6 }, () => checkForNewerRelease(harness.options)));
+    expect(harness.urls).toHaveLength(1);
+    const notify = { ...harness.options, settingMode: "notify" as const, now: () => NOW + UPDATE_CHECK_INTERVAL_MS };
+    expect(await checkForNewerRelease(notify)).toMatchObject({ version: "0.3.1" });
+    expect(harness.urls).toHaveLength(1);
   });
 
   it("uses npm_config_registry for the startup query", async () => {

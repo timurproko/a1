@@ -415,17 +415,34 @@ function createStartupReleaseUpdateObservation(input: StartupReleaseUpdateObserv
   stop(): void;
 } {
   const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let announcedVersion: string | null = null;
+  let eligible = input.mode === "auto";
+  let cadence: number | null = null;
+  let nextDelay: number | null = null;
+  let started = false;
   const observe = async (): Promise<void> => {
-    const check = input.checkForNewerRelease
-      ?? (await import("../foundation/release/latest-release.js")).checkForNewerRelease;
+    // Performance: registry code and its locks stay outside the first-frame startup graph.
+    const releases = await import("../foundation/release/latest-release.js");
+    cadence = releases.UPDATE_CHECK_INTERVAL_MS;
+    nextDelay = cadence;
+    const check = input.checkForNewerRelease ?? releases.checkForNewerRelease;
     const runningVersion = input.packageVersion ?? await readPackageVersion();
     const discoveryVersion = input.mode === "notify" ? input.notificationVersion ?? runningVersion : runningVersion;
-    const release = await check({
+    const options: StartupReleaseCheckOptions = {
       runningVersion: discoveryVersion,
       configDir: input.configDir,
       interactive: process.stdout.isTTY === true,
       settingMode: input.mode,
-    });
+      signal: controller.signal,
+      onNextCheckDelay: milliseconds => { nextDelay = milliseconds; },
+    };
+    // Invariant: opt-outs never arm a recurring timer, nor read the cache or probe the registry.
+    if (input.checkForNewerRelease === undefined && releases.startupReleaseCheckSkipReason(options) !== null) {
+      eligible = false;
+      return;
+    }
+    const release = await check(options);
     if (release === null || controller.signal.aborted) return;
     if (input.mode === "notify") {
       input.backend.extensions.announceReleaseUpdate(release);
@@ -434,14 +451,22 @@ function createStartupReleaseUpdateObservation(input: StartupReleaseUpdateObserv
     if (input.mode === "auto") {
       const installed = await import("../foundation/release/automatic-update.js")
         .then(module => module.requestAutomaticUpdate({ release, runningVersion, signal: controller.signal }));
-      if (installed !== null && !controller.signal.aborted) {
+      if (installed !== null && installed !== announcedVersion && !controller.signal.aborted) {
+        announcedVersion = installed;
         input.backend.extensions.announceReleaseUpdate({ status: "installed", version: installed });
       }
     }
   };
+  const run = async (): Promise<void> => {
+    try { await observe(); } catch { /* Rationale: best effort; retry on the next interval. */ }
+    if (eligible && cadence !== null && !controller.signal.aborted) {
+      timer = setTimeout(() => { void run(); }, nextDelay ?? cadence);
+      timer.unref?.();
+    }
+  };
   return {
-    start() { void observe().catch(() => undefined); },
-    stop() { controller.abort(); },
+    start() { if (started || controller.signal.aborted) return; started = true; void run(); },
+    stop() { controller.abort(); if (timer !== undefined) clearTimeout(timer); },
   };
 }
 

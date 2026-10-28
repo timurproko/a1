@@ -9,7 +9,8 @@ import { CohortStateStore, type CohortState } from "./cohort-state.js";
 import { processIsAlive } from "./process-cleanup.js";
 import { isNewerRelease, releaseChannelOf, type AvailableRelease, type ReleaseChannel } from "./latest-release.js";
 import { readCertifiedReleaseManifest, resolveReleaseEntryPoint } from "./release-store.js";
-import { readUpdateExecutionOwner } from "./update-execution-lease.js";
+import { acquireUpdateExecutionLease, readUpdateExecutionOwner } from "./update-execution-lease.js";
+import { UpdateTransactionStore } from "./update-transaction.js";
 import { runSelfUpdate, UPDATE_ALREADY_RUNNING_EXIT_CODE, type UpdateOutput } from "./update.js";
 
 export const AUTOMATIC_UPDATE_STATE_SCHEMA = 1;
@@ -87,9 +88,27 @@ export async function requestAutomaticUpdate(options: AutomaticUpdateRequestOpti
   try { existing = await store.read(); }
   catch { return null; }
 
-  const readActiveVersion = options.activeVersion ?? (async () => await activeNewerVersion(paths.dataDir, options.runningVersion));
+  const readActiveVersion = options.activeVersion ?? (async () => await activeNewerVersion(paths.dataDir, options.runningVersion, options.release));
   const active = await readActiveVersion();
   if (active !== null) return active;
+  let owner: Awaited<ReturnType<typeof readUpdateExecutionOwner>>;
+  try { owner = await readUpdateExecutionOwner(paths.dataDir); }
+  catch { return null; }
+  let transaction: Awaited<ReturnType<UpdateTransactionStore["read"]>>;
+  try { transaction = await new UpdateTransactionStore(paths.dataDir).read(); }
+  catch { return null; }
+  // Invariant: recovery of a foreign in-progress transaction belongs to its own owner.
+  if (transaction?.status === "active" && (transaction.targetVersion !== options.release.version
+    || transaction.channel !== (options.release.channel === "stable" ? "stable" : "next"))) return null;
+  if (existing?.status === "running" && now() - existing.updatedAt >= WORKER_START_GRACE_MS
+    && (owner === null || !processIsAlive(owner.pid))) {
+    // Invariant: a coordinator record is not ownership. Settle only when no transaction
+    // remains to recover; never overwrite or roll back a foreign in-progress target.
+    if (transaction === null) {
+      existing = { ...existing, status: "failed", updatedAt: now(), failure: "worker-exited" };
+      await store.write(existing).catch(() => undefined);
+    }
+  }
   if (existing?.status === "failed" && existing.channel === options.release.channel && now() - existing.attemptedAt >= 0
     && now() - existing.attemptedAt < AUTOMATIC_UPDATE_RETRY_MS
     && !isNewerRelease(options.release.version, existing.targetVersion)) return null;
@@ -113,11 +132,14 @@ export async function requestAutomaticUpdate(options: AutomaticUpdateRequestOpti
     "--target-version", options.release.version,
     "--data-dir", paths.dataDir,
   ];
-  let owner: Awaited<ReturnType<typeof readUpdateExecutionOwner>>;
-  try { owner = await readUpdateExecutionOwner(paths.dataDir); }
-  catch { return null; }
   if (owner === null || !processIsAlive(owner.pid)) {
-    await (options.spawnWorker ?? spawnAutomaticUpdateWorker)(worker.entry, arguments_, environment).catch(() => undefined);
+    try { await (options.spawnWorker ?? spawnAutomaticUpdateWorker)(worker.entry, arguments_, environment); }
+    catch {
+      // Invariant: no worker began this attempt. Do not invent a successful install or an owner.
+      await store.write(state({ packageRoot: worker.packageRoot, channel: options.release.channel,
+        targetVersion: options.release.version, dataDir: paths.dataDir }, "failed", now(), null, "worker-start-failed")).catch(() => undefined);
+      return null;
+    }
   }
 
   const startedAt = now();
@@ -141,13 +163,21 @@ export async function runAutomaticUpdateWorker(argv: readonly string[], environm
   const parsed = parseWorkerArguments(argv);
   const paths = resolveProductPaths(environment);
   if (!samePath(parsed.dataDir, paths.dataDir)) return 1;
-  const launch = readLaunchContext(environment, "release");
-  const cohort = await new CohortStateStore(paths.dataDir).read();
-  const record = launch.releaseId === undefined ? undefined : cohort.releases[launch.releaseId];
-  if (!record || record.approval !== "approved" || !samePath(record.releaseRoot, launch.releaseRoot ?? "")
-    || record.contentDigest !== launch.releaseDigest) return 1;
-  const selected = await readCertifiedReleaseManifest(record, resolve(paths.dataDir, "releases"));
-  if (!samePath(selected.packageRoot, parsed.packageRoot)) return 1;
+  let verified = false;
+  try {
+    const launch = readLaunchContext(environment, "release");
+    const cohort = await new CohortStateStore(paths.dataDir).read();
+    const record = launch.releaseId === undefined ? undefined : cohort.releases[launch.releaseId];
+    if (record?.approval === "approved" && samePath(record.releaseRoot, launch.releaseRoot ?? "")
+      && record.contentDigest === launch.releaseDigest) {
+      const selected = await readCertifiedReleaseManifest(record, resolve(paths.dataDir, "releases"));
+      verified = samePath(selected.packageRoot, parsed.packageRoot);
+    }
+  } catch { /* Security: invalid provenance fails closed without running the updater. */ }
+  if (!verified) {
+    await recordAutomaticPreflightFailure(parsed, paths.dataDir);
+    return 1;
+  }
   const store = new AutomaticUpdateStateStore(paths.dataDir);
   const attemptedAt = Date.now();
   const output: UpdateOutput = { stdout() {}, stderr() {} };
@@ -170,7 +200,8 @@ export async function runAutomaticUpdateWorker(argv: readonly string[], environm
     if (code === UPDATE_ALREADY_RUNNING_EXIT_CODE) return 0;
     if (code !== 0) {
       await runningWrite;
-      await store.write(state(parsed, "failed", attemptedAt, null, `exit-${code}`));
+      if (acquired) await store.write(state(parsed, "failed", attemptedAt, null, `exit-${code}`));
+      else await recordAutomaticPreflightFailure(parsed, paths.dataDir);
       return code;
     }
     const active = await activeRelease(paths.dataDir);
@@ -179,7 +210,7 @@ export async function runAutomaticUpdateWorker(argv: readonly string[], environm
       if (acquired) {
         await runningWrite;
         await store.write(state(parsed, "failed", attemptedAt, null, "target-not-active"));
-      }
+      } else await recordAutomaticPreflightFailure(parsed, paths.dataDir);
       return 1;
     }
     await runningWrite;
@@ -187,9 +218,26 @@ export async function runAutomaticUpdateWorker(argv: readonly string[], environm
     return 0;
   } catch (error) {
     await runningWrite.catch(() => undefined);
-    await store.write(state(parsed, "failed", attemptedAt, null, errorMessage(error).slice(0, 512))).catch(() => undefined);
+    if (acquired) await store.write(state(parsed, "failed", attemptedAt, null, errorMessage(error).slice(0, 512))).catch(() => undefined);
+    else await recordAutomaticPreflightFailure(parsed, paths.dataDir);
     return 1;
   }
+}
+
+async function recordAutomaticPreflightFailure(parsed: WorkerArguments, dataDir: string): Promise<void> {
+  // Security: even a rejected worker must claim the ordinary update lease before recording
+  // failure, so it cannot overwrite another owner's result or an unfinished transaction.
+  const lease = await acquireUpdateExecutionLease({ dataDir, packageRoot: parsed.packageRoot,
+    channel: parsed.channel === "stable" ? "stable" : "next", targetVersion: parsed.targetVersion, mode: "automatic" }).catch(() => null);
+  if (lease?.status !== "acquired") return;
+  try {
+    if (await new UpdateTransactionStore(dataDir).read() !== null) return;
+    const store = new AutomaticUpdateStateStore(dataDir);
+    const existing = await store.read();
+    if (existing !== null && (existing.targetVersion !== parsed.targetVersion || existing.status === "installed")) return;
+    await store.write(state(parsed, "failed", Date.now(), null, "worker-preflight-failed"));
+  } catch { /* Rationale: preflight failure is best effort; never mask the rejected worker. */ }
+  finally { await lease.release().catch(() => undefined); }
 }
 
 async function spawnAutomaticUpdateWorker(entry: string, arguments_: readonly string[], environment: NodeJS.ProcessEnv): Promise<void> {
@@ -206,9 +254,12 @@ async function spawnAutomaticUpdateWorker(entry: string, arguments_: readonly st
   child.unref();
 }
 
-async function activeNewerVersion(dataDir: string, runningVersion: string): Promise<string | null> {
+async function activeNewerVersion(dataDir: string, runningVersion: string, target: AvailableRelease): Promise<string | null> {
   const active = await activeRelease(dataDir);
-  return active !== null && isNewerRelease(active.packageVersion, runningVersion) ? active.packageVersion : null;
+  return active !== null && releaseChannelOf(active.packageVersion) === target.channel
+    && isNewerRelease(active.packageVersion, runningVersion)
+    && (active.packageVersion === target.version || isNewerRelease(active.packageVersion, target.version))
+    ? active.packageVersion : null;
 }
 
 async function activeRelease(dataDir: string): Promise<CohortState["releases"][string] | null> {

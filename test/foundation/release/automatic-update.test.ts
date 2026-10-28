@@ -7,9 +7,12 @@ import {
   AUTOMATIC_UPDATE_STATE_SCHEMA,
   AutomaticUpdateStateStore,
   requestAutomaticUpdate,
+  runAutomaticUpdateWorker,
   type AutomaticUpdateState,
 } from "../../../src/foundation/release/automatic-update.js";
 import { acquireUpdateExecutionLease } from "../../../src/foundation/release/update-execution-lease.js";
+import { CohortStateStore, emptyState } from "../../../src/foundation/release/cohort-state.js";
+import { UpdateTransactionStore } from "../../../src/foundation/release/update-transaction.js";
 
 const roots: string[] = [];
 const release = {
@@ -112,6 +115,23 @@ describe("automatic update coordination", () => {
     expect(spawnWorker).not.toHaveBeenCalled();
   });
 
+  it("does not claim a different channel's approved active cohort satisfies the target", async () => {
+    const { dataDir, environment } = await harness();
+    const id = `1.2.4-dev.2-${"a".repeat(20)}`;
+    const cohort = new CohortStateStore(dataDir);
+    await writeFile(cohort.path, JSON.stringify({ ...emptyState(), releases: { [id]: {
+      releaseId: id, releaseRoot: resolve(dataDir, "releases", id), packageVersion: "1.2.4-dev.2",
+      launchContract: "neutral-launch-v1", contentDigest: "a".repeat(64), approval: "approved",
+      materializedAt: new Date(0).toISOString(), certifiedAt: new Date(0).toISOString(), diagnosticsPath: resolve(dataDir, "diagnostics.json"),
+    } }, references: { active: id, pending: null, approved: id, rollback: null, retention: [] } }));
+    const spawnWorker = vi.fn(async () => undefined);
+    let clock = 10_000;
+    expect(await requestAutomaticUpdate({ release, runningVersion: "1.2.3", environment, now: () => clock,
+      worker: { entry: resolve(dataDir, "worker.js"), packageRoot: resolve(dataDir, "release") },
+      spawnWorker, sleep: async () => { clock += 5_001; } })).toBeNull();
+    expect(spawnWorker).toHaveBeenCalledTimes(1);
+  });
+
   it("suppresses a failed target for the retry interval but permits a newer target and later retry", async () => {
     const { dataDir, environment } = await harness();
     const now = 10_000;
@@ -148,6 +168,63 @@ describe("automatic update coordination", () => {
     let clock = now + AUTOMATIC_UPDATE_RETRY_MS;
     await expect(requestAutomaticUpdate({ ...common, now: () => clock, sleep: async () => { clock += 5_001; } })).resolves.toBeNull();
     expect(spawnWorker).toHaveBeenCalledTimes(2);
+  });
+
+  it("settles a dead running record before trying a newer stable or preview target", async () => {
+    for (const channel of ["stable", "development"] as const) {
+      const { dataDir, environment } = await harness();
+      const store = new AutomaticUpdateStateStore(dataDir);
+      await store.write({ ...failedState(1), channel, status: "running", targetVersion: "1.2.2", failure: null });
+      const spawnWorker = vi.fn(async () => undefined);
+      let clock = 10_000;
+      await requestAutomaticUpdate({ release: { ...release, channel,
+        version: channel === "stable" ? "1.2.4" : "1.2.4-dev.2" },
+      runningVersion: channel === "stable" ? "1.2.3" : "1.2.4-dev.1", environment,
+      now: () => clock, worker: { entry: resolve(dataDir, "worker.js"), packageRoot: resolve(dataDir, "release") },
+      spawnWorker, activeVersion: async () => null, sleep: async () => { clock += 5_001; } });
+      expect(spawnWorker).toHaveBeenCalledTimes(1);
+      expect(await store.read()).toMatchObject({ status: "failed", failure: "worker-exited" });
+    }
+  });
+
+  it("does not overwrite or spawn into a foreign unfinished transaction", async () => {
+    const { dataDir, environment } = await harness();
+    const store = new AutomaticUpdateStateStore(dataDir);
+    const existing = { ...failedState(1), status: "running" as const, targetVersion: "1.2.2", failure: null };
+    await store.write(existing);
+    const transactionStore = new UpdateTransactionStore(dataDir);
+    await transactionStore.begin({ channel: "stable", targetVersion: "1.2.7", packageRoot: resolve(dataDir, "release"), priorActiveReleaseId: null });
+    const spawnWorker = vi.fn(async () => undefined);
+    await expect(requestAutomaticUpdate({ release, runningVersion: "1.2.3", environment, now: () => 10_000,
+      worker: { entry: resolve(dataDir, "worker.js"), packageRoot: resolve(dataDir, "release") },
+      spawnWorker, activeVersion: async () => null })).resolves.toBeNull();
+    expect(spawnWorker).not.toHaveBeenCalled();
+    expect(await store.read()).toEqual(existing);
+    expect(await transactionStore.read()).toMatchObject({ status: "active", targetVersion: "1.2.7" });
+  });
+
+  it("records worker startup failure instead of leaving a running attempt", async () => {
+    const { dataDir, environment } = await harness();
+    const store = new AutomaticUpdateStateStore(dataDir);
+    await expect(requestAutomaticUpdate({ release, runningVersion: "1.2.3", environment,
+      worker: { entry: resolve(dataDir, "worker.js"), packageRoot: resolve(dataDir, "release") },
+      spawnWorker: async () => { throw new Error("could not spawn"); },
+      activeVersion: async () => null })).resolves.toBeNull();
+    expect(await store.read()).toMatchObject({ status: "failed", failure: "worker-start-failed", targetVersion: release.version });
+  });
+
+  it("records rejected worker provenance only when no foreign transaction owns the data root", async () => {
+    const { dataDir, environment } = await harness();
+    const arguments_ = ["--package-root", resolve(dataDir, "release"), "--channel", "stable",
+      "--target-version", release.version, "--data-dir", dataDir];
+    expect(await runAutomaticUpdateWorker(arguments_, environment)).toBe(1);
+    const store = new AutomaticUpdateStateStore(dataDir);
+    expect(await store.read()).toMatchObject({ status: "failed", failure: "worker-preflight-failed" });
+    const transactionStore = new UpdateTransactionStore(dataDir);
+    await transactionStore.begin({ channel: "stable", targetVersion: "1.2.7",
+      packageRoot: resolve(dataDir, "release"), priorActiveReleaseId: null });
+    expect(await runAutomaticUpdateWorker(arguments_, environment)).toBe(1);
+    expect(await store.read()).toMatchObject({ status: "failed", failure: "worker-preflight-failed" });
   });
 
   it("fails closed on oversized or malformed persisted state", async () => {

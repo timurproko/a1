@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
-import type { AvailableRelease, StartupReleaseCheckOptions } from "../../src/foundation/release/latest-release.js";
+import { UPDATE_CHECK_INTERVAL_MS, type AvailableRelease, type StartupReleaseCheckOptions } from "../../src/foundation/release/latest-release.js";
 import type { PiEngineHostOptions } from "../../src/integrations/pi/engine/host.js";
 
 const observed = vi.hoisted(() => ({
@@ -96,10 +96,13 @@ async function compose(options: {
   packageVersion?: string;
   notificationVersion?: string;
   release?: AvailableRelease | null;
+  releaseSequence?: readonly (AvailableRelease | null)[];
+  nextCheckDelay?: number;
   releaseNotes?: { current: () => null; completeMarkdown: string };
 }) {
   const announced: unknown[] = [];
   const checks: StartupReleaseCheckOptions[] = [];
+  let nextRelease = 0;
   const host = { options: null as PiEngineHostOptions | null, accentCalls: [] as string[], disposed: 0 };
   const backend = backendFixture(announced);
   const composed = await composeOwnedUi({
@@ -108,7 +111,13 @@ async function compose(options: {
     packageVersion: options.packageVersion ?? "0.3.0",
     ...(options.notificationVersion === undefined ? {} : { notificationVersion: options.notificationVersion }),
     releaseNotes: (options.releaseNotes ?? { current: () => null, completeMarkdown: "" }) as never,
-    checkForNewerRelease: async input => { checks.push(input); return options.release === undefined ? STABLE : options.release; },
+    checkForNewerRelease: async input => {
+      checks.push(input);
+      if (checks.length === 1 && options.nextCheckDelay !== undefined) input.onNextCheckDelay?.(options.nextCheckDelay);
+      return options.releaseSequence === undefined
+        ? options.release === undefined ? STABLE : options.release
+        : options.releaseSequence[nextRelease++] ?? null;
+    },
     createEngineHost: async hostOptions => {
       host.options = hostOptions;
       return {
@@ -299,6 +308,61 @@ describe("startup release check composition", () => {
     await vi.waitFor(() => { expect(announced).toEqual([{ status: "installed", version: "0.3.1" }]); });
     expect(checks[0]!.settingMode).toBe("auto");
     await composed.application.dispose();
+  });
+
+  it.each([
+    ["stable", "0.3.0", STABLE],
+    ["preview", "0.3.1-dev.640", DEVELOPMENT],
+  ] as const)("installs a newly published %s release while the session remains open", async (_channel, packageVersion, release) => {
+    observed.updateCheck = "auto";
+    observed.automaticInstalled = release.version;
+    const { composed, announced, checks } = await compose({ profileId: "a1", packageVersion, releaseSequence: [null, release, release] });
+    vi.useFakeTimers();
+    try {
+      composed.application.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(checks).toHaveLength(1);
+      expect(announced).toEqual([]);
+      await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL_MS);
+      expect(checks).toHaveLength(2);
+      expect(observed.automaticRequests).toHaveLength(1);
+      expect(observed.automaticRequests[0]).toMatchObject({ release, runningVersion: packageVersion });
+      expect(announced).toEqual([{ status: "installed", version: release.version }]);
+      await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL_MS);
+      expect(announced).toHaveLength(1);
+      await composed.application.dispose();
+      await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL_MS);
+      expect(checks).toHaveLength(3);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("polls at an existing cache's remaining lifetime", async () => {
+    observed.updateCheck = "auto";
+    const { composed, checks } = await compose({ profileId: "a1", release: null, nextCheckDelay: 1_000 });
+    vi.useFakeTimers();
+    try {
+      composed.application.start();
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(checks).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(checks).toHaveLength(2);
+      await composed.application.dispose();
+    } finally { vi.useRealTimers(); }
+  });
+
+  it.each(["notify", "no"] as const)("never polls again in %s mode", async mode => {
+    observed.updateCheck = mode;
+    const { composed, checks } = await compose({ profileId: "a1", release: null });
+    vi.useFakeTimers();
+    try {
+      composed.application.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(checks).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL_MS * 4);
+      expect(checks).toHaveLength(1);
+      await composed.application.dispose();
+    } finally { vi.useRealTimers(); }
   });
 
   it("announces nothing when no newer release exists", async () => {
