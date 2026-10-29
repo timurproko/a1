@@ -52,6 +52,8 @@ function hasSemanticAccentException(frame: Capture): boolean {
 
 function rowsMatch(actual: Capture, expected: Capture): boolean {
   const reference = expected.exceptionReferenceRows ?? expected.rows;
+  // Compatibility: A1 deliberately leaves an empty last-message copy silent; Pi reports an error.
+  if (/\/copy\/empty\//u.test(expected.id)) return actual.rows.length === 0;
   if (!hasSemanticAccentException(expected)) return JSON.stringify(actual.rows) === JSON.stringify(reference);
   return JSON.stringify(actual.rows.map(stripTerminalSequences)) === JSON.stringify(reference.map(stripTerminalSequences));
 }
@@ -69,7 +71,11 @@ function verify(actual: Capture, expected: Capture): void {
     }
   }
   const referenceRows = expected.exceptionReferenceRows ?? expected.rows;
-  if (hasSemanticAccentException(expected)) {
+  if (/\/copy\/empty\//u.test(expected.id)) {
+    expect(referenceRows.map(stripTerminalSequences).join(" ").replace(/\s+/gu, " ").trim(), `${actual.id} pinned error`)
+      .toBe("Error: No agent messages to copy yet.");
+    expect(actual.rows, `${actual.id} silent empty copy`).toEqual([]);
+  } else if (hasSemanticAccentException(expected)) {
     // Compatibility: bare A1 recolors hotkey key spans plus changelog headings/list markers while preserving Pi's text and layout.
     expect(actual.rows, `${actual.id} semantic accent exception`).not.toEqual(referenceRows);
     expect(actual.rows.map(stripTerminalSequences), actual.id).toEqual(referenceRows.map(stripTerminalSequences));
@@ -153,6 +159,10 @@ describe("independent command outcome parity", () => {
     const mismatches = expected.filter((frame, index) => !rowsMatch(actual[index]!, frame)).map(frame => frame.id);
     expect(mismatches, "command message differences").toEqual([]);
     for (const [index, frame] of expected.entries()) verify(actual[index]!, frame);
+    const emptyCopyIndex = expected.findIndex(frame => frame.id === "dark/0/copy/empty/80");
+    expect(emptyCopyIndex).toBeGreaterThanOrEqual(0);
+    const emptyCopy = actual[emptyCopyIndex]!;
+    expect(() => verify({ ...emptyCopy, rows: ["unexpected copy error"] }, expected[emptyCopyIndex]!)).toThrow();
     const compactFailures = [...expected.entries()].filter(([, frame]) => frame.id.includes("/compact/failure/"));
     expect(compactFailures).toHaveLength(8);
     for (const [index, reference] of compactFailures) {
