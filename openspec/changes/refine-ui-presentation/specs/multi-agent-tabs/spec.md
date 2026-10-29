@@ -24,3 +24,21 @@ A locally pending Agent MAY use a lighter initialization shade, but that shade a
 - **WHEN** background tabs report different working or attention status accents
 - **THEN** their status glyphs MAY retain those per-tab semantic colors
 - **AND** viewing either tab SHALL still use the common selected-chip background
+
+### Requirement: Newly added tabs append without initialization reordering
+The resident tab bar SHALL place a newly added visible tab after every currently shown tab through one kind-neutral insertion API. A locally pending Agent and its committed registry tab SHALL use the same appended slot. Initialization state, selected-chip color, fill progress, and tab kind SHALL NOT choose or change the insertion position.
+
+#### Scenario: An Agent starts beside a visible utility tab
+- **WHEN** the user adds an Agent while Settings or Changelog is visible in the strip
+- **THEN** the pending Agent chip SHALL appear after all currently shown chips
+- **AND** no utility-tab identity check SHALL place it before an existing chip
+
+#### Scenario: The pending Agent commits
+- **WHEN** the newly added Agent receives its first complete surface and replaces the pending chip
+- **THEN** the committed Agent chip SHALL remain in the pending chip's appended position
+- **AND** the initialization fill SHALL NOT cause a tab-order jump
+
+#### Scenario: A future tab kind is added
+- **WHEN** another registered tab kind adds a new visible tab
+- **THEN** the same append operation SHALL determine its position
+- **AND** the tab bar SHALL NOT require a kind-specific insertion branch

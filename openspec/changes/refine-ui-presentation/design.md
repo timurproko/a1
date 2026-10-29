@@ -2,7 +2,7 @@
 
 The main self-updater and dependency-free installer each render a 40-cell progress bar before a space and percentage. They intentionally live in separate runtime surfaces because the installer cannot depend on the installed application, so presentation parity is maintained through equivalent constants and focused conformance coverage rather than a shared runtime import.
 
-The native strip currently derives an active chip background from each `StripTab` accent. Utility tabs are then overwritten through an `is_utility_tab` branch using the attach client's locally read accent fallback, while Agent tabs retain their bridge-reported accent. That kind-specific path can leave Settings and Changelog on the purple fallback while the resolved owned accent and Agent selected chip are blue. The pending Agent already has a distinct lighter-to-settled fill, but both shades should come from the same strip-level selected color as every other tab.
+The native strip currently derives an active chip background from each `StripTab` accent. Utility tabs are then overwritten through an `is_utility_tab` branch using the attach client's locally read accent fallback, while Agent tabs retain their bridge-reported accent. That kind-specific path can leave Settings and Changelog on the purple fallback while the resolved owned accent and Agent selected chip are blue. The pending Agent already has a distinct lighter-to-settled fill, but both shades should come from the same strip-level selected color as every other tab. Its local placeholder is currently inserted relative to utility-tab identities, while the server appends the real Agent in registry order, so initialization changes the chip's position.
 
 ## Goals / Non-Goals
 
@@ -13,6 +13,7 @@ The native strip currently derives an active chip background from each `StripTab
 - Update row-clearing bounds so the installer removes the complete shorter frame without leaving stale cells.
 - Expose one strip-level active-tab color input used by Agent, Settings, and Changelog.
 - Keep pending Agent initialization as a lighter shade that fills into the shared settled active-tab color.
+- Append a newly added Agent after every currently shown tab and preserve that position when its real surface commits.
 
 **Non-Goals:**
 
@@ -21,6 +22,7 @@ The native strip currently derives an active chip background from each `StripTab
 - Dynamically sizing the meter from terminal width or version-string length.
 - Changing per-tab working-status glyph colors, title animations, utility routes, or tab activation behavior.
 - Adding tab-kind color declarations to the provider.
+- Changing user-driven drag ordering, overflow swaps, utility visibility, or activation semantics.
 
 ## Decisions
 
@@ -50,6 +52,10 @@ Extend `ResidentTabLaunchSettings` to resolve Accent through the owned settings 
 
 The pending Agent chip will mix the shared active accent toward white for its initialization shade. Its fill will transition into the normal selected shade derived from that same accent. Settings, Changelog, and committed Agent tabs use the normal selected shade directly.
 
+### Append new tabs through one tab-bar ordering API
+
+Define a kind-neutral tab-bar insertion operation whose contract places a newly added visible tab after the existing visible order. The local pending Agent and the server-registered Agent will both follow that append contract, so initialization state, selected color, fill progress, and tab kind cannot choose a temporary slot. Existing drag reorder and overflow-priority behavior remain separate because they move or expose existing tabs rather than adding a tab.
+
 ## Risks / Trade-offs
 
 - **The summary text can vary with selected versions** → Use the requested fixed compact geometry rather than fragile per-message dynamic sizing.
@@ -57,6 +63,7 @@ The pending Agent chip will mix the shared active accent toward white for its in
 - **A shorter bar has slightly less visual resolution** → Percentage text remains authoritative and 38 cells still gives fine-grained visible movement.
 - **Separating selected color from per-tab status accent adds a render argument** → Keep the argument semantic and mandatory at the attach boundary, with convenience wrappers using the owned blue default in isolated tests.
 - **A missing setting previously implied purple in native code** → Bind the native default to the owned settings contract and cover omitted, explicit, utility, Agent, and pending-fill cases.
+- **A local placeholder can drift from server order** → Exercise pending and committed frames against the same kind-neutral append contract and assert stable chip order across handoff.
 
 ## Migration Plan
 
