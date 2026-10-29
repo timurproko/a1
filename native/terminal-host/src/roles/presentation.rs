@@ -494,7 +494,7 @@ impl PresentationComposer {
         )?;
 
         if desired.dimmed {
-            output = faint(&output);
+            output = dim_backdrop(&output, desired.structured.as_deref());
         }
         let overlay_changed = self.overlay != desired.overlay;
         if let Some(overlay) = desired.overlay.as_deref()
@@ -739,15 +739,14 @@ fn relocate_legacy_body(bytes: &[u8], child_row_offset: u16) -> Result<Vec<u8>, 
     Ok(output)
 }
 
-/// Re-asserts faint after every SGR, so a modal's backdrop stays dim whatever styles it carries.
-/// Private-marker sequences such as `CSI > 4 ; 1 m` are not SGR and are left alone.
-fn faint(bytes: &[u8]) -> Vec<u8> {
-    const FAINT: &[u8] = b"[2m";
-    let mut output = Vec::with_capacity(bytes.len() + bytes.len() / 8 + FAINT.len());
-    output.extend_from_slice(FAINT);
+/// Foreground faintness alone leaves colored backgrounds (including pinned prompts) vivid.
+/// Transform backdrop SGR without changing the retained child grid or the modal appended later.
+fn dim_backdrop(bytes: &[u8], surface: Option<&StructuredSurface>) -> Vec<u8> {
+    let mut output = Vec::with_capacity(bytes.len() + bytes.len() / 8 + 4);
+    output.extend_from_slice(b"\x1b[2m");
     let mut index = 0usize;
     while index < bytes.len() {
-        if bytes[index..].starts_with(b"[")
+        if bytes[index..].starts_with(b"\x1b[")
             && let Some(end) = bytes[index + 2..]
                 .iter()
                 .position(|byte| (0x40..=0x7e).contains(byte))
@@ -758,7 +757,14 @@ fn faint(bytes: &[u8]) -> Vec<u8> {
                 .get(index + 2)
                 .is_some_and(|byte| (b'<'..=b'?').contains(byte));
             if bytes[end] == b'm' && !private {
-                output.extend_from_slice(FAINT);
+                // The original SGR must remain first: preserve all foreground, underline,
+                // inverse, and other attributes before reasserting faint and the backdrop color.
+                output.extend_from_slice(b"\x1b[2m");
+                if let Ok(parameters) = std::str::from_utf8(&bytes[index + 2..end]) {
+                    if let Some(color) = dimmed_background_sgr(parameters, surface) {
+                        output.extend_from_slice(color.as_bytes());
+                    }
+                }
             }
             index = end + 1;
             continue;
@@ -767,6 +773,90 @@ fn faint(bytes: &[u8]) -> Vec<u8> {
         index += 1;
     }
     output
+}
+
+/// Return the last effective background of a compound SGR. A reset restores the dimmed
+/// child default when the child explicitly published that color.
+fn dimmed_background_sgr(parameters: &str, surface: Option<&StructuredSurface>) -> Option<String> {
+    let parts: Vec<&str> = parameters.split(';').collect();
+    let mut background = None;
+    let mut index = 0;
+    while index < parts.len() {
+        match parts[index].parse::<u16>().ok() {
+            Some(0 | 49) => {
+                background = surface
+                    .filter(|surface| !surface.background_inherited())
+                    .map(|surface| {
+                        let dimmed = surface.default_background.map(|channel| channel / 2);
+                        format!("\x1b[2;48;5;{}m", super::landing::palette_index(dimmed))
+                    });
+            }
+            Some(48) if parts.get(index + 1) == Some(&"2") && index + 4 < parts.len() => {
+                if let (Ok(red), Ok(green), Ok(blue)) = (
+                    parts[index + 2].parse::<u8>(),
+                    parts[index + 3].parse::<u8>(),
+                    parts[index + 4].parse::<u8>(),
+                ) {
+                    background = Some(format!(
+                        "\x1b[2;48;2;{};{};{}m",
+                        red / 2,
+                        green / 2,
+                        blue / 2
+                    ));
+                }
+                index += 4;
+            }
+            Some(48) if parts.get(index + 1) == Some(&"5") && index + 2 < parts.len() => {
+                if let Ok(palette_index) = parts[index + 2].parse::<u8>() {
+                    let rgb = surface
+                        .and_then(|surface| {
+                            surface.palette.get(usize::from(palette_index)).copied()
+                        })
+                        .unwrap_or_else(|| xterm_palette_rgb(palette_index));
+                    let dimmed = rgb.map(|channel| channel / 2);
+                    background = Some(format!(
+                        "\x1b[2;48;5;{}m",
+                        super::landing::palette_index(dimmed)
+                    ));
+                }
+                index += 2;
+            }
+            _ => {}
+        }
+        index += 1;
+    }
+    background
+}
+
+/// Fallback for the landing and legacy body, which have no structured child palette.
+fn xterm_palette_rgb(index: u8) -> [u8; 3] {
+    const BASE: [[u8; 3]; 16] = [
+        [0, 0, 0],
+        [128, 0, 0],
+        [0, 128, 0],
+        [128, 128, 0],
+        [0, 0, 128],
+        [128, 0, 128],
+        [0, 128, 128],
+        [192, 192, 192],
+        [128, 128, 128],
+        [255, 0, 0],
+        [0, 255, 0],
+        [255, 255, 0],
+        [0, 0, 255],
+        [255, 0, 255],
+        [0, 255, 255],
+        [255, 255, 255],
+    ];
+    match index {
+        0..=15 => BASE[usize::from(index)],
+        16..=231 => {
+            let cube = index - 16;
+            let level = |value: u8| if value == 0 { 0 } else { 55 + value * 40 };
+            [level(cube / 36), level((cube / 6) % 6), level(cube % 6)]
+        }
+        _ => [8 + (index - 232) * 10; 3],
+    }
 }
 
 fn sanitize_legacy_body(bytes: &[u8]) -> Vec<u8> {
@@ -1909,7 +1999,10 @@ mod tests {
             let end = sequence
                 .find(|value: char| ('\x40'..='\x7e').contains(&value))
                 .unwrap();
-            if sequence.as_bytes()[end] == b'm' && !sequence.starts_with("2m") {
+            if sequence.as_bytes()[end] == b'm'
+                && !sequence.starts_with("2m")
+                && !sequence.starts_with("2;48;")
+            {
                 assert!(
                     sequences
                         .get(index + 1)
@@ -1930,10 +2023,153 @@ mod tests {
         );
         assert!(!restored.contains("\x1b[2m"));
         assert_eq!(
-            faint(b"\x1b[>4;1m\x1b[31mx"),
+            dim_backdrop(b"\x1b[>4;1m\x1b[31mx", None),
             b"\x1b[2m\x1b[>4;1m\x1b[31m\x1b[2mx".to_vec(),
             "private-marker sequences are not SGR"
         );
+    }
+
+    #[test]
+    fn modal_darkens_colored_prompt_and_strip_backgrounds_without_mutating_the_child() {
+        for background in [SurfaceColor::Rgb([40, 120, 80]), SurfaceColor::Palette(34)] {
+            let mut surface = structured_fixture();
+            surface.styles[1].background = background;
+            surface.palette[34] = [40, 120, 80];
+            let mut plain = desired(Some(surface.clone()), Vec::new());
+            plain.strip = match background {
+                SurfaceColor::Rgb(_) => "\x1b[1;1H\x1b[48;2;80;100;120mBAR\x1b[49m".into(),
+                SurfaceColor::Palette(_) => "\x1b[1;1H\x1b[48;5;34mBAR\x1b[49m".into(),
+                SurfaceColor::Default => unreachable!(),
+            };
+            let mut composer = PresentationComposer::default();
+            composer
+                .prepare(&plain)
+                .unwrap()
+                .unwrap()
+                .acknowledge(&mut composer);
+            let mut modal = plain.clone();
+            modal.dimmed = true;
+            modal.overlay = Some("\x1b[2;2H\x1b[0;48;2;80;100;120mBOX\x1b[0m".into());
+            let bytes =
+                String::from_utf8(composer.prepare(&modal).unwrap().unwrap().bytes).unwrap();
+            let backdrop = bytes
+                .split(modal.overlay.as_deref().unwrap())
+                .next()
+                .unwrap();
+            let default_index = super::super::landing::palette_index([5, 5, 5]);
+            assert!(backdrop.contains(&format!("\x1b[2;48;5;{default_index}m")), "explicit default canvas must recede");
+            if background == SurfaceColor::Rgb([40, 120, 80]) {
+                assert!(
+                    backdrop.contains("\x1b[2;48;2;40;50;60m"),
+                    "truecolor strip background must recede"
+                );
+            } else {
+                let index = super::super::landing::palette_index([20, 60, 40]);
+                assert!(
+                    backdrop.contains(&format!("\x1b[2;48;5;{index}m")),
+                    "indexed strip background must recede"
+                );
+            }
+            match background {
+                SurfaceColor::Rgb(_) => assert!(backdrop.contains("\x1b[2;48;2;20;60;40m")),
+                SurfaceColor::Palette(_) => {
+                    let index = super::super::landing::palette_index([20, 60, 40]);
+                    assert!(backdrop.contains(&format!("\x1b[2;48;5;{index}m")));
+                }
+                SurfaceColor::Default => unreachable!(),
+            }
+            assert!(
+                bytes.contains(modal.overlay.as_deref().unwrap()),
+                "modal must not be dimmed"
+            );
+            assert_eq!(
+                plain.structured.as_deref(),
+                Some(&surface),
+                "retained colors are immutable"
+            );
+            composer
+                .prepare(&modal)
+                .unwrap()
+                .unwrap()
+                .acknowledge(&mut composer);
+            let restored =
+                String::from_utf8(composer.prepare(&plain).unwrap().unwrap().bytes).unwrap();
+            if background == SurfaceColor::Rgb([40, 120, 80]) {
+                assert!(restored.contains("\x1b[48;2;80;100;120m"));
+                assert!(!restored.contains("\x1b[2;48;2;40;50;60m"));
+            } else {
+                assert!(restored.contains("\x1b[48;5;34m"));
+            }
+            match background {
+                SurfaceColor::Rgb(_) => assert!(restored.contains("48;2;40;120;80")),
+                SurfaceColor::Palette(_) => assert!(restored.contains("48;5;34")),
+                SurfaceColor::Default => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn indexed_landing_and_legacy_backdrops_dim_without_a_child_palette() {
+        let mut frame = desired(None, b"\x1b[2;1H\x1b[48;5;34mPROMPT\x1b[49m".to_vec());
+        frame.strip = "\x1b[1;1H\x1b[48;5;235mSTRIP\x1b[49m".into();
+        frame.dimmed = true;
+        frame.overlay = Some("\x1b[2;2H\x1b[48;5;237mBOX\x1b[0m".into());
+        let output = String::from_utf8(
+            PresentationComposer::default()
+                .prepare(&frame)
+                .unwrap()
+                .unwrap()
+                .bytes,
+        )
+        .unwrap();
+        let backdrop = output
+            .split(frame.overlay.as_deref().unwrap())
+            .next()
+            .unwrap();
+        for index in [34, 235] {
+            let expected = super::super::landing::palette_index(
+                xterm_palette_rgb(index).map(|channel| channel / 2),
+            );
+            assert!(backdrop.contains(&format!("\x1b[2;48;5;{expected}m")));
+        }
+        assert!(output.contains(frame.overlay.as_deref().unwrap()));
+        assert_eq!(dimmed_background_sgr("48;2;40;120;80;0", None), None);
+        assert_eq!(
+            dimmed_background_sgr("0;48;2;40;120;80", None).as_deref(),
+            Some("\x1b[2;48;2;20;60;40m")
+        );
+    }
+
+    #[test]
+    fn repaint_and_resize_keep_the_exposed_backdrop_dark() {
+        let mut surface = structured_fixture();
+        surface.styles[1].background = SurfaceColor::Rgb([40, 120, 80]);
+        let mut modal = desired(Some(surface), Vec::new());
+        modal.dimmed = true;
+        modal.overlay = Some("\x1b[2;2H\x1b[0;48;2;80;100;120mBOX".into());
+        let mut composer = PresentationComposer::default();
+        composer
+            .prepare(&modal)
+            .unwrap()
+            .unwrap()
+            .acknowledge(&mut composer);
+        let mut repainted = modal.clone();
+        repainted.revision += 1;
+        repainted.strip = "\x1b[1;1H\x1b[48;2;40;120;80mNEW".into();
+        let output =
+            String::from_utf8(composer.prepare(&repainted).unwrap().unwrap().bytes).unwrap();
+        assert!(output.contains("\x1b[2;48;2;20;60;40m"));
+        composer
+            .prepare(&repainted)
+            .unwrap()
+            .unwrap()
+            .acknowledge(&mut composer);
+        repainted.columns = 4;
+        repainted.outer_rows = 4;
+        let output =
+            String::from_utf8(composer.prepare(&repainted).unwrap().unwrap().bytes).unwrap();
+        assert!(output.contains("\x1b[2;48;2;20;60;40m"));
+        assert!(output.contains(repainted.overlay.as_deref().unwrap()));
     }
 
     #[test]
