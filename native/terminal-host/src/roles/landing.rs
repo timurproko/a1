@@ -1,5 +1,5 @@
 //! The a1 landing the attach client shows while it has no tab: the launch cwd where an Agent
-//! tab's footer shows it, `a1` and its version below it, and the accent wordmark above it.
+//! tab's footer shows it, `a1` and its version below it, and the prompt-border-colored wordmark above it.
 //! Rendering is pure; the attach role presents the bytes as the frame's body.
 
 use unicode_segmentation::UnicodeSegmentation;
@@ -101,6 +101,12 @@ pub fn accent_colors(accent: Option<&str>) -> AccentColors {
         .find(|(name, _)| Some(*name) == accent)
         .unwrap_or(&LANDING_ACCENTS[0])
         .1
+}
+
+/// The final Agent prompt-border color. Pending prompt chrome and the landing wordmark use this
+/// destination immediately; only the selected tab chip owns an initialization transition.
+pub fn prompt_chrome_color(accent: Option<&str>) -> [u8; 3] {
+    accent_colors(accent).border
 }
 
 /// What one landing frame shows.
@@ -233,7 +239,7 @@ fn foreground(rgb: [u8; 3], truecolor: bool) -> String {
     }
 }
 
-/// One wordmark row in the accent.
+/// One wordmark row in the final Agent prompt chrome color.
 fn wordmark_row(line: &str, accent: &str, columns: usize) -> String {
     format!("{accent}{}[0m", clip(line, columns))
 }
@@ -381,7 +387,7 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, fo
         let first = cwd_row - editor_rows;
         let border = format!(
             "{}{}\x1b[0m",
-            fg(accent_colors(input.accent).border),
+            fg(prompt_chrome_color(input.accent)),
             "─".repeat(columns)
         );
         if editor_rows == 3 {
@@ -403,10 +409,10 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, fo
             place(cwd_row + 1, format!(" {}{version}\x1b[0m", fg(DIM)));
         }
         if input.half_blocks && cwd_row >= WORDMARK.len() {
-            let accent = fg(accent_colors(input.accent).accent);
+            let prompt_chrome = fg(prompt_chrome_color(input.accent));
             for (offset, line) in WORDMARK.iter().enumerate() {
                 let row = cwd_row - WORDMARK.len() + offset;
-                place(row, wordmark_row(line, &accent, columns));
+                place(row, wordmark_row(line, &prompt_chrome, columns));
             }
         }
     }
@@ -595,20 +601,36 @@ mod tests {
     }
 
     #[test]
+    fn prompt_borders_and_wordmark_share_the_final_destination_color() {
+        for (name, colors) in LANDING_ACCENTS {
+            let configured = LandingInput {
+                accent: Some(name),
+                ..input(80, 23)
+            };
+            let expected = foreground(colors.border, true);
+            let landing = String::from_utf8(render(&configured)).unwrap();
+            let pending = String::from_utf8(render_agent_preview(&configured, None)).unwrap();
+            assert!(landing.contains(&format!("{expected}{}", WORDMARK[0])), "{name} logo");
+            assert_eq!(pending.matches(&expected).count(), 2, "{name} prompt borders");
+            assert_eq!(prompt_chrome_color(Some(name)), colors.border, "{name}");
+        }
+    }
+
+    #[test]
     fn accents_palette_fallback_text_header_and_missing_version() {
         let blue = String::from_utf8(render(&LandingInput {
             accent: Some("blue"),
             ..input(80, 23)
         }))
         .unwrap();
-        assert!(blue.contains("\x1b[38;2;130;160;241m ▀▀▀▄"));
+        assert!(blue.contains("\x1b[38;2;116;102;197m ▀▀▀▄"));
         let palette = String::from_utf8(render(&LandingInput {
             truecolor: false,
             ..input(80, 23)
         }))
         .unwrap();
         assert!(!palette.contains("38;2;"));
-        assert!(palette.contains(&format!("\x1b[38;5;{}m", palette_index([167, 152, 215]))));
+        assert!(palette.contains(&format!("\x1b[38;5;{}m", palette_index([105, 115, 167]))));
         assert_eq!(palette_index([0, 0, 0]), 16);
         assert_eq!(palette_index([255, 255, 255]), 231);
         assert_eq!(palette_index([128, 128, 128]), 244);

@@ -37,11 +37,11 @@
 
 ## 8. Stabilize Agent prompt chrome color
 
-- [ ] 8.1 Add native presentation coverage proving pending prompt borders already use the committed Agent border destination and the landing logo uses that same color.
-- [ ] 8.2 Route pending prompt borders and the landing wordmark through one resolved destination-color role without tying either to chip-fill progress.
-- [ ] 8.3 Preserve the lighter-to-settled animation exclusively on the selected Agent tab chip while prompt geometry, body, footer, and status presentation remain unchanged.
+- [x] 8.1 Add native presentation coverage proving pending prompt borders already use the committed Agent border destination and the landing logo uses that same color.
+- [x] 8.2 Route pending prompt borders and the landing wordmark through one resolved destination-color role without tying either to chip-fill progress.
+- [x] 8.3 Preserve the lighter-to-settled animation exclusively on the selected Agent tab chip while prompt geometry, body, footer, and status presentation remain unchanged.
 
 ## 9. Validate the prompt-color refinement
 
-- [ ] 9.1 Run focused landing, attach, strip, and Accent projection tests plus typecheck, architecture checks, strict OpenSpec validation, and changed-diff formatting checks.
+- [x] 9.1 Run focused landing, attach, strip, and Accent projection tests plus typecheck, architecture checks, strict OpenSpec validation, and changed-diff formatting checks.
 - [ ] 9.2 Reconcile current `origin/develop`, review the final diff and gap disposition, and update acceptance scenarios for stable prompt and logo color.
