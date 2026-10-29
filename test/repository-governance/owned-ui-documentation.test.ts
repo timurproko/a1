@@ -14,6 +14,8 @@ describe("owned UI launch documentation", () => {
     ]);
     expect(profiles).toContain("A1-owned");
     expect(profiles).toMatch(/a1 solo[^\n]*direct single-agent/i);
+    expect(profiles).toContain("a1 solo --session <id>");
+    expect(profiles).toContain("a solo selection opens in the direct strip-free UI");
     expect(profiles).toMatch(/a1 pi[^\n]*(comparison|ordinary Pi profile)/i);
     expect(profiles).toMatch(/a1 ui[^\n]*remove/i);
     expect(checkpoint).toContain("Compare bare A1 with `a1 pi`");
@@ -21,7 +23,8 @@ describe("owned UI launch documentation", () => {
     expect(checkpoint).toContain("For recovery, use `a1 pi`");
     expect(cliUsage(prerelease)).toBe(
       "Usage: a1 | a1 --session <path|id> | a1 --session-dir <dir> --session <path|id>"
-      + " | a1 solo | a1 pi | a1 help | a1 version | a1 update"
+      + " | a1 solo | a1 solo --session <path|id>"
+      + " | a1 solo --session-dir <dir> --session <path|id> | a1 pi | a1 help | a1 version | a1 update"
       + " | a1 update --develop [preview-or-version] | a1 update --models"
       + " | a1 update --extensions | a1 update <source> | a1 install <source>"
       + " | a1 remove <source> | a1 uninstall <source> | a1 list"
@@ -30,7 +33,8 @@ describe("owned UI launch documentation", () => {
     );
     expect(cliUsage(release)).toBe(
       "Usage: a1 | a1 --session <path|id> | a1 --session-dir <dir> --session <path|id>"
-      + " | a1 solo | a1 help | a1 version | a1 update"
+      + " | a1 solo | a1 solo --session <path|id>"
+      + " | a1 solo --session-dir <dir> --session <path|id> | a1 help | a1 version | a1 update"
       + " | a1 update --develop [preview-or-version] | a1 update --models"
       + " | a1 update --extensions | a1 update <source> | a1 install <source>"
       + " | a1 remove <source> | a1 uninstall <source> | a1 list"

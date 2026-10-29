@@ -60,6 +60,18 @@ describe("unclean-exit notice", () => {
     expect(source.listenerCount).toBe(0);
   });
 
+  it("arms a solo-form unclean-exit hint only when that solo session persists", async () => {
+    const path = await noticePath();
+    const source = fakeSource();
+    const notice = armExitNotice(source, path, true);
+    await expect(readFile(path, "utf8")).resolves.toBe("a1 was stopped unexpectedly.\n");
+    source.resume = { sessionId: "solo-id", sessionDir: "/s dir", usesDefaultSessionDir: false };
+    source.emit("assistant-message-completed");
+    await expect(readFile(path, "utf8")).resolves.toBe(
+      "a1 was stopped unexpectedly.\nTo resume this session: a1 solo --session-dir '/s dir' --session solo-id\n");
+    notice.clear();
+  });
+
   it("names the resume command only once the session is persisted", () => {
     expect(uncleanExitNoticeLines(null)).toEqual(["a1 was stopped unexpectedly."]);
     expect(uncleanExitNoticeLines({ sessionId: "01a1", sessionDir: "/s dir", usesDefaultSessionDir: false })).toEqual([

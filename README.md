@@ -63,6 +63,8 @@ Launch A1 in single agent mode:
 a1 solo
 ```
 
+When a solo session exits, its printed `a1 solo --session <id>` command resumes that same conversation in solo mode; a custom session store is included in the printed command. Resident tabs are different: they keep running after detach, and bare `a1` returns to them.
+
 Show all commands:
 
 ```text
@@ -92,7 +94,7 @@ a1 tabs
 a1 tabs stop <id>
 ```
 
-Stop every tab and the resident host, for example before going back to single agent mode with `a1 solo`:
+Stop every tab and the resident host when you are finished with them (not required to run `a1 solo`):
 
 ```text
 a1 tabs host stop

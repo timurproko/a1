@@ -61,6 +61,8 @@ export interface OwnedUiCompositionOptions {
   readonly profileId?: string;
   /** Hide resident-only tab controls for the explicit direct single-agent launch. */
   readonly hideTabSettings?: boolean;
+  /** The explicit solo launch owns a mode-specific resume hint; resident fallback keeps the tabbed form. */
+  readonly soloResumeHint?: boolean;
   /** `off` withholds A1-specific surfaces from comparison profiles. */
   readonly ownedSurfaces?: "on" | "off";
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
@@ -276,7 +278,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
       },
       presentation: {
         ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
-        ...residentStartupPresentation(tabBridge !== null, options.residentFallbackNotice),
+        ...residentStartupPresentation(tabBridge !== null, options.residentFallbackNotice), soloResumeHint: options.soloResumeHint === true && tabBridge === null,
         ...(clipboardDiagnostics === null ? {} : { input: { onEvent: event => clipboardDiagnostics.runtime(event) } }),
         ...(viewportSettings === null ? {} : { viewportSettings }),
         ...(backgroundSettings === null ? {} : { backgroundSettings }),
@@ -346,7 +348,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     start: () => {
       // Performance: the guardian notice loads beside first paint, never on the startup path.
       if (exitNoticePath) exitNotice = import("../app/session-shell/exit-notice.js")
-        .then(module => module.armExitNotice(backend, exitNoticePath), () => null);
+        .then(module => module.armExitNotice(backend, exitNoticePath, options.soloResumeHint === true && tabBridge === null), () => null);
       presenter.start();
       releaseUpdates.start();
     },

@@ -96,6 +96,26 @@ describe("same-pin resume through the exact packaged public launch chain", () =>
     await assertIdle();
   }, 120_000);
 
+  it.each([false, true])("reopens an exited solo session through its own packaged-entry hint (custom store: %s)", async custom => {
+    const directory = custom ? resolve(extracted.root, "solo session's store") : store;
+    const saved = await writeResumeFixture(directory, cwd, { compacted: custom });
+    const original = await readFile(saved.path);
+    const first = await launch(["solo", "--session", saved.path]);
+    await first.ready(saved.marker);
+    await first.close();
+    const hint = resumeHint(first.output());
+    expect(hint).toBe(custom
+      ? `a1 solo --session-dir '${directory.replaceAll("'", `'\\''`)}' --session ${saved.id}`
+      : `a1 solo --session ${saved.id}`);
+    const resumed = await launchHint(hint);
+    await resumed.ready(saved.marker);
+    expect(resumed.output()).toContain(saved.marker);
+    await resumed.close();
+    expect(resumeHint(resumed.output())).toBe(hint);
+    expect(await readFile(saved.path)).toEqual(original);
+    await assertIdle();
+  }, 120_000);
+
   it("preserves spaces/apostrophes through Git Bash quoting and a supervisor restart", async () => {
     const directory = resolve(extracted.root, "session's custom store");
     const saved = await writeResumeFixture(directory, cwd, { compacted: true });
@@ -112,6 +132,23 @@ describe("same-pin resume through the exact packaged public launch chain", () =>
     await restarted.close();
     expect(resumeHint(restarted.output())).toBe(hint);
     expect(await restarted.trace()).toContain('"phase":"replacement-supervisor-ready"');
+    await assertIdle();
+  }, 120_000);
+
+  it("keeps an occupied solo session single-writer and resumes it after the owner exits", async () => {
+    const saved = await writeResumeFixture(store, cwd);
+    const first = await launch(["solo", "--session", saved.id]);
+    await first.ready(saved.marker);
+    const blocked = await launch(["solo", "--session", saved.id]);
+    await until(async () => blocked.output().includes("Fork this session into current directory?"), () => blocked.output());
+    blocked.child.stdin!.write("n\n");
+    expect(await blocked.exited()).toBe(1);
+    expect(blocked.output()).toContain("session is open in another A1 process");
+    expect(first.child.exitCode).toBeNull();
+    await first.close();
+    const resumed = await launchHint(resumeHint(first.output()));
+    await resumed.ready(saved.marker);
+    await resumed.close();
     await assertIdle();
   }, 120_000);
 
@@ -132,24 +169,28 @@ describe("same-pin resume through the exact packaged public launch chain", () =>
     await assertIdle();
   }, 120_000);
 
-  it("keeps a bare launch fresh despite inherited session metadata", async () => {
-    const fresh = await launch([]);
-    await fresh.ready();
-    await fresh.close();
-    expect(fresh.output()).not.toContain("resume-proof-");
-    expect(fresh.output()).not.toContain("To resume this session:");
-    await assertIdle();
+  it("keeps bare and argument-free solo launches fresh despite inherited session metadata", async () => {
+    for (const args of [[], ["solo"]]) {
+      const fresh = await launch(args);
+      await fresh.ready();
+      await fresh.close();
+      expect(fresh.output()).not.toContain("resume-proof-");
+      expect(fresh.output()).not.toContain("To resume this session:");
+      await assertIdle();
+    }
   }, 120_000);
 
   it("reports invalid targets through containment without creating replacement sessions", async () => {
     const before = (await SessionManager.list(cwd)).map(session => session.id);
-    for (const target of ["unknown-id", resolve(cwd, "missing.jsonl")]) {
-      const child = await launch(["--session", target]);
-      expect(await child.exited()).toBe(1);
-      expect(child.output()).toMatch(/No session found matching|Session file does not exist/);
-      expect(child.output()).not.toContain("To resume this session:");
-      expect(child.output()).not.toContain("at openSelectedPiSession");
-      await assertIdle();
+    for (const args of [[], ["solo"]]) {
+      for (const target of ["unknown-id", resolve(cwd, "missing.jsonl")]) {
+        const child = await launch([...args, "--session", target]);
+        expect(await child.exited()).toBe(1);
+        expect(child.output()).toMatch(/No session found matching|Session file does not exist/);
+        expect(child.output()).not.toContain("To resume this session:");
+        expect(child.output()).not.toContain("at openSelectedPiSession");
+        await assertIdle();
+      }
     }
     expect((await SessionManager.list(cwd)).map(session => session.id)).toEqual(before);
   }, 120_000);

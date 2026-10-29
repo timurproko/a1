@@ -34,6 +34,8 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "--session <path|id>",
     "--session-dir <dir> --session <path|id>",
     "solo",
+    "solo --session <path|id>",
+    "solo --session-dir <dir> --session <path|id>",
     ...(capabilities.developmentComparison ? ["pi"] : []),
     "help",
     "version",
@@ -64,6 +66,8 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} --session <path|id>`,
     `  ${command} --session-dir <dir> --session <path|id>`,
     `  ${command} solo`,
+    `  ${command} solo --session <path|id>`,
+    `  ${command} solo --session-dir <dir> --session <path|id>`,
     ...(capabilities.developmentComparison ? [`  ${command} pi`] : []),
     `  ${command} help`,
     `  ${command} version`,
@@ -186,7 +190,15 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
     if (rest.length > 0) return parsePackageCommand(rest, "pi");
     return capabilities.developmentComparison ? { kind: "launch", profileId: "pi", launchMode: "solo" } : { kind: "noop" };
   }
-  if (command === "solo") return withoutArguments(rest, { kind: "launch", profileId: "a1", launchMode: "solo" });
+  if (command === "solo") {
+    if (rest.length === 0) return { kind: "launch", profileId: "a1", launchMode: "solo" };
+    try {
+      const sessionSelection = parseSessionSelection(rest);
+      return { kind: "launch", profileId: "a1", launchMode: "solo", ...(sessionSelection === undefined ? {} : { sessionSelection }) };
+    } catch (error) {
+      return { kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse solo session launch: ${error instanceof Error ? error.message : String(error)}`) };
+    }
+  }
   if (command === "update") return parseUpdate(rest);
   if (command === "session") return parseSessionContext(rest);
   if (command === "tabs") return parseTabs(rest);

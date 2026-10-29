@@ -88,7 +88,7 @@ A development build SHALL append the recorded pull request to its `Current` line
 - **THEN** A1 SHALL now treat it as the preferred equivalent of `a1 --version` and `a1 -v`
 
 ### Requirement: Interactive launch forms use the owned Pi UI pipeline
-Bare `a1` SHALL launch the A1-owned product surface through resident tabs on supported platforms (Windows x64, Linux x64, macOS arm64). Argument-free `a1 solo` SHALL launch the same owned product surface directly as one agent, without a tab strip, Tabs settings section, or resident-host initialization. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. Each resident tab SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability. Direct solo and Pi-comparison runtimes SHALL share only the canonical session-writer admission guard with resident runtimes; this guard SHALL NOT initialize a terminal host. An unsupported platform or resident-host startup failure SHALL leave bare `a1` on the direct owned path.
+Bare `a1` SHALL launch the A1-owned product surface through resident tabs on supported platforms (Windows x64, Linux x64, macOS arm64). Argument-free `a1 solo` SHALL launch the same owned product surface directly as one fresh agent; `a1 solo --session <path|id>` with an optional session directory SHALL resume the selected session directly. Both solo forms SHALL have no tab strip, Tabs settings section, or resident-host initialization. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. Each resident tab SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability. Direct solo and Pi-comparison runtimes SHALL share only the canonical session-writer admission guard with resident runtimes; this guard SHALL NOT initialize a terminal host. An unsupported platform or resident-host startup failure SHALL leave bare `a1` on the direct owned path.
 
 #### Scenario: Launch bare A1
 - **WHEN** the user runs `a1`
@@ -106,8 +106,12 @@ Bare `a1` SHALL launch the A1-owned product surface through resident tabs on sup
 - **WHEN** the user runs argument-free `a1 solo`
 - **THEN** A1 SHALL start a fresh direct single-agent owned UI without a tab strip or Tabs settings section and SHALL NOT start the resident host
 
+#### Scenario: Resume solo A1
+- **WHEN** the user runs a supported `a1 solo --session <path|id>` form
+- **THEN** A1 SHALL start the same direct single-agent owned UI for the selected saved session without a tab strip or resident host
+
 #### Scenario: Reject solo arguments
-- **WHEN** the user supplies an argument after `a1 solo`
+- **WHEN** the user supplies unsupported arguments after `a1 solo`
 - **THEN** A1 SHALL reject the command without starting an interactive runtime
 
 #### Scenario: Resident tabs are unsupported
