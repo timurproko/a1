@@ -21,4 +21,4 @@
 ## 5. Validate delivery
 
 - [x] 5.1 Run focused progress and native tab-strip tests, typecheck, strict OpenSpec validation, and native formatting checks and verify all complete successfully.
-- [ ] 5.2 Reconcile the implementation with current `origin/develop`, review the final diff and known-gap disposition, and verify the delivery body and acceptance scenarios describe both UI refinements.
+- [x] 5.2 Reconcile the implementation with current `origin/develop`, review the final diff and known-gap disposition, and verify the delivery body and acceptance scenarios describe both UI refinements.

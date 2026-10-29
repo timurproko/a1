@@ -61,3 +61,7 @@ The pending Agent chip will mix the shared active accent toward white for its in
 ## Migration Plan
 
 No data or configuration migration is required. Ship the presentation changes with the application and installer package. Reverting the two width constants restores the prior progress geometry; reverting the strip-level active-accent argument and default resolution restores the former per-tab selected-color behavior.
+
+## Known Gaps
+
+None.
