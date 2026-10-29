@@ -42,3 +42,21 @@ The resident tab bar SHALL place a newly added visible tab after every currently
 - **WHEN** another registered tab kind adds a new visible tab
 - **THEN** the same append operation SHALL determine its position
 - **AND** the tab bar SHALL NOT require a kind-specific insertion branch
+
+### Requirement: Agent prompt chrome uses its destination color immediately
+The pending Agent prompt's horizontal borders SHALL use the final owned Accent border color from their first frame and SHALL NOT participate in the selected-chip initialization transition. The landing wordmark SHALL use that same destination color. Only the selected Agent tab chip MAY transition from a lighter initialization shade into its settled active background.
+
+#### Scenario: A pending Agent prompt appears
+- **WHEN** the local pending Agent shell paints before the real Agent surface
+- **THEN** both horizontal prompt borders SHALL already use the final destination color
+- **AND** their color SHALL NOT depend on chip-fill progress
+
+#### Scenario: The real Agent surface commits
+- **WHEN** the real Agent editor replaces the pending shell
+- **THEN** the prompt-border color SHALL remain unchanged across the handoff
+- **AND** only the selected tab chip MAY continue or complete its fill transition
+
+#### Scenario: The landing logo is shown
+- **WHEN** the resident landing wordmark is visible under a resolved Accent
+- **THEN** the logo SHALL use the same destination color as the Agent prompt borders
+- **AND** it SHALL NOT use a separate provisional or brighter accent color
