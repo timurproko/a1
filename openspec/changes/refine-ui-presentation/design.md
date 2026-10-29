@@ -42,9 +42,9 @@ Extend the native strip render boundary with one resolved active accent supplied
 
 A provider field per tab kind was rejected because active color is a strip-wide presentation role, not Agent, Settings, or Changelog behavior. Keeping it outside `TabKindProvider` avoids recreating the hardcoded kind distinction at a different layer.
 
-### Resolve the owned default before rendering
+### Resolve the owned default through the resident launch API
 
-Treat the declared owned Accent default as blue when the settings document omits a stored value, matching the TypeScript settings API and utility bridge. Explicit supported colors continue to resolve normally. The render API therefore receives one concrete semantic accent instead of relying on `None` to mean purple in one recipient and blue in another.
+Extend `ResidentTabLaunchSettings` to resolve Accent through the owned settings declarations and pass that concrete value into the native attach contract. The attach settings watcher will retain that launch-resolved value whenever the document omits or cannot resolve an explicit Accent, while explicit supported values continue to update live. The native strip therefore consumes the settings API's default instead of duplicating a blue or purple default decision.
 
 ### Derive pending and settled shades from one color
 
