@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { parsePartition, partitionRoleTests, performanceBuildArguments, roleTestNames } from "../../scripts/development/run-terminal-host-probe.mjs";
+import { cargoCommand, parsePartition, partitionRoleTests, performanceBuildArguments, roleTestNames } from "../../scripts/development/run-terminal-host-probe.mjs";
 import { ownerTargetJobs } from "../../scripts/release/require-modular-validation.mjs";
 import { DEVELOPMENT_VALIDATION_MATRIX, TERMINAL_HOST_TEST_PARTITIONS } from "../../scripts/release/validation-matrix.mjs";
 
@@ -34,6 +34,11 @@ describe("terminal-host role test partitions", () => {
     expect(roleTestNames("#[test]\n#[cfg(unix)]\nfn only_here() {}\n#[test] fn second_one(){}")).toEqual(["only_here", "second_one"]);
     expect(() => roleTestNames("fn helper() {}")).toThrow(/no #\[test\]/u);
     expect(() => roleTestNames("#[test]\nfn twice() {}\n#[test]\nfn twice() {}")).toThrow(/duplicate/u);
+  });
+
+  it("resolves Cargo through the prepared PATH unless an explicit override is supplied", () => {
+    expect(cargoCommand({})).toBe("cargo");
+    expect(cargoCommand({ CARGO: "/opt/rust/bin/cargo" })).toBe("/opt/rust/bin/cargo");
   });
 
   it("parses partition selectors and refuses malformed ones", () => {
