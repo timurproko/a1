@@ -10,12 +10,13 @@ Restart readiness is currently appended to the shell's live status rows. Bare A1
 - Make the complete automatic-update process tree visually background-only on Windows.
 - Reuse bare A1's existing acknowledgement overlay for persistent restart readiness.
 - Give transient copy acknowledgement priority and restore restart readiness automatically afterward.
+- Use sentence capitalization for the shared copy acknowledgement on session and Changelog surfaces.
 - Keep the installed-update diagnostic as the source of truth for process-lifetime persistence.
 
 **Non-Goals:**
 - Change automatic update discovery, ownership, retry, replacement, activation, or recovery semantics.
 - Hide output from an explicitly invoked `a1 update` command.
-- Change copy acknowledgement wording, duration, clipboard behavior, or selection behavior.
+- Change copy acknowledgement duration, clipboard behavior, or selection behavior beyond capitalizing its first letter.
 - Make the restart-ready notice dismissible or persist it across process restarts.
 
 ## Decisions
@@ -39,6 +40,10 @@ Overlay composition will select the active copy acknowledgement first and the in
 ### 4. Centralize installed-update text and styling
 
 One renderer will produce `Update installed, restart to update` entirely in the success semantic color and truncate it to available width. Sharing the renderer across the custom overlay and pinned status avoids punctuation, casing, color, and clipping divergence.
+
+### 5. Capitalize copy acknowledgement at its shared formatter
+
+The common character-count formatter will return `Copied N chars to clipboard`, so frame selection, prompt selection, and Changelog selection stay consistent without route-specific string replacement. Existing callers continue to supply the exact payload count and retain their current color, placement, and lifetime.
 
 ## Risks / Trade-offs
 

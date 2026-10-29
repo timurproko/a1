@@ -250,8 +250,8 @@ describe("ReferenceScreenApp frame", () => {
     target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 5 }, host);
     target.onMouse?.({ kind: "release", button: 0, row: 3, column: 5 }, host);
     expect(copyText).toHaveBeenLastCalledWith("alpha");
-    expect(screen(target, host)[TOP + BODY - 1]?.slice(0, -RAIL_COLUMNS)).toMatch(/copied 5 chars to clipboard$/);
-    expect(fg).toHaveBeenCalledWith("accent", "copied 5 chars to clipboard");
+    expect(screen(target, host)[TOP + BODY - 1]?.slice(0, -RAIL_COLUMNS)).toMatch(/Copied 5 chars to clipboard$/);
+    expect(fg).toHaveBeenCalledWith("accent", "Copied 5 chars to clipboard");
     expect(requestRender).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(500);
@@ -261,9 +261,9 @@ describe("ReferenceScreenApp frame", () => {
     target.onMouse?.({ kind: "motion", button: 0, row: 3, column: 6 }, host);
     target.onMouse?.({ kind: "release", button: 0, row: 3, column: 6 }, host);
     expect(copyText).toHaveBeenLastCalledWith("longer");
-    expect(screen(target, host)[TOP + BODY - 1]?.slice(0, -RAIL_COLUMNS)).toMatch(/copied 6 chars to clipboard$/);
+    expect(screen(target, host)[TOP + BODY - 1]?.slice(0, -RAIL_COLUMNS)).toMatch(/Copied 6 chars to clipboard$/);
     vi.advanceTimersByTime(500);
-    expect(screen(target, host).join("\n")).toContain("copied 6 chars to clipboard");
+    expect(screen(target, host).join("\n")).toContain("Copied 6 chars to clipboard");
     const narrowRect = { width: 12, height: RECT.height };
     const narrow = screen(target, { ...HOST, requestRender }, narrowRect);
     expect(finalizeFrame(narrow, narrowRect, "reference acknowledgement")).toEqual(narrow);

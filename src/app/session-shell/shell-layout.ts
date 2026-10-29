@@ -28,7 +28,7 @@ export interface ShellLayoutPorts {
   readonly input: InputSurfaceSwitch;
   readonly editor: Pick<PiShellEditorPort, "getText">;
   readonly promptChips: Pick<PromptChipStore, "atomicRanges">;
-  readonly dockChrome: Pick<DockChrome, "renderCopyAcknowledgement" | "renderReleaseBanner" | "locateReleaseClose">;
+  readonly dockChrome: Pick<DockChrome, "renderPromptOverlay" | "renderReleaseBanner" | "locateReleaseClose">;
   readonly theme: TranscriptViewportTheme;
   readonly onFrame?: (frame: TranscriptViewportFrame) => void;
   rows(): number;

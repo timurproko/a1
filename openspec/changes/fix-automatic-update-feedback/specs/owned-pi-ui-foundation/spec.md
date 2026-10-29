@@ -4,7 +4,7 @@
 
 In bare A1 `Update: Notify` SHALL preserve the existing update-available popup exactly: the docked `Update Available` presentation, channel-appropriate manual command, stable changelog link, and session-only close control. It SHALL remain informational and SHALL never start installation. `Update: No` SHALL produce no release-update UI because no startup check runs.
 
-In the default `Auto` mode, the owned shell SHALL NOT render an update-available popup, bordered notice, changelog link, close control, command instruction, or installation progress. After the shared update lifecycle verifies that a newer release is approved and active, every still-running older session that requested or observed that work SHALL show the compact prompt-adjacent status `Update installed, restart to update`. Bare A1 SHALL place the status right-aligned on the same paint-only line immediately above the editor that shows `copied N chars to clipboard`. The status SHALL use one success-green semantic foreground, SHALL NOT allocate a row, and SHALL NOT move transcript rows, live Working status, dock content, pointer targets, or editor geometry.
+In the default `Auto` mode, the owned shell SHALL NOT render an update-available popup, bordered notice, changelog link, close control, command instruction, or installation progress. After the shared update lifecycle verifies that a newer release is approved and active, every still-running older session that requested or observed that work SHALL show the compact prompt-adjacent status `Update installed, restart to update`. Bare A1 SHALL place the status right-aligned on the same paint-only line immediately above the editor that shows `Copied N chars to clipboard`. The status SHALL use one success-green semantic foreground, SHALL NOT allocate a row, and SHALL NOT move transcript rows, live Working status, dock content, pointer targets, or editor geometry.
 
 A transient copy acknowledgement SHALL replace the restart-ready status on that line for the acknowledgement's existing lifetime. A newer copy acknowledgement SHALL retain its existing replacement and lifetime behavior. When the acknowledgement hides, restart readiness SHALL reappear automatically and remain visible until the older process exits. Working and other live status SHALL retain their existing presentation independently of this overlay. Narrow layouts MAY clip the restart-ready text while preserving the usable editor.
 
@@ -34,7 +34,7 @@ A transient copy acknowledgement SHALL replace the restart-ready status on that 
 - **AND** the restart status SHALL remain for the life of that older process rather than offering a dismiss control
 
 #### Scenario: Copy acknowledgement temporarily replaces restart readiness
-- **WHEN** restart readiness is visible and a successful copy produces `copied N chars to clipboard`
+- **WHEN** restart readiness is visible and a successful copy produces `Copied N chars to clipboard`
 - **THEN** the copy acknowledgement SHALL replace the restart-ready text on the same line for its existing lifetime
 - **AND** restart readiness SHALL reappear automatically after the copy acknowledgement hides
 

@@ -1,4 +1,5 @@
 import { rawKeyHint, VERSION } from "../startup-public.js";
+import { renderPiShellInstalledUpdateStatus } from "./shell-presenters-info.js";
 import {
   Spacer,
   Text,
@@ -26,7 +27,6 @@ import {
 import {
   createTuiFacade,
   ensureTheme,
-  piShellTruncateToWidth,
   piShellVisibleWidth,
   type PiShellViewComponentPort,
   type PiShellStatusPort,
@@ -143,9 +143,9 @@ export function createPiShellStatus(
     component = statusComponent(view, statusUi, outputPad, liveStatusText, placement, progressPresentation, progressStatus);
   };
   return {
-    render: width => appendInstalledUpdateStatus(component?.render(width) ?? [], width, view),
+    render: width => appendInstalledUpdateStatus(component?.render(width) ?? [], width, view, progressPresentation),
     renderDock: width => placement === "dock" ? component?.render(width) ?? [] : [],
-    renderLive: width => appendInstalledUpdateStatus(placement === "live" ? component?.render(width) ?? [] : [], width, view),
+    renderLive: width => appendInstalledUpdateStatus(placement === "live" ? component?.render(width) ?? [] : [], width, view, progressPresentation),
     placement: () => placement,
     invalidate: () => component?.invalidate(),
     update(next) {
@@ -304,11 +304,11 @@ function appendInstalledUpdateStatus(
   rows: readonly string[],
   width: number,
   view: OwnedUiSessionViewModel,
+  progressPresentation: PiShellProgressPresentationMode,
 ): readonly string[] {
-  if (width <= 0 || !view.diagnostics.some(diagnostic => diagnostic.code === "release-update-installed")) return rows;
-  const theme = piTheme();
-  const full = `${theme.fg("success", "Update installed")} ${theme.fg("muted", "·")} ${theme.fg("accent", "Restart to update")}`;
-  const status = piShellTruncateToWidth(full, width);
+  if (progressPresentation === "custom-viewport" || width <= 0
+    || !view.diagnostics.some(diagnostic => diagnostic.code === "release-update-installed")) return rows;
+  const status = renderPiShellInstalledUpdateStatus(width);
   const statusWidth = piShellVisibleWidth(status);
   const target = rows.findLastIndex(row => piShellVisibleWidth(row.trimEnd()) > 0);
   if (target < 0) return [`${" ".repeat(Math.max(0, width - statusWidth))}${status}`];

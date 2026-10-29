@@ -3,6 +3,7 @@ import { COPY_ACKNOWLEDGEMENT_DURATION_MS } from "../../ui/components/selection-
 import type { TranscriptViewportFrame } from "../../ui/components/transcript-viewport.js";
 import {
   renderPiShellCommandMessage,
+  renderPiShellInstalledUpdateStatus,
   renderPiShellReleaseUpdateBanner,
   renderPiShellStatusText,
   type PiShellReleaseUpdateBanner,
@@ -104,6 +105,13 @@ export class DockChrome {
   renderCopyAcknowledgement(width: number): string | undefined {
     if (this.#copyAcknowledgement === undefined || width <= 0) return undefined;
     return piTheme().fg("accent", piShellTruncateToWidth(this.#copyAcknowledgement, width));
+  }
+
+  renderPromptOverlay(diagnostics: OwnedUiSessionViewModel["diagnostics"], width: number): string | undefined {
+    const acknowledgement = this.renderCopyAcknowledgement(width);
+    if (acknowledgement !== undefined) return acknowledgement;
+    if (!diagnostics.some(diagnostic => diagnostic.code === "release-update-installed")) return undefined;
+    return renderPiShellInstalledUpdateStatus(width) || undefined;
   }
 
   renderReleaseBanner(diagnostics: OwnedUiSessionViewModel["diagnostics"], width: number): PiShellReleaseUpdateBanner | undefined {
