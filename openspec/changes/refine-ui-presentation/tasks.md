@@ -33,4 +33,4 @@
 
 - [x] 7.1 Repair the launch Accent propagation across the allowed architecture boundary and keep the bootstrap function within its size ratchet.
 - [x] 7.2 Run focused tab-order and active-accent tests, typecheck, architecture checks, strict OpenSpec validation, and changed-diff formatting checks.
-- [ ] 7.3 Reconcile current `origin/develop`, review the final diff and gap disposition, and update the acceptance scenarios for stable appended tab order.
+- [x] 7.3 Reconcile current `origin/develop`, review the final diff and gap disposition, and update the acceptance scenarios for stable appended tab order.
