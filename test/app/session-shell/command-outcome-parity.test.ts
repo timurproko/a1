@@ -52,7 +52,7 @@ function hasSemanticAccentException(frame: Capture): boolean {
 
 function rowsMatch(actual: Capture, expected: Capture): boolean {
   const reference = expected.exceptionReferenceRows ?? expected.rows;
-  // A1 deliberately leaves an empty last-message copy silent; Pi reports an error.
+  // Compatibility: A1 deliberately leaves an empty last-message copy silent; Pi reports an error.
   if (/\/copy\/empty\//u.test(expected.id)) return actual.rows.length === 0;
   if (!hasSemanticAccentException(expected)) return JSON.stringify(actual.rows) === JSON.stringify(reference);
   return JSON.stringify(actual.rows.map(stripTerminalSequences)) === JSON.stringify(reference.map(stripTerminalSequences));
