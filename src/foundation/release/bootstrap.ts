@@ -49,8 +49,8 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   await markStartupPhase(environment, "bootstrap-start");
   assertLaunchProfileId(launchProfileId);
   const sessionArgs = sessionSelectionArguments(options.launchIntent?.sessionSelection);
-  if (sessionArgs.length > 0 && (launchProfileId !== "a1" || launchMode === "solo")) {
-    throw new Error("session selection requires the normal tabbed A1 launch");
+  if (sessionArgs.length > 0 && launchProfileId !== "a1") {
+    throw new Error("session selection requires the A1 profile");
   }
   const output = options.output ?? process.stderr;
   const paths = resolveProductPaths(environment);

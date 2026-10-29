@@ -131,6 +131,20 @@ describe("repository-local development launch", () => {
     }
   });
 
+  it("routes selected solo sessions directly with intact arguments and leaves later solo launches fresh", async () => {
+    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-solo-resume-"));
+    const args = ["solo", "--session-dir", "D:/session's store", "--session", "saved-id"];
+    try {
+      const env = { ...process.env, A1_PROFILE_HOME: profileHome, PI_SESSION_ID: "stale" };
+      const selected = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", ...args], { env });
+      expect(JSON.parse(selected.stdout)).toMatchObject({ directProfile: "a1", launchMode: "solo",
+        selectedEntry: "bin/ui.js", childArguments: args.slice(1) });
+      const fresh = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "solo"], { env });
+      expect(JSON.parse(fresh.stdout)).toMatchObject({ directProfile: "a1", launchMode: "solo",
+        selectedEntry: "bin/ui.js", childArguments: [] });
+    } finally { await rm(profileHome, { recursive: true, force: true }); }
+  });
+
   it("forwards resume arguments intact through the development launcher and keeps later bare launches fresh", async () => {
     const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-resume-"));
     const env = { ...process.env, A1_PROFILE_HOME: profileHome, PI_SESSION_ID: "stale", PI_SESSION_FILE: "stale.jsonl" };

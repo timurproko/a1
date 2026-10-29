@@ -104,6 +104,8 @@ import {
 
 // Invariant: a disposed shell leaves the engine a host that holds no reference back to it.
 const DETACHED_WORKFLOW_INTERACTION: OwnedUiWorkflowInteractionHost = { prompt: async () => null, notify() {} };
+// Invariant: the resume mode belongs to the presenter instance, not the persisted session or profile.
+const SOLO_RESUME_HINTS = new WeakSet<OwnedUiSessionPresenter>();
 /** Resident Agents refuse the commands their tab bar serves instead, naming where they live. */
 const RESIDENT_UTILITY_TAB_REFUSALS: Readonly<Record<string, string>> = Object.freeze({
   settings: "Settings is available from the global Settings tab.",
@@ -201,7 +203,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#sessionGeneration = this.backend.identity.sessionGeneration;
     this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
     this.#suggestionModelKey = suggestionModelKey(this.backend.session.view());
-    this.#customViewport = sessionLayout === "custom-viewport";
+    this.#customViewport = sessionLayout === "custom-viewport"; if (options.presentation?.soloResumeHint) SOLO_RESUME_HINTS.add(this);
     this.#inputCoordination = inputPresentation?.coordination !== false;
     this.#host = host;
     this.#terminal = host.connect(this);
@@ -1194,6 +1196,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         customViewport: this.#customViewport,
         exitMode: this.backend.identity.disposed ? this.#fullscreenExitOutput : this.backend.settings.snapshot().fullscreenExitOutput,
         resume: this.backend.identity.currentSessionResumeMetadata(),
+        soloResumeHint: SOLO_RESUME_HINTS.has(this),
         transcript: () => this.root.exitTranscript(terminal.columns),
       });
     });

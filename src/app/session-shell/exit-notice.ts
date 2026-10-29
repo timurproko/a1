@@ -22,22 +22,22 @@ export interface ArmedExitNotice {
   clear(): void;
 }
 
-export function uncleanExitNoticeLines(resume: SessionResumeCommandMetadata | null): string[] {
+export function uncleanExitNoticeLines(resume: SessionResumeCommandMetadata | null, soloResumeHint = false): string[] {
   return [
     `${PRODUCT_IDENTITY.displayName} was stopped unexpectedly.`,
-    ...(resume === null ? [] : [`To resume this session: ${formatSessionResumeCommand(resume)}`]),
+    ...(resume === null ? [] : [`To resume this session: ${formatSessionResumeCommand(resume, soloResumeHint)}`]),
   ];
 }
 
 /** Arms the notice and keeps its resume command following the bound session until cleared. */
-export function armExitNotice(source: ExitNoticeSource, path: string): ArmedExitNotice {
+export function armExitNotice(source: ExitNoticeSource, path: string, soloResumeHint = false): ArmedExitNotice {
   let current: string | null = null;
   let cleared = false;
   let generation = source.identity.sessionGeneration;
   const write = () => {
     if (cleared) return;
     // Protocol: plain text only; the guardian strips control characters, so styling would be lost.
-    const text = `${uncleanExitNoticeLines(source.identity.currentSessionResumeMetadata()).join("\n")}\n`;
+    const text = `${uncleanExitNoticeLines(source.identity.currentSessionResumeMetadata(), soloResumeHint).join("\n")}\n`;
     if (text === current) return;
     try {
       // Invariant: the guardian may read at any instant, so it sees the previous or the next notice, never half of one.
