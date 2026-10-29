@@ -44,4 +44,4 @@
 ## 9. Validate the prompt-color refinement
 
 - [x] 9.1 Run focused landing, attach, strip, and Accent projection tests plus typecheck, architecture checks, strict OpenSpec validation, and changed-diff formatting checks.
-- [ ] 9.2 Reconcile current `origin/develop`, review the final diff and gap disposition, and update acceptance scenarios for stable prompt and logo color.
+- [x] 9.2 Reconcile current `origin/develop`, review the final diff and gap disposition, and update acceptance scenarios for stable prompt and logo color.
