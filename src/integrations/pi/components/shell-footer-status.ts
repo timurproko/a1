@@ -1,5 +1,4 @@
 import { rawKeyHint, VERSION } from "../startup-public.js";
-import { renderPiShellInstalledUpdateStatus } from "./shell-presenters-info.js";
 import {
   Spacer,
   Text,
@@ -27,6 +26,7 @@ import {
 import {
   createTuiFacade,
   ensureTheme,
+  renderPiShellInstalledUpdateStatus,
   piShellVisibleWidth,
   type PiShellViewComponentPort,
   type PiShellStatusPort,

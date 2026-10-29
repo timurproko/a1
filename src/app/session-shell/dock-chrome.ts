@@ -3,13 +3,12 @@ import { COPY_ACKNOWLEDGEMENT_DURATION_MS } from "../../ui/components/selection-
 import type { TranscriptViewportFrame } from "../../ui/components/transcript-viewport.js";
 import {
   renderPiShellCommandMessage,
-  renderPiShellInstalledUpdateStatus,
   renderPiShellReleaseUpdateBanner,
   renderPiShellStatusText,
   type PiShellReleaseUpdateBanner,
 } from "../../integrations/pi/components/shell-presenters-info.js";
 import { PINNED_PI_LAYOUT, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
-import { piShellTruncateToWidth } from "../../integrations/pi/components/shell-shared-facade.js";
+import { piShellTruncateToWidth, renderPiShellInstalledUpdateStatus } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { SessionViewportController, TailControlRegion } from "./session-viewport-controller.js";
 import { parseReleaseUpdateDiagnostic } from "./transcript-document.js";
 

@@ -1,5 +1,5 @@
 import { DynamicBorder } from "../startup-public.js";
-import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, truncateToWidth, visibleWidth, type KeybindingsConfig } from "@earendil-works/pi-tui";
+import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth, type KeybindingsConfig } from "@earendil-works/pi-tui";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { projectResidentTabShortcuts, RESIDENT_TAB_GLOBAL_SHORTCUTS } from "../../../features/resident-tab/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
@@ -41,15 +41,6 @@ export interface PiShellCacheWarmingPresentation {
 export function renderPiShellStatusText(message: string, width: number, outputPad: 0 | 1 = PINNED_PI_LAYOUT.outputPad): readonly string[] {
   ensureTheme();
   return new Text(piTheme().fg("dim", message), outputPad, 0).render(width);
-}
-
-export const INSTALLED_UPDATE_STATUS_TEXT = "Update installed, restart to update";
-
-/** One compact restart-ready message shared by pinned status and bare-A1 overlay presentation. */
-export function renderPiShellInstalledUpdateStatus(width: number): string {
-  if (width <= 0) return "";
-  ensureTheme();
-  return truncateToWidth(piTheme().fg("success", INSTALLED_UPDATE_STATUS_TEXT), width, "");
 }
 
 export interface PiShellCommandMessagePresentation {
