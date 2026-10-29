@@ -4,9 +4,12 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The failures are stale test expectations, introduced by `0ec0a4f` (#847), which deliberately switched the default transcript selection from white (`ESC[47m`) to shared blue (`ESC[48;2;38;79;120m`) and made empty last-message copies silent. Preserve the production behavior: assert the new selected-row style without changing semantic copy assertions, and allow exactly the empty-copy case in the independent pinned/owned parity test while asserting Pi's exact error, A1's silence, and rejection of a spurious A1 message. Do not loosen any other parity cases or test budgets.
 
 ## Evidence
+
+- Reproduced locally on the draft head `77876740` with `npx vitest run test/ui/components/transcript-viewport.test.ts test/app/session-shell/command-outcome-parity.test.ts`: five viewport failures asserting the obsolete white SGR plus two command-parity failures, all eight frame variants of `/copy/empty/`. Directly captured the pinned copy error `Error: No agent messages to copy yet.` against A1's empty rows across dark/light, padding 0/1, widths 80/28. `git show 0ec0a4f -- src/ui/components/text-selection.ts src/ui/components/transcript-viewport.ts` identifies the selection introduction; #847 also intentionally silenced empty copies. The failed Full regression aggregate is downstream of these owner failures, not a separate orchestration defect.
+- After the test corrections, the same focused run passes (66 tests across two files). `npx tsc -p tsconfig.build.json && node scripts/pi/build-startup-public.mjs && npm run typecheck` passes, as does `npx openspec validate fix-nightly-regression-2026-10-29 --strict`. The first bare `npm run typecheck` failed because this fresh worktree lacked generated `dist/` modules; the generated build resolves it. No Full regression dispatch was started on the draft; exact-head PR-selected Full regression remains the post-finalization gate. No known gaps in the two reproduced failures; numbered-package nightly recovery is independent.
 
 - Run [Full regression #77](https://github.com/timurproko/a1/actions/runs/40809187157) (attempt 1, schedule) on `7b590f0` at 2026-10-29T02:55:22Z:
   - `vitest-fast-resource-sensitive` (`fast-resource-sensitive`) failed on windows-2025-node22 (resource shard), windows-2025-node24 (resource shard) with exit 1.

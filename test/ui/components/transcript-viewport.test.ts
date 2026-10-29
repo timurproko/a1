@@ -1177,7 +1177,7 @@ describe("transcript viewport", () => {
       now: 107,
     });
     expect(viewport.hasSelection).toBe(true);
-    expect(shifted.rows[5]).toContain("\u001b[47m");
+    expect(shifted.rows[5]).toContain("\u001b[48;2;38;79;120m");
     expect(viewport.selectedText()).toBe("next footer");
 
     viewport.clearSelection();
@@ -1406,7 +1406,7 @@ describe("transcript viewport", () => {
     viewport.extendSelection(20, 7, 106, false);
     viewport.releaseSelection();
     const selected = viewport.compose({ ...input, now: 107 });
-    expect(selected.rows.slice(3).every(row => row.includes("\u001b[47m"))).toBe(true);
+    expect(selected.rows.slice(3).every(row => row.includes("\u001b[48;2;38;79;120m"))).toBe(true);
     expect(viewport.selectedText()).toBeNull();
     expect(viewport.captureSelectedText()).toBeNull();
 
@@ -1441,15 +1441,15 @@ describe("transcript viewport", () => {
 
       const animated = viewport.compose({ ...input, documentRows: ["Selectable transcript", "⠙ Working..."], now: 103 });
       expect(viewport.selectionActive).toBe(true);
-      expect(animated.rows[1]).toContain("\u001b[47m");
+      expect(animated.rows[1]).toContain("\u001b[48;2;38;79;120m");
 
       viewport.extendSelection(12, endRow, 104, false);
       viewport.releaseSelection();
       const selected = viewport.compose({ ...input, documentRows: ["Selectable transcript", "⠹ Working..."], now: 105 });
       expect(viewport.hasSelection).toBe(true);
-      expect(selected.rows[startRow - 1]).toContain("\u001b[47m");
-      expect(selected.rows[1]).toContain("\u001b[47m");
-      expect(selected.rows[endRow - 1]).toContain("\u001b[47m");
+      expect(selected.rows[startRow - 1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected.rows[1]).toContain("\u001b[48;2;38;79;120m");
+      expect(selected.rows[endRow - 1]).toContain("\u001b[48;2;38;79;120m");
       expect(viewport.selectedText()).toContain("transcript");
     },
   );
@@ -1481,19 +1481,19 @@ describe("transcript viewport", () => {
     };
     const reflowed = viewport.compose(streamed);
     expect(viewport.selectionActive).toBe(true);
-    expect(reflowed.rows[2]).toContain("\u001b[47m");
-    expect(reflowed.rows[9]).toContain("\u001b[47m");
+    expect(reflowed.rows[2]).toContain("\u001b[48;2;38;79;120m");
+    expect(reflowed.rows[9]).toContain("\u001b[48;2;38;79;120m");
 
     viewport.extendSelection(12, 12, 104, false);
     const animated = viewport.compose({ ...streamed, documentRows: [...stable, "partial extended again", "new tail growing", "", "⠹ Working..."], now: 105 });
     expect(viewport.selectionActive).toBe(true);
-    expect(animated.rows[11]).toContain("\u001b[47m");
+    expect(animated.rows[11]).toContain("\u001b[48;2;38;79;120m");
 
     viewport.extendSelection(12, 14, 106, false);
     viewport.releaseSelection();
     const selected = viewport.compose({ ...streamed, now: 107 });
     expect(viewport.hasSelection).toBe(true);
-    expect(selected.rows[13]).toContain("\u001b[47m");
+    expect(selected.rows[13]).toContain("\u001b[48;2;38;79;120m");
     expect(viewport.selectedText()).toContain("table 2");
   });
 
