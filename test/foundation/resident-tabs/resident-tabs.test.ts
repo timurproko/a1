@@ -28,6 +28,7 @@ describe("resident tab launch contracts", () => {
     const root = await temporaryDirectory("resident-setting-"); cleanups.push(root.cleanup);
     const namespace = "product";
     const defaults = {
+      accentColor: "blue",
       tabsAutoName: true,
       maxConcurrentStarts: 2,
       prewarmCount: 1,
@@ -47,13 +48,14 @@ describe("resident tab launch contracts", () => {
       [namespace]: {
         residentTabs: true,
         tabsMax: 24,
+        accentColor: "pink",
         tabsAutoName: false,
         tabsMaxConcurrentStarts: 8,
         tabsUnresponsiveRestartSeconds: 600,
         tabsStallNoticeSeconds: 1800,
       },
     }));
-    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual({ ...defaults, tabsAutoName: false });
+    expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual({ ...defaults, accentColor: "pink", tabsAutoName: false });
     await writeFile(join(root.path, "settings.json"), JSON.stringify({ [namespace]: { tabsMax: 80 } }));
     expect(await readResidentTabLaunchSettings(root.path, namespace)).toEqual(defaults);
     expect(JSON.parse(await readFile(join(root.path, "settings.json"), "utf8"))[namespace].tabsMax).toBe(80);

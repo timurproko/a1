@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import type { UiAccentColor } from "../../contracts/owned-ui/index.js";
 import {
   OWNED_SETTING_DECLARATIONS,
   OWNED_UI_SETTINGS_MIGRATIONS,
@@ -21,6 +22,7 @@ export const RESIDENT_TABS_PREWARM_COUNT = 1;
 export const RESIDENT_TABS_PREWARM_CAP = 1;
 
 export interface ResidentTabLaunchSettings {
+  readonly accentColor: UiAccentColor;
   readonly tabsAutoName: boolean;
   readonly maxConcurrentStarts: number;
   readonly prewarmCount: number;
@@ -28,6 +30,7 @@ export interface ResidentTabLaunchSettings {
 }
 
 const DEFAULTS: ResidentTabLaunchSettings = Object.freeze({
+  accentColor: "blue",
   tabsAutoName: true,
   maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
   prewarmCount: RESIDENT_TABS_PREWARM_COUNT,
@@ -69,12 +72,13 @@ function resolveLaunchValues(
   migrations: typeof OWNED_UI_SETTINGS_MIGRATIONS,
 ): ResidentTabLaunchSettings {
   const resolution = resolveOwnedUiSettings({
-    declarations: [OWNED_SETTING_DECLARATIONS.tabsAutoName],
+    declarations: [OWNED_SETTING_DECLARATIONS.accentColor, OWNED_SETTING_DECLARATIONS.tabsAutoName],
     migrations,
     document,
     currentVersion: OWNED_UI_SETTINGS_VERSION,
   });
   return {
+    accentColor: settingValue(resolution, "accentColor") as UiAccentColor,
     tabsAutoName: settingValue(resolution, "tabsAutoName") === true,
     maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
     prewarmCount: RESIDENT_TABS_PREWARM_COUNT,

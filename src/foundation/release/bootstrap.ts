@@ -87,6 +87,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
           "attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", String(RESIDENT_DETACH_INTERVAL_MS),
           "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
           "--settings-file", resolve(agentProfileDir, "settings.json"),
+          "--accent-color", (await residentLaunchSettings!).accentColor,
           "--data-dir", paths.dataDir, "--runtime-dir", paths.runtimeDir,
           "--release-root", release.releaseRoot, "--node-executable", process.execPath,
         ]),

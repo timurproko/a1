@@ -53,6 +53,7 @@ describe("mutable bootstrap boundary", () => {
     expect(bootstrap).toContain("residentRootExecutable: resident.executable.executable");
     expect(bootstrap).toContain("resident.executable.entry");
     expect(bootstrap).toContain('"--settings-file", resolve(agentProfileDir, "settings.json")');
+    expect(bootstrap).toContain('"--accent-color", (await residentLaunchSettings!).accentColor');
     expect(bootstrap).not.toMatch(/foundation\/transparent-terminal/);
   });
 

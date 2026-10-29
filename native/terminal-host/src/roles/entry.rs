@@ -123,7 +123,7 @@ fn dispatch_from_args(args: Vec<String>) -> Result<u8, String> {
         }
         _ => {
             eprintln!(
-                "usage: a1-terminal-host tabs <list|stop <id>|stop-all|host-status|host-stop> --profile <path> --data-dir <path> --runtime-dir <path> | release-holds --data-dir <path> | server --detach --profile <path> --data-dir <path> --runtime-dir <path> | probe --profile <path> --data-dir <path> --runtime-dir <path> | attach --endpoint <endpoint> --cwd <path> --clear-exit-ms <ms> --settings-file <path> | --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --resolve <command> | --resolve-shell"
+                "usage: a1-terminal-host tabs <list|stop <id>|stop-all|host-status|host-stop> --profile <path> --data-dir <path> --runtime-dir <path> | release-holds --data-dir <path> | server --detach --profile <path> --data-dir <path> --runtime-dir <path> | probe --profile <path> --data-dir <path> --runtime-dir <path> | attach --endpoint <endpoint> --cwd <path> --clear-exit-ms <ms> --settings-file <path> --accent-color <name> | --version | --probe | --probe-scroll | --probe-selection | --probe-input | --probe-contracts | --probe-durable | --probe-controller-boundary | --probe-resident-launch | --resolve <command> | --resolve-shell"
             );
             Err("expected a mode".to_owned())
         }
@@ -744,6 +744,7 @@ fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
         .map_err(|_| "attach clear-exit interval is invalid".to_owned())?;
     let profile = required_role_path(arguments, "--profile")?;
     let settings_file = required_role_file(arguments, "--settings-file")?;
+    let accent_color = required_role_value(arguments, "--accent-color")?;
     let data = required_role_path(arguments, "--data-dir")?;
     let runtime = required_role_path(arguments, "--runtime-dir")?;
     let release_root = required_role_value(arguments, "--release-root")?;
@@ -761,6 +762,7 @@ fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
             .clamp(1, 50),
         profile: &profile,
         settings_file: &settings_file,
+        accent_color,
         data_dir: &data,
         runtime_dir: &runtime,
         release_root,

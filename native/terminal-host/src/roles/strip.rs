@@ -10,6 +10,7 @@ pub const TAB_SPINNER_FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "
 pub const TAB_SPINNER_MS: u64 = 80;
 /// The selected chip fills independently of the immediately committed Agent surface.
 pub const CHIP_FILL_MS: u128 = 360;
+const DEFAULT_ACTIVE_ACCENT: &str = "blue";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChipFill {
@@ -526,16 +527,17 @@ fn chip(
     truecolor: bool,
     rename: Option<&StripRename>,
     target_width: Option<usize>,
+    active_accent: &str,
     fill: Option<&ChipFill>,
 ) -> (String, usize) {
     let glyph = status_glyph(&tab.status);
     let icon = if glyph.is_empty() { " " } else { &glyph };
     let fixed = chip_fixed_width();
-    let accent_color = tab_accent(tab.accent.as_deref());
+    let active_color = tab_accent(Some(active_accent));
     let selected_color = if tab.id == PENDING_AGENT_ID {
-        mix(accent_color, Rgb(255, 255, 255), 0.42)
+        mix(active_color, Rgb(255, 255, 255), 0.42)
     } else {
-        accent_color
+        active_color
     };
     let background = if active {
         format!(
@@ -565,8 +567,8 @@ fn chip(
     {
         let elapsed = now.saturating_duration_since(fill.started_at).as_millis();
         let filled = width * elapsed as usize / CHIP_FILL_MS as usize;
-        let pending = tinted_background(mix(accent_color, Rgb(255, 255, 255), 0.42), true);
-        let selected = tinted_background(accent_color, true);
+        let pending = tinted_background(mix(active_color, Rgb(255, 255, 255), 0.42), true);
+        let selected = tinted_background(active_color, true);
         format!("{}\x1b[0m", sweep_background(&body, filled, &selected, &pending))
     } else {
         format!("{background}{body}\x1b[0m")
@@ -646,7 +648,10 @@ pub fn render_interactive_at(
     row: u16,
     plus: bool,
 ) -> StripFrame {
-    render_interactive_filled_at(tabs, viewed, columns, hovered, time_format, rename, row, plus, None)
+    render_interactive_filled_at(
+        tabs, viewed, columns, hovered, time_format, rename, row, plus,
+        DEFAULT_ACTIVE_ACCENT, None,
+    )
 }
 
 /// Render a provisional-to-real chip fill without changing other strip callers or hit geometry.
@@ -660,6 +665,7 @@ pub fn render_interactive_filled_at(
     rename: Option<&StripRename>,
     row: u16,
     plus: bool,
+    active_accent: &str,
     fill: Option<&ChipFill>,
 ) -> StripFrame {
     let mut frame = render_frame_filled(
@@ -672,6 +678,7 @@ pub fn render_interactive_filled_at(
         Instant::now(),
         !palette_fallback_requested(),
         plus,
+        active_accent,
         fill,
     );
     if row != 1 {
@@ -709,7 +716,14 @@ fn render_frame(
     truecolor: bool,
     plus: bool,
 ) -> StripFrame {
-    render_frame_filled(tabs, viewed, columns, hovered, time_format, rename, now, truecolor, plus, None)
+    let active_accent = viewed
+        .and_then(|id| tabs.iter().find(|tab| tab.id == id))
+        .and_then(|tab| tab.accent.as_deref())
+        .unwrap_or(DEFAULT_ACTIVE_ACCENT);
+    render_frame_filled(
+        tabs, viewed, columns, hovered, time_format, rename, now, truecolor, plus,
+        active_accent, None,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -723,10 +737,13 @@ fn render_frame_filled(
     now: Instant,
     truecolor: bool,
     plus: bool,
+    active_accent: &str,
     fill: Option<&ChipFill>,
 ) -> StripFrame {
     let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
-        chip(tab, active, hovered, now, truecolor, rename, Some(target), fill)
+        chip(
+            tab, active, hovered, now, truecolor, rename, Some(target), active_accent, fill,
+        )
     };
     // Invariant: reserve controls before the clock on narrow rows. A disabled plus menu
     // hides `+` and gives its cells to the tabs.
@@ -1071,7 +1088,7 @@ mod tests {
             let fill = ChipFill { tab_id: "agent-2".into(), started_at: start };
             let frame = |elapsed, columns, truecolor| render_frame_filled(
                 &tabs, Some("agent-2"), columns, None, TimeFormat::Twelve, None,
-                start + Duration::from_millis(elapsed), truecolor, true, Some(&fill),
+                start + Duration::from_millis(elapsed), truecolor, true, accent_name, Some(&fill),
             );
             let pending = tinted_background(mix(tab_accent(Some(accent_name)), Rgb(255, 255, 255), 0.42), true);
             let active = tinted_background(tab_accent(Some(accent_name)), true);
@@ -1092,6 +1109,27 @@ mod tests {
     }
 
     #[test]
+    fn the_fill_uses_the_shared_active_accent_instead_of_the_tabs_reported_accent() {
+        let start = Instant::now();
+        let mut agent = tab("agent-2", "Agent");
+        agent.accent = Some("pink".into());
+        let tabs = [agent];
+        let fill = ChipFill { tab_id: "agent-2".into(), started_at: start };
+        let frame = render_frame_filled(
+            &tabs, Some("agent-2"), 80, None, TimeFormat::Twelve, None,
+            start + Duration::from_millis((CHIP_FILL_MS / 2) as u64), true, true, "cyan",
+            Some(&fill),
+        );
+        let cyan = tab_accent(Some("cyan"));
+        assert!(frame.bytes.contains(&tinted_background(cyan, true)));
+        assert!(frame.bytes.contains(&tinted_background(
+            mix(cyan, Rgb(255, 255, 255), 0.42),
+            true,
+        )));
+        assert!(!frame.bytes.contains(&tinted_background(tab_accent(Some("pink")), true)));
+    }
+
+    #[test]
     fn the_fill_respects_whole_wide_and_combining_graphemes_and_stops_on_switch() {
         let start = Instant::now();
         let fill = ChipFill { tab_id: "agent-2".into(), started_at: start };
@@ -1104,7 +1142,7 @@ mod tests {
         tab.accent = Some("green".into());
         let tabs = [tab];
         let render = |viewed, now| render_frame_filled(
-            &tabs, viewed, 12, None, TimeFormat::Twelve, None, now, true, true, Some(&fill),
+            &tabs, viewed, 12, None, TimeFormat::Twelve, None, now, true, true, "green", Some(&fill),
         );
         assert_eq!(render(Some("agent-2"), start).hits, render(Some("agent-2"), start + Duration::from_millis(250)).hits);
         assert_eq!(render(Some("agent-2"), start + Duration::from_millis(CHIP_FILL_MS as u64)).hits,
@@ -1124,7 +1162,7 @@ mod tests {
         let now = started_at + Duration::from_millis(180);
         let fill = ChipFill { tab_id: "agent-2".into(), started_at };
         let frame = |fill| render_frame_filled(&tabs, Some("agent-2"), 80, None,
-            TimeFormat::Twelve, None, now, true, true, fill);
+            TimeFormat::Twelve, None, now, true, true, "cyan", fill);
         let stable = frame(None);
         let filling = frame(Some(&fill));
         assert_eq!(stable.hits, filling.hits);
@@ -1391,6 +1429,7 @@ mod tests {
                 truecolor,
                 Some(&selected),
                 None,
+                "blue",
                 None,
             );
             let chip_style = text.split(' ').next().unwrap().to_owned();
@@ -1671,7 +1710,9 @@ mod tests {
         ] {
             let mut value = tab("one", "agent");
             value.status = status.into();
-            let (bytes, width) = chip(&value, true, false, Instant::now(), true, None, None, None);
+            let (bytes, width) = chip(
+                &value, true, false, Instant::now(), true, None, None, "blue", None,
+            );
             let text = plain(&bytes);
             assert!(text.starts_with(' '), "status={status}");
             let glyph = status_glyph_at(status, 0);
