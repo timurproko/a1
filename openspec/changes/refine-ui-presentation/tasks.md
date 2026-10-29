@@ -25,12 +25,12 @@
 
 ## 6. Stabilize newly added tab order
 
-- [ ] 6.1 Add native ordering coverage proving a pending Agent appends after visible Agent, Settings, and Changelog chips and retains that slot after its real surface commits.
-- [ ] 6.2 Route new visible-tab insertion through one kind-neutral tab-bar API and remove pending-Agent placement based on utility identities or initialization presentation state.
-- [ ] 6.3 Preserve drag reorder, overflow priority, activation, selected-color, and pending-fill behavior while applying the append contract to newly added tabs.
+- [x] 6.1 Add native ordering coverage proving a pending Agent appends after visible Agent, Settings, and Changelog chips and retains that slot after its real surface commits.
+- [x] 6.2 Route new visible-tab insertion through one kind-neutral tab-bar API and remove pending-Agent placement based on utility identities or initialization presentation state.
+- [x] 6.3 Preserve drag reorder, overflow priority, activation, selected-color, and pending-fill behavior while applying the append contract to newly added tabs.
 
 ## 7. Repair and validate the refined delivery
 
-- [ ] 7.1 Repair the launch Accent propagation across the allowed architecture boundary and keep the bootstrap function within its size ratchet.
-- [ ] 7.2 Run focused tab-order and active-accent tests, typecheck, architecture checks, strict OpenSpec validation, and changed-diff formatting checks.
+- [x] 7.1 Repair the launch Accent propagation across the allowed architecture boundary and keep the bootstrap function within its size ratchet.
+- [x] 7.2 Run focused tab-order and active-accent tests, typecheck, architecture checks, strict OpenSpec validation, and changed-diff formatting checks.
 - [ ] 7.3 Reconcile current `origin/develop`, review the final diff and gap disposition, and update the acceptance scenarios for stable appended tab order.

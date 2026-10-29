@@ -23,6 +23,7 @@ use crate::core::attach::{
     TabView, debounce_starting_glyphs, drag_marker_column, hold_status_glyphs,
     holder_idle_precedes_bridge, shown_tabs,
 };
+use crate::core::tab_bar::append_visible_tab;
 use crate::endpoint;
 use crate::protocol::{
     self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, TerminalEffect, TerminalModes,
@@ -216,12 +217,8 @@ fn show_pending_agent(shown: &mut Vec<StripTab>, pending: &PendingAgent) {
         (pending.known_ids.contains(&tab.id) && pending.real_id.as_deref() != Some(tab.id.as_str()))
             || core_attach::is_utility_tab(&tab.id)
     });
-    let at = shown
-        .iter()
-        .rposition(|tab| core_attach::is_utility_tab(&tab.id))
-        .unwrap_or(shown.len());
-    shown.insert(
-        at,
+    append_visible_tab(
+        shown,
         StripTab {
             id: PENDING_AGENT_ID.into(),
             name: "Agent".into(),
@@ -2395,18 +2392,7 @@ impl Client {
         } else {
             strip_active_view(&self.view, self.swap_in_flight.as_deref())
         };
-        let mut prioritized = prioritized_chips(shown, &self.chip_priority);
-        if pending {
-            prioritized.retain(|tab| tab.id != PENDING_AGENT_ID);
-            prioritized.insert(
-                0,
-                shown
-                    .iter()
-                    .find(|tab| tab.id == PENDING_AGENT_ID)
-                    .expect("pending chip")
-                    .clone(),
-            );
-        }
+        let prioritized = prioritized_chips(shown, &self.chip_priority);
         let drag = core.mode.drag().cloned();
         let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
@@ -2424,7 +2410,7 @@ impl Client {
                 self.time_format.active_accent(),
                 self.chip_fill.as_ref(),
             );
-            if (pending || !self.chip_priority.is_empty()) && !frame.hidden_tabs.is_empty() {
+            if !self.chip_priority.is_empty() && !frame.hidden_tabs.is_empty() {
                 frame = strip::render_interactive_filled_at(
                     &prioritized,
                     strip_viewed,
@@ -4239,7 +4225,7 @@ mod tests {
     }
 
     #[test]
-    fn pending_agent_hides_early_registry_chip_before_and_after_created() {
+    fn pending_agent_appends_and_hides_early_registry_chip_before_and_after_created() {
         let tab = |id: &str| StripTab {
             id: id.into(),
             name: "Agent".into(),
@@ -4255,16 +4241,25 @@ mod tests {
         };
         for real_id in [None, Some("new")] {
             pending.real_id = real_id.map(str::to_owned);
-            let mut shown = vec![tab("old"), tab("new")];
+            let mut shown = vec![tab("old"), tab("settings-1"), tab("changelog-1"), tab("new")];
             show_pending_agent(&mut shown, &pending);
             assert_eq!(
                 shown.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
-                ["old", PENDING_AGENT_ID]
+                ["old", "settings-1", "changelog-1", PENDING_AGENT_ID]
             );
             let frame = strip::render_interactive_at(
                 &shown, Some(PENDING_AGENT_ID), 80, None, TimeFormat::TwentyFour, None, 1, true,
             );
-            assert_eq!(drawn_chip_ids(&frame), ["old", PENDING_AGENT_ID]);
+            assert_eq!(
+                drawn_chip_ids(&frame),
+                ["old", "settings-1", "changelog-1", PENDING_AGENT_ID]
+            );
+            let narrow = strip::render_interactive_at(
+                &shown, Some(PENDING_AGENT_ID), 45, None, TimeFormat::TwentyFour, None, 1, true,
+            );
+            let narrow_ids = drawn_chip_ids(&narrow);
+            assert_eq!(narrow_ids.last().map(String::as_str), Some(PENDING_AGENT_ID));
+            assert_ne!(narrow_ids.first().map(String::as_str), Some(PENDING_AGENT_ID));
             assert!(!frame.bytes.contains("new"));
         }
         let mut from_landing = vec![tab("new")];
@@ -4277,10 +4272,10 @@ mod tests {
             [PENDING_AGENT_ID]
         );
         // Invariant: once the complete real surface commits, the ordinary registry topology owns one chip.
-        let committed = vec![tab("old"), tab("new")];
+        let committed = vec![tab("old"), tab("settings-1"), tab("changelog-1"), tab("new")];
         assert_eq!(
             committed.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
-            ["old", "new"]
+            ["old", "settings-1", "changelog-1", "new"]
         );
     }
 

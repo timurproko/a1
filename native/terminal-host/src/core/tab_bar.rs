@@ -41,6 +41,12 @@ pub enum TabKind {
     Changelog,
 }
 
+/// Places a newly added visible tab after the complete current tab-bar order. Lifecycle and
+/// presentation state never choose a temporary insertion slot.
+pub fn append_visible_tab<T>(tabs: &mut Vec<T>, tab: T) {
+    tabs.push(tab);
+}
+
 impl TabKind {
     pub const ALL: [Self; 3] = [Self::Agent, Self::Settings, Self::Changelog];
     pub const SINGLETONS: [Self; 2] = [Self::Settings, Self::Changelog];
@@ -199,6 +205,13 @@ mod tests {
             assert!(provider.prewarm && !provider.renameable && !provider.owns_session);
             assert_eq!(provider.route, Some(kind.name()));
         }
+    }
+
+    #[test]
+    fn newly_added_tabs_append_without_kind_or_presentation_rules() {
+        let mut tabs = vec!["agent", "settings", "changelog"];
+        append_visible_tab(&mut tabs, "pending");
+        assert_eq!(tabs, ["agent", "settings", "changelog", "pending"]);
     }
 
     #[test]
