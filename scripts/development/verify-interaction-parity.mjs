@@ -121,6 +121,16 @@ export function parityReport(platform, observations, cases, faults, failures = [
   };
 }
 
+/** Complete resident attach contract for the exact-artifact parity fixture. */
+export function residentAttachArguments(endpoint, root, context, fakeTab, accentColor = "blue") {
+  return [
+    "attach", "--endpoint", endpoint, "--cwd", root, "--clear-exit-ms", "500", "--profile", context.profile,
+    "--settings-file", join(context.profile, "settings.json"), "--accent-color", accentColor,
+    "--data-dir", context.data, "--runtime-dir", context.runtime,
+    "--release-root", context.release, "--node-executable", fakeTab,
+  ];
+}
+
 function run(host, arguments_, options = {}) {
   const result = spawnSync(process.execPath, [hostEntry, ...arguments_], {
     encoding: "utf8",
@@ -282,11 +292,9 @@ async function main() {
     rawOutput.direct = directRun.output;
 
     run(host, ["server", "--detach", "--profile", context.profile, "--data-dir", context.data, "--runtime-dir", context.runtime], { cwd: root, env: environment });
-    const attach = spawn(process.execPath, [
-      hostEntry, "attach", "--endpoint", endpoint, "--cwd", root, "--clear-exit-ms", "500", "--profile", context.profile,
-      "--settings-file", join(context.profile, "settings.json"), "--data-dir", context.data, "--runtime-dir", context.runtime,
-      "--release-root", context.release, "--node-executable", fakeTab,
-    ], { cols: 100, rows: 24, cwd: root, env: environment });
+    const attach = spawn(process.execPath, [hostEntry, ...residentAttachArguments(endpoint, root, context, fakeTab)], {
+      cols: 100, rows: 24, cwd: root, env: environment,
+    });
     terminals.push(attach);
     const residentRun = await driveCandidate("resident", attach, cases, platform);
     observations.push(...residentRun.observations); failures.push(...residentRun.failures);

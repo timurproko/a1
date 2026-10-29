@@ -5,6 +5,13 @@ export const PARITY_REPORT_SCHEMA: "a1-interaction-parity-v1";
 export function stepBytes(step: InteractionStep, rowOffset?: number): Buffer | null;
 export function recordsFromOutput(output: string): { seq: number; hex: string }[];
 export function caseStream(records: readonly { seq: number; hex: string }[]): { seq: number; hex: string };
+export function residentAttachArguments(
+  endpoint: string,
+  root: string,
+  context: { readonly profile: string; readonly data: string; readonly runtime: string; readonly release: string },
+  fakeTab: string,
+  accentColor?: string,
+): string[];
 export function buildObservations(caseId: string, candidate: Candidate, platform: string, records: readonly { seq: number; hex: string }[], sentAt: number, observedAt: number): Observation[];
 export function parityReport(
   platform: string,

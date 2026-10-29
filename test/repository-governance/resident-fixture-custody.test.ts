@@ -18,6 +18,14 @@ describe("resident certification custody", () => {
     },
   );
 
+  it.each(["verify-interaction-parity", "measure-resident-tabs", "verify-resident-parallel-progress"])(
+    "%s supplies the required owned Accent to every resident attach fixture", async name => {
+      const source = await readFile(`scripts/development/${name}.mjs`, "utf8");
+      expect(source).toContain('"--accent-color"');
+      expect(source).toContain('"blue"');
+    },
+  );
+
   it("keeps canonical artifact custody over three sanitized or stale detached generations", async () => {
     const root = await createResidentFixtureRoot("a1-custody-");
     roots.push(root);
