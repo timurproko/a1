@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { interactionCase, KEY_TRANSPORT_CASES } from "../../../scripts/development/interaction-parity/matrix.mjs";
-import { buildObservations, caseStream, PARITY_REPORT_SCHEMA, parityReport, recordsFromOutput, stepBytes } from "../../../scripts/development/verify-interaction-parity.mjs";
+import { buildObservations, caseStream, PARITY_REPORT_SCHEMA, parityReport, recordsFromOutput, residentAttachArguments, stepBytes } from "../../../scripts/development/verify-interaction-parity.mjs";
 
 describe("interaction parity harness", () => {
   it("encodes matrix steps as the bytes a direct terminal sends", () => {
@@ -20,6 +20,19 @@ describe("interaction parity harness", () => {
     for (const entry of KEY_TRANSPORT_CASES) {
       expect(entry.steps.some(step => stepBytes(step) !== null), entry.id).toBe(true);
     }
+  });
+
+  it("supplies the owned default Accent in the resident attach contract", () => {
+    const args = residentAttachArguments("/runtime/resident.sock", "/fixture", {
+      profile: "/fixture/profile",
+      data: "/fixture/data",
+      runtime: "/fixture/runtime",
+      release: "/fixture/release",
+    }, "/fixture/fake-tab");
+    expect(args).toContain("--accent-color");
+    expect(args[args.indexOf("--accent-color") + 1]).toBe("blue");
+    expect(args).toContain("--settings-file");
+    expect(args[args.indexOf("--settings-file") + 1]?.replaceAll("\\", "/")).toBe("/fixture/profile/settings.json");
   });
 
   it("compares one byte stream per case however each path split its reads", () => {

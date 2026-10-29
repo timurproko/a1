@@ -164,17 +164,17 @@ describe("update progress presentation", () => {
     [-10, 0, 0],
     [0, 0, 0],
     [25, 25, 10],
-    [49.6, 50, 20],
-    [100, 100, 40],
-    [110, 100, 40],
+    [49.6, 50, 19],
+    [100, 100, 38],
+    [110, 100, 38],
   ])("renders %s with the shared accent and one space before the percentage", (input, percent, filled) => {
     const frame = renderUpdateProgressBar(input);
-    const bar = "━".repeat(filled) + "─".repeat(40 - filled);
+    const bar = "━".repeat(filled) + "─".repeat(38 - filled);
 
     expect(stripVTControlCharacters(frame)).toBe(`${bar} ${percent}%`);
     expect(frame).toBe(
       `${SHARED_PROGRESS_ACCENT_ANSI}${"━".repeat(filled)}`
-      + `\u001b[38;2;102;102;102m${"─".repeat(40 - filled)}`
+      + `\u001b[38;2;102;102;102m${"─".repeat(38 - filled)}`
       + `\u001b[38;2;128;128;128m ${percent}%\u001b[39m`,
     );
   });
@@ -183,7 +183,7 @@ describe("update progress presentation", () => {
     const accent = earlyAccentPalette("green").accent;
     const frame = renderUpdateProgressBar(25, accent);
     expect(frame).toContain(`${accent}${"━".repeat(10)}`);
-    expect(stripVTControlCharacters(frame)).toBe(`${"━".repeat(10)}${"─".repeat(30)} 25%`);
+    expect(stripVTControlCharacters(frame)).toBe(`${"━".repeat(10)}${"─".repeat(28)} 25%`);
     expect(frame).toContain("\u001b[38;2;128;128;128m 25%\u001b[39m");
   });
 });
@@ -691,7 +691,7 @@ describe("A1 self-update orchestration", () => {
 
     expect(harness.stdout.join("")).not.toContain("updated successfully");
     expect(harness.stderr.join("")).toContain("update cancelled safely; the launcher is available");
-    expect(harness.stdout.at(-1)).toBe(`${RETURN}${" ".repeat(46)}${RETURN}`);
+    expect(harness.stdout.at(-1)).toBe(`${RETURN}${" ".repeat(44)}${RETURN}`);
     expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
   });
 
@@ -705,7 +705,7 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate({ ...harness, progress: true })).resolves.toBe(1);
 
     expect(harness.stdout.join("")).not.toContain("updated successfully");
-    expect(harness.stdout.at(-1)).toBe(`${RETURN}${" ".repeat(46)}${RETURN}`);
+    expect(harness.stdout.at(-1)).toBe(`${RETURN}${" ".repeat(44)}${RETURN}`);
     expect(harness.stderr.join("")).toContain("immutable startup warmup failed");
     expect(harness.stderr.join("")).toContain("previous test lifecycle retained");
   });
@@ -752,7 +752,7 @@ describe("A1 self-update orchestration", () => {
     }
   });
 
-  it("aligns the 40-column progress bar with the development update text", async () => {
+  it("uses the compact progress width beside the development update text", async () => {
     const harness = createHarness({
       current: "0.1.8-dev.322",
       responses: [success("0.1.8-dev.332\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()],
@@ -768,12 +768,12 @@ describe("A1 self-update orchestration", () => {
     for (const frame of frames) {
       const visible = stripVTControlCharacters(frame);
       // Invariant: every frame stays on one row, with no counts or extra percentage spacing.
-      expect(visible).toMatch(/^\r[━─]{40} \d+%$/);
+      expect(visible).toMatch(/^\r[━─]{38} \d+%$/);
       const bar = visible.slice(1, visible.indexOf(" "));
-      expect(bar).toHaveLength(heading!.length);
+      expect(bar).toHaveLength(38);
       expect(frame.endsWith("\u001b[39m")).toBe(true);
     }
-    expect(text).toContain(`${RETURN}${" ".repeat(46)}${RETURN}a1 updated successfully to`);
+    expect(text).toContain(`${RETURN}${" ".repeat(44)}${RETURN}a1 updated successfully to`);
   });
 
   it("gives the progress row back to the line that says what was installed", async () => {

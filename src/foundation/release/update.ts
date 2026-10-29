@@ -393,7 +393,7 @@ export function createUpdateLifecycleCoordinator(
   };
 }
 
-const PROGRESS_BAR_WIDTH = 40;
+const PROGRESS_BAR_WIDTH = 38;
 const PROGRESS_TICK_MS = 200;
 /**
  * Copying the release owns 78–92 and is reported file by file, so the bar crosses

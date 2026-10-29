@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { copyFile, mkdir } from "node:fs/promises";
-import { homedir, platform } from "node:os";
+import { platform } from "node:os";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -49,6 +49,11 @@ export function performanceBuildArguments(manifest) {
   return ["build", "--release", "--locked", "--manifest-path", manifest, "--lib", "--features", "node-addon,resident-fixtures,fault-injection"];
 }
 
+/** Use an explicit override when supplied; otherwise let the prepared environment resolve Cargo. */
+export function cargoCommand(env) {
+  return env.CARGO ?? "cargo";
+}
+
 function partitionFromArguments(argv, env) {
   const flag = argv.indexOf("--partition");
   if (flag >= 0) return parsePartition(argv[flag + 1]);
@@ -57,7 +62,7 @@ function partitionFromArguments(argv, env) {
 }
 
 async function main() {
-  const cargo = process.env.CARGO ?? resolve(homedir(), ".cargo", "bin", platform() === "win32" ? "cargo.exe" : "cargo");
+  const cargo = cargoCommand(process.env);
   const manifest = resolve("native/terminal-host/Cargo.toml");
   const environment = { ...process.env, ZIG: process.env.ZIG ?? "zig" };
   // Rationale: CI traces each probe step so a stall names the step that did not return.

@@ -23,6 +23,7 @@ use crate::core::attach::{
     TabView, debounce_starting_glyphs, drag_marker_column, hold_status_glyphs,
     holder_idle_precedes_bridge, shown_tabs,
 };
+use crate::core::tab_bar::append_visible_tab;
 use crate::endpoint;
 use crate::protocol::{
     self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, TerminalEffect, TerminalModes,
@@ -216,12 +217,8 @@ fn show_pending_agent(shown: &mut Vec<StripTab>, pending: &PendingAgent) {
         (pending.known_ids.contains(&tab.id) && pending.real_id.as_deref() != Some(tab.id.as_str()))
             || core_attach::is_utility_tab(&tab.id)
     });
-    let at = shown
-        .iter()
-        .rposition(|tab| core_attach::is_utility_tab(&tab.id))
-        .unwrap_or(shown.len());
-    shown.insert(
-        at,
+    append_visible_tab(
+        shown,
         StripTab {
             id: PENDING_AGENT_ID.into(),
             name: "Agent".into(),
@@ -698,47 +695,45 @@ struct PresentationSettings {
     plus_menu: PlusMenu,
 }
 
-impl Default for PresentationSettings {
-    fn default() -> Self {
+impl PresentationSettings {
+    fn with_accent(accent_color: &'static str) -> Self {
         Self {
             time_format: TimeFormat::Twelve,
-            accent_color: None,
+            accent_color: Some(accent_color),
             background_style: None,
-            accent_hover: accent_selected_background(None),
+            accent_hover: accent_selected_background(Some(accent_color)),
             tab_bar_position: TabBarPosition::Top,
             plus_menu: PlusMenu::default(),
         }
     }
 }
 
-fn read_presentation_settings(path: &Path) -> PresentationSettings {
+fn read_presentation_settings(path: &Path, default_accent: &'static str) -> PresentationSettings {
     let document = std::fs::metadata(path)
         .ok()
         .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
         .and_then(|_| std::fs::read(path).ok())
         .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok());
     let Some(owned_settings) = document.as_ref().and_then(|value| value.get("a1")) else {
-        return PresentationSettings::default();
+        return PresentationSettings::with_accent(default_accent);
     };
+    let accent_color = owned_settings
+        .get("accentColor")
+        .and_then(serde_json::Value::as_str)
+        .and_then(known_accent)
+        .unwrap_or(default_accent);
     PresentationSettings {
         time_format: TimeFormat::from_setting(
             owned_settings
                 .get("timeFormat")
                 .and_then(serde_json::Value::as_str),
         ),
-        accent_color: owned_settings
-            .get("accentColor")
-            .and_then(serde_json::Value::as_str)
-            .and_then(known_accent),
+        accent_color: Some(accent_color),
         background_style: owned_settings
             .get("backgroundStyle")
             .and_then(serde_json::Value::as_str)
             .and_then(known_background_style),
-        accent_hover: accent_selected_background(
-            owned_settings
-                .get("accentColor")
-                .and_then(serde_json::Value::as_str),
-        ),
+        accent_hover: accent_selected_background(Some(accent_color)),
         tab_bar_position: TabBarPosition::from_setting(
             owned_settings
                 .get("tabsPosition")
@@ -754,7 +749,7 @@ fn read_presentation_settings(path: &Path) -> PresentationSettings {
 
 #[cfg(test)]
 fn read_time_format(path: &Path) -> TimeFormat {
-    read_presentation_settings(path).time_format
+    read_presentation_settings(path, "blue").time_format
 }
 
 /// Development diagnostics: when `A1_ATTACH_KEY_TRACE` names a file, the attach client appends
@@ -840,12 +835,12 @@ fn accent_selected_background(accent: Option<&str>) -> [u8; 3] {
 
 #[cfg(test)]
 fn read_tab_bar_position(path: &Path) -> TabBarPosition {
-    read_presentation_settings(path).tab_bar_position
+    read_presentation_settings(path, "blue").tab_bar_position
 }
 
 #[cfg(test)]
 fn read_accent_hover(path: &Path) -> [u8; 3] {
-    read_presentation_settings(path).accent_hover
+    read_presentation_settings(path, "blue").accent_hover
 }
 
 #[derive(Debug)]
@@ -854,6 +849,7 @@ struct TimeFormatWatch {
     signature: Option<(std::time::SystemTime, u64)>,
     value: TimeFormat,
     accent_color: Option<&'static str>,
+    default_accent: &'static str,
     background_style: Option<&'static str>,
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
@@ -862,19 +858,24 @@ struct TimeFormatWatch {
 }
 
 impl TimeFormatWatch {
-    fn new(path: &Path) -> Self {
-        let settings = read_presentation_settings(path);
+    fn new(path: &Path, default_accent: &'static str) -> Self {
+        let settings = read_presentation_settings(path, default_accent);
         Self {
             path: path.to_owned(),
             signature: settings_signature(path),
             value: settings.time_format,
             accent_color: settings.accent_color,
+            default_accent,
             background_style: settings.background_style,
             accent_hover: settings.accent_hover,
             tab_bar_position: settings.tab_bar_position,
             plus_menu: settings.plus_menu,
             checked_at: Instant::now(),
         }
+    }
+
+    fn active_accent(&self) -> &'static str {
+        self.accent_color.unwrap_or(self.default_accent)
     }
 
     /// Re-reads the settings document after it changed; true when the strip format changed.
@@ -888,7 +889,7 @@ impl TimeFormatWatch {
             return false;
         }
         self.signature = signature;
-        let settings = read_presentation_settings(&self.path);
+        let settings = read_presentation_settings(&self.path, self.default_accent);
         let changed = settings.time_format != self.value
             || settings.accent_color != self.accent_color
             || settings.background_style != self.background_style
@@ -1474,6 +1475,7 @@ pub struct AttachOptions<'a> {
     pub tabs_max: usize,
     pub profile: &'a Path,
     pub settings_file: &'a Path,
+    pub accent_color: &'a str,
     pub data_dir: &'a Path,
     pub runtime_dir: &'a Path,
     pub release_root: &'a str,
@@ -1958,9 +1960,9 @@ fn empty_list_shows_strip(tabs_empty: bool, pending_agent: bool) -> bool {
     tabs_empty && !pending_agent
 }
 
-fn apply_owned_accent(tabs: &mut [StripTab], color: Option<&str>) {
+fn apply_tab_accent_fallback(tabs: &mut [StripTab], color: Option<&str>) {
     for tab in tabs {
-        if core_attach::is_utility_tab(&tab.id) || tab.accent.is_none() {
+        if tab.accent.is_none() {
             tab.accent = color.map(str::to_owned);
         }
     }
@@ -2024,7 +2026,9 @@ impl Client {
                 .or_else(|| options.view_tab.map(str::to_owned)),
         );
         view.expect_request_generation(handshake.request_generation);
-        let time_format = TimeFormatWatch::new(options.settings_file);
+        let default_accent = known_accent(options.accent_color)
+            .ok_or_else(|| "attach accent color is invalid".to_owned())?;
+        let time_format = TimeFormatWatch::new(options.settings_file, default_accent);
         let strip_frame = strip::render_interactive_at(
             &[],
             view.viewed.as_deref(),
@@ -2368,7 +2372,7 @@ impl Client {
         if let Some(intent) = self.pending_agent.as_ref().filter(|_| pending) {
             show_pending_agent(&mut shown, intent);
         }
-        apply_owned_accent(&mut shown, self.time_format.accent_color);
+        apply_tab_accent_fallback(&mut shown, self.time_format.accent_color);
         let now = self.now();
         self.glyphs.suppress_quiet_startup_handoff(
             &mut shown,
@@ -2388,18 +2392,7 @@ impl Client {
         } else {
             strip_active_view(&self.view, self.swap_in_flight.as_deref())
         };
-        let mut prioritized = prioritized_chips(shown, &self.chip_priority);
-        if pending {
-            prioritized.retain(|tab| tab.id != PENDING_AGENT_ID);
-            prioritized.insert(
-                0,
-                shown
-                    .iter()
-                    .find(|tab| tab.id == PENDING_AGENT_ID)
-                    .expect("pending chip")
-                    .clone(),
-            );
-        }
+        let prioritized = prioritized_chips(shown, &self.chip_priority);
         let drag = core.mode.drag().cloned();
         let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
@@ -2414,9 +2407,10 @@ impl Client {
                     .tab_bar_position
                     .strip_terminal_row(self.outer_rows),
                 plus,
+                self.time_format.active_accent(),
                 self.chip_fill.as_ref(),
             );
-            if (pending || !self.chip_priority.is_empty()) && !frame.hidden_tabs.is_empty() {
+            if !self.chip_priority.is_empty() && !frame.hidden_tabs.is_empty() {
                 frame = strip::render_interactive_filled_at(
                     &prioritized,
                     strip_viewed,
@@ -2428,6 +2422,7 @@ impl Client {
                         .tab_bar_position
                         .strip_terminal_row(self.outer_rows),
                     plus,
+                    self.time_format.active_accent(),
                     self.chip_fill.as_ref(),
                 );
             }
@@ -3999,6 +3994,7 @@ mod tests {
             tabs_max: usize::MAX,
             profile: Path::new("."),
             settings_file: Path::new("settings.json"),
+            accent_color: "blue",
             data_dir: Path::new("data"),
             runtime_dir: Path::new("runtime"),
             release_root: "D:/release",
@@ -4223,13 +4219,13 @@ mod tests {
         for (accent, _) in landing::LANDING_ACCENTS {
             let mut tabs = Vec::new();
             show_pending_agent(&mut tabs, &intent);
-            apply_owned_accent(&mut tabs, Some(accent));
+            apply_tab_accent_fallback(&mut tabs, Some(accent));
             assert_eq!(tabs[0].accent.as_deref(), Some(accent));
         }
     }
 
     #[test]
-    fn pending_agent_hides_early_registry_chip_before_and_after_created() {
+    fn pending_agent_appends_and_hides_early_registry_chip_before_and_after_created() {
         let tab = |id: &str| StripTab {
             id: id.into(),
             name: "Agent".into(),
@@ -4245,16 +4241,25 @@ mod tests {
         };
         for real_id in [None, Some("new")] {
             pending.real_id = real_id.map(str::to_owned);
-            let mut shown = vec![tab("old"), tab("new")];
+            let mut shown = vec![tab("old"), tab("settings-1"), tab("changelog-1"), tab("new")];
             show_pending_agent(&mut shown, &pending);
             assert_eq!(
                 shown.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
-                ["old", PENDING_AGENT_ID]
+                ["old", "settings-1", "changelog-1", PENDING_AGENT_ID]
             );
             let frame = strip::render_interactive_at(
                 &shown, Some(PENDING_AGENT_ID), 80, None, TimeFormat::TwentyFour, None, 1, true,
             );
-            assert_eq!(drawn_chip_ids(&frame), ["old", PENDING_AGENT_ID]);
+            assert_eq!(
+                drawn_chip_ids(&frame),
+                ["old", "settings-1", "changelog-1", PENDING_AGENT_ID]
+            );
+            let narrow = strip::render_interactive_at(
+                &shown, Some(PENDING_AGENT_ID), 45, None, TimeFormat::TwentyFour, None, 1, true,
+            );
+            let narrow_ids = drawn_chip_ids(&narrow);
+            assert_eq!(narrow_ids.last().map(String::as_str), Some(PENDING_AGENT_ID));
+            assert_ne!(narrow_ids.first().map(String::as_str), Some(PENDING_AGENT_ID));
             assert!(!frame.bytes.contains("new"));
         }
         let mut from_landing = vec![tab("new")];
@@ -4267,10 +4272,10 @@ mod tests {
             [PENDING_AGENT_ID]
         );
         // Invariant: once the complete real surface commits, the ordinary registry topology owns one chip.
-        let committed = vec![tab("old"), tab("new")];
+        let committed = vec![tab("old"), tab("settings-1"), tab("changelog-1"), tab("new")];
         assert_eq!(
             committed.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
-            ["old", "new"]
+            ["old", "settings-1", "changelog-1", "new"]
         );
     }
 
@@ -4394,7 +4399,7 @@ mod tests {
     }
 
     #[test]
-    fn settings_chip_uses_configured_accent_before_and_after_its_surface() {
+    fn every_tab_kind_uses_the_shared_active_accent_without_overwriting_reported_accents() {
         let mut tabs = [
             StripTab {
                 id: "settings-1".into(),
@@ -4412,20 +4417,39 @@ mod tests {
                 accent: Some("pink".into()),
                 title_animation: None,
             },
+            StripTab {
+                id: "changelog-1".into(),
+                name: "Changelog".into(),
+                name_source: "system".into(),
+                status: "idle".into(),
+                accent: None,
+                title_animation: None,
+            },
         ];
-        apply_owned_accent(&mut tabs, Some("cyan"));
-        assert_eq!(tabs[0].accent.as_deref(), Some("cyan"));
+        apply_tab_accent_fallback(&mut tabs, Some("cyan"));
+        assert_eq!(tabs[0].accent.as_deref(), Some("purple"));
         assert_eq!(tabs[1].accent.as_deref(), Some("pink"));
-        let frame = strip::render(&tabs, Some("settings-1"), 80);
+        assert_eq!(tabs[2].accent.as_deref(), Some("cyan"));
         let cyan = if strip::palette_fallback_requested() {
             "\x1b[48;5;23m"
         } else {
             "\x1b[48;2;59;83;88m"
         };
-        assert!(
-            frame.bytes.contains(cyan),
-            "Settings is cyan on its first frame"
-        );
+        for viewed in ["agent-1", "settings-1", "changelog-1"] {
+            let frame = strip::render_interactive_filled_at(
+                &tabs,
+                Some(viewed),
+                80,
+                None,
+                TimeFormat::Twelve,
+                None,
+                1,
+                true,
+                "cyan",
+                None,
+            );
+            assert!(frame.bytes.contains(cyan), "{viewed} uses the shared active accent");
+        }
     }
 
     fn startup_surface(revision: u64, text: &str, structured: bool) -> Surface {
@@ -5554,8 +5578,8 @@ mod tests {
         let file = profile.path().join("settings.json");
         assert_eq!(
             read_accent_hover(&file),
-            [58, 56, 66],
-            "purple is the default accent"
+            [52, 57, 69],
+            "the launch-resolved blue accent is the default"
         );
         std::fs::write(&file, br#"{"a1":{"accentColor":"cyan"}}"#).unwrap();
         assert_eq!(read_accent_hover(&file), [48, 60, 61]);
@@ -5613,9 +5637,13 @@ mod tests {
         let profile = tempfile::tempdir().unwrap();
         let file = profile.path().join("settings.json");
         assert_eq!(read_time_format(&file), TimeFormat::Twelve);
+        assert_eq!(
+            read_presentation_settings(&file, "orange").accent_color,
+            Some("orange")
+        );
         std::fs::write(&file, br#"{"a1":{"timeFormat":"20:00"}}"#).unwrap();
         assert_eq!(read_time_format(&file), TimeFormat::TwentyFour);
-        let mut watch = TimeFormatWatch::new(&file);
+        let mut watch = TimeFormatWatch::new(&file, "blue");
         watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
         assert!(!watch.refresh(), "an unchanged document does not repaint");
 
@@ -5650,14 +5678,14 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            read_presentation_settings(&file),
-            PresentationSettings::default()
+            read_presentation_settings(&file, "blue"),
+            PresentationSettings::with_accent("blue")
         );
         watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
         assert!(watch.refresh());
         assert_eq!(watch.value, TimeFormat::Twelve);
-        assert_eq!(watch.accent_color, None);
-        assert_eq!(watch.accent_hover, accent_selected_background(None));
+        assert_eq!(watch.accent_color, Some("blue"));
+        assert_eq!(watch.accent_hover, accent_selected_background(Some("blue")));
         assert_eq!(watch.tab_bar_position, TabBarPosition::Top);
         assert!(
             watch.plus_menu.agent_only(),
@@ -5666,13 +5694,13 @@ mod tests {
 
         std::fs::write(&file, b"not json").unwrap();
         assert_eq!(
-            read_presentation_settings(&file),
-            PresentationSettings::default()
+            read_presentation_settings(&file, "blue"),
+            PresentationSettings::with_accent("blue")
         );
         std::fs::write(&file, vec![b'x'; MAX_SETTINGS_BYTES as usize + 1]).unwrap();
         assert_eq!(
-            read_presentation_settings(&file),
-            PresentationSettings::default()
+            read_presentation_settings(&file, "blue"),
+            PresentationSettings::with_accent("blue")
         );
     }
 

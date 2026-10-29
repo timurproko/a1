@@ -68,7 +68,7 @@ async function createAttach(spawnPty, host, context) {
   const terminal = spawnPty(process.execPath, [hostEntry,
     "attach", "--endpoint", context.endpoint, "--cwd", context.root,
     "--clear-exit-ms", "500", "--profile", context.profile,
-    "--settings-file", join(context.profile, "settings.json"),
+    "--settings-file", join(context.profile, "settings.json"), "--accent-color", "blue",
     "--data-dir", context.data, "--runtime-dir", context.runtime,
     "--release-root", context.release, "--node-executable", process.execPath,
   ], {

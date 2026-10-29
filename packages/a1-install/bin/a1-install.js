@@ -12,7 +12,7 @@ export { SHARED_PROGRESS_ACCENT_ANSI };
 
 const APPLICATION_PACKAGE = "@timurproko/a1";
 const COMMAND = "a1";
-const PROGRESS_WIDTH = 40;
+const PROGRESS_WIDTH = 38;
 const DIAGNOSTIC_LIMIT = 8_000;
 const PHASES = new Set([
   "Preparing",

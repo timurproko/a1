@@ -1,0 +1,47 @@
+## 1. Define compact progress geometry
+
+- [x] 1.1 Update self-update presentation coverage to require a 38-cell bar at bounded, partial, and complete percentages and verify the stripped frame retains the existing percentage suffix.
+- [x] 1.2 Update installer presentation coverage to require the same 38-cell proportional geometry and verify its selected-accent, track, percentage, and reset styling remain unchanged.
+
+## 2. Shorten both progress renderers
+
+- [x] 2.1 Change self-update progress rendering from 40 to 38 bar cells and verify focused update presentation tests pass.
+- [x] 2.2 Change fresh-install progress rendering and its cleanup bound from 40 to 38 bar cells and verify focused installer presentation tests pass without transcript changes.
+
+## 3. Validate compact progress
+
+- [x] 3.1 Run the focused self-update and installer tests, typecheck, and strict OpenSpec validation and verify all complete successfully.
+
+## 4. Unify active tab color
+
+- [x] 4.1 Add native strip coverage proving active Agent, Settings, and Changelog chips consume one shared resolved accent while per-tab status accents remain independent.
+- [x] 4.2 Route selected-chip and pending-fill shades through one strip-level active-accent API, remove utility-kind color fallback, and verify the pending Agent fills from its lighter initialized shade into the common settled shade.
+- [x] 4.3 Align omitted and explicit native Accent resolution with the owned settings default and verify focused attach and strip tests pass.
+
+## 5. Validate delivery
+
+- [x] 5.1 Run focused progress and native tab-strip tests, typecheck, strict OpenSpec validation, and native formatting checks and verify all complete successfully.
+- [x] 5.2 Reconcile the implementation with current `origin/develop`, review the final diff and known-gap disposition, and verify the delivery body and acceptance scenarios describe both UI refinements.
+
+## 6. Stabilize newly added tab order
+
+- [x] 6.1 Add native ordering coverage proving a pending Agent appends after visible Agent, Settings, and Changelog chips and retains that slot after its real surface commits.
+- [x] 6.2 Route new visible-tab insertion through one kind-neutral tab-bar API and remove pending-Agent placement based on utility identities or initialization presentation state.
+- [x] 6.3 Preserve drag reorder, overflow priority, activation, selected-color, and pending-fill behavior while applying the append contract to newly added tabs.
+
+## 7. Repair and validate the refined delivery
+
+- [x] 7.1 Repair the launch Accent propagation across the allowed architecture boundary and keep the bootstrap function within its size ratchet.
+- [x] 7.2 Run focused tab-order and active-accent tests, typecheck, architecture checks, strict OpenSpec validation, and changed-diff formatting checks.
+- [x] 7.3 Reconcile current `origin/develop`, review the final diff and gap disposition, and update the acceptance scenarios for stable appended tab order.
+
+## 8. Stabilize Agent prompt chrome color
+
+- [x] 8.1 Add native presentation coverage proving pending prompt borders already use the committed Agent border destination and the landing logo uses that same color.
+- [x] 8.2 Route pending prompt borders and the landing wordmark through one resolved destination-color role without tying either to chip-fill progress.
+- [x] 8.3 Preserve the lighter-to-settled animation exclusively on the selected Agent tab chip while prompt geometry, body, footer, and status presentation remain unchanged.
+
+## 9. Validate the prompt-color refinement
+
+- [x] 9.1 Run focused landing, attach, strip, and Accent projection tests plus typecheck, architecture checks, strict OpenSpec validation, and changed-diff formatting checks.
+- [x] 9.2 Reconcile current `origin/develop`, review the final diff and gap disposition, and update acceptance scenarios for stable prompt and logo color.

@@ -20,7 +20,10 @@ export const RESIDENT_TABS_MAX_CONCURRENT_STARTS_CAP = 8;
 export const RESIDENT_TABS_PREWARM_COUNT = 1;
 export const RESIDENT_TABS_PREWARM_CAP = 1;
 
+type ResidentAccentColor = (typeof OWNED_SETTING_DECLARATIONS.accentColor.allowedValues)[number];
+
 export interface ResidentTabLaunchSettings {
+  readonly accentColor: ResidentAccentColor;
   readonly tabsAutoName: boolean;
   readonly maxConcurrentStarts: number;
   readonly prewarmCount: number;
@@ -28,6 +31,7 @@ export interface ResidentTabLaunchSettings {
 }
 
 const DEFAULTS: ResidentTabLaunchSettings = Object.freeze({
+  accentColor: "blue",
   tabsAutoName: true,
   maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
   prewarmCount: RESIDENT_TABS_PREWARM_COUNT,
@@ -69,12 +73,13 @@ function resolveLaunchValues(
   migrations: typeof OWNED_UI_SETTINGS_MIGRATIONS,
 ): ResidentTabLaunchSettings {
   const resolution = resolveOwnedUiSettings({
-    declarations: [OWNED_SETTING_DECLARATIONS.tabsAutoName],
+    declarations: [OWNED_SETTING_DECLARATIONS.accentColor, OWNED_SETTING_DECLARATIONS.tabsAutoName],
     migrations,
     document,
     currentVersion: OWNED_UI_SETTINGS_VERSION,
   });
   return {
+    accentColor: settingValue(resolution, "accentColor") as ResidentAccentColor,
     tabsAutoName: settingValue(resolution, "tabsAutoName") === true,
     maxConcurrentStarts: RESIDENT_TABS_MAX_CONCURRENT_STARTS,
     prewarmCount: RESIDENT_TABS_PREWARM_COUNT,
