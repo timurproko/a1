@@ -5,6 +5,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs
 import { tmpdir } from "node:os";
 import { delimiter, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 import {
   classifyProgressLine,
   conciseFailure,
@@ -19,6 +20,7 @@ import {
   sanitizeDiagnostic,
   SHARED_PROGRESS_ACCENT_ANSI as INSTALLER_PROGRESS_ACCENT_ANSI,
 } from "../../../packages/a1-install/bin/a1-install.js";
+import { renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
 import { SHARED_PROGRESS_ACCENT_ANSI as UPDATE_PROGRESS_ACCENT_ANSI } from "../../../src/foundation/release/progress-palette.generated.js";
 import { earlyAccentPalette, resolveEarlyAccentColor } from "../../../src/foundation/release/early-accent.js";
 import { preTrustPalette, readPreTrustAccent } from "../../../src/ui/settings/early-accent.js";
@@ -143,11 +145,12 @@ describe("installer command contract", () => {
     expect(invoked.stderr).toBe("");
   });
 
-  it("renders the blue A1 default while classifying phases internally", () => {
+  it("renders compact shared geometry while classifying phases internally", () => {
     const rendered = renderProgressBar(31);
     expect(INSTALLER_PROGRESS_ACCENT_ANSI).toBe(UPDATE_PROGRESS_ACCENT_ANSI);
     expect(INSTALLER_PROGRESS_ACCENT_ANSI).toBe(earlyAccentPalette("blue").accent);
-    expect(rendered).toContain(`${INSTALLER_PROGRESS_ACCENT_ANSI}${"━".repeat(12)}`);
+    expect(rendered).toBe(renderUpdateProgressBar(31));
+    expect(stripVTControlCharacters(rendered)).toBe(`${"━".repeat(12)}${"─".repeat(26)} 31%`);
     expect(rendered).toContain("\u001b[38;2;128;128;128m 31%");
     expect(rendered).not.toMatch(/Preparing|Resolving|Downloading|Installing|Activating|Verifying/u);
     expect(classifyProgressLine("npm http fetch GET 200 package.tgz")).toBe("Downloading packages");
