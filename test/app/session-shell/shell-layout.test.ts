@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PinnedLayout, type DockLayout, type ShellLayoutPorts } from "../../../src/app/session-shell/shell-layout.js";
 import { ViewportLayout } from "../../../src/app/session-shell/viewport-layout.js";
 
-function harness(overrides: { candidate?: boolean; copyAcknowledgement?: string } = {}) {
+function harness(overrides: { candidate?: boolean; promptOverlay?: string } = {}) {
   const documentRows = Object.freeze(["doc"]);
   const promptAnchors = Object.freeze([]);
   const editor = { getText: () => "", render: () => [] };
@@ -16,7 +16,7 @@ function harness(overrides: { candidate?: boolean; copyAcknowledgement?: string 
     transcriptPointerSelecting: false,
     setEditorPointerFrame: vi.fn(),
     setInputSurfaceFrame: vi.fn(),
-    compose: vi.fn((input: { documentRows: readonly string[]; dockRows: readonly string[] }) => frame([...input.documentRows, ...input.dockRows])),
+    compose: vi.fn((input: { documentRows: readonly string[]; dockRows: readonly string[]; frameOverlay?: { row: number; text: string } }) => frame([...input.documentRows, ...input.dockRows])),
     composeDockOnly: vi.fn((dockRows: readonly string[]) => frame(["reused", ...dockRows])),
   };
   const input = {
@@ -33,7 +33,7 @@ function harness(overrides: { candidate?: boolean; copyAcknowledgement?: string 
     editor,
     promptChips: { atomicRanges: () => [] },
     dockChrome: {
-      renderCopyAcknowledgement: () => overrides.copyAcknowledgement,
+      renderPromptOverlay: () => overrides.promptOverlay,
       renderReleaseBanner: () => undefined,
       locateReleaseClose: vi.fn(),
     },
@@ -84,12 +84,15 @@ describe("shell layouts", () => {
     expect(layout.compositions()).toEqual({ full: 3, dockOnly: 1 });
   });
 
-  it("never reuses a frame under a copy acknowledgement", () => {
-    const { ports, setCandidate } = harness({ copyAcknowledgement: "copied" });
+  it("places prompt feedback in the shared overlay and never reuses a covered frame", () => {
+    const { ports, viewport, setCandidate } = harness({ promptOverlay: "Copied" });
     const layout = new ViewportLayout(ports);
     layout.render(20);
     setCandidate(true);
     layout.render(20);
+    expect(viewport.compose).toHaveBeenLastCalledWith(expect.objectContaining({
+      frameOverlay: { row: 9, text: "Copied" },
+    }));
     expect(layout.compositions()).toEqual({ full: 2, dockOnly: 0 });
   });
 });

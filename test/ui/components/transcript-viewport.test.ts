@@ -635,11 +635,11 @@ describe("transcript viewport", () => {
     const copied = viewport.selectedText();
     const overlaid = viewport.compose({
       ...input,
-      frameOverlay: { row: 5, text: "\u001b[36mcopied 5 chars to clipboard\u001b[39m" },
+      frameOverlay: { row: 5, text: "\u001b[36mCopied 5 chars to clipboard\u001b[39m" },
     });
     expect(overlaid.rows).toHaveLength(before.rows.length);
-    expect(overlaid.rows[4]).toContain("copied 5 chars to clipboard");
-    expect(overlaid.rows[4]!.indexOf("\u001b[47m")).toBeLessThan(overlaid.rows[4]!.indexOf("copied 5 chars to clipboard"));
+    expect(overlaid.rows[4]).toContain("Copied 5 chars to clipboard");
+    expect(overlaid.rows[4]!.indexOf("\u001b[47m")).toBeLessThan(overlaid.rows[4]!.indexOf("Copied 5 chars to clipboard"));
     expect(overlaid.rows[4]).not.toContain("\u001b[0m\u001b[36m");
     expect(viewport.selectedText()).toBe(copied);
     expect(overlaid).toMatchObject({
@@ -656,7 +656,7 @@ describe("transcript viewport", () => {
     expect(overlaid.descriptor.selectionDamagedRows).toEqual([5]);
 
     const restored = viewport.compose({ ...input, now: 101 });
-    expect(restored.rows[4]).not.toContain("copied 5 chars to clipboard");
+    expect(restored.rows[4]).not.toContain("Copied 5 chars to clipboard");
     expect(restored.descriptor.selectionDamagedRows).toEqual([5]);
   });
 

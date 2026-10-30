@@ -216,7 +216,9 @@ export function createNpmProcessRunner(platform: NodeJS.Platform = process.platf
     // Invariant: no child of the updater shares the terminal. The progress bar is the only
     // live output; a child's own text is kept, bounded, and shown with a failure or not at all.
     const stdio: StdioOptions = ["ignore", request.captureStdout ? "pipe" : "ignore", "pipe"];
-    const child = platform === "win32" ? crossSpawn(command, [...arguments_], { stdio }) : spawn(command, [...arguments_], { stdio });
+    const child = platform === "win32"
+      ? crossSpawn(command, [...arguments_], { stdio, windowsHide: true })
+      : spawn(command, [...arguments_], { stdio });
     const stdout: Buffer[] = [];
     let stderr = "";
     child.stdout?.on("data", chunk => stdout.push(Buffer.from(chunk)));

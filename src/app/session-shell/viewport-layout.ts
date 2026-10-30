@@ -49,7 +49,8 @@ export class ViewportLayout implements ShellLayout {
     const { viewport, input, dockChrome } = this.#ports;
     const height = Math.max(0, this.#ports.rows());
     const dock = this.#ports.dock(width);
-    const copyAcknowledgement = dockChrome.renderCopyAcknowledgement(width);
+    const diagnostics = this.#ports.diagnostics();
+    const promptOverlay = dockChrome.renderPromptOverlay(diagnostics, width);
     // Invariant: auto/always own one stable final-column gutter. Every scrollable
     // surface ends before it; the dock remains full-width and hidden mode returns it.
     const documentWidth = viewport.config.scrollbarAppearance === "hidden"
@@ -57,7 +58,7 @@ export class ViewportLayout implements ShellLayout {
       : Math.max(1, width - 1);
     const document = this.#ports.document(documentWidth);
     const steeringRows = this.#ports.queued(documentWidth);
-    const releaseBanner = dockChrome.renderReleaseBanner(this.#ports.diagnostics(), documentWidth);
+    const releaseBanner = dockChrome.renderReleaseBanner(diagnostics, documentWidth);
     // Rationale: the release notice rides the bottom-aligned tail directly above Working, so it
     // never displaces transcript content and scrolls away with the live status.
     // Invariant: when idle the banner's last row sits on the line Working would occupy.
@@ -66,7 +67,7 @@ export class ViewportLayout implements ShellLayout {
     const snapshot = this.#snapshot;
     // Invariant: paint-only feedback may cover either viewport or dock cells, so
     // ordinary dock-only reuse cannot safely omit its overlay composition.
-    const dockInputCandidate = input.dockInputCandidate && copyAcknowledgement === undefined;
+    const dockInputCandidate = input.dockInputCandidate && promptOverlay === undefined;
     // Concurrency: input may change after a keyboard receipt but before its paint.
     // Capture only the live inputs this composition will actually represent.
     const inputSurface = input.surface;
@@ -112,10 +113,10 @@ export class ViewportLayout implements ShellLayout {
         // Invariant: the control belongs immediately above the complete dock and
         // floats over transient viewport content rather than consuming a dock row.
         bottomControlRow: Math.max(0, height - Math.min(height, dockRows.length) - 1),
-        ...(copyAcknowledgement === undefined || height <= 0 ? {} : {
+        ...(promptOverlay === undefined || height <= 0 ? {} : {
           frameOverlay: {
             row: Math.max(1, Math.min(height, dockStartRow + dock.inputOffset - 1)),
-            text: copyAcknowledgement,
+            text: promptOverlay,
           },
         }),
         theme: this.#ports.theme,
