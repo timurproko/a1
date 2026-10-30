@@ -149,7 +149,7 @@ npm x -y -- @timurproko/a1-install
 
 The **Update** setting controls release discovery:
 
-- **Auto** (default) checks the running release's stable or development channel at startup and every 15 minutes while open. It silently installs a verified update, then shows `Update installed · Restart to update`; existing sessions keep running until restarted.
+- **Auto** (default) checks the running release's stable or development channel at startup and every 15 minutes while open. It silently installs a verified update, then shows `Update installed, restart to update` above the editor; existing sessions keep running until restarted.
 - **Notify** checks at startup (at most daily), keeps the `Update Available` notice, and leaves installation manual.
 - **No** performs no update check; updates remain available through the commands above.
 

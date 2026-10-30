@@ -84,7 +84,7 @@ The visual selected range MAY span every exposed base-frame row. Automatic and e
 
 When one submitted prompt is the only eligible transcript source in the range, clipboard text SHALL contain only its semantic prompt text, excluding the `❯` prefix, prompt padding, and timestamp. When a submitted prompt participates in a larger eligible transcript range, copy SHALL preserve its currently selected visible prefix, alignment, and timestamp together with the surrounding selected transcript text. Selected ordinary prompt-input text SHALL preserve the selected semantic draft characters while excluding the `❯` prefix, padding, cursor markers, borders, counters, and autocomplete presentation. Selected application-message text SHALL preserve the selected visible message columns and wrapping while excluding message padding and presentation controls. Copy output SHALL otherwise preserve selected visible row boundaries while excluding ANSI and OSC controls, unselected right padding, scrollbar glyphs, and content covered by modal or overlay presentation.
 
-The visual selected range SHALL continue to represent the exact selected cells; clipboard filtering and outer-whitespace normalization SHALL affect only the payload. Ordinary selected transcript and prompt text SHALL use the shared component-owned blue text-selection surface, preserving existing foregrounds, attributes, hyperlinks, and grapheme boundaries. The selected background SHALL remain visible after release. Successful automatic or explicit selection delivery SHALL produce exactly one transient acknowledgement reading `copied N chars to clipboard`, where `N` is the character count of the normalized payload. The acknowledgement SHALL be right-aligned immediately above the editor in the active theme's accent foreground. If it overlaps selected cells, it SHALL retain the selected row background rather than painting a dark reset block. It SHALL not allocate a row, move transcript or dock content, or change pointer hit regions. A newer acknowledgement SHALL replace the prior acknowledgement and restart its lifetime. Internal clipboard import, contention, transport, denial, timeout, or routing failures SHALL NOT append a status, warning, error, or notice to the session. Clipboard preparation, retry, fallback, and delivery SHALL remain bounded and asynchronous and SHALL NOT block input, streaming, scrolling, animation, rendering, or shutdown.
+The visual selected range SHALL continue to represent the exact selected cells; clipboard filtering and outer-whitespace normalization SHALL affect only the payload. Ordinary selected transcript and prompt text SHALL use the shared component-owned blue text-selection surface, preserving existing foregrounds, attributes, hyperlinks, and grapheme boundaries. The selected background SHALL remain visible after release. Successful automatic or explicit selection delivery SHALL produce exactly one transient acknowledgement reading `Copied N chars to clipboard`, where `N` is the character count of the normalized payload. The acknowledgement SHALL be right-aligned immediately above the editor in the active theme's accent foreground. If it overlaps selected cells, it SHALL retain the selected row background rather than painting a dark reset block. It SHALL not allocate a row, move transcript or dock content, or change pointer hit regions. A newer acknowledgement SHALL replace the prior acknowledgement and restart its lifetime. Internal clipboard import, contention, transport, denial, timeout, or routing failures SHALL NOT append a status, warning, error, or notice to the session. Clipboard preparation, retry, fallback, and delivery SHALL remain bounded and asynchronous and SHALL NOT block input, streaming, scrolling, animation, rendering, or shutdown.
 
 #### Scenario: Copy an indented command
 - **WHEN** eligible transcript selection has plain text `   npm run develop   `
@@ -188,7 +188,7 @@ The visual selected range SHALL continue to represent the exact selected cells; 
 
 #### Scenario: Acknowledge copied text beside the editor
 - **WHEN** a normalized selection payload is delivered while the acknowledgement row is selected
-- **THEN** one right-aligned accent message SHALL read `copied N chars to clipboard` using the payload's exact character count
+- **THEN** one right-aligned accent message SHALL read `Copied N chars to clipboard` using the payload's exact character count
 - **AND** the message SHALL retain the selected row background without a reverse-video or dark reset box
 
 #### Scenario: Replace rapid copy acknowledgements
@@ -408,12 +408,12 @@ Bare A1 SHALL exclusively own terminal mouse-report enablement and restoration f
 
 ### Requirement: Prompt selection copy uses the shared acknowledgement
 
-When the ordinary bare-A1 prompt owns a keyboard-selected range and the reader presses `Ctrl+C`, A1 SHALL preserve the exact expanded editor-text clipboard payload and selection-collapse behavior. Delivered or submitted-unverified work SHALL show the existing transient prompt-adjacent `copied N chars to clipboard` acknowledgement using the exact submitted text length. Other outcomes SHALL NOT show success feedback and SHALL retain existing failure behavior.
+When the ordinary bare-A1 prompt owns a keyboard-selected range and the reader presses `Ctrl+C`, A1 SHALL preserve the exact expanded editor-text clipboard payload and selection-collapse behavior. Delivered or submitted-unverified work SHALL show the existing transient prompt-adjacent `Copied N chars to clipboard` acknowledgement using the exact submitted text length. Other outcomes SHALL NOT show success feedback and SHALL retain existing failure behavior.
 
 #### Scenario: Copy keyboard-selected prompt text
 - **WHEN** the reader keyboard-selects text in the ordinary bare-A1 prompt and presses `Ctrl+C`
 - **THEN** A1 SHALL submit the exact expanded selected editor text through the established bounded clipboard route
-- **AND** successful completion SHALL show one existing prompt-adjacent `copied N chars to clipboard` acknowledgement using that exact payload length
+- **AND** successful completion SHALL show one existing prompt-adjacent `Copied N chars to clipboard` acknowledgement using that exact payload length
 - **AND** the prompt selection SHALL collapse through its established copy behavior
 
 #### Scenario: Prompt copy does not report failed delivery as success

@@ -1,7 +1,10 @@
+import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
 import type { TranscriptViewportFrame } from "../../../src/ui/components/transcript-viewport.js";
 import { DockChrome } from "../../../src/app/session-shell/dock-chrome.js";
+import { piTheme } from "../../../src/integrations/pi/components/index.js";
+import { cellStyle } from "../../support/ansi-cell-style.js";
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -19,6 +22,7 @@ function harness() {
 }
 
 const release = [{ code: "release-update", message: "New version 9.9.9 is available. Run npm i -g a1", sequence: 1, severity: "info" }] as unknown as OwnedUiSessionViewModel["diagnostics"];
+const installed = [{ code: "release-update-installed", message: "Update 9.9.9 installed; restart to update.", sequence: 1, severity: "info" }] as unknown as OwnedUiSessionViewModel["diagnostics"];
 const frame = { descriptor: { transientAlignmentGapRows: 0 }, scrollTop: 0, hits: { viewportHeight: 40 } } as unknown as TranscriptViewportFrame;
 
 describe("DockChrome", () => {
@@ -42,18 +46,35 @@ describe("DockChrome", () => {
   it("shows the copy acknowledgement until it expires, and a newer one restarts the timer", () => {
     vi.useFakeTimers();
     const { chrome, ports } = harness();
-    chrome.showCopyAcknowledgement("copied 3 chars");
-    expect(chrome.renderCopyAcknowledgement(40)).toContain("copied 3 chars");
+    chrome.showCopyAcknowledgement("Copied 3 chars");
+    expect(chrome.renderCopyAcknowledgement(40)).toContain("Copied 3 chars");
     expect(chrome.renderCopyAcknowledgement(0)).toBeUndefined();
     vi.advanceTimersByTime(600);
-    chrome.showCopyAcknowledgement("copied 4 chars");
+    chrome.showCopyAcknowledgement("Copied 4 chars");
     vi.advanceTimersByTime(600);
-    expect(chrome.renderCopyAcknowledgement(40)).toContain("copied 4 chars");
+    expect(chrome.renderCopyAcknowledgement(40)).toContain("Copied 4 chars");
     vi.advanceTimersByTime(400);
     expect(chrome.renderCopyAcknowledgement(40)).toBeUndefined();
     expect(ports.requestRender).toHaveBeenCalledTimes(3);
     chrome.clearCopyAcknowledgement(true);
     expect(ports.requestRender).toHaveBeenCalledTimes(3);
+  });
+
+  it("restores persistent green restart readiness after transient copy feedback", () => {
+    vi.useFakeTimers();
+    const { chrome } = harness();
+    const restart = chrome.renderPromptOverlay(installed, 40)!;
+    expect(stripTerminalSequences(restart)).toBe("Update installed, restart to update");
+    expect(cellStyle(restart, "U").foreground)
+      .toBe(cellStyle(piTheme().fg("success", "U"), "U").foreground);
+
+    chrome.showCopyAcknowledgement("Copied 5 chars to clipboard");
+    expect(stripTerminalSequences(chrome.renderPromptOverlay(installed, 40)!)).toBe("Copied 5 chars to clipboard");
+    vi.advanceTimersByTime(1_000);
+    expect(stripTerminalSequences(chrome.renderPromptOverlay(installed, 40)!)).toBe("Update installed, restart to update");
+    expect(stripTerminalSequences(chrome.renderPromptOverlay(installed, 20)!)).toBe("Update installed, re");
+    expect(chrome.renderPromptOverlay([], 40)).toBeUndefined();
+    expect(chrome.renderPromptOverlay(installed, 0)).toBeUndefined();
   });
 
   it("docks the release banner until its close control is activated", () => {

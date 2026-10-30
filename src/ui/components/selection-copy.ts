@@ -7,7 +7,7 @@ export const MAX_COPY_ROWS = 65_536;
 export const COPY_ACKNOWLEDGEMENT_DURATION_MS = 1_000;
 
 export function copyAcknowledgementText(characters: number): string {
-  return `copied ${characters} chars to clipboard`;
+  return `Copied ${characters} chars to clipboard`;
 }
 export type SelectionCopyPrompt = "first" | "continuation" | undefined;
 export interface SelectionCopyRow {

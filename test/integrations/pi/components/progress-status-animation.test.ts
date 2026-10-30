@@ -101,35 +101,37 @@ describe("bare-A1 progress status animation", () => {
     }
   });
 
-  it("right-aligns the installed update status while idle and combines it with live progress when space permits", () => {
+  it("keeps pinned restart readiness green and leaves the custom overlay out of live progress", () => {
     vi.useFakeTimers();
-    const idle = createPiShellStatus(installedView(), presentation);
-    const busy = createPiShellStatus(installedView("busy"), presentation);
-    busy.setProgressPresentation("custom-viewport");
+    const pinned = createPiShellStatus(installedView(), presentation);
+    const custom = createPiShellStatus(installedView("busy"), presentation);
+    custom.setProgressPresentation("custom-viewport");
     try {
-      const idleText = stripTerminalSequences(idle.render(60).join("\n"));
-      expect(idleText.trim()).toBe("Update installed · Restart to update");
-      expect(idleText).toHaveLength(60);
+      const pinnedRow = pinned.render(60).join("\n");
+      const pinnedText = stripTerminalSequences(pinnedRow);
+      expect(pinnedText.trim()).toBe("Update installed, restart to update");
+      expect(pinnedText).toHaveLength(60);
+      expect(cellStyle(pinnedRow, "U").foreground)
+        .toBe(cellStyle(piTheme().fg("success", "U"), "U").foreground);
+      expect(cellStyle(pinnedRow, "r").foreground)
+        .toBe(cellStyle(piTheme().fg("success", "r"), "r").foreground);
 
-      const busyRows = busy.renderLive(160).map(row => stripTerminalSequences(row)).filter(row => row.trim().length > 0);
-      expect(busyRows).toHaveLength(1);
-      expect(busyRows[0]).toContain("Working…");
-      expect(busyRows[0]).toContain("Update installed · Restart to update");
+      const customRows = custom.renderLive(160).map(row => stripTerminalSequences(row)).filter(row => row.trim().length > 0);
+      expect(customRows).toHaveLength(1);
+      expect(customRows[0]).toContain("Working…");
+      expect(customRows[0]).not.toContain("Update installed");
     } finally {
-      idle.dispose?.();
-      busy.dispose?.();
+      pinned.dispose?.();
+      custom.dispose?.();
     }
   });
 
-  it("stacks the installed update status at narrow widths without entering the transcript", () => {
-    vi.useFakeTimers();
-    const status = createPiShellStatus(installedView("busy"), presentation);
-    status.setProgressPresentation("custom-viewport");
+  it("truncates the pinned restart-ready message at narrow widths", () => {
+    const status = createPiShellStatus(installedView(), presentation);
     try {
-      const rows = status.renderLive(35).map(row => stripTerminalSequences(row)).filter(row => row.trim().length > 0);
-      expect(rows).toHaveLength(2);
-      expect(rows[0]).toContain("Working…");
-      expect(rows[1]?.trim()).toBe("Update installed · Restart to updat");
+      const text = stripTerminalSequences(status.render(20).join("\n")).trim();
+      expect(text).toBe("Update installed, re");
+      expect(text).toHaveLength(20);
     } finally {
       status.dispose?.();
     }
