@@ -757,7 +757,7 @@ fn dim_backdrop(bytes: &[u8], surface: Option<&StructuredSurface>) -> Vec<u8> {
                 .get(index + 2)
                 .is_some_and(|byte| (b'<'..=b'?').contains(byte));
             if bytes[end] == b'm' && !private {
-                // The original SGR must remain first: preserve all foreground, underline,
+                // Invariant: the original SGR stays first, preserving foreground, underline,
                 // inverse, and other attributes before reasserting faint and the backdrop color.
                 output.extend_from_slice(b"\x1b[2m");
                 if let Ok(parameters) = std::str::from_utf8(&bytes[index + 2..end]) {
