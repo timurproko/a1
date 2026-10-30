@@ -20,7 +20,7 @@ The maintainer integration decision accepts these scenarios:
     "Colored sticky prompts, tab strip, and styled backdrop cells recede uniformly behind a full-intensity host modal.",
     "Closing the modal restores original child colors; repaint and resize keep exposed backdrop cells dimmed."
   ],
-  "archiveDigest": "da20017f274a6c726f720ef1b3d2a391a88692a38fc0d7acb72d1486d55e7f6d",
+  "archiveDigest": "17d9cf4eabd4031c4aeffcaf420c97038e804b936167e997fb63cb2eaa71eaa8",
   "specDigest": "95e1779228c691df62cb29e4ee1661a0402cf36112ecc1c4788428618a54c19f",
   "tasksDigest": "6b7e1e41c7a0d82b72c9fb1fad3fb46e193f63160ce91dba29d8830d84098510",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
