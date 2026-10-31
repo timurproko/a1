@@ -305,12 +305,19 @@ export async function removeUpdateRecoveryCapsule(dataDir: string, transactionId
   await rm(resolve(dataDir, "update-recovery", transactionId), { recursive: true, force: true });
 }
 
-/** Classify a complete launcher set without following linked or mixed launcher files. */
+/** Classify a complete launcher set; only an npm Unix link to the exact target entry is followed. */
 export async function inspectUpdateLauncherSet(capsule: UpdateRecoveryCapsule, platform: NodeJS.Platform = process.platform): Promise<"target" | "recovery" | "unavailable"> {
   let disposition: "target" | "recovery" | null = null;
   const targetToken = `node_modules/${capsule.packageName}/bin/cli.js`;
   for (const path of capsule.launchers) {
     const metadata = await lstat(path).catch(() => null);
+    if (metadata?.isSymbolicLink() && platform !== "win32") {
+      const linked = await realpath(path).catch(() => null);
+      const entry = await realpath(resolve(capsule.packageRoot, "bin", "cli.js")).catch(() => null);
+      if (linked === null || linked !== entry || disposition === "recovery") return "unavailable";
+      disposition = "target";
+      continue;
+    }
     if (!metadata?.isFile() || metadata.isSymbolicLink() || (platform !== "win32" && (metadata.mode & 0o111) === 0)) return "unavailable";
     const source = (await readFile(path, "utf8")).replaceAll("\\", "/");
     const current = source.includes(capsule.recoveryEntry.replaceAll("\\", "/")) ? "recovery" as const

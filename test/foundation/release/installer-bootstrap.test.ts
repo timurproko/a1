@@ -10,9 +10,11 @@ import {
   classifyProgressLine,
   conciseFailure,
   consumeProcessLines,
+  activateShellPath,
   installerHelp,
   isSupportedNodeVersion,
   main,
+  npmPrefixIsWritable,
   parseArguments,
   renderProgressBar,
   resolveInstallerAccentColor,
@@ -20,6 +22,7 @@ import {
   resolvePublishedPreview,
   runInstaller,
   sanitizeDiagnostic,
+  shellPathActivation,
   SHARED_PROGRESS_ACCENT_ANSI as INSTALLER_PROGRESS_ACCENT_ANSI,
 } from "../../../packages/a1-install/bin/a1-install.js";
 import { renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
@@ -672,6 +675,151 @@ describe("installer orchestration", () => {
     expect({ code, stdout: stdout.read(), stderr: stderr.read() }).toEqual({
       code: 1, stdout: "", stderr: "a1 needs a newer Node.js: you have v20.11.0, install 22.19 or later\n",
     });
+  });
+});
+
+describe("installer per-user prefix", () => {
+  const unix = process.platform !== "win32" && process.getuid?.() !== 0;
+  const unlocks: Array<() => Promise<void>> = [];
+  afterEach(async () => { for (const unlock of unlocks.splice(0)) await unlock(); });
+  const completedActivation = async (_entry: string, _args: string[], callbacks: Record<string, ((value: string) => void) | undefined>) => {
+    callbacks.onStdoutLine?.(JSON.stringify({ event: "phase", phase: "active-reference-committed" }));
+    callbacks.onStdoutLine?.(JSON.stringify({ event: "completed" }));
+    return { code: 0, signal: null, stdout: "", stderr: "" };
+  };
+
+  /** Root-owned-style npm prefix plus an empty home whose ~/.local receives npm's real symlink launcher. */
+  async function rootOwnedSetup() {
+    const setup = await fixture();
+    await mkdir(setup.globalRoot, { recursive: true });
+    await mkdir(setup.launcherDirectory, { recursive: true });
+    const home = resolve(setup.root, "home");
+    await mkdir(home, { recursive: true });
+    const userPrefix = resolve(home, ".local");
+    const userPackage = resolve(userPrefix, "lib", "node_modules", "@timurproko", "a1");
+    const userLauncher = resolve(userPrefix, "bin", "a1");
+    const lock = async () => { await chmod(setup.globalRoot, 0o555); await chmod(setup.launcherDirectory, 0o555); };
+    const unlock = async () => { await chmod(setup.globalRoot, 0o755); await chmod(setup.launcherDirectory, 0o755); };
+    unlocks.push(unlock);
+    async function materializeUser() {
+      await mkdir(resolve(userPackage, "bin"), { recursive: true });
+      await mkdir(dirname(userLauncher), { recursive: true });
+      await writeFile(resolve(userPackage, "package.json"), `${JSON.stringify({ name: "@timurproko/a1", version: "0.2.1-dev.591", updateActivationContracts: ["activate-v1"] })}\n`);
+      await writeFile(resolve(userPackage, "bin", "cli.js"), "// cli\n");
+      await writeFile(resolve(userPackage, "bin", "activate.js"), "// activate\n");
+      await symlink(resolve(userPackage, "bin", "cli.js"), userLauncher);
+    }
+    return { setup, home, userPrefix, userPackage, userLauncher, lock, unlock, materializeUser };
+  }
+
+  it("selects each login shell's startup file", () => {
+    const home = resolve("home");
+    const exists = (path: string) => path === resolve(home, ".bashrc");
+    expect(shellPathActivation({ SHELL: "/bin/zsh" }, home)).toEqual({ file: resolve(home, ".zshrc"), line: "export PATH=\"$HOME/.local/bin:$PATH\"" });
+    expect(shellPathActivation({ SHELL: "/bin/zsh", ZDOTDIR: resolve("zdot") }, home).file).toBe(resolve("zdot", ".zshrc"));
+    expect(shellPathActivation({ SHELL: "/bin/bash" }, home, exists).file).toBe(resolve(home, ".bashrc"));
+    expect(shellPathActivation({ SHELL: "/bin/bash" }, home, () => false).file).toBe(resolve(home, ".profile"));
+    expect(shellPathActivation({ SHELL: "/usr/bin/fish" }, home)).toEqual({ file: resolve(home, ".config", "fish", "config.fish"), line: "fish_add_path \"$HOME/.local/bin\"" });
+    expect(shellPathActivation({}, home).file).toBe(resolve(home, ".profile"));
+  });
+
+  it("appends one marked PATH line and never duplicates it", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-installer-shell-"));
+    roots.push(root);
+    const activation = { file: resolve(root, ".zshrc"), line: "export PATH=\"$HOME/.local/bin:$PATH\"" };
+    await writeFile(activation.file, "alias ll='ls -l'");
+    expect(await activateShellPath(activation)).toBe(true);
+    expect(await activateShellPath(activation)).toBe(false);
+    expect(await readFile(activation.file, "utf8")).toBe("alias ll='ls -l'\n# a1\nexport PATH=\"$HOME/.local/bin:$PATH\"\n");
+  });
+
+  it.runIf(unix)("installs under ~/.local when npm's prefix is root-owned and activates PATH for future shells", async () => {
+    const { setup, home, userPrefix, userPackage, lock, materializeUser } = await rootOwnedSetup();
+    await lock();
+    expect(await npmPrefixIsWritable(setup.globalRoot, process.platform)).toBe(false);
+    const calls: string[][] = [];
+    const runner = {
+      async npm(args: string[]) {
+        calls.push(args);
+        if (args[0] === "view") return { code: 0, signal: null, stdout: '"0.2.1-dev.591"\n', stderr: "" };
+        if (args[0] === "root") return { code: 0, signal: null, stdout: `${setup.globalRoot}\n`, stderr: "" };
+        await materializeUser();
+        return { code: 0, signal: null, stdout: "", stderr: "" };
+      },
+      node: completedActivation,
+    };
+    const stdout = capture();
+    const stderr = capture();
+    const code = await runInstaller(exactTarget, {
+      stdout: stdout.stream, stderr: stderr.stream, runner, platform: process.platform, home,
+      environment: { PATH: process.env.PATH ?? "", SHELL: "/bin/zsh" }, handleSignals: false,
+    });
+    expect({ code, stdout: stdout.read(), stderr: stderr.read() }).toEqual({ code: 0, stdout: "a1 successfully installed; open a new terminal to use it\n", stderr: "" });
+    expect(calls.find(call => call[0] === "install")).toEqual(expect.arrayContaining(["install", "--global", "--prefix", userPrefix, "@timurproko/a1@0.2.1-dev.591"]));
+    expect(await readFile(resolve(home, ".zshrc"), "utf8")).toBe("# a1\nexport PATH=\"$HOME/.local/bin:$PATH\"\n");
+
+    const updates: string[][] = [];
+    const rerun = {
+      async npm(args: string[]) {
+        if (args[0] === "view") return { code: 0, signal: null, stdout: '"0.2.1-dev.591"\n', stderr: "" };
+        if (args[0] === "root") return { code: 0, signal: null, stdout: `${setup.globalRoot}\n`, stderr: "" };
+        throw new Error("a rerun must delegate instead of installing again");
+      },
+      async node(entry: string, args: string[]) { updates.push([entry, ...args]); return { code: 0, signal: null, stdout: "", stderr: "" }; },
+    };
+    const again = capture();
+    await expect(runInstaller(exactTarget, {
+      stdout: again.stream, stderr: capture().stream, runner: rerun, platform: process.platform, home,
+      environment: { PATH: process.env.PATH ?? "", SHELL: "/bin/zsh" }, handleSignals: false,
+    })).resolves.toBe(0);
+    expect(updates).toEqual([[resolve(userPackage, "bin", "cli.js"), "update", "--develop", "0.2.1-dev.591"]]);
+    expect(again.read()).toBe("a1 successfully installed; open a new terminal to use it\n");
+    expect(await readFile(resolve(home, ".zshrc"), "utf8")).toBe("# a1\nexport PATH=\"$HOME/.local/bin:$PATH\"\n");
+  });
+
+  it.runIf(unix)("reports plain success without touching startup files when ~/.local/bin is already on PATH", async () => {
+    const { setup, home, userPrefix, lock, materializeUser } = await rootOwnedSetup();
+    await lock();
+    const runner = {
+      async npm(args: string[]) {
+        if (args[0] === "view") return { code: 0, signal: null, stdout: '"0.2.1-dev.591"\n', stderr: "" };
+        if (args[0] === "root") return { code: 0, signal: null, stdout: `${setup.globalRoot}\n`, stderr: "" };
+        await materializeUser();
+        return { code: 0, signal: null, stdout: "", stderr: "" };
+      },
+      node: completedActivation,
+    };
+    const stdout = capture();
+    await expect(runInstaller(exactTarget, {
+      stdout: stdout.stream, stderr: capture().stream, runner, platform: process.platform, home,
+      environment: { PATH: `${resolve(userPrefix, "bin")}${delimiter}${process.env.PATH ?? ""}`, SHELL: "/bin/zsh" }, handleSignals: false,
+    })).resolves.toBe(0);
+    expect(stdout.read()).toBe("a1 successfully installed\n");
+    await expect(readFile(resolve(home, ".zshrc"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it.runIf(unix)("refuses to install a per-user copy that an existing root-owned launcher would shadow", async () => {
+    const { setup, home, unlock, lock } = await rootOwnedSetup();
+    await unlock();
+    await writeFile(resolve(setup.launcherDirectory, "a1"), "#!/bin/sh\n");
+    await lock();
+    let mutations = 0;
+    const runner = {
+      async npm(args: string[]) {
+        if (args[0] === "view") return { code: 0, signal: null, stdout: '"0.2.1-dev.591"\n', stderr: "" };
+        if (args[0] === "root") return { code: 0, signal: null, stdout: `${setup.globalRoot}\n`, stderr: "" };
+        mutations += 1;
+        return { code: 0, signal: null, stdout: "", stderr: "" };
+      },
+      async node() { mutations += 1; return { code: 0, signal: null, stdout: "", stderr: "" }; },
+    };
+    const stdout = capture();
+    const stderr = capture();
+    await expect(runInstaller(exactTarget, {
+      stdout: stdout.stream, stderr: stderr.stream, runner, platform: process.platform, home,
+      environment: { PATH: process.env.PATH ?? "", SHELL: "/bin/zsh" }, handleSignals: false,
+    })).resolves.toBe(1);
+    expect({ mutations, stdout: stdout.read(), stderr: stderr.read() }).toEqual({ mutations: 0, stdout: "", stderr: "installation failed: another command takes precedence\n" });
   });
 });
 

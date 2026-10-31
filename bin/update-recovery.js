@@ -250,6 +250,11 @@ async function installedTargetIsCallable(value) {
   for (const path of value.launchers) {
     try {
       const metadata = await lstat(path);
+      // Platform: npm links Unix launchers; one is callable only when it resolves to the exact target entry.
+      if (metadata.isSymbolicLink() && process.platform !== "win32") {
+        if (await realpath(path) !== await realpath(resolve(value.packageRoot, "bin", "cli.js"))) return false;
+        continue;
+      }
       if (!metadata.isFile() || metadata.isSymbolicLink()) return false;
       if (process.platform !== "win32" && (metadata.mode & 0o111) === 0) return false;
       const normalized = (await readFile(path, "utf8")).replaceAll("\\", "/");
