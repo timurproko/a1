@@ -48,6 +48,27 @@ class InstallationCancelled extends InstallationFailure {
   }
 }
 
+class OutdatedNodeFailure extends InstallationFailure {
+  constructor(version) {
+    super("Node.js is older than 22.19.0");
+    this.name = "OutdatedNodeFailure";
+    this.line = `a1 needs a newer Node.js: you have ${version}, install 22.19 or later`;
+  }
+}
+
+/** Return the single stderr line that reports one installer failure. */
+function failureLine(failure) {
+  return failure.line ?? `installation failed: ${failure.reason}`;
+}
+
+/** Return whether a Node.js version string is 22.19.0 or later. */
+export function isSupportedNodeVersion(version) {
+  const match = /^v?(\d+)\.(\d+)\./u.exec(String(version));
+  if (!match) return false;
+  const major = Number(match[1]);
+  return major > 22 || (major === 22 && Number(match[2]) >= 19);
+}
+
 export function parseArguments(argv) {
   if (!Array.isArray(argv) || argv.length > 8 || argv.some(value => typeof value !== "string" || value.length > 128)) {
     throw new InstallationFailure("invalid command arguments", "", 2);
@@ -571,9 +592,8 @@ export async function runInstaller(argv, options = {}) {
     stdout.write(installerHelp());
     return 0;
   }
-  if (!/^v?(?:22\.(?:19|[2-9]\d)|2[3-4]\.\d+)\./u.test(process.version)) {
-    throw new InstallationFailure("Node.js 22.19.0 or newer is required");
-  }
+  const nodeVersion = options.nodeVersion ?? process.version;
+  if (!isSupportedNodeVersion(nodeVersion)) throw new OutdatedNodeFailure(nodeVersion);
 
   const accentColor = resolveInstallerAccentColor(environment);
   const background = Number.parseInt(String(environment.COLORFGBG ?? "").split(";").at(-1) ?? "", 10);
@@ -715,7 +735,7 @@ export async function runInstaller(argv, options = {}) {
     const failure = error instanceof InstallationFailure
       ? error
       : new InstallationFailure("unexpected installer failure", error instanceof Error ? error.message : String(error));
-    stderr.write(`installation failed: ${failure.reason}\n`);
+    stderr.write(`${failureLine(failure)}\n`);
     if (parsed.verbose) {
       const details = sanitizeDiagnostic(failure.details);
       if (details) stderr.write(`Details: ${details}\n`);
@@ -732,14 +752,14 @@ export async function runInstaller(argv, options = {}) {
   }
 }
 
-export async function main(argv = process.argv.slice(2)) {
+export async function main(argv = process.argv.slice(2), options = {}) {
   try {
-    return await runInstaller(argv);
+    return await runInstaller(argv, options);
   } catch (error) {
     const failure = error instanceof InstallationFailure
       ? error
       : new InstallationFailure("unexpected installer failure", error instanceof Error ? error.message : String(error));
-    process.stderr.write(`installation failed: ${failure.reason}\n`);
+    (options.stderr ?? process.stderr).write(`${failureLine(failure)}\n`);
     return failure.exitCode;
   }
 }

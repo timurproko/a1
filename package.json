@@ -19,7 +19,7 @@
     "docs"
   ],
   "engines": {
-    "node": ">=22.19.0 <25"
+    "node": ">=22.19.0"
   },
   "scripts": {
     "clean": "node scripts/clean.mjs",
