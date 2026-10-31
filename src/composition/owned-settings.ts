@@ -1,4 +1,4 @@
-import { unwatchFile, watchFile } from "node:fs";
+import { statSync } from "node:fs";
 import type { AgentSettingsPort } from "../contracts/agent-engine/index.js";
 import { resolveLaunchProfilePaths } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
@@ -29,16 +29,18 @@ export function createOwnedSettingsManager(options: OwnedSettingsManagerFactoryO
   });
 }
 
-const SHARED_SETTINGS_POLL_MS = 250;
-
 /** Rereads the shared settings document whenever its stat changes; returns the stop. */
 export function watchSharedSettings(settings: Pick<OwnedSettingsManager, "file" | "refresh">): () => void {
-  const file = settings.file;
-  const listener = (): void => {
-    try { settings.refresh(); } catch {
+  let last = "";
+  const poll = (): void => {
+    try {
+      const s = statSync(settings.file);
+      if (last !== (last = `${s.ino}:${s.mtimeMs}`)) settings.refresh();
+    } catch {
       // Compatibility: an unreadable peer write resolves on the next stat change.
     }
   };
-  watchFile(file, { interval: SHARED_SETTINGS_POLL_MS, persistent: false }, listener);
-  return () => unwatchFile(file, listener);
+  poll();
+  const timer = setInterval(poll, 250).unref();
+  return () => clearInterval(timer);
 }
