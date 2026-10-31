@@ -3082,6 +3082,27 @@ mod tests {
     }
 
     #[test]
+    fn a_mapped_option_chord_is_consumed_while_the_raw_option_character_is_forwarded() {
+        let fixture = Fixture::new(&["a", "b"], "b");
+        let mut state = fixture.state();
+        let alt_one = Event::Key {
+            key: AttachKey {
+                code: KeyCode::Char('1'),
+                modifiers: Modifiers {
+                    alt: true,
+                    ..Modifiers::NONE
+                },
+                kind: KeyKind::Press,
+            },
+            action: Some("tabs.jump1".into()),
+        };
+        let effects = fixture.step(&mut state, alt_one);
+        assert!(effects.contains(&Effect::View("a".into())), "{effects:?}");
+        assert!(!effects.contains(&Effect::ForwardKey), "a dispatched tab action never reaches the child");
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Char('¡'))), [Effect::ForwardKey]);
+    }
+
+    #[test]
     fn a_changelog_tab_is_closed_but_never_renamed() {
         let fixture = Fixture::new(&["a", "changelog-1"], "changelog-1");
         let mut state = fixture.state();
