@@ -953,6 +953,29 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stderr).toEqual([]);
   });
 
+  it.runIf(process.platform !== "win32")("updates a per-user ~/.local installation whose npm launcher is a symlink to the package entry", async () => {
+    const activeRoot = globalRootForPrefix(resolve("fixtures", "root-owned-prefix"));
+    const userPrefix = resolve("fixtures", "home", ".local");
+    const userRoot = globalRootForPrefix(userPrefix);
+    const packageRoot = resolve(userRoot, "@timurproko", "a1");
+    const entry = resolve(packageRoot, "bin", "cli.js");
+    const harness = createHarness({ packageRoot, globalRoot: activeRoot });
+    harness.fileSystem.lstat = async () => ({ mode: 0o777, isFile: () => false, isSymbolicLink: () => true });
+    harness.fileSystem.realpath = async path => resolve(path) === resolve(userPrefix, "bin", "a1") ? entry : resolve(path);
+    harness.runner = async (command, arguments_, request) => {
+      harness.invocations.push({ command, arguments: arguments_, request });
+      if (arguments_[0] === "view") return success("1.3.0\n");
+      if (arguments_[0] === "root" && arguments_.includes("--prefix")) return success(`${userRoot}\n`);
+      if (arguments_[0] === "root") return success(`${activeRoot}\n`);
+      return success();
+    };
+
+    await expect(runSelfUpdate(harness)).resolves.toBe(0);
+
+    expect(harness.invocations.find(call => call.arguments[0] === "install")?.arguments).toEqual(installArguments("1.3.0", userRoot));
+    expect(harness.stderr).toEqual([]);
+  });
+
   it.each(["missing", "symlinked", "wrong-target"] as const)("refuses a non-default npm-shaped package with a %s launcher set", async fault => {
     const activeRoot = globalRootForPrefix(resolve("fixtures", "active-prefix"));
     const installedPrefix = resolve("fixtures", `lookalike-${fault}-prefix`);

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, symlink, utimes, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -58,6 +58,22 @@ describe("cancellation-safe package replacement", () => {
     await rm(linkedLauncher, { force: true });
     await mkdir(outside);
     await symlink(outside, linkedLauncher, process.platform === "win32" ? "junction" : "dir");
+    await expect(inspectUpdateLauncherSet(prepared.capsule)).resolves.toBe("unavailable");
+  });
+
+  it.runIf(process.platform !== "win32")("classifies npm's Unix symlink launcher by its exact target", async () => {
+    const fixture = await recoveryFixture("success");
+    const prepared = await prepareUpdateRecoveryCapsule(fixture.options);
+    const entry = resolve(fixture.options.packageRoot, "bin", "cli.js");
+    await writeFile(entry, "// target");
+    await rm(fixture.launchers[0]!, { force: true });
+    await symlink(entry, fixture.launchers[0]!);
+    await expect(inspectUpdateLauncherSet(prepared.capsule)).resolves.toBe("target");
+
+    const foreign = resolve(fixture.options.packageRoot, "bin", "other.js");
+    await writeFile(foreign, "// foreign");
+    await rm(fixture.launchers[0]!, { force: true });
+    await symlink(foreign, fixture.launchers[0]!);
     await expect(inspectUpdateLauncherSet(prepared.capsule)).resolves.toBe("unavailable");
   });
 
@@ -219,6 +235,22 @@ describe("cancellation-safe package replacement", () => {
 
     expect(result, JSON.stringify(result)).toMatchObject({ outcome: "installed", npmExitCode: 0, cancelled: false, launcherDisposition: "target" });
     for (const launcher of fixture.launchers) await expect(readFile(launcher, "utf8")).resolves.toContain("node_modules/@timurproko/a1/bin/cli.js");
+  }, 15_000);
+
+  it.runIf(process.platform !== "win32")("keeps npm's Unix symlink launcher when it resolves to the installed entry", async () => {
+    const fixture = await recoveryFixture("link-success");
+    const result = await runProtectedPackageReplacement(fixture.options);
+
+    expect(result, JSON.stringify(result)).toMatchObject({ outcome: "installed", npmExitCode: 0, cancelled: false, launcherDisposition: "target" });
+    for (const launcher of fixture.launchers) expect((await lstat(launcher)).isSymbolicLink()).toBe(true);
+  }, 15_000);
+
+  it.runIf(process.platform !== "win32")("replaces a Unix symlink launcher that resolves outside the installed entry", async () => {
+    const fixture = await recoveryFixture("link-foreign");
+    const result = await runProtectedPackageReplacement(fixture.options);
+
+    expect(result, JSON.stringify(result)).toMatchObject({ outcome: "recovery-launcher", launcherDisposition: "recovery" });
+    for (const launcher of fixture.launchers) expect((await lstat(launcher)).isSymbolicLink()).toBe(false);
   }, 15_000);
 
   it("restores every launcher after npm failure and preserves its diagnostics", async () => {
@@ -395,7 +427,7 @@ describe("cancellation-safe package replacement", () => {
   }, 15_000);
 });
 
-async function recoveryFixture(mode: "success" | "slow-success" | "wait" | "staged-wait" | "fail", cancelAfter = 0) {
+async function recoveryFixture(mode: RecoveryNpmMode, cancelAfter = 0) {
   const root = await mkdtemp(resolve(tmpdir(), "a1-update-recovery-"));
   roots.push(root);
   const dataDir = resolve(root, "data");
@@ -452,7 +484,28 @@ async function recoveryFixture(mode: "success" | "slow-success" | "wait" | "stag
   };
 }
 
-function fakeNpmSource(mode: "success" | "slow-success" | "wait" | "staged-wait" | "fail", packageRoot: string, launchers: readonly string[]): string {
+type RecoveryNpmMode = "success" | "slow-success" | "wait" | "staged-wait" | "fail" | "link-success" | "link-foreign";
+
+function fakeNpmSource(mode: RecoveryNpmMode, packageRoot: string, launchers: readonly string[]): string {
+  if (mode === "link-success" || mode === "link-foreign") {
+    return `
+    const { mkdir, rm, symlink, writeFile } = require("node:fs/promises");
+    const { dirname, resolve } = require("node:path");
+    const packageRoot = ${JSON.stringify(packageRoot)};
+    const launchers = ${JSON.stringify(launchers)};
+    (async () => {
+      await mkdir(resolve(packageRoot, "bin"), { recursive: true });
+      await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: "1.1.0" }));
+      await writeFile(resolve(packageRoot, "bin", "cli.js"), "// target");
+      await writeFile(resolve(packageRoot, "bin", "other.js"), "// foreign");
+      for (const launcher of launchers) {
+        await rm(launcher, { force: true });
+        await mkdir(dirname(launcher), { recursive: true });
+        await symlink(resolve(packageRoot, "bin", ${JSON.stringify(mode === "link-success" ? "cli.js" : "other.js")}), launcher);
+      }
+    })().catch(error => { console.error(error); process.exitCode = 1; });
+  `;
+  }
   return `
     const { mkdir, rm, writeFile } = require("node:fs/promises");
     const { dirname, resolve } = require("node:path");

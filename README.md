@@ -47,6 +47,8 @@ Exact preview:
 npm x -y -- @timurproko/a1-install --develop 0.1.8-dev.107
 ```
 
+The installer needs Node.js 22.19 or later. When npm's global folder is not writable, as with the nodejs.org installer on macOS, it installs under `~/.local` and adds `~/.local/bin` to your shell's PATH; open a new terminal to use `a1`.
+
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 
 ## Launch

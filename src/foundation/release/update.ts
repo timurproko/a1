@@ -652,6 +652,12 @@ async function launchersOwnPackage(globalRoot: string, fileSystem: UpdateFileSys
   try {
     for (const launcher of updateLauncherPaths(globalRoot)) {
       const metadata = await (fileSystem.lstat ?? lstat)(launcher);
+      // Platform: npm links Unix launchers; one owns the package only when it resolves to the exact entry.
+      if (metadata.isSymbolicLink() && process.platform !== "win32") {
+        const entry = resolve(globalRoot, ...PRODUCT_PACKAGE.split("/"), "bin", "cli.js");
+        if (!samePath(await fileSystem.realpath(launcher), await fileSystem.realpath(entry))) return false;
+        continue;
+      }
       if (!metadata.isFile() || metadata.isSymbolicLink() || (process.platform !== "win32" && (metadata.mode & 0o111) === 0)) return false;
       if (!(await fileSystem.readFile(launcher)).replaceAll("\\", "/").includes(token)) return false;
     }

@@ -15,5 +15,13 @@ export function resolveInstallerNpmCli(environment: NodeJS.ProcessEnv): string;
 export function consumeProcessLines(pending: string, chunk: string, callback?: (line: string) => void): string;
 export function sanitizeDiagnostic(value: string): string;
 export function isSupportedNodeVersion(version: string): boolean;
+export function npmPrefixIsWritable(globalRoot: string, platform: NodeJS.Platform): Promise<boolean>;
+export function userInstallPrefix(home: string): string;
+export function shellPathActivation(
+  environment: NodeJS.ProcessEnv,
+  home: string,
+  exists?: (path: string) => boolean,
+): { file: string; line: string };
+export function activateShellPath(activation: { file: string; line: string }): Promise<boolean>;
 export function runInstaller(argv: string[], options?: Record<string, unknown>): Promise<number>;
 export function main(argv?: string[], options?: Record<string, unknown>): Promise<number>;

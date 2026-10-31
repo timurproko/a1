@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { access, lstat, readFile, realpath } from "node:fs/promises";
-import { lstatSync, realpathSync, readFileSync, statSync } from "node:fs";
+import { access, appendFile, lstat, mkdir, readFile, realpath, stat } from "node:fs/promises";
+import { constants, lstatSync, realpathSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { SHARED_PROGRESS_ACCENT_ANSI, SHARED_PROGRESS_PALETTE } from "./progress-palette.js";
 
@@ -533,6 +533,63 @@ async function verifyCommandResolution(expected, environment, platform) {
   }
 }
 
+/** Return whether the invoking user can write a directory or create it beneath its nearest existing ancestor. */
+async function writableOrCreatable(path) {
+  let current = resolve(path);
+  for (;;) {
+    try {
+      if (!(await stat(current)).isDirectory()) return false;
+      await access(current, constants.W_OK);
+      return true;
+    } catch (error) {
+      if (!error || typeof error !== "object" || error.code !== "ENOENT") return false;
+      const parent = dirname(current);
+      if (parent === current) return false;
+      current = parent;
+    }
+  }
+}
+
+/** Return whether npm's global prefix accepts a package and its launcher without elevated privileges. */
+export async function npmPrefixIsWritable(globalRoot, platform) {
+  if (platform === "win32") return true;
+  return await writableOrCreatable(globalRoot) && await writableOrCreatable(resolve(dirname(dirname(globalRoot)), "bin"));
+}
+
+/** Return the per-user npm prefix used when npm's global prefix is root-owned. */
+export function userInstallPrefix(home) {
+  return resolve(home, ".local");
+}
+
+/** Return whether one PATH value already names a directory. */
+function pathIncludes(pathValue, directory, platform) {
+  const expected = normalizePath(directory, platform);
+  return String(pathValue ?? "").split(delimiter).some(entry => entry !== "" && normalizePath(entry, platform) === expected);
+}
+
+/** Select the login-shell startup file and exact line that put the per-user `bin` on PATH. */
+export function shellPathActivation(environment, home, exists = path => { try { statSync(path); return true; } catch { return false; } }) {
+  const shell = basename(String(environment.SHELL ?? "sh"));
+  if (shell === "fish") return { file: resolve(home, ".config", "fish", "config.fish"), line: "fish_add_path \"$HOME/.local/bin\"" };
+  const line = "export PATH=\"$HOME/.local/bin:$PATH\"";
+  if (shell === "zsh") return { file: resolve(environment.ZDOTDIR || home, ".zshrc"), line };
+  if (shell === "bash" && exists(resolve(home, ".bashrc"))) return { file: resolve(home, ".bashrc"), line };
+  return { file: resolve(home, ".profile"), line };
+}
+
+/** Append one marked PATH line to the startup file unless the exact line is already present. */
+export async function activateShellPath(activation) {
+  let existing = "";
+  try { existing = await readFile(activation.file, "utf8"); } catch (error) {
+    if (!error || typeof error !== "object" || error.code !== "ENOENT") throw error;
+  }
+  if (existing.split(/\r?\n/u).includes(activation.line)) return false;
+  await mkdir(dirname(activation.file), { recursive: true });
+  const separator = existing === "" || existing.endsWith("\n") ? "" : "\n";
+  await appendFile(activation.file, `${separator}# a1\n${activation.line}\n`, { encoding: "utf8" });
+  return true;
+}
+
 async function verifyInstalledPackage(packageRoot, targetVersion) {
   const manifest = await readManifest(packageRoot);
   if (manifest === null) throw new InstallationFailure("the installed package is incomplete");
@@ -665,7 +722,22 @@ export async function runInstaller(argv, options = {}) {
     if (rootResult.code !== 0 || !globalRoot || !isAbsolute(globalRoot)) {
       throw new InstallationFailure("the npm global installation cannot be verified", rootResult.stderr || rootResult.stdout);
     }
-    const packageRoot = packageRootFor(globalRoot);
+    // Platform: nodejs.org macOS and distribution Linux Node.js leave npm's prefix root-owned; fall back to
+    // the per-user prefix with explicit --prefix arguments instead of sudo or persistent npm configuration.
+    let installRoot = globalRoot;
+    let userPrefix = null;
+    if (!await npmPrefixIsWritable(globalRoot, platform)) {
+      const shadowing = launcherPaths(globalRoot, platform)[0];
+      if (await lstat(shadowing).then(() => true, () => false)) {
+        throw new InstallationFailure("another command takes precedence", `npm's global prefix is not writable and already contains ${shadowing}`);
+      }
+      userPrefix = userInstallPrefix(options.home ?? homedir());
+      installRoot = resolve(userPrefix, "lib", "node_modules");
+    }
+    const userBin = userPrefix === null ? null : resolve(userPrefix, "bin");
+    const activatePath = userBin !== null && !pathIncludes(environment.PATH, userBin, platform);
+    const resolutionEnvironment = activatePath ? { ...environment, PATH: [userBin, environment.PATH ?? ""].join(delimiter) } : environment;
+    const packageRoot = packageRootFor(installRoot);
     const existing = await readExistingManifest(packageRoot);
     if (existing !== null && existing.name !== APPLICATION_PACKAGE) {
       throw new InstallationFailure("existing installation ownership could not be verified");
@@ -675,8 +747,8 @@ export async function runInstaller(argv, options = {}) {
       const cli = resolve(packageRoot, "bin", "cli.js");
       try {
         await access(cli);
-        const existingLaunchers = await verifyLaunchers(globalRoot, platform);
-        await verifyCommandResolution(existingLaunchers, environment, platform);
+        const existingLaunchers = await verifyLaunchers(installRoot, platform);
+        await verifyCommandResolution(existingLaunchers, resolutionEnvironment, platform);
       } catch (error) {
         if (error instanceof InstallationFailure && error.reason === "another command takes precedence") throw error;
         throw new InstallationFailure("existing installation ownership could not be verified", error instanceof Error ? error.message : String(error));
@@ -697,11 +769,12 @@ export async function runInstaller(argv, options = {}) {
         throw new InstallationFailure(conciseFailure("update", `${updateResult.stderr}\n${updateResult.stdout}`), `${updateResult.stderr}\n${updateResult.stdout}`, updateResult.code ?? 1);
       }
     } else {
-      await assertLaunchersAbsent(globalRoot, platform);
+      await assertLaunchersAbsent(installRoot, platform);
       let installPhase = "Resolving packages";
       progress.set(24, installPhase, 70);
       const installResult = await runner.npm([
-        "install", "--global", "--loglevel=verbose", "--ignore-scripts", "--no-fund", "--no-audit", "--progress=false",
+        "install", "--global", ...(userPrefix === null ? [] : ["--prefix", userPrefix]),
+        "--loglevel=verbose", "--ignore-scripts", "--no-fund", "--no-audit", "--progress=false",
         `${APPLICATION_PACKAGE}@${targetVersion}`,
       ], {
         onChild: setActiveChild,
@@ -720,11 +793,16 @@ export async function runInstaller(argv, options = {}) {
 
     progress.set(98, "Verifying", 99);
     await verifyInstalledPackage(packageRoot, targetVersion);
-    const launchers = await verifyLaunchers(globalRoot, platform);
-    await verifyCommandResolution(launchers, environment, platform);
+    const launchers = await verifyLaunchers(installRoot, platform);
+    await verifyCommandResolution(launchers, resolutionEnvironment, platform);
+    if (activatePath) {
+      try { await activateShellPath(shellPathActivation(environment, options.home ?? homedir())); } catch (error) {
+        throw new InstallationFailure("the installed command is not active in this shell", String(error));
+      }
+    }
     if (cancelled) throw new InstallationCancelled();
     progress.finish();
-    stdout.write("a1 successfully installed\n");
+    stdout.write(activatePath ? "a1 successfully installed; open a new terminal to use it\n" : "a1 successfully installed\n");
     return 0;
   } catch (error) {
     progress.clear();
