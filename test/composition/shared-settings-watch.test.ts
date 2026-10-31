@@ -1,3 +1,4 @@
+import { pbkdf2 } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -41,6 +42,22 @@ describe("shared settings watch", () => {
     const stop = watchSharedSettings(agentTab);
     try {
       await settingsTab.change("a1", "accentColor", "cyan");
+      await vi.waitFor(() => expect(accents).toEqual(["cyan"]), { timeout: 5_000, interval: 50 });
+    } finally {
+      stop();
+    }
+  });
+
+  it("reports a peer save made right after watching starts while the thread pool is saturated", async () => {
+    const saturation = Array.from({ length: 8 }, () => new Promise(done => pbkdf2("a1", "watch", 200_000, 64, "sha512", () => done(undefined))));
+    const settingsTab = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    const agentTab = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    const accents: string[] = [];
+    agentTab.onChange(current => accents.push(current.value("accentColor")));
+    const stop = watchSharedSettings(agentTab);
+    try {
+      await settingsTab.change("a1", "accentColor", "cyan");
+      await Promise.all(saturation);
       await vi.waitFor(() => expect(accents).toEqual(["cyan"]), { timeout: 5_000, interval: 50 });
     } finally {
       stop();
