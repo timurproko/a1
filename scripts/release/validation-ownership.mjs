@@ -99,20 +99,22 @@ export async function buildSupportGraph(root, { includeProduct = false } = {}) {
       importers.set(target, values);
     }
   }
+  // Rationale: callers keep only a bounded prefix, so order by import distance before name; a module's
+  // direct test must survive the bound instead of losing to alphabetically earlier distant consumers.
   function reachingTests(path) {
-    const seen = new Set([path]);
+    const depth = new Map([[path, 0]]);
     const queue = [path];
-    const reached = new Set();
+    const reached = [];
     while (queue.length > 0) {
       const current = queue.shift();
       for (const importer of importers.get(current) ?? []) {
-        if (seen.has(importer)) continue;
-        seen.add(importer);
-        if (TEST.test(importer)) reached.add(importer);
+        if (depth.has(importer)) continue;
+        depth.set(importer, depth.get(current) + 1);
+        if (TEST.test(importer)) reached.push(importer);
         queue.push(importer);
       }
     }
-    return [...reached].sort();
+    return reached.sort((left, right) => depth.get(left) - depth.get(right) || (left < right ? -1 : left > right ? 1 : 0));
   }
   return { files: files.length, reachingTests, hasPath: path => present.has(path) };
 }

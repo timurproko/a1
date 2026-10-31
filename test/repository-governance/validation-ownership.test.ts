@@ -39,6 +39,14 @@ describe("bounded PR-core ownership", () => {
     expect(result.tests).not.toContain("test/foundation/release/release-gc.test.ts");
   });
 
+  it("keeps a widely imported module's direct test ahead of distant consumers under the reaching bound", () => {
+    const path = "src/foundation/release/release-gc.ts";
+    const reaching = authority.consumerGraph.reachingTests(path);
+    expect(reaching.length).toBeGreaterThan(24);
+    expect(reaching.indexOf("test/foundation/release/release-gc.test.ts")).toBeLessThan(24);
+    expect(select([path]).resourceTests).toContain("test/foundation/release/release-gc.test.ts");
+  });
+
   it("selects changed tests, shared support consumers, and both rename identities", () => {
     const changed = select(["test/cli/dispatch.test.ts"]);
     expect(changed.owners.find(owner => owner.owner === "shared-product")?.reasons).toEqual(expect.arrayContaining([expect.objectContaining({ code: "changed-test" })]));
