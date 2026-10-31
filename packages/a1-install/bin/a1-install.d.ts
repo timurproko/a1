@@ -14,5 +14,6 @@ export function resolvePublishedPreview(stdout: string, requested: string): stri
 export function resolveInstallerNpmCli(environment: NodeJS.ProcessEnv): string;
 export function consumeProcessLines(pending: string, chunk: string, callback?: (line: string) => void): string;
 export function sanitizeDiagnostic(value: string): string;
+export function isSupportedNodeVersion(version: string): boolean;
 export function runInstaller(argv: string[], options?: Record<string, unknown>): Promise<number>;
-export function main(argv?: string[]): Promise<number>;
+export function main(argv?: string[], options?: Record<string, unknown>): Promise<number>;

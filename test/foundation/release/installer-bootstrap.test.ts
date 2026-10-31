@@ -11,6 +11,8 @@ import {
   conciseFailure,
   consumeProcessLines,
   installerHelp,
+  isSupportedNodeVersion,
+  main,
   parseArguments,
   renderProgressBar,
   resolveInstallerAccentColor,
@@ -645,6 +647,31 @@ describe("installer orchestration", () => {
     expect(verbose.stderr).toContain("installation failed: registry authentication failed\nDetails: npm ERR! code E401");
     expect(verbose.stderr).not.toContain("secret");
     expect(verbose.stderr).toContain("_authToken=[redacted]");
+  });
+
+  it("accepts Node.js 22.19.0 and every newer major", () => {
+    for (const version of ["v22.19.0", "v22.20.1", "v23.0.0", "v24.4.0", "v26.13.0", "v30.1.0"]) {
+      expect(isSupportedNodeVersion(version)).toBe(true);
+    }
+    for (const version of ["v22.18.9", "v20.11.0", "v18.20.4", "", "unknown"]) {
+      expect(isSupportedNodeVersion(version)).toBe(false);
+    }
+  });
+
+  it("explains an outdated Node.js before starting npm work", async () => {
+    const stdout = capture();
+    const stderr = capture();
+    const runner = {
+      async npm() { throw new Error("not reached"); },
+      async node() { throw new Error("not reached"); },
+    };
+    const code = await main(exactTarget, {
+      stdout: stdout.stream, stderr: stderr.stream, runner, platform: process.platform, nodeVersion: "v20.11.0",
+      environment: { PATH: process.env.PATH ?? "" }, handleSignals: false,
+    });
+    expect({ code, stdout: stdout.read(), stderr: stderr.read() }).toEqual({
+      code: 1, stdout: "", stderr: "a1 needs a newer Node.js: you have v20.11.0, install 22.19 or later\n",
+    });
   });
 });
 
