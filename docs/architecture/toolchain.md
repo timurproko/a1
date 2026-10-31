@@ -6,7 +6,7 @@ Exact package versions are recorded in `package-lock.json`.
 
 | Component | Contract |
 |---|---|
-| Node.js | `>=22.19.0 <25` |
+| Node.js | `>=22.19.0` |
 | Package manager | npm 11, lockfile v3 |
 | Language | TypeScript, strict native ESM, `NodeNext`, ES2023 |
 | Control storage | Built-in `node:sqlite` `DatabaseSync`, WAL mode |

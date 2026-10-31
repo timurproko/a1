@@ -16,7 +16,7 @@ const readyMsvc = { status: "ready", source: "discovered", compiler: "cl.exe", l
 const ready = {
   platform: "linux",
   node: "v24.4.0",
-  engines: ">=22.19.0 <25",
+  engines: ">=22.19.0",
   packageManager: "npm@11.13.0",
   npm: "11.13.0",
   git: "2.53.0",
@@ -36,6 +36,8 @@ describe("build environment prerequisites", () => {
     ["v22.18.9", ">=22.19.0 <25", false],
     ["v25.0.0", ">=22.19.0 <25", false],
     ["v26.1.0", ">=22.19.0 <25", false],
+    ["v26.13.0", ">=22.19.0", true],
+    ["v22.18.9", ">=22.19.0", false],
     ["1.85.0", ">=1.85", true],
     ["1.84.2", ">=1.85", false],
     ["1.90", ">=1.85", true],
@@ -146,9 +148,9 @@ describe("build environment prerequisites", () => {
   });
 
   it("reports an out-of-contract Node without blocking the build", () => {
-    const checks = evaluatePrerequisites({ ...ready, node: "v26.1.0" });
+    const checks = evaluatePrerequisites({ ...ready, node: "v20.11.0" });
     expect(blockingFailures(checks)).toEqual([]);
-    expect(advisories(checks)).toMatchObject([{ id: "node", detail: "v26.1.0 is outside the declared engine contract >=22.19.0 <25" }]);
+    expect(advisories(checks)).toMatchObject([{ id: "node", detail: "v20.11.0 is outside the declared engine contract >=22.19.0" }]);
   });
 
   it("reports an npm major that does not match packageManager without blocking the build", () => {
@@ -173,7 +175,7 @@ describe("build environment prerequisites", () => {
   });
 
   it("summarises blocking and advisory counts separately", () => {
-    const report = formatReport(evaluatePrerequisites({ ...ready, cargo: null, node: "v26.1.0" }), "@scope/pkg");
+    const report = formatReport(evaluatePrerequisites({ ...ready, cargo: null, node: "v20.11.0" }), "@scope/pkg");
     expect(report).toContain("1 blocking prerequisite unmet, 1 advisory.");
     expect(report).toContain("FAIL  Rust toolchain");
     expect(report).toContain("warn  Node.js");
