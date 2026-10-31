@@ -4,9 +4,12 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The failure is environmental, not introduced by `b5cba40` (#852) or `27f992a` (#853): neither touches dependencies, and the registry deprecated the locked transitive `@smithy/core@3.36.2` (reached through `@earendil-works/pi-ai@1.4.0` -> `@aws-sdk/client-bedrock-runtime@3.1127.0`) for a custom-logger redaction bug (aws/aws-sdk-js-v3#8393) after Full regression #78 passed. Every dependent declares a caret `^3.x` range, so `npm update @smithy/core` re-resolves only that lockfile entry to the current non-deprecated `3.38.1` with no manifest, override, or Pi pin change. The deprecated-dependency policy stays unchanged and caught the upstream deprecation as designed, so no regression evidence gap was exposed.
 
 ## Evidence
+
+- Reproduced locally on the draft head after merging current `develop` (`1d472e88`) with `npm ci --ignore-scripts && npm run check:deprecated`: the same single `@smithy/core@3.36.2 [registry]` violation with the identical path and reason.
+- After `npm update @smithy/core`, the lockfile diff is exactly the one `node_modules/@smithy/core` entry (`3.36.2` -> `3.38.1`). `npm run check:deprecated` reports `Deprecated dependency policy OK (lockfile + registry)`, `npm ls @smithy/core --all` resolves every dependent to `3.38.1` without invalid entries, a clean `npm ci --ignore-scripts` succeeds, `npx tsgo -p tsconfig.json --noEmit` passes, and `npx vitest run test/repository-governance/deprecated-dependencies.test.ts` passes (5 tests). No Full regression dispatch was started on the draft; exact-head PR-selected Full regression remains the post-finalization gate. The orchestration failure of `Complete regression required` is the aggregate consequence of the failed lanes, not a separate cause. No known gaps; numbered-package nightly recovery is independent.
 
 - Run [Full regression #79](https://github.com/timurproko/a1/actions/runs/41161344675) (attempt 1, schedule) on `27f992a` at 2026-10-31T02:44:31Z:
   - `deprecated-dependencies` (`dependency-policy`) failed on macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 (core shard), windows-2025-node24 (core shard) with exit 1.
