@@ -593,6 +593,46 @@ fn admit_alt_code_input(
     Event::Key(key)
 }
 
+/// Platform: the macOS ABC/US Option layer as `(typed character, base key)`. The dead keys
+/// Option+E, I, N, U, and backtick compose an accent instead of typing and are absent.
+const MACOS_OPTION_LAYER: &[(char, char)] = &[
+    ('¡', '1'), ('™', '2'), ('£', '3'), ('¢', '4'), ('∞', '5'),
+    ('§', '6'), ('¶', '7'), ('•', '8'), ('ª', '9'), ('º', '0'),
+    ('å', 'a'), ('∫', 'b'), ('ç', 'c'), ('∂', 'd'), ('ƒ', 'f'), ('©', 'g'), ('˙', 'h'),
+    ('∆', 'j'), ('˚', 'k'), ('¬', 'l'), ('µ', 'm'), ('ø', 'o'), ('π', 'p'), ('œ', 'q'),
+    ('®', 'r'), ('ß', 's'), ('†', 't'), ('√', 'v'), ('∑', 'w'), ('≈', 'x'), ('¥', 'y'),
+    ('Ω', 'z'),
+    ('≤', ','), ('≥', '.'), ('÷', '/'), ('…', ';'), ('æ', '\''), ('“', '['), ('‘', ']'),
+    ('«', '\\'), ('–', '-'), ('≠', '='),
+];
+
+/// Platform: a stock macOS terminal sends Option+key as its Option-layer character, which crossterm
+/// reports without Alt. That character becomes its Alt chord only when the chord is bound to a tab
+/// action, so every other Option character still types and real Alt input is untouched.
+fn admit_option_shortcut(
+    macos: bool,
+    bindings: &TabBindings,
+    key: crossterm::event::KeyEvent,
+) -> crossterm::event::KeyEvent {
+    if !macos || !key.modifiers.difference(KeyModifiers::SHIFT).is_empty() {
+        return key;
+    }
+    let KeyCode::Char(typed) = key.code else {
+        return key;
+    };
+    let Some(&(_, base)) = MACOS_OPTION_LAYER.iter().find(|(option, _)| *option == typed) else {
+        return key;
+    };
+    let mut chord = key;
+    chord.code = KeyCode::Char(base);
+    chord.modifiers = KeyModifiers::ALT;
+    if bindings.action(&chord).is_some() {
+        chord
+    } else {
+        key
+    }
+}
+
 fn append_drag_marker<T: TabView>(
     frame: &mut strip::StripFrame,
     drag: Option<&TabDrag>,
@@ -3230,6 +3270,7 @@ impl Client {
 
     /// Returns `true` when the key detached this client.
     fn key(&mut self, core: &mut State, key: crossterm::event::KeyEvent) -> Result<bool, String> {
+        let key = admit_option_shortcut(cfg!(target_os = "macos"), &self.bindings, key);
         let action = self.bindings.action(&key).map(str::to_owned);
         if suppress_pending_close_repeat(&mut self.pending_close_quiet_until, action.as_deref(), key.kind,
             core.view.pending_agent_visible, Instant::now()) {
@@ -4709,6 +4750,66 @@ mod tests {
         );
         assert_eq!(bindings.label("tabs.close"), "");
         assert_eq!(bindings.label("tabs.new"), "Alt+A");
+    }
+
+    fn option_key(typed: char) -> crossterm::event::KeyEvent {
+        crossterm::event::KeyEvent::new(KeyCode::Char(typed), KeyModifiers::NONE)
+    }
+
+    #[test]
+    fn macos_option_layer_is_the_abc_us_layout_without_dead_keys() {
+        let typed: String = MACOS_OPTION_LAYER.iter().map(|(option, _)| *option).collect();
+        let bases: String = MACOS_OPTION_LAYER.iter().map(|(_, base)| *base).collect();
+        assert_eq!(typed, "¡™£¢∞§¶•ªºå∫ç∂ƒ©˙∆˚¬µøπœ®ß†√∑≈¥Ω≤≥÷…æ“‘«–≠");
+        assert_eq!(bases, "1234567890abcdfghjklmopqrstvwxyz,./;'[]\\-=");
+        for dead in ['e', 'i', 'n', 'u', '`'] {
+            assert!(!bases.contains(dead), "dead key {dead} composes instead of typing");
+        }
+    }
+
+    #[test]
+    fn macos_option_characters_dispatch_every_default_tab_shortcut() {
+        let profile = tempfile::tempdir().unwrap();
+        let bindings = TabBindings::load(profile.path());
+        let expected = [
+            ('¡', "tabs.jump1"), ('™', "tabs.jump2"), ('£', "tabs.jump3"), ('¢', "tabs.jump4"),
+            ('∞', "tabs.jump5"), ('§', "tabs.jump6"), ('¶', "tabs.jump7"), ('•', "tabs.jump8"),
+            ('ª', "tabs.jump9"), ('º', "tabs.jump10"), ('å', "tabs.new"), ('∑', "tabs.close"),
+            ('≤', "tabs.settings"), ('÷', "tabs.commands"),
+        ];
+        for (typed, action) in expected {
+            let admitted = admit_option_shortcut(true, &bindings, option_key(typed));
+            assert!(admitted.modifiers.contains(KeyModifiers::ALT), "{typed} becomes an Alt chord");
+            assert_eq!(bindings.action(&admitted), Some(action), "{typed}");
+            assert_eq!(bindings.action(&option_key(typed)), None, "{typed} alone matches nothing");
+        }
+    }
+
+    #[test]
+    fn unbound_option_characters_and_real_alt_input_are_unchanged() {
+        let profile = tempfile::tempdir().unwrap();
+        let bindings = TabBindings::load(profile.path());
+        for typed in ['π', 'ø', '≈', 'µ'] {
+            assert_eq!(admit_option_shortcut(true, &bindings, option_key(typed)), option_key(typed));
+        }
+        let real_alt = crossterm::event::KeyEvent::new(KeyCode::Char('1'), KeyModifiers::ALT);
+        assert_eq!(admit_option_shortcut(true, &bindings, real_alt), real_alt);
+        assert_eq!(bindings.action(&real_alt), Some("tabs.jump1"));
+        let control = crossterm::event::KeyEvent::new(KeyCode::Char('å'), KeyModifiers::CONTROL);
+        assert_eq!(admit_option_shortcut(true, &bindings, control), control);
+    }
+
+    #[test]
+    fn option_mapping_follows_rebinding_and_stays_off_other_platforms() {
+        let profile = tempfile::tempdir().unwrap();
+        std::fs::write(profile.path().join("keybindings.json"), br#"{"tabs.new":"alt+n"}"#).unwrap();
+        let rebound = TabBindings::load(profile.path());
+        assert_eq!(admit_option_shortcut(true, &rebound, option_key('å')), option_key('å'));
+        assert_eq!(rebound.action(&option_key('å')), None, "å types once Alt+A is free");
+
+        let defaults = TabBindings::load(tempfile::tempdir().unwrap().path());
+        assert_eq!(admit_option_shortcut(false, &defaults, option_key('¡')), option_key('¡'));
+        assert_eq!(defaults.action(&option_key('¡')), None, "Windows and Linux type ¡");
     }
 
     // Invariant: the owned child's projection replays these same cases, so dispatch, labels, and
