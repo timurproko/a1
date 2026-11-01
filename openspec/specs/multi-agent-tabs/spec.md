@@ -1427,3 +1427,24 @@ On macOS, the attach client SHALL treat an unmodified or Shift-only character ke
 #### Scenario: Other platforms are unchanged
 - **WHEN** a Windows or Linux attach client receives `¡` as an unmodified character
 - **THEN** it SHALL forward `¡` to the child and dispatch no tab action
+
+### Requirement: macOS shortcut labels name Alt Option everywhere
+On macOS, every shortcut label A1 renders SHALL name the Alt modifier `Option` with the same `+`-joined form and key casing as other platforms, so one naming system covers the attach client's tab context menu, `+` menu, Commands palette, and failed-tab banner, the Keyboard Shortcuts document, modal and footer shortcut hints, and A1-owned messages that name a shortcut. `Ctrl+` and `Shift+` SHALL stay unchanged, and Windows and Linux SHALL keep `Alt+`. Where another requirement names a label such as `Alt+W`, `Alt+,`, or `Alt+/`, macOS SHALL present `Option+W`, `Option+,`, or `Option+/`. The failed-tab banner SHALL name the effective `tabs.close` shortcut and SHALL omit the close hint when that action is unbound.
+
+#### Scenario: The tab menu on macOS
+- **WHEN** the user opens a tab's context menu on macOS with default bindings
+- **THEN** the menu SHALL show `Close  Option+W` and `Rename  F2`
+
+#### Scenario: Labels agree across surfaces on macOS
+- **WHEN** `tabs.settings` keeps `Alt+,` on macOS
+- **THEN** the `+` menu, Commands palette, and Keyboard Shortcuts Tabs table SHALL all show `Option+,`
+- **AND** a modal hint for an `alt+up` binding SHALL show `Option+Up`
+
+#### Scenario: Other platforms keep Alt
+- **WHEN** the same menus and hints render on Windows or Linux
+- **THEN** they SHALL show `Close  Alt+W`, `Alt+,`, `Alt+Up`, and `Ctrl+X` as before
+
+#### Scenario: A failed tab's close hint follows its binding
+- **WHEN** a failed tab is viewed on macOS and `tabs.close` keeps `Alt+W`
+- **THEN** the banner SHALL read `Tab failed · R retry · F start fresh · Option+W close`
+- **AND** when `tabs.close` is unbound the banner SHALL read `Tab failed · R retry · F start fresh`

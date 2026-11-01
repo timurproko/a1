@@ -24,9 +24,9 @@ The maintainer integration decision accepts these scenarios:
     "Option characters whose Alt chord is not bound to a tab action, such as Option+P, still type their character.",
     "After a tab action is rebound, its old Option character types again, and Windows, Linux, and terminals already sending Option as Alt behave as before."
   ],
-  "archiveDigest": "93c9dd54be31ca53f522db28b56f536be030e4d3bf32c6405fe071b67b3eff83",
-  "specDigest": "844961bfa7ebbc6fe88dc59d6d46642c06eb9f1c49f6593832c858fd3e87ecbc",
-  "tasksDigest": "ab723452d2ed71fc33f3058b4568db4a3e6c5f036a3725279a7e04b7abaa7f92",
+  "archiveDigest": "47eb436b85278de83ecab06eeb5e30823f4179bf14256cd8d5a674b727d11f3c",
+  "specDigest": "a2ec2649cc170902a4e17a1682a576a23268975d42c2268a43962acac202122f",
+  "tasksDigest": "929fb7d6420b60c3adfaadbb8a5c43d1424d72ed201ac579828fa60c04b91112",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
