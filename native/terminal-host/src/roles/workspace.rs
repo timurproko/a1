@@ -45,7 +45,13 @@ impl WorkspaceTab {
         hash.update(source_scope.as_bytes());
         hash.update([0]);
         hash.update(source_tab.as_bytes());
-        format!("agent-{}", hex::encode(hash.finalize()))
+        let kind = crate::core::tab_bar::TabKind::of_id(source_tab);
+        let prefix = if kind.is_singleton() {
+            kind.id_prefix()
+        } else {
+            "agent-"
+        };
+        format!("{prefix}{}", hex::encode(hash.finalize()))
     }
 }
 
@@ -54,6 +60,9 @@ impl WorkspaceTab {
 pub struct WorkspaceDocument {
     pub schema: String,
     pub profile: String,
+    pub profile_root: String,
+    pub boot_id: String,
+    pub os_session_id: String,
     pub epoch: u64,
     pub revision: u64,
     pub sources: Vec<SourceIdentity>,
@@ -77,7 +86,7 @@ impl WorkspaceStore {
         let token = scope::workspace_token(profile)?;
         std::fs::create_dir_all(data).map_err(|_| "create workspace data directory")?;
         let data = std::fs::canonicalize(data).map_err(|_| "resolve workspace data directory")?;
-        let parent = data.join("workspaces");
+        let parent = data.join("resident-workspaces");
         private_directory(&parent)?;
         let root = parent.join(&token);
         private_directory(&root)?;
@@ -87,12 +96,31 @@ impl WorkspaceStore {
         let mut document = prior.clone().unwrap_or_else(|| WorkspaceDocument {
             schema: SCHEMA.into(),
             profile: token,
+            profile_root: String::new(),
+            boot_id: String::new(),
+            os_session_id: String::new(),
             epoch: 0,
             revision: 0,
             sources: Vec::new(),
             tabs: Vec::new(),
             selected: None,
         });
+        let system = crate::identity::current_system()
+            .map_err(|_| "workspace login identity unavailable")?;
+        if !document.boot_id.is_empty()
+            && (document.boot_id != system.boot || document.os_session_id != system.os_session)
+        {
+            archive_login(&root, &document)?;
+            document.tabs.clear();
+            document.sources.clear();
+            document.selected = None;
+        }
+        document.boot_id = system.boot;
+        document.os_session_id = system.os_session;
+        document.profile_root = std::fs::canonicalize(profile)
+            .map_err(|_| "resolve workspace profile root")?
+            .to_string_lossy()
+            .into_owned();
         let epoch = read_epoch(&root)?;
         if prior.is_none() && epoch != 0 {
             return Err("workspace recovery blocked; epoch has no generation".into());
@@ -332,6 +360,153 @@ fn read_bytes(path: &Path) -> Result<Option<Vec<u8>>, String> {
     Ok(Some(bytes))
 }
 
+/// Canonical affected profiles are retained even after their source owner markers disappear.
+pub fn profiles(data: &Path) -> Result<Vec<PathBuf>, String> {
+    let parent = data.join("resident-workspaces");
+    let entries = match std::fs::read_dir(&parent) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(vec![]),
+        Err(_) => return Err("workspace profiles are unreadable".into()),
+    };
+    let mut result = Vec::new();
+    for (index, entry) in entries.enumerate() {
+        if index >= 4096 {
+            return Err("workspace profile bound exceeded".into());
+        }
+        let entry = entry.map_err(|_| "read workspace profile")?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let metadata =
+            std::fs::symlink_metadata(entry.path()).map_err(|_| "inspect workspace profile")?;
+        if !token(&name, 20) || !metadata.is_dir() || metadata.file_type().is_symlink() {
+            return Err("workspace profile boundary is invalid".into());
+        }
+        let primary = read_document(&entry.path().join("workspace.json"), &name);
+        let document = match primary {
+            Ok(Some(document)) => document,
+            Err(error)
+                if error == "workspace schema is unsupported"
+                    || error == "workspace profile mismatch" =>
+            {
+                return Err(error);
+            }
+            _ => read_document(&entry.path().join("workspace.previous.json"), &name)?
+                .ok_or("workspace profile generation is unavailable")?,
+        };
+        let root = PathBuf::from(&document.profile_root);
+        if scope::workspace_token(&root)? != name {
+            return Err("workspace profile binding mismatch".into());
+        }
+        if !result.contains(&root) {
+            result.push(root);
+        }
+        if result.len() > 64 {
+            return Err("workspace profile count exceeds bound".into());
+        }
+    }
+    Ok(result)
+}
+
+/// Read-only cleanup evidence. Unreadable topology retains all releases at the caller.
+pub fn held_release_roots(data: &Path) -> Result<Vec<String>, String> {
+    let parent = data.join("resident-workspaces");
+    let entries = match std::fs::read_dir(&parent) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(_) => return Err("workspace holds are unreadable".into()),
+    };
+    let parent_meta = std::fs::symlink_metadata(&parent).map_err(|_| "inspect workspace holds")?;
+    if !parent_meta.is_dir() || parent_meta.file_type().is_symlink() {
+        return Err("workspace hold boundary is invalid".into());
+    }
+    let mut roots = std::collections::BTreeSet::new();
+    for (index, entry) in entries.enumerate() {
+        if index >= 4096 {
+            return Err("workspace hold directory bound exceeded".into());
+        }
+        let entry = entry.map_err(|_| "read workspace hold entry")?;
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let meta =
+            std::fs::symlink_metadata(entry.path()).map_err(|_| "inspect workspace hold entry")?;
+        if !token(&name, 20) || !meta.is_dir() || meta.file_type().is_symlink() {
+            return Err("workspace hold namespace is invalid".into());
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            if meta.uid() != unsafe { libc::geteuid() } || meta.mode() & 0o077 != 0 {
+                return Err("workspace hold ownership is invalid".into());
+            }
+        }
+        let document = read_document(&entry.path().join("workspace.json"), &name)?
+            .or(read_document(
+                &entry.path().join("workspace.previous.json"),
+                &name,
+            )?)
+            .ok_or("workspace hold generation is unavailable")?;
+        if read_epoch(&entry.path())? < document.epoch {
+            return Err("workspace hold epoch is invalid".into());
+        }
+        let system = crate::identity::current_system()
+            .map_err(|_| "workspace hold login identity unavailable")?;
+        if !document.boot_id.is_empty()
+            && (document.boot_id != system.boot || document.os_session_id != system.os_session)
+        {
+            continue;
+        }
+        for source in &document.sources {
+            if document
+                .tabs
+                .iter()
+                .any(|tab| tab.source_scope == source.scope)
+            {
+                let closed = super::source_route::SourceRoute::closed_snapshot(
+                    Path::new(&document.profile_root),
+                    data,
+                    source,
+                    &document.tabs,
+                );
+                if !matches!(closed, Ok(Some(_))) {
+                    roots.insert(source.release_root.clone());
+                }
+            }
+        }
+    }
+    Ok(roots.into_iter().collect())
+}
+
+fn archive_login(root: &Path, document: &WorkspaceDocument) -> Result<(), String> {
+    let history = root.join("login-history");
+    private_directory(&history)?;
+    let path = history.join(format!(
+        "login-{:020}-{:020}.json",
+        document.epoch, document.revision
+    ));
+    replace_private(
+        &path,
+        &serde_json::to_vec(document).map_err(|_| "encode workspace login history")?,
+    )?;
+    let mut generations = std::fs::read_dir(&history)
+        .map_err(|_| "inspect workspace login history")?
+        .take(17)
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "read workspace login history")?;
+    if generations.len() > 16 {
+        return Err("workspace login history bound exceeded".into());
+    }
+    for entry in &generations {
+        if !entry.file_name().to_string_lossy().starts_with("login-") {
+            return Err("workspace login history is unrecognized".into());
+        }
+        read_document(&entry.path(), &document.profile)?.ok_or("workspace history is invalid")?;
+    }
+    generations.sort_by_key(|entry| entry.file_name());
+    let excess = generations.len().saturating_sub(3);
+    for entry in generations.into_iter().take(excess) {
+        std::fs::remove_file(entry.path()).map_err(|_| "prune workspace login history")?;
+    }
+    Ok(())
+}
+
 fn read_epoch(root: &Path) -> Result<u64, String> {
     let Some(bytes) = read_bytes(&root.join("workspace.epoch"))? else {
         return Ok(0);
@@ -501,7 +676,10 @@ fn validate(document: &WorkspaceDocument, profile: &str) -> Result<(), String> {
             || !text(&tab.source_tab, 256)
             || tab.incarnation == 0
             || !text(&tab.name, 1024)
-            || !matches!(tab.name_source.as_str(), "default" | "auto" | "user")
+            || !matches!(
+                tab.name_source.as_str(),
+                "default" | "auto" | "user" | "system"
+            )
             || tab
                 .session_file
                 .as_deref()

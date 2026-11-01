@@ -970,12 +970,20 @@ impl FrameDecoder {
     }
 }
 
-fn fixture_welcome() -> Welcome {
-    Welcome {
-        generation: GENERATION, build: "fixture".into(), release_id: String::new(),
-        features: vec!["controller-boundary".into()], frame_limit: MAX_FRAME_BYTES as u32,
-        input_limit: MAX_INPUT_BYTES as u32, epoch: 0,
-    }
+fn fixture_welcome() -> Result<(String,Vec<u8>),ProtocolError> {
+    Ok(("welcome.msgpack".into(),encode_frame(&Envelope {
+        message_type:"welcome".into(),request_id:Some(1),body:Welcome {
+            generation:GENERATION,build:"fixture".into(),release_id:String::new(),features:vec!["controller-boundary".into()],
+            frame_limit:MAX_FRAME_BYTES as u32,input_limit:MAX_INPUT_BYTES as u32,epoch:0,
+        },
+    })?))
+}
+
+fn runtime_control_fixture() -> Result<(String,Vec<u8>),ProtocolError> {
+    Ok(("runtime-control.msgpack".into(),encode_frame(&Envelope {
+        message_type:"runtime.describe".into(),request_id:Some(2),
+        body:crate::roles::runtime_control::RuntimeControl::describe("a".repeat(64),"b".repeat(20),7,"boot".into(),"login".into()),
+    })?))
 }
 
 pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
@@ -994,24 +1002,8 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
                 },
             })?,
         ),
-        (
-            "welcome.msgpack".to_owned(),
-            encode_frame(&Envelope {
-                message_type: "welcome".to_owned(),
-                request_id: Some(1),
-                body: fixture_welcome(),
-            })?,
-        ),
-        (
-            "runtime-control.msgpack".to_owned(),
-            encode_frame(&Envelope {
-                message_type: "runtime.describe".to_owned(),
-                request_id: Some(2),
-                body: crate::roles::runtime_control::RuntimeControl::describe(
-                    "a".repeat(64), "b".repeat(20), 7, "boot".into(), "login".into(),
-                ),
-            })?,
-        ),
+        fixture_welcome()?,
+        runtime_control_fixture()?,
         (
             "incompatible-generation.msgpack".to_owned(),
             encode_frame(&Envelope {

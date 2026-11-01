@@ -5,7 +5,7 @@ import { PromptImageSidecar } from "../features/prompt-history/image-sidecar.js"
 import { resolvePromptHistoryPath } from "../features/prompt-history/paths.js";
 import { resolvePromptHistoryDataDir } from "../features/launch/profile-paths.js";
 import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
-import type { AvailableRelease, StartupReleaseCheckOptions, StartupUpdateMode } from "../foundation/release/latest-release.js";
+import type { AvailableRelease, StartupReleaseCheckOptions } from "../foundation/release/latest-release.js";
 import { MAX_CLIPBOARD_TEXT_BYTES } from "../contracts/owned-ui/index.js";
 import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
 import type { SessionSelection } from "../foundation/lifecycle/session-selection.js";
@@ -39,13 +39,15 @@ import type { ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import { nativeHyperlinkStyle } from "../ui/components/spans.js";
 import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
 import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
-import { bindResidentTabBridge, closeResidentUtilityRoute, correlateResidentTabSubmission, currentBackendSessionFile, residentRouteHostOptions, residentTabKeybindings } from "./resident-tab-bridge.js";
+import { bindResidentPresentation, createResidentClientIdentity, closeResidentUtilityRoute, correlateResidentTabSubmission, currentBackendSessionFile, residentRouteHostOptions, residentTabKeybindings } from "./resident-tab-bridge.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { SessionRuntimeRegistry } from "./session-runtime-registry.js";
-import { readPackageVersion, StartupReleaseNote } from "./startup-route.js";
+import { StartupReleaseNote } from "./startup-route.js";
 import { createOwnedSettingsManager, watchSharedSettings } from "./owned-settings.js";
 
 export type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
+import { createStartupReleaseUpdateObservation } from "./release-update-observation.js";
+
 export { bindResidentTabBridge, correlateResidentTabSubmission } from "./resident-tab-bridge.js";
 
 export interface OwnedUiCompositionOptions {
@@ -163,6 +165,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     await host.dispose();
     throw error;
   }
+  const clientIdentity = createResidentClientIdentity(update => backend.extensions.announceReleaseUpdate(update));
   let recoveryDegraded = false;
   let presentRecoveryDegraded = (_degraded: boolean): void => {};
   const tabRecovery = options.tab === undefined ? null : new ResidentTabRecovery(options.tab.dataDir, {
@@ -302,11 +305,6 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     // Invariant: one terminal host owns the process terminal; the session presenter reaches it only through
     // the host and paints once attached.
     terminalHost = createdTerminalHost = new OwnedUiTerminalHost(sessionTerminalHostOptions(presenterOptions));
-    if (tabBridge !== null) {
-      removeControllerBoundaryInput = terminalHost.runtime.addPreInputListener(data => ({
-        data: tabBridge.consumeControllerBoundaryInput(data),
-      }));
-    }
     presenter = new OwnedUiSessionPresenter(terminalHost, presenterOptions);
     presentRecoveryDegraded = degraded => {
       if (!degraded) return;
@@ -315,12 +313,11 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     };
     if (recoveryDegraded) presentRecoveryDegraded(true);
     terminalHost.attach(presenter);
-    if (tabBridge !== null) {
-      unsubscribeTabBridge = await bindResidentTabBridge(tabBridge, backend, tabRecovery, {
-        autoName: settings?.value("tabsAutoName") ?? true,
-        openRoute: route => presenter.openOwnedRoute(route),
-      });
-    }
+    ({ unsubscribeTabBridge, removeControllerBoundaryInput } = await bindResidentPresentation(tabBridge, backend, tabRecovery, {
+      autoName: settings?.value("tabsAutoName") ?? true,
+      openRoute: route => presenter.openOwnedRoute(route),
+      onClientVersion: clientIdentity.observe,
+    }, terminalHost.runtime));
   } catch (error) {
     await createdTerminalHost?.dispose().catch(() => undefined);
     unsubscribeAccent();
@@ -338,7 +335,9 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     mode: settings === null || !ownedSurfaces ? "auto" : settings.value("updateCheck"),
     packageVersion: releaseNote.packageVersion, notificationVersion: options.notificationVersion,
     checkForNewerRelease: options.checkForNewerRelease,
+    clientVersion: clientIdentity.current,
   });
+  clientIdentity.onChange(releaseUpdates.clientChanged);
   const exitNoticePath = process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
   // Security: tools the agent runs must never see, or rewrite, this instance's notice.
   delete process.env[PRODUCT_IDENTITY.environment.exitNoticePath];
@@ -400,75 +399,6 @@ function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null,
     forScope,
     onScopeChange: (listener: (scope: "unique" | "shared") => void) => settings.onChange(() => listener(settings.value("promptHistoryScope"))),
     ...forScope(scope, sessionId)!,
-  };
-}
-
-interface StartupReleaseUpdateObservationOptions {
-  readonly backend: ComposedSessionBackend;
-  readonly configDir: string;
-  readonly mode: StartupUpdateMode;
-  readonly packageVersion: string | null;
-  readonly notificationVersion: string | undefined;
-  readonly checkForNewerRelease: ((options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>) | undefined;
-}
-
-function createStartupReleaseUpdateObservation(input: StartupReleaseUpdateObservationOptions): {
-  start(): void;
-  stop(): void;
-} {
-  const controller = new AbortController();
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  let announcedVersion: string | null = null;
-  let eligible = input.mode === "auto";
-  let cadence: number | null = null;
-  let nextDelay: number | null = null;
-  let started = false;
-  const observe = async (): Promise<void> => {
-    // Performance: registry code and its locks stay outside the first-frame startup graph.
-    const releases = await import("../foundation/release/latest-release.js");
-    cadence = releases.UPDATE_CHECK_INTERVAL_MS;
-    nextDelay = cadence;
-    const check = input.checkForNewerRelease ?? releases.checkForNewerRelease;
-    const runningVersion = input.packageVersion ?? await readPackageVersion();
-    const discoveryVersion = input.mode === "notify" ? input.notificationVersion ?? runningVersion : runningVersion;
-    const options: StartupReleaseCheckOptions = {
-      runningVersion: discoveryVersion,
-      configDir: input.configDir,
-      interactive: process.stdout.isTTY === true,
-      settingMode: input.mode,
-      signal: controller.signal,
-      onNextCheckDelay: milliseconds => { nextDelay = milliseconds; },
-    };
-    // Invariant: opt-outs never arm a recurring timer, nor read the cache or probe the registry.
-    if (input.checkForNewerRelease === undefined && releases.startupReleaseCheckSkipReason(options) !== null) {
-      eligible = false;
-      return;
-    }
-    const release = await check(options);
-    if (release === null || controller.signal.aborted) return;
-    if (input.mode === "notify") {
-      input.backend.extensions.announceReleaseUpdate(release);
-      return;
-    }
-    if (input.mode === "auto") {
-      const installed = await import("../foundation/release/automatic-update.js")
-        .then(module => module.requestAutomaticUpdate({ release, runningVersion, signal: controller.signal }));
-      if (installed !== null && installed !== announcedVersion && !controller.signal.aborted) {
-        announcedVersion = installed;
-        input.backend.extensions.announceReleaseUpdate({ status: "installed", version: installed });
-      }
-    }
-  };
-  const run = async (): Promise<void> => {
-    try { await observe(); } catch { /* Rationale: best effort; retry on the next interval. */ }
-    if (eligible && cadence !== null && !controller.signal.aborted) {
-      timer = setTimeout(() => { void run(); }, nextDelay ?? cadence);
-      timer.unref?.();
-    }
-  };
-  return {
-    start() { if (started || controller.signal.aborted) return; started = true; void run(); },
-    stop() { controller.abort(); if (timer !== undefined) clearTimeout(timer); },
   };
 }
 

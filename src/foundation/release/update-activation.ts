@@ -84,8 +84,11 @@ export async function activateInstalledRelease(request: UpdateActivationRequest,
   callbacks.onWarmup?.("started");
   await warmMaterializedRelease(candidate, request.environment);
   callbacks.onWarmup?.("completed");
+  const { assertResidentContinuity } = await import("../resident-tabs/continuity.js");
+  await assertResidentContinuity({ releaseRoot: candidate.releaseRoot, dataDir: request.dataDir, environment: request.environment });
   await ensureSupervisor(candidate, request.environment);
-  // Invariant: warmup and authenticated readiness precede changing the active reference.
+  // Invariant: revalidate after supervision, before committing client activation or restart readiness.
+  await assertResidentContinuity({ releaseRoot: candidate.releaseRoot, dataDir: request.dataDir, environment: request.environment });
   await stateStore.activate(candidate.releaseId);
   await callbacks.phase("active-reference-committed");
 }

@@ -1,42 +1,53 @@
-# Implementation checkpoint: runtime control and durable workspace
+# Update continuity implementation evidence
 
-## Status
+## Delivery status
 
-Implementation is in progress under the maintainer's explicit approval. This is not a completed update-continuity fix. All four PR Implementation outcomes remain unchecked because their runtime integration is incomplete. No user Agent, holder, tool, supervisor or session was stopped, migrated or modified for these tests; native process tests use isolated fixture profiles and exact fixture identities.
+The approved implementation and regression cases are written in the existing branch and PR. Detailed task markers represent delivered code and tests, not pending CI or optional manual acceptance. Architecture/evidence reconciliation and current-target delivery bookkeeping precede the final outcome marker. Trusted automation owns readiness, finalization and exact-head validation; no agent-owned ready transition or merge is authorized.
 
-## Delivered components
+No production Agent, holder, tool, supervisor or session was stopped or modified. Process scenarios use fixture-owned profiles, stripped inherited launch credentials, loopback model traffic and separately owned published installations. Cleanup stops only those fixtures, cooperatively releases the held tool, verifies its exit, and retains roots if closure is unverified, including partial startup or malformed cleanup metadata.
 
-- Native authenticated read-only `runtime.describe`, surfaced through the private terminal-host `tabs runtime-control` exchange. The mandatory contract is versioned independently of execution identity and binds source release/scope/epoch/boot/login, frame limits and non-replaying input semantics.
-- TypeScript descriptor consumer with exact separately supplied source-identity checks, mandatory-core validation, bounded metadata, content-free failures and no inference that descriptor compatibility alone authorizes activation.
-- Pinned native MessagePack fixture consumed directly by the TypeScript test, retaining the sorted fixture manifest and digest.
-- Explicit read-only native source routes: canonical profile/source namespace, bounded owner-private records, exact live pid/start and boot/login identity, existing credentials and authenticated source-epoch admission. These routes never execute source code or mutate a source registry. Ordinary attach/holder/bridge equality checks stay unchanged.
-- Maintenance response request identities are checked before a response is used.
-- Release-independent native workspace topology component with kernel writer exclusion, a separately persisted monotonic epoch, source-qualified tab IDs, user order/selection, idempotent complete-source reconciliation, stale-source/incarnation fencing, bounded regular-file reads, primary/previous generations and bounded corruption preservation. Unknown schema/profile, invalid epochs or no valid known generation block recovery rather than initialize empty state.
+## Delivered integration
 
-## Focused local results
+- `resident-control-v1` has pinned native/TypeScript consumer-provider fixtures, exact source release/scope/epoch/boot/login binding, bounded mandatory operations and explicit non-replay semantics. Unsupported declared contracts fail closed. Supported immutable published generation-1 sources use the proven existing-feature/neutral-launch adapter. Generic wrong-release admission is unchanged.
+- Ordinary native `attach --workspace` aggregates verified live source routes. Sources retain servers, holders, Agents, PTYs, tool trees, input journals, controller barriers and session-writer leases. Existing execution retains its loaded engine code. New Agents and singleton utilities use the selected release; no update-triggered immediate or deferred idle restart exists.
+- The durable owner-only profile workspace preserves qualified identities, names, order and selection under an exclusive writer lease and independent monotonic epoch. Primary/previous recovery, bounded corruption evidence, positive source closure and ended-login archival prevent empty reinitialization or disappearance-based deletion. Workspace metadata contains no credentials, prompts, drafts or terminal content.
+- Routing preserves semantic/byte input, paste, pointer/focus, resize, lifecycle requests and current interaction state at the original live owner. A view's selection is persisted before its exact source/tab/generation can release bounded pending input. Failed/superseded views reject queued events. Source reconnect re-admits observation and resize, not input or mutating-command replay. Source snapshots and persistence run in workers.
+- Activation checks verify native provenance, candidate contracts and repeated authenticated source fingerprints before readiness and active-reference publication. Launch/pending activation use the same continuity check. Missing required capabilities, discovery uncertainty and unstable source sets refuse activation while an eligible verified prior client remains selected and callable.
+- Connected-client build metadata is bounded and advisory, not execution/controller identity. Modern retained children acknowledge satisfied installed notices and check future updates against the connected client version, fencing late results. Copy feedback and Notify/No behavior are preserved. Immutable legacy children receive an outer client-owned explanation instead of terminal scraping, code replacement or Agent restart.
+- Coordinator/client replacement retains original source recovery and writer exclusion. Release/dependency holds include durable workspace references, live source identities, control recovery, existing fallback references and recent private recovery metadata. Unverifiable custody retains candidates; explicit host shutdown is not blocked merely by private recovery files. Checkpoint contents are not read, exported or deleted by retention.
 
-Environment: Windows x64. The native build linked the existing CI-prebuilt terminal library copied into this worktree's ignored `.artifacts/terminal-vt`; Cargo verifies its manifest. No broad local suite, full regression or production update was run.
+## Focused local evidence
 
-- `npm run build:core`: passed to generate this fresh worktree's managed output and process-guardian artifact.
-- `npm run typecheck`: passed after the managed build.
-- Targeted Vitest files: `runtime-control.test.ts` (43), `maintenance.test.ts` (5), `protocol-bounds.test.ts` (4): 52 tests passed.
-- Native workspace tests: 11 passed, including epoch non-reuse after last-good recovery, writer conflict, duplicate IDs/fields, preserved ordering/selection, corrupt/future/foreign state, byte bounds and bounded evidence preservation.
-- Native runtime-control tests: 2 passed.
-- Native scope tests: 3 passed.
-- Pinned native protocol fixture check: 1 passed.
-- Native welcome capability check: 1 passed.
-- `release_isolation` integration file: 6 passed. New cases authenticate and read a live source without changing server/Agent identities, reject foreign profile/root and credentials, avoid starting a substitute source, and invalidate captured custody after explicit fixture shutdown. Existing isolation, retention/recovery and cross-release writer-exclusion cases still pass.
-- Strict OpenSpec validation and whitespace checks: passed.
+### Actual published predecessor: Windows x64
 
-The Windows results above establish component and isolated process behavior, not actual published-predecessor interoperability or successful updated-client reconnect. Unix-only directory/link permission assertions have not been executed locally.
+The focused standalone runner installed actual published `@timurproko/a1@0.2.7-dev.1232` and used locally built managed/native candidate artifacts. Earlier interoperability also passed against `0.2.7-dev.1231`. These are real published-predecessor results, not exact-packed-candidate CI evidence.
 
-## Concrete remaining integration gaps
+The passing scenario exercises:
 
-1. Ordinary native attach still has one server connection and a release-local tab list. Multi-source live view/input/interaction routing, reconnect ownership, persistent selection/order hookup and target-release new-tab/utility creation are not integrated. Read-only source inspection does not satisfy this gap.
-2. Source discovery/import against actual published retained releases is not connected to the new workspace component. Older sources without `runtime.describe` still need an explicit proven compatible adapter; no automatic protocol downgrade or legacy execution is added here.
-3. Update/launch activation does not yet consume a topology-fenced continuity verdict or preserve a compatibility-selected prior client. Existing automatic restart notices are not yet coupled to that verdict.
-4. Workspace/control-recovery holds are not yet integrated into release/dependency/private-recovery cleanup. Ordinary source-process retention remains unchanged.
-5. Ordered request admission/reconciliation, observation resync, all-controller ownership transitions, no-delayed-restart assertions, client/coordinator crash points, actual predecessor-to-candidate package scenarios and per-platform evidence remain incomplete.
-6. Successful resident-client reconnection still needs to acknowledge historical child-owned update notices without scraping terminal content or pretending old execution code was replaced.
+1. Three real predecessor Agents: one held model stream, one real held Bash/Node tool and one idle Agent.
+2. Semantic live input, a queued `continuity-queued` request, ordinary detach/reopen and retained idle draft/selection.
+3. Advancing tool heartbeat with the same PID/nonce while clients reconnect.
+4. Hard death/recovery of the originating coordinator and hard client death/reopen without replacing Agent or holder identities.
+5. Original turn/tool settlement, exactly one queued request and one legitimate tool continuation, no repeated original work, and unchanged tab/incarnation/holder PID/Agent PID/session-file identity after an additional idle delay.
+6. Fixture-only cleanup and tool exit verification before owned roots are removed.
 
-These gaps block completing the approved outcomes and readiness. No acceptance list, final checkbox, finalization or merge is authorized by this checkpoint. Continue in the same branch/worktree/PR; no new plan or scope approval is required for the already approved remaining work.
+The fixture exposed and fixed a genuine frozen-wire defect: `tab.view` requests use `tab_id`/`request_generation`, unlike camel-case surface responses. Native tests pin that shape and reject wrong-source, wrong-tab, unready, stale and future view generations. A subsequent recovery audit also fences input until the restored intended view is committed and observed; it never restores an earlier tab's input target.
+
+### Changed-file checks
+
+- Managed build and typecheck passed.
+- 77 focused TypeScript tests passed across bootstrap boundary, activation, runtime-control, maintenance, protocol bounds, continuity and release holds.
+- 69 focused TypeScript tests passed across engine view/session backend, release-update observation/presentation and resident bridge/composition. An initial brittle bootstrap source-string assertion was resolved by retaining the descriptive settings binding; all 10 bootstrap boundary tests then passed.
+- 19 predecessor ownership/cleanup tests and 56 focused CI ownership/selection/tier tests passed.
+- Native: 7 release-isolation/process tests; 14 durable-workspace tests; 3 runtime-control tests; 2 view-admission tests; 2 private-recovery tests; 1 client-identity test; 10 release-hold tests; and byte-for-byte MessagePack fixture round-trip passed.
+- Strict OpenSpec validation and whitespace checks passed. Size baseline updates only lower measured existing entries; no new oversized unit is grandfathered.
+
+These checks are focused development evidence, not a claim of final exact-head validation. No broad local regression suite was run.
+
+## Validation ownership and limitations
+
+Exact-package predecessor cases are integrated into the authenticated prepared-candidate package test and require at least one actual supported resident predecessor; candidate-only fixtures cannot substitute. The predecessor owner is now direct-impact rather than exhaustive, includes source-control/native/support changes, and targets Windows x64, Linux x64 and macOS arm64. Windows uses the promoted lane; Unix uses the existing containment lanes. A matrix regression requires the predecessor scope on every target. Execution belongs to selected post-readiness CI lanes. Linux/macOS and the final exact packed candidate have not been locally certified and are not reported as passed. Required CI failures remain integration blockers and are repaired in this PR without weakening assertions.
+
+Legacy child UI code cannot be remotely rewritten or made to acknowledge a feature it never shipped. The delivered client-owned notice scopes its historical restart text truthfully; engine state and copy interaction remain intact. This is an explicit presentation adapter, not a disabled-tab workaround or a claim that the old engine now runs new code.
+
+There is no deferred implementation or manual-validation task hidden behind the final outcome. Optional maintainer terminal review does not block completion; trusted finalization and required exact-head CI remain mandatory before an authorized integration choice.

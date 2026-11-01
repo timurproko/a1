@@ -87,6 +87,8 @@ fn dispatch_from_args(args: Vec<String>) -> Result<u8, String> {
         Some("--version") => successful(|| print_provenance()),
         Some("server") => resident_server_command(&args[1..]).map(|()| 0),
         Some("probe") => resident_probe_command(&args[1..]).map(|()| 0),
+        Some("workspace-proxy") => workspace_proxy_command(&args[1..]).map(|()| 0),
+        Some("workspace-check") => workspace_check_command(&args[1..]).map(|()| 0),
         Some("release-holds") => release_holds_command(&args[1..]).map(|()| 0),
         Some("tabs") => tabs_command(&args[1..]),
         Some("holder") => Err("holder role is started only by the resident server".to_owned()),
@@ -148,6 +150,8 @@ struct ResidentServerMetadata {
     release_root: Option<String>,
     #[serde(default)]
     release_id: String,
+    #[serde(default)]
+    profile_root: Option<std::path::PathBuf>,
 }
 
 fn recorded_server_endpoint(root: &std::path::Path) -> Option<String> {
@@ -296,25 +300,24 @@ fn resident_server_command(arguments: &[String]) -> Result<(), String> {
     {
         contracts::roles::server::probe(&endpoint, &credentials.client_token)?;
     }
-    let metadata = ResidentServerMetadata {
-        pid: observation.process.pid,
-        start_identity: observation.process.start,
-        endpoint: endpoint.clone(),
-        generation: contracts::protocol::GENERATION,
-        verified: true,
-        detachment_mode: observation.mode,
-        release_root: contracts::roles::release_holds::own_release_root(),
-        release_id: contracts::roles::scope::release_id()?,
-    };
-    let bytes = serde_json::to_vec_pretty(&metadata).map_err(|error| error.to_string())?;
-    contracts::durable::replace(&credentials_root.join("server.json"), &bytes)
-        .map_err(|error| error.to_string())?;
+    publish_server_owner(&profile,&credentials_root,&endpoint,observation)?;
     contracts::fault_injection::crash_at("after-marker");
     println!(
         "{{\"outcome\":\"started\",\"verified\":true,\"endpoint\":{},\"generation\":1}}",
         serde_json::to_string(&endpoint).unwrap()
     );
     Ok(())
+}
+
+fn publish_server_owner(profile:&std::path::Path,root:&std::path::Path,endpoint:&str,observation:contracts::launch::LaunchObservation) -> Result<(),String> {
+    let metadata = ResidentServerMetadata {
+        pid:observation.process.pid,start_identity:observation.process.start,endpoint:endpoint.into(),
+        generation:contracts::protocol::GENERATION,verified:true,detachment_mode:observation.mode,
+        release_root:contracts::roles::release_holds::own_release_root(),release_id:contracts::roles::scope::release_id()?,
+        profile_root:Some(std::fs::canonicalize(profile).map_err(|_| "resolve owner profile")?),
+    };
+    let bytes = serde_json::to_vec_pretty(&metadata).map_err(|error| error.to_string())?;
+    contracts::durable::replace(&root.join("server.json"),&bytes).map_err(|error| error.to_string())
 }
 
 /// Exit status when the running host speaks another protocol generation; the caller retries
@@ -703,6 +706,36 @@ fn server_failure_reason(message: &str) -> &'static str {
     }
 }
 
+fn workspace_check_command(arguments: &[String]) -> Result<(), String> {
+    let profile = required_role_path(arguments, "--profile")?;
+    let data = required_role_path(arguments, "--data-dir")?;
+    let root = match contracts::roles::release_holds::own_release_root() {
+        Some(root) => std::path::PathBuf::from(root),
+        None if cfg!(feature = "resident-fixtures") => required_role_path(arguments, "--release-root")?,
+        None => return Err("workspace execution custody unavailable".into()),
+    };
+    let fingerprint = contracts::roles::workspace_mux::check(&profile, &data, &root)?;
+    println!("{}", serde_json::json!({ "schema":"resident-workspace-check-v1", "compatible":true, "fingerprint":fingerprint }));
+    Ok(())
+}
+
+fn workspace_proxy_command(arguments: &[String]) -> Result<(), String> {
+    let profile = required_role_path(arguments, "--profile")?;
+    let data = required_role_path(arguments, "--data-dir")?;
+    let runtime = required_role_path(arguments, "--runtime-dir")?;
+    let root = match contracts::roles::release_holds::own_release_root() {
+        Some(root) => std::path::PathBuf::from(root),
+        None if cfg!(feature = "resident-fixtures") => required_role_path(arguments, "--release-root")?,
+        None => return Err("workspace execution custody unavailable".into()),
+    };
+    let proxy = contracts::roles::workspace_mux::start_at(&profile, &data, &runtime, &root)?;
+    println!("{}", serde_json::json!({ "endpoint": proxy.endpoint }));
+    std::io::stdout().flush().map_err(|_| "flush workspace endpoint")?;
+    let mut byte = [0_u8; 1];
+    let _ = std::io::stdin().read(&mut byte);
+    Ok(())
+}
+
 fn resident_probe_command(arguments: &[String]) -> Result<(), String> {
     let profile = required_role_path(arguments, "--profile")?;
     let data = required_role_path(arguments, "--data-dir")?;
@@ -753,7 +786,10 @@ fn resident_attach_command(arguments: &[String]) -> Result<(), String> {
     if clear_exit == 0 || endpoint.is_empty() {
         return Err("attach contract is invalid".to_owned());
     }
-    contracts::roles::attach::run_attach(contracts::roles::attach::AttachOptions {
+    let run = if arguments.iter().any(|value| value == "--workspace") {
+        contracts::roles::workspace_mux::run
+    } else { contracts::roles::attach::run_attach };
+    run(contracts::roles::attach::AttachOptions {
         endpoint,
         cwd,
         clear_exit_ms: clear_exit,

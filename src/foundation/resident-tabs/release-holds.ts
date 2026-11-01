@@ -61,14 +61,15 @@ export async function readResidentReleaseHolds(options: ResidentReleaseHoldOptio
 }
 
 async function hasResidentRecords(dataDir: string): Promise<boolean> {
-  let profiles: string[];
-  try {
-    profiles = await readdir(resolve(dataDir, "tabs"));
-  } catch (error) {
-    return !(error instanceof Error && "code" in error && error.code === "ENOENT");
+  for (const directory of ["tabs", "resident-workspaces"]) {
+    try {
+      // Invariant: native inspection, not a following stat, judges unknown or linked entries.
+      if ((await readdir(resolve(dataDir, directory))).length > 0) return true;
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) return true;
+    }
   }
-  // Invariant: native inspection, not a following stat, judges unknown or linked namespace entries.
-  return profiles.length > 0;
+  return false;
 }
 
 function incomplete(reason: string): ResidentReleaseHoldReport {

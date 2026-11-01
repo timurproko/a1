@@ -34,6 +34,41 @@ pub struct RuntimeControl {
 }
 
 impl RuntimeControl {
+    pub fn validate_binding(
+        &self,
+        release: &str,
+        scope: &str,
+        epoch: u64,
+        boot: &str,
+        login: &str,
+    ) -> Result<(), String> {
+        let unique = self.core.iter().collect::<std::collections::HashSet<_>>();
+        if self.api != API
+            || self.generation != crate::protocol::GENERATION
+            || self.release_id != release
+            || self.scope != scope
+            || self.epoch != epoch
+            || self.boot_id != boot
+            || self.os_session_id != login
+            || self.retry_input
+            || self.frame_limit != crate::protocol::MAX_FRAME_BYTES as u32
+            || self.input_limit != crate::protocol::MAX_INPUT_BYTES as u32
+            || self.core.len() > 64
+            || unique.len() != self.core.len()
+            || self.core.iter().any(|operation| {
+                operation.is_empty()
+                    || operation.len() > 64
+                    || operation.chars().any(char::is_control)
+            })
+            || CORE
+                .iter()
+                .any(|operation| !self.core.iter().any(|actual| actual == operation))
+        {
+            return Err("source runtime control contract is incompatible".into());
+        }
+        Ok(())
+    }
+
     pub fn describe(
         release_id: String,
         scope: String,
@@ -90,6 +125,51 @@ mod tests {
         assert_eq!(description.api, other.api);
         assert_ne!(description.release_id, other.release_id);
         assert_ne!(description.scope, other.scope);
+    }
+
+    #[test]
+    fn native_admission_refuses_changed_identity_core_replay_or_limits() {
+        let good = RuntimeControl::describe(
+            "release".into(),
+            "scope".into(),
+            7,
+            "boot".into(),
+            "login".into(),
+        );
+        assert!(
+            good.validate_binding("release", "scope", 7, "boot", "login")
+                .is_ok()
+        );
+        for change in [
+            |value: &mut RuntimeControl| value.api = "resident-control-v2".into(),
+            |value: &mut RuntimeControl| value.release_id = "other".into(),
+            |value: &mut RuntimeControl| value.scope = "other".into(),
+            |value: &mut RuntimeControl| value.epoch = 8,
+            |value: &mut RuntimeControl| value.boot_id = "other".into(),
+            |value: &mut RuntimeControl| value.os_session_id = "other".into(),
+            |value: &mut RuntimeControl| value.retry_input = true,
+            |value: &mut RuntimeControl| value.input_limit = 1,
+            |value: &mut RuntimeControl| value.frame_limit = 1,
+            |value: &mut RuntimeControl| {
+                value.core.pop();
+            },
+            |value: &mut RuntimeControl| value.core.push("attach".into()),
+        ] {
+            let mut value = good.clone();
+            change(&mut value);
+            assert!(
+                value
+                    .validate_binding("release", "scope", 7, "boot", "login")
+                    .is_err()
+            );
+        }
+        let mut additive = good.clone();
+        additive.core.push("optional.operation".into());
+        assert!(
+            additive
+                .validate_binding("release", "scope", 7, "boot", "login")
+                .is_ok()
+        );
     }
 
     #[test]

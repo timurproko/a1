@@ -1,0 +1,61 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createStartupReleaseUpdateObservation } from "../../src/composition/release-update-observation.js";
+import type { AvailableRelease, StartupReleaseCheckOptions } from "../../src/foundation/release/latest-release.js";
+
+const automatic = vi.hoisted(() => ({ request: vi.fn() }));
+vi.mock("../../src/foundation/release/automatic-update.js", () => ({ requestAutomaticUpdate: automatic.request }));
+const active: { stop(): void }[] = [];
+afterEach(() => { for (const observer of active.splice(0)) observer.stop(); automatic.request.mockReset(); });
+const release: AvailableRelease = { version: "0.3.1", channel: "stable", command: "a1 update", changelogUrl: null };
+function setup(mode: "auto" | "notify" | "no", initial: string) {
+  let client = initial;
+  const announced = vi.fn();
+  const checks: StartupReleaseCheckOptions[] = [];
+  const observer = createStartupReleaseUpdateObservation({
+    backend: { extensions: { announceReleaseUpdate: announced } } as never,
+    configDir: "fixture", packageVersion: "0.2.0", notificationVersion: "0.2.1", mode,
+    clientVersion: () => client,
+    checkForNewerRelease: async options => { checks.push(options); return release; },
+  });
+  active.push(observer);
+  return { observer, announced, checks, connect(version: string) { client = version; observer.clientChanged(); } };
+}
+
+describe("connected-client update readiness", () => {
+  it("does not offer the installed client again merely because an Agent keeps older code", async () => {
+    const fixture = setup("auto", "0.3.1"); fixture.observer.start();
+    await vi.waitFor(() => expect(fixture.checks).toHaveLength(1));
+    expect(fixture.checks[0]?.runningVersion).toBe("0.3.1");
+    expect(automatic.request).not.toHaveBeenCalled(); expect(fixture.announced).not.toHaveBeenCalled();
+  });
+  it("fences a late installed result against a client that already reconnected", async () => {
+    const pending = Promise.withResolvers<string | null>(); automatic.request.mockReturnValue(pending.promise);
+    const fixture = setup("auto", "0.3.0"); fixture.observer.start();
+    await vi.waitFor(() => expect(automatic.request).toHaveBeenCalledOnce());
+    fixture.connect("0.3.1"); pending.resolve("0.3.1");
+    await vi.waitFor(() => expect(fixture.checks).toHaveLength(2));
+    expect(fixture.announced).not.toHaveBeenCalled(); expect(automatic.request).toHaveBeenCalledOnce();
+  });
+  it("retains useful readiness for an older client taking control again without restarting execution", async () => {
+    automatic.request.mockResolvedValue("0.3.1");
+    const fixture = setup("auto", "0.3.0"); fixture.observer.start();
+    await vi.waitFor(() => expect(fixture.announced).toHaveBeenCalledOnce());
+    fixture.connect("0.3.1"); await vi.waitFor(() => expect(fixture.checks).toHaveLength(2));
+    fixture.connect("0.3.0"); await vi.waitFor(() => expect(fixture.announced).toHaveBeenCalledTimes(2));
+    expect(fixture.announced.mock.calls.map(call => call[0])).toEqual([
+      { status: "installed", version: "0.3.1" }, { status: "installed", version: "0.3.1" },
+    ]);
+  });
+  it("keeps Notify passive and uses the actual client rather than an old notification hint", async () => {
+    const fixture = setup("notify", "0.3.1"); fixture.observer.start();
+    await vi.waitFor(() => expect(fixture.checks).toHaveLength(1));
+    expect(fixture.checks[0]?.runningVersion).toBe("0.3.1"); expect(automatic.request).not.toHaveBeenCalled();
+    expect(fixture.announced).not.toHaveBeenCalled();
+  });
+  it("does not arm another observation on client changes in No mode", async () => {
+    const fixture = setup("no", "0.3.0"); fixture.observer.start();
+    await vi.waitFor(() => expect(fixture.checks).toHaveLength(1));
+    fixture.connect("0.3.1"); await Promise.resolve();
+    expect(fixture.checks).toHaveLength(1); expect(automatic.request).not.toHaveBeenCalled(); expect(fixture.announced).not.toHaveBeenCalled();
+  });
+});

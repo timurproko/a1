@@ -1206,14 +1206,14 @@ pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
     TabBarPosition::Top.child_mouse_row(outer_row, u16::MAX)
 }
 
-struct AttachServerWriter {
+pub(super) struct AttachServerWriter {
     sender: mpsc::SyncSender<Vec<u8>>,
     reserved_bytes: Arc<AtomicUsize>,
     failed: Arc<Mutex<Option<String>>>,
 }
 
 impl AttachServerWriter {
-    fn start(mut stream: endpoint::EndpointStream) -> Self {
+    pub(super) fn start(mut stream: endpoint::EndpointStream) -> Self {
         let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(ATTACH_SERVER_QUEUE_FRAMES);
         let reserved_bytes = Arc::new(AtomicUsize::new(0));
         let failed = Arc::new(Mutex::new(None));
@@ -1242,7 +1242,7 @@ impl AttachServerWriter {
         }
     }
 
-    fn failure(&self) -> Option<String> {
+    pub(super) fn failure(&self) -> Option<String> {
         self.failed.lock().ok().and_then(|value| value.clone())
     }
 }
@@ -1512,7 +1512,7 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
         RoleHello {
             role: "attach".into(),
             generation: protocol::GENERATION,
-            build: "a1-terminal-host".into(),
+            build: super::client_identity::build(),
             release_id: super::scope::release_id()?,
             features: vec![
                 "double-ctrl-c".into(),
@@ -2793,6 +2793,15 @@ impl Client {
                 }
                 self.bindings = TabBindings::from_assignments(&shortcuts.assignments);
                 ServerEvent::ShortcutsChanged
+            }
+            "workspace.status" => {
+                #[derive(serde::Deserialize)] struct Batch { statuses: Vec<TabStatus> }
+                let (_, batch): (_, Batch) = wire::body(payload)?;
+                if batch.statuses.len() > 4096 { return Err("workspace status bound exceeded".into()); }
+                let statuses = batch.statuses.into_iter().map(|status| {
+                    self.apply_status(&status); (status.tab_id, status.status)
+                }).collect();
+                ServerEvent::StatusBatch { statuses }
             }
             "tab.status" => {
                 let (_, status): (_, TabStatus) = wire::body(payload)?;

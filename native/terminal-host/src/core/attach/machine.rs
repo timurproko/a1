@@ -236,6 +236,7 @@ pub enum ServerEvent {
         tab_id: String,
         status: String,
     },
+    StatusBatch { statuses: Vec<(String, String)> },
     /// A surface the view model committed; `requested` when it completes a view request.
     Commit {
         tab_id: String,
@@ -1180,6 +1181,10 @@ impl State {
                 if status != "failed" && self.failed_tab.as_deref() == Some(tab_id.as_str()) {
                     self.failed_tab = None;
                 }
+                effects.push(paint);
+            }
+            ServerEvent::StatusBatch { statuses } => {
+                if statuses.iter().any(|(tab_id, status)| status != "failed" && self.failed_tab.as_deref() == Some(tab_id.as_str())) { self.failed_tab = None; }
                 effects.push(paint);
             }
             ServerEvent::Commit {
@@ -2857,6 +2862,15 @@ mod tests {
         assert!(answer(&mut state, ServerEvent::ShortcutsChanged).is_empty());
         state.mode = Mode::Popup(PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [false; 2]));
         assert_eq!(answer(&mut state, ServerEvent::ShortcutsChanged), [PAINT]);
+    }
+
+    #[test]
+    fn workspace_status_snapshot_recovers_failure_with_one_paint() {
+        let fixture = Fixture::new(&["a", "b"], "a");
+        let mut state = fixture.state(); state.failed_tab = Some("b".into());
+        let event = server(ServerEvent::StatusBatch { statuses:vec![("a".into(),"working".into()),("b".into(),"idle".into())] });
+        assert_eq!(fixture.step(&mut state,event),[PAINT]);
+        assert_eq!(state.failed_tab,None);
     }
 
     #[test]

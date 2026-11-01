@@ -416,10 +416,14 @@ pub(super) fn begin_client_create(
     current: &Mutex<Option<(u64, Arc<AtomicBool>)>>,
     kind: &wire::EnvelopeKind,
 ) -> Option<Arc<AtomicBool>> {
-    if kind.message_type != "tab.create" { return None; }
+    if kind.message_type != "tab.create" {
+        return None;
+    }
     kind.request_id.map(|id| {
         let flag = Arc::new(AtomicBool::new(false));
-        *current.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some((id, flag.clone()));
+        *current
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((id, flag.clone()));
         flag
     })
 }
@@ -430,7 +434,10 @@ pub(super) fn cancel_client_create(
 ) -> Result<(), String> {
     let (_, value): (_, serde_json::Value) = wire::body(payload)?;
     if let Some(request_id) = value.get("requestId").and_then(serde_json::Value::as_u64)
-        && let Some((id, flag)) = current.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref()
+        && let Some((id, flag)) = current
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .as_ref()
         && *id == request_id
     {
         flag.store(true, Ordering::Release);
@@ -449,12 +456,41 @@ fn enqueue_attached_lifecycle(
     payload: Vec<u8>,
 ) -> Result<(), String> {
     let cancelled = begin_client_create(create_cancel, &kind);
-    enqueue_lifecycle(state, queue, tx, client_id, LifecycleRequest {
-        message_type: kind.message_type,
-        request_id: kind.request_id,
-        payload,
-        cancelled,
-    })
+    enqueue_lifecycle(
+        state,
+        queue,
+        tx,
+        client_id,
+        LifecycleRequest {
+            message_type: kind.message_type,
+            request_id: kind.request_id,
+            payload,
+            cancelled,
+        },
+    )
+}
+
+pub(super) fn serve_viewer(
+    stream: endpoint::EndpointStream,
+    peer: Peer,
+    state: Arc<Mutex<RuntimeState>>,
+    profile: std::path::PathBuf,
+    hello: RoleHello,
+) -> Result<(), String> {
+    let control = hello.role == "attach";
+    let effects = protocol::negotiated(&hello.features, protocol::FEATURE_TERMINAL_EFFECTS);
+    let structured = protocol::negotiated(&hello.features, protocol::FEATURE_STRUCTURED_SURFACE);
+    serve_attach(
+        stream,
+        peer,
+        state,
+        profile,
+        hello.tab_id,
+        control,
+        effects,
+        structured,
+        super::super::client_identity::parse(&hello.build),
+    )
 }
 
 pub(super) fn serve_attach(
@@ -466,6 +502,7 @@ pub(super) fn serve_attach(
     allow_control: bool,
     terminal_effects: bool,
     structured_surface: bool,
+    client_version: Option<String>,
 ) -> Result<(), String> {
     let client_id = format!("client-{:016x}", rand::random::<u64>());
     let (_controller, startup_notice, initial_surface) = {
@@ -504,15 +541,14 @@ pub(super) fn serve_attach(
             .map_err(str::to_owned)?;
         locked.clients.insert(
             client_id.clone(),
-            ClientSession {
-                peer: tx.clone(),
-                viewed_tab: viewed_tab.clone(),
+            ClientSession::new(
+                tx.clone(),
+                viewed_tab.clone(),
                 controller,
-                controller_revision: revision,
-                terminal_effects,
-                structured_surface,
-                view_generation: 1,
-            },
+                revision,
+                (terminal_effects, structured_surface),
+                client_version,
+            ),
         );
         refresh_surface_subscription(&locked, &viewed_tab)?;
         offer_bridge_visibility(&locked, &viewed_tab, true)?;

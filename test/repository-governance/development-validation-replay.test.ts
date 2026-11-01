@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 const execFileAsync = promisify(execFile);
 
 describe("bounded Development selection replay", () => {
-  it("defers exhaustive predecessor work in all PR scenarios and evaluates timing targets", async () => {
+  it("requires directly affected predecessor work while retaining exhaustive performance cadence", async () => {
     const directory = await mkdtemp(join(tmpdir(), "a1-development-replay-"));
     const output = join(directory, "replay.json");
     try {
@@ -23,11 +23,11 @@ describe("bounded Development selection replay", () => {
         "conservative-invalidator", "ordinary-release-update", "direct-exhaustive-test",
       ]);
       for (const scenario of report.scenarios) {
-        expect(scenario.selectedPullRequestOwners).not.toContain("update-predecessor");
+        if (scenario.id === "direct-exhaustive-test") expect(scenario.selectedPullRequestOwners).toContain("update-predecessor");
+        else expect(scenario.selectedPullRequestOwners).not.toContain("update-predecessor");
         expect(scenario.selectedPullRequestOwners).not.toContain("update-performance");
         expect(scenario.deferredExhaustiveOwners).toEqual([
           expect.objectContaining({ owner: "update-performance", reasons: [expect.objectContaining({ code: "exhaustive-cadence" })] }),
-          expect.objectContaining({ owner: "update-predecessor", reasons: [expect.objectContaining({ code: "exhaustive-cadence" })] }),
         ]);
       }
       expect(report.scenarios.find((scenario: any) => scenario.id === "direct-exhaustive-test").focusedPredecessorTests)

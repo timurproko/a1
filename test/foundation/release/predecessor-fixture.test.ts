@@ -92,6 +92,18 @@ describe("published predecessor fixture", () => {
     } finally { await Promise.all(roots.map(root => rm(root, { recursive: true, force: true }))); }
   });
 
+  it("retains roots when a resident source cannot be proven stopped", async () => {
+    const remove = vi.fn(async () => {});
+    const fixture = new PredecessorFixture({ remove, report() {} });
+    const root = await fixture.phase(5000, () => fixture.temporaryRoot("predecessor-resident-retain-"));
+    try {
+      expect(() => fixture.retainForUnverifiedResident(resolve(tmpdir(), "unowned-resident"))).toThrow("outside a fixture-owned root");
+      fixture.retainForUnverifiedResident(root);
+      await expect(fixture.close()).rejects.toThrow("roots retained");
+      expect(remove).not.toHaveBeenCalled();
+    } finally { await rm(root, { recursive: true, force: true }); }
+  });
+
   it("does not swallow root-removal errors or allow operations after closing", async () => {
     const fixture = new PredecessorFixture({ report() {}, remove: async () => { throw new Error("fixture remove failed"); } });
     const root = await fixture.phase(5000, () => fixture.temporaryRoot("predecessor-remove-control-"));

@@ -117,7 +117,7 @@ pub fn pin_launch(release: &mut String, node: &mut String) -> Result<(), String>
 }
 
 /// Records the namespace owner before readiness, so GC can retain the serving release.
-pub fn write_owner_marker(root: &Path, endpoint: &str) -> Result<(), String> {
+pub fn write_owner_marker(root: &Path, endpoint: &str, profile: &Path) -> Result<(), String> {
     let owner = crate::identity::inspect_process(std::process::id())
         .map_err(|error| error.to_string())?
         .ok_or("inspect server owner identity")?;
@@ -125,6 +125,7 @@ pub fn write_owner_marker(root: &Path, endpoint: &str) -> Result<(), String> {
         "pid": owner.pid, "startIdentity": owner.start, "endpoint": endpoint,
         "generation": crate::protocol::GENERATION, "verified": true,
         "releaseId": release_id()?, "releaseRoot": super::release_holds::own_release_root(),
+        "profileRoot": std::fs::canonicalize(profile).map_err(|_| "resolve owner profile")?,
         "detachmentMode": "resident-child",
     }))
     .map_err(|error| error.to_string())?;

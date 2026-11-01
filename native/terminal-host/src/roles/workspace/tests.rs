@@ -32,6 +32,56 @@ fn setup() -> (tempfile::TempDir, PathBuf, PathBuf) {
 }
 
 #[test]
+fn workspace_v1_shape_and_logical_identity_are_frozen() {
+    let pinned:serde_json::Value = serde_json::from_str(include_str!("../../../protocol/workspace-v1.json")).unwrap();
+    let document:WorkspaceDocument = serde_json::from_value(pinned.clone()).unwrap();
+    assert_eq!(serde_json::to_value(&document).unwrap(),pinned);
+    assert_eq!(WorkspaceTab::id_for(&"a".repeat(20),"tab-1"),document.tabs[0].id);
+    let fields = serde_json::to_value(WorkspaceDocument {
+        schema:SCHEMA.into(), profile:"b".repeat(20), profile_root:"/profile".into(), boot_id:"boot".into(), os_session_id:"login".into(), epoch:7, revision:9,
+        sources:document.sources.clone(),tabs:document.tabs.clone(),selected:document.selected.clone(),
+    }).unwrap();
+    assert_eq!(fields,pinned,"v1 cannot acquire fields that a retained v1 client rejects");
+}
+
+#[test]
+fn ended_login_archives_topology_without_restoring_agents_or_reusing_epochs() {
+    let (root,profile,data) = setup();
+    let a = source(root.path(),'a',1); let first = tab(&a,"tab-1");
+    let mut store = WorkspaceStore::open(&profile,&data).unwrap();
+    let identity = store.snapshot().profile.clone();
+    store.reconcile_verified_source(&identity,a,vec![first.clone()]).unwrap();
+    let mut before = store.snapshot().clone();
+    let directory = store.root.clone(); drop(store);
+    before.boot_id = "previous-boot".into();
+    replace_private(&directory.join("workspace.json"),&serde_json::to_vec(&before).unwrap()).unwrap();
+    let after = WorkspaceStore::open(&profile,&data).unwrap();
+    assert!(after.snapshot().tabs.is_empty()); assert!(after.snapshot().sources.is_empty());
+    assert!(after.snapshot().epoch > before.epoch);
+    let path = directory.join("login-history").join(format!("login-{:020}-{:020}.json",before.epoch,before.revision));
+    let archived = read_document(&path,&identity).unwrap().unwrap();
+    assert_eq!(archived.tabs,vec![first]);
+}
+
+#[test]
+fn durable_workspace_holds_require_positive_current_source_closure() {
+    use super::super::registry::RegistryDocument;
+    let (root,profile,data) = setup(); let mut a = source(root.path(),'a',10);
+    a.scope = scope::token_for(&profile,&a.release_id).unwrap();
+    let mut store = WorkspaceStore::open(&profile,&data).unwrap(); let identity = store.snapshot().profile.clone();
+    store.reconcile_verified_source(&identity,a.clone(),vec![tab(&a,"tab-1")]).unwrap(); drop(store);
+    assert_eq!(held_release_roots(&data).unwrap(),vec![a.release_root.clone()]);
+    let namespace = data.join("tabs").join(&a.scope); private_directory(&data.join("tabs")).unwrap(); private_directory(&namespace).unwrap();
+    let system = crate::identity::current_system().unwrap();
+    let mut closed = RegistryDocument { release_id:a.release_id.clone(),registry_revision:9,epoch:1,boot_id:system.boot,os_session_id:system.os_session,tabs:vec![] };
+    replace_private(&namespace.join("registry.json"),&serde_json::to_vec(&closed).unwrap()).unwrap();
+    assert_eq!(held_release_roots(&data).unwrap(),vec![a.release_root.clone()],"an older empty record is not closure");
+    closed.registry_revision = 11;
+    replace_private(&namespace.join("registry.json"),&serde_json::to_vec(&closed).unwrap()).unwrap();
+    assert!(held_release_roots(&data).unwrap().is_empty(),"positive closure stays verifiable even after source code is absent");
+}
+
+#[test]
 fn workspace_survives_client_release_changes_with_selection_order_and_colliding_ids() {
     let (root, profile, data) = setup();
     let a = source(root.path(), 'a', 1);

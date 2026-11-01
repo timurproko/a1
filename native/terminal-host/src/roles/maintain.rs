@@ -27,6 +27,7 @@ pub enum ConnectError {
 pub struct Connection {
     stream: endpoint::EndpointStream,
     next_request: u64,
+    features: Vec<String>,
 }
 
 const HANDSHAKE: Duration = Duration::from_secs(4);
@@ -89,6 +90,7 @@ pub(super) fn connect_source(address: &str, token: &[u8], expected: &str, epoch:
             Ok(Connection {
                 stream,
                 next_request: 2,
+                features: welcome.features,
             })
         }
         // Invariant: the server closes after this answer, so the deadline is not cleared.
@@ -98,6 +100,8 @@ pub(super) fn connect_source(address: &str, token: &[u8], expected: &str, epoch:
 }
 
 impl Connection {
+    pub(super) fn features(&self) -> &[String] { &self.features }
+
     /// Sends one request and waits at most `timeout` for its answer. `None` means the server
     /// did not answer in time.
     pub fn request(

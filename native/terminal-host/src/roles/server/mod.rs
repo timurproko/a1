@@ -275,6 +275,7 @@ struct HolderGeometry {
 #[derive(Clone)]
 struct ClientSession {
     peer: Peer,
+    client_version: Option<String>,
     viewed_tab: String,
     controller: bool,
     controller_revision: u64,
@@ -356,6 +357,20 @@ fn refresh_surface_subscription(state: &RuntimeState, tab_id: &str) -> Result<()
 }
 
 /// Tells a tab's connected bridge whether any client views the tab.
+impl ClientSession {
+    fn new(peer:Peer,viewed_tab:String,controller:bool,controller_revision:u64,features:(bool,bool),client_version:Option<String>) -> Self {
+        Self { peer,client_version,viewed_tab,controller,controller_revision,terminal_effects:features.0,structured_surface:features.1,view_generation:1 }
+    }
+}
+fn offer_client_identity(state:&RuntimeState,tab_id:&str) -> Result<(),String> {
+    let Some((client,_)) = state.attachment.current(tab_id) else { return Ok(()); };
+    if let Some(version) = state.clients.get(client).and_then(|client| client.client_version.as_ref()) {
+        if let Some(bridge) = state.bridges.get(tab_id) {
+            let _ = bridge.peer.offer_control(wire::frame("bridge.client",None,serde_json::json!({"version":version}))?);
+        }
+    }
+    Ok(())
+}
 fn offer_bridge_visibility(
     state: &RuntimeState,
     tab_id: &str,
@@ -368,6 +383,7 @@ fn offer_bridge_visibility(
             serde_json::json!({ "visible": visible }),
         )?);
     }
+    if visible { offer_client_identity(state,tab_id)?; }
     Ok(())
 }
 
@@ -899,7 +915,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
     commit_registry(registry_store.clone(), registry.clone())?;
     crate::fault_injection::crash_at("after-epoch");
     if !config.endpoint.is_empty() {
-        crate::roles::scope::write_owner_marker(&root, &config.endpoint)?;
+        crate::roles::scope::write_owner_marker(&root, &config.endpoint, profile)?;
         crate::fault_injection::crash_at("after-marker");
     }
     std::fs::write(ready, format!("{}:server\n", std::process::id()))
@@ -1430,23 +1446,7 @@ fn serve_peer(
         surface_replaced,
     };
     match hello.role.as_str() {
-        "attach" | "internal" => {
-            let allow_control = hello.role == "attach";
-            let terminal_effects =
-                protocol::negotiated(&hello.features, protocol::FEATURE_TERMINAL_EFFECTS);
-            let structured_surface =
-                protocol::negotiated(&hello.features, protocol::FEATURE_STRUCTURED_SURFACE);
-            serve_attach(
-                stream,
-                peer,
-                state,
-                profile,
-                hello.tab_id,
-                allow_control,
-                terminal_effects,
-                structured_surface,
-            )
-        }
+        "attach" | "internal" => serve_viewer(stream,peer,state,profile,hello),
         "holder" => {
             let pid = hello
                 .pid
@@ -1644,6 +1644,7 @@ fn welcome(epoch: u64) -> Welcome {
         release_id: crate::roles::scope::release_id().unwrap_or_default(),
         features: vec![
             super::runtime_control::API.into(),
+            "client-identity".into(),
             "resident-multi-tab".into(),
             "slow-client-isolation".into(),
             "crash-recovery".into(),
