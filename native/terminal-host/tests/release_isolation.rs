@@ -254,6 +254,35 @@ impl WorkspaceClient {
         }
         panic!("workspace did not restore the requested source view");
     }
+    fn add(&mut self,host:&Host,message:&str,response:&str) -> String {
+        use terminal_host_contracts::roles::wire;
+        let node = Command::new("node").args(["-p","process.execPath"]).output().unwrap();
+        wire::send(&mut self.stream,message,Some(37),wire::TabCreate {
+            cwd:host.release.to_string_lossy().into_owned(),columns:80,rows:23,
+            release_root:host.release.to_string_lossy().into_owned(),node_executable:String::from_utf8(node.stdout).unwrap().trim().into(),environment:std::env::vars().collect(),
+        }).unwrap();
+        let (request,target):(_,wire::TabTarget) = wire::body(&self.next(response)).unwrap();
+        assert_eq!(request,Some(37),"workspace restores caller request identity");
+        target.tab_id
+    }
+    fn order(&mut self,expected:&[&str]) -> u64 {
+        use terminal_host_contracts::roles::wire;
+        let deadline = Instant::now()+Duration::from_secs(10);
+        loop {
+            wire::send(&mut self.stream,"tab.list",Some(9000),wire::ResultBody::ok()).unwrap();
+            let mut replies = 0;
+            let mut latest = None;
+            while replies < 2 {
+                let (request,list):(_,wire::TabList) = wire::body(&self.next("tab.list")).unwrap();
+                if request != Some(9000) { continue; }
+                replies += 1; latest = Some(list);
+            }
+            let list = latest.unwrap();
+            let ids = list.tabs.iter().map(|tab|tab.tab_id.as_str()).collect::<Vec<_>>();
+            if ids == expected { return list.revision; }
+            assert!(Instant::now()<deadline,"workspace order: {ids:?}, expected {expected:?}");
+        }
+    }
     fn next(&mut self, message: &str) -> Vec<u8> {
         use terminal_host_contracts::roles::wire;
         let deadline = Instant::now() + Duration::from_secs(10);
@@ -329,6 +358,58 @@ fn updated_workspace_reconnects_old_agents_and_creates_new_execution_on_the_sele
     assert_eq!(admission.selected_tab.as_deref(),Some(qualified.as_str()));
     reopened.wait_text(&qualified,"OLD-echo:y");
     assert_eq!(a.wait_child(), old_child);
+}
+
+#[test]
+fn workspace_utility_reveal_preserves_append_order_through_metadata_drag_and_reopen() {
+    use terminal_host_contracts::roles::{wire,workspace::WorkspaceTab};
+    let root = tempfile::tempdir().unwrap();
+    let (a,b) = hosts(root.path());
+    a.call(&["server","--detach"]); a.create();
+    let mut prior = WorkspaceClient::open(&a);
+    prior.next("welcome"); prior.next("attached");
+    let old_settings = prior.add(&a,"tab.prewarm-settings","tab.created");
+    drop(prior);
+    b.call(&["server","--detach"]);
+    let old = a.wait_child();
+    let agent_a = WorkspaceTab::id_for(&scope::fixture_token(&a.profile,&a.executable).unwrap(),"tab-1");
+    let mut client = WorkspaceClient::open(&b);
+    client.next("welcome"); client.next("attached");
+    let settings = client.add(&b,"tab.prewarm-settings","tab.created");
+    let agent_b = client.add(&b,"tab.create","tab.created");
+    client.order(&[&agent_a,&old_settings,&agent_b]);
+    assert_eq!(client.add(&b,"tab.open-settings","tab.selected"),settings);
+    client.order(&[&agent_a,&agent_b,&settings]);
+    let changelog = client.add(&b,"tab.prewarm-changelog","tab.created");
+    let agent_c = client.add(&b,"tab.create","tab.created");
+    client.order(&[&agent_a,&agent_b,&settings,&changelog,&agent_c]);
+    assert_eq!(client.add(&b,"tab.open-changelog","tab.selected"),changelog);
+    let expected = [&*agent_a,&*agent_b,&*settings,&*agent_c,&*changelog];
+    let revision = client.order(&expected);
+    wire::send(&mut client.stream,"tab.reorder",None,wire::TabReorder {tab_id:changelog.clone(),target_index:0,expected_revision:revision}).unwrap();
+    let (_,answer):(_,wire::ResultBody) = wire::body(&client.next("tab.reordered")).unwrap();
+    assert!(answer.accepted);
+    let dragged = [&*changelog,&*agent_a,&*agent_b,&*settings,&*agent_c];
+    client.order(&dragged);
+    // Invariant: an ordinary selection must not act like a reveal and move a visible utility.
+    wire::send(&mut client.stream,"tab.view",None,wire::ViewTarget {tab_id:settings.clone(),request_generation:9,resize:None}).unwrap();
+    client.wait_text(&settings,"ready");
+    client.order(&dragged);
+    assert_eq!(client.add(&b,"tab.open-settings","tab.selected"),settings);
+    let revealed = [&*changelog,&*agent_a,&*agent_b,&*agent_c,&*settings];
+    client.order(&revealed);
+    std::thread::sleep(Duration::from_millis(300));
+    client.order(&revealed);
+    drop(client);
+    std::thread::sleep(Duration::from_millis(200));
+    let mut reopened = WorkspaceClient::open(&b);
+    reopened.next("welcome");
+    let (_,admission):(_,terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&reopened.next("attached")).unwrap();
+    assert_eq!(admission.initial_tabs.unwrap().tabs.iter().map(|tab|tab.tab_id.as_str()).collect::<Vec<_>>(),revealed);
+    assert_eq!(a.wait_child(),old);
+    let registry = RegistryStore::read(&b.state().join("registry.json")).unwrap().unwrap();
+    assert_eq!(registry.tabs.iter().filter(|tab|tab.kind == "settings" && tab.desired != "stopped").count(),1);
+    assert_eq!(registry.tabs.iter().filter(|tab|tab.kind == "changelog" && tab.desired != "stopped").count(),1);
 }
 
 #[test]

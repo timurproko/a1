@@ -214,14 +214,11 @@ impl Context {
     ) -> Result<(), String> {
         match result {
             Ok(updated) => {
-                let mut order = updated
-                    .tabs
-                    .iter()
-                    .map(|tab| tab.id.clone())
-                    .collect::<Vec<_>>();
-                for id in &self.model.order {
-                    if !order.contains(id) {
-                        order.push(id.clone());
+                // Concurrency: an acknowledgement may predate a newer reveal, creation reservation or drag.
+                // It updates custody, never the live user's already-ordered intent.
+                for tab in &updated.tabs {
+                    if routing::target(&self.sources, &tab.id).is_some() {
+                        topology::remember(&mut self.model.order, &tab.id);
                     }
                 }
                 for source in &mut self.sources {
@@ -236,7 +233,6 @@ impl Context {
                         })
                         .collect();
                 }
-                self.model.order = order;
                 self.model.layout = updated;
                 if let Some(ticket) = ticket {
                     self.view_saved(ticket)?;

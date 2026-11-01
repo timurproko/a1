@@ -25,6 +25,7 @@ use crate::{endpoint, protocol};
 mod connection;
 mod persistence;
 mod routing;
+mod topology;
 mod view;
 
 pub use persistence::check;
@@ -82,6 +83,7 @@ struct Model {
     revision: u64,
     order: Vec<String>,
     viewed: Option<String>,
+    utilities: HashMap<crate::core::tab_bar::TabKind, String>,
 }
 struct Routing {
     local: usize,
@@ -106,6 +108,7 @@ struct Context {
     output: AttachServerWriter,
     pending: Option<view::Pending>,
     view_ticket: u64,
+    creations: topology::Creations,
     discovering: bool,
     last_discovery: Instant,
 }
@@ -268,7 +271,8 @@ fn announce(
             epoch: layout.epoch,
         },
     )?;
-    let tabs = routing::aggregate(sources, layout, layout.revision).tabs;
+    let mut tabs = routing::aggregate(sources, layout, layout.revision).tabs;
+    routing::singletons(&mut tabs, viewed.as_deref(), &HashMap::new());
     let order = tabs.iter().map(|tab| tab.tab_id.clone()).collect();
     wire::send(
         stream,
@@ -360,6 +364,7 @@ fn serve(
             revision,
             order,
             viewed,
+            utilities: HashMap::new(),
         },
         routing: Routing {
             local,
@@ -378,6 +383,7 @@ fn serve(
         output: AttachServerWriter::start(stream),
         pending: None,
         view_ticket: 0,
+        creations: topology::Creations::default(),
         discovering: false,
         last_discovery: Instant::now(),
     };

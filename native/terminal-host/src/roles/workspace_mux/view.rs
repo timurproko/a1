@@ -27,7 +27,25 @@ fn number(value: Option<&Value>) -> u64 {
         _ => 0,
     }
 }
+fn surface_matches(id: Option<&str>, generation: Option<u64>, frame: &Envelope) -> bool {
+    id.is_none_or(|id| frame.body.get("tabId").and_then(Value::text) == Some(id))
+        && generation
+            .is_none_or(|generation| number(frame.body.get("requestGeneration")) == generation)
+}
 impl Context {
+    pub(super) fn accepts_surface(&self, index: usize, frame: &Envelope) -> bool {
+        if let Some(pending) = &self.pending {
+            return pending.observes(index, frame);
+        }
+        surface_matches(
+            self.model.viewed.as_deref(),
+            self.routing
+                .views
+                .get(&index)
+                .map(|view| number(view.body.get("request_generation"))),
+            frame,
+        )
+    }
     pub(super) fn stage_view(
         &mut self,
         index: usize,
@@ -49,12 +67,20 @@ impl Context {
         let ticket = self.view_ticket;
         let generation = number(frame.body.get("request_generation"));
         let snapshot = (!self.model.layout.tabs.iter().any(|tab| tab.id == id)).then_some(index);
-        if !self.save(Some(id.clone()), vec![], snapshot, Some(ticket))? {
+        if !self.save(
+            Some(id.clone()),
+            self.model.order.clone(),
+            snapshot,
+            Some(ticket),
+        )? {
             return self.refused("View was not admitted; input was not delivered.");
         }
         self.routing.active = index;
         self.routing.signal.store(index, Ordering::Release);
         self.model.viewed = Some(id.clone());
+        if let Some(kind) = crate::core::tab_bar::TabKind::of(&id) {
+            self.model.utilities.insert(kind, id.clone());
+        }
         self.routing.views.insert(index, frame.clone());
         self.pending = Some(Pending {
             ticket,
@@ -224,6 +250,40 @@ mod tests {
         assert!(!pending.observes(2, &frame("requested", 6)));
         assert!(!pending.observes(2, &frame("requested", 8)));
         assert!(pending.observes(2, &frame("requested", 7)));
+    }
+    #[test]
+    fn committed_surface_fences_late_other_tabs_and_old_or_future_generations() {
+        let frame = |tab: &str, generation: u64| {
+            protocol::decode_frame::<Envelope>(
+                &wire::frame(
+                    "surface",
+                    None,
+                    serde_json::json!({"tabId":tab,"requestGeneration":generation}),
+                )
+                .unwrap(),
+            )
+            .unwrap()
+        };
+        assert!(surface_matches(
+            Some("settings"),
+            Some(4),
+            &frame("settings", 4)
+        ));
+        assert!(!surface_matches(
+            Some("settings"),
+            Some(4),
+            &frame("agent", 4)
+        ));
+        assert!(!surface_matches(
+            Some("settings"),
+            Some(4),
+            &frame("settings", 3)
+        ));
+        assert!(!surface_matches(
+            Some("settings"),
+            Some(4),
+            &frame("settings", 5)
+        ));
     }
     #[test]
     fn view_generation_is_read_from_the_frozen_snake_case_request_field() {

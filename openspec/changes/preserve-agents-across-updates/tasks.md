@@ -32,8 +32,8 @@
 
 ## 5. Approved predictable tab-bar refinement
 
-- [ ] 5.1 Preserve one append-last visible order across source snapshots, prewarm, pending/committed Agents, utility reveal and persistence acknowledgements without discarding explicit drag order.
-- [ ] 5.2 Keep open/close/switch presentation coherent with no stale source frame, empty body, duplicate chip, intermediate selection jump or late focus steal; initialization fill remains Agent-only.
-- [ ] 5.3 Apply shared singleton-toggle behavior to Settings and Changelog: select existing visible tabs in place, hide active utilities for reuse, append on reveal, select the left neighbour then right, and show the landing when the last visible utility is hidden. Explicit Close remains distinct.
-- [ ] 5.4 Add deterministic interaction/render sequence tests and real workspace-routing regressions covering mixed kinds/releases, asynchronous event order, failure/cancellation, input ownership, navigation, close, reorder, overflow and reconnect while preserving the existing slim utility composition.
-- [ ] 5.5 Reconcile evidence and the existing targeted CI cadence assertion, finish focused checks and current-develop delivery inputs, then complete the remaining PR outcome.
+- [x] 5.1 Preserve one append-last visible order across source snapshots, prewarm, pending/committed Agents, utility reveal and persistence acknowledgements without discarding explicit drag order.
+- [x] 5.2 Keep open/close/switch presentation coherent with no stale source frame, empty body, duplicate chip, intermediate selection jump or late focus steal; initialization fill remains Agent-only.
+- [x] 5.3 Apply shared singleton-toggle behavior to Settings and Changelog: select existing visible tabs in place, hide active utilities for reuse, append on reveal, select the left neighbour then right, and show the landing when the last visible utility is hidden. Explicit Close remains distinct.
+- [x] 5.4 Add deterministic interaction/render sequence tests and real workspace-routing regressions covering mixed kinds/releases, asynchronous event order, failure/cancellation, input ownership, navigation, close, reorder, overflow and reconnect while preserving the existing slim utility composition.
+- [x] 5.5 Reconcile evidence and the existing targeted CI cadence assertion, finish focused checks and current-develop delivery inputs, then complete the remaining PR outcome.

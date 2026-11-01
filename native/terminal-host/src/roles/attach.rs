@@ -2283,6 +2283,7 @@ impl Client {
                     self.request_view(tab_id)?;
                 }
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
+                Effect::Landing => self.hide_final_utility(),
                 Effect::CancelViewRequest => {
                     self.clear_chip_fill();
                     key_trace(self.key_trace_path.as_deref(), "effect=cancel-view");
@@ -2317,6 +2318,17 @@ impl Client {
             self.pending_agent = None;
         }
         Ok(forwarded)
+    }
+
+    fn hide_final_utility(&mut self) {
+        self.clear_chip_fill();
+        self.view.clear();
+        self.presented = Presented::new();
+        self.pending_terminal_effects.clear();
+        self.pending_agent = None;
+        self.swap_in_flight = None;
+        self.chip_priority.clear();
+        self.has_shown_tabs = true;
     }
 
     /// Stores the plus menu its dialog changed. A refused write restores the stored menu, so the
@@ -3138,7 +3150,7 @@ impl Client {
                     // this attach is listed and keeps its first-draw gate instead.
                     self.has_shown_tabs |=
                         empty_list_shows_strip(self.tabs.is_empty(), self.pending_agent.is_some());
-                    self.paint(core, true)
+                    self.paint(core, !self.landing_shown())
                 } else if changed {
                     self.paint(core, false)
                 } else {

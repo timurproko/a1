@@ -27,6 +27,71 @@ pub(super) fn aggregate(
     });
     wire::TabList { revision, tabs }
 }
+/// One profile singleton may be backed by several retained releases, never several visible chips.
+pub(super) fn singletons(
+    tabs: &mut Vec<wire::TabSummary>,
+    viewed: Option<&str>,
+    chosen: &HashMap<crate::core::tab_bar::TabKind, String>,
+) {
+    use crate::core::tab_bar::TabKind;
+    let mut visible = chosen.clone();
+    for tab in tabs.iter() {
+        if let Some(kind) = TabKind::of(&tab.tab_id) {
+            if viewed == Some(tab.tab_id.as_str()) && !chosen.contains_key(&kind) {
+                visible.insert(kind, tab.tab_id.clone());
+            } else {
+                visible.entry(kind).or_insert_with(|| tab.tab_id.clone());
+            }
+        }
+    }
+    tabs.retain(|tab| {
+        TabKind::of(&tab.tab_id).is_none_or(|kind| visible.get(&kind) == Some(&tab.tab_id))
+    });
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn retained_release_singletons_never_duplicate_the_chosen_utility_chip() {
+        use crate::core::tab_bar::TabKind;
+        let tab = |id: &str| wire::TabSummary {
+            tab_id: id.into(),
+            name: id.into(),
+            name_source: "system".into(),
+            lifecycle: "ready".into(),
+            cwd: "fixture".into(),
+        };
+        let all = vec![
+            tab("settings-old"),
+            tab("agent"),
+            tab("settings-new"),
+            tab("changelog-old"),
+            tab("changelog-new"),
+        ];
+        let chosen = HashMap::from([
+            (TabKind::Settings, "settings-new".into()),
+            (TabKind::Changelog, "changelog-new".into()),
+        ]);
+        let mut tabs = all.clone();
+        singletons(&mut tabs, Some("settings-old"), &chosen);
+        assert_eq!(
+            tabs.iter()
+                .map(|tab| tab.tab_id.as_str())
+                .collect::<Vec<_>>(),
+            ["agent", "settings-new", "changelog-new"]
+        );
+        let mut initial = all;
+        singletons(&mut initial, Some("settings-new"), &HashMap::new());
+        assert_eq!(
+            initial
+                .iter()
+                .filter(|tab| TabKind::of(&tab.tab_id) == Some(TabKind::Settings))
+                .map(|tab| tab.tab_id.as_str())
+                .collect::<Vec<_>>(),
+            ["settings-new"]
+        );
+    }
+}
 fn qualify(body: &mut Value, scope: &str) {
     for field in ["tabId", "selectedTab"] {
         if let Some(raw) = body.get(field).and_then(Value::text).map(str::to_owned) {
@@ -35,7 +100,7 @@ fn qualify(body: &mut Value, scope: &str) {
     }
 }
 impl Context {
-    fn list(&mut self, request: Option<u64>) -> Result<(), String> {
+    fn current_list(&self) -> wire::TabList {
         let mut list = aggregate(&self.sources, &self.model.layout, self.model.revision);
         list.tabs.sort_by_key(|tab| {
             self.model
@@ -44,7 +109,18 @@ impl Context {
                 .position(|id| id == &tab.tab_id)
                 .unwrap_or(usize::MAX)
         });
-        self.model.order = list.tabs.iter().map(|tab| tab.tab_id.clone()).collect();
+        singletons(
+            &mut list.tabs,
+            self.model.viewed.as_deref(),
+            &self.model.utilities,
+        );
+        list
+    }
+    fn list(&mut self, request: Option<u64>) -> Result<(), String> {
+        let list = self.current_list();
+        for tab in &list.tabs {
+            topology::remember(&mut self.model.order, &tab.tab_id);
+        }
         wire::send(&mut self.output, "tab.list", request, list)
     }
     fn source_list(&mut self, index: usize, payload: &[u8]) -> Result<(), String> {
@@ -54,6 +130,11 @@ impl Context {
             return Ok(());
         }
         let changed = source.revision != list.revision;
+        let previous = source
+            .tabs
+            .iter()
+            .map(|tab| tab.tab_id.clone())
+            .collect::<HashSet<_>>();
         source.revision = list.revision;
         source.tabs = list
             .tabs
@@ -72,11 +153,16 @@ impl Context {
         if source.tabs.is_empty() && index != self.routing.local {
             source.disconnect();
         }
-        self.model.revision = self
-            .model
-            .revision
-            .checked_add(1)
-            .ok_or("workspace revision exhausted")?;
+        if changed {
+            self.model.revision = self
+                .model
+                .revision
+                .checked_add(1)
+                .ok_or("workspace revision exhausted")?;
+        }
+        self.model.order.retain(|id| {
+            !previous.contains(id) || self.sources[index].tabs.iter().any(|tab| &tab.tab_id == id)
+        });
         self.list(request)?;
         self.cancel_closed_view()?;
         if changed {
@@ -103,7 +189,8 @@ impl Context {
         }
         let mut frame: Envelope =
             protocol::decode_payload(&payload).map_err(|error| error.to_string())?;
-        if frame.message_type == "tab.created" {
+        let mut forward = true;
+        if matches!(frame.message_type.as_str(), "tab.created" | "tab.selected") {
             if let Some(raw) = frame
                 .body
                 .get("tabId")
@@ -116,9 +203,31 @@ impl Context {
                 }
                 let id = WorkspaceTab::id_for(source.route.source_scope(), &raw);
                 source.raw_ids.insert(id.clone(), raw);
-                source.created.insert(id);
-                self.save(None, vec![], Some(index), None)?;
+                source.created.insert(id.clone());
+                if self.creations.revealing(&frame) {
+                    if let Some(kind) = crate::core::tab_bar::TabKind::of(&id) {
+                        self.model.utilities.insert(kind, id.clone());
+                    }
+                }
+                let before = self.model.order.clone();
+                forward = self
+                    .creations
+                    .complete(&mut frame, &id, &mut self.model.order);
+                if before != self.model.order {
+                    self.model.revision = self
+                        .model
+                        .revision
+                        .checked_add(1)
+                        .ok_or("workspace revision exhausted")?;
+                }
+                self.save(None, self.model.order.clone(), Some(index), None)?;
             }
+        }
+        if frame.message_type == "tab.create-failed" {
+            self.creations.failed(&mut frame, &mut self.model.order);
+        }
+        if !forward {
+            return Ok(());
         }
         qualify(&mut frame.body, self.sources[index].route.source_scope());
         if frame.message_type == "surface" {
@@ -138,6 +247,9 @@ impl Context {
                         },
                     )?;
                 }
+                return Ok(());
+            }
+            if !self.accepts_surface(index, &frame) {
                 return Ok(());
             }
             self.view_observed(index, &frame)?;
@@ -186,12 +298,23 @@ impl Context {
     fn reorder(&mut self, payload: &[u8]) -> Result<(), String> {
         let (request, reorder): (_, wire::TabReorder) = wire::body(payload)?;
         let accepted = reorder.expected_revision == self.model.revision
-            && self.model.order.contains(&reorder.tab_id);
+            && self
+                .current_list()
+                .tabs
+                .iter()
+                .any(|tab| tab.tab_id == reorder.tab_id);
         if accepted {
-            self.model.order.retain(|id| id != &reorder.tab_id);
-            self.model.order.insert(
-                reorder.target_index.min(self.model.order.len()),
-                reorder.tab_id,
+            let presented = self
+                .current_list()
+                .tabs
+                .into_iter()
+                .map(|tab| tab.tab_id)
+                .collect::<Vec<_>>();
+            topology::move_tab(
+                &mut self.model.order,
+                &presented,
+                &reorder.tab_id,
+                reorder.target_index,
             );
             self.model.revision = self
                 .model
@@ -240,6 +363,7 @@ impl Context {
     pub(super) fn client_message(&mut self, payload: Vec<u8>) -> Result<bool, String> {
         let mut frame: Envelope =
             protocol::decode_payload(&payload).map_err(|error| error.to_string())?;
+        self.creations.track(&mut frame, &mut self.model.order)?;
         let mut destination = self.routing.active;
         match frame.message_type.as_str() {
             "detach" => return Ok(false),
