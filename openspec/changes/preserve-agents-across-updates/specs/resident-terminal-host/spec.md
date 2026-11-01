@@ -147,6 +147,11 @@ The workspace client SHALL preserve one append-last visible order across source 
 - **WHEN** Settings or Changelog is the only visible tab and its toggle is invoked
 - **THEN** the client SHALL show the landing, keep the utility hidden for reuse, and allow a later reveal without starting an Agent
 
+#### Scenario: A prewarmed utility frame arrives before refreshed topology
+- **WHEN** a hidden utility has an older position in the client's registry and its first selected surface is ready before the final append-order snapshot
+- **THEN** the client SHALL receive and stage the final topology before that surface can become visible
+- **AND** no intermediate frame SHALL show the utility at its old prewarm position before moving it to the appended slot
+
 #### Scenario: Source frames race close and selection
 - **WHEN** a closed or superseded source view produces a late surface while another logical tab is requested
 - **THEN** only the requested source/tab/generation SHALL commit and no stale body, chip selection or child cursor SHALL flash before it
