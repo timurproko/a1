@@ -441,6 +441,44 @@ fn workspace_utility_reveal_preserves_append_order_through_metadata_drag_and_reo
 }
 
 #[test]
+fn plain_workspace_launch_stays_empty_until_explicit_creation_and_never_adopts_a_hidden_utility() {
+    use terminal_host_contracts::roles::wire;
+    let root = tempfile::tempdir().unwrap(); let (_a,b) = hosts(root.path());
+    b.call(&["server","--detach"]);
+    let mut client = WorkspaceClient::open(&b); client.next("welcome");
+    let (_,admission):(_,terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&client.next("attached")).unwrap();
+    assert_eq!(admission.selected_tab,None); assert!(admission.initial_tabs.unwrap().tabs.is_empty());
+    wire::send(&mut client.stream,"attach.start",None,serde_json::json!({"clientId":"fixture","cwd":b.release,"columns":80,"rows":23,"releaseRoot":b.release,"nodeExecutable":"node","environment":[]})).unwrap();
+    for _ in 0..3 {
+        wire::send(&mut client.stream,"tab.list",Some(600),wire::ResultBody::ok()).unwrap();
+        let (_,list):(_,wire::TabList) = wire::body(&client.next("tab.list")).unwrap(); assert!(list.tabs.is_empty());
+    }
+    let registry = RegistryStore::read(&b.state().join("registry.json")).unwrap().unwrap();
+    assert!(registry.tabs.is_empty(),"plain attach must not start execution");
+    let settings = client.add(&b,"tab.prewarm-settings","tab.created");
+    drop(client);
+    let mut client = WorkspaceClient::open(&b); client.next("welcome");
+    let (_,admission):(_,terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&client.next("attached")).unwrap();
+    assert_eq!(admission.selected_tab,None,"a prewarm is not a startup workspace selection");
+    assert!(admission.initial_tabs.unwrap().tabs.iter().all(|tab|tab.tab_id == settings));
+    let agent = client.add(&b,"tab.create","tab.created");
+    client.first_view_order(&agent,80,&[&settings],&[&settings,&agent]);
+    let identity = || {
+        let registry = RegistryStore::read(&b.state().join("registry.json")).unwrap().unwrap();
+        let agents = registry.tabs.iter().filter(|tab|tab.kind == "agent" && tab.desired != "stopped").collect::<Vec<_>>();
+        assert_eq!(agents.len(),1);
+        (agents[0].child_pid,agents[0].child_start_identity.clone(),agents[0].incarnation)
+    };
+    let original = identity(); assert!(original.0.is_some());
+    drop(client);
+    let mut reopened = WorkspaceClient::open(&b); reopened.next("welcome");
+    let (_,admission):(_,terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&reopened.next("attached")).unwrap();
+    assert_eq!(admission.selected_tab.as_deref(),Some(agent.as_str()));
+    reopened.first_view_order(&agent,81,&[&settings,&agent],&[&settings,&agent]);
+    assert_eq!(identity(),original,"reopen must not replace execution");
+}
+
+#[test]
 fn workspace_first_utility_frame_uses_final_topology_without_a_caller_refresh() {
     use terminal_host_contracts::roles::workspace::WorkspaceTab;
     let root = tempfile::tempdir().unwrap();

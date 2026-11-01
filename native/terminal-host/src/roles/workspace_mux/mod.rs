@@ -27,6 +27,7 @@ mod connection;
 mod mailbox;
 mod persistence;
 mod routing;
+mod startup;
 mod topology;
 mod view;
 
@@ -340,10 +341,7 @@ fn serve(
     let signal = Arc::new(AtomicUsize::new(selected_source));
     let (sources, mut features) = initial_sources(routes, &layout, &tx, &budget, &signal)?;
     features.push("resident-workspace-v1".into());
-    let viewed = layout
-        .selected
-        .clone()
-        .filter(|id| routing::target(&sources, id).is_some());
+    let viewed = startup::selection(&routing::aggregate(&sources,&layout,layout.revision).tabs,layout.selected.as_deref());
     let active = viewed
         .as_deref()
         .and_then(|id| routing::target(&sources, id))

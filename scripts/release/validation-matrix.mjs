@@ -44,7 +44,10 @@ export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
   { group: "resident-chaos", label: "Resident tabs chaos (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, chaos: true },
   { group: "resident-chaos", label: "Resident tabs chaos (Linux x64)", ...LINUX, node: 24, build: true, guardian: false, defender: false, chaos: true },
   { group: "resident-chaos", label: "Resident tabs chaos (macOS arm64)", ...DARWIN, node: 24, build: true, guardian: false, defender: false, chaos: true },
-].map(entry => Object.freeze(entry)));
+].map(entry => Object.freeze({ ...entry, ...(
+  entry.terminalHost || entry.partition || entry.chaos || ["promoted", "containment"].includes(entry.group)
+    ? { nativeFixtures: true, defender: entry.platform === "win32" } : {}
+) })));
 
 /** Map an integration owner to the modular job that executes it on a platform. */
 export function validationJobGroup(owner, platform) {

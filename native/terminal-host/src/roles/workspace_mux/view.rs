@@ -36,7 +36,7 @@ fn number(value: Option<&Value>) -> u64 {
     }
 }
 fn surface_matches(id: Option<&str>, generation: Option<u64>, frame: &Envelope) -> bool {
-    id.is_none_or(|id| frame.body.get("tabId").and_then(Value::text) == Some(id))
+    id.is_some_and(|id| frame.body.get("tabId").and_then(Value::text) == Some(id))
         && generation
             .is_none_or(|generation| number(frame.body.get("requestGeneration")) == generation)
 }
@@ -339,6 +339,7 @@ mod tests {
             )
             .unwrap()
         };
+        assert!(!surface_matches(None,None,&frame("settings",0)),"a cached hidden utility must not adopt an empty workspace");
         assert!(surface_matches(
             Some("settings"),
             Some(4),

@@ -65,7 +65,7 @@ describe("terminal-host role test partitions", () => {
     const partitions = entries.filter(entry => entry.partition);
     expect(partitions).toHaveLength(3 * TERMINAL_HOST_TEST_PARTITIONS);
     for (const entry of partitions) {
-      expect(entry).toMatchObject({ group: "terminal-host", node: 24, build: false, guardian: false, defender: false });
+      expect(entry).toMatchObject({ group: "terminal-host", node: 24, build: false, guardian: false, defender: entry.platform === "win32", nativeFixtures: true });
       expect(entry.terminalHost).toBeUndefined();
       expect(entry.chaos).toBeUndefined();
       expect(entry.partition).toMatch(/^[1-3]\/3$/u);

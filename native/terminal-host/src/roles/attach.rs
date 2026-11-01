@@ -1668,7 +1668,7 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
     }
     let (_, admission): (Option<u64>, BridgeAttachment) = wire::body(&attachment)?;
     let (columns, outer_rows) = outer_size()?;
-    let request_generation = start_session(&mut stream, options, columns, outer_rows)?;
+    let request_generation = start_session(&mut stream, options, columns, outer_rows, admission.selected_tab.as_deref())?;
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let create = TabCreate {
         cwd: options.cwd.into(),
@@ -1711,6 +1711,7 @@ fn start_session(
     options: &AttachOptions<'_>,
     columns: u16,
     outer_rows: u16,
+    selected_tab: Option<&str>,
 ) -> Result<u64, String> {
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let mut request_generation = 1u64;
@@ -1731,7 +1732,7 @@ fn start_session(
             session_dir: options.session_dir.map(str::to_owned),
         },
     )?;
-    if let Some(tab_id) = options.view_tab {
+    if let Some(tab_id) = options.view_tab.or(selected_tab) {
         request_generation = request_generation.saturating_add(1);
         send_view_with_geometry(stream, tab_id, request_generation, columns, outer_rows, 0)?;
     } else {
@@ -4439,7 +4440,7 @@ mod tests {
     fn attach_start_reapplies_geometry_for_default_and_requested_tabs() {
         let mut default = Vec::new();
         assert_eq!(
-            start_session(&mut default, &test_attach_options(None), 100, 30).unwrap(),
+            start_session(&mut default, &test_attach_options(None), 100, 30, None).unwrap(),
             1
         );
         let default = split_frames(&default);
@@ -4455,6 +4456,7 @@ mod tests {
                 &test_attach_options(Some("tab-existing")),
                 120,
                 36,
+                None,
             )
             .unwrap(),
             2
@@ -4466,6 +4468,18 @@ mod tests {
         assert_eq!(view.body.tab_id, "tab-existing");
         let resize = view.body.resize.expect("requested-tab geometry");
         assert_eq!((resize.columns, resize.rows), (120, 35));
+    }
+
+    #[test]
+    fn admitted_retained_selection_is_explicitly_observed_before_the_first_body() {
+        let mut output = Vec::new();
+        assert_eq!(start_session(&mut output,&test_attach_options(None),100,30,Some("retained-agent")).unwrap(),2);
+        let frames = split_frames(&output);
+        let view:protocol::Envelope<ViewTarget> = protocol::decode_frame(frames[1]).unwrap();
+        assert_eq!(view.message_type,"tab.view"); assert_eq!(view.body.tab_id,"retained-agent");
+        assert_eq!(view.body.request_generation,2);
+        assert!(!should_paint_strip(false,false,false),"admission must not paint an empty first frame");
+        assert!(should_paint_strip(true,false,false));
     }
 
     #[test]

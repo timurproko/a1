@@ -2,6 +2,36 @@
   "schema": "internal-naming-policy-v1",
   "environment": [
     {
+      "role": "nativeFixtureHead", "key": "NATIVE_FIXTURE_HEAD", "exposure": "automation",
+      "owner": "scripts/development/native-fixture-policy.mjs", "evidence": "test/repository-governance/native-fixture-policy.test.ts",
+      "semantics": "Trusted CI checkout identity for the fixture interlock; not a local execution override"
+    },
+    {
+      "role": "nativeFixtureIsolationReceipt", "key": "NATIVE_FIXTURE_ISOLATION_RECEIPT", "exposure": "automation",
+      "owner": "scripts/development/native-fixture-policy.mjs", "evidence": "test/repository-governance/native-fixture-policy.test.ts",
+      "semantics": "Provisioner-owned exact-run isolation receipt; not approval or a sandbox by itself"
+    },
+    {
+      "role": "nativeFixtureBuiltHead", "key": "NATIVE_FIXTURE_BUILT_HEAD", "exposure": "test",
+      "owner": "native/terminal-host/src/fixture_policy.rs", "evidence": "test/repository-governance/native-fixture-policy.test.ts",
+      "semantics": "Compile-time CI head for fixture children deliberately launched with an empty environment"
+    },
+    {
+      "role": "nativeFixtureBuiltRun", "key": "NATIVE_FIXTURE_BUILT_RUN", "exposure": "test",
+      "owner": "native/terminal-host/src/fixture_policy.rs", "evidence": "test/repository-governance/native-fixture-policy.test.ts",
+      "semantics": "Compile-time CI run identity; runtime still requires the ephemeral isolation receipt"
+    },
+    {
+      "role": "nativeFixtureBuiltAttempt", "key": "NATIVE_FIXTURE_BUILT_ATTEMPT", "exposure": "test",
+      "owner": "native/terminal-host/src/fixture_policy.rs", "evidence": "test/repository-governance/native-fixture-policy.test.ts",
+      "semantics": "Compile-time CI attempt identity; prevents reusing an old fixture run's receipt"
+    },
+    {
+      "role": "nativeFixtureBuiltReceipt", "key": "NATIVE_FIXTURE_BUILT_RECEIPT", "exposure": "test",
+      "owner": "native/terminal-host/src/fixture_policy.rs", "evidence": "test/repository-governance/native-fixture-policy.test.ts",
+      "semantics": "Compile-time receipt location for clean-environment fixture children; no retained secret or local allowance"
+    },
+    {
       "role": "configDir",
       "key": "A1_CONFIG_DIR",
       "exposure": "public",

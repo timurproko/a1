@@ -1,5 +1,7 @@
 mod build_target;
 mod build_vt_manifest;
+#[path = "src/fixture_policy.rs"]
+mod fixture_policy;
 
 use std::env;
 use std::fs;
@@ -15,7 +17,25 @@ const EXPORT_VT: &str = "TERMINAL_HOST_EXPORT_VT";
 /// Directory of a CI-published library that a local development build links instead of running Zig.
 const PREBUILT_VT: &str = "TERMINAL_HOST_PREBUILT_VT";
 
+// Security: fixture feature builds require reviewed isolated CI before any local build override.
+fn configure_fixture_build() {
+    for name in ["GITHUB_ACTIONS","GITHUB_RUN_ID","GITHUB_RUN_ATTEMPT","GITHUB_SHA","NATIVE_FIXTURE_HEAD","NATIVE_FIXTURE_ISOLATION_RECEIPT"] {
+        println!("cargo:rerun-if-env-changed={name}");
+    }
+    println!("cargo:rerun-if-changed=src/fixture_policy.rs");
+    if env::var_os("CARGO_FEATURE_RESIDENT_FIXTURES").is_some() || env::var_os("CARGO_FEATURE_FAULT_INJECTION").is_some() {
+        if let Err(error) = fixture_policy::require() { panic!("{error}"); }
+        for (name,value) in [
+            ("HEAD",env::var("NATIVE_FIXTURE_HEAD").or_else(|_|env::var("GITHUB_SHA")).unwrap()),
+            ("RUN",env::var("GITHUB_RUN_ID").unwrap()),
+            ("ATTEMPT",env::var("GITHUB_RUN_ATTEMPT").unwrap()),
+            ("RECEIPT",env::var("NATIVE_FIXTURE_ISOLATION_RECEIPT").unwrap()),
+        ] { println!("cargo:rustc-env=NATIVE_FIXTURE_BUILT_{name}={value}"); }
+    }
+}
+
 fn main() {
+    configure_fixture_build();
     println!("cargo:rerun-if-env-changed=CI");
     println!("cargo:rerun-if-env-changed={LOCAL_BUILD_OVERRIDE}");
     println!("cargo:rerun-if-env-changed={EXPORT_VT}");

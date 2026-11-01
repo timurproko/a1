@@ -94,7 +94,8 @@ describe("internal naming syntax policy", () => {
   });
 
   it("rejects wildcard, duplicate, and private-legacy policy exceptions", () => {
-    const entry = policy.environment[0]!;
+    const entry = policy.environment.find(entry => entry.exposure === "public" && /a1/i.test(entry.key))!;
+    expect(entry).toBeDefined();
     expect(() => validateNamingPolicy({ ...policy, environment: [...policy.environment, entry] })).toThrow();
     expect(() => validateNamingPolicy({ ...policy, environment: [{ ...entry, key: "A1_*" }] })).toThrow();
     expect(() => validateNamingPolicy({ ...policy, environment: [{ ...entry, exposure: "private" }] })).toThrow(/branding/);

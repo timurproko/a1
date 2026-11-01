@@ -1,6 +1,9 @@
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    if let Err(error) = terminal_host_contracts::fixture_policy::require() {
+        eprintln!("{error}"); return ExitCode::from(2);
+    }
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("--fixture-session-writer") {
         use std::io::{Read, Write};

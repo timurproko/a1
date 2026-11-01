@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { requireNativeFixtureContext } from "./native-fixture-policy.mjs";
 import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { chmodSync, copyFileSync } from "node:fs";
@@ -213,6 +214,7 @@ function buildArtifacts() {
 }
 
 async function main() {
+  await requireNativeFixtureContext();
   const built = process.argv.includes("--build") ? buildArtifacts() : null;
   const sourceHost = built?.host ?? resolve(option("--host", ""));
   const fakeTab = built?.fakeTab ?? resolve(option("--fake-tab", ""));

@@ -8,6 +8,7 @@ export interface DevelopmentValidationMatrixEntry {
   build: boolean;
   guardian: boolean;
   defender: boolean;
+  nativeFixtures?: boolean;
   addon: "process-guardian.node";
   terminalHost?: boolean;
   terminalHostAddon?: "terminal-host.node";

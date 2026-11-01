@@ -351,21 +351,9 @@ impl Context {
             )?;
             return Ok(false);
         }
-        if frame
-            .body
-            .get("sessionFile")
-            .is_none_or(|value| matches!(value, Value::Nil))
-            && self.sources.iter().any(|source| {
-                source.tabs.iter().any(|tab| {
-                    crate::core::tab_bar::TabKind::of_id(&tab.tab_id)
-                        .provider()
-                        .owns_session
-                })
-            })
-        {
-            return Ok(false);
-        }
-        Ok(true)
+        // Invariant: plain launch observes the fully authenticated roster, including an empty one.
+        // Only an explicit session request may ask a source to start execution here.
+        Ok(startup::explicit_session(frame))
     }
     pub(super) fn client_message(&mut self, payload: Vec<u8>) -> Result<bool, String> {
         let mut frame: Envelope =

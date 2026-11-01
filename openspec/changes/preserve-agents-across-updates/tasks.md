@@ -45,9 +45,9 @@
 
 ## 6. Approved attach-only startup and native-fixture isolation
 
-- [ ] 6.1 Keep plain workspace attach from forwarding implicit creation, while preserving explicit new-Agent and session-open intent.
-- [ ] 6.2 Choose startup selection from the complete authenticated live roster; utility-only/empty state shows the landing and retained Agents never flash the landing first.
-- [ ] 6.3 Add empty, utility-only, retained/mixed-release and explicit-create/session regression cases without locally executing native fixtures.
-- [ ] 6.4 Add non-native local validation and fail-closed fixture compilation/execution guards that cannot be bypassed by the ordinary local native-build override.
+- [x] 6.1 Keep plain workspace attach from forwarding implicit creation, while preserving explicit new-Agent and session-open intent.
+- [x] 6.2 Choose startup selection from the complete authenticated live roster; utility-only/empty state shows the landing and retained Agents never flash the landing first.
+- [x] 6.3 Add empty, utility-only, retained/mixed-release and explicit-create/session regression cases without locally executing native fixtures.
+- [x] 6.4 Add non-native local validation and fail-closed fixture compilation/execution guards that cannot be bypassed by the ordinary local native-build override.
 - [ ] 6.5 Bind native fixture CI to a reviewed disposable isolated environment with no production credentials, restricted egress and enabled Defender; detection or unavailable isolation blocks, never skips, required native evidence.
 - [ ] 6.6 Add policy/workflow regressions, reconcile the current macOS predecessor custody failure without weakening epoch/login checks, and record security/platform limitations before final readiness.

@@ -566,6 +566,9 @@ jobs:
       # scripts/release/validation-matrix.mjs, and the in-job resolver remains the second check.
       matrix: ${{ fromJSON(needs.changes.outputs.modular-matrix) }}
     runs-on: ${{ matrix.os }}
+    environment: ${{ matrix.nativeFixtures && 'native-fixture-security-review' || 'development-validation' }}
+    env:
+      NATIVE_FIXTURE_HEAD: ${{ needs.changes.outputs.head-sha }}
     # A cold terminal-host build compiles libghostty-vt with Zig before the Rust crate; lanes that
     # pack a candidate build the release host too, which the selection decides after scheduling.
     timeout-minutes: ${{ matrix.partition && 25 || (matrix.terminalHost || matrix.chaos) && 45 || 35 }}
@@ -605,7 +608,16 @@ jobs:
       - name: Resolve this target from the trusted selection
         id: job-selection
         run: node scripts/release/resolve-validation-job.mjs --impact .artifacts/validation/impact.json --job ${{ matrix.group }} --platform ${{ matrix.platform }} --architecture ${{ matrix.architecture }} --node ${{ matrix.node }}
-      - name: Enable Defender real-time protection for startup acceptance
+      - name: Require reviewed disposable native fixture isolation
+        id: native-isolation
+        if: steps.job-selection.outputs.active == 'true' && matrix.nativeFixtures
+        shell: bash
+        env:
+          NATIVE_FIXTURE_ISOLATION_RECEIPT: ${{ runner.temp }}/a1-native-fixture-isolation.json
+        run: |
+          node scripts/development/native-fixture-policy.mjs
+          echo "NATIVE_FIXTURE_ISOLATION_RECEIPT=$NATIVE_FIXTURE_ISOLATION_RECEIPT" >> "$GITHUB_ENV"
+      - name: Enable Defender real-time protection for native and startup acceptance
         if: steps.job-selection.outputs.active == 'true' && matrix.defender
         shell: powershell
         run: |
@@ -800,6 +812,16 @@ jobs:
           for target in decode_frame decode_bridge parse_records boundary_marker; do
             cargo +nightly-2026-10-01 fuzz run "$target" "fuzz/corpus/$target" -- -max_total_time=30 -timeout=5
           done
+      - name: Fail on Defender detections or lost real-time protection
+        id: native-security
+        if: always() && steps.job-selection.outputs.active == 'true' && matrix.nativeFixtures && runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          if (-not (Get-MpComputerStatus).RealTimeProtectionEnabled) { throw "Defender real-time protection is not enabled" }
+          $since = [DateTimeOffset]::FromUnixTimeMilliseconds([long]$env:VALIDATION_JOB_STARTED_MS).UtcDateTime
+          $detections = @(Get-MpThreatDetection | Where-Object { $_.InitialDetectionTime.ToUniversalTime() -ge $since })
+          if ($detections.Count -gt 0) { throw "Defender detected a threat during native validation; quarantine and security review are required" }
       - name: Upload resident chaos report
         if: always() && steps.job-selection.outputs.active == 'true' && matrix.chaos
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -808,7 +830,7 @@ jobs:
           path: .artifacts/validation/resident-chaos-*.json
           if-no-files-found: warn
       - name: Upload terminal host contract artifacts
-        if: always() && steps.job-selection.outputs.active == 'true' && matrix.terminalHost
+        if: always() && steps.job-selection.outputs.active == 'true' && matrix.terminalHost && steps.native-isolation.outcome == 'success' && (runner.os != 'Windows' || steps.native-security.outcome == 'success')
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: terminal-host-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}

@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { requireNativeFixtureContext } from "./native-fixture-policy.mjs";
 import { readFileSync } from "node:fs";
 import { copyFile, mkdir } from "node:fs/promises";
 import { platform } from "node:os";
@@ -62,6 +63,7 @@ function partitionFromArguments(argv, env) {
 }
 
 async function main() {
+  await requireNativeFixtureContext();
   const cargo = cargoCommand(process.env);
   const manifest = resolve("native/terminal-host/Cargo.toml");
   const environment = { ...process.env, ZIG: process.env.ZIG ?? "zig" };

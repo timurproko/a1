@@ -33,6 +33,7 @@
     "build:process-guardian": "node scripts/development/build-process-guardian.mjs",
     "build:terminal-host": "node scripts/development/build-terminal-host.mjs",
     "typecheck": "tsgo -p tsconfig.json --noEmit && tsgo -p tsconfig.bin.json",
+    "check:local": "npm run typecheck && npm run check:architecture && npm run check:names && vitest run test/repository-governance/native-fixture-policy.test.ts",
     "check:architecture": "node scripts/governance/check-architecture.mjs && node scripts/governance/check-session-writer-guard.mjs && node scripts/governance/check-product-identity-boundaries.mjs && node scripts/governance/check-package-identity.mjs && node scripts/governance/check-pinned-pi-source-ledger.mjs && node scripts/governance/check-terminal-host-provenance.mjs",
     "preflight": "node scripts/development/run-preflight.mjs",
     "check:names": "node scripts/governance/product-identifier-policy.mjs --check",
