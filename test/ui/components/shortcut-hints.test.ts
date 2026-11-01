@@ -57,7 +57,8 @@ describe("modal shortcut hints", () => {
       { key: "ctrl+p/alt+up", action: "open (current/default)" },
       { key: "1/2/3", action: "filters", actionFirst: true },
     ], theme);
-    expect(stripAnsi(rendered)).toBe("start typing  Ctrl+P/Alt+Up open (current/default)  filters 1/2/3");
+    const alt = process.platform === "darwin" ? "Option" : "Alt";
+    expect(stripAnsi(rendered)).toBe(`start typing  Ctrl+P/${alt}+Up open (current/default)  filters 1/2/3`);
     expect(stripAnsi(rendered)).not.toContain("save");
   });
 

@@ -139,6 +139,8 @@ fn display_key_label(value: &str) -> String {
 fn display_key_part(value: &str) -> String {
     let lower = value.to_ascii_lowercase();
     let named = match lower.as_str() {
+        // Platform: macOS names Alt `Option`, as the tab labels and A1's other hints do.
+        "alt" if cfg!(target_os = "macos") => Some("Option"),
         "alt" => Some("Alt"),
         "backspace" => Some("Backspace"),
         "cmd" => Some("Cmd"),
