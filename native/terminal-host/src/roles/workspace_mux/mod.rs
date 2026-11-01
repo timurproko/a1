@@ -22,7 +22,9 @@ use super::{
 };
 use crate::{endpoint, protocol};
 
+mod closed;
 mod connection;
+mod mailbox;
 mod persistence;
 mod routing;
 mod topology;
@@ -67,6 +69,7 @@ enum Event {
     NewSources(Result<Vec<(Arc<SourceRoute>, endpoint::EndpointStream, SourceSnapshot)>, String>),
     Metadata(Result<WorkspaceDocument, String>, Option<u64>),
 }
+#[derive(Clone)]
 struct Persistence {
     selected: Option<String>,
     order: Vec<String>,
@@ -92,11 +95,12 @@ struct Routing {
     signal: Arc<AtomicUsize>,
     views: HashMap<usize, Envelope>,
     resizes: HashMap<usize, Envelope>,
+    closed: closed::ClosedTabs,
 }
 struct Workers {
     tx: mpsc::SyncSender<Event>,
     budget: Arc<AtomicUsize>,
-    save: mpsc::SyncSender<Persistence>,
+    save: Arc<mailbox::Mailbox>,
     stop: Arc<AtomicBool>,
 }
 struct Context {
@@ -373,6 +377,7 @@ fn serve(
             signal,
             views: HashMap::new(),
             resizes: HashMap::new(),
+            closed: closed::ClosedTabs::default(),
         },
         workers: Workers {
             tx,
@@ -449,7 +454,7 @@ impl Context {
                 Event::RecoveryBlocked(index) => {
                     self.sources[index].reconnecting = false;
                     self.notice(
-                        "Source recovery is blocked; state is preserved. Reopen to retry.",
+                        "Couldn't reconnect to this tab. Reopen this window to try again.",
                     )?;
                 }
                 Event::Connected(index, route, connection, snapshot) => {
@@ -497,8 +502,7 @@ impl Context {
             "input.uncertain",
             request,
             wire::ResultBody::refused(
-                "Source delivery is uncertain; input was not replayed. Execution remains resident."
-                    .into(),
+                "Connection interrupted. Check the tab before trying again.".into(),
             ),
         )
     }
@@ -517,12 +521,8 @@ impl Context {
                 .unwrap_or_default(),
             view,
         };
-        if self.workers.save.try_send(update).is_ok() {
-            Ok(true)
-        } else {
-            self.notice("Workspace persistence is busy; execution is unchanged.")?;
-            Ok(false)
-        }
+        self.workers.save.submit(update)?;
+        Ok(true)
     }
 }
 fn send_value(writer: &mut impl Write, envelope: &Envelope) -> Result<(), String> {

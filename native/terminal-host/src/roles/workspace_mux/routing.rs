@@ -116,7 +116,7 @@ impl Context {
         );
         list
     }
-    fn list(&mut self, request: Option<u64>) -> Result<(), String> {
+    pub(super) fn list(&mut self, request: Option<u64>) -> Result<(), String> {
         let list = self.current_list();
         for tab in &list.tabs {
             topology::remember(&mut self.model.order, &tab.tab_id);
@@ -147,6 +147,12 @@ impl Context {
                 tab
             })
             .collect();
+        for id in previous
+            .iter()
+            .filter(|id| !source.tabs.iter().any(|tab| &tab.tab_id == *id))
+        {
+            self.routing.closed.remember(id.clone());
+        }
         source.raw_ids.retain(|id, _| {
             source.tabs.iter().any(|tab| &tab.tab_id == id) || source.created.contains(id)
         });
@@ -165,6 +171,7 @@ impl Context {
         });
         self.list(request)?;
         self.cancel_closed_view()?;
+        self.publish_saved_view()?;
         if changed {
             let selected = self
                 .model
@@ -411,7 +418,22 @@ impl Context {
             .map(str::to_owned)
         {
             let Some((index, raw)) = target(&self.sources, &id) else {
-                self.refused("Unknown workspace tab.")?;
+                // Concurrency: a close snapshot can overtake a queued UI action. Reconcile that
+                // reference; never reinterpret it as input failure or redirect it to another tab.
+                if let Some((message, accepted)) =
+                    closed::response(&frame.message_type, self.routing.closed.contains(&id))
+                {
+                    wire::send(
+                        &mut self.output,
+                        message,
+                        frame.request_id,
+                        wire::ResultBody {
+                            accepted,
+                            message: None,
+                        },
+                    )?;
+                }
+                self.list(None)?;
                 return Ok(true);
             };
             destination = index;
@@ -432,7 +454,7 @@ impl Context {
             "input" | "input.event" | "paste.start"
         ) && !self.routing.admitted
         {
-            self.refused("Requested view is not ready; input was not delivered.")?;
+            self.refused("This tab is not ready for input yet.")?;
             return Ok(true);
         }
         if !self.sources[destination].connected

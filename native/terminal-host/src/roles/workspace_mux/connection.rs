@@ -202,9 +202,9 @@ impl Context {
         }
         self.sources[index].reconnecting = true;
         if index == self.routing.active {
-            self.pending = None;
-            self.routing.admitted = false;
-            self.uncertain(None)?;
+            // Concurrency: passive source loss starts observation recovery, not an input-failure
+            // banner. Keep the intended view, but never replay its queued input on reconnection.
+            self.view_disconnected(index);
         }
         let route = self.sources[index].route.clone();
         let profile = self.paths.profile.clone();
@@ -332,13 +332,12 @@ impl Context {
         result: Result<Vec<(Arc<SourceRoute>, endpoint::EndpointStream, SourceSnapshot)>, String>,
     ) -> Result<(), String> {
         self.discovering = false;
-        let new =
-            match result {
-                Ok(new) => new,
-                Err(_) => return self.notice(
-                    "Additional sources could not be verified; existing work remains connected.",
-                ),
-            };
+        let new = match result {
+            Ok(new) => new,
+            // Concurrency: background discovery is advisory. Retain verified routes and let
+            // the next discovery retry; it must not turn an ordinary tab refresh into a banner.
+            Err(_) => return Ok(()),
+        };
         for (route, stream, snapshot) in new {
             if self
                 .sources

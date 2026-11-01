@@ -283,13 +283,41 @@ impl WorkspaceClient {
             assert!(Instant::now()<deadline,"workspace order: {ids:?}, expected {expected:?}");
         }
     }
+    fn read_frame(&mut self,deadline:Instant) -> Vec<u8> {
+        use terminal_host_contracts::roles::wire;
+        terminal_host_contracts::endpoint::set_handshake_deadline(&self.stream,deadline.saturating_duration_since(Instant::now())).unwrap();
+        let frame = wire::read_payload(&mut self.stream).unwrap().expect("workspace disconnected");
+        let kind = wire::kind(&frame).unwrap().message_type;
+        assert!(!matches!(kind.as_str(),"recovery.notice"|"input.rejected"|"input.uncertain"|"tab.create-failed"),"ordinary tab action emitted {kind}: {frame:?}");
+        frame
+    }
+    fn first_view_order(&mut self,id:&str,generation:u64,previous:&[&str],expected:&[&str]) {
+        use terminal_host_contracts::roles::wire;
+        wire::send(&mut self.stream,"tab.view",None,wire::ViewTarget {tab_id:id.into(),request_generation:generation,resize:None}).unwrap();
+        let mut order = previous.iter().map(|id|id.to_string()).collect::<Vec<_>>();
+        let deadline = Instant::now()+Duration::from_secs(10);
+        loop {
+            assert!(Instant::now()<deadline,"view did not produce its first frame");
+            let frame = self.read_frame(deadline);
+            match wire::kind(&frame).unwrap().message_type.as_str() {
+                "tab.list" => { let (_,list):(_,wire::TabList) = wire::body(&frame).unwrap(); order = list.tabs.into_iter().map(|tab|tab.tab_id).collect(); }
+                "surface" => {
+                    let (_,surface):(_,wire::Surface) = wire::body(&frame).unwrap();
+                    if surface.tab_id == id && surface.request_generation == generation {
+                        assert_eq!(order,expected,"the first visible surface must not commit the old prewarm slot");
+                        return;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
     fn next(&mut self, message: &str) -> Vec<u8> {
         use terminal_host_contracts::roles::wire;
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             assert!(Instant::now() < deadline, "workspace did not answer {message}");
-            terminal_host_contracts::endpoint::set_handshake_deadline(&self.stream, deadline.saturating_duration_since(Instant::now())).unwrap();
-            let frame = wire::read_payload(&mut self.stream).unwrap().expect("workspace disconnected");
+            let frame = self.read_frame(deadline);
             if wire::kind(&frame).unwrap().message_type == message { return frame; }
         }
     }
@@ -410,6 +438,57 @@ fn workspace_utility_reveal_preserves_append_order_through_metadata_drag_and_reo
     let registry = RegistryStore::read(&b.state().join("registry.json")).unwrap().unwrap();
     assert_eq!(registry.tabs.iter().filter(|tab|tab.kind == "settings" && tab.desired != "stopped").count(),1);
     assert_eq!(registry.tabs.iter().filter(|tab|tab.kind == "changelog" && tab.desired != "stopped").count(),1);
+}
+
+#[test]
+fn workspace_first_utility_frame_uses_final_topology_without_a_caller_refresh() {
+    use terminal_host_contracts::roles::workspace::WorkspaceTab;
+    let root = tempfile::tempdir().unwrap();
+    let (a,b) = hosts(root.path());
+    a.call(&["server","--detach"]); a.create(); b.call(&["server","--detach"]);
+    let old = a.wait_child();
+    let agent_a = WorkspaceTab::id_for(&scope::fixture_token(&a.profile,&a.executable).unwrap(),"tab-1");
+    let mut client = WorkspaceClient::open(&b); client.next("welcome"); client.next("attached");
+    let settings = client.add(&b,"tab.prewarm-settings","tab.created");
+    let agent_b = client.add(&b,"tab.create","tab.created");
+    client.order(&[&agent_a,&settings,&agent_b]);
+    assert_eq!(client.add(&b,"tab.open-settings","tab.selected"),settings);
+    client.first_view_order(&settings,70,&[&agent_a,&settings,&agent_b],&[&agent_a,&agent_b,&settings]);
+    let changelog = client.add(&b,"tab.prewarm-changelog","tab.created");
+    let agent_c = client.add(&b,"tab.create","tab.created");
+    client.order(&[&agent_a,&agent_b,&settings,&changelog,&agent_c]);
+    assert_eq!(client.add(&b,"tab.open-changelog","tab.selected"),changelog);
+    client.first_view_order(&changelog,71,&[&agent_a,&agent_b,&settings,&changelog,&agent_c],&[&agent_a,&agent_b,&settings,&agent_c,&changelog]);
+    assert_eq!(a.wait_child(),old);
+}
+
+#[test]
+fn workspace_rapid_selection_and_duplicate_close_do_not_emit_internal_notices() {
+    use terminal_host_contracts::roles::{wire,workspace::WorkspaceTab};
+    let root = tempfile::tempdir().unwrap();
+    let (a,b) = hosts(root.path());
+    a.call(&["server","--detach"]); a.create(); b.call(&["server","--detach"]);
+    let old = a.wait_child();
+    let agent_a = WorkspaceTab::id_for(&scope::fixture_token(&a.profile,&a.executable).unwrap(),"tab-1");
+    let mut client = WorkspaceClient::open(&b); client.next("welcome"); client.next("attached");
+    let agent_b = client.add(&b,"tab.create","tab.created");
+    client.order(&[&agent_a,&agent_b]);
+    for generation in 1..=200 {
+        let id = if generation%2 == 0 { &agent_a } else { &agent_b };
+        wire::send(&mut client.stream,"tab.view",None,wire::ViewTarget {tab_id:id.clone(),request_generation:generation,resize:None}).unwrap();
+    }
+    client.first_view_order(&agent_a,201,&[&agent_a,&agent_b],&[&agent_a,&agent_b]);
+    wire::send(&mut client.stream,"tab.view",None,wire::ViewTarget {tab_id:agent_b.clone(),request_generation:202,resize:None}).unwrap();
+    for _ in 0..2 { wire::send(&mut client.stream,"tab.close",Some(81),wire::TabTarget {tab_id:agent_b.clone()}).unwrap(); }
+    for _ in 0..2 { let (_,answer):(_,wire::ResultBody) = wire::body(&client.next("tab.closed")).unwrap(); assert!(answer.accepted); }
+    client.order(&[&agent_a]);
+    wire::send(&mut client.stream,"tab.close",Some(82),wire::TabTarget {tab_id:agent_b.clone()}).unwrap();
+    let (_,answer):(_,wire::ResultBody) = wire::body(&client.next("tab.closed")).unwrap();
+    assert!(answer.accepted); assert_eq!(answer.message,None);
+    wire::send(&mut client.stream,"tab.view",None,wire::ViewTarget {tab_id:agent_b,request_generation:203,resize:None}).unwrap();
+    client.first_view_order(&agent_a,204,&[&agent_a],&[&agent_a]);
+    client.order(&[&agent_a]);
+    assert_eq!(a.wait_child(),old);
 }
 
 #[test]

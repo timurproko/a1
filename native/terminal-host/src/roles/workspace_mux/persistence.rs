@@ -177,7 +177,11 @@ pub(super) fn persist(
         }
         store.reorder(&order)?;
     }
-    if let Some(selected) = update.selected {
+    // Concurrency: positive source closure may overtake a queued selection; that is not a storage failure.
+    if let Some(selected) = update
+        .selected
+        .filter(|id| store.snapshot().tabs.iter().any(|tab| &tab.id == id))
+    {
         store.select(&selected)?;
     }
     Ok(store.snapshot().clone())
@@ -186,25 +190,84 @@ pub(super) fn worker(
     paths: &Paths,
     tx: mpsc::SyncSender<Event>,
     stop: Arc<AtomicBool>,
-) -> mpsc::SyncSender<Persistence> {
-    let (sender, receiver) = mpsc::sync_channel::<Persistence>(64);
+) -> Arc<mailbox::Mailbox> {
+    let sender = Arc::new(mailbox::Mailbox::default());
+    let receiver = sender.clone();
     let profile = paths.profile.clone();
     let data = paths.data.clone();
     thread::spawn(move || {
-        while let Ok(update) = receiver.recv() {
-            if stop.load(Ordering::Acquire) {
-                break;
-            }
+        while let Some(update) = receiver.take(&stop) {
             let view = update.view;
-            if tx
-                .send(Event::Metadata(persist(&profile, &data, update), view))
-                .is_err()
-            {
+            // Concurrency: another client may own the short metadata writer lease. Wait only
+            // on this worker, retaining the bounded latest-intent slot and all execution custody.
+            let result = loop {
+                let result = persist(&profile, &data, update.clone());
+                if stop.load(Ordering::Acquire) {
+                    return;
+                }
+                if result
+                    .as_ref()
+                    .is_err_and(|error| error == "workspace writer lease is held")
+                {
+                    continue;
+                }
+                break result;
+            };
+            if tx.send(Event::Metadata(result, view)).is_err() {
                 break;
             }
         }
     });
     sender
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn another_clients_writer_lease_waits_off_loop_without_error_or_lost_view() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = Paths {
+            profile: root.path().join("profile"),
+            data: root.path().join("data"),
+            root: root.path().join("release"),
+        };
+        std::fs::create_dir_all(&paths.profile).unwrap();
+        let held = WorkspaceStore::open(&paths.profile, &paths.data).unwrap();
+        let (tx, rx) = mpsc::sync_channel(16);
+        let stop = Arc::new(AtomicBool::new(false));
+        let mailbox = worker(&paths, tx, stop.clone());
+        mailbox
+            .submit(Persistence {
+                selected: None,
+                order: vec![],
+                routes: vec![],
+                view: Some(1),
+            })
+            .unwrap();
+        thread::sleep(Duration::from_millis(1200));
+        assert!(
+            matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty)),
+            "lease contention must not surface as persistence failure"
+        );
+        mailbox
+            .submit(Persistence {
+                selected: None,
+                order: vec![],
+                routes: vec![],
+                view: Some(2),
+            })
+            .unwrap();
+        drop(held);
+        for expected in [1, 2] {
+            let Event::Metadata(result, ticket) = rx.recv_timeout(Duration::from_secs(5)).unwrap()
+            else {
+                panic!("unexpected worker event")
+            };
+            assert!(result.is_ok());
+            assert_eq!(ticket, Some(expected));
+        }
+        stop.store(true, Ordering::Release);
+    }
 }
 impl Context {
     pub(super) fn metadata(
@@ -246,13 +309,8 @@ impl Context {
                         .is_some_and(|pending| Some(pending.ticket) == ticket)
                 {
                     self.pending = None;
-                    self.refused(
-                        "View selection could not be committed; queued input was not delivered.",
-                    )?;
                 }
-                self.notice(
-                    "Workspace persistence is unavailable; existing execution is unchanged.",
-                )?;
+                self.notice("Couldn't save tab changes. Try again.")?;
             }
         }
         Ok(())

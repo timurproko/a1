@@ -8,6 +8,15 @@ pub(super) fn close_tab(
     request_id: Option<u64>,
 ) -> Result<bool, String> {
     let mut locked = lock_state(&state)?;
+    // Invariant: duplicate close intent never repeats bridge/holder stop or registry persistence.
+    if locked
+        .registry
+        .tabs
+        .iter()
+        .any(|tab| tab.tab_id == tab_id && tab.desired == "stopped")
+    {
+        return Ok(true);
+    }
     if let Some(bridge) = locked.bridges.get(tab_id) {
         let _ = bridge.peer.offer_control(wire::frame(
             "bridge.stop",

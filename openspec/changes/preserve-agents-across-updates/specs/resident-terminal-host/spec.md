@@ -147,6 +147,13 @@ The workspace client SHALL preserve one append-last visible order across source 
 - **WHEN** Settings or Changelog is the only visible tab and its toggle is invoked
 - **THEN** the client SHALL show the landing, keep the utility hidden for reuse, and allow a later reveal without starting an Agent
 
+#### Scenario: Rapid tab actions reconcile without internal warnings
+- **WHEN** ordinary add, close, selection, utility-toggle or drag actions overlap delayed topology, metadata acknowledgements, duplicate Close or source observation recovery
+- **THEN** the host SHALL reconcile those transitions without displaying internal coordination warnings
+- **AND** persistence SHALL retain bounded latest intent and every affected source while waiting for metadata-writer contention outside the UI loop
+- **AND** obsolete view input SHALL never be replayed, retargeted or admitted without the matching durable selection and observed source surface
+- **AND** a genuine unrecoverable failure SHALL remain distinct from successful routine reconciliation and SHALL NOT expose internal protocol or custody details as user-facing instructions
+
 #### Scenario: A prewarmed utility frame arrives before refreshed topology
 - **WHEN** a hidden utility has an older position in the client's registry and its first selected surface is ready before the final append-order snapshot
 - **THEN** the client SHALL receive and stage the final topology before that surface can become visible

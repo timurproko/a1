@@ -566,14 +566,21 @@ pub fn is_ctrl_c_console(character: char, control: bool, key_down: bool) -> bool
 }
 
 /// The notice for a refused or failed new-tab request.
-pub fn tab_create_failure_notice(reason: Option<&str>) -> String {
-    let reason = match reason {
-        Some("tab-start-busy") => "tab starts are busy, try again shortly",
-        Some("busy") => "a tab change is still running, try again shortly",
-        Some(reason) if !reason.trim().is_empty() => reason,
-        _ => "the tab could not start",
-    };
-    format!("Could not open a tab: {reason}")
+pub fn tab_create_failure_notice(_reason: Option<&str>) -> String {
+    // Invariant: an actual launch failure must not copy source protocol, OS or custody details into chrome.
+    "Couldn't open a tab. Try again.".into()
+}
+
+/// Invariant: control-plane notifications never copy resident implementation details into chrome.
+fn control_notice(kind: &str, response: wire::ResultBody) -> Option<String> {
+    response.message?;
+    match kind {
+        "viewer.status" => None,
+        "recovery.notice" if response.accepted => None,
+        "recovery.notice" => Some("Couldn't finish that tab change. Try again.".into()),
+        "input.uncertain" => Some("Connection interrupted. Check the tab before trying again.".into()),
+        _ => None,
+    }
 }
 
 /// Most characters remembered as pressed; a stuck set is cleared rather than grown.
@@ -2983,11 +2990,11 @@ impl Client {
                 ServerEvent::HolderExit
             }
             "failure.status" => ServerEvent::Failure {
-                message: result()?.message,
+                message: result()?.message.map(|_| "This tab stopped unexpectedly. Open a new tab to continue.".into()),
             },
             "input.rejected" => return self.input_rejected(result()?.message),
             "viewer.status" | "input.uncertain" | "recovery.notice" => ServerEvent::Notice {
-                message: result()?.message,
+                message: control_notice(message_type,result()?),
             },
             _ => return Ok(None),
         }))
@@ -3003,7 +3010,7 @@ impl Client {
         if message.as_deref() == Some(crate::roles::server::INPUT_REJECTED_READ_ONLY) {
             return Ok(Some(ServerEvent::InputClaimLost));
         }
-        Ok(Some(ServerEvent::InputRejected { message }))
+        Ok(Some(ServerEvent::InputRejected { message: message.map(|_| "This input couldn't be sent. Try again.".into()) }))
     }
 
     fn apply_status(&mut self, status: &TabStatus) {
@@ -6027,23 +6034,24 @@ mod tests {
     }
 
     #[test]
-    fn new_tab_failures_name_their_reason() {
-        assert_eq!(
-            tab_create_failure_notice(Some("tab-start-busy")),
-            "Could not open a tab: tab starts are busy, try again shortly"
-        );
-        assert_eq!(
-            tab_create_failure_notice(Some("busy")),
-            "Could not open a tab: a tab change is still running, try again shortly"
-        );
-        assert_eq!(
-            tab_create_failure_notice(Some("holder launch failed")),
-            "Could not open a tab: holder launch failed"
-        );
-        assert_eq!(
-            tab_create_failure_notice(None),
-            "Could not open a tab: the tab could not start"
-        );
+    fn actual_tab_launch_failures_never_copy_internal_reasons_into_the_strip() {
+        for reason in [None, Some(""), Some("tab-start-busy"), Some("busy"),
+            Some("holder launch failed"), Some("private-path or source epoch details")] {
+            assert_eq!(tab_create_failure_notice(reason),"Couldn't open a tab. Try again.");
+        }
+    }
+
+    #[test]
+    fn control_messages_are_quiet_on_success_and_never_copy_source_diagnostics() {
+        for accepted in [false,true] {
+            let response = || wire::ResultBody {accepted,message:Some("private source epoch, holder or filesystem details".into())};
+            assert_eq!(control_notice("viewer.status",response()),None);
+            assert_eq!(control_notice("recovery.notice",response()),
+                (!accepted).then(|| "Couldn't finish that tab change. Try again.".into()));
+            assert_eq!(control_notice("input.uncertain",response()),
+                Some("Connection interrupted. Check the tab before trying again.".into()));
+        }
+        assert_eq!(control_notice("recovery.notice",wire::ResultBody::ok()),None);
     }
 
     #[test]

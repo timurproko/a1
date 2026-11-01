@@ -6,6 +6,7 @@ pub(super) struct Pending {
     destination: usize,
     id: String,
     generation: u64,
+    saved: bool,
     ready: bool,
     frame: Envelope,
     resize: Option<Envelope>,
@@ -13,6 +14,13 @@ pub(super) struct Pending {
     bytes: usize,
 }
 impl Pending {
+    fn disconnected(&mut self, index: usize) {
+        if self.destination == index {
+            self.ready = false;
+            self.input.clear();
+            self.bytes = 0;
+        }
+    }
     fn observes(&self, index: usize, frame: &Envelope) -> bool {
         self.destination == index
             && self.ready
@@ -53,13 +61,8 @@ impl Context {
         frame: Envelope,
     ) -> Result<(), String> {
         self.routing.admitted = false;
-        if self
-            .pending
-            .take()
-            .is_some_and(|pending| !pending.input.is_empty())
-        {
-            self.refused("Previous view was superseded; its queued input was not delivered.")?;
-        }
+        // Invariant: an explicit newer view cancels the old undelivered intent without a UI warning.
+        self.pending = None;
         self.view_ticket = self
             .view_ticket
             .checked_add(1)
@@ -67,14 +70,12 @@ impl Context {
         let ticket = self.view_ticket;
         let generation = number(frame.body.get("request_generation"));
         let snapshot = (!self.model.layout.tabs.iter().any(|tab| tab.id == id)).then_some(index);
-        if !self.save(
+        self.save(
             Some(id.clone()),
             self.model.order.clone(),
             snapshot,
             Some(ticket),
-        )? {
-            return self.refused("View was not admitted; input was not delivered.");
-        }
+        )?;
         self.routing.active = index;
         self.routing.signal.store(index, Ordering::Release);
         self.model.viewed = Some(id.clone());
@@ -87,6 +88,7 @@ impl Context {
             destination: index,
             id,
             generation,
+            saved: false,
             ready: false,
             frame,
             resize: None,
@@ -103,11 +105,50 @@ impl Context {
         else {
             return Ok(());
         };
+        if self.model.layout.selected.as_deref() != Some(pending.id.as_str()) {
+            // Concurrency: positive closure overtook this exact save. Refresh, never admit an
+            // uncommitted target or paint a storage error for an ordinary close.
+            let index = pending.destination;
+            self.pending = None;
+            return wire::send(
+                &mut self.sources[index].writer,
+                "tab.list",
+                None,
+                wire::ResultBody::ok(),
+            );
+        }
+        pending.saved = true;
+        self.publish_saved_view()
+    }
+    /// Protocol: publish final topology before the source can produce the first selected surface.
+    pub(super) fn publish_saved_view(&mut self) -> Result<(), String> {
+        let Some(pending) = self
+            .pending
+            .as_ref()
+            .filter(|pending| pending.saved && !pending.ready)
+        else {
+            return Ok(());
+        };
         let index = pending.destination;
         if !self.sources[index].connected {
-            self.pending = None;
-            return self.uncertain(None);
+            return Ok(());
         }
+        if !self.sources[index]
+            .tabs
+            .iter()
+            .any(|tab| tab.tab_id == pending.id)
+        {
+            return wire::send(
+                &mut self.sources[index].writer,
+                "tab.list",
+                None,
+                wire::ResultBody::ok(),
+            );
+        }
+        // Protocol: the client may already know this prewarmed ID at an obsolete position.
+        // A surface arriving first would commit that old topology for one visible frame.
+        self.list(None)?;
+        let pending = self.pending.as_mut().unwrap();
         pending.ready = true;
         self.routing.views.insert(index, pending.frame.clone());
         send_value(&mut self.sources[index].writer, &pending.frame)?;
@@ -137,7 +178,7 @@ impl Context {
             || pending.bytes.saturating_add(size) > protocol::MAX_FRAME_BYTES
         {
             self.pending = None;
-            self.refused("Pending view input exceeded its bound and was not delivered.")?;
+            self.refused("Too much input at once. Wait for the tab and try again.")?;
         } else {
             pending.bytes += size;
             pending.input.push(frame.clone());
@@ -161,8 +202,23 @@ impl Context {
         }
         Ok(())
     }
-    /// Restore observation only. Input stays fenced until the exact restored view is observed.
+    /// Concurrency: source loss revokes readiness without discarding view/resize intent or replaying input.
+    pub(super) fn view_disconnected(&mut self, index: usize) {
+        self.routing.admitted = false;
+        if let Some(pending) = self.pending.as_mut() {
+            pending.disconnected(index);
+        }
+    }
+    /// Invariant: restore observation only; input stays fenced until the exact restored view is observed.
     pub(super) fn restore_view(&mut self, index: usize) -> Result<(), String> {
+        if let Some(pending) = self
+            .pending
+            .as_mut()
+            .filter(|pending| pending.destination == index)
+        {
+            pending.ready = false;
+            return self.publish_saved_view();
+        }
         let resize = self.routing.resizes.get(&index).cloned();
         if index == self.routing.active {
             self.routing.admitted = false;
@@ -210,7 +266,7 @@ impl Context {
             .is_some_and(|pending| routing::target(&self.sources, &pending.id).is_none())
         {
             self.pending = None;
-            self.refused("Requested view closed; its queued input was not delivered.")?;
+            self.list(None)?;
         }
         Ok(())
     }
@@ -237,6 +293,7 @@ mod tests {
             destination: 2,
             id: "requested".into(),
             generation: 7,
+            saved: false,
             ready: false,
             frame: frame("requested", 7),
             resize: None,
@@ -250,6 +307,24 @@ mod tests {
         assert!(!pending.observes(2, &frame("requested", 6)));
         assert!(!pending.observes(2, &frame("requested", 8)));
         assert!(pending.observes(2, &frame("requested", 7)));
+        pending.saved = true;
+        pending.resize = Some(frame("resize", 7));
+        pending.input.push(frame("input", 7));
+        pending.bytes = 10;
+        pending.disconnected(1);
+        assert!(pending.ready);
+        assert_eq!(pending.input.len(), 1);
+        pending.disconnected(2);
+        assert!(!pending.ready);
+        assert!(pending.saved);
+        assert!(pending.input.is_empty());
+        assert_eq!(pending.bytes, 0);
+        assert!(pending.resize.is_some());
+        assert_eq!(pending.id, "requested");
+        assert!(
+            !pending.observes(2, &frame("requested", 7)),
+            "reconnect must negotiate observation again before input"
+        );
     }
     #[test]
     fn committed_surface_fences_late_other_tabs_and_old_or_future_generations() {

@@ -82,7 +82,9 @@ async function until<T>(probe: () => T | undefined | Promise<T | undefined>, lab
 /** Actual published native host and real A1 engines, with model traffic confined to a held loopback stream. */
 export async function exerciseResidentPredecessor(priorRoot: string, candidateRoot: string, fixture: PredecessorFixture): Promise<void> {
   const root = await fixture.temporaryRoot("resident-predecessor-");
-  const profile = join(root, "profile"), data = join(root, "data"), runtime = join(root, "runtime"), cwd = join(root, "project");
+  // Rationale: macOS's long per-user temporary directory exceeds the Unix socket path budget.
+  const runtime = await fixture.temporaryRuntimeRoot();
+  const profile = join(root, "profile"), data = join(root, "data"), cwd = join(root, "project");
   for (const directory of [profile, data, runtime, cwd]) { await mkdir(directory, { recursive: true }); if (process.platform !== "win32") await chmod(directory, 0o700); }
   const toolScript = join(root, "held-tool.cjs"), toolIdentity = join(root, "tool.identity.json"), toolRelease = join(root, "tool.release"), toolDone = join(root, "tool.done"), toolStarts = join(root, "tool.starts"), toolProgress = join(root, "tool.progress");
   await writeFile(toolScript, `const fs=require('node:fs'),crypto=require('node:crypto');
