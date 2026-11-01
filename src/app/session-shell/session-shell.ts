@@ -109,7 +109,8 @@ const SOLO_RESUME_HINTS = new WeakSet<OwnedUiSessionPresenter>();
 /** Resident Agents refuse the commands their tab bar serves instead, naming where they live. */
 const RESIDENT_UTILITY_TAB_REFUSALS: Readonly<Record<string, string>> = Object.freeze({
   settings: "Settings is available from the global Settings tab.",
-  changelog: "The changelog opens as its own tab from the command palette (Alt+/).",
+  // Platform: macOS labels Alt `Option`.
+  changelog: `The changelog opens as its own tab from the command palette (${process.platform === "darwin" ? "Option" : "Alt"}+/).`,
   name: "Rename the session by renaming its tab (F2).",
 });
 
