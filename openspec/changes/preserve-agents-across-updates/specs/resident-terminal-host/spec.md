@@ -147,6 +147,22 @@ The workspace client SHALL preserve one append-last visible order across source 
 - **WHEN** Settings or Changelog is the only visible tab and its toggle is invoked
 - **THEN** the client SHALL show the landing, keep the utility hidden for reuse, and allow a later reveal without starting an Agent
 
+#### Scenario: Plain launch has no live Agents
+- **WHEN** plain A1 launch authenticates a complete profile roster containing no live Agents, including a roster containing only hidden utilities
+- **THEN** the client SHALL show the landing without starting an Agent or acquiring an Agent session writer
+- **AND** explicit Agent creation SHALL create new execution on the selected release only when requested
+
+#### Scenario: Plain launch reconnects retained Agents without an empty-state flash
+- **WHEN** plain A1 launch authenticates a complete live profile roster containing retained Agents
+- **THEN** it SHALL reconnect those same processes and present the retained topology and selected complete surface without an intermediate landing
+- **AND** uncertain, unavailable or incompatible source state SHALL NOT be classified as an empty workspace
+
+#### Scenario: Native fixture execution is not a workstation prerequisite
+- **WHEN** a developer selects local validation without an approved isolated native fixture environment
+- **THEN** local checks SHALL NOT build or launch fixture-enabled native programs
+- **AND** required native process evidence SHALL remain assigned to reviewed isolated CI with active security controls, never silently omitted or replaced with vector-only tests
+- **AND** security detections SHALL fail closed without exclusions, restored quarantined artifacts or detection-avoidance rebuilds
+
 #### Scenario: Rapid tab actions reconcile without internal warnings
 - **WHEN** ordinary add, close, selection, utility-toggle or drag actions overlap delayed topology, metadata acknowledgements, duplicate Close or source observation recovery
 - **THEN** the host SHALL reconcile those transitions without displaying internal coordination warnings

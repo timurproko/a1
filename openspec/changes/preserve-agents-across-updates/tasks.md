@@ -42,3 +42,12 @@
 - [x] 5.8 Reconcile duplicate close and late view requests against known-closed identities without internal-error banners, replaying close, or redirecting actions to another tab.
 - [x] 5.9 Coalesce bounded topology persistence behind the UI so rapid tab actions retain the latest selection/order and every affected source without surfacing routine queue contention or dropping accepted view intent.
 - [x] 5.10 Audit all tab-lifecycle notification producers, keep advisory discovery and successful recovery quiet, fence reconnect input, and prevent immutable source diagnostics from being copied into terminal chrome.
+
+## 6. Approved attach-only startup and native-fixture isolation
+
+- [ ] 6.1 Keep plain workspace attach from forwarding implicit creation, while preserving explicit new-Agent and session-open intent.
+- [ ] 6.2 Choose startup selection from the complete authenticated live roster; utility-only/empty state shows the landing and retained Agents never flash the landing first.
+- [ ] 6.3 Add empty, utility-only, retained/mixed-release and explicit-create/session regression cases without locally executing native fixtures.
+- [ ] 6.4 Add non-native local validation and fail-closed fixture compilation/execution guards that cannot be bypassed by the ordinary local native-build override.
+- [ ] 6.5 Bind native fixture CI to a reviewed disposable isolated environment with no production credentials, restricted egress and enabled Defender; detection or unavailable isolation blocks, never skips, required native evidence.
+- [ ] 6.6 Add policy/workflow regressions, reconcile the current macOS predecessor custody failure without weakening epoch/login checks, and record security/platform limitations before final readiness.

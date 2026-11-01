@@ -105,6 +105,14 @@ Settings and Changelog share singleton toggles. Toggling an active utility hides
 
 Regression coverage must drive complete event sequences and actual workspace source routing, not merely prove `Vec::push`: delayed/reordered source and persistence results, hidden prewarm/reveal, Agent creation handoff, utility toggle/close, active/background close, drag/overflow/navigation, reconnect, and stable rendered tab/body identity. Existing native controller and text-terminal guarantees remain unchanged.
 
+## Approved empty launch and native-fixture isolation refinement
+
+The maintainer explicitly approved both refinements in PR 858. Plain `a1` is an attach operation, not a create operation: after authenticated complete source discovery, select an existing live Agent workspace or show the landing when no Agent exists. Hidden/prewarmed utilities alone do not establish an Agent workspace. Unknown or incompatible source state is not proof of emptiness. Existing live topology and a complete selected source surface must remain the first nonempty presentation; no initial landing is painted while resolving known retained Agents. Explicit `tab.create` and explicit session-open requests retain their intent, release-local execution and writer boundaries.
+
+The Defender `Trojan:Win32/Bearfoos.A!ml` detection is unresolved. Earlier local test passes establish neither safety nor a false positive. Keep flagged artifacts quarantined and do not rebuild, copy under new names, restore or execute them to evade detection. All local A1 native compilation and execution remain paused during this refinement. Use static/type checks and explicitly non-native regression files locally.
+
+Native process fixtures retain their true multi-release and process-identity assertions, but building/running fixture-enabled code requires the isolated CI policy rather than a local-build override or a generic `CI=1`. Windows execution must keep Defender enabled and fail on detections; the reviewed disposable runner must have no production credentials and restricted egress. An unavailable or unreviewed execution boundary blocks native evidence rather than silently skipping tests or claiming certification. Workflow approval/provisioning and a security verdict must not be fabricated from successful tests. Existing required native targets remain required.
+
 ## Alternatives Rejected
 
 - Idle-boundary process migration: explicitly rejected by the maintainer; alters existing Agents and introduces new interruption/recovery risk without being necessary for client continuity.

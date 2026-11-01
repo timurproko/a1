@@ -13,6 +13,9 @@ A1 promises that agents continue working when their terminal closes and that reo
 - Exercise the first fixed launch against actual supported already-running published predecessors, not only candidate-created fixtures. An error tile or inaccessible tab does not satisfy seamless restoration.
 - Preserve predictable tab-bar transitions across that workspace: every newly visible tab appends after existing tabs, including initializing Agents; existing visible utilities activate in place; utility toggles hide/reveal without unintended order, focus or blank-frame flashes. Keep the already delivered slim Settings/Changelog views unchanged and cover source aggregation plus presentation with automated regression sequences.
 
+- Plain A1 launch reconnects the authenticated live workspace without implicitly creating an Agent. A positively empty workspace renders the landing; a nonempty workspace waits for its coherent retained view without an intermediate landing. Explicit Agent creation and explicit session-open intent remain distinct.
+- Keep native process fixtures off the workstation after the active Defender detection. Provide a non-native local validation path and require reviewed, disposable isolated CI execution with Defender enabled and fail-closed detection handling, without reducing release-isolation coverage or restoring quarantined files.
+
 ## Capabilities
 
 ### New Capabilities
