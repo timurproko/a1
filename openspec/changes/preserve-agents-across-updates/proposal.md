@@ -11,6 +11,7 @@ A1 promises that agents continue working when their terminal closes and that reo
 - Make a compatible control path to all affected live runtimes a prerequisite for activation/restart readiness. If it cannot be established, retain a verified usable client and do not announce a completed/restart-ready update that would strand Agents.
 - Keep process/recovery artifacts retained across client and coordinator replacement. Concurrent relaunch and interrupted control-plane handoff must not duplicate Agents, replay work or commit an empty workspace.
 - Exercise the first fixed launch against actual supported already-running published predecessors, not only candidate-created fixtures. An error tile or inaccessible tab does not satisfy seamless restoration.
+- Preserve predictable tab-bar transitions across that workspace: every newly visible tab appends after existing tabs, including initializing Agents; existing visible utilities activate in place; utility toggles hide/reveal without unintended order, focus or blank-frame flashes. Keep the already delivered slim Settings/Changelog views unchanged and cover source aggregation plus presentation with automated regression sequences.
 
 ## Capabilities
 

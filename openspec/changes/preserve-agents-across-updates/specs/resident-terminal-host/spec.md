@@ -127,3 +127,26 @@ Client/coordinator replacement and interrupted activation SHALL reconcile the co
 #### Scenario: Cleanup runs during client replacement
 - **WHEN** cleanup observes an updated client with an empty release-local registry but the profile still references live A execution
 - **THEN** A's runtime/dependency/recovery artifacts SHALL remain retained and B's empty registry SHALL NOT establish that the profile has no Agents
+
+### Requirement: Federated tab transitions preserve the visible strip contract
+The workspace client SHALL preserve one append-last visible order across source releases, hidden prewarm and asynchronous topology/persistence updates. An initializing Agent SHALL retain its appended position when its committed identity arrives. Opening an already visible singleton SHALL activate it in place; revealing a hidden singleton SHALL append it last. Metadata acknowledgements and lifecycle or color transitions SHALL NOT reorder tabs or steal focus. Settings and Changelog SHALL retain their existing slim composition and common selected background without an Agent initialization fill. Toggling an active utility SHALL hide it for reuse, including when it is the only visible tab; explicit Close SHALL remain a distinct instance-removal operation. Active close/hide SHALL prefer the immediate left neighbour, then a surviving right neighbour, or the landing when none remains. Hidden utilities SHALL NOT become automatic fallback views. Source surfaces SHALL be fenced to the requested logical tab and generation so open/close/switch commits expose no stale tab, duplicate chip, blank child frame, or unintended intermediate selection.
+
+#### Scenario: Hidden Settings opens beside existing Agents
+- **WHEN** hidden Settings was prewarmed before one or more Agents joined the visible strip and the user opens it
+- **THEN** Settings SHALL append after those Agents and become active without revealing its earlier prewarm position
+
+#### Scenario: Initializing Agent and utility overlap
+- **WHEN** the user adds an Agent and opens Settings before its first real frame commits
+- **THEN** the Agent's appended position SHALL stay before the later Settings tab and its completion SHALL NOT take focus back
+
+#### Scenario: Delayed persistence follows a newer drag or reveal
+- **WHEN** an earlier metadata result arrives after a newer visible reorder or utility reveal
+- **THEN** that result SHALL NOT overwrite the newer visible order or select an unrelated tab
+
+#### Scenario: The only visible utility is toggled off
+- **WHEN** Settings or Changelog is the only visible tab and its toggle is invoked
+- **THEN** the client SHALL show the landing, keep the utility hidden for reuse, and allow a later reveal without starting an Agent
+
+#### Scenario: Source frames race close and selection
+- **WHEN** a closed or superseded source view produces a late surface while another logical tab is requested
+- **THEN** only the requested source/tab/generation SHALL commit and no stale body, chip selection or child cursor SHALL flash before it

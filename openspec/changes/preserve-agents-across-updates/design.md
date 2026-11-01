@@ -93,6 +93,18 @@ Candidate-only fixtures do not establish access to already-running older Agents.
 
 Where a predecessor lacks a needed capability, provide a verified compatible client adapter for normal control or declare candidate activation incompatible before restart readiness. A visible error tile or manual session reopening is not delivery of this outcome. Pre-cutover private contracts remain ineligible; any deliberate cutover is separate authorization, not an automatic data/process migration shortcut.
 
+## Approved tab-bar refinement
+
+The maintainer approved restoring the established tab-bar contract and automated coverage after observing Settings inserted before already-added Agents and open/close flashes. Keep the existing slim utility composition and its fast-loading mechanism; this work changes tab topology and presentation, not utility startup architecture.
+
+Use one visible order independent of source discovery and hidden prewarm order. Newly shown utilities and new Agents append after every currently shown tab; an initializing Agent reserves the same position as its committed identity. A visible singleton is selected in place, while a hidden one appends on reveal. Metadata acknowledgements, source snapshots and lifecycle/color transitions cannot overwrite newer user order.
+
+Commit only the requested source/tab/view surface. Superseded source frames and intermediate topology snapshots cannot repaint an old active tab, steal focus or expose a blank child/cursor. Retain the Agent-only initializing shade/fill and common final active background without delaying ready body/input.
+
+Settings and Changelog share singleton toggles. Toggling an active utility hides it for reuse, including when it is the only visible tab; that case shows the landing. Explicit Close stops/removes the instance. Closing or hiding the active tab selects its immediate left neighbour, then a surviving right neighbour; hidden utilities never become fallback tabs. Input bound to a cancelled view never leaks into the fallback.
+
+Regression coverage must drive complete event sequences and actual workspace source routing, not merely prove `Vec::push`: delayed/reordered source and persistence results, hidden prewarm/reveal, Agent creation handoff, utility toggle/close, active/background close, drag/overflow/navigation, reconnect, and stable rendered tab/body identity. Existing native controller and text-terminal guarantees remain unchanged.
+
 ## Alternatives Rejected
 
 - Idle-boundary process migration: explicitly rejected by the maintainer; alters existing Agents and introduces new interruption/recovery risk without being necessary for client continuity.

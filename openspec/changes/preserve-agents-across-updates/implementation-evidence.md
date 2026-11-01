@@ -2,7 +2,7 @@
 
 ## Delivery status
 
-The approved implementation and regression cases are written in the existing branch and PR. Detailed task markers represent delivered code and tests, not pending CI or optional manual acceptance. Architecture/evidence reconciliation is complete, substantive tasks are checked, and current `origin/develop` is merged before the final outcome marker. Trusted automation owns readiness, finalization and exact-head validation; no agent-owned ready transition or merge is authorized.
+The preceding continuity implementation and regression cases are written in the existing branch and PR. The maintainer subsequently approved predictable tab-bar refinement after reporting ordering and presentation regressions; section 5 tasks are open, the affected PR outcome is unchecked, and the same PR is draft until that delivered behavior and coverage are complete. Detailed task markers represent delivered code and tests, not pending CI or optional manual acceptance. Architecture/evidence reconciliation is complete, substantive tasks are checked, and current `origin/develop` is merged before the final outcome marker. Trusted automation owns readiness, finalization and exact-head validation; no agent-owned ready transition or merge is authorized.
 
 No production Agent, holder, tool, supervisor or session was stopped or modified. Process scenarios use fixture-owned profiles, stripped inherited launch credentials, loopback model traffic and separately owned published installations. Cleanup stops only those fixtures, cooperatively releases the held tool, verifies its exit, and retains roots if closure is unverified, including partial startup or malformed cleanup metadata.
 
