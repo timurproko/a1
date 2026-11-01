@@ -7,6 +7,8 @@ The maintainer integration decision accepts these scenarios:
 - Option+A creates an Agent tab, Option+W closes the tab, Option+Comma opens Settings, and Option+Slash opens Commands, with no character reaching the agent.
 - Option characters whose Alt chord is not bound to a tab action, such as Option+P, still type their character.
 - After a tab action is rebound, its old Option character types again, and Windows, Linux, and terminals already sending Option as Alt behave as before.
+- On macOS the tab menu shows Close Option+W, and the Commands palette, plus menu, Keyboard Shortcuts, and modal hints all name Alt Option, while Windows and Linux keep Alt.
+- A failed tab's banner names the effective close shortcut and omits it when close is unbound.
 
 ```openspec-delivery
 {
@@ -22,7 +24,9 @@ The maintainer integration decision accepts these scenarios:
     "On macOS with a stock terminal configuration, Option+1 through Option+0 view tabs one through ten instead of typing symbols into the agent prompt.",
     "Option+A creates an Agent tab, Option+W closes the tab, Option+Comma opens Settings, and Option+Slash opens Commands, with no character reaching the agent.",
     "Option characters whose Alt chord is not bound to a tab action, such as Option+P, still type their character.",
-    "After a tab action is rebound, its old Option character types again, and Windows, Linux, and terminals already sending Option as Alt behave as before."
+    "After a tab action is rebound, its old Option character types again, and Windows, Linux, and terminals already sending Option as Alt behave as before.",
+    "On macOS the tab menu shows Close Option+W, and the Commands palette, plus menu, Keyboard Shortcuts, and modal hints all name Alt Option, while Windows and Linux keep Alt.",
+    "A failed tab's banner names the effective close shortcut and omits it when close is unbound."
   ],
   "archiveDigest": "47eb436b85278de83ecab06eeb5e30823f4179bf14256cd8d5a674b727d11f3c",
   "specDigest": "a2ec2649cc170902a4e17a1682a576a23268975d42c2268a43962acac202122f",
