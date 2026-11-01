@@ -636,13 +636,50 @@ const MACOS_OPTION_LAYER: &[(char, char)] = &[
     ('«', '\\'), ('–', '-'), ('≠', '='),
 ];
 
+/// Platform: macOS keyboard layouts whose Option layer is `MACOS_OPTION_LAYER`. Other layouts type
+/// characters such as `å`, `£`, `§`, and `¡` as ordinary keys, so they are never remapped.
+const MACOS_OPTION_LAYOUTS: &[&str] = &["com.apple.keylayout.ABC", "com.apple.keylayout.US"];
+
+/// Reads whether the active macOS keyboard layout is one of `MACOS_OPTION_LAYOUTS`.
+fn macos_option_layout_active() -> bool {
+    std::process::Command::new("/usr/bin/defaults")
+        .args(["read", "com.apple.HIToolbox", "AppleCurrentKeyboardLayoutInputSourceID"])
+        .output()
+        .ok()
+        .filter(|output| output.status.success())
+        .is_some_and(|output| {
+            MACOS_OPTION_LAYOUTS.contains(&String::from_utf8_lossy(&output.stdout).trim())
+        })
+}
+
+/// The active-layout answer, reread at most once a second so a layout switch applies promptly.
+#[derive(Debug, Default)]
+struct OptionLayout {
+    checked: Option<(Instant, bool)>,
+}
+
+impl OptionLayout {
+    fn active(&mut self) -> bool {
+        if let Some((at, active)) = self.checked
+            && at.elapsed() < Duration::from_secs(1)
+        {
+            return active;
+        }
+        let active = macos_option_layout_active();
+        self.checked = Some((Instant::now(), active));
+        active
+    }
+}
+
 /// Platform: a stock macOS terminal sends Option+key as its Option-layer character, which crossterm
 /// reports without Alt. That character becomes its Alt chord only when the chord is bound to a tab
-/// action, so every other Option character still types and real Alt input is untouched.
+/// action and the active layout is ABC/US, so every other character still types and real Alt input is
+/// untouched. `layout_active` runs only for such a bound candidate, keeping ordinary typing free.
 fn admit_option_shortcut(
     macos: bool,
     bindings: &TabBindings,
     key: crossterm::event::KeyEvent,
+    layout_active: impl FnOnce() -> bool,
 ) -> crossterm::event::KeyEvent {
     if !macos || !key.modifiers.difference(KeyModifiers::SHIFT).is_empty() {
         return key;
@@ -656,7 +693,7 @@ fn admit_option_shortcut(
     let mut chord = key;
     chord.code = KeyCode::Char(base);
     chord.modifiers = KeyModifiers::ALT;
-    if bindings.action(&chord).is_some() {
+    if bindings.action(&chord).is_some() && layout_active() {
         chord
     } else {
         key
@@ -2056,6 +2093,7 @@ struct Client {
     preview_footer_hold: Option<Vec<u8>>,
     swap_in_flight: Option<String>,
     bindings: TabBindings,
+    option_layout: OptionLayout,
     channel: InputChannel,
     chord: DoubleCtrlC,
     create: TabCreate,
@@ -2128,6 +2166,7 @@ impl Client {
             preview_footer_hold: None,
             swap_in_flight: None,
             bindings: TabBindings::load(options.profile),
+            option_layout: OptionLayout::default(),
             channel: handshake.channel,
             chord: DoubleCtrlC::new(options.clear_exit_ms),
             create: handshake.create,
@@ -3300,7 +3339,9 @@ impl Client {
 
     /// Returns `true` when the key detached this client.
     fn key(&mut self, core: &mut State, key: crossterm::event::KeyEvent) -> Result<bool, String> {
-        let key = admit_option_shortcut(cfg!(target_os = "macos"), &self.bindings, key);
+        let key = admit_option_shortcut(cfg!(target_os = "macos"), &self.bindings, key, || {
+            self.option_layout.active()
+        });
         let action = self.bindings.action(&key).map(str::to_owned);
         if suppress_pending_close_repeat(&mut self.pending_close_quiet_until, action.as_deref(), key.kind,
             core.view.pending_agent_visible, Instant::now()) {
@@ -4832,7 +4873,7 @@ mod tests {
             ('≤', "tabs.settings"), ('÷', "tabs.commands"),
         ];
         for (typed, action) in expected {
-            let admitted = admit_option_shortcut(true, &bindings, option_key(typed));
+            let admitted = admit_option_shortcut(true, &bindings, option_key(typed), || true);
             assert!(admitted.modifiers.contains(KeyModifiers::ALT), "{typed} becomes an Alt chord");
             assert_eq!(bindings.action(&admitted), Some(action), "{typed}");
             assert_eq!(bindings.action(&option_key(typed)), None, "{typed} alone matches nothing");
@@ -4840,17 +4881,30 @@ mod tests {
     }
 
     #[test]
+    fn other_keyboard_layouts_type_option_layer_characters_as_letters() {
+        let profile = tempfile::tempdir().unwrap();
+        let bindings = TabBindings::load(profile.path());
+        // Platform: Swedish types å, UK types £, and Spanish types ¡ as ordinary keys.
+        for typed in ['å', '£', '¡', '∑', '≤', '÷'] {
+            assert_eq!(admit_option_shortcut(true, &bindings, option_key(typed), || false), option_key(typed));
+        }
+        assert_eq!(MACOS_OPTION_LAYOUTS, ["com.apple.keylayout.ABC", "com.apple.keylayout.US"]);
+        let mut cached = OptionLayout { checked: Some((Instant::now(), true)) };
+        assert!(cached.active(), "a fresh answer is reused without rereading the layout");
+    }
+
+    #[test]
     fn unbound_option_characters_and_real_alt_input_are_unchanged() {
         let profile = tempfile::tempdir().unwrap();
         let bindings = TabBindings::load(profile.path());
         for typed in ['π', 'ø', '≈', 'µ'] {
-            assert_eq!(admit_option_shortcut(true, &bindings, option_key(typed)), option_key(typed));
+            assert_eq!(admit_option_shortcut(true, &bindings, option_key(typed), || panic!("unbound keys never read the layout")), option_key(typed));
         }
         let real_alt = crossterm::event::KeyEvent::new(KeyCode::Char('1'), KeyModifiers::ALT);
-        assert_eq!(admit_option_shortcut(true, &bindings, real_alt), real_alt);
+        assert_eq!(admit_option_shortcut(true, &bindings, real_alt, || panic!("real Alt never reads the layout")), real_alt);
         assert_eq!(bindings.action(&real_alt), Some("tabs.jump1"));
         let control = crossterm::event::KeyEvent::new(KeyCode::Char('å'), KeyModifiers::CONTROL);
-        assert_eq!(admit_option_shortcut(true, &bindings, control), control);
+        assert_eq!(admit_option_shortcut(true, &bindings, control, || panic!("modified keys never read the layout")), control);
     }
 
     #[test]
@@ -4858,11 +4912,11 @@ mod tests {
         let profile = tempfile::tempdir().unwrap();
         std::fs::write(profile.path().join("keybindings.json"), br#"{"tabs.new":"alt+n"}"#).unwrap();
         let rebound = TabBindings::load(profile.path());
-        assert_eq!(admit_option_shortcut(true, &rebound, option_key('å')), option_key('å'));
+        assert_eq!(admit_option_shortcut(true, &rebound, option_key('å'), || panic!("an unbound chord never reads the layout")), option_key('å'));
         assert_eq!(rebound.action(&option_key('å')), None, "å types once Alt+A is free");
 
         let defaults = TabBindings::load(tempfile::tempdir().unwrap().path());
-        assert_eq!(admit_option_shortcut(false, &defaults, option_key('¡')), option_key('¡'));
+        assert_eq!(admit_option_shortcut(false, &defaults, option_key('¡'), || panic!("other platforms never read the layout")), option_key('¡'));
         assert_eq!(defaults.action(&option_key('¡')), None, "Windows and Linux type ¡");
     }
 

@@ -4,6 +4,7 @@
 
 - [x] 1.1 Add the ABC/US Option-layer table and an admission step that, on macOS only, turns an unmodified or Shift-only mapped character into its `Alt` chord when that chord resolves to a tab action, leaving all other keys unchanged.
 - [x] 1.2 Apply the admission step before the attach client's binding lookup with the platform supplied by the caller.
+- [x] 1.3 Map only while the active macOS layout is ABC or U.S., reading it only for a bound candidate with a one-second cache, and send the interaction parity harness's steps as UTF-8 instead of double-encoded Latin-1.
 
 ## 2. Cover the behavior
 

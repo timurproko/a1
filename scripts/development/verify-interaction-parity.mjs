@@ -233,7 +233,9 @@ async function driveCandidate(candidate, terminal, cases, platform) {
   for (const entry of cases) {
     const sentAt = performance.now();
     for (const chunk of entry.steps.map(step => stepBytes(step, rowOffset)).filter(Boolean)) {
-      terminal.write(chunk.toString("latin1"));
+      // Invariant: node-pty encodes written strings as UTF-8, so each step's UTF-8 bytes decode back
+      // to the step text; a Latin-1 string would double-encode every non-ASCII character.
+      terminal.write(chunk.toString("utf8"));
       await new Promise(resolvePromise => setTimeout(resolvePromise, STEP_GAP_MS));
     }
     // Invariant: a case is complete once its child has gone quiet; a key no child can observe

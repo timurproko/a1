@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: macOS Option characters trigger bound tab shortcuts
-On macOS, the attach client SHALL treat an unmodified or Shift-only character key whose character the macOS ABC/US Option layer produces for a base key as that base key's `Alt` chord when, and only when, the chord resolves to a tab action. It SHALL then dispatch that action exactly as for the `Alt` chord and SHALL forward no input for that key to the child. The Option layer SHALL map `1`…`0` to `¡ ™ £ ¢ ∞ § ¶ • ª º`, the letters without dead keys `a b c d f g h j k l m o p q r s t v w x y z` to `å ∫ ç ∂ ƒ © ˙ ∆ ˚ ¬ µ ø π œ ® ß † √ ∑ ≈ ¥ Ω`, and `, . / ; ' [ ] \ - =` to `≤ ≥ ÷ … æ “ ‘ « – ≠`. A mapped character whose `Alt` chord is unbound or bound to a non-tab action SHALL be typed as before. `ESC`-prefixed and kitty-protocol `Alt` input SHALL keep its existing handling, and the mapping SHALL NOT apply on Windows or Linux.
+On macOS, while the active keyboard layout is ABC or U.S., the attach client SHALL treat an unmodified or Shift-only character key whose character the macOS ABC/US Option layer produces for a base key as that base key's `Alt` chord when, and only when, the chord resolves to a tab action. Under any other layout, where characters such as `å`, `£`, `§`, and `¡` are ordinary keys, it SHALL forward them unchanged. The client SHALL read the active layout only for such a bound candidate and SHALL reflect a layout switch within about one second. It SHALL then dispatch that action exactly as for the `Alt` chord and SHALL forward no input for that key to the child. The Option layer SHALL map `1`…`0` to `¡ ™ £ ¢ ∞ § ¶ • ª º`, the letters without dead keys `a b c d f g h j k l m o p q r s t v w x y z` to `å ∫ ç ∂ ƒ © ˙ ∆ ˚ ¬ µ ø π œ ® ß † √ ∑ ≈ ¥ Ω`, and `, . / ; ' [ ] \ - =` to `≤ ≥ ÷ … æ “ ‘ « – ≠`. A mapped character whose `Alt` chord is unbound or bound to a non-tab action SHALL be typed as before. `ESC`-prefixed and kitty-protocol `Alt` input SHALL keep its existing handling, and the mapping SHALL NOT apply on Windows or Linux.
 
 #### Scenario: Option+1 selects the first tab
 - **WHEN** the user presses Option+1 on macOS in a terminal that sends `¡` and `tabs.jump1` keeps its default `Alt+1`
@@ -20,6 +20,10 @@ On macOS, the attach client SHALL treat an unmodified or Shift-only character ke
 #### Scenario: A rebound action follows its new chord
 - **WHEN** `tabs.new` is rebound from `Alt+A` to `Alt+N` and the user presses Option+A on macOS
 - **THEN** `å` SHALL be typed and no tab SHALL be created
+
+#### Scenario: Another layout types the character
+- **WHEN** the active macOS layout is Swedish and the user presses the `å` key
+- **THEN** `å` SHALL be forwarded to the child and no tab SHALL be created
 
 #### Scenario: Other platforms are unchanged
 - **WHEN** a Windows or Linux attach client receives `¡` as an unmodified character
