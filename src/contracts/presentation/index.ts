@@ -48,7 +48,8 @@ const SHORTCUT_KEY_NAMES: Readonly<Record<string, string>> = Object.freeze({
 export function displayShortcutKeyLabel(label: string): string {
   if (label === "/") return label;
   return label.split("/").map(chord => chord.split("+").map(part => {
-    const named = SHORTCUT_KEY_NAMES[part.toLowerCase()];
+    // Platform: macOS labels Alt `Option`, as pinned Pi does.
+    const named = process.platform === "darwin" && part.toLowerCase() === "alt" ? "Option" : SHORTCUT_KEY_NAMES[part.toLowerCase()];
     if (named !== undefined) return named;
     return /^\p{L}$/u.test(part) ? part.toUpperCase() : part;
   }).join("+")).join("/");

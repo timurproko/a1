@@ -343,6 +343,8 @@ pub fn project_tab_shortcuts(
 struct TabBindings {
     by_key: HashMap<String, String>,
     by_action: HashMap<String, String>,
+    /// Platform: macOS labels name Alt `Option`, as every other A1 shortcut label there does.
+    macos: bool,
 }
 
 impl TabBindings {
@@ -378,7 +380,18 @@ impl TabBindings {
                 by_action.insert(action.clone(), key.to_owned());
             }
         }
-        Self { by_key, by_action }
+        Self {
+            by_key,
+            by_action,
+            macos: cfg!(target_os = "macos"),
+        }
+    }
+
+    /// The same bindings labelled for an explicit platform, so label tests hold on every host.
+    #[cfg(test)]
+    fn with_macos(mut self, macos: bool) -> Self {
+        self.macos = macos;
+        self
     }
 
     fn action(&self, key: &crossterm::event::KeyEvent) -> Option<&str> {
@@ -389,21 +402,38 @@ impl TabBindings {
     fn label(&self, action: &str) -> String {
         self.by_action
             .get(action)
-            .map_or_else(String::new, |key| shortcut_label(key))
+            .map_or_else(String::new, |key| shortcut_label(key, self.macos))
     }
 }
 
-fn shortcut_label(key: &str) -> String {
+fn shortcut_key_label(part: &str) -> String {
+    match part {
+        value if value.starts_with('f') && value[1..].chars().all(|ch| ch.is_ascii_digit()) => {
+            value.to_uppercase()
+        }
+        value if value.len() == 1 => value.to_uppercase(),
+        value => value.to_owned(),
+    }
+}
+
+/// The failed-tab banner names the effective close shortcut and omits it when close is unbound.
+fn failed_banner(close: &str) -> String {
+    if close.is_empty() {
+        "Tab failed · R retry · F start fresh".to_owned()
+    } else {
+        format!("Tab failed · R retry · F start fresh · {close} close")
+    }
+}
+
+/// Platform: macOS names Alt `Option`, matching pinned Pi's Keyboard Shortcuts and modal hints.
+fn shortcut_label(key: &str, macos: bool) -> String {
     key.split('+')
         .map(|part| match part {
+            "alt" if macos => "Option".into(),
             "alt" => "Alt".into(),
             "ctrl" => "Ctrl".into(),
             "shift" => "Shift".into(),
-            value if value.starts_with('f') && value[1..].chars().all(|ch| ch.is_ascii_digit()) => {
-                value.to_uppercase()
-            }
-            value if value.len() == 1 => value.to_uppercase(),
-            value => value.to_owned(),
+            value => shortcut_key_label(value),
         })
         .collect::<Vec<_>>()
         .join("+")
@@ -2567,7 +2597,7 @@ impl Client {
             .as_ref()
             .and_then(|id| self.tabs.iter().find(|tab| &tab.id == id))
             .filter(|tab| tab.status == "failed")
-            .map(|_| "Tab failed · R retry · F start fresh · Alt+W close".to_owned());
+            .map(|_| failed_banner(&self.bindings.label("tabs.close")));
         if let Some(palette) = core.mode.palette() {
             Some(command_palette::render(
                 palette,
@@ -4733,7 +4763,7 @@ mod tests {
             br#"{"tabs.next":"alt+]","tabs.close":"ctrl+x","tui.editor.deleteToLineEnd":"ctrl+x"}"#,
         )
         .unwrap();
-        let bindings = TabBindings::load(profile.path());
+        let bindings = TabBindings::load(profile.path()).with_macos(false);
         assert_eq!(
             bindings.action(&crossterm::event::KeyEvent::new(
                 KeyCode::Char(']'),
@@ -4754,6 +4784,30 @@ mod tests {
 
     fn option_key(typed: char) -> crossterm::event::KeyEvent {
         crossterm::event::KeyEvent::new(KeyCode::Char(typed), KeyModifiers::NONE)
+    }
+
+    #[test]
+    fn macos_labels_name_alt_option_and_other_platforms_keep_alt() {
+        for (key, other, macos) in [
+            ("alt+a", "Alt+A", "Option+A"),
+            ("alt+,", "Alt+,", "Option+,"),
+            ("alt+/", "Alt+/", "Option+/"),
+            ("alt+0", "Alt+0", "Option+0"),
+            ("ctrl+x", "Ctrl+X", "Ctrl+X"),
+            ("shift+alt+k", "Shift+Alt+K", "Shift+Option+K"),
+            ("f2", "F2", "F2"),
+        ] {
+            assert_eq!(shortcut_label(key, false), other, "{key}");
+            assert_eq!(shortcut_label(key, true), macos, "{key}");
+        }
+        let profile = tempfile::tempdir().unwrap();
+        let bindings = TabBindings::load(profile.path()).with_macos(true);
+        assert_eq!(bindings.label("tabs.close"), "Option+W");
+        assert_eq!(bindings.label("tabs.settings"), "Option+,");
+        let menu = PopupMenu::context("tab-1".into(), 79, 80, &bindings).render_with_color(false);
+        assert!(menu.contains("Option+W") && !menu.contains("Alt+W"), "{menu:?}");
+        assert_eq!(failed_banner(&bindings.label("tabs.close")), "Tab failed · R retry · F start fresh · Option+W close");
+        assert_eq!(failed_banner(""), "Tab failed · R retry · F start fresh");
     }
 
     #[test]
@@ -5502,7 +5556,7 @@ mod tests {
     #[test]
     fn modeled_overlays_match_v2_menu_style_and_actions() {
         let profile = tempfile::tempdir().unwrap();
-        let bindings = TabBindings::load(profile.path());
+        let bindings = TabBindings::load(profile.path()).with_macos(false);
         let mut menu = PopupMenu::context("tab-1".into(), 79, 80, &bindings);
         let rendered = menu.render_with_color(true);
         assert!(rendered.contains("Close"));
@@ -5581,7 +5635,12 @@ mod tests {
             br#"{"tabs.close":"ctrl+x","tabs.rename":"alt+r"}"#,
         )
         .unwrap();
-        let rebound = PopupMenu::context("tab-1".into(), 0, 80, &TabBindings::load(profile.path()));
+        let rebound = PopupMenu::context(
+            "tab-1".into(),
+            0,
+            80,
+            &TabBindings::load(profile.path()).with_macos(false),
+        );
         let rebound_rendered = rebound.render();
         assert!(rebound_rendered.contains("Ctrl+X"));
         assert!(rebound_rendered.contains("Alt+R"));

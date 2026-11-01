@@ -8,7 +8,7 @@ describe("resident utility tab commands", () => {
     try {
       await expect(shell.submit("/changelog")).resolves.toEqual({
         outcome: "rejected",
-        diagnostic: "The changelog opens as its own tab from the command palette (Alt+/).",
+        diagnostic: `The changelog opens as its own tab from the command palette (${process.platform === "darwin" ? "Option" : "Alt"}+/).`,
       });
       await expect(shell.submit("/settings")).resolves.toEqual({
         outcome: "rejected",

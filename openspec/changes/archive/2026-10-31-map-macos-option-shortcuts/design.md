@@ -8,7 +8,7 @@ macOS terminals send Option+key as the character from the keyboard layout's Opti
 
 **Goals:** Default tab shortcuts and any user Alt bindings for tab actions work with Option on a stock macOS terminal configuration, consume the key instead of typing a symbol, and stay covered by deterministic tests on every CI platform.
 
-**Non-Goals:** Changing shortcut labels to `Option`, raising the kitty keyboard protocol level, mapping non-ABC/US Option layers, handling dead keys (Option+E, I, N, U, and backtick compose and send nothing on their own), or remapping Option for keys the child or Pi bind.
+**Non-Goals:** Changing pinned Pi verbatim text, raising the kitty keyboard protocol level, mapping non-ABC/US Option layers, handling dead keys (Option+E, I, N, U, and backtick compose and send nothing on their own), or remapping Option for keys the child or Pi bind.
 
 ## Decisions
 
@@ -16,6 +16,8 @@ macOS terminals send Option+key as the character from the keyboard layout's Opti
 - **Table.** Digits `1`–`0`: `¡ ™ £ ¢ ∞ § ¶ • ª º`. Letters without dead keys: `a å`, `b ∫`, `c ç`, `d ∂`, `f ƒ`, `g ©`, `h ˙`, `j ∆`, `k ˚`, `l ¬`, `m µ`, `o ø`, `p π`, `q œ`, `r ®`, `s ß`, `t †`, `v √`, `w ∑`, `x ≈`, `y ¥`, `z Ω`. Punctuation: `, ≤`, `. ≥`, `/ ÷`, `; …`, `' æ`, `[ “`, `] ‘`, `\ «`, `- –`, `= ≠`.
 - **Platform as a parameter.** Production passes `cfg!(target_os = "macos")`, mirroring `admit_alt_code_input(cfg!(windows), …)`, so Windows and Linux CI run the macOS cases too and real Alt input is unaffected on every platform.
 - **Where it applies.** Before the binding lookup in `key()`, so the existing consume-or-forward contract holds: a mapped chord is consumed by the same action path as a real Alt chord, including palette, popup, and failed-banner states that already receive the action.
+
+- **One label system: `Option+`.** Pinned Pi already names Alt `Option` on macOS in the Keyboard Shortcuts table, the models, thinking, and tree dialogs, and the footer, and those surfaces are held to Pi parity. macOS menu symbols (`⌥W`) would split labels into two styles. A1 therefore names Alt `Option` in every remaining formatter: the attach client's `shortcut_label` (tab menus, Commands palette, and `+` menu), its `shortcut_hints` footer formatter, the shared TypeScript `displayShortcutKeyLabel`, and the resident changelog refusal message. The TypeScript formatter reads `process.platform` per call so tests that simulate Windows or Linux keep `Alt`; the attach client carries the platform in `TabBindings`, with a test-only override, so its label tests hold on every CI host. The failed-tab banner names the effective close label instead of a fixed `Alt+W`. The two TypeScript additions raise the startup source-byte baseline by 221 bytes.
 
 ## Risks / Trade-offs
 
