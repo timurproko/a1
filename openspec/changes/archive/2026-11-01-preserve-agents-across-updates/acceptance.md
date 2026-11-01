@@ -26,10 +26,10 @@ The maintainer integration decision accepts these scenarios:
     "Client or coordinator replacement restores fenced live control without duplicate Agents or replayed input and retains required execution and private recovery artifacts.",
     "Connected-client readiness remains distinct from retained engine version and does not require restarting Agents after reconnection."
   ],
-  "archiveDigest": "13a791601e784a17048650b13c1c52a2d11df5a1d93b3aa052118c2fdbc85d22",
+  "archiveDigest": "657b389162aba4fcfff80fc711738b6888eed296c2aeaf2d976571720a440cea",
   "specDigest": "890d7cc0d21ce89417aae9a31ada0b02ba83181fb9380d739e42414fb942c1c6",
   "tasksDigest": "df2f28d244b05569ddce64256815f4a2e83b8747754e3fc954ee256f8f9cc34a",
-  "evidenceDigest": "86de065ed3e256c81aa01ec9240128485d7f5eaafcd96ada7efea84fb3b8dbdb",
+  "evidenceDigest": "a33dc1212a94eaa21c022fec8b4c063d3f3989974ec8db8d29a92b01ded99e3d",
   "knownGaps": []
 }
 ```
