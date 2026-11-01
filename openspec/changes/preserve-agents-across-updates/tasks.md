@@ -28,4 +28,4 @@
 - [x] 4.2 Preserve originating source server/holder recovery paths and existing session-writer exclusion; stale epochs, controller revisions and incarnations cannot replay commands or acquire foreign execution authority.
 - [x] 4.3 Extend release/dependency/private-recovery holds to durable workspace references, control-plane recovery and the compatible fallback client while retaining live source artifacts for their complete execution lifetime.
 - [x] 4.4 Add crash-point, retained-client, unavailable-identity, corrupt-record and cleanup-eligibility regressions; distinguish independent source crashes from update-induced continuity failures.
-- [ ] 4.5 Reconcile resident architecture/API/presentation contracts, record focused implementation evidence and concrete compatibility/platform blockers, and finish substantive bookkeeping before the final Implementation marker.
+- [x] 4.5 Reconcile resident architecture/API/presentation contracts, record focused implementation evidence and concrete compatibility/platform blockers, and finish substantive bookkeeping before the final Implementation marker.

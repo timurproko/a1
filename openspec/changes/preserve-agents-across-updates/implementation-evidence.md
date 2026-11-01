@@ -2,7 +2,7 @@
 
 ## Delivery status
 
-The approved implementation and regression cases are written in the existing branch and PR. Detailed task markers represent delivered code and tests, not pending CI or optional manual acceptance. Architecture/evidence reconciliation and current-target delivery bookkeeping precede the final outcome marker. Trusted automation owns readiness, finalization and exact-head validation; no agent-owned ready transition or merge is authorized.
+The approved implementation and regression cases are written in the existing branch and PR. Detailed task markers represent delivered code and tests, not pending CI or optional manual acceptance. Architecture/evidence reconciliation is complete, substantive tasks are checked, and current `origin/develop` is merged before the final outcome marker. Trusted automation owns readiness, finalization and exact-head validation; no agent-owned ready transition or merge is authorized.
 
 No production Agent, holder, tool, supervisor or session was stopped or modified. Process scenarios use fixture-owned profiles, stripped inherited launch credentials, loopback model traffic and separately owned published installations. Cleanup stops only those fixtures, cooperatively releases the held tool, verifies its exit, and retains roots if closure is unverified, including partial startup or malformed cleanup metadata.
 
@@ -40,7 +40,8 @@ The fixture exposed and fixed a genuine frozen-wire defect: `tab.view` requests 
 - 69 focused TypeScript tests passed across engine view/session backend, release-update observation/presentation and resident bridge/composition. An initial brittle bootstrap source-string assertion was resolved by retaining the descriptive settings binding; all 10 bootstrap boundary tests then passed.
 - 19 predecessor ownership/cleanup tests and 56 focused CI ownership/selection/tier tests passed.
 - Native: 7 release-isolation/process tests; 14 durable-workspace tests; 3 runtime-control tests; 2 view-admission tests; 2 private-recovery tests; 1 client-identity test; 10 release-hold tests; and byte-for-byte MessagePack fixture round-trip passed.
-- Strict OpenSpec validation and whitespace checks passed. Size baseline updates only lower measured existing entries; no new oversized unit is grandfathered.
+- After merging current `develop`, typecheck, 29 focused TypeScript cases, 7 cross-release process cases, 2 view-admission cases and 56 native attach state-machine cases passed.
+- Strict OpenSpec validation, changed-file code-documentation governance and whitespace checks passed. Size baseline updates only lower measured existing entries; no new oversized unit is grandfathered.
 
 These checks are focused development evidence, not a claim of final exact-head validation. No broad local regression suite was run.
 
