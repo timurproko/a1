@@ -1,31 +1,31 @@
-## 1. Restore the profile's resident workspace
+## 1. Separate the durable execution API from the replaceable client
 
-- [ ] 1.1 Add the owner-only profile workspace index, lease/epoch authority, qualified logical tab identities and last-good recovery without changing release-local registry authority or user-data roots.
-- [ ] 1.2 Discover and idempotently reference existing supported release-scoped Agents in the same canonical profile, preserving names, order and selection while excluding stopped tabs and prewarm.
-- [ ] 1.3 Add verified source-cohort attach/control routes and aggregate their live surfaces, input, resize, rename and close into the selected release's workspace without admitting foreign holders/bridges.
-- [ ] 1.4 Keep new Agent and singleton utility creation on the selected release and preserve controller attribution/barriers across source routes.
-- [ ] 1.5 Add focused workspace/routing tests for concurrent relaunch, colliding local IDs, profile aliases, wrong release/credentials/endpoints, missing/corrupt state and mixed-version live control.
+- [ ] 1.1 Define the minimal persistent execution-host boundary: autonomous work, subprocess/session/state custody and stable API, independent of terminal UI, update orchestration and client release selection.
+- [ ] 1.2 Define a versioned backward-compatible mandatory runtime-control core, additive capabilities and explicit unsupported outcomes for discovery, identity, attach, observation, input and interactions.
+- [ ] 1.3 Bind admitted commands to request/session/incarnation/controller identity, preserve ordering and uncertain-delivery semantics, and provide sequenced observation/resynchronization without side-effect replay.
+- [ ] 1.4 Add consumer/provider conformance, exact fixtures and source/target identity/capability tests, retaining owner-only endpoint access and generic wrong-release refusal outside explicit adapters.
 
-## 2. Transfer Agents at safe boundaries
+## 2. Reconnect the updated client to the same live workspace
 
-- [ ] 2.1 Add explicit quiesce/checkpoint/fencing capability across source host and Agent bridge, atomic with input admission and all controllers; defer busy, pending-interaction and unsupported-state Agents without interrupting them.
-- [ ] 2.2 Preserve synchronized session entries, original cwd/session identity, draft and attachment recovery, prompt/queued-input identity, model/thinking configuration and supported runtime checkpoint state.
-- [ ] 2.3 Implement durable per-Agent source-to-target transfer with exact child/tree exit proof, source restart fencing, profile-neutral writer-lock admission and target readiness before committing the workspace destination.
-- [ ] 2.4 Restore access to actual supported installed predecessors without requiring new migration capabilities; keep uncooperative sources visibly pending until verified exit rather than forcing migration.
-- [ ] 2.5 Add safe-boundary/status-race, queued-input, first-turn reservation, checkpoint failure, writer conflict and no-dispatched-prompt-replay regressions.
+- [ ] 2.1 Add the owner-only profile workspace index, exclusive lease/epoch authority, source-qualified logical tab identities, names/order/selection and last-good recovery without changing user-data roots or foreign registry authority.
+- [ ] 2.2 Discover and idempotently reference supported already-running published predecessor Agents in the exact profile, excluding stopped tabs/prewarm and preserving distinct colliding source IDs.
+- [ ] 2.3 Aggregate authenticated native source routes for live surfaces/state, input/paste, mouse/resize, outstanding interactions, rename and explicit close while preserving existing controller barriers.
+- [ ] 2.4 Keep new Agent/singleton utility creation on the selected release and existing working/idle execution under unchanged originating custody; add no automatic or delayed idle restart.
+- [ ] 2.5 Preserve draft/attachments, queued-input identity, session configuration, current dialogs and progress produced while detached; present the updated client without Agent-migration badges or disabled tabs.
+- [ ] 2.6 Add reconnect regressions asserting unchanged holder/Agent/tool native identities, immediate live control, preserved topology/state and no replay or delayed restart after Agents become idle.
 
-## 3. Recover transfers and retain their artifacts
+## 3. Gate activation on uninterrupted runtime compatibility
 
-- [ ] 3.1 Add idempotent transfer reconciliation for concurrent launches and source/target/client/server/holder death before and after every durable phase and external effect.
-- [ ] 3.2 Reconnect already-running target writers, safely unfreeze sources before release, and provide blocked retry or verified source resume after release without duplicate or missing logical tabs.
-- [ ] 3.3 Bind each in-flight transfer to its exact target across subsequent activations and fence stale epochs/incarnations, late source recovery and conflicting transfer owners.
-- [ ] 3.4 Extend release/private-recovery retention to pending source/target/checkpoint obligations, including intervals with no live process, and retire holds only after safe settlement.
-- [ ] 3.5 Add deterministic/crash-point regressions for every transfer phase, target launch failure, rollback, corrupt/unverifiable evidence and retained-artifact cleanup eligibility.
+- [ ] 3.1 Add bounded verified inspection of every affected live workspace/source and a candidate compatibility verdict for mandatory view/input/interaction semantics before client activation or restart readiness.
+- [ ] 3.2 Fence/revalidate activation against concurrent creation, profile/source changes and relaunch so an obsolete compatibility snapshot cannot authorize inaccessible execution.
+- [ ] 3.3 Keep an eligible verified prior client active and callable when compatibility cannot be established, leaving candidate preparation distinct from successful activation without stopping Agents or deleting data.
+- [ ] 3.4 Associate resident-client update readiness with the actual connected client, preserve copy-feedback/Notify/No behavior and prevent repeated restart instructions from misrepresenting completed client reconnection.
+- [ ] 3.5 Add actual supported published-predecessor-to-candidate update/reconnect cases and negative mandatory-capability cases on Windows x64, Linux x64 and macOS arm64; inaccessible placeholder tabs do not count as success.
 
-## 4. Present upgrade state and reconcile delivery contracts
+## 4. Recover control ownership and retain live execution custody
 
-- [ ] 4.1 Present the restored workspace, per-Agent source/target execution state, deferred migration and actionable recovery without blank-workspace success, hidden tabs or disruptive update UI.
-- [ ] 4.2 Preserve working/attention state, selection and editor/copy-feedback behavior through routing and handoff; clear stale restart readiness only for the actual upgraded Agent.
-- [ ] 4.3 Add focused presentation regressions and exact-package update/relaunch scenarios covering real published predecessors on Windows x64, Linux x64 and macOS arm64.
-- [ ] 4.4 Reconcile resident architecture and affected contracts with the explicit workspace-routing/handoff exception while retaining generic release isolation, session exclusion and obsolete-contract rejection.
-- [ ] 4.5 Record focused implementation evidence and explicit compatibility/platform gaps, complete substantive task bookkeeping, and reconcile current develop before the final Implementation marker is checked.
+- [ ] 4.1 Reconcile interrupted activation, client/coordinator replacement and concurrent launches through fenced workspace/control ownership without creating replacement session writers or committing an empty topology.
+- [ ] 4.2 Preserve originating source server/holder recovery paths and existing session-writer exclusion; stale epochs, controller revisions and incarnations cannot replay commands or acquire foreign execution authority.
+- [ ] 4.3 Extend release/dependency/private-recovery holds to durable workspace references, control-plane recovery and the compatible fallback client while retaining live source artifacts for their complete execution lifetime.
+- [ ] 4.4 Add crash-point, retained-client, unavailable-identity, corrupt-record and cleanup-eligibility regressions; distinguish independent source crashes from update-induced continuity failures.
+- [ ] 4.5 Reconcile resident architecture/API/presentation contracts, record focused implementation evidence and concrete compatibility/platform blockers, and finish substantive bookkeeping before the final Implementation marker.
