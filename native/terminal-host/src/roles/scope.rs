@@ -27,6 +27,13 @@ pub fn release_id() -> Result<String, String> {
     Ok(id)
 }
 
+/// Derives the identity of an already verified immutable execution root without loading its code.
+pub fn release_id_for_root(root: &Path) -> Result<String, String> {
+    let canonical = std::fs::canonicalize(root).map_err(|error| error.to_string())?;
+    if !canonical.is_dir() { return Err("resident execution root is not a directory".into()); }
+    Ok(identity_for(&canonical, Path::new("")))
+}
+
 fn identity_for(identity: &Path, artifact: &Path) -> String {
     let mut digest = Sha256::new();
     digest.update(b"a1-resident-release-v1\0");
@@ -38,6 +45,18 @@ fn identity_for(identity: &Path, artifact: &Path) -> String {
         digest.update([0]);
     }
     hex::encode(digest.finalize())
+}
+
+/// Client-independent workspace identity. This never grants execution-release authority.
+pub fn workspace_token(profile: &Path) -> Result<String, String> {
+    let canonical = std::fs::canonicalize(profile).map_err(|error| error.to_string())?;
+    let text = canonical.to_string_lossy();
+    #[cfg(windows)]
+    let text = text.to_lowercase();
+    let mut digest = Sha256::new();
+    digest.update(b"resident-workspace-v1\0");
+    digest.update(text.as_bytes());
+    Ok(hex::encode(digest.finalize())[..20].to_owned())
 }
 
 /// A bounded flat namespace keeps old and new registries independently discoverable by GC.
@@ -59,7 +78,7 @@ pub fn fixture_release_id(executable: &Path) -> Result<String, String> {
     Ok(identity_for(&executable, &executable))
 }
 
-fn token_for(profile: &Path, release: &str) -> Result<String, String> {
+pub(super) fn token_for(profile: &Path, release: &str) -> Result<String, String> {
     let canonical = std::fs::canonicalize(profile).map_err(|error| error.to_string())?;
     let mut digest = Sha256::new();
     digest.update(b"a1-resident-scope-v1\0");
@@ -126,6 +145,12 @@ mod tests {
         assert_ne!(first, token_for(a.path(), "release-b").unwrap());
         assert_ne!(first, token_for(b.path(), "release-a").unwrap());
         assert_ne!(first, crate::endpoint::endpoint_token(a.path()).unwrap());
+        let workspace = workspace_token(a.path()).unwrap();
+        assert_eq!(workspace.len(), 20);
+        assert_eq!(workspace, workspace_token(&a.path().join(".")).unwrap());
+        assert_ne!(workspace, workspace_token(b.path()).unwrap());
+        assert_ne!(workspace, first);
+        assert_ne!(workspace, token_for(a.path(), "release-b").unwrap());
     }
 
     #[test]

@@ -1,13 +1,13 @@
 ## 1. Separate the durable execution API from the replaceable client
 
 - [ ] 1.1 Define the minimal persistent execution-host boundary: autonomous work, subprocess/session/state custody and stable API, independent of terminal UI, update orchestration and client release selection.
-- [ ] 1.2 Define a versioned backward-compatible mandatory runtime-control core, additive capabilities and explicit unsupported outcomes for discovery, identity, attach, observation, input and interactions.
+- [x] 1.2 Define a versioned backward-compatible mandatory runtime-control core, additive capabilities and explicit unsupported outcomes for discovery, identity, attach, observation, input and interactions.
 - [ ] 1.3 Bind admitted commands to request/session/incarnation/controller identity, preserve ordering and uncertain-delivery semantics, and provide sequenced observation/resynchronization without side-effect replay.
-- [ ] 1.4 Add consumer/provider conformance, exact fixtures and source/target identity/capability tests, retaining owner-only endpoint access and generic wrong-release refusal outside explicit adapters.
+- [x] 1.4 Add consumer/provider conformance, exact fixtures and source/target identity/capability tests, retaining owner-only endpoint access and generic wrong-release refusal outside explicit adapters.
 
 ## 2. Reconnect the updated client to the same live workspace
 
-- [ ] 2.1 Add the owner-only profile workspace index, exclusive lease/epoch authority, source-qualified logical tab identities, names/order/selection and last-good recovery without changing user-data roots or foreign registry authority.
+- [x] 2.1 Add the owner-only profile workspace index, exclusive lease/epoch authority, source-qualified logical tab identities, names/order/selection and last-good recovery without changing user-data roots or foreign registry authority.
 - [ ] 2.2 Discover and idempotently reference supported already-running published predecessor Agents in the exact profile, excluding stopped tabs/prewarm and preserving distinct colliding source IDs.
 - [ ] 2.3 Aggregate authenticated native source routes for live surfaces/state, input/paste, mouse/resize, outstanding interactions, rename and explicit close while preserving existing controller barriers.
 - [ ] 2.4 Keep new Agent/singleton utility creation on the selected release and existing working/idle execution under unchanged originating custody; add no automatic or delayed idle restart.

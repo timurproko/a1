@@ -1643,6 +1643,7 @@ fn welcome(epoch: u64) -> Welcome {
         build: "a1-terminal-host".into(),
         release_id: crate::roles::scope::release_id().unwrap_or_default(),
         features: vec![
+            super::runtime_control::API.into(),
             "resident-multi-tab".into(),
             "slow-client-isolation".into(),
             "crash-recovery".into(),
@@ -1843,6 +1844,7 @@ mod tests {
     #[test]
     fn welcome_advertises_the_owned_route_bridge() {
         let welcome = welcome(7);
+        assert!(welcome.features.iter().any(|feature| feature == super::super::runtime_control::API));
         assert!(
             welcome
                 .features

@@ -384,6 +384,19 @@ pub(super) fn serve_maintain(
         let kind = wire::kind(&payload)?;
         let request_id = kind.request_id;
         match kind.message_type.as_str() {
+            "runtime.describe" => {
+                let description = {
+                    let locked = lock_state(&state)?;
+                    super::super::runtime_control::RuntimeControl::describe(
+                        super::super::scope::release_id()?,
+                        super::super::scope::token(&locked.profile)?,
+                        locked.registry.epoch,
+                        locked.registry.boot_id.clone(),
+                        locked.registry.os_session_id.clone(),
+                    )
+                };
+                wire::send(&mut stream, "runtime.describe", request_id, description)?;
+            }
             "host.status" => {
                 let status = host_status(&state)?;
                 wire::send(&mut stream, "host.status", request_id, status)?;

@@ -5,7 +5,7 @@ import { runBoundedHostCommand } from "./bounded-host-command.js";
 import { resolveTerminalHostEntryPath, resolveTerminalHostPath, type TerminalHostCommand } from "./ensure-terminal-host.js";
 import { verifyTerminalHostArtifact } from "./terminal-host-artifact.js";
 
-export type MaintenanceAction = "list" | "stop" | "stop-all" | "host-status" | "host-stop";
+export type MaintenanceAction = "list" | "stop" | "stop-all" | "host-status" | "host-stop" | "runtime-control";
 
 export type MaintenanceHostState = "none" | "running" | "stopped" | "unresponsive" | "incompatible" | "refused" | "unverifiable" | "unavailable";
 

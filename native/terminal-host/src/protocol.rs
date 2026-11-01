@@ -1003,6 +1003,16 @@ pub fn fixture_set() -> Result<Vec<(String, Vec<u8>)>, ProtocolError> {
             })?,
         ),
         (
+            "runtime-control.msgpack".to_owned(),
+            encode_frame(&Envelope {
+                message_type: "runtime.describe".to_owned(),
+                request_id: Some(2),
+                body: crate::roles::runtime_control::RuntimeControl::describe(
+                    "a".repeat(64), "b".repeat(20), 7, "boot".into(), "login".into(),
+                ),
+            })?,
+        ),
+        (
             "incompatible-generation.msgpack".to_owned(),
             encode_frame(&Envelope {
                 message_type: "incompatible-generation".to_owned(),

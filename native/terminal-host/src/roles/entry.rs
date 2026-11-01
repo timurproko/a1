@@ -339,7 +339,7 @@ fn tabs_command(arguments: &[String]) -> Result<u8, String> {
         .flatten();
     if !matches!(
         command,
-        "list" | "stop" | "stop-all" | "host-status" | "host-stop"
+        "list" | "stop" | "stop-all" | "host-status" | "host-stop" | "runtime-control"
     ) || (command == "stop" && tab_id.as_deref().is_none_or(|id| id.starts_with("--")))
     {
         return Err("tabs command is invalid".to_owned());
@@ -384,6 +384,7 @@ fn tabs_outcome(
     let (request, body, timeout) = match command {
         "list" => ("tab.list", serde_json::json!({}), TABS_READ_TIMEOUT),
         "host-status" => ("host.status", serde_json::json!({}), TABS_READ_TIMEOUT),
+        "runtime-control" => ("runtime.describe", serde_json::json!({}), TABS_READ_TIMEOUT),
         "stop" => (
             "tab.stop",
             serde_json::json!({ "tabId": tab_id.unwrap_or_default() }),

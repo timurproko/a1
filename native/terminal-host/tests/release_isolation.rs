@@ -223,6 +223,80 @@ fn release_isolation_fixture_runtime_is_private_short_and_shared_until_last_owne
 }
 
 #[test]
+fn explicit_source_routes_read_live_cohorts_without_loading_or_replacing_their_code() {
+    use terminal_host_contracts::roles::source_route::{SourceRead, SourceRoute};
+    let root = tempfile::tempdir().unwrap();
+    let (a, b) = hosts(root.path());
+    a.call(&["server", "--detach"]);
+    a.create();
+    let original = a.wait_child();
+    let marker = a.marker();
+    let route = SourceRoute::open_fixture(&a.profile.join("."), &a.data, &a.release, &a.executable).unwrap();
+    assert_eq!(route.release_id(), marker["releaseId"].as_str().unwrap());
+    assert_eq!(route.source_scope(), scope::fixture_token(&a.profile, &a.executable).unwrap());
+    let contract = route.read(SourceRead::Description, Duration::from_secs(5)).unwrap();
+    assert_eq!(contract["epoch"], route.epoch());
+    assert_eq!(contract["releaseId"], route.release_id());
+    let list = route.read(SourceRead::Tabs, Duration::from_secs(5)).unwrap();
+    assert_eq!(list["tabs"][0]["tabId"], "tab-1");
+    assert_eq!(a.wait_child(), original);
+    assert_eq!(a.marker()["pid"], marker["pid"]);
+    // Security: no fallback into an unselected source, root or profile is authorized.
+    assert!(SourceRoute::open_fixture(&b.profile, &b.data, &b.release, &b.executable).is_err());
+    assert!(SourceRoute::open_fixture(&a.profile, &a.data, &b.release, &a.executable).is_err());
+    let other_profile = root.path().join("other-profile");
+    std::fs::create_dir_all(&other_profile).unwrap();
+    assert!(SourceRoute::open_fixture(&other_profile, &a.data, &a.release, &a.executable).is_err());
+    assert!(!b.state().join("registry.json").exists());
+    assert_eq!(a.wait_child(), original);
+    // Invariant: explicit fixture shutdown invalidates captured custody instead of retargeting it.
+    a.call(&["tabs", "host-stop"]);
+    assert!(route.read(SourceRead::Tabs, Duration::from_secs(1)).is_err());
+}
+
+#[test]
+fn runtime_control_description_is_authenticated_read_only_and_release_bound() {
+    let root = tempfile::tempdir().unwrap();
+    let (a, b) = hosts(root.path());
+    assert_eq!(a.call(&["tabs", "runtime-control"])["host"], "none");
+    assert!(!a.state().join("registry.json").exists());
+    a.call(&["server", "--detach"]);
+    a.create();
+    let child = a.wait_child();
+    let marker = a.marker();
+    let registry = RegistryStore::read(&a.state().join("registry.json")).unwrap().unwrap();
+    for _ in 0..3 {
+        let report = a.call(&["tabs", "runtime-control"]);
+        assert_eq!(report["host"], "running");
+        let description = &report["result"];
+        assert_eq!(description["api"], "resident-control-v1");
+        assert_eq!(description["releaseId"], marker["releaseId"]);
+        assert_eq!(description["scope"], scope::fixture_token(&a.profile, &a.executable).unwrap());
+        assert_eq!(description["epoch"], registry.epoch);
+        assert_eq!(description["bootId"], registry.boot_id);
+        assert_eq!(description["osSessionId"], registry.os_session_id);
+        assert_eq!(description["retryInput"], false);
+        assert_eq!(a.wait_child(), child);
+        assert_eq!(a.marker()["pid"], marker["pid"]);
+    }
+    // Invariant: the same API/generation never substitutes a foreign namespace or starts B.
+    assert_eq!(b.call(&["tabs", "runtime-control"])["host"], "none");
+    assert!(!b.state().join("registry.json").exists());
+    assert_eq!(RegistryStore::read(&a.state().join("registry.json")).unwrap().unwrap(), registry);
+
+    use terminal_host_contracts::roles::wire;
+    let mut unauthorized = terminal_host_contracts::endpoint::connect(marker["endpoint"].as_str().unwrap()).unwrap();
+    wire::send(&mut unauthorized, "hello", Some(1), serde_json::json!({
+        "role": "maintain", "generation": 1, "build": "fixture",
+        "releaseId": marker["releaseId"], "token": vec![0_u8; 32],
+    })).unwrap();
+    terminal_host_contracts::endpoint::set_handshake_deadline(&unauthorized, Duration::from_secs(4)).unwrap();
+    let refusal = wire::read_payload(&mut unauthorized).unwrap().unwrap();
+    assert_eq!(wire::kind(&refusal).unwrap().message_type, "refused");
+    assert_eq!(a.wait_child(), child);
+}
+
+#[test]
 fn release_isolation_preserves_old_work_recovery_and_maintenance_boundaries() {
     let root = tempfile::tempdir().unwrap();
     let (a, b) = hosts(root.path());

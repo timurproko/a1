@@ -32,6 +32,15 @@ pub struct Connection {
 const HANDSHAKE: Duration = Duration::from_secs(4);
 
 pub fn connect(address: &str, token: &[u8]) -> Result<Connection, ConnectError> {
+    let expected = super::scope::release_id().map_err(ConnectError::Refused)?;
+    connect_source(address, token, &expected, None)
+}
+
+/// Only a verified source route may select foreign client custody. Holders/bridges never use it.
+pub(super) fn connect_source(address: &str, token: &[u8], expected: &str, epoch: Option<u64>) -> Result<Connection, ConnectError> {
+    if expected.len() != 64 || !expected.bytes().all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase()) {
+        return Err(ConnectError::Refused("invalid resident source identity".into()));
+    }
     let mut stream = endpoint::connect(address).map_err(|_| ConnectError::NotRunning)?;
     // Platform: macOS refuses socket options once the peer has closed, and a server of another
     // generation answers and closes at once, so Unix bounds the read before sending the hello.
@@ -45,7 +54,7 @@ pub fn connect(address: &str, token: &[u8]) -> Result<Connection, ConnectError> 
             role: "maintain".into(),
             generation: protocol::GENERATION,
             build: "a1".into(),
-            release_id: super::scope::release_id().map_err(ConnectError::Refused)?,
+            release_id: expected.into(),
             features: vec![],
             token: token.to_vec(),
             tab_id: None,
@@ -70,7 +79,12 @@ pub fn connect(address: &str, token: &[u8]) -> Result<Connection, ConnectError> 
     match kind.message_type.as_str() {
         "welcome" => {
             let (_, welcome): (_, crate::protocol::Welcome) = wire::body(&payload).map_err(ConnectError::Refused)?;
-            super::scope::admit(&welcome.release_id).map_err(ConnectError::Refused)?;
+            if welcome.release_id != expected || welcome.generation != protocol::GENERATION {
+                return Err(ConnectError::Refused("resident source identity mismatch".into()));
+            }
+            if epoch.is_some_and(|expected| expected != welcome.epoch) {
+                return Err(ConnectError::Refused("resident source epoch changed".into()));
+            }
             endpoint::clear_handshake_deadline(&stream).map_err(|_| ConnectError::Unresponsive)?;
             Ok(Connection {
                 stream,
@@ -108,6 +122,9 @@ impl Connection {
                 let payload = wire::read_payload(&mut connection.stream)?
                     .ok_or_else(|| "server closed the maintenance connection".to_owned())?;
                 let kind = wire::kind(&payload)?;
+                if kind.request_id != Some(request_id) {
+                    return Err("resident maintenance response identity mismatch".into());
+                }
                 let (_, value): (_, serde_json::Value) = wire::body(&payload)?;
                 Ok::<_, String>((kind.message_type, value))
             })();
