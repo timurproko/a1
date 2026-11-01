@@ -3,12 +3,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { assertResidentContinuity, inspectResidentContinuity } from "../../../src/foundation/resident-tabs/continuity.js";
+import { assertResidentContinuity as assertPublicContinuity } from "../../../src/foundation/resident-tabs/index.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
-const context = { releaseRoot: "/candidate", dataDir: "/data", environment: {} };
+const context = { releaseRoot: "/candidate", dataDir: "/data", profileRoot: "/profile", runtimeDir: "/runtime", environment: {} };
 
 describe("resident client activation continuity", () => {
+  it("exposes lazy inspection through the public owner boundary with caller-owned paths", async () => {
+    const inspect = vi.fn(async () => "verified");
+    await expect(assertPublicContinuity({ ...context, inspect })).resolves.toBeUndefined();
+    expect(inspect).toHaveBeenCalledTimes(2);
+    expect(inspect).toHaveBeenNthCalledWith(1,context);
+    expect(inspect).toHaveBeenNthCalledWith(2,context);
+  });
   it("does not require a native host when no runtime or recovery records exist", async () => {
     const root = await mkdtemp(join(tmpdir(), "continuity-empty-")); roots.push(root);
     await expect(inspectResidentContinuity({ ...context, dataDir: root })).resolves.toBe("empty");

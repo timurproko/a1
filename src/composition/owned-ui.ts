@@ -1,4 +1,3 @@
-import { SuggestionDiagnosticCapture } from "../features/prompt-suggestions/diagnostics.js";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
 import { PromptHistoryService } from "../features/prompt-history/service.js";
 import { PromptImageSidecar } from "../features/prompt-history/image-sidecar.js";
@@ -42,11 +41,10 @@ import { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
 import { bindResidentPresentation, createResidentClientIdentity, closeResidentUtilityRoute, correlateResidentTabSubmission, currentBackendSessionFile, residentRouteHostOptions, residentTabKeybindings } from "./resident-tab-bridge.js";
 import type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
 import { SessionRuntimeRegistry } from "./session-runtime-registry.js";
-import { StartupReleaseNote } from "./startup-route.js";
+import { deferStartupReleaseUpdateObservation, readPackageVersion, StartupReleaseNote } from "./startup-route.js";
 import { createOwnedSettingsManager, watchSharedSettings } from "./owned-settings.js";
 
 export type { ComposedEngineHost, ComposedSessionBackend } from "./session-backend.js";
-import { createStartupReleaseUpdateObservation } from "./release-update-observation.js";
 
 export { bindResidentTabBridge, correlateResidentTabSubmission } from "./resident-tab-bridge.js";
 
@@ -233,7 +231,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   };
   const diagnosticDestination = options.suggestionDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.suggestionDiagnostics];
   const suggestionDiagnostics = settings !== null && ownedSurfaces && diagnosticDestination?.trim()
-    ? new SuggestionDiagnosticCapture({ enabled: true, destination: diagnosticDestination }) : null;
+    ? await import("../features/prompt-suggestions/diagnostics.js").then(module => new module.SuggestionDiagnosticCapture({ enabled: true, destination: diagnosticDestination })) : null;
   const promptSuggestions = settings === null || !ownedSurfaces ? null : {
     ...(suggestionDiagnostics === null ? {} : { diagnostics: suggestionDiagnostics }),
     generator: backend,
@@ -329,11 +327,11 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // Rationale: pinned Pi's version check is unreachable because the owned shell never runs its
   // InteractiveMode, so A1 checks its own channel. The result is never awaited on the startup path;
   // settings are read here because the runner resolves them only just before start.
-  const releaseUpdates = createStartupReleaseUpdateObservation({
+  const releaseUpdates = deferStartupReleaseUpdateObservation({
     backend,
     configDir: productPaths.configDir,
     mode: settings === null || !ownedSurfaces ? "auto" : settings.value("updateCheck"),
-    packageVersion: releaseNote.packageVersion, notificationVersion: options.notificationVersion,
+    packageVersion: releaseNote.packageVersion, readPackageVersion, notificationVersion: options.notificationVersion,
     checkForNewerRelease: options.checkForNewerRelease,
     clientVersion: clientIdentity.current,
   });

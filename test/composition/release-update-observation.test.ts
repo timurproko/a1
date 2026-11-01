@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createStartupReleaseUpdateObservation } from "../../src/composition/release-update-observation.js";
+import { deferStartupReleaseUpdateObservation } from "../../src/composition/startup-route.js";
 import type { AvailableRelease, StartupReleaseCheckOptions } from "../../src/foundation/release/latest-release.js";
 
 const automatic = vi.hoisted(() => ({ request: vi.fn() }));
@@ -11,15 +12,41 @@ function setup(mode: "auto" | "notify" | "no", initial: string) {
   let client = initial;
   const announced = vi.fn();
   const checks: StartupReleaseCheckOptions[] = [];
-  const observer = createStartupReleaseUpdateObservation({
+  const options = {
     backend: { extensions: { announceReleaseUpdate: announced } } as never,
-    configDir: "fixture", packageVersion: "0.2.0", notificationVersion: "0.2.1", mode,
+    configDir: "fixture", packageVersion: "0.2.0", readPackageVersion: async () => "0.2.0", notificationVersion: "0.2.1", mode,
     clientVersion: () => client,
-    checkForNewerRelease: async options => { checks.push(options); return release; },
-  });
+    checkForNewerRelease: async (options: StartupReleaseCheckOptions) => { checks.push(options); return release; },
+  };
+  const observer = createStartupReleaseUpdateObservation(options);
   active.push(observer);
-  return { observer, announced, checks, connect(version: string) { client = version; observer.clientChanged(); } };
+  return { observer, options, announced, checks, connect(version: string) { client = version; observer.clientChanged(); } };
 }
+
+describe("deferred update observation", () => {
+  it("loads once after start and exposes an unbound-safe client callback", async () => {
+    const fixture = setup("notify", "0.3.0");
+    const load = vi.fn(async () => ({ createStartupReleaseUpdateObservation: () => fixture.observer }));
+    const deferred = deferStartupReleaseUpdateObservation(fixture.options, load); active.push(deferred);
+    expect(load).not.toHaveBeenCalled();
+    deferred.start(); deferred.start();
+    await vi.waitFor(() => expect(fixture.checks).toHaveLength(1));
+    expect(load).toHaveBeenCalledOnce();
+    const callback = deferred.clientChanged;
+    expect(() => callback()).not.toThrow();
+    await vi.waitFor(() => expect(fixture.checks).toHaveLength(2));
+  });
+  it("does not start optional work if disposal wins module loading", async () => {
+    const fixture = setup("auto", "0.3.0");
+    const pending = Promise.withResolvers<{ createStartupReleaseUpdateObservation: typeof createStartupReleaseUpdateObservation }>();
+    const create = vi.fn(() => fixture.observer);
+    const deferred = deferStartupReleaseUpdateObservation(fixture.options, () => pending.promise); active.push(deferred);
+    deferred.start(); deferred.stop();
+    pending.resolve({ createStartupReleaseUpdateObservation: create });
+    await pending.promise; await Promise.resolve();
+    expect(create).not.toHaveBeenCalled(); expect(fixture.checks).toHaveLength(0);
+  });
+});
 
 describe("connected-client update readiness", () => {
   it("does not offer the installed client again merely because an Agent keeps older code", async () => {

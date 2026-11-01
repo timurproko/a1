@@ -54,13 +54,15 @@ describe("update candidate activation", () => {
       if (outcome === "supervisor-failure") throw new Error(outcome);
     });
     let inspections = 0;
-    vi.mocked(assertResidentContinuity).mockImplementation(async () => {
+    vi.mocked(assertResidentContinuity).mockImplementation(async context => {
+      expect(context).toMatchObject({dataDir:root,profileRoot:resolve(root,"profile"),runtimeDir:resolve(root,"runtime")});
       expect((await store.read()).references.active).toBe(previous.releaseId);
       phases.push("continuity");
       inspections++;
       if (outcome === "continuity-failure" || outcome === "continuity-race" && inspections === 2) throw new Error(outcome);
     });
-    const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: root });
+    const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: root,
+      [PRODUCT_IDENTITY.environment.profileHome]: resolve(root,"profile"), [PRODUCT_IDENTITY.environment.runtimeDir]: resolve(root,"runtime") });
     const activation = coordinator.activateInstalled(target.packageRoot, target.packageVersion, async phase => { phases.push(phase); });
     if (outcome === "success") {
       await activation;

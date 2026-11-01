@@ -8,6 +8,7 @@ import { promisify } from "node:util";
 import { once } from "node:events";
 import { encodeResidentFrame, ResidentFrameDecoder, type ResidentEnvelope } from "../../src/foundation/resident-tabs/protocol.js";
 import type { PredecessorFixture } from "./predecessor-fixture.js";
+import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 
 const execute = promisify(execFile);
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -120,7 +121,7 @@ const timer=setInterval(()=>{if(fs.existsSync(release)){fs.writeFileSync(done,me
   await mkdir(join(profile, ".pi", "agent"), { recursive: true });
   await writeFile(join(profile, ".pi", "agent", "auth.json"), "{}");
   const priorManifest = JSON.parse(await readFile(join(priorRoot, "package.json"), "utf8")) as { version: string };
-  await writeFile(join(profile, "settings.json"), JSON.stringify({ defaultProvider: "fixture", defaultModel: "continuity-model", defaultProjectTrust: "always", promptSuggestions: false, lastChangelogVersion: priorManifest.version, a1: { tabsAutoName: false } }));
+  await writeFile(join(profile, "settings.json"), JSON.stringify({ defaultProvider: "fixture", defaultModel: "continuity-model", defaultProjectTrust: "always", promptSuggestions: false, lastChangelogVersion: priorManifest.version, [PRODUCT_IDENTITY.commandName]: { tabsAutoName: false } }));
   const environment: NodeJS.ProcessEnv = { ...process.env };
   for (const key of Object.keys(environment)) if (/^(LAUNCH_CONTEXT_|A1_|PI_)/iu.test(key)
     || /(?:TOKEN|API_KEY|SECRET|PASSWORD|CREDENTIAL|COOKIE)/iu.test(key)

@@ -45,6 +45,14 @@ The fixture exposed and fixed a genuine frozen-wire defect: `tab.view` requests 
 
 These checks are focused development evidence, not a claim of final exact-head validation. No broad local regression suite was run.
 
+## CI boundary/startup repair
+
+The first finalized CI run failed naming and architecture before product suites completed; other modular jobs were cancelled, not successful validation. The repair derives the fixture settings key from product identity, routes activation through the resident-tabs public facade, and passes release-owned profile/runtime paths explicitly instead of importing lifecycle into resident-tabs. Activation uses the shared runtime-control API identifier, making that contract module production-reachable.
+
+Optional update observation and opt-in suggestion diagnostics are deferred rather than raising startup limits. The graph is 203 files / 1,864,514 source bytes against the unchanged 203 / 1,867,621 budget. The deferred observer fences disposal during loading and preserves client callbacks without losing the receiver. Regression cases cover the public facade, explicit activation paths, delayed observation, disposal, callback binding and the actual startup budget.
+
+Local repair evidence: 119 tests in nine affected files passed, along with typecheck, the complete architecture gate, full naming audit, size ratchet and whitespace checks. No required gate, assertion or platform lane was disabled. Renewed exact-head CI remains required.
+
 ## Validation ownership and limitations
 
 Exact-package predecessor cases are integrated into the authenticated prepared-candidate package test and require at least one actual supported resident predecessor; candidate-only fixtures cannot substitute. The predecessor owner is now direct-impact rather than exhaustive, includes source-control/native/support changes, and targets Windows x64, Linux x64 and macOS arm64. Windows uses the promoted lane; Unix uses the existing containment lanes. A matrix regression requires the predecessor scope on every target. Execution belongs to selected post-readiness CI lanes. Linux/macOS and the final exact packed candidate have not been locally certified and are not reported as passed. Required CI failures remain integration blockers and are repaired in this PR without weakening assertions.

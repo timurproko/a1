@@ -1,12 +1,12 @@
 import type { AvailableRelease, StartupReleaseCheckOptions, StartupUpdateMode } from "../foundation/release/latest-release.js";
 import type { ComposedSessionBackend } from "./session-backend.js";
-import { readPackageVersion } from "./startup-route.js";
 
 export interface StartupReleaseUpdateObservationOptions {
   readonly backend: Pick<ComposedSessionBackend, "extensions">;
   readonly configDir: string;
   readonly mode: StartupUpdateMode;
   readonly packageVersion: string | null;
+  readonly readPackageVersion: () => Promise<string>;
   readonly notificationVersion: string | undefined;
   readonly checkForNewerRelease: ((options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>) | undefined;
   readonly clientVersion?: () => string | null;
@@ -33,7 +33,7 @@ class ReleaseUpdateObservation {
     const input = this.#input;
     const check = input.checkForNewerRelease ?? releases.checkForNewerRelease;
     const client = input.clientVersion?.();
-    const runningVersion = client ?? input.packageVersion ?? await readPackageVersion();
+    const runningVersion = client ?? input.packageVersion ?? await input.readPackageVersion();
     const options: StartupReleaseCheckOptions = {
       runningVersion: client ?? (input.mode === "notify" ? input.notificationVersion ?? runningVersion : runningVersion),
       configDir: input.configDir, interactive: process.stdout.isTTY === true, settingMode: input.mode,

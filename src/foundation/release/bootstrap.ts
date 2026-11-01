@@ -19,7 +19,7 @@ import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDoc
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
 import { PRIVATE_ENVIRONMENT, isCurrentLaunchContract, launchContractTarget, readLaunchContext, withLaunchContext, type LaunchContext } from "../launch-context/index.js";
-import { ensureTerminalHost, readResidentTabLaunchSettings, selectResidentHost, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
+import { assertResidentContinuity, ensureTerminalHost, readResidentTabLaunchSettings, selectResidentHost, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
@@ -191,8 +191,8 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     await stateStore.approve(candidate.releaseId, diagnosticsPath);
   }
   try {
-    const { assertResidentContinuity } = await import("../resident-tabs/continuity.js");
-    await assertResidentContinuity({ releaseRoot: candidate.releaseRoot, dataDir: paths.dataDir, environment });
+    await assertResidentContinuity({ releaseRoot: candidate.releaseRoot, dataDir: paths.dataDir, environment,
+      profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir, runtimeDir: paths.runtimeDir });
   } catch (error) {
     const fallback = await launchRetainedActive(await stateStore.read(), paths, environment, launchSelected, excludedRetainedReleaseId);
     if (fallback !== null) return fallback;
@@ -546,8 +546,8 @@ async function activatePendingAfterBlockerExit(
   if (!endpoint || endpoint.ownership.liveInstanceIds.length > 0 || await probeOwnership(endpoint) !== "live-verified") return;
   const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
   await stateStore.approve(candidate.releaseId, diagnosticsPath);
-  const { assertResidentContinuity } = await import("../resident-tabs/continuity.js");
-  await assertResidentContinuity({ releaseRoot: candidate.releaseRoot, dataDir: paths.dataDir, environment });
+  await assertResidentContinuity({ releaseRoot: candidate.releaseRoot, dataDir: paths.dataDir, environment,
+    profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir, runtimeDir: paths.runtimeDir });
   if (!await requestIdleOwnershipRelease(endpoint, candidate.releaseId, 2_000)) return;
   if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) return;
   await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);

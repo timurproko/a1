@@ -1,7 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { PRODUCT_IDENTITY } from "../../product-identity.js";
-import { resolveProductPaths } from "../lifecycle/paths.js";
+import { RUNTIME_CONTROL_API } from "./runtime-control.js";
 import { runBoundedHostCommand } from "./bounded-host-command.js";
 import { resolveTerminalHostEntryPath, resolveTerminalHostPath } from "./ensure-terminal-host.js";
 import { verifyTerminalHostArtifact } from "./terminal-host-artifact.js";
@@ -9,6 +8,8 @@ import { verifyTerminalHostArtifact } from "./terminal-host-artifact.js";
 export interface ContinuityOptions {
   readonly releaseRoot: string;
   readonly dataDir: string;
+  readonly profileRoot: string;
+  readonly runtimeDir: string;
   readonly environment: NodeJS.ProcessEnv;
   readonly inspect?: (options: Omit<ContinuityOptions, "inspect">) => Promise<string>;
 }
@@ -38,15 +39,14 @@ export async function inspectResidentContinuity(options: Omit<ContinuityOptions,
   const manifest = JSON.parse(await readFile(resolve(options.releaseRoot, "package.json"), "utf8")) as { residentControlContracts?: unknown };
   const contracts = manifest.residentControlContracts;
   if (!Array.isArray(contracts)
-    || !["resident-control-v1", "resident-workspace-v1"].every(contract => contracts.includes(contract))) {
+    || ![RUNTIME_CONTROL_API, "resident-workspace-v1"].every(contract => contracts.includes(contract))) {
     throw new Error("Candidate does not preserve the stable resident control and workspace contracts; activation was refused.");
   }
   const addon = resolveTerminalHostPath(options.releaseRoot, {}, process.platform, process.arch);
   await verifyTerminalHostArtifact(addon, process.platform, process.arch);
-  const paths = resolveProductPaths(options.environment);
   const result = await runBoundedHostCommand({ executable: process.execPath, entry: resolveTerminalHostEntryPath(options.releaseRoot) }, [
-    "workspace-check", "--profile", options.environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
-    "--data-dir", options.dataDir, "--runtime-dir", paths.runtimeDir,
+    "workspace-check", "--profile", options.profileRoot,
+    "--data-dir", options.dataDir, "--runtime-dir", options.runtimeDir,
   ], { label: "resident continuity check", maxStdoutBytes: 4096, timeoutMs: 8_000, environment: options.environment });
   let report: Record<string, unknown>;
   try { report = JSON.parse(result.stdout.trim()) as Record<string, unknown>; }
