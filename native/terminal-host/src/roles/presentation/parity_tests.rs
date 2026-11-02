@@ -612,7 +612,22 @@ fn conpty_capture_drains_through_eof_and_answers_cursor_query() {
 }
 
 #[cfg(windows)]
+#[test]
+fn conpty_parallel_captures_preserve_complete_independent_surfaces() {
+    std::thread::scope(|scope| {
+        for resident in [false, true] {
+            scope.spawn(move || conpty_content_parity(resident, "base", conpty_frames().len(), 40));
+        }
+    });
+}
+
+#[cfg(windows)]
 fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns: u16) -> Vec<u8> {
+    // Concurrency: these probes repeatedly create and tear down console hosts. Own one complete
+    // capture through EOF before another unit probe starts; resident concurrency has separate
+    // real-process coverage. Pure frame comparison remains parallel and no output is discarded.
+    static CAPTURE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _capture = CAPTURE.lock().expect("exclusive ConPTY fixture capture");
     let rows = if case == "hover" {
         31
     } else if case == "recorded" {
@@ -669,8 +684,9 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
-    // Platform: ConPTY can hold its output pipe until input and pseudo console close.
-    // Closing either before the child finishes can discard output or terminate the fixture.
+    // Platform: release the exited child's process handle before closing its console. Keep
+    // input alive through verified child exit, then close input and console before draining EOF.
+    drop(child);
     drop(writer.lock().unwrap().take());
     drop(pair.master);
     let (result, bytes) = receiver

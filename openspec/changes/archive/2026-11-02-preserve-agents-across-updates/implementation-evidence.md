@@ -185,6 +185,14 @@ Run 41463405515 failed the Linux `runtime_control_description_is_authenticated_r
 
 The fixture now waits for the existing `host.status.starts.active` counter to reach zero before taking the baseline. The start permit drops only after the synchronous final registry commit finishes. This is an observable completion barrier, not a settling sleep or a relaxed comparison. The exact full-document/revision equality assertion and all release/identity/authorization checks remain unchanged. All 12 release-isolation process cases passed locally on Windows with the CI fixture feature set; architecture, documentation and whitespace checks passed. Fresh exact-head Linux CI is still required.
 
+## Exclusive ConPTY parity capture lifecycle
+
+Run 41503529633 on 111e7ba5 confirms the preceding SDK repair linked on macOS 26 and passed all 460 native unit cases, with one unchanged ignored case, before fail-fast cancellation during later process compilation. The actual root failure was Windows `conpty_hover_replay_keeps_the_rail_in_its_fixed_column`: its fixture child had exited, but the capture did not receive EOF within the existing ten-second drain deadline. The other 469 Windows unit cases passed. This was capture completion, not a reported rail/cell mismatch.
+
+The short-lived parity probes now own one physical console capture/teardown lifecycle at a time through verified EOF, and release the exited child's process handle before closing input and pseudo console. Pure surface comparisons remain parallel. A new concurrent-caller regression requires both solo and resident captures to produce complete independent golden surfaces. All existing frames, dimensions, chunk sizes, code-page checks, EOF requirements and startup/drain deadlines remain; no timeout is increased and no partial output is accepted. Production multi-Agent/holder concurrency and its separate real-process suites are unchanged.
+
+The original 14 ConPTY-related cases passed locally with 16 Rust test threads, so the intermittent CI timeout was not locally reproduced. After the lifecycle change, the complete Windows library suite passed 471 cases with two unchanged ignored cases under 16 threads, including the new concurrent-capture regression, in 192.31 seconds. These native local results do not replace fresh exact-head platform CI.
+
 ## Explicit Darwin SDK and image-scoped native caches
 
 Run 41498078596 on 617cb358 allocated the macOS 26 runner, then failed before test execution while Zig 0.15.2 linked its build-runner executable: Apple system symbols including `_abort`, `_dispatch_queue_create` and `__availability_version_check` were unresolved. The log explicitly shows the macOS 26 job restoring the Zig cache from macOS 15 run 41485580161. The image also advanced the default Xcode SDK without an explicit toolchain selection. The runner-only repair omitted those build-environment boundaries; no application assertion was reached.

@@ -61,3 +61,4 @@
 - [x] 6.14 Build the release-command fixture's complete real 30-PR merge history in one Git import and retain fetched packs, preserving the existing timeout and strengthening native DAG assertions.
 - [x] 6.15 Pin all six Development macOS targets to the current GA macOS 26 ARM64 hosted image while retaining native scopes, partitions, budgets, exact-package execution and the unchanged macOS 15 Full/publication baseline.
 - [x] 6.16 Select the installed Xcode 26.0.1 SDK before macOS native builds and cache restoration, isolate Zig/Rust/VT-result caches by macOS image and SDK, and retain existing Windows/Linux cache identities.
+- [x] 6.17 Give each short-lived ConPTY parity probe exclusive console capture/teardown ownership through EOF, release exited child process handles before console closure, and retain concurrent-caller surface parity coverage with unchanged deadlines.
