@@ -58,6 +58,15 @@ fn verify_login(
     if recorded == current {
         return Ok(());
     }
+    #[cfg(target_os = "linux")]
+    if crate::linux_login::process_session(recorded) {
+        let stream =
+            endpoint::connect(_address).map_err(|_| "resident Linux login peer unavailable")?;
+        let _connection = endpoint::close_on_drop(&stream);
+        crate::linux_login::verify_peer(&stream, _owner.pid)?;
+        verify_live(_owner)?;
+        return Ok(());
+    }
     #[cfg(target_os = "macos")]
     if crate::identity::legacy_macos_login(recorded) && current.starts_with("macos-audit-id:") {
         let stream =

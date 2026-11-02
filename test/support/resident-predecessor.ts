@@ -27,10 +27,12 @@ class Client {
     this.socket = socket;
     const decoder = new ResidentFrameDecoder();
     socket.on("error", error => { this.failure = error; });
+    socket.on("end", () => { this.failure ??= new Error("fixture control connection closed"); });
     socket.on("data", bytes => {
       try {
         for (const frame of decoder.push(bytes)) {
           if (frame.type === "surface") this.surfaces.set(String(frame.body.tabId), frame);
+          else if (frame.type === "recovery.notice" && frame.body.accepted === false) this.failure = new Error(`fixture recovery failed: ${String(frame.body.message)}`);
           else if (frame.type === "input.rejected" || (frame.type === "input.uncertain" && !this.recoveryExpected) || frame.type === "error") this.failure = new Error(`fixture input failed: ${frame.type}`);
           else if (frame.type !== "tab.status") this.frames.push(frame);
           if (this.frames.length > 256) throw new Error("fixture control bound exceeded");

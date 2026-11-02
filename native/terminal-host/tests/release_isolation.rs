@@ -7,6 +7,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use terminal_host_contracts::roles::{registry::RegistryStore, scope};
 
+#[path = "release_isolation/coordinator_recovery.rs"]
+mod coordinator_recovery;
+
 struct Host {
     executable: PathBuf,
     profile: PathBuf,

@@ -13,6 +13,8 @@ pub mod fault_injection;
 pub mod ghostty;
 pub mod identity;
 pub mod launch;
+#[cfg(any(target_os = "linux", test))]
+mod linux_login;
 pub mod protocol;
 pub mod roles;
 pub mod semantic_keys;

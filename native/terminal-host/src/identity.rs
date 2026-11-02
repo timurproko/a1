@@ -48,8 +48,13 @@ pub(crate) fn legacy_macos_login(value: &str) -> bool {
         })
 }
 
-/// Invariant: an obsolete Mach port name proves neither the same login nor an ended login.
+/// Invariant: process-local Mach ports and POSIX sessions cannot prove an ended OS login.
 pub(crate) fn login_change_proven(recorded: &str, current: &str) -> bool {
+    #[cfg(target_os = "linux")]
+    if crate::linux_login::process_session(recorded) || crate::linux_login::process_session(current)
+    {
+        return false;
+    }
     recorded != current
         && !(cfg!(target_os = "macos")
             && legacy_macos_login(recorded)
@@ -475,6 +480,23 @@ mod tests {
             login_change_proven("macos-audit-session:1234", "macos-audit-id:501:12"),
             !cfg!(target_os = "macos")
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn posix_detachment_does_not_prove_logout() {
+        assert!(!login_change_proven(
+            "linux-session-leader:10:linux-proc-start:20",
+            "linux-detached-session:30"
+        ));
+        assert!(!login_change_proven(
+            "linux-systemd-session:session-a",
+            "linux-detached-session:30"
+        ));
+        assert!(login_change_proven(
+            "linux-systemd-session:session-a",
+            "linux-systemd-session:session-b"
+        ));
     }
 
     #[test]

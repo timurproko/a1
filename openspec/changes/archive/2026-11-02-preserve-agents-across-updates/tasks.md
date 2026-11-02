@@ -52,3 +52,4 @@
 - [x] 6.5 Restore direct native builds, process suites, exact-package preparation, certificates and fuzzing in Development, Full regression and publication without sandbox/account/network provisioning or extra security gates.
 - [x] 6.6 Replace sandbox-policy tests with direct-workflow regressions while preserving native platform coverage, exact-package assertions and the macOS boot/login custody repair.
 - [x] 6.7 Restore automatic completed-implementation and repair-push CI advancement through existing trusted finalization without deployment approval, manual restart or integration automation.
+- [x] 6.8 Reconnect recovered Linux predecessor coordinators whose legacy POSIX-session record changes during detachment, using exact kernel peer/login or headless-scope evidence without restarting Agents or relaxing release/epoch custody.

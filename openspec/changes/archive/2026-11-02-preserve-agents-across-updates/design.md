@@ -117,6 +117,14 @@ The optional `check:local` command remains type/static checks plus non-native wo
 
 The macOS custody repair replaces process-local `audit_session_self()` port names with kernel audit user/session IDs. Immutable predecessor Mach-port metadata remains incomparable, not a proof of login equality or termination. Only the explicit source adapter can admit it after an unchanged boot, exact live process identity, authenticated epoch/credentials and connected `LOCAL_PEERTOKEN` matching PID, real/effective UID and current audit user/session. No native check is removed and no generic cross-release admission is relaxed.
 
+### Linux predecessor coordinator recovery
+
+Published Linux sources without `XDG_SESSION_ID` record the calling POSIX process session as their login identity. A detached holder's replacement request captures a different POSIX session even though the same Agent, holder and OS login remain alive. This metadata mismatch must not strand the newer client after independent coordinator recovery.
+
+Only the explicit source route's strictly recognized legacy POSIX-session records use a kernel peer adapter. The connected `SO_PEERCRED` PID must match the exact recorded owner and its effective UID must match the caller. User/PID/cgroup namespaces must match; assigned audit user/session IDs must match exactly. When both processes have no assigned audit login, identical nonempty kernel cgroup membership binds the headless execution scope instead. Missing evidence or partial/mismatched audit identity refuses admission. Existing boot, profile, release, native PID/start, credentials and epoch checks remain unchanged and the owner is reverified after the peer query. POSIX-session differences alone cannot prove logout or authorize topology deletion. No old source code or process is changed.
+
+The published predecessor regression still requires retained draft recovery, new input, unchanged tool/Agent identities and exactly-once queued work. A native two-release process regression additionally kills only the verified fixture coordinator, checks live view/input on its replacement and reopens without replacing the original Agent. This changes product continuity handling, not CI execution policy; direct hosted CI remains unchanged.
+
 ## Alternatives Rejected
 
 - Idle-boundary process migration: explicitly rejected by the maintainer; alters existing Agents and introduces new interruption/recovery risk without being necessary for client continuity.
