@@ -12,8 +12,15 @@ function trusted(command, args) {
     encoding: "utf8",
     timeout: 180_000,
   });
-  if (result.error || result.status !== 0)
-    throw new Error(`native isolation system setup failed: ${command}`);
+  if (result.error || result.status !== 0) {
+    // Invariant: these are fixed OS setup commands with public paths/IDs, never credential-bearing workload environments.
+    const detail = String(result.stderr ?? result.error?.message ?? "")
+      .trim()
+      .slice(0, 2048);
+    throw new Error(
+      `native isolation system setup failed: ${command} ${args.join(" ")} (${result.status ?? result.error?.code ?? "unknown"})${detail ? `: ${detail}` : ""}`,
+    );
+  }
   return result.stdout.trim();
 }
 function sudo(...args) {
@@ -32,7 +39,10 @@ function ancestors(path) {
 
 export async function prepareUnixIsolation(state) {
   if (state.platform === "linux") {
-    if (spawnSync("bwrap", ["--version"]).status !== 0) {
+    if (
+      spawnSync("bwrap", ["--version"]).status !== 0 ||
+      spawnSync("setfacl", ["--version"]).status !== 0
+    ) {
       sudo("apt-get", "update", "-qq");
       sudo("apt-get", "install", "-y", "bubblewrap", "acl");
     }
@@ -45,7 +55,7 @@ export async function prepareUnixIsolation(state) {
       "--shell",
       "/usr/sbin/nologin",
       "--comment",
-      `native-fixture:${state.id}`,
+      `native-fixture-${state.id}`,
       state.user,
     );
     state.uid = Number(trusted("id", ["-u", state.user]));

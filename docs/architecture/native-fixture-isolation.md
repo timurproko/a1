@@ -4,7 +4,7 @@
 
 Defender reported `Trojan:Win32/Bearfoos.A!ml` for the locally built terminal-host role fixture and its release-isolation copies. Keep those files quarantined. Source provenance and passing tests do not establish a false positive. Do not restore, rename, whitelist, exclude or rebuild a flagged file to escape detection.
 
-Native process fixtures remain CI-only; ordinary local application testing remains the maintainer's choice and is not blocked by a deployment-approval policy. `npm run check:local` performs typechecking, static architecture/identity/naming checks and the two non-native fixture policy/isolation test files. It does not prepare a package, run Cargo, build native A1 artifacts or launch A1. Passing it is neither native certification nor a security verdict.
+Native process fixtures remain CI-only; ordinary local application testing remains the maintainer's choice and is not blocked by a deployment-approval policy. `npm run check:local` performs typechecking, static architecture/identity/naming checks and the non-native fixture policy, isolation and mocked Unix-setup test files. It does not prepare a package, run Cargo, build native A1 artifacts or launch A1. Passing it is neither native certification nor a security verdict.
 
 ## Automatic CI interlocks
 

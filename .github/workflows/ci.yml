@@ -871,7 +871,15 @@ jobs:
         run: |
           node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
           import { readFile } from "node:fs/promises";
-          const result = JSON.parse(await readFile(`.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}${process.env.PARTITION_SLUG ? `-${process.env.PARTITION_SLUG}` : ""}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`, "utf8"));
+          const path = `.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}${process.env.PARTITION_SLUG ? `-${process.env.PARTITION_SLUG}` : ""}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`;
+          let source;
+          try { source = await readFile(path, "utf8"); }
+          catch (error) {
+            if (error.code !== "ENOENT") throw error;
+            console.log("No scope timings were produced before this job ended; required outcome enforcement is unchanged.");
+            process.exit(0);
+          }
+          const result = JSON.parse(source);
           const setup = Math.max(0, result.startedAt - Number(process.env.VALIDATION_JOB_STARTED_MS));
           console.log(`Setup: **${(setup / 1000).toFixed(2)}s**; gates: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**; invocations: **${result.outcomes.length}**.`);
           for (const outcome of result.outcomes) console.log(`- ${outcome.scopes.join(", ")}: **${(outcome.durationMs / 1000).toFixed(2)}s** (${outcome.id})`);

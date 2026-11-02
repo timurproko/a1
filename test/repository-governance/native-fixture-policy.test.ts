@@ -60,13 +60,16 @@ describe("native fixture execution interlock", () => {
     const security = names.indexOf("Fail on Defender detections or lost real-time protection");
     expect(security).toBeLessThan(names.indexOf("Upload terminal host contract artifacts"));
     expect(security).toBeLessThan(names.indexOf("Complete content-free job envelope"));
+    const timing = modular.steps.find((step: {name?:string}) => step.name === "Add modular timing summary").run;
+    expect(timing).toContain('if (error.code !== "ENOENT") throw error');
+    expect(timing).toContain("required outcome enforcement is unchanged");
     const native = DEVELOPMENT_VALIDATION_MATRIX.filter(entry => entry.nativeFixtures);
     expect(native.filter(entry => entry.group === "terminal-host")).toHaveLength(12);
     for (const entry of native.filter(entry => entry.platform === "win32")) expect(entry.defender).toBe(true);
   });
   it("keeps the local entrypoint explicit and free of builds, packs, broad suites and native probes", async () => {
     const pkg = JSON.parse(await readFile("package.json", "utf8"));
-    expect(pkg.scripts["check:local"]).toBe("npm run typecheck && npm run check:architecture && npm run check:names && vitest run test/repository-governance/native-fixture-policy.test.ts test/repository-governance/native-fixture-isolation.test.ts");
+    expect(pkg.scripts["check:local"]).toBe("npm run typecheck && npm run check:architecture && npm run check:names && vitest run test/repository-governance/native-fixture-policy.test.ts test/repository-governance/native-fixture-isolation.test.ts test/repository-governance/native-fixture-unix.test.ts");
     expect(pkg.scripts["precheck:local"]).toBeUndefined(); expect(pkg.scripts["postcheck:local"]).toBeUndefined();
   });
 });
