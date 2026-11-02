@@ -219,7 +219,7 @@ describe("impact-aware validation workflows", () => {
     expect(entries.find(entry => entry.group === "startup")).toMatchObject({ os: "windows-2025", platform: "win32", node: 22, defender: true });
     expect(entries.filter(entry => entry.group === "containment").map(entry => `${entry.platform}:${entry.node}`).sort()).toEqual(["darwin:24", "linux:24"]);
     expect(entries.some(entry => entry.group === "startup" && entry.node === 24)).toBe(false);
-    const defender = workflow.jobs.modular.steps.find((step: any) => step.name === "Enable Defender real-time protection for native and startup acceptance");
+    const defender = workflow.jobs.modular.steps.find((step: any) => step.name === "Enable Defender real-time protection for startup acceptance");
     expect(defender.if).toContain("matrix.defender");
     expect(defender.run).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
     expect(defender.run).toContain("Windows Defender real-time protection could not be enabled");

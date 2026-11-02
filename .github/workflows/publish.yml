@@ -818,8 +818,6 @@ jobs:
       matrix: ${{ fromJson(needs.plan.outputs.sequential_validate_matrix) }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
-    env:
-      NATIVE_FIXTURE_HEAD: ${{ needs.plan.outputs.source }}
     steps:
       - name: Preserve repository bytes during checkout
         if: runner.os == 'Windows'
@@ -837,14 +835,9 @@ jobs:
       - name: Prepare Rust toolchain
         shell: bash
         run: bash scripts/development/prepare-ci-rust.sh
-      - run: npm ci --ignore-scripts
-      - name: Provision and probe native fixture isolation
-        id: native-isolation
-        run: node scripts/development/run-isolated-native-fixtures.mjs prepare --predecessors
-      - name: Build once inside the isolated workload
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:core
+      - run: npm ci
       - name: Record verified install-time build
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- node scripts/release/record-validation-prerequisite.mjs build
+        run: node scripts/release/record-validation-prerequisite.mjs build
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: release-package-${{ needs.plan.outputs.version }}
@@ -853,9 +846,8 @@ jobs:
         env:
           VALIDATION_INSTALLER_TARBALL: ${{ github.workspace }}/.artifacts/release/installer.tgz
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- node scripts/release/validate-installer-package.mjs
+        run: node scripts/release/validate-installer-package.mjs
       - name: Bind downloaded package to this validation job
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
         run: >-
           node scripts/release/record-validation-prerequisite.mjs package
           --candidate .artifacts/release/candidate.tgz
@@ -876,7 +868,7 @@ jobs:
           fi
           echo "selected=$selected" >> "$GITHUB_OUTPUT"
       - name: Prepare the exact package
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         env:
           VALIDATION_SELECTION_JSON: ${{ steps.selection.outputs.selected }}
           VALIDATION_BUILD_READY: "1"
@@ -902,7 +894,7 @@ jobs:
           } while ((Get-Date) -lt $deadline)
           if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
       - name: Validate the exact package
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         env:
           VALIDATION_SELECTION_JSON: ${{ steps.selection.outputs.selected }}
           VALIDATION_BUILD_READY: "1"
@@ -948,12 +940,6 @@ jobs:
             console.log(`| ${measurement.profileId} | ${measurement.launchKind} | ${Math.round(measurement.elapsedMs)}ms | ${measurement.budgetMs}ms | ${status} |`);
           }
           NODE
-      - name: Retire isolated native workload
-        if: always() && steps.native-isolation.outcome == 'success'
-        run: node scripts/development/run-isolated-native-fixtures.mjs cleanup
-      - name: Require clean Defender results
-        if: always() && steps.native-isolation.outcome == 'success'
-        run: node scripts/development/run-isolated-native-fixtures.mjs security
       - name: Upload platform outcomes
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -978,7 +964,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     env:
-      NATIVE_FIXTURE_HEAD: ${{ needs.plan.outputs.source }}
       FULL_SOURCE: ${{ needs.plan.outputs.source }}
       FULL_BASE: ${{ needs.plan.outputs.source }}
       FULL_PR: "0"
@@ -998,14 +983,9 @@ jobs:
       - name: Prepare Rust toolchain
         shell: bash
         run: bash scripts/development/prepare-ci-rust.sh
-      - run: npm ci --ignore-scripts
-      - name: Provision and probe native fixture isolation
-        id: native-isolation
-        run: node scripts/development/run-isolated-native-fixtures.mjs prepare --predecessors
-      - name: Build once inside the isolated workload
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:core
+      - run: npm ci
       - name: Record verified install-time build
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- node scripts/release/record-validation-prerequisite.mjs build
+        run: node scripts/release/record-validation-prerequisite.mjs build
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
         with:
           name: release-package-${{ needs.plan.outputs.version }}
@@ -1014,9 +994,8 @@ jobs:
         env:
           VALIDATION_INSTALLER_TARBALL: ${{ github.workspace }}/.artifacts/release/installer.tgz
           RELEASE_VERSION: ${{ needs.plan.outputs.version }}
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- node scripts/release/validate-installer-package.mjs
+        run: node scripts/release/validate-installer-package.mjs
       - name: Bind downloaded package to this validation shard
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
         run: >-
           node scripts/release/record-validation-prerequisite.mjs package
           --candidate .artifacts/release/candidate.tgz
@@ -1025,7 +1004,7 @@ jobs:
           --source-identity .artifacts/release/candidate-identity.json
       - name: Prepare the exact package
         if: matrix.shard == 'package' || matrix.shard == 'predecessor'
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
           VALIDATION_BUILD_READY: "1"
@@ -1054,7 +1033,7 @@ jobs:
           } while ((Get-Date) -lt $deadline)
           if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
       - name: Run complete publication validation shard
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
           VALIDATION_BUILD_READY: "1"
@@ -1099,12 +1078,6 @@ jobs:
             console.log(`| ${measurement.profileId} | ${measurement.launchKind} | ${Math.round(measurement.elapsedMs)}ms | ${measurement.budgetMs}ms | ${status} |`);
           }
           NODE
-      - name: Retire isolated native workload
-        if: always() && steps.native-isolation.outcome == 'success'
-        run: node scripts/development/run-isolated-native-fixtures.mjs cleanup
-      - name: Require clean Defender results
-        if: always() && steps.native-isolation.outcome == 'success'
-        run: node scripts/development/run-isolated-native-fixtures.mjs security
       - name: Bind publication shard evidence
         if: always() && hashFiles('.artifacts/validation/full-regression.json') != ''
         env:

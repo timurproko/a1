@@ -72,8 +72,6 @@ pub fn version_report() -> VersionReport {
 
 /// Runs one fixed terminal-host role on the calling thread and returns its process exit code.
 pub fn run_from_args(args: Vec<String>) -> u32 {
-    #[cfg(any(feature = "resident-fixtures", feature = "fault-injection"))]
-    if let Err(error) = crate::fixture_policy::require() { eprintln!("{error}"); return 2; }
     match dispatch_from_args(args) {
         Ok(code) => u32::from(code),
         Err(error) => {

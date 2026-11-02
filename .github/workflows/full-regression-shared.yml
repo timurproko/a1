@@ -61,8 +61,6 @@ jobs:
         shard: [core, resource, rendering, package, predecessor]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
-    env:
-      NATIVE_FIXTURE_HEAD: ${{ inputs.source }}
     steps:
       - name: Preserve repository bytes during checkout
         shell: bash
@@ -98,8 +96,8 @@ jobs:
         shell: bash
         run: bash scripts/development/prepare-ci-rust.sh
 
-      - name: Install dependencies without executing project code
-        run: npm ci --ignore-scripts
+      - name: Install dependencies and build once
+        run: npm ci
 
       # Invariant: the candidate carries the release terminal host a published package ships, so
       # packaged launches take the resident route a release takes instead of falling back.
@@ -117,29 +115,23 @@ jobs:
         with:
           shared-key: terminal-host-release
           workspaces: native/terminal-host
-          save-if: false
 
-      - name: Provision and probe native fixture isolation
-        id: native-isolation
-        run: node scripts/development/run-isolated-native-fixtures.mjs prepare --predecessors
-      - name: Build once inside the isolated workload
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:core
       - name: Build the release terminal host into the candidate
         if: matrix.shard == 'package' || matrix.shard == 'predecessor'
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:terminal-host
+        run: npm run build:terminal-host
 
       - name: Record verified install-time build
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- node scripts/release/record-validation-prerequisite.mjs build
+        run: node scripts/release/record-validation-prerequisite.mjs build
 
       - name: Pack exact regression candidate once
         if: matrix.shard == 'package' || matrix.shard == 'predecessor'
         env:
           VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- node scripts/release/prepare-validation-package.mjs
+        run: node scripts/release/prepare-validation-package.mjs
 
       - name: Prepare the exact package
         if: matrix.shard == 'package' || matrix.shard == 'predecessor'
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
           VALIDATION_BUILD_READY: "1"
@@ -169,7 +161,7 @@ jobs:
           if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
 
       - name: Run complete non-physical validation shard
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
           VALIDATION_BUILD_READY: "1"
@@ -221,12 +213,6 @@ jobs:
           }
           NODE
 
-      - name: Retire isolated native workload
-        if: always() && steps.native-isolation.outcome == 'success'
-        run: node scripts/development/run-isolated-native-fixtures.mjs cleanup
-      - name: Require clean Defender results
-        if: always() && steps.native-isolation.outcome == 'success'
-        run: node scripts/development/run-isolated-native-fixtures.mjs security
       - name: Bind shard evidence
         if: always() && hashFiles('.artifacts/validation/full-regression.json') != ''
         env:
@@ -342,8 +328,6 @@ jobs:
             node: 24
     runs-on: ${{ matrix.os }}
     timeout-minutes: 40
-    env:
-      NATIVE_FIXTURE_HEAD: ${{ inputs.source }}
     steps:
       - name: Check out exact regression source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -362,8 +346,8 @@ jobs:
         shell: bash
         run: bash scripts/development/prepare-ci-rust.sh
 
-      - name: Install dependencies without executing project code
-        run: npm ci --ignore-scripts
+      - name: Install dependencies and build once
+        run: npm ci
 
       # Invariant: the candidate carries the release terminal host a published package ships, so
       # packaged launches take the resident route a release takes instead of falling back.
@@ -379,26 +363,20 @@ jobs:
         with:
           shared-key: terminal-host-release
           workspaces: native/terminal-host
-          save-if: false
 
-      - name: Provision and probe native fixture isolation
-        id: native-isolation
-        run: node scripts/development/run-isolated-native-fixtures.mjs prepare --predecessors
-      - name: Build once inside the isolated workload
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:core
       - name: Build the release terminal host into the candidate
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:terminal-host
+        run: npm run build:terminal-host
 
       - name: Record verified install-time build
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- node scripts/release/record-validation-prerequisite.mjs build
+        run: node scripts/release/record-validation-prerequisite.mjs build
 
       - name: Pack exact regression candidate once
         env:
           VALIDATION_BUILD_RECEIPT: ${{ github.workspace }}/.artifacts/validation/receipts/build.json
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- node scripts/release/prepare-validation-package.mjs
+        run: node scripts/release/prepare-validation-package.mjs
 
       - name: Prepare the exact package
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
           VALIDATION_BUILD_READY: "1"
@@ -411,7 +389,7 @@ jobs:
           --handoff .artifacts/validation/exact-package-handoff.json
 
       - name: Run complete non-physical validation
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         env:
           VALIDATION_SELECTION_JSON: '["full-release"]'
           VALIDATION_BUILD_READY: "1"
@@ -430,9 +408,6 @@ jobs:
           --exact-package-handoff .artifacts/validation/exact-package-handoff.json
           --result .artifacts/validation/full-regression.json
 
-      - name: Retire isolated native workload
-        if: always() && steps.native-isolation.outcome == 'success'
-        run: node scripts/development/run-isolated-native-fixtures.mjs cleanup
       - name: Bind complete lane evidence
         env:
           FULL_LANE: ${{ matrix.os }}-node${{ matrix.node }}

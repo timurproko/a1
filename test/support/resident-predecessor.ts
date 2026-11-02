@@ -1,5 +1,4 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
-import { requireNativeFixtureContext } from "../../scripts/development/native-fixture-policy.mjs";
 import { createServer } from "node:http";
 import assert from "node:assert/strict";
 import { chmod, mkdir, readFile, readdir, realpath, writeFile } from "node:fs/promises";
@@ -82,7 +81,6 @@ async function until<T>(probe: () => T | undefined | Promise<T | undefined>, lab
 
 /** Actual published native host and real A1 engines, with model traffic confined to a held loopback stream. */
 export async function exerciseResidentPredecessor(priorRoot: string, candidateRoot: string, fixture: PredecessorFixture): Promise<void> {
-  await requireNativeFixtureContext();
   const root = await fixture.temporaryRoot("resident-predecessor-");
   // Rationale: macOS's long per-user temporary directory exceeds the Unix socket path budget.
   const runtime = await fixture.temporaryRuntimeRoot();

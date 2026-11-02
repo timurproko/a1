@@ -2,6 +2,8 @@
 
 ## Delivery status
 
+The maintainer has explicitly superseded the earlier native-fixture isolation refinement: the custom sandbox, account/network provisioning, receipts, runtime/build interlocks and additional security steps are removed. The historical checkpoints below record what was attempted, not current execution requirements. Development, Full regression and publication now use their original direct commands on normal hosted runners; completed implementation and repair pushes advance existing trusted finalization and exact-head CI automatically. The maintainer merges after required checks pass.
+
 The continuity implementation and approved predictable tab-bar refinement are delivered in the existing branch/PR. The refinement fixes topology/presentation rather than changing the existing slim Settings/Changelog composition. Its code and sequence/process regressions precede completion of the remaining PR outcome; trusted automation owns renewed readiness and CI. Detailed task markers represent delivered code and tests, not pending CI or optional manual acceptance. Architecture/evidence reconciliation is complete, substantive tasks are checked, and current `origin/develop` is merged before the final outcome marker. Trusted automation owns readiness, finalization and exact-head validation; no agent-owned ready transition or merge is authorized.
 
 No production Agent, holder, tool, supervisor or session was stopped or modified. Process scenarios use fixture-owned profiles, stripped inherited launch credentials, loopback model traffic and separately owned published installations. Cleanup stops only those fixtures, cooperatively releases the held tool, verifies its exit, and retains roots if closure is unverified, including partial startup or malformed cleanup metadata.
@@ -85,7 +87,7 @@ Exact-package predecessor cases are integrated into the authenticated prepared-c
 
 Legacy child UI code cannot be remotely rewritten or made to acknowledge a feature it never shipped. The delivered client-owned notice scopes its historical restart text truthfully; engine state and copy interaction remain intact. This is an explicit presentation adapter, not a disabled-tab workaround or a claim that the old engine now runs new code.
 
-## Current attach-only launch and native-isolation refinement
+## Historical attach-only launch and removed native-isolation refinement
 
 The maintainer approved attach-only plain launch and removal of local native-fixture execution from the development path. The new workspace admission selects from its complete authenticated live roster: no Agents, including utility-only state, gives no selected child; retained Agents establish selection before any first-frame publication. Plain `attach.start` no longer forwards implicit execution creation through the workspace proxy. Explicit session and `tab.create` actions retain their meaning. The native client explicitly observes the admitted selected identity and generation, and a cached utility surface cannot adopt a workspace with no selected child.
 
@@ -135,10 +137,18 @@ The OS setup helper previously discarded stderr and reduced every failed command
 
 The advisory timing summary now handles absent scope timing data without masking the earlier setup error. The actual setup failure, required job envelope and aggregate outcome enforcement are unchanged; missing evidence never becomes successful native validation. All 42 fixture policy/isolation/mocked Unix cases and 18 affected workflow cases passed, along with typecheck, architecture, naming, documentation and four-workflow actionlint checks. Final native correctness still belongs to the next exact-head CI run.
 
-## Linux loopback namespace setup repair
+## Historical Linux loopback namespace setup repair
 
 Run 41439423298 passed account creation, then failed during the isolated-worker probe with `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted`. This is a namespace setup failure, not a native process-test result. Automatic fail-fast again cancelled the other runtime lanes.
 
 The privileged provisioner now creates an exact-run named network namespace and brings up its sole loopback interface before entering the dedicated unprivileged account. Bubblewrap then creates the user/PID/filesystem boundary inside that already configured network namespace and still drops all workload capabilities. It no longer tries to configure networking after entering the restricted user-namespace path. No host-network fallback, capability grant to the workload, manual approval or host-wide security-policy disablement is introduced.
 
-Invocation requires the prepared namespace's exact per-run identity. Teardown refuses live namespace processes and deletes only that namespace after closure. Mocked-command cases cover setup order, privilege drop, retained user/PID isolation, zero capabilities, missing-namespace refusal, live-process refusal and cleanup order. All 45 fixture policy/isolation/mocked Unix cases, typechecking, architecture, naming and documentation checks passed. Actual loopback/external-denial probes remain mandatory in the next exact-head CI run.
+Invocation requires the prepared namespace's exact per-run identity. Teardown refuses live namespace processes and deletes only that namespace after closure. Mocked-command cases cover setup order, privilege drop, retained user/PID isolation, zero capabilities, missing-namespace refusal, live-process refusal and cleanup order. All 45 fixture policy/isolation/mocked Unix cases, typechecking, architecture, naming and documentation checks passed. At that checkpoint actual loopback/external-denial probes remained mandatory; that requirement is superseded by the approved direct-CI rollback below.
+
+## Approved removal of custom fixture gates
+
+Run 41442849737 advanced beyond account and loopback setup, then failed before native tests at `bwrap: setting up uid map: Permission denied`. The maintainer rejected further fixture-security infrastructure and explicitly requested restoration of normal workflows: implementation complete, push, automatic current-head checks, repair push if needed, maintainer merge after required checks pass.
+
+The rollback restores the original Development, Full regression and publication execution commands and normal caches. It removes all custom provisioner/controller/worker scripts, restricted-account/network setup, fixture receipt/schema declarations, Cargo feature/runtime permission checks, launcher guards, extra artifact/security conditions and their obsolete policy tests. Ordinary hosted native tests, exact-package preparation/handoffs, terminal certificates, chaos, bounded fuzzing and platform/process assertions remain selected and required. The independent macOS login/peer-custody repair and attach-only launch implementation are preserved. Existing publication protection and normal runner settings are unchanged.
+
+New non-native workflow regressions assert direct execution, retained native targets, synchronize/edited automatic validation triggers, no fixture environment or wrapper, no receipt/runtime permission dependency, and unchanged production publication protection. `check:local` remains an optional static/non-native convenience command. No application-native build or process fixture was run locally for this rollback, and no workstation protection setting or quarantined file was modified. The rollback's 113 focused cases across eight explicit workflow/selection/partition/replay files passed, together with typechecking, architecture, naming, strict OpenSpec, documentation and all four actionlint workflow checks. Required native execution results belong to the new exact-head CI run.

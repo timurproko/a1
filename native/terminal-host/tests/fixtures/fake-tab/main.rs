@@ -10,9 +10,6 @@ pub const PROGRESS_CLIPBOARD_BASE64: &str = "aGlkZGVuLWNsaXBib2FyZA==";
 pub const PARITY_CLIPBOARD_BASE64: &str = "Zml4dHVyZQ==";
 
 fn main() {
-    if let Err(error) = terminal_host_contracts::fixture_policy::require() {
-        eprintln!("{error}"); std::process::exit(2);
-    }
     let mode = std::env::var("TERMINAL_HOST_FAKE_TAB_MODE").unwrap_or_else(|_| "echo".into());
     match mode.as_str() {
         "exit" => std::process::exit(17),

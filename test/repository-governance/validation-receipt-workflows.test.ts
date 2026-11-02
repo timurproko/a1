@@ -13,7 +13,7 @@ describe("workflow prerequisite receipts", () => {
   it("records build identity after installation and verifies it in every active build matrix cell", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const job = workflow.jobs.modular;
-    const install = step(job, "Install exact dependencies without executing project code");
+    const install = step(job, "Install exact dependencies and build");
     const receipt = step(job, "Record verified install-time build");
     const run = step(job, "Run exact selected scopes");
     expect([install.index, receipt.index, run.index]).toEqual([...new Set([install.index, receipt.index, run.index])].sort((a, b) => a - b));
@@ -37,14 +37,12 @@ describe("workflow prerequisite receipts", () => {
     const ci = parse(await readFile(".github/workflows/ci.yml", "utf8")).jobs.modular;
     const full = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8")).jobs;
     for (const [job, install, condition] of [
-      [ci, "Install exact dependencies without executing project code", "steps.job-selection.outputs.packs_candidate == 'true'"],
-      [full["windows-shard"], "Install dependencies without executing project code", "matrix.shard == 'package' || matrix.shard == 'predecessor'"],
-      [full["full-regression"], "Install dependencies without executing project code", undefined],
+      [ci, "Install exact dependencies and build", "steps.job-selection.outputs.packs_candidate == 'true'"],
+      [full["windows-shard"], "Install dependencies and build once", "matrix.shard == 'package' || matrix.shard == 'predecessor'"],
+      [full["full-regression"], "Install dependencies and build once", undefined],
     ] as const) {
       const build = step(job, "Build the release terminal host into the candidate");
-      expect(build.value.run).toBe("node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:terminal-host");
-      const isolation = job.steps.findIndex((candidate: any) => candidate.id === "native-isolation");
-      expect(isolation).toBeGreaterThanOrEqual(0); expect(isolation).toBeLessThan(build.index);
+      expect(build.value.run).toBe("npm run build:terminal-host");
       expect(build.value.if).toBe(condition);
       expect(step(job, install).index).toBeLessThan(step(job, "Set up Zig for the release terminal host").index);
       expect(step(job, "Cache release terminal host build").value.with["shared-key"]).toBe("terminal-host-release");
@@ -59,7 +57,7 @@ describe("workflow prerequisite receipts", () => {
   it("binds full-regression build and package receipts before the complete plan", async () => {
     const workflow = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
     const job = workflow.jobs["full-regression"];
-    const install = step(job, "Install dependencies without executing project code");
+    const install = step(job, "Install dependencies and build once");
     const build = step(job, "Record verified install-time build");
     const pack = step(job, "Pack exact regression candidate once");
     const run = step(job, "Run complete non-physical validation");

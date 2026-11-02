@@ -43,12 +43,12 @@
 - [x] 5.9 Coalesce bounded topology persistence behind the UI so rapid tab actions retain the latest selection/order and every affected source without surfacing routine queue contention or dropping accepted view intent.
 - [x] 5.10 Audit all tab-lifecycle notification producers, keep advisory discovery and successful recovery quiet, fence reconnect input, and prevent immutable source diagnostics from being copied into terminal chrome.
 
-## 6. Approved attach-only startup and native-fixture isolation
+## 6. Approved attach-only startup and restored direct CI
 
 - [x] 6.1 Keep plain workspace attach from forwarding implicit creation, while preserving explicit new-Agent and session-open intent.
 - [x] 6.2 Choose startup selection from the complete authenticated live roster; utility-only/empty state shows the landing and retained Agents never flash the landing first.
 - [x] 6.3 Add empty, utility-only, retained/mixed-release and explicit-create/session regression cases without locally executing native fixtures.
-- [x] 6.4 Add non-native local validation and fail-closed fixture compilation/execution guards that cannot be bypassed by the ordinary local native-build override.
-- [x] 6.5 Bind native fixture CI to an automatically provisioned disposable isolated environment with no production credentials, restricted egress and enabled Defender; detection or unavailable isolation blocks, never skips, required native evidence.
-- [x] 6.6 Add policy/workflow regressions, reconcile the current macOS predecessor custody failure without weakening epoch/login checks, and record security/platform limitations before final readiness.
-- [x] 6.7 Remove the agent-added manual environment approval and review-history dependency so normal eligible CI provisions isolation automatically after implementation completion, while retaining OS probes, exact-run receipts, required native coverage and security failure propagation.
+- [x] 6.4 Remove agent-added fixture compilation/runtime receipt guards and retain an optional non-native local validation command.
+- [x] 6.5 Restore direct native builds, process suites, exact-package preparation, certificates and fuzzing in Development, Full regression and publication without sandbox/account/network provisioning or extra security gates.
+- [x] 6.6 Replace sandbox-policy tests with direct-workflow regressions while preserving native platform coverage, exact-package assertions and the macOS boot/login custody repair.
+- [x] 6.7 Restore automatic completed-implementation and repair-push CI advancement through existing trusted finalization without deployment approval, manual restart or integration automation.

@@ -1,41 +1,23 @@
-# Native fixture execution boundary
+# Native fixture validation
 
-## Security state
+## Normal automatic CI
 
-Defender reported `Trojan:Win32/Bearfoos.A!ml` for the locally built terminal-host role fixture and its release-isolation copies. Keep those files quarantined. Source provenance and passing tests do not establish a false positive. Do not restore, rename, whitelist, exclude or rebuild a flagged file to escape detection.
+Development, Full regression and publication run native builds and fixtures directly on their normal GitHub-hosted runners. The agent-added sandbox, restricted OS accounts, network provisioning, fixture receipts, feature/runtime permission checks and additional security gates have been removed.
 
-Native process fixtures remain CI-only; ordinary local application testing remains the maintainer's choice and is not blocked by a deployment-approval policy. `npm run check:local` performs typechecking, static architecture/identity/naming checks and the non-native fixture policy, isolation and mocked Unix-setup test files. It does not prepare a package, run Cargo, build native A1 artifacts or launch A1. Passing it is neither native certification nor a security verdict.
+The existing required suites remain required: terminal-host partitions, release isolation, resident chaos, exact-package published-predecessor continuity, terminal fidelity/latency certificates and bounded decoder fuzzing. Their platform coverage and product assertions are unchanged. Production publication protection is unchanged.
 
-## Automatic CI interlocks
+When implementation outcomes are complete, trusted readiness/finalization publishes the exact candidate head and normal PR validation starts automatically. A repair push triggers the same flow for its new head. No fixture approval, deployment review, manual dispatch or workflow restart is required. Failed, missing or cancelled required results block integration; the maintainer chooses when to merge after required checks pass.
 
-The terminal-host Cargo build script refuses fixture/fault-injection features before the ordinary local-build override or VT preparation without an exact-run receipt. Role-host, fake-tab, feature-enabled dispatch and the normal probe/chaos/published-resident launchers check again. Clean-environment fixture children retain the compile-time run binding but still require the matching ephemeral receipt. Generic `CI=1`, a copied fixture and the old VT override do not grant workstation execution permission.
+## Optional local checks
 
-These interlocks are **not a sandbox or cryptographic attestation**. The CI controller supplies the actual boundary. `run-isolated-native-fixtures.mjs prepare` accepts only an immutable GitHub-hosted job and provisions isolation automatically. It does not use a required-reviewer environment, request deployment approval or query GitHub approval history. No GitHub API token is needed for provisioning. Completing implementation and trusted finalization starts normal CI without an extra human step; required validation and maintainer integration authority remain unchanged.
+`npm run check:local` runs typechecking, architecture/identity/naming checks and non-native workflow regression tests. It does not build native artifacts or launch application/fixture processes. It is a convenience command, not an execution permission system or a prerequisite for CI advancement.
 
-The controller binds the actual checkout, run ID and attempt. It prepares public dependencies with install scripts disabled before restricting workload networking; the workload uses an offline public package cache. No preparation token, SSH socket, proxy, arbitrary ambient variable or GitHub special-file path enters the workload environment. Only a private generated request reaches the child. Workload stdout cannot issue GitHub workflow commands while it is streamed back.
+The previous Defender report is unresolved historical evidence, not a passing security verdict. This workflow rollback changes no workstation protection setting or quarantined file.
 
-## Privilege-separated workload
+## macOS custody
 
-The controller and its source/modules remain outside the workload's writable checkout. A separate exact-head checkout, public toolchain copies and a new restricted OS account own execution. Generated evidence is shared through `.artifacts/`; controller state, account credentials and runner transport files are not shared. The account cannot modify the controller's source and cause a later privileged step to execute modified code.
+The macOS predecessor custody repair remains independent of CI provisioning. `getaudit_addr` supplies kernel audit user/session IDs; `audit_session_self()` returns only a process-local Mach port name.
 
-- **Windows:** a fresh non-administrator local SID runs limited scheduled tasks. Protected filesystem ACLs deny access to the runner profile, temporary special files and the actual runner installation. Per-SID Windows Firewall rules block non-loopback IPv4/IPv6 egress, including detached/breakaway descendants. The task bridge verifies its actual SID and non-administrator token before clearing ambient environment and launching Node. Account credentials are ephemeral and DPAPI-protected outside the workload.
-- **Linux:** the privileged provisioner creates a private named network namespace containing only loopback and brings that interface up before dropping privilege. A fresh locked service account enters it and runs Bubblewrap with separate user/PID namespaces, no capabilities, masked runner homes/temporary storage and read-only controller source. The workload never receives `CAP_NET_ADMIN`, and missing namespace identity refuses execution rather than using the host network. Teardown verifies the namespace has no live processes before deleting it. Namespace init owns detached descendants. This headless account has one provisioner-owned `XDG_SESSION_ID` service-login scope; it does not borrow the runner's interactive login or alter product admission rules. Exact native UID/PID/start, boot, source epoch and authentication fences remain required.
-- **macOS:** a fresh non-login UID runs `sandbox-exec`. The inherited sandbox blocks non-loopback network operations, runner-home reads and writes to controller source. The dedicated UID also permits cleanup of detached descendants without targeting the runner's own processes.
+For immutable predecessors using the older metadata, the explicit source route still requires unchanged boot, exact native PID/start identity, source credentials/epoch and a connected kernel `LOCAL_PEERTOKEN` matching PID, real/effective UID and current audit user/session. Incomparable metadata is retained, not treated as proof of login equality or termination. Generic cross-release admission is unchanged.
 
-Before emitting a receipt, the controller runs the same restricted worker and requires real loopback connectivity, a failed external connection to an endpoint reachable from the parent, denial of a world-readable runner-home credential canary, denial of controller-source write access and a non-privileged identity. Unavailable tooling, permissions or isolation fails the job; it does not skip mandatory evidence. The `isolated-ci-v2` receipt contains no production credential and is emitted only after these probes, never hand-written to turn the lane green. Its schema has no approval or review fields; older approval-based receipts do not authorize the new fixture contract.
-
-## CI ownership and closure
-
-Development native/runtime lanes, both Full regression execution jobs and both publication validation jobs use this boundary. Build, exact-package preparation, published-predecessor execution, native certificates and fuzz workloads run inside it. Required platform/identity assertions and unchanged process coverage remain mandatory. Fixture-mutated targets are not saved back to shared Rust caches.
-
-Windows real-time Defender protection is required before execution and before each task. Existing runner detections refuse provisioning. After workload account/process closure, a synchronous Defender scan and detection-history check fail on new alerts, including quarantined ones. Executable contract artifacts require successful isolation, closure and security steps; required aggregates still see failures. No scanner exclusion, restoration or protection bypass is installed.
-
-A controller or workload failure cannot establish successful isolation or test evidence. CI VMs are disposable even when cleanup cannot be proved. Normal successful teardown verifies closure before deleting the dedicated account or removing its network rules. State/receipts are exact-run metadata, not a license for workstation execution or another checkout.
-
-## macOS custody repair and evidence boundary
-
-The previous macOS predecessor failure, `resident source belongs to another boot or login`, used `audit_session_self()` as a login ID. That API returns a process-local Mach port name. The native identity implementation now reads kernel audit user/session IDs with unprivileged `getaudit_addr` instead.
-
-Immutable predecessors can still advertise old Mach-port records. Such a record proves neither the same nor an ended login. The explicit source route requires unchanged boot, native PID/start identity, source credentials/epoch and a connected kernel `LOCAL_PEERTOKEN` matching the expected PID, real/effective UID and current audit user/session. Missing or mismatched peer proof refuses admission. Incomparable workspace metadata is retained rather than being treated as an ended login or positive live-control proof. Generic cross-release admission is unchanged.
-
-Pure policy/workflow tests and static checks are local evidence only. The new Rust startup/audit regressions and actual OS isolation probes are written for isolated CI, not claimed as locally compiled or executed. Exact-head Windows/Linux/macOS native results remain required by CI before integration. No claim here resolves the Defender classification or authorizes restoring the quarantined workstation files.
+Static/workflow tests are not native platform execution evidence. Required exact-head native results remain the CI authority.

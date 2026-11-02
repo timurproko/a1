@@ -566,8 +566,6 @@ jobs:
       # scripts/release/validation-matrix.mjs, and the in-job resolver remains the second check.
       matrix: ${{ fromJSON(needs.changes.outputs.modular-matrix) }}
     runs-on: ${{ matrix.os }}
-    env:
-      NATIVE_FIXTURE_HEAD: ${{ needs.changes.outputs.head-sha }}
     # A cold terminal-host build compiles libghostty-vt with Zig before the Rust crate; lanes that
     # pack a candidate build the release host too, which the selection decides after scheduling.
     timeout-minutes: ${{ matrix.partition && 25 || (matrix.terminalHost || matrix.chaos) && 45 || 35 }}
@@ -607,8 +605,8 @@ jobs:
       - name: Resolve this target from the trusted selection
         id: job-selection
         run: node scripts/release/resolve-validation-job.mjs --impact .artifacts/validation/impact.json --job ${{ matrix.group }} --platform ${{ matrix.platform }} --architecture ${{ matrix.architecture }} --node ${{ matrix.node }}
-      - name: Enable Defender real-time protection for native and startup acceptance
-        if: steps.job-selection.outputs.active == 'true' && (matrix.defender || (runner.os == 'Windows' && (matrix.build || matrix.partition)))
+      - name: Enable Defender real-time protection for startup acceptance
+        if: steps.job-selection.outputs.active == 'true' && matrix.defender
         shell: powershell
         run: |
           $ErrorActionPreference = "Stop"
@@ -625,10 +623,9 @@ jobs:
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: native/process-guardian
-          save-if: false
-      - name: Install exact dependencies without executing project code
+      - name: Install exact dependencies and build
         if: steps.job-selection.outputs.active == 'true' && matrix.build
-        run: npm ci --ignore-scripts
+        run: npm ci
       # Rationale: a partition job runs only Cargo and the tier runner, so it needs the scripts' dependencies
       # but neither the TypeScript build nor the process guardian.
       - name: Install dependencies for the test partition
@@ -653,7 +650,28 @@ jobs:
         with:
           shared-key: terminal-host-release
           workspaces: native/terminal-host
-          save-if: false
+      - name: Build the release terminal host into the candidate
+        if: steps.job-selection.outputs.packs_candidate == 'true'
+        run: npm run build:terminal-host
+      - name: Record verified install-time build
+        if: steps.job-selection.outputs.active == 'true' && matrix.build
+        run: node scripts/release/record-validation-prerequisite.mjs build
+      - name: Test and build process guardian fixture addon
+        if: steps.job-selection.outputs.active == 'true' && matrix.guardian
+        shell: bash
+        run: |
+          cargo test --locked --manifest-path native/process-guardian/Cargo.toml
+          cargo build --locked --manifest-path native/process-guardian/Cargo.toml
+          mkdir -p .artifacts/process-guardian
+          case "${{ matrix.platform }}" in
+            win32) source="native/process-guardian/target/debug/process_guardian.dll" ;;
+            linux) source="native/process-guardian/target/debug/libprocess_guardian.so" ;;
+            darwin) source="native/process-guardian/target/debug/libprocess_guardian.dylib" ;;
+          esac
+          cp "$source" ".artifacts/process-guardian/${{ matrix.addon }}"
+          echo "A1_PROCESS_GUARDIAN_PATH=${{ github.workspace }}/.artifacts/process-guardian/${{ matrix.addon }}" >> "$GITHUB_ENV"
+      # Platform: the terminal host builds only here. Its Zig fetch unpacks upstream test data
+      # that workstation antivirus quarantines, so build.rs refuses local Windows builds.
       - name: Prepare terminal host Rust toolchain
         if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos || matrix.partition)
         shell: bash
@@ -671,7 +689,6 @@ jobs:
         with:
           key: terminal-host
           workspaces: native/terminal-host
-          save-if: false
       # Performance: the vendored VT suite takes six to thirteen minutes per target and depends only on the
       # vendored tree, Zig, and the target. A tree that already passed on this target is not retested; a
       # changed tree, Zig version, or suite command changes the key and runs the suite again.
@@ -700,55 +717,9 @@ jobs:
         with:
           path: .artifacts/vt-tests-passed
           key: ghostty-vt-tests-v1-${{ runner.os }}-${{ runner.arch }}-zig-0.15.2-${{ hashFiles('native/terminal-host/vendor/libghostty-vt/**') }}
-      - name: Prepare decoder fuzz dependencies before restricting egress
-        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && matrix.platform == 'linux'
-        shell: bash
-        run: |
-          rustup toolchain install nightly-2026-10-01 --profile minimal --no-self-update
-          cargo +nightly-2026-10-01 install cargo-fuzz --version 0.13.2 --locked
-          cargo +nightly-2026-10-01 fetch --manifest-path native/terminal-host/fuzz/Cargo.toml
-      - name: Provision and probe disposable native fixture isolation
-        id: native-isolation
-        if: steps.job-selection.outputs.active == 'true' && (matrix.build || matrix.partition)
-        shell: bash
-        env:
-          NATIVE_FIXTURE_ISOLATION_RECEIPT: ${{ runner.temp }}/a1-native-fixture-isolation.json
-        run: |
-          node scripts/development/run-isolated-native-fixtures.mjs prepare --predecessors
-          echo "NATIVE_FIXTURE_ISOLATION_RECEIPT=$NATIVE_FIXTURE_ISOLATION_RECEIPT" >> "$GITHUB_ENV"
-      - name: Build managed client and production guardian in the isolated workload
-        if: steps.job-selection.outputs.active == 'true' && matrix.build
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
-        run: npm run build:core
-      - name: Build the release terminal host into the candidate
-        if: steps.job-selection.outputs.packs_candidate == 'true'
-        run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:terminal-host
-      - name: Record verified install-time build
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
-        if: steps.job-selection.outputs.active == 'true' && matrix.build
-        run: node scripts/release/record-validation-prerequisite.mjs build
-      - name: Test and build process guardian fixture addon
-        if: steps.job-selection.outputs.active == 'true' && matrix.guardian
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
-        run: |
-          cargo test --locked --manifest-path native/process-guardian/Cargo.toml
-          cargo build --locked --manifest-path native/process-guardian/Cargo.toml
-          mkdir -p .artifacts/process-guardian
-          case "${{ matrix.platform }}" in
-            win32) source="native/process-guardian/target/debug/process_guardian.dll" ;;
-            linux) source="native/process-guardian/target/debug/libprocess_guardian.so" ;;
-            darwin) source="native/process-guardian/target/debug/libprocess_guardian.dylib" ;;
-          esac
-          cp "$source" ".artifacts/process-guardian/${{ matrix.addon }}"
-      # Platform: the terminal host builds only here. Its Zig fetch unpacks upstream test data
-      # that workstation antivirus quarantines, so build.rs refuses local Windows builds.
-      - name: Publish the isolated guardian artifact path
-        if: steps.job-selection.outputs.active == 'true' && matrix.guardian
-        shell: bash
-        run: echo "A1_PROCESS_GUARDIAN_PATH=${{ github.workspace }}/.artifacts/process-guardian/${{ matrix.addon }}" >> "$GITHUB_ENV"
       - name: Run exact selected scopes
         if: steps.job-selection.outputs.active == 'true'
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         env:
           VALIDATION_SELECTION_JSON: ${{ steps.job-selection.outputs.scopes_json }}
           VALIDATION_TESTS_JSON: ${{ steps.job-selection.outputs.tests_json }}
@@ -787,7 +758,7 @@ jobs:
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
         # Rationale: certification takes minutes on every target; a stalled fixture fails here, not at the job limit.
         timeout-minutes: 20
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         run: |
           mkdir -p .artifacts/terminal-host
           # Provenance: debug unit/role coverage remains above; timed certificates use shipping
@@ -819,22 +790,16 @@ jobs:
           node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"
       - name: Run bounded terminal-host decoder fuzzing
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && matrix.platform == 'linux'
-        shell: node scripts/development/run-isolated-native-fixtures.mjs run -- bash --noprofile --norc -e -o pipefail {0}
+        shell: bash
         run: |
+          rustup toolchain install nightly-2026-10-01 --profile minimal --no-self-update
+          cargo +nightly-2026-10-01 install cargo-fuzz --version 0.13.2 --locked
           cd native/terminal-host
           # Rationale: every decoder and parser gets the same bounded budget; this proves parser
           # robustness on Linux and is not platform evidence.
           for target in decode_frame decode_bridge parse_records boundary_marker; do
             cargo +nightly-2026-10-01 fuzz run "$target" "fuzz/corpus/$target" -- -max_total_time=30 -timeout=5
           done
-      - name: Retire the isolated workload account and verify process closure
-        id: native-cleanup
-        if: always() && steps.native-isolation.outcome == 'success'
-        run: node scripts/development/run-isolated-native-fixtures.mjs cleanup
-      - name: Fail on Defender detections or lost real-time protection
-        id: native-security
-        if: always() && steps.native-isolation.outcome == 'success' && runner.os == 'Windows'
-        run: node scripts/development/run-isolated-native-fixtures.mjs security
       - name: Upload resident chaos report
         if: always() && steps.job-selection.outputs.active == 'true' && matrix.chaos
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -843,7 +808,7 @@ jobs:
           path: .artifacts/validation/resident-chaos-*.json
           if-no-files-found: warn
       - name: Upload terminal host contract artifacts
-        if: always() && steps.job-selection.outputs.active == 'true' && matrix.terminalHost && steps.native-isolation.outcome == 'success' && steps.native-cleanup.outcome == 'success' && (runner.os != 'Windows' || steps.native-security.outcome == 'success')
+        if: always() && steps.job-selection.outputs.active == 'true' && matrix.terminalHost
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: terminal-host-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
@@ -871,15 +836,7 @@ jobs:
         run: |
           node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
           import { readFile } from "node:fs/promises";
-          const path = `.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}${process.env.PARTITION_SLUG ? `-${process.env.PARTITION_SLUG}` : ""}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`;
-          let source;
-          try { source = await readFile(path, "utf8"); }
-          catch (error) {
-            if (error.code !== "ENOENT") throw error;
-            console.log("No scope timings were produced before this job ended; required outcome enforcement is unchanged.");
-            process.exit(0);
-          }
-          const result = JSON.parse(source);
+          const result = JSON.parse(await readFile(`.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}${process.env.PARTITION_SLUG ? `-${process.env.PARTITION_SLUG}` : ""}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`, "utf8"));
           const setup = Math.max(0, result.startedAt - Number(process.env.VALIDATION_JOB_STARTED_MS));
           console.log(`Setup: **${(setup / 1000).toFixed(2)}s**; gates: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**; invocations: **${result.outcomes.length}**.`);
           for (const outcome of result.outcomes) console.log(`- ${outcome.scopes.join(", ")}: **${(outcome.durationMs / 1000).toFixed(2)}s** (${outcome.id})`);

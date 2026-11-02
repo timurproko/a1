@@ -10,8 +10,6 @@ pub mod core;
 pub mod durable;
 pub mod endpoint;
 pub mod fault_injection;
-#[cfg(any(feature = "resident-fixtures", feature = "fault-injection"))]
-pub mod fixture_policy;
 pub mod ghostty;
 pub mod identity;
 pub mod launch;
