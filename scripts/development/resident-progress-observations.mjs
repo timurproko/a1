@@ -34,14 +34,17 @@ export async function readProgressObservations(directory, runId) {
   return { records, faults, files: names };
 }
 
-export function validateProgressObservations(records, runId) {
-  const faults = [];
+/** Retains identity/clock/loss checks across append batches; standalone validation uses fresh state. */
+export function createProgressObservationValidator(runId) {
   const priorSequence = new Map();
   const priorTimestamp = new Map();
   const priorClock = new Map();
   const identities = new Set();
-  for (const [index, record] of records.entries()) {
-    const label = `record ${index + 1}`;
+  let count = 0;
+  return records => {
+  const faults = [];
+  for (const record of records) {
+    const label = `record ${++count}`;
     if (record?.schema !== progressObservationSchema) faults.push(`${label}: invalid schema`);
     if (record?.runId !== runId) faults.push(`${label}: wrong run id`);
     if (!stageSet.has(record?.stage)) faults.push(`${label}: invalid stage`);
@@ -87,6 +90,11 @@ export function validateProgressObservations(records, runId) {
     identities.add(identity);
   }
   return faults;
+  };
+}
+
+export function validateProgressObservations(records, runId) {
+  return createProgressObservationValidator(runId)(records);
 }
 
 export function evaluateProgressScenario(records, scenario) {

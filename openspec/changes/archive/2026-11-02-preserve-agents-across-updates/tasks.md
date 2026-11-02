@@ -56,3 +56,4 @@
 - [x] 6.9 Keep coordinator-recovery fixture view generations above attach's consumed generation and require the exact requested surface before checking retained state or submitting subsequent input.
 - [x] 6.10 Reconcile the real-process cleanup fixture with private recovery lifetime: retain stopped releases while recovery custody is fresh, collect after expiry and preserve private recovery files.
 - [x] 6.11 Fence the runtime-control read-only fixture baseline on completed startup commits using the observable start-permit counter, retaining exact full-registry equality.
+- [x] 6.12 Keep the latency certifier's PTY sink responsive with append-only incremental observation reads and bounded yielding parse batches, preserving full final history validation and unchanged latency/sample gates.

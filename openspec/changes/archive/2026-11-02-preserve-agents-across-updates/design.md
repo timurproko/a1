@@ -125,6 +125,12 @@ Only the explicit source route's strictly recognized legacy POSIX-session record
 
 The published predecessor regression still requires retained draft recovery, new input, unchanged tool/Agent identities and exactly-once queued work. A native two-release process regression additionally kills only the verified fixture coordinator, checks live view/input on its replacement and reopens without replacing the original Agent. This changes product continuity handling, not CI execution policy; direct hosted CI remains unchanged.
 
+### Keep the certifier from blocking its measured terminal sink
+
+The real-progress certifier drains the outer PTY in its Node process. Repeated full JSONL parsing, validation and sorting on that same event loop grows with the complete history and can itself block terminal drainage. Live observation reads therefore tail only appended bytes, preserve partial UTF-8/records, validate identity/loss/clock state across batches, and yield after bounded 64 KiB parse batches. Parsed records and previous snapshots remain unchanged; concurrent reads coalesce.
+
+After all measured windows, the oracle independently rereads and validates the full logs and checks every cached observation against that full history. Disappeared/truncated/replaced files, malformed records and live validation faults remain failures. Existing scenario windows, activation/stale exclusions, sample minimums, clock/loss checks, negative controls and the 33 ms commit-to-paint limit are unchanged. This repairs the measurement workload rather than relaxing the product performance contract.
+
 ## Alternatives Rejected
 
 - Idle-boundary process migration: explicitly rejected by the maintainer; alters existing Agents and introduces new interruption/recovery risk without being necessary for client continuity.

@@ -7,11 +7,11 @@ import { createRequire } from "node:module";
 import process from "node:process";
 import { createHash, randomUUID } from "node:crypto";
 import { assertMatchingInputBaseline, assertOptimizedFixture, createResidentFixtureRoot, writeFixtureRoleEntry, measureRealInputResponsiveness, submitFixturePrompt } from "./resident-input-responsiveness.mjs";
+import { createProgressObservationReader, readVerifiedProgressObservations } from "./resident-progress-reader.mjs";
 import {
   evaluateProgressScenario,
   evaluateStoppedStageControl,
   progressLatencyReport,
-  readProgressObservations,
 } from "./resident-progress-observations.mjs";
 
 const productIdentity = JSON.parse(await readFile(new URL("../../src/product-identity.json", import.meta.url), "utf8"));
@@ -286,7 +286,8 @@ function lastUserText(messages) {
 }
 
 async function currentObservations(context) {
-  try { return await readProgressObservations(context.observations, context.runId); } catch (error) {
+  context.readObservations ??= createProgressObservationReader(context.observations, context.runId);
+  try { return await context.readObservations(); } catch (error) {
     if (error?.code === "ENOENT") return { records: [], faults: [], files: [] };
     throw error;
   }
@@ -1083,7 +1084,8 @@ async function collect(host) {
     const transactionCharacterization = await characterizeFragmentedTransactions(attach, context, provider, tabIds);
     phase("stopped-stage controls");
     const stoppedStageControls = await runStoppedStageControls(attach, context, provider, tabIds);
-    const observations = await currentObservations(context);
+    // Invariant: after measured work, independently audit every complete log record, including cached-history integrity.
+    const observations = await readVerifiedProgressObservations(context.observations, context.runId, context.readObservations);
     const latency = progressLatencyReport(observations.records, tabIds, scenarios.map(scenario => scenario.window));
     const faults = [...observations.faults, ...latency.faults, ...inputResponsiveness.faults];
     return {
