@@ -16,6 +16,7 @@ import { pathToFileURL } from "node:url";
 import {
   assertHostedFixtureJob,
   fixtureEnvironment,
+  fixtureReceiptPath,
   isolationReceipt,
   writableOutputs,
 } from "./native-fixture-isolation-plan.mjs";
@@ -244,6 +245,10 @@ if (
   process.argv[1] &&
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 ) {
+  assertHostedFixtureJob(process.env);
+  process.env.NATIVE_FIXTURE_ISOLATION_RECEIPT = fixtureReceiptPath(
+    process.env,
+  );
   const [operation, ...args] = process.argv.slice(2);
   if (operation === "prepare") await prepare(args.includes("--predecessors"));
   else if (operation === "run")

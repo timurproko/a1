@@ -822,7 +822,6 @@ jobs:
     timeout-minutes: 60
     env:
       NATIVE_FIXTURE_HEAD: ${{ needs.plan.outputs.source }}
-      NATIVE_FIXTURE_ISOLATION_RECEIPT: ${{ runner.temp }}/native-fixture-isolation.json
     steps:
       - name: Preserve repository bytes during checkout
         if: runner.os == 'Windows'
@@ -985,7 +984,6 @@ jobs:
     timeout-minutes: 60
     env:
       NATIVE_FIXTURE_HEAD: ${{ needs.plan.outputs.source }}
-      NATIVE_FIXTURE_ISOLATION_RECEIPT: ${{ runner.temp }}/native-fixture-isolation.json
       FULL_SOURCE: ${{ needs.plan.outputs.source }}
       FULL_BASE: ${{ needs.plan.outputs.source }}
       FULL_PR: "0"

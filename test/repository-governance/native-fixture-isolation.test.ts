@@ -1,10 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { parse } from "yaml";
 import {
   assertHostedFixtureJob,
   fixtureEnvironment,
+  fixtureReceiptPath,
   isolationReceipt,
   linuxSandboxArguments,
   macSandboxProfile,
@@ -54,6 +55,17 @@ afterEach(() => {
 });
 
 describe("native fixture OS isolation plan", () => {
+  it("derives the controller receipt at runtime without unsupported workflow contexts", () => {
+    expect(fixtureReceiptPath({ RUNNER_TEMP: "/private-runner-temp" })).toBe(
+      join("/private-runner-temp", "native-fixture-isolation.json"),
+    );
+    expect(
+      fixtureReceiptPath({
+        NATIVE_FIXTURE_ISOLATION_RECEIPT: "explicit-step-receipt",
+      }),
+    ).toBe("explicit-step-receipt");
+    expect(() => fixtureReceiptPath({})).toThrow("private temporary directory");
+  });
   it.each([
     {},
     { ...hosted, RUNNER_ENVIRONMENT: "self-hosted" },
@@ -287,6 +299,47 @@ it("all Full and publication native consumers enter the reviewed OS boundary", a
       expect(steps.slice(0, setup).some((step) => step.run === "npm ci")).toBe(
         false,
       );
+      expect(job.env.NATIVE_FIXTURE_ISOLATION_RECEIPT).toBeUndefined();
     }
   }
 });
+
+it.each([
+  "ci.yml",
+  "full-regression-shared.yml",
+  "full-regression.yml",
+  "publish.yml",
+])(
+  "uses GitHub-supported shell and job-environment contexts in %s",
+  async (file) => {
+    const workflow = parse(await readFile(`.github/workflows/${file}`, "utf8"));
+    for (const [name, job] of Object.entries(workflow.jobs) as [
+      string,
+      {
+        env?: Record<string, unknown>;
+        steps?: { shell?: string }[];
+        defaults?: { run?: { shell?: string } };
+      },
+    ][]) {
+      for (const step of [
+        ...(job.steps ?? []),
+        { shell: job.defaults?.run?.shell },
+      ]) {
+        expect(
+          step.shell ?? "",
+          `${name} shell must be a literal declaration`,
+        ).not.toContain("${{");
+      }
+      for (const value of Object.values(job.env ?? {})) {
+        for (const expression of String(value).matchAll(
+          /\$\{\{([\s\S]*?)\}\}/gu,
+        )) {
+          expect(
+            expression[1],
+            `${name} job env cannot reference step-runtime contexts`,
+          ).not.toMatch(/\b(?:runner|steps|env)\./u);
+        }
+      }
+    }
+  },
+);

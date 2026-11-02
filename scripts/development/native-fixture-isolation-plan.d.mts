@@ -28,6 +28,9 @@ export interface IsolationProbe {
 export function assertHostedFixtureJob(
   environment: Record<string, string | undefined>,
 ): void;
+export function fixtureReceiptPath(
+  environment: Record<string, string | undefined>,
+): string;
 export function fixtureEnvironment(
   environment: Record<string, string | undefined>,
   state: IsolationPlan,

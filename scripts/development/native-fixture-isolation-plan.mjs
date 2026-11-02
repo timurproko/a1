@@ -70,6 +70,17 @@ export function assertHostedFixtureJob(env) {
   }
 }
 
+/** Invariant: derive controller state from the runtime temp directory, never a writable workload artifact. */
+export function fixtureReceiptPath(environment) {
+  if (environment.NATIVE_FIXTURE_ISOLATION_RECEIPT)
+    return environment.NATIVE_FIXTURE_ISOLATION_RECEIPT;
+  if (!environment.RUNNER_TEMP)
+    throw new Error(
+      "Native controller requires the runner's private temporary directory",
+    );
+  return join(environment.RUNNER_TEMP, "native-fixture-isolation.json");
+}
+
 /** A new low-privilege workload receives public tool/selection values, never the runner's credentials. */
 export function fixtureEnvironment(source, state) {
   const env = {};

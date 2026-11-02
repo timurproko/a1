@@ -65,7 +65,6 @@ jobs:
     timeout-minutes: 40
     env:
       NATIVE_FIXTURE_HEAD: ${{ inputs.source }}
-      NATIVE_FIXTURE_ISOLATION_RECEIPT: ${{ runner.temp }}/native-fixture-isolation.json
     steps:
       - name: Preserve repository bytes during checkout
         shell: bash
@@ -350,7 +349,6 @@ jobs:
     timeout-minutes: 40
     env:
       NATIVE_FIXTURE_HEAD: ${{ inputs.source }}
-      NATIVE_FIXTURE_ISOLATION_RECEIPT: ${{ runner.temp }}/native-fixture-isolation.json
     steps:
       - name: Check out exact regression source
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
