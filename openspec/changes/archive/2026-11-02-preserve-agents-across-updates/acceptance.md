@@ -1,0 +1,43 @@
+# Conditional implementation acceptance
+
+Verdict: accepted only when an authorized human directly merges the containing exact pull-request head after required current-head validation, explicitly asks the active agent to execute that protected exact-head merge while it is currently eligible, or personally enables native auto-merge for the unchanged head and GitHub integrates it after validation succeeds.
+
+The maintainer integration decision accepts these scenarios:
+- Updating and reopening A1 reconnects the same live busy and idle Agents, drafts, queued work, interactions and sessions without restarting execution.
+- New Agents and utilities use the selected release while retained Agents keep their original code, processes and writer custody.
+- Incompatible or unverifiable runtime control refuses activation and retains an eligible verified prior client without stopping Agents.
+- Client or coordinator replacement restores fenced live control without duplicate Agents or replayed input and retains required execution and private recovery artifacts.
+- Connected-client readiness remains distinct from retained engine version and does not require restarting Agents after reconnection.
+- New tabs append last, visible utilities activate in place, and utility toggles, close and reopen preserve stable order and coherent presentation without Agent restarts.
+- Rapid tab actions reconcile delayed topology, duplicate Close and metadata contention without internal-error banners, stale first-frame positions or misdirected input.
+- Plain launch shows the landing without creating an Agent when none are live and directly observes retained Agents without an empty-state flash.
+- Native process fixtures execute automatically in disposable CI isolation without production credentials, while unavailable isolation or Defender detections fail closed.
+
+```openspec-delivery
+{
+  "version": 3,
+  "repository": "timurproko/a1",
+  "change": "preserve-agents-across-updates",
+  "sourcePr": 858,
+  "archive": "openspec/changes/archive/2026-11-02-preserve-agents-across-updates/",
+  "acceptanceManifest": "openspec/changes/archive/2026-11-02-preserve-agents-across-updates/acceptance.md",
+  "finalizedDate": "2026-11-02",
+  "specBaseSha": "78670a375c1e697328e7918ed41057d4ec6650ff",
+  "acceptanceScenarios": [
+    "Updating and reopening A1 reconnects the same live busy and idle Agents, drafts, queued work, interactions and sessions without restarting execution.",
+    "New Agents and utilities use the selected release while retained Agents keep their original code, processes and writer custody.",
+    "Incompatible or unverifiable runtime control refuses activation and retains an eligible verified prior client without stopping Agents.",
+    "Client or coordinator replacement restores fenced live control without duplicate Agents or replayed input and retains required execution and private recovery artifacts.",
+    "Connected-client readiness remains distinct from retained engine version and does not require restarting Agents after reconnection.",
+    "New tabs append last, visible utilities activate in place, and utility toggles, close and reopen preserve stable order and coherent presentation without Agent restarts.",
+    "Rapid tab actions reconcile delayed topology, duplicate Close and metadata contention without internal-error banners, stale first-frame positions or misdirected input.",
+    "Plain launch shows the landing without creating an Agent when none are live and directly observes retained Agents without an empty-state flash.",
+    "Native process fixtures execute automatically in disposable CI isolation without production credentials, while unavailable isolation or Defender detections fail closed."
+  ],
+  "archiveDigest": "54253b35bd1d812b14174f79e4b5b10086741c1d69315de32ac1590e597903a7",
+  "specDigest": "c36f7109bfdfd2794940be1d47c69fbfde4902d24d7f4a373db3640fc30b0cc2",
+  "tasksDigest": "0476988fcb2ae36a9d286be4278853f7be761f8a5e86a2b2fe7cfe02626b7b01",
+  "evidenceDigest": "dd586c6c8dd0d3635852e702d1affdd6cc2f6ba71544276fe04696f0d14400d0",
+  "knownGaps": []
+}
+```
