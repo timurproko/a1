@@ -131,6 +131,12 @@ The real-progress certifier drains the outer PTY in its Node process. Repeated f
 
 After all measured windows, the oracle independently rereads and validates the full logs and checks every cached observation against that full history. Disappeared/truncated/replaced files, malformed records and live validation faults remain failures. Existing scenario windows, activation/stale exclusions, sample minimums, clock/loss checks, negative controls and the 33 ms commit-to-paint limit are unchanged. This repairs the measurement workload rather than relaxing the product performance contract.
 
+### Measure warm-create p95 over independent, proven promotions
+
+The latency report previously labeled one warm creation as p95, making that percentile indistinguishable from a single maximum. Collect a fixed 23 warm creations, matching the existing input population's minimum useful tail resolution. Retain every observation and apply the same nearest-rank p95 and 250 ms budget; never retry or filter slow/invalid attempts. Two over-budget observations out of 23 must fail, and any invalid latency still fails.
+
+Each creation waits for a fresh, atomically published fixture readiness marker and must paint the exact standby tab and original child PID before its input is accepted. Consumed readiness markers cannot satisfy later warm-ups; old-tab repaints and cold replacements cannot count as warm success. Preserve the full raw timings and promotion identities in the report. This improves statistical and process evidence, not production behavior or performance limits.
+
 ## Alternatives Rejected
 
 - Idle-boundary process migration: explicitly rejected by the maintainer; alters existing Agents and introduces new interruption/recovery risk without being necessary for client continuity.
