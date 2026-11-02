@@ -34,10 +34,10 @@ The maintainer integration decision accepts these scenarios:
     "Plain launch shows the landing without creating an Agent when none are live and directly observes retained Agents without an empty-state flash.",
     "Completed implementation advances normal exact-head CI automatically after every repair push, with required native tests and no custom fixture provisioning or approval gate."
   ],
-  "archiveDigest": "63759aae7fcc8d5ed84d1247b3ab623419ea740a829411c92e0fc183e32c288d",
+  "archiveDigest": "e5a53f393cd30b6c8b894ee498dc825fed75670e4461700fe0fde4b285dea3cb",
   "specDigest": "6edecda55f036b7c1702589b9a8d3db039f85f1dbef4e47ec62802dc98a64bed",
-  "tasksDigest": "c9521a19bda95b94c3391ae9a9950787999ed9b63aeb325eca295103546b2bef",
-  "evidenceDigest": "7e6dd269f6a69f7e3f0cecdef07c4966792d90bb0a588f0b875d000c1c1b1318",
+  "tasksDigest": "4dcca1e5ec7f2ffd3bb8d50a36ab259106d90e9ad0fbed4dd5fbd1a291bcf528",
+  "evidenceDigest": "2f955b171ddc8d49d8b0cbf030a378a431232b91d2ac14b010f8d0b16acb8b7a",
   "knownGaps": []
 }
 ```
