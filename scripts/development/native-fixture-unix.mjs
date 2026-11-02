@@ -41,10 +41,11 @@ export async function prepareUnixIsolation(state) {
   if (state.platform === "linux") {
     if (
       spawnSync("bwrap", ["--version"]).status !== 0 ||
-      spawnSync("setfacl", ["--version"]).status !== 0
+      spawnSync("setfacl", ["--version"]).status !== 0 ||
+      spawnSync("ip", ["-V"]).status !== 0
     ) {
       sudo("apt-get", "update", "-qq");
-      sudo("apt-get", "install", "-y", "bubblewrap", "acl");
+      sudo("apt-get", "install", "-y", "bubblewrap", "acl", "iproute2");
     }
     sudo(
       "useradd",
@@ -60,6 +61,10 @@ export async function prepareUnixIsolation(state) {
     );
     state.uid = Number(trusted("id", ["-u", state.user]));
     state.gid = Number(trusted("id", ["-g", state.user]));
+    // Platform: configure loopback before dropping privilege; the workload never needs CAP_NET_ADMIN.
+    state.networkNamespace = `native-fixture-${state.id}`;
+    sudo("ip", "netns", "add", state.networkNamespace);
+    sudo("ip", "-n", state.networkNamespace, "link", "set", "lo", "up");
     for (const path of ancestors(state.repo))
       sudo("setfacl", "-m", `u:${state.uid}:--x`, path);
   } else {
@@ -132,10 +137,20 @@ export function unixInvocation(state, request) {
     state.platform === "linux"
       ? ["bwrap", ...linuxSandboxArguments(state, worker)]
       : ["/usr/bin/sandbox-exec", "-f", state.profile, ...worker];
+  if (
+    state.platform === "linux" &&
+    state.networkNamespace !== `native-fixture-${state.id}`
+  )
+    throw new Error("native isolation network namespace is unavailable");
+  const network =
+    state.platform === "linux"
+      ? ["ip", "netns", "exec", state.networkNamespace, "sudo", "-n"]
+      : [];
   return {
     command: "sudo",
     args: [
       "-n",
+      ...network,
       "-u",
       state.user,
       "--",
@@ -167,6 +182,11 @@ export async function cleanupUnixIsolation(state) {
     // Security: namespace init owns all workload descendants; refuse account removal if anything escaped its teardown.
     if (spawnSync("pgrep", ["-u", String(uid)]).status === 0)
       throw new Error("native workload processes survived namespace teardown");
+    if (state.networkNamespace !== `native-fixture-${state.id}`)
+      throw new Error("native isolation network namespace identity changed");
+    if (sudo("ip", "netns", "pids", state.networkNamespace))
+      throw new Error("native network namespace still has live processes");
+    sudo("ip", "netns", "delete", state.networkNamespace);
     sudo("userdel", state.user);
   } else {
     // Security: this fresh dedicated UID belongs only to this disposable job, never the runner or a production account.

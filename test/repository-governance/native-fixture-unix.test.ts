@@ -1,10 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const control = vi.hoisted(() => ({ missingAcl: false, useraddFailure: "" }));
+const control = vi.hoisted(() => ({
+  missingAcl: false,
+  useraddFailure: "",
+  namespaceProcesses: "",
+}));
 vi.mock("node:child_process", () => ({
   spawnSync: vi.fn((command: string, args: string[]) => {
     const ok = (stdout = "") => ({ status: 0, stdout, stderr: "" });
     if (command === "id") return ok("640\n");
+    if (command === "pgrep") return { status: 1, stdout: "", stderr: "" };
+    if (command === "sudo" && args.slice(1, 4).join(" ") === "ip netns pids")
+      return ok(control.namespaceProcesses);
     if (command === "setfacl" && control.missingAcl)
       return { status: 1, stdout: "", stderr: "missing" };
     if (command === "sudo" && args[1] === "useradd") {
@@ -27,6 +34,8 @@ vi.mock("node:fs/promises", () => ({
 import { spawnSync } from "node:child_process";
 import {
   prepareUnixIsolation,
+  unixInvocation,
+  cleanupUnixIsolation,
   type UnixIsolationState,
 } from "../../scripts/development/native-fixture-unix.mjs";
 
@@ -58,6 +67,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   control.missingAcl = false;
   control.useraddFailure = "";
+  control.namespaceProcesses = "";
   vi.stubGlobal("process", { ...process, getuid: () => 1001 });
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -94,6 +104,79 @@ describe("Linux native isolation account preparation", () => {
         ),
     ).toBe(true);
   });
+  it("configures the private network before executing as the unprivileged account with zero capabilities", async () => {
+    const value = state();
+    await prepareUnixIsolation(value);
+    const calls = vi
+      .mocked(spawnSync)
+      .mock.calls.map(
+        ([command, args]) => `${command} ${(args as string[]).join(" ")}`,
+      );
+    const created = calls.indexOf(
+      `sudo -n ip netns add ${value.networkNamespace}`,
+    );
+    const configured = calls.indexOf(
+      `sudo -n ip -n ${value.networkNamespace} link set lo up`,
+    );
+    expect(created).toBeGreaterThan(-1);
+    expect(configured).toBeGreaterThan(created);
+    const invocation = unixInvocation(value, "request.json");
+    expect(invocation.command).toBe("sudo");
+    expect(invocation.args.slice(0, 9)).toEqual([
+      "-n",
+      "ip",
+      "netns",
+      "exec",
+      value.networkNamespace,
+      "sudo",
+      "-n",
+      "-u",
+      value.user,
+    ]);
+    expect(invocation.args).toContain("--unshare-user");
+    expect(invocation.args).toContain("--unshare-pid");
+    expect(invocation.args).not.toContain("--unshare-net");
+    expect(invocation.args[invocation.args.indexOf("--cap-drop") + 1]).toBe(
+      "ALL",
+    );
+  });
+  it("never falls back to the host network or removes a namespace with live processes", async () => {
+    expect(() => unixInvocation(state(), "request.json")).toThrow(
+      "network namespace is unavailable",
+    );
+    const value = state();
+    await prepareUnixIsolation(value);
+    control.namespaceProcesses = "123\n";
+    await expect(cleanupUnixIsolation(value)).rejects.toThrow(
+      "still has live processes",
+    );
+    expect(
+      vi
+        .mocked(spawnSync)
+        .mock.calls.some(([, args]) => (args as string[]).includes("delete")),
+    ).toBe(false);
+  });
+  it("removes only the prepared network namespace after verified process closure", async () => {
+    const value = state();
+    await prepareUnixIsolation(value);
+    await cleanupUnixIsolation(value);
+    const calls = vi
+      .mocked(spawnSync)
+      .mock.calls.map(
+        ([command, args]) => `${command} ${(args as string[]).join(" ")}`,
+      );
+    const inspected = calls.indexOf(
+      `sudo -n ip netns pids ${value.networkNamespace}`,
+    );
+    const removed = calls.indexOf(
+      `sudo -n ip netns delete ${value.networkNamespace}`,
+    );
+    expect(inspected).toBeGreaterThan(-1);
+    expect(removed).toBeGreaterThan(inspected);
+    expect(calls.indexOf(`sudo -n userdel ${value.user}`)).toBeGreaterThan(
+      removed,
+    );
+  });
   it("keeps the failed operation, exit code and bounded OS error instead of only reporting sudo", async () => {
     control.useraddFailure = "useradd: account database locked";
     await expect(prepareUnixIsolation(state())).rejects.toThrow(
@@ -110,7 +193,7 @@ describe("Linux native isolation account preparation", () => {
           ([command, args]) =>
             command === "sudo" &&
             (args as string[]).join(" ") ===
-              "-n apt-get install -y bubblewrap acl",
+              "-n apt-get install -y bubblewrap acl iproute2",
         ),
     ).toBe(true);
   });

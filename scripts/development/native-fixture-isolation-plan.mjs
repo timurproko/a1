@@ -184,7 +184,6 @@ export function linuxSandboxArguments(state, command) {
   return [
     "--unshare-user",
     "--unshare-pid",
-    "--unshare-net",
     "--die-with-parent",
     "--new-session",
     "--cap-drop",

@@ -4,6 +4,7 @@ export interface UnixIsolationState extends IsolationPlan {
   uid: number;
   gid?: number;
   profile: string;
+  networkNamespace?: string;
   environment: Record<string, string>;
 }
 export function prepareUnixIsolation(state: UnixIsolationState): Promise<void>;

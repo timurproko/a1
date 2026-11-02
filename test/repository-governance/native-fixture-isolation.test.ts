@@ -135,7 +135,6 @@ describe("native fixture OS isolation plan", () => {
     const args = linuxSandboxArguments(plan, ["node", "worker"]);
     for (const flag of [
       "--unshare-user",
-      "--unshare-net",
       "--unshare-pid",
       "--die-with-parent",
       "--cap-drop",
@@ -145,6 +144,7 @@ describe("native fixture OS isolation plan", () => {
     expect(args).toContain("/root");
     expect(args).toContain("/tmp");
     expect(args).toContain(plan.workspace);
+    expect(args).not.toContain("--unshare-net");
     const profile = macSandboxProfile(plan);
     expect(profile).toContain("(deny network*)");
     expect(profile).toContain('(remote ip "localhost:*")');
