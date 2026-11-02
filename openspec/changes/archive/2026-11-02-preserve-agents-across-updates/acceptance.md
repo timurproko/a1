@@ -34,10 +34,10 @@ The maintainer integration decision accepts these scenarios:
     "Plain launch shows the landing without creating an Agent when none are live and directly observes retained Agents without an empty-state flash.",
     "Native process fixtures execute in reviewed disposable CI isolation without production credentials, while unavailable isolation or Defender detections fail closed."
   ],
-  "archiveDigest": "2485f2272dcd2b38a8744c878f30eecd797ed576dd8447915c7bbabfe2ee9dd8",
+  "archiveDigest": "bf784ad51fb2bb3f2e8a40142ebf019e8561a143bf4c872d8aada942625808b3",
   "specDigest": "4e6296ee5eb7947d37974c791b7e6149d4395bec23212e002ff73a35a19022cc",
   "tasksDigest": "5d28eeb6a9703b13476c0ecede1acc589f453e8cad1322439d68dbb0026268c4",
-  "evidenceDigest": "e404b760cac1c87b7c8378e068001d454e7f37609d6f8b0b4a9c7ab1c5d6fb7c",
+  "evidenceDigest": "83b44bdc9c602a63e662caca092ab1ff85e03950a4072764c3a2d6c8b87e47f6",
   "knownGaps": []
 }
 ```
