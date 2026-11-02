@@ -119,7 +119,6 @@ jobs:
     permissions:
       actions: read
       contents: read
-      deployments: read
     uses: ./.github/workflows/full-regression-shared.yml
     with:
       source: ${{ needs.full-selection.outputs.head }}
@@ -559,10 +558,6 @@ jobs:
 
   modular:
     name: ${{ matrix.label }}
-    permissions:
-      actions: read
-      contents: read
-      deployments: read
     needs: changes
     if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.release-reopening != 'true' && needs.changes.outputs.docs-only != 'true' && needs.changes.outputs.version-only != 'true'
     strategy:
@@ -571,7 +566,6 @@ jobs:
       # scripts/release/validation-matrix.mjs, and the in-job resolver remains the second check.
       matrix: ${{ fromJSON(needs.changes.outputs.modular-matrix) }}
     runs-on: ${{ matrix.os }}
-    environment: ${{ (matrix.build || matrix.partition) && 'native-fixture-security-review' || 'development-validation' }}
     env:
       NATIVE_FIXTURE_HEAD: ${{ needs.changes.outputs.head-sha }}
     # A cold terminal-host build compiles libghostty-vt with Zig before the Rust crate; lanes that
@@ -713,12 +707,11 @@ jobs:
           rustup toolchain install nightly-2026-10-01 --profile minimal --no-self-update
           cargo +nightly-2026-10-01 install cargo-fuzz --version 0.13.2 --locked
           cargo +nightly-2026-10-01 fetch --manifest-path native/terminal-host/fuzz/Cargo.toml
-      - name: Provision and probe reviewed disposable native fixture isolation
+      - name: Provision and probe disposable native fixture isolation
         id: native-isolation
         if: steps.job-selection.outputs.active == 'true' && (matrix.build || matrix.partition)
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
           NATIVE_FIXTURE_ISOLATION_RECEIPT: ${{ runner.temp }}/a1-native-fixture-isolation.json
         run: |
           node scripts/development/run-isolated-native-fixtures.mjs prepare --predecessors

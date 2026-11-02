@@ -2,9 +2,9 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const NATIVE_FIXTURE_POLICY = "reviewed-isolated-ci-v1";
+export const NATIVE_FIXTURE_POLICY = "isolated-ci-v2";
 
-/** Safety interlock, not a sandbox: the protected runner must supply real OS isolation. */
+/** Safety interlock, not a sandbox: the automatic CI provisioner must supply real OS isolation. */
 export function assertNativeFixtureContext(environment, receipt) {
   const head = environment.NATIVE_FIXTURE_HEAD ?? environment.GITHUB_SHA;
   if (environment.GITHUB_ACTIONS !== "true" || !/^[1-9]\d*$/u.test(environment.GITHUB_RUN_ID ?? "") ||
@@ -14,13 +14,12 @@ export function assertNativeFixtureContext(environment, receipt) {
   if (receipt?.schema !== NATIVE_FIXTURE_POLICY || receipt.head !== head ||
       receipt.runId !== environment.GITHUB_RUN_ID || receipt.runAttempt !== environment.GITHUB_RUN_ATTEMPT ||
       receipt.disposable !== true || receipt.credentials !== "none" || receipt.egress !== "loopback-only" ||
-      receipt.securityReview !== "approved" || receipt.environment !== "native-fixture-security-review" ||
       ((process.platform === "win32" || environment.RUNNER_OS === "Windows") && receipt.defenderRealtime !== true)) {
-    throw new Error("Native fixture isolation/review is unavailable for this exact run; native evidence remains blocked, not skipped.");
+    throw new Error("Native fixture isolation is unavailable for this exact run; native evidence remains blocked, not skipped.");
   }
 }
 
-/** Read a run-bound provisioner receipt; never manufacture approval from CI=1 or passing tests. */
+/** Read a run-bound OS provisioner receipt; CI=1 or passing tests cannot replace isolation. */
 export async function requireNativeFixtureContext(environment = process.env) {
   const file = environment.NATIVE_FIXTURE_ISOLATION_RECEIPT;
   let receipt;

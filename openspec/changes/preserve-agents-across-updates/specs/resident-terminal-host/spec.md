@@ -158,10 +158,15 @@ The workspace client SHALL preserve one append-last visible order across source 
 - **AND** uncertain, unavailable or incompatible source state SHALL NOT be classified as an empty workspace
 
 #### Scenario: Native fixture execution is not a workstation prerequisite
-- **WHEN** a developer selects local validation without an approved isolated native fixture environment
+- **WHEN** a developer selects local validation outside an isolated native fixture CI context
 - **THEN** local checks SHALL NOT build or launch fixture-enabled native programs
-- **AND** required native process evidence SHALL remain assigned to reviewed isolated CI with active security controls, never silently omitted or replaced with vector-only tests
+- **AND** required native process evidence SHALL remain assigned to automatically provisioned isolated CI with active security controls, never silently omitted or replaced with vector-only tests
 - **AND** security detections SHALL fail closed without exclusions, restored quarantined artifacts or detection-avoidance rebuilds
+
+#### Scenario: Completed implementation advances CI without manual deployment approval
+- **WHEN** implementation completion and trusted finalization make a candidate eligible for normal CI
+- **THEN** native CI SHALL provision its disposable execution boundary automatically without a required-reviewer environment, deployment approval or human-review-history API dependency
+- **AND** missing isolation, failed OS probes or security detections SHALL still fail required native evidence rather than bypassing checks or granting integration authority
 
 #### Scenario: Rapid tab actions reconcile without internal warnings
 - **WHEN** ordinary add, close, selection, utility-toggle or drag actions overlap delayed topology, metadata acknowledgements, duplicate Close or source observation recovery

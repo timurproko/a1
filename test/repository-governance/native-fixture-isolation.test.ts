@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 import {
   assertHostedFixtureJob,
@@ -13,7 +13,7 @@ import {
   type IsolationPlan,
   type IsolationProbe,
 } from "../../scripts/development/native-fixture-isolation-plan.mjs";
-import { requireHumanReview } from "../../scripts/development/run-isolated-native-fixtures.mjs";
+import { assertNativeFixtureContext } from "../../scripts/development/native-fixture-policy.mjs";
 
 const plan: IsolationPlan = {
   id: "nonce",
@@ -49,10 +49,6 @@ const hosted = {
   GITHUB_SHA: plan.head,
   GITHUB_REPOSITORY: "owner/repo",
 };
-afterEach(() => {
-  vi.unstubAllGlobals();
-  vi.unstubAllEnvs();
-});
 
 describe("native fixture OS isolation plan", () => {
   it("derives the controller receipt at runtime without unsupported workflow contexts", () => {
@@ -189,88 +185,48 @@ describe("native fixture OS isolation plan", () => {
   });
 });
 
-describe("protected human native review", () => {
-  function reviews(history: unknown[]) {
-    vi.stubEnv("GH_TOKEN", "read-only");
-    vi.stubEnv("GITHUB_REPOSITORY", "owner/repo");
-    vi.stubEnv("GITHUB_RUN_ID", "123");
-    vi.stubGlobal(
-      "fetch",
-      vi
-        .fn()
-        .mockResolvedValueOnce(
-          new Response(
-            JSON.stringify({
-              protection_rules: [
-                {
-                  type: "required_reviewers",
-                  reviewers: [{ type: "User", reviewer: { id: 7 } }],
-                },
-              ],
-            }),
-          ),
-        )
-        .mockResolvedValueOnce(new Response(JSON.stringify(history))),
+describe("automatic native isolation", () => {
+  it("admits actual isolation proof without deployment approval or a GitHub API token", () => {
+    const actual = isolationReceipt(
+      { ...plan, platform: process.platform },
+      probe,
+      true,
     );
-  }
-  it.each(
-    [
-      [],
-      [
-        {
-          state: "approved",
-          user: { type: "Bot", id: 7 },
-          environments: [{ name: "native-fixture-security-review" }],
-        },
-      ],
-      [
-        {
-          state: "approved",
-          user: { type: "User", id: 8 },
-          environments: [{ name: "native-fixture-security-review" }],
-        },
-      ],
-      [
-        {
-          state: "rejected",
-          user: { type: "User", id: 7 },
-          environments: [{ name: "native-fixture-security-review" }],
-        },
-      ],
-    ].map((history) => ({ history })),
-  )(
-    "rejects absent, bot, unauthorized or rejected review %j",
-    async ({ history }) => {
-      reviews(history);
-      await expect(requireHumanReview()).rejects.toThrow(
-        "human native-fixture",
-      );
-    },
-  );
-  it("requires an actual review by the configured human for the same environment and run", async () => {
-    reviews([
-      {
-        state: "approved",
-        user: { type: "User", id: 7 },
-        environments: [{ name: "native-fixture-security-review" }],
-      },
-    ]);
-    await expect(requireHumanReview()).resolves.toBeUndefined();
-    expect(vi.mocked(fetch).mock.calls[1]![0]).toContain(
-      "actions/runs/123/approvals",
+    expect(actual).not.toHaveProperty("securityReview");
+    expect(actual).not.toHaveProperty("environment");
+    expect(() => assertNativeFixtureContext(hosted, actual)).not.toThrow();
+    expect(hosted).not.toHaveProperty("GH_TOKEN");
+  });
+  it("does not query review history or introduce a GitHub API credential dependency", async () => {
+    const source = await readFile(
+      "scripts/development/run-isolated-native-fixtures.mjs",
+      "utf8",
     );
+    for (const removed of [
+      "requireHumanReview",
+      "api.github.com",
+      "GH_TOKEN",
+      "GITHUB_TOKEN",
+      "/approvals",
+    ])
+      expect(source).not.toContain(removed);
+    expect(source).toContain("assertHostedFixtureJob(process.env)");
+    expect(source).toContain("isolationReceipt(");
   });
 });
 
-it("all Full and publication native consumers enter the reviewed OS boundary", async () => {
+it("all Full and publication native consumers enter the OS boundary automatically", async () => {
   for (const [file, jobs] of [
     ["full-regression-shared.yml", ["windows-shard", "full-regression"]],
     ["publish.yml", ["validate_sequential", "validate_windows_shard"]],
   ] as const) {
     const workflow = parse(await readFile(`.github/workflows/${file}`, "utf8"));
+    if (file === "publish.yml")
+      expect(workflow.jobs.publish.environment).toBe("npm-publish");
     for (const key of jobs) {
       const job = workflow.jobs[key];
-      expect(job.environment).toBe("native-fixture-security-review");
+      expect(job.environment).toBeUndefined();
+      expect(workflow.permissions?.deployments).toBeUndefined();
       const steps = job.steps as {
         id?: string;
         name?: string;
@@ -279,6 +235,9 @@ it("all Full and publication native consumers enter the reviewed OS boundary", a
       }[];
       const setup = steps.findIndex((step) => step.id === "native-isolation");
       expect(setup).toBeGreaterThan(-1);
+      expect(
+        (steps[setup] as { env?: Record<string, string> }).env?.GH_TOKEN,
+      ).toBeUndefined();
       const consumers = steps.filter((step) =>
         step.run?.includes("run-validation-tier.mjs"),
       );

@@ -148,32 +148,32 @@ The terminal host's I/O-free core SHALL admit input under exactly one controller
 - **THEN** the simulation test SHALL fail with the minimized event sequence
 
 ### Requirement: One authoritative resident server serves each user profile
-A1 SHALL run at most one authoritative resident terminal-host server per operating-system user, canonical A1 profile root and immutable execution-release identity on Windows x64, macOS and Linux. Different execution releases SHALL retain separate hosts and authority. Discovery endpoints and runtime authority SHALL include canonical profile and immutable execution identity, remain within platform limits and honor hermetic overrides without implicit cross-release attachment. Matching protocol generation or displayed version SHALL NOT establish release equality. An explicit verified profile-workspace client route MAY select an existing source execution release and SHALL authenticate its exact namespace/identity before optional negotiation without admitting foreign holders or bridges. The endpoint SHALL provide discovery; the owner-only OS-exclusive registry-writer lease and durable epoch SHALL provide mutation authority in that namespace. A starting server SHALL acquire its lease and increment its epoch before serving. Same-source starters SHALL join the verified winner or fail under existing controller policy. An unavailable endpoint/lease SHALL NOT authorize another writer or signalling a different namespace. The server SHALL execute no A1, Pi or extension code and own no pseudoterminal. User profile and session-storage roots SHALL NOT change for isolation or client continuity.
+A1 SHALL run at most one authoritative resident terminal-host server per operating-system user, canonical A1 profile root and immutable release identity on Windows x64, macOS and Linux. Different releases under one profile SHALL use separate hosts. Discovery endpoints and runtime authority SHALL include both canonical profile and immutable release identity, SHALL remain within platform limits, and SHALL honor hermetic overrides without permitting cross-release attachment. A matching protocol generation or displayed version alone SHALL NOT establish release equality. The endpoint SHALL provide discovery, while the owner-only operating-system exclusive registry-writer lease SHALL provide mutation authority within that exact namespace. A starting server SHALL acquire its namespace's lease and increment its durable epoch before it serves. A starter that completes an exact-release handshake with a live server SHALL exit as already running and its caller SHALL join that winner under the existing controller policy. When its endpoint does not answer and its lease cannot be acquired, startup SHALL report blocked recovery, SHALL NOT start a second writer in that namespace, and SHALL NOT signal another namespace's owner. The server SHALL execute no A1, Pi or extension code and SHALL own no pseudoterminal. Configuration and session-storage roots SHALL NOT be changed to implement runtime isolation.
 
 #### Scenario: Two launches race
-- **WHEN** two invocations start the same execution release/profile concurrently
-- **THEN** exactly one server SHALL hold that namespace's writer lease and the other SHALL join the winner or fail without creating a second writer
+- **WHEN** two invocations of the same immutable release and profile start concurrently with no matching server running
+- **THEN** exactly one server SHALL hold that namespace's writer lease and serve its endpoint
+- **AND** the other invocation SHALL join that winner or be refused under the existing controller policy without creating a second server
 
 #### Scenario: Endpoint silent while the lease is held
-- **WHEN** the selected source endpoint does not answer but its registry-writer lease remains held
-- **THEN** recovery SHALL preserve existing source state and SHALL NOT signal unverified/different-release processes or overwrite workspace topology with an empty set
+- **WHEN** the matching release's endpoint does not answer but its registry-writer lease is held
+- **THEN** startup SHALL report blocked recovery and use the ordinary direct fallback with its notice without signalling any unverified or different-release process
 
 #### Scenario: Different profiles
-- **WHEN** the same release runs under different canonical profile roots
-- **THEN** each SHALL have independent runtime authority and workspace without cross-visibility
+- **WHEN** the same release runs under two different canonical profile roots
+- **THEN** each SHALL have its own server, registry and tabs without cross-visibility
 
 #### Scenario: Different releases under one profile
-- **WHEN** B's client opens a profile with live A execution
-- **THEN** B SHALL reconnect through verified A source routes without restarting A's server, holders or Agents
-- **AND** new B execution SHALL use B's own namespace and artifacts
+- **WHEN** release A already has a host and release B starts under the same profile with the same protocol generation
+- **THEN** B SHALL start or attach only to B's host and A's server, holders and children SHALL remain unchanged
 
 #### Scenario: Display version is not immutable identity
-- **WHEN** two immutable payload identities share a displayed version
-- **THEN** their execution namespaces SHALL remain distinct
+- **WHEN** two immutable payload identities have the same displayed version
+- **THEN** their resident namespaces SHALL remain distinct
 
 #### Scenario: Wrong-release endpoint
-- **WHEN** an endpoint responds with an identity other than the exact source selected for that connection
-- **THEN** admission SHALL refuse it without adopting its state, implicit cross-release fallback or signalling its owner
+- **WHEN** an override or discovered endpoint responds with another immutable release identity
+- **THEN** the caller SHALL refuse that peer without adopting its state, negotiating a cross-release fallback, or signalling its owner
 
 ### Requirement: Each tab is owned by its own session holder
 Each tab SHALL be owned by exactly one native session holder process that creates and owns that tab's pseudoterminal (ConPTY on Windows), child process tree, and retained libghostty-vt terminal model with bounded scrollback, and that encodes input for the child's current terminal modes. The holder SHALL read and parse child output continuously whether or not any client views the tab, so the child never blocks on output. The holder SHALL answer the child's terminal queries from its own model. Holder input SHALL pass through a bounded queue: a paste SHALL be admitted only when it fits completely, an over-capacity paste SHALL be rejected visibly without delivering a prefix, and admitted bytes SHALL be written in order and never silently dropped. A server exit SHALL NOT terminate the holder, its child, or its retained model. When the child exits, the holder SHALL report the exit, the tab SHALL end without automatic restart, and its session SHALL remain resumable.
@@ -438,33 +438,28 @@ During a resident bare-A1 launch, A1 SHALL expose only `tabsAutoName` as an Agen
 - **THEN** the earlier echo SHALL be ignored and the invalid metric SHALL fail rather than entering the p95 sample
 
 ### Requirement: Updates retain the active resident cohort
-Installing, activating or reconnecting an updated A1 client SHALL NOT stop, restart, suspend, recreate or wait for idle of existing resident Agents, holders, their active tool processes or source servers merely to apply the update. Busy and idle Agents SHALL retain originating immutable code, live state, process identities and session-writer authority until explicit lifecycle action or independent crash recovery. A selected-release client SHALL reconnect the canonical profile's existing live workspace through verified compatible source routes; new Agent execution SHALL use the selected release. Normal source recovery SHALL retain originating custody rather than follow the mutable client-release pointer. Every live or unsettled workspace/control-recovery reference SHALL retain its required immutable code, dependencies and private recovery artifacts; unreadable evidence or unavailable native identity inspection SHALL remain conservative holds. Unsupported source compatibility SHALL block candidate activation/readiness rather than terminate or hide Agents, create duplicate writers, or present inaccessible tabs as successful restoration. Old solo/external writers and obsolete private-launch contracts SHALL NOT become automatic resident execution/migration destinations.
+Installing or activating a release SHALL NOT terminate or migrate already-running servers, holders, tab processes or solo sessions. Resident processes SHALL use immutable release directories. A new launch SHALL select the host for its chosen immutable release, never reuse a different release's host merely because the protocol generation matches. A running older solo session SHALL NOT determine another release's multitab host. Existing unversioned legacy cohorts SHALL remain untouched and SHALL NOT be attach or recovery fallback destinations for new-format releases. Every release referenced by live verified resident processes SHALL remain retained across all namespaces; unreadable state or unavailable identity inspection SHALL remain conservative retention outcomes. A generation mismatch within the selected namespace SHALL use bounded incompatibility/fallback behavior without killing another cohort. Automatic migration, handoff and idle recycling remain outside this change.
 
 #### Scenario: Update mid-turn
-- **WHEN** B updates in the background while two A Agents work and another is idle
-- **THEN** all existing server, holder, Agent and tool process identities SHALL remain unchanged by the update
-- **AND** reopening compatible B SHALL provide live view/control of the same three Agents with no idle wait
-
-#### Scenario: Working Agents later become idle
-- **WHEN** previously busy A Agents settle after a B client reconnect
-- **THEN** they SHALL remain the same live Agents with no delayed update-triggered restart
+- **WHEN** B is installed and activated while A streams a turn
+- **THEN** A's server, holder, child and unfinished turn SHALL continue uninterrupted and A's immutable artifacts SHALL remain retained
+- **AND** a new B launch SHALL use B's independent host
 
 #### Scenario: Newer client with a different generation
-- **WHEN** B cannot provide a compatible control route to live A execution
-- **THEN** B SHALL NOT become the active/restart-ready client and a verified eligible prior client SHALL remain callable without ending A
+- **WHEN** B launches while a different-generation A host remains running
+- **THEN** B SHALL use its own namespace without requiring A to stop or using A as its fallback host
 
 #### Scenario: Recorded resident identity cannot be inspected
-- **WHEN** cleanup cannot safely inspect runtime identity or read workspace/runtime/recovery state
-- **THEN** it SHALL retain affected releases rather than interpret uncertainty as no live work
+- **WHEN** GC cannot inspect a resident identity or safely read release-scoped or legacy state
+- **THEN** affected candidate releases SHALL remain retained rather than treating unavailable evidence as proof that no process uses them
 
 #### Scenario: Legacy host is still running
-- **WHEN** source records require an unsupported legacy or obsolete private contract
-- **THEN** candidate activation SHALL NOT claim successful continuity, execute that contract, delete the records or terminate its processes
-- **AND** the existing eligible access path SHALL remain preserved where available
+- **WHEN** a new-format release launches beside a legacy unversioned host
+- **THEN** it SHALL create or attach its own release namespace without migrating, overwriting, adopting or stopping legacy state or processes
 
 #### Scenario: Older solo remains active
-- **WHEN** a new resident client launches beside an old solo process
-- **THEN** the solo process and writer lease SHALL remain untouched and SHALL NOT redirect new resident execution
+- **WHEN** an older solo process remains running while the user launches a newer installed release in multitab mode
+- **THEN** the newer invocation SHALL use its own release's host and SHALL leave the solo process untouched
 
 ### Requirement: Resident tabs have non-interactive maintenance commands
 A1 SHALL provide the existing `a1 tabs`, `a1 tabs stop <id>`, `a1 tabs stop --all`, `a1 tabs host status`, `a1 tabs host stop` and bounded redacted `a1 tabs doctor` commands scoped to the invoking immutable release and canonical profile. These commands SHALL NOT start an interactive runtime or a server merely to report absence, SHALL verify the terminal-host artifact, and SHALL reject invalid arguments concisely with nonzero status. No operation, including unresponsive-server fallback termination or colliding tab IDs, SHALL adopt, mutate or signal another release's or legacy namespace's processes. Host stop SHALL gracefully stop matching tabs before the matching server, with existing bounded identity-verified termination safeguards. Doctor SHALL exclude secrets, tokens, derived credentials, environment values, prompt journals, draft checkpoints, last screens, private child stderr and terminal content.
@@ -856,20 +851,19 @@ Resident concurrency evidence SHALL exercise at least three real owned A1 childr
 - **THEN** each platform SHALL retain its own verdict and no successful platform SHALL certify another
 
 ### Requirement: Resident presentation capabilities are negotiated and bounded
-Structured complete surfaces SHALL be negotiated independently on holder-to-server and server-to-client connections after exact selected-source admission. Optional capabilities SHALL NOT establish release equality. Only explicit verified workspace routes MAY connect a newer client to existing source execution; they SHALL bind expected release/namespace and preserve controller attribution without admitting foreign holders/bridges or retargeting execution. Generation-1 changes SHALL remain additive and respect existing frame, nesting, collection, input and memory bounds. Admitted peers lacking an optional feature SHALL use a negotiated complete legacy route or typed unsupported outcome, not reinterpret structured state or restart Agents. Invalid/oversized state SHALL fail locally without silent truncation or unbounded allocation. Missing mandatory control compatibility SHALL block client activation rather than strand live execution.
+Structured complete surfaces SHALL be negotiated independently on holder-to-server and server-to-attach connections only after exact release admission. Optional presentation capabilities SHALL NOT authorize attachment across immutable releases. Generation-1 changes SHALL remain additive and respect encoded-frame, nesting, collection, input and decoded-memory limits. Admitted peers without a capability SHALL retain a complete legacy-surface route with an explicit fidelity limitation rather than interpreting structured state as legacy ANSI or automatically restarting tabs. Invalid or oversized state SHALL fail locally with a typed outcome without silent truncation or unbounded allocation.
 
 #### Scenario: Capability differences within an admitted release
-- **WHEN** admitted source/client peers differ in optional structured-surface capability
-- **THEN** they SHALL use a negotiated complete route or typed incompatibility without terminating Agents
+- **WHEN** exact-release peers differ in optional structured-surface capability
+- **THEN** the connection SHALL use its negotiated complete legacy route or typed incompatibility outcome without claiming repaired parity or terminating tabs to upgrade them
 
 #### Scenario: New attach connects through an old resident cohort
-- **WHEN** the updated client explicitly selects and verifies a compatible old source through its workspace route
-- **THEN** it SHALL provide that source's live surface and controller-attributed input without changing its Agent processes
-- **AND** an unselected different-release endpoint SHALL still be refused before optional negotiation
+- **WHEN** a newer-release attach encounters an older release's cohort, even if it offers matching generation and surface capabilities
+- **THEN** exact release admission SHALL reject cross-release attachment before capability negotiation without terminating existing tabs
 
 #### Scenario: Snapshot exceeds a declared bound
-- **WHEN** state exceeds negotiated encoded/decoded bounds
-- **THEN** validation SHALL reject it before unbounded allocation and preserve the last coherent view or explicit bounded failure
+- **WHEN** dimensions, cells, attributes, links or encoded state exceed negotiated bounds
+- **THEN** validation SHALL reject before unbounded allocation and preserve the last coherent view or an explicit bounded failure state
 
 ### Requirement: Registry commits and viewer fan-out go through one path
 Every registry mutation in the resident server SHALL advance the revision through one bump function, stage its commit through one snapshot function while the lock is held, and commit after the lock is released through one commit path with bounded duration. Every lookup of the clients viewing a tab SHALL go through one viewer helper, and the runtime lock SHALL be taken through one function that reports a poisoned lock as one error. Holder respawn orders, the crash-restart budget, explicit child restart, surface subscription and bridge visibility pushes, and result bodies SHALL each have one implementation shared by the attach, holder, bridge, and lifecycle handlers.
@@ -1114,107 +1108,3 @@ When an attach client's outer terminal reports changed geometry, A1 SHALL immedi
 
 - **WHEN** another terminal tab was active while the A1 terminal changed dimensions and the user returns
 - **THEN** A1 SHALL repaint the current complete frame without replaying a resize-only curtain or fading the child cursor
-
-### Requirement: Persistent execution exposes a minimal stable control API
-A1 SHALL separate its replaceable terminal client/control plane from the minimal persistent execution component responsible for autonomous Agent work, subprocess/session/live-state custody and runtime API. Client UI, update orchestration and release-selection policy SHALL NOT require execution restart. The API SHALL have a versioned backward-compatible mandatory core for identity, discovery, reconnect, state/event observation, input admission, outstanding interactions and explicit lifecycle actions. Optional behavior SHALL be additive and capability-negotiated. Endpoint access SHALL remain owner-authenticated. Commands SHALL retain stable request, session/incarnation and controller identity with ordered admission and explicit rejected/accepted/uncertain delivery; reconnect SHALL NOT blindly repeat side effects. Observations SHALL be sequenced with a bounded snapshot/resynchronization path. Candidate support SHALL be established by consumer/provider conformance and actual supported predecessor interoperability rather than version numbers alone.
-
-#### Scenario: Client is replaced while execution continues
-- **WHEN** all terminal clients close and an updated client later attaches
-- **THEN** autonomous Agent work and subprocesses SHALL continue on the persistent side and the new client SHALL reconnect through the stable API without execution replacement
-
-#### Scenario: Optional API capability is added
-- **WHEN** the new client offers a capability an old runtime lacks
-- **THEN** mandatory view/input/interaction control SHALL remain usable and only the optional capability SHALL be disabled
-
-#### Scenario: Command outcome is uncertain at disconnect
-- **WHEN** a client disconnects after a command may have been admitted
-- **THEN** reconnect SHALL reconcile its stable request identity or report uncertainty without automatically executing it again
-
-#### Scenario: Required API semantics are incompatible
-- **WHEN** the candidate cannot satisfy the mandatory contract of existing live execution
-- **THEN** activation SHALL be rejected while the verified usable prior client and execution remain available
-
-### Requirement: Profile workspace continuity is independent of client release
-A1 SHALL preserve one owner-only durable workspace per canonical profile independent of client payload identity, under an exclusive workspace lease/current epoch. It SHALL retain logical Agent/session identity, source-qualified runtime/tab/incarnation, name/name source, order and selection without storing credentials, environment values, prompts, transcripts, drafts or terminal content. Existing supported source tabs SHALL be referenced idempotently without modifying immutable code or directly rewriting foreign registries. Closed/stopped tabs and hidden prewarm SHALL NOT reappear. The same live owner SHALL retain unsent drafts/attachments, queued input, session configuration and active dialogs across reconnect. Source local-ID collisions and concurrent relaunch SHALL NOT duplicate or collapse logical Agents. Corrupt topology SHALL recover a valid last-good generation or preserve recovery evidence; an empty replacement SHALL NOT be a successful recovery.
-
-#### Scenario: First fixed launch finds published predecessor Agents
-- **WHEN** B opens a profile containing busy and idle Agents created by a supported published predecessor before workspace indexing existed
-- **THEN** B SHALL discover and control the same Agents with unchanged holder/child/tool identities and preserved topology without requiring source migration support
-
-#### Scenario: Source tab IDs collide
-- **WHEN** two retained sources both contain local `tab-1`
-- **THEN** the workspace SHALL retain distinct logical Agents and route each action only to its qualified owner
-
-#### Scenario: Work progresses while detached
-- **WHEN** an Agent produces output or waits for permission while the outer terminal is closed
-- **THEN** reconnect SHALL show its current live output/interaction and preserved input state without transcript replay or Agent restart
-
-#### Scenario: Concurrent updated launches
-- **WHEN** two updated clients reopen the same profile concurrently
-- **THEN** they SHALL converge on the same topology and ordinary controller policy without starting replacement Agents for existing sessions
-
-### Requirement: Control-plane recovery preserves execution and retention
-Client/coordinator replacement and interrupted activation SHALL reconcile the committed client selection, workspace epoch, source native identities and controller revisions before issuing commands or creating new default Agents. Control handoff SHALL preserve existing causal input barriers without quiescing Agent work or replaying uncertain input. Existing session-writer exclusion SHALL remain profile-neutral and unchanged. Source server/holder recovery SHALL use originating immutable artifacts. Workspace, fallback-client and unsettled control-recovery references SHALL protect code, dependencies and private recovery artifacts until safe custody is established; live source artifacts SHALL remain held throughout execution and recovery. Stale control owners SHALL NOT mutate current topology, relabel input, acquire foreign authority or start duplicate writers.
-
-#### Scenario: Client dies during route handoff
-- **WHEN** a client/coordinator exits before or after committing updated route ownership
-- **THEN** the next client SHALL reconcile and reconnect existing execution without restarting Agents, duplicating sessions or committing an empty workspace
-
-#### Scenario: Source server independently crashes after client update
-- **WHEN** A's server crashes after B becomes the selected client
-- **THEN** existing A recovery SHALL restore A's source authority and surviving holders/children without retargeting their execution to B
-
-#### Scenario: Cleanup runs during client replacement
-- **WHEN** cleanup observes an updated client with an empty release-local registry but the profile still references live A execution
-- **THEN** A's runtime/dependency/recovery artifacts SHALL remain retained and B's empty registry SHALL NOT establish that the profile has no Agents
-
-### Requirement: Federated tab transitions preserve the visible strip contract
-The workspace client SHALL preserve one append-last visible order across source releases, hidden prewarm and asynchronous topology/persistence updates. An initializing Agent SHALL retain its appended position when its committed identity arrives. Opening an already visible singleton SHALL activate it in place; revealing a hidden singleton SHALL append it last. Metadata acknowledgements and lifecycle or color transitions SHALL NOT reorder tabs or steal focus. Settings and Changelog SHALL retain their existing slim composition and common selected background without an Agent initialization fill. Toggling an active utility SHALL hide it for reuse, including when it is the only visible tab; explicit Close SHALL remain a distinct instance-removal operation. Active close/hide SHALL prefer the immediate left neighbour, then a surviving right neighbour, or the landing when none remains. Hidden utilities SHALL NOT become automatic fallback views. Source surfaces SHALL be fenced to the requested logical tab and generation so open/close/switch commits expose no stale tab, duplicate chip, blank child frame, or unintended intermediate selection.
-
-#### Scenario: Hidden Settings opens beside existing Agents
-- **WHEN** hidden Settings was prewarmed before one or more Agents joined the visible strip and the user opens it
-- **THEN** Settings SHALL append after those Agents and become active without revealing its earlier prewarm position
-
-#### Scenario: Initializing Agent and utility overlap
-- **WHEN** the user adds an Agent and opens Settings before its first real frame commits
-- **THEN** the Agent's appended position SHALL stay before the later Settings tab and its completion SHALL NOT take focus back
-
-#### Scenario: Delayed persistence follows a newer drag or reveal
-- **WHEN** an earlier metadata result arrives after a newer visible reorder or utility reveal
-- **THEN** that result SHALL NOT overwrite the newer visible order or select an unrelated tab
-
-#### Scenario: The only visible utility is toggled off
-- **WHEN** Settings or Changelog is the only visible tab and its toggle is invoked
-- **THEN** the client SHALL show the landing, keep the utility hidden for reuse, and allow a later reveal without starting an Agent
-
-#### Scenario: Plain launch has no live Agents
-- **WHEN** plain A1 launch authenticates a complete profile roster containing no live Agents, including a roster containing only hidden utilities
-- **THEN** the client SHALL show the landing without starting an Agent or acquiring an Agent session writer
-- **AND** explicit Agent creation SHALL create new execution on the selected release only when requested
-
-#### Scenario: Plain launch reconnects retained Agents without an empty-state flash
-- **WHEN** plain A1 launch authenticates a complete live profile roster containing retained Agents
-- **THEN** it SHALL reconnect those same processes and present the retained topology and selected complete surface without an intermediate landing
-- **AND** uncertain, unavailable or incompatible source state SHALL NOT be classified as an empty workspace
-
-#### Scenario: Native fixture execution is not a workstation prerequisite
-- **WHEN** a developer selects local validation without an approved isolated native fixture environment
-- **THEN** local checks SHALL NOT build or launch fixture-enabled native programs
-- **AND** required native process evidence SHALL remain assigned to reviewed isolated CI with active security controls, never silently omitted or replaced with vector-only tests
-- **AND** security detections SHALL fail closed without exclusions, restored quarantined artifacts or detection-avoidance rebuilds
-
-#### Scenario: Rapid tab actions reconcile without internal warnings
-- **WHEN** ordinary add, close, selection, utility-toggle or drag actions overlap delayed topology, metadata acknowledgements, duplicate Close or source observation recovery
-- **THEN** the host SHALL reconcile those transitions without displaying internal coordination warnings
-- **AND** persistence SHALL retain bounded latest intent and every affected source while waiting for metadata-writer contention outside the UI loop
-- **AND** obsolete view input SHALL never be replayed, retargeted or admitted without the matching durable selection and observed source surface
-- **AND** a genuine unrecoverable failure SHALL remain distinct from successful routine reconciliation and SHALL NOT expose internal protocol or custody details as user-facing instructions
-
-#### Scenario: A prewarmed utility frame arrives before refreshed topology
-- **WHEN** a hidden utility has an older position in the client's registry and its first selected surface is ready before the final append-order snapshot
-- **THEN** the client SHALL receive and stage the final topology before that surface can become visible
-- **AND** no intermediate frame SHALL show the utility at its old prewarm position before moving it to the appended slot
-
-#### Scenario: Source frames race close and selection
-- **WHEN** a closed or superseded source view produces a late surface while another logical tab is requested
-- **THEN** only the requested source/tab/generation SHALL commit and no stale body, chip selection or child cursor SHALL flash before it

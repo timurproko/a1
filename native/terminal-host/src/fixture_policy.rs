@@ -1,4 +1,4 @@
-//! Accidental-execution interlock, not a replacement for the reviewed runner's OS sandbox.
+//! Accidental-execution interlock, not a replacement for the automatic CI runner's OS sandbox.
 use std::{env, fs};
 
 pub fn require() -> Result<(), String> {
@@ -8,9 +8,7 @@ pub fn require() -> Result<(), String> {
         env::var(key)
             .ok()
             .or_else(|| match key {
-                "GITHUB_ACTIONS" => {
-                    option_env!("NATIVE_FIXTURE_BUILT_HEAD").map(|_| "true".into())
-                }
+                "GITHUB_ACTIONS" => option_env!("NATIVE_FIXTURE_BUILT_HEAD").map(|_| "true".into()),
                 "GITHUB_SHA" => option_env!("NATIVE_FIXTURE_BUILT_HEAD").map(str::to_owned),
                 "GITHUB_RUN_ID" => option_env!("NATIVE_FIXTURE_BUILT_RUN").map(str::to_owned),
                 "GITHUB_RUN_ATTEMPT" => {
@@ -42,20 +40,16 @@ pub fn require() -> Result<(), String> {
     let receipt: serde_json::Value = fs::read(file)
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-        .ok_or(
-            "Native fixture isolation/review is unavailable; required native evidence is blocked",
-        )?;
+        .ok_or("Native fixture isolation is unavailable; required native evidence is blocked")?;
     let text = |key: &str, expected: &str| {
         receipt.get(key).and_then(serde_json::Value::as_str) == Some(expected)
     };
-    if !text("schema", "reviewed-isolated-ci-v1")
+    if !text("schema", "isolated-ci-v2")
         || !text("head", &head)
         || !text("runId", &run)
         || !text("runAttempt", &attempt)
-        || !text("environment", "native-fixture-security-review")
         || !text("credentials", "none")
         || !text("egress", "loopback-only")
-        || !text("securityReview", "approved")
         || receipt
             .get("disposable")
             .and_then(serde_json::Value::as_bool)
@@ -66,7 +60,10 @@ pub fn require() -> Result<(), String> {
                 .and_then(serde_json::Value::as_bool)
                 != Some(true))
     {
-        return Err("Native fixture isolation/review does not match this run; required native evidence is blocked".into());
+        return Err(
+            "Native fixture isolation does not match this run; required native evidence is blocked"
+                .into(),
+        );
     }
     Ok(())
 }

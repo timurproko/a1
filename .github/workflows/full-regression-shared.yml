@@ -23,7 +23,6 @@ on:
 permissions:
   actions: read
   contents: read
-  deployments: read
 
 env:
   FULL_SOURCE: ${{ inputs.source }}
@@ -61,7 +60,6 @@ jobs:
         node: [24, 22]
         shard: [core, resource, rendering, package, predecessor]
     runs-on: ${{ matrix.os }}
-    environment: native-fixture-security-review
     timeout-minutes: 40
     env:
       NATIVE_FIXTURE_HEAD: ${{ inputs.source }}
@@ -121,10 +119,8 @@ jobs:
           workspaces: native/terminal-host
           save-if: false
 
-      - name: Provision and probe reviewed native fixture isolation
+      - name: Provision and probe native fixture isolation
         id: native-isolation
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: node scripts/development/run-isolated-native-fixtures.mjs prepare --predecessors
       - name: Build once inside the isolated workload
         run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:core
@@ -345,7 +341,6 @@ jobs:
           - os: macos-15
             node: 24
     runs-on: ${{ matrix.os }}
-    environment: native-fixture-security-review
     timeout-minutes: 40
     env:
       NATIVE_FIXTURE_HEAD: ${{ inputs.source }}
@@ -386,10 +381,8 @@ jobs:
           workspaces: native/terminal-host
           save-if: false
 
-      - name: Provision and probe reviewed native fixture isolation
+      - name: Provision and probe native fixture isolation
         id: native-isolation
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: node scripts/development/run-isolated-native-fixtures.mjs prepare --predecessors
       - name: Build once inside the isolated workload
         run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:core

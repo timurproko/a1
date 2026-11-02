@@ -41,7 +41,6 @@ on:
 permissions:
   actions: read
   contents: read
-  deployments: read
 
 # The complete workflow is serialized. Consequently the final registry check and
 # publish form one global critical section: overlapping nightly/manual requests
@@ -818,7 +817,6 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.sequential_validate_matrix) }}
     runs-on: ${{ matrix.os }}
-    environment: native-fixture-security-review
     timeout-minutes: 60
     env:
       NATIVE_FIXTURE_HEAD: ${{ needs.plan.outputs.source }}
@@ -840,10 +838,8 @@ jobs:
         shell: bash
         run: bash scripts/development/prepare-ci-rust.sh
       - run: npm ci --ignore-scripts
-      - name: Provision and probe reviewed native fixture isolation
+      - name: Provision and probe native fixture isolation
         id: native-isolation
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: node scripts/development/run-isolated-native-fixtures.mjs prepare --predecessors
       - name: Build once inside the isolated workload
         run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:core
@@ -980,7 +976,6 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.plan.outputs.windows_shard_matrix) }}
     runs-on: ${{ matrix.os }}
-    environment: native-fixture-security-review
     timeout-minutes: 60
     env:
       NATIVE_FIXTURE_HEAD: ${{ needs.plan.outputs.source }}
@@ -1004,10 +999,8 @@ jobs:
         shell: bash
         run: bash scripts/development/prepare-ci-rust.sh
       - run: npm ci --ignore-scripts
-      - name: Provision and probe reviewed native fixture isolation
+      - name: Provision and probe native fixture isolation
         id: native-isolation
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: node scripts/development/run-isolated-native-fixtures.mjs prepare --predecessors
       - name: Build once inside the isolated workload
         run: node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:core

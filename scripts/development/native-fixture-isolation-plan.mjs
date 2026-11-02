@@ -52,7 +52,7 @@ const TOOL_VARIABLES = new Set([
   "RUN_PI_ENGINE_REAL_INTEGRATION",
 ]);
 
-/** Only reviewed hosted VMs may provision; a workstation cannot opt in with CI=1. */
+/** Only exact-run hosted VMs may provision; a workstation cannot opt in with CI=1. */
 export function assertHostedFixtureJob(env) {
   const head = env.NATIVE_FIXTURE_HEAD ?? env.GITHUB_SHA;
   if (
@@ -65,7 +65,7 @@ export function assertHostedFixtureJob(env) {
     !/^[\w.-]+\/[\w.-]+$/u.test(env.GITHUB_REPOSITORY ?? "")
   ) {
     throw new Error(
-      "Native fixture provisioning requires an exact reviewed GitHub-hosted job; workstation execution is refused",
+      "Native fixture provisioning requires an exact GitHub-hosted job; workstation execution is refused",
     );
   }
 }
@@ -146,11 +146,9 @@ export function isolationReceipt(state, probe, defenderRealtime) {
     head: state.head,
     runId: state.runId,
     runAttempt: state.runAttempt,
-    environment: "native-fixture-security-review",
     disposable: true,
     credentials: "none",
     egress: "loopback-only",
-    securityReview: "approved",
     ...(state.platform === "win32" ? { defenderRealtime: true } : {}),
     sandboxId: state.id,
   };

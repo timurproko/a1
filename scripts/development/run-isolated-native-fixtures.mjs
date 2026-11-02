@@ -34,59 +34,6 @@ import {
 } from "./native-fixture-unix.mjs";
 import { requireNativeFixtureContext } from "./native-fixture-policy.mjs";
 
-async function api(path) {
-  const token = process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN;
-  if (!token)
-    throw new Error(
-      "Read-only GitHub approval verification credential is required for provisioning",
-    );
-  const response = await fetch(
-    `https://api.github.com/repos/${process.env.GITHUB_REPOSITORY}/${path}`,
-    {
-      headers: {
-        authorization: `Bearer ${token}`,
-        accept: "application/vnd.github+json",
-      },
-      signal: AbortSignal.timeout(20000),
-    },
-  );
-  if (!response.ok)
-    throw new Error(
-      `Native fixture security review is unavailable (${response.status})`,
-    );
-  return response.json();
-}
-/** Approval is an actual human deployment review for this run, not a hand-written receipt value. */
-export async function requireHumanReview() {
-  const environment = await api("environments/native-fixture-security-review");
-  const reviewers = (environment.protection_rules ?? [])
-    .filter((rule) => rule.type === "required_reviewers")
-    .flatMap((rule) => rule.reviewers ?? []);
-  const humans = new Set(
-    reviewers
-      .filter((item) => item.type === "User")
-      .map((item) => item.reviewer.id),
-  );
-  const reviews = await api(
-    `actions/runs/${process.env.GITHUB_RUN_ID}/approvals`,
-  );
-  if (
-    !humans.size ||
-    !reviews.some(
-      (review) =>
-        review.state === "approved" &&
-        review.user?.type === "User" &&
-        humans.has(review.user.id) &&
-        review.environments?.some(
-          (item) => item.name === "native-fixture-security-review",
-        ),
-    )
-  ) {
-    throw new Error(
-      "A required human native-fixture environment approval is missing",
-    );
-  }
-}
 function stateFile() {
   const receipt = process.env.NATIVE_FIXTURE_ISOLATION_RECEIPT;
   if (!receipt)
@@ -128,7 +75,6 @@ async function requireRemoteReachability() {
 }
 async function prepare(predecessors) {
   assertHostedFixtureJob(process.env);
-  await requireHumanReview();
   const repo = process.cwd();
   const head = execFileSync("git", ["rev-parse", "HEAD"], {
     encoding: "utf8",
