@@ -30,8 +30,9 @@ describe("complete regression automation", () => {
     expect(text.match(/check-code-documentation\.mjs --mode full/g)).toHaveLength(1);
     for (const name of ["full-regression", "windows-shard"]) {
       const job = workflow.jobs[name];
-      expect(job.steps.filter((step: { run?: string }) => step.run === "npm ci"), name).toHaveLength(1);
-      expect(job.steps.filter((step: { run?: string }) => step.run === "node scripts/release/prepare-validation-package.mjs"), name).toHaveLength(1);
+      expect(job.steps.filter((step: { run?: string }) => step.run === "npm ci --ignore-scripts"), name).toHaveLength(1);
+      expect(job.steps.filter((step: { run?: string }) => step.run === "node scripts/development/run-isolated-native-fixtures.mjs run -- npm run build:core"), name).toHaveLength(1);
+      expect(job.steps.filter((step: { run?: string }) => step.run === "node scripts/development/run-isolated-native-fixtures.mjs run -- node scripts/release/prepare-validation-package.mjs"), name).toHaveLength(1);
       const run = job.steps.find((step: { name: string }) => step.name.startsWith("Run complete non-physical validation"));
       expect(run.env.VALIDATION_SELECTION_JSON).toBe('["full-release"]');
       expect(run.env.VALIDATION_BUILD_READY).toBe("1");
@@ -183,11 +184,14 @@ describe("complete regression automation", () => {
       expect(job.steps[defender].if).toBe(defenderCondition);
       expect(job.steps[defender].run).toContain("Set-MpPreference -DisableRealtimeMonitoring $false");
       expect(job.steps[defender].run).toContain('throw "Windows Defender real-time protection could not be enabled"');
-      const install = job.steps.findIndex((step: { run: string }) => step.run === "npm ci");
+      const install = job.steps.findIndex((step: { run: string }) => step.run === "npm ci --ignore-scripts");
+      const isolation = job.steps.findIndex((step: { id?: string }) => step.id === "native-isolation");
+      expect(isolation).toBeGreaterThan(install);
       const prepare = job.steps.findIndex((step: { name: string }) => step.name === "Prepare the exact package");
       const consume = job.steps.findIndex((step: { name: string }) => step.name === consumerName);
       expect(install).toBeGreaterThanOrEqual(0);
-      expect(prepare).toBeGreaterThan(install);
+      expect(prepare).toBeGreaterThan(isolation);
+      expect(job.steps[prepare].shell).toContain("run-isolated-native-fixtures.mjs run");
       expect(defender).toBeGreaterThan(prepare);
       expect(defender).toBeLessThan(consume);
       expect(job.steps[prepare].run).toContain("--prepare-exact-package");

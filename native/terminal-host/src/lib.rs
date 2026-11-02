@@ -3,6 +3,8 @@
 //! This library deliberately contains no resident server or product wiring. Milestone 1 exposes
 //! bounded protocol/core state and operating-system primitives for later roles to consume.
 
+#[cfg(target_os = "macos")]
+mod audit_session;
 pub mod controller;
 pub mod core;
 pub mod durable;

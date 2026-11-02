@@ -9,6 +9,7 @@ on:
 permissions:
   actions: read
   contents: read
+  deployments: read
 
 concurrency:
   group: full-regression-${{ github.ref }}

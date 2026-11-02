@@ -48,8 +48,8 @@ describe("native fixture execution interlock", () => {
     const modular = parse(await readFile(".github/workflows/ci.yml", "utf8")).jobs.modular;
     expect(modular.environment).toContain("native-fixture-security-review");
     const names = modular.steps.map((step: { name?: string }) => step.name);
-    const gate = names.indexOf("Require reviewed disposable native fixture isolation");
-    expect(gate).toBeGreaterThan(-1); expect(gate).toBeLessThan(names.indexOf("Install exact dependencies and build"));
+    const gate = names.indexOf("Provision and probe reviewed disposable native fixture isolation");
+    expect(gate).toBeGreaterThan(-1); expect(gate).toBeLessThan(names.indexOf("Build managed client and production guardian in the isolated workload"));
     const security = names.indexOf("Fail on Defender detections or lost real-time protection");
     expect(security).toBeLessThan(names.indexOf("Upload terminal host contract artifacts"));
     expect(security).toBeLessThan(names.indexOf("Complete content-free job envelope"));
@@ -59,7 +59,7 @@ describe("native fixture execution interlock", () => {
   });
   it("keeps the local entrypoint explicit and free of builds, packs, broad suites and native probes", async () => {
     const pkg = JSON.parse(await readFile("package.json", "utf8"));
-    expect(pkg.scripts["check:local"]).toBe("npm run typecheck && npm run check:architecture && npm run check:names && vitest run test/repository-governance/native-fixture-policy.test.ts");
+    expect(pkg.scripts["check:local"]).toBe("npm run typecheck && npm run check:architecture && npm run check:names && vitest run test/repository-governance/native-fixture-policy.test.ts test/repository-governance/native-fixture-isolation.test.ts");
     expect(pkg.scripts["precheck:local"]).toBeUndefined(); expect(pkg.scripts["postcheck:local"]).toBeUndefined();
   });
 });

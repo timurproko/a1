@@ -2,6 +2,21 @@
   "schema": "internal-naming-policy-v1",
   "environment": [
     {
+      "role": "nativeFixtureSandboxId", "key": "NATIVE_FIXTURE_SANDBOX_ID", "exposure": "automation",
+      "owner": "scripts/development/native-fixture-isolation-plan.mjs", "evidence": "test/repository-governance/native-fixture-isolation.test.ts",
+      "semantics": "Disposable workload correlation only; does not grant privilege or attest isolation"
+    },
+    {
+      "role": "nativeFixtureLowPrivilege", "key": "NATIVE_FIXTURE_LOW_PRIVILEGE", "exposure": "automation",
+      "owner": "scripts/development/native-fixture-worker.mjs", "evidence": "test/repository-governance/native-fixture-isolation.test.ts",
+      "semantics": "Windows bridge marker set only after checking the dedicated SID and non-administrator token"
+    },
+    {
+      "role": "nativeFixtureAuditOutput", "key": "NATIVE_FIXTURE_AUDIT_OUTPUT", "exposure": "test",
+      "owner": "native/terminal-host/src/audit_session.rs", "evidence": "native/terminal-host/src/audit_session.rs",
+      "semantics": "Private cross-process audit identity test output path; no production credentials or execution override"
+    },
+    {
       "role": "nativeFixtureHead", "key": "NATIVE_FIXTURE_HEAD", "exposure": "automation",
       "owner": "scripts/development/native-fixture-policy.mjs", "evidence": "test/repository-governance/native-fixture-policy.test.ts",
       "semantics": "Trusted CI checkout identity for the fixture interlock; not a local execution override"

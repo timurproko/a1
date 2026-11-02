@@ -49,6 +49,28 @@ pub struct SourceRoute {
     release_root: PathBuf,
 }
 
+fn verify_login(
+    recorded: &str,
+    current: &str,
+    _address: &str,
+    _owner: &ProcessIdentity,
+) -> Result<(), String> {
+    if recorded == current {
+        return Ok(());
+    }
+    #[cfg(target_os = "macos")]
+    if crate::identity::legacy_macos_login(recorded) && current.starts_with("macos-audit-id:") {
+        let stream =
+            endpoint::connect(_address).map_err(|_| "resident legacy login peer unavailable")?;
+        let _connection = endpoint::close_on_drop(&stream);
+        crate::audit_session::verify_peer(&stream, _owner.pid)
+            .map_err(|_| "resident legacy peer belongs to another login")?;
+        verify_live(_owner)?;
+        return Ok(());
+    }
+    Err("resident source belongs to another boot or login".into())
+}
+
 impl SourceRoute {
     /// Callers that later execute a source artifact must separately certify its immutable payload;
     /// this read-only route establishes control custody, not permission to execute arbitrary code.
@@ -125,9 +147,15 @@ impl SourceRoute {
         }
         let system = crate::identity::current_system()
             .map_err(|_| "resident source login identity unavailable")?;
-        if registry.boot_id != system.boot || registry.os_session_id != system.os_session {
+        if registry.boot_id != system.boot {
             return Err("resident source belongs to another boot or login".into());
         }
+        verify_login(
+            &registry.os_session_id,
+            &system.os_session,
+            &owner.endpoint,
+            &identity,
+        )?;
         for path in ["client-token", "profile-secret"] {
             let _ = record(&root.join(path), 32)?;
         }
@@ -168,8 +196,8 @@ impl SourceRoute {
         }
         let system = crate::identity::current_system()
             .map_err(|_| "closed source boot identity unavailable")?;
-        let ended_login =
-            registry.boot_id != system.boot || registry.os_session_id != system.os_session;
+        let ended_login = registry.boot_id != system.boot
+            || crate::identity::login_change_proven(&registry.os_session_id, &system.os_session);
         let complete_stop = registry.epoch == source.epoch
             && registry.registry_revision >= source.revision
             && registry.tabs.iter().all(|tab| tab.desired == "stopped");
