@@ -574,6 +574,14 @@ fn runtime_control_description_is_authenticated_read_only_and_release_bound() {
     a.create();
     let child = a.wait_child();
     let marker = a.marker();
+    // Concurrency: child readiness can precede the launch worker's final registry commit.
+    // Its permit is released only after that commit; keep exact revision equality below.
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        if a.call(&["tabs", "host-status"])["result"]["starts"]["active"] == 0 { break; }
+        assert!(Instant::now() < deadline, "fixture launch worker did not finish");
+        std::thread::sleep(Duration::from_millis(20));
+    }
     let registry = RegistryStore::read(&a.state().join("registry.json")).unwrap().unwrap();
     for _ in 0..3 {
         let report = a.call(&["tabs", "runtime-control"]);
