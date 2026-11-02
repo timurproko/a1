@@ -58,3 +58,4 @@
 - [x] 6.11 Fence the runtime-control read-only fixture baseline on completed startup commits using the observable start-permit counter, retaining exact full-registry equality.
 - [x] 6.12 Keep the latency certifier's PTY sink responsive with append-only incremental observation reads and bounded yielding parse batches, preserving full final history validation and unchanged latency/sample gates.
 - [x] 6.13 Estimate warm-create p95 from a fixed 23-observation population, retain every attempt and require each painted Agent to match its fresh standby identity and original child PID, without increasing the 250 ms budget.
+- [x] 6.14 Build the release-command fixture's complete real 30-PR merge history in one Git import and retain fetched packs, preserving the existing timeout and strengthening native DAG assertions.

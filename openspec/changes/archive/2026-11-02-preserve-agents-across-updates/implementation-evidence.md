@@ -185,6 +185,14 @@ Run 41463405515 failed the Linux `runtime_control_description_is_authenticated_r
 
 The fixture now waits for the existing `host.status.starts.active` counter to reach zero before taking the baseline. The start permit drops only after the synchronous final registry commit finishes. This is an observable completion barrier, not a settling sleep or a relaxed comparison. The exact full-document/revision equality assertion and all release/identity/authorization checks remain unchanged. All 12 release-isolation process cases passed locally on Windows with the CI fixture feature set; architecture, documentation and whitespace checks passed. Fresh exact-head Linux CI is still required.
 
+## Batched real release-history fixture
+
+Run 41480226388 on finalized head 89eb5fb0 failed the Windows release-command case that lists all 30 PRs after the published Release despite a stale local target tag. Its 45-second timeout expired after fixture setup consumed 14.511 seconds, 58 separate tree lookups plus 58 commit commands consumed 19.624 seconds, and fetching the loose history consumed 12.721 seconds. The test had not reached the changelog assertions; no publication or application defect was established by this timeout. Fail-fast cancelled the remaining native lanes, so this run does not establish fresh macOS performance results.
+
+The test now uses one real `git fast-import` to construct the same 29 work/merge pairs, and its real fast-forward pull retains the received pack rather than materializing every commit as a loose file. The private repositories, remote fetch, stale tag, production release workflow and all 30-PR assertions remain. Additional native Git assertions require exactly 58 new commits and 29 two-parent first-parent merges. No timeout, required lane, assertion or production behavior is weakened.
+
+The unmodified case passed locally in 6.434 seconds; the repaired case passed in 2.977 seconds, with one 364 ms import and a 275 ms packed pull. The full 29-case release-command file, two fixture-isolation cases and six direct-workflow cases passed locally; typechecking, documentation and whitespace checks passed. CI's observed contention was not reproduced locally, and fresh exact-head Windows and platform validation remains required.
+
 ## Fixed-population warm-create latency measurement
 
 Run 41474538892 on finalized head 5cb793de passed the repaired macOS real-progress certificate: zero faults, all scenario/control cases, and per-tab commit-to-paint p95 of 5.320–6.225 ms against 33 ms. The next gate failed warm creation at 292.189 ms against 250 ms. Its report contained only one warm observation, so its claimed p95 was a single maximum, not evidence of the population's tail. That report did not bind a painted child to its prewarmed identity; no cold-fallback cause is claimed.
