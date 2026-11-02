@@ -26,18 +26,19 @@ fn recovered_originating_coordinator_keeps_live_view_input_and_agent_custody() {
     let mut client = WorkspaceClient::open(&b);
     client.next("welcome");
     client.next("attached");
+    // Protocol: attach already consumed source view generation 1; explicit views advance it.
     wire::send(
         &mut client.stream,
         "tab.view",
         None,
         wire::ViewTarget {
             tab_id: qualified.clone(),
-            request_generation: 1,
+            request_generation: 2,
             resize: None,
         },
     )
     .unwrap();
-    client.wait_text(&qualified, "ORIGINAL");
+    wait_view_text(&mut client, &qualified, 2, "ORIGINAL");
     wire::send(
         &mut client.stream,
         "input",
@@ -49,7 +50,7 @@ fn recovered_originating_coordinator_keeps_live_view_input_and_agent_custody() {
         },
     )
     .unwrap();
-    client.wait_text(&qualified, "DRAFT:before");
+    wait_view_text(&mut client, &qualified, 2, "DRAFT:before");
     // Invariant: terminate only the verified fixture coordinator, never its holder or Agent.
     identity::terminate_verified(&owner, Duration::from_secs(1), Duration::from_secs(1)).unwrap();
     let deadline = Instant::now() + Duration::from_secs(15);
@@ -70,12 +71,12 @@ fn recovered_originating_coordinator_keeps_live_view_input_and_agent_custody() {
         None,
         wire::ViewTarget {
             tab_id: qualified.clone(),
-            request_generation: 2,
+            request_generation: 3,
             resize: None,
         },
     )
     .unwrap();
-    client.wait_text(&qualified, "DRAFT:before");
+    wait_view_text(&mut client, &qualified, 3, "DRAFT:before");
     wire::send(
         &mut client.stream,
         "input",
@@ -87,7 +88,7 @@ fn recovered_originating_coordinator_keeps_live_view_input_and_agent_custody() {
         },
     )
     .unwrap();
-    client.wait_text(&qualified, "DRAFT:before-after");
+    wait_view_text(&mut client, &qualified, 3, "DRAFT:before-after");
     let after = RegistryStore::read(&a.state().join("registry.json"))
         .unwrap()
         .unwrap();
@@ -119,6 +120,30 @@ fn recovered_originating_coordinator_keeps_live_view_input_and_agent_custody() {
     let mut reopened = WorkspaceClient::open(&b);
     reopened.next("welcome");
     reopened.next("attached");
-    reopened.wait_text(&qualified, "DRAFT:before-after");
+    wait_view_text(&mut reopened, &qualified, 1, "DRAFT:before-after");
     assert_eq!(a.wait_child(), child);
+}
+
+fn wait_view_text(client: &mut WorkspaceClient, id: &str, generation: u64, expected: &str) {
+    for _ in 0..64 {
+        let (_, surface): (_, wire::Surface) = wire::body(&client.next("surface")).unwrap();
+        if surface.tab_id != id || surface.request_generation != generation {
+            continue;
+        }
+        let text = surface
+            .structured
+            .as_ref()
+            .map(|state| {
+                state
+                    .row_data
+                    .iter()
+                    .flat_map(|row| row.cells.iter().map(|cell| cell.text.as_str()))
+                    .collect::<String>()
+            })
+            .unwrap_or_else(|| String::from_utf8_lossy(&surface.bytes).into_owned());
+        if text.contains(expected) {
+            return;
+        }
+    }
+    panic!("workspace did not restore tab {id}, view {generation}, expected {expected:?}");
 }

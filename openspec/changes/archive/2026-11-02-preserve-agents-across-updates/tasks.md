@@ -53,3 +53,4 @@
 - [x] 6.6 Replace sandbox-policy tests with direct-workflow regressions while preserving native platform coverage, exact-package assertions and the macOS boot/login custody repair.
 - [x] 6.7 Restore automatic completed-implementation and repair-push CI advancement through existing trusted finalization without deployment approval, manual restart or integration automation.
 - [x] 6.8 Reconnect recovered Linux predecessor coordinators whose legacy POSIX-session record changes during detachment, using exact kernel peer/login or headless-scope evidence without restarting Agents or relaxing release/epoch custody.
+- [x] 6.9 Keep coordinator-recovery fixture view generations above attach's consumed generation and require the exact requested surface before checking retained state or submitting subsequent input.
