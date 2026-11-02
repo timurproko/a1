@@ -69,6 +69,23 @@ describe("direct native CI and automatic repair validation", () => {
     }
   });
 
+  it("pins every Development macOS lane to the current GA native ARM64 image", async () => {
+    expect((await workflow("ci")).jobs.modular["runs-on"]).toBe("${{ matrix.os }}");
+    const mac = DEVELOPMENT_VALIDATION_MATRIX.filter(entry => entry.platform === "darwin");
+    expect(mac).toHaveLength(6);
+    for (const entry of mac) {
+      expect(entry, entry.label).toMatchObject({ os: "macos-26", architecture: "arm64", node: 24 });
+    }
+    expect(mac.filter(entry => entry.partition).map(entry => entry.partition)).toEqual(["1/3", "2/3", "3/3"]);
+    expect(mac.filter(entry => entry.terminalHost)).toHaveLength(1);
+    expect(mac.filter(entry => entry.chaos)).toHaveLength(1);
+    expect(mac.filter(entry => entry.group === "containment")).toHaveLength(1);
+    const full = (await workflow("full-regression-shared")).jobs["full-regression"];
+    expect(full.strategy.matrix.include).toContainEqual({ os: "macos-15", node: 24 });
+    expect(await readFile(".github/workflows/publish.yml", "utf8"))
+      .toContain("os: [windows-2025, ubuntu-24.04, macos-15]");
+  });
+
   it("runs Full regression and publication consumers directly without a fixture environment", async () => {
     const full = (await workflow("full-regression-shared")).jobs;
     const publish = (await workflow("publish")).jobs;
