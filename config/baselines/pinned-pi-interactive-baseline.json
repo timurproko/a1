@@ -5,18 +5,18 @@
   "recordedAt": "2026-08-16T18:24:43.909Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
-    "commit": "4a080252f06caf63a525d7873c5d94d3c23887e0",
+    "commit": "f9a26365568127461c47a07a37dcb42c140a3ac5",
     "license": "MIT",
     "packages": [
       {
         "name": "@earendil-works/pi-coding-agent",
-        "version": "1.4.0",
-        "integrity": "sha512-Z41LpZ3yYHSC/UUps6Mr39UMFPwH8elhJBG9DY1P7kuzsE5qSK/6eMj2EHzO5evJRQWLbKSqUMw+4nCNtIyiQg=="
+        "version": "1.5.0",
+        "integrity": "sha512-xNDZ5kqowO6Z03FS2gwAkPEGk1ssxVcYKQ6qZId84mFEvwACvvyc2l0vAMOS+c5zvxLRMLBE9r4y44IGYkMJaQ=="
       },
       {
         "name": "@earendil-works/pi-tui",
-        "version": "1.4.0",
-        "integrity": "sha512-4obPOjgOD7g4mGSlngIvxyujC1UPdmyI9zdVthbr8GufacFEX+Ce0+scPgHg++k2xj5+QjESM2d5TxvIuzCVmg=="
+        "version": "1.5.0",
+        "integrity": "sha512-56KqrDVeLF18k+syppVbT35Ai1opbM44ot+sL7O3K40CaWwXCiwOpqEFugDBAILtAhseZh6uYIuYxPPOJHLFAA=="
       }
     ]
   },
@@ -26,8 +26,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/interactive-mode.ts",
       "sourceMap": "modes/interactive/interactive-mode.js.map",
-      "lines": 7083,
-      "sha256": "fab51416b06840d4fc3b0ba4e50c292b5f022f29f6f7b2322274b7c245e1db70"
+      "lines": 7212,
+      "sha256": "ee4ba8aeee85b772aee57b342356da3030eed3b2c32656fa9c0927e6a81fbab0"
     },
     {
       "id": "commands",
@@ -35,7 +35,7 @@
       "path": "packages/coding-agent/src/core/slash-commands.ts",
       "sourceMap": "core/slash-commands.js.map",
       "lines": 45,
-      "sha256": "be4dff37c5d246ef81329f00ddc0f865506fdd0df9131b0f54c5d24d24b889a0"
+      "sha256": "4f404cefc207904ee084216ca9e14ea1c6dcbb5fb859724a91511a5a44a722f4"
     },
     {
       "id": "keybindings",
@@ -50,8 +50,8 @@
       "package": "@earendil-works/pi-tui",
       "path": "packages/tui/src/keybindings.ts",
       "sourceMap": "keybindings.js.map",
-      "lines": 321,
-      "sha256": "475760dd4e3d02eca46bb5ee8704cd387c397b40d7a1f8967bdac3c481f5f702"
+      "lines": 340,
+      "sha256": "7a936b365c36fbe5200ce15308e1ce907b0ffda1cc40baf8dd9e78d970a724a8"
     },
     {
       "id": "startup",
@@ -66,8 +66,8 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/custom-editor.ts",
       "sourceMap": "modes/interactive/components/custom-editor.js.map",
-      "lines": 149,
-      "sha256": "a19deef137c3c653e24372842dd49bb819f8fcc24a69a5dc6ec60fc2bad3f8f1"
+      "lines": 159,
+      "sha256": "88c84412094b1422f5a5297c9c624be598d6161faa4177cf31f2849460880612"
     },
     {
       "id": "footer",
@@ -98,24 +98,24 @@
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/model-selector.ts",
       "sourceMap": "modes/interactive/components/model-selector.js.map",
-      "lines": 422,
-      "sha256": "92d70b9faffc9febf2ce0c519c7c086938bddfc5da9ad28d819f408d54e3637e"
+      "lines": 434,
+      "sha256": "cf276628534cd5df90fdf084e8262b0e1d3a6bf5fcb3a5cb9e18ab6fcbc7fc01"
     },
     {
       "id": "session-selector",
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/session-selector.ts",
       "sourceMap": "modes/interactive/components/session-selector.js.map",
-      "lines": 1046,
-      "sha256": "8d8744ed7ba79d04fbc5e2fac16ef38083ba2d1e871d12a1a2460faa27e29f27"
+      "lines": 1040,
+      "sha256": "03a403c25588858828d08e8b28a922e7504d290c3e8fc57f52a8637d67e46a39"
     },
     {
       "id": "tree-selector",
       "package": "@earendil-works/pi-coding-agent",
       "path": "packages/coding-agent/src/modes/interactive/components/tree-selector.ts",
       "sourceMap": "modes/interactive/components/tree-selector.js.map",
-      "lines": 1429,
-      "sha256": "d45561287e743bd49ab724230aa61323472110c320c91ee7521fc828b8ff1fd4"
+      "lines": 1430,
+      "sha256": "052a2b48101f076895d192d150f9eb74cfa95f9cf9e89aee57e3e98442ed8c69"
     },
     {
       "id": "clipboard",
@@ -155,8 +155,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          205,
-          1015
+          239,
+          1152
         ],
         "symbol": "constructor, mountInteractiveTui, switchTuiMode, init",
         "anchors": [
@@ -201,8 +201,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          943,
-          1261
+          974,
+          1286
         ],
         "symbol": "init and run",
         "anchors": [
@@ -224,8 +224,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          483,
-          511
+          490,
+          519
         ],
         "symbol": "InteractiveMode state fields",
         "anchors": [
@@ -247,8 +247,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          649,
-          657
+          657,
+          665
         ],
         "symbol": "constructor editor setup",
         "anchors": [
@@ -270,8 +270,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3024,
-          3093
+          3128,
+          3197
         ],
         "symbol": "setupKeyHandlers",
         "anchors": [
@@ -361,8 +361,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3156,
-          3355
+          3260,
+          3459
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -384,8 +384,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3199,
-          3398
+          3260,
+          3459
         ],
         "symbol": "setupEditorSubmitHandler",
         "anchors": [
@@ -407,8 +407,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6960,
-          7051
+          7089,
+          7180
         ],
         "symbol": "handleBashCommand",
         "anchors": [
@@ -430,8 +430,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4842,
-          4874
+          4971,
+          5003
         ],
         "symbol": "disposeActiveSelector and showSelector",
         "anchors": [
@@ -453,8 +453,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4878,
-          5116
+          5007,
+          5245
         ],
         "symbol": "showSettingsSelector",
         "anchors": [
@@ -476,8 +476,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5681,
-          5759
+          5810,
+          5888
         ],
         "symbol": "showSessionSelector and handleResumeSession",
         "anchors": [
@@ -499,8 +499,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5473,
-          5679
+          5602,
+          5808
         ],
         "symbol": "showUserMessageSelector, handleCloneCommand, showTreeSelector",
         "anchors": [
@@ -522,8 +522,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          6498,
-          6667
+          6627,
+          6796
         ],
         "symbol": "session utility command handlers",
         "anchors": [
@@ -546,8 +546,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          5221,
-          5400
+          5324,
+          5529
         ],
         "symbol": "model handlers and selectors",
         "anchors": [
@@ -569,8 +569,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4496,
-          4563
+          4623,
+          4690
         ],
         "symbol": "cycleThinkingLevel and toggleThinkingBlockVisibility",
         "anchors": [
@@ -592,8 +592,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3357,
-          3761
+          3461,
+          3865
         ],
         "symbol": "subscribeToAgent and handleEvent",
         "anchors": [
@@ -638,8 +638,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3508,
-          3593
+          3612,
+          3689
         ],
         "symbol": "handleEvent tool and message cases",
         "anchors": [
@@ -707,8 +707,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          3128,
-          3143
+          3204,
+          3232
         ],
         "symbol": "clipboard input handlers",
         "anchors": [
@@ -730,8 +730,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          862,
-          930
+          904,
+          972
         ],
         "symbol": "mountInteractiveTui and switchTuiMode",
         "anchors": [
@@ -753,8 +753,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          2109,
-          2123
+          2219,
+          2233
         ],
         "symbol": "handleFatalRuntimeError",
         "anchors": [
@@ -775,8 +775,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          4260,
-          4347
+          4387,
+          4474
         ],
         "symbol": "shutdown, emergencyTerminalExit, uncaughtCrash, signal handlers, suspend",
         "anchors": [
@@ -798,8 +798,8 @@
       "provenance": {
         "source": "interactive",
         "lines": [
-          7063,
-          7081
+          7192,
+          7210
         ],
         "symbol": "stop",
         "anchors": [

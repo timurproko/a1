@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
  * Modifications: Owned UI/routing; A1 level color, linked PRs, resident names, dim ellipsis and model
  * priority; Pi unchanged.

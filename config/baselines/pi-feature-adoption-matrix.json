@@ -1,7 +1,7 @@
 {
   "schema": "a1-pi-feature-adoption-matrix-v1",
   "pinned": {
-    "version": "1.4.0"
+    "version": "1.5.0"
   },
   "changelogSince": "0.84.2",
   "rows": [
@@ -2822,6 +2822,42 @@
       "since": "1.4.0",
       "disposition": "pinned",
       "note": "Compaction and branch summaries are produced by the pinned AgentSession, which A1 drives through the public session API; A1 does not call the summary generators directly."
+    },
+    {
+      "id": "changelog:1.5.0:custom-self-update-commands",
+      "kind": "changelog",
+      "feature": "Custom self-update commands",
+      "version": "1.5.0",
+      "summary": "use `PI_SELF_UPDATE_COMMAND` or `selfUpdateCommand` to update pi through a wrapper or another package manager.",
+      "since": "1.5.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.5.0:extension-update-changelogs",
+      "kind": "changelog",
+      "feature": "Extension update changelogs",
+      "version": "1.5.0",
+      "summary": "see what changed in installed extension packages on the next fresh launch after an update. Package authors can choose the changelog path, and `collapseChangelog` condenses the notices.",
+      "since": "1.5.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.5.0:faster-streaming",
+      "kind": "changelog",
+      "feature": "Faster streaming",
+      "version": "1.5.0",
+      "summary": "large tool calls are parsed incrementally, and code-heavy answers and tool rows reuse highlighting and rendered Markdown instead of repeating the work on every update.",
+      "since": "1.5.0",
+      "disposition": "pending"
+    },
+    {
+      "id": "changelog:1.5.0:gpt-6-1-terra",
+      "kind": "changelog",
+      "feature": "GPT-6.1 Terra",
+      "version": "1.5.0",
+      "summary": "available through OpenAI, Azure OpenAI Responses, and OpenAI Codex, with tool search, mid-conversation thinking-level changes, and thinking `off`. Codex offers a 500K context window.",
+      "since": "1.5.0",
+      "disposition": "pending"
     }
   ]
 }

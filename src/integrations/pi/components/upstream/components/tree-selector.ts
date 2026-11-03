@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/components/tree-selector.ts.
  * Modifications: Port remaps public types/components plus owned keybindings/theme helpers while
  * preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode
@@ -28,6 +28,7 @@ import {
 	visibleWidth,
 	wrapTextWithAnsi,
 } from "@earendil-works/pi-tui";
+<<<<<<< a1
 import { DynamicBorder, formatReadLineRange, type SessionTreeNode } from "@earendil-works/pi-coding-agent";
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { addPiModalHeader, adoptPiModalFrame, renderPiModalSearchInput } from "../../modal-frame.js";
@@ -53,6 +54,20 @@ function formatKeyText(key: string): string {
 function shortcutHint(keybinding: Parameters<KeybindingsManager["getKeys"]>[0], action: string): PiModalShortcutHint {
 	return { key: formatKeyText(treeKeybindings.getKeys(keybinding).join("/")), action };
 }
+||||||| pi 1.4.0
+import type { SessionTreeNode } from "../../../core/session-manager.ts";
+import { formatReadLineRange } from "../../../core/tools/render-utils.ts";
+import { theme } from "../theme/theme.ts";
+import { DynamicBorder } from "./dynamic-border.ts";
+import { formatKeyText, keyHint } from "./keybinding-hints.ts";
+=======
+import type { SessionTreeNode } from "../../../core/session-manager.ts";
+import { formatReadLineRange } from "../../../core/tools/render-utils.ts";
+import { shortenHomePath } from "../../../utils/paths.ts";
+import { theme } from "../theme/theme.ts";
+import { DynamicBorder } from "./dynamic-border.ts";
+import { formatKeyText, keyHint } from "./keybinding-hints.ts";
+>>>>>>> pi 1.5.0
 
 /** Gutter info: position (displayIndent where connector was) and whether to show │ */
 interface GutterInfo {
@@ -964,11 +979,7 @@ class TreeList implements Component {
 	}
 
 	private formatToolCall(name: string, args: Record<string, unknown>): string {
-		const shortenPath = (p: string): string => {
-			const home = process.env.HOME || process.env.USERPROFILE || "";
-			if (home && p.startsWith(home)) return `~${p.slice(home.length)}`;
-			return p;
-		};
+		const shortenPath = (p: string): string => shortenHomePath(p, process.env.HOME || process.env.USERPROFILE || "");
 
 		switch (name) {
 			case "read": {
@@ -1493,6 +1504,10 @@ export class TreeSelectorComponent extends Container implements Focusable {
 		this.searchInput.focused = this._focused;
 		this.labelInputContainer.clear();
 		this.restoreTreeContent();
+	}
+
+	get capturesViewportInput(): boolean {
+		return this.labelInput === null;
 	}
 
 	handleInput(keyData: string): void {

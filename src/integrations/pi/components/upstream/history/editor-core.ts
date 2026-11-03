@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-tui 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
+ * Provenance: @earendil-works/pi-tui 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/tui/src/components/editor.ts.
  * Modifications: Owned editor core or minimal editor-local helper subset; public imports, strict
  * types, typed persistent-history hooks, semantic border state with the user-approved numeric-only
@@ -350,6 +350,11 @@ export class HistoryEditorCore implements Component, Focusable {
 
 	/** Focusable interface - set by TUI when focus changes */
 	focused: boolean = false;
+
+	/** The open autocomplete menu receives fullscreen viewport keys, such as PageUp/PageDown. */
+	get capturesViewportInput(): boolean {
+		return this.autocompleteState !== null;
+	}
 
 	protected tui: TUI;
 	private theme: EditorTheme;
@@ -899,7 +904,12 @@ export class HistoryEditorCore implements Component, Focusable {
 				return;
 			}
 
-			if (kb.matches(data, "tui.select.up") || kb.matches(data, "tui.select.down")) {
+			if (
+				kb.matches(data, "tui.select.up") ||
+				kb.matches(data, "tui.select.down") ||
+				kb.matches(data, "tui.select.pageUp") ||
+				kb.matches(data, "tui.select.pageDown")
+			) {
 				this.autocompleteList.handleInput(data);
 				return;
 			}

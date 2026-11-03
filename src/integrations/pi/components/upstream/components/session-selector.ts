@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/components/session-selector.ts.
  * Modifications: Source-synchronized session selector port: preserve threaded/current/all scope,
  * search, sort, named/path filters, rename, delete confirmation, active-session protection,
@@ -17,7 +17,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { unlink } from "node:fs/promises";
-import * as os from "node:os";
 import {
 	type Component,
 	Container,
@@ -31,6 +30,7 @@ import {
 	truncateToWidth,
 	visibleWidth,
 } from "@earendil-works/pi-tui";
+<<<<<<< a1
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { addPiModalHeader, adoptPiModalFrame, renderPiModalSearchInput } from "../../modal-frame.js";
@@ -71,17 +71,25 @@ function withCloseHint(content: string, width: number): string {
 	return body.length === 0 ? close : `${body}  ${close}`;
 }
 import { filterAndSortSessions, hasSessionName, type NameFilter, type SortMode } from "./session-selector-search.js";
+||||||| pi 1.4.0
+import { KeybindingsManager } from "../../../core/keybindings.ts";
+import type { SessionInfo, SessionListProgress } from "../../../core/session-manager.ts";
+import { canonicalizePath as _canonicalizePath } from "../../../utils/paths.ts";
+import { theme } from "../theme/theme.ts";
+import { DynamicBorder } from "./dynamic-border.ts";
+import { keyHint, keyText } from "./keybinding-hints.ts";
+import { filterAndSortSessions, hasSessionName, type NameFilter, type SortMode } from "./session-selector-search.ts";
+=======
+import { KeybindingsManager } from "../../../core/keybindings.ts";
+import type { SessionInfo, SessionListProgress } from "../../../core/session-manager.ts";
+import { canonicalizePath, getPathComparisonKey, shortenHomePath } from "../../../utils/paths.ts";
+import { theme } from "../theme/theme.ts";
+import { DynamicBorder } from "./dynamic-border.ts";
+import { keyHint, keyText } from "./keybinding-hints.ts";
+import { filterAndSortSessions, hasSessionName, type NameFilter, type SortMode } from "./session-selector-search.ts";
+>>>>>>> pi 1.5.0
 
 type SessionScope = "current" | "all";
-
-function shortenPath(path: string): string {
-	const home = os.homedir();
-	if (!path) return path;
-	if (path.startsWith(home)) {
-		return `~${path.slice(home.length)}`;
-	}
-	return path;
-}
 
 function formatSessionDate(date: Date): string {
 	const now = new Date();
@@ -99,6 +107,7 @@ function formatSessionDate(date: Date): string {
 	return `${Math.floor(diffDays / 365)}y`;
 }
 
+<<<<<<< a1
 function fitToWidth(value: string, width: number, ellipsis = ""): string {
 	const available = Math.max(0, width);
 	const clipped = truncateToWidth(value, available, ellipsis);
@@ -129,6 +138,15 @@ function canonicalizePath(path: string | undefined): string | undefined {
 	} catch {
 		return path;
 	}
+||||||| pi 1.4.0
+function canonicalizePath(path: string | undefined): string | undefined {
+	if (!path) return path;
+	return _canonicalizePath(path);
+=======
+/** Comparison key for a session file path; follows symlinks and ignores case on Windows. */
+function getSessionPathKey(path: string): string {
+	return getPathComparisonKey(canonicalizePath(path));
+>>>>>>> pi 1.5.0
 }
 
 class SessionSelectorHeader implements Component {
@@ -282,16 +300,16 @@ function buildSessionTree(sessions: SessionInfo[]): SessionTreeNode[] {
 	const byPath = new Map<string, SessionTreeNode>();
 
 	for (const session of sessions) {
-		const sessionPath = canonicalizePath(session.path) ?? session.path;
+		const sessionPath = getSessionPathKey(session.path);
 		byPath.set(sessionPath, { session, children: [], latestActivity: session.modified.getTime() });
 	}
 
 	const roots: SessionTreeNode[] = [];
 
 	for (const session of sessions) {
-		const sessionPath = canonicalizePath(session.path) ?? session.path;
+		const sessionPath = getSessionPathKey(session.path);
 		const node = byPath.get(sessionPath)!;
-		const parentPath = canonicalizePath(session.parentSessionPath);
+		const parentPath = session.parentSessionPath ? getSessionPathKey(session.parentSessionPath) : undefined;
 
 		if (parentPath && byPath.has(parentPath)) {
 			byPath.get(parentPath)!.children.push(node);
@@ -368,7 +386,13 @@ class SessionList implements Component, Focusable {
 	private keybindings: KeybindingsManager;
 	private showPath = false;
 	private confirmingDeletePath: string | null = null;
+<<<<<<< a1
 	private currentSessionCanonicalPath: string | undefined;
+||||||| pi 1.4.0
+	private currentSessionCanonicalPath?: string;
+=======
+	private currentSessionPathKey?: string;
+>>>>>>> pi 1.5.0
 	public onSelect?: (sessionPath: string) => void;
 	public onCancel?: () => void;
 	public onExit: () => void = () => {};
@@ -410,7 +434,7 @@ class SessionList implements Component, Focusable {
 		this.sortMode = sortMode;
 		this.nameFilter = nameFilter;
 		this.keybindings = keybindings;
-		this.currentSessionCanonicalPath = canonicalizePath(currentSessionFilePath);
+		this.currentSessionPathKey = currentSessionFilePath ? getSessionPathKey(currentSessionFilePath) : undefined;
 		this.filterSessions("");
 
 		// Handle Enter in search input - select current item
@@ -488,8 +512,8 @@ class SessionList implements Component, Focusable {
 	}
 
 	private isCurrentSessionPath(path: string): boolean {
-		if (!this.currentSessionCanonicalPath) return false;
-		return (canonicalizePath(path) ?? path) === this.currentSessionCanonicalPath;
+		if (!this.currentSessionPathKey) return false;
+		return getSessionPathKey(path) === this.currentSessionPathKey;
 	}
 
 	private sessionPathText(session: SessionInfo): string {
@@ -562,7 +586,31 @@ class SessionList implements Component, Focusable {
 
 			const age = formatSessionDate(session.modified);
 			const msgCount = String(session.messageCount);
+<<<<<<< a1
 			const pathText = this.sessionPathText(session);
+||||||| pi 1.4.0
+			let rightPart = `${msgCount} ${age}`;
+			if (this.showCwd && session.cwd) {
+				rightPart = `${shortenPath(session.cwd)} ${rightPart}`;
+			}
+			if (this.showPath) {
+				rightPart = `${shortenPath(session.path)} ${rightPart}`;
+			}
+
+			// Cursor
+			const cursor = isSelected ? theme.fg("accent", "› ") : "  ";
+=======
+			let rightPart = `${msgCount} ${age}`;
+			if (this.showCwd && session.cwd) {
+				rightPart = `${shortenHomePath(session.cwd)} ${rightPart}`;
+			}
+			if (this.showPath) {
+				rightPart = `${shortenHomePath(session.path)} ${rightPart}`;
+			}
+
+			// Cursor
+			const cursor = isSelected ? theme.fg("accent", "› ") : "  ";
+>>>>>>> pi 1.5.0
 
 			// Cursor and title stay inside their column so metadata always begins at one boundary.
 			const cursor = isSelected ? theme.fg("accent", "→ ") : "  ";
@@ -770,6 +818,10 @@ async function deleteSessionFile(
  * Component that renders a session selector
  */
 export class SessionSelectorComponent extends Container implements Focusable {
+	get capturesViewportInput(): boolean {
+		return this.mode !== "rename";
+	}
+
 	handleInput(data: string): void {
 		if (this.mode === "rename") {
 			const kb = getKeybindings();

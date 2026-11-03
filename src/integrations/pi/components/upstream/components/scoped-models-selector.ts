@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/components/scoped-models-selector.ts.
  * Modifications: Source-synchronized scoped-model selector port: preserve session-only toggles,
  * search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status,
@@ -19,10 +19,12 @@ import {
 	type Focusable,
 	fuzzyFilter,
 	getKeybindings,
+	getSelectPageIndex,
 	Input,
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
+<<<<<<< a1
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
 import { getModelSearchText } from "../model-search.js";
 import { addPiModalHeader, addPiModalSearchInput, adoptPiModalFrame } from "../../modal-frame.js";
@@ -45,6 +47,17 @@ const theme = new Proxy({} as ReturnType<typeof piTheme>, {
 		return typeof value === "function" ? value.bind(active) : value;
 	},
 });
+||||||| pi 1.4.0
+import { getModelSearchText } from "../model-search.ts";
+import { theme } from "../theme/theme.ts";
+import { DynamicBorder } from "./dynamic-border.ts";
+import { keyDisplayText } from "./keybinding-hints.ts";
+=======
+import { getDistinctModelName, getModelSearchText } from "../model-search.ts";
+import { theme } from "../theme/theme.ts";
+import { DynamicBorder } from "./dynamic-border.ts";
+import { keyDisplayText } from "./keybinding-hints.ts";
+>>>>>>> pi 1.5.0
 
 // EnabledIds: null = all enabled (no filter), string[] = explicit ordered list
 type EnabledIds = string[] | null;
@@ -128,7 +141,14 @@ export interface ModelsCallbacks {
  * Changes are session-only until explicitly persisted with Ctrl+S.
  */
 export class ScopedModelsSelectorComponent extends Container implements Focusable {
+<<<<<<< a1
 	private modelsById: Map<string, ScopedModel> = new Map();
+||||||| pi 1.4.0
+	private modelsById: Map<string, Model<any>> = new Map();
+=======
+	readonly capturesViewportInput: boolean = true;
+	private modelsById: Map<string, Model<any>> = new Map();
+>>>>>>> pi 1.5.0
 	private allIds: string[] = [];
 	private enabledIds: EnabledIds = null;
 	private filteredItems: ModelItem[] = [];
@@ -288,9 +308,11 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 			const id = item.model?.id ?? item.fullId;
 			const styledId = item.model ? id : theme.strikethrough(id);
 			const modelText = isSelected ? theme.fg("accent", styledId) : styledId;
+			const name = item.model ? getDistinctModelName(item.model) : undefined;
+			const nameText = name ? theme.fg("muted", ` (${name})`) : "";
 			const providerBadge = theme.fg("muted", item.model ? ` [${item.model.provider}]` : " [unavailable]");
 			const status = item.model && item.enabled ? theme.fg("accent", "✓ ") : "  ";
-			this.listContainer.addChild(new Text(`${prefix}${status}${modelText}${providerBadge}`, 0, 0));
+			this.listContainer.addChild(new Text(`${prefix}${status}${modelText}${nameText}${providerBadge}`, 0, 0));
 		}
 
 		// Add scroll indicator if needed
@@ -326,6 +348,13 @@ export class ScopedModelsSelectorComponent extends Container implements Focusabl
 		if (kb.matches(data, "tui.select.down")) {
 			if (this.filteredItems.length === 0) return;
 			this.selectedIndex = this.selectedIndex === this.filteredItems.length - 1 ? 0 : this.selectedIndex + 1;
+			this.updateList();
+			return;
+		}
+		const pageIndex = getSelectPageIndex(kb, data, this.selectedIndex, this.filteredItems.length, this.maxVisible);
+		if (pageIndex !== undefined) {
+			if (this.filteredItems.length === 0) return;
+			this.selectedIndex = pageIndex;
 			this.updateList();
 			return;
 		}

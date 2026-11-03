@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/model-search.ts.
  * Modifications: Mechanical source-synchronized port preserving pinned model search terms for stateful
  * scoped-model filtering.
@@ -15,6 +15,29 @@ export function getModelSearchText(item: ModelSearchItem): string {
 	const { id, provider } = item;
 	const name = item.name ? ` ${item.name}` : "";
 	return `${id} ${provider} ${provider}/${id} ${provider} ${id}${name}`;
+}
+
+const splitModelLabel = (value: string): string[] =>
+	value
+		.toLowerCase()
+		.split(/[^\p{L}\p{N}]+/u)
+		.filter(Boolean);
+
+/**
+ * Returns the model name when it has words the ID does not, e.g. a renamed override like
+ * "MiniMax M3 [rasmus@openrouter, parasail]" for "minimax/minimax-m3". Names that only
+ * restate the ID with different casing, separators, or a dropped namespace/version suffix
+ * ("Claude Sonnet 4.5 (EU)" for "eu.anthropic.claude-sonnet-4-5-20250929-v1:0") return undefined.
+ */
+export function getDistinctModelName(item: { id: string; name?: string }): string | undefined {
+	const name = item.name?.trim();
+	if (!name) return undefined;
+	const idWords = splitModelLabel(item.id);
+	const idTokens = new Set(idWords);
+	const compactId = idWords.join("");
+	// Single-character words must match a whole ID token: "4" is not covered by "mistral-small-2603".
+	const isCovered = (word: string) => idTokens.has(word) || (word.length > 1 && compactId.includes(word));
+	return splitModelLabel(name).every(isCovered) ? undefined : name;
 }
 
 /**

@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/components/tool-execution.ts.
  * Modifications: Retain pinned shell/public renderers. Own image conversion; replace private APIs with
  * public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut
@@ -10,6 +10,7 @@
  * concise-tool-expand-shortcut-hint, default-shell-background-reset-scoping,
  * unsupported-image-fallback-omission.
  */
+<<<<<<< a1
 import { stripVTControlCharacters } from "node:util";
 import { Box, type Component, Container, getImageDimensions, imageFallback, MouseRegion, Spacer, Text, type TUI, type TuiMouseEvent } from "@earendil-works/pi-tui";
 import { createReadToolDefinition, createBashToolDefinition, createEditToolDefinition, createWriteToolDefinition,
@@ -82,6 +83,51 @@ export function mergeBuiltInRenderers(definition: ToolRendererInput | undefined,
 
 const definitions = { read: createReadToolDefinition, bash: createBashToolDefinition, edit: createEditToolDefinition,
   write: createWriteToolDefinition, grep: createGrepToolDefinition, find: createFindToolDefinition, ls: createLsToolDefinition };
+||||||| pi 1.4.0
+import {
+	Box,
+	type Component,
+	Container,
+	getCapabilities,
+	Image,
+	MouseRegion,
+	Spacer,
+	Text,
+	type TUI,
+	type TuiMouseEvent,
+} from "@earendil-works/pi-tui";
+import type { ToolDefinition, ToolRenderContext, ToolRenderers } from "../../../core/extensions/types.ts";
+
+/** What this component needs from a tool: how to draw it, without executing it. */
+export type { ToolRenderers };
+
+import { formatToolCallWithArgs, getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
+import { ensurePngTranscoder } from "../../../utils/image-convert.ts";
+import { theme } from "../theme/theme.ts";
+import { keyHint } from "./keybinding-hints.ts";
+=======
+import {
+	Box,
+	type Component,
+	Container,
+	getCapabilities,
+	Image,
+	MouseRegion,
+	Spacer,
+	Text,
+	type TUI,
+	type TuiMouseEvent,
+} from "@earendil-works/pi-tui";
+import type { ToolDefinition, ToolRenderContext, ToolRenderers } from "../../../core/extensions/types.ts";
+
+/** What this component needs from a tool: how to draw it, without executing it. */
+export type { ToolRenderers };
+
+import { formatToolCallWithArgs, getTextOutput as getRenderedTextOutput } from "../../../core/tools/render-utils.ts";
+import { ensurePngTranscoder } from "../../../utils/image-convert.ts";
+import { theme } from "../theme/theme.ts";
+import { keyHint, keyText } from "./keybinding-hints.ts";
+>>>>>>> pi 1.5.0
 
 const FALLBACK_PREVIEW_LINES = 10;
 const COLLAPSED_ARGS_CHARS = 100;
@@ -138,7 +184,25 @@ export class ToolExecutionComponent extends Container {
 	private cwd: string;
 	private executionStarted = false;
 	private argsComplete = false;
+<<<<<<< a1
 	private result: ToolPresentationResult | undefined;
+||||||| pi 1.4.0
+	private result?: {
+		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+		isError: boolean;
+		details?: any;
+		durationMs?: number;
+	};
+=======
+	/** `updateArgs()` ran since the last display update; the next render applies it. */
+	private argsPending = false;
+	private result?: {
+		content: Array<{ type: string; text?: string; data?: string; mimeType?: string }>;
+		isError: boolean;
+		details?: any;
+		durationMs?: number;
+	};
+>>>>>>> pi 1.5.0
 	private hideComponent = false;
 
 	constructor(
@@ -207,6 +271,8 @@ export class ToolExecutionComponent extends Container {
 			isError: this.result?.isError ?? false,
 			durationMs: this.isPartial ? undefined : this.result?.durationMs,
 			outputPad: this.outputPad,
+			keyText,
+			keyHint,
 		};
 	}
 
@@ -237,9 +303,14 @@ export class ToolExecutionComponent extends Container {
 		});
 	}
 
+	/**
+	 * Show new partial arguments. Applied at the next render, so a call streaming many argument deltas between two
+	 * frames runs its renderer once per frame, not once per delta (#9265).
+	 */
 	updateArgs(args: any): void {
 		this.args = args;
-		this.updateDisplay();
+		this.argsPending = true;
+		this.ui.requestRender();
 	}
 
 	markExecutionStarted(): void {
@@ -301,6 +372,7 @@ export class ToolExecutionComponent extends Container {
 	}
 
 	override render(width: number): string[] {
+		if (this.argsPending) this.updateDisplay();
 		if (this.hideComponent) {
 			return [];
 		}
@@ -344,6 +416,7 @@ export class ToolExecutionComponent extends Container {
 	}
 
 	private updateDisplay(): void {
+<<<<<<< a1
     if (this.disposed || this.updatingDisplay) return;
     this.updatingDisplay = true;
     try { this.composeDisplay(); } finally { this.updatingDisplay = false; }
@@ -377,6 +450,20 @@ export class ToolExecutionComponent extends Container {
     const theme = piTheme();
 		const bgFn = enclosingToolBackground(theme, this.isPartial ? "toolPendingBg"
       : this.result?.isError ? "toolErrorBg" : "toolSuccessBg");
+||||||| pi 1.4.0
+		const bgFn = this.isPartial
+			? (text: string) => theme.bg("toolPendingBg", text)
+			: this.result?.isError
+				? (text: string) => theme.bg("toolErrorBg", text)
+				: (text: string) => theme.bg("toolSuccessBg", text);
+=======
+		this.argsPending = false;
+		const bgFn = this.isPartial
+			? (text: string) => theme.bg("toolPendingBg", text)
+			: this.result?.isError
+				? (text: string) => theme.bg("toolErrorBg", text)
+				: (text: string) => theme.bg("toolSuccessBg", text);
+>>>>>>> pi 1.5.0
 
 		let hasContent = false;
 		this.hideComponent = false;
