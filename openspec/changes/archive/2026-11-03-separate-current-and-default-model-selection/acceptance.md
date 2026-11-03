@@ -24,7 +24,7 @@ The maintainer integration decision accepts these scenarios:
     "A fresh Agent tab immediately previews and starts on the authenticated persisted default even when it is outside `enabledModels`, while its cycling scope remains unchanged.",
     "Failed default-model persistence reopens the preserved selector with an error and retains the prior default, while the comparison profile keeps its existing model-selection behavior."
   ],
-  "archiveDigest": "a1b45dc2a01e02a65119cea684390d67c18fddee36b980fdc655662aab0c7290",
+  "archiveDigest": "4e6132a023ba745c7dbb9f6ce833ad3fc31f764183bafe448259242eeef913fa",
   "specDigest": "ed9222732974e7737808ad79564a2bb37098b2f7004e7431f0479427d8e72ac6",
   "tasksDigest": "c4bee5452ad5b54c0398aa113a5998443820c0a3abd20eff09ddb4d746168332",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
