@@ -1658,7 +1658,7 @@ fn ten_concurrent_tab_starts_respect_the_server_limit() {
     assert!(registry.tabs.iter().all(|tab| tab.lifecycle == "running"));
     assert_eq!(holder_identities(&credentials_root).len(), 10);
     for child in registry.tabs.iter().filter_map(|tab| tab.child_pid) {
-        terminate(child);
+        kill_now(child);
     }
     let restart_deadline = Instant::now() + Duration::from_secs(30);
     loop {
