@@ -13,6 +13,8 @@ import type { UiTheme } from "./theme.js";
 export interface DialogRow {
   readonly label: string;
   readonly labelSuffix?: string;
+  /** Success-colored marker rendered after the complete label. */
+  readonly successSuffix?: string;
   readonly value: string;
   /** What this part does, shown while it is the one in hand. */
   readonly description?: string;
@@ -179,16 +181,17 @@ export function renderSteppedDialogPanel(
   const layout = dialogPanelLayout(width, theme);
   const labelColumn = Math.min(
     STEPPED_LABEL_COLUMN_CAP,
-    Math.max(0, ...state.rows.map(row => displayWidth(`${row.label}${row.labelSuffix ?? ""}`))),
+    Math.max(0, ...state.rows.map(row => displayWidth(`${row.label}${row.labelSuffix ?? ""}${row.successSuffix === undefined ? "" : ` ${row.successSuffix}`}`))),
   );
   const rows = state.rows.map((row, index) => {
     const selected = index === state.index;
-    const completeLabel = `${row.label}${row.labelSuffix ?? ""}`;
+    const success = row.successSuffix === undefined ? "" : ` ${row.successSuffix}`;
+    const completeLabel = `${row.label}${row.labelSuffix ?? ""}${success}`;
     const padding = " ".repeat(Math.max(0, labelColumn - displayWidth(completeLabel)));
     const suffix = row.value.length === 0 ? "" : `  ${row.value}`;
     const cursor = selected ? "→ " : "  ";
     const raw = `${cursor}${completeLabel}${padding}${suffix}`;
-    const label = `${theme.fg("text", row.label)}${theme.fg("muted", row.labelSuffix ?? "")}${padding}`;
+    const label = `${theme.fg("text", row.label)}${theme.fg("muted", row.labelSuffix ?? "")}${theme.fg("success", success)}${padding}`;
     const content = selected
       ? `${theme.fg("accent", cursor)}${label}${theme.fg("muted", suffix)}`
       : `${cursor}${label}${theme.fg("muted", suffix)}`;

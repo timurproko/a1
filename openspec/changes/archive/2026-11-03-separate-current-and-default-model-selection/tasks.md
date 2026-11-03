@@ -14,6 +14,7 @@
 - [x] 3.1 Render `Default model` as `configure` in the Agent Settings section and open a keyboard-only searchable model selector using descriptor-supplied models and the owned modal hierarchy.
 - [x] 3.2 Implement default selection, provider/model filtering, exact current-default indication, Enter-to-persist, Escape-without-write, and failed-save state retention without affecting model scope.
 - [x] 3.3 Add focused Settings presentation and interaction coverage for matching and differing active/default models, narrow widths, filtering, keyboard hints, save success/failure, pointer isolation, and return to the Settings list.
+- [x] 3.4 Place `Default model` immediately above per-model thinking configuration and render catalog rows without a duplicate display-name column, using a success-colored persisted-default checkmark after `[provider]`.
 
 ## 4. Preserve surrounding contracts
 

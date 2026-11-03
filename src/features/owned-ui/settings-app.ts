@@ -1099,7 +1099,8 @@ export class SettingsApp implements UiApp {
       // Rationale: a section named by the search is what the reader asked for, so it arrives
       // whole rather than narrowed to the entries that happen to repeat its name.
       const named = needle.length > 0 && section.title.toLowerCase().includes(needle);
-      const entries = named ? section.entries : section.entries.filter(matches);
+      const matching = named ? section.entries : section.entries.filter(matches);
+      const entries = orderDefaultModelBeforeThinking(matching, section.id);
       if (needle.length > 0 && entries.length === 0) continue;
       if (rows.length > 0) rows.push({ kind: "spacer" });
       rows.push({ kind: "group", group: section.id, title: section.title });
@@ -1228,7 +1229,8 @@ export class SettingsApp implements UiApp {
         ? [{ label: "No models found", value: "" }]
         : flags.map(flag => ({
           ...modelLabelParts(flag.label ?? humanizeLabel(flag.key)),
-          value: `${flag.key === current ? "✓ " : ""}${flag.description}`,
+          ...(flag.key === current ? { successSuffix: "✓" } : {}),
+          value: "",
         }));
       const description = open.error ?? (open.saving ? "Saving default model…" : "Select the model used for new sessions");
       const visible = dialogWindow(rows, open.index, configureDialogChoiceCapacity(height, true, configureDialogTextRows(description, width)));
@@ -1332,6 +1334,19 @@ function handleSettingsSearchPointer(
   if (!overInput && !input.ownsPointer()) return null;
   const handled = input.handlePointer({ kind: event.kind, button: event.button, column: event.column, row });
   return { consumed: handled || overInput, render: handled };
+}
+
+function orderDefaultModelBeforeThinking(
+  entries: readonly OwnedUiSettingsEntry[],
+  sectionId: string,
+): readonly OwnedUiSettingsEntry[] {
+  if (sectionId !== "agent") return entries;
+  const defaultModel = entries.find(isDefaultModelEntry);
+  if (defaultModel === undefined) return entries;
+  const ordered = entries.filter(entry => entry !== defaultModel);
+  const thinking = ordered.findIndex(entry => entry.backend === "agent" && entry.id === "modelThinkingLevels");
+  ordered.splice(thinking < 0 ? ordered.length : thinking, 0, defaultModel);
+  return ordered;
 }
 
 function modelLabelParts(label: string): Pick<DialogRow, "label" | "labelSuffix"> {

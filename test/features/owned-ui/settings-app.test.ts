@@ -99,6 +99,11 @@ function defaultModelDialogPort(failWrites = false): { port: AgentSettingsPort; 
       async listSettings() {
         return [
           ...await backing.port.listSettings(),
+          descriptor("modelThinkingLevels", "json", {}, {
+            label: "Default thinking level per model",
+            owner: "agent",
+            flags: MODEL_THINKING_FLAGS,
+          }),
           descriptor("defaultModel", "enum", current, {
             label: "Default model",
             description: "Model used when a new session starts",
@@ -186,6 +191,11 @@ const NAMING_THEME: UiTheme = Object.freeze({
   panel: (text: string) => `<panel>${text}</panel>`,
 });
 const NAMING_HOST: AppHostServices = { ...HOST, theme: NAMING_THEME };
+const SUCCESS_MARKER = "\u001b[32m ✓\u001b[39m";
+const SUCCESS_HOST: AppHostServices = {
+  ...HOST,
+  theme: { ...NAMING_THEME, fg: (token, text) => token === "success" ? `\u001b[32m${text}\u001b[39m` : text },
+};
 const PANEL_BACKGROUND = "\u001b[48;2;38;38;38m";
 const MENU_BACKGROUND = "\u001b[48;2;55;55;55m";
 const PANEL_THEME: UiTheme = Object.freeze({
@@ -937,6 +947,9 @@ describe("the settings screen", () => {
     const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent: backing.port });
     await session.load();
     const target = settingsApp(session);
+    const settingsLines = target.render({ width: 80, height: 40 }, HOST).map(line => stripTerminalSequences(line));
+    expect(settingsLines.findIndex(line => line.includes("Default model")))
+      .toBeLessThan(settingsLines.findIndex(line => line.includes("Default thinking level per model")));
     selectRow(target, "Default model");
     expect(find(target, "Default model")).toContain("configure");
     expect(find(target, "Default model")).not.toContain("openai/gpt-5");
@@ -946,16 +959,18 @@ describe("the settings screen", () => {
     expect(shown).toContain("Default Model");
     expect(shown).not.toContain("(step");
     expect(shown).toContain("Select the model used for new sessions");
-    expect(shown).toContain("gpt-5 [openai]");
-    expect(shown).toContain("✓ GPT-5");
+    expect(shown).toContain("gpt-5 [openai] ✓");
+    expect(shown).not.toContain("GPT-5");
     expect(shown).toContain("Type search  Enter select  Esc close");
-    expect(target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n")).toContain("<accent>></accent> ");
+    const semanticFrame = target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n");
+    expect(semanticFrame).toContain("<accent>></accent> ");
+    expect(target.render({ width: 80, height: 24 }, SUCCESS_HOST).join("\n")).toContain(SUCCESS_MARKER);
 
     for (const character of "spark") target.onInput?.(character, HOST);
     shown = modalScreen(target).join("\n");
     expect(shown).toContain("> spark");
     expect(shown).toContain("gpt-5.3-codex-spark [openai]");
-    expect(shown).toContain("GPT-5.3 Codex Spark");
+    expect(shown).not.toContain("GPT-5.3 Codex Spark");
     expect(shown).not.toContain("→ gpt-5 [openai]");
 
     const beforePointer = modalScreen(target);

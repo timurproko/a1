@@ -2,9 +2,9 @@
 
 ### Requirement: The default model has a dedicated Settings configurator
 
-The owned Settings screen SHALL expose Pi's persisted default provider/model pair as one writable Agent entry labeled `Default model`. The entry SHALL display `configure` rather than treating the model catalog as a scalar value menu. It SHALL declare `next-session` application and SHALL use Pi's existing default-model settings fields as its sole persistence authority.
+The owned Settings screen SHALL expose Pi's persisted default provider/model pair as one writable Agent entry labeled `Default model`. The entry SHALL display `configure` rather than treating the model catalog as a scalar value menu, and SHALL appear immediately above `Default thinking level per model` in the Agent section. It SHALL declare `next-session` application and SHALL use Pi's existing default-model settings fields as its sole persistence authority.
 
-Activating `Default model` SHALL open a keyboard-only searchable selector using the authenticated models supplied by the Agent setting descriptor. The selector SHALL use the owned modal hierarchy, an accent title `Default Model`, a muted instruction `Select the model used for new sessions`, a focused search input with the exact ASCII `> ` prompt marker, provider-suffixed model rows, and shortcut guidance for typing, Up/Down navigation, Enter selection, and Escape close. Search SHALL match model identifier, display name, provider, and full `provider/modelId` reference. The persisted default SHALL be the initial selection when it remains available and SHALL have one distinct persisted-default marker independent of the active session model.
+Activating `Default model` SHALL open a keyboard-only searchable selector using the authenticated models supplied by the Agent setting descriptor. The selector SHALL use the owned modal hierarchy, an accent title `Default Model`, a muted instruction `Select the model used for new sessions`, a focused search input with the exact ASCII `> ` prompt marker, and shortcut guidance for typing, Up/Down navigation, Enter selection, and Escape close. Each model row SHALL use the Models-dialog form `modelId [provider]` without a duplicate display-name column. Search SHALL still match model identifier, display name, provider, and full `provider/modelId` reference. The persisted default SHALL be the initial selection when it remains available and SHALL have one success-colored `✓` immediately after `[provider]`, independent of the active session model.
 
 Enter SHALL write the selected full model reference through the Agent settings backend and return to the Settings list only after the write succeeds. The write SHALL update Pi's persisted default provider/model pair without changing the active session model, active model indicator, current thinking level, or model cycling scope. Escape SHALL close without writing. If the write fails or becomes unavailable, the selector SHALL remain open with its query and selection preserved, the previous default SHALL remain authoritative, and the Settings failure channel SHALL report the error.
 
@@ -14,13 +14,14 @@ The pinned `a1 pi` comparison profile SHALL retain its existing model selector a
 
 - **WHEN** bare A1 opens the owned Settings screen with authenticated models available
 - **THEN** the Agent section SHALL contain one `Default model` entry whose value reads `configure`
+- **AND** it SHALL appear immediately above `Default thinking level per model`
 - **AND** the entry SHALL be backed by Pi's persisted default provider/model pair and declare `next-session` application
 
 #### Scenario: Open default-model configuration
 
 - **WHEN** the user activates `Default model`
-- **THEN** the dialog SHALL show `Default Model`, the muted instruction `Select the model used for new sessions`, a focused search input beginning with ASCII `> `, and descriptor-supplied model rows
-- **AND** the persisted default SHALL be selected and marked when it is available
+- **THEN** the dialog SHALL show `Default Model`, the muted instruction `Select the model used for new sessions`, a focused search input beginning with ASCII `> `, and descriptor-supplied `modelId [provider]` rows without a duplicate display-name column
+- **AND** the persisted default SHALL be selected and marked by one success-colored `✓` immediately after `[provider]` when it is available
 - **AND** the active session model SHALL NOT be used as the default marker when it differs
 
 #### Scenario: Filter default models
