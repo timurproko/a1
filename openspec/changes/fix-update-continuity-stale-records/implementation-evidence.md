@@ -12,9 +12,9 @@
 - `npm run typecheck` passed.
 - `npm run build` passed.
 - `npm run check:architecture` passed with reviewed size and startup-graph baseline updates.
-- `npm run check:local` passed before the final evidence-only refinements; the affected typecheck and architecture gates were rerun afterward and passed.
+- Final `npm run check:local` passed, including typecheck, architecture, full naming audit, and nine native-workflow governance cases.
 - Strict OpenSpec validation passed for `fix-update-continuity-stale-records`.
-- 164 focused TypeScript tests passed with one existing skip across resident continuity, update activation/transaction/coordinator behavior, update observation, shell presentation, diagnostics, and Pi status suites.
+- The final focused rerun passed 141 TypeScript tests with one existing skip across eleven resident continuity, update activation/transaction/coordinator, update observation, shell presentation, and Pi status files. Earlier focused subsets also passed while the implementation was refined.
 - Contracts-only native `cargo check --lib` passed with `TERMINAL_HOST_LOCAL_BUILD=1` and `TERMINAL_HOST_CONTRACTS_ONLY=1`.
 
 ## Validation boundary
