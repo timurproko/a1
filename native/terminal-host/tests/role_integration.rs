@@ -87,6 +87,78 @@ fn cold_attach_enters_the_screen_with_a_named_tab_not_an_empty_strip() {
 }
 
 #[test]
+fn matching_updated_client_hides_only_the_legacy_restart_notice() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    protect_runtime(&runtime);
+    let release = directory(root.path(), "release");
+    std::fs::write(release.join("package.json"), br#"{"version":"0.2.7-dev.1235"}"#)
+        .expect("release package");
+    std::fs::write(
+        data.join("automatic-update.json"),
+        br#"{"schema":1,"channel":"development","targetVersion":"0.2.7-dev.1235","status":"installed","attemptedAt":1,"updatedAt":2,"installedVersion":"0.2.7-dev.1235","failure":null}"#,
+    )
+    .expect("automatic update state");
+    std::fs::write(
+        directory(&release, "bin").join("ui.js"),
+        r#"
+if (process.stdin.isTTY) process.stdin.setRawMode(true);
+process.stdin.on("data", bytes => process.stdout.write(`\x1b[2;1Hinput:${bytes.toString("hex")}`));
+process.stdout.write("\x1b[2J\x1b[1;1Hlegacy-agent-live\x1b[20;66H\x1b[32mUpdate installed, restart to update\x1b[0m");
+setInterval(() => {}, 1000);
+"#,
+    )
+    .expect("fake child");
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    start_server(&executable, &profile, &data, &runtime, &address);
+    let credentials_root = data
+        .join("tabs")
+        .join(endpoint::endpoint_token(&profile).expect("profile token"));
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let mut attach = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    assert!(
+        attach.output_containing("legacy-agent-live", Duration::from_secs(12)),
+        "{}",
+        attach.output_text()
+    );
+    attach.settle(Duration::from_millis(300));
+    assert!(
+        !attach.output_text().contains("Update installed, restart to update"),
+        "the satisfied predecessor notice remained visible: {}",
+        attach.output_text()
+    );
+    let before = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("registry")
+        .expect("running registry");
+    let before = before.tabs.iter().find(|tab| tab.kind == "agent").expect("Agent");
+    let identities = (before.holder_pid, before.holder_start_identity.clone(), before.child_pid, before.child_start_identity.clone());
+    attach.write(b"x");
+    assert!(
+        attach.output_containing("input:78", Duration::from_secs(5)),
+        "the retained child stopped receiving input: {}",
+        attach.output_text()
+    );
+    let after = RegistryStore::read(&credentials_root.join("registry.json"))
+        .expect("registry")
+        .expect("running registry");
+    let after = after.tabs.iter().find(|tab| tab.kind == "agent").expect("Agent");
+    assert_eq!(
+        identities,
+        (after.holder_pid, after.holder_start_identity.clone(), after.child_pid, after.child_start_identity.clone()),
+        "presentation suppression replaced live execution"
+    );
+    attach.child.kill().expect("stop fixture attach");
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
 fn attach_after_every_agent_exited_starts_a_new_agent_instead_of_an_empty_screen() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");

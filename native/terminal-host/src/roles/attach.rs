@@ -2127,6 +2127,7 @@ struct Client {
     settings_file: PathBuf,
     /// The running a1 package version the landing header names, when the release records one.
     version: Option<String>,
+    suppress_satisfied_update_notice: bool,
 }
 
 impl Client {
@@ -2145,6 +2146,10 @@ impl Client {
         let default_accent = known_accent(options.accent_color)
             .ok_or_else(|| "attach accent color is invalid".to_owned())?;
         let time_format = TimeFormatWatch::new(options.settings_file, default_accent);
+        let version = read_release_version(Path::new(options.release_root));
+        let suppress_satisfied_update_notice = version.as_deref().is_some_and(|current| {
+            super::update_notice::restart_is_satisfied(options.data_dir, current)
+        });
         let strip_frame = strip::render_interactive_at(
             &[],
             view.viewed.as_deref(),
@@ -2198,7 +2203,8 @@ impl Client {
             pressed_chars: std::collections::HashSet::new(),
             key_trace_path: std::env::var_os("A1_ATTACH_KEY_TRACE").map(PathBuf::from),
             settings_file: options.settings_file.to_owned(),
-            version: read_release_version(Path::new(options.release_root)),
+            version,
+            suppress_satisfied_update_notice,
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
         // surface before presenting that list and the body as one first frame.
@@ -3028,7 +3034,7 @@ impl Client {
     }
 
     fn surface(&mut self, core: &mut State, payload: &[u8]) -> Result<(), String> {
-        let (_, surface): (_, Surface) = wire::body(payload)?;
+        let (_, mut surface): (_, Surface) = wire::body(payload)?;
         if let Some(structured) = surface.structured.as_ref()
             && (structured.validate().is_err()
                 || (self.view.viewed.as_deref() == Some(surface.tab_id.as_str())
@@ -3036,6 +3042,9 @@ impl Client {
                     && structured.geometry_generation < self.presented.geometry_generation))
         {
             return Ok(());
+        }
+        if self.suppress_satisfied_update_notice {
+            super::update_notice::suppress_satisfied_restart_surface(&mut surface.structured);
         }
         crate::roles::fixture_control::delay(
             "attach-receipt",

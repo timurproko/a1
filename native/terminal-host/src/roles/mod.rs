@@ -29,6 +29,7 @@ mod shortcut_hints;
 pub mod source_route;
 pub mod strip;
 mod terminal_output;
+mod update_notice;
 pub mod wire;
 pub mod workspace;
 pub mod workspace_mux;
