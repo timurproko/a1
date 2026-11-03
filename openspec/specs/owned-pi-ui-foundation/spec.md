@@ -2916,7 +2916,7 @@ In default `Auto`, the owned shell SHALL show no availability popup, bordered no
 
 When package replacement and candidate certification succeeded but compatible activation is currently blocked, the observing Auto-mode client SHALL instead show exact text `Update prepared; activation blocked` in the same bounded non-transcript update-status area. The blocked status SHALL NOT claim restart readiness, SHALL NOT expose paths, PIDs, credentials, protocol details or raw native diagnostics, and SHALL NOT take focus or offer a destructive action. It SHALL remain distinct from ordinary failed, skipped, pending, malformed, or uncertified attempts, which SHALL show no automatic failure popup.
 
-Copy acknowledgement SHALL take priority for its existing lifetime/replacement behavior and the applicable prepared-blocked or restart-ready status SHALL return afterward while it remains true for that process. Narrow layouts MAY clip the message without changing usable editor geometry. The status SHALL take no focus/input and SHALL not be dismissible while it truthfully describes update state. After successful updated-client reconnect, Agents that retain old execution custody SHALL NOT continually request that same completed client restart.
+Copy acknowledgement SHALL take priority for its existing lifetime/replacement behavior and the applicable prepared-blocked or restart-ready status SHALL return afterward while it remains true for that process. Narrow layouts MAY clip the message without changing usable editor geometry. The status SHALL take no focus/input and SHALL not be dismissible while it truthfully describes update state. After successful updated-client reconnect, Agents that retain old execution custody SHALL NOT continually request that same completed client restart. When a compatible immutable predecessor cannot consume the modern client-version acknowledgement, the current outer client MAY suppress only the exact owned restart-ready phrase from a complete structured surface after bounded durable state proves that the launching client exactly equals the installed target. It SHALL leave malformed, mismatched, blocked, failed, running, unstructured, or nonexact presentation unchanged and SHALL NOT restart execution, inject child input/output, alter transcript content, or hide another status.
 
 `a1 pi` and direct nonresident modes SHALL retain their process-scoped compact non-transcript update status with the same exact wording/color rules and existing extension-package presentation. Starting those processes from the activated release SHALL show no stale status. A prepared-blocked status SHALL transition to restart readiness only after verified activation; invalidated preparation or ordinary failure SHALL remove it without displaying raw automatic failure details.
 
@@ -2978,6 +2978,11 @@ Copy acknowledgement SHALL take priority for its existing lifetime/replacement b
 #### Scenario: The user restarts
 - **WHEN** the updated resident client reconnects to the same busy and idle Agents
 - **THEN** it SHALL preserve their live access and SHALL NOT show stale client restart readiness merely because their execution code originated on an older release
+
+#### Scenario: An immutable predecessor cannot acknowledge the updated client
+- **WHEN** a compatible retained predecessor still renders exact text `Update installed, restart to update` but durable installed state proves the launching client exactly matches that installed target
+- **THEN** the current client SHALL hide only that exact structured restart-ready phrase without restarting or mutating the predecessor
+- **AND** copy feedback, blocked status, working state, editor geometry, cursor, transcript content and every nonexact row SHALL remain unchanged
 
 #### Scenario: Prepared proof becomes invalid
 - **WHEN** a previously prepared candidate can no longer be certified or matched to the installed target
