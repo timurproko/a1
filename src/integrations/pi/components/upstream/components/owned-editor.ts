@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/components/custom-editor.ts.
  * Modifications: A1-owned class name and synchronized A1 keybinding contract replace the nominal
  * private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input
@@ -160,6 +160,13 @@ return class extends Base {
       this.#promptSuggestion = null;
       super.setText(accepted);
       this.onPromptSuggestionAccepted?.(accepted);
+      return;
+    }
+    // Selection page keys move an open autocomplete menu before app actions run.
+    // This lets users bind Ctrl+V even though it pastes images by default.
+    if (this.isShowingAutocomplete()
+      && (this.keybindings.matches(data, "tui.select.pageUp") || this.keybindings.matches(data, "tui.select.pageDown"))) {
+      super.handleInput(data);
       return;
     }
     if (this.keybindings.matches(data, "app.clipboard.pasteImage")) { this.onPasteImage?.(); return; }

@@ -75,7 +75,7 @@ describe("the Skills dialog", () => {
       "   Design, edit, and publish Framer site",
       "",
       " Type search  ↑↓ navigate  Enter select",
-      "   Esc close",
+      " Esc close",
       "─".repeat(40),
     ]);
     const rendered = component.render(80);

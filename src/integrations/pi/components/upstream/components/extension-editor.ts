@@ -1,5 +1,5 @@
 /**
- * Provenance: @earendil-works/pi-coding-agent 1.4.0 (MIT), commit 4a080252f06caf63a525d7873c5d94d3c23887e0,
+ * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/components/extension-editor.ts.
  * Modifications: Mechanical port: remap pi-tui to the root public singleton, use owned
  * keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission,
@@ -10,6 +10,7 @@
 import {
   Container,
   Editor,
+  type Focusable,
   Spacer,
   Text,
   type TUI,
@@ -20,12 +21,13 @@ import { editInExternalEditor } from "../external-editor.js";
 import { addPiModalHeader, adoptPiModalFrame } from "../../modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, getPiSelectListTheme, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
-export class ExtensionEditorComponent extends Container {
+export class ExtensionEditorComponent extends Container implements Focusable {
   readonly #editor: Editor;
   readonly #tui: TUI;
   readonly #keybindings: KeybindingsManager;
   readonly #externalEditorCommand: string;
   readonly #onCancel: () => void;
+  readonly #externalEditorStatus = new Text("", 0, 0);
   #focused = false;
 
   get focused(): boolean {
@@ -69,6 +71,7 @@ export class ExtensionEditorComponent extends Container {
     if (prefill) this.#editor.setText(prefill);
     this.#editor.onSubmit = onSubmit;
     this.addChild(this.#editor);
+    this.addChild(this.#externalEditorStatus);
     this.addChild(new Spacer(1));
     const hint = renderPiModalShortcutHints([
       { key: this.#keybindings.getKeys("tui.select.confirm").join("/"), action: "submit" },
@@ -99,6 +102,7 @@ export class ExtensionEditorComponent extends Container {
     this.#tui.stop();
     try {
       const result = await editInExternalEditor({ command: this.#externalEditorCommand, content });
+      this.#externalEditorStatus.setText(result.status === "failed" ? piTheme().fg("warning", result.message) : "");
       if (result.status === "complete") this.#editor.setText(result.content);
     } finally {
       this.#tui.start();
