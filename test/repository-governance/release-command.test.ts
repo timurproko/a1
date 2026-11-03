@@ -314,7 +314,9 @@ describe("changelog baseline from the published Release", () => {
   }
   function publishDevelop(f: Awaited<ReturnType<typeof fixture>>, tip: string) {
     f.git(["update-ref", "refs/heads/develop", tip], f.remote);
-    f.git(["pull", "-q", "--ff-only", "origin", "develop"]);
+    // Performance: keep the fetched fixture pack instead of inflating every object into a
+    // separate Windows filesystem write. This changes storage, not the real fetch or history.
+    f.git(["-c", "fetch.unpackLimit=1", "pull", "-q", "--ff-only", "origin", "develop"]);
   }
 
   it("ignores local tags, drafts, prereleases, deleted remote tags, and tags off the first-parent history", async () => {
@@ -353,14 +355,31 @@ describe("changelog baseline from the published Release", () => {
 
   it("lists all 30 pull requests after the last Release despite a stale local target tag", async () => {
     const f = await fixture();
-    const merges = [f.initialHead];
-    let tip = f.initialHead;
+    // Performance: one real Git import builds the same 29 work/merge pairs; spawning 116
+    // tree/commit commands and writing loose objects is not part of changelog behavior.
+    const timestamp = Math.floor(Date.now() / 1000);
+    const commit = (mark: number, message: string, parent: string, secondParent?: string) =>
+      `commit refs/heads/fixture-history\nmark :${mark}\ncommitter Release Fixture <release@example.test> ${timestamp} +0000\ndata ${Buffer.byteLength(message)}\n${message}\nfrom ${parent}\n${secondParent ? `merge ${secondParent}\n` : ""}\n`;
+    let stream = "";
+    let parent = f.initialHead;
     for (let index = 2; index <= 30; index++) {
-      const work = advanceDevelop(f, [tip], `work ${index}`);
-      tip = advanceDevelop(f, [tip, work], `Merge pull request #${index}`);
-      merges.push(tip);
+      const work = 2 * index - 3;
+      const merge = work + 1;
+      stream += commit(work, `work ${index}`, parent);
+      stream += commit(merge, `Merge pull request #${index}`, parent, `:${work}`);
+      stream += `get-mark :${merge}\n`;
+      parent = `:${merge}`;
     }
+    const merges = [f.initialHead, ...f.git(["fast-import", "--quiet", "--done"], f.remote, `${stream}done\n`).split(/\r?\n/u)];
+    expect(merges).toHaveLength(30);
+    const tip = merges.at(-1)!;
     publishDevelop(f, tip);
+    // Invariant: this remains a real 58-commit DAG with 29 two-parent first-parent merges,
+    // not a mocked log or a flattened chain that could miss first-parent traversal defects.
+    expect(f.git(["rev-list", "--count", `${f.initialHead}..${tip}`])).toBe("58");
+    const parents = f.git(["log", "--first-parent", "--format=%P", `${f.initialHead}..${tip}`]).split(/\r?\n/u);
+    expect(parents).toHaveLength(29);
+    expect(parents.every(line => line.split(" ").length === 2)).toBe(true);
     // Rationale: the first v0.1.8 publication attempt tagged a commit near the tip; GitHub deleted it, the clone kept it.
     f.git(["tag", "v0.1.8", merges[25]!]);
     const gh = (args: readonly string[]) => {

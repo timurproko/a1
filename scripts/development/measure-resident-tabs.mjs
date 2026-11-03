@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { chmod, mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import process from "node:process";
 import { createResidentFixtureRoot, writeFixtureRoleEntry } from "./resident-input-responsiveness.mjs";
@@ -13,6 +13,10 @@ let hostEntry;
 function hostEnvironment(host, environment = process.env) {
   return { ...environment, A1_DEV_INSTANCE_ID: environment.A1_DEV_INSTANCE_ID ?? "terminal-host-validation", A1_TERMINAL_HOST_PATH: resolve(host) };
 }
+
+// Rationale: like the existing 23 input observations, this fixed population can estimate p95;
+// one warm creation is only a maximum. Every attempt is retained; none is retried or discarded.
+export const WARM_CREATE_SAMPLE_COUNT = 23;
 
 const budgets = Object.freeze({
   warmCreateMs: 250,
@@ -60,6 +64,13 @@ export function findProcessedInput(output, token, sentNs) {
   return null;
 }
 
+/** Finds an unused fixture readiness marker; a promoted standby's old marker is not readiness. */
+export function findUnusedStandby(paths, used) {
+  const path = paths.find(path => basename(path) === "standby-ready"
+    && /^standby-[a-f0-9]+$/u.test(basename(dirname(path))) && !used.has(path));
+  return path === undefined ? undefined : { path, tabId: basename(dirname(path)) };
+}
+
 function run(host, arguments_, options = {}) {
   const result = spawnSync(process.execPath, [hostEntry, ...arguments_], {
     encoding: "utf8",
@@ -87,7 +98,7 @@ function milliseconds(nanoseconds) {
 }
 
 async function fixtureSource(bridgeUrl, launchContextUrl) {
-  return `import { mkdirSync, writeFileSync } from "node:fs";
+  return `import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { TabBridgeClient } from ${JSON.stringify(bridgeUrl)};
 import { waitForStandbyPromotion } from ${JSON.stringify(launchContextUrl)};
@@ -97,7 +108,8 @@ const dataDir = process.argv[dataIndex + 1];
 mkdirSync(dataDir, { recursive: true });
 process.stdin.setRawMode?.(true);
 if (standby) {
-  writeFileSync(join(dataDir, "standby-ready"), "ready\\n");
+  writeFileSync(join(dataDir, "standby-ready.tmp"), JSON.stringify({ tabId: process.env.A1_TAB_ID, pid: process.pid }));
+  renameSync(join(dataDir, "standby-ready.tmp"), join(dataDir, "standby-ready"));
   await waitForStandbyPromotion(process.stdin, join(dataDir, "standby-promote"));
 }
 const credentials = { tabId: process.env.A1_TAB_ID, token: process.env.A1_TAB_TOKEN, endpoint: process.env.A1_TAB_ENDPOINT, releaseId: process.env.A1_TAB_RELEASE_ID };
@@ -118,7 +130,7 @@ process.stdin.on("data", chunk => {
   pending = "";
 });
 process.stdin.resume();
-process.stdout.write(\`measurement-ready:\${process.hrtime.bigint()}\\r\\n\`);
+process.stdout.write(\`measurement-ready:\${credentials.tabId}:\${process.pid}:\${process.hrtime.bigint()}\\r\\n\`);
 `;
 }
 
@@ -221,7 +233,7 @@ async function collectMeasurements(host) {
     });
     const first = await createAttach(spawn, host, context);
     attachments.push(first);
-    const coldPaint = await first.waitFor(/measurement-ready:(\d+)/u, "cold tab paint");
+    const coldPaint = await first.waitFor(/measurement-ready:([a-z0-9-]+):(\d+):(\d+)/u, "cold tab paint");
     const cold = await measureInput(first, "a", "cold");
     sample.coldLaunchMs = milliseconds(coldPaint.receivedNs - coldStartNs);
 
@@ -229,20 +241,33 @@ async function collectMeasurements(host) {
     // standby promotion—not standby startup—is included in the warm measurement. Creating the
     // tab through the already attached client also measures the real shortcut-to-paint path and
     // excludes an unrelated second terminal's startup negotiation.
-    await waitUntil(async () => (await readdir(context.data, { recursive: true })).some(path => path.endsWith("standby-ready")), "matching standby readiness");
-    const existingTabIds = new Set(JSON.parse(internal(host, context, "tab-list")).tabs.map(tab => tab.tabId));
-    const warmCheckpoint = first.checkpoint();
-    const warmStartNs = process.hrtime.bigint();
-    first.terminal.write("\x1ba");
-    // Rationale: the original tab can repaint its own ready line after the checkpoint, so only
-    // a different readiness timestamp proves the promoted tab painted and listens for input.
-    const warmPaint = await first.waitFor(new RegExp(`measurement-ready:(?!${coldPaint.match[1]}\\b)(\\d+)`, "u"), "promoted standby paint", 15_000, warmCheckpoint);
-    const warm = await measureInput(first, "b", "warm");
-    sample.warmCreateMs = milliseconds(warmPaint.receivedNs - warmStartNs);
-    // Invariant: a Settings or Changelog tab the client prewarms meanwhile is not the promoted Agent.
-    const created = JSON.parse(internal(host, context, "tab-list")).tabs.find(tab => !existingTabIds.has(tab.tabId)
-      && !tab.tabId.startsWith("settings-") && !tab.tabId.startsWith("changelog-"));
-    if (!created) throw new Error("promoted standby was absent from the tab list");
+    const usedStandbys = new Set();
+    const warmPromotions = [];
+    const warmInputs = [];
+    let created;
+    for (let index = 0; index < WARM_CREATE_SAMPLE_COUNT; index++) {
+      let standby;
+      await waitUntil(async () => {
+        standby = findUnusedStandby(await readdir(context.data, { recursive: true }), usedStandbys);
+        return standby !== undefined;
+      }, "fresh matching standby readiness");
+      usedStandbys.add(standby.path);
+      const ready = JSON.parse(await readFile(join(context.data, standby.path), "utf8"));
+      if (ready.tabId !== standby.tabId || !Number.isSafeInteger(ready.pid) || ready.pid <= 0) {
+        throw new Error("standby readiness did not identify its fixture child");
+      }
+      const warmCheckpoint = first.checkpoint();
+      const warmStartNs = process.hrtime.bigint();
+      first.terminal.write("\x1ba");
+      // Invariant: only the exact prewarmed child can satisfy this paint, never the old tab's
+      // repaint or a cold replacement; the PID also proves the child was not recreated.
+      const warmPaint = await first.waitFor(new RegExp(`measurement-ready:${standby.tabId}:${ready.pid}:(\\d+)`, "u"), "promoted standby paint", 15_000, warmCheckpoint);
+      const warmCreateMs = milliseconds(warmPaint.receivedNs - warmStartNs);
+      warmInputs.push(await measureInput(first, "z", `warm-${index}`));
+      created = JSON.parse(internal(host, context, "tab-list")).tabs.find(tab => tab.tabId === standby.tabId);
+      if (!created) throw new Error("exact promoted standby was absent from the tab list");
+      warmPromotions.push({ tabId: standby.tabId, pid: ready.pid, warmCreateMs });
+    }
 
     const hot = [];
     let lastHotToken = "";
@@ -263,13 +288,14 @@ async function collectMeasurements(host) {
     const reattach = await measureInput(reattached, "w", "reattach");
     sample.reattachInputMs = milliseconds(reattach.processedNs - reattachStartNs);
 
-    const all = [cold, warm, reattach, ...hot];
+    const all = [cold, ...warmInputs, reattach, ...hot];
     const samples = all.map(value => ({
       inputToProcessMs: milliseconds(value.processedNs - value.sentNs),
       outputToPresentMs: milliseconds(value.receivedNs - value.processedNs),
     }));
     samples[0] = { ...samples[0], ...sample };
-    return { samples };
+    samples.push(...warmPromotions.map(({ warmCreateMs }) => ({ warmCreateMs })));
+    return { samples, warmPromotions };
   } finally {
     for (const attachment of attachments) {
       try { attachment.terminal.kill(); } catch {}
@@ -293,8 +319,9 @@ async function main() {
   if (!Number.isFinite(directStartupBudgetMs) || directStartupBudgetMs < 0) throw new Error("a non-negative direct startup budget is required");
   const host = argument("--host") ?? process.env.A1_TERMINAL_HOST_PATH;
   let samples;
+  let warmPromotions;
   if (host) {
-    samples = (await collectMeasurements(resolve(host))).samples;
+    ({ samples, warmPromotions } = await collectMeasurements(resolve(host)));
   } else {
     const samplesFile = argument("--samples");
     if (!samplesFile) throw new Error("usage: measure-resident-tabs.mjs --host <terminal-host.node> --direct-startup-budget-ms N");
@@ -302,7 +329,7 @@ async function main() {
     if (!Array.isArray(parsed)) throw new Error("measurement input must be a JSON array");
     samples = parsed;
   }
-  const summary = { schema: "a1-resident-tabs-performance-v1", ...summarizeResidentTabMeasurements(samples, directStartupBudgetMs), samples };
+  const summary = { schema: "a1-resident-tabs-performance-v1", ...summarizeResidentTabMeasurements(samples, directStartupBudgetMs), samples, warmPromotions };
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
   const failed = Object.entries(summary.measurements).filter(([, result]) => !result.passed);
   if (failed.length > 0) {

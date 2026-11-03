@@ -119,7 +119,7 @@ fn decode_secret_after_create_race(path: &Path, mut bytes: Vec<u8>) -> Result<[u
         .map_err(|_| format!("{} does not contain 32 bytes", path.display()))
 }
 
-fn protect_directory(path: &Path) -> Result<(), String> {
+pub(super) fn protect_directory(path: &Path) -> Result<(), String> {
     fs::create_dir_all(path).map_err(|error| format!("create credential directory: {error}"))?;
     #[cfg(unix)]
     {
@@ -132,7 +132,7 @@ fn protect_directory(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn protect_file(path: &Path) -> Result<(), String> {
+pub(super) fn protect_file(path: &Path) -> Result<(), String> {
     let _ = path;
     #[cfg(unix)]
     {

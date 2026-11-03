@@ -618,10 +618,26 @@ jobs:
             Start-Sleep -Seconds 1
           } while ((Get-Date) -lt $deadline)
           if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
+      # Platform: Zig 0.15.2 must not consume the image's rolling Xcode SDK or caches
+      # produced with a different SDK. Select an installed toolchain without changing the OS.
+      - name: Pin macOS native SDK
+        if: steps.job-selection.outputs.active == 'true' && runner.os == 'macOS'
+        shell: bash
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_26.0.1.app/Contents/Developer
+        run: |
+          set -euo pipefail
+          test -d "$DEVELOPER_DIR"
+          sdk=$(xcrun --sdk macosx --show-sdk-path)
+          test -r "$sdk/usr/lib/libSystem.tbd"
+          printf 'DEVELOPER_DIR=%s\nSDKROOT=%s\n' "$DEVELOPER_DIR" "$sdk" >> "$GITHUB_ENV"
+          xcodebuild -version
+          xcrun --sdk macosx --show-sdk-version
       - name: Cache process guardian build
         if: steps.job-selection.outputs.active == 'true' && matrix.build
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
+          key: ${{ runner.os == 'macOS' && format('{0}-xcode-26.0.1', matrix.os) || '' }}
           workspaces: native/process-guardian
       - name: Install exact dependencies and build
         if: steps.job-selection.outputs.active == 'true' && matrix.build
@@ -642,13 +658,13 @@ jobs:
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.15.2
-          cache-key: development-validation
+          cache-key: development-validation${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}
           cache-size-limit: 512
       - name: Cache release terminal host build
         if: steps.job-selection.outputs.packs_candidate == 'true'
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          shared-key: terminal-host-release
+          shared-key: terminal-host-release${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}
           workspaces: native/terminal-host
       - name: Build the release terminal host into the candidate
         if: steps.job-selection.outputs.packs_candidate == 'true'
@@ -681,13 +697,13 @@ jobs:
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.15.2
-          cache-key: development-validation
+          cache-key: development-validation${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}
           cache-size-limit: 512
       - name: Cache terminal host build
         if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos || matrix.partition)
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          key: terminal-host
+          key: terminal-host${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}
           workspaces: native/terminal-host
       # Performance: the vendored VT suite takes six to thirteen minutes per target and depends only on the
       # vendored tree, Zig, and the target. A tree that already passed on this target is not retested; a
@@ -698,7 +714,7 @@ jobs:
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .artifacts/vt-tests-passed
-          key: ghostty-vt-tests-v1-${{ runner.os }}-${{ runner.arch }}-zig-0.15.2-${{ hashFiles('native/terminal-host/vendor/libghostty-vt/**') }}
+          key: ghostty-vt-tests-v1-${{ runner.os }}-${{ runner.arch }}${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}-zig-0.15.2-${{ hashFiles('native/terminal-host/vendor/libghostty-vt/**') }}
           lookup-only: true
       - name: Run vendored Ghostty VT tests
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && steps.vt-tests-passed.outputs.cache-hit != 'true'
@@ -716,7 +732,7 @@ jobs:
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .artifacts/vt-tests-passed
-          key: ghostty-vt-tests-v1-${{ runner.os }}-${{ runner.arch }}-zig-0.15.2-${{ hashFiles('native/terminal-host/vendor/libghostty-vt/**') }}
+          key: ghostty-vt-tests-v1-${{ runner.os }}-${{ runner.arch }}${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}-zig-0.15.2-${{ hashFiles('native/terminal-host/vendor/libghostty-vt/**') }}
       - name: Run exact selected scopes
         if: steps.job-selection.outputs.active == 'true'
         shell: bash

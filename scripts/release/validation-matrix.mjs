@@ -5,7 +5,9 @@ import { assertIntegrationSelection } from "./integration-selection.mjs";
 
 const WINDOWS = { os: "windows-2025", platform: "win32", architecture: "x64", addon: "process-guardian.node" };
 const LINUX = { os: "ubuntu-24.04", platform: "linux", architecture: "x64", addon: "process-guardian.node" };
-const DARWIN = { os: "macos-15", platform: "darwin", architecture: "arm64", addon: "process-guardian.node" };
+// Rationale: pin Development to the current GA Apple Silicon image independently of the
+// macOS 15 Full/publication baseline; repeated macOS 15 allocation failures ran no tests.
+const DARWIN = { os: "macos-26", platform: "darwin", architecture: "arm64", addon: "process-guardian.node" };
 
 /**
  * Partitions of the serialized terminal-host role-fixture suite, each on its own runner. The suite ran
@@ -49,7 +51,8 @@ export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
 /** Map an integration owner to the modular job that executes it on a platform. */
 export function validationJobGroup(owner, platform) {
   if (owner === "pi-release-resume") return "pi";
-  if (["launch-integration", "update-performance", "update-predecessor"].includes(owner)) return "promoted";
+  if (owner === "update-predecessor") return platform === "win32" ? "promoted" : "containment";
+  if (["launch-integration", "update-performance"].includes(owner)) return "promoted";
   if (owner === "package-contracts") return "package";
   if (owner === "startup") return "startup";
   if (["image-compatibility", "history-compatibility"].includes(owner)) return platform === "win32" ? "compatibility" : "containment";

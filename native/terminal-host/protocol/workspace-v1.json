@@ -1,0 +1,26 @@
+{
+  "schema": "resident-workspace-v1",
+  "profile": "bbbbbbbbbbbbbbbbbbbb",
+  "profileRoot": "/profile",
+  "bootId": "boot",
+  "osSessionId": "login",
+  "epoch": 7,
+  "revision": 9,
+  "sources": [{
+    "scope": "aaaaaaaaaaaaaaaaaaaa",
+    "releaseId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "releaseRoot": "/release-a",
+    "epoch": 2,
+    "revision": 3
+  }],
+  "tabs": [{
+    "id": "agent-b93d3fdfe5e1ece4337687017ab6ba0536d3daa7d312ee1140e837d67f73d9c6",
+    "sourceScope": "aaaaaaaaaaaaaaaaaaaa",
+    "sourceTab": "tab-1",
+    "incarnation": 4,
+    "name": "Agent",
+    "nameSource": "default",
+    "sessionFile": null
+  }],
+  "selected": "agent-b93d3fdfe5e1ece4337687017ab6ba0536d3daa7d312ee1140e837d67f73d9c6"
+}

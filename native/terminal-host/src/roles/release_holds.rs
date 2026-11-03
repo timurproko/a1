@@ -82,7 +82,26 @@ where
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
         Err(_) => uncertain.push("tabs directory unreadable".to_owned()),
     }
-    scan(&profiles, uncertain, inspect)
+    let mut report = scan(&profiles, uncertain, inspect);
+    match super::recovery_holds::collect(&profiles) {
+        Ok(roots) => { report.release_roots.extend(roots); }
+        Err(_) => {
+            report.complete = false;
+            if report.uncertain.len() < MAX_UNCERTAIN { report.uncertain.push("private recovery custody is unverified".into()); }
+        }
+    }
+    match super::workspace::held_release_roots(data_dir) {
+        Ok(roots) => {
+            report.release_roots.extend(roots);
+            report.release_roots.sort(); report.release_roots.dedup();
+        }
+        Err(_) => {
+            report.complete = false;
+            if report.uncertain.len() < MAX_UNCERTAIN { report.uncertain.push("workspace recovery holds are unverified".into()); }
+        }
+    }
+    report.release_roots.sort(); report.release_roots.dedup();
+    report
 }
 
 fn safe_namespace(path: &Path) -> bool {
@@ -285,6 +304,24 @@ mod tests {
         });
         assert!(result.complete, "{:?}", result.uncertain);
         assert_eq!(result.release_roots, ["/releases/live"]);
+    }
+
+    #[test]
+    fn private_recovery_holds_code_but_does_not_prevent_explicit_host_shutdown() {
+        let root = tempfile::tempdir().unwrap();
+        profile(root.path(),"scope",None,Some(&registry(&tab("tab-1",None,None,"/releases/recovery"))));
+        let directory = root.path().join("tabs/scope/tab-1"); std::fs::create_dir(&directory).unwrap();
+        let checkpoint = directory.join("draft.json");
+        std::fs::write(&checkpoint,b"PRIVATE_RECOVERY_FIXTURE, not parsed").unwrap();
+        let report = holds(root.path());
+        assert!(report.complete); assert_eq!(report.release_roots,["/releases/recovery"]);
+        assert!(!serde_json::to_string(&report).unwrap().contains("PRIVATE_RECOVERY_FIXTURE"));
+        let shutdown = collect_profile(&root.path().join("tabs/scope"),inspector);
+        assert!(shutdown.complete && shutdown.release_roots.is_empty());
+        let old = std::time::SystemTime::now()-std::time::Duration::from_secs(8*24*60*60);
+        std::fs::File::options().write(true).open(&checkpoint).unwrap().set_times(std::fs::FileTimes::new().set_modified(old)).unwrap();
+        assert!(holds(root.path()).release_roots.is_empty());
+        assert!(checkpoint.exists(),"artifact retention never deletes private recovery data");
     }
 
     #[test]

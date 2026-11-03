@@ -9,6 +9,7 @@ export interface TabBridgeCredentials { readonly tabId: string; readonly token: 
 export interface TabAttachment { readonly clientId: string; readonly controllerRevision: number }
 export type TabBridgeCommand =
   | { readonly type: "visibility"; readonly visible: boolean }
+  | { readonly type: "client"; readonly version: string }
   | { readonly type: "rename"; readonly name: string; readonly nameSource: "default" | "user" | "auto" }
   | { readonly type: "route"; readonly route: ResidentTabRoute }
   | { readonly type: "stop"; readonly deadlineMs: number };
@@ -89,7 +90,7 @@ export class TabBridgeClient {
       transport.once("connect", () => {
         this.#send("hello", {
           role: "bridge", generation: 1, build: this.#options.build ?? "a1", releaseId: this.#options.credentials.releaseId,
-          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-route", "bridge-stop", "bridge-shortcuts", "controller-boundary", "recovery-journal"],
+          features: ["bridge-status", "bridge-detach", "bridge-heartbeat", "bridge-restart", "bridge-visibility", "bridge-rename", "bridge-route", "bridge-stop", "bridge-shortcuts", "controller-boundary", "recovery-journal", "client-identity"],
           token: [...Buffer.from(this.#options.credentials.token, "base64")], tabId: this.#options.credentials.tabId,
           pid: this.#options.pid ?? process.pid, startIdentity: this.#options.startIdentity ?? `${process.pid}:node`,
         }, ++this.#request);
@@ -233,6 +234,11 @@ export class TabBridgeClient {
       return;
     }
     if (message.type === "incompatible-generation") { this.#fail(); return; }
+    if (message.type === "bridge.client" && typeof message.body["version"] === "string") {
+      const version = message.body["version"];
+      if (version.length <= 128 && /^\d+\.\d+\.\d+(?:[-+][a-z0-9.+-]+)?$/iu.test(version)) this.#emitCommand({ type: "client", version });
+      return;
+    }
     if (message.type === "bridge.visibility" && typeof message.body["visible"] === "boolean") {
       this.#emitCommand({ type: "visibility", visible: message.body["visible"] }); return;
     }

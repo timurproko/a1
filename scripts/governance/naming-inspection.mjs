@@ -142,10 +142,10 @@ export function inspectShellNames(path, source, policy) {
       const allowed = policy.environment.some(entry => entry.key === name && ["public", "integration", "review"].includes(entry.exposure));
       (allowed ? external : internal).push({ path, line: index + 1, identifier: name, rule: "ENV001", message: "unapproved shell environment name" });
     }
-    for (const match of line.matchAll(/^\s*(?:function|class)\s+([A-Za-z_][A-Za-z0-9_]*)/g)) {
+    for (const match of line.matchAll(/^\s*(?:function|class)\s+([A-Za-z_][A-Za-z0-9_-]*)/g)) {
       if (/a1/i.test(match[1])) internal.push({ path, line: index + 1, identifier: match[1], rule: "NAME001", message: "branded shell declaration" });
     }
-    for (const match of line.matchAll(/(?:function\s+|^\s*)([A-Za-z_][A-Za-z0-9_]*)\s*\(\s*\)/g)) {
+    for (const match of line.matchAll(/(?:function\s+|^\s*)([A-Za-z_][A-Za-z0-9_-]*)\s*\(\s*\)/g)) {
       if (/a1/i.test(match[1])) internal.push({ path, line: index + 1, identifier: match[1], rule: "NAME001", message: "branded shell function" });
     }
   }

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import type { OwnedUiShellEngineOptions } from "../app/session-shell/index.js";
 import type { PackagedReleaseNote, ReleaseNoteCatalog } from "../features/owned-ui/release-notes.js";
 import type { ReleaseNoteClaim } from "../features/owned-ui/release-note-state.js";
+import type { StartupReleaseUpdateObservationOptions } from "./release-update-observation.js";
 
 type StartupRoute = NonNullable<OwnedUiShellEngineOptions["startupRoute"]>;
 
@@ -20,6 +21,30 @@ export async function readPackageVersion(): Promise<string> {
   const version = (manifest as { version?: unknown })?.version;
   if (typeof version !== "string") throw new Error("A1 package version is unavailable");
   return version;
+}
+
+type UpdateObservationModule = Pick<typeof import("./release-update-observation.js"), "createStartupReleaseUpdateObservation">;
+
+/** Optional update checks load after first paint; disposal also fences an unfinished module load. */
+export function deferStartupReleaseUpdateObservation(
+  options: StartupReleaseUpdateObservationOptions,
+  load: () => Promise<UpdateObservationModule> = () => import("./release-update-observation.js"),
+) {
+  let observation: ReturnType<UpdateObservationModule["createStartupReleaseUpdateObservation"]> | undefined;
+  let started = false, stopped = false;
+  return {
+    start() {
+      if (started || stopped) return;
+      started = true;
+      void load().then(module => {
+        if (stopped) return;
+        observation = module.createStartupReleaseUpdateObservation(options);
+        observation.start();
+      }).catch(() => { /* Rationale: optional observation must not interrupt the owned session. */ });
+    },
+    stop() { stopped = true; observation?.stop(); },
+    clientChanged() { observation?.clientChanged(); },
+  };
 }
 
 /**

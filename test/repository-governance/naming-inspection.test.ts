@@ -85,6 +85,13 @@ describe("internal naming syntax policy", () => {
     expect(inspect('value: [', "yaml").internal.some(value => value.rule === "NAME002")).toBe(true);
   });
 
+  it.each(["ps1", "psm1"])("inspects PowerShell %s environment boundaries and hyphenated declarations", extension => {
+    expect(namingSourceRole(`scripts/worker.${extension}`)).toBe("shell");
+    expect(inspect('$env:A1_PRIVATE_ROOT = "path"', extension).internal.length).toBeGreaterThan(0);
+    expect(inspect('function Invoke-a1Worker { }', extension).internal.length).toBeGreaterThan(0);
+    expect(inspect('$env:A1_CONFIG_DIR = "path"; function Invoke-Worker { }', extension).internal).toEqual([]);
+  });
+
   it("never excludes owned ports or helpers as if they were vendor code", () => {
     expect(namingSourceRole("src/integrations/pi/components/upstream/local.ts")).toBe("script");
     expect(namingSourceRole("test/fixtures/worker.ts")).toBe("script");
@@ -94,7 +101,8 @@ describe("internal naming syntax policy", () => {
   });
 
   it("rejects wildcard, duplicate, and private-legacy policy exceptions", () => {
-    const entry = policy.environment[0]!;
+    const entry = policy.environment.find(entry => entry.exposure === "public" && /a1/i.test(entry.key))!;
+    expect(entry).toBeDefined();
     expect(() => validateNamingPolicy({ ...policy, environment: [...policy.environment, entry] })).toThrow();
     expect(() => validateNamingPolicy({ ...policy, environment: [{ ...entry, key: "A1_*" }] })).toThrow();
     expect(() => validateNamingPolicy({ ...policy, environment: [{ ...entry, exposure: "private" }] })).toThrow(/branding/);

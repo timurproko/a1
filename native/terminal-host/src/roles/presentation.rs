@@ -474,7 +474,7 @@ impl PresentationComposer {
         // switch or creation never shows a cleared screen (and a blank strip) on terminals that
         // present synchronized output early. Only a first paint, an explicit clear, or a legacy
         // body, which cannot promise full coverage, clears the screen.
-        let clear_screen = force && (!self.valid || desired.clear || desired.structured.is_none());
+        let clear_screen = self.clear_screen(desired,force);
         if clear_screen {
             output.extend_from_slice(b"\x1b[2J\x1b[H");
         }
@@ -563,6 +563,12 @@ impl PresentationComposer {
         }))
     }
 
+    fn clear_screen(&self,desired:&DesiredPresentation,force:bool) -> bool {
+        // Invariant: a host-owned landing has no tab ID and paints every body row, just like a complete
+        // structured grid. It must not clear the strip on the way to or from a utility tab.
+        let partial_legacy = desired.structured.is_none() && desired.tab_id.is_some();
+        force && (!self.valid || desired.clear || partial_legacy)
+    }
     pub fn invalidate(&mut self) {
         self.valid = false;
     }
@@ -1888,6 +1894,46 @@ mod tests {
         }
     }
 
+    #[test]
+    fn utility_open_close_and_landing_render_as_one_complete_frame_per_transition() {
+        for offset in [0,1] {
+            let mut composer = PresentationComposer::default();
+            for (id,body) in [(Some("agent"),"AGENT-BODY"),(Some("settings"),"SETTINGS-BODY"),(Some("agent"),"AGENT-BODY"),(Some("changelog"),"CHANGELOG-BODY"),(None,"LANDING-BODY"),(Some("settings"),"SETTINGS-BODY")] {
+                let mut frame = desired(None,format!("\x1b[1;1H{body}").into_bytes());
+                if id.is_some() {
+                    let mut grid = StructuredSurface {columns:80,rows:23,row_data:vec![crate::protocol::SurfaceRow {cells:vec![crate::protocol::SurfaceCell::default();80]};23],styles:vec![SurfaceStyle::default()],..Default::default()};
+                    for (index,ch) in body.chars().enumerate() { grid.row_data[0].cells[index].text = ch.to_string(); }
+                    frame.structured = Some(Arc::new(grid)); frame.legacy_body.clear();
+                }
+                frame.columns = 80; frame.outer_rows = 24; frame.child_row_offset = offset;
+                frame.tab_id = id.map(str::to_owned);
+                frame.strip = format!("\x1b[1;1H{} +",id.unwrap_or("empty"));
+                let prepared = composer.prepare(&frame).unwrap().unwrap();
+                assert_eq!(prepared.bytes.windows(8).filter(|bytes| *bytes == b"\x1b[?2026h").count(),1);
+                assert_eq!(prepared.bytes.windows(8).filter(|bytes| *bytes == b"\x1b[?2026l").count(),1);
+                assert!(prepared.bytes.windows(body.len()).any(|bytes|bytes == body.as_bytes()));
+                if composer.valid { assert!(!prepared.bytes.windows(4).any(|bytes|bytes == b"\x1b[2J")); }
+                prepared.acknowledge(&mut composer);
+            }
+        }
+    }
+    #[test]
+    fn hidden_last_utility_cannot_reappear_from_late_frames_and_reveals_coherently() {
+        let now = Instant::now();
+        for id in ["settings-1","changelog-1"] {
+            let mut view = ViewModel::new(Some(id.into()));
+            assert!(matches!(view.offer(surface(id,1,false),now,true),Offer::Commit {..}));
+            view.clear();
+            assert_eq!(view.offer(surface(id,2,false),now,true),Offer::Dropped);
+            assert_eq!(view.viewed,None);
+            view.request(id); view.await_first_draw(id);
+            let mut blank = surface(id,3,false); blank.bytes = b"\x1b[H ".to_vec();
+            assert_eq!(view.offer(blank,now,true),Offer::Parked);
+            assert_eq!(view.viewed,None);
+            assert!(matches!(view.offer(surface(id,4,false),now,true),Offer::Commit {requested:true,..}));
+            assert_eq!(view.viewed.as_deref(),Some(id));
+        }
+    }
     #[test]
     fn retained_surface_repaints_at_new_geometry_without_resize_overlay_or_fade() {
         let current = desired(Some(structured_fixture()), Vec::new());

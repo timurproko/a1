@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -51,6 +51,11 @@ describe("startup reachability policy", () => {
   it("keeps the production startup graph free of prohibited barrels", async () => {
     const report = await inspectStartupReachability(process.cwd());
     expect(report.errors).toEqual([]);
+    const baseline = JSON.parse(await readFile("config/startup-graph-baseline.json","utf8"));
+    expect(validateStartupReachabilityBaseline(report,baseline)).toEqual([]);
+    const modules = report.modules.map(module => module.path);
+    expect(modules).not.toContain("src/composition/release-update-observation.ts");
+    expect(modules).not.toContain("src/features/prompt-suggestions/diagnostics.ts");
     expect(report.totals.files).toBeGreaterThan(100);
     expect(report.modules.every(module => ["initial-render", "first-prompt-correctness"].includes(module.classification))).toBe(true);
     expect(report.modules.find(module => module.path === "src/integrations/pi/engine/adapter.ts")?.classification).toBe("first-prompt-correctness");

@@ -193,6 +193,8 @@ pub enum Effect {
     View(String),
     AwaitFirstDraw(String),
     CancelViewRequest,
+    /// Hides the final visible utility without closing its reusable process.
+    Landing,
     /// Shows a submitted manual name before the registry confirms it.
     Renamed {
         tab_id: String,
@@ -236,6 +238,7 @@ pub enum ServerEvent {
         tab_id: String,
         status: String,
     },
+    StatusBatch { statuses: Vec<(String, String)> },
     /// A surface the view model committed; `requested` when it completes a view request.
     Commit {
         tab_id: String,
@@ -784,13 +787,15 @@ impl State {
             .collect::<Vec<_>>();
         let previous = close_fallback_for(&shown, context.viewed, tab_id)
             .and_then(|fallback| fallback.resolve(&survivors));
+        // Invariant: hiding and explicit Close are distinct, even when no other tab is visible.
+        self.view.prewarm(kind).shown = false;
         if let Some(previous) = previous {
-            // Invariant: hiding keeps the process for reuse.
-            self.view.prewarm(kind).shown = false;
             effects.push(Effect::View(previous));
         } else {
             self.close_fallback = None;
-            effects.push(Effect::Send(Request::Close(tab_id.to_owned())));
+            self.deferred.discard_tab(tab_id);
+            self.user_input_pending = false;
+            effects.push(Effect::Landing);
         }
     }
 
@@ -1180,6 +1185,10 @@ impl State {
                 if status != "failed" && self.failed_tab.as_deref() == Some(tab_id.as_str()) {
                     self.failed_tab = None;
                 }
+                effects.push(paint);
+            }
+            ServerEvent::StatusBatch { statuses } => {
+                if statuses.iter().any(|(tab_id, status)| status != "failed" && self.failed_tab.as_deref() == Some(tab_id.as_str())) { self.failed_tab = None; }
                 effects.push(paint);
             }
             ServerEvent::Commit {
@@ -2702,7 +2711,7 @@ mod tests {
         let mut state = lone.state();
         assert_eq!(
             lone.step(&mut state, shortcut("tabs.settings")),
-            [Effect::Send(Request::Close("settings-1".into())), PAINT]
+            [Effect::Landing, PAINT]
         );
 
         let absent = Fixture::new(&["a"], "a");
@@ -2730,6 +2739,20 @@ mod tests {
         assert!(state.utility_visible(UtilityKind::Settings, Some("settings-2")));
     }
 
+    #[test]
+    fn every_singleton_toggles_to_landing_but_explicit_close_removes_its_instance() {
+        for kind in TabKind::SINGLETONS {
+            let id = format!("{}fixture",kind.id_prefix());
+            let fixture = Fixture::new(&[&id],&id);
+            let mut state = fixture.state();
+            state.view.prewarm(kind).shown = true;
+            assert_eq!(fixture.step(&mut state,shortcut(kind.action())),[Effect::Landing,PAINT]);
+            assert!(!state.utility_visible(kind,None));
+            let mut state = fixture.state();
+            state.view.prewarm(kind).shown = true;
+            assert_eq!(fixture.step(&mut state,shortcut("tabs.close")),[Effect::Send(Request::Close(id)),PAINT]);
+        }
+    }
     #[test]
     fn deferred_input_waits_for_the_pending_view_and_is_released_by_its_commit() {
         let fixture = Fixture::new(&["a", "b"], "b");
@@ -2857,6 +2880,15 @@ mod tests {
         assert!(answer(&mut state, ServerEvent::ShortcutsChanged).is_empty());
         state.mode = Mode::Popup(PopupMenu::add(0, 80, &Labels, PlusMenu::ALL, [false; 2]));
         assert_eq!(answer(&mut state, ServerEvent::ShortcutsChanged), [PAINT]);
+    }
+
+    #[test]
+    fn workspace_status_snapshot_recovers_failure_with_one_paint() {
+        let fixture = Fixture::new(&["a", "b"], "a");
+        let mut state = fixture.state(); state.failed_tab = Some("b".into());
+        let event = server(ServerEvent::StatusBatch { statuses:vec![("a".into(),"working".into()),("b".into(),"idle".into())] });
+        assert_eq!(fixture.step(&mut state,event),[PAINT]);
+        assert_eq!(state.failed_tab,None);
     }
 
     #[test]

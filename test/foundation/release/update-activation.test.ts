@@ -8,6 +8,7 @@ import { CohortStateStore } from "../../../src/foundation/release/cohort-state.j
 import { materializeRelease, type MaterializedRelease } from "../../../src/foundation/release/release-store.js";
 import { createUpdateLifecycleCoordinator } from "../../../src/foundation/release/update.js";
 import { warmMaterializedRelease } from "../../../src/foundation/release/warmup.js";
+import { assertResidentContinuity } from "../../../src/foundation/resident-tabs/continuity.js";
 
 // Invariant: use durable cohort state, but substitute expensive package preparation and child
 // startup so every activation failure boundary can be exercised without a real installation.
@@ -21,6 +22,7 @@ vi.mock("../../../src/foundation/release/release-store.js", async importOriginal
   materializeRelease: vi.fn(),
 }));
 vi.mock("../../../src/foundation/release/warmup.js", () => ({ warmMaterializedRelease: vi.fn() }));
+vi.mock("../../../src/foundation/resident-tabs/continuity.js", () => ({ assertResidentContinuity: vi.fn() }));
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -29,7 +31,7 @@ afterEach(async () => {
 });
 
 describe("update candidate activation", () => {
-  it.each(["success", "warmup-failure", "supervisor-failure"])("keeps the previous active reference until readiness: %s", async outcome => {
+  it.each(["success", "warmup-failure", "supervisor-failure", "continuity-failure", "continuity-race"])("keeps the previous active reference until readiness: %s", async outcome => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-update-activation-"));
     roots.push(root);
     const previous = release(root, "1.0.0", "a");
@@ -51,11 +53,20 @@ describe("update candidate activation", () => {
       phases.push("readiness");
       if (outcome === "supervisor-failure") throw new Error(outcome);
     });
-    const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: root });
+    let inspections = 0;
+    vi.mocked(assertResidentContinuity).mockImplementation(async context => {
+      expect(context).toMatchObject({dataDir:root,profileRoot:resolve(root,"profile"),runtimeDir:resolve(root,"runtime")});
+      expect((await store.read()).references.active).toBe(previous.releaseId);
+      phases.push("continuity");
+      inspections++;
+      if (outcome === "continuity-failure" || outcome === "continuity-race" && inspections === 2) throw new Error(outcome);
+    });
+    const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: root,
+      [PRODUCT_IDENTITY.environment.profileHome]: resolve(root,"profile"), [PRODUCT_IDENTITY.environment.runtimeDir]: resolve(root,"runtime") });
     const activation = coordinator.activateInstalled(target.packageRoot, target.packageVersion, async phase => { phases.push(phase); });
     if (outcome === "success") {
       await activation;
-      expect(phases).toEqual(["materialized", "certified", "warmup", "readiness", "active-reference-committed"]);
+      expect(phases).toEqual(["materialized", "certified", "warmup", "continuity", "readiness", "continuity", "active-reference-committed"]);
       expect((await store.read()).references.active).toBe(target.releaseId);
     } else {
       await expect(activation).rejects.toThrow(outcome);

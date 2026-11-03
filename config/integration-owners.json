@@ -292,6 +292,16 @@
           "platform": "win32",
           "architecture": "x64",
           "node": 24
+        },
+        {
+          "platform": "linux",
+          "architecture": "x64",
+          "node": 24
+        },
+        {
+          "platform": "darwin",
+          "architecture": "arm64",
+          "node": 24
         }
       ],
       "entries": [
@@ -301,9 +311,12 @@
         "test/foundation/release/update-predecessor.integration.test.ts"
       ],
       "support": [
-        "test/support/predecessor-fixture.ts"
+        "test/support/predecessor-fixture.ts",
+        "test/support/resident-predecessor.ts",
+        "src/foundation/resident-tabs/",
+        "native/terminal-host/"
       ],
-      "cadence": "exhaustive"
+      "cadence": "direct-impact"
     },
     {
       "id": "terminal-host",

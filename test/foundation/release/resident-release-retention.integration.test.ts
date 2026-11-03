@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -43,7 +43,7 @@ afterEach(async () => {
 const noTransaction = { read: async () => null };
 
 describe("resident release retention with real processes", () => {
-  nativeIt("keeps the release a live holder and child run from through cleanup until the tab stops", async () => {
+  nativeIt("keeps live and private-recovery releases until recovery custody expires", async () => {
     const fixture = await releaseFixture(4);
     await activateAll(fixture.store, fixture.releases);
     const [heldByTab, unheld, , active] = fixture.releases;
@@ -102,9 +102,35 @@ describe("resident release retention with real processes", () => {
     expect(stopped.status, stopped.stdout).toBe(0);
     expect(run(["tabs", "host-stop", ...common]).status).toBe(0);
     await until(async () => !existsSync(resolve(stateDir, "server.json")));
+    // Invariant: stopping execution releases live holds, not fresh private recovery custody.
+    const stoppedHolds = await residentHolds(fixture.dataDir, [active!.releaseRoot]);
+    expect(stoppedHolds.complete, stoppedHolds.uncertain.join("; ")).toBe(true);
+    expect(await Promise.all(stoppedHolds.releaseRoots.map(path => realpath(path)))).toContain(await realpath(heldByTab!.releaseRoot));
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
+    expect((await fixture.store.read()).releases[heldByTab!.releaseId]).toBeDefined();
+    await expect(lstat(heldByTab!.releaseRoot)).resolves.toBeTruthy();
+
+    // Rationale: advance only this stopped fixture's recovery metadata beyond the seven-day window.
+    // The production hold scanner remains unchanged and never reads or deletes checkpoint contents.
+    const recoveryPaths: string[] = [];
+    for (const name of ["draft.json", "journal.jsonl", "recovery"]) {
+      const path = resolve(stateDir, tabId, name);
+      const metadata = await lstat(path).catch(error => {
+        if (error.code !== "ENOENT") throw error;
+        return undefined;
+      });
+      if (metadata) recoveryPaths.push(path);
+    }
+    expect(recoveryPaths.length, "fixture must exercise actual private recovery custody").toBeGreaterThan(0);
+    const expired = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    for (const path of recoveryPaths) await utimes(path, expired, expired);
+    const expiredHolds = await residentHolds(fixture.dataDir, [active!.releaseRoot]);
+    expect(expiredHolds.complete, expiredHolds.uncertain.join("; ")).toBe(true);
+    expect(await Promise.all(expiredHolds.releaseRoots.map(path => realpath(path)))).not.toContain(await realpath(heldByTab!.releaseRoot));
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
     expect((await fixture.store.read()).releases[heldByTab!.releaseId]).toBeUndefined();
     await expect(lstat(heldByTab!.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    for (const path of recoveryPaths) await expect(lstat(path)).resolves.toBeTruthy();
   }, 180_000);
 
   nativeIt("an update mid-turn never signals a streaming resident tab or its server", async () => {
