@@ -2041,7 +2041,7 @@ Bare A1 SHALL expose one `/models` command for selecting the active model and ma
 
 The Models dialog SHALL use the available authenticated model catalog and SHALL present an `all` filter and a `scoped` filter, searchable model rows ordered by provider and model identifier, the selected model's display name, and the effective model-scope state. Each row SHALL render its scope marker before the model identifier and its provider as `[provider]`. A filled scope marker `●` SHALL use the semantic accent foreground matching Thinking Level's filled default radio marker `◉`, while an empty scope marker `○` SHALL remain dim. The active-model checkmark SHALL remain success-colored and render immediately after `[provider]`, not before the provider or in another column.
 
-Space SHALL toggle the selected model's membership in the session's cycling scope without closing the dialog. Tab SHALL switch the filter while preserving the applicable query and selection. Enter SHALL select the highlighted model, persist it as the default through the existing model-selection policy, and close the dialog on success. Existing bulk-enable, clear, provider-toggle, and scope-order actions SHALL remain reachable through their effective model-scope bindings. Escape SHALL close silently while retaining session-only scope changes and SHALL NOT persist those changes implicitly.
+Space SHALL toggle the selected model's membership in the session's cycling scope without closing the dialog. Tab SHALL switch the filter while preserving the applicable query and selection. Enter SHALL select the highlighted model for the active session only, SHALL leave the persisted default model unchanged, and SHALL close the dialog on success. Existing bulk-enable, clear, provider-toggle, and scope-order actions SHALL remain reachable through their effective model-scope bindings. Escape SHALL close silently while retaining session-only scope changes and SHALL NOT persist those changes implicitly.
 
 The dialog SHALL compare its current scope and order with the last successfully saved scope. Whenever they differ, the title row SHALL read `Models (unsaved)`, with `(unsaved)` immediately after the title. Ctrl+S SHALL persist the current scope and order while leaving the dialog open; only a successful save SHALL clear `(unsaved)`. An empty explicit scope SHALL preserve the existing all-model cycling fallback.
 
@@ -2078,8 +2078,9 @@ Catalog refresh SHALL run in the background without adding `(refreshing)` to the
 
 #### Scenario: Select the active model
 - **WHEN** the user presses Enter on an available model
-- **THEN** the active model and persisted default SHALL change through the existing model-selection policy
-- **AND** the dialog SHALL close and the existing model confirmation SHALL be presented
+- **THEN** the active session model SHALL change through the existing model-selection policy
+- **AND** the persisted default provider and model SHALL remain unchanged
+- **AND** the dialog SHALL close and a current-model confirmation SHALL be presented
 - **AND** pending unsaved scope changes SHALL remain session-only rather than being saved as a side effect
 
 #### Scenario: Cancel with pending scope changes
@@ -2103,7 +2104,7 @@ Catalog refresh SHALL run in the background without adding `(refreshing)` to the
 #### Scenario: Invoke an explicit model-selection binding
 - **WHEN** the user invokes an explicitly configured model-selection shortcut in bare A1
 - **THEN** the same unified Models dialog SHALL open
-- **AND** scope management and model selection SHALL have the same behavior as invocation through `/models`
+- **AND** scope management and current-session model selection SHALL have the same behavior as invocation through `/models`
 
 ### Requirement: Collapsed skills are reached through one skills command
 Bare A1 SHALL declare the collapsed skill presentation as a replacement for the pinned per-skill command listing, governed by the A1 setting `skillsPresentation`. While the value is `collapse` and the engine registers skills as commands, the top-level slash-command menu SHALL omit every `skill:<name>` entry and SHALL offer one `skills` command described `Browse, search, and apply a skill`, matched by the same prefix rules as every other command, whose argument completions are the skill names. Invoking `/skills` with no arguments SHALL open the Skills dialog. Invoking `/skills <name> [args]`, where `<name>` matches a discovered skill with or without a `skill:` prefix, SHALL apply that skill with the remaining text as arguments without opening the dialog. Invoking `/skills <name>` with a name that matches no skill SHALL report `Unknown skill: <name>` as a command outcome, as other commands report an unknown argument, and SHALL NOT open the dialog. Argument completion after `/skills ` SHALL list the skill names matching the typed prefix and SHALL show no menu when none matches, exactly as other commands' argument completion does.
