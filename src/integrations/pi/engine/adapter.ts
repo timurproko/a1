@@ -284,6 +284,10 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   // whenever the check resolves, so a late result is appended like Pi's own fire-and-forget version check.
   #announceReleaseUpdate(release: OwnedUiReleaseUpdate): void {
     if (this.#disposed) return;
+    if (release.status === "client-connected") {
+      if (this.#state.diagnosticsState.acknowledgeClientVersion(release.version)) this.#emitView();
+      return;
+    }
     if (release.status === "installed") {
       this.#addDiagnostic("info", "release-update-installed", `Update ${release.version} installed; restart to update.`, true);
     } else {
@@ -604,7 +608,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     message: string,
     recoverable: boolean,
   ): OwnedUiDiagnostics {
-    return this.#state.recordDiagnostic(severity, code, message, recoverable);
+    return this.#state.diagnosticsState.record(severity, code, message, recoverable);
   }
 }
 

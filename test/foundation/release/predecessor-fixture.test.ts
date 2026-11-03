@@ -1,4 +1,4 @@
-import { access, rm } from "node:fs/promises";
+import { access, realpath, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -24,6 +24,23 @@ describe("published predecessor fixture", () => {
     const roots = fixture.retainedRoots;
     await fixture.close(); await fixture.close();
     expect(await Promise.all(roots.map(exists))).toEqual([false]);
+  });
+
+  it("owns a private short runtime root through ordinary cleanup and uncertain custody", async () => {
+    const fixture = new PredecessorFixture({ report() {} });
+    const root = await fixture.phase(5000, () => fixture.temporaryRuntimeRoot());
+    expect(fixture.retainedRoots).toContain(root);
+    if (process.platform !== "win32") {
+      expect((await stat(root)).mode & 0o777).toBe(0o700);
+      expect(Buffer.byteLength(resolve(await realpath(root), `a1-tabs-${"a".repeat(20)}.sock`))).toBeLessThan(104);
+    }
+    expect(() => fixture.retainForUnverifiedResident(root)).not.toThrow();
+    await expect(fixture.close()).rejects.toThrow("roots retained");
+    expect(await exists(root)).toBe(true);
+    await rm(root, { recursive: true, force: true });
+    const clean = new PredecessorFixture({ report() {} });
+    const closed = await clean.phase(5000, () => clean.temporaryRuntimeRoot());
+    await clean.close(); expect(await exists(closed)).toBe(false);
   });
 
   it("stops dependent phases after a failed install-predecessor", async () => {
@@ -90,6 +107,18 @@ describe("published predecessor fixture", () => {
       expect(primary).toMatchObject({ evidence: { error: "OUTPUT_LIMIT", cleanupError: "CLEANUP_FAILED" } });
       expect(await exists(roots[0]!)).toBe(true);
     } finally { await Promise.all(roots.map(root => rm(root, { recursive: true, force: true }))); }
+  });
+
+  it("retains roots when a resident source cannot be proven stopped", async () => {
+    const remove = vi.fn(async () => {});
+    const fixture = new PredecessorFixture({ remove, report() {} });
+    const root = await fixture.phase(5000, () => fixture.temporaryRoot("predecessor-resident-retain-"));
+    try {
+      expect(() => fixture.retainForUnverifiedResident(resolve(tmpdir(), "unowned-resident"))).toThrow("outside a fixture-owned root");
+      fixture.retainForUnverifiedResident(root);
+      await expect(fixture.close()).rejects.toThrow("roots retained");
+      expect(remove).not.toHaveBeenCalled();
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 
   it("does not swallow root-removal errors or allow operations after closing", async () => {

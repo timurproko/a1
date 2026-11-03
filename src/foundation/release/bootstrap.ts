@@ -19,7 +19,7 @@ import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDoc
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
 import { PRIVATE_ENVIRONMENT, isCurrentLaunchContract, launchContractTarget, readLaunchContext, withLaunchContext, type LaunchContext } from "../launch-context/index.js";
-import { ensureTerminalHost, readResidentTabLaunchSettings, selectResidentHost, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
+import { assertResidentContinuity, ensureTerminalHost, readResidentTabLaunchSettings, selectResidentHost, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
@@ -57,41 +57,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
-    let residentContext: LaunchContext = {};
-    // Compatibility: public launch preparation supplies PI_CODING_AGENT_DIR; the fallback keeps
-    // direct SDK/bootstrap callers hermetic while retaining their former config-root read.
-    const agentProfileDir = environment.PI_CODING_AGENT_DIR ?? paths.configDir;
-    const residentLaunchSettings = launchProfileId === "a1"
-      ? readResidentTabLaunchSettings(agentProfileDir, PRODUCT_IDENTITY.commandName, paths.configDir, launchProfileId)
-      : null;
-    const resident = await selectResidentHost({
-      profileId: launchProfileId,
-      currentLaunchContract: isCurrentLaunchContract(release),
-      solo: launchMode === "solo",
-      interactive: options.interactiveTerminal ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
-      ensureHost: async () => (options.ensureTerminalHost ?? ensureTerminalHost)({
-        releaseRoot: release.releaseRoot,
-        profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
-        dataDir: paths.dataDir,
-        runtimeDir: paths.runtimeDir,
-        environment,
-        maxConcurrentStarts: (await residentLaunchSettings!).maxConcurrentStarts,
-        unresponsiveRestartSeconds: (await residentLaunchSettings!).unresponsiveRestartSeconds,
-      }),
-    });
-    if (resident !== null) {
-      residentContext = resident.status === "ready" ? {
-        residentRootExecutable: resident.executable.executable,
-        residentRootArguments: JSON.stringify([
-          resident.executable.entry,
-          "attach", "--endpoint", resident.endpoint, "--cwd", process.cwd(), "--clear-exit-ms", String(RESIDENT_DETACH_INTERVAL_MS),
-          "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
-          "--settings-file", resolve(agentProfileDir, "settings.json"), "--accent-color", (await residentLaunchSettings!).accentColor,
-          "--data-dir", paths.dataDir, "--runtime-dir", paths.runtimeDir,
-          "--release-root", release.releaseRoot, "--node-executable", process.execPath,
-        ]),
-      } : { residentFallback: resident.reason };
-    }
+    const residentContext = await residentLaunchContext(options, release, environment);
     const result = await launchUi(release, environment, sessionArgs, residentContext);
     if (!result.releaseSuperseded) return result.code;
     if (retriesRemaining > 0) return await runBootstrapAttempt(options, retriesRemaining - 1);
@@ -224,6 +190,14 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
     await stateStore.approve(candidate.releaseId, diagnosticsPath);
   }
+  try {
+    await assertResidentContinuity({ releaseRoot: candidate.releaseRoot, dataDir: paths.dataDir, environment,
+      profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir, runtimeDir: paths.runtimeDir });
+  } catch (error) {
+    const fallback = await launchRetainedActive(await stateStore.read(), paths, environment, launchSelected, excludedRetainedReleaseId);
+    if (fallback !== null) return fallback;
+    throw error;
+  }
   state = await stateStore.activateForLaunch(candidate.releaseId, !activeIsLaunchable ? activeId ?? undefined : undefined);
   if (state.references.active !== candidate.releaseId) {
     const retainedRecord = state.references.active === null ? undefined : state.releases[state.references.active];
@@ -317,6 +291,37 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
 
   await ensureSupervisor(selected, environment);
   return await launchSelected(selected);
+}
+
+/** Select only client routing; a resident reconnect never asks execution to restart. */
+async function residentLaunchContext(options: BootstrapOptions, release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<LaunchContext> {
+  const paths = resolveProductPaths(environment);
+  const profileId = options.launchIntent?.profileId ?? "a1";
+  const mode = options.launchIntent?.launchMode ?? (profileId === "a1" ? "tabs" : "solo");
+  const agentProfileDir = environment.PI_CODING_AGENT_DIR ?? paths.configDir;
+  const residentLaunchSettings = profileId === "a1" ? readResidentTabLaunchSettings(agentProfileDir, PRODUCT_IDENTITY.commandName, paths.configDir, profileId) : null;
+  const resident = await selectResidentHost({
+    profileId, currentLaunchContract: isCurrentLaunchContract(release), solo: mode === "solo",
+    interactive: options.interactiveTerminal ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
+    ensureHost: async () => (options.ensureTerminalHost ?? ensureTerminalHost)({
+      releaseRoot: release.releaseRoot, profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
+      dataDir: paths.dataDir, runtimeDir: paths.runtimeDir, environment,
+      maxConcurrentStarts: (await residentLaunchSettings!).maxConcurrentStarts, unresponsiveRestartSeconds: (await residentLaunchSettings!).unresponsiveRestartSeconds,
+    }),
+  });
+  if (resident === null) return {};
+  if (resident.status !== "ready") return { residentFallback: resident.reason };
+  return {
+    residentRootExecutable: resident.executable.executable,
+    residentRootArguments: JSON.stringify([
+      resident.executable.entry, "attach", "--workspace", "--endpoint", resident.endpoint,
+      "--cwd", process.cwd(), "--clear-exit-ms", String(RESIDENT_DETACH_INTERVAL_MS),
+      "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
+      "--settings-file", resolve(agentProfileDir, "settings.json"), "--accent-color", (await residentLaunchSettings!).accentColor,
+      "--data-dir", paths.dataDir, "--runtime-dir", paths.runtimeDir,
+      "--release-root", release.releaseRoot, "--node-executable", process.execPath,
+    ]),
+  };
 }
 
 /**
@@ -541,6 +546,8 @@ async function activatePendingAfterBlockerExit(
   if (!endpoint || endpoint.ownership.liveInstanceIds.length > 0 || await probeOwnership(endpoint) !== "live-verified") return;
   const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
   await stateStore.approve(candidate.releaseId, diagnosticsPath);
+  await assertResidentContinuity({ releaseRoot: candidate.releaseRoot, dataDir: paths.dataDir, environment,
+    profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir, runtimeDir: paths.runtimeDir });
   if (!await requestIdleOwnershipRelease(endpoint, candidate.releaseId, 2_000)) return;
   if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) return;
   await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);

@@ -8,6 +8,15 @@ pub(super) fn close_tab(
     request_id: Option<u64>,
 ) -> Result<bool, String> {
     let mut locked = lock_state(&state)?;
+    // Invariant: duplicate close intent never repeats bridge/holder stop or registry persistence.
+    if locked
+        .registry
+        .tabs
+        .iter()
+        .any(|tab| tab.tab_id == tab_id && tab.desired == "stopped")
+    {
+        return Ok(true);
+    }
     if let Some(bridge) = locked.bridges.get(tab_id) {
         let _ = bridge.peer.offer_control(wire::frame(
             "bridge.stop",
@@ -375,6 +384,19 @@ pub(super) fn remove_marker_if_owned(path: &Path, own: &ProcessIdentity) -> bool
     owned && std::fs::remove_file(path).is_ok()
 }
 
+fn runtime_description(
+    state: &Arc<Mutex<RuntimeState>>,
+) -> Result<super::super::runtime_control::RuntimeControl, String> {
+    let locked = lock_state(state)?;
+    Ok(super::super::runtime_control::RuntimeControl::describe(
+        super::super::scope::release_id()?,
+        super::super::scope::token(&locked.profile)?,
+        locked.registry.epoch,
+        locked.registry.boot_id.clone(),
+        locked.registry.os_session_id.clone(),
+    ))
+}
+
 /// Non-interactive maintenance for `a1 tabs`: never a viewing client, never a controller.
 pub(super) fn serve_maintain(
     mut stream: endpoint::EndpointStream,
@@ -384,6 +406,14 @@ pub(super) fn serve_maintain(
         let kind = wire::kind(&payload)?;
         let request_id = kind.request_id;
         match kind.message_type.as_str() {
+            "runtime.describe" => {
+                wire::send(
+                    &mut stream,
+                    "runtime.describe",
+                    request_id,
+                    runtime_description(&state)?,
+                )?;
+            }
             "host.status" => {
                 let status = host_status(&state)?;
                 wire::send(&mut stream, "host.status", request_id, status)?;
@@ -719,23 +749,42 @@ fn start_requested_agent(
 ) -> Result<(), String> {
     let is_cancelled = || cancelled.is_some_and(|flag| flag.load(Ordering::Acquire));
     if is_cancelled() {
-        tx.offer_control(wire::frame("tab.create-failed", request_id, wire::ResultBody::refused("cancelled".into()))?)
-            .map_err(str::to_owned)?;
+        tx.offer_control(wire::frame(
+            "tab.create-failed",
+            request_id,
+            wire::ResultBody::refused("cancelled".into()),
+        )?)
+        .map_err(str::to_owned)?;
         return Ok(());
     }
     let tab_id = format!("tab-{:016x}", rand::random::<u64>());
     lock_state(state)?.core.set_starting(&tab_id, true);
     match start_holder(profile, state, tab_id.clone(), start, cancelled) {
         Ok(()) => {
-            if is_cancelled() { close_tab(state, &tab_id, request_id)?; }
-            tx.offer_control(wire::frame("tab.created", request_id, TabTarget { tab_id })?)
-                .map_err(str::to_owned)?;
+            if is_cancelled() {
+                close_tab(state, &tab_id, request_id)?;
+            }
+            tx.offer_control(wire::frame(
+                "tab.created",
+                request_id,
+                TabTarget { tab_id },
+            )?)
+            .map_err(str::to_owned)?;
         }
         Err(error) => {
-            if let Ok(mut locked) = state.lock() { locked.core.set_starting(&tab_id, false); }
-            tx.offer_control(wire::frame("tab.create-failed", request_id,
-                wire::ResultBody::refused(if is_cancelled() { "cancelled".into() } else { error }))?)
-                .map_err(str::to_owned)?;
+            if let Ok(mut locked) = state.lock() {
+                locked.core.set_starting(&tab_id, false);
+            }
+            tx.offer_control(wire::frame(
+                "tab.create-failed",
+                request_id,
+                wire::ResultBody::refused(if is_cancelled() {
+                    "cancelled".into()
+                } else {
+                    error
+                }),
+            )?)
+            .map_err(str::to_owned)?;
         }
     }
     Ok(())

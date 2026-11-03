@@ -16,7 +16,7 @@ export function namingSourceRole(path) {
   if (extension === ".rs") return "rust";
   if (extension === ".py") return "python";
   if ([".json", ".yaml", ".yml"].includes(extension)) return "configuration";
-  if (extension === ".sh" || (path.startsWith("scripts/") && extension === "")) return "shell";
+  if ([".sh", ".ps1", ".psm1"].includes(extension) || (path.startsWith("scripts/") && extension === "")) return "shell";
   if (/^(src|bin|scripts|test|native)[/]/.test(path)) return "unsupported";
   return "data";
 }

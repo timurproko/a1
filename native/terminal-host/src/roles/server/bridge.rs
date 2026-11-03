@@ -20,6 +20,25 @@ pub(super) fn accepts_bridge_sequence(
     })
 }
 
+fn announce_bridge(locked: &RuntimeState, tab_id: &str, peer: &Peer) -> Result<(), String> {
+    if let Some((client, revision)) = locked.attachment.current(tab_id) {
+        peer.offer_control(wire::frame(
+            "attachment",
+            None,
+            BridgeAttachment::new(client, revision),
+        )?)
+        .map_err(str::to_owned)?;
+    }
+    offer_client_identity(locked, tab_id)?;
+    peer.offer_control(wire::frame(
+        "bridge.visibility",
+        None,
+        serde_json::json!({"visible":is_viewed(locked,tab_id)}),
+    )?)
+    .map_err(str::to_owned)?;
+    offer_utility_route(peer, tab_id)
+}
+
 pub(super) fn bridge_surface_status(
     previous: &str,
     reported: String,
@@ -141,22 +160,7 @@ pub(super) fn serve_bridge(
                 now,
             );
         }
-        if let Some((client, revision)) = locked.attachment.current(&tab_id) {
-            tx.offer_control(wire::frame(
-                "attachment",
-                None,
-                BridgeAttachment::new(client, revision),
-            )?)
-            .map_err(str::to_owned)?;
-        }
-        let visible = is_viewed(&locked, &tab_id);
-        tx.offer_control(wire::frame(
-            "bridge.visibility",
-            None,
-            serde_json::json!({ "visible": visible }),
-        )?)
-        .map_err(str::to_owned)?;
-        offer_utility_route(&tx, &tab_id)?;
+        announce_bridge(&locked, &tab_id, &tx)?;
     }
     crate::fault_injection::crash_at("bridge-after-admit");
     while let Some(payload) = wire::read_payload(&mut stream)? {
@@ -301,12 +305,11 @@ pub(super) fn serve_bridge(
         } else if kind.message_type == "bridge.session" {
             let (_, session): (_, BridgeSession) = wire::body(&payload)?;
             let mut locked = lock_state(&state)?;
-            if let Some(record) = locked
-                .registry
-                .tabs
-                .iter_mut()
-                .find(|tab| tab.tab_id == tab_id && TabKind::from_name(&tab.kind).is_some_and(|kind| kind.provider().owns_session))
-            {
+            if let Some(record) = locked.registry.tabs.iter_mut().find(|tab| {
+                tab.tab_id == tab_id
+                    && TabKind::from_name(&tab.kind)
+                        .is_some_and(|kind| kind.provider().owns_session)
+            }) {
                 record.session_file = session.file.clone();
                 record.session_dir = session
                     .file
@@ -342,7 +345,8 @@ pub(super) fn serve_bridge(
             } else if request.action == "close" {
                 let authorized = state.lock().ok().is_some_and(|locked| {
                     allows_controller_request(&locked.registry.tabs, &tab_id)
-                        && locked.attachment.current(&tab_id) == Some((request.client_id.as_str(), request.controller_revision))
+                        && locked.attachment.current(&tab_id)
+                            == Some((request.client_id.as_str(), request.controller_revision))
                 });
                 if authorized {
                     close_tab(&state, &tab_id, kind.request_id)?
@@ -352,7 +356,8 @@ pub(super) fn serve_bridge(
             } else if request.action == "restart" {
                 request_child_restart(&state, &tab_id, |locked| {
                     allows_controller_request(&locked.registry.tabs, &tab_id)
-                        && locked.attachment.current(&tab_id) == Some((request.client_id.as_str(), request.controller_revision))
+                        && locked.attachment.current(&tab_id)
+                            == Some((request.client_id.as_str(), request.controller_revision))
                 })?
             } else {
                 false
@@ -481,7 +486,8 @@ fn controller_message(action: &str) -> Option<&'static str> {
 /// A child being closed can still hold its old controller until the client sees the registry
 /// update. Its late quit/stop callback must not turn that tab close into an A1 detach.
 pub(super) fn allows_controller_request(tabs: &[TabRecord], tab_id: &str) -> bool {
-    tabs.iter().any(|tab| tab.tab_id == tab_id && tab.desired == "running")
+    tabs.iter()
+        .any(|tab| tab.tab_id == tab_id && tab.desired == "running")
 }
 
 /// Sends `message` to the client that controls the tab and views it, when the request came from

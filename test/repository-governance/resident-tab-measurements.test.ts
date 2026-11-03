@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { findProcessedInput, summarizeResidentTabMeasurements } from "../../scripts/development/measure-resident-tabs.mjs";
+import { join } from "node:path";
+import { findProcessedInput, findUnusedStandby, summarizeResidentTabMeasurements, WARM_CREATE_SAMPLE_COUNT } from "../../scripts/development/measure-resident-tabs.mjs";
 
 /** The 23 input samples of one macOS run: the cold first input, then warm, reattach, and 20 hot inputs. */
 function inputSamples(cold: number, hot: number): Record<string, number>[] {
@@ -7,6 +8,29 @@ function inputSamples(cold: number, hot: number): Record<string, number>[] {
 }
 
 describe("resident tab latency measurements", () => {
+  it("does not reuse a promoted standby's readiness marker", () => {
+    const old = join("tabs", "scope", "standby-a1", "standby-ready");
+    const current = join("tabs", "scope", "standby-b2", "standby-ready");
+    const used = new Set([old]);
+    expect(findUnusedStandby([old], used)).toBeUndefined();
+    expect(findUnusedStandby([old, current], used)).toEqual({ path: current, tabId: "standby-b2" });
+    expect(findUnusedStandby([join("tabs", "scope", "settings-a", "standby-ready")], used)).toBeUndefined();
+  });
+
+  it("retains every warm observation and fails when more than five percent exceed budget", () => {
+    expect(WARM_CREATE_SAMPLE_COUNT).toBe(23);
+    const samples = Array.from({ length: WARM_CREATE_SAMPLE_COUNT }, () => ({ warmCreateMs: 40 }));
+    samples[0] = { warmCreateMs: 292 };
+    expect(summarizeResidentTabMeasurements(samples, 2500).measurements.warmCreateMs)
+      .toMatchObject({ samples: 23, rejectedSamples: 0, p95Ms: 40, budgetMs: 250, passed: true });
+    samples[1] = { warmCreateMs: 251 };
+    expect(summarizeResidentTabMeasurements(samples, 2500).measurements.warmCreateMs)
+      .toMatchObject({ samples: 23, rejectedSamples: 0, p95Ms: 251, budgetMs: 250, passed: false });
+    samples[2] = { warmCreateMs: -1 };
+    expect(summarizeResidentTabMeasurements(samples, 2500).measurements.warmCreateMs)
+      .toMatchObject({ rejectedSamples: 1, passed: false });
+  });
+
   it("skips a stale line for the token that was stamped before the send", () => {
     const output = "measurement:s:1000\r\nmeasurement:t:1001\r\nmeasurement-ready:1500\r\nmeasurement:s:2000\r\n";
 

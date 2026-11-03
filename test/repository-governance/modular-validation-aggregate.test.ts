@@ -23,7 +23,7 @@ describe("attempt-aware modular development aggregate", () => {
 
   it("requires exact-head evidence for every conservative target", () => {
     const fixture = conservativeFixture();
-    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", deferredOwners: ["update-performance", "update-predecessor"], evidenceCount: 3, reused: [] });
+    expect(requireModularValidation(fixture)).toMatchObject({ mode: "conservative", deferredOwners: ["update-performance"], evidenceCount: 3, reused: [] });
   });
 
   it("requires every terminal-host test partition beside its build job and keeps them distinct", () => {

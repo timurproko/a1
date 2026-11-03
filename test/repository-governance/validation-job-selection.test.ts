@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { describe, expect, it } from "vitest";
 import { classifyIntegrationImpact, conservativeIntegrationImpact, exemptIntegrationImpact } from "../../scripts/release/integration-impact.mjs";
 import { loadIntegrationOwners } from "../../scripts/release/integration-owners.mjs";
-import { DEVELOPMENT_VALIDATION_MATRIX, selectDevelopmentValidationMatrix, validationJobGroup } from "../../scripts/release/validation-matrix.mjs";
+import { DEVELOPMENT_VALIDATION_MATRIX, selectDevelopmentValidationMatrix, resolveValidationJob, validationJobGroup } from "../../scripts/release/validation-matrix.mjs";
 
 const execFileAsync = promisify(execFile);
 const base = "a".repeat(40), head = "b".repeat(40), selectionId = "c".repeat(64);
@@ -39,7 +39,7 @@ describe("Development validation job resolution", () => {
         schema: "a1-validation-job-selection-v3",
         active: false,
         owners: [],
-        deferredOwners: ["update-performance", "update-predecessor"],
+        deferredOwners: ["update-performance"],
       });
       expect(result.scopes).toEqual([]);
       expect(result.scopes).not.toContain("update-predecessor");
@@ -61,6 +61,23 @@ describe("Development validation job resolution", () => {
     for (const owner of owners) for (const target of owner.targets) {
       expect(DEVELOPMENT_VALIDATION_MATRIX.some(entry => entry.group === validationJobGroup(owner.id, target.platform)
         && entry.platform === target.platform && entry.architecture === target.architecture && entry.node === target.node), `${owner.id} ${target.platform}`).toBe(true);
+    }
+  });
+
+  it("requires exact-package published continuity on all supported targets for source-control changes", async () => {
+    const owners = await loadIntegrationOwners();
+    const coreSelection = { schema: "a1-pr-core-selection-v1" as const, mode: "impact" as const, exemption: null, policyId: "e".repeat(64), mandatoryTests: [], tests: [], resourceTests: [], owners: [], integrationOwners: [], invalidators: [], unknown: [] };
+    for (const path of ["native/terminal-host/src/roles/source_route.rs", "src/foundation/resident-tabs/continuity.ts", "test/support/resident-predecessor.ts", "test/foundation/release/update-predecessor.integration.test.ts"]) {
+      const integration = classifyIntegrationImpact({ baseId: base, headId: head, changes: [{ status: "M", path }], owners, coreSelection });
+      const impact = { base, head, selectionId, prCore: {tests:[],resourceTests:[]}, integration };
+      const matrix = selectDevelopmentValidationMatrix({impact,registry:{owners}});
+      for (const [platform,architecture,job] of [["win32","x64","promoted"],["linux","x64","containment"],["darwin","arm64","containment"]] as const) {
+        expect(matrix.include.some(entry => entry.group === job && entry.platform === platform && entry.architecture === architecture),path).toBe(true);
+        const selection = resolveValidationJob({impact,registry:{owners},job,platform,architecture,node:24});
+        expect(selection.owners).toContain("update-predecessor");
+        expect(selection.scopes).toContain("update-predecessor");
+        expect(selection.deferredOwners).not.toContain("update-predecessor");
+      }
     }
   });
 

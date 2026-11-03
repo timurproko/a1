@@ -26,6 +26,7 @@ pub(super) fn complete_controller_transfer(
             BridgeAttachment::new(pending.client_id, pending.revision),
         )?);
     }
+    offer_client_identity(locked,tab_id)?;
     refresh_surface_subscription(locked, tab_id)?;
     if let Some(holder) = locked.holders.get(tab_id) {
         for frame in pending.held_frames {

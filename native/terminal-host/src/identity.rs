@@ -38,6 +38,29 @@ pub fn same_process(left: &ProcessIdentity, right: &ProcessIdentity) -> bool {
     left.pid == right.pid && left.start == right.start
 }
 
+pub(crate) fn legacy_macos_login(value: &str) -> bool {
+    value
+        .strip_prefix("macos-audit-session:")
+        .is_some_and(|port| {
+            !port.is_empty()
+                && port.bytes().all(|byte| byte.is_ascii_digit())
+                && port.parse::<u32>().is_ok()
+        })
+}
+
+/// Invariant: process-local Mach ports and POSIX sessions cannot prove an ended OS login.
+pub(crate) fn login_change_proven(recorded: &str, current: &str) -> bool {
+    #[cfg(target_os = "linux")]
+    if crate::linux_login::process_session(recorded) || crate::linux_login::process_session(current)
+    {
+        return false;
+    }
+    recorded != current
+        && !(cfg!(target_os = "macos")
+            && legacy_macos_login(recorded)
+            && current.starts_with("macos-audit-id:"))
+}
+
 pub fn same_system_epoch(left: &SystemIdentity, right: &SystemIdentity) -> bool {
     left.boot == right.boot && left.os_session == right.os_session
 }
@@ -199,11 +222,6 @@ mod platform {
     use super::*;
     use std::mem::{size_of, zeroed};
 
-    #[link(name = "bsm")]
-    unsafe extern "C" {
-        fn audit_session_self() -> i32;
-    }
-
     pub fn inspect_process(pid: u32) -> Result<Option<ProcessIdentity>, IdentityError> {
         let mut info: libc::proc_bsdinfo = unsafe { zeroed() };
         let expected = size_of::<libc::proc_bsdinfo>();
@@ -267,14 +285,7 @@ mod platform {
     }
 
     pub fn os_session_identity() -> Result<String, IdentityError> {
-        let session = unsafe { audit_session_self() };
-        if session < 0 {
-            return Err(IdentityError(format!(
-                "read macOS audit session: {}",
-                std::io::Error::last_os_error()
-            )));
-        }
-        Ok(format!("macos-audit-session:{session}"))
+        crate::audit_session::identity()
     }
 }
 
@@ -448,6 +459,45 @@ mod platform {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn legacy_mach_names_are_not_proof_of_an_ended_login() {
+        assert!(legacy_macos_login("macos-audit-session:1234"));
+        for value in [
+            "macos-audit-session:",
+            "macos-audit-session:+1",
+            "macos-audit-session:4294967296",
+            "macos-audit-id:501:1234",
+        ] {
+            assert!(!legacy_macos_login(value));
+        }
+        assert!(!login_change_proven("same", "same"));
+        assert!(login_change_proven(
+            "macos-audit-id:501:12",
+            "macos-audit-id:501:13"
+        ));
+        assert_eq!(
+            login_change_proven("macos-audit-session:1234", "macos-audit-id:501:12"),
+            !cfg!(target_os = "macos")
+        );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn posix_detachment_does_not_prove_logout() {
+        assert!(!login_change_proven(
+            "linux-session-leader:10:linux-proc-start:20",
+            "linux-detached-session:30"
+        ));
+        assert!(!login_change_proven(
+            "linux-systemd-session:session-a",
+            "linux-detached-session:30"
+        ));
+        assert!(login_change_proven(
+            "linux-systemd-session:session-a",
+            "linux-systemd-session:session-b"
+        ));
+    }
 
     #[test]
     fn current_process_and_system_identities_are_stable() {

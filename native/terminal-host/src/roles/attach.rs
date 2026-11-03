@@ -566,14 +566,21 @@ pub fn is_ctrl_c_console(character: char, control: bool, key_down: bool) -> bool
 }
 
 /// The notice for a refused or failed new-tab request.
-pub fn tab_create_failure_notice(reason: Option<&str>) -> String {
-    let reason = match reason {
-        Some("tab-start-busy") => "tab starts are busy, try again shortly",
-        Some("busy") => "a tab change is still running, try again shortly",
-        Some(reason) if !reason.trim().is_empty() => reason,
-        _ => "the tab could not start",
-    };
-    format!("Could not open a tab: {reason}")
+pub fn tab_create_failure_notice(_reason: Option<&str>) -> String {
+    // Invariant: an actual launch failure must not copy source protocol, OS or custody details into chrome.
+    "Couldn't open a tab. Try again.".into()
+}
+
+/// Invariant: control-plane notifications never copy resident implementation details into chrome.
+fn control_notice(kind: &str, response: wire::ResultBody) -> Option<String> {
+    response.message?;
+    match kind {
+        "viewer.status" => None,
+        "recovery.notice" if response.accepted => None,
+        "recovery.notice" => Some("Couldn't finish that tab change. Try again.".into()),
+        "input.uncertain" => Some("Connection interrupted. Check the tab before trying again.".into()),
+        _ => None,
+    }
 }
 
 /// Most characters remembered as pressed; a stuck set is cleared rather than grown.
@@ -1313,14 +1320,14 @@ pub fn child_mouse_row(outer_row: u16) -> Option<u16> {
     TabBarPosition::Top.child_mouse_row(outer_row, u16::MAX)
 }
 
-struct AttachServerWriter {
+pub(super) struct AttachServerWriter {
     sender: mpsc::SyncSender<Vec<u8>>,
     reserved_bytes: Arc<AtomicUsize>,
     failed: Arc<Mutex<Option<String>>>,
 }
 
 impl AttachServerWriter {
-    fn start(mut stream: endpoint::EndpointStream) -> Self {
+    pub(super) fn start(mut stream: endpoint::EndpointStream) -> Self {
         let (sender, receiver) = mpsc::sync_channel::<Vec<u8>>(ATTACH_SERVER_QUEUE_FRAMES);
         let reserved_bytes = Arc::new(AtomicUsize::new(0));
         let failed = Arc::new(Mutex::new(None));
@@ -1349,7 +1356,7 @@ impl AttachServerWriter {
         }
     }
 
-    fn failure(&self) -> Option<String> {
+    pub(super) fn failure(&self) -> Option<String> {
         self.failed.lock().ok().and_then(|value| value.clone())
     }
 }
@@ -1619,7 +1626,7 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
         RoleHello {
             role: "attach".into(),
             generation: protocol::GENERATION,
-            build: "a1-terminal-host".into(),
+            build: super::client_identity::build(),
             release_id: super::scope::release_id()?,
             features: vec![
                 "double-ctrl-c".into(),
@@ -1661,7 +1668,7 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
     }
     let (_, admission): (Option<u64>, BridgeAttachment) = wire::body(&attachment)?;
     let (columns, outer_rows) = outer_size()?;
-    let request_generation = start_session(&mut stream, options, columns, outer_rows)?;
+    let request_generation = start_session(&mut stream, options, columns, outer_rows, admission.selected_tab.as_deref())?;
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let create = TabCreate {
         cwd: options.cwd.into(),
@@ -1704,6 +1711,7 @@ fn start_session(
     options: &AttachOptions<'_>,
     columns: u16,
     outer_rows: u16,
+    selected_tab: Option<&str>,
 ) -> Result<u64, String> {
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let mut request_generation = 1u64;
@@ -1724,7 +1732,7 @@ fn start_session(
             session_dir: options.session_dir.map(str::to_owned),
         },
     )?;
-    if let Some(tab_id) = options.view_tab {
+    if let Some(tab_id) = options.view_tab.or(selected_tab) {
         request_generation = request_generation.saturating_add(1);
         send_view_with_geometry(stream, tab_id, request_generation, columns, outer_rows, 0)?;
     } else {
@@ -2283,6 +2291,7 @@ impl Client {
                     self.request_view(tab_id)?;
                 }
                 Effect::AwaitFirstDraw(tab_id) => self.view.await_first_draw(&tab_id),
+                Effect::Landing => self.hide_final_utility(),
                 Effect::CancelViewRequest => {
                     self.clear_chip_fill();
                     key_trace(self.key_trace_path.as_deref(), "effect=cancel-view");
@@ -2317,6 +2326,17 @@ impl Client {
             self.pending_agent = None;
         }
         Ok(forwarded)
+    }
+
+    fn hide_final_utility(&mut self) {
+        self.clear_chip_fill();
+        self.view.clear();
+        self.presented = Presented::new();
+        self.pending_terminal_effects.clear();
+        self.pending_agent = None;
+        self.swap_in_flight = None;
+        self.chip_priority.clear();
+        self.has_shown_tabs = true;
     }
 
     /// Stores the plus menu its dialog changed. A refused write restores the stored menu, so the
@@ -2903,6 +2923,15 @@ impl Client {
                 self.bindings = TabBindings::from_assignments(&shortcuts.assignments);
                 ServerEvent::ShortcutsChanged
             }
+            "workspace.status" => {
+                #[derive(serde::Deserialize)] struct Batch { statuses: Vec<TabStatus> }
+                let (_, batch): (_, Batch) = wire::body(payload)?;
+                if batch.statuses.len() > 4096 { return Err("workspace status bound exceeded".into()); }
+                let statuses = batch.statuses.into_iter().map(|status| {
+                    self.apply_status(&status); (status.tab_id, status.status)
+                }).collect();
+                ServerEvent::StatusBatch { statuses }
+            }
             "tab.status" => {
                 let (_, status): (_, TabStatus) = wire::body(payload)?;
                 self.apply_status(&status);
@@ -2962,11 +2991,11 @@ impl Client {
                 ServerEvent::HolderExit
             }
             "failure.status" => ServerEvent::Failure {
-                message: result()?.message,
+                message: result()?.message.map(|_| "This tab stopped unexpectedly. Open a new tab to continue.".into()),
             },
             "input.rejected" => return self.input_rejected(result()?.message),
             "viewer.status" | "input.uncertain" | "recovery.notice" => ServerEvent::Notice {
-                message: result()?.message,
+                message: control_notice(message_type,result()?),
             },
             _ => return Ok(None),
         }))
@@ -2982,7 +3011,7 @@ impl Client {
         if message.as_deref() == Some(crate::roles::server::INPUT_REJECTED_READ_ONLY) {
             return Ok(Some(ServerEvent::InputClaimLost));
         }
-        Ok(Some(ServerEvent::InputRejected { message }))
+        Ok(Some(ServerEvent::InputRejected { message: message.map(|_| "This input couldn't be sent. Try again.".into()) }))
     }
 
     fn apply_status(&mut self, status: &TabStatus) {
@@ -3129,7 +3158,7 @@ impl Client {
                     // this attach is listed and keeps its first-draw gate instead.
                     self.has_shown_tabs |=
                         empty_list_shows_strip(self.tabs.is_empty(), self.pending_agent.is_some());
-                    self.paint(core, true)
+                    self.paint(core, !self.landing_shown())
                 } else if changed {
                     self.paint(core, false)
                 } else {
@@ -4411,7 +4440,7 @@ mod tests {
     fn attach_start_reapplies_geometry_for_default_and_requested_tabs() {
         let mut default = Vec::new();
         assert_eq!(
-            start_session(&mut default, &test_attach_options(None), 100, 30).unwrap(),
+            start_session(&mut default, &test_attach_options(None), 100, 30, None).unwrap(),
             1
         );
         let default = split_frames(&default);
@@ -4427,6 +4456,7 @@ mod tests {
                 &test_attach_options(Some("tab-existing")),
                 120,
                 36,
+                None,
             )
             .unwrap(),
             2
@@ -4438,6 +4468,18 @@ mod tests {
         assert_eq!(view.body.tab_id, "tab-existing");
         let resize = view.body.resize.expect("requested-tab geometry");
         assert_eq!((resize.columns, resize.rows), (120, 35));
+    }
+
+    #[test]
+    fn admitted_retained_selection_is_explicitly_observed_before_the_first_body() {
+        let mut output = Vec::new();
+        assert_eq!(start_session(&mut output,&test_attach_options(None),100,30,Some("retained-agent")).unwrap(),2);
+        let frames = split_frames(&output);
+        let view:protocol::Envelope<ViewTarget> = protocol::decode_frame(frames[1]).unwrap();
+        assert_eq!(view.message_type,"tab.view"); assert_eq!(view.body.tab_id,"retained-agent");
+        assert_eq!(view.body.request_generation,2);
+        assert!(!should_paint_strip(false,false,false),"admission must not paint an empty first frame");
+        assert!(should_paint_strip(true,false,false));
     }
 
     #[test]
@@ -6006,23 +6048,24 @@ mod tests {
     }
 
     #[test]
-    fn new_tab_failures_name_their_reason() {
-        assert_eq!(
-            tab_create_failure_notice(Some("tab-start-busy")),
-            "Could not open a tab: tab starts are busy, try again shortly"
-        );
-        assert_eq!(
-            tab_create_failure_notice(Some("busy")),
-            "Could not open a tab: a tab change is still running, try again shortly"
-        );
-        assert_eq!(
-            tab_create_failure_notice(Some("holder launch failed")),
-            "Could not open a tab: holder launch failed"
-        );
-        assert_eq!(
-            tab_create_failure_notice(None),
-            "Could not open a tab: the tab could not start"
-        );
+    fn actual_tab_launch_failures_never_copy_internal_reasons_into_the_strip() {
+        for reason in [None, Some(""), Some("tab-start-busy"), Some("busy"),
+            Some("holder launch failed"), Some("private-path or source epoch details")] {
+            assert_eq!(tab_create_failure_notice(reason),"Couldn't open a tab. Try again.");
+        }
+    }
+
+    #[test]
+    fn control_messages_are_quiet_on_success_and_never_copy_source_diagnostics() {
+        for accepted in [false,true] {
+            let response = || wire::ResultBody {accepted,message:Some("private source epoch, holder or filesystem details".into())};
+            assert_eq!(control_notice("viewer.status",response()),None);
+            assert_eq!(control_notice("recovery.notice",response()),
+                (!accepted).then(|| "Couldn't finish that tab change. Try again.".into()));
+            assert_eq!(control_notice("input.uncertain",response()),
+                Some("Connection interrupted. Check the tab before trying again.".into()));
+        }
+        assert_eq!(control_notice("recovery.notice",wire::ResultBody::ok()),None);
     }
 
     #[test]

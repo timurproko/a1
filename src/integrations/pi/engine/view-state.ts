@@ -1,3 +1,4 @@
+import { EngineDiagnostics } from "./diagnostics-state.js";
 import type {
   OwnedUiDiagnostics,
   OwnedUiEditorState,
@@ -15,9 +16,6 @@ const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
   focusedRegion: "editor",
   hardwareCursor: false,
 };
-
-const MAX_DIAGNOSTICS = 100;
-const MAX_STATUS_DIAGNOSTICS = 8;
 
 /**
  * The engine adapter's own view-model state: lifecycle, editor, status, terminal surface, active
@@ -46,13 +44,13 @@ export class EngineViewState {
   activeModel: OwnedUiModelInfo | null = null;
   thinkingLevel: OwnedUiThinkingLevel = "medium";
   #usage: OwnedUiUsageView | undefined;
-  readonly #diagnostics: OwnedUiDiagnostics[] = [];
+  readonly diagnosticsState = new EngineDiagnostics();
 
   get revision(): number { return this.#revision; }
   get editor(): OwnedUiEditorState { return this.#editor; }
-  get status(): OwnedUiStatusView { return this.#status; }
+  get status(): OwnedUiStatusView { return { ...this.#status, diagnostics: this.diagnosticsState.messages }; }
   get terminal(): OwnedUiTerminalSurface { return this.#terminal; }
-  get diagnostics(): readonly OwnedUiDiagnostics[] { return this.#diagnostics; }
+  get diagnostics(): readonly OwnedUiDiagnostics[] { return this.diagnosticsState.values; }
 
   /** Any emitted event advances the revision. */
   advance(): void {
@@ -140,19 +138,4 @@ export class EngineViewState {
     this.#revision += 1;
   }
 
-  recordDiagnostic(
-    severity: OwnedUiDiagnostics["severity"],
-    code: string,
-    message: string,
-    recoverable: boolean,
-  ): OwnedUiDiagnostics {
-    const diagnostic: OwnedUiDiagnostics = { sequence: this.#diagnostics.length, code, severity, message, recoverable };
-    this.#diagnostics.push(diagnostic);
-    if (this.#diagnostics.length > MAX_DIAGNOSTICS) this.#diagnostics.shift();
-    this.#status = {
-      ...this.#status,
-      diagnostics: [...this.#status.diagnostics, message].slice(-MAX_STATUS_DIAGNOSTICS),
-    };
-    return diagnostic;
-  }
 }

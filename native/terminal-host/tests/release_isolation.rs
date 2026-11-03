@@ -7,6 +7,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use terminal_host_contracts::roles::{registry::RegistryStore, scope};
 
+#[path = "release_isolation/coordinator_recovery.rs"]
+mod coordinator_recovery;
+
 struct Host {
     executable: PathBuf,
     profile: PathBuf,
@@ -220,6 +223,395 @@ fn release_isolation_fixture_runtime_is_private_short_and_shared_until_last_owne
     );
     drop(second);
     assert!(!path.exists());
+}
+
+struct WorkspaceClient {
+    process: std::process::Child,
+    stream: terminal_host_contracts::endpoint::EndpointStream,
+    _guard: terminal_host_contracts::endpoint::ConnectionGuard,
+}
+impl WorkspaceClient {
+    fn open(host: &Host) -> Self {
+        use terminal_host_contracts::roles::{credentials::ProfileCredentials, wire};
+        let mut process = host.command(&["workspace-proxy", "--release-root", host.release.to_str().unwrap()])
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn().unwrap();
+        let mut line = String::new();
+        BufReader::new(process.stdout.take().unwrap()).read_line(&mut line).unwrap();
+        let endpoint: serde_json::Value = serde_json::from_str(&line).unwrap();
+        let mut stream = terminal_host_contracts::endpoint::connect(endpoint["endpoint"].as_str().unwrap()).unwrap();
+        let guard = terminal_host_contracts::endpoint::close_on_drop(&stream);
+        let credentials = ProfileCredentials::load_existing(&host.state()).unwrap().unwrap();
+        wire::send(&mut stream, "hello", Some(1), serde_json::json!({
+            "role":"attach", "generation":1, "build":"fixture",
+            "releaseId":scope::fixture_release_id(&host.executable).unwrap(), "features":[], "token":credentials.client_token.to_vec(),
+        })).unwrap();
+        Self { process, stream, _guard: guard }
+    }
+    fn wait_text(&mut self,id:&str,expected:&str) {
+        use terminal_host_contracts::roles::wire;
+        for _ in 0..64 {
+            let (_,surface):(_,wire::Surface) = wire::body(&self.next("surface")).unwrap();
+            let text = surface.structured.as_ref().map(|state| state.row_data.iter().flat_map(|row| row.cells.iter().map(|cell| cell.text.as_str())).collect::<String>())
+                .unwrap_or_else(|| String::from_utf8_lossy(&surface.bytes).into_owned());
+            if surface.tab_id == id && text.contains(expected) { return; }
+        }
+        panic!("workspace did not restore the requested source view");
+    }
+    fn add(&mut self,host:&Host,message:&str,response:&str) -> String {
+        use terminal_host_contracts::roles::wire;
+        let node = Command::new("node").args(["-p","process.execPath"]).output().unwrap();
+        wire::send(&mut self.stream,message,Some(37),wire::TabCreate {
+            cwd:host.release.to_string_lossy().into_owned(),columns:80,rows:23,
+            release_root:host.release.to_string_lossy().into_owned(),node_executable:String::from_utf8(node.stdout).unwrap().trim().into(),environment:std::env::vars().collect(),
+        }).unwrap();
+        let (request,target):(_,wire::TabTarget) = wire::body(&self.next(response)).unwrap();
+        assert_eq!(request,Some(37),"workspace restores caller request identity");
+        target.tab_id
+    }
+    fn order(&mut self,expected:&[&str]) -> u64 {
+        use terminal_host_contracts::roles::wire;
+        let deadline = Instant::now()+Duration::from_secs(10);
+        loop {
+            wire::send(&mut self.stream,"tab.list",Some(9000),wire::ResultBody::ok()).unwrap();
+            let mut replies = 0;
+            let mut latest = None;
+            while replies < 2 {
+                let (request,list):(_,wire::TabList) = wire::body(&self.next("tab.list")).unwrap();
+                if request != Some(9000) { continue; }
+                replies += 1; latest = Some(list);
+            }
+            let list = latest.unwrap();
+            let ids = list.tabs.iter().map(|tab|tab.tab_id.as_str()).collect::<Vec<_>>();
+            if ids == expected { return list.revision; }
+            assert!(Instant::now()<deadline,"workspace order: {ids:?}, expected {expected:?}");
+        }
+    }
+    fn read_frame(&mut self,deadline:Instant) -> Vec<u8> {
+        use terminal_host_contracts::roles::wire;
+        terminal_host_contracts::endpoint::set_handshake_deadline(&self.stream,deadline.saturating_duration_since(Instant::now())).unwrap();
+        let frame = wire::read_payload(&mut self.stream).unwrap().expect("workspace disconnected");
+        let kind = wire::kind(&frame).unwrap().message_type;
+        assert!(!matches!(kind.as_str(),"recovery.notice"|"input.rejected"|"input.uncertain"|"tab.create-failed"),"ordinary tab action emitted {kind}: {frame:?}");
+        frame
+    }
+    fn first_view_order(&mut self,id:&str,generation:u64,previous:&[&str],expected:&[&str]) {
+        use terminal_host_contracts::roles::wire;
+        wire::send(&mut self.stream,"tab.view",None,wire::ViewTarget {tab_id:id.into(),request_generation:generation,resize:None}).unwrap();
+        let mut order = previous.iter().map(|id|id.to_string()).collect::<Vec<_>>();
+        let deadline = Instant::now()+Duration::from_secs(10);
+        loop {
+            assert!(Instant::now()<deadline,"view did not produce its first frame");
+            let frame = self.read_frame(deadline);
+            match wire::kind(&frame).unwrap().message_type.as_str() {
+                "tab.list" => { let (_,list):(_,wire::TabList) = wire::body(&frame).unwrap(); order = list.tabs.into_iter().map(|tab|tab.tab_id).collect(); }
+                "surface" => {
+                    let (_,surface):(_,wire::Surface) = wire::body(&frame).unwrap();
+                    if surface.tab_id == id && surface.request_generation == generation {
+                        assert_eq!(order,expected,"the first visible surface must not commit the old prewarm slot");
+                        return;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    fn next(&mut self, message: &str) -> Vec<u8> {
+        use terminal_host_contracts::roles::wire;
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            assert!(Instant::now() < deadline, "workspace did not answer {message}");
+            let frame = self.read_frame(deadline);
+            if wire::kind(&frame).unwrap().message_type == message { return frame; }
+        }
+    }
+}
+impl Drop for WorkspaceClient {
+    fn drop(&mut self) { let _ = self.process.kill(); let _ = self.process.wait(); }
+}
+
+#[test]
+fn updated_workspace_reconnects_old_agents_and_creates_new_execution_on_the_selected_release() {
+    use terminal_host_contracts::roles::{wire, workspace::WorkspaceTab};
+    let root = tempfile::tempdir().unwrap();
+    let (a, b) = hosts(root.path());
+    std::fs::write(a.release.join("bin/ui.js"), "if(process.stdin.isTTY)process.stdin.setRawMode(true);process.stdin.on('data',b=>process.stdout.write('OLD-echo:'+b.toString()+'\\r\\n'));process.stdout.write('OLD-RUNNING\\r\\n');setInterval(()=>{},1000);").unwrap();
+    std::fs::write(b.release.join("bin/ui.js"), "if(process.stdin.isTTY)process.stdin.setRawMode(true);process.stdin.on('data',b=>process.stdout.write('NEW-echo:'+b.toString()+'\\r\\n'));process.stdout.write('NEW-RUNNING\\r\\n');setInterval(()=>{},1000);").unwrap();
+    a.call(&["server", "--detach"]); a.create();
+    let old_child = a.wait_child();
+    let old_owner = a.marker();
+    b.call(&["server", "--detach"]);
+    let mut client = WorkspaceClient::open(&b);
+    client.next("welcome");
+    let (_, admission): (_, terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&client.next("attached")).unwrap();
+    let qualified = WorkspaceTab::id_for(&scope::fixture_token(&a.profile, &a.executable).unwrap(), "tab-1");
+    assert_eq!(admission.selected_tab.as_deref(), Some(qualified.as_str()));
+    assert_eq!(admission.initial_tabs.unwrap().tabs.len(), 1);
+    wire::send(&mut client.stream, "attach.start", None, serde_json::json!({
+        "clientId":"fixture", "cwd":b.release, "columns":80,"rows":23,"releaseRoot":b.release,"nodeExecutable":"node","environment":[],
+    })).unwrap();
+    wire::send(&mut client.stream, "input", Some(2), wire::Input { bytes:b"x".to_vec(), paste:false, epoch:0 }).unwrap();
+    let mut echo = false;
+    for _ in 0..20 {
+        let (_, surface): (_, wire::Surface) = wire::body(&client.next("surface")).unwrap();
+        let text = surface.structured.as_ref().map(|state| state.row_data.iter().flat_map(|row| row.cells.iter().map(|cell| cell.text.as_str())).collect::<String>())
+            .unwrap_or_else(|| String::from_utf8_lossy(&surface.bytes).into_owned());
+        if text.contains("echo:x") { echo = true; break; }
+    }
+    assert!(echo, "old Agent must remain controllable through the new client");
+    assert!(RegistryStore::read(&b.state().join("registry.json")).unwrap().unwrap().tabs.iter().all(|tab| tab.kind != "agent"));
+    let node = Command::new("node").args(["-p","process.execPath"]).output().unwrap();
+    wire::send(&mut client.stream, "tab.create", Some(3), wire::TabCreate {
+        cwd:b.release.to_string_lossy().into_owned(), columns:80, rows:23, release_root:b.release.to_string_lossy().into_owned(),
+        node_executable:String::from_utf8(node.stdout).unwrap().trim().into(), environment:std::env::vars().collect(),
+    }).unwrap();
+    let (_, created): (_, wire::TabTarget) = wire::body(&client.next("tab.created")).unwrap();
+    assert_ne!(created.tab_id, qualified);
+    let deadline = Instant::now()+Duration::from_secs(10);
+    loop {
+        let registry = RegistryStore::read(&b.state().join("registry.json")).unwrap().unwrap();
+        if registry.tabs.iter().any(|tab| tab.child_pid.is_some()) { break; }
+        assert!(Instant::now()<deadline); std::thread::sleep(Duration::from_millis(20));
+    }
+    wire::send(&mut client.stream, "tab.view", Some(30), wire::ViewTarget { tab_id:created.tab_id.clone(), request_generation:3, resize:None }).unwrap();
+    wire::send(&mut client.stream, "input", Some(31), wire::Input { bytes:b"z".to_vec(), paste:false, epoch:0 }).unwrap();
+    client.wait_text(&created.tab_id,"NEW-echo:z");
+    wire::send(&mut client.stream, "tab.view", Some(4), wire::ViewTarget { tab_id:qualified.clone(), request_generation:4, resize:None }).unwrap();
+    wire::send(&mut client.stream, "input", Some(5), wire::Input { bytes:b"y".to_vec(), paste:false, epoch:0 }).unwrap();
+    client.wait_text(&qualified,"OLD-echo:y");
+    assert_eq!(a.wait_child(), old_child);
+    assert_eq!(a.marker()["pid"], old_owner["pid"]);
+    drop(client);
+    std::thread::sleep(Duration::from_millis(250));
+    let mut reopened = WorkspaceClient::open(&b);
+    reopened.next("welcome");
+    let (_, admission): (_, terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&reopened.next("attached")).unwrap();
+    assert_eq!(admission.initial_tabs.unwrap().tabs.iter().filter(|tab| !tab.tab_id.starts_with("settings-")).count(), 2);
+    assert_eq!(admission.selected_tab.as_deref(),Some(qualified.as_str()));
+    reopened.wait_text(&qualified,"OLD-echo:y");
+    assert_eq!(a.wait_child(), old_child);
+}
+
+#[test]
+fn workspace_utility_reveal_preserves_append_order_through_metadata_drag_and_reopen() {
+    use terminal_host_contracts::roles::{wire,workspace::WorkspaceTab};
+    let root = tempfile::tempdir().unwrap();
+    let (a,b) = hosts(root.path());
+    a.call(&["server","--detach"]); a.create();
+    let mut prior = WorkspaceClient::open(&a);
+    prior.next("welcome"); prior.next("attached");
+    let old_settings = prior.add(&a,"tab.prewarm-settings","tab.created");
+    drop(prior);
+    b.call(&["server","--detach"]);
+    let old = a.wait_child();
+    let agent_a = WorkspaceTab::id_for(&scope::fixture_token(&a.profile,&a.executable).unwrap(),"tab-1");
+    let mut client = WorkspaceClient::open(&b);
+    client.next("welcome"); client.next("attached");
+    let settings = client.add(&b,"tab.prewarm-settings","tab.created");
+    let agent_b = client.add(&b,"tab.create","tab.created");
+    client.order(&[&agent_a,&old_settings,&agent_b]);
+    assert_eq!(client.add(&b,"tab.open-settings","tab.selected"),settings);
+    client.order(&[&agent_a,&agent_b,&settings]);
+    let changelog = client.add(&b,"tab.prewarm-changelog","tab.created");
+    let agent_c = client.add(&b,"tab.create","tab.created");
+    client.order(&[&agent_a,&agent_b,&settings,&changelog,&agent_c]);
+    assert_eq!(client.add(&b,"tab.open-changelog","tab.selected"),changelog);
+    let expected = [&*agent_a,&*agent_b,&*settings,&*agent_c,&*changelog];
+    let revision = client.order(&expected);
+    wire::send(&mut client.stream,"tab.reorder",None,wire::TabReorder {tab_id:changelog.clone(),target_index:0,expected_revision:revision}).unwrap();
+    let (_,answer):(_,wire::ResultBody) = wire::body(&client.next("tab.reordered")).unwrap();
+    assert!(answer.accepted);
+    let dragged = [&*changelog,&*agent_a,&*agent_b,&*settings,&*agent_c];
+    client.order(&dragged);
+    // Invariant: an ordinary selection must not act like a reveal and move a visible utility.
+    wire::send(&mut client.stream,"tab.view",None,wire::ViewTarget {tab_id:settings.clone(),request_generation:9,resize:None}).unwrap();
+    client.wait_text(&settings,"ready");
+    client.order(&dragged);
+    assert_eq!(client.add(&b,"tab.open-settings","tab.selected"),settings);
+    let revealed = [&*changelog,&*agent_a,&*agent_b,&*agent_c,&*settings];
+    client.order(&revealed);
+    std::thread::sleep(Duration::from_millis(300));
+    client.order(&revealed);
+    drop(client);
+    std::thread::sleep(Duration::from_millis(200));
+    let mut reopened = WorkspaceClient::open(&b);
+    reopened.next("welcome");
+    let (_,admission):(_,terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&reopened.next("attached")).unwrap();
+    assert_eq!(admission.initial_tabs.unwrap().tabs.iter().map(|tab|tab.tab_id.as_str()).collect::<Vec<_>>(),revealed);
+    assert_eq!(a.wait_child(),old);
+    let registry = RegistryStore::read(&b.state().join("registry.json")).unwrap().unwrap();
+    assert_eq!(registry.tabs.iter().filter(|tab|tab.kind == "settings" && tab.desired != "stopped").count(),1);
+    assert_eq!(registry.tabs.iter().filter(|tab|tab.kind == "changelog" && tab.desired != "stopped").count(),1);
+}
+
+#[test]
+fn plain_workspace_launch_stays_empty_until_explicit_creation_and_never_adopts_a_hidden_utility() {
+    use terminal_host_contracts::roles::wire;
+    let root = tempfile::tempdir().unwrap(); let (_a,b) = hosts(root.path());
+    b.call(&["server","--detach"]);
+    let mut client = WorkspaceClient::open(&b); client.next("welcome");
+    let (_,admission):(_,terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&client.next("attached")).unwrap();
+    assert_eq!(admission.selected_tab,None); assert!(admission.initial_tabs.unwrap().tabs.is_empty());
+    wire::send(&mut client.stream,"attach.start",None,serde_json::json!({"clientId":"fixture","cwd":b.release,"columns":80,"rows":23,"releaseRoot":b.release,"nodeExecutable":"node","environment":[]})).unwrap();
+    for _ in 0..3 {
+        wire::send(&mut client.stream,"tab.list",Some(600),wire::ResultBody::ok()).unwrap();
+        let (_,list):(_,wire::TabList) = wire::body(&client.next("tab.list")).unwrap(); assert!(list.tabs.is_empty());
+    }
+    let registry = RegistryStore::read(&b.state().join("registry.json")).unwrap().unwrap();
+    assert!(registry.tabs.is_empty(),"plain attach must not start execution");
+    let settings = client.add(&b,"tab.prewarm-settings","tab.created");
+    drop(client);
+    let mut client = WorkspaceClient::open(&b); client.next("welcome");
+    let (_,admission):(_,terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&client.next("attached")).unwrap();
+    assert_eq!(admission.selected_tab,None,"a prewarm is not a startup workspace selection");
+    assert!(admission.initial_tabs.unwrap().tabs.iter().all(|tab|tab.tab_id == settings));
+    let agent = client.add(&b,"tab.create","tab.created");
+    client.first_view_order(&agent,80,&[&settings],&[&settings,&agent]);
+    let identity = || {
+        let registry = RegistryStore::read(&b.state().join("registry.json")).unwrap().unwrap();
+        let agents = registry.tabs.iter().filter(|tab|tab.kind == "agent" && tab.desired != "stopped").collect::<Vec<_>>();
+        assert_eq!(agents.len(),1);
+        (agents[0].child_pid,agents[0].child_start_identity.clone(),agents[0].incarnation)
+    };
+    let original = identity(); assert!(original.0.is_some());
+    drop(client);
+    let mut reopened = WorkspaceClient::open(&b); reopened.next("welcome");
+    let (_,admission):(_,terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&reopened.next("attached")).unwrap();
+    assert_eq!(admission.selected_tab.as_deref(),Some(agent.as_str()));
+    reopened.first_view_order(&agent,81,&[&settings,&agent],&[&settings,&agent]);
+    assert_eq!(identity(),original,"reopen must not replace execution");
+}
+
+#[test]
+fn workspace_first_utility_frame_uses_final_topology_without_a_caller_refresh() {
+    use terminal_host_contracts::roles::workspace::WorkspaceTab;
+    let root = tempfile::tempdir().unwrap();
+    let (a,b) = hosts(root.path());
+    a.call(&["server","--detach"]); a.create(); b.call(&["server","--detach"]);
+    let old = a.wait_child();
+    let agent_a = WorkspaceTab::id_for(&scope::fixture_token(&a.profile,&a.executable).unwrap(),"tab-1");
+    let mut client = WorkspaceClient::open(&b); client.next("welcome"); client.next("attached");
+    let settings = client.add(&b,"tab.prewarm-settings","tab.created");
+    let agent_b = client.add(&b,"tab.create","tab.created");
+    client.order(&[&agent_a,&settings,&agent_b]);
+    assert_eq!(client.add(&b,"tab.open-settings","tab.selected"),settings);
+    client.first_view_order(&settings,70,&[&agent_a,&settings,&agent_b],&[&agent_a,&agent_b,&settings]);
+    let changelog = client.add(&b,"tab.prewarm-changelog","tab.created");
+    let agent_c = client.add(&b,"tab.create","tab.created");
+    client.order(&[&agent_a,&agent_b,&settings,&changelog,&agent_c]);
+    assert_eq!(client.add(&b,"tab.open-changelog","tab.selected"),changelog);
+    client.first_view_order(&changelog,71,&[&agent_a,&agent_b,&settings,&changelog,&agent_c],&[&agent_a,&agent_b,&settings,&agent_c,&changelog]);
+    assert_eq!(a.wait_child(),old);
+}
+
+#[test]
+fn workspace_rapid_selection_and_duplicate_close_do_not_emit_internal_notices() {
+    use terminal_host_contracts::roles::{wire,workspace::WorkspaceTab};
+    let root = tempfile::tempdir().unwrap();
+    let (a,b) = hosts(root.path());
+    a.call(&["server","--detach"]); a.create(); b.call(&["server","--detach"]);
+    let old = a.wait_child();
+    let agent_a = WorkspaceTab::id_for(&scope::fixture_token(&a.profile,&a.executable).unwrap(),"tab-1");
+    let mut client = WorkspaceClient::open(&b); client.next("welcome"); client.next("attached");
+    let agent_b = client.add(&b,"tab.create","tab.created");
+    client.order(&[&agent_a,&agent_b]);
+    for generation in 1..=200 {
+        let id = if generation%2 == 0 { &agent_a } else { &agent_b };
+        wire::send(&mut client.stream,"tab.view",None,wire::ViewTarget {tab_id:id.clone(),request_generation:generation,resize:None}).unwrap();
+    }
+    client.first_view_order(&agent_a,201,&[&agent_a,&agent_b],&[&agent_a,&agent_b]);
+    wire::send(&mut client.stream,"tab.view",None,wire::ViewTarget {tab_id:agent_b.clone(),request_generation:202,resize:None}).unwrap();
+    for _ in 0..2 { wire::send(&mut client.stream,"tab.close",Some(81),wire::TabTarget {tab_id:agent_b.clone()}).unwrap(); }
+    for _ in 0..2 { let (_,answer):(_,wire::ResultBody) = wire::body(&client.next("tab.closed")).unwrap(); assert!(answer.accepted); }
+    client.order(&[&agent_a]);
+    wire::send(&mut client.stream,"tab.close",Some(82),wire::TabTarget {tab_id:agent_b.clone()}).unwrap();
+    let (_,answer):(_,wire::ResultBody) = wire::body(&client.next("tab.closed")).unwrap();
+    assert!(answer.accepted); assert_eq!(answer.message,None);
+    wire::send(&mut client.stream,"tab.view",None,wire::ViewTarget {tab_id:agent_b,request_generation:203,resize:None}).unwrap();
+    client.first_view_order(&agent_a,204,&[&agent_a],&[&agent_a]);
+    client.order(&[&agent_a]);
+    assert_eq!(a.wait_child(),old);
+}
+
+#[test]
+fn explicit_source_routes_read_live_cohorts_without_loading_or_replacing_their_code() {
+    use terminal_host_contracts::roles::source_route::{SourceRead, SourceRoute};
+    let root = tempfile::tempdir().unwrap();
+    let (a, b) = hosts(root.path());
+    a.call(&["server", "--detach"]);
+    a.create();
+    let original = a.wait_child();
+    let marker = a.marker();
+    let route = SourceRoute::open_fixture(&a.profile.join("."), &a.data, &a.release, &a.executable).unwrap();
+    assert_eq!(route.release_id(), marker["releaseId"].as_str().unwrap());
+    assert_eq!(route.source_scope(), scope::fixture_token(&a.profile, &a.executable).unwrap());
+    let contract = route.read(SourceRead::Description, Duration::from_secs(5)).unwrap();
+    assert_eq!(contract["epoch"], route.epoch());
+    assert_eq!(contract["releaseId"], route.release_id());
+    let list = route.read(SourceRead::Tabs, Duration::from_secs(5)).unwrap();
+    assert_eq!(list["tabs"][0]["tabId"], "tab-1");
+    assert_eq!(a.wait_child(), original);
+    assert_eq!(a.marker()["pid"], marker["pid"]);
+    // Security: no fallback into an unselected source, root or profile is authorized.
+    assert!(SourceRoute::open_fixture(&b.profile, &b.data, &b.release, &b.executable).is_err());
+    assert!(SourceRoute::open_fixture(&a.profile, &a.data, &b.release, &a.executable).is_err());
+    let other_profile = root.path().join("other-profile");
+    std::fs::create_dir_all(&other_profile).unwrap();
+    assert!(SourceRoute::open_fixture(&other_profile, &a.data, &a.release, &a.executable).is_err());
+    assert!(!b.state().join("registry.json").exists());
+    assert_eq!(a.wait_child(), original);
+    // Invariant: explicit fixture shutdown invalidates captured custody instead of retargeting it.
+    a.call(&["tabs", "host-stop"]);
+    assert!(route.read(SourceRead::Tabs, Duration::from_secs(1)).is_err());
+}
+
+#[test]
+fn runtime_control_description_is_authenticated_read_only_and_release_bound() {
+    let root = tempfile::tempdir().unwrap();
+    let (a, b) = hosts(root.path());
+    assert_eq!(a.call(&["tabs", "runtime-control"])["host"], "none");
+    assert!(!a.state().join("registry.json").exists());
+    a.call(&["server", "--detach"]);
+    a.create();
+    let child = a.wait_child();
+    let marker = a.marker();
+    // Concurrency: child readiness can precede the launch worker's final registry commit.
+    // Its permit is released only after that commit; keep exact revision equality below.
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        if a.call(&["tabs", "host-status"])["result"]["starts"]["active"] == 0 { break; }
+        assert!(Instant::now() < deadline, "fixture launch worker did not finish");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let registry = RegistryStore::read(&a.state().join("registry.json")).unwrap().unwrap();
+    for _ in 0..3 {
+        let report = a.call(&["tabs", "runtime-control"]);
+        assert_eq!(report["host"], "running");
+        let description = &report["result"];
+        assert_eq!(description["api"], "resident-control-v1");
+        assert_eq!(description["releaseId"], marker["releaseId"]);
+        assert_eq!(description["scope"], scope::fixture_token(&a.profile, &a.executable).unwrap());
+        assert_eq!(description["epoch"], registry.epoch);
+        assert_eq!(description["bootId"], registry.boot_id);
+        assert_eq!(description["osSessionId"], registry.os_session_id);
+        assert_eq!(description["retryInput"], false);
+        assert_eq!(a.wait_child(), child);
+        assert_eq!(a.marker()["pid"], marker["pid"]);
+    }
+    // Invariant: the same API/generation never substitutes a foreign namespace or starts B.
+    assert_eq!(b.call(&["tabs", "runtime-control"])["host"], "none");
+    assert!(!b.state().join("registry.json").exists());
+    assert_eq!(RegistryStore::read(&a.state().join("registry.json")).unwrap().unwrap(), registry);
+
+    use terminal_host_contracts::roles::wire;
+    let mut unauthorized = terminal_host_contracts::endpoint::connect(marker["endpoint"].as_str().unwrap()).unwrap();
+    wire::send(&mut unauthorized, "hello", Some(1), serde_json::json!({
+        "role": "maintain", "generation": 1, "build": "fixture",
+        "releaseId": marker["releaseId"], "token": vec![0_u8; 32],
+    })).unwrap();
+    terminal_host_contracts::endpoint::set_handshake_deadline(&unauthorized, Duration::from_secs(4)).unwrap();
+    let refusal = wire::read_payload(&mut unauthorized).unwrap().unwrap();
+    assert_eq!(wire::kind(&refusal).unwrap().message_type, "refused");
+    assert_eq!(a.wait_child(), child);
 }
 
 #[test]

@@ -165,9 +165,12 @@ describe("resident tab launch contracts", () => {
     transport.emit("data", encodeResidentFrame({ type: "welcome", body: { generation: 1, features: ["bridge-route"] } }));
     await start;
     transport.emit("data", encodeResidentFrame({ type: "bridge.route", body: { route: "settings" } }));
+    transport.emit("data", encodeResidentFrame({ type: "bridge.client", body: { version: "0.3.1" } }));
+    transport.emit("data", encodeResidentFrame({ type: "bridge.client", body: { version: "0.3.1\ninvalid" } }));
     const commands: unknown[] = [];
     bridge.onCommand(command => commands.push(command));
-    expect(commands).toEqual([{ type: "route", route: "settings" }]);
+    expect(commands).toEqual([{ type: "route", route: "settings" }, { type: "client", version: "0.3.1" }]);
+    expect(bridge.captureAttachment()).toBeNull();
     expect(bridge.tabId).toBe("settings-1");
     bridge.close();
   });

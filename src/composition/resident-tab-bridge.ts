@@ -1,4 +1,5 @@
-import type { TabBridgeClient } from "../foundation/resident-tabs/bridge-client.js";
+import type { OwnedUiReleaseUpdate } from "../contracts/owned-ui/index.js";
+import type { TabBridgeClient, TabBridgeCommand } from "../foundation/resident-tabs/bridge-client.js";
 import { residentUtilityRoute, type ResidentTabRoute } from "../foundation/resident-tabs/routes.js";
 import type { ResidentTabRecovery } from "../foundation/resident-tabs/recovery.js";
 import { deriveResidentTabStatus, type ResidentTabTurnSettlement } from "../features/resident-tab/status-deriver.js";
@@ -51,7 +52,7 @@ export async function bindResidentTabBridge(
   tabBridge: TabBridgeClient,
   backend: Pick<ComposedSessionBackend, "identity" | "session" | "workflows" | "generateResidentTabName">,
   recovery: Pick<ResidentTabRecovery, "settled"> | null = null,
-  options: { readonly autoName?: boolean; readonly openRoute?: (route: ResidentTabRoute) => void } = {},
+  options: { readonly autoName?: boolean; readonly openRoute?: (route: ResidentTabRoute) => void; readonly onClientVersion?: (version: string) => void } = {},
 ): Promise<() => void> {
   await tabBridge.start().catch(() => false);
   tabBridge.status("starting");
@@ -125,18 +126,8 @@ export async function bindResidentTabBridge(
     }), false, pendingRequests, queuedInput);
   };
   announceSession();
-  const unsubscribeCommands = typeof tabBridge.onCommand === "function" ? tabBridge.onCommand(command => {
-    // Invariant: visibility stays decoded for generation-1 peers but never pauses rendering; a hidden tab
-    // keeps its resident terminal current while the holder withholds only its client surfaces.
-    if (command.type === "rename") {
-      void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
-    } else if (command.type === "route") {
-      if (options.openRoute !== undefined) options.openRoute(command.route);
-      else void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
-    } else if (command.type === "stop") {
-      void backend.session.dispose().catch(() => {});
-    }
-  }) : () => {};
+  const unsubscribeCommands = typeof tabBridge.onCommand === "function"
+    ? tabBridge.onCommand(command => applyBridgeCommand(command, backend, options)) : () => {};
   const unsubscribeEvents = backend.session.onEvent(event => {
     if (event.type === "session-lifecycle") {
       const wasWorking = working;
@@ -169,6 +160,46 @@ export async function bindResidentTabBridge(
     unsubscribeCommands();
     unsubscribeEvents();
   };
+}
+
+function applyBridgeCommand(command: TabBridgeCommand, backend: Parameters<typeof bindResidentTabBridge>[1], options: NonNullable<Parameters<typeof bindResidentTabBridge>[3]>): void {
+  // Invariant: visibility never pauses resident rendering or autonomous work.
+  if (command.type === "client") options.onClientVersion?.(command.version);
+  else if (command.type === "rename") void backend.workflows.executeWorkflow({ command: "name", argument: command.name }).catch(() => {});
+  else if (command.type === "route") {
+    if (options.openRoute !== undefined) options.openRoute(command.route);
+    else void backend.workflows.executeWorkflow({ command: command.route, argument: "" }).catch(() => {});
+  } else if (command.type === "stop") void backend.session.dispose().catch(() => {});
+}
+
+export function createResidentClientIdentity(announce: (update: OwnedUiReleaseUpdate) => void) {
+  let version: string | null = null;
+  let changed: (() => void) | undefined;
+  return {
+    current: () => version,
+    onChange: (listener: () => void) => { changed = listener; },
+    observe: (next: string) => {
+      if (next === version) return;
+      version = next;
+      announce({ status: "client-connected", version: next });
+      changed?.();
+    },
+  };
+}
+
+/** Input ownership is established before the presenter starts, and released if bridge binding fails. */
+export async function bindResidentPresentation(
+  bridge: TabBridgeClient | null,
+  backend: Parameters<typeof bindResidentTabBridge>[1],
+  recovery: Parameters<typeof bindResidentTabBridge>[2],
+  options: Parameters<typeof bindResidentTabBridge>[3],
+  input: { addPreInputListener(listener: (data: string) => { data: string }): () => void },
+): Promise<{ unsubscribeTabBridge: () => void; removeControllerBoundaryInput: () => void }> {
+  if (bridge === null) return { unsubscribeTabBridge() {}, removeControllerBoundaryInput() {} };
+  const removeControllerBoundaryInput = input.addPreInputListener(data => ({ data: bridge.consumeControllerBoundaryInput(data) }));
+  try {
+    return { unsubscribeTabBridge: await bindResidentTabBridge(bridge, backend, recovery, options), removeControllerBoundaryInput };
+  } catch (error) { removeControllerBoundaryInput(); throw error; }
 }
 
 export async function correlateResidentTabSubmission(

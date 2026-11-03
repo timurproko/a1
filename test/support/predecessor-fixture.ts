@@ -125,6 +125,17 @@ export class PredecessorFixture {
     return root;
   }
 
+  /** Keeps Unix socket endpoints below the native path limit even under macOS's long temporary root. */
+  async temporaryRuntimeRoot(): Promise<string> {
+    return this.temporaryRoot(process.platform === "win32" ? "a1-resident-runtime-" : "/tmp/a1-r-");
+  }
+
+  /** Retains every fixture root when an independently resident process cannot be proven stopped. */
+  retainForUnverifiedResident(path: string): void {
+    this.#owningRoot(path);
+    this.#unsafeCleanup = true;
+  }
+
   /** Never removes roots until active operations settle; cleanup failure retains unsafe roots for diagnosis. */
   close(timeoutMs = 120_000): Promise<void> {
     this.#close ??= this.#finish(timeoutMs);

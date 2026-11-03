@@ -36,6 +36,7 @@ export function readProgressObservations(directory: string, runId: string): Prom
   files: string[];
 }>;
 export function validateProgressObservations(records: readonly ProgressObservation[], runId: string): string[];
+export function createProgressObservationValidator(runId: string): (records: readonly ProgressObservation[]) => string[];
 export function evaluateProgressScenario(records: readonly ProgressObservation[], scenario: {
   readonly id: string;
   readonly tabIds: readonly string[];

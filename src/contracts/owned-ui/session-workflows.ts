@@ -382,6 +382,7 @@ export interface OwnedUiVisualExtensionSupport {
 
 /** A newer release found by the startup check, or one installed for the next restart. */
 export type OwnedUiReleaseUpdate =
+  | { readonly status: "client-connected"; readonly version: string }
   | {
     readonly status?: "available";
     readonly version: string;

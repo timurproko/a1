@@ -63,9 +63,25 @@ describe("EngineViewState", () => {
     expect(state.revision).toBe(3);
   });
 
+  it("acknowledges connected-client readiness without changing busy execution, drafts or queued work", () => {
+    const state = new EngineViewState(); state.markReady(); state.offerEditorText("unsent draft");
+    state.setQueuedSubmissions(["queued original"]); state.enterWork("tool still running");
+    state.diagnosticsState.record("info", "release-update-installed", "Update 0.3.1 installed; restart to update.", true);
+    state.diagnosticsState.record("warning", "independent-warning", "keep this warning", true);
+    const editor = state.editor;
+    expect(state.diagnosticsState.acknowledgeClientVersion("0.3.0")).toBe(false);
+    expect(state.diagnosticsState.acknowledgeClientVersion("invalid")).toBe(false);
+    expect(state.diagnosticsState.acknowledgeClientVersion("0.3.1")).toBe(true);
+    expect(state.diagnosticsState.acknowledgeClientVersion("0.3.1")).toBe(false);
+    expect(state.editor).toBe(editor); expect(state.lifecycle).toBe("busy");
+    expect(state.status.workingMessage).toBe("tool still running");
+    expect(state.diagnostics.map(diagnostic => diagnostic.code)).toEqual(["independent-warning"]);
+    expect(state.status.diagnostics).toEqual(["keep this warning"]);
+  });
+
   it("keeps the last hundred diagnostics and the last eight status messages", () => {
     const state = new EngineViewState();
-    for (let index = 0; index < 105; index++) state.recordDiagnostic("warning", "code", `message ${index}`, true);
+    for (let index = 0; index < 105; index++) state.diagnosticsState.record("warning", "code", `message ${index}`, true);
     expect(state.diagnostics).toHaveLength(100);
     expect(state.diagnostics[0]?.message).toBe("message 5");
     expect(state.status.diagnostics).toHaveLength(8);
