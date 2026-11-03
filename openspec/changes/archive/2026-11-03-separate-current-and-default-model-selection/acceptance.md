@@ -4,7 +4,7 @@ Verdict: accepted only when an authorized human directly merges the containing e
 
 The maintainer integration decision accepts these scenarios:
 - Models-dialog selection changes only the active session model while preserving the saved default and model scope behavior.
-- Settings provides a searchable authenticated-model configurator that persists the default for future sessions without changing the active model or thinking state.
+- Settings places `Default model` above per-model thinking and uses concise model rows with a green persisted-default checkmark after the provider.
 - Failed default-model persistence retains the prior default and selector state, while the comparison profile keeps its existing model-selection behavior.
 
 ```openspec-delivery
@@ -19,12 +19,12 @@ The maintainer integration decision accepts these scenarios:
   "specBaseSha": "ebe579aafe67e84a7d77b1769d8e8a972d5a30dc",
   "acceptanceScenarios": [
     "Models-dialog selection changes only the active session model while preserving the saved default and model scope behavior.",
-    "Settings provides a searchable authenticated-model configurator that persists the default for future sessions without changing the active model or thinking state.",
+    "Settings places `Default model` above per-model thinking and uses concise model rows with a green persisted-default checkmark after the provider.",
     "Failed default-model persistence retains the prior default and selector state, while the comparison profile keeps its existing model-selection behavior."
   ],
-  "archiveDigest": "df21bc6f4347ec9b4010d213d12f832285f1ef5bd3d0b929087a7f22e2bd4d0e",
-  "specDigest": "0f16f2b83efaf19b66e1ce64c6243d6c4fb4d9b8ef6d5241a7e15a198bf01fb4",
-  "tasksDigest": "b45b6fbf40fcc60f276afe1fa069a6b5982d46a5ebf00036c426076f45a173c4",
+  "archiveDigest": "62f487ec56bfa2de49d1157987e0ee41f25f7eab882191c43968e9e5914d479e",
+  "specDigest": "e6d598d81ce7eb54c2c31cacd985f97d5a7aefd7f5e9c53c112a9cf4040160ba",
+  "tasksDigest": "7182d9e68134dbcf88c99d5c8c635328590966cc2f4d3fe763c4557c73aa947d",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
