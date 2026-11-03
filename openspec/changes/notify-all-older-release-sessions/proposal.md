@@ -1,6 +1,6 @@
 ## Why
 
-A verified automatic update can become active while older resident or solo sessions keep running, but those sessions currently learn that restart is required only after their own registry discovery succeeds. A failed or stale discovery can therefore hide `Update installed · Restart to update`, and the resident tab bar does not identify which A1 version the attached client is actually running.
+A verified automatic update can become active while older resident or solo sessions keep running, but those sessions currently learn that restart is required only after their own registry discovery succeeds. A failed or stale discovery can therefore hide `Update installed, restart to update`, and the resident tab bar does not identify which A1 version the attached client is actually running.
 
 ## What Changes
 

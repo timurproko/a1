@@ -21,13 +21,13 @@ See `proposal.md` for motivation. Release discovery and restart-readiness are cu
 
 ### D1. Restart readiness gets an independent local observer
 
-The release-update observation will own two independent activities: existing registry discovery/automatic installation, and a short local observation loop. The local loop reads approved cohort state immediately after first-frame startup and every five seconds until it finds a newer valid same-channel active release, the process disposes, or the process becomes ineligible because its executing version is unpublished. It emits the existing semantic `installed` update once and then stops.
+The release-update observation will own two independent activities: existing registry discovery/automatic installation, and a local release-state observer. The local observer reads approved cohort state immediately after first-frame startup, reacts promptly when the atomic release-state file changes, and retains a bounded low-frequency fallback check for missed or coalesced filesystem events. It stops when it finds a newer valid same-channel active release, the process disposes, or the process becomes ineligible because its executing version is unpublished. It emits the existing semantic `installed` update once and then stops.
 
-This local read runs in `Auto`, `Notify`, and `No`, and despite network-oriented version-check opt-outs, because it performs no cache read, registry request, worker launch, or mutation. The network path retains every existing eligibility rule. A separate timer avoids turning the five-second local cadence into cache-lock or registry cadence.
+This local read runs in `Auto`, `Notify`, and `No`, and despite network-oriented version-check opt-outs, because it performs no cache read, registry request, worker launch, or mutation. The network path retains every existing eligibility rule. Independent local observation avoids turning filesystem events or fallback checks into cache-lock or registry cadence.
 
 *Alternative:* rely on the existing fifteen-minute discovery loop. Rejected because a failed fetch still suppresses the notice and the delay is too long for an already-completed local activation.
 
-*Alternative:* use filesystem watch events only. Rejected because rename-based atomic writes and cross-platform watcher behavior can lose or coalesce events; bounded polling is deterministic and small.
+*Alternative:* use either filesystem events or polling alone. Events alone can be lost or coalesced around atomic rename on supported platforms; polling alone adds needless detection latency or frequent reads. Immediate event-driven checks with a bounded fallback preserve responsiveness and reliability.
 
 ### D2. One fail-closed local reader defines process staleness
 
@@ -37,7 +37,7 @@ A foundation helper will read bounded cohort state through the existing store an
 
 ### D3. The existing semantic status remains the only session UI
 
-Each process sends the existing `{ status: "installed", version }` event to its own backend. Existing diagnostic de-duplication and compact rendering keep the notice persistent and non-transcript. Resident Agent processes, solo processes, and comparison processes observe independently; no one process is designated as the broadcaster or completion owner.
+Each process sends the existing `{ status: "installed", version }` event to its own backend. Existing diagnostic de-duplication and compact rendering keep the exact `Update installed, restart to update` notice persistent and non-transcript. Resident Agent processes, solo processes, and comparison processes observe independently; no one process is designated as the broadcaster or completion owner.
 
 This deliberately makes notification process-local but state-derived: every process reaches the same result from shared durable state even if the process that installed the release exits.
 
