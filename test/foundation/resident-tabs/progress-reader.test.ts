@@ -4,6 +4,7 @@ import {
   mkdtemp,
   rm,
   unlink,
+  utimes,
   writeFile,
 } from "node:fs/promises";
 import { join } from "node:path";
@@ -68,6 +69,29 @@ describe("live progress observation reader", () => {
     expect(
       await readVerifiedProgressObservations(f.root, "run", f.read),
     ).toEqual(await readProgressObservations(f.root, "run"));
+  });
+  it("accepts a metadata-only timestamp update after verifying the consumed bytes", async () => {
+    const f = await fixture();
+    await writeFile(f.file, line(1));
+    const first = await f.read();
+    const later = new Date(Date.now() + 60_000);
+    await utimes(f.file, later, later);
+    const second = await f.read();
+    expect(second).toBe(first);
+    expect(second.faults).toEqual([]);
+  });
+  it("fails closed when consumed bytes change without changing file length", async () => {
+    const f = await fixture();
+    await writeFile(f.file, line(1));
+    await f.read();
+    const changed = `${JSON.stringify({ ...record(1), count: 2 })}\n`;
+    expect(Buffer.byteLength(changed)).toBe(Buffer.byteLength(line(1)));
+    await writeFile(f.file, changed);
+    const later = new Date(Date.now() + 60_000);
+    await utimes(f.file, later, later);
+    expect((await f.read()).faults).toContain(
+      "native.jsonl: append-only observation file changed",
+    );
   });
   it("retains a partial record until its newline and preserves split UTF-8", async () => {
     const f = await fixture();

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { open, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -6,6 +7,24 @@ import {
   createProgressObservationValidator,
   readProgressObservations,
 } from "./resident-progress-observations.mjs";
+
+async function digestPrefix(file, length) {
+  const hash = createHash("sha256");
+  const buffer = Buffer.allocUnsafe(64 * 1024);
+  let offset = 0;
+  while (offset < length) {
+    const { bytesRead } = await file.read(
+      buffer,
+      0,
+      Math.min(buffer.length, length - offset),
+      offset,
+    );
+    if (bytesRead === 0) return null;
+    hash.update(buffer.subarray(0, bytesRead));
+    offset += bytesRead;
+  }
+  return hash.digest("hex");
+}
 
 /** Append-only live diagnostics; bounded parsing batches let the same process keep draining its PTY. */
 export function createProgressObservationReader(directory, runId) {
@@ -34,6 +53,7 @@ export function createProgressObservationReader(directory, runId) {
             line: 0,
             tail: "",
             decoder: new StringDecoder("utf8"),
+            hash: createHash("sha256"),
             dev: stat.dev,
             ino: stat.ino,
             modified: stat.mtimeMs,
@@ -42,11 +62,22 @@ export function createProgressObservationReader(directory, runId) {
         } else if (
           cursor.dev !== stat.dev ||
           cursor.ino !== stat.ino ||
-          stat.size < cursor.offset ||
-          (stat.size === cursor.offset && cursor.modified !== stat.mtimeMs)
+          stat.size < cursor.offset
         ) {
           faults.add(`${name}: append-only observation file changed`);
           continue;
+        } else if (
+          stat.size === cursor.offset &&
+          cursor.modified !== stat.mtimeMs
+        ) {
+          // Security: metadata timestamps are not proof of content mutation; verify the consumed prefix
+          // before accepting a close-time or filesystem-delayed timestamp update on an unchanged file.
+          const observed = await digestPrefix(file, cursor.offset);
+          const expected = cursor.hash.copy().digest("hex");
+          if (observed !== expected) {
+            faults.add(`${name}: append-only observation file changed`);
+            continue;
+          }
         }
         while (cursor.offset < stat.size) {
           buffer ??= Buffer.allocUnsafe(64 * 1024);
@@ -61,6 +92,7 @@ export function createProgressObservationReader(directory, runId) {
             break;
           }
           cursor.offset += bytesRead;
+          cursor.hash.update(buffer.subarray(0, bytesRead));
           const lines = (
             cursor.tail + cursor.decoder.write(buffer.subarray(0, bytesRead))
           ).split("\n");
