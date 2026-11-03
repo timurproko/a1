@@ -979,7 +979,8 @@ describe("the settings screen", () => {
     expect(backing.writes).toHaveLength(0);
 
     target.onInput?.(ENTER, HOST);
-    expect(modalScreen(target).join("\n")).toContain("Saving default model…");
+    expect(screen(target).join("\n")).not.toContain("Default Model");
+    expect(screen(target).join("\n")).not.toContain("Saving default model");
     await settleChanges();
     expect(backing.writes).toEqual([{ key: "defaultModel", value: "openai/gpt-5.3-codex-spark" }]);
     expect(screen(target).join("\n")).not.toContain("Default Model");
@@ -993,6 +994,7 @@ describe("the settings screen", () => {
     failingTarget.onInput?.(ENTER, HOST);
     failingTarget.onInput?.(DOWN, HOST);
     failingTarget.onInput?.(ENTER, HOST);
+    expect(screen(failingTarget).join("\n")).not.toContain("Default Model");
     await settleChanges();
     expect(modalScreen(failingTarget).join("\n")).toContain("Default Model");
     expect(modalScreen(failingTarget).join("\n")).toContain("Could not save: settings are read-only");

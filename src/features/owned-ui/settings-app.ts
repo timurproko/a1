@@ -191,7 +191,6 @@ interface StructuredEdit {
   modelKey: string | null;
   modelIndex: number;
   index: number;
-  saving: boolean;
   error: string | null;
   readonly record: Record<string, boolean | string>;
 }
@@ -693,7 +692,6 @@ export class SettingsApp implements UiApp {
       modelKey: null,
       modelIndex: 0,
       index: modelDialog === "default" ? Math.max(0, entry.flags.findIndex(flag => flag.key === currentDefault)) : 0,
-      saving: false,
       error: null,
       record,
     };
@@ -735,28 +733,27 @@ export class SettingsApp implements UiApp {
       const flags = this.#filteredModelFlags(open);
       const action = MODEL_SHORTCUTS.resolve(key, MODEL_SCOPE) ?? "edit-filter";
       if (action === "close") {
-        if (!open.saving) this.#structured = null;
+        this.#structured = null;
         return { consumed: true };
       }
       if (action === "previous" || action === "next") {
-        if (!open.saving) open.index = Math.min(Math.max(0, flags.length - 1), Math.max(0, open.index + (action === "next" ? 1 : -1)));
+        open.index = Math.min(Math.max(0, flags.length - 1), Math.max(0, open.index + (action === "next" ? 1 : -1)));
         return { consumed: true };
       }
       if (action === "select") {
         const selected = flags[open.index];
-        if (selected === undefined || open.saving) return { consumed: true, render: false };
-        open.saving = true;
+        if (selected === undefined) return { consumed: true, render: false };
         open.error = null;
+        this.#structured = null;
         void this.#session.change(open.entry.backend, open.entry.id, selected.key).then(outcome => {
-          if (this.#structured !== open) return;
-          open.saving = false;
           const failure = changeFailure(outcome);
-          if (failure === null) this.#structured = null;
-          else open.error = `Could not save: ${failure}`;
+          if (failure !== null) {
+            open.error = `Could not save: ${failure}`;
+            this.#structured = open;
+          }
         });
         return { consumed: true };
       }
-      if (open.saving) return { consumed: true, render: false };
       if (open.filter === null) return { consumed: true, render: false };
       handleLineInputKey(open.filter, data);
       open.index = 0;
@@ -1232,7 +1229,7 @@ export class SettingsApp implements UiApp {
           ...(flag.key === current ? { successSuffix: "✓" } : {}),
           value: "",
         }));
-      const description = open.error ?? (open.saving ? "Saving default model…" : "Select the model used for new sessions");
+      const description = open.error ?? "Select the model used for new sessions";
       const visible = dialogWindow(rows, open.index, configureDialogChoiceCapacity(height, true, configureDialogTextRows(description, width)));
       return renderSteppedDialogPanel({
         title: "Default Model", description, input: open.filter ?? new LineInput(""),
