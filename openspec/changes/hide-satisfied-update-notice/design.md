@@ -37,7 +37,7 @@ Missing, malformed, oversized, blocked, failed, running, mismatched, or newer-ta
 
 ### 3. Project only the exact owned phrase from structured surfaces
 
-Before committing a complete structured child surface, the attach presentation boundary may replace only cells comprising the exact visible phrase `Update installed, restart to update` with equivalent-width blank default cells. The adapter requires one exact contiguous match on one row and does not search transcript history, parse arbitrary diagnostics, alter neighboring cells, change row/column counts, or move the cursor.
+Before committing a complete structured child surface, the attach presentation boundary may replace only cells comprising the exact visible phrase `Update installed, restart to update` with equivalent-width blank default cells. The adapter requires one exact contiguous match on one complete-width row, right-aligned at the final cell or immediately before the owned rail, with one uniform nondefault style and no links. It does not parse arbitrary diagnostics, alter neighboring cells, change row/column counts, or move the cursor. Nonexact, left-aligned, mixed-style, linked, ambiguous, or incomplete rows remain unchanged.
 
 This is an explicit narrow exception to the prior no-terminal-scraping preference. It is justified because immutable predecessors cannot consume the newer semantic acknowledgement, the current client has durable proof that the instruction is satisfied, and broad text interpretation remains forbidden. If the phrase, structure, or proof does not match exactly, no projection occurs.
 
