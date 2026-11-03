@@ -1,6 +1,6 @@
 import type { OwnedUiBackgroundStyle, OwnedUiTimeFormat, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 19;
+export const OWNED_UI_SETTINGS_VERSION = 20;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "blue", "purple", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
@@ -45,6 +45,13 @@ const PLUS_MENU_VALUES = Object.freeze([
   "", "agent", "settings", "changelog", "agent,settings", "agent,changelog", "settings,changelog", "agent,settings,changelog",
 ] as const);
 
+/** The right-side strip items, in their fixed presentation order. */
+const TAB_BAR_RIGHT_ITEMS = Object.freeze([
+  Object.freeze({ key: "version", label: "Version", description: "Show the executing A1 version." }),
+  Object.freeze({ key: "time", label: "Time", description: "Show the current time." }),
+]);
+const TAB_BAR_RIGHT_ITEM_VALUES = Object.freeze(["", "version", "time", "version,time"] as const);
+
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   updateCheck: Object.freeze({
     id: "updateCheck",
@@ -59,7 +66,7 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     id: "timeFormat",
     label: "Time format",
     section: GENERIC_SECTION,
-    description: "Format used by submitted-prompt timestamps and the resident tab clock.",
+    description: "Format used by submitted-prompt timestamps and the resident tab clock when Time is enabled.",
     application: "live",
     defaultValue: "8:00 PM",
     allowedValues: Object.freeze([
@@ -194,6 +201,16 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     defaultValue: "agent",
     allowedValues: PLUS_MENU_VALUES,
     flags: PLUS_MENU_KINDS,
+  }),
+  tabBarRightItems: Object.freeze({
+    id: "tabBarRightItems",
+    label: "Right side",
+    section: TABS_SECTION,
+    description: "Choose whether the tab bar's right side shows the executing Version, Time, both, or neither.",
+    application: "live",
+    defaultValue: "version,time",
+    allowedValues: TAB_BAR_RIGHT_ITEM_VALUES,
+    flags: TAB_BAR_RIGHT_ITEMS,
   }),
   tabsAutoName: Object.freeze({
     id: "tabsAutoName",

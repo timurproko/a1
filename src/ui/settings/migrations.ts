@@ -160,6 +160,13 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return { ...values };
     },
   }),
+  Object.freeze({
+    to: 20,
+    description: "Introduce the resident tab-bar Version and Time defaults.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      return { ...values };
+    },
+  }),
 ]);
 
 export interface OwnedUiSettingsCompatibilityResult {

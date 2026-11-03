@@ -69,7 +69,7 @@ import type {
   OwnedUiSettingsEntry,
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
-import { PLUS_MENU_SETTING_ID, PlusMenuDialog } from "./plus-menu-dialog.js";
+import { FlagToggleDialog, PLUS_MENU_SETTING_ID, PlusMenuDialog } from "./plus-menu-dialog.js";
 import { SETTINGS_APP_ID } from "./settings-route.js";
 import type { SettingsSearchInput, SettingsSearchInputFactory } from "./settings-search-input.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
@@ -92,6 +92,7 @@ const SCROLL_LINGER_MS = 900;
 const SCROLL_LINGER_REPAINT_MS = 925;
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
+const TAB_BAR_RIGHT_ITEMS_SETTING_ID = "tabBarRightItems";
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
@@ -184,8 +185,8 @@ interface StructuredEdit {
   readonly entry: OwnedUiSettingsEntry;
   readonly flags: readonly string[];
   readonly modelDialog: "thinking" | "default" | null;
-  /** The plus menu's own dialog, when this is that setting. */
-  readonly plusMenu: PlusMenuDialog | null;
+  /** Searchable flag dialog for owned tab-bar configuration. */
+  readonly flagDialog: FlagToggleDialog | null;
   readonly filter: LineInput | null;
   step: "model" | "level";
   modelKey: string | null;
@@ -686,7 +687,13 @@ export class SettingsApp implements UiApp {
       entry,
       flags: entry.flags.map(flag => flag.key),
       modelDialog,
-      plusMenu: entry.backend === "a1" && entry.id === PLUS_MENU_SETTING_ID ? new PlusMenuDialog(entry.flags) : null,
+      flagDialog: entry.backend !== "a1" ? null
+        : entry.id === PLUS_MENU_SETTING_ID ? new PlusMenuDialog(entry.flags)
+          : entry.id === TAB_BAR_RIGHT_ITEMS_SETTING_ID ? new FlagToggleDialog(entry.flags, {
+            title: "Tab Bar Right Side",
+            description: "Choose what the right side of the tab bar shows.",
+            empty: "No items match",
+          }) : null,
       filter: modelDialog === null ? null : new LineInput(""),
       step: "model",
       modelKey: null,
@@ -701,8 +708,8 @@ export class SettingsApp implements UiApp {
     const open = this.#structured;
     if (open === null) return { consumed: false };
     if (open.modelDialog !== null) return this.#modelDialogKey(open, data);
-    if (open.plusMenu !== null) {
-      const outcome = open.plusMenu.handle(KEYS[data] ?? data, data, key => this.#toggleFlag(open.flags.indexOf(key)));
+    if (open.flagDialog !== null) {
+      const outcome = open.flagDialog.handle(KEYS[data] ?? data, data, key => this.#toggleFlag(open.flags.indexOf(key)));
       if (outcome === "close") this.#structured = null;
       return { consumed: true };
     }
@@ -1200,7 +1207,7 @@ export class SettingsApp implements UiApp {
 
   #dialogLines(open: StructuredEdit, width: number, height: number, theme: UiTheme): readonly string[] {
     if (open.modelDialog !== null) return this.#modelDialogLines(open, width, height, theme);
-    if (open.plusMenu !== null) return open.plusMenu.lines(open.record, width, theme);
+    if (open.flagDialog !== null) return open.flagDialog.lines(open.record, width, theme);
     const rows = open.flags.map(key => {
       const declared = open.entry.flags.find(flag => flag.key === key);
       return {

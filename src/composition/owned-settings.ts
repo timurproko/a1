@@ -23,7 +23,7 @@ export function createOwnedSettingsManager(options: OwnedSettingsManagerFactoryO
     legacyConfigDir: productPaths.configDir,
     ...(options.agent === undefined ? {} : { agent: options.agent }),
     ...(options.agentProvider === undefined ? {} : { agentProvider: options.agentProvider }),
-    ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabBarPlusMenu"] } : {}),
+    ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabBarPlusMenu", "tabBarRightItems"] } : {}),
     hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
     agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
   });

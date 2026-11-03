@@ -57,6 +57,19 @@ impl TimeFormat {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StripRightItems {
+    pub version: bool,
+    pub time: bool,
+}
+
+impl StripRightItems {
+    const CLOCK_ONLY: Self = Self {
+        version: false,
+        time: true,
+    };
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StripHover {
     Tab(String),
@@ -668,7 +681,39 @@ pub fn render_interactive_filled_at(
     active_accent: &str,
     fill: Option<&ChipFill>,
 ) -> StripFrame {
-    let mut frame = render_frame_filled(
+    render_interactive_status_filled_at(
+        tabs,
+        viewed,
+        columns,
+        hovered,
+        time_format,
+        rename,
+        row,
+        plus,
+        active_accent,
+        fill,
+        None,
+        StripRightItems::CLOCK_ONLY,
+    )
+}
+
+/// Render the configured right-side executing version and clock with valid strip hit geometry.
+#[allow(clippy::too_many_arguments)]
+pub fn render_interactive_status_filled_at(
+    tabs: &[StripTab],
+    viewed: Option<&str>,
+    columns: u16,
+    hovered: Option<&StripHover>,
+    time_format: TimeFormat,
+    rename: Option<&StripRename>,
+    row: u16,
+    plus: bool,
+    active_accent: &str,
+    fill: Option<&ChipFill>,
+    version: Option<&str>,
+    right_items: StripRightItems,
+) -> StripFrame {
+    let mut frame = render_frame_filled_with_right(
         tabs,
         viewed,
         columns,
@@ -680,6 +725,8 @@ pub fn render_interactive_filled_at(
         plus,
         active_accent,
         fill,
+        version,
+        right_items,
     );
     if row != 1 {
         frame.bytes = frame
@@ -727,6 +774,7 @@ fn render_frame(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn render_frame_filled(
     tabs: &[StripTab],
     viewed: Option<&str>,
@@ -740,25 +788,59 @@ fn render_frame_filled(
     active_accent: &str,
     fill: Option<&ChipFill>,
 ) -> StripFrame {
+    render_frame_filled_with_right(
+        tabs,
+        viewed,
+        columns,
+        hovered,
+        time_format,
+        rename,
+        now,
+        truecolor,
+        plus,
+        active_accent,
+        fill,
+        None,
+        StripRightItems::CLOCK_ONLY,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_frame_filled_with_right(
+    tabs: &[StripTab],
+    viewed: Option<&str>,
+    columns: u16,
+    hovered: Option<&StripHover>,
+    time_format: TimeFormat,
+    rename: Option<&StripRename>,
+    now: Instant,
+    truecolor: bool,
+    plus: bool,
+    active_accent: &str,
+    fill: Option<&ChipFill>,
+    version: Option<&str>,
+    right_items: StripRightItems,
+) -> StripFrame {
     let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
         chip(
             tab, active, hovered, now, truecolor, rename, Some(target), active_accent, fill,
         )
     };
-    // Invariant: reserve controls before the clock on narrow rows. A disabled plus menu
-    // hides `+` and gives its cells to the tabs.
+    // Invariant: reserve controls before the configured right side on narrow rows. A disabled
+    // plus menu or right-side item gives its cells back to the tabs.
     let plus_width = if plus { usize::from(columns).min(3) } else { 0 };
-    let clock_text = clock_text(time_format);
-    let clock = (usize::from(columns)
-        >= UnicodeWidthStr::width(clock_text.as_str())
-            + 1
-            + plus_width
-            + if tabs.is_empty() { 0 } else { 3 })
-    .then_some(clock_text);
-    let clock_reserve = clock
+    let right = right_status_text(
+        columns,
+        tabs.is_empty(),
+        plus_width,
+        time_format,
+        version,
+        right_items,
+    );
+    let right_reserve = right
         .as_deref()
         .map_or(0, |text| UnicodeWidthStr::width(text) + 1);
-    let available = usize::from(columns).saturating_sub(clock_reserve);
+    let available = usize::from(columns).saturating_sub(right_reserve);
     let (selected, tab_width, overflow_width) = select_visible_chips(tabs, viewed, available, plus_width);
 
     let hidden_tabs = tabs
@@ -791,11 +873,11 @@ fn render_frame_filled(
         overflow_width,
         plus_width,
     );
-    let padding = usize::from(columns).saturating_sub(column as usize + clock_reserve);
+    let padding = usize::from(columns).saturating_sub(column as usize + right_reserve);
     bytes.push_str(&" ".repeat(padding));
-    if let Some(clock) = clock {
+    if let Some(right) = right {
         bytes.push_str("\x1b[38;2;170;170;170m");
-        bytes.push_str(&clock);
+        bytes.push_str(&right);
         bytes.push_str("\x1b[0m ");
     }
     // Invariant: every strip cell outside a chip carries the fixed row background, so neither the
@@ -954,6 +1036,34 @@ pub fn hit(frame: &StripFrame, column: u16) -> Option<&StripHit> {
         .iter()
         .find(|(start, end, _)| column >= *start && column < *end)
         .map(|(_, _, hit)| hit)
+}
+
+fn right_status_text(
+    columns: u16,
+    tabs_empty: bool,
+    plus_width: usize,
+    time_format: TimeFormat,
+    version: Option<&str>,
+    items: StripRightItems,
+) -> Option<String> {
+    let time = items.time.then(|| clock_text(time_format));
+    let version = if items.version {
+        version.map(|value| format!("v{value}"))
+    } else {
+        None
+    };
+    let minimum = plus_width + if tabs_empty { 0 } else { 3 };
+    let fits = |text: &str| usize::from(columns) >= UnicodeWidthStr::width(text) + 1 + minimum;
+    if let (Some(version), Some(time)) = (version.as_deref(), time.as_deref()) {
+        let both = format!("{version}  {time}");
+        if fits(&both) {
+            return Some(both);
+        }
+        // Compatibility: the existing rightmost clock wins when both configured items cannot fit.
+        return fits(time).then(|| time.to_owned());
+    }
+    time.filter(|text| fits(text))
+        .or_else(|| version.filter(|text| fits(text)))
 }
 
 fn clock_text(format: TimeFormat) -> String {
@@ -1660,6 +1770,130 @@ mod tests {
             assert!(plain(&frame.bytes).ends_with(' '));
             assert_eq!(UnicodeWidthStr::width(plain(&frame.bytes).as_str()), 80);
         }
+    }
+
+    #[test]
+    fn renders_configured_version_before_time_and_yields_version_first_on_narrow_rows() {
+        let tabs = [tab("one", "agent")];
+        let render_right = |columns, truecolor, items| {
+            render_frame_filled_with_right(
+                &tabs,
+                Some("one"),
+                columns,
+                None,
+                TimeFormat::Twelve,
+                None,
+                Instant::now(),
+                truecolor,
+                true,
+                "blue",
+                None,
+                Some("0.2.7-dev.1238"),
+                items,
+            )
+        };
+        let both_frame = render_right(
+            80,
+            true,
+            StripRightItems {
+                version: true,
+                time: true,
+            },
+        );
+        let both = plain(&both_frame.bytes);
+        let version_at = both.find("v0.2.7-dev.1238").expect("executing version");
+        let time_at = both[version_at..].find("  ").expect("ordered separator") + version_at;
+        assert!(version_at < time_at);
+        assert_eq!(UnicodeWidthStr::width(both.as_str()), 80);
+        let palette = render_right(
+            80,
+            false,
+            StripRightItems {
+                version: true,
+                time: true,
+            },
+        );
+        assert_eq!(plain(&palette.bytes), both);
+        assert_eq!(palette.hits, both_frame.hits);
+        assert!(
+            plain(
+                &render_right(
+                    80,
+                    true,
+                    StripRightItems {
+                        version: true,
+                        time: false
+                    }
+                )
+                .bytes
+            )
+            .ends_with("v0.2.7-dev.1238 ")
+        );
+        let neither = plain(
+            &render_right(
+                80,
+                true,
+                StripRightItems {
+                    version: false,
+                    time: false,
+                },
+            )
+            .bytes,
+        );
+        assert!(!neither.contains("v0.2.7-dev.1238"));
+        assert_eq!(UnicodeWidthStr::width(neither.as_str()), 80);
+        let narrow_frame = render_right(
+            20,
+            true,
+            StripRightItems {
+                version: true,
+                time: true,
+            },
+        );
+        let narrow = plain(&narrow_frame.bytes);
+        assert!(
+            !narrow.contains("v0.2.7-dev.1238"),
+            "version is omitted before the rightmost clock"
+        );
+        assert!(
+            narrow.contains(':'),
+            "the clock remains when both configured items cannot fit"
+        );
+        assert_eq!(UnicodeWidthStr::width(narrow.as_str()), 20);
+        assert!(
+            narrow_frame
+                .hits
+                .iter()
+                .all(|(start, end, _)| start < end && *end <= 20)
+        );
+        let crowded = (0..8)
+            .map(|index| tab(&format!("tab-{index}"), "long agent"))
+            .collect::<Vec<_>>();
+        let overflow = render_frame_filled_with_right(
+            &crowded,
+            Some("tab-0"),
+            40,
+            None,
+            TimeFormat::Twelve,
+            None,
+            Instant::now(),
+            true,
+            true,
+            "blue",
+            None,
+            Some("0.2.7-dev.1238"),
+            StripRightItems {
+                version: true,
+                time: true,
+            },
+        );
+        assert!(!overflow.hidden_tabs.is_empty());
+        assert!(
+            overflow
+                .hits
+                .iter()
+                .any(|(_, _, hit)| matches!(hit, StripHit::Overflow))
+        );
     }
 
     #[test]

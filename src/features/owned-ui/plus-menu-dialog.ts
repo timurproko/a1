@@ -18,8 +18,11 @@ export interface PlusMenuKind {
   readonly label: string;
 }
 
-const TITLE = "Plus Menu";
-const DESCRIPTION = "Choose what the + button in the tab bar can add.";
+const PLUS_MENU_PRESENTATION = Object.freeze({
+  title: "Plus Menu",
+  description: "Choose what the + button in the tab bar can add.",
+  empty: "No tabs match",
+});
 const HINTS: readonly ShortcutHintEntry[] = [
   { key: "Type", action: "search" },
   { key: "↑↓", action: "navigate" },
@@ -28,18 +31,23 @@ const HINTS: readonly ShortcutHintEntry[] = [
 ];
 const PADDING_X = 2;
 
-/**
- * The plus-menu dialog: every tab kind with `●` when `+` offers it and `○` when not, filtered by typed
- * text. It owns only its filter and the row in hand; the enabled record and its saving stay with the
- * Settings screen that opened it.
- */
-export class PlusMenuDialog {
+/** Presentation copy for a searchable ordered flag multi-select dialog. */
+export interface FlagToggleDialogPresentation {
+  readonly title: string;
+  readonly description: string;
+  readonly empty: string;
+}
+
+/** Owns only filtering and selection; the Settings screen owns enabled state and persistence. */
+export class FlagToggleDialog {
   readonly #kinds: readonly PlusMenuKind[];
+  readonly #presentation: FlagToggleDialogPresentation;
   readonly #filter = new LineInput("");
   #index = 0;
 
-  constructor(kinds: readonly PlusMenuKind[]) {
+  constructor(kinds: readonly PlusMenuKind[], presentation: FlagToggleDialogPresentation) {
     this.#kinds = kinds;
+    this.#presentation = presentation;
   }
 
   /** The kinds the filter keeps, in kind order. */
@@ -82,7 +90,7 @@ export class PlusMenuDialog {
     const shown = this.shown();
     const index = Math.min(this.#index, Math.max(0, shown.length - 1));
     const rows = shown.length === 0
-      ? [row(theme.fg("dim", "No tabs match"))]
+      ? [row(theme.fg("dim", this.#presentation.empty))]
       : shown.map((kind, position) => {
         const selected = position === index;
         const cursor = selected ? "→ " : "  ";
@@ -92,8 +100,8 @@ export class PlusMenuDialog {
       });
     return [
       blank,
-      row(theme.bold(theme.fg("accent", TITLE))),
-      row(theme.fg("dim", DESCRIPTION)),
+      row(theme.bold(theme.fg("accent", this.#presentation.title))),
+      row(theme.fg("dim", this.#presentation.description)),
       blank,
       ...renderInputRow(this.#filter, contentWidth, { ruled: false, promptGlyph: "> ", theme }).lines.map(line => row(line)),
       blank,
@@ -103,4 +111,9 @@ export class PlusMenuDialog {
       blank,
     ];
   }
+}
+
+/** The tab bar's specialized flag dialog, retained as the public Plus Menu surface. */
+export class PlusMenuDialog extends FlagToggleDialog {
+  constructor(kinds: readonly PlusMenuKind[]) { super(kinds, PLUS_MENU_PRESENTATION); }
 }

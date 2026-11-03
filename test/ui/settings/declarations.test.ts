@@ -52,6 +52,7 @@ describe("owned UI setting declarations", () => {
       "promptImageLimit",
       "tabsPosition",
       "tabBarPlusMenu",
+      "tabBarRightItems",
       "tabsAutoName",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "timeFormat")).toMatchObject({
@@ -117,6 +118,14 @@ describe("owned UI setting declarations", () => {
       application: "live",
       defaultValue: "top",
       allowedValues: ["top", "bottom"],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabBarRightItems")).toMatchObject({
+      label: "Right side",
+      section: { id: "tabs", title: "Tab Bar" },
+      application: "live",
+      defaultValue: "version,time",
+      allowedValues: ["", "version", "time", "version,time"],
+      flags: [{ key: "version", label: "Version" }, { key: "time", label: "Time" }],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMaxConcurrentStarts")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsUnresponsiveRestartSeconds")).toBeNull();
@@ -247,7 +256,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(18);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(19);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -476,6 +485,18 @@ describe("owned UI settings migrations", () => {
       .toMatchObject({ value: "auto", source: "default" });
     expect(normalizeOwnedUiSettingsValues({ updateCheck: true }).values).toMatchObject({ updateCheck: "notify" });
     expect(normalizeOwnedUiSettingsValues({ updateCheck: false }).values).toMatchObject({ updateCheck: "no" });
+  });
+
+  it("introduces tab-bar right-side defaults without rewriting stored values", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[18]).toMatchObject({ to: 20 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[18]?.migrate({ tabsPosition: "bottom", future: true }))
+      .toEqual({ tabsPosition: "bottom", future: true });
+    const resolved = resolveOwnedUiSettings({
+      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
+      document: { version: 19, values: { tabsPosition: "bottom" } },
+    });
+    expect(resolved.settings.find(setting => setting.declaration.id === "tabBarRightItems"))
+      .toMatchObject({ value: "version,time", source: "default" });
   });
 
   it("rejects a list with a gap or a wrong end version", () => {
