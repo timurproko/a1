@@ -21,11 +21,12 @@ export class EngineDiagnostics {
   acknowledgeClientVersion(version: string): boolean {
     if (validSemver(version) === null) return false;
     return this.#remove(diagnostic => {
-      const target = diagnostic.code === "release-update-installed"
-        ? /^Update (\S+) installed; restart to update\.$/u.exec(diagnostic.message)?.[1]
-        : diagnostic.code === "release-update-blocked"
-          ? /^Update (\S+) prepared; activation blocked\.$/u.exec(diagnostic.message)?.[1]
-          : undefined;
+      // Invariant: restart readiness describes this long-lived process, not the outer client that
+      // attached to it. A newer client can clear activation blocking, but only process exit clears
+      // an installed-update notice.
+      const target = diagnostic.code === "release-update-blocked"
+        ? /^Update (\S+) prepared; activation blocked\.$/u.exec(diagnostic.message)?.[1]
+        : undefined;
       return target !== undefined && validSemver(target) !== null && gte(version, target);
     });
   }

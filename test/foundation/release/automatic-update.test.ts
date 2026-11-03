@@ -7,6 +7,8 @@ import {
   AUTOMATIC_UPDATE_RETRY_MS,
   AUTOMATIC_UPDATE_STATE_SCHEMA,
   AutomaticUpdateStateStore,
+  observeNewerActiveRelease,
+  readNewerActiveRelease,
   requestAutomaticUpdate,
   runAutomaticUpdateWorker,
   type AutomaticUpdateState,
@@ -31,6 +33,26 @@ async function harness() {
   const dataDir = await mkdtemp(join(tmpdir(), "a1-automatic-update-"));
   roots.push(dataDir);
   return { dataDir, environment: { A1_DATA_DIR: dataDir } };
+}
+
+async function setActiveRelease(dataDir: string, version: string, approval: "approved" | "candidate" = "approved") {
+  const releaseId = `release-${"a".repeat(20)}`;
+  await new CohortStateStore(dataDir).update(current => ({
+    ...current,
+    releases: {
+      [releaseId]: {
+        releaseId,
+        releaseRoot: resolve(dataDir, "releases", releaseId),
+        packageVersion: version,
+        contentDigest: "b".repeat(64),
+        approval,
+        materializedAt: new Date().toISOString(),
+        certifiedAt: approval === "approved" ? new Date().toISOString() : null,
+        diagnosticsPath: approval === "approved" ? resolve(dataDir, "diagnostics.json") : null,
+      },
+    },
+    references: { ...current.references, active: releaseId, approved: approval === "approved" ? releaseId : null },
+  }));
 }
 
 function blockedState(now: number): AutomaticUpdateState {
@@ -58,6 +80,53 @@ function failedState(now: number): AutomaticUpdateState {
     failure: "exit-1",
   };
 }
+
+describe("active release observation", () => {
+  it("accepts only approved newer releases on the executing channel", async () => {
+    const { dataDir, environment } = await harness();
+    await setActiveRelease(dataDir, "1.2.4");
+    await expect(readNewerActiveRelease("1.2.3", environment)).resolves.toBe("1.2.4");
+    await expect(readNewerActiveRelease("1.2.4", environment)).resolves.toBeNull();
+    await expect(readNewerActiveRelease("1.2.5", environment)).resolves.toBeNull();
+    await expect(readNewerActiveRelease("1.2.3-dev.9", environment)).resolves.toBeNull();
+    await expect(readNewerActiveRelease("1.2.3-dev", environment)).resolves.toBeNull();
+    await setActiveRelease(dataDir, "1.2.5", "candidate");
+    await expect(readNewerActiveRelease("1.2.3", environment)).resolves.toBeNull();
+  });
+
+  it("fails closed for malformed release state", async () => {
+    const { dataDir, environment } = await harness();
+    await writeFile(resolve(dataDir, "release-state.json"), "{not-json");
+    await expect(readNewerActiveRelease("1.2.3", environment)).resolves.toBeNull();
+  });
+
+  it("detects atomic activation promptly and stops after one announcement", async () => {
+    const { dataDir, environment } = await harness();
+    const announced: string[] = [];
+    const stop = observeNewerActiveRelease({
+      runningVersion: "1.2.3",
+      environment,
+      fallbackMs: 20,
+      onNewer: version => { announced.push(version); },
+    });
+    await setActiveRelease(dataDir, "1.2.4");
+    await vi.waitFor(() => { expect(announced).toEqual(["1.2.4"]); });
+    await setActiveRelease(dataDir, "1.2.5");
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 60));
+    expect(announced).toEqual(["1.2.4"]);
+    stop();
+  });
+
+  it("honors disposal before activation", async () => {
+    const { dataDir, environment } = await harness();
+    const announced: string[] = [];
+    const stop = observeNewerActiveRelease({ runningVersion: "1.2.3", environment, fallbackMs: 20, onNewer: version => { announced.push(version); } });
+    stop();
+    await setActiveRelease(dataDir, "1.2.4");
+    await new Promise(resolvePromise => setTimeout(resolvePromise, 60));
+    expect(announced).toEqual([]);
+  });
+});
 
 describe("automatic update coordination", () => {
   it("spawns the immutable worker with an exact target and observes activation for this session", async () => {

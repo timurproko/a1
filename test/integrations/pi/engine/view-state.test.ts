@@ -76,8 +76,8 @@ describe("EngineViewState", () => {
     expect(state.diagnosticsState.acknowledgeClientVersion("0.3.1")).toBe(false);
     expect(state.editor).toBe(editor); expect(state.lifecycle).toBe("busy");
     expect(state.status.workingMessage).toBe("tool still running");
-    expect(state.diagnostics.map(diagnostic => diagnostic.code)).toEqual(["independent-warning"]);
-    expect(state.status.diagnostics).toEqual(["keep this warning"]);
+    expect(state.diagnostics.map(diagnostic => diagnostic.code)).toEqual(["release-update-installed", "independent-warning"]);
+    expect(state.status.diagnostics).toEqual(["Update 0.3.1 installed; restart to update.", "keep this warning"]);
   });
 
   it("keeps the last hundred diagnostics and the last eight status messages", () => {

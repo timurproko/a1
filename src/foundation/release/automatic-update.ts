@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { watch, type FSWatcher } from "node:fs";
+import { mkdir, open, readFile, rename, rm, stat } from "node:fs/promises";
+import { basename, dirname, resolve } from "node:path";
 import { valid as validSemver } from "semver";
 import { readLaunchContext } from "../launch-context/index.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
@@ -20,6 +21,7 @@ const AUTOMATIC_UPDATE_STATE_FILENAME = "automatic-update.json";
 const MAX_STATE_BYTES = 16_384;
 const OBSERVER_POLL_MS = 250;
 const WORKER_START_GRACE_MS = 5_000;
+export const ACTIVE_RELEASE_FALLBACK_MS = 5_000;
 
 export interface AutomaticUpdateState {
   readonly schema: typeof AUTOMATIC_UPDATE_STATE_SCHEMA;
@@ -63,6 +65,78 @@ export class AutomaticUpdateStateStore {
     try { await rename(temporary, this.path); }
     catch (error) { await rm(temporary, { force: true }); throw error; }
   }
+}
+
+export interface ActiveReleaseObservationOptions {
+  readonly runningVersion: string;
+  readonly environment?: NodeJS.ProcessEnv;
+  readonly signal?: AbortSignal;
+  readonly onNewer: (version: string) => void;
+  readonly fallbackMs?: number;
+}
+
+/** Read the approved active release only when this process executes an older release on that channel. */
+export async function readNewerActiveRelease(
+  runningVersion: string,
+  environment: NodeJS.ProcessEnv = process.env,
+): Promise<string | null> {
+  const channel = releaseChannelOf(runningVersion);
+  if (channel === null) return null;
+  try {
+    const paths = resolveProductPaths(environment);
+    const active = await activeRelease(paths.dataDir);
+    return activeNewerPackageVersion(active, runningVersion, channel) ?? null;
+  } catch { return null; }
+}
+
+/** Observe local release activation promptly, with a bounded fallback for missed filesystem events. */
+export function observeNewerActiveRelease(options: ActiveReleaseObservationOptions): () => void {
+  if (releaseChannelOf(options.runningVersion) === null || options.signal?.aborted) return () => {};
+  const paths = resolveProductPaths(options.environment ?? process.env);
+  const store = new CohortStateStore(paths.dataDir);
+  let closed = false;
+  let checking = false;
+  let requested = false;
+  let watcher: FSWatcher | null = null;
+  let signature: string | null | undefined;
+  const stop = () => {
+    if (closed) return;
+    closed = true;
+    clearInterval(fallback);
+    watcher?.close();
+    options.signal?.removeEventListener("abort", stop);
+  };
+  const check = async (): Promise<void> => {
+    if (closed) return;
+    if (checking) { requested = true; return; }
+    checking = true;
+    try {
+      const version = await readNewerActiveRelease(options.runningVersion, options.environment);
+      if (version !== null && !closed) { stop(); options.onNewer(version); }
+    } finally {
+      checking = false;
+      if (requested && !closed) { requested = false; void check(); }
+    }
+  };
+  const checkChanged = async (force: boolean): Promise<void> => {
+    const next = await stat(store.path).then(
+      value => `${value.dev}:${value.ino}:${value.ctimeMs}:${value.mtimeMs}:${value.size}`,
+      () => null,
+    );
+    if (!force && next === signature) return;
+    signature = next;
+    await check();
+  };
+  const fallback = setInterval(() => { void checkChanged(false); }, options.fallbackMs ?? ACTIVE_RELEASE_FALLBACK_MS);
+  fallback.unref?.();
+  try {
+    watcher = watch(dirname(store.path), { persistent: false }, (_event, filename) => {
+      if (filename === null || filename.toString() === basename(store.path)) void checkChanged(false);
+    });
+  } catch { /* Reliability: the bounded metadata fallback remains authoritative when watching is unavailable. */ }
+  options.signal?.addEventListener("abort", stop, { once: true });
+  void checkChanged(true);
+  return stop;
 }
 
 export interface AutomaticUpdateRequestOptions {
@@ -278,9 +352,18 @@ async function spawnAutomaticUpdateWorker(entry: string, arguments_: readonly st
 
 async function activeNewerVersion(dataDir: string, runningVersion: string, target: AvailableRelease): Promise<string | null> {
   const active = await activeRelease(dataDir);
-  return active !== null && releaseChannelOf(active.packageVersion) === target.channel
-    && isNewerRelease(active.packageVersion, runningVersion)
-    && (active.packageVersion === target.version || isNewerRelease(active.packageVersion, target.version))
+  return activeNewerPackageVersion(active, runningVersion, target.channel, target.version);
+}
+
+function activeNewerPackageVersion(
+  active: CohortState["releases"][string] | null,
+  runningVersion: string,
+  channel: ReleaseChannel,
+  minimum?: string,
+): string | null {
+  if (active === null || releaseChannelOf(active.packageVersion) !== channel
+    || !isNewerRelease(active.packageVersion, runningVersion)) return null;
+  return minimum === undefined || active.packageVersion === minimum || isNewerRelease(active.packageVersion, minimum)
     ? active.packageVersion : null;
 }
 

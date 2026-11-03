@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { composeOwnedUi } from "../../src/composition/owned-ui.js";
+import { createStartupReleaseUpdateObservation } from "../../src/composition/release-update-observation.js";
 import { UPDATE_CHECK_INTERVAL_MS, type AvailableRelease, type StartupReleaseCheckOptions } from "../../src/foundation/release/latest-release.js";
 import type { PiEngineHostOptions } from "../../src/integrations/pi/engine/host.js";
 
@@ -7,6 +8,9 @@ const observed = vi.hoisted(() => ({
   updateCheck: "notify" as unknown,
   automaticInstalled: "0.3.1" as string | null,
   automaticRequests: [] as unknown[],
+  activeReleaseCallbacks: [] as Array<(version: string) => void>,
+  activeReleaseRunningVersions: [] as string[],
+  activeReleaseStops: 0,
   accentColor: "purple",
   accentCalls: [] as string[],
   packageBorderProjectionCalls: [] as boolean[],
@@ -36,6 +40,18 @@ vi.mock("../../src/foundation/release/automatic-update.js", () => ({
   requestAutomaticUpdate: async (input: unknown) => {
     observed.automaticRequests.push(input);
     return observed.automaticInstalled;
+  },
+  observeNewerActiveRelease: (input: { runningVersion: string; onNewer(version: string): void }) => {
+    observed.activeReleaseRunningVersions.push(input.runningVersion);
+    observed.activeReleaseCallbacks.push(input.onNewer);
+    let stopped = false;
+    return () => {
+      if (stopped) return;
+      stopped = true;
+      observed.activeReleaseStops += 1;
+      const index = observed.activeReleaseCallbacks.indexOf(input.onNewer);
+      if (index >= 0) observed.activeReleaseCallbacks.splice(index, 1);
+    };
   },
 }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
@@ -76,6 +92,9 @@ afterEach(() => {
   observed.updateCheck = "notify";
   observed.automaticInstalled = "0.3.1";
   observed.automaticRequests.length = 0;
+  observed.activeReleaseCallbacks.length = 0;
+  observed.activeReleaseRunningVersions.length = 0;
+  observed.activeReleaseStops = 0;
   observed.accentColor = "purple";
   observed.accentCalls.length = 0;
   observed.packageBorderProjectionCalls.length = 0;
@@ -332,7 +351,7 @@ describe("startup release check composition", () => {
       expect(announced).toHaveLength(1);
       await composed.application.dispose();
       await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL_MS);
-      expect(checks).toHaveLength(3);
+      expect(checks).toHaveLength(2);
     } finally { vi.useRealTimers(); }
   });
 
@@ -363,6 +382,54 @@ describe("startup release check composition", () => {
       expect(checks).toHaveLength(1);
       await composed.application.dispose();
     } finally { vi.useRealTimers(); }
+  });
+
+  it.each(["auto", "notify", "no"] as const)("announces a locally active newer release once in %s mode without registry help", async mode => {
+    observed.updateCheck = mode;
+    observed.automaticInstalled = null;
+    const { composed, announced, checks } = await compose({ profileId: "a1", packageVersion: "0.3.0", release: null });
+    composed.application.start();
+    await vi.waitFor(() => { expect(observed.activeReleaseCallbacks).toHaveLength(1); });
+    expect(observed.activeReleaseRunningVersions).toEqual(["0.3.0"]);
+    observed.activeReleaseCallbacks[0]!("0.3.1");
+    observed.activeReleaseCallbacks[0]?.("0.3.1");
+    expect(announced).toEqual([{ status: "installed", version: "0.3.1" }]);
+    expect(checks).toHaveLength(1);
+    await composed.application.dispose();
+    expect(observed.activeReleaseStops).toBe(1);
+  });
+
+  it("lets every older process observe activation independently and disposes each observer", async () => {
+    const firstAnnouncements: unknown[] = [];
+    const secondAnnouncements: unknown[] = [];
+    let checks = 0;
+    const make = (announced: unknown[]) => createStartupReleaseUpdateObservation({
+      backend: backendFixture(announced) as never,
+      configDir: "synthetic",
+      mode: "no",
+      packageVersion: "0.3.0",
+      readPackageVersion: async () => "0.3.0",
+      notificationVersion: undefined,
+      checkForNewerRelease: async () => { checks += 1; return null; },
+    });
+    const first = make(firstAnnouncements);
+    const second = make(secondAnnouncements);
+    first.start();
+    await vi.waitFor(() => { expect(observed.activeReleaseCallbacks).toHaveLength(1); });
+    second.start();
+    await vi.waitFor(() => { expect(observed.activeReleaseCallbacks).toHaveLength(2); });
+    for (const callback of [...observed.activeReleaseCallbacks]) callback("0.3.1");
+    expect(firstAnnouncements).toEqual([{ status: "installed", version: "0.3.1" }]);
+    expect(secondAnnouncements).toEqual([{ status: "installed", version: "0.3.1" }]);
+    await vi.waitFor(() => { expect(checks).toBe(2); });
+    first.clientChanged();
+    second.clientChanged();
+    await new Promise(resolve => setImmediate(resolve));
+    expect(checks).toBe(2);
+    first.stop();
+    second.stop();
+    expect(observed.activeReleaseStops).toBe(2);
+    expect(observed.activeReleaseCallbacks).toHaveLength(0);
   });
 
   it("announces nothing when no newer release exists", async () => {
