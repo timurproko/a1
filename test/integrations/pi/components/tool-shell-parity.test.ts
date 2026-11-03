@@ -1,5 +1,5 @@
 import { ToolExecutionComponent as PinnedTool } from "@earendil-works/pi-coding-agent";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getCapabilities, getKeybindings, setCapabilities, setKeybindings, stripTerminalSequences, Text } from "@earendil-works/pi-tui";
 import { mergeBuiltInRenderers, ToolExecutionComponent as OwnedTool } from "../../../../src/integrations/pi/components/upstream/components/tool-execution.js";
 import { KeybindingsManager, type KeybindingsConfig } from "../../../../src/integrations/pi/components/upstream/adjacent/core/keybindings.js";
@@ -105,6 +105,26 @@ describe("source-derived tool shell with independent actual pinned renderers", (
       }
     }
     owned.dispose();
+  });
+
+  it("coalesces streamed argument updates until the next render", () => {
+    ensureTheme();
+    const requestRender = vi.fn();
+    const ui = createTuiFacade({ getColumns: () => 80, getRows: () => 30, requestRender });
+    const renderCall = vi.fn((args: { value: string }) => new Text(args.value, 0, 0));
+    const definition = { renderCall } as unknown as ConstructorParameters<typeof OwnedTool>[4];
+    const owned = new OwnedTool("custom", "call", { value: "initial" }, {}, definition, ui, process.cwd());
+    try {
+      expect(renderCall).toHaveBeenCalledTimes(1);
+      owned.updateArgs({ value: "first" });
+      owned.updateArgs({ value: "latest" });
+      expect(renderCall).toHaveBeenCalledTimes(1);
+      expect(requestRender).toHaveBeenCalledTimes(2);
+      expect(stripTerminalSequences(owned.render(80).join("\n"))).toContain("latest");
+      expect(renderCall).toHaveBeenCalledTimes(2);
+    } finally {
+      owned.dispose();
+    }
   });
 
   it("keeps the enclosing tool background after nested renderer resets", () => {

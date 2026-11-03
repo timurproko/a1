@@ -2830,7 +2830,8 @@
       "version": "1.5.0",
       "summary": "use `PI_SELF_UPDATE_COMMAND` or `selfUpdateCommand` to update pi through a wrapper or another package manager.",
       "since": "1.5.0",
-      "disposition": "pending"
+      "disposition": "declined",
+      "reason": "A1 owns product self-update and deliberately rejects Pi's self and --self update targets; PI_SELF_UPDATE_COMMAND and selfUpdateCommand therefore do not control A1 updates."
     },
     {
       "id": "changelog:1.5.0:extension-update-changelogs",
@@ -2839,7 +2840,8 @@
       "version": "1.5.0",
       "summary": "see what changed in installed extension packages on the next fresh launch after an update. Package authors can choose the changelog path, and `collapseChangelog` condenses the notices.",
       "since": "1.5.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "A1 uses the pinned package manager and interactive session startup, so extension update notices and collapseChangelog behavior come from Pi 1.5.0."
     },
     {
       "id": "changelog:1.5.0:faster-streaming",
@@ -2848,7 +2850,8 @@
       "version": "1.5.0",
       "summary": "large tool calls are parsed incrementally, and code-heavy answers and tool rows reuse highlighting and rendered Markdown instead of repeating the work on every update.",
       "since": "1.5.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "Pinned Markdown and built-in tool renderers provide incremental parsing and render caches; A1's source-synchronized tool row also carries Pi 1.5.0's once-per-frame partial-argument rendering."
     },
     {
       "id": "changelog:1.5.0:gpt-6-1-terra",
@@ -2857,7 +2860,8 @@
       "version": "1.5.0",
       "summary": "available through OpenAI, Azure OpenAI Responses, and OpenAI Codex, with tool search, mid-conversation thinking-level changes, and thinking `off`. Codex offers a 500K context window.",
       "since": "1.5.0",
-      "disposition": "pending"
+      "disposition": "pinned",
+      "note": "A1 reads Pi's pinned model catalog and drives model selection and thinking-level changes through Pi's public runtime, so the 1.5.0 GPT-6.1 Terra definitions are available unchanged."
     }
   ]
 }

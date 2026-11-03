@@ -24,9 +24,8 @@ import {
 	Spacer,
 	Text,
 } from "@earendil-works/pi-tui";
-<<<<<<< a1
 import { DynamicBorder } from "@earendil-works/pi-coding-agent";
-import { getModelSearchText } from "../model-search.js";
+import { getDistinctModelName, getModelSearchText } from "../model-search.js";
 import { addPiModalHeader, addPiModalSearchInput, adoptPiModalFrame } from "../../modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "../../theme.js";
 
@@ -47,17 +46,6 @@ const theme = new Proxy({} as ReturnType<typeof piTheme>, {
 		return typeof value === "function" ? value.bind(active) : value;
 	},
 });
-||||||| pi 1.4.0
-import { getModelSearchText } from "../model-search.ts";
-import { theme } from "../theme/theme.ts";
-import { DynamicBorder } from "./dynamic-border.ts";
-import { keyDisplayText } from "./keybinding-hints.ts";
-=======
-import { getDistinctModelName, getModelSearchText } from "../model-search.ts";
-import { theme } from "../theme/theme.ts";
-import { DynamicBorder } from "./dynamic-border.ts";
-import { keyDisplayText } from "./keybinding-hints.ts";
->>>>>>> pi 1.5.0
 
 // EnabledIds: null = all enabled (no filter), string[] = explicit ordered list
 type EnabledIds = string[] | null;
@@ -141,14 +129,8 @@ export interface ModelsCallbacks {
  * Changes are session-only until explicitly persisted with Ctrl+S.
  */
 export class ScopedModelsSelectorComponent extends Container implements Focusable {
-<<<<<<< a1
-	private modelsById: Map<string, ScopedModel> = new Map();
-||||||| pi 1.4.0
-	private modelsById: Map<string, Model<any>> = new Map();
-=======
 	readonly capturesViewportInput: boolean = true;
-	private modelsById: Map<string, Model<any>> = new Map();
->>>>>>> pi 1.5.0
+	private modelsById: Map<string, ScopedModel> = new Map();
 	private allIds: string[] = [];
 	private enabledIds: EnabledIds = null;
 	private filteredItems: ModelItem[] = [];

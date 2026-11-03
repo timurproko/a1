@@ -2,7 +2,7 @@
   "schema": "a1-startup-graph-baseline-v1",
   "ownedReachability": {
     "maximumFiles": 203,
-    "maximumSourceBytes": 1867621,
+    "maximumSourceBytes": 1870639,
     "optionalModules": [
       "src/features/owned-ui/settings-app.ts",
       "src/composition/settings-search-input.ts",
@@ -18,8 +18,8 @@
     ]
   },
   "piPublicArtifact": {
-    "maximumLoadedFiles": 2107,
-    "maximumEvaluatedBytes": 10053785
+    "maximumLoadedFiles": 2157,
+    "maximumEvaluatedBytes": 10392238
   },
   "pinnedDynamicImports": [
     {

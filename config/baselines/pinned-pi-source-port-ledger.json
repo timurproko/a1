@@ -2,7 +2,7 @@
   "schema": "a1-pinned-pi-source-port-ledger-v1",
   "change": "build-owned-pi-ui-foundation",
   "task": "7.2",
-  "recordedAt": "2026-11-03T03:57:56.356Z",
+  "recordedAt": "2026-11-03T08:36:51.118Z",
   "upstream": {
     "repository": "https://github.com/earendil-works/pi.git",
     "commit": "f9a26365568127461c47a07a37dcb42c140a3ac5",
@@ -968,7 +968,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Unchanged image bytes are losslessly encoded in an attributed owned JSON resource by scripts/pi/update-command-resources.mjs. Source bytes and digest are verified against this pinned asset authority; runtime reads only the owned resource, never the dependency directory.",
       "upgradeStrategy": "three-way",
-      "localSha256": "71af86bc9d284ca34092405f48e17936487d20756c08594321f72aa3084f77aa",
+      "localSha256": "3a3b84e8d25393ed2574348af7fa5aa55e3e2d339c41d13045913391bbbc4cc6",
       "approvedDeviations": [],
       "behaviorCategories": [
         "stateful-components"
@@ -1390,7 +1390,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "A1-owned class name and synchronized A1 keybinding contract replace the nominal private upstream keybinding constructor dependency; bare A1 injects the shared Settings/agent input frame, configurable empty-input placeholder branch, transient contextual-suggestion branch, and explicit body geometry for selection and above-prompt autocomplete with a one-cell outer gutter. Bare A1 also clears a sole top-level slash-command search on Escape and completes a selected or exact completed tunnel command with `:` and reopens the menu on its tunnel rows, and synchronously retains then refreshes an exact top-level command menu after Tab applies its row.",
       "upgradeStrategy": "keep-owned",
-      "localSha256": "10c1458f5338fa6a446bf5364530cd44ff234b583ef342daca6ee61042f4039b",
+      "localSha256": "32393ef44f33a0b47eeb9c614133592930b23857218fe41cfde310790f07a436",
       "approvedDeviations": [
         {
           "id": "owned-shared-input-frame",
@@ -1705,7 +1705,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: remap pi-tui to the root public singleton, use owned keybindings/theme and external-editor seams, preserve editor layout, hints, focus, submission, cancellation, and external-editor lifecycle; bare A1 uses the shared semantic modal shortcut row and compact padded modal frame.",
       "upgradeStrategy": "three-way",
-      "localSha256": "60aaf1044167576b74a5b86da2e52d55cd4b34b0c0c73984624f5119d6b08e2a",
+      "localSha256": "1adecb97d99683a2747a3c05ef8fc3a0e180a921231cc1e17c04bdb1e5eb228d",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2281,7 +2281,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized scoped-model selector port: preserve session-only toggles, search, bulk/provider/reorder actions, dirty state, Ctrl+S persistence, refresh status, cancellation, and focus while remapping theme and public helper imports; local key labels preserve pinned platform formatting before layout without changing binding identities, and bare A1 uses the shared semantic modal shortcut row, accent search marker, and compact padded modal frame while immediately closing on the implicit Ctrl+C selection-cancel alias without advertising it.",
       "upgradeStrategy": "three-way",
-      "localSha256": "f675e1fda3aee18e067d5ea03451452f19980a9c4448c92aaf95a7e766297960",
+      "localSha256": "28ae0417da3a77a25794a63b90b12cab86c8f271113c8ffac4d0cef79f3a876b",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2381,7 +2381,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Source-synchronized session selector port: preserve threaded/current/all scope, search, sort, named/path filters, rename, delete confirmation, active-session protection, progressive partial results, cancellation, focus, and disposal while remapping public helpers, owned keybindings/theme, canonical path handling, reverse-Tab scope cycling, and the shared bare-A1 modal frame with standalone title, standard outer rules, stable filter/status row, progressive result paging, aligned result columns, Session Tree selection roles, quiet in-field query syntax guidance, an accent dialog-search marker, and one-line bottom dynamic feedback and searchable-dialog shortcut footer. Selected session rows use the blue selection surface while preserving title and metadata foregrounds; the active session title uses success green independently of keyboard selection, with ordinary text weight.",
       "upgradeStrategy": "three-way",
-      "localSha256": "0778e89b34f968c6d2ff33d59f862649e9713d0eea67f2d5638e6d5288c30a1f",
+      "localSha256": "8ff92b0ea174fd2091bf80dbc8da7e10395460a544e176d7c43cd32c729b1d59",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -2798,7 +2798,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Retain pinned shell/public renderers. Own image conversion; replace private APIs with public/local equivalents. Use bare-A1 secondary-accent read ranges and concise collapse shortcut hints. Restore the enclosing default-shell background after nested renderer resets. Omit non-actionable image fallback rows when the terminal has no image protocol. See docs/architecture/tool-image-presentation.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "fe30ad0388f1749bd6bedd3e9ade7f84dfe3590a57670b91b46dad376de8c6b3",
+      "localSha256": "e121f3051c140d878856541a77e3e2e3cec1ec1902efa28009dac5515b9e5268",
       "approvedDeviations": [
         {
           "id": "current-tool-image-conversion-ownership",
@@ -2873,7 +2873,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Port remaps public types/components plus owned keybindings/theme helpers while preserving tree behavior; bare A1 uses compact modal chrome and label editing, four-mode Models-style filter status with Tab/Shift+Tab directional cycling and concise all-first presentation excluding internal bookkeeping, a standard accent-marked search input, blue full-row menu-arrow selection that preserves per-entry semantic foregrounds and has no path bullets, accent entry labels, bracketed timestamps, numeric result counters without duplicate label-time status, and a stateful time on/off shortcut, semantic role colors with session naming for the system root, standard paging/first-last/non-root containing-branch folding keys with a permanently expanded system session entry even behind hidden metadata, single-character ellipses on both clipped edges with bracket-delimiter preservation and selected-fragment highlighting, and Models-ordered semantic Type/search shortcut footers without a redundant select hint.",
       "upgradeStrategy": "three-way",
-      "localSha256": "9d09096cecfea4a4cf00992a10a56b27abad661abfb350de7caf3b9c52186999",
+      "localSha256": "e7d4f6577515334cc46d70d1d67c1d05db8694a411e42e916787e8a49782dc63",
       "approvedDeviations": [
         {
           "id": "owned-modal-shortcut-hints",
@@ -3093,7 +3093,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Mechanical port: retain temporary prompt file, asynchronous inherited-stdio editor process, completion readback, and best-effort cleanup behind the owned extension-editor component.",
       "upgradeStrategy": "three-way",
-      "localSha256": "b5e254ff7e63ae45196f81f902d91eb23acc782ffc092947c59984205bf8ef60",
+      "localSha256": "9d136e25c9dbe25d534034ece4daba3096dcab66a7e925aa327a7407885e2244",
       "approvedDeviations": [],
       "behaviorCategories": [
         "editor",
@@ -4671,7 +4671,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned editor core or minimal editor-local helper subset; public imports, strict types, typed persistent-history hooks, and semantic border state. Public terminal runtime/exports remain shared and unchanged. See docs/architecture/history-editor-provenance.md.",
       "upgradeStrategy": "three-way",
-      "localSha256": "fe1ab0ad756fc312feab9773f03f5bb48421fd860eb22c1a442ab5659fc7a5e3",
+      "localSha256": "36f4cb9c03f8fd19a5191b76eac977899e0a3182575d46a82ef708d3600c7e87",
       "approvedDeviations": [
         {
           "id": "persistent-history-owned-editor-boundary",

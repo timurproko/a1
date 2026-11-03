@@ -3346,6 +3346,7 @@
             "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
+            "src/integrations/pi/components/upstream/components/extension-editor.ts",
             "src/integrations/pi/components/upstream/components/scoped-models-selector.ts",
             "src/integrations/pi/components/upstream/components/session-selector.ts",
             "src/integrations/pi/components/upstream/components/thinking-selector.ts",

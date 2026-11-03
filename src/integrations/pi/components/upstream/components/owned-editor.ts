@@ -162,6 +162,13 @@ return class extends Base {
       this.onPromptSuggestionAccepted?.(accepted);
       return;
     }
+    // Selection page keys move an open autocomplete menu before app actions run.
+    // This lets users bind Ctrl+V even though it pastes images by default.
+    if (this.isShowingAutocomplete()
+      && (this.keybindings.matches(data, "tui.select.pageUp") || this.keybindings.matches(data, "tui.select.pageDown"))) {
+      super.handleInput(data);
+      return;
+    }
     if (this.keybindings.matches(data, "app.clipboard.pasteImage")) { this.onPasteImage?.(); return; }
     if (this.keybindings.matches(data, "app.interrupt")) {
       if (!this.isShowingAutocomplete()) {

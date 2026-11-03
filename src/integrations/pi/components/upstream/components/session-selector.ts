@@ -17,6 +17,7 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
 import { unlink } from "node:fs/promises";
+import * as os from "node:os";
 import {
 	type Component,
 	Container,
@@ -30,11 +31,11 @@ import {
 	truncateToWidth,
 	visibleWidth,
 } from "@earendil-works/pi-tui";
-<<<<<<< a1
 import { KeybindingsManager } from "../adjacent/core/keybindings.js";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { addPiModalHeader, adoptPiModalFrame, renderPiModalSearchInput } from "../../modal-frame.js";
 import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints, type PiModalShortcutHint } from "../../theme.js";
+import { filterAndSortSessions, hasSessionName, type NameFilter, type SortMode } from "./session-selector-search.js";
 
 type SessionListProgress = (
 	loaded: number,
@@ -70,26 +71,14 @@ function withCloseHint(content: string, width: number): string {
 	const body = truncateToWidth(content, bodyWidth, "…");
 	return body.length === 0 ? close : `${body}  ${close}`;
 }
-import { filterAndSortSessions, hasSessionName, type NameFilter, type SortMode } from "./session-selector-search.js";
-||||||| pi 1.4.0
-import { KeybindingsManager } from "../../../core/keybindings.ts";
-import type { SessionInfo, SessionListProgress } from "../../../core/session-manager.ts";
-import { canonicalizePath as _canonicalizePath } from "../../../utils/paths.ts";
-import { theme } from "../theme/theme.ts";
-import { DynamicBorder } from "./dynamic-border.ts";
-import { keyHint, keyText } from "./keybinding-hints.ts";
-import { filterAndSortSessions, hasSessionName, type NameFilter, type SortMode } from "./session-selector-search.ts";
-=======
-import { KeybindingsManager } from "../../../core/keybindings.ts";
-import type { SessionInfo, SessionListProgress } from "../../../core/session-manager.ts";
-import { canonicalizePath, getPathComparisonKey, shortenHomePath } from "../../../utils/paths.ts";
-import { theme } from "../theme/theme.ts";
-import { DynamicBorder } from "./dynamic-border.ts";
-import { keyHint, keyText } from "./keybinding-hints.ts";
-import { filterAndSortSessions, hasSessionName, type NameFilter, type SortMode } from "./session-selector-search.ts";
->>>>>>> pi 1.5.0
 
 type SessionScope = "current" | "all";
+
+function shortenPath(path: string): string {
+	const home = os.homedir();
+	if (!path) return path;
+	return path.startsWith(home) ? `~${path.slice(home.length)}` : path;
+}
 
 function formatSessionDate(date: Date): string {
 	const now = new Date();
@@ -107,7 +96,6 @@ function formatSessionDate(date: Date): string {
 	return `${Math.floor(diffDays / 365)}y`;
 }
 
-<<<<<<< a1
 function fitToWidth(value: string, width: number, ellipsis = ""): string {
 	const available = Math.max(0, width);
 	const clipped = truncateToWidth(value, available, ellipsis);
@@ -138,15 +126,12 @@ function canonicalizePath(path: string | undefined): string | undefined {
 	} catch {
 		return path;
 	}
-||||||| pi 1.4.0
-function canonicalizePath(path: string | undefined): string | undefined {
-	if (!path) return path;
-	return _canonicalizePath(path);
-=======
+}
+
 /** Comparison key for a session file path; follows symlinks and ignores case on Windows. */
 function getSessionPathKey(path: string): string {
-	return getPathComparisonKey(canonicalizePath(path));
->>>>>>> pi 1.5.0
+	const canonical = canonicalizePath(path) ?? path;
+	return process.platform === "win32" ? canonical.toLocaleLowerCase("en-US") : canonical;
 }
 
 class SessionSelectorHeader implements Component {
@@ -386,13 +371,7 @@ class SessionList implements Component, Focusable {
 	private keybindings: KeybindingsManager;
 	private showPath = false;
 	private confirmingDeletePath: string | null = null;
-<<<<<<< a1
-	private currentSessionCanonicalPath: string | undefined;
-||||||| pi 1.4.0
-	private currentSessionCanonicalPath?: string;
-=======
-	private currentSessionPathKey?: string;
->>>>>>> pi 1.5.0
+	private currentSessionPathKey: string | undefined;
 	public onSelect?: (sessionPath: string) => void;
 	public onCancel?: () => void;
 	public onExit: () => void = () => {};
@@ -586,31 +565,7 @@ class SessionList implements Component, Focusable {
 
 			const age = formatSessionDate(session.modified);
 			const msgCount = String(session.messageCount);
-<<<<<<< a1
 			const pathText = this.sessionPathText(session);
-||||||| pi 1.4.0
-			let rightPart = `${msgCount} ${age}`;
-			if (this.showCwd && session.cwd) {
-				rightPart = `${shortenPath(session.cwd)} ${rightPart}`;
-			}
-			if (this.showPath) {
-				rightPart = `${shortenPath(session.path)} ${rightPart}`;
-			}
-
-			// Cursor
-			const cursor = isSelected ? theme.fg("accent", "› ") : "  ";
-=======
-			let rightPart = `${msgCount} ${age}`;
-			if (this.showCwd && session.cwd) {
-				rightPart = `${shortenHomePath(session.cwd)} ${rightPart}`;
-			}
-			if (this.showPath) {
-				rightPart = `${shortenHomePath(session.path)} ${rightPart}`;
-			}
-
-			// Cursor
-			const cursor = isSelected ? theme.fg("accent", "› ") : "  ";
->>>>>>> pi 1.5.0
 
 			// Cursor and title stay inside their column so metadata always begins at one boundary.
 			const cursor = isSelected ? theme.fg("accent", "→ ") : "  ";

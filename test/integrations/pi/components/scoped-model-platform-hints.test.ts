@@ -46,6 +46,7 @@ for (const platform of ["darwin", "win32", "linux"] as const) {
 
     it("formats default reorder hints without changing their logical keys or model text", () => {
       withSelector(platform, {}, (selector, _callbacks, keys) => {
+        expect(selector.capturesViewportInput).toBe(true);
         expect(text(selector)).toContain(`${alt}+Up/${alt}+Down reorder`);
         expect(text(selector)).toContain("Session-only. Ctrl+S to save to settings.");
         expect(text(selector)).toContain("Esc close");
