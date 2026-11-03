@@ -133,7 +133,7 @@ export function observeNewerActiveRelease(options: ActiveReleaseObservationOptio
     watcher = watch(dirname(store.path), { persistent: false }, (_event, filename) => {
       if (filename === null || filename.toString() === basename(store.path)) void checkChanged(false);
     });
-  } catch { /* Reliability: the bounded metadata fallback remains authoritative when watching is unavailable. */ }
+  } catch { /* Rationale: the bounded metadata fallback remains authoritative when watching is unavailable. */ }
   options.signal?.addEventListener("abort", stop, { once: true });
   void checkChanged(true);
   return stop;
