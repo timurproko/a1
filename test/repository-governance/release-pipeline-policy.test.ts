@@ -11,10 +11,15 @@ describe("deliberate publication pipeline", () => {
   it("is the only npm publisher and is never triggered by a push", async () => {
     const publishers: string[] = [];
     for (const name of await readdir(".github/workflows")) {
-      if ((await readFile(`.github/workflows/${name}`, "utf8")).includes("npm publish")) publishers.push(name);
+      if ((await readFile(`.github/workflows/${name}`, "utf8")).includes("npm-publish-exact.mjs")) publishers.push(name);
     }
     expect(publishers).toEqual(["publish.yml"]);
-    const source = await workflow();
+    const [source, helper] = await Promise.all([
+      workflow(),
+      readFile("scripts/release/npm-publish-exact.mjs", "utf8"),
+    ]);
+    expect(helper).toContain('["publish", ...npmPublishArguments(tarball, channel)]');
+    expect(helper).toContain('"--provenance"');
     expect(source).toContain("workflow_call:");
     expect(source).not.toContain("workflow_dispatch:");
     expect(source).toContain('cron: "17 0 * * *"');
@@ -216,6 +221,8 @@ describe("deliberate publication pipeline", () => {
     expect(preflight).toBeLessThan(publish.indexOf("- name: Publish the exact validated installer package"));
     expect(preflight).toBeLessThan(publish.indexOf("- name: Publish the exact validated application package"));
     expect(publish).toContain("run: node scripts/release/npm-trust-preflight.mjs");
+    expect(publish.match(/node scripts\/release\/npm-publish-exact\.mjs/gu)).toHaveLength(2);
+    expect(publish).not.toContain("npm publish");
     expect(publish).toContain("environment: npm-publish");
     expect(publish).toContain("id-token: write");
     const workflows = await Promise.all((await readdir(".github/workflows")).map(name => readFile(`.github/workflows/${name}`, "utf8")));
@@ -281,9 +288,11 @@ describe("deliberate publication pipeline", () => {
       expect(publicationValidationMatrix("develop").include.some(lane => lane.platform.startsWith(platform))).toBe(true);
     }
     expect(source).toContain("VALIDATION_CANDIDATE_TARBALL:");
-    expect(source).toContain('npm publish "$release_tarball"');
-    expect(source).toContain('npm publish "$installer_tarball"');
-    expect(source).toContain("--provenance");
+    expect(source.match(/node scripts\/release\/npm-publish-exact\.mjs/gu)).toHaveLength(2);
+    const publisher = await readFile("scripts/release/npm-publish-exact.mjs", "utf8");
+    expect(publisher).toContain('"--provenance"');
+    expect(publisher).toContain('"--access", "public"');
+    expect(publisher).toContain('"--ignore-scripts"');
     const publish = source.slice(source.indexOf("\n  publish:"));
     expect(publish.slice(0, publish.indexOf("\n  post_publish:"))).not.toMatch(/npm ci|npm run build|prepare-validation-package/);
     expect(source.indexOf("Exercise the exact published pair")).toBeLessThan(source.indexOf("Upload the exact asset to the published Release"));
