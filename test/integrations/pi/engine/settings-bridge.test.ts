@@ -1,5 +1,5 @@
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AgentSettingOwner } from "../../../../src/contracts/agent-engine/index.js";
 import {
   EXPOSED_SETTING_KEYS,
@@ -34,14 +34,14 @@ function bindEffects(
 describe("Pi settings integration", () => {
   it("covers every A1-exposed setting with a complete application descriptor", async () => {
     const descriptors = await integration().listSettings();
-    expect([...descriptors.map(value => value.key)].sort()).toEqual([...EXPOSED_SETTING_KEYS].sort());
+    expect([...descriptors.map(value => value.key)].sort()).toEqual([...EXPOSED_SETTING_KEYS, "defaultModel"].sort());
     expect(descriptors[0]?.key).toBe("autoCompact");
-    expect(descriptors.at(-1)?.key).toBe("theme");
+    expect(descriptors.at(-1)?.key).toBe("defaultModel");
     expect(descriptors.every(value => value.writable && value.available)).toBe(true);
     expect(descriptors.every(value => value.limitationReason === null)).toBe(true);
     expect(descriptors.every(value => PI_SETTING_EFFECTS[value.key as PiSettingKey].application === value.application)).toBe(true);
     expect(descriptors.every(value => value.storedValue !== undefined && value.effectiveValue !== undefined)).toBe(true);
-    expect(new Set(descriptors.map(value => value.key)).size).toBe(EXPOSED_SETTING_KEYS.length);
+    expect(new Set(descriptors.map(value => value.key)).size).toBe(EXPOSED_SETTING_KEYS.length + 1);
   });
 
   it("applies, persists, and flushes through the coordinator", async () => {
@@ -115,7 +115,7 @@ describe("Pi settings integration", () => {
 
     const descriptors = await port.listSettings();
     const visible = new Set(descriptors.map(value => value.key));
-    for (const key of EXPOSED_SETTING_KEYS) {
+    for (const key of [...EXPOSED_SETTING_KEYS, "defaultModel"]) {
       const definition = PI_SETTING_EFFECTS[key as PiSettingKey];
       const expected = definition.hiddenInBare !== true && definition.owner !== "installation";
       expect(visible.has(key), `${key} has incorrect bare-A1 visibility`).toBe(expected);
@@ -137,11 +137,61 @@ describe("Pi settings integration", () => {
 
   it("omits unbound effects instead of returning disabled explanatory descriptors", async () => {
     const port = new PiSettingsBridge(SettingsManager.inMemory({ compaction: { enabled: true } }));
-    expect(await port.listSettings()).toEqual([]);
+    expect(await port.listSettings()).toEqual([expect.objectContaining({ key: "defaultModel" })]);
     await expect(port.writeSetting("autoCompact", false)).resolves.toMatchObject({
       status: "unavailable", storedValue: true, effectiveValue: true,
     });
     expect(await port.readSetting("autoCompact")).toBe(true);
+  });
+
+  it("persists the default model for the next session without a live model effect", async () => {
+    const settings = SettingsManager.inMemory({ defaultProvider: "openai", defaultModel: "gpt-5" });
+    const port = new PiSettingsBridge(settings, {
+      productMode: "comparison",
+      models: () => [
+        { key: "openai/gpt-5", label: "gpt-5 [openai]", name: "GPT-5", description: "global default", levels: ["off", "low", "high"] },
+        { key: "anthropic/claude/sonnet", label: "claude/sonnet [anthropic]", name: "Claude Sonnet", description: "global default", levels: ["off", "high"] },
+      ],
+    });
+    bindEffects(port, () => true);
+
+    expect((await port.listSettings()).find(value => value.key === "defaultModel")).toMatchObject({
+      label: "Default model",
+      application: "next-session",
+      owner: "startup",
+      storedValue: "openai/gpt-5",
+      effectiveValue: "openai/gpt-5",
+      choices: ["openai/gpt-5", "anthropic/claude/sonnet"],
+      flags: [
+        { key: "openai/gpt-5", label: "gpt-5 [openai]", description: "GPT-5", fallback: false },
+        { key: "anthropic/claude/sonnet", label: "claude/sonnet [anthropic]", description: "Claude Sonnet", fallback: false },
+      ],
+    });
+    await expect(port.writeSetting("defaultModel", "anthropic/claude/sonnet")).resolves.toMatchObject({
+      status: "deferred",
+      application: "next-session",
+      storedValue: "anthropic/claude/sonnet",
+      effectiveValue: "openai/gpt-5",
+    });
+    expect(settings.getDefaultProvider()).toBe("anthropic");
+    expect(settings.getDefaultModel()).toBe("claude/sonnet");
+    await expect(port.writeSetting("defaultModel", "missing/model")).rejects.toThrow(/invalid/);
+    expect(settings.getDefaultProvider()).toBe("anthropic");
+    expect(settings.getDefaultModel()).toBe("claude/sonnet");
+  });
+
+  it("restores the prior default model when persistence fails", async () => {
+    const settings = SettingsManager.inMemory({ defaultProvider: "openai", defaultModel: "gpt-5" });
+    const port = new PiSettingsBridge(settings, {
+      models: () => [{ key: "anthropic/claude/sonnet", label: "claude/sonnet [anthropic]", name: "Claude Sonnet", description: "", levels: [] }],
+    });
+    vi.spyOn(settings, "flush").mockRejectedValueOnce(new Error("disk full"));
+
+    await expect(port.writeSetting("defaultModel", "anthropic/claude/sonnet")).resolves.toMatchObject({
+      status: "failed", storedValue: "openai/gpt-5", effectiveValue: "openai/gpt-5", failure: "disk full",
+    });
+    expect(settings.getDefaultProvider()).toBe("openai");
+    expect(settings.getDefaultModel()).toBe("gpt-5");
   });
 
   it("rejects invalid values without mutation and reports unknown settings", async () => {

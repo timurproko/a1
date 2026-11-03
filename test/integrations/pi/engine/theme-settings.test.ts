@@ -12,7 +12,7 @@ function bindTheme(target: PiSettingsBridge): PiSettingsBridge {
 function integration(theme: string): PiSettingsBridge {
   const target = bindTheme(new PiSettingsBridge(SettingsManager.inMemory({ theme }), {
     themes: () => THEMES,
-    models: () => [{ key: "openai/gpt-5", label: "gpt-5 [openai]", description: "global default", levels: ["off", "low", "high"] }],
+    models: () => [{ key: "openai/gpt-5", label: "gpt-5 [openai]", name: "GPT-5", description: "global default", levels: ["off", "low", "high"] }],
     productMode: "comparison",
   }));
   target.bindOwner("agent", { modelThinkingLevels: { apply() {} } });

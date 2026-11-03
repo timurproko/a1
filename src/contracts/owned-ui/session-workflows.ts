@@ -323,7 +323,7 @@ export type OwnedUiSettingOwner = "agent" | "shell" | "terminal" | "startup" | "
 export type OwnedUiSessionSettingKey =
   | "autoCompact" | "showImages" | "imageWidthCells" | "autoResizeImages" | "blockImages"
   | "enableSkillCommands" | "steeringMode" | "followUpMode" | "transport" | "httpIdleTimeoutMs" | "cacheWarmingMode"
-  | "modelThinkingLevels" | "theme" | "hideThinkingBlock" | "mermaidRenderingMode" | "showCacheMissNotices"
+  | "defaultModel" | "modelThinkingLevels" | "theme" | "hideThinkingBlock" | "mermaidRenderingMode" | "showCacheMissNotices"
   | "collapseChangelog" | "enableInstallTelemetry" | "quietStartup" | "defaultProjectTrust" | "sessionShareDestination"
   | "doubleEscapeAction" | "treeFilterMode" | "showHardwareCursor" | "editorPaddingX" | "outputPad"
   | "autocompleteMaxVisible" | "clearOnShrink" | "showTerminalProgress" | "tuiMode"

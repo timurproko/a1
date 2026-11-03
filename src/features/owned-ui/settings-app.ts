@@ -183,7 +183,7 @@ interface SettingsSearchState {
 interface StructuredEdit {
   readonly entry: OwnedUiSettingsEntry;
   readonly flags: readonly string[];
-  readonly modelDialog: boolean;
+  readonly modelDialog: "thinking" | "default" | null;
   /** The plus menu's own dialog, when this is that setting. */
   readonly plusMenu: PlusMenuDialog | null;
   readonly filter: LineInput | null;
@@ -191,6 +191,8 @@ interface StructuredEdit {
   modelKey: string | null;
   modelIndex: number;
   index: number;
+  saving: boolean;
+  error: string | null;
   readonly record: Record<string, boolean | string>;
 }
 
@@ -437,7 +439,7 @@ export class SettingsApp implements UiApp {
         return { consumed: false };
       case "activate": {
         const row = rows[selected];
-        if (row?.kind === "element" && row.value.structured) this.#openStructured(row.value);
+        if (row?.kind === "element" && (row.value.structured || isDefaultModelEntry(row.value))) this.#openStructured(row.value);
         else if (row?.kind === "element" && typeof this.#shownValue(row.value) === "number") this.#cycle(rows, selected, 1);
         else this.#openMenu(rows, selected, true);
         return { consumed: true };
@@ -618,7 +620,7 @@ export class SettingsApp implements UiApp {
     const row = rows[selected];
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
-    if (entry.structured) {
+    if (entry.structured || isDefaultModelEntry(entry)) {
       this.#openStructured(entry);
       return;
     }
@@ -656,9 +658,13 @@ export class SettingsApp implements UiApp {
 
   // Rationale: a structured setting opens as its own flag list rather than a value menu.
   #openStructured(entry: OwnedUiSettingsEntry): void {
+    const modelDialog = entry.backend === "agent" && entry.id === "modelThinkingLevels"
+      ? "thinking"
+      : isDefaultModelEntry(entry) ? "default" : null;
     // Invariant: the flags come from the declaration, not from the stored value: an unset
-    // flag still has a row, showing the default the source would apply.
-    if (entry.flags.length === 0) return;
+    // flag still has a row, showing the default the source would apply. The default-model
+    // selector may open empty so it can truthfully report that no authenticated models exist.
+    if (entry.flags.length === 0 && modelDialog !== "default") return;
     // Rationale: beside a tab bar, its own Plus Menu dialog configures `+`, so both ways look the same.
     if (entry.backend === "a1" && entry.id === PLUS_MENU_SETTING_ID && this.#options.configurePlusMenu?.() === true) return;
     const stored = typeof entry.rawValue === "object" && entry.rawValue !== null && !Array.isArray(entry.rawValue)
@@ -676,17 +682,19 @@ export class SettingsApp implements UiApp {
     this.#hoverKey = null;
     this.#hoverRegion = "label";
     this.#rails.clear();
-    const modelDialog = entry.backend === "agent" && entry.id === "modelThinkingLevels";
+    const currentDefault = typeof entry.rawValue === "string" ? entry.rawValue : null;
     this.#structured = {
       entry,
       flags: entry.flags.map(flag => flag.key),
       modelDialog,
       plusMenu: entry.backend === "a1" && entry.id === PLUS_MENU_SETTING_ID ? new PlusMenuDialog(entry.flags) : null,
-      filter: modelDialog ? new LineInput("") : null,
+      filter: modelDialog === null ? null : new LineInput(""),
       step: "model",
       modelKey: null,
       modelIndex: 0,
-      index: 0,
+      index: modelDialog === "default" ? Math.max(0, entry.flags.findIndex(flag => flag.key === currentDefault)) : 0,
+      saving: false,
+      error: null,
       record,
     };
   }
@@ -694,7 +702,7 @@ export class SettingsApp implements UiApp {
   #structuredKey(data: string): PaneInputResult {
     const open = this.#structured;
     if (open === null) return { consumed: false };
-    if (open.modelDialog) return this.#modelDialogKey(open, data);
+    if (open.modelDialog !== null) return this.#modelDialogKey(open, data);
     if (open.plusMenu !== null) {
       const outcome = open.plusMenu.handle(KEYS[data] ?? data, data, key => this.#toggleFlag(open.flags.indexOf(key)));
       if (outcome === "close") this.#structured = null;
@@ -723,6 +731,37 @@ export class SettingsApp implements UiApp {
 
   #modelDialogKey(open: StructuredEdit, data: string): PaneInputResult {
     const key = KEYS[data] ?? data;
+    if (open.modelDialog === "default") {
+      const flags = this.#filteredModelFlags(open);
+      const action = MODEL_SHORTCUTS.resolve(key, MODEL_SCOPE) ?? "edit-filter";
+      if (action === "close") {
+        if (!open.saving) this.#structured = null;
+        return { consumed: true };
+      }
+      if (action === "previous" || action === "next") {
+        if (!open.saving) open.index = Math.min(Math.max(0, flags.length - 1), Math.max(0, open.index + (action === "next" ? 1 : -1)));
+        return { consumed: true };
+      }
+      if (action === "select") {
+        const selected = flags[open.index];
+        if (selected === undefined || open.saving) return { consumed: true, render: false };
+        open.saving = true;
+        open.error = null;
+        void this.#session.change(open.entry.backend, open.entry.id, selected.key).then(outcome => {
+          if (this.#structured !== open) return;
+          open.saving = false;
+          const failure = changeFailure(outcome);
+          if (failure === null) this.#structured = null;
+          else open.error = `Could not save: ${failure}`;
+        });
+        return { consumed: true };
+      }
+      if (open.saving) return { consumed: true, render: false };
+      if (open.filter === null) return { consumed: true, render: false };
+      handleLineInputKey(open.filter, data);
+      open.index = 0;
+      return { consumed: true };
+    }
     if (open.step === "model") {
       const flags = this.#filteredModelFlags(open);
       const action = MODEL_SHORTCUTS.resolve(key, MODEL_SCOPE) ?? "edit-filter";
@@ -790,6 +829,7 @@ export class SettingsApp implements UiApp {
     const needle = open.filter?.value.trim().toLowerCase() ?? "";
     return open.entry.flags.filter(flag => needle.length === 0
       || (flag.label ?? humanizeLabel(flag.key)).toLowerCase().includes(needle)
+      || flag.description.toLowerCase().includes(needle)
       || flag.key.toLowerCase().includes(needle));
   }
 
@@ -1109,7 +1149,7 @@ export class SettingsApp implements UiApp {
   #viewRow(entry: OwnedUiSettingsEntry): ListViewRow {
     const key = `${entry.backend}:${entry.id}`;
     const shown = this.#shownValue(entry);
-    const value = entry.structured
+    const value = entry.structured || isDefaultModelEntry(entry)
       ? CONFIGURE
       : shown === null
         ? describeRaw(entry.rawValue)
@@ -1161,7 +1201,7 @@ export class SettingsApp implements UiApp {
   }
 
   #dialogLines(open: StructuredEdit, width: number, height: number, theme: UiTheme): readonly string[] {
-    if (open.modelDialog) return this.#modelDialogLines(open, width, height, theme);
+    if (open.modelDialog !== null) return this.#modelDialogLines(open, width, height, theme);
     if (open.plusMenu !== null) return open.plusMenu.lines(open.record, width, theme);
     const rows = open.flags.map(key => {
       const declared = open.entry.flags.find(flag => flag.key === key);
@@ -1181,6 +1221,22 @@ export class SettingsApp implements UiApp {
   }
 
   #modelDialogLines(open: StructuredEdit, width: number, height: number, theme: UiTheme): readonly string[] {
+    if (open.modelDialog === "default") {
+      const flags = this.#filteredModelFlags(open);
+      const current = typeof open.entry.rawValue === "string" ? open.entry.rawValue : null;
+      const rows: readonly DialogRow[] = flags.length === 0
+        ? [{ label: "No models found", value: "" }]
+        : flags.map(flag => ({
+          ...modelLabelParts(flag.label ?? humanizeLabel(flag.key)),
+          value: `${flag.key === current ? "✓ " : ""}${flag.description}`,
+        }));
+      const description = open.error ?? (open.saving ? "Saving default model…" : "Select the model used for new sessions");
+      const visible = dialogWindow(rows, open.index, configureDialogChoiceCapacity(height, true, configureDialogTextRows(description, width)));
+      return renderSteppedDialogPanel({
+        title: "Default Model", description, input: open.filter ?? new LineInput(""),
+        rows: visible.rows, index: visible.index, hint: MODEL_SHORTCUTS.hintEntries(MODEL_SCOPE),
+      }, width, theme);
+    }
     if (open.step === "model") {
       const flags = this.#filteredModelFlags(open);
       const stored = structuredValue(open.entry, open.record);
@@ -1345,6 +1401,10 @@ function changeFailure(outcome: OwnedUiSettingsChangeOutcome): string | null {
   if (outcome.status === "failed") return "the effect failed";
   if (outcome.status === "unavailable") return outcome.limitationReason ?? "the setting is unavailable";
   return outcome.limitationReason;
+}
+
+function isDefaultModelEntry(entry: OwnedUiSettingsEntry): boolean {
+  return entry.backend === "agent" && entry.id === "defaultModel";
 }
 
 /** The source's own wording when it has one, otherwise the id made readable. */

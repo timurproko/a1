@@ -66,7 +66,7 @@ function persistOnlyHandlers(owner: AgentSettingOwner): PiSettingOwnerHandlers {
 }
 
 function modelChoices(
-  models: readonly { readonly provider: string; readonly id: string; readonly reasoning?: boolean; readonly thinkingLevelMap?: Readonly<Record<string, unknown>> }[],
+  models: readonly { readonly provider: string; readonly id: string; readonly name?: string; readonly reasoning?: boolean; readonly thinkingLevelMap?: Readonly<Record<string, unknown>> }[],
   overrides: Readonly<Record<string, string>>,
 ): readonly PiSettingsModelChoice[] {
   return models.map(model => {
@@ -74,6 +74,7 @@ function modelChoices(
     return {
       key,
       label: `${model.id} [${model.provider}]`,
+      name: model.name ?? model.id,
       description: overrides[key] === undefined ? "global default" : `override: ${overrides[key]}`,
       levels: supportedThinkingLevels(model),
     };

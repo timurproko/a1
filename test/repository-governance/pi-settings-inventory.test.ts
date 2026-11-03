@@ -9,9 +9,10 @@ import {
   PiSettingsBridge,
   settingsEffectInventoryDrift,
   settingsInventoryDrift,
-  settingsVisualInventoryViolations,
   type PiSettingOwnerHandlers,
 } from "../../src/integrations/pi/engine/index.js";
+import { SUPPLEMENTAL_SETTING_KEYS } from "../../src/integrations/pi/engine/default-model-setting.js";
+import { settingsVisualInventoryViolations } from "../support/pi-settings-governance.js";
 import {
   extractPiSettingsMetadata,
   settingsRootKeys,
@@ -37,7 +38,9 @@ async function mappedKeys(): Promise<readonly string[]> {
         .map(([key]) => [key, { apply() {} }]),
     ) as PiSettingOwnerHandlers);
   }
-  return (await integration.listSettings()).map(descriptor => descriptor.key);
+  return (await integration.listSettings())
+    .map(descriptor => descriptor.key)
+    .filter(key => !SUPPLEMENTAL_SETTING_KEYS.includes(key as typeof SUPPLEMENTAL_SETTING_KEYS[number]));
 }
 
 describe("Pi settings inventory governance", () => {
@@ -72,8 +75,23 @@ describe("Pi settings inventory governance", () => {
   });
 
   it("requires one reviewed effect entry for every generated key", () => {
-    expect(settingsEffectInventoryDrift(piSettingsMetadata.presented, Object.keys(PI_SETTING_EFFECTS)))
+    const generatedEffects = Object.keys(PI_SETTING_EFFECTS)
+      .filter(key => !SUPPLEMENTAL_SETTING_KEYS.includes(key as typeof SUPPLEMENTAL_SETTING_KEYS[number]));
+    expect(settingsEffectInventoryDrift(piSettingsMetadata.presented, generatedEffects))
       .toEqual({ unmapped: [], stale: [], duplicated: [] });
+  });
+
+  it("keeps the reviewed supplemental settings separate from generated Pi metadata", async () => {
+    expect(SUPPLEMENTAL_SETTING_KEYS).toEqual(["defaultModel"]);
+    expect(piSettingsMetadata.presented).not.toContain("defaultModel");
+    const integration = new PiSettingsBridge(SettingsManager.inMemory({}), {
+      productMode: "comparison",
+      models: () => [{ key: "openai/gpt-5", label: "gpt-5 [openai]", name: "GPT-5", description: "global default", levels: ["off", "high"] }],
+    });
+    integration.bindOwner("startup", { defaultModel: { apply() {} } });
+    expect((await integration.listSettings()).find(descriptor => descriptor.key === "defaultModel")).toMatchObject({
+      application: "next-session", owner: "startup", label: "Default model",
+    });
   });
 
   it("requires a reviewed pinned source and independent visual evidence for every generated key", () => {

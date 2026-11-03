@@ -38,8 +38,9 @@ export interface DialogPanelFrame {
 
 export interface SteppedDialogPanelState {
   readonly title: string;
-  readonly step: number;
-  readonly steps: number;
+  /** Omitted for a one-step searchable selector whose title needs no step marker. */
+  readonly step?: number;
+  readonly steps?: number;
   readonly description: string;
   readonly input?: LineInput;
   readonly rows: readonly DialogRow[];
@@ -169,7 +170,7 @@ export function renderDialogPanel(state: DialogPanelState, width: number, theme:
   ];
 }
 
-/** Owned stepped-selector content for structured settings with nested choices. */
+/** Owned searchable selector content, with an optional step marker for nested choices. */
 export function renderSteppedDialogPanel(
   state: SteppedDialogPanelState,
   width: number,
@@ -205,9 +206,11 @@ export function renderSteppedDialogPanel(
       layout.blank,
     ];
   const descriptionRows = wrapText(state.description, layout.contentWidth);
-  const step = `(step ${state.step}/${state.steps})`;
-  const title = `${state.title} ${step}`;
-  const paintedTitle = `${theme.bold(theme.fg("accent", state.title))} ${theme.fg("dim", step)}`;
+  const step = state.step === undefined || state.steps === undefined ? "" : `(step ${state.step}/${state.steps})`;
+  const title = step.length === 0 ? state.title : `${state.title} ${step}`;
+  const paintedTitle = step.length === 0
+    ? theme.bold(theme.fg("accent", state.title))
+    : `${theme.bold(theme.fg("accent", state.title))} ${theme.fg("dim", step)}`;
   return [
     layout.blank,
     layout.contentRow(paintedTitle, title),

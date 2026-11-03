@@ -97,7 +97,7 @@ export class PiEngineSettings {
       });
       this.#settingsIntegration.bindOwner("startup", {
         // Invariant: deferred application is the owner operation: the next preflight reads
-        // the persisted default before constructing project-backed services.
+        // the persisted defaults before constructing project-backed services.
         defaultProjectTrust: { apply() {} },
         collapseChangelog: { apply() {} },
       });
@@ -175,6 +175,7 @@ export class PiEngineSettings {
       return {
         key,
         label: `${model.id} [${model.provider}]`,
+        name: model.name,
         description: overrides[key] === undefined ? "global default" : `override: ${overrides[key]}`,
         levels: supportedThinkingLevels(model),
       };

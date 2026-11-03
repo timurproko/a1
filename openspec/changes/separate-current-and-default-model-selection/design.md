@@ -35,7 +35,7 @@ Keeping persistence on Enter was rejected because it is the reported defect. Add
 
 Add a `defaultModel` Agent setting backed by Pi's existing `getDefaultProvider`, `getDefaultModel`, and `setDefaultModelAndProvider` APIs. Its stored value is the canonical `provider/modelId` reference. The available choices are resolved from the authenticated model catalog when settings are read, so unauthenticated or stale catalog entries are not offered.
 
-The setting declares `next-session` application and a startup-owned no-op live handler, matching the existing deferred-settings contract: accepting the value persists it, while the next session startup observes it. Writing it must never call `session.setModel`, update the active-model port, or change the active session's thinking level.
+The setting declares `next-session` application and startup ownership: accepting the value completes the persistence operation, while the next session startup observes it through the existing resolver. It needs no live owner handler and must never call `session.setModel`, update the active-model port, or change the active session's thinking level.
 
 Model identifiers may contain slashes, so writes split only at the first slash. A selected value must exactly match an available catalog model before persistence.
 
@@ -57,7 +57,7 @@ Pending unsaved scope edits remain session-only when Enter switches models, exac
 
 Pinned settings metadata remains authoritative for Pi's ordinary generated settings list. The default-model entry is a narrowly declared supplemental Pi setting because Pi exposes it through its model selector rather than the generated settings rows. Inventory checks will distinguish generated entries from this reviewed supplement while still requiring an operation, effect owner, application boundary, presentation label, and focused evidence for every exposed key.
 
-This avoids pretending the upstream generated list contains a row it does not contain, while retaining fail-closed drift checks for both generated and supplemental settings.
+This avoids pretending the upstream generated list contains a row it does not contain, while retaining fail-closed drift checks for both generated and supplemental settings. The supplemental persistence module is loaded only when settings are listed, read, or written so the startup graph does not grow for a configuration surface that is not used during launch.
 
 ## Risks / Trade-offs
 

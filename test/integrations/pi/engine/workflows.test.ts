@@ -31,6 +31,7 @@ class WorkflowSession {
   readonly calls: string[] = [];
   reloadFails = false;
   setModelFails = false;
+  lastSetModelOptions: unknown;
   leafId: string | undefined = "entry-2";
   exportFails = false;
   cycleResult: unknown = { model: { provider: "anthropic", id: "claude", name: "Claude" }, thinkingLevel: "high" };
@@ -51,9 +52,10 @@ class WorkflowSession {
   abortRetry(): void { this.calls.push("abortRetry"); }
   abortCompaction(): void { this.calls.push("abortCompaction"); }
   async compact(instructions?: string): Promise<void> { this.calls.push(`compact:${instructions ?? ""}`); }
-  async setModel(model: unknown): Promise<void> {
+  async setModel(model: unknown, options?: unknown): Promise<void> {
     if (this.setModelFails) throw new Error("selection failed");
     this.model = model;
+    this.lastSetModelOptions = options;
     this.calls.push("setModel");
   }
   setThinkingLevel(level: unknown): void { this.thinkingLevel = level; }
@@ -135,6 +137,10 @@ class WorkflowRuntime {
       if (name === "getAllModelThinkingLevels") return () => Object.fromEntries(this.modelThinkingLevels);
       if (name === "setModelThinkingLevel") return (provider: string, modelId: string, level: string) => { this.modelThinkingLevels.set(`${provider}/${modelId}`, level); };
       if (name === "removeModelThinkingLevel") return (provider: string, modelId: string) => { this.modelThinkingLevels.delete(`${provider}/${modelId}`); };
+      if (name === "setDefaultModelAndProvider") return (provider: string, modelId: string) => {
+        this.settingsValues.set("DefaultProvider", provider);
+        this.settingsValues.set("DefaultModel", modelId);
+      };
       if (name.startsWith("get")) return () => this.settingsValues.get(name.slice(3));
       if (name.startsWith("set")) return (value: unknown) => { this.settingsValues.set(name.slice(3), value); };
       return undefined;
@@ -465,6 +471,18 @@ describe("pinned Pi command and input workflows", () => {
     await expect(port!.writeSetting("steeringMode", "one-at-a-time")).resolves.toMatchObject({ status: "applied", effectiveValue: "one-at-a-time" });
     await expect(port!.writeSetting("followUpMode", "one-at-a-time")).resolves.toMatchObject({ status: "applied", effectiveValue: "one-at-a-time" });
     await expect(port!.writeSetting("transport", "websocket")).resolves.toMatchObject({ status: "applied", effectiveValue: "websocket" });
+    runtime.allModels = [...runtime.allModels, { provider: "openai", id: "gpt-6", name: "GPT-6" }];
+    const modelBeforeDefaultChange = runtime.session.model;
+    const thinkingBeforeDefaultChange = runtime.session.thinkingLevel;
+    const modelCallsBeforeDefaultChange = runtime.session.calls.filter(call => call === "setModel").length;
+    await expect(port!.writeSetting("defaultModel", "openai/gpt-6")).resolves.toMatchObject({
+      status: "deferred", application: "next-session", storedValue: "openai/gpt-6",
+    });
+    expect(runtime.settingsValues.get("DefaultProvider")).toBe("openai");
+    expect(runtime.settingsValues.get("DefaultModel")).toBe("gpt-6");
+    expect(runtime.session.model).toBe(modelBeforeDefaultChange);
+    expect(runtime.session.thinkingLevel).toBe(thinkingBeforeDefaultChange);
+    expect(runtime.session.calls.filter(call => call === "setModel")).toHaveLength(modelCallsBeforeDefaultChange);
     await expect(port!.writeSetting("modelThinkingLevels", { "openai/gpt-5": "high" })).resolves.toMatchObject({ status: "applied", effectiveValue: { "openai/gpt-5": "high" } });
     await expect(port!.writeSetting("httpIdleTimeoutMs", 0)).resolves.toMatchObject({ status: "applied", effectiveValue: 0 });
     await expect(port!.writeSetting("showCacheMissNotices", true)).resolves.toMatchObject({ status: "applied", effectiveValue: true });
@@ -1182,24 +1200,26 @@ describe("bare-A1 unified models route", () => {
     await adapter.dispose();
   });
 
-  it("switches and persists an explicit selection, refreshes on a miss, and fails a model that stays unavailable", async () => {
+  it("switches the current model without persisting, refreshes on a miss, and fails a model that stays unavailable", async () => {
     const { adapter, runtime } = await bareFixture();
     await expect(adapter.executeWorkflow({ command: "models", argument: "" })).resolves.toMatchObject({ outcome: "requires-selection", messageKind: "silent" });
     await expect(adapter.executeWorkflow({ command: "models", argument: "gpt" })).resolves.toMatchObject({ outcome: "requires-selection", detail: "gpt", messageKind: "silent" });
     expect(runtime.session.calls).not.toContain("setModel");
 
     await expect(adapter.executeWorkflow({ command: "models", argument: "", selection: "openai/gpt-5" })).resolves.toMatchObject({
-      outcome: "completed", message: "Default model: openai/gpt-5",
+      outcome: "completed", message: "Model: gpt-5",
     });
     expect(runtime.session.calls).toContain("setModel");
+    expect(runtime.session.lastSetModelOptions).toEqual({ persist: false });
     expect(adapter.view().activeModel).toMatchObject({ providerId: "openai", modelId: "gpt-5" });
 
     runtime.modelRefreshModels = [{ provider: "openai", id: "gpt-6", name: "GPT-6" }];
     await expect(adapter.executeWorkflow({ command: "models", argument: "", selection: "openai/gpt-6" })).resolves.toMatchObject({
       outcome: "completed",
-      message: "Default model: openai/gpt-6",
-      messages: [{ kind: "status", message: "Refreshing model catalogs…" }, { kind: "status", message: "Default model: openai/gpt-6" }],
+      message: "Model: gpt-6",
+      messages: [{ kind: "status", message: "Refreshing model catalogs…" }, { kind: "status", message: "Model: gpt-6" }],
     });
+    expect(runtime.session.lastSetModelOptions).toEqual({ persist: false });
 
     runtime.modelRefreshModels = undefined;
     runtime.modelRefreshResult = { aborted: false, errors: new Map([["openai", new Error("offline")]]) };
@@ -1239,8 +1259,9 @@ describe("bare-A1 unified models route", () => {
     });
     (runtime.session as { scopedModels?: unknown }).scopedModels = [{ model: runtime.allModels[1] }];
     await expect(adapter.executeWorkflow({ command: "models", argument: "", selection: "openai/gpt-5" })).resolves.toMatchObject({
-      outcome: "completed", message: "Default model: openai/gpt-5",
+      outcome: "completed", message: "Model: gpt-5",
     });
+    expect(runtime.session.lastSetModelOptions).toEqual({ persist: false });
     let finish!: (value: unknown) => void;
     runtime.modelRefreshResult = new Promise(resolve => { finish = resolve; });
     runtime.modelRefreshModels = [{ provider: "openai", id: "gpt-7", name: "GPT-7" }];
