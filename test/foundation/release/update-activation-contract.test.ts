@@ -9,6 +9,7 @@ import { materializeRelease, type MaterializedRelease } from "../../../src/found
 import {
   UPDATE_ACTIVATION_CONTRACT,
   UPDATE_ACTIVATION_MANIFEST_FIELD,
+  UpdateActivationBlockedError,
   readActivationContracts,
   runActivationEntry,
   type UpdateActivationEvent,
@@ -86,6 +87,19 @@ ${emitting([
     expect(warmMaterializedRelease).not.toHaveBeenCalled();
     expect(ensureSupervisor).not.toHaveBeenCalled();
     await expect(import("node:fs/promises").then(fs => fs.readFile(resolve(dataDir, "seen-by-entry"), "utf8"))).resolves.toBe("yes");
+  });
+
+  it("preserves the typed continuity blocker reported by the installed tree", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-activation-contract-"));
+    roots.push(root);
+    const packageRoot = await installedTree(root, { entry: emitting([
+      { event: "phase", phase: "certified" },
+      { event: "failed", code: "resident-continuity-blocked", message: "prior client remains selected" },
+    ], 1) });
+    const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: resolve(root, "data") });
+
+    await expect(coordinator.activateInstalled(packageRoot, "1.1.0", async () => {}))
+      .rejects.toBeInstanceOf(UpdateActivationBlockedError);
   });
 
   it("fails with the entry's own reason when the tree reports a failure", async () => {

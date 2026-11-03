@@ -109,6 +109,7 @@ export { STABLE_RELEASE_SCHEMA, createStableReleaseEvidence, verifyStableRegistr
 export type { StableRegistryState, StableRegistryVerificationOptions, StableReleaseEvidence, StableReleaseEvidenceInput } from "./stable-release.js";
 export {
   PACKAGE_UNLOCK_PATIENCE_MS,
+  UPDATE_ACTIVATION_BLOCKED_EXIT_CODE,
   UPDATE_ALREADY_RUNNING_EXIT_CODE,
   PRODUCT_PACKAGE,
   assertUpdatePerformanceBudget,
@@ -144,6 +145,7 @@ export {
   UPDATE_ACTIVATION_CONTRACT,
   UPDATE_ACTIVATION_ENTRY,
   UPDATE_ACTIVATION_MANIFEST_FIELD,
+  UpdateActivationBlockedError,
   activateInstalledRelease,
   delegateActivation,
   readActivationContracts,

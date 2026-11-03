@@ -26,6 +26,7 @@ import { materializeRelease, readMaterializedRelease } from "./release-store.js"
 import { scheduleReleaseCleanup } from "./release-gc.js";
 import {
   UPDATE_ACTIVATION_CONTRACT,
+  UpdateActivationBlockedError,
   activateInstalledRelease,
   delegateActivation,
   readActivationContracts,
@@ -141,6 +142,10 @@ export interface UpdateLifecycleCoordinator {
     onMaterializing?: (progress: UpdateMaterializationProgress) => void,
     onWarmup?: (state: "started" | "completed") => void,
   ): Promise<void>;
+  activatePrepared?(
+    targetVersion: string,
+    phase: (phase: UpdateActivationPhase) => Promise<void>,
+  ): Promise<void>;
 }
 export interface UpdateTransactionJournal {
   readonly path: string;
@@ -148,6 +153,7 @@ export interface UpdateTransactionJournal {
   begin(input: { channel: UpdateChannel; targetVersion: string; packageRoot: string; priorActiveReleaseId: string | null }): Promise<UpdateTransaction>;
   advance(phase: UpdateTransactionPhase): Promise<UpdateTransaction>;
   setRecovery?(recovery: UpdateRecoveryState): Promise<UpdateTransaction>;
+  recordActiveError?(error: string): Promise<UpdateTransaction>;
   finish(status: "completed" | "rolled-back" | "failed", error?: string | null): Promise<UpdateTransaction>;
   clearCompleted(): Promise<void>;
 }
@@ -180,6 +186,7 @@ const defaultFileSystem: UpdateFileSystem = {
  */
 export const PACKAGE_UNLOCK_PATIENCE_MS = 15_000;
 export const UPDATE_ALREADY_RUNNING_EXIT_CODE = 75;
+export const UPDATE_ACTIVATION_BLOCKED_EXIT_CODE = 76;
 /** A named preview reads the registry's whole package document, which is larger than a dist-tag lookup. */
 const PREVIEW_LOOKUP_TIMEOUT_MS = 30_000;
 const PACKAGE_UNLOCK_INITIAL_DELAY_MS = 100;
@@ -380,11 +387,7 @@ export function createUpdateLifecycleCoordinator(
     },
     async activateInstalled(packageRoot, targetVersion, phase, onMaterializing, onWarmup) {
       const request = { packageRoot, dataDir: paths.dataDir, targetVersion, environment };
-      const callbacks: UpdateActivationCallbacks = {
-        phase,
-        ...(onMaterializing ? { onMaterializing } : {}),
-        ...(onWarmup ? { onWarmup } : {}),
-      };
+      const callbacks: UpdateActivationCallbacks = { phase, ...(onMaterializing ? { onMaterializing } : {}), ...(onWarmup ? { onWarmup } : {}) };
       // Compatibility: the tree npm just installed is newer than this updater, so its layout is
       // its own to know. A tree that serves the contract activates itself with its own code;
       // a tree from before the contract is activated here, with the layout it had then.
@@ -392,7 +395,18 @@ export function createUpdateLifecycleCoordinator(
       if (contracts.includes(UPDATE_ACTIVATION_CONTRACT)) await delegateActivation(request, callbacks);
       else await activateInstalledRelease(request, callbacks);
     },
+    async activatePrepared(targetVersion, phase) { await retryPreparedActivation(paths.dataDir, environment, targetVersion, phase); },
   };
+}
+
+async function retryPreparedActivation(
+  dataDir: string,
+  environment: NodeJS.ProcessEnv,
+  targetVersion: string,
+  phase: (phase: UpdateActivationPhase) => Promise<void>,
+): Promise<void> {
+  await (await import("./prepared-update-activation.js"))
+    .activatePreparedRelease({ dataDir, targetVersion, environment }, { phase });
 }
 
 const PROGRESS_BAR_WIDTH = 38;
@@ -922,25 +936,22 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     await measure("ownership-release", async () => { await lifecycle.shutdownVerifiedOwners(targetVersion); });
     progress.set(75, MATERIALIZE_PROGRESS.from);
     let activationPhaseStartedAt = now();
-    await lifecycle.activateInstalled(packageRoot, targetVersion, async phase => {
+    const recordActivationPhase = async (phase: UpdateActivationPhase) => {
       options.onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - activationPhaseStartedAt) });
       transaction = await transactionStore.advance(phase);
       progress.set(ACTIVATION_PROGRESS[phase].at, ACTIVATION_PROGRESS[phase].creepTo);
       activationPhaseStartedAt = now();
-    }, ({ completed, total }) => {
-      const span = MATERIALIZE_PROGRESS.to - MATERIALIZE_PROGRESS.from;
-      const done = total > 0 ? Math.min(1, completed / total) : 0;
-      progress.set(MATERIALIZE_PROGRESS.from + span * done);
-    }, state => {
-      if (state === "started") {
-        activationPhaseStartedAt = now();
-        progress.set(98, 99);
-      } else {
-        options.onPhaseTiming?.({ phase: "warmup", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
-        activationPhaseStartedAt = now();
-        progress.set(99);
-      }
-    });
+    };
+    await activateUpdateTransaction(lifecycle, transaction, packageRoot, targetVersion, recordActivationPhase,
+      ({ completed, total }) => progress.set(MATERIALIZE_PROGRESS.from
+        + (MATERIALIZE_PROGRESS.to - MATERIALIZE_PROGRESS.from) * (total > 0 ? Math.min(1, completed / total) : 0)),
+      state => {
+        if (state === "started") { activationPhaseStartedAt = now(); progress.set(98, 99); }
+        else {
+          options.onPhaseTiming?.({ phase: "warmup", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
+          activationPhaseStartedAt = now(); progress.set(99);
+        }
+      });
     options.onPhaseTiming?.({ phase: "supervisor-verified", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
     const transactionStartedAt = now();
     await transactionStore.advance("supervisor-verified");
@@ -959,6 +970,8 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       progress.clear();
       const message = errorMessage(error);
       if (error instanceof UpdateAutomaticDeferred) return 1;
+      const blockedExit = await preparedActivationExit(error, transaction, mode, output, transactionStore);
+      if (blockedExit !== null) return blockedExit;
       if (error instanceof UpdatePreflightFailure) {
         output.stderr(`${PRODUCT_TEXT.diagnostic(`update could not start safely: ${message}. Nothing was changed. Retry with npm x -y -- ${PRODUCT_PACKAGE}-install`)}\n`);
         return 1;
@@ -1043,6 +1056,33 @@ async function rollbackPriorCohort(dataDir: string, environment: NodeJS.ProcessE
   // Invariant: rollback reuses a surviving prior cohort rather than racing its occupied endpoint.
   await ensureSupervisor(release, environment);
   return "rolled back";
+}
+
+async function activateUpdateTransaction(
+  lifecycle: UpdateLifecycleCoordinator,
+  transaction: UpdateTransaction,
+  packageRoot: string,
+  targetVersion: string,
+  phase: (phase: UpdateActivationPhase) => Promise<void>,
+  materializing: (progress: UpdateMaterializationProgress) => void,
+  warmup: (state: "started" | "completed") => void,
+): Promise<void> {
+  if (!phaseBefore(transaction.phase, "certified") && phaseBefore(transaction.phase, "active-reference-committed")
+    && lifecycle.activatePrepared !== undefined) await lifecycle.activatePrepared(targetVersion, phase);
+  else await lifecycle.activateInstalled(packageRoot, targetVersion, phase, materializing, warmup);
+}
+
+async function preparedActivationExit(
+  error: unknown,
+  transaction: UpdateTransaction | null,
+  mode: "manual" | "automatic",
+  output: UpdateOutput,
+  journal: UpdateTransactionJournal,
+): Promise<number | null> {
+  if (!(error instanceof UpdateActivationBlockedError) || transaction === null || phaseBefore(transaction.phase, "certified")) return null;
+  if (mode === "manual") output.stderr(`${PRODUCT_TEXT.diagnostic(`update prepared, but activation is blocked: ${error.message}. The prior client remains selected; run the update again after the resident blocker clears.`)}\n`);
+  await journal.recordActiveError?.(error.message);
+  return UPDATE_ACTIVATION_BLOCKED_EXIT_CODE;
 }
 
 function phaseBefore(current: UpdateTransactionPhase, target: UpdateTransactionPhase): boolean {

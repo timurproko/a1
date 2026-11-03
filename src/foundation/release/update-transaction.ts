@@ -87,6 +87,11 @@ export class UpdateTransactionStore {
     return await this.#write({ ...current, recovery, updatedAt: new Date().toISOString() });
   }
 
+  async recordActiveError(error: string): Promise<UpdateTransaction> {
+    const current = await this.#requiredActive();
+    return await this.#write({ ...current, error: error.replace(/[\r\n]+/gu, " ").slice(0, 2_000), updatedAt: new Date().toISOString() });
+  }
+
   async finish(status: "completed" | "rolled-back" | "failed", error: string | null = null): Promise<UpdateTransaction> {
     const current = await this.read();
     if (!current) throw new Error(`no ${PRODUCT_TEXT.displayName} update transaction is recorded`);
@@ -127,6 +132,7 @@ function validate(value: UpdateTransaction): void {
   if (value.schema !== UPDATE_JOURNAL_SCHEMA || typeof value.transactionId !== "string" || !["stable", "next"].includes(value.channel)
     || typeof value.targetVersion !== "string" || typeof value.packageRoot !== "string" || typeof value.startedAt !== "string"
     || typeof value.updatedAt !== "string" || phaseOrder(value.phase) < 0 || !["active", "completed", "rolled-back", "failed"].includes(value.status)
+    || (value.error !== null && (typeof value.error !== "string" || value.error.length > 2_000))
     || (value.recovery !== undefined && !validRecovery(value.recovery))) {
     throw new Error(`invalid ${PRODUCT_TEXT.displayName} update transaction journal`);
   }

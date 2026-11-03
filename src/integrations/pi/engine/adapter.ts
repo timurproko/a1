@@ -289,8 +289,14 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       return;
     }
     if (release.status === "installed") {
+      this.#state.diagnosticsState.clearCodes(["release-update-installed", "release-update-blocked"]);
       this.#addDiagnostic("info", "release-update-installed", `Update ${release.version} installed; restart to update.`, true);
-    } else {
+    } else if (release.status === "blocked") {
+      this.#state.diagnosticsState.clearCodes(["release-update-installed", "release-update-blocked"]);
+      this.#addDiagnostic("info", "release-update-blocked", `Update ${release.version} prepared; activation blocked.`, true);
+    } else if (release.status === "blocked-cleared") {
+      this.#state.diagnosticsState.clearCodes(["release-update-blocked"]);
+    } else if (release.status === undefined || release.status === "available") {
       const changelog = release.changelogUrl === null ? "" : `\nChangelog: ${release.changelogUrl}`;
       this.#addDiagnostic("info", "release-update", `New version ${release.version} is available. Run ${release.command}${changelog}`, true);
     }

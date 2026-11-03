@@ -23,6 +23,7 @@ function harness() {
 
 const release = [{ code: "release-update", message: "New version 9.9.9 is available. Run npm i -g a1", sequence: 1, severity: "info" }] as unknown as OwnedUiSessionViewModel["diagnostics"];
 const installed = [{ code: "release-update-installed", message: "Update 9.9.9 installed; restart to update.", sequence: 1, severity: "info" }] as unknown as OwnedUiSessionViewModel["diagnostics"];
+const blocked = [{ code: "release-update-blocked", message: "Update 9.9.9 prepared; activation blocked.", sequence: 1, severity: "info" }] as unknown as OwnedUiSessionViewModel["diagnostics"];
 const frame = { descriptor: { transientAlignmentGapRows: 0 }, scrollTop: 0, hits: { viewportHeight: 40 } } as unknown as TranscriptViewportFrame;
 
 describe("DockChrome", () => {
@@ -75,6 +76,16 @@ describe("DockChrome", () => {
     expect(stripTerminalSequences(chrome.renderPromptOverlay(installed, 20)!)).toBe("Update installed, re");
     expect(chrome.renderPromptOverlay([], 40)).toBeUndefined();
     expect(chrome.renderPromptOverlay(installed, 0)).toBeUndefined();
+  });
+
+  it("shows a sanitized blocked status and gives installed readiness priority", () => {
+    const { chrome } = harness();
+    const prepared = chrome.renderPromptOverlay(blocked, 40)!;
+    expect(stripTerminalSequences(prepared)).toBe("Update prepared; activation blocked");
+    expect(cellStyle(prepared, "U").foreground)
+      .toBe(cellStyle(piTheme().fg("warning", "U"), "U").foreground);
+    expect(stripTerminalSequences(chrome.renderPromptOverlay([...blocked, ...installed], 40)!))
+      .toBe("Update installed, restart to update");
   });
 
   it("docks the release banner until its close control is activated", () => {

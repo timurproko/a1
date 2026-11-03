@@ -8,7 +8,7 @@ import {
   type PiShellReleaseUpdateBanner,
 } from "../../integrations/pi/components/shell-presenters-info.js";
 import { PINNED_PI_LAYOUT, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
-import { piShellTruncateToWidth, renderPiShellInstalledUpdateStatus } from "../../integrations/pi/components/shell-shared-facade.js";
+import { piShellTruncateToWidth, renderPiShellBlockedUpdateStatus, renderPiShellInstalledUpdateStatus } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { SessionViewportController, TailControlRegion } from "./session-viewport-controller.js";
 import { parseReleaseUpdateDiagnostic } from "./transcript-document.js";
 
@@ -109,8 +109,13 @@ export class DockChrome {
   renderPromptOverlay(diagnostics: OwnedUiSessionViewModel["diagnostics"], width: number): string | undefined {
     const acknowledgement = this.renderCopyAcknowledgement(width);
     if (acknowledgement !== undefined) return acknowledgement;
-    if (!diagnostics.some(diagnostic => diagnostic.code === "release-update-installed")) return undefined;
-    return renderPiShellInstalledUpdateStatus(width) || undefined;
+    if (diagnostics.some(diagnostic => diagnostic.code === "release-update-installed")) {
+      return renderPiShellInstalledUpdateStatus(width) || undefined;
+    }
+    if (diagnostics.some(diagnostic => diagnostic.code === "release-update-blocked")) {
+      return renderPiShellBlockedUpdateStatus(width) || undefined;
+    }
+    return undefined;
   }
 
   renderReleaseBanner(diagnostics: OwnedUiSessionViewModel["diagnostics"], width: number): PiShellReleaseUpdateBanner | undefined {

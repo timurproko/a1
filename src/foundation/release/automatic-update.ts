@@ -11,10 +11,11 @@ import { isNewerRelease, releaseChannelOf, type AvailableRelease, type ReleaseCh
 import { readCertifiedReleaseManifest, resolveReleaseEntryPoint } from "./release-store.js";
 import { acquireUpdateExecutionLease, readUpdateExecutionOwner } from "./update-execution-lease.js";
 import { UpdateTransactionStore } from "./update-transaction.js";
-import { runSelfUpdate, UPDATE_ALREADY_RUNNING_EXIT_CODE, type UpdateOutput } from "./update.js";
+import { runSelfUpdate, UPDATE_ACTIVATION_BLOCKED_EXIT_CODE, UPDATE_ALREADY_RUNNING_EXIT_CODE, type UpdateOutput } from "./update.js";
 
 export const AUTOMATIC_UPDATE_STATE_SCHEMA = 1;
 export const AUTOMATIC_UPDATE_RETRY_MS = 24 * 60 * 60_000;
+export const AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS = 15 * 60_000;
 const AUTOMATIC_UPDATE_STATE_FILENAME = "automatic-update.json";
 const MAX_STATE_BYTES = 16_384;
 const OBSERVER_POLL_MS = 250;
@@ -24,7 +25,7 @@ export interface AutomaticUpdateState {
   readonly schema: typeof AUTOMATIC_UPDATE_STATE_SCHEMA;
   readonly channel: ReleaseChannel;
   readonly targetVersion: string;
-  readonly status: "running" | "installed" | "failed";
+  readonly status: "running" | "blocked" | "installed" | "failed";
   readonly attemptedAt: number;
   readonly updatedAt: number;
   readonly installedVersion: string | null;
@@ -75,6 +76,7 @@ export interface AutomaticUpdateRequestOptions {
   /** Focused-test seams; production resolves both from the certified launch cohort. */
   readonly worker?: { readonly entry: string; readonly packageRoot: string };
   readonly activeVersion?: () => Promise<string | null>;
+  readonly onActivationBlocked?: (version: string | null) => void;
 }
 
 /** Start or observe one silent update and resolve with the active newer version once restart is useful. */
@@ -109,6 +111,13 @@ export async function requestAutomaticUpdate(options: AutomaticUpdateRequestOpti
       await store.write(existing).catch(() => undefined);
     }
   }
+  const blockedUpdatedAt = existing?.status === "blocked" && existing.channel === options.release.channel
+    && existing.targetVersion === options.release.version ? existing.updatedAt : null;
+  const observedBlocked = blockedUpdatedAt !== null;
+  if (observedBlocked) {
+    options.onActivationBlocked?.(options.release.version);
+    if (now() - blockedUpdatedAt >= 0 && now() - blockedUpdatedAt < AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS) return null;
+  }
   if (existing?.status === "failed" && existing.channel === options.release.channel && now() - existing.attemptedAt >= 0
     && now() - existing.attemptedAt < AUTOMATIC_UPDATE_RETRY_MS
     && !isNewerRelease(options.release.version, existing.targetVersion)) return null;
@@ -138,6 +147,7 @@ export async function requestAutomaticUpdate(options: AutomaticUpdateRequestOpti
       // Invariant: no worker began this attempt. Do not invent a successful install or an owner.
       await store.write(state({ packageRoot: worker.packageRoot, channel: options.release.channel,
         targetVersion: options.release.version, dataDir: paths.dataDir }, "failed", now(), null, "worker-start-failed")).catch(() => undefined);
+      if (observedBlocked) options.onActivationBlocked?.(null);
       return null;
     }
   }
@@ -151,7 +161,14 @@ export async function requestAutomaticUpdate(options: AutomaticUpdateRequestOpti
     const installed = await readActiveVersion();
     if (installed !== null) return installed;
     const state = await store.read().catch(() => null);
-    if (state?.targetVersion === options.release.version && state.status === "failed" && state.attemptedAt >= startedAt) return null;
+    if (state?.targetVersion === options.release.version && state.status === "blocked") {
+      options.onActivationBlocked?.(state.targetVersion);
+      return null;
+    }
+    if (state?.targetVersion === options.release.version && state.status === "failed" && state.attemptedAt >= startedAt) {
+      if (observedBlocked) options.onActivationBlocked?.(null);
+      return null;
+    }
     const owner = await readUpdateExecutionOwner(paths.dataDir).catch(() => null);
     if ((owner === null || !processIsAlive(owner.pid)) && now() - startedAt >= WORKER_START_GRACE_MS) return null;
     await sleep(OBSERVER_POLL_MS);
@@ -198,6 +215,11 @@ export async function runAutomaticUpdateWorker(argv: readonly string[], environm
       },
     });
     if (code === UPDATE_ALREADY_RUNNING_EXIT_CODE) return 0;
+    if (code === UPDATE_ACTIVATION_BLOCKED_EXIT_CODE) {
+      await runningWrite;
+      if (acquired) await store.write(state(parsed, "blocked", attemptedAt, null, "resident-continuity-blocked"));
+      return code;
+    }
     if (code !== 0) {
       await runningWrite;
       if (acquired) await store.write(state(parsed, "failed", attemptedAt, null, `exit-${code}`));
@@ -315,10 +337,11 @@ function parseWorkerArguments(argv: readonly string[]): WorkerArguments {
 
 function validateState(value: AutomaticUpdateState): void {
   if (value.schema !== AUTOMATIC_UPDATE_STATE_SCHEMA || (value.channel !== "stable" && value.channel !== "development")
-    || validSemver(value.targetVersion) === null || !["running", "installed", "failed"].includes(value.status)
+    || validSemver(value.targetVersion) === null || !["running", "blocked", "installed", "failed"].includes(value.status)
     || !Number.isFinite(value.attemptedAt) || !Number.isFinite(value.updatedAt)
     || (value.installedVersion !== null && validSemver(value.installedVersion) === null)
-    || (value.failure !== null && (typeof value.failure !== "string" || value.failure.length > 512))) {
+    || (value.failure !== null && (typeof value.failure !== "string" || value.failure.length > 512))
+    || value.status === "blocked" && (value.installedVersion !== null || value.failure !== "resident-continuity-blocked")) {
     throw new Error("invalid automatic update state");
   }
 }

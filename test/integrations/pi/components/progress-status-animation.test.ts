@@ -46,6 +46,11 @@ function installedView(lifecycle: "ready" | "busy" = "ready"): OwnedUiSessionVie
   };
 }
 
+function blockedView(): OwnedUiSessionViewModel {
+  const view = installedView();
+  return { ...view, diagnostics: [{ ...view.diagnostics[0]!, code: "release-update-blocked", message: "Update 1.2.4 prepared; activation blocked." }] };
+}
+
 afterEach(() => vi.useRealTimers());
 
 describe("bare-A1 progress status animation", () => {
@@ -123,6 +128,18 @@ describe("bare-A1 progress status animation", () => {
     } finally {
       pinned.dispose?.();
       custom.dispose?.();
+    }
+  });
+
+  it("shows the sanitized blocked status in the pinned compact region", () => {
+    const status = createPiShellStatus(blockedView(), presentation);
+    try {
+      const row = status.render(60).join("\n");
+      expect(stripTerminalSequences(row).trim()).toBe("Update prepared; activation blocked");
+      expect(cellStyle(row, "U").foreground)
+        .toBe(cellStyle(piTheme().fg("warning", "U"), "U").foreground);
+    } finally {
+      status.dispose?.();
     }
   });
 

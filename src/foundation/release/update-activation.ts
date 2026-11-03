@@ -9,6 +9,7 @@ import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
 import { materializeRelease } from "./release-store.js";
 import { warmMaterializedRelease } from "./warmup.js";
+import type { ContinuityOptions } from "../resident-tabs/index.js";
 
 /**
  * The one activation contract an installed tree can offer the updater that installed it.
@@ -22,6 +23,11 @@ export const UPDATE_ACTIVATION_MANIFEST_FIELD = "updateActivationContracts";
 const ACTIVATION_DIAGNOSTIC_LIMIT = 2_000;
 
 export type UpdateActivationPhase = "materialized" | "certified" | "active-reference-committed";
+
+/** A certified candidate is safe to retain, but resident control continuity blocks selection. */
+export class UpdateActivationBlockedError extends Error {
+  readonly code = "resident-continuity-blocked" as const;
+}
 
 /**
  * Copying the release is the longest step with nothing to say for itself, so it
@@ -52,7 +58,7 @@ export type UpdateActivationEvent =
   | { readonly event: "phase"; readonly phase: UpdateActivationPhase }
   | { readonly event: "warmup"; readonly state: "started" | "completed" }
   | { readonly event: "completed" }
-  | { readonly event: "failed"; readonly message: string };
+  | { readonly event: "failed"; readonly message: string; readonly code?: UpdateActivationBlockedError["code"] };
 
 /**
  * Activate the installed tree at `packageRoot` with this process's own release code:
@@ -84,14 +90,22 @@ export async function activateInstalledRelease(request: UpdateActivationRequest,
   callbacks.onWarmup?.("started");
   await warmMaterializedRelease(candidate, request.environment);
   callbacks.onWarmup?.("completed");
-  const { assertResidentContinuity } = await import("../resident-tabs/index.js");
+  await completeActivation(candidate, request, callbacks, stateStore);
+}
+
+async function completeActivation(
+  candidate: Awaited<ReturnType<typeof materializeRelease>>,
+  request: Omit<UpdateActivationRequest, "packageRoot">,
+  callbacks: UpdateActivationCallbacks,
+  stateStore: CohortStateStore,
+): Promise<void> {
   const paths = resolveProductPaths(request.environment);
   const continuity = { releaseRoot: candidate.releaseRoot, dataDir: request.dataDir, environment: request.environment,
     profileRoot: request.environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir, runtimeDir: paths.runtimeDir };
-  await assertResidentContinuity(continuity);
+  await assertContinuityOrBlock(continuity);
   await ensureSupervisor(candidate, request.environment);
   // Invariant: revalidate after supervision, before committing client activation or restart readiness.
-  await assertResidentContinuity(continuity);
+  await assertContinuityOrBlock(continuity);
   await stateStore.activate(candidate.releaseId);
   await callbacks.phase("active-reference-committed");
 }
@@ -124,7 +138,7 @@ export async function delegateActivation(request: UpdateActivationRequest, callb
   });
   const decoder = new LineFrameDecoder();
   let diagnostics = "";
-  let failure: string | null = null;
+  let failure: Error | null = null;
   let completed = false;
   // Concurrency: callbacks are awaited in order so a phase is journaled before the next one is read.
   let relay: Promise<void> = Promise.resolve();
@@ -132,17 +146,19 @@ export async function delegateActivation(request: UpdateActivationRequest, callb
   child.stderr?.on("data", chunk => { diagnostics = `${diagnostics}${chunk}`.slice(-ACTIVATION_DIAGNOSTIC_LIMIT); });
   child.stdout?.on("data", chunk => {
     let events: unknown[];
-    try { events = decoder.push(chunk); } catch (error) { failure ??= errorMessage(error); return; }
+    try { events = decoder.push(chunk); } catch (error) { failure ??= new Error(errorMessage(error)); return; }
     for (const event of events) {
       relay = relay.then(async () => {
         const parsed = parseActivationEvent(event);
-        if (!parsed) { failure ??= `unrecognized activation event ${JSON.stringify(event).slice(0, 200)}`; return; }
+        if (!parsed) { failure ??= new Error(`unrecognized activation event ${JSON.stringify(event).slice(0, 200)}`); return; }
         if (parsed.event === "materializing") callbacks.onMaterializing?.({ completed: parsed.completed, total: parsed.total });
         else if (parsed.event === "phase") await callbacks.phase(parsed.phase);
         else if (parsed.event === "warmup") callbacks.onWarmup?.(parsed.state);
         else if (parsed.event === "completed") completed = true;
-        else failure ??= parsed.message;
-      }).catch(error => { failure ??= errorMessage(error); });
+        else failure ??= parsed.code === "resident-continuity-blocked"
+          ? new UpdateActivationBlockedError(parsed.message)
+          : new Error(parsed.message);
+      }).catch(error => { failure ??= new Error(errorMessage(error)); });
     }
   });
   const exit = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolvePromise, rejectPromise) => {
@@ -150,7 +166,7 @@ export async function delegateActivation(request: UpdateActivationRequest, callb
     child.once("close", (code, signal) => resolvePromise({ code, signal }));
   });
   await relay;
-  if (failure) throw new Error(failure);
+  if (failure) throw failure;
   if (exit.code !== 0 || !completed) {
     const status = exit.code === null ? exit.signal ?? "unknown status" : `status ${exit.code}`;
     throw new Error(`installed release activation exited with ${status}${summarize(diagnostics)}`);
@@ -184,7 +200,7 @@ export async function runActivationEntry(
     emit({ event: "completed" });
     return 0;
   } catch (error) {
-    emit({ event: "failed", message: errorMessage(error) });
+    emit({ event: "failed", message: errorMessage(error), ...(error instanceof UpdateActivationBlockedError ? { code: error.code } : {}) });
     return 1;
   }
 }
@@ -215,10 +231,18 @@ function parseActivationEvent(value: unknown): UpdateActivationEvent | null {
     case "completed":
       return { event: "completed" };
     case "failed":
-      return typeof record.message === "string" ? { event: "failed", message: record.message } : null;
+      return typeof record.message === "string" && (record.code === undefined || record.code === "resident-continuity-blocked")
+        ? { event: "failed", message: record.message, ...(record.code === undefined ? {} : { code: record.code }) }
+        : null;
     default:
       return null;
   }
+}
+
+export async function assertContinuityOrBlock(context: ContinuityOptions): Promise<void> {
+  const { assertResidentContinuity } = await import("../resident-tabs/index.js");
+  try { await assertResidentContinuity(context); }
+  catch (error) { throw new UpdateActivationBlockedError(errorMessage(error), { cause: error }); }
 }
 
 function summarize(text: string): string {

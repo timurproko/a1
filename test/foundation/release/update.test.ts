@@ -13,7 +13,9 @@ import {
   PRODUCT_PACKAGE,
   runSelfUpdate,
   updateNpmInstallArguments,
+  UPDATE_ACTIVATION_BLOCKED_EXIT_CODE,
   UPDATE_ALREADY_RUNNING_EXIT_CODE,
+  UpdateActivationBlockedError,
   UPDATE_JOURNAL_SCHEMA,
   type ProcessRequest,
   type ProcessResult,
@@ -117,6 +119,7 @@ function createHarness(options: {
       return transaction;
     },
     async advance(phase) { if (!transaction) throw new Error("missing test transaction"); transaction = { ...transaction, phase }; return transaction; },
+    async recordActiveError(error) { if (!transaction) throw new Error("missing test transaction"); transaction = { ...transaction, error }; return transaction; },
     async finish(status, error = null) { if (!transaction) throw new Error("missing test transaction"); transaction = { ...transaction, status, error }; return transaction; },
     async clearCompleted() { if (transaction?.status !== "active") transaction = null; },
   };
@@ -615,6 +618,26 @@ describe("A1 self-update orchestration", () => {
     expect(finish).not.toHaveBeenCalledWith("completed");
     expect((await harness.transactionStore.read())?.status).toBe("failed");
     expect(harness.stdout.join("")).not.toContain("updated successfully");
+  });
+
+  it("keeps certified preparation active and retries selection without reinstalling", async () => {
+    const harness = createHarness({ transactionPhase: "certified", responses: [success(`${resolve("fixtures", "global")}\n`), success(`${resolve("fixtures", "global")}\n`)] });
+    let attempts = 0;
+    harness.lifecycle.activatePrepared = async (_target, phase) => {
+      attempts += 1;
+      if (attempts === 1) throw new UpdateActivationBlockedError("resident continuity is blocked");
+      await phase("active-reference-committed");
+    };
+
+    await expect(runSelfUpdate({ ...harness, resolvedTarget: "1.3.0", mode: "automatic" }))
+      .resolves.toBe(UPDATE_ACTIVATION_BLOCKED_EXIT_CODE);
+    expect((await harness.transactionStore.read())).toMatchObject({ status: "active", phase: "certified", error: "resident continuity is blocked" });
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+
+    await expect(runSelfUpdate({ ...harness, resolvedTarget: "1.3.0", mode: "automatic" })).resolves.toBe(0);
+    expect(attempts).toBe(2);
+    expect(harness.lifecycleCalls.filter(call => call.startsWith("activate:"))).toEqual([]);
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
   });
 
   it("resumes unfinished activation even if the target supervisor already responds", async () => {

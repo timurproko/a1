@@ -48,13 +48,20 @@ class ReleaseUpdateObservation {
     if (current && !releases.isNewerRelease(release.version, current)) return;
     if (input.mode === "notify") { input.backend.extensions.announceReleaseUpdate(release); return; }
     if (input.mode !== "auto") return;
+    const announce = (status: "blocked" | "blocked-cleared" | "installed", version: string) => {
+      const actual = input.clientVersion?.();
+      const key = `${status}:${version}`;
+      if (key === this.#announced || this.#controller.signal.aborted
+        || status !== "blocked-cleared" && actual && !releases.isNewerRelease(version, actual)) return;
+      this.#announced = key;
+      input.backend.extensions.announceReleaseUpdate({ status, version });
+    };
     const installed = await import("../foundation/release/automatic-update.js")
-      .then(module => module.requestAutomaticUpdate({ release, runningVersion, signal: this.#controller.signal }));
-    const actual = input.clientVersion?.();
-    if (installed === null || installed === this.#announced || this.#controller.signal.aborted
-      || actual && !releases.isNewerRelease(installed, actual)) return;
-    this.#announced = installed;
-    input.backend.extensions.announceReleaseUpdate({ status: "installed", version: installed });
+      .then(module => module.requestAutomaticUpdate({
+        release, runningVersion, signal: this.#controller.signal,
+        onActivationBlocked: version => announce(version === null ? "blocked-cleared" : "blocked", version ?? release.version),
+      }));
+    if (installed !== null) announce("installed", installed);
   }
   async #run(): Promise<void> {
     if (this.#running) { this.#refresh = true; return; }
