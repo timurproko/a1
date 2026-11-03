@@ -382,12 +382,12 @@ export class PiWorkflowRunner {
         });
       }
       case "models": {
-        // Invariant: the bare dialog seeds its query from the argument; only an explicit selection switches models.
+        // Invariant: the bare dialog seeds its query from the argument; only an explicit selection switches the current session.
         if (!selection) return workflowResult(request.command, "requires-selection", "Select a model", argument || undefined, "silent");
         return this.#selectModel(request, selection, {
           pool: [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])],
           refreshOnMiss: true,
-          persist: true,
+          persist: false,
           onMiss: "failed",
         });
       }

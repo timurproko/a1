@@ -39,6 +39,11 @@ const MODEL_THINKING_FLAGS = [
   { key: "openai/gpt-5.3-codex-spark", label: "gpt-5.3-codex-spark [openai]", description: "global default", fallback: "default", choices: ["default", "low", "medium", "high"] },
 ] as const;
 
+const DEFAULT_MODEL_FLAGS = [
+  { key: "openai/gpt-5", label: "gpt-5 [openai]", description: "GPT-5", fallback: false },
+  { key: "openai/gpt-5.3-codex-spark", label: "gpt-5.3-codex-spark [openai]", description: "GPT-5.3 Codex Spark", fallback: false },
+] as const;
+
 function descriptor(
   key: string,
   valueType: AgentSettingDescriptor["valueType"],
@@ -79,6 +84,54 @@ function port(failWrites = false): { port: AgentSettingsPort; writes: { key: str
         writes.push({ key, value });
         values[key] = value;
         return { status: "applied" as const, application: "live" as const, storedValue: value, effectiveValue: value, failure: null, limitationReason: null };
+      },
+    },
+  };
+}
+
+function defaultModelDialogPort(failWrites = false): { port: AgentSettingsPort; writes: { key: string; value: AgentJsonValue }[] } {
+  const backing = port();
+  let current: AgentJsonValue = "openai/gpt-5";
+  return {
+    writes: backing.writes,
+    port: {
+      ...backing.port,
+      async listSettings() {
+        return [
+          ...await backing.port.listSettings(),
+          descriptor("modelThinkingLevels", "json", {}, {
+            label: "Default thinking level per model",
+            owner: "agent",
+            flags: MODEL_THINKING_FLAGS,
+          }),
+          descriptor("defaultModel", "enum", current, {
+            label: "Default model",
+            description: "Model used when a new session starts",
+            owner: "startup",
+            application: "next-session",
+            choices: DEFAULT_MODEL_FLAGS.map(flag => flag.key),
+            flags: DEFAULT_MODEL_FLAGS,
+          }),
+        ];
+      },
+      async readSetting(key) {
+        return key === "defaultModel" ? current : await backing.port.readSetting?.(key);
+      },
+      async writeSetting(key, value) {
+        if (key !== "defaultModel") return await backing.port.writeSetting!(key, value);
+        if (failWrites) {
+          return {
+            status: "failed" as const, application: "next-session" as const,
+            storedValue: current, effectiveValue: current, failure: "settings are read-only", limitationReason: null,
+          };
+        }
+        backing.writes.push({ key, value });
+        const previous = current;
+        current = value;
+        return {
+          status: "deferred" as const, application: "next-session" as const,
+          storedValue: value, effectiveValue: previous, failure: null, limitationReason: null,
+        };
       },
     },
   };
@@ -138,6 +191,11 @@ const NAMING_THEME: UiTheme = Object.freeze({
   panel: (text: string) => `<panel>${text}</panel>`,
 });
 const NAMING_HOST: AppHostServices = { ...HOST, theme: NAMING_THEME };
+const SUCCESS_MARKER = "\u001b[32m ✓\u001b[39m";
+const SUCCESS_HOST: AppHostServices = {
+  ...HOST,
+  theme: { ...NAMING_THEME, fg: (token, text) => token === "success" ? `\u001b[32m${text}\u001b[39m` : text },
+};
 const PANEL_BACKGROUND = "\u001b[48;2;38;38;38m";
 const MENU_BACKGROUND = "\u001b[48;2;55;55;55m";
 const PANEL_THEME: UiTheme = Object.freeze({
@@ -882,6 +940,68 @@ describe("the settings screen", () => {
     expect(lines.join("\n")).not.toContain("─");
     expect(frame.some(line => line.includes(PANEL_BACKGROUND))).toBe(true);
     expect(frame.some(line => line.includes(MENU_BACKGROUND))).toBe(false);
+  });
+
+  it("configures the next-session default model without treating it as a scalar menu", async () => {
+    const backing = defaultModelDialogPort();
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", agent: backing.port });
+    await session.load();
+    const target = settingsApp(session);
+    const settingsLines = target.render({ width: 80, height: 40 }, HOST).map(line => stripTerminalSequences(line));
+    expect(settingsLines.findIndex(line => line.includes("Default model")))
+      .toBeLessThan(settingsLines.findIndex(line => line.includes("Default thinking level per model")));
+    selectRow(target, "Default model");
+    expect(find(target, "Default model")).toContain("configure");
+    expect(find(target, "Default model")).not.toContain("openai/gpt-5");
+
+    target.onInput?.(ENTER, HOST);
+    let shown = modalScreen(target).join("\n");
+    expect(shown).toContain("Default Model");
+    expect(shown).not.toContain("(step");
+    expect(shown).toContain("Select the model used for new sessions");
+    expect(shown).toContain("gpt-5 [openai] ✓");
+    expect(shown).not.toContain("GPT-5");
+    expect(shown).toContain("Type search  Enter select  Esc close");
+    const semanticFrame = target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n");
+    expect(semanticFrame).toContain("<accent>></accent> ");
+    expect(target.render({ width: 80, height: 24 }, SUCCESS_HOST).join("\n")).toContain(SUCCESS_MARKER);
+
+    for (const character of "spark") target.onInput?.(character, HOST);
+    shown = modalScreen(target).join("\n");
+    expect(shown).toContain("> spark");
+    expect(shown).toContain("gpt-5.3-codex-spark [openai]");
+    expect(shown).not.toContain("GPT-5.3 Codex Spark");
+    expect(shown).not.toContain("→ gpt-5 [openai]");
+
+    const beforePointer = modalScreen(target);
+    target.onMouse?.({ kind: "press", button: 0, row: 20, column: 20 }, HOST);
+    expect(modalScreen(target)).toEqual(beforePointer);
+    expect(backing.writes).toHaveLength(0);
+
+    target.onInput?.(ENTER, HOST);
+    expect(screen(target).join("\n")).not.toContain("Default Model");
+    expect(screen(target).join("\n")).not.toContain("Saving default model");
+    await settleChanges();
+    expect(backing.writes).toEqual([{ key: "defaultModel", value: "openai/gpt-5.3-codex-spark" }]);
+    expect(screen(target).join("\n")).not.toContain("Default Model");
+    expect(find(target, "Default model")).toContain("configure");
+
+    const failing = defaultModelDialogPort(true);
+    const failingSession = new OwnedSettingsManager({ configDir: root, profileId: "failing-profile", agent: failing.port });
+    await failingSession.load();
+    const failingTarget = settingsApp(failingSession);
+    selectRow(failingTarget, "Default model");
+    failingTarget.onInput?.(ENTER, HOST);
+    failingTarget.onInput?.(DOWN, HOST);
+    failingTarget.onInput?.(ENTER, HOST);
+    expect(screen(failingTarget).join("\n")).not.toContain("Default Model");
+    await settleChanges();
+    expect(modalScreen(failingTarget).join("\n")).toContain("Default Model");
+    expect(modalScreen(failingTarget).join("\n")).toContain("Could not save: settings are read-only");
+    expect(modalScreen(failingTarget).join("\n")).toContain("gpt-5.3-codex-spark [openai]");
+    expect(failing.writes).toHaveLength(0);
+    failingTarget.onInput?.(ESC, HOST);
+    expect(screen(failingTarget).join("\n")).not.toContain("Default Model");
   });
 
   it("uses the owned per-model thinking search and stepped keyboard workflow", async () => {

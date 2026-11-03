@@ -93,6 +93,44 @@ fn take_cancelled_agent(cancelled: &mut Vec<CancelledAgent>, request_id: Option<
     true
 }
 
+fn persisted_default_preview(environment: &[(String, String)]) -> Option<(String, String)> {
+    let value = |name: &str| environment.iter().find_map(|(key, value)| (key == name).then_some(value));
+    let agent_dir = value("PI_CODING_AGENT_DIR").filter(|path| !path.is_empty()).map(PathBuf::from).or_else(|| {
+        let home = if cfg!(windows) {
+            value("USERPROFILE").or_else(|| value("HOME"))
+        } else {
+            value("HOME").or_else(|| value("USERPROFILE"))
+        }?;
+        Some(PathBuf::from(home).join(".pi").join("agent"))
+    })?;
+    let path = agent_dir.join("settings.json");
+    let settings: serde_json::Value = std::fs::metadata(&path).ok()
+        .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
+        .and_then(|_| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice(&bytes).ok())?;
+    let provider = settings.get("defaultProvider")?.as_str()?;
+    let model = settings.get("defaultModel")?.as_str()?;
+    if model.is_empty() || model.len() > 160 || model.chars().any(char::is_control) { return None; }
+    let key = format!("{provider}/{model}");
+    let thinking = settings.get("modelThinkingLevels").and_then(|levels| levels.get(&key))
+        .or_else(|| settings.get("defaultThinkingLevel")).and_then(serde_json::Value::as_str)
+        .filter(|level| matches!(*level, "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"))
+        .unwrap_or("medium");
+    Some((model.to_owned(), thinking.to_owned()))
+}
+
+fn replace_preview_default(
+    footer: &mut landing::AgentPreviewFooter,
+    model: String,
+    thinking: String,
+    fallback_color: [u8; 3],
+) {
+    let color = footer.thinking.as_ref().map(|(_, color)| *color).unwrap_or(fallback_color);
+    footer.model = model;
+    footer.thinking = Some((thinking, color));
+    footer.actual = None;
+}
+
 /// Read only the last complete Agent footer as a visual template. The next Agent's usage is
 /// rebuilt at zero and never inherited from an unrelated tab.
 fn agent_preview_footer(surface: &protocol::StructuredSurface) -> Option<landing::AgentPreviewFooter> {
@@ -2243,6 +2281,7 @@ impl Client {
             match effect {
                 Effect::Send(request) => {
                     if request == Request::Create {
+                        self.refresh_pending_agent_footer();
                         self.clear_chip_fill();
                         key_trace(self.key_trace_path.as_deref(), "effect=create");
                         let known_ids = self
@@ -2628,6 +2667,14 @@ impl Client {
                 self.time_format.accent_color,
             ),
         }))
+    }
+
+    fn refresh_pending_agent_footer(&mut self) {
+        let Some((model, thinking)) = persisted_default_preview(&self.create.environment) else { return; };
+        replace_preview_default(
+            self.preview_footer.get_or_insert_default(), model, thinking,
+            landing::accent_colors(self.time_format.accent_color).accent,
+        );
     }
 
     fn pending_agent_shell(&self, footer_only: bool) -> Vec<u8> {
@@ -4200,6 +4247,36 @@ mod tests {
         assert_eq!(pending.len(), 1);
         assert_eq!(pending[0].request_id, 8);
         assert!(take_cancelled_agent(&mut pending, Some(8)));
+    }
+
+    #[test]
+    fn pending_agent_preview_uses_the_persisted_default_instead_of_the_prior_model() {
+        let agent_dir = tempfile::tempdir().unwrap();
+        std::fs::write(agent_dir.path().join("settings.json"), serde_json::json!({
+            "defaultProvider": "openai-codex",
+            "defaultModel": "gpt-5.6-luna",
+            "defaultThinkingLevel": "low",
+            "modelThinkingLevels": { "openai-codex/gpt-5.6-luna": "high" }
+        }).to_string()).unwrap();
+        let environment = vec![("PI_CODING_AGENT_DIR".into(), agent_dir.path().display().to_string())];
+        let (model, thinking) = persisted_default_preview(&environment).unwrap();
+        assert_eq!((model.as_str(), thinking.as_str()), ("gpt-5.6-luna", "high"));
+
+        let mut footer = landing::AgentPreviewFooter {
+            model: "gpt-6.1-sol".into(),
+            thinking: Some(("low".into(), [1, 2, 3])),
+            actual: Some(landing::AgentFooterRows {
+                columns: 80,
+                status: protocol::SurfaceRow::default(),
+                styles: vec![],
+                links: vec![],
+            }),
+            ..Default::default()
+        };
+        replace_preview_default(&mut footer, model, thinking, [4, 5, 6]);
+        assert_eq!(footer.model, "gpt-5.6-luna");
+        assert_eq!(footer.thinking, Some(("high".into(), [1, 2, 3])));
+        assert!(footer.actual.is_none(), "the stale styled footer must not repaint the prior model");
     }
 
     #[test]

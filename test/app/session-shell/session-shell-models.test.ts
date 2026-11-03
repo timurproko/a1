@@ -145,7 +145,7 @@ describe("bare-A1 unified Models dialog", () => {
     }
   });
 
-  it("switches and persists the model on Enter, closes the dialog, and shows the confirmation as a dock notice", async () => {
+  it("switches only the current model on Enter, closes the dialog, and shows the confirmation as a dock notice", async () => {
     const { engine, shell } = await fixture([], [], true);
     try {
       await shell.submit("/models");
@@ -154,9 +154,10 @@ describe("bare-A1 unified Models dialog", () => {
       shell.root.handleInput(ENTER);
       await vi.waitFor(() => expect(shell.root.usesDefaultInputSurface()).toBe(true));
       expect(engine.session.calls).toContain("setModel");
+      expect(engine.session.lastSetModelOptions).toEqual({ persist: false });
       expect(engine.session.model).toEqual({ provider: "anthropic", id: "claude", name: "Claude" });
       const rows = shell.root.render(100).map(stripTerminalSequences);
-      const notice = rows.findIndex(row => row.includes("Default model: anthropic/claude"));
+      const notice = rows.findIndex(row => row.includes("Model: claude"));
       expect(notice).toBeGreaterThan(0);
       expect(rows[notice - 1]).toBe("");
       expect(engine.enabledModels).toBeUndefined();

@@ -119,6 +119,7 @@ export class Session {
   isCompacting = false;
   readonly calls: string[] = [];
   readonly promptOptions: unknown[] = [];
+  lastSetModelOptions: unknown;
   name: string | undefined;
   readonly sessionManager = { getSessionName: () => this.name };
   readonly agent: { state: { systemPrompt: string; messages: unknown[]; tools: unknown[] } };
@@ -165,7 +166,11 @@ export class Session {
   }
   async bindExtensions(bindings: unknown): Promise<void> { this.extensionBindings = bindings; this.calls.push("bindExtensions"); }
   async reload(): Promise<void> { this.calls.push("reload"); }
-  async setModel(model: unknown): Promise<void> { this.model = model; this.calls.push("setModel"); }
+  async setModel(model: unknown, options?: unknown): Promise<void> {
+    this.model = model;
+    this.lastSetModelOptions = options;
+    this.calls.push("setModel");
+  }
   setSessionName(name: string): void { this.name = name.trim().toLowerCase(); this.calls.push(`name:${name}`); }
   getUserMessagesForForking(): readonly unknown[] { return [{ entryId: "entry-1", text: "Fork point" }]; }
   setScopedModels(models: readonly unknown[]): void { this.scopedModels = models; this.calls.push(`scoped:${models.length}`); }

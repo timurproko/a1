@@ -212,6 +212,8 @@ describe("pinned Pi modal transition graph", () => {
     const settings = await readFile("src/features/owned-ui/settings-app.ts", "utf8");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE)");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(SCOPE)");
+    expect(settings).toContain('title: "Default Model"');
+    expect(settings).toContain("isDefaultModelEntry");
     const dialogPanel = await readFile("src/ui/components/dialog-panel.ts", "utf8");
     expect(dialogPanel).toContain("dialogPanelLayout(width, theme)");
     expect(dialogPanel).toContain("renderShortcutHintsWithClose(state.hint, theme, layout.contentWidth)");

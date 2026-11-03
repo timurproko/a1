@@ -66,6 +66,7 @@ export const PI_SETTING_EFFECTS: Readonly<Record<PiSettingKey, PiSettingEffectDe
   transport: effect("live", "agent", "status-error", "pinned provider request status and failure rows", "settings-effects-provider-parity"),
   httpIdleTimeoutMs: effect("live", "agent", "retry-error", "pinned timeout, retry, and terminal failure rows", "pinned-transcript-lifecycle-parity"),
   cacheWarmingMode: effect("live", "agent", "footer-transcript", "pinned cache warming notices and session usage rows", "pinned-transcript-lifecycle-parity"),
+  defaultModel: effect("next-session", "startup", "selector", "pinned default-model selector", "owned-default-model-setting"),
   modelThinkingLevels: effect("live", "agent", "footer-transcript", "pinned per-model thinking override, footer indicator, and thinking rows", "pinned-status-indicator-parity"),
   theme: hiddenEffect("live", "shell", "pinned theme selector and complete themed shell", "pinned-theme-parity"),
   hideThinkingBlock: effect("live", "shell", "transcript", "pinned thinking block presence and spacing", "pinned-transcript-lifecycle-parity"),
@@ -321,27 +322,6 @@ export function settingsEffectInventoryDrift(
   };
 }
 
-export function settingsVisualInventoryViolations(
-  presented: readonly string[],
-  reviewed: Readonly<Partial<Record<PiSettingKey, PiSettingEffectDefinition>>> = PI_SETTING_EFFECTS,
-): readonly string[] {
-  const violations: string[] = [];
-  for (const candidate of presented) {
-    const key = candidate as PiSettingKey;
-    const definition = reviewed[key];
-    if (definition === undefined) {
-      violations.push(`${candidate}: missing visual classification`);
-      continue;
-    }
-    const visual = definition.visual;
-    if (!visual || visual.pinnedSurface.trim().length === 0) violations.push(`${candidate}: missing pinned visual source`);
-    if (!visual || visual.evidence.trim().length === 0) violations.push(`${candidate}: missing independent visual evidence`);
-    if (definition.hiddenInBare === true && visual?.class !== "hidden") violations.push(`${candidate}: hidden setting declares a visible frame`);
-    if (definition.hiddenInBare !== true && visual?.class === "hidden") violations.push(`${candidate}: visible setting declares hidden evidence`);
-  }
-  return violations;
-}
-
 function outcome(
   status: AgentSettingChangeOutcome["status"],
   application: AgentSettingApplicationBoundary,
@@ -360,7 +340,6 @@ function describe(error: unknown): string {
 /** Values only the running engine knows. */
 export interface PiSettingsProviders {
   readonly themes?: () => readonly string[];
-  /** Models a per-model thinking override may name, with the levels each one supports. */
   readonly models?: () => readonly PiSettingsModelChoice[];
   readonly productMode?: "bare" | "comparison";
 }
@@ -369,6 +348,7 @@ export interface PiSettingsModelChoice {
   /** `provider/modelId`, the key the engine stores the override under. */
   readonly key: string;
   readonly label: string;
+  readonly name: string;
   readonly description: string;
   readonly levels: readonly string[];
 }
@@ -393,6 +373,7 @@ export const AUTOMATIC_THEME = "automatic";
 const LIGHT_APPEARANCE_THEME = "light";
 const DARK_APPEARANCE_THEME = "dark";
 const THEME_KEY: PiSettingKey = "theme";
+const DEFAULT_MODEL_KEY: PiSettingKey = "defaultModel";
 const MODEL_THINKING_KEY: PiSettingKey = "modelThinkingLevels";
 
 interface AutomaticTheme {
@@ -446,14 +427,17 @@ export class PiSettingsBridge implements AgentSettingsPort {
   readonly capabilities = { write: true, flush: true };
   readonly #operations: ReadonlyMap<PiSettingKey, Operation>;
   readonly #providers: PiSettingsProviders;
+  readonly #settings: SettingsManager;
   readonly #coordinator: PiSettingsCoordinator;
 
   constructor(settings: SettingsManager, providers: PiSettingsProviders = {}) {
     this.#providers = providers;
+    this.#settings = settings;
     const mapped = operations(settings, providers);
     this.#operations = new Map(mapped.map(operation => [operation.key, operation]));
     const presentationDrift = settingsInventoryDrift(EXPOSED_SETTING_KEYS, mapped.map(operation => operation.key));
-    const effectDrift = settingsEffectInventoryDrift(EXPOSED_SETTING_KEYS);
+    const generatedEffects = Object.keys(PI_SETTING_EFFECTS).filter(key => key !== DEFAULT_MODEL_KEY);
+    const effectDrift = settingsEffectInventoryDrift(EXPOSED_SETTING_KEYS, generatedEffects);
     if (presentationDrift.unmapped.length > 0 || presentationDrift.stale.length > 0
       || effectDrift.unmapped.length > 0 || effectDrift.stale.length > 0 || effectDrift.duplicated.length > 0) {
       throw new Error([
@@ -472,7 +456,8 @@ export class PiSettingsBridge implements AgentSettingsPort {
   }
 
   bindOwner(owner: AgentSettingOwner, handlers: PiSettingOwnerHandlers): () => void {
-    return this.#coordinator.bindOwner(owner, handlers);
+    const { defaultModel: _defaultModel, ...generated } = handlers;
+    return this.#coordinator.bindOwner(owner, generated);
   }
 
   unbindOwner(owner: AgentSettingOwner): void {
@@ -484,14 +469,14 @@ export class PiSettingsBridge implements AgentSettingsPort {
       const at = PRESENTATION.order.indexOf(key);
       return at < 0 ? PRESENTATION.order.length : at;
     };
-    return [...this.#operations.values()]
+    const descriptors = [...this.#operations.values()]
       .filter(operation => this.#coordinator.available(operation.key))
       .map(operation => {
         const key = operation.key;
         const wording = PRESENTATION.settings[key];
         const flags = PRESENTATION.dialogs[key];
         const bounds = PRESENTATION.bounds[key];
-        const descriptor: AgentSettingDescriptor = {
+        return this.#resolved({
           ...operation.descriptor,
           application: PI_SETTING_EFFECTS[key].application,
           owner: PI_SETTING_EFFECTS[key].owner,
@@ -503,10 +488,11 @@ export class PiSettingsBridge implements AgentSettingsPort {
           ...(bounds === undefined ? {} : bounds),
           ...(wording === undefined ? {} : { label: wording.label, description: wording.description }),
           ...(flags === undefined ? {} : { flags }),
-        };
-        return this.#resolved(descriptor);
-      })
-      .sort((left, right) => rank(left.key) - rank(right.key));
+        });
+      });
+    const { defaultModelDescriptor } = await import("./default-model-setting.js");
+    descriptors.push(defaultModelDescriptor(this.#settings, this.#providers.models?.() ?? []));
+    return descriptors.sort((left, right) => rank(left.key) - rank(right.key));
   }
 
   #resolved(descriptor: AgentSettingDescriptor): AgentSettingDescriptor {
@@ -531,10 +517,18 @@ export class PiSettingsBridge implements AgentSettingsPort {
   }
 
   async readSetting(key: string): Promise<AgentJsonValue | undefined> {
+    if (key === DEFAULT_MODEL_KEY) {
+      const { defaultModelDescriptor } = await import("./default-model-setting.js");
+      return defaultModelDescriptor(this.#settings, this.#providers.models?.() ?? []).storedValue;
+    }
     return isPiSettingKey(key) && this.#operations.has(key) ? this.#coordinator.storedValue(key) : undefined;
   }
 
   async writeSetting(key: string, value: AgentJsonValue): Promise<AgentSettingChangeOutcome> {
+    if (key === DEFAULT_MODEL_KEY) {
+      const { writeDefaultModel } = await import("./default-model-setting.js");
+      return await writeDefaultModel(this.#settings, this.#providers.models?.() ?? [], value);
+    }
     if (!isPiSettingKey(key) || !this.#operations.has(key)) throw new Error(`setting is unavailable: ${key}`);
     return await this.#coordinator.apply(key, value);
   }

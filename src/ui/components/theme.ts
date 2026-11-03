@@ -1,4 +1,4 @@
-export type UiThemeToken = "accent" | "mdHeading" | "text" | "muted" | "dim" | "border" | "error";
+export type UiThemeToken = "accent" | "mdHeading" | "text" | "muted" | "dim" | "border" | "error" | "success";
 
 export interface UiTheme {
   fg(token: UiThemeToken, text: string): string;

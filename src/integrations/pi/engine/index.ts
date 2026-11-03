@@ -43,7 +43,6 @@ export {
   parseAutomaticTheme,
   settingsEffectInventoryDrift,
   settingsInventoryDrift,
-  settingsVisualInventoryViolations,
 } from "./settings-bridge.js";
 export { assertPiSettingsMetadata, loadPiSettingsMetadata, PI_SETTINGS_METADATA_FILE } from "./settings-metadata.js";
 export type { PiSettingBounds, PiSettingPresentation, PiSettingsMetadata } from "./settings-metadata.js";

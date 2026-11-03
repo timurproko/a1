@@ -274,6 +274,34 @@ describe("official Pi runtime integration", () => {
     await disposePiRuntimeIntegration(scoped);
   });
 
+  it("starts on an authenticated saved default outside the unchanged cycling scope", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-pi-runtime-"));
+    roots.push(root);
+    const cwd = resolve(root, "work");
+    const agentDir = resolve(root, "agent");
+    await Promise.all([mkdir(cwd), mkdir(agentDir)]);
+    const catalog = await createPiRuntimeIntegration({ cwd, agentDir, sessionDir: resolve(root, "catalog-sessions") });
+    const available = await catalog.services.modelRuntime.getAvailable();
+    await disposePiRuntimeIntegration(catalog);
+    if (available.length < 2) return;
+    const scopedModel = available[0]!;
+    const savedDefault = available.find(model => model.provider !== scopedModel.provider || model.id !== scopedModel.id);
+    if (savedDefault === undefined) return;
+
+    await writeFile(resolve(agentDir, "settings.json"), JSON.stringify({
+      enabledModels: [`${scopedModel.provider}/${scopedModel.id}`],
+      defaultProvider: savedDefault.provider,
+      defaultModel: savedDefault.id,
+    }), "utf8");
+    const runtime = await createPiRuntimeIntegration({ cwd, agentDir, sessionDir: resolve(root, "sessions") });
+
+    expect(runtime.session.scopedModels.map(entry => `${entry.model.provider}/${entry.model.id}`))
+      .toEqual([`${scopedModel.provider}/${scopedModel.id}`]);
+    expect(runtime.session.model && `${runtime.session.model.provider}/${runtime.session.model.id}`)
+      .toBe(`${savedDefault.provider}/${savedDefault.id}`);
+    await disposePiRuntimeIntegration(runtime);
+  });
+
   it.each([false, true])("restores same-pin session context and cwd before trust/services (compacted: %s)", async compacted => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-pi-resume-runtime-"));
     roots.push(root);

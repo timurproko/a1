@@ -880,6 +880,9 @@ fn check_agent_footer_in_mode(mode: &str, latest: &str) {
     let runtime = directory(root.path(), "runtime");
     protect_runtime(&runtime);
     let release = directory(root.path(), "release");
+    let agent = directory(root.path(), "agent");
+    std::fs::write(agent.join("settings.json"), r#"{"defaultProvider":"fixture","defaultModel":"default-model","defaultThinkingLevel":"high"}"#)
+        .expect("persisted default");
     let script = r#"
 const initial = process.env.A1_TAB_ID === "tab-1";
 const footer = (model, path) => process.stdout.write(`\x1b[22;1H ${path}\x1b[23;1H 0.0%/123k (auto)          ${model}\x1b[1;1H`);
@@ -898,13 +901,17 @@ setInterval(() => {}, 1000);
     // advertise only 256 colors; the palette path intentionally shows real status immediately.
     let mut attach = AttachFixture::spawn_configured(&executable, &address, &profile, &data,
         &release, &node_executable(), None,
-        &[("TERMINAL_HOST_COLOR_MODE", mode), ("COLORTERM", "truecolor")]);
+        &[("TERMINAL_HOST_COLOR_MODE", mode), ("COLORTERM", "truecolor"),
+          ("PI_CODING_AGENT_DIR", agent.to_str().unwrap())]);
     assert!(attach.output_containing("initial-ready", Duration::from_secs(20)));
     assert!(attach.output_containing("old-model", Duration::from_secs(5)));
     assert!(attach.output_containing("old-branch", Duration::from_secs(5)));
     let from = attach.retained_len();
     attach.write(b"\x1ba");
     assert!(attach.output_containing("second-ready", Duration::from_secs(20)), "{}", attach.output_text());
+    let handoff = attach.output_since(from);
+    assert!(handoff.find("default-model") < handoff.find("second-ready"),
+        "the persisted default must paint before the child publishes its first frame: {}", attach.output_text());
     if mode == "rgb" {
         assert!(!attach.output_since(from).contains("intermediate-model"),
             "intermediate child status flashed during the chip fill: {}", attach.output_text());
