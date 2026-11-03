@@ -118,7 +118,7 @@ interface ConfiguredModelScope {
  * Mirrors pinned Pi's CLI startup: resolve the `models` patterns from settings
  * into a scoped model list, keep the resolver's warnings (e.g. "No models match
  * pattern ..."), and pick the same initial model pinned Pi would pick — the
- * saved default when it is in scope, otherwise the first scoped model.
+ * saved authenticated default, otherwise the first scoped model.
  */
 export async function resolveConfiguredModelScope(
   services: Pick<AgentSessionServices, "settingsManager" | "modelRuntime">,
@@ -133,21 +133,19 @@ export async function resolveConfiguredModelScope(
     services.modelRuntime,
     { signal: signal === undefined ? AbortSignal.timeout(15_000) : AbortSignal.any([signal, AbortSignal.timeout(15_000)]) },
   );
-  let selected: ScopedModel | undefined;
-  if (scopedModels.length > 0) {
-    const savedProvider = services.settingsManager.getDefaultProvider();
-    const savedModelId = services.settingsManager.getDefaultModel();
-    const savedModel = savedProvider && savedModelId
-      ? services.modelRuntime.getModel(savedProvider, savedModelId)
-      : undefined;
-    selected = (savedModel
-      ? scopedModels.find(scoped => scoped.model.provider === savedModel.provider && scoped.model.id === savedModel.id)
-      : undefined) ?? scopedModels[0];
-  }
+  const savedProvider = services.settingsManager.getDefaultProvider();
+  const savedModelId = services.settingsManager.getDefaultModel();
+  const savedModel = savedProvider && savedModelId
+    ? services.modelRuntime.getAvailableSnapshot().find(model => model.provider === savedProvider && model.id === savedModelId)
+    : undefined;
+  const fallback = scopedModels[0];
   return {
     scopedModels,
-    model: selected?.model,
-    thinkingLevel: selected?.thinkingLevel,
+    model: savedModel ?? fallback?.model,
+    thinkingLevel: savedModel
+      ? services.settingsManager.getModelThinkingLevel(savedModel.provider, savedModel.id)
+        ?? services.settingsManager.getDefaultThinkingLevel()
+      : fallback?.thinkingLevel,
     diagnostics: diagnostics.map(diagnostic => ({ type: diagnostic.type, message: diagnostic.message })),
   };
 }

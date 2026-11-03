@@ -16,6 +16,7 @@
 - [x] 3.3 Add focused Settings presentation and interaction coverage for matching and differing active/default models, narrow widths, filtering, keyboard hints, save success/failure, pointer isolation, and return to the Settings list.
 - [x] 3.4 Place `Default model` immediately above per-model thinking configuration and render catalog rows without a duplicate display-name column, using a success-colored persisted-default checkmark after `[provider]`.
 - [x] 3.5 Close the default-model selector immediately when Enter accepts a model, persist asynchronously without a saving screen, and reopen the preserved selector only if persistence fails.
+- [x] 3.6 Start a fresh agent on the persisted default even when that authenticated model is outside `enabledModels`, while leaving the cycling scope unchanged.
 
 ## 4. Preserve surrounding contracts
 

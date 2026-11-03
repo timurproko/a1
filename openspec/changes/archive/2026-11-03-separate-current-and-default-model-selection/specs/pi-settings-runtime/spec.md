@@ -4,7 +4,7 @@
 
 A1 SHALL expose Pi's persisted default provider/model pair as the Agent `defaultModel` setting with `next-session` application. Reading the setting SHALL return the canonical `provider/modelId` reference stored by Pi. Available values SHALL be resolved from the authenticated runtime model catalog, and a write SHALL accept only an exact available reference, splitting the provider from a model identifier that may itself contain additional slashes.
 
-Accepting `defaultModel` SHALL persist both provider and model through Pi's settings manager and SHALL NOT call the active session's model setter, change active-model view state, change the current thinking level, or change model cycling scope. A subsequently created session SHALL use the new persisted default through the existing startup model-resolution policy. Persistence failure SHALL restore and report one consistent prior stored/effective value.
+Accepting `defaultModel` SHALL persist both provider and model through Pi's settings manager and SHALL NOT call the active session's model setter, change active-model view state, change the current thinking level, or change model cycling scope. A subsequently created session SHALL start on the authenticated persisted default even when that model is outside `enabledModels`; the session's cycling scope SHALL remain the models resolved from `enabledModels`. Persistence failure SHALL restore and report one consistent prior stored/effective value.
 
 #### Scenario: Read the default model setting
 
@@ -17,7 +17,8 @@ Accepting `defaultModel` SHALL persist both provider and model through Pi's sett
 - **WHEN** the user writes an exact available model reference to `defaultModel`
 - **THEN** Pi's default provider and model settings SHALL be persisted together
 - **AND** the operation SHALL report `next-session` application
-- **AND** a later fresh session SHALL resolve that saved model through the existing startup policy
+- **AND** a later fresh session SHALL start on that saved model even when it is outside `enabledModels`
+- **AND** the later session's cycling scope SHALL remain unchanged
 
 #### Scenario: Preserve the active session
 

@@ -18,7 +18,7 @@ The owned Settings screen already presents a searchable two-step configuration d
 
 - Changing model cycling scope semantics, Ctrl+S scope persistence, provider authentication, or catalog ownership.
 - Adding a second default-model action or save shortcut to the Models dialog.
-- Changing how startup resolves a saved default or falls back when that model is unavailable.
+- Changing startup fallback when the saved default is unavailable or unauthenticated.
 - Changing the pinned `a1 pi` model selector or its existing select-as-default behavior.
 
 ## Decisions
@@ -35,7 +35,7 @@ Keeping persistence on Enter was rejected because it is the reported defect. Add
 
 Add a `defaultModel` Agent setting backed by Pi's existing `getDefaultProvider`, `getDefaultModel`, and `setDefaultModelAndProvider` APIs. Its stored value is the canonical `provider/modelId` reference. The available choices are resolved from the authenticated model catalog when settings are read, so unauthenticated or stale catalog entries are not offered.
 
-The setting declares `next-session` application and startup ownership: accepting the value completes the persistence operation, while the next session startup observes it through the existing resolver. It needs no live owner handler and must never call `session.setModel`, update the active-model port, or change the active session's thinking level.
+The setting declares `next-session` application and startup ownership: accepting the value completes the persistence operation, while the next session startup observes it through the existing resolver. An authenticated saved default is the initial model even when it is outside `enabledModels`; the resolved scoped list remains unchanged so model cycling still follows the user's scope. It needs no live owner handler and must never call `session.setModel`, update the active-model port, or change the active session's thinking level.
 
 Model identifiers may contain slashes, so writes split only at the first slash. A selected value must exactly match an available catalog model before persistence.
 
