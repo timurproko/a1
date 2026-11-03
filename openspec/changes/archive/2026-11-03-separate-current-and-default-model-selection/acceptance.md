@@ -5,7 +5,7 @@ Verdict: accepted only when an authorized human directly merges the containing e
 The maintainer integration decision accepts these scenarios:
 - Models-dialog selection changes only the active session model while preserving the saved default and model scope behavior.
 - Settings places `Default model` above per-model thinking, uses concise rows with a green persisted-default checkmark, and closes the selector immediately when Enter starts background persistence.
-- A fresh Agent tab starts on the authenticated persisted default even when it is outside `enabledModels`, while its cycling scope remains unchanged.
+- A fresh Agent tab immediately previews and starts on the authenticated persisted default even when it is outside `enabledModels`, while its cycling scope remains unchanged.
 - Failed default-model persistence reopens the preserved selector with an error and retains the prior default, while the comparison profile keeps its existing model-selection behavior.
 
 ```openspec-delivery
@@ -21,12 +21,12 @@ The maintainer integration decision accepts these scenarios:
   "acceptanceScenarios": [
     "Models-dialog selection changes only the active session model while preserving the saved default and model scope behavior.",
     "Settings places `Default model` above per-model thinking, uses concise rows with a green persisted-default checkmark, and closes the selector immediately when Enter starts background persistence.",
-    "A fresh Agent tab starts on the authenticated persisted default even when it is outside `enabledModels`, while its cycling scope remains unchanged.",
+    "A fresh Agent tab immediately previews and starts on the authenticated persisted default even when it is outside `enabledModels`, while its cycling scope remains unchanged.",
     "Failed default-model persistence reopens the preserved selector with an error and retains the prior default, while the comparison profile keeps its existing model-selection behavior."
   ],
-  "archiveDigest": "00729e57ba29d996f4bb70b2dac0d17429c3d1c3b541d9eb45e4095afc32dc8e",
-  "specDigest": "858bf1c89738220db19aba536f318f868e28bfa0bfaebe1f9f1a791bea665de5",
-  "tasksDigest": "6a35c3b9f4d52d0940810ff5dd257164b89c5c444223858de3ff65725319b2cc",
+  "archiveDigest": "a1b45dc2a01e02a65119cea684390d67c18fddee36b980fdc655662aab0c7290",
+  "specDigest": "ed9222732974e7737808ad79564a2bb37098b2f7004e7431f0479427d8e72ac6",
+  "tasksDigest": "c4bee5452ad5b54c0398aa113a5998443820c0a3abd20eff09ddb4d746168332",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
