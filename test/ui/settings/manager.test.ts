@@ -94,7 +94,7 @@ describe("owned settings manager", () => {
     const manager = new OwnedSettingsManager({
       configDir: root,
       profileId: "a1",
-      hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabBarPlusMenu"],
+      hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabBarPlusMenu", "tabBarRightItems"],
     });
     expect(manager.sections().find(section => section.id === "tabs")).toBeUndefined();
     expect(manager.value("tabsAutoName")).toBe(true);
@@ -132,7 +132,7 @@ describe("owned settings manager", () => {
       const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await target.load();
       expect(readFileSync(seed.file, "utf8")).toBe(before);
-      expect(target.resolution).toMatchObject({ version: 19, migrated: false, notices: [] });
+      expect(target.resolution).toMatchObject({ version: 20, migrated: false, notices: [] });
       const group = target.sections().find(section => section.id === "agent");
       const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
       expect(group).toMatchObject({ unavailableReason: null, readOnlyReason: null });

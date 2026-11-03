@@ -315,7 +315,7 @@ function openEmptySearch(target: SettingsApp): void {
 
 /** Walks the selection down to the named setting the way a reader would. */
 function selectRow(target: SettingsApp, label: string): void {
-  for (let step = 0; step < 40; step++) {
+  for (let step = 0; step < 60; step++) {
     if (find(target, label).trimStart().startsWith("→")) return;
     target.onInput?.(DOWN, HOST);
   }
@@ -572,6 +572,35 @@ describe("the settings screen", () => {
     expect(rows.some(row => row.includes("● Settings"))).toBe(true);
     target.onInput?.(ESC, HOST);
     expect(screen(target).some(row => row.includes("● Agent"))).toBe(false);
+  });
+
+  it("configures the tab bar's Version and Time items independently", async () => {
+    const { app: target, session } = await app();
+    selectRow(target, "Right side");
+    target.onInput?.("\r", HOST);
+    let rows = modalScreen(target);
+    expect(rows.findIndex(row => row.trim() === "Tab Bar Right Side")).toBe(1);
+    expect(rows.join("\n")).toContain("Choose what the right side of the tab bar shows.");
+    expect(rows.join("\n")).toContain("● Version");
+    expect(rows.join("\n")).toContain("● Time");
+    target.onInput?.("time", HOST);
+    rows = modalScreen(target);
+    expect(rows.join("\n")).not.toContain("● Version");
+    expect(rows.join("\n")).toContain("● Time");
+    target.onInput?.(ESC, HOST);
+    target.onInput?.(ENTER, HOST);
+    target.onInput?.(" ", HOST);
+    await settleChanges();
+    await session.load();
+    expect(session.value("tabBarRightItems")).toBe("time");
+    rows = modalScreen(target);
+    expect(rows.join("\n")).toContain("○ Version");
+    expect(rows.join("\n")).toContain("● Time");
+    target.onInput?.(`${ESC}[B`, HOST);
+    target.onInput?.(" ", HOST);
+    await settleChanges();
+    await session.load();
+    expect(session.value("tabBarRightItems")).toBe("");
   });
 
   it("hands the plus menu to the tab bar's own dialog when one can show it", async () => {
@@ -1358,7 +1387,7 @@ describe("the settings screen", () => {
 describe("the list view behind the screen", () => {
   it("begins every value at one column, however wide the labels are", async () => {
     const { app: target } = await app();
-    const rows = target.render({ width: 80, height: 32 }, HOST)
+    const rows = target.render({ width: 80, height: 36 }, HOST)
       .map(line => line.replace(STYLE, "").trimEnd())
       .filter(line => /\b(true|false|low|high|3|0)\s*$/.test(line) && line.includes(" "));
     const columns = new Set(rows.map(line => line.search(/\S+\s*$/)));

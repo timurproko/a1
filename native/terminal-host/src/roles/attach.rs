@@ -845,6 +845,7 @@ struct PresentationSettings {
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
     plus_menu: PlusMenu,
+    right_items: strip::StripRightItems,
 }
 
 impl PresentationSettings {
@@ -856,6 +857,7 @@ impl PresentationSettings {
             accent_hover: accent_selected_background(Some(accent_color)),
             tab_bar_position: TabBarPosition::Top,
             plus_menu: PlusMenu::default(),
+            right_items: tab_bar_right_items(None),
         }
     }
 }
@@ -896,6 +898,36 @@ fn read_presentation_settings(path: &Path, default_accent: &'static str) -> Pres
                 .get("tabBarPlusMenu")
                 .and_then(serde_json::Value::as_str),
         ),
+        right_items: tab_bar_right_items(
+            owned_settings
+                .get("tabBarRightItems")
+                .and_then(serde_json::Value::as_str),
+        ),
+    }
+}
+
+fn tab_bar_right_items(value: Option<&str>) -> strip::StripRightItems {
+    match value {
+        Some("") => strip::StripRightItems {
+            version: false,
+            time: false,
+        },
+        Some("version") => strip::StripRightItems {
+            version: true,
+            time: false,
+        },
+        Some("time") => strip::StripRightItems {
+            version: false,
+            time: true,
+        },
+        Some("version,time") | None => strip::StripRightItems {
+            version: true,
+            time: true,
+        },
+        Some(_) => strip::StripRightItems {
+            version: true,
+            time: true,
+        },
     }
 }
 
@@ -1006,6 +1038,7 @@ struct TimeFormatWatch {
     accent_hover: [u8; 3],
     tab_bar_position: TabBarPosition,
     plus_menu: PlusMenu,
+    right_items: strip::StripRightItems,
     checked_at: Instant,
 }
 
@@ -1022,6 +1055,7 @@ impl TimeFormatWatch {
             accent_hover: settings.accent_hover,
             tab_bar_position: settings.tab_bar_position,
             plus_menu: settings.plus_menu,
+            right_items: settings.right_items,
             checked_at: Instant::now(),
         }
     }
@@ -1046,13 +1080,15 @@ impl TimeFormatWatch {
             || settings.accent_color != self.accent_color
             || settings.background_style != self.background_style
             || settings.accent_hover != self.accent_hover
-            || settings.tab_bar_position != self.tab_bar_position;
+            || settings.tab_bar_position != self.tab_bar_position
+            || settings.right_items != self.right_items;
         self.value = settings.time_format;
         self.accent_color = settings.accent_color;
         self.background_style = settings.background_style;
         self.accent_hover = settings.accent_hover;
         self.tab_bar_position = settings.tab_bar_position;
         self.plus_menu = settings.plus_menu;
+        self.right_items = settings.right_items;
         changed
     }
 }
@@ -2188,7 +2224,7 @@ impl Client {
         let suppress_satisfied_update_notice = version.as_deref().is_some_and(|current| {
             super::update_notice::restart_is_satisfied(options.data_dir, current)
         });
-        let strip_frame = strip::render_interactive_at(
+        let strip_frame = strip::render_interactive_status_filled_at(
             &[],
             view.viewed.as_deref(),
             handshake.columns,
@@ -2199,6 +2235,10 @@ impl Client {
                 .tab_bar_position
                 .strip_terminal_row(handshake.outer_rows),
             !time_format.plus_menu.is_empty(),
+            time_format.active_accent(),
+            None,
+            version.as_deref(),
+            time_format.right_items,
         );
         let client = Self {
             stream: AttachServerWriter::start(handshake.stream),
@@ -2570,7 +2610,7 @@ impl Client {
         let drag = core.mode.drag().cloned();
         let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
-            let mut frame = strip::render_interactive_filled_at(
+            let mut frame = strip::render_interactive_status_filled_at(
                 shown,
                 strip_viewed,
                 self.columns,
@@ -2583,9 +2623,11 @@ impl Client {
                 plus,
                 self.time_format.active_accent(),
                 self.chip_fill.as_ref(),
+                self.version.as_deref(),
+                self.time_format.right_items,
             );
             if !self.chip_priority.is_empty() && !frame.hidden_tabs.is_empty() {
-                frame = strip::render_interactive_filled_at(
+                frame = strip::render_interactive_status_filled_at(
                     &prioritized,
                     strip_viewed,
                     self.columns,
@@ -2598,6 +2640,8 @@ impl Client {
                     plus,
                     self.time_format.active_accent(),
                     self.chip_fill.as_ref(),
+                    self.version.as_deref(),
+                    self.time_format.right_items,
                 );
             }
             if let Some(drag) = drag.as_ref() {
@@ -3312,7 +3356,9 @@ impl Client {
         let current_clock_minute = clock_minute();
         if current_clock_minute != self.displayed_clock_minute {
             self.displayed_clock_minute = current_clock_minute;
-            self.paint(core, false)?;
+            if self.time_format.right_items.time {
+                self.paint(core, false)?;
+            }
         }
         self.run(core, core_attach::Event::Tick)?;
         if self.last_list.elapsed() >= Duration::from_millis(500) {
@@ -5996,7 +6042,7 @@ mod tests {
 
         std::fs::write(
             &file,
-            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom","tabBarPlusMenu":"agent,settings,changelog"}}"#,
+            br#"{"a1":{"timeFormat":"8:00 PM","tabsPosition":"bottom","tabBarPlusMenu":"agent,settings,changelog","tabBarRightItems":"version"}}"#,
         )
         .unwrap();
         watch.checked_at = Instant::now() - SETTINGS_POLL_INTERVAL;
@@ -6004,6 +6050,27 @@ mod tests {
         assert_eq!(watch.tab_bar_position, TabBarPosition::Bottom);
         assert_eq!(read_tab_bar_position(&file), TabBarPosition::Bottom);
         assert_eq!(watch.plus_menu, PlusMenu::ALL);
+        assert_eq!(
+            watch.right_items,
+            strip::StripRightItems {
+                version: true,
+                time: false
+            }
+        );
+        assert_eq!(
+            tab_bar_right_items(Some("time")),
+            strip::StripRightItems {
+                version: false,
+                time: true
+            }
+        );
+        assert_eq!(
+            tab_bar_right_items(Some("")),
+            strip::StripRightItems {
+                version: false,
+                time: false
+            }
+        );
 
         std::fs::write(
             &file,
@@ -6029,6 +6096,13 @@ mod tests {
         assert_eq!(watch.accent_color, Some("blue"));
         assert_eq!(watch.accent_hover, accent_selected_background(Some("blue")));
         assert_eq!(watch.tab_bar_position, TabBarPosition::Top);
+        assert_eq!(
+            watch.right_items,
+            strip::StripRightItems {
+                version: true,
+                time: true
+            }
+        );
         assert!(
             watch.plus_menu.agent_only(),
             "an absent plus menu adds nothing to Agent"
