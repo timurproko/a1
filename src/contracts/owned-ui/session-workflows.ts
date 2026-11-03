@@ -390,6 +390,6 @@ export type OwnedUiReleaseUpdate =
     readonly changelogUrl: string | null;
   }
   | {
-    readonly status: "installed";
+    readonly status: "blocked" | "blocked-cleared" | "installed";
     readonly version: string;
   };

@@ -26,6 +26,7 @@ import {
 import {
   createTuiFacade,
   ensureTheme,
+  renderPiShellBlockedUpdateStatus,
   renderPiShellInstalledUpdateStatus,
   piShellVisibleWidth,
   type PiShellViewComponentPort,
@@ -306,9 +307,13 @@ function appendInstalledUpdateStatus(
   view: OwnedUiSessionViewModel,
   progressPresentation: PiShellProgressPresentationMode,
 ): readonly string[] {
-  if (progressPresentation === "custom-viewport" || width <= 0
-    || !view.diagnostics.some(diagnostic => diagnostic.code === "release-update-installed")) return rows;
-  const status = renderPiShellInstalledUpdateStatus(width);
+  if (progressPresentation === "custom-viewport" || width <= 0) return rows;
+  const status = view.diagnostics.some(diagnostic => diagnostic.code === "release-update-installed")
+    ? renderPiShellInstalledUpdateStatus(width)
+    : view.diagnostics.some(diagnostic => diagnostic.code === "release-update-blocked")
+      ? renderPiShellBlockedUpdateStatus(width)
+      : "";
+  if (status.length === 0) return rows;
   const statusWidth = piShellVisibleWidth(status);
   const target = rows.findLastIndex(row => piShellVisibleWidth(row.trimEnd()) > 0);
   if (target < 0) return [`${" ".repeat(Math.max(0, width - statusWidth))}${status}`];

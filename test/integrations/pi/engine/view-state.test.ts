@@ -66,6 +66,7 @@ describe("EngineViewState", () => {
   it("acknowledges connected-client readiness without changing busy execution, drafts or queued work", () => {
     const state = new EngineViewState(); state.markReady(); state.offerEditorText("unsent draft");
     state.setQueuedSubmissions(["queued original"]); state.enterWork("tool still running");
+    state.diagnosticsState.record("info", "release-update-blocked", "Update 0.3.1 prepared; activation blocked.", true);
     state.diagnosticsState.record("info", "release-update-installed", "Update 0.3.1 installed; restart to update.", true);
     state.diagnosticsState.record("warning", "independent-warning", "keep this warning", true);
     const editor = state.editor;

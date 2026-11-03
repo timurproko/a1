@@ -63,6 +63,28 @@ describe("connected-client update readiness", () => {
     await vi.waitFor(() => expect(fixture.checks).toHaveLength(2));
     expect(fixture.announced).not.toHaveBeenCalled(); expect(automatic.request).toHaveBeenCalledOnce();
   });
+  it("reports prepared activation without claiming restart readiness", async () => {
+    automatic.request.mockImplementation(async options => {
+      options.onActivationBlocked?.("0.3.1");
+      return null;
+    });
+    const fixture = setup("auto", "0.3.0"); fixture.observer.start();
+    await vi.waitFor(() => expect(fixture.announced).toHaveBeenCalledOnce());
+    expect(fixture.announced).toHaveBeenCalledWith({ status: "blocked", version: "0.3.1" });
+  });
+  it("removes prepared status when prepared proof is invalidated", async () => {
+    automatic.request.mockImplementation(async options => {
+      options.onActivationBlocked?.("0.3.1");
+      options.onActivationBlocked?.(null);
+      return null;
+    });
+    const fixture = setup("auto", "0.3.0"); fixture.observer.start();
+    await vi.waitFor(() => expect(fixture.announced).toHaveBeenCalledTimes(2));
+    expect(fixture.announced.mock.calls.map(call => call[0])).toEqual([
+      { status: "blocked", version: "0.3.1" },
+      { status: "blocked-cleared", version: "0.3.1" },
+    ]);
+  });
   it("retains useful readiness for an older client taking control again without restarting execution", async () => {
     automatic.request.mockResolvedValue("0.3.1");
     const fixture = setup("auto", "0.3.0"); fixture.observer.start();

@@ -317,6 +317,7 @@ export class TranscriptDocument {
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "project-trust"
         && diagnostic.code !== "release-update" && diagnostic.code !== "release-update-installed"
+        && diagnostic.code !== "release-update-blocked"
         && diagnostic.code !== "package-updates" && diagnostic.code !== "changelog-collapsed"
         && diagnostic.code !== "changelog-expanded")
       .slice(-3)

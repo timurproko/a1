@@ -17,6 +17,13 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct OwnerIdentity {
+    pid: u32,
+    start_identity: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Owner {
     pid: u32,
     start_identity: String,
@@ -477,16 +484,16 @@ pub fn profiles(current: &Path, data: &Path) -> Result<Vec<PathBuf>, String> {
         if !path.exists() {
             continue;
         }
-        let owner: Owner = serde_json::from_slice(&record(&path, 65536)?)
-            .map_err(|_| "read resident profile owner")?;
-        let live = match crate::identity::inspect_process(owner.pid) {
-            Ok(Some(process)) => process.start == owner.start_identity,
-            Ok(None) => false,
-            Err(_) => return Err("resident profile owner cannot be inspected".into()),
-        };
-        if !live {
+        let bytes = record(&path, 65536)?;
+        let Some(owner) = live_owner(
+            &bytes,
+            crate::identity::inspect_process,
+            "read resident profile owner",
+            "resident profile owner cannot be inspected",
+        )?
+        else {
             continue;
-        }
+        };
         if let Some(profile) = owner.profile_root {
             let profile =
                 std::fs::canonicalize(profile).map_err(|_| "resolve live resident profile")?;
@@ -534,8 +541,19 @@ pub fn discover(
         if !marker.exists() {
             continue;
         }
-        let owner: Owner = serde_json::from_slice(&record(&marker, 65536)?)
-            .map_err(|_| "unreadable resident owner")?;
+        let bytes = record(&marker, 65536)?;
+        let Some(owner) = live_owner(
+            &bytes,
+            crate::identity::inspect_process,
+            "unreadable resident owner",
+            "resident source owner cannot be inspected",
+        )?
+        else {
+            if dead_source_is_recovering(profile, &entry, &bytes)? {
+                return Err("resident source is recovering".into());
+            }
+            continue;
+        };
         let own_profile = scope::token_for(profile, &owner.release_id)?;
         if entry.file_name().to_string_lossy() != own_profile {
             if entry.file_name().to_string_lossy()
@@ -555,17 +573,6 @@ pub fn discover(
             &entry.path().join("registry.json"),
             2 * 1024 * 1024,
         )?)?;
-        let live = match crate::identity::inspect_process(owner.pid) {
-            Ok(Some(observed)) => observed.start == owner.start_identity,
-            Ok(None) => false,
-            Err(_) => return Err("resident source owner cannot be inspected".into()),
-        };
-        if !live {
-            if live_execution(&registry)? {
-                return Err("resident source is recovering".into());
-            }
-            continue;
-        }
         let root = owner
             .release_root
             .map(PathBuf::from)
@@ -601,6 +608,57 @@ pub fn discover(
     #[cfg(not(feature = "resident-fixtures"))]
     let _ = current_root;
     Ok(sources)
+}
+
+fn dead_source_is_recovering(
+    profile: &Path,
+    entry: &std::fs::DirEntry,
+    owner_bytes: &[u8],
+) -> Result<bool, String> {
+    let token = entry.file_name().to_string_lossy().into_owned();
+    let current = serde_json::from_slice::<Owner>(owner_bytes)
+        .ok()
+        .and_then(|owner| scope::token_for(profile, &owner.release_id).ok())
+        .is_some_and(|expected| expected == token);
+    let legacy =
+        crate::endpoint::endpoint_token(profile).map_err(|_| "legacy profile identity")? == token;
+    if !current && !legacy {
+        return Ok(false);
+    }
+    let path = entry.path().join("registry.json");
+    if !path.exists() {
+        return Ok(false);
+    }
+    live_execution(&RegistryStore::parse(&record(&path, 2 * 1024 * 1024)?)?)
+}
+
+fn live_owner<E, F>(
+    bytes: &[u8],
+    inspect: F,
+    unreadable: &'static str,
+    uninspectable: &'static str,
+) -> Result<Option<Owner>, String>
+where
+    F: FnOnce(u32) -> Result<Option<ProcessIdentity>, E>,
+{
+    let identity: OwnerIdentity =
+        serde_json::from_slice(bytes).map_err(|_| unreadable.to_owned())?;
+    if identity.pid == 0
+        || identity.start_identity.is_empty()
+        || identity.start_identity.len() > 1024
+        || identity.start_identity.chars().any(char::is_control)
+    {
+        return Err(unreadable.into());
+    }
+    match inspect(identity.pid) {
+        Ok(Some(observed)) if observed.start == identity.start_identity => {
+            serde_json::from_slice(bytes)
+                .map(Some)
+                .map_err(|_| unreadable.into())
+        }
+        Ok(_) => Ok(None),
+        Err(_) => Err(uninspectable.into()),
+    }
 }
 
 fn live_execution(registry: &RegistryDocument) -> Result<bool, String> {
@@ -663,4 +721,101 @@ fn record(path: &PathBuf, maximum: usize) -> Result<Vec<u8>, String> {
         return Err("resident source record exceeds read bound".into());
     }
     Ok(bytes)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::live_owner;
+    use crate::identity::ProcessIdentity;
+
+    const LEGACY: &str = r#"{"pid":17,"startIdentity":"old-start","endpoint":"legacy"}"#;
+    const CURRENT: &str = r#"{"pid":23,"startIdentity":"current-start","endpoint":"endpoint","generation":1,"verified":true,"releaseId":"release-id","releaseRoot":"/release","profileRoot":"/profile"}"#;
+
+    #[test]
+    fn dead_legacy_owner_is_omitted_before_current_schema_decode() {
+        let owner = live_owner(
+            LEGACY.as_bytes(),
+            |_| Ok::<_, ()>(None),
+            "unreadable",
+            "uninspectable",
+        )
+        .unwrap();
+        assert!(owner.is_none());
+    }
+
+    #[test]
+    fn pid_reuse_omits_only_the_recorded_owner() {
+        let owner = live_owner(
+            LEGACY.as_bytes(),
+            |pid| {
+                Ok::<_, ()>(Some(ProcessIdentity {
+                    pid,
+                    start: "new-start".into(),
+                }))
+            },
+            "unreadable",
+            "uninspectable",
+        )
+        .unwrap();
+        assert!(owner.is_none());
+    }
+
+    #[test]
+    fn live_or_uninspectable_legacy_owner_remains_blocking() {
+        let live = live_owner(
+            LEGACY.as_bytes(),
+            |pid| {
+                Ok::<_, ()>(Some(ProcessIdentity {
+                    pid,
+                    start: "old-start".into(),
+                }))
+            },
+            "unreadable",
+            "uninspectable",
+        );
+        assert_eq!(live.err().as_deref(), Some("unreadable"));
+        let unknown = live_owner(
+            LEGACY.as_bytes(),
+            |_| Err::<Option<ProcessIdentity>, _>(()),
+            "unreadable",
+            "uninspectable",
+        );
+        assert_eq!(unknown.err().as_deref(), Some("uninspectable"));
+    }
+
+    #[test]
+    fn supported_live_owner_survives_beside_dead_legacy_debris() {
+        let dead = live_owner(
+            LEGACY.as_bytes(),
+            |_| Ok::<_, ()>(None),
+            "unreadable",
+            "uninspectable",
+        )
+        .unwrap();
+        let current = live_owner(
+            CURRENT.as_bytes(),
+            |pid| {
+                Ok::<_, ()>(Some(ProcessIdentity {
+                    pid,
+                    start: "current-start".into(),
+                }))
+            },
+            "unreadable",
+            "uninspectable",
+        )
+        .unwrap();
+        assert!(dead.is_none());
+        assert_eq!(current.unwrap().release_id, "release-id");
+    }
+
+    #[test]
+    fn malformed_minimal_identity_cannot_prove_death() {
+        let result = live_owner(
+            br#"{"pid":17}"#,
+            |_| Ok::<_, ()>(None),
+            "unreadable",
+            "uninspectable",
+        );
+        assert_eq!(result.err().as_deref(), Some("unreadable"));
+    }
 }

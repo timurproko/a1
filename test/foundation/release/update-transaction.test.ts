@@ -68,6 +68,7 @@ describe("durable update transaction journal", () => {
     roots.push(root);
     const store = new UpdateTransactionStore(root);
     await store.begin({ channel: "stable", targetVersion: "1.2.0", packageRoot: "/npm/a1", priorActiveReleaseId: "old" });
+    expect((await store.recordActiveError("blocked\nresident detail")).error).toBe("blocked resident detail");
     await expect(store.begin({ channel: "next", targetVersion: "1.3.0-dev.0", packageRoot: "/npm/a1", priorActiveReleaseId: "old" })).rejects.toThrow(/a1 has unfinished update/);
     const rolledBack = await store.finish("rolled-back", "candidate supervisor failed");
     expect(rolledBack).toMatchObject({ status: "rolled-back", priorActiveReleaseId: "old", error: "candidate supervisor failed" });

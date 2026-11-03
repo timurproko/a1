@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { certifyMaterializedRelease, ensureSupervisor } from "../../../src/foundation/release/bootstrap.js";
 import { CohortStateStore } from "../../../src/foundation/release/cohort-state.js";
-import { materializeRelease, type MaterializedRelease } from "../../../src/foundation/release/release-store.js";
+import { materializeRelease, readCertifiedReleaseManifest, type MaterializedRelease } from "../../../src/foundation/release/release-store.js";
 import { createUpdateLifecycleCoordinator } from "../../../src/foundation/release/update.js";
 import { warmMaterializedRelease } from "../../../src/foundation/release/warmup.js";
 import { assertResidentContinuity } from "../../../src/foundation/resident-tabs/continuity.js";
@@ -20,6 +20,7 @@ vi.mock("../../../src/foundation/release/bootstrap.js", async importOriginal => 
 vi.mock("../../../src/foundation/release/release-store.js", async importOriginal => ({
   ...await importOriginal<typeof import("../../../src/foundation/release/release-store.js")>(),
   materializeRelease: vi.fn(),
+  readCertifiedReleaseManifest: vi.fn(),
 }));
 vi.mock("../../../src/foundation/release/warmup.js", () => ({ warmMaterializedRelease: vi.fn() }));
 vi.mock("../../../src/foundation/resident-tabs/continuity.js", () => ({ assertResidentContinuity: vi.fn() }));
@@ -73,6 +74,32 @@ describe("update candidate activation", () => {
       expect(phases).not.toContain("active-reference-committed");
       expect((await store.read()).references.active).toBe(previous.releaseId);
     }
+  });
+
+  it("retries a certified prepared candidate without materialization, certification, or warmup", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-update-prepared-"));
+    roots.push(root);
+    const previous = release(root, "1.0.0", "a");
+    const target = release(root, "1.1.0", "b");
+    const store = new CohortStateStore(root);
+    await store.recordCandidate(previous);
+    await store.approve(previous.releaseId, "previous-certification.json");
+    await store.activate(previous.releaseId);
+    await store.recordCandidate(target);
+    await store.approve(target.releaseId, "target-certification.json");
+    vi.mocked(readCertifiedReleaseManifest).mockResolvedValue(target);
+    const phases: string[] = [];
+    const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: root,
+      [PRODUCT_IDENTITY.environment.profileHome]: resolve(root,"profile"), [PRODUCT_IDENTITY.environment.runtimeDir]: resolve(root,"runtime") });
+
+    await coordinator.activatePrepared!(target.packageVersion, async phase => { phases.push(phase); });
+
+    expect(materializeRelease).not.toHaveBeenCalled();
+    expect(certifyMaterializedRelease).not.toHaveBeenCalled();
+    expect(warmMaterializedRelease).not.toHaveBeenCalled();
+    expect(phases).toEqual(["active-reference-committed"]);
+    expect(assertResidentContinuity).toHaveBeenCalledTimes(2);
+    expect((await store.read()).references.active).toBe(target.releaseId);
   });
 });
 

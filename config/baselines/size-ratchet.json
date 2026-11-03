@@ -203,10 +203,10 @@
       "lines": 250
     },
     "src/foundation/release/update.ts::createUpdateLifecycleCoordinator": {
-      "lines": 110
+      "lines": 107
     },
     "src/foundation/release/update.ts::runSelfUpdate": {
-      "lines": 213
+      "lines": 212
     },
     "src/foundation/storage/control-store.ts::ControlStore.migrate": {
       "lines": 181
