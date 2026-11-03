@@ -19,5 +19,5 @@
 ## 4. Reconcile delivery evidence
 
 - [x] 4.1 Reconcile implementation, focused tests, architecture effects, the narrow compatibility exception, and known limitations in the change artifacts.
-- [ ] 4.2 Run strict OpenSpec validation, typecheck, affected Node/native checks, and repository checks allowed before readiness.
-- [ ] 4.3 Merge current `origin/develop`, resolve drift, record plain Acceptance outcomes, and complete final implementation bookkeeping before the final PR outcome marker.
+- [x] 4.2 Run strict OpenSpec validation, typecheck, affected Node/native checks, and repository checks allowed before readiness.
+- [x] 4.3 Merge current `origin/develop`, resolve drift, record plain Acceptance outcomes, and complete final implementation bookkeeping before the final PR outcome marker.
