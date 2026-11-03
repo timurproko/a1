@@ -1282,11 +1282,21 @@ jobs:
 
       - name: Publish the exact validated installer package
         if: steps.final.outputs.publish_installer == 'true'
-        run: npm publish "$installer_tarball" --tag "${{ needs.plan.outputs.channel }}" --access public --ignore-scripts --provenance --registry https://registry.npmjs.org/
+        run: >-
+          node scripts/release/npm-publish-exact.mjs
+          --tarball "$installer_tarball"
+          --channel "${{ needs.plan.outputs.channel }}"
+          --integrity "${{ needs.package.outputs.installer_integrity }}"
+          --shasum "${{ needs.package.outputs.installer_shasum }}"
 
       - name: Publish the exact validated application package
         if: steps.final.outputs.publish == 'true'
-        run: npm publish "$release_tarball" --tag "${{ needs.plan.outputs.channel }}" --access public --ignore-scripts --provenance --registry https://registry.npmjs.org/
+        run: >-
+          node scripts/release/npm-publish-exact.mjs
+          --tarball "$release_tarball"
+          --channel "${{ needs.plan.outputs.channel }}"
+          --integrity "${{ needs.package.outputs.integrity }}"
+          --shasum "${{ needs.package.outputs.shasum }}"
 
       - name: Verify the registry serves the validated bytes
         shell: bash
