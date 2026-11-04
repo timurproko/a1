@@ -13,7 +13,9 @@ export function createCommandOutcomeState(home, entry, api) {
   const nameState = { value: condition === "current" ? "existing 日本語 session" : undefined };
   const providerId = condition === "no-default-provider" ? "fixture-provider" : "openai";
   const providerName = condition === "no-default-provider" ? "Fixture Provider" : "OpenAI Codex";
-  const selectedModel = { provider: providerId, id: condition === "default-unavailable" ? "alternate-model" : "gpt-5.5", name: "GPT-5.5", api: "openai-responses", reasoning: true, input: ["text"], contextWindow: 128000, maxTokens: 8192, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
+  const fixtureDefaultId = entry.command === "login" ? "gpt-6.1-sol" : "gpt-5.5";
+  const selectedModelId = condition === "default-unavailable" ? "alternate-model" : fixtureDefaultId;
+  const selectedModel = { provider: providerId, id: selectedModelId, name: selectedModelId === "gpt-6.1-sol" ? "GPT-6.1 Terra" : "GPT-5.5", api: "openai-responses", reasoning: true, input: ["text"], contextWindow: 128000, maxTokens: 8192, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } };
   const models = condition === "no-models" ? [] : [selectedModel];
   const credentials = new Map(condition === "empty" ? [] : [[providerId, condition === "api-key" ? "api_key" : "oauth"]]);
   const manager = {

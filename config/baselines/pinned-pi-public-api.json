@@ -2562,6 +2562,7 @@
           "kind": "class",
           "hash": "727f79a6f87a9b4f3e8899bc2996059cbef3286404a13f62e1bbcf7b7f599cc1",
           "consumers": [
+            "src/integrations/pi/engine/default-model-setting.ts",
             "src/integrations/pi/engine/offline-settings-port.ts",
             "src/integrations/pi/engine/package-integration.ts",
             "src/integrations/pi/engine/project-trust-preflight.ts",

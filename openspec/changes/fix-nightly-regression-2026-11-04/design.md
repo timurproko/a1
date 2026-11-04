@@ -4,7 +4,9 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The deterministic failures came from Pi 1.5.0 adoption in `4716452`: A1's copied provider-default table still named Pi 1.4-era models, so login parity expected `gpt-6.1-sol` while the owned workflow selected or reported `gpt-5.5`. Keep the complete owned table equal to Pi 1.5.0's resolver instead of patching only the OpenAI cases.
+- The public API baseline missed `default-model-setting.ts`, introduced by `3eb4c68`, as a `SettingsManager` consumer. Regenerate the baseline from the installed pin and current source tree rather than weakening its consumer comparison.
+- The Node 22 predecessor failure is environmental evidence from the failed run: the identical Windows Node 24 predecessor shard passed, while the deterministic parity and baseline failures reproduced locally. The selected exact-head PR Full regression must rerun the Node 22 predecessor shard; no timeout or assertion is relaxed.
 
 ## Evidence
 
@@ -99,3 +101,12 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
     - `3864d17` fix(update): retry blocked activation safely (#860)
     - `4716452` upgrade(pi): upgrade pinned Pi to 1.5.0 (#859)
     - `3eb4c68` fix(tabs): preserve agents across updates (#858)
+
+## Focused implementation evidence
+
+- Before the fix, `npx vitest run test/app/session-shell/command-outcome-parity.test.ts` reproduced 24 login-message mismatches in both color modes, and `npx vitest run test/repository-governance/pinned-pi-public-api.test.ts` reproduced the missing `SettingsManager` consumer.
+- The owned provider-default table now exactly matches Pi 1.5.0's `defaultModelPerProvider`, with a regression test comparing every provider entry. Login fixtures use the pin's `gpt-6.1-sol` default without changing unrelated model workflow cases.
+- `npx vitest run test/app/session-shell/command-outcome-parity.test.ts` passes all 4 tests after the fix.
+- `npx vitest run test/integrations/pi/engine/workflow-support.test.ts test/repository-governance/pinned-pi-public-api.test.ts` passes all 6 tests, and `node scripts/pi/update-pinned-pi-public-api.mjs --check` reports 643 current exports.
+- Draft repair candidates intentionally run no Development suites before finalization. The exact-head selected PR Full regression remains the required cross-platform observation, including the previously failed Windows Node 22 predecessor shard.
+- Known gaps: none. The prior orchestration failure was downstream of failed owner lanes and remains covered by the selected aggregate.
