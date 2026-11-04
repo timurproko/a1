@@ -51,7 +51,7 @@ const TAB_BAR_RIGHT_ITEMS = Object.freeze([
   Object.freeze({ key: "time", label: "Time", description: "Show the current time." }),
 ]);
 const TAB_BAR_RIGHT_ITEM_VALUES = Object.freeze(["", "version", "time", "version,time"] as const);
-const TAB_BAR_BACKGROUND_VALUES = Object.freeze(["transparent", "dark", "accent"] as const);
+const TAB_BAR_BACKGROUND_VALUES = Object.freeze(["transparent", "black", "accent"] as const);
 
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   updateCheck: Object.freeze({

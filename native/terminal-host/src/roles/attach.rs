@@ -1016,7 +1016,7 @@ fn read_presentation_settings(path: &Path, default_accent: &'static str) -> Pres
         tab_bar_background_style: owned_settings
             .get("tabBarBackgroundStyle")
             .and_then(serde_json::Value::as_str)
-            .and_then(known_background_style)
+            .and_then(known_tab_bar_background_style)
             .or(Some("transparent")),
     }
 }
@@ -1105,6 +1105,16 @@ fn read_quit_animation(path: &Path) -> bool {
                 .and_then(serde_json::Value::as_bool)
         })
         .unwrap_or(true)
+}
+
+/// The tab-bar setting calls the dark canvas Black; accept the first development spelling too.
+fn known_tab_bar_background_style(style: &str) -> Option<&'static str> {
+    match style {
+        "transparent" => Some("transparent"),
+        "black" | "dark" => Some("dark"),
+        "accent" => Some("accent"),
+        _ => None,
+    }
 }
 
 /// The owned theme's dark `selectedBg` for each A1 accent, derived by
