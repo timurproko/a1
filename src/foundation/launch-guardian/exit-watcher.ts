@@ -28,17 +28,24 @@ export async function runExitWatcher(
 
   try {
     await addon.waitForProcessExit(options.guardianPid);
-    if (platform === "win32") {
-      // Rationale: job termination is asynchronous; keep the runtime's final frame ahead of the notice.
-      await Promise.race([
-        addon.waitForProcessExit(options.runtimePid),
-        delay(2_000),
-      ]);
-    } else if (options.processGroup !== null) {
-      addon.stopProcessGroup(options.processGroup);
-      if (options.foregroundGroup !== null) addon.restoreForegroundGroup(options.foregroundGroup);
+    let cleanupFailure: unknown = null;
+    try {
+      if (platform === "win32") {
+        // Rationale: job termination is asynchronous; keep the runtime's final frame ahead of the notice.
+        await Promise.race([
+          addon.waitForProcessExit(options.runtimePid),
+          delay(2_000),
+        ]);
+      } else if (options.processGroup !== null) {
+        addon.stopProcessGroup(options.processGroup);
+        if (options.foregroundGroup !== null) addon.restoreForegroundGroup(options.foregroundGroup);
+      }
+    } catch (error) {
+      cleanupFailure = error;
     }
+    // Invariant: an armed notice, such as the running-Agent reminder, survives a failed cleanup.
     addon.deliverExitNotice(options.noticePath, options.encodedModes);
+    if (cleanupFailure !== null) throw cleanupFailure;
     return 0;
   } finally {
     if (platform !== "win32") {
