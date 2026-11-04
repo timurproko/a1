@@ -107,11 +107,11 @@ impl WorkspaceStore {
         });
         let system = crate::identity::current_system()
             .map_err(|_| "workspace login identity unavailable")?;
-        let uncertain_login = document.boot_id == system.boot
+        let uncertain_login = crate::identity::same_boot(&document.boot_id, &system.boot)
             && document.os_session_id != system.os_session
             && !crate::identity::login_change_proven(&document.os_session_id, &system.os_session);
         if !document.boot_id.is_empty()
-            && (document.boot_id != system.boot
+            && (!crate::identity::same_boot(&document.boot_id, &system.boot)
                 || crate::identity::login_change_proven(
                     &document.os_session_id,
                     &system.os_session,
@@ -459,7 +459,7 @@ pub fn held_release_roots(data: &Path) -> Result<Vec<String>, String> {
         let system = crate::identity::current_system()
             .map_err(|_| "workspace hold login identity unavailable")?;
         if !document.boot_id.is_empty()
-            && (document.boot_id != system.boot
+            && (!crate::identity::same_boot(&document.boot_id, &system.boot)
                 || crate::identity::login_change_proven(
                     &document.os_session_id,
                     &system.os_session,

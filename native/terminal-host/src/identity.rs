@@ -62,7 +62,48 @@ pub(crate) fn login_change_proven(recorded: &str, current: &str) -> bool {
 }
 
 pub fn same_system_epoch(left: &SystemIdentity, right: &SystemIdentity) -> bool {
-    left.boot == right.boot && left.os_session == right.os_session
+    same_boot(&left.boot, &right.boot) && left.os_session == right.os_session
+}
+
+/// Seconds a legacy clock-derived boot identity may differ from the current boot time and still
+/// name the same boot.
+const LEGACY_BOOT_TOLERANCE_SECONDS: i64 = 2;
+
+/// Invariant: every boot comparison on every platform uses this rule, never string equality.
+/// Current identities are kernel-issued per-boot identifiers and match exactly. A legacy
+/// clock-derived record matches the current boot when its seconds lie within the tolerance,
+/// because the kernel shifts its recorded boot time whenever the wall clock is corrected.
+pub fn same_boot(left: &str, right: &str) -> bool {
+    left == right || legacy_boot_matches(left, right, platform::legacy_boot_seconds)
+}
+
+fn legacy_boot_matches(left: &str, right: &str, current: impl Fn() -> Option<i64>) -> bool {
+    let within = |first: i64, second: i64| (first - second).abs() <= LEGACY_BOOT_TOLERANCE_SECONDS;
+    match (legacy_boot_seconds_of(left), legacy_boot_seconds_of(right)) {
+        (Some(first), Some(second)) => within(first, second),
+        (Some(recorded), None) | (None, Some(recorded)) => {
+            let other = if legacy_boot_seconds_of(left).is_some() {
+                right
+            } else {
+                left
+            };
+            other.starts_with(MACOS_BOOT_SESSION_PREFIX)
+                && current().is_some_and(|seconds| within(recorded, seconds))
+        }
+        (None, None) => false,
+    }
+}
+
+const MACOS_BOOT_SESSION_PREFIX: &str = "macos-boot-session:";
+
+/// Compatibility: releases before boot-session identities recorded `macos-boot:<sec>:<usec>`.
+fn legacy_boot_seconds_of(value: &str) -> Option<i64> {
+    let (seconds, microseconds) = value.strip_prefix("macos-boot:")?.split_once(':')?;
+    let digits = |text: &str| !text.is_empty() && text.bytes().all(|byte| byte.is_ascii_digit());
+    if !digits(seconds) || !digits(microseconds) {
+        return None;
+    }
+    seconds.parse().ok()
 }
 
 pub fn terminate_verified(
@@ -191,6 +232,11 @@ mod platform {
         Ok(format!("linux-boot:{value}"))
     }
 
+    /// Linux boot identities were never clock-derived.
+    pub fn legacy_boot_seconds() -> Option<i64> {
+        None
+    }
+
     pub fn os_session_identity() -> Result<String, IdentityError> {
         if let Ok(session) = std::env::var("XDG_SESSION_ID")
             && !session.is_empty()
@@ -262,7 +308,45 @@ mod platform {
         }))
     }
 
+    /// Platform: `kern.boottime` is recomputed whenever the wall clock is stepped, so it cannot
+    /// identify a boot; the boot-session UUID is fixed from boot to shutdown.
     pub fn boot_identity() -> Result<String, IdentityError> {
+        let mut buffer = [0u8; 64];
+        let mut size = buffer.len();
+        let name = b"kern.bootsessionuuid\0";
+        let result = unsafe {
+            libc::sysctlbyname(
+                name.as_ptr().cast(),
+                buffer.as_mut_ptr().cast(),
+                &mut size,
+                std::ptr::null_mut(),
+                0,
+            )
+        };
+        if result != 0 {
+            return Err(IdentityError(format!(
+                "read macOS boot identity: {}",
+                std::io::Error::last_os_error()
+            )));
+        }
+        let length = buffer[..size.min(buffer.len())]
+            .iter()
+            .position(|byte| *byte == 0)
+            .unwrap_or(size.min(buffer.len()));
+        let value = std::str::from_utf8(&buffer[..length])
+            .map_err(|_| IdentityError("macOS boot identity is malformed".to_owned()))?;
+        if value.len() != 36
+            || !value
+                .chars()
+                .all(|character| character.is_ascii_hexdigit() || character == '-')
+        {
+            return Err(IdentityError("macOS boot identity is malformed".to_owned()));
+        }
+        Ok(format!("{}{value}", super::MACOS_BOOT_SESSION_PREFIX))
+    }
+
+    /// Compatibility: the current kernel boot time, used only to recognize legacy records.
+    pub fn legacy_boot_seconds() -> Option<i64> {
         let mut boot: libc::timeval = unsafe { zeroed() };
         let mut size = size_of::<libc::timeval>();
         let name = b"kern.boottime\0";
@@ -275,13 +359,7 @@ mod platform {
                 0,
             )
         };
-        if result != 0 || size != size_of::<libc::timeval>() {
-            return Err(IdentityError(format!(
-                "read macOS boot identity: {}",
-                std::io::Error::last_os_error()
-            )));
-        }
-        Ok(format!("macos-boot:{}:{}", boot.tv_sec, boot.tv_usec))
+        (result == 0 && size == size_of::<libc::timeval>()).then_some(boot.tv_sec)
     }
 
     pub fn os_session_identity() -> Result<String, IdentityError> {
@@ -419,6 +497,11 @@ mod platform {
         ))
     }
 
+    /// Windows boot identities were never clock-derived.
+    pub fn legacy_boot_seconds() -> Option<i64> {
+        None
+    }
+
     pub fn os_session_identity() -> Result<String, IdentityError> {
         let mut token: HANDLE = std::ptr::null_mut();
         if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token) } == 0 {
@@ -459,6 +542,89 @@ mod platform {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn current_boot_identities_match_exactly_on_every_platform() {
+        for value in [
+            "linux-boot:6f1d3c1e-2a4b-4c55-9d0e-0123456789ab",
+            "windows-boot:01234567-89ab-cdef-0123456789abcdef",
+            "macos-boot-session:8C224B16-5D02-46A2-ADA0-2D3A7C18C697",
+        ] {
+            assert!(same_boot(value, value));
+        }
+        assert!(!same_boot(
+            "linux-boot:6f1d3c1e-2a4b-4c55-9d0e-0123456789ab",
+            "linux-boot:7f1d3c1e-2a4b-4c55-9d0e-0123456789ab"
+        ));
+        assert!(!same_boot(
+            "macos-boot-session:8C224B16-5D02-46A2-ADA0-2D3A7C18C697",
+            "macos-boot-session:9C224B16-5D02-46A2-ADA0-2D3A7C18C697"
+        ));
+    }
+
+    #[test]
+    fn legacy_clock_boot_records_tolerate_drift_within_one_boot() {
+        let session = "macos-boot-session:8C224B16-5D02-46A2-ADA0-2D3A7C18C697";
+        let now = || Some(1_793_386_642);
+        // Observed: one boot recorded all of these as clock corrections shifted kern.boottime.
+        for recorded in [
+            "macos-boot:1793386641:831874",
+            "macos-boot:1793386642:10483",
+            "macos-boot:1793386642:889229",
+            "macos-boot:1793386644:0",
+        ] {
+            assert!(legacy_boot_matches(recorded, session, now), "{recorded}");
+            assert!(legacy_boot_matches(session, recorded, now), "{recorded}");
+        }
+        assert!(legacy_boot_matches(
+            "macos-boot:1793386641:831874",
+            "macos-boot:1793386642:889229",
+            || None
+        ));
+    }
+
+    #[test]
+    fn legacy_clock_boot_records_from_another_boot_do_not_match() {
+        let session = "macos-boot-session:8C224B16-5D02-46A2-ADA0-2D3A7C18C697";
+        let now = || Some(1_793_386_642);
+        assert!(!legacy_boot_matches(
+            "macos-boot:1793380000:5",
+            session,
+            now
+        ));
+        assert!(!legacy_boot_matches(
+            "macos-boot:1793386645:0",
+            session,
+            now
+        ));
+        assert!(!legacy_boot_matches(
+            "macos-boot:1793386642:5",
+            session,
+            || None
+        ));
+        assert!(!legacy_boot_matches(
+            "macos-boot:1793386642:5",
+            "linux-boot:6f1d3c1e-2a4b-4c55-9d0e-0123456789ab",
+            now
+        ));
+        for malformed in [
+            "macos-boot:",
+            "macos-boot:12",
+            "macos-boot:+1:2",
+            "macos-boot:1:x",
+        ] {
+            assert!(!legacy_boot_matches(malformed, session, now), "{malformed}");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_boot_identity_is_a_stable_session_uuid() {
+        let first = platform::boot_identity().unwrap();
+        assert!(first.starts_with(MACOS_BOOT_SESSION_PREFIX));
+        assert_eq!(first, platform::boot_identity().unwrap());
+        assert!(platform::legacy_boot_seconds().is_some());
+    }
 
     #[test]
     fn legacy_mach_names_are_not_proof_of_an_ended_login() {

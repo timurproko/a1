@@ -174,6 +174,16 @@ pub fn start_at(
     })
 }
 pub fn run(options: AttachOptions<'_>) -> Result<(), String> {
+    let paths = Paths {
+        profile: options.profile.into(),
+        data: options.data_dir.into(),
+        root: Path::new(options.release_root).into(),
+    };
+    // Invariant: a source this client cannot verify never strands the user outside the host of its
+    // own release; the proxy would otherwise close the attach handshake without a reason.
+    if connection::discover_ready(&paths).is_err() {
+        return super::attach::run_attach(options);
+    }
     let proxy = start(&options)?;
     super::attach::run_attach(AttachOptions {
         endpoint: &proxy.endpoint,
@@ -341,7 +351,10 @@ fn serve(
     let signal = Arc::new(AtomicUsize::new(selected_source));
     let (sources, mut features) = initial_sources(routes, &layout, &tx, &budget, &signal)?;
     features.push("resident-workspace-v1".into());
-    let viewed = startup::selection(&routing::aggregate(&sources,&layout,layout.revision).tabs,layout.selected.as_deref());
+    let viewed = startup::selection(
+        &routing::aggregate(&sources, &layout, layout.revision).tabs,
+        layout.selected.as_deref(),
+    );
     let active = viewed
         .as_deref()
         .and_then(|id| routing::target(&sources, id))

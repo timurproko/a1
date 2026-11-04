@@ -143,7 +143,7 @@ pub fn adopt_verified_holder(
     expected_credential: &[u8; 32],
 ) -> bool {
     observed.is_some_and(|identity| identity == &record.identity)
-        && record.boot_identity == boot_identity
+        && crate::identity::same_boot(&record.boot_identity, boot_identity)
         && record.credential == *expected_credential
         && presented_credential == expected_credential
 }
@@ -859,7 +859,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         && registry.os_session_id != "unavailable"
         && system.os_session != "unavailable"
         && registry.os_session_id != system.os_session;
-    let prior_session_ended = registry.boot_id != system.boot
+    let prior_session_ended = !crate::identity::same_boot(&registry.boot_id, &system.boot)
         || ((os_session_changed || system.os_session == "unavailable")
             && all_holders_gone
             && !registry.tabs.is_empty());
