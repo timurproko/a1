@@ -566,7 +566,7 @@ mod tests {
     fn legacy_clock_boot_records_tolerate_drift_within_one_boot() {
         let session = "macos-boot-session:8C224B16-5D02-46A2-ADA0-2D3A7C18C697";
         let now = || Some(1_793_386_642);
-        // Observed: one boot recorded all of these as clock corrections shifted kern.boottime.
+        // Provenance: one macOS boot recorded all of these as clock corrections shifted kern.boottime.
         for recorded in [
             "macos-boot:1793386641:831874",
             "macos-boot:1793386642:10483",

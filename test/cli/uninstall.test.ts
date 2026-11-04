@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 import { runUninstall, type UninstallDependencies } from "../../src/cli/uninstall.js";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 
@@ -30,9 +30,9 @@ async function machine() {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const dependencies: UninstallDependencies = {
-    packageRoot, environment, home, platform: "linux",
+    packageRoot, environment, home, platform: process.platform,
     output: { stdout: message => { stdout.push(message); }, stderr: message => { stderr.push(message); } },
-    stopResidentHost: async releaseRoot => { events.push(`host-stop:${releaseRoot.split("/").at(-1)}`); },
+    stopResidentHost: async releaseRoot => { events.push(`host-stop:${basename(releaseRoot)}`); },
     stopSupervisors: async () => { events.push("supervisors"); },
     removePackage: async () => { events.push("package"); },
   };
