@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 use std::io::{Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicBool, Ordering},
@@ -779,7 +779,7 @@ fn run_holder(
         })
         .map_err(|error| format!("open resident tab PTY: {error}"))?;
     let mut command = CommandBuilder::new(&config.node_executable);
-    command.arg(Path::new(&config.release_root).join("bin").join("ui.js"));
+    command.arg(node_main_entry(&config.release_root));
     command.arg("--tab");
     if config.standby {
         command.arg("--tab-standby");
@@ -1866,7 +1866,27 @@ fn connect_holder(
     Ok((stream, welcome.epoch))
 }
 
-fn configure_bridge(command: &mut CommandBuilder, config: &HolderLaunchConfig) -> Result<(), String> {
+fn node_main_entry(release_root: &str) -> PathBuf {
+    let path = Path::new(release_root).join("bin").join("ui.js");
+    #[cfg(windows)]
+    {
+        // Compatibility: Node 22 cannot resolve a verbatim Windows path as its main module. The
+        // host keeps the canonical release identity but launches Node with equivalent DOS/UNC.
+        let text = path.to_string_lossy();
+        if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
+            return PathBuf::from(format!(r"\\{rest}"));
+        }
+        if let Some(rest) = text.strip_prefix(r"\\?\") {
+            return PathBuf::from(rest);
+        }
+    }
+    path
+}
+
+fn configure_bridge(
+    command: &mut CommandBuilder,
+    config: &HolderLaunchConfig,
+) -> Result<(), String> {
     command.env("A1_TAB_RELEASE_ID", super::scope::release_id()?);
     command.env("A1_TAB_TOKEN", BASE64.encode(&config.bridge_token));
     command.env("A1_TAB_ENDPOINT", &config.endpoint);
@@ -1968,6 +1988,23 @@ mod synchronization_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn node_main_entry_converts_verbatim_paths_for_supported_node_runtimes() {
+        assert_eq!(
+            node_main_entry(r"\\?\C:\releases\candidate"),
+            PathBuf::from(r"C:\releases\candidate\bin\ui.js")
+        );
+        assert_eq!(
+            node_main_entry(r"\\?\UNC\server\share\candidate"),
+            PathBuf::from(r"\\server\share\candidate\bin\ui.js")
+        );
+        assert_eq!(
+            node_main_entry(r"C:\releases\candidate"),
+            PathBuf::from(r"C:\releases\candidate\bin\ui.js")
+        );
+    }
 
     #[test]
     fn input_writer_preserves_control_order_and_admission_credits() {
