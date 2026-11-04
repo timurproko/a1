@@ -78,12 +78,9 @@ describe("DockChrome", () => {
     expect(chrome.renderPromptOverlay(installed, 0)).toBeUndefined();
   });
 
-  it("shows a sanitized blocked status and gives installed readiness priority", () => {
+  it("keeps blocked diagnostics out of normal chrome without hiding installed readiness", () => {
     const { chrome } = harness();
-    const prepared = chrome.renderPromptOverlay(blocked, 40)!;
-    expect(stripTerminalSequences(prepared)).toBe("Update prepared; activation blocked");
-    expect(cellStyle(prepared, "U").foreground)
-      .toBe(cellStyle(piTheme().fg("warning", "U"), "U").foreground);
+    expect(chrome.renderPromptOverlay(blocked, 40)).toBeUndefined();
     expect(stripTerminalSequences(chrome.renderPromptOverlay([...blocked, ...installed], 40)!))
       .toBe("Update installed, restart to update");
   });
