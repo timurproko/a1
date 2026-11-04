@@ -829,9 +829,9 @@ describe("pinned Pi command and input workflows", () => {
     });
 
     runtime.session.model = { provider: "unknown", id: "unknown", api: "unknown" };
-    runtime.allModels = [{ provider: "openai", id: "gpt-5.5", name: "GPT-5.5" }];
+    runtime.allModels = [{ provider: "openai", id: "gpt-6.1-sol", name: "GPT-6.1 Terra" }];
     const selected = await adapter.executeWorkflow({ command: "login", argument: "oauth:openai" });
-    expect(selected.message).toMatch(/^Logged in to OpenAI Codex\. Selected gpt-5\.5\. Credentials saved to .+auth\.json$/);
+    expect(selected.message).toMatch(/^Logged in to OpenAI Codex\. Selected gpt-6\.1-sol\. Credentials saved to .+auth\.json$/);
     expect(runtime.session.calls).toContain("setModel");
 
     runtime.session.model = { provider: "unknown", id: "unknown", api: "unknown" };
