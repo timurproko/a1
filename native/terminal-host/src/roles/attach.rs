@@ -1107,7 +1107,6 @@ fn read_quit_animation(path: &Path) -> bool {
         .unwrap_or(true)
 }
 
-/// The tab-bar setting calls the dark canvas Black; accept the first development spelling too.
 fn known_tab_bar_background_style(style: &str) -> Option<&'static str> {
     match style {
         "transparent" => Some("transparent"),
@@ -2361,7 +2360,6 @@ struct Client {
     /// The running a1 package version the landing header names, when the release records one.
     version: Option<String>,
     suppress_satisfied_update_notice: bool,
-    /// The native host observes release activation itself, independent of the attached release JS.
     data_dir: PathBuf,
     restart_ready: bool,
     release_checked_at: Instant,
@@ -2489,65 +2487,7 @@ impl Client {
         let mut forwarded = Vec::new();
         for effect in effects {
             match effect {
-                Effect::Send(request) => {
-                    if request == Request::Create {
-                        self.refresh_pending_agent_footer();
-                        self.clear_chip_fill();
-                        key_trace(self.key_trace_path.as_deref(), "effect=create");
-                        let known_ids = self
-                            .tabs
-                            .iter()
-                            .chain(self.view.staged_tabs().into_iter().flatten())
-                            .map(|tab| tab.id.clone())
-                            .collect();
-                        let request_id = self.next_create_request_id;
-                        self.next_create_request_id =
-                            self.next_create_request_id.wrapping_add(1).max(1);
-                        self.pending_agent = Some(PendingAgent {
-                            known_ids,
-                            request_id,
-                            real_id: None,
-                        });
-                    } else if request == Request::CancelCreate {
-                        key_trace(self.key_trace_path.as_deref(), "effect=cancel-create");
-                        if let Some(pending) = self.pending_agent.as_ref() {
-                            self.cancelled_agents.push(CancelledAgent {
-                                request_id: pending.request_id,
-                                known_ids: pending.known_ids.clone(),
-                            });
-                        }
-                    } else if let Request::Close(ref tab_id) = request {
-                        if self
-                            .chip_fill
-                            .as_ref()
-                            .is_some_and(|fill| fill.tab_id == *tab_id)
-                        {
-                            self.clear_chip_fill();
-                        }
-                        key_trace(self.key_trace_path.as_deref(), "effect=close");
-                        self.closed_tab_ids.insert(tab_id.clone());
-                        if self
-                            .pending_agent
-                            .as_ref()
-                            .and_then(|pending| pending.real_id.as_deref())
-                            == Some(tab_id)
-                        {
-                            self.hidden_cancelled_tabs.insert(tab_id.clone());
-                        }
-                    } else if matches!(request, Request::Open(_))
-                        && !core.view.pending_agent_visible
-                    {
-                        self.pending_agent = None;
-                    }
-                    if matches!(request, Request::Reorder { .. }) {
-                        self.chip_priority.clear();
-                    }
-                    let cancelled = request == Request::CancelCreate;
-                    self.send(request)?;
-                    if cancelled {
-                        self.pending_agent = None;
-                    }
-                }
+                Effect::Send(request) => self.apply_send_effect(core, request)?,
                 Effect::View(tab_id) => {
                     if self
                         .chip_fill
@@ -2603,6 +2543,64 @@ impl Client {
             self.pending_agent = None;
         }
         Ok(forwarded)
+    }
+
+    fn apply_send_effect(&mut self, core: &State, request: Request) -> Result<(), String> {
+        if request == Request::Create {
+            self.refresh_pending_agent_footer();
+            self.clear_chip_fill();
+            key_trace(self.key_trace_path.as_deref(), "effect=create");
+            let known_ids = self
+                .tabs
+                .iter()
+                .chain(self.view.staged_tabs().into_iter().flatten())
+                .map(|tab| tab.id.clone())
+                .collect();
+            let request_id = self.next_create_request_id;
+            self.next_create_request_id = self.next_create_request_id.wrapping_add(1).max(1);
+            self.pending_agent = Some(PendingAgent {
+                known_ids,
+                request_id,
+                real_id: None,
+            });
+        } else if request == Request::CancelCreate {
+            key_trace(self.key_trace_path.as_deref(), "effect=cancel-create");
+            if let Some(pending) = self.pending_agent.as_ref() {
+                self.cancelled_agents.push(CancelledAgent {
+                    request_id: pending.request_id,
+                    known_ids: pending.known_ids.clone(),
+                });
+            }
+        } else if let Request::Close(ref tab_id) = request {
+            if self
+                .chip_fill
+                .as_ref()
+                .is_some_and(|fill| fill.tab_id == *tab_id)
+            {
+                self.clear_chip_fill();
+            }
+            key_trace(self.key_trace_path.as_deref(), "effect=close");
+            self.closed_tab_ids.insert(tab_id.clone());
+            if self
+                .pending_agent
+                .as_ref()
+                .and_then(|pending| pending.real_id.as_deref())
+                == Some(tab_id)
+            {
+                self.hidden_cancelled_tabs.insert(tab_id.clone());
+            }
+        } else if matches!(request, Request::Open(_)) && !core.view.pending_agent_visible {
+            self.pending_agent = None;
+        }
+        if matches!(request, Request::Reorder { .. }) {
+            self.chip_priority.clear();
+        }
+        let cancelled = request == Request::CancelCreate;
+        self.send(request)?;
+        if cancelled {
+            self.pending_agent = None;
+        }
+        Ok(())
     }
 
     fn hide_final_utility(&mut self) {
@@ -3308,29 +3306,7 @@ impl Client {
                     status: status.status,
                 }
             }
-            "tab.created" | "tab.selected" => {
-                let (request_id, target): (_, TabTarget) = wire::body(payload)?;
-                if is_stale_unrequested_agent(
-                    request_id,
-                    &target.tab_id,
-                    &self.tabs,
-                    self.view.staged_tabs(),
-                    &self.closed_tab_ids,
-                    &self.hidden_cancelled_tabs,
-                ) {
-                    return Ok(None);
-                }
-                if message_type == "tab.created"
-                    && take_cancelled_agent(&mut self.cancelled_agents, request_id)
-                {
-                    self.hidden_cancelled_tabs.insert(target.tab_id.clone());
-                    self.send(Request::Close(target.tab_id))?;
-                    return Ok(None);
-                }
-                ServerEvent::Created {
-                    tab_id: target.tab_id,
-                }
-            }
+            "tab.created" | "tab.selected" => return self.tab_created_event(message_type, payload),
             "tab.create-failed" | "tab.create-refused" => {
                 let (request_id, response): (_, wire::ResultBody) = wire::body(payload)?;
                 if take_cancelled_agent(&mut self.cancelled_agents, request_id) {
@@ -3380,6 +3356,34 @@ impl Client {
                 message: control_notice(message_type, result()?),
             },
             _ => return Ok(None),
+        }))
+    }
+
+    fn tab_created_event(
+        &mut self,
+        message_type: &str,
+        payload: &[u8],
+    ) -> Result<Option<ServerEvent>, String> {
+        let (request_id, target): (_, TabTarget) = wire::body(payload)?;
+        if is_stale_unrequested_agent(
+            request_id,
+            &target.tab_id,
+            &self.tabs,
+            self.view.staged_tabs(),
+            &self.closed_tab_ids,
+            &self.hidden_cancelled_tabs,
+        ) {
+            return Ok(None);
+        }
+        if message_type == "tab.created"
+            && take_cancelled_agent(&mut self.cancelled_agents, request_id)
+        {
+            self.hidden_cancelled_tabs.insert(target.tab_id.clone());
+            self.send(Request::Close(target.tab_id))?;
+            return Ok(None);
+        }
+        Ok(Some(ServerEvent::Created {
+            tab_id: target.tab_id,
         }))
     }
 

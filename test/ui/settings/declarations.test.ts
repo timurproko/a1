@@ -264,7 +264,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(20);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(19);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))

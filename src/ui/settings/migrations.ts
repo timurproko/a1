@@ -167,13 +167,6 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return { ...values };
     },
   }),
-  Object.freeze({
-    to: 21,
-    description: "Introduce the resident tab-bar transparent background default.",
-    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
-      return { ...values };
-    },
-  }),
 ]);
 
 export interface OwnedUiSettingsCompatibilityResult {

@@ -45,8 +45,6 @@ struct ReleaseRecord {
     approval: String,
 }
 
-/// A native outer client may be older than immutable agent JavaScript. It independently observes
-/// the active, approved release so every live multi-agent window can truthfully offer a restart.
 pub fn newer_active_release(data_dir: &Path, client_version: &str) -> bool {
     if !valid_version(client_version) {
         return false;
@@ -86,7 +84,6 @@ fn same_channel(candidate: &str, current: &str) -> bool {
     candidate.contains("-dev.") == current.contains("-dev.")
 }
 
-/// Compares the numeric fields in package versions without accepting arbitrary display strings.
 fn version_is_newer(candidate: &str, current: &str) -> bool {
     let numbers = |value: &str| {
         value

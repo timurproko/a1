@@ -96,7 +96,6 @@ pub enum StripHit {
     RightTime,
 }
 
-/// The unoccupied tab-bar row canvas. Chips and menus keep their own contrast surfaces.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StripCanvas {
     Transparent,
@@ -766,7 +765,6 @@ pub fn render_interactive_status_filled_at(
     frame
 }
 
-/// Render the configured strip with a caller-selected unoccupied row canvas.
 #[allow(clippy::too_many_arguments)]
 pub fn render_interactive_status_filled_canvas_at(
     tabs: &[StripTab],
@@ -968,8 +966,6 @@ fn render_frame_filled_with_right(
         let right_start = column.saturating_add(padding as u16);
         right.render(&mut bytes, &mut hits, right_start, hovered);
     }
-    // Invariant: every strip cell outside a chip explicitly restores the selected canvas, so stale
-    // child background cells cannot show through while Transparent still restores terminal default.
     let canvas_sgr = match canvas {
         StripCanvas::Transparent => "\x1b[49m".to_owned(),
         StripCanvas::Rgb([red, green, blue]) => format!("\x1b[48;2;{red};{green};{blue}m"),
@@ -1219,7 +1215,6 @@ fn right_status_text(
         if fits(&both) {
             return Some(both);
         }
-        // Compatibility: Time keeps rightmost priority on narrow rows.
         let time_only = RightStatus {
             version: None,
             time,
