@@ -1987,7 +1987,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_strip_contains_only_the_new_tab_control() {
+    fn empty_strip_contains_the_new_tab_control_and_clock_hit() {
         let frame = render(&[], None, 80);
         let text = plain(&frame.bytes);
         assert!(text.trim_start().starts_with('+'));
@@ -1996,7 +1996,11 @@ mod tests {
             "the clock stays visible: {text:?}"
         );
         assert_eq!(UnicodeWidthStr::width(text.as_str()), 80);
-        assert_eq!(frame.hits, vec![(0, 3, StripHit::New)]);
+        assert_eq!(frame.hits.first(), Some(&(0, 3, StripHit::New)));
+        assert!(matches!(
+            frame.hits.last(),
+            Some((_, _, StripHit::RightTime))
+        ));
         // Platform: `render` detects truecolor from the environment, so either row background may
         // follow the reset.
         assert!(

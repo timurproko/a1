@@ -449,8 +449,8 @@ setInterval(() => {}, 1000);
         "{}",
         first.output_text()
     );
-    // The predecessor's native outer client sees a newer approved active release even though its
-    // retained Agent was launched from the old release tree.
+    // Rationale: the predecessor's native outer client sees a newer approved active release even
+    // when its retained Agent was launched from the old release tree.
     std::fs::write(
         data.join("release-state.json"),
         br#"{"schema":"a1-release-cohort-v1","releases":{"next":{"packageVersion":"0.2.7-dev.1239","approval":"approved"}},"references":{"active":"next"}}"#,
@@ -460,8 +460,8 @@ setInterval(() => {}, 1000);
         "the predecessor attach did not announce activation: {}",
         first.output_text()
     );
-    // The fixture's server has no materialized cohort records; restore its ordinary no-cohort
-    // launch state before simulating the successor executable.
+    // Rationale: the fixture server has no materialized cohort records, so restore its ordinary
+    // no-cohort launch state before simulating the successor executable.
     std::fs::remove_file(data.join("release-state.json")).expect("clear fixture release state");
     first.write(b"\x03\x03");
     let detached = first.wait(Duration::from_secs(8));
