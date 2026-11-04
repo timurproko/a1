@@ -212,6 +212,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     allowedValues: TAB_BAR_RIGHT_ITEM_VALUES,
     flags: TAB_BAR_RIGHT_ITEMS,
   }),
+  tabBarBackgroundStyle: Object.freeze({
+    id: "tabBarBackgroundStyle",
+    label: "Background",
+    section: TABS_SECTION,
+    description: "Tab-bar canvas.",
+    application: "live",
+    defaultValue: "transparent",
+    allowedValues: Object.freeze(["transparent", "black", "accent"] as const),
+  }),
   tabsAutoName: Object.freeze({
     id: "tabsAutoName",
     label: "Auto name",

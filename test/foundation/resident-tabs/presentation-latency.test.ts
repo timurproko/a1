@@ -81,6 +81,38 @@ describe("healthy resident presentation latency verdict", () => {
     expect(healthy.faults).toEqual([]);
   });
 
+  it.each([-500, 500])("bounds renderer-to-PTY clock skew of %i us without dropping samples", offset => {
+    const records = observations().map(record => ({
+      ...record,
+      clockErrorUs: 1_000,
+      ...(record.stage === "pty-ingest" ? { timestampUnixUs: record.timestampUnixUs - 1_000 + offset } : {}),
+    }));
+    const result = report(records);
+    expect(result.perTab[TAB]!.renderToPty).toEqual({
+      count: 40, p50Ms: 2 + offset / 1_000, p95Ms: 2 + offset / 1_000, maximumMs: 2 + offset / 1_000,
+    });
+    expect(result.faults).toEqual([]);
+  });
+
+  it("rejects renderer-to-PTY pairs outside clock uncertainty or across incarnations", () => {
+    const pair = observations().filter(record => record.eventSequence === 1);
+    const outside = pair.map(record => ({ ...record, clockErrorUs: 1_000,
+      ...(record.stage === "pty-ingest" ? { timestampUnixUs: record.timestampUnixUs - 3_001 } : {}),
+    }));
+    expect(report(outside).perTab[TAB]!.renderToPty.count).toBe(0);
+    const restarted = pair.map(record => record.stage === "pty-ingest" ? { ...record, incarnation: 2 } : record);
+    expect(report(restarted).perTab[TAB]!.renderToPty.count).toBe(0);
+  });
+
+  it("rejects renderer-to-PTY uncertainty intervals crossing a clock boundary", () => {
+    const records = observations().map(record => ({ ...record, clockErrorUs: 1_000 }));
+    const boundaries = records.filter(record => record.stage === "pty-ingest").map(record => ({
+      ...record, stage: "wake-gap", role: "attach", pid: 30, processInstance: "attach-1",
+      timestampUnixUs: record.timestampUnixUs + 500,
+    }));
+    expect(report([...records, ...boundaries]).perTab[TAB]!.renderToPty.count).toBe(0);
+  });
+
   it("rejects invalid clock intervals rather than accepting negative fast samples", () => {
     const negative = observations().map(record => record.stage === "outer-paint"
       ? { ...record, timestampUnixUs: record.timestampUnixUs - 2_000 } : record);

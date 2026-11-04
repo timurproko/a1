@@ -429,10 +429,10 @@ fn workspace_utility_reveal_preserves_append_order_through_metadata_drag_and_reo
     assert_eq!(client.add(&b,"tab.open-settings","tab.selected"),settings);
     let revealed = [&*changelog,&*agent_a,&*agent_b,&*agent_c,&*settings];
     client.order(&revealed);
-    std::thread::sleep(Duration::from_millis(300));
-    client.order(&revealed);
+    // Rationale: Drop kills the proxy, so a timed sleep can discard its pending metadata write.
+    // The real attach requests a view after reveal; its exact-generation surface follows persistence.
+    client.first_view_order(&settings,10,&revealed,&revealed);
     drop(client);
-    std::thread::sleep(Duration::from_millis(200));
     let mut reopened = WorkspaceClient::open(&b);
     reopened.next("welcome");
     let (_,admission):(_,terminal_host_contracts::protocol::BridgeAttachment) = wire::body(&reopened.next("attached")).unwrap();

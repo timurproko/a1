@@ -298,12 +298,15 @@ function clockBoundaries(records) {
   return boundaries;
 }
 
-function durationMs(left, right, boundaries) {
-  const durationUs = right.timestampUnixUs - left.timestampUnixUs;
+function durationMs(left, right, boundaries, crossProcessUpperBound = false) {
+  const uncertain = crossProcessUpperBound && processKey(left) !== processKey(right);
+  const start = left.timestampUnixUs - (uncertain ? left.clockErrorUs : 0);
+  const end = right.timestampUnixUs + (uncertain ? right.clockErrorUs : 0);
+  const durationUs = end - start;
   if (!Number.isFinite(durationUs) || durationUs < 0 || left.incarnation !== right.incarnation) return Number.NaN;
   if (boundaries.some(boundary => boundary.backwards
-    ? left.timestampUnixUs <= boundary.end && right.timestampUnixUs >= boundary.start
-    : left.timestampUnixUs < boundary.start && right.timestampUnixUs >= boundary.start)) return Number.NaN;
+    ? start <= boundary.end && end >= boundary.start
+    : start < boundary.start && end >= boundary.start)) return Number.NaN;
   if (processKey(left) === processKey(right)) {
     if (left.clockEpoch !== right.clockEpoch) return Number.NaN;
     if (left.monotonicUs !== undefined && right.monotonicUs !== undefined) {
@@ -323,7 +326,10 @@ function matchForward(source, target, boundaries) {
       && sortedTarget[targetIndex].timestampUnixUs + sortedTarget[targetIndex].clockErrorUs
         < item.timestampUnixUs - item.clockErrorUs) targetIndex += 1;
     if (targetIndex >= sortedTarget.length) break;
-    const duration = durationMs(item, sortedTarget[targetIndex], boundaries);
+    // Rationale: matching admits overlapping clock-error intervals. Their raw timestamps can be
+    // reversed (Node timeOrigin versus native SystemTime); report the conservative upper bound,
+    // not a negative duration or a fabricated zero. Incarnation and clock-boundary checks still apply.
+    const duration = durationMs(item, sortedTarget[targetIndex], boundaries, true);
     if (Number.isFinite(duration)) durations.push(duration);
     targetIndex += 1;
   }

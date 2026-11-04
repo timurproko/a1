@@ -7,7 +7,7 @@ use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use crate::core::attach::PlusMenu;
+use crate::core::attach::{PlusMenu, RightItems};
 
 const LOCK_ATTEMPTS: u32 = 10;
 const LOCK_RETRY: Duration = Duration::from_millis(20);
@@ -16,11 +16,13 @@ const STALE_LOCK: Duration = Duration::from_secs(10);
 const NAMESPACE: &str = "a1";
 const SETTING: &str = "tabBarPlusMenu";
 const DEFAULT_VALUE: &str = "agent";
+const RIGHT_SETTING: &str = "tabBarRightItems";
+const RIGHT_DEFAULT_VALUE: &str = "version,time";
 
 pub fn write_plus_menu(file: &Path, menu: PlusMenu) -> Result<(), String> {
     let lock = lock_path(file);
     acquire(&lock)?;
-    let result = update(file, menu);
+    let result = update(file, SETTING, DEFAULT_VALUE, menu.to_setting());
     let _ = std::fs::remove_dir(&lock);
     result
 }
@@ -53,7 +55,15 @@ fn acquire(lock: &Path) -> Result<(), String> {
     Err("settings are being written by another window".into())
 }
 
-fn update(file: &Path, menu: PlusMenu) -> Result<(), String> {
+pub fn write_right_items(file: &Path, items: RightItems) -> Result<(), String> {
+    let lock = lock_path(file);
+    acquire(&lock)?;
+    let result = update(file, RIGHT_SETTING, RIGHT_DEFAULT_VALUE, items.to_setting());
+    let _ = std::fs::remove_dir(&lock);
+    result
+}
+
+fn update(file: &Path, setting: &str, default_value: &str, value: String) -> Result<(), String> {
     let mut root = match std::fs::read(file) {
         Ok(bytes) => serde_json::from_slice::<serde_json::Value>(&bytes)
             .map_err(|_| "settings.json is not valid JSON".to_owned())?,
@@ -69,11 +79,10 @@ fn update(file: &Path, menu: PlusMenu) -> Result<(), String> {
         .as_object_mut()
         .ok_or_else(|| "the a1 settings are not an object".to_owned())?;
     // Invariant: like the TypeScript writer, only a non-default value is stored.
-    let value = menu.to_setting();
-    if value == DEFAULT_VALUE {
-        owned.remove(SETTING);
+    if value == default_value {
+        owned.remove(setting);
     } else {
-        owned.insert(SETTING.into(), serde_json::Value::String(value));
+        owned.insert(setting.into(), serde_json::Value::String(value));
     }
     if owned.is_empty() {
         object.remove(NAMESPACE);
