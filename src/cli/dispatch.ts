@@ -40,6 +40,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "help",
     "version",
     "update",
+    "update --release",
     "update --develop [preview-or-version]",
     "update --models",
     "update --extensions",
@@ -74,6 +75,7 @@ export function cliHelp(capabilities: CliCapabilities): string {
     "",
     "Update:",
     `  ${command} update`,
+    `  ${command} update --release`,
     `  ${command} update --develop [preview-or-version]`,
     `  ${command} update --models`,
     `  ${command} update --extensions`,
@@ -199,7 +201,7 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
       return { kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse solo session launch: ${error instanceof Error ? error.message : String(error)}`) };
     }
   }
-  if (command === "update") return parseUpdate(rest);
+  if (command === "update") return parseUpdate(rest, capabilities.runningChannel ?? "stable");
   if (command === "session") return parseSessionContext(rest);
   if (command === "tabs") return parseTabs(rest);
   if (command?.startsWith("update:")) return { kind: "noop" };
@@ -251,16 +253,22 @@ function parseSessionContext(rest: readonly string[]): CliCommand {
 }
 
 /**
- * Stable update is the empty form. `--develop` selects the moving development
- * head or one immutable numbered preview, while model refresh remains a separate
- * operation that cannot be combined with either update channel.
+ * The empty form stays on the running build's channel, so it never silently changes channel.
+ * `--release` moves to stable explicitly; `--develop` selects the moving development head or one
+ * immutable numbered preview. Model refresh remains a separate operation that cannot be combined
+ * with either update channel.
  */
-function parseUpdate(rest: readonly string[]): CliCommand {
+function parseUpdate(rest: readonly string[], runningChannel: UpdateChannel): CliCommand {
   if (rest.some(value => value === "--help" || value === "-h")) {
     return { kind: "package-help", verb: "update", namespace: "direct" };
   }
-  if (rest.length === 0) return { kind: "update", channel: "stable" };
+  if (rest.length === 0) return { kind: "update", channel: runningChannel };
   const [selector, ...values] = rest;
+
+  if (selector === "--release") {
+    if (values.length > 0) return updateGrammarError("--release cannot be combined with another update selector.");
+    return { kind: "update", channel: "stable" };
+  }
 
   // Compatibility: removed notation is unsupported rather than deprecated.
   if (selector === "self") return { kind: "noop" };

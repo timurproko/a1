@@ -113,13 +113,19 @@ a1 tabs doctor
 
 ## Update
 
-Install the release:
+Update on the channel you already use (release stays on release, develop stays on develop):
 
 ```text
 a1 update
 ```
 
-Install develop:
+Switch to the release:
+
+```text
+a1 update --release
+```
+
+Switch to develop:
 
 ```text
 a1 update --develop
