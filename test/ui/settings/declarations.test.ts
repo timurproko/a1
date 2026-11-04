@@ -81,7 +81,7 @@ describe("owned UI setting declarations", () => {
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabBarBackgroundStyle")).toMatchObject({
       label: "Background",
-      section: { id: "tabs", title: "Tabs" },
+      section: { id: "tabs", title: "Tab Bar" },
       application: "live",
       defaultValue: "transparent",
       allowedValues: ["transparent", "black", "accent"],
@@ -264,7 +264,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(19);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(20);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))

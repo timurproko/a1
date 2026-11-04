@@ -2094,8 +2094,18 @@ mod tests {
         let time_at = both[version_at..].find("  ").expect("ordered separator") + version_at;
         assert!(version_at < time_at);
         assert_eq!(UnicodeWidthStr::width(both.as_str()), 80);
-        assert!(both_frame.hits.iter().any(|(_, _, hit)| matches!(hit, StripHit::RightVersion)));
-        assert!(both_frame.hits.iter().any(|(_, _, hit)| matches!(hit, StripHit::RightTime)));
+        assert!(
+            both_frame
+                .hits
+                .iter()
+                .any(|(_, _, hit)| matches!(hit, StripHit::RightVersion))
+        );
+        assert!(
+            both_frame
+                .hits
+                .iter()
+                .any(|(_, _, hit)| matches!(hit, StripHit::RightTime))
+        );
         let palette = render_right(
             80,
             false,
@@ -2203,13 +2213,29 @@ mod tests {
             "blue",
             None,
             Some("0.2.7-dev.1238"),
-            StripRightItems { version: true, time: false },
+            StripRightItems {
+                version: true,
+                time: false,
+            },
             StripCanvas::Transparent,
         );
-        assert!(frame.bytes.contains("\x1b[49m"), "transparent canvas restores default background");
+        assert!(
+            frame.bytes.contains("\x1b[49m"),
+            "transparent canvas restores default background"
+        );
         assert!(frame.bytes.contains("\x1b[38;2;126;136;142m"));
-        assert!(frame.hits.iter().any(|(_, _, hit)| matches!(hit, StripHit::RightVersion)));
-        assert!(!frame.hits.iter().any(|(_, _, hit)| matches!(hit, StripHit::RightTime)));
+        assert!(
+            frame
+                .hits
+                .iter()
+                .any(|(_, _, hit)| matches!(hit, StripHit::RightVersion))
+        );
+        assert!(
+            !frame
+                .hits
+                .iter()
+                .any(|(_, _, hit)| matches!(hit, StripHit::RightTime))
+        );
     }
 
     #[test]

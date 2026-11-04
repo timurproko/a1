@@ -23,4 +23,4 @@
 ## 5. Validation and delivery evidence
 
 - [x] 5.1 Add focused TypeScript and native regressions for update/restart, settings, interaction, and rendering behavior.
-- [ ] 5.2 Run focused checks, typecheck, strict OpenSpec validation, and required formatting checks.
+- [x] 5.2 Run focused checks, typecheck, strict OpenSpec validation, and required formatting checks.
