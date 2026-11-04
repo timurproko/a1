@@ -134,9 +134,8 @@ const timer=setInterval(()=>{if(fs.existsSync(release)){fs.writeFileSync(done,me
     || ["NODE_OPTIONS", "NODE_PATH", "NODE_USE_ENV_PROXY", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"].includes(key.toUpperCase())) delete environment[key];
   Object.assign(environment, { HOME: profile, USERPROFILE: profile, A1_PROFILE_HOME: profile, A1_CONFIG_DIR: profile, A1_DATA_DIR: data, A1_RUNTIME_DIR: runtime, A1_DATABASE_PATH: join(root, "control.sqlite3"), PI_CODING_AGENT_DIR: profile, A1_SKIP_VERSION_CHECK: "1", TERM: "xterm-256color", LAUNCH_CONTEXT_PROFILE: "a1", LAUNCH_CONTEXT_MODE: "tabs" });
   const publishedEnvironment = { ...environment };
-  // Node 22 rejects a Windows verbatim path as its main script unless realpath resolution is
-  // disabled. Published hosts canonicalize their immutable release root to that path form; keep
-  // exercising their exact bytes while the candidate proves its native launch-path correction.
+  // Compatibility: Node 22 rejects a Windows verbatim main script unless realpath resolution is
+  // disabled. Keep published bytes exact while the candidate proves its native path correction.
   if (process.platform === "win32" && process.versions.node.startsWith("22.")) {
     publishedEnvironment.NODE_OPTIONS = `--preserve-symlinks-main --require=${JSON.stringify(nodeMainCompatibility.replaceAll("\\", "/"))}`;
   }

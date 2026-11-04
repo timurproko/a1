@@ -1870,8 +1870,8 @@ fn node_main_entry(release_root: &str) -> PathBuf {
     let path = Path::new(release_root).join("bin").join("ui.js");
     #[cfg(windows)]
     {
-        // Node 22 cannot resolve a verbatim Windows path as its main module. The host keeps the
-        // canonical path for release identity, but launches Node with the equivalent DOS/UNC form.
+        // Compatibility: Node 22 cannot resolve a verbatim Windows path as its main module. The
+        // host keeps the canonical release identity but launches Node with equivalent DOS/UNC.
         let text = path.to_string_lossy();
         if let Some(rest) = text.strip_prefix(r"\\?\UNC\") {
             return PathBuf::from(format!(r"\\{rest}"));
