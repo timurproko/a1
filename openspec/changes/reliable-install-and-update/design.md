@@ -13,11 +13,12 @@ Observed on macOS 26 (Darwin 25.6) with Node 26.13.0:
 
 **Goals:** Install, update, and launch work with one command and no process handling. Resident Agents keep running and reconnect to the updated client. Output is silent unless the user must act. A user can remove A1 completely.
 
-**Non-Goals:** Terminating or replacing a running resident host during update (the design keeps live execution behind a stable control API). Changing release publication or dist-tags. Windows boot identity (it uses a different source).
+**Non-Goals:** Terminating or replacing a running resident host during update (the design keeps live execution behind a stable control API). Changing release publication or dist-tags.
 
 ## Decisions
 
-- **Boot identity.** On macOS, new records use `macos-boot-session:<kern.bootsessionuuid>`, which is fixed for the whole boot. Comparison is a function, not string equality: two session identities match on equality; a legacy `macos-boot:<sec>:<usec>` matches the current boot when `|sec - current_boottime_sec| <= 2`. Readers accept both forms so old hosts and new clients interoperate. Linux keeps `/proc/sys/kernel/random/boot_id`, which is already stable.
+- **Boot identity, all platforms.** Every platform uses a kernel-issued per-boot identifier and never a clock value: Windows keeps its boot identifier GUID, Linux keeps `/proc/sys/kernel/random/boot_id`, and macOS switches to `macos-boot-session:<kern.bootsessionuuid>`. One shared matching function in the native host, used by source routing, workspace persistence, attach, and the TypeScript continuity layer, replaces every string-equality boot comparison on every platform. Current-form identities match on equality. A legacy clock-derived record (today only `macos-boot:<sec>:<usec>`) matches when `|sec - current_boottime_sec| <= 2`. Readers accept both forms so old hosts and new clients interoperate.
+- **Cross-platform drift coverage.** The matching rule and the "clock changes within one boot" scenario are tested on Windows, Linux, and macOS through an injectable clock and identity source, so the same regression cannot return on any platform.
 - **No single-source veto.** Continuity treats a source whose recorded owner process is provably gone as historical, as the spec already requires, and returns per-source verdicts. Only a live source that cannot be controlled blocks activation.
 - **Launch never dead-ends.** If continuity fails at launch but a healthy host of the launching release answers a maintain probe, the launch attaches to it. Otherwise it falls back as it does today and reports one actionable line.
 - **Deferred activation is success.** A prepared candidate blocked only by continuity exits 0 with the normal result line. The existing activation-only retry commits it later. The installer treats this state as installed.

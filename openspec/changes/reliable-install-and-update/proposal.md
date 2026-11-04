@@ -4,7 +4,7 @@ Installing, updating, and launching A1 currently fails in ways a user cannot rea
 
 ## What Changes
 
-- Make boot identity stable within one macOS boot by using `kern.bootsessionuuid`. Treat a legacy `macos-boot:<sec>:<usec>` record as the same boot when its seconds lie within a small tolerance of the current boot time, so hosts that are already running reconnect after an update without a restart.
+- Require every platform (Windows, Linux, macOS) to use a kernel per-boot identifier, never a clock value, and compare boot identities everywhere through one shared matching rule. macOS moves from `kern.boottime` to `kern.bootsessionuuid`. A legacy clock-derived record matches the current boot when its seconds lie within a small tolerance of the current boot time, so hosts that are already running reconnect after an update without a restart.
 - Remove the other exact-match identity comparisons that can drift during the continuity and workspace checks. A single unreadable source that is provably not running a live Agent no longer blocks the whole check.
 - When the continuity check fails, a launch still attaches to a healthy resident host of its own release instead of ending in a closed handshake.
 - An update whose activation must wait for a live source succeeds quietly and activates automatically once that source can be controlled. It is not reported as a failure.
@@ -22,7 +22,7 @@ Installing, updating, and launching A1 currently fails in ways a user cannot rea
 
 ### Modified Capabilities
 
-- `resident-terminal-host`: drift-free boot identity, with tolerance for legacy records.
+- `resident-terminal-host`: drift-free boot identity on all platforms through one shared matching rule, with tolerance for legacy records.
 - `cli-self-update`: channel-sticky `a1 update`, `--release`, quiet routine outcomes, and deferred activation reported as success.
 - `silent-installer`: development installer handoff, bare installer mapped to the stable channel, at-or-above treated as success, and quiet failures with a log path.
 - `extension-packages`: `a1 uninstall` without a source no longer reports a missing package source.

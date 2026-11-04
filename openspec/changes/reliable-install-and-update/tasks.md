@@ -2,10 +2,10 @@
 
 ## 1. Drift-free resident identity
 
-- [ ] 1.1 Report macOS boot identity from `kern.bootsessionuuid` and compare boot identities through one function that accepts legacy `macos-boot:<sec>:<usec>` records within a two-second tolerance.
-- [ ] 1.2 Replace exact boot-identity string comparisons in source routing and workspace persistence with that function.
+- [ ] 1.1 Report a kernel per-boot identifier on Windows, Linux, and macOS (macOS moves to `kern.bootsessionuuid`), and add one cross-platform boot-identity matching function that accepts legacy clock-derived records within a two-second tolerance.
+- [ ] 1.2 Replace every exact boot-identity string comparison in source routing, workspace persistence, attach, and the TypeScript continuity layer with that function on all platforms.
 - [ ] 1.3 Return per-source continuity verdicts so a provably dead or historical source never vetoes activation.
-- [ ] 1.4 Add native and TypeScript tests for boot-time drift, legacy-record tolerance, a real reboot, and a new client attaching to a host started by an older release.
+- [ ] 1.4 Add native and TypeScript tests that run on Windows, Linux, and macOS for clock drift within one boot, legacy-record tolerance, a real reboot, and a new client attaching to a host started by an older release.
 
 ## 2. Launch and exit reliability
 
