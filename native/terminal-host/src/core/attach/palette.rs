@@ -82,10 +82,10 @@ impl CommandPalette {
                 .map(|kind| (kind.label(), kind.name()))
                 .collect(),
             None => TabKind::ALL
-            .into_iter()
+                .into_iter()
                 .map(|kind| (kind.label(), kind.action()))
                 .collect(),
-                };
+        };
         entries
             .into_iter()
             .filter(|(label, _)| label.to_lowercase().contains(&needle))
