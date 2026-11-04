@@ -6,6 +6,7 @@ use crate::protocol::{StructuredSurface, SurfaceCell};
 
 const AUTOMATIC_UPDATE_STATE_SCHEMA: u64 = 1;
 const AUTOMATIC_UPDATE_STATE_FILENAME: &str = "automatic-update.json";
+const RELEASE_STATE_FILENAME: &str = "release-state.json";
 const MAX_STATE_BYTES: u64 = 16_384;
 const MAX_VERSION_BYTES: usize = 64;
 const SATISFIED_RESTART_NOTICE: &str = "Update installed, restart to update";
@@ -21,6 +22,83 @@ struct AutomaticUpdateState {
     updated_at: u64,
     installed_version: Option<String>,
     failure: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReleaseState {
+    schema: String,
+    releases: std::collections::HashMap<String, ReleaseRecord>,
+    references: ReleaseReferences,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReleaseReferences {
+    active: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ReleaseRecord {
+    package_version: String,
+    approval: String,
+}
+
+/// A native outer client may be older than immutable agent JavaScript. It independently observes
+/// the active, approved release so every live multi-agent window can truthfully offer a restart.
+pub fn newer_active_release(data_dir: &Path, client_version: &str) -> bool {
+    if !valid_version(client_version) {
+        return false;
+    }
+    let path = data_dir.join(RELEASE_STATE_FILENAME);
+    let Ok(metadata) = std::fs::metadata(&path) else {
+        return false;
+    };
+    if metadata.len() > MAX_STATE_BYTES.saturating_mul(64) {
+        return false;
+    }
+    let Ok(source) = std::fs::read(path) else {
+        return false;
+    };
+    if source.len() > MAX_STATE_BYTES as usize * 64 {
+        return false;
+    }
+    let Ok(state) = serde_json::from_slice::<ReleaseState>(&source) else {
+        return false;
+    };
+    if state.schema != "a1-release-cohort-v1" {
+        return false;
+    }
+    let Some(active) = state.references.active else {
+        return false;
+    };
+    let Some(record) = state.releases.get(&active) else {
+        return false;
+    };
+    record.approval == "approved"
+        && valid_version(&record.package_version)
+        && same_channel(&record.package_version, client_version)
+        && version_is_newer(&record.package_version, client_version)
+}
+
+fn same_channel(candidate: &str, current: &str) -> bool {
+    candidate.contains("-dev.") == current.contains("-dev.")
+}
+
+/// Compares the numeric fields in package versions without accepting arbitrary display strings.
+fn version_is_newer(candidate: &str, current: &str) -> bool {
+    let numbers = |value: &str| {
+        value
+            .split(|character: char| !character.is_ascii_digit())
+            .filter(|part| !part.is_empty())
+            .map(str::parse::<u64>)
+            .collect::<Result<Vec<_>, _>>()
+    };
+    let (Ok(candidate), Ok(current)) = (numbers(candidate), numbers(current)) else {
+        return false;
+    };
+    candidate > current
 }
 
 /// True only when durable update state proves this exact immutable client completed the restart.
@@ -177,6 +255,32 @@ mod tests {
         .unwrap();
         assert!(restart_is_satisfied(root.path(), "0.2.7-dev.1235"));
         assert!(!restart_is_satisfied(root.path(), "0.2.7-dev.1234"));
+    }
+
+    #[test]
+    fn native_observer_accepts_only_a_newer_approved_active_release() {
+        let root = tempdir().unwrap();
+        let release = |version: &str, approval: &str| {
+            serde_json::json!({
+                "schema": "a1-release-cohort-v1",
+                "releases": { "next": { "packageVersion": version, "approval": approval } },
+                "references": { "active": "next" }
+            })
+            .to_string()
+        };
+        write(
+            root.path().join(RELEASE_STATE_FILENAME),
+            release("0.2.7-dev.1239", "approved"),
+        )
+        .unwrap();
+        assert!(newer_active_release(root.path(), "0.2.7-dev.1238"));
+        assert!(!newer_active_release(root.path(), "0.2.7-dev.1239"));
+        write(
+            root.path().join(RELEASE_STATE_FILENAME),
+            release("0.2.7-dev.1240", "pending"),
+        )
+        .unwrap();
+        assert!(!newer_active_release(root.path(), "0.2.7-dev.1238"));
     }
 
     #[test]

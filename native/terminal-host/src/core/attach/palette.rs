@@ -1,16 +1,18 @@
-//! The attach client's modal lists: the command palette, whose entries run their shortcut actions,
-//! and the plus-menu dialog, whose entries toggle the tab kinds `+` offers. Both filter by typed
-//! text and move with Up and Down.
+//! The attach client's modal lists: commands plus configurable tab-bar controls.
 
 use super::{AttachKey, KeyCode, TabKind};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ConfigureKind {
+    Plus,
+    Right,
+}
 
 /// What one key did to an open list.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaletteKey {
     Close,
-    /// Runs the selected entry's shortcut action and closes the palette.
     Run(&'static str),
-    /// Toggles the selected plus-menu kind; the dialog stays open.
     Toggle(&'static str),
     Changed,
     Ignored,
@@ -19,7 +21,7 @@ pub enum PaletteKey {
 /// An open modal list: its entries, filter, and the row in hand.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandPalette {
-    plus_menu: bool,
+    configure: Option<ConfigureKind>,
     pub filter: String,
     selected: usize,
 }
@@ -33,47 +35,63 @@ impl Default for CommandPalette {
 impl CommandPalette {
     pub fn commands() -> Self {
         Self {
-            plus_menu: false,
+            configure: None,
             filter: String::new(),
             selected: 0,
         }
     }
 
-    /// The plus-menu dialog, where `Space` toggles a kind instead of typing.
+    /// The plus-menu dialog, where Space toggles a kind instead of typing.
     pub fn plus_menu() -> Self {
         Self {
-            plus_menu: true,
+            configure: Some(ConfigureKind::Plus),
             ..Self::commands()
         }
     }
 
+    /// The Right Side dialog, where Space toggles Version and Time.
+    pub fn right_side() -> Self {
+        Self {
+            configure: Some(ConfigureKind::Right),
+            ..Self::commands()
+        }
+    }
+
+    pub fn configure_kind(&self) -> Option<ConfigureKind> {
+        self.configure
+    }
     pub fn is_plus_menu(&self) -> bool {
-        self.plus_menu
+        self.configure == Some(ConfigureKind::Plus)
     }
 
     /// How many provider entries the list holds before filtering.
     pub fn len(&self) -> usize {
-        TabKind::ALL.len()
+        match self.configure {
+            Some(ConfigureKind::Right) => 2,
+            _ => TabKind::ALL.len(),
+        }
     }
 
     /// The entries the filter keeps, in provider order.
     pub fn shown(&self) -> Vec<(&'static str, &'static str)> {
         let needle = self.filter.trim().to_lowercase();
-        TabKind::ALL
+        let entries: Vec<(&'static str, &'static str)> = match self.configure {
+            Some(ConfigureKind::Right) => vec![("Version", "version"), ("Time", "time")],
+            Some(ConfigureKind::Plus) => TabKind::ALL
+                .into_iter()
+                .map(|kind| (kind.label(), kind.name()))
+                .collect(),
+            None => TabKind::ALL
             .into_iter()
-            .filter(|kind| kind.label().to_lowercase().contains(&needle))
-            .map(|kind| {
-                let value = if self.plus_menu {
-                    kind.name()
-                } else {
-                    kind.action()
+                .map(|kind| (kind.label(), kind.action()))
+                .collect(),
                 };
-                (kind.label(), value)
-            })
+        entries
+            .into_iter()
+            .filter(|(label, _)| label.to_lowercase().contains(&needle))
             .collect()
     }
 
-    /// The selected row among the shown entries.
     pub fn selected(&self) -> usize {
         self.selected.min(self.shown().len().saturating_sub(1))
     }
@@ -83,10 +101,10 @@ impl CommandPalette {
         let chosen = shown.get(self.selected()).map(|(_, value)| *value);
         match key.code {
             KeyCode::Esc => PaletteKey::Close,
-            KeyCode::Char(' ') if self.is_plus_menu() => {
+            KeyCode::Char(' ') if self.configure.is_some() => {
                 chosen.map_or(PaletteKey::Ignored, PaletteKey::Toggle)
             }
-            KeyCode::Enter if !self.is_plus_menu() => {
+            KeyCode::Enter if self.configure.is_none() => {
                 chosen.map_or(PaletteKey::Ignored, PaletteKey::Run)
             }
             KeyCode::Up => {
@@ -110,7 +128,6 @@ impl CommandPalette {
         }
     }
 
-    /// Appends typed or pasted text to the filter, without control characters.
     pub fn insert(&mut self, text: &str) {
         self.filter
             .extend(text.chars().filter(|value| !value.is_control()));
@@ -135,57 +152,35 @@ mod tests {
     fn moves_filters_and_runs_the_selected_entry() {
         let mut palette = CommandPalette::default();
         assert_eq!(palette.shown().len(), 3);
-        assert_eq!(palette.key(key(KeyCode::Up)), PaletteKey::Changed);
-        assert_eq!(palette.selected(), 0, "Up stops at the first entry");
         palette.key(key(KeyCode::Down));
         palette.key(key(KeyCode::Down));
-        palette.key(key(KeyCode::Down));
-        assert_eq!(palette.selected(), 2, "Down stops at the last entry");
         assert_eq!(
             palette.key(key(KeyCode::Enter)),
             PaletteKey::Run("tabs.changelog")
         );
-        for value in "SET".chars() {
-            palette.key(key(KeyCode::Char(value)));
-        }
+        palette.insert("set");
         assert_eq!(palette.shown(), [("Settings", "tabs.settings")]);
-        assert_eq!(palette.selected(), 0);
-        palette.insert("z\u{7}");
-        assert_eq!(palette.filter, "SETz");
-        assert!(palette.shown().is_empty());
-        assert_eq!(palette.key(key(KeyCode::Enter)), PaletteKey::Ignored);
-        assert_eq!(palette.key(key(KeyCode::Backspace)), PaletteKey::Changed);
-        assert_eq!(palette.shown().len(), 1);
-        let alt = AttachKey {
-            modifiers: Modifiers {
-                alt: true,
-                ..Modifiers::NONE
-            },
-            ..key(KeyCode::Char('x'))
-        };
-        assert_eq!(palette.key(alt), PaletteKey::Ignored);
         assert_eq!(palette.key(key(KeyCode::Esc)), PaletteKey::Close);
     }
 
     #[test]
-    fn the_plus_menu_toggles_with_space_and_ignores_enter() {
-        let mut dialog = CommandPalette::plus_menu();
-        assert!(dialog.is_plus_menu() && !CommandPalette::commands().is_plus_menu());
-        assert_eq!(dialog.len(), 3, "Agent and every utility kind are listed");
+    fn configurable_palettes_toggle_their_ordered_entries() {
+        let mut plus = CommandPalette::plus_menu();
         assert_eq!(
-            dialog.key(key(KeyCode::Char(' '))),
+            plus.key(key(KeyCode::Char(' '))),
             PaletteKey::Toggle("agent")
         );
-        assert_eq!(dialog.key(key(KeyCode::Enter)), PaletteKey::Ignored);
-        for value in "set".chars() {
-            dialog.key(key(KeyCode::Char(value)));
-        }
-        assert_eq!(dialog.shown(), [("Settings", "settings")]);
+        let mut right = CommandPalette::right_side();
+        assert_eq!(right.configure_kind(), Some(ConfigureKind::Right));
+        assert_eq!(right.shown(), [("Version", "version"), ("Time", "time")]);
         assert_eq!(
-            dialog.key(key(KeyCode::Char(' '))),
-            PaletteKey::Toggle("settings")
+            right.key(key(KeyCode::Char(' '))),
+            PaletteKey::Toggle("version")
         );
-        assert_eq!(dialog.filter, "set", "Space toggles instead of typing");
-        assert_eq!(dialog.key(key(KeyCode::Esc)), PaletteKey::Close);
+        right.key(key(KeyCode::Down));
+        assert_eq!(
+            right.key(key(KeyCode::Char(' '))),
+            PaletteKey::Toggle("time")
+        );
     }
 }

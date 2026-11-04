@@ -1,6 +1,6 @@
 import type { OwnedUiBackgroundStyle, OwnedUiTimeFormat, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 20;
+export const OWNED_UI_SETTINGS_VERSION = 21;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "blue", "purple", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
@@ -51,6 +51,7 @@ const TAB_BAR_RIGHT_ITEMS = Object.freeze([
   Object.freeze({ key: "time", label: "Time", description: "Show the current time." }),
 ]);
 const TAB_BAR_RIGHT_ITEM_VALUES = Object.freeze(["", "version", "time", "version,time"] as const);
+const TAB_BAR_BACKGROUND_VALUES = Object.freeze(["transparent", "dark", "accent"] as const);
 
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   updateCheck: Object.freeze({
@@ -211,6 +212,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     defaultValue: "version,time",
     allowedValues: TAB_BAR_RIGHT_ITEM_VALUES,
     flags: TAB_BAR_RIGHT_ITEMS,
+  }),
+  tabBarBackgroundStyle: Object.freeze({
+    id: "tabBarBackgroundStyle",
+    label: "Background",
+    section: TABS_SECTION,
+    description: "Choose the tab bar background: transparent, black, or the selected accent.",
+    application: "live",
+    defaultValue: "transparent",
+    allowedValues: TAB_BAR_BACKGROUND_VALUES,
   }),
   tabsAutoName: Object.freeze({
     id: "tabsAutoName",

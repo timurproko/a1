@@ -5,7 +5,7 @@
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
-use crate::core::attach::{CommandPalette, PlusMenu, ShortcutLabels};
+use crate::core::attach::{CommandPalette, ConfigureKind, PlusMenu, RightItems, ShortcutLabels};
 use crate::roles::shortcut_hints::{self, ShortcutHint, ShortcutHintRole};
 
 const TITLE: &str = "Commands";
@@ -25,6 +25,9 @@ const PLUS_HINTS: &[ShortcutHint<'static>] = &[
     ShortcutHint::new("esc", "close"),
 ];
 const PLUS_EMPTY: &str = "No tabs match";
+const RIGHT_TITLE: &str = "Right Side";
+const RIGHT_DESCRIPTION: &str = "Choose what the right side of the tab bar shows.";
+const RIGHT_EMPTY: &str = "No items match";
 const MAX_WIDTH: usize = 60;
 const PADDING: usize = 2;
 
@@ -172,16 +175,17 @@ pub fn render(
     palette: &CommandPalette,
     labels: &dyn ShortcutLabels,
     plus: PlusMenu,
+    right: RightItems,
     columns: u16,
     outer_rows: u16,
     style: PaletteStyle,
 ) -> String {
     let width = usize::from(columns).min(MAX_WIDTH);
-    let configure = palette.is_plus_menu();
-    let (title, description, hints, empty) = if configure {
-        (PLUS_TITLE, PLUS_DESCRIPTION, PLUS_HINTS, PLUS_EMPTY)
-    } else {
-        (TITLE, "", HINTS, EMPTY)
+    let configure = palette.configure_kind();
+    let (title, description, hints, empty) = match configure {
+        Some(ConfigureKind::Plus) => (PLUS_TITLE, PLUS_DESCRIPTION, PLUS_HINTS, PLUS_EMPTY),
+        Some(ConfigureKind::Right) => (RIGHT_TITLE, RIGHT_DESCRIPTION, PLUS_HINTS, RIGHT_EMPTY),
+        None => (TITLE, "", HINTS, EMPTY),
     };
     let shown = palette.shown();
     let selected = palette.selected();
@@ -205,8 +209,11 @@ pub fn render(
     for index in 0..palette.len() {
         rows.push(match shown.get(index) {
             Some((label, value)) => {
-                let trailing = if configure {
-                    Err(plus.enabled(value))
+                let trailing = if let Some(kind) = configure {
+                    Err(match kind {
+                        ConfigureKind::Plus => plus.enabled(value),
+                        ConfigureKind::Right => right.enabled(value),
+                    })
                 } else {
                     Ok(labels.label(value))
                 };
@@ -277,7 +284,15 @@ mod tests {
     #[test]
     fn draws_a_centered_box_with_shortcuts_and_the_selected_row_on_the_hover_background() {
         let palette = CommandPalette::default();
-        let rendered = render(&palette, &Labels, PlusMenu::default(), 80, 24, STYLE);
+        let rendered = render(
+            &palette,
+            &Labels,
+            PlusMenu::default(),
+            RightItems::default(),
+            80,
+            24,
+            STYLE,
+        );
         assert!(rendered.starts_with("\x1b[s") && rendered.ends_with("\x1b[0m\x1b[u"));
         assert!(rendered.contains("\x1b[7;11H"), "the box is centered");
         let rows = plain(&rendered);
@@ -310,7 +325,15 @@ mod tests {
     fn the_plus_menu_dialog_marks_the_kinds_plus_offers() {
         let dialog = CommandPalette::plus_menu();
         let plus = PlusMenu::from_setting(Some("agent,changelog"));
-        let rows = plain(&render(&dialog, &Labels, plus, 80, 24, STYLE));
+        let rows = plain(&render(
+            &dialog,
+            &Labels,
+            plus,
+            RightItems::default(),
+            80,
+            24,
+            STYLE,
+        ));
         assert_eq!(rows.len(), 12);
         assert_eq!(rows[1].trim(), PLUS_TITLE);
         assert_eq!(rows[2].trim(), PLUS_DESCRIPTION);
@@ -337,6 +360,7 @@ mod tests {
             &palette,
             &Labels,
             PlusMenu::default(),
+            RightItems::default(),
             30,
             12,
             STYLE,
@@ -356,6 +380,7 @@ mod tests {
             &CommandPalette::default(),
             &Labels,
             PlusMenu::default(),
+            RightItems::default(),
             80,
             24,
             palette_mode,

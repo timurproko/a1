@@ -75,6 +75,8 @@ pub enum StripHover {
     Tab(String),
     Overflow,
     New,
+    RightVersion,
+    RightTime,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +92,15 @@ pub enum StripHit {
     View(String),
     Overflow,
     New,
+    RightVersion,
+    RightTime,
+}
+
+/// The unoccupied tab-bar row canvas. Chips and menus keep their own contrast surfaces.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StripCanvas {
+    Transparent,
+    Rgb([u8; 3]),
 }
 
 #[derive(Debug, Clone)]
@@ -575,14 +586,19 @@ fn chip(
     let padding = " ".repeat(width.saturating_sub(fixed + title.width));
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
     let body = format!(" {glyph_color}{icon}\x1b[39m {name}{padding} ");
-    let text = if active && truecolor && rename.is_none()
+    let text = if active
+        && truecolor
+        && rename.is_none()
         && let Some(fill) = fill.filter(|fill| fill.tab_id == tab.id && fill_active(fill, now))
     {
         let elapsed = now.saturating_duration_since(fill.started_at).as_millis();
         let filled = width * elapsed as usize / CHIP_FILL_MS as usize;
         let pending = tinted_background(mix(active_color, Rgb(255, 255, 255), 0.42), true);
         let selected = tinted_background(active_color, true);
-        format!("{}\x1b[0m", sweep_background(&body, filled, &selected, &pending))
+        format!(
+            "{}\x1b[0m",
+            sweep_background(&body, filled, &selected, &pending)
+        )
     } else {
         format!("{background}{body}\x1b[0m")
     };
@@ -592,12 +608,17 @@ fn chip(
 /// Paint whole display graphemes under one background switch; SGR title/glyph foreground
 /// sequences pass through unchanged and never consume chip width or pointer cells.
 fn sweep_background(body: &str, filled: usize, selected: &str, pending: &str) -> String {
-    let mut output = format!("{}\x1b[38;2;255;255;255m", if filled == 0 { pending } else { selected });
+    let mut output = format!(
+        "{}\x1b[38;2;255;255;255m",
+        if filled == 0 { pending } else { selected }
+    );
     let mut visible = 0usize;
     let mut selected_side = filled > 0;
     let mut rest = body;
     while !rest.is_empty() {
-        if rest.starts_with("\x1b[") && let Some(end) = rest.find('m') {
+        if rest.starts_with("\x1b[")
+            && let Some(end) = rest.find('m')
+        {
             output.push_str(&rest[..=end]);
             rest = &rest[end + 1..];
             continue;
@@ -662,8 +683,16 @@ pub fn render_interactive_at(
     plus: bool,
 ) -> StripFrame {
     render_interactive_filled_at(
-        tabs, viewed, columns, hovered, time_format, rename, row, plus,
-        DEFAULT_ACTIVE_ACCENT, None,
+        tabs,
+        viewed,
+        columns,
+        hovered,
+        time_format,
+        rename,
+        row,
+        plus,
+        DEFAULT_ACTIVE_ACCENT,
+        None,
     )
 }
 
@@ -727,6 +756,48 @@ pub fn render_interactive_status_filled_at(
         fill,
         version,
         right_items,
+        StripCanvas::Rgb([20, 20, 20]),
+    );
+    if row != 1 {
+        frame.bytes = frame
+            .bytes
+            .replacen("\x1b[1;1H", &format!("\x1b[{};1H", row.max(1)), 1);
+    }
+    frame
+}
+
+/// Render the configured strip with a caller-selected unoccupied row canvas.
+#[allow(clippy::too_many_arguments)]
+pub fn render_interactive_status_filled_canvas_at(
+    tabs: &[StripTab],
+    viewed: Option<&str>,
+    columns: u16,
+    hovered: Option<&StripHover>,
+    time_format: TimeFormat,
+    rename: Option<&StripRename>,
+    row: u16,
+    plus: bool,
+    active_accent: &str,
+    fill: Option<&ChipFill>,
+    version: Option<&str>,
+    right_items: StripRightItems,
+    canvas: StripCanvas,
+) -> StripFrame {
+    let mut frame = render_frame_filled_with_right(
+        tabs,
+        viewed,
+        columns,
+        hovered,
+        time_format,
+        rename,
+        Instant::now(),
+        !palette_fallback_requested(),
+        plus,
+        active_accent,
+        fill,
+        version,
+        right_items,
+        canvas,
     );
     if row != 1 {
         frame.bytes = frame
@@ -768,8 +839,17 @@ fn render_frame(
         .and_then(|tab| tab.accent.as_deref())
         .unwrap_or(DEFAULT_ACTIVE_ACCENT);
     render_frame_filled(
-        tabs, viewed, columns, hovered, time_format, rename, now, truecolor, plus,
-        active_accent, None,
+        tabs,
+        viewed,
+        columns,
+        hovered,
+        time_format,
+        rename,
+        now,
+        truecolor,
+        plus,
+        active_accent,
+        None,
     )
 }
 
@@ -802,6 +882,7 @@ fn render_frame_filled(
         fill,
         None,
         StripRightItems::CLOCK_ONLY,
+        StripCanvas::Rgb([20, 20, 20]),
     )
 }
 
@@ -820,10 +901,19 @@ fn render_frame_filled_with_right(
     fill: Option<&ChipFill>,
     version: Option<&str>,
     right_items: StripRightItems,
+    canvas: StripCanvas,
 ) -> StripFrame {
     let chip = |tab: &StripTab, active: bool, hovered: bool, target: usize| {
         chip(
-            tab, active, hovered, now, truecolor, rename, Some(target), active_accent, fill,
+            tab,
+            active,
+            hovered,
+            now,
+            truecolor,
+            rename,
+            Some(target),
+            active_accent,
+            fill,
         )
     };
     // Invariant: reserve controls before the configured right side on narrow rows. A disabled
@@ -837,11 +927,10 @@ fn render_frame_filled_with_right(
         version,
         right_items,
     );
-    let right_reserve = right
-        .as_deref()
-        .map_or(0, |text| UnicodeWidthStr::width(text) + 1);
+    let right_reserve = right.as_ref().map_or(0, |status| status.width() + 1);
     let available = usize::from(columns).saturating_sub(right_reserve);
-    let (selected, tab_width, overflow_width) = select_visible_chips(tabs, viewed, available, plus_width);
+    let (selected, tab_width, overflow_width) =
+        select_visible_chips(tabs, viewed, available, plus_width);
 
     let hidden_tabs = tabs
         .iter()
@@ -876,13 +965,16 @@ fn render_frame_filled_with_right(
     let padding = usize::from(columns).saturating_sub(column as usize + right_reserve);
     bytes.push_str(&" ".repeat(padding));
     if let Some(right) = right {
-        bytes.push_str("\x1b[38;2;170;170;170m");
-        bytes.push_str(&right);
-        bytes.push_str("\x1b[0m ");
+        let right_start = column.saturating_add(padding as u16);
+        right.render(&mut bytes, &mut hits, right_start, hovered);
     }
-    // Invariant: every strip cell outside a chip carries the fixed row background, so neither the
-    // child's default-background sync nor stale cells can show through to the right of `+`.
-    bytes = bytes.replace("\x1b[0m", &format!("\x1b[0m{STRIP_ROW_BACKGROUND}"));
+    // Invariant: every strip cell outside a chip explicitly restores the selected canvas, so stale
+    // child background cells cannot show through while Transparent still restores terminal default.
+    let canvas_sgr = match canvas {
+        StripCanvas::Transparent => "\x1b[49m".to_owned(),
+        StripCanvas::Rgb([red, green, blue]) => format!("\x1b[48;2;{red};{green};{blue}m"),
+    };
+    bytes = bytes.replace("\x1b[0m", &format!("\x1b[0m{canvas_sgr}"));
     bytes.push_str("\x1b[0m");
     if !truecolor {
         bytes = palette_fallback(bytes);
@@ -896,14 +988,20 @@ fn render_frame_filled_with_right(
 
 /// Reserve the selected chip and controls before painting; width and hit targets never depend on animation.
 fn select_visible_chips<'a>(
-    tabs: &'a [StripTab], viewed: Option<&str>, available: usize, plus_width: usize,
+    tabs: &'a [StripTab],
+    viewed: Option<&str>,
+    available: usize,
+    plus_width: usize,
 ) -> (Vec<&'a StripTab>, usize, usize) {
     let mut selected = Vec::new();
     let mut used = 0usize;
     // Rationale: share the shrink evenly before overflowing unreadable chips.
-    let tab_width = if tabs.is_empty() { 20 } else {
+    let tab_width = if tabs.is_empty() {
+        20
+    } else {
         (available.saturating_sub(plus_width) / tabs.len())
-            .clamp(12, 20).min(available.saturating_sub(plus_width))
+            .clamp(12, 20)
+            .min(available.saturating_sub(plus_width))
     };
     let mut overflow = false;
     for tab in tabs {
@@ -915,11 +1013,13 @@ fn select_visible_chips<'a>(
         }
     }
     if let Some(active) = viewed.and_then(|id| tabs.iter().find(|tab| tab.id == id))
-        && tab_width > 0 && !selected.iter().any(|tab| tab.id == active.id)
+        && tab_width > 0
+        && !selected.iter().any(|tab| tab.id == active.id)
     {
         overflow = true;
         while !selected.is_empty()
-            && used + tab_width + plus_width + 3.min(available.saturating_sub(plus_width)) > available
+            && used + tab_width + plus_width + 3.min(available.saturating_sub(plus_width))
+                > available
         {
             selected.pop();
             used -= tab_width;
@@ -927,7 +1027,11 @@ fn select_visible_chips<'a>(
         selected.push(active);
         used += tab_width;
     }
-    let overflow_width = if overflow { 3.min(available.saturating_sub(plus_width)) } else { 0 };
+    let overflow_width = if overflow {
+        3.min(available.saturating_sub(plus_width))
+    } else {
+        0
+    };
     while !selected.is_empty() && used + overflow_width + plus_width > available {
         selected.pop();
         used -= tab_width;
@@ -1038,6 +1142,59 @@ pub fn hit(frame: &StripFrame, column: u16) -> Option<&StripHit> {
         .map(|(_, _, hit)| hit)
 }
 
+struct RightStatus {
+    version: Option<String>,
+    time: Option<String>,
+}
+
+impl RightStatus {
+    fn width(&self) -> usize {
+        self.version.as_deref().map_or(0, UnicodeWidthStr::width)
+            + if self.version.is_some() && self.time.is_some() {
+                2
+            } else {
+                0
+            }
+            + self.time.as_deref().map_or(0, UnicodeWidthStr::width)
+    }
+
+    fn render(
+        &self,
+        bytes: &mut String,
+        hits: &mut Vec<(u16, u16, StripHit)>,
+        start: u16,
+        hovered: Option<&StripHover>,
+    ) {
+        let mut column = start;
+        let item = |bytes: &mut String, text: &str, hover: bool| {
+            if hover {
+                bytes.push_str("\x1b[48;2;48;48;48m");
+            }
+            bytes.push_str("\x1b[38;2;126;136;142m");
+            bytes.push_str(text);
+            if hover {
+                bytes.push_str("\x1b[0m");
+            }
+        };
+        if let Some(version) = self.version.as_deref() {
+            item(bytes, version, hovered == Some(&StripHover::RightVersion));
+            let end = column.saturating_add(UnicodeWidthStr::width(version) as u16);
+            hits.push((column, end, StripHit::RightVersion));
+            column = end;
+        }
+        if self.version.is_some() && self.time.is_some() {
+            bytes.push_str("  ");
+            column = column.saturating_add(2);
+        }
+        if let Some(time) = self.time.as_deref() {
+            item(bytes, time, hovered == Some(&StripHover::RightTime));
+            let end = column.saturating_add(UnicodeWidthStr::width(time) as u16);
+            hits.push((column, end, StripHit::RightTime));
+        }
+        bytes.push_str("\x1b[0m ");
+    }
+}
+
 fn right_status_text(
     columns: u16,
     tabs_empty: bool,
@@ -1045,7 +1202,7 @@ fn right_status_text(
     time_format: TimeFormat,
     version: Option<&str>,
     items: StripRightItems,
-) -> Option<String> {
+) -> Option<RightStatus> {
     let time = items.time.then(|| clock_text(time_format));
     let version = if items.version {
         version.map(|value| format!("v{value}"))
@@ -1053,17 +1210,24 @@ fn right_status_text(
         None
     };
     let minimum = plus_width + if tabs_empty { 0 } else { 3 };
-    let fits = |text: &str| usize::from(columns) >= UnicodeWidthStr::width(text) + 1 + minimum;
-    if let (Some(version), Some(time)) = (version.as_deref(), time.as_deref()) {
-        let both = format!("{version}  {time}");
+    let fits = |status: &RightStatus| usize::from(columns) >= status.width() + 1 + minimum;
+    let both = RightStatus {
+        version: version.clone(),
+        time: time.clone(),
+    };
+    if both.version.is_some() && both.time.is_some() {
         if fits(&both) {
             return Some(both);
         }
-        // Compatibility: the existing rightmost clock wins when both configured items cannot fit.
-        return fits(time).then(|| time.to_owned());
+        // Compatibility: Time keeps rightmost priority on narrow rows.
+        let time_only = RightStatus {
+            version: None,
+            time,
+        };
+        return fits(&time_only).then_some(time_only);
     }
-    time.filter(|text| fits(text))
-        .or_else(|| version.filter(|text| fits(text)))
+    let single = RightStatus { version, time };
+    fits(&single).then_some(single)
 }
 
 fn clock_text(format: TimeFormat) -> String {
@@ -1176,15 +1340,36 @@ mod tests {
             let initializing = mix(normal, Rgb(255, 255, 255), 0.42);
             assert_ne!(initializing, normal, "{accent_name}");
             // Invariant: assert RGB chip shades regardless of the CI runner's terminal palette.
-            let frame = |tab: StripTab, viewed: &str| render_frame(
-                &[tab], Some(viewed), 80, None, TimeFormat::Twelve, None,
-                Instant::now(), true, true,
-            );
+            let frame = |tab: StripTab, viewed: &str| {
+                render_frame(
+                    &[tab],
+                    Some(viewed),
+                    80,
+                    None,
+                    TimeFormat::Twelve,
+                    None,
+                    Instant::now(),
+                    true,
+                    true,
+                )
+            };
             let pending_frame = frame(pending, PENDING_AGENT_ID);
             let real_frame = frame(real, "agent-2");
-            assert!(pending_frame.bytes.contains(&tinted_background(initializing, true)), "{accent_name}");
-            assert!(real_frame.bytes.contains(&tinted_background(normal, true)), "{accent_name}");
-            assert_ne!(tinted_background(initializing, true), tinted_background(normal, true), "{accent_name}");
+            assert!(
+                pending_frame
+                    .bytes
+                    .contains(&tinted_background(initializing, true)),
+                "{accent_name}"
+            );
+            assert!(
+                real_frame.bytes.contains(&tinted_background(normal, true)),
+                "{accent_name}"
+            );
+            assert_ne!(
+                tinted_background(initializing, true),
+                tinted_background(normal, true),
+                "{accent_name}"
+            );
         }
     }
 
@@ -1195,25 +1380,52 @@ mod tests {
             let mut agent = tab("agent-2", "Agent");
             agent.accent = Some(accent_name.into());
             let tabs = [tab("older", "Older"), agent];
-            let fill = ChipFill { tab_id: "agent-2".into(), started_at: start };
-            let frame = |elapsed, columns, truecolor| render_frame_filled(
-                &tabs, Some("agent-2"), columns, None, TimeFormat::Twelve, None,
-                start + Duration::from_millis(elapsed), truecolor, true, accent_name, Some(&fill),
+            let fill = ChipFill {
+                tab_id: "agent-2".into(),
+                started_at: start,
+            };
+            let frame = |elapsed, columns, truecolor| {
+                render_frame_filled(
+                    &tabs,
+                    Some("agent-2"),
+                    columns,
+                    None,
+                    TimeFormat::Twelve,
+                    None,
+                    start + Duration::from_millis(elapsed),
+                    truecolor,
+                    true,
+                    accent_name,
+                    Some(&fill),
+                )
+            };
+            let pending = tinted_background(
+                mix(tab_accent(Some(accent_name)), Rgb(255, 255, 255), 0.42),
+                true,
             );
-            let pending = tinted_background(mix(tab_accent(Some(accent_name)), Rgb(255, 255, 255), 0.42), true);
             let active = tinted_background(tab_accent(Some(accent_name)), true);
             for columns in [28, 80] {
                 let beginning = frame(0, columns, true);
                 let middle = frame((CHIP_FILL_MS / 2) as u64, columns, true);
                 let finished = frame(CHIP_FILL_MS as u64, columns, true);
                 assert!(beginning.bytes.contains(&pending), "{accent_name}");
-                assert!(middle.bytes.contains(&pending) && middle.bytes.contains(&active), "{accent_name}");
-                assert!(finished.bytes.contains(&active) && !finished.bytes.contains(&pending), "{accent_name}");
+                assert!(
+                    middle.bytes.contains(&pending) && middle.bytes.contains(&active),
+                    "{accent_name}"
+                );
+                assert!(
+                    finished.bytes.contains(&active) && !finished.bytes.contains(&pending),
+                    "{accent_name}"
+                );
                 assert_eq!(beginning.hits, middle.hits, "{accent_name}");
                 assert_eq!(beginning.hits, finished.hits, "{accent_name}");
                 assert_eq!(plain(&beginning.bytes), plain(&finished.bytes));
-                assert!(!frame((CHIP_FILL_MS / 2) as u64, columns, false).bytes.contains(&pending),
-                    "palette mode snaps to its selected color");
+                assert!(
+                    !frame((CHIP_FILL_MS / 2) as u64, columns, false)
+                        .bytes
+                        .contains(&pending),
+                    "palette mode snaps to its selected color"
+                );
             }
         }
     }
@@ -1224,10 +1436,21 @@ mod tests {
         let mut agent = tab("agent-2", "Agent");
         agent.accent = Some("pink".into());
         let tabs = [agent];
-        let fill = ChipFill { tab_id: "agent-2".into(), started_at: start };
+        let fill = ChipFill {
+            tab_id: "agent-2".into(),
+            started_at: start,
+        };
         let frame = render_frame_filled(
-            &tabs, Some("agent-2"), 80, None, TimeFormat::Twelve, None,
-            start + Duration::from_millis((CHIP_FILL_MS / 2) as u64), true, true, "cyan",
+            &tabs,
+            Some("agent-2"),
+            80,
+            None,
+            TimeFormat::Twelve,
+            None,
+            start + Duration::from_millis((CHIP_FILL_MS / 2) as u64),
+            true,
+            true,
+            "cyan",
             Some(&fill),
         );
         let cyan = tab_accent(Some("cyan"));
@@ -1236,30 +1459,69 @@ mod tests {
             mix(cyan, Rgb(255, 255, 255), 0.42),
             true,
         )));
-        assert!(!frame.bytes.contains(&tinted_background(tab_accent(Some("pink")), true)));
+        assert!(
+            !frame
+                .bytes
+                .contains(&tinted_background(tab_accent(Some("pink")), true))
+        );
     }
 
     #[test]
     fn the_fill_respects_whole_wide_and_combining_graphemes_and_stops_on_switch() {
         let start = Instant::now();
-        let fill = ChipFill { tab_id: "agent-2".into(), started_at: start };
+        let fill = ChipFill {
+            tab_id: "agent-2".into(),
+            started_at: start,
+        };
         let active = "\x1b[48;2;20;30;40m";
         let pending = "\x1b[48;2;50;60;70m";
         let cells = sweep_background(" 文e\u{301} \x1b[38;2;1;2;3mA", 3, active, pending);
-        assert!(cells.contains(&format!("{active}\x1b[38;2;255;255;255m 文{pending}e\u{301} ")));
+        assert!(cells.contains(&format!(
+            "{active}\x1b[38;2;255;255;255m 文{pending}e\u{301} "
+        )));
         assert!(cells.contains("\x1b[38;2;1;2;3mA"));
         let mut tab = tab("agent-2", "文e\u{301}名");
         tab.accent = Some("green".into());
         let tabs = [tab];
-        let render = |viewed, now| render_frame_filled(
-            &tabs, viewed, 12, None, TimeFormat::Twelve, None, now, true, true, "green", Some(&fill),
+        let render = |viewed, now| {
+            render_frame_filled(
+                &tabs,
+                viewed,
+                12,
+                None,
+                TimeFormat::Twelve,
+                None,
+                now,
+                true,
+                true,
+                "green",
+                Some(&fill),
+            )
+        };
+        assert_eq!(
+            render(Some("agent-2"), start).hits,
+            render(Some("agent-2"), start + Duration::from_millis(250)).hits
         );
-        assert_eq!(render(Some("agent-2"), start).hits, render(Some("agent-2"), start + Duration::from_millis(250)).hits);
-        assert_eq!(render(Some("agent-2"), start + Duration::from_millis(CHIP_FILL_MS as u64)).hits,
-            render(None, start + Duration::from_millis(250)).hits);
-        assert!(!fill_active(&fill, start + Duration::from_millis(CHIP_FILL_MS as u64)));
-        assert!(!render(None, start + Duration::from_millis(250)).bytes.contains(
-            &tinted_background(mix(tab_accent(Some("green")), Rgb(255, 255, 255), 0.42), true)));
+        assert_eq!(
+            render(
+                Some("agent-2"),
+                start + Duration::from_millis(CHIP_FILL_MS as u64)
+            )
+            .hits,
+            render(None, start + Duration::from_millis(250)).hits
+        );
+        assert!(!fill_active(
+            &fill,
+            start + Duration::from_millis(CHIP_FILL_MS as u64)
+        ));
+        assert!(
+            !render(None, start + Duration::from_millis(250))
+                .bytes
+                .contains(&tinted_background(
+                    mix(tab_accent(Some("green")), Rgb(255, 255, 255), 0.42),
+                    true
+                ))
+        );
     }
 
     #[test]
@@ -1267,18 +1529,44 @@ mod tests {
         let started_at = Instant::now();
         let mut agent = tab("agent-2", "auth-fix");
         agent.accent = Some("cyan".into());
-        agent.title_animation = Some(TitleAnimation { from: "Agent".into(), started_at });
+        agent.title_animation = Some(TitleAnimation {
+            from: "Agent".into(),
+            started_at,
+        });
         let tabs = [agent];
         let now = started_at + Duration::from_millis(180);
-        let fill = ChipFill { tab_id: "agent-2".into(), started_at };
-        let frame = |fill| render_frame_filled(&tabs, Some("agent-2"), 80, None,
-            TimeFormat::Twelve, None, now, true, true, "cyan", fill);
+        let fill = ChipFill {
+            tab_id: "agent-2".into(),
+            started_at,
+        };
+        let frame = |fill| {
+            render_frame_filled(
+                &tabs,
+                Some("agent-2"),
+                80,
+                None,
+                TimeFormat::Twelve,
+                None,
+                now,
+                true,
+                true,
+                "cyan",
+                fill,
+            )
+        };
         let stable = frame(None);
         let filling = frame(Some(&fill));
         assert_eq!(stable.hits, filling.hits);
         assert_eq!(plain(&stable.bytes), plain(&filling.bytes));
-        assert!(filling.bytes.contains("\x1b[38;2;"), "the existing accent wave still styles the title");
-        assert!(filling.bytes.contains(&tinted_background(tab_accent(Some("cyan")), true)));
+        assert!(
+            filling.bytes.contains("\x1b[38;2;"),
+            "the existing accent wave still styles the title"
+        );
+        assert!(
+            filling
+                .bytes
+                .contains(&tinted_background(tab_accent(Some("cyan")), true))
+        );
     }
 
     #[test]
@@ -1790,6 +2078,7 @@ mod tests {
                 None,
                 Some("0.2.7-dev.1238"),
                 items,
+                StripCanvas::Rgb([20, 20, 20]),
             )
         };
         let both_frame = render_right(
@@ -1886,6 +2175,7 @@ mod tests {
                 version: true,
                 time: true,
             },
+            StripCanvas::Rgb([20, 20, 20]),
         );
         assert!(!overflow.hidden_tabs.is_empty());
         assert!(
@@ -1945,7 +2235,15 @@ mod tests {
             let mut value = tab("one", "agent");
             value.status = status.into();
             let (bytes, width) = chip(
-                &value, true, false, Instant::now(), true, None, None, "blue", None,
+                &value,
+                true,
+                false,
+                Instant::now(),
+                true,
+                None,
+                None,
+                "blue",
+                None,
             );
             let text = plain(&bytes);
             assert!(text.starts_with(' '), "status={status}");
