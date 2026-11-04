@@ -100,11 +100,11 @@ A1 SHALL retain `a1 update`, `a1 update --release`, `a1 update --develop`, and n
 ## ADDED Requirements
 
 ### Requirement: Continuity-deferred activation is a successful update
-When a certified prepared candidate is blocked only because a live resident source cannot yet be proven controllable, an explicit update SHALL exit with status zero and print its ordinary updated-result line, with no blocker sentence. The prepared candidate SHALL activate through the existing activation-only retry as soon as continuity can be established, without another npm installation and without user action. A source whose recorded owner process is provably gone SHALL NOT defer activation. Continuity inspection SHALL produce a verdict per source, so one unreadable historical source cannot veto the others.
+When a certified prepared candidate is blocked only because a live resident source cannot yet be proven controllable, an explicit update SHALL exit with status zero and print one result line naming the target and saying that it takes over automatically, with no blocker sentence or instruction to retry. The prepared candidate SHALL activate through the existing activation-only retry as soon as continuity can be established, without another npm installation and without user action. A source whose recorded owner process is provably gone SHALL NOT defer activation. Continuity inspection SHALL produce a verdict per source, so one unreadable historical source cannot veto the others.
 
 #### Scenario: A live Agent runs during update
 - **WHEN** the user runs `a1 update` while a resident Agent of an older release is busy and continuity is not yet provable
-- **THEN** the command SHALL exit zero with the updated-result line
+- **THEN** the command SHALL exit zero with that single result line
 - **AND** the Agent SHALL keep running and the candidate SHALL activate once continuity holds
 
 #### Scenario: A dead legacy host left records behind
