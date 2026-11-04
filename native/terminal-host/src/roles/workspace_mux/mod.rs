@@ -179,9 +179,7 @@ pub fn run(options: AttachOptions<'_>) -> Result<(), String> {
         data: options.data_dir.into(),
         root: Path::new(options.release_root).into(),
     };
-    // Invariant: a source this client cannot verify never strands the user outside the host of its
-    // own release; the proxy would otherwise close the attach handshake without a reason.
-    if connection::discover_ready(&paths).is_err() {
+    if attach_route(&connection::discover_ready(&paths)) == AttachRoute::OwnHost {
         return super::attach::run_attach(options);
     }
     let proxy = start(&options)?;
@@ -189,6 +187,38 @@ pub fn run(options: AttachOptions<'_>) -> Result<(), String> {
         endpoint: &proxy.endpoint,
         ..options
     })
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum AttachRoute {
+    Workspace,
+    OwnHost,
+}
+
+/// Invariant: a source this client cannot verify never strands the user outside the host of its
+/// own release; the workspace proxy would otherwise close the attach handshake without a reason.
+fn attach_route<T>(discovered: &Result<T, String>) -> AttachRoute {
+    if discovered.is_ok() {
+        AttachRoute::Workspace
+    } else {
+        AttachRoute::OwnHost
+    }
+}
+
+#[cfg(test)]
+mod attach_route_tests {
+    use super::*;
+
+    #[test]
+    fn an_unverifiable_source_falls_back_to_the_own_release_host() {
+        let failed: Result<Vec<()>, String> =
+            Err("resident source belongs to another boot or login".into());
+        assert_eq!(attach_route(&failed), AttachRoute::OwnHost);
+        assert_eq!(
+            attach_route(&Ok::<_, String>(Vec::<()>::new())),
+            AttachRoute::Workspace
+        );
+    }
 }
 fn admit(stream: &mut endpoint::EndpointStream, paths: &Paths) -> Result<String, String> {
     let own = scope::release_id()?;
