@@ -89,6 +89,8 @@ export async function exerciseResidentPredecessor(priorRoot: string, candidateRo
   const profile = join(root, "profile"), data = join(root, "data"), cwd = join(root, "project");
   for (const directory of [profile, data, runtime, cwd]) { await mkdir(directory, { recursive: true }); if (process.platform !== "win32") await chmod(directory, 0o700); }
   const toolScript = join(root, "held-tool.cjs"), toolIdentity = join(root, "tool.identity.json"), toolRelease = join(root, "tool.release"), toolDone = join(root, "tool.done"), toolStarts = join(root, "tool.starts"), toolProgress = join(root, "tool.progress");
+  const nodeMainCompatibility = join(root, "node-main-compatibility.cjs");
+  await writeFile(nodeMainCompatibility, `const prefix = String.fromCharCode(92, 92, 63, 92);\nif (process.platform === "win32" && process.argv[1]?.startsWith(prefix)) process.argv[1] = process.argv[1].slice(4);\n`);
   await writeFile(toolScript, `const fs=require('node:fs'),crypto=require('node:crypto');
 const [identity,release,done,starts,progress]=process.argv.slice(2),me={pid:process.pid,nonce:crypto.randomUUID()};
 fs.appendFileSync(starts,JSON.stringify(me)+'\\n');fs.writeFileSync(identity,JSON.stringify(me),{flag:'wx'});let tick=0;
@@ -131,10 +133,18 @@ const timer=setInterval(()=>{if(fs.existsSync(release)){fs.writeFileSync(done,me
     || /(?:TOKEN|API_KEY|SECRET|PASSWORD|CREDENTIAL|COOKIE)/iu.test(key)
     || ["NODE_OPTIONS", "NODE_PATH", "NODE_USE_ENV_PROXY", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"].includes(key.toUpperCase())) delete environment[key];
   Object.assign(environment, { HOME: profile, USERPROFILE: profile, A1_PROFILE_HOME: profile, A1_CONFIG_DIR: profile, A1_DATA_DIR: data, A1_RUNTIME_DIR: runtime, A1_DATABASE_PATH: join(root, "control.sqlite3"), PI_CODING_AGENT_DIR: profile, A1_SKIP_VERSION_CHECK: "1", TERM: "xterm-256color", LAUNCH_CONTEXT_PROFILE: "a1", LAUNCH_CONTEXT_MODE: "tabs" });
+  const publishedEnvironment = { ...environment };
+  // Node 22 rejects a Windows verbatim path as its main script unless realpath resolution is
+  // disabled. Published hosts canonicalize their immutable release root to that path form; keep
+  // exercising their exact bytes while the candidate proves its native launch-path correction.
+  if (process.platform === "win32" && process.versions.node.startsWith("22.")) {
+    publishedEnvironment.NODE_OPTIONS = `--preserve-symlinks-main --require=${JSON.stringify(nodeMainCompatibility.replaceAll("\\", "/"))}`;
+  }
   const common = ["--profile", profile, "--data-dir", data, "--runtime-dir", runtime];
   const entry = (packageRoot: string) => join(packageRoot, "dist", "foundation", "resident-tabs", "host-entry.js");
   const call = async (packageRoot: string, args: string[]) => {
-    const result = await execute(process.execPath, [entry(packageRoot), ...args, ...common], { env: { ...environment, LAUNCH_CONTEXT_RELEASE_ROOT: packageRoot }, windowsHide: true, timeout: 90_000, maxBuffer: 2 * 1024 * 1024 });
+    const launchEnvironment = packageRoot === priorRoot ? publishedEnvironment : environment;
+    const result = await execute(process.execPath, [entry(packageRoot), ...args, ...common], { env: { ...launchEnvironment, LAUNCH_CONTEXT_RELEASE_ROOT: packageRoot }, windowsHide: true, timeout: 90_000, maxBuffer: 2 * 1024 * 1024 });
     return JSON.parse(result.stdout.trim()) as RecordValue;
   };
   const state = async (packageRoot: string) => {
