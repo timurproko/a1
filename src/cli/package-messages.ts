@@ -76,7 +76,7 @@ Examples:
     case "remove":
       return header + `Remove a package and its source from settings.
 Alias: ${command} uninstall <source>
-
+${namespace === "direct" ? `\nRemove A1 from this machine (sessions and settings stay unless --purge):\n  ${command} uninstall [--yes] [--purge]\n` : ""}
 Examples:
   ${command} remove npm:@foo/bar
   ${command} uninstall npm:@foo/bar

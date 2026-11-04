@@ -145,8 +145,10 @@ describe("independent pinned package command transcripts", () => {
       ["install", "--unknown"], ["remove", "--unknown"], ["list", "--unknown"], ["update", "--unknown"],
       ["install", "npm:one", "npm:two"], ["remove", "npm:one", "npm:two"], ["update", "npm:one", "npm:two"],
     ];
+    // Compatibility: direct `a1 uninstall` without a source removes A1 instead of reporting Pi's
+    // missing-source diagnostic; the `a1 pi` namespace keeps that diagnostic.
     const cases: (Case & { readonly namespace: "direct" | "pi" })[] = forms.flatMap((args, i) => [
-      { id: `syntax-direct-${i}`, pinnedArgs: args, ownedArgs: args, namespace: "direct" as const },
+      ...(args.length === 1 && args[0] === "uninstall" ? [] : [{ id: `syntax-direct-${i}`, pinnedArgs: args, ownedArgs: args, namespace: "direct" as const }]),
       { id: `syntax-pi-${i}`, pinnedArgs: args, ownedArgs: ["pi", ...args], namespace: "pi" as const },
     ]);
     const expected = await capture("pinned", root, cases, color);

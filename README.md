@@ -165,6 +165,22 @@ The **Update** setting controls release discovery:
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 
+## Uninstall
+
+Remove A1 from this machine. It stops running tabs and asks before deleting your sessions and settings in `~/.a1`:
+
+```text
+a1 uninstall
+```
+
+Remove everything without questions:
+
+```text
+a1 uninstall --yes --purge
+```
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
+
 ## Extensions
 
 Install a package:

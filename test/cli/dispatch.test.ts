@@ -415,6 +415,15 @@ describe("A1 CLI dispatch in a release build", () => {
   it("refuses a selector combined with --release before any update work", () => {
     expect(parseCliCommand(["update", "--release", "107"], RELEASE)).toMatchObject({ kind: "error" });
   });
+
+  it("parses machine removal without a source and keeps package removal with one", () => {
+    expect(parseCliCommand(["uninstall"], RELEASE)).toEqual({ kind: "uninstall", request: { yes: false, purge: false } });
+    expect(parseCliCommand(["uninstall", "--yes", "--purge"], RELEASE)).toEqual({ kind: "uninstall", request: { yes: true, purge: true } });
+    expect(parseCliCommand(["uninstall", "npm:pi-mcp-adapter"], RELEASE))
+      .toEqual({ kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } });
+    expect(parseCliCommand(["pi", "uninstall"], RELEASE)).toMatchObject({ kind: "package-error" });
+    expect(parseCliCommand(["uninstall", "--yes", "--yes"], RELEASE)).not.toMatchObject({ kind: "uninstall" });
+  });
 });
 
 function expectNoHandler(commands: ReturnType<typeof handlers>): void {

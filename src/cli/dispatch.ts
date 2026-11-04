@@ -21,6 +21,8 @@ export interface CliHandlers {
   readonly packages: (request: PackageCommandRequest) => Promise<number>;
   readonly sessionContext: (request: SessionContextRequest) => Promise<number>;
   readonly tabs: (request: TabsRequest) => Promise<number>;
+  /** Removes A1 from the machine; absent in hosts that cannot uninstall. */
+  readonly uninstall?: (request: { readonly yes: boolean; readonly purge: boolean }) => Promise<number>;
 }
 
 export interface CliOutput {
@@ -47,6 +49,7 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "update <source>",
     "install <source>",
     "remove <source>",
+    "uninstall [--yes] [--purge]",
     "uninstall <source>",
     "list",
     "session worktrees",
@@ -84,6 +87,7 @@ export function cliHelp(capabilities: CliCapabilities): string {
     "Packages:",
     `  ${command} install <source>`,
     `  ${command} remove <source>`,
+    `  ${command} uninstall [--yes] [--purge]`,
     `  ${command} uninstall <source>`,
     `  ${command} list`,
     "",
@@ -154,6 +158,7 @@ export async function dispatchCli(
     return 0;
   }
   if (command.kind === "tabs") return await handlers.tabs(command.request);
+  if (command.kind === "uninstall") return handlers.uninstall ? await handlers.uninstall(command.request) : 2;
   return await handlers.update(command.channel, command.target);
 }
 
@@ -169,6 +174,7 @@ export type CliCommand =
   | { readonly kind: "session-context"; readonly request: SessionContextRequest }
   | { readonly kind: "tabs"; readonly request: TabsRequest }
   | { readonly kind: "tabs-help" }
+  | { readonly kind: "uninstall"; readonly request: { readonly yes: boolean; readonly purge: boolean } }
   | { readonly kind: "error"; readonly message: string };
 
 export function parseCliCommand(arguments_: readonly string[], capabilities: CliCapabilities): CliCommand {
@@ -185,6 +191,11 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   }
   if (command === "help" || command === "--help" || command === "-h") return withoutArguments(rest, { kind: "help" });
   if (command === "version" || command === "--version" || command === "-v") return withoutArguments(rest, { kind: "version" });
+  // Compatibility: a source keeps `uninstall` as package removal; without one it removes A1.
+  if (command === "uninstall" && rest.every(value => value === "--yes" || value === "--purge")
+    && new Set(rest).size === rest.length) {
+    return { kind: "uninstall", request: { yes: rest.includes("--yes"), purge: rest.includes("--purge") } };
+  }
   if (command === "install" || command === "remove" || command === "uninstall" || command === "list") {
     return parsePackageCommand(arguments_, "direct");
   }
