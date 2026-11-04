@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-04-restart-update-with-live-agents/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-04-restart-update-with-live-agents/acceptance.md",
   "finalizedDate": "2026-11-04",
-  "specBaseSha": "329273cec8ab48c8bce5b25c49189ab7aaf55f6c",
+  "specBaseSha": "c3b7a3fd5d44c998b87847f0f79422bdbb459355",
   "acceptanceScenarios": [
     "Supported live workspaces pass read-only activation inspection without taking a workspace writer lease or changing durable topology.",
     "Transient activation failure retries the certified exact candidate automatically without reinstalling or interrupting existing agents.",
