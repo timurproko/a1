@@ -970,8 +970,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       progress.clear();
       const message = errorMessage(error);
       if (error instanceof UpdateAutomaticDeferred) return 1;
-      const blockedExit = await preparedActivationExit(error, transaction, mode, output, transactionStore, targetVersion);
-      if (blockedExit === 0) await invalidateReleaseCheckCache(paths.configDir).catch(() => undefined);
+      const blockedExit = await preparedActivationExit(error, transaction, mode, output, transactionStore, targetVersion, paths.configDir);
       if (blockedExit !== null) return blockedExit;
       if (error instanceof UpdatePreflightFailure) {
         output.stderr(`${PRODUCT_TEXT.diagnostic(`update could not start safely: ${message}. Nothing was changed. Retry with npm x -y -- ${PRODUCT_PACKAGE}-install`)}\n`);
@@ -981,9 +980,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
         ? "previous test lifecycle retained"
         : await rollbackPriorCohort(paths.dataDir, environment, transaction?.priorActiveReleaseId ?? null).catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
       if (transaction) await transactionStore.finish(rollback === "rolled back" ? "rolled-back" : "failed", `${message}; ${rollback}`);
-      // Invariant: one reason and one next step; routine rollback detail stays in the journal.
-      const rollbackNote = rollback.startsWith("rollback failed") ? ` (${rollback})` : "";
-      output.stderr(`${PRODUCT_TEXT.diagnostic(`update failed: ${message}${rollbackNote}. Run ${PRODUCT_TEXT.commandName} update to retry. Details: ${transactionStore.path}`)}\n`);
+      output.stderr(updateFailureLine(message, rollback, transactionStore.path));
       return error instanceof UpdateFailure ? error.exitCode : 1;
     }
   });
@@ -1082,14 +1079,22 @@ async function preparedActivationExit(
   output: UpdateOutput,
   journal: UpdateTransactionJournal,
   targetVersion: string,
+  configDir: string,
 ): Promise<number | null> {
   if (!(error instanceof UpdateActivationBlockedError) || transaction === null || phaseBefore(transaction.phase, "certified")) return null;
   await journal.recordActiveError?.(error.message);
   if (mode === "automatic") return UPDATE_ACTIVATION_BLOCKED_EXIT_CODE;
   // Invariant: a certified candidate waiting only for resident continuity is an installed update;
-  // startup activation retries it without another installation, so the user has nothing to do.
+  // the next startup check retries activation without another installation.
+  await invalidateReleaseCheckCache(configDir).catch(() => undefined);
   output.stdout(`${PRODUCT_TEXT.commandName} updated to ${targetVersion}; it takes over automatically once running Agents can switch\n`);
   return 0;
+}
+
+/** One reason and one next step; routine rollback detail stays in the journal. */
+function updateFailureLine(message: string, rollback: string, journalPath: string): string {
+  const note = rollback.startsWith("rollback failed") ? ` (${rollback})` : "";
+  return `${PRODUCT_TEXT.diagnostic(`update failed: ${message}${note}. Run ${PRODUCT_TEXT.commandName} update to retry. Details: ${journalPath}`)}\n`;
 }
 
 function phaseBefore(current: UpdateTransactionPhase, target: UpdateTransactionPhase): boolean {

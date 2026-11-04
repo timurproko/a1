@@ -111,6 +111,14 @@
       "semantics": "Guardian-to-runtime handoff of the unclean-exit notice path, removed from the runtime environment on read; retain pending exposure review"
     },
     {
+      "role": "installerHandoff",
+      "key": "A1_INSTALLER_HANDOFF",
+      "exposure": "review",
+      "owner": "packages/a1-install/bin/a1-install.js",
+      "evidence": "test/foundation/release/installer-bootstrap.test.ts",
+      "semantics": "Marks an installer started by a release installer's development handoff so it never hands off again; retain pending exposure review"
+    },
+    {
       "role": "processGuardianPath",
       "key": "A1_PROCESS_GUARDIAN_PATH",
       "exposure": "review",

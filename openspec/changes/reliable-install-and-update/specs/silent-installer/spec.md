@@ -47,7 +47,7 @@ When invoked with `--develop` from a non-development installer build and without
 - **THEN** it SHALL proceed with installation and SHALL NOT start another installer
 
 ### Requirement: An installation at or above the target is success
-After resolution or delegated update, an installed application whose version is equal to or newer than the resolved target on the same channel SHALL be reported as installed with status zero. A delegated update whose activation was deferred for resident continuity SHALL also count as installed. Failures SHALL print one line holding the concise reason and one next step, followed by `Details: <log path>` when diagnostics were recorded, without requiring `--verbose`.
+After resolution or delegated update, an installed application whose version is equal to or newer than the resolved target on the same channel SHALL be reported as installed with status zero. A delegated update whose activation was deferred for resident continuity SHALL also count as installed. A failure SHALL keep its single concise `installation failed: <reason>` line and, when diagnostics were recorded, add one `Details: <log path>` line naming a private log file, without requiring `--verbose`; the explicit verbose mode keeps printing its bounded inline diagnostics instead.
 
 #### Scenario: The channel head is older than the installation
 - **WHEN** the installed development build is newer than the current `next` head

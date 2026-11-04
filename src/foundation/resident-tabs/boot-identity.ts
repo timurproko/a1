@@ -3,11 +3,9 @@ const LEGACY_BOOT_TOLERANCE_SECONDS = 2;
 const LEGACY_MACOS_BOOT = /^macos-boot:(\d+):\d+$/u;
 
 /**
- * Mirrors the native host's boot matching rule for identities TypeScript compares itself.
- * Current kernel per-boot identifiers match exactly. Two legacy `macos-boot:<sec>:<usec>` records
- * match within the tolerance, because macOS shifts its recorded boot time on clock corrections.
- * A legacy record never matches a current-form identity here: only the native host can read the
- * current kernel boot time that proves it.
+ * Mirrors the native boot matching rule. Legacy `macos-boot:<sec>:<usec>` records drift on clock
+ * corrections, so two of them match within the tolerance; only the native host can prove one
+ * against a current identity.
  */
 export function sameBootIdentity(left: string, right: string): boolean {
   if (left === right) return true;

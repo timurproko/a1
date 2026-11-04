@@ -3,7 +3,7 @@ import { prerelease } from "semver";
 /** The Pi comparison launch is a prerelease development instrument, not product. */
 export interface CliCapabilities {
   readonly developmentComparison: boolean;
-  /** The channel this build was published on; bare `update` stays on it. Absent means stable. */
+  /** Bare `update` stays on this build's channel; absent means stable. */
   readonly runningChannel?: "stable" | "next";
 }
 

@@ -253,10 +253,9 @@ function parseSessionContext(rest: readonly string[]): CliCommand {
 }
 
 /**
- * The empty form stays on the running build's channel, so it never silently changes channel.
- * `--release` moves to stable explicitly; `--develop` selects the moving development head or one
- * immutable numbered preview. Model refresh remains a separate operation that cannot be combined
- * with either update channel.
+ * The empty form stays on the running channel; `--release` moves to stable. `--develop` selects
+ * the moving development head or one immutable numbered preview, while model refresh remains a
+ * separate operation that cannot be combined with either update channel.
  */
 function parseUpdate(rest: readonly string[], runningChannel: UpdateChannel): CliCommand {
   if (rest.some(value => value === "--help" || value === "-h")) {
