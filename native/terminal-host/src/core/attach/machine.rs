@@ -8,10 +8,10 @@ use std::time::Duration;
 use super::{
     AttachKey, AttachMouse, CloseFallback, CommandPalette, DRAG_HOLD, DeferredInput,
     DeferredInputTarget, KeyCode, MouseButton, MouseKind, PaletteKey, PlusMenu, PopupAction,
-    PopupKind, PopupMenu, RenameEditor, ShortcutLabels, StripHitKind, StripLayout, StripSnapshot,
-    TabActivation, TabDrag, TabKind, TabView, UtilityKind, apply_rename_control_key, close_fallback_for, failure_applies,
-    forward_pointer_motion, is_utility_tab, registry_index, rejection_notice, shown_tabs,
-    update_drag, utility_toggle_closes,
+    PopupKind, PopupMenu, RenameEditor, RightItems, ShortcutLabels, StripHitKind, StripLayout,
+    StripSnapshot, TabActivation, TabDrag, TabKind, TabView, UtilityKind, apply_rename_control_key,
+    close_fallback_for, failure_applies, forward_pointer_motion, is_utility_tab, registry_index,
+    rejection_notice, shown_tabs, update_drag, utility_toggle_closes,
 };
 
 /// How long the client waits, with tabs present and no Settings tab, before starting a hidden one
@@ -24,6 +24,8 @@ pub enum Hover {
     Tab(String),
     Overflow,
     New,
+    RightVersion,
+    RightTime,
 }
 
 /// The one interaction that owns the pointer and keyboard before the child does.
@@ -100,7 +102,9 @@ pub struct Prewarm {
 impl View {
     /// The singleton kind's prewarm state, indexed only by the shared provider.
     pub fn prewarm(&mut self, kind: TabKind) -> &mut Prewarm {
-        &mut self.singletons[kind.singleton_index().expect("prewarm kind must be singleton")]
+        &mut self.singletons[kind
+            .singleton_index()
+            .expect("prewarm kind must be singleton")]
     }
 
     /// Whether each singleton kind's tab joined the strip, in provider order.
@@ -143,6 +147,8 @@ pub struct State {
     pub columns: u16,
     /// The kinds `+` offers, which the role refreshes from the live settings.
     pub plus_menu: PlusMenu,
+    /// The items the right-side configuration dialog toggles.
+    pub right_items: RightItems,
     /// Invariant: an exited client sends, views, and paints nothing more.
     pub exited: bool,
 }
@@ -215,6 +221,8 @@ pub enum Effect {
     },
     /// Stores the plus menu the configure dialog changed.
     SavePlusMenu(PlusMenu),
+    /// Stores the right-side items the configure dialog changed.
+    SaveRightItems(RightItems),
 }
 
 /// How a key that reached the child path is delivered.
@@ -238,7 +246,9 @@ pub enum ServerEvent {
         tab_id: String,
         status: String,
     },
-    StatusBatch { statuses: Vec<(String, String)> },
+    StatusBatch {
+        statuses: Vec<(String, String)>,
+    },
     /// A surface the view model committed; `requested` when it completes a view request.
     Commit {
         tab_id: String,
@@ -351,8 +361,11 @@ impl State {
                 }
             }
         }
-        if user_action && self.view.pending_agent_visible
-            && effects.iter().any(|effect| matches!(effect, Effect::View(_)))
+        if user_action
+            && self.view.pending_agent_visible
+            && effects
+                .iter()
+                .any(|effect| matches!(effect, Effect::View(_)))
         {
             self.view.pending_agent_visible = false;
             self.view.pending_agent_cancelled = self.view.pending_created_activation;
@@ -483,6 +496,7 @@ impl State {
         let Mode::Palette(palette) = &mut self.mode else {
             return;
         };
+        let configure = palette.configure_kind();
         let run = match action {
             Some("tabs.commands") => None,
             Some(action) => Some(action.to_owned()),
@@ -490,11 +504,18 @@ impl State {
                 PaletteKey::Close => None,
                 PaletteKey::Run(action) => Some(action.to_owned()),
                 PaletteKey::Toggle(kind) => {
-                    self.plus_menu.toggle(kind);
-                    effects.extend([
-                        Effect::SavePlusMenu(self.plus_menu),
-                        Effect::Paint { clear: false },
-                    ]);
+                    match configure {
+                        Some(super::ConfigureKind::Plus) => {
+                            self.plus_menu.toggle(kind);
+                            effects.push(Effect::SavePlusMenu(self.plus_menu));
+                        }
+                        Some(super::ConfigureKind::Right) => {
+                            self.right_items.toggle(kind);
+                            effects.push(Effect::SaveRightItems(self.right_items));
+                        }
+                        None => return,
+                    }
+                    effects.push(Effect::Paint { clear: false });
                     return;
                 }
                 PaletteKey::Changed => {
@@ -582,12 +603,15 @@ impl State {
             }
             PopupAction::Activate(kind) => self.activate_kind(context, kind, effects),
             PopupAction::ConfigurePlus => self.mode = Mode::Palette(CommandPalette::plus_menu()),
+            PopupAction::ConfigureRight => self.mode = Mode::Palette(CommandPalette::right_side()),
             PopupAction::View(tab_id) => effects.push(Effect::View(tab_id)),
         }
     }
 
     fn open_rename<T: TabView>(&mut self, context: &Context<'_, T>, tab_id: String) {
-        if tab_id == PENDING_AGENT_ID { return; }
+        if tab_id == PENDING_AGENT_ID {
+            return;
+        }
         let name = context
             .tabs
             .iter()
@@ -612,7 +636,11 @@ impl State {
     }
 
     /// Invariant: the provisional view owns the close action, never the previously viewed tab.
-    fn close_pending_agent<T: TabView>(&mut self, context: &Context<'_, T>, effects: &mut Vec<Effect>) {
+    fn close_pending_agent<T: TabView>(
+        &mut self,
+        context: &Context<'_, T>,
+        effects: &mut Vec<Effect>,
+    ) {
         let awaiting_create = self.view.pending_created_activation;
         self.view.pending_created_activation = false;
         self.view.pending_agent_visible = false;
@@ -1044,6 +1072,8 @@ impl State {
                     StripHitKind::View(id) => Hover::Tab(id),
                     StripHitKind::Overflow => Hover::Overflow,
                     StripHitKind::New => Hover::New,
+                    StripHitKind::RightVersion => Hover::RightVersion,
+                    StripHitKind::RightTime => Hover::RightTime,
                 });
                 if next != self.hovered {
                     self.hovered = next;
@@ -1055,7 +1085,16 @@ impl State {
                     Some(StripHitKind::View(tab_id)) => {
                         PopupMenu::context(tab_id, mouse.column, self.columns, context.shortcuts)
                     }
-                    Some(StripHitKind::New) => PopupMenu::configure(mouse.column, self.columns),
+                    Some(StripHitKind::New) => {
+                        PopupMenu::configure(mouse.column, self.columns, PopupAction::ConfigurePlus)
+                    }
+                    Some(StripHitKind::RightVersion | StripHitKind::RightTime) => {
+                        PopupMenu::configure(
+                            mouse.column,
+                            self.columns,
+                            PopupAction::ConfigureRight,
+                        )
+                    }
                     _ => return,
                 };
                 self.mode = Mode::Popup(menu);
@@ -1100,6 +1139,7 @@ impl State {
                     }
                     effects.push(Effect::Paint { clear: false });
                 }
+                Some(StripHitKind::RightVersion | StripHitKind::RightTime) => {}
                 Some(StripHitKind::Overflow) => {
                     let anchor = context
                         .strip
@@ -1188,7 +1228,11 @@ impl State {
                 effects.push(paint);
             }
             ServerEvent::StatusBatch { statuses } => {
-                if statuses.iter().any(|(tab_id, status)| status != "failed" && self.failed_tab.as_deref() == Some(tab_id.as_str())) { self.failed_tab = None; }
+                if statuses.iter().any(|(tab_id, status)| {
+                    status != "failed" && self.failed_tab.as_deref() == Some(tab_id.as_str())
+                }) {
+                    self.failed_tab = None;
+                }
                 effects.push(paint);
             }
             ServerEvent::Commit {
@@ -1355,7 +1399,9 @@ impl State {
     /// Whether `kind`'s tab is visible: shown in the strip or viewed now. Invariant: a hidden
     /// utility tab never surfaces by itself.
     pub fn utility_visible(&self, kind: UtilityKind, viewed: Option<&str>) -> bool {
-        self.view.shown()[kind.singleton_index().expect("visible utility kind must be singleton")]
+        self.view.shown()[kind
+            .singleton_index()
+            .expect("visible utility kind must be singleton")]
             || viewed.is_some_and(|id| UtilityKind::of(id) == Some(kind))
     }
 
@@ -1773,20 +1819,33 @@ mod tests {
         let mut state = fixture.state();
         fixture.step(&mut state, shortcut("tabs.new"));
         state.route_input(None, vec![b"private".to_vec()]);
-        assert_eq!(fixture.step(&mut state, shortcut("tabs.close")),
-            [Effect::Send(Request::CancelCreate), PAINT]);
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.close")),
+            [Effect::Send(Request::CancelCreate), PAINT]
+        );
         assert!(!state.view.pending_agent_visible);
         assert!(!state.view.pending_created_activation);
         assert!(state.deferred.resolve("a").0.is_empty());
         assert_eq!(fixture.viewed.as_deref(), Some("a"));
-        assert_eq!(fixture.step(&mut state, shortcut("tabs.new")),
-            [Effect::Send(Request::Create), PAINT]);
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.new")),
+            [Effect::Send(Request::Create), PAINT]
+        );
 
-        fixture.step(&mut state, server(ServerEvent::Created { tab_id: "b".into() }));
+        fixture.step(
+            &mut state,
+            server(ServerEvent::Created { tab_id: "b".into() }),
+        );
         fixture.requested = Some("b".into());
         state.route_input(Some("b"), vec![b"secret".to_vec()]);
-        assert_eq!(fixture.step(&mut state, shortcut("tabs.close")),
-            [Effect::Send(Request::Close("b".into())), Effect::CancelViewRequest, PAINT]);
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.close")),
+            [
+                Effect::Send(Request::Close("b".into())),
+                Effect::CancelViewRequest,
+                PAINT
+            ]
+        );
         assert!(!state.view.pending_agent_visible);
         assert!(state.deferred.resolve("b").0.is_empty());
         assert_eq!(fixture.viewed.as_deref(), Some("a"));
@@ -1795,10 +1854,16 @@ mod tests {
     #[test]
     fn pending_chip_context_menu_closes_only_that_agent() {
         let mut fixture = Fixture::new(&["a"], "a");
-        fixture.strip.hits.push((20, 32, StripHitKind::View(PENDING_AGENT_ID.into())));
+        fixture
+            .strip
+            .hits
+            .push((20, 32, StripHitKind::View(PENDING_AGENT_ID.into())));
         let mut state = fixture.state();
         fixture.step(&mut state, shortcut("tabs.new"));
-        fixture.step(&mut state, mouse(MouseKind::Down(MouseButton::Right), 22, 0));
+        fixture.step(
+            &mut state,
+            mouse(MouseKind::Down(MouseButton::Right), 22, 0),
+        );
         assert!(state.mode.popup().is_some());
         let close = fixture.step(&mut state, mouse(MouseKind::Down(MouseButton::Left), 22, 1));
         assert!(close.contains(&Effect::Send(Request::CancelCreate)));
@@ -1842,7 +1907,12 @@ mod tests {
         fixture.step(&mut state, shortcut("tabs.new"));
         fixture.step(&mut state, shortcut("tabs.next"));
         assert_eq!(
-            fixture.step(&mut state, server(ServerEvent::CreateFailed { notice: "refused".into() })),
+            fixture.step(
+                &mut state,
+                server(ServerEvent::CreateFailed {
+                    notice: "refused".into()
+                })
+            ),
             [PAINT],
             "a failed create must not cancel an unrelated user-requested view"
         );
@@ -1853,13 +1923,26 @@ mod tests {
         let mut fixture = Fixture::new(&["a", "b"], "a");
         let mut state = fixture.state();
         fixture.step(&mut state, shortcut("tabs.new"));
-        fixture.step(&mut state, server(ServerEvent::Created { tab_id: "c".into() }));
+        fixture.step(
+            &mut state,
+            server(ServerEvent::Created { tab_id: "c".into() }),
+        );
         fixture.requested = Some("c".into());
-        assert_eq!(fixture.step(&mut state, shortcut("tabs.next")), [Effect::View("b".into()), PAINT]);
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.next")),
+            [Effect::View("b".into()), PAINT]
+        );
         assert!(!state.view.pending_agent_visible);
         assert!(!state.view.pending_agent_cancelled);
         fixture.requested = Some("b".into());
-        fixture.step(&mut state, server(ServerEvent::Commit { tab_id: "b".into(), status: "idle".into(), requested: true }));
+        fixture.step(
+            &mut state,
+            server(ServerEvent::Commit {
+                tab_id: "b".into(),
+                status: "idle".into(),
+                requested: true,
+            }),
+        );
         assert!(!state.view.pending_agent_visible);
     }
 
@@ -1871,8 +1954,13 @@ mod tests {
         let opened = fixture.step(&mut state, shortcut("tabs.settings"));
         assert!(opened.contains(&Effect::Send(Request::Open(UtilityKind::Settings))));
         assert!(!state.view.pending_agent_visible);
-        assert_eq!(fixture.step(&mut state, server(ServerEvent::Created { tab_id: "b".into() })),
-            [Effect::Send(Request::List)]);
+        assert_eq!(
+            fixture.step(
+                &mut state,
+                server(ServerEvent::Created { tab_id: "b".into() })
+            ),
+            [Effect::Send(Request::List)]
+        );
     }
 
     #[test]
@@ -2742,15 +2830,21 @@ mod tests {
     #[test]
     fn every_singleton_toggles_to_landing_but_explicit_close_removes_its_instance() {
         for kind in TabKind::SINGLETONS {
-            let id = format!("{}fixture",kind.id_prefix());
-            let fixture = Fixture::new(&[&id],&id);
+            let id = format!("{}fixture", kind.id_prefix());
+            let fixture = Fixture::new(&[&id], &id);
             let mut state = fixture.state();
             state.view.prewarm(kind).shown = true;
-            assert_eq!(fixture.step(&mut state,shortcut(kind.action())),[Effect::Landing,PAINT]);
-            assert!(!state.utility_visible(kind,None));
+            assert_eq!(
+                fixture.step(&mut state, shortcut(kind.action())),
+                [Effect::Landing, PAINT]
+            );
+            assert!(!state.utility_visible(kind, None));
             let mut state = fixture.state();
             state.view.prewarm(kind).shown = true;
-            assert_eq!(fixture.step(&mut state,shortcut("tabs.close")),[Effect::Send(Request::Close(id)),PAINT]);
+            assert_eq!(
+                fixture.step(&mut state, shortcut("tabs.close")),
+                [Effect::Send(Request::Close(id)), PAINT]
+            );
         }
     }
     #[test]
@@ -2885,10 +2979,13 @@ mod tests {
     #[test]
     fn workspace_status_snapshot_recovers_failure_with_one_paint() {
         let fixture = Fixture::new(&["a", "b"], "a");
-        let mut state = fixture.state(); state.failed_tab = Some("b".into());
-        let event = server(ServerEvent::StatusBatch { statuses:vec![("a".into(),"working".into()),("b".into(),"idle".into())] });
-        assert_eq!(fixture.step(&mut state,event),[PAINT]);
-        assert_eq!(state.failed_tab,None);
+        let mut state = fixture.state();
+        state.failed_tab = Some("b".into());
+        let event = server(ServerEvent::StatusBatch {
+            statuses: vec![("a".into(), "working".into()), ("b".into(), "idle".into())],
+        });
+        assert_eq!(fixture.step(&mut state, event), [PAINT]);
+        assert_eq!(state.failed_tab, None);
     }
 
     #[test]
@@ -3130,8 +3227,14 @@ mod tests {
         };
         let effects = fixture.step(&mut state, alt_one);
         assert!(effects.contains(&Effect::View("a".into())), "{effects:?}");
-        assert!(!effects.contains(&Effect::ForwardKey), "a dispatched tab action never reaches the child");
-        assert_eq!(fixture.step(&mut state, key(KeyCode::Char('¡'))), [Effect::ForwardKey]);
+        assert!(
+            !effects.contains(&Effect::ForwardKey),
+            "a dispatched tab action never reaches the child"
+        );
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Char('¡'))),
+            [Effect::ForwardKey]
+        );
     }
 
     #[test]

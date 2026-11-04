@@ -115,6 +115,8 @@ pub enum StripHitKind {
     View(String),
     Overflow,
     New,
+    RightVersion,
+    RightTime,
 }
 
 /// The interactive part of a rendered strip: column ranges `[start, end)` and the tabs that did
@@ -213,7 +215,7 @@ pub fn rejection_notice(user_input_pending: &mut bool, message: Option<String>) 
 pub enum PopupKind {
     Context,
     Add,
-    /// The right-click menu on `+`.
+    /// A one-row right-click configuration menu.
     Configure,
     Overflow,
 }
@@ -228,6 +230,58 @@ pub struct PlusMenu {
 impl Default for PlusMenu {
     fn default() -> Self {
         Self::from_setting(None)
+    }
+}
+
+/// The independently enabled items on the right side of the resident tab bar.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RightItems {
+    enabled: [bool; 2],
+}
+
+impl Default for RightItems {
+    fn default() -> Self {
+        Self::from_setting(None)
+    }
+}
+
+impl RightItems {
+    pub const ALL: Self = Self { enabled: [true; 2] };
+
+    pub fn from_setting(value: Option<&str>) -> Self {
+        let value = value.unwrap_or("version,time");
+        Self {
+            enabled: [
+                value.split(',').any(|part| part.trim() == "version"),
+                value.split(',').any(|part| part.trim() == "time"),
+            ],
+        }
+    }
+
+    pub fn enabled(self, item: &str) -> bool {
+        match item {
+            "version" => self.enabled[0],
+            "time" => self.enabled[1],
+            _ => false,
+        }
+    }
+
+    pub fn toggle(&mut self, item: &str) {
+        match item {
+            "version" => self.enabled[0] ^= true,
+            "time" => self.enabled[1] ^= true,
+            _ => {}
+        }
+    }
+
+    pub fn to_setting(self) -> String {
+        ["version", "time"]
+            .into_iter()
+            .enumerate()
+            .filter(|(index, _)| self.enabled[*index])
+            .map(|(_, item)| item)
+            .collect::<Vec<_>>()
+            .join(",")
     }
 }
 
@@ -293,6 +347,8 @@ pub enum PopupAction {
     Activate(TabKind),
     /// Opens the plus-menu dialog in the Settings tab.
     ConfigurePlus,
+    /// Opens the native Right Side configuration dialog.
+    ConfigureRight,
     View(String),
 }
 
@@ -411,13 +467,9 @@ impl PopupMenu {
         Self::new(PopupKind::Add, None, column, columns, items)
     }
 
-    /// The right-click menu on `+`: one row that opens the plus-menu dialog.
-    pub fn configure(column: u16, columns: u16) -> Self {
-        let items = vec![PopupItem::action(
-            "Configure",
-            String::new(),
-            PopupAction::ConfigurePlus,
-        )];
+    /// A right-click configuration menu with one explicit action.
+    pub fn configure(column: u16, columns: u16, action: PopupAction) -> Self {
+        let items = vec![PopupItem::action("Configure", String::new(), action)];
         Self::new(PopupKind::Configure, None, column, columns, items)
     }
 

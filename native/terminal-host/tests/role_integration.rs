@@ -371,6 +371,8 @@ fn server_holder_and_attach_survive_client_loss_and_retain_output() {
     let runtime = directory(root.path(), "runtime");
     protect_runtime(&runtime);
     let release = directory(root.path(), "release");
+    std::fs::write(release.join("package.json"), br#"{"version":"0.2.7-dev.1238"}"#)
+        .expect("predecessor package");
     let bin = directory(&release, "bin");
     std::fs::write(
         bin.join("ui.js"),
@@ -447,6 +449,20 @@ setInterval(() => {}, 1000);
         "{}",
         first.output_text()
     );
+    // Rationale: the predecessor's native outer client sees a newer approved active release even
+    // when its retained Agent was launched from the old release tree.
+    std::fs::write(
+        data.join("release-state.json"),
+        br#"{"schema":"a1-release-cohort-v1","releases":{"next":{"packageVersion":"0.2.7-dev.1239","approval":"approved"}},"references":{"active":"next"}}"#,
+    ).expect("activated release state");
+    assert!(
+        first.output_containing("Update installed, restart to update", Duration::from_secs(5)),
+        "the predecessor attach did not announce activation: {}",
+        first.output_text()
+    );
+    // Rationale: the fixture server has no materialized cohort records, so restore its ordinary
+    // no-cohort launch state before simulating the successor executable.
+    std::fs::remove_file(data.join("release-state.json")).expect("clear fixture release state");
     first.write(b"\x03\x03");
     let detached = first.wait(Duration::from_secs(8));
     if !first.output_containing(
@@ -489,6 +505,16 @@ setInterval(() => {}, 1000);
     drop(first);
     std::thread::sleep(Duration::from_millis(1_000));
 
+    let next_release = directory(root.path(), "release-next");
+    std::fs::write(next_release.join("package.json"), br#"{"version":"0.2.7-dev.1239"}"#)
+        .expect("successor package");
+    std::fs::copy(bin.join("ui.js"), directory(&next_release, "bin").join("ui.js"))
+        .expect("successor child entry");
+    std::fs::write(
+        data.join("automatic-update.json"),
+        br#"{"schema":1,"channel":"development","targetVersion":"0.2.7-dev.1239","status":"installed","attemptedAt":1,"updatedAt":2,"installedVersion":"0.2.7-dev.1239","failure":null}"#,
+    ).expect("installed update state");
+
     let holder_before_replacement = holder_pids(&credentials_root);
     let epoch_before_replacement = registry_epoch(&credentials_root);
     // Invariant: utility tabs may be prewarmed; only the one Agent holder is required here.
@@ -499,10 +525,15 @@ setInterval(() => {}, 1000);
     wait_for_holder_started_server(&executable, &profile, &data, &runtime, &address);
     cleanup.pids.extend(server_pids(&credentials_root));
 
-    let mut second = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    let mut second = AttachFixture::spawn(&executable, &address, &profile, &data, &next_release);
     assert!(
         second.output_containing("detached-output", Duration::from_secs(15)),
         "{}",
+        second.output_text()
+    );
+    assert!(
+        !second.output_text().contains("Update installed, restart to update"),
+        "the successor client repeated a satisfied restart notice: {}",
         second.output_text()
     );
     assert_eq!(holder_pids(&credentials_root), holder_before_replacement);
@@ -517,7 +548,7 @@ setInterval(() => {}, 1000);
     second.wait(Duration::from_secs(8));
     drop(second);
 
-    let mut third = AttachFixture::spawn(&executable, &address, &profile, &data, &release);
+    let mut third = AttachFixture::spawn(&executable, &address, &profile, &data, &next_release);
     assert!(
         third.output_containing("echo:after-reattach", Duration::from_secs(15)),
         "{}",

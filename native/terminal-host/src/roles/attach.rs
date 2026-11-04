@@ -19,9 +19,9 @@ use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
 
 use crate::core::attach::{
     self as core_attach, Context, Effect, Hover, KeyForward, PlusMenu, PopupItem, PopupMenu,
-    RenameEditor, Request, ServerEvent, ShortcutLabels, State, StripLayout, StripSnapshot, TabDrag,
-    TabView, debounce_starting_glyphs, drag_marker_column, hold_status_glyphs,
-    holder_idle_precedes_bridge, shown_tabs,
+    RenameEditor, Request, RightItems, ServerEvent, ShortcutLabels, State, StripLayout,
+    StripSnapshot, TabDrag, TabView, debounce_starting_glyphs, drag_marker_column,
+    hold_status_glyphs, holder_idle_precedes_bridge, shown_tabs,
 };
 use crate::core::tab_bar::append_visible_tab;
 use crate::endpoint;
@@ -82,11 +82,17 @@ fn is_stale_unrequested_agent(
         || (request_id.is_none()
             && !core_attach::is_utility_tab(tab_id)
             && (closed.contains(tab_id)
-                || !tabs.iter().chain(staged.into_iter().flatten()).any(|tab| tab.id == tab_id)))
+                || !tabs
+                    .iter()
+                    .chain(staged.into_iter().flatten())
+                    .any(|tab| tab.id == tab_id)))
 }
 
 fn take_cancelled_agent(cancelled: &mut Vec<CancelledAgent>, request_id: Option<u64>) -> bool {
-    let Some(index) = cancelled.iter().position(|entry| Some(entry.request_id) == request_id) else {
+    let Some(index) = cancelled
+        .iter()
+        .position(|entry| Some(entry.request_id) == request_id)
+    else {
         return false;
     };
     cancelled.remove(index);
@@ -94,27 +100,45 @@ fn take_cancelled_agent(cancelled: &mut Vec<CancelledAgent>, request_id: Option<
 }
 
 fn persisted_default_preview(environment: &[(String, String)]) -> Option<(String, String)> {
-    let value = |name: &str| environment.iter().find_map(|(key, value)| (key == name).then_some(value));
-    let agent_dir = value("PI_CODING_AGENT_DIR").filter(|path| !path.is_empty()).map(PathBuf::from).or_else(|| {
-        let home = if cfg!(windows) {
-            value("USERPROFILE").or_else(|| value("HOME"))
-        } else {
-            value("HOME").or_else(|| value("USERPROFILE"))
-        }?;
-        Some(PathBuf::from(home).join(".pi").join("agent"))
-    })?;
+    let value = |name: &str| {
+        environment
+            .iter()
+            .find_map(|(key, value)| (key == name).then_some(value))
+    };
+    let agent_dir = value("PI_CODING_AGENT_DIR")
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| {
+            let home = if cfg!(windows) {
+                value("USERPROFILE").or_else(|| value("HOME"))
+            } else {
+                value("HOME").or_else(|| value("USERPROFILE"))
+            }?;
+            Some(PathBuf::from(home).join(".pi").join("agent"))
+        })?;
     let path = agent_dir.join("settings.json");
-    let settings: serde_json::Value = std::fs::metadata(&path).ok()
+    let settings: serde_json::Value = std::fs::metadata(&path)
+        .ok()
         .filter(|metadata| metadata.len() <= MAX_SETTINGS_BYTES)
         .and_then(|_| std::fs::read(path).ok())
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())?;
     let provider = settings.get("defaultProvider")?.as_str()?;
     let model = settings.get("defaultModel")?.as_str()?;
-    if model.is_empty() || model.len() > 160 || model.chars().any(char::is_control) { return None; }
+    if model.is_empty() || model.len() > 160 || model.chars().any(char::is_control) {
+        return None;
+    }
     let key = format!("{provider}/{model}");
-    let thinking = settings.get("modelThinkingLevels").and_then(|levels| levels.get(&key))
-        .or_else(|| settings.get("defaultThinkingLevel")).and_then(serde_json::Value::as_str)
-        .filter(|level| matches!(*level, "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"))
+    let thinking = settings
+        .get("modelThinkingLevels")
+        .and_then(|levels| levels.get(&key))
+        .or_else(|| settings.get("defaultThinkingLevel"))
+        .and_then(serde_json::Value::as_str)
+        .filter(|level| {
+            matches!(
+                *level,
+                "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+            )
+        })
         .unwrap_or("medium");
     Some((model.to_owned(), thinking.to_owned()))
 }
@@ -125,7 +149,11 @@ fn replace_preview_default(
     thinking: String,
     fallback_color: [u8; 3],
 ) {
-    let color = footer.thinking.as_ref().map(|(_, color)| *color).unwrap_or(fallback_color);
+    let color = footer
+        .thinking
+        .as_ref()
+        .map(|(_, color)| *color)
+        .unwrap_or(fallback_color);
     footer.model = model;
     footer.thinking = Some((thinking, color));
     footer.actual = None;
@@ -133,7 +161,9 @@ fn replace_preview_default(
 
 /// Read only the last complete Agent footer as a visual template. The next Agent's usage is
 /// rebuilt at zero and never inherited from an unrelated tab.
-fn agent_preview_footer(surface: &protocol::StructuredSurface) -> Option<landing::AgentPreviewFooter> {
+fn agent_preview_footer(
+    surface: &protocol::StructuredSurface,
+) -> Option<landing::AgentPreviewFooter> {
     if surface.commit_kind != protocol::SurfaceCommitKind::Complete
         || surface.rows < 5
         || surface.row_data.len() != usize::from(surface.rows)
@@ -157,13 +187,18 @@ fn agent_preview_footer(surface: &protocol::StructuredSurface) -> Option<landing
         (!percent.is_empty()
             && window.len() <= 24
             && !window.is_empty()
-            && window.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '.'))
+            && window
+                .chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || ch == '.'))
         .then(|| window.to_owned())
     })?;
     let (model, thinking) = match model.rsplit_once(" • ") {
         Some((name, level))
             if !name.is_empty()
-                && matches!(level, "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") =>
+                && matches!(
+                    level,
+                    "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max"
+                ) =>
         {
             let color = row
                 .cells
@@ -202,27 +237,44 @@ fn actual_agent_footer_rows(
     footer: &landing::AgentPreviewFooter,
 ) -> Option<landing::AgentFooterRows> {
     let mut status = surface.row_data.last()?.clone();
-    let path = surface.row_data.get(usize::from(surface.rows).checked_sub(2)?)?;
+    let path = surface
+        .row_data
+        .get(usize::from(surface.rows).checked_sub(2)?)?;
     if !path.cells.iter().any(|cell| !cell.text.trim().is_empty())
         || status.cells.len() != usize::from(surface.columns)
         || path.cells.len() != usize::from(surface.columns)
     {
         return None;
     }
-    let text = status.cells.iter().filter(|cell| cell.width > 0)
-        .map(|cell| cell.text.as_str()).collect::<String>();
+    let text = status
+        .cells
+        .iter()
+        .filter(|cell| cell.width > 0)
+        .map(|cell| cell.text.as_str())
+        .collect::<String>();
     let (_, right) = text.trim_end().rsplit_once("  ")?;
     let right_width = unicode_width::UnicodeWidthStr::width(right.trim());
     let right_start = usize::from(surface.columns).checked_sub(right_width + 1)?;
     let first = (0..right_start).find(|&index| !status.cells[index].text.trim().is_empty())?;
-    let left = format!("{}0.0%/{}{}",
-        if footer.subscription { "$0.000 (sub) " } else { "" },
+    let left = format!(
+        "{}0.0%/{}{}",
+        if footer.subscription {
+            "$0.000 (sub) "
+        } else {
+            ""
+        },
         footer.context,
-        if footer.auto { " (auto)" } else { "" });
-    if left.chars().count() + first + 2 > right_start { return None; }
+        if footer.auto { " (auto)" } else { "" }
+    );
+    if left.chars().count() + first + 2 > right_start {
+        return None;
+    }
     let style = status.cells[first].style;
     for cell in &mut status.cells[first..right_start] {
-        *cell = protocol::SurfaceCell { style, ..Default::default() };
+        *cell = protocol::SurfaceCell {
+            style,
+            ..Default::default()
+        };
     }
     for (index, character) in left.chars().enumerate() {
         status.cells[first + index].text = character.to_string();
@@ -245,9 +297,18 @@ fn body_with_held_footer(surface: &protocol::StructuredSurface, footer: &[u8]) -
     Some(body)
 }
 
-fn fill_on_agent_handoff(pending: Option<&PendingAgent>, tab_id: &str, requested: bool, now: Instant) -> Option<strip::ChipFill> {
-    pending.filter(|intent| requested && intent.real_id.as_deref() == Some(tab_id))
-        .map(|_| strip::ChipFill { tab_id: tab_id.to_owned(), started_at: now })
+fn fill_on_agent_handoff(
+    pending: Option<&PendingAgent>,
+    tab_id: &str,
+    requested: bool,
+    now: Instant,
+) -> Option<strip::ChipFill> {
+    pending
+        .filter(|intent| requested && intent.real_id.as_deref() == Some(tab_id))
+        .map(|_| strip::ChipFill {
+            tab_id: tab_id.to_owned(),
+            started_at: now,
+        })
 }
 
 fn show_pending_agent(shown: &mut Vec<StripTab>, pending: &PendingAgent) {
@@ -616,7 +677,9 @@ fn control_notice(kind: &str, response: wire::ResultBody) -> Option<String> {
         "viewer.status" => None,
         "recovery.notice" if response.accepted => None,
         "recovery.notice" => Some("Couldn't finish that tab change. Try again.".into()),
-        "input.uncertain" => Some("Connection interrupted. Check the tab before trying again.".into()),
+        "input.uncertain" => {
+            Some("Connection interrupted. Check the tab before trying again.".into())
+        }
         _ => None,
     }
 }
@@ -671,14 +734,48 @@ fn admit_alt_code_input(
 /// Platform: the macOS ABC/US Option layer as `(typed character, base key)`. The dead keys
 /// Option+E, I, N, U, and backtick compose an accent instead of typing and are absent.
 const MACOS_OPTION_LAYER: &[(char, char)] = &[
-    ('¡', '1'), ('™', '2'), ('£', '3'), ('¢', '4'), ('∞', '5'),
-    ('§', '6'), ('¶', '7'), ('•', '8'), ('ª', '9'), ('º', '0'),
-    ('å', 'a'), ('∫', 'b'), ('ç', 'c'), ('∂', 'd'), ('ƒ', 'f'), ('©', 'g'), ('˙', 'h'),
-    ('∆', 'j'), ('˚', 'k'), ('¬', 'l'), ('µ', 'm'), ('ø', 'o'), ('π', 'p'), ('œ', 'q'),
-    ('®', 'r'), ('ß', 's'), ('†', 't'), ('√', 'v'), ('∑', 'w'), ('≈', 'x'), ('¥', 'y'),
+    ('¡', '1'),
+    ('™', '2'),
+    ('£', '3'),
+    ('¢', '4'),
+    ('∞', '5'),
+    ('§', '6'),
+    ('¶', '7'),
+    ('•', '8'),
+    ('ª', '9'),
+    ('º', '0'),
+    ('å', 'a'),
+    ('∫', 'b'),
+    ('ç', 'c'),
+    ('∂', 'd'),
+    ('ƒ', 'f'),
+    ('©', 'g'),
+    ('˙', 'h'),
+    ('∆', 'j'),
+    ('˚', 'k'),
+    ('¬', 'l'),
+    ('µ', 'm'),
+    ('ø', 'o'),
+    ('π', 'p'),
+    ('œ', 'q'),
+    ('®', 'r'),
+    ('ß', 's'),
+    ('†', 't'),
+    ('√', 'v'),
+    ('∑', 'w'),
+    ('≈', 'x'),
+    ('¥', 'y'),
     ('Ω', 'z'),
-    ('≤', ','), ('≥', '.'), ('÷', '/'), ('…', ';'), ('æ', '\''), ('“', '['), ('‘', ']'),
-    ('«', '\\'), ('–', '-'), ('≠', '='),
+    ('≤', ','),
+    ('≥', '.'),
+    ('÷', '/'),
+    ('…', ';'),
+    ('æ', '\''),
+    ('“', '['),
+    ('‘', ']'),
+    ('«', '\\'),
+    ('–', '-'),
+    ('≠', '='),
 ];
 
 /// Platform: macOS keyboard layouts whose Option layer is `MACOS_OPTION_LAYER`. Other layouts type
@@ -688,7 +785,11 @@ const MACOS_OPTION_LAYOUTS: &[&str] = &["com.apple.keylayout.ABC", "com.apple.ke
 /// Reads whether the active macOS keyboard layout is one of `MACOS_OPTION_LAYOUTS`.
 fn macos_option_layout_active() -> bool {
     std::process::Command::new("/usr/bin/defaults")
-        .args(["read", "com.apple.HIToolbox", "AppleCurrentKeyboardLayoutInputSourceID"])
+        .args([
+            "read",
+            "com.apple.HIToolbox",
+            "AppleCurrentKeyboardLayoutInputSourceID",
+        ])
         .output()
         .ok()
         .filter(|output| output.status.success())
@@ -732,7 +833,10 @@ fn admit_option_shortcut(
     let KeyCode::Char(typed) = key.code else {
         return key;
     };
-    let Some(&(_, base)) = MACOS_OPTION_LAYER.iter().find(|(option, _)| *option == typed) else {
+    let Some(&(_, base)) = MACOS_OPTION_LAYER
+        .iter()
+        .find(|(option, _)| *option == typed)
+    else {
         return key;
     };
     let mut chord = key;
@@ -824,7 +928,9 @@ fn suppress_pending_close_repeat(
     pending: bool,
     now: Instant,
 ) -> bool {
-    if kind == crossterm::event::KeyEventKind::Release { return false; }
+    if kind == crossterm::event::KeyEventKind::Release {
+        return false;
+    }
     if action != Some("tabs.close") {
         *until = None;
         return false;
@@ -833,7 +939,9 @@ fn suppress_pending_close_repeat(
         *until = Some(now + PENDING_CLOSE_REPEAT_QUIET);
         return true;
     }
-    if pending { *until = Some(now + PENDING_CLOSE_REPEAT_QUIET); }
+    if pending {
+        *until = Some(now + PENDING_CLOSE_REPEAT_QUIET);
+    }
     false
 }
 
@@ -846,6 +954,7 @@ struct PresentationSettings {
     tab_bar_position: TabBarPosition,
     plus_menu: PlusMenu,
     right_items: strip::StripRightItems,
+    tab_bar_background_style: Option<&'static str>,
 }
 
 impl PresentationSettings {
@@ -858,6 +967,7 @@ impl PresentationSettings {
             tab_bar_position: TabBarPosition::Top,
             plus_menu: PlusMenu::default(),
             right_items: tab_bar_right_items(None),
+            tab_bar_background_style: Some("transparent"),
         }
     }
 }
@@ -903,7 +1013,22 @@ fn read_presentation_settings(path: &Path, default_accent: &'static str) -> Pres
                 .get("tabBarRightItems")
                 .and_then(serde_json::Value::as_str),
         ),
+        tab_bar_background_style: owned_settings
+            .get("tabBarBackgroundStyle")
+            .and_then(serde_json::Value::as_str)
+            .and_then(known_tab_bar_background_style)
+            .or(Some("transparent")),
     }
+}
+
+fn right_items_setting(items: strip::StripRightItems) -> String {
+    match (items.version, items.time) {
+        (true, true) => "version,time",
+        (true, false) => "version",
+        (false, true) => "time",
+        (false, false) => "",
+    }
+    .into()
 }
 
 fn tab_bar_right_items(value: Option<&str>) -> strip::StripRightItems {
@@ -982,6 +1107,15 @@ fn read_quit_animation(path: &Path) -> bool {
         .unwrap_or(true)
 }
 
+fn known_tab_bar_background_style(style: &str) -> Option<&'static str> {
+    match style {
+        "transparent" => Some("transparent"),
+        "black" | "dark" => Some("dark"),
+        "accent" => Some("accent"),
+        _ => None,
+    }
+}
+
 /// The owned theme's dark `selectedBg` for each A1 accent, derived by
 /// `derivePiAccentProjection(accent, "dark")`; popups hover with it like owned menus.
 fn known_accent(accent: &str) -> Option<&'static str> {
@@ -1003,6 +1137,14 @@ fn known_background_style(style: &str) -> Option<&'static str> {
         "dark" => Some("dark"),
         "transparent" => Some("transparent"),
         _ => None,
+    }
+}
+
+fn tab_bar_canvas(style: Option<&str>, accent: Option<&str>) -> strip::StripCanvas {
+    match style {
+        Some("dark") => strip::StripCanvas::Rgb([20, 20, 20]),
+        Some("accent") => strip::StripCanvas::Rgb(accent_selected_background(accent)),
+        _ => strip::StripCanvas::Transparent,
     }
 }
 
@@ -1039,6 +1181,7 @@ struct TimeFormatWatch {
     tab_bar_position: TabBarPosition,
     plus_menu: PlusMenu,
     right_items: strip::StripRightItems,
+    tab_bar_background_style: Option<&'static str>,
     checked_at: Instant,
 }
 
@@ -1056,6 +1199,7 @@ impl TimeFormatWatch {
             tab_bar_position: settings.tab_bar_position,
             plus_menu: settings.plus_menu,
             right_items: settings.right_items,
+            tab_bar_background_style: settings.tab_bar_background_style,
             checked_at: Instant::now(),
         }
     }
@@ -1081,7 +1225,8 @@ impl TimeFormatWatch {
             || settings.background_style != self.background_style
             || settings.accent_hover != self.accent_hover
             || settings.tab_bar_position != self.tab_bar_position
-            || settings.right_items != self.right_items;
+            || settings.right_items != self.right_items
+            || settings.tab_bar_background_style != self.tab_bar_background_style;
         self.value = settings.time_format;
         self.accent_color = settings.accent_color;
         self.background_style = settings.background_style;
@@ -1089,6 +1234,7 @@ impl TimeFormatWatch {
         self.tab_bar_position = settings.tab_bar_position;
         self.plus_menu = settings.plus_menu;
         self.right_items = settings.right_items;
+        self.tab_bar_background_style = settings.tab_bar_background_style;
         changed
     }
 }
@@ -1579,6 +1725,8 @@ impl From<&StripHit> for core_attach::StripHitKind {
             StripHit::View(id) => Self::View(id.clone()),
             StripHit::Overflow => Self::Overflow,
             StripHit::New => Self::New,
+            StripHit::RightVersion => Self::RightVersion,
+            StripHit::RightTime => Self::RightTime,
         }
     }
 }
@@ -1688,8 +1836,7 @@ struct Handshake {
 /// Registers this terminal with the resident server, starts the session, and asks for the tab
 /// registry; returns once the server admitted this client.
 fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
-    let token =
-        super::scope::token(options.profile)?;
+    let token = super::scope::token(options.profile)?;
     let credentials =
         ProfileCredentials::load_or_create(&options.data_dir.join("tabs").join(token))?;
     let mut stream = endpoint::connect(options.endpoint).map_err(|error| error.to_string())?;
@@ -1742,7 +1889,13 @@ fn handshake(options: &AttachOptions<'_>) -> Result<Handshake, String> {
     }
     let (_, admission): (Option<u64>, BridgeAttachment) = wire::body(&attachment)?;
     let (columns, outer_rows) = outer_size()?;
-    let request_generation = start_session(&mut stream, options, columns, outer_rows, admission.selected_tab.as_deref())?;
+    let request_generation = start_session(
+        &mut stream,
+        options,
+        columns,
+        outer_rows,
+        admission.selected_tab.as_deref(),
+    )?;
     let rows = tab_rows(outer_rows).map_err(str::to_owned)?;
     let create = TabCreate {
         cwd: options.cwd.into(),
@@ -1967,10 +2120,15 @@ pub fn run_attach(options: AttachOptions<'_>) -> Result<(), String> {
         client.install_tab_list(&mut core, list)?;
     }
     core.plus_menu = client.time_format.plus_menu;
+    core.right_items =
+        RightItems::from_setting(Some(&right_items_setting(client.time_format.right_items)));
     loop {
         watchdog.bump();
         if let Some(error) = client.stream.failure() {
-            key_trace(client.key_trace_path.as_deref(), "exit=outbound-stream-failure");
+            key_trace(
+                client.key_trace_path.as_deref(),
+                "exit=outbound-stream-failure",
+            );
             return Err(error);
         }
         // Performance: a queued key must not wait behind decoding/composing the next complete
@@ -2202,6 +2360,9 @@ struct Client {
     /// The running a1 package version the landing header names, when the release records one.
     version: Option<String>,
     suppress_satisfied_update_notice: bool,
+    data_dir: PathBuf,
+    restart_ready: bool,
+    release_checked_at: Instant,
 }
 
 impl Client {
@@ -2224,7 +2385,7 @@ impl Client {
         let suppress_satisfied_update_notice = version.as_deref().is_some_and(|current| {
             super::update_notice::restart_is_satisfied(options.data_dir, current)
         });
-        let strip_frame = strip::render_interactive_status_filled_at(
+        let strip_frame = strip::render_interactive_status_filled_canvas_at(
             &[],
             view.viewed.as_deref(),
             handshake.columns,
@@ -2239,6 +2400,10 @@ impl Client {
             None,
             version.as_deref(),
             time_format.right_items,
+            tab_bar_canvas(
+                time_format.tab_bar_background_style,
+                time_format.accent_color,
+            ),
         );
         let client = Self {
             stream: AttachServerWriter::start(handshake.stream),
@@ -2283,6 +2448,9 @@ impl Client {
             settings_file: options.settings_file.to_owned(),
             version,
             suppress_satisfied_update_notice,
+            data_dir: options.data_dir.to_owned(),
+            restart_ready: false,
+            release_checked_at: Instant::now() - Duration::from_secs(30),
         };
         // Rationale: attach.start precedes the first tab.list. Wait for a committed child
         // surface before presenting that list and the body as one first frame.
@@ -2319,53 +2487,13 @@ impl Client {
         let mut forwarded = Vec::new();
         for effect in effects {
             match effect {
-                Effect::Send(request) => {
-                    if request == Request::Create {
-                        self.refresh_pending_agent_footer();
-                        self.clear_chip_fill();
-                        key_trace(self.key_trace_path.as_deref(), "effect=create");
-                        let known_ids = self
-                            .tabs
-                            .iter()
-                            .chain(self.view.staged_tabs().into_iter().flatten())
-                            .map(|tab| tab.id.clone())
-                            .collect();
-                        let request_id = self.next_create_request_id;
-                        self.next_create_request_id = self.next_create_request_id.wrapping_add(1).max(1);
-                        self.pending_agent = Some(PendingAgent {
-                            known_ids,
-                            request_id,
-                            real_id: None,
-                        });
-                    } else if request == Request::CancelCreate {
-                        key_trace(self.key_trace_path.as_deref(), "effect=cancel-create");
-                        if let Some(pending) = self.pending_agent.as_ref() {
-                            self.cancelled_agents.push(CancelledAgent {
-                                request_id: pending.request_id,
-                                known_ids: pending.known_ids.clone(),
-                            });
-                        }
-                    } else if let Request::Close(ref tab_id) = request {
-                        if self.chip_fill.as_ref().is_some_and(|fill| fill.tab_id == *tab_id) {
-                            self.clear_chip_fill();
-                        }
-                        key_trace(self.key_trace_path.as_deref(), "effect=close");
-                        self.closed_tab_ids.insert(tab_id.clone());
-                        if self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab_id) {
-                            self.hidden_cancelled_tabs.insert(tab_id.clone());
-                        }
-                    } else if matches!(request, Request::Open(_)) && !core.view.pending_agent_visible {
-                        self.pending_agent = None;
-                    }
-                    if matches!(request, Request::Reorder { .. }) {
-                        self.chip_priority.clear();
-                    }
-                    let cancelled = request == Request::CancelCreate;
-                    self.send(request)?;
-                    if cancelled { self.pending_agent = None; }
-                }
+                Effect::Send(request) => self.apply_send_effect(core, request)?,
                 Effect::View(tab_id) => {
-                    if self.chip_fill.as_ref().is_some_and(|fill| fill.tab_id != tab_id) {
+                    if self
+                        .chip_fill
+                        .as_ref()
+                        .is_some_and(|fill| fill.tab_id != tab_id)
+                    {
                         self.clear_chip_fill();
                     }
                     if !core.view.pending_agent_visible {
@@ -2402,15 +2530,77 @@ impl Client {
                 }
                 Effect::Paint { clear } => self.paint(core, clear)?,
                 Effect::SavePlusMenu(menu) => self.save_plus_menu(core, menu),
+                Effect::SaveRightItems(items) => self.save_right_items(core, items),
                 forward => forwarded.push(forward),
             }
         }
         if !core.view.pending_agent_visible
-            && self.pending_agent.as_ref().is_some_and(|pending| pending.real_id.is_none())
+            && self
+                .pending_agent
+                .as_ref()
+                .is_some_and(|pending| pending.real_id.is_none())
         {
             self.pending_agent = None;
         }
         Ok(forwarded)
+    }
+
+    fn apply_send_effect(&mut self, core: &State, request: Request) -> Result<(), String> {
+        if request == Request::Create {
+            self.refresh_pending_agent_footer();
+            self.clear_chip_fill();
+            key_trace(self.key_trace_path.as_deref(), "effect=create");
+            let known_ids = self
+                .tabs
+                .iter()
+                .chain(self.view.staged_tabs().into_iter().flatten())
+                .map(|tab| tab.id.clone())
+                .collect();
+            let request_id = self.next_create_request_id;
+            self.next_create_request_id = self.next_create_request_id.wrapping_add(1).max(1);
+            self.pending_agent = Some(PendingAgent {
+                known_ids,
+                request_id,
+                real_id: None,
+            });
+        } else if request == Request::CancelCreate {
+            key_trace(self.key_trace_path.as_deref(), "effect=cancel-create");
+            if let Some(pending) = self.pending_agent.as_ref() {
+                self.cancelled_agents.push(CancelledAgent {
+                    request_id: pending.request_id,
+                    known_ids: pending.known_ids.clone(),
+                });
+            }
+        } else if let Request::Close(ref tab_id) = request {
+            if self
+                .chip_fill
+                .as_ref()
+                .is_some_and(|fill| fill.tab_id == *tab_id)
+            {
+                self.clear_chip_fill();
+            }
+            key_trace(self.key_trace_path.as_deref(), "effect=close");
+            self.closed_tab_ids.insert(tab_id.clone());
+            if self
+                .pending_agent
+                .as_ref()
+                .and_then(|pending| pending.real_id.as_deref())
+                == Some(tab_id)
+            {
+                self.hidden_cancelled_tabs.insert(tab_id.clone());
+            }
+        } else if matches!(request, Request::Open(_)) && !core.view.pending_agent_visible {
+            self.pending_agent = None;
+        }
+        if matches!(request, Request::Reorder { .. }) {
+            self.chip_priority.clear();
+        }
+        let cancelled = request == Request::CancelCreate;
+        self.send(request)?;
+        if cancelled {
+            self.pending_agent = None;
+        }
+        Ok(())
     }
 
     fn hide_final_utility(&mut self) {
@@ -2436,13 +2626,37 @@ impl Client {
         }
     }
 
+    fn save_right_items(&mut self, core: &mut State, items: RightItems) {
+        match owned_settings::write_right_items(&self.time_format.path, items) {
+            Ok(()) => self.time_format.right_items = tab_bar_right_items(Some(&items.to_setting())),
+            Err(error) => {
+                core.right_items = RightItems::from_setting(Some(&right_items_setting(
+                    self.time_format.right_items,
+                )));
+                core.notice = Some(format!("Right side not saved: {error}"));
+            }
+        }
+    }
+
     fn send(&mut self, request: Request) -> Result<(), String> {
         let stream = &mut self.stream;
         match request {
-            Request::Create => wire::send(stream, "tab.create", self.pending_agent.as_ref().map(|pending| pending.request_id), self.create.clone()),
-            Request::CancelCreate => wire::send(stream, "tab.cancel-create", None, serde_json::json!({
-                "requestId": self.pending_agent.as_ref().ok_or("missing pending Agent")?.request_id
-            })),
+            Request::Create => wire::send(
+                stream,
+                "tab.create",
+                self.pending_agent
+                    .as_ref()
+                    .map(|pending| pending.request_id),
+                self.create.clone(),
+            ),
+            Request::CancelCreate => wire::send(
+                stream,
+                "tab.cancel-create",
+                None,
+                serde_json::json!({
+                    "requestId": self.pending_agent.as_ref().ok_or("missing pending Agent")?.request_id
+                }),
+            ),
             Request::Open(kind) => {
                 let message = format!("tab.open-{}", kind.name());
                 wire::send(stream, &message, None, self.create.clone())
@@ -2482,9 +2696,17 @@ impl Client {
     /// Invariant: cancelling a local preview returns server input ownership to the still-viewed
     /// tab, even if the pending Agent's first coherent frame never committed locally.
     fn cancel_view_request(&mut self) -> Result<(), String> {
-        let restore = self.view.requested.as_ref().filter(|requested| {
-            self.view.viewed.as_ref().is_some_and(|viewed| viewed != *requested)
-        }).and(self.view.viewed.clone());
+        let restore = self
+            .view
+            .requested
+            .as_ref()
+            .filter(|requested| {
+                self.view
+                    .viewed
+                    .as_ref()
+                    .is_some_and(|viewed| viewed != *requested)
+            })
+            .and(self.view.viewed.clone());
         self.view.cancel_request();
         if let Some(tab_id) = restore {
             self.request_view(tab_id)?;
@@ -2576,11 +2798,17 @@ impl Client {
         let strip_viewed = strip_active_view(&self.view, self.swap_in_flight.as_deref());
         let mut shown = shown_tabs(&self.tabs, strip_viewed, core.view.shown());
         shown.retain(|tab| {
-            if self.hidden_cancelled_tabs.contains(&tab.id) { return false; }
+            if self.hidden_cancelled_tabs.contains(&tab.id) {
+                return false;
+            }
             self.cancelled_agents.iter().all(|cancelled| {
                 cancelled.known_ids.contains(&tab.id)
                     || core_attach::is_utility_tab(&tab.id)
-                    || self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab.id.as_str())
+                    || self
+                        .pending_agent
+                        .as_ref()
+                        .and_then(|pending| pending.real_id.as_deref())
+                        == Some(tab.id.as_str())
             })
         });
         if let Some(intent) = self.pending_agent.as_ref().filter(|_| pending) {
@@ -2610,7 +2838,7 @@ impl Client {
         let drag = core.mode.drag().cloned();
         let plus = !core.plus_menu.is_empty();
         let render = |hovered: Option<&StripHover>| {
-            let mut frame = strip::render_interactive_status_filled_at(
+            let mut frame = strip::render_interactive_status_filled_canvas_at(
                 shown,
                 strip_viewed,
                 self.columns,
@@ -2625,9 +2853,13 @@ impl Client {
                 self.chip_fill.as_ref(),
                 self.version.as_deref(),
                 self.time_format.right_items,
+                tab_bar_canvas(
+                    self.time_format.tab_bar_background_style,
+                    self.time_format.accent_color,
+                ),
             );
             if !self.chip_priority.is_empty() && !frame.hidden_tabs.is_empty() {
-                frame = strip::render_interactive_status_filled_at(
+                frame = strip::render_interactive_status_filled_canvas_at(
                     &prioritized,
                     strip_viewed,
                     self.columns,
@@ -2642,6 +2874,10 @@ impl Client {
                     self.chip_fill.as_ref(),
                     self.version.as_deref(),
                     self.time_format.right_items,
+                    tab_bar_canvas(
+                        self.time_format.tab_bar_background_style,
+                        self.time_format.accent_color,
+                    ),
                 );
             }
             if let Some(drag) = drag.as_ref() {
@@ -2670,7 +2906,9 @@ impl Client {
         self.strip_frame = strip_frame;
         // Invariant: the provisional chip is only a local hit target for its close menu; it is
         // never used as a server tab ID or made available for child input.
-        self.strip_frame.hidden_tabs.retain(|id| id != PENDING_AGENT_ID);
+        self.strip_frame
+            .hidden_tabs
+            .retain(|id| id != PENDING_AGENT_ID);
         if self.strip_frame.hidden_tabs.is_empty() {
             self.chip_priority.clear();
         }
@@ -2714,9 +2952,13 @@ impl Client {
     }
 
     fn refresh_pending_agent_footer(&mut self) {
-        let Some((model, thinking)) = persisted_default_preview(&self.create.environment) else { return; };
+        let Some((model, thinking)) = persisted_default_preview(&self.create.environment) else {
+            return;
+        };
         replace_preview_default(
-            self.preview_footer.get_or_insert_default(), model, thinking,
+            self.preview_footer.get_or_insert_default(),
+            model,
+            thinking,
             landing::accent_colors(self.time_format.accent_color).accent,
         );
     }
@@ -2759,6 +3001,7 @@ impl Client {
                 palette,
                 &self.bindings,
                 core.plus_menu,
+                core.right_items,
                 self.columns,
                 self.outer_rows,
                 command_palette::PaletteStyle {
@@ -2775,8 +3018,9 @@ impl Client {
                 self.outer_rows,
             ))
         } else {
-            core.notice
-                .as_deref()
+            self.restart_ready
+                .then_some("Update installed, restart to update")
+                .or(core.notice.as_deref())
                 .or(status_notice.as_deref())
                 .map(|notice| {
                     render_notice_at(
@@ -2805,7 +3049,9 @@ impl Client {
         // surface so its editor and input remain live throughout the bounded chip fill.
         let held_body = if child_surface {
             self.preview_footer_hold.as_deref().and_then(|footer| {
-                self.presented.structured.as_deref()
+                self.presented
+                    .structured
+                    .as_deref()
                     .and_then(|surface| body_with_held_footer(surface, footer))
             })
         } else {
@@ -2821,7 +3067,11 @@ impl Client {
             revision: self.presented.revision,
             geometry_generation: self.presented.geometry_generation,
             strip: self.strip_frame.bytes.clone(),
-            structured: self.presented.structured.clone().filter(|_| child_surface && held_body.is_none()),
+            structured: self
+                .presented
+                .structured
+                .clone()
+                .filter(|_| child_surface && held_body.is_none()),
             legacy_body: pending_body
                 .or(landing)
                 .or(held_body)
@@ -2890,10 +3140,18 @@ impl Client {
             tab.accent = surface.accent.clone();
             effective_status.clone_from(&tab.status);
         }
-        if let Some(fill) = fill_on_agent_handoff(self.pending_agent.as_ref(), &surface.tab_id, requested, Instant::now()) {
+        if let Some(fill) = fill_on_agent_handoff(
+            self.pending_agent.as_ref(),
+            &surface.tab_id,
+            requested,
+            Instant::now(),
+        ) {
             // Invariant: the preview footer is frozen before the real Agent's first status is cached.
             // Without a complete structured frame or truecolor fill the real footer shows at once.
-            if should_hold_activation_footer(!palette_fallback_requested(), surface.structured.is_some()) {
+            if should_hold_activation_footer(
+                !palette_fallback_requested(),
+                surface.structured.is_some(),
+            ) {
                 self.preview_footer_hold = Some(self.pending_agent_shell(true));
                 self.chip_fill = Some(fill);
                 self.last_strip_frame = Instant::now();
@@ -2909,7 +3167,8 @@ impl Client {
         let mut deferred = VecDeque::new();
         for effect in std::mem::take(&mut self.pending_terminal_effects) {
             if self.presented.tab_id.as_deref() != Some(effect.tab_id.as_str())
-                || effect.incarnation != self.presented.incarnation {
+                || effect.incarnation != self.presented.incarnation
+            {
                 continue;
             }
             if effect.revision <= self.presented.revision {
@@ -2941,7 +3200,7 @@ impl Client {
                 ServerIngress::Failed(error) => {
                     key_trace(self.key_trace_path.as_deref(), "server=connection-failed");
                     return Err(error);
-                },
+                }
             };
             let _reservation = IngressReservation {
                 bytes: ingress_bytes.clone(),
@@ -3021,12 +3280,22 @@ impl Client {
                 ServerEvent::ShortcutsChanged
             }
             "workspace.status" => {
-                #[derive(serde::Deserialize)] struct Batch { statuses: Vec<TabStatus> }
+                #[derive(serde::Deserialize)]
+                struct Batch {
+                    statuses: Vec<TabStatus>,
+                }
                 let (_, batch): (_, Batch) = wire::body(payload)?;
-                if batch.statuses.len() > 4096 { return Err("workspace status bound exceeded".into()); }
-                let statuses = batch.statuses.into_iter().map(|status| {
-                    self.apply_status(&status); (status.tab_id, status.status)
-                }).collect();
+                if batch.statuses.len() > 4096 {
+                    return Err("workspace status bound exceeded".into());
+                }
+                let statuses = batch
+                    .statuses
+                    .into_iter()
+                    .map(|status| {
+                        self.apply_status(&status);
+                        (status.tab_id, status.status)
+                    })
+                    .collect();
                 ServerEvent::StatusBatch { statuses }
             }
             "tab.status" => {
@@ -3037,25 +3306,15 @@ impl Client {
                     status: status.status,
                 }
             }
-            "tab.created" | "tab.selected" => {
-                let (request_id, target): (_, TabTarget) = wire::body(payload)?;
-                if is_stale_unrequested_agent(request_id, &target.tab_id, &self.tabs, self.view.staged_tabs(),
-                    &self.closed_tab_ids, &self.hidden_cancelled_tabs) {
-                    return Ok(None);
-                }
-                if message_type == "tab.created" && take_cancelled_agent(&mut self.cancelled_agents, request_id) {
-                    self.hidden_cancelled_tabs.insert(target.tab_id.clone());
-                    self.send(Request::Close(target.tab_id))?;
-                    return Ok(None);
-                }
-                ServerEvent::Created { tab_id: target.tab_id }
-            }
+            "tab.created" | "tab.selected" => return self.tab_created_event(message_type, payload),
             "tab.create-failed" | "tab.create-refused" => {
                 let (request_id, response): (_, wire::ResultBody) = wire::body(payload)?;
                 if take_cancelled_agent(&mut self.cancelled_agents, request_id) {
                     return Ok(None);
                 }
-                ServerEvent::CreateFailed { notice: tab_create_failure_notice(response.message.as_deref()) }
+                ServerEvent::CreateFailed {
+                    notice: tab_create_failure_notice(response.message.as_deref()),
+                }
             }
             "tab.renamed" => {
                 let wire::ResultBody { accepted, message } = result()?;
@@ -3088,13 +3347,43 @@ impl Client {
                 ServerEvent::HolderExit
             }
             "failure.status" => ServerEvent::Failure {
-                message: result()?.message.map(|_| "This tab stopped unexpectedly. Open a new tab to continue.".into()),
+                message: result()?
+                    .message
+                    .map(|_| "This tab stopped unexpectedly. Open a new tab to continue.".into()),
             },
             "input.rejected" => return self.input_rejected(result()?.message),
             "viewer.status" | "input.uncertain" | "recovery.notice" => ServerEvent::Notice {
-                message: control_notice(message_type,result()?),
+                message: control_notice(message_type, result()?),
             },
             _ => return Ok(None),
+        }))
+    }
+
+    fn tab_created_event(
+        &mut self,
+        message_type: &str,
+        payload: &[u8],
+    ) -> Result<Option<ServerEvent>, String> {
+        let (request_id, target): (_, TabTarget) = wire::body(payload)?;
+        if is_stale_unrequested_agent(
+            request_id,
+            &target.tab_id,
+            &self.tabs,
+            self.view.staged_tabs(),
+            &self.closed_tab_ids,
+            &self.hidden_cancelled_tabs,
+        ) {
+            return Ok(None);
+        }
+        if message_type == "tab.created"
+            && take_cancelled_agent(&mut self.cancelled_agents, request_id)
+        {
+            self.hidden_cancelled_tabs.insert(target.tab_id.clone());
+            self.send(Request::Close(target.tab_id))?;
+            return Ok(None);
+        }
+        Ok(Some(ServerEvent::Created {
+            tab_id: target.tab_id,
         }))
     }
 
@@ -3108,7 +3397,9 @@ impl Client {
         if message.as_deref() == Some(crate::roles::server::INPUT_REJECTED_READ_ONLY) {
             return Ok(Some(ServerEvent::InputClaimLost));
         }
-        Ok(Some(ServerEvent::InputRejected { message: message.map(|_| "This input couldn't be sent. Try again.".into()) }))
+        Ok(Some(ServerEvent::InputRejected {
+            message: message.map(|_| "This input couldn't be sent. Try again.".into()),
+        }))
     }
 
     fn apply_status(&mut self, status: &TabStatus) {
@@ -3214,14 +3505,24 @@ impl Client {
                 .iter()
                 .any(|tab| &tab.tab_id == id && &tab.name == name && tab.name_source == "user")
         });
-        let visible = list.tabs.into_iter().filter(|tab| {
-            if self.hidden_cancelled_tabs.contains(&tab.tab_id) { return false; }
-            self.cancelled_agents.iter().all(|cancelled| {
-                cancelled.known_ids.contains(&tab.tab_id)
-                    || core_attach::is_utility_tab(&tab.tab_id)
-                    || self.pending_agent.as_ref().and_then(|pending| pending.real_id.as_deref()) == Some(tab.tab_id.as_str())
+        let visible = list
+            .tabs
+            .into_iter()
+            .filter(|tab| {
+                if self.hidden_cancelled_tabs.contains(&tab.tab_id) {
+                    return false;
+                }
+                self.cancelled_agents.iter().all(|cancelled| {
+                    cancelled.known_ids.contains(&tab.tab_id)
+                        || core_attach::is_utility_tab(&tab.tab_id)
+                        || self
+                            .pending_agent
+                            .as_ref()
+                            .and_then(|pending| pending.real_id.as_deref())
+                            == Some(tab.tab_id.as_str())
+                })
             })
-        }).collect();
+            .collect();
         let next_tabs = self.registry_tabs(core, visible);
         key_trace(
             self.key_trace_path.as_deref(),
@@ -3308,6 +3609,15 @@ impl Client {
         let wall_now = SystemTime::now();
         let resumed = take_resume_gap(&mut self.last_tick_wall, wall_now);
         let now = Instant::now();
+        if !self.restart_ready && self.release_checked_at.elapsed() >= Duration::from_secs(2) {
+            self.release_checked_at = now;
+            self.restart_ready = self.version.as_deref().is_some_and(|current| {
+                super::update_notice::newer_active_release(&self.data_dir, current)
+            });
+            if self.restart_ready {
+                self.paint(core, false)?;
+            }
+        }
         if let Some(Offer::Commit {
             surface,
             tabs,
@@ -3376,18 +3686,20 @@ impl Client {
     /// Finish a canceled or elapsed chip fill and repaint its last partial frame once.
     fn tick_strip_animation(&mut self, core: &mut State, now: Instant) -> Result<(), String> {
         let fill_active = self.chip_fill.as_ref().is_some_and(|fill| {
-            self.view.viewed.as_deref() == Some(fill.tab_id.as_str()) && strip::fill_active(fill, now)
+            self.view.viewed.as_deref() == Some(fill.tab_id.as_str())
+                && strip::fill_active(fill, now)
         });
         if !fill_active && self.chip_fill.is_some() {
             self.clear_chip_fill();
             self.paint(core, false)?;
         }
         if (strip::animations_active(&self.tabs) || fill_active)
-            && self.last_strip_frame.elapsed() >= if fill_active {
-                Duration::from_millis(25)
-            } else {
-                strip::animation_interval(&self.tabs)
-            }
+            && self.last_strip_frame.elapsed()
+                >= if fill_active {
+                    Duration::from_millis(25)
+                } else {
+                    strip::animation_interval(&self.tabs)
+                }
         {
             self.paint(core, false)?;
             self.last_strip_frame = now;
@@ -3474,8 +3786,13 @@ impl Client {
             self.option_layout.active()
         });
         let action = self.bindings.action(&key).map(str::to_owned);
-        if suppress_pending_close_repeat(&mut self.pending_close_quiet_until, action.as_deref(), key.kind,
-            core.view.pending_agent_visible, Instant::now()) {
+        if suppress_pending_close_repeat(
+            &mut self.pending_close_quiet_until,
+            action.as_deref(),
+            key.kind,
+            core.view.pending_agent_visible,
+            Instant::now(),
+        ) {
             return Ok(false);
         }
         let event = core_attach::Event::Key {
@@ -3643,6 +3960,8 @@ impl From<&Hover> for StripHover {
             Hover::Tab(id) => Self::Tab(id.clone()),
             Hover::Overflow => Self::Overflow,
             Hover::New => Self::New,
+            Hover::RightVersion => Self::RightVersion,
+            Hover::RightTime => Self::RightTime,
         }
     }
 }
@@ -3713,7 +4032,10 @@ fn prioritized_chips(tabs: &[StripTab], priority: &[String]) -> Vec<StripTab> {
 fn strip_hover_present(frame: &strip::StripFrame, hovered: &StripHover) -> bool {
     frame.hits.iter().any(|(_, _, hit)| match (hovered, hit) {
         (StripHover::Tab(hovered), StripHit::View(id)) => hovered == id,
-        (StripHover::Overflow, StripHit::Overflow) | (StripHover::New, StripHit::New) => true,
+        (StripHover::Overflow, StripHit::Overflow)
+        | (StripHover::New, StripHit::New)
+        | (StripHover::RightVersion, StripHit::RightVersion)
+        | (StripHover::RightTime, StripHit::RightTime) => true,
         _ => false,
     })
 }
@@ -4253,39 +4575,101 @@ mod tests {
         use crossterm::event::KeyEventKind::{Press, Release, Repeat};
         let at = Instant::now();
         let mut until = None;
-        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Press, true, at));
-        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Release, false, at));
+        assert!(!suppress_pending_close_repeat(
+            &mut until,
+            Some("tabs.close"),
+            Press,
+            true,
+            at
+        ));
+        assert!(!suppress_pending_close_repeat(
+            &mut until,
+            Some("tabs.close"),
+            Release,
+            false,
+            at
+        ));
         for millis in [20, 200, 600] {
-            assert!(suppress_pending_close_repeat(&mut until, Some("tabs.close"), Repeat,
-                false, at + Duration::from_millis(millis)));
+            assert!(suppress_pending_close_repeat(
+                &mut until,
+                Some("tabs.close"),
+                Repeat,
+                false,
+                at + Duration::from_millis(millis)
+            ));
         }
-        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.close"), Press,
-            false, at + Duration::from_millis(1200)));
-        assert!(!suppress_pending_close_repeat(&mut until, Some("tabs.new"), Press,
-            false, at + Duration::from_millis(1201)));
+        assert!(!suppress_pending_close_repeat(
+            &mut until,
+            Some("tabs.close"),
+            Press,
+            false,
+            at + Duration::from_millis(1200)
+        ));
+        assert!(!suppress_pending_close_repeat(
+            &mut until,
+            Some("tabs.new"),
+            Press,
+            false,
+            at + Duration::from_millis(1201)
+        ));
         assert_eq!(until, None);
     }
 
     #[test]
     fn late_initial_selection_cannot_restore_a_closed_agent() {
         let tabs = vec![StripTab {
-            id: "old".into(), name: "Old".into(), name_source: "default".into(),
-            status: "idle".into(), accent: None, title_animation: None,
+            id: "old".into(),
+            name: "Old".into(),
+            name_source: "default".into(),
+            status: "idle".into(),
+            accent: None,
+            title_animation: None,
         }];
         let closed: HashSet<String> = ["old".into()].into_iter().collect();
         let cancelled: HashSet<String> = ["cancelled".into()].into_iter().collect();
-        assert!(is_stale_unrequested_agent(None, "old", &tabs, None, &closed, &cancelled));
-        assert!(is_stale_unrequested_agent(None, "unlisted", &tabs, None, &closed, &cancelled));
-        assert!(is_stale_unrequested_agent(Some(7), "cancelled", &tabs, None, &closed, &cancelled));
-        assert!(!is_stale_unrequested_agent(Some(8), "new", &tabs, None, &closed, &cancelled));
-        assert!(!is_stale_unrequested_agent(None, "old", &tabs, None, &HashSet::new(), &HashSet::new()));
+        assert!(is_stale_unrequested_agent(
+            None, "old", &tabs, None, &closed, &cancelled
+        ));
+        assert!(is_stale_unrequested_agent(
+            None, "unlisted", &tabs, None, &closed, &cancelled
+        ));
+        assert!(is_stale_unrequested_agent(
+            Some(7),
+            "cancelled",
+            &tabs,
+            None,
+            &closed,
+            &cancelled
+        ));
+        assert!(!is_stale_unrequested_agent(
+            Some(8),
+            "new",
+            &tabs,
+            None,
+            &closed,
+            &cancelled
+        ));
+        assert!(!is_stale_unrequested_agent(
+            None,
+            "old",
+            &tabs,
+            None,
+            &HashSet::new(),
+            &HashSet::new()
+        ));
     }
 
     #[test]
     fn cancelled_create_response_cannot_consume_another_request() {
         let mut pending = vec![
-            CancelledAgent { request_id: 7, known_ids: HashSet::new() },
-            CancelledAgent { request_id: 8, known_ids: HashSet::new() },
+            CancelledAgent {
+                request_id: 7,
+                known_ids: HashSet::new(),
+            },
+            CancelledAgent {
+                request_id: 8,
+                known_ids: HashSet::new(),
+            },
         ];
         assert!(!take_cancelled_agent(&mut pending, None));
         assert!(!take_cancelled_agent(&mut pending, Some(9)));
@@ -4298,15 +4682,26 @@ mod tests {
     #[test]
     fn pending_agent_preview_uses_the_persisted_default_instead_of_the_prior_model() {
         let agent_dir = tempfile::tempdir().unwrap();
-        std::fs::write(agent_dir.path().join("settings.json"), serde_json::json!({
-            "defaultProvider": "openai-codex",
-            "defaultModel": "gpt-5.6-luna",
-            "defaultThinkingLevel": "low",
-            "modelThinkingLevels": { "openai-codex/gpt-5.6-luna": "high" }
-        }).to_string()).unwrap();
-        let environment = vec![("PI_CODING_AGENT_DIR".into(), agent_dir.path().display().to_string())];
+        std::fs::write(
+            agent_dir.path().join("settings.json"),
+            serde_json::json!({
+                "defaultProvider": "openai-codex",
+                "defaultModel": "gpt-5.6-luna",
+                "defaultThinkingLevel": "low",
+                "modelThinkingLevels": { "openai-codex/gpt-5.6-luna": "high" }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let environment = vec![(
+            "PI_CODING_AGENT_DIR".into(),
+            agent_dir.path().display().to_string(),
+        )];
         let (model, thinking) = persisted_default_preview(&environment).unwrap();
-        assert_eq!((model.as_str(), thinking.as_str()), ("gpt-5.6-luna", "high"));
+        assert_eq!(
+            (model.as_str(), thinking.as_str()),
+            ("gpt-5.6-luna", "high")
+        );
 
         let mut footer = landing::AgentPreviewFooter {
             model: "gpt-6.1-sol".into(),
@@ -4322,7 +4717,10 @@ mod tests {
         replace_preview_default(&mut footer, model, thinking, [4, 5, 6]);
         assert_eq!(footer.model, "gpt-5.6-luna");
         assert_eq!(footer.thinking, Some(("high".into(), [1, 2, 3])));
-        assert!(footer.actual.is_none(), "the stale styled footer must not repaint the prior model");
+        assert!(
+            footer.actual.is_none(),
+            "the stale styled footer must not repaint the prior model"
+        );
     }
 
     #[test]
@@ -4332,34 +4730,57 @@ mod tests {
             columns: 80,
             rows: 23,
             row_data: vec![protocol::SurfaceRow::default(); 23],
-            styles: vec![protocol::SurfaceStyle::default(), protocol::SurfaceStyle {
-                foreground: protocol::SurfaceColor::Rgb([223, 122, 199]),
-                ..Default::default()
-            }],
+            styles: vec![
+                protocol::SurfaceStyle::default(),
+                protocol::SurfaceStyle {
+                    foreground: protocol::SurfaceColor::Rgb([223, 122, 199]),
+                    ..Default::default()
+                },
+            ],
             ..Default::default()
         };
-        surface.row_data[22].cells = line.chars().enumerate().map(|(index, ch)| protocol::SurfaceCell {
-            text: ch.to_string(),
-            style: u16::from(index >= line.chars().count() - "high".len()),
-            ..Default::default()
-        }).collect();
+        surface.row_data[22].cells = line
+            .chars()
+            .enumerate()
+            .map(|(index, ch)| protocol::SurfaceCell {
+                text: ch.to_string(),
+                style: u16::from(index >= line.chars().count() - "high".len()),
+                ..Default::default()
+            })
+            .collect();
         let hint = agent_preview_footer(&surface).expect("complete Agent footer");
         assert_eq!(hint.context, "272k");
         assert!(hint.subscription && hint.auto);
         assert_eq!(hint.model, "gpt-5.6-sol");
         assert_eq!(hint.thinking, Some(("high".into(), [223, 122, 199])));
-        let bytes = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
-            columns: 80, body_rows: 23, version: None, accent: None,
-            truecolor: true, half_blocks: false, cwd: "~/repo", background: None,
-        }, Some(&hint))).unwrap();
+        let bytes = String::from_utf8(landing::render_agent_preview(
+            &landing::LandingInput {
+                columns: 80,
+                body_rows: 23,
+                version: None,
+                accent: None,
+                truecolor: true,
+                half_blocks: false,
+                cwd: "~/repo",
+                background: None,
+            },
+            Some(&hint),
+        ))
+        .unwrap();
         assert!(bytes.contains("$0.000 (sub) 0.0%/272k (auto)"));
         assert!(bytes.contains("gpt-5.6-sol") && bytes.contains("223;122;199mhigh"));
         assert!(!bytes.contains("14.125") && !bytes.contains("43.2%") && !bytes.contains("↑5k"));
         surface.commit_kind = protocol::SurfaceCommitKind::ProvisionalGeometry;
-        assert!(agent_preview_footer(&surface).is_none(), "provisional geometry is not a model hint");
+        assert!(
+            agent_preview_footer(&surface).is_none(),
+            "provisional geometry is not a model hint"
+        );
         surface.commit_kind = protocol::SurfaceCommitKind::Complete;
         surface.row_data.pop();
-        assert!(agent_preview_footer(&surface).is_none(), "incomplete frames are never cached");
+        assert!(
+            agent_preview_footer(&surface).is_none(),
+            "incomplete frames are never cached"
+        );
     }
 
     #[test]
@@ -4368,15 +4789,22 @@ mod tests {
         let mut surface = protocol::StructuredSurface {
             columns: columns as u16,
             rows: 23,
-            row_data: vec![protocol::SurfaceRow {
-                cells: vec![protocol::SurfaceCell::default(); columns],
-            }; 23],
-            styles: vec![protocol::SurfaceStyle::default(), protocol::SurfaceStyle {
-                foreground: protocol::SurfaceColor::Rgb([126, 136, 142]),
-                ..Default::default()
-            }],
+            row_data: vec![
+                protocol::SurfaceRow {
+                    cells: vec![protocol::SurfaceCell::default(); columns],
+                };
+                23
+            ],
+            styles: vec![
+                protocol::SurfaceStyle::default(),
+                protocol::SurfaceStyle {
+                    foreground: protocol::SurfaceColor::Rgb([126, 136, 142]),
+                    ..Default::default()
+                },
+            ],
             links: vec![protocol::SurfaceLink {
-                id: None, uri: "https://github.com/timurproko/a1/pull/837".into(),
+                id: None,
+                uri: "https://github.com/timurproko/a1/pull/837".into(),
             }],
             ..Default::default()
         };
@@ -4400,37 +4828,83 @@ mod tests {
             surface.row_data[22].cells[right_start + index].style = 1;
         }
         let footer = agent_preview_footer(&surface).expect("complete owned footer");
-        let actual = footer.actual.as_ref().expect("actual source rows, not a guessed layout");
+        let actual = footer
+            .actual
+            .as_ref()
+            .expect("actual source rows, not a guessed layout");
         assert_eq!(actual.status.cells[columns - 1].text, " ");
-        let output = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
-            columns: columns as u16, body_rows: 23, version: None, accent: None,
-            truecolor: true, half_blocks: false, cwd: "new Agent cwd", background: None,
-        }, Some(&footer))).unwrap();
+        let output = String::from_utf8(landing::render_agent_preview(
+            &landing::LandingInput {
+                columns: columns as u16,
+                body_rows: 23,
+                version: None,
+                accent: None,
+                truecolor: true,
+                half_blocks: false,
+                cwd: "new Agent cwd",
+                background: None,
+            },
+            Some(&footer),
+        ))
+        .unwrap();
         assert!(output.contains("new Agent cwd"));
         assert!(!output.contains("fix/instant-agent-tab"));
         assert!(!output.contains("https://github.com/timurproko/a1/pull/837"));
         assert!(output.contains("$0.000 (sub) 0.0%/272k (auto)"));
         assert!(output.contains("gpt-5.6-sol • high"));
         assert!(!output.contains("14.125") && !output.contains("43.2%") && !output.contains("↑5k"));
-        let held = String::from_utf8(landing::render_agent_preview_footer(&landing::LandingInput {
-            columns: columns as u16, body_rows: 23, version: None, accent: None,
-            truecolor: true, half_blocks: false, cwd: "new Agent cwd", background: None,
-        }, Some(&footer))).unwrap();
+        let held = String::from_utf8(landing::render_agent_preview_footer(
+            &landing::LandingInput {
+                columns: columns as u16,
+                body_rows: 23,
+                version: None,
+                accent: None,
+                truecolor: true,
+                half_blocks: false,
+                cwd: "new Agent cwd",
+                background: None,
+            },
+            Some(&footer),
+        ))
+        .unwrap();
         assert!(held.contains("new Agent cwd"));
-        assert!(!held.contains("fix/instant-agent-tab") && !held.contains("https://github.com/timurproko/a1/pull/837"));
+        assert!(
+            !held.contains("fix/instant-agent-tab")
+                && !held.contains("https://github.com/timurproko/a1/pull/837")
+        );
         assert!(held.contains("$0.000 (sub) 0.0%/272k (auto)"));
         assert!(!held.contains("\x1b[22;1H") && !held.contains("14.125"));
-        let narrow = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
-            columns: 24, body_rows: 23, version: None, accent: None,
-            truecolor: true, half_blocks: false, cwd: "narrow cwd", background: None,
-        }, Some(&footer))).unwrap();
+        let narrow = String::from_utf8(landing::render_agent_preview(
+            &landing::LandingInput {
+                columns: 24,
+                body_rows: 23,
+                version: None,
+                accent: None,
+                truecolor: true,
+                half_blocks: false,
+                cwd: "narrow cwd",
+                background: None,
+            },
+            Some(&footer),
+        ))
+        .unwrap();
         assert!(narrow.contains("narrow cwd") && !narrow.contains("fix/instant-agent-tab"));
         let mut malformed = footer.clone();
         malformed.actual.as_mut().unwrap().styles.clear();
-        let recovered = String::from_utf8(landing::render_agent_preview(&landing::LandingInput {
-            columns: columns as u16, body_rows: 23, version: None, accent: None,
-            truecolor: true, half_blocks: false, cwd: "unused fallback", background: None,
-        }, Some(&malformed))).unwrap();
+        let recovered = String::from_utf8(landing::render_agent_preview(
+            &landing::LandingInput {
+                columns: columns as u16,
+                body_rows: 23,
+                version: None,
+                accent: None,
+                truecolor: true,
+                half_blocks: false,
+                cwd: "unused fallback",
+                background: None,
+            },
+            Some(&malformed),
+        ))
+        .unwrap();
         assert!(recovered.contains("unused fallback") && !recovered.contains("14.125"));
     }
 
@@ -4438,8 +4912,14 @@ mod tests {
     fn live_agent_body_holds_preview_footer_until_the_latest_real_status_is_revealed() {
         let columns = 32usize;
         let mut real = protocol::StructuredSurface {
-            columns: columns as u16, rows: 5,
-            row_data: vec![protocol::SurfaceRow { cells: vec![protocol::SurfaceCell::default(); columns] }; 5],
+            columns: columns as u16,
+            rows: 5,
+            row_data: vec![
+                protocol::SurfaceRow {
+                    cells: vec![protocol::SurfaceCell::default(); columns]
+                };
+                5
+            ],
             styles: vec![protocol::SurfaceStyle::default()],
             ..Default::default()
         };
@@ -4449,46 +4929,85 @@ mod tests {
         for (index, character) in "INTERMEDIATE STATUS".chars().enumerate() {
             real.row_data[4].cells[index].text = character.to_string();
         }
-        let preview = landing::render_agent_preview_footer(&landing::LandingInput {
-            columns: columns as u16, body_rows: 5, version: None, accent: None,
-            truecolor: true, half_blocks: false, cwd: "~/repo", background: None,
-        }, None);
+        let preview = landing::render_agent_preview_footer(
+            &landing::LandingInput {
+                columns: columns as u16,
+                body_rows: 5,
+                version: None,
+                accent: None,
+                truecolor: true,
+                half_blocks: false,
+                cwd: "~/repo",
+                background: None,
+            },
+            None,
+        );
         let held = String::from_utf8(body_with_held_footer(&real, &preview).unwrap()).unwrap();
         assert!(held.contains("READY") && held.contains("~/repo") && held.contains("no-model"));
-        assert!(!held.contains("INTERMEDIATE STATUS"), "transient Agent status never reaches the terminal");
+        assert!(
+            !held.contains("INTERMEDIATE STATUS"),
+            "transient Agent status never reaches the terminal"
+        );
         for (index, character) in "LATEST STATUS      ".chars().enumerate() {
             real.row_data[4].cells[index].text = character.to_string();
         }
         let next = String::from_utf8(body_with_held_footer(&real, &preview).unwrap()).unwrap();
-        assert!(!next.contains("LATEST STATUS"), "later status stays hidden during the fill");
-        let released = String::from_utf8(crate::roles::presentation::complete_surface_bytes(&real).unwrap()).unwrap();
+        assert!(
+            !next.contains("LATEST STATUS"),
+            "later status stays hidden during the fill"
+        );
+        let released =
+            String::from_utf8(crate::roles::presentation::complete_surface_bytes(&real).unwrap())
+                .unwrap();
         assert!(released.contains("READY") && released.contains("LATEST STATUS"));
-        assert!(!released.contains("no-model"), "the latest real footer replaces the preview on release");
+        assert!(
+            !released.contains("no-model"),
+            "the latest real footer replaces the preview on release"
+        );
     }
 
     #[test]
     fn palette_and_unstructured_fallbacks_show_real_status_immediately() {
         assert!(should_hold_activation_footer(true, true));
-        assert!(!should_hold_activation_footer(false, true), "palette mode has no chip fill to wait for");
-        assert!(!should_hold_activation_footer(true, false), "legacy bodies cannot safely hold status rows");
+        assert!(
+            !should_hold_activation_footer(false, true),
+            "palette mode has no chip fill to wait for"
+        );
+        assert!(
+            !should_hold_activation_footer(true, false),
+            "legacy bodies cannot safely hold status rows"
+        );
     }
 
     #[test]
     fn only_a_committed_pending_agents_first_frame_starts_the_chip_fill() {
         let now = Instant::now();
-        let mut pending = PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None };
+        let mut pending = PendingAgent {
+            known_ids: HashSet::new(),
+            request_id: 1,
+            real_id: None,
+        };
         assert!(fill_on_agent_handoff(Some(&pending), "agent-2", true, now).is_none());
         pending.real_id = Some("agent-2".into());
         assert!(fill_on_agent_handoff(Some(&pending), "agent-3", true, now).is_none());
         assert!(fill_on_agent_handoff(Some(&pending), "agent-2", false, now).is_none());
         assert!(fill_on_agent_handoff(None, "agent-2", true, now).is_none());
-        assert_eq!(fill_on_agent_handoff(Some(&pending), "agent-2", true, now),
-            Some(strip::ChipFill { tab_id: "agent-2".into(), started_at: now }));
+        assert_eq!(
+            fill_on_agent_handoff(Some(&pending), "agent-2", true, now),
+            Some(strip::ChipFill {
+                tab_id: "agent-2".into(),
+                started_at: now
+            })
+        );
     }
 
     #[test]
     fn pending_chip_inherits_every_owned_accent_before_its_real_surface() {
-        let intent = PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None };
+        let intent = PendingAgent {
+            known_ids: HashSet::new(),
+            request_id: 1,
+            real_id: None,
+        };
         for (accent, _) in landing::LANDING_ACCENTS {
             let mut tabs = Vec::new();
             show_pending_agent(&mut tabs, &intent);
@@ -4514,40 +5033,80 @@ mod tests {
         };
         for real_id in [None, Some("new")] {
             pending.real_id = real_id.map(str::to_owned);
-            let mut shown = vec![tab("old"), tab("settings-1"), tab("changelog-1"), tab("new")];
+            let mut shown = vec![
+                tab("old"),
+                tab("settings-1"),
+                tab("changelog-1"),
+                tab("new"),
+            ];
             show_pending_agent(&mut shown, &pending);
             assert_eq!(
                 shown.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
                 ["old", "settings-1", "changelog-1", PENDING_AGENT_ID]
             );
             let frame = strip::render_interactive_at(
-                &shown, Some(PENDING_AGENT_ID), 80, None, TimeFormat::TwentyFour, None, 1, true,
+                &shown,
+                Some(PENDING_AGENT_ID),
+                80,
+                None,
+                TimeFormat::TwentyFour,
+                None,
+                1,
+                true,
             );
             assert_eq!(
                 drawn_chip_ids(&frame),
                 ["old", "settings-1", "changelog-1", PENDING_AGENT_ID]
             );
             let narrow = strip::render_interactive_at(
-                &shown, Some(PENDING_AGENT_ID), 45, None, TimeFormat::TwentyFour, None, 1, true,
+                &shown,
+                Some(PENDING_AGENT_ID),
+                45,
+                None,
+                TimeFormat::TwentyFour,
+                None,
+                1,
+                true,
             );
             let narrow_ids = drawn_chip_ids(&narrow);
-            assert_eq!(narrow_ids.last().map(String::as_str), Some(PENDING_AGENT_ID));
-            assert_ne!(narrow_ids.first().map(String::as_str), Some(PENDING_AGENT_ID));
+            assert_eq!(
+                narrow_ids.last().map(String::as_str),
+                Some(PENDING_AGENT_ID)
+            );
+            assert_ne!(
+                narrow_ids.first().map(String::as_str),
+                Some(PENDING_AGENT_ID)
+            );
             assert!(!frame.bytes.contains("new"));
         }
         let mut from_landing = vec![tab("new")];
         show_pending_agent(
             &mut from_landing,
-            &PendingAgent { known_ids: HashSet::new(), request_id: 1, real_id: None },
+            &PendingAgent {
+                known_ids: HashSet::new(),
+                request_id: 1,
+                real_id: None,
+            },
         );
         assert_eq!(
-            from_landing.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+            from_landing
+                .iter()
+                .map(|tab| tab.id.as_str())
+                .collect::<Vec<_>>(),
             [PENDING_AGENT_ID]
         );
         // Invariant: once the complete real surface commits, the ordinary registry topology owns one chip.
-        let committed = vec![tab("old"), tab("settings-1"), tab("changelog-1"), tab("new")];
+        let committed = vec![
+            tab("old"),
+            tab("settings-1"),
+            tab("changelog-1"),
+            tab("new"),
+        ];
         assert_eq!(
-            committed.iter().map(|tab| tab.id.as_str()).collect::<Vec<_>>(),
+            committed
+                .iter()
+                .map(|tab| tab.id.as_str())
+                .collect::<Vec<_>>(),
             ["old", "settings-1", "changelog-1", "new"]
         );
     }
@@ -4605,13 +5164,27 @@ mod tests {
     #[test]
     fn admitted_retained_selection_is_explicitly_observed_before_the_first_body() {
         let mut output = Vec::new();
-        assert_eq!(start_session(&mut output,&test_attach_options(None),100,30,Some("retained-agent")).unwrap(),2);
+        assert_eq!(
+            start_session(
+                &mut output,
+                &test_attach_options(None),
+                100,
+                30,
+                Some("retained-agent")
+            )
+            .unwrap(),
+            2
+        );
         let frames = split_frames(&output);
-        let view:protocol::Envelope<ViewTarget> = protocol::decode_frame(frames[1]).unwrap();
-        assert_eq!(view.message_type,"tab.view"); assert_eq!(view.body.tab_id,"retained-agent");
-        assert_eq!(view.body.request_generation,2);
-        assert!(!should_paint_strip(false,false,false),"admission must not paint an empty first frame");
-        assert!(should_paint_strip(true,false,false));
+        let view: protocol::Envelope<ViewTarget> = protocol::decode_frame(frames[1]).unwrap();
+        assert_eq!(view.message_type, "tab.view");
+        assert_eq!(view.body.tab_id, "retained-agent");
+        assert_eq!(view.body.request_generation, 2);
+        assert!(
+            !should_paint_strip(false, false, false),
+            "admission must not paint an empty first frame"
+        );
+        assert!(should_paint_strip(true, false, false));
     }
 
     #[test]
@@ -4734,7 +5307,10 @@ mod tests {
                 "cyan",
                 None,
             );
-            assert!(frame.bytes.contains(cyan), "{viewed} uses the shared active accent");
+            assert!(
+                frame.bytes.contains(cyan),
+                "{viewed} uses the shared active accent"
+            );
         }
     }
 
@@ -5020,19 +5596,31 @@ mod tests {
         assert_eq!(bindings.label("tabs.close"), "Option+W");
         assert_eq!(bindings.label("tabs.settings"), "Option+,");
         let menu = PopupMenu::context("tab-1".into(), 79, 80, &bindings).render_with_color(false);
-        assert!(menu.contains("Option+W") && !menu.contains("Alt+W"), "{menu:?}");
-        assert_eq!(failed_banner(&bindings.label("tabs.close")), "Tab failed · R retry · F start fresh · Option+W close");
+        assert!(
+            menu.contains("Option+W") && !menu.contains("Alt+W"),
+            "{menu:?}"
+        );
+        assert_eq!(
+            failed_banner(&bindings.label("tabs.close")),
+            "Tab failed · R retry · F start fresh · Option+W close"
+        );
         assert_eq!(failed_banner(""), "Tab failed · R retry · F start fresh");
     }
 
     #[test]
     fn macos_option_layer_is_the_abc_us_layout_without_dead_keys() {
-        let typed: String = MACOS_OPTION_LAYER.iter().map(|(option, _)| *option).collect();
+        let typed: String = MACOS_OPTION_LAYER
+            .iter()
+            .map(|(option, _)| *option)
+            .collect();
         let bases: String = MACOS_OPTION_LAYER.iter().map(|(_, base)| *base).collect();
         assert_eq!(typed, "¡™£¢∞§¶•ªºå∫ç∂ƒ©˙∆˚¬µøπœ®ß†√∑≈¥Ω≤≥÷…æ“‘«–≠");
         assert_eq!(bases, "1234567890abcdfghjklmopqrstvwxyz,./;'[]\\-=");
         for dead in ['e', 'i', 'n', 'u', '`'] {
-            assert!(!bases.contains(dead), "dead key {dead} composes instead of typing");
+            assert!(
+                !bases.contains(dead),
+                "dead key {dead} composes instead of typing"
+            );
         }
     }
 
@@ -5041,16 +5629,33 @@ mod tests {
         let profile = tempfile::tempdir().unwrap();
         let bindings = TabBindings::load(profile.path());
         let expected = [
-            ('¡', "tabs.jump1"), ('™', "tabs.jump2"), ('£', "tabs.jump3"), ('¢', "tabs.jump4"),
-            ('∞', "tabs.jump5"), ('§', "tabs.jump6"), ('¶', "tabs.jump7"), ('•', "tabs.jump8"),
-            ('ª', "tabs.jump9"), ('º', "tabs.jump10"), ('å', "tabs.new"), ('∑', "tabs.close"),
-            ('≤', "tabs.settings"), ('÷', "tabs.commands"),
+            ('¡', "tabs.jump1"),
+            ('™', "tabs.jump2"),
+            ('£', "tabs.jump3"),
+            ('¢', "tabs.jump4"),
+            ('∞', "tabs.jump5"),
+            ('§', "tabs.jump6"),
+            ('¶', "tabs.jump7"),
+            ('•', "tabs.jump8"),
+            ('ª', "tabs.jump9"),
+            ('º', "tabs.jump10"),
+            ('å', "tabs.new"),
+            ('∑', "tabs.close"),
+            ('≤', "tabs.settings"),
+            ('÷', "tabs.commands"),
         ];
         for (typed, action) in expected {
             let admitted = admit_option_shortcut(true, &bindings, option_key(typed), || true);
-            assert!(admitted.modifiers.contains(KeyModifiers::ALT), "{typed} becomes an Alt chord");
+            assert!(
+                admitted.modifiers.contains(KeyModifiers::ALT),
+                "{typed} becomes an Alt chord"
+            );
             assert_eq!(bindings.action(&admitted), Some(action), "{typed}");
-            assert_eq!(bindings.action(&option_key(typed)), None, "{typed} alone matches nothing");
+            assert_eq!(
+                bindings.action(&option_key(typed)),
+                None,
+                "{typed} alone matches nothing"
+            );
         }
     }
 
@@ -5060,11 +5665,22 @@ mod tests {
         let bindings = TabBindings::load(profile.path());
         // Platform: Swedish types å, UK types £, and Spanish types ¡ as ordinary keys.
         for typed in ['å', '£', '¡', '∑', '≤', '÷'] {
-            assert_eq!(admit_option_shortcut(true, &bindings, option_key(typed), || false), option_key(typed));
+            assert_eq!(
+                admit_option_shortcut(true, &bindings, option_key(typed), || false),
+                option_key(typed)
+            );
         }
-        assert_eq!(MACOS_OPTION_LAYOUTS, ["com.apple.keylayout.ABC", "com.apple.keylayout.US"]);
-        let mut cached = OptionLayout { checked: Some((Instant::now(), true)) };
-        assert!(cached.active(), "a fresh answer is reused without rereading the layout");
+        assert_eq!(
+            MACOS_OPTION_LAYOUTS,
+            ["com.apple.keylayout.ABC", "com.apple.keylayout.US"]
+        );
+        let mut cached = OptionLayout {
+            checked: Some((Instant::now(), true)),
+        };
+        assert!(
+            cached.active(),
+            "a fresh answer is reused without rereading the layout"
+        );
     }
 
     #[test]
@@ -5072,26 +5688,63 @@ mod tests {
         let profile = tempfile::tempdir().unwrap();
         let bindings = TabBindings::load(profile.path());
         for typed in ['π', 'ø', '≈', 'µ'] {
-            assert_eq!(admit_option_shortcut(true, &bindings, option_key(typed), || panic!("unbound keys never read the layout")), option_key(typed));
+            assert_eq!(
+                admit_option_shortcut(true, &bindings, option_key(typed), || panic!(
+                    "unbound keys never read the layout"
+                )),
+                option_key(typed)
+            );
         }
         let real_alt = crossterm::event::KeyEvent::new(KeyCode::Char('1'), KeyModifiers::ALT);
-        assert_eq!(admit_option_shortcut(true, &bindings, real_alt, || panic!("real Alt never reads the layout")), real_alt);
+        assert_eq!(
+            admit_option_shortcut(true, &bindings, real_alt, || panic!(
+                "real Alt never reads the layout"
+            )),
+            real_alt
+        );
         assert_eq!(bindings.action(&real_alt), Some("tabs.jump1"));
         let control = crossterm::event::KeyEvent::new(KeyCode::Char('å'), KeyModifiers::CONTROL);
-        assert_eq!(admit_option_shortcut(true, &bindings, control, || panic!("modified keys never read the layout")), control);
+        assert_eq!(
+            admit_option_shortcut(true, &bindings, control, || panic!(
+                "modified keys never read the layout"
+            )),
+            control
+        );
     }
 
     #[test]
     fn option_mapping_follows_rebinding_and_stays_off_other_platforms() {
         let profile = tempfile::tempdir().unwrap();
-        std::fs::write(profile.path().join("keybindings.json"), br#"{"tabs.new":"alt+n"}"#).unwrap();
+        std::fs::write(
+            profile.path().join("keybindings.json"),
+            br#"{"tabs.new":"alt+n"}"#,
+        )
+        .unwrap();
         let rebound = TabBindings::load(profile.path());
-        assert_eq!(admit_option_shortcut(true, &rebound, option_key('å'), || panic!("an unbound chord never reads the layout")), option_key('å'));
-        assert_eq!(rebound.action(&option_key('å')), None, "å types once Alt+A is free");
+        assert_eq!(
+            admit_option_shortcut(true, &rebound, option_key('å'), || panic!(
+                "an unbound chord never reads the layout"
+            )),
+            option_key('å')
+        );
+        assert_eq!(
+            rebound.action(&option_key('å')),
+            None,
+            "å types once Alt+A is free"
+        );
 
         let defaults = TabBindings::load(tempfile::tempdir().unwrap().path());
-        assert_eq!(admit_option_shortcut(false, &defaults, option_key('¡'), || panic!("other platforms never read the layout")), option_key('¡'));
-        assert_eq!(defaults.action(&option_key('¡')), None, "Windows and Linux type ¡");
+        assert_eq!(
+            admit_option_shortcut(false, &defaults, option_key('¡'), || panic!(
+                "other platforms never read the layout"
+            )),
+            option_key('¡')
+        );
+        assert_eq!(
+            defaults.action(&option_key('¡')),
+            None,
+            "Windows and Linux type ¡"
+        );
     }
 
     // Invariant: the owned child's projection replays these same cases, so dispatch, labels, and
@@ -6209,23 +6862,42 @@ mod tests {
 
     #[test]
     fn actual_tab_launch_failures_never_copy_internal_reasons_into_the_strip() {
-        for reason in [None, Some(""), Some("tab-start-busy"), Some("busy"),
-            Some("holder launch failed"), Some("private-path or source epoch details")] {
-            assert_eq!(tab_create_failure_notice(reason),"Couldn't open a tab. Try again.");
+        for reason in [
+            None,
+            Some(""),
+            Some("tab-start-busy"),
+            Some("busy"),
+            Some("holder launch failed"),
+            Some("private-path or source epoch details"),
+        ] {
+            assert_eq!(
+                tab_create_failure_notice(reason),
+                "Couldn't open a tab. Try again."
+            );
         }
     }
 
     #[test]
     fn control_messages_are_quiet_on_success_and_never_copy_source_diagnostics() {
-        for accepted in [false,true] {
-            let response = || wire::ResultBody {accepted,message:Some("private source epoch, holder or filesystem details".into())};
-            assert_eq!(control_notice("viewer.status",response()),None);
-            assert_eq!(control_notice("recovery.notice",response()),
-                (!accepted).then(|| "Couldn't finish that tab change. Try again.".into()));
-            assert_eq!(control_notice("input.uncertain",response()),
-                Some("Connection interrupted. Check the tab before trying again.".into()));
+        for accepted in [false, true] {
+            let response = || wire::ResultBody {
+                accepted,
+                message: Some("private source epoch, holder or filesystem details".into()),
+            };
+            assert_eq!(control_notice("viewer.status", response()), None);
+            assert_eq!(
+                control_notice("recovery.notice", response()),
+                (!accepted).then(|| "Couldn't finish that tab change. Try again.".into())
+            );
+            assert_eq!(
+                control_notice("input.uncertain", response()),
+                Some("Connection interrupted. Check the tab before trying again.".into())
+            );
         }
-        assert_eq!(control_notice("recovery.notice",wire::ResultBody::ok()),None);
+        assert_eq!(
+            control_notice("recovery.notice", wire::ResultBody::ok()),
+            None
+        );
     }
 
     #[test]

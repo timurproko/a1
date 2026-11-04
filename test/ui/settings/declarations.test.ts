@@ -53,6 +53,7 @@ describe("owned UI setting declarations", () => {
       "tabsPosition",
       "tabBarPlusMenu",
       "tabBarRightItems",
+      "tabBarBackgroundStyle",
       "tabsAutoName",
     ]);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "timeFormat")).toMatchObject({
@@ -77,6 +78,13 @@ describe("owned UI setting declarations", () => {
       application: "live",
       defaultValue: "transparent",
       allowedValues: ["transparent", "accent", "dark"],
+    });
+    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabBarBackgroundStyle")).toMatchObject({
+      label: "Background",
+      section: { id: "tabs", title: "Tab Bar" },
+      application: "live",
+      defaultValue: "transparent",
+      allowedValues: ["transparent", "black", "accent"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "skillsPresentation")).toMatchObject({
       label: "Skills",
