@@ -4624,10 +4624,104 @@ fn fixture_terminal_host_pids() -> Vec<u32> {
     }
     matches
 }
-#[cfg(not(windows))]
+#[cfg(unix)]
 fn fixture_terminal_host_pids() -> Vec<u32> {
-    Vec::new()
+    // Concurrency: a detached holder may outlive the registry entry that identifies it.
+    // Windows already scans the exact fixture executable; Unix needs the same inventory.
+    let listing = Command::new("ps")
+        .args(["-axww", "-o", "pid=,command="])
+        .output()
+        .expect("list fixture processes");
+    assert!(
+        listing.status.success(),
+        "list fixture processes: {}",
+        String::from_utf8_lossy(&listing.stderr)
+    );
+    let executable = std::fs::canonicalize(env!("CARGO_BIN_EXE_role-host"))
+        .expect("resolve fixture executable");
+    fixture_pids_from_process_listing(
+        &String::from_utf8_lossy(&listing.stdout),
+        &executable.to_string_lossy(),
+    )
 }
+
+fn fixture_pids_from_process_listing(listing: &str, executable: &str) -> Vec<u32> {
+    listing
+        .lines()
+        .filter_map(|line| {
+            let (pid, command) = line.trim_start().split_once(char::is_whitespace)?;
+            let pid = pid.parse::<u32>().ok().filter(|pid| *pid != 0)?;
+            let suffix = command.trim_start().strip_prefix(executable)?;
+            (suffix.is_empty() || suffix.starts_with(char::is_whitespace)).then_some(pid)
+        })
+        .collect()
+}
+
+#[test]
+fn fixture_inventory_finds_unregistered_unix_holders_by_exact_executable() {
+    let executable = "/Users/runner/work/a1/a1/native/terminal-host/target/debug/role-host";
+    let listing = format!(
+        " 7460 {executable} --resident-role-child holder /private/var/folders/fixture/profile launch.ready launch.context.json\n\
+         7401 {executable} --resident-role-child server /private/var/folders/fixture/profile launch.ready launch.context.json\n"
+    );
+    assert_eq!(
+        fixture_pids_from_process_listing(&listing, executable),
+        [7460, 7401]
+    );
+    assert_eq!(
+        fixture_pids_from_process_listing(
+            " 42 /checkout with spaces/role-host --resident-role-child holder\n",
+            "/checkout with spaces/role-host"
+        ),
+        [42]
+    );
+}
+
+#[test]
+fn fixture_inventory_never_adopts_another_executable_or_an_argument_match() {
+    let executable = "/worktree/target/debug/role-host";
+    let listing = format!(
+        "1 /sbin/launchd\n\
+         2 /another-worktree/target/debug/role-host --resident-role-child holder\n\
+         3 {executable}-other --resident-role-child holder\n\
+         4 /bin/sh -c {executable}\n\
+         5 grep {executable}\n\
+         invalid {executable}\n\
+         0 {executable}\n"
+    );
+    assert!(fixture_pids_from_process_listing(&listing, executable).is_empty());
+}
+
+#[test]
+fn cleanup_terminates_a_fixture_missing_from_the_registry() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let session = root.path().join("session.jsonl");
+    std::fs::write(&session, b"").unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_role-host"))
+        .arg("--fixture-session-writer")
+        .arg(&session)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("unregistered fixture");
+    let mut ready = [0; 13];
+    child.stdout.take().unwrap().read_exact(&mut ready).unwrap();
+    // Invariant: no PID or registry record is supplied; only executable inventory can find it.
+    drop(Cleanup {
+        credentials_root: root.path().join("unregistered"),
+        pids: Vec::new(),
+    });
+    let stopped = child.try_wait().unwrap().is_some();
+    if !stopped {
+        child.kill().expect("clean up failed fixture");
+        child.wait().unwrap();
+    }
+    assert_eq!(&ready, b"writer-ready\n");
+    assert!(stopped, "cleanup left an unregistered fixture process alive");
+}
+
 fn node_executable() -> String {
     let output = Command::new(if cfg!(windows) { "node.exe" } else { "node" })
         .args(["-p", "process.execPath"])
