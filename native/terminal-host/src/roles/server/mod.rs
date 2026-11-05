@@ -918,7 +918,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         crate::roles::scope::write_owner_marker(&root, &config.endpoint, profile)?;
         crate::fault_injection::crash_at("after-marker");
     }
-    std::fs::write(ready, format!("{}:server\n", std::process::id()))
+    launch::publish_readiness(ready, &format!("{}:server\n", std::process::id()))
         .map_err(|error| format!("write server readiness: {error}"))?;
     #[cfg(unix)]
     let endpoint_address = endpoint.path().to_string_lossy().into_owned();
