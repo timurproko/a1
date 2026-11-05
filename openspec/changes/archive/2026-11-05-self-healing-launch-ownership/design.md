@@ -82,3 +82,11 @@ Development validation run `42087710717` failed two Linux recovery cases before 
 The same run reported nine implementation-comment category violations and three hard-coded environment identifiers. Comments now declare their rationale, security, platform, or concurrency intent; the resident admission fixture uses the central product-identity environment keys. No assertion, verification gate, CI selection, or coverage was weakened.
 
 Focused repair checks passed: 18 Windows recovery/diagnostic tests, source typecheck, the exact changed-documentation selection, and the full naming audit (zero violations). Full local typecheck still requires the previously unavailable generated startup descriptor; Unix execution and resident-native fixtures remain delegated to renewed exact-head CI.
+
+## CI Repair: Cooperative Idle Release
+
+Run `42090108486` passed all 13 Linux recovery cases, then exposed a separate packaged-resume failure in `stopSupervisor`: `releaseVerifiedIdleOwner` waited for process exit without requesting it. Direct callers had previously depended on force-kill fallback, which this delivery intentionally removed for unresolved live ownership.
+
+The helper now sends the existing boot-nonce-authenticated idle-release request before its bounded exit wait. The live supervisor checks its own active instances, so stale empty metadata cannot authorize shutdown of a now-busy owner; a different boot also refuses the request. No signal-based fallback was restored.
+
+A real-child regression reproduced the same false-versus-true failure before the fix and passed afterward. Another regression preserves both a different boot and a busy owner when given an old idle snapshot. The focused Windows run passed 39 tests, source compilation, source typecheck, documentation/naming checks, and architecture checks. Full local typecheck retains the documented generated-descriptor prerequisite gap; the exact Linux packaged-resume suite requires renewed CI.

@@ -564,6 +564,9 @@ export async function releaseVerifiedIdleOwner(
   } = {},
 ): Promise<boolean> {
   try {
+    // Protocol: the owner rechecks its boot nonce and live instances before cooperative exit.
+    // A durable idle snapshot alone never authorizes a signal to a still-live process.
+    await requestIdleOwnershipRelease(metadata, metadata.releaseId, 2_000);
     await (operations.waitForExit ?? waitForProcessExit)(metadata.pid, 3_000);
     return true;
   } catch {

@@ -11,6 +11,7 @@ import { ControlStore } from "../../../src/foundation/storage/index.js";
 import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
 import { observeSupervisorProcess } from "../../../src/foundation/release/supervisor-identity.js";
 import { recoverSupervisorEndpoint } from "../../../src/foundation/release/endpoint-recovery.js";
+import { releaseVerifiedIdleOwner } from "../../../src/foundation/release/bootstrap.js";
 import { probeOwnership, readEndpointMetadata, removeEndpointArtifacts, sweepDeadEndpoints } from "../../../src/foundation/release/endpoints.js";
 import { withEndpointLock } from "../../../src/foundation/release/endpoint-lock.js";
 import { fixtureMetadata, fixturePaths, fixtureRelease } from "./supervisor-recovery-fixture.js";
@@ -104,6 +105,35 @@ describe("automatic supervisor recovery", () => {
     await killFixture(guardian);
     await vi.waitFor(async () => expect(await observeSupervisorProcess(rootPid)).toBeNull(), { timeout: 8_000 });
   }, 30_000);
+
+  it("cooperatively releases a live idle supervisor before waiting for its exit", async () => {
+    const paths = await pathsFixture();
+    const child = await startChild("supervisor", paths);
+    const idle = (await readEndpointMetadata(paths.endpointMetadataPath))!;
+    expect(await probeOwnership(idle)).toBe("live-verified");
+    expect(await releaseVerifiedIdleOwner(idle, paths.dataDir)).toBe(true);
+    await vi.waitFor(() => expect(child.exitCode).toBe(0));
+    expect(await readEndpointMetadata(paths.endpointMetadataPath)).toBeNull();
+  });
+
+  it("preserves busy owners and different boots when releasing from an old idle snapshot", async () => {
+    const paths = await pathsFixture();
+    await startChild("supervisor", paths);
+    const idle = (await readEndpointMetadata(paths.endpointMetadataPath))!;
+    const boundedWait = { waitForExit: async () => { throw new Error("fixture bounds the live-owner exit wait"); } };
+    expect(await releaseVerifiedIdleOwner({ ...idle, bootNonce: "old-boot" }, paths.dataDir, boundedWait)).toBe(false);
+    expect(await probeOwnership(idle)).toBe("live-verified");
+    const client = new SupervisorClient(fixtureRelease().releaseId);
+    const instanceId = randomUUID();
+    try {
+      await client.connect(paths.endpoint);
+      expect(await client.command({ type: "create-launch-instance", requestId: randomUUID(), instanceId, profileId: "a1", shutdownPolicy: "terminate-tree-on-close", guardianIdentity: (await observeSupervisorProcess(process.pid))! })).toMatchObject({ ok: true });
+      expect(idle.ownership.liveInstanceIds).toEqual([]);
+      expect(await releaseVerifiedIdleOwner(idle, paths.dataDir, boundedWait)).toBe(false);
+      expect(await probeOwnership(idle)).toBe("live-verified");
+      expect((await readEndpointMetadata(paths.endpointMetadataPath))?.ownership.liveInstanceIds).toContain(instanceId);
+    } finally { client.close(); }
+  });
 
   it("does not let a losing startup or a second cohort rewrite the live winner's control rows", async () => {
     const paths = await pathsFixture();
