@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { SupervisorEndpointMetadata } from "./cohort-state.js";
+import { supervisorProcessState } from "./supervisor-identity.js";
 
 export interface CleanupDiagnostics {
   readonly pid: number;
@@ -27,17 +28,26 @@ export async function cleanupVerifiedOwner(
   options: { readonly graceMs?: number; readonly allowLiveInstances?: boolean; readonly reason?: "stale-idle-owner" | "explicit-update" | "legacy-mutable-install" } = {},
 ): Promise<CleanupDiagnostics> {
   const graceMs = options.graceMs ?? 1_500;
-  if (!options.allowLiveInstances && (metadata.ownership.liveInstanceIds.length > 0 || metadata.ownership.nonResumableInstanceIds.length > 0)) {
+  if (!options.allowLiveInstances && (metadata.ownership.liveInstanceIds.length > 0 || metadata.ownership.nonResumableInstanceIds.length > 0 || metadata.ownership.uncertainInstanceIds.length > 0)) {
     throw new Error("refusing to terminate an owner with recorded live generations");
   }
   const started = Date.now();
   const attempted: string[] = [];
-  if (!processIsAlive(metadata.pid)) return { pid: metadata.pid, attempted: ["owner-already-dead"], terminated: true, elapsedMs: Date.now() - started };
+  const state = await supervisorProcessState(metadata);
+  if (state === "gone") return { pid: metadata.pid, attempted: ["owner-already-dead"], terminated: true, elapsedMs: Date.now() - started };
+  // Security: ordinary recovery never signals a live owner, even with an empty durable list.
+  // Explicit update cleanup also needs the exact native generation, not merely an old handshake.
+  if (!options.allowLiveInstances || state !== "same") {
+    return { pid: metadata.pid, attempted: ["live-owner-preserved"], terminated: false, elapsedMs: Date.now() - started };
+  }
 
   attempted.push("graceful-termination");
   await terminate(metadata.pid, false);
   if (await waitUntilDead(metadata.pid, graceMs)) return { pid: metadata.pid, attempted, terminated: true, elapsedMs: Date.now() - started };
 
+  if (await supervisorProcessState(metadata) !== "same") {
+    return { pid: metadata.pid, attempted, terminated: await supervisorProcessState(metadata) === "gone", elapsedMs: Date.now() - started };
+  }
   attempted.push("forced-process-tree-termination");
   await terminate(metadata.pid, true);
   const terminated = await waitUntilDead(metadata.pid, graceMs);

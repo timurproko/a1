@@ -31,6 +31,8 @@ export interface SpawnContainedOptions {
 export interface ProcessGuardianAddon {
   version(): ProcessGuardianVersion;
   inspectProcessStart(pid: number): string | null;
+  /** Additive capability; older retained addons remain usable for containment, not recovery gates. */
+  tryAcquireProcessGate?(path: string): { readonly acquired: boolean; release(): void };
   captureTerminalModes(): string;
   restoreTerminalModes(encoded: string): void;
   deliverExitNotice(path: string, encodedModes: string): void;

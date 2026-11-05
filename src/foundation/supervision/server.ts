@@ -14,7 +14,7 @@ import {
   type SupervisorSnapshot,
 } from "../lifecycle/index.js";
 import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures, type ServerMessage } from "../protocol/index.js";
-import { processIsAlive, type MaterializedRelease } from "../release/index.js";
+import { observeSupervisorProcess, withEndpointLock, processIsAlive, type MaterializedRelease } from "../release/index.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveProductPaths, type ProductPaths } from "./paths.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
@@ -65,6 +65,7 @@ export class SupervisorServer {
   readonly bootNonce: string;
   readonly pidStartIdentity = `${process.pid}:${Math.floor(Date.now() - process.uptime() * 1_000)}`;
   readonly startedAt = new Date().toISOString();
+  #nativeStartIdentity: string | undefined;
   readonly paths: ProductPaths;
   #server: Server | null = null;
   #ownsEndpoint = false;
@@ -128,6 +129,13 @@ export class SupervisorServer {
   }
 
   async listen(): Promise<void> {
+    const identity = await observeSupervisorProcess(process.pid);
+    if (!identity) throw new Error("cannot establish this supervisor's native process identity");
+    this.#nativeStartIdentity = identity.startIdentity;
+    await withEndpointLock(this.paths.endpointMetadataPath, async () => await this.#listenLocked());
+  }
+
+  async #listenLocked(): Promise<void> {
     if (this.#server) throw new Error("supervisor is already listening");
     await mkdir(this.paths.runtimeDir, { recursive: true, mode: 0o700 });
     await mkdir(this.paths.endpointsDir, { recursive: true, mode: 0o700 });
@@ -191,25 +199,27 @@ export class SupervisorServer {
     if (this.#supersededPoll) clearInterval(this.#supersededPoll);
     this.#supersededPoll = null;
     for (const client of this.#clients) client.destroy();
-    try {
-      await this.#metadataWrites.catch(() => undefined);
-      if (this.#ownsEndpoint) {
-        // Concurrency: remove only our publication, before releasing the listening endpoint.
-        // A contender that failed to bind must never erase the successful owner's discovery file.
-        const metadata = await readFile(this.paths.endpointMetadataPath, "utf8").then(source => JSON.parse(source)).catch(() => null);
-        if (metadata?.supervisorId === this.id && metadata.bootNonce === this.bootNonce) {
-          await rm(this.paths.endpointMetadataPath, { force: true });
+    await withEndpointLock(this.paths.endpointMetadataPath, async () => {
+      try {
+        await this.#metadataWrites.catch(() => undefined);
+        if (this.#ownsEndpoint) {
+          // Concurrency: remove only our publication, before releasing the listening endpoint.
+          // A contender that failed to bind must never erase the successful owner's discovery file.
+          const metadata = await readFile(this.paths.endpointMetadataPath, "utf8").then(source => JSON.parse(source)).catch(() => null);
+          if (metadata?.supervisorId === this.id && metadata.bootNonce === this.bootNonce) {
+            await rm(this.paths.endpointMetadataPath, { force: true });
+          }
+          // Platform: Node unlinks its Unix socket when the server closes; unlinking it early would
+          // let a replacement bind before the old server finishes releasing that path.
         }
-        // Platform: Node unlinks its Unix socket when the server closes; unlinking it early would
-        // let a replacement bind before the old server finishes releasing that path.
+      } finally {
+        // Platform: a metadata sharing error must not leave a bound but undiscoverable listener.
+        if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
+        this.#server = null;
+        this.#ownsEndpoint = false;
+        this.store.close();
       }
-    } finally {
-      // Platform: a metadata sharing error must not leave a bound but undiscoverable listener.
-      if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
-      this.#server = null;
-      this.#ownsEndpoint = false;
-      this.store.close();
-    }
+    });
   }
 
   async closeForReleaseReplacement(stopAgents: boolean): Promise<void> {
@@ -528,6 +538,7 @@ export class SupervisorServer {
       supervisorId: this.id,
       pid: process.pid,
       pidStartIdentity: this.pidStartIdentity,
+      nativeStartIdentity: this.#nativeStartIdentity,
       bootNonce: this.bootNonce,
       endpoint: this.paths.endpoint,
       databasePath: this.paths.databasePath,

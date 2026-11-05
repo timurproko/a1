@@ -1,9 +1,9 @@
 ## 1. Exact supervisor identity and safe stale-record reconciliation
 
-- [ ] 1.1 Add compatible native supervisor identity publication and independently classify live, absent, exited, reused, and uninspectable process generations.
-- [ ] 1.2 Implement safe legacy metadata handling without equating approximate timestamps or differing identity formats with proof of PID reuse.
-- [ ] 1.3 Make endpoint retirement generation-checked and concurrent-recovery-safe; protect successor metadata and strengthen cleanup so a reused PID is never signalled.
-- [ ] 1.4 Add focused identity, compatibility, Windows exited-object, race, and cleanup-refusal regression fixtures.
+- [x] 1.1 Add compatible native supervisor identity publication and independently classify live, absent, exited, reused, and uninspectable process generations.
+- [x] 1.2 Implement safe legacy metadata handling without equating approximate timestamps or differing identity formats with proof of PID reuse.
+- [x] 1.3 Make endpoint retirement generation-checked and concurrent-recovery-safe; protect successor metadata and strengthen cleanup so a reused PID is never signalled.
+- [x] 1.4 Add focused identity, compatibility, Windows exited-object, race, and cleanup-refusal regression fixtures.
 
 ## 2. Automatic bounded launch recovery
 
