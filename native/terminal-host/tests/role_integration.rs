@@ -1055,6 +1055,81 @@ setInterval(() => {}, 1000);
 }
 
 #[test]
+fn utility_starts_do_not_block_later_requests_on_the_same_connection() {
+    use terminal_host_contracts::roles::{credentials::ProfileCredentials, wire};
+
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server.args(["--max-concurrent-starts", "1"])
+        .env("A1_TABS_FAULT_DELAY_TAB_START_MS", "8000");
+    assert!(server.output().expect("server").status.success());
+    let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let credentials = ProfileCredentials::load_or_create(&credentials_root).unwrap();
+    let mut stream = endpoint::connect(&address).unwrap();
+    endpoint::set_handshake_deadline(&stream, Duration::from_secs(4)).unwrap();
+    wire::send(&mut stream, "hello", Some(1), wire::RoleHello {
+        role: "attach".into(),
+        generation: terminal_host_contracts::protocol::GENERATION,
+        build: "fixture".into(),
+        release_id: terminal_host_contracts::roles::scope::fixture_release_id(&executable).unwrap(),
+        features: Vec::new(),
+        token: credentials.client_token.to_vec(),
+        tab_id: None,
+        pid: Some(std::process::id()),
+        start_identity: None,
+        incarnation: 0,
+        child_pid: None,
+        child_start_identity: None,
+        highest_epoch: 0,
+    }).unwrap();
+    for expected in ["welcome", "attached"] {
+        let payload = wire::read_payload(&mut stream).unwrap().unwrap();
+        assert_eq!(wire::kind(&payload).unwrap().message_type, expected);
+    }
+    let create = wire::TabCreate {
+        cwd: text(&release).into(),
+        columns: 80,
+        rows: 23,
+        release_root: text(&release).into(),
+        node_executable: env!("CARGO_BIN_EXE_fake-tab").into(),
+        environment: std::env::vars().collect(),
+    };
+    // Concurrency: each launch deliberately takes eight seconds. A later read-path request
+    // must finish before either launch, including when another utility is queued behind it.
+    wire::send(&mut stream, "tab.prewarm-settings", Some(2), &create).unwrap();
+    wire::send(&mut stream, "tab.open-changelog", Some(3), &create).unwrap();
+    wire::send(&mut stream, "tab.list", Some(4), wire::ResultBody::ok()).unwrap();
+    let payload = wire::read_payload(&mut stream)
+        .expect("utility launches must not block the connection's read loop").unwrap();
+    let response = wire::kind(&payload).unwrap();
+    assert_eq!(response.message_type, "tab.list");
+    assert_eq!(response.request_id, Some(4));
+
+    // Invariant: keeping the read loop responsive must not drop or reorder utility launches.
+    endpoint::set_handshake_deadline(&stream, Duration::from_secs(25)).unwrap();
+    for (request_id, prefix) in [(2, "settings-"), (3, "changelog-")] {
+        let payload = wire::read_payload(&mut stream).unwrap().unwrap();
+        assert_eq!(wire::kind(&payload).unwrap().message_type, "tab.created");
+        let (actual_id, target): (_, wire::TabTarget) = wire::body(&payload).unwrap();
+        assert_eq!(actual_id, Some(request_id));
+        assert!(target.tab_id.starts_with(prefix), "{target:?}");
+    }
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
 fn closing_a_pending_agent_cancels_its_queued_start_without_closing_the_old_agent() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
@@ -1111,7 +1186,13 @@ setInterval(() => {}, 1000);
     std::thread::sleep(Duration::from_millis(500));
     let first = attach.retained_len();
     attach.write(b"\x1ba");
-    assert!(attach.output_containing("no-model", Duration::from_secs(2)));
+    // Invariant: the earlier cancelled preview cannot satisfy this new Agent's readiness check.
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !attach.output_since(first).contains("no-model") && Instant::now() < deadline {
+        attach.settle(Duration::from_millis(25));
+    }
+    assert!(attach.output_since(first).contains("no-model"),
+        "{}\n--- key trace ---\n{}", attach.output_text(), std::fs::read_to_string(&trace_path).unwrap());
     attach.write(b"cancelled-private\n");
     let before_close = attach.retained_len();
     attach.write(b"\x1bw");
@@ -1126,7 +1207,8 @@ setInterval(() => {}, 1000);
         "closing a provisional tab must not register another Agent: {after_close:?}");
     assert!(!attach.output_since(first).contains("echo:cancelled-private"));
     attach.write(b"restored\n");
-    assert!(attach.output_containing("echo:restored", Duration::from_secs(15)), "{}", attach.output_text());
+    assert!(attach.output_containing("echo:restored", Duration::from_secs(15)),
+        "{}\n--- key trace ---\n{}", attach.output_text(), std::fs::read_to_string(&trace_path).unwrap());
     attach.write(b"\x1ba");
     attach.write(b"new-private\n");
     let result = occupying.wait_with_output().unwrap();
@@ -4085,6 +4167,8 @@ impl AttachFixture {
         }
         let mut command = CommandBuilder::new(executable);
         command.env("TERMINAL_HOST_FIXTURE_SIZE", "100x24");
+        // Invariant: provisional footer assertions must not read the developer's model settings.
+        command.env("PI_CODING_AGENT_DIR", profile.join("agent-settings"));
         for (name, value) in environment {
             command.env(name, value);
         }

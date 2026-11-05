@@ -2653,6 +2653,13 @@ mod tests {
         assert_eq!(lifecycle_refusal("tab.restart"), "tab.restarted");
         assert_eq!(lifecycle_refusal("tab.rename"), "tab.rename-refused");
         assert_eq!(lifecycle_refusal("tab.reorder"), "tab.reordered");
+        for kind in TabKind::SINGLETONS {
+            for operation in ["open", "prewarm"] {
+                let message = format!("tab.{operation}-{}", kind.provider().name);
+                assert_eq!(lifecycle_refusal(&message), "error");
+                assert_eq!(lifecycle_failure_message(&message, "private path"), "Tab change could not be completed");
+            }
+        }
         assert_eq!(
             lifecycle_failure_message("tab.create", TAB_START_BUSY),
             TAB_START_BUSY

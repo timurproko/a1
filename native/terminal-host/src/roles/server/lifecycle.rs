@@ -509,6 +509,8 @@ pub(super) const LIFECYCLE_SLOW: std::time::Duration = std::time::Duration::from
 pub(super) fn lifecycle_refusal(message_type: &str) -> &'static str {
     match message_type {
         "attach.start" => "error",
+        // Protocol: a utility failure must not masquerade as an unrelated pending Agent's failure.
+        message if utility_request(message).is_some() => "error",
         "tab.create" => "tab.create-failed",
         "tab.close" => "tab.closed",
         "tab.restart" => "tab.restarted",
@@ -873,6 +875,9 @@ pub(super) fn handle_lifecycle(
                 }
             }
             start_requested_agent(&state, &profile, tx, request_id, start, request.cancelled.as_deref())?;
+        }
+        message if utility_request(message).is_some() => {
+            open_utility_tab(&state, &profile, tx, &client_id, message, request_id, payload)?;
         }
         "tab.reorder" => {
             let (_, reorder): (_, wire::TabReorder) = wire::body(payload)?;
