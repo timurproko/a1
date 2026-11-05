@@ -15,10 +15,10 @@ const { SessionRuntimeRegistry } = await import("../../src/composition/session-r
 
 afterEach(() => {
   vi.useRealTimers();
-  vi.clearAllMocks();
+  vi.resetAllMocks();
 });
 
-const owner = { pid: 7, startIdentity: "boot-7" } as never;
+const owner = { pid: process.pid, startIdentity: "boot-7" };
 
 describe("SessionRuntimeRegistry", () => {
   it("claims nothing outside a runtime that claims worktrees", async () => {
@@ -47,6 +47,75 @@ describe("SessionRuntimeRegistry", () => {
     expect(context.register).toHaveBeenCalledTimes(2);
     expect(context.release).toHaveBeenCalledWith("runtime-1", owner);
     expect(inspect).toHaveBeenCalledOnce();
+  });
+
+  it("retries registration after the first activation fails", async () => {
+    vi.useFakeTimers();
+    context.activate.mockRejectedValueOnce(Object.assign(new Error("busy"), { code: "worktree-claim-busy" }));
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: async () => owner, refreshMs: 1_000 });
+    await expect(registry.readerFor(undefined)("s1", "/s1.jsonl", new AbortController().signal)).rejects.toThrow("busy");
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(context.register).toHaveBeenCalledWith({ sessionId: "s1", sessionFile: "/s1.jsonl" }, "runtime-1", owner, expect.any(Object));
+    await registry.dispose();
+  });
+
+  it("retries transient self-inspection failure instead of caching null", async () => {
+    vi.useFakeTimers();
+    const inspect = vi.fn(async () => owner).mockRejectedValueOnce(new Error("temporary"));
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: inspect, refreshMs: 1_000 });
+    expect(await registry.readerFor(undefined)("s1", "/s1.jsonl", new AbortController().signal)).toBeNull();
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(inspect).toHaveBeenCalledTimes(2);
+    expect(context.register).toHaveBeenCalledTimes(2);
+    await registry.dispose();
+  });
+
+  it("coalesces slow retries and drains them before disposal releases claims", async () => {
+    vi.useFakeTimers();
+    let finish!: () => void;
+    context.register.mockImplementationOnce(() => new Promise<void>(resolve => { finish = resolve; }));
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: async () => owner, refreshMs: 1_000 });
+    await registry.readerFor(undefined)("s1", "/s1.jsonl", new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(context.register).toHaveBeenCalledOnce();
+    const disposing = registry.dispose();
+    expect(context.release).not.toHaveBeenCalled();
+    finish();
+    await disposing;
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(context.register).toHaveBeenCalledOnce();
+    expect(context.release).toHaveBeenCalledOnce();
+    expect(await registry.readerFor(undefined)("late", "/late", new AbortController().signal)).toBeNull();
+    expect(context.activate).toHaveBeenCalledOnce();
+  });
+
+  it("does not activate an obsolete session after delayed self-inspection", async () => {
+    vi.useFakeTimers();
+    let inspected!: (value: typeof owner) => void;
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: () => new Promise(resolve => { inspected = resolve; }), refreshMs: 1_000 });
+    const first = registry.readerFor(undefined)("s1", "/s1.jsonl", new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(0);
+    const second = registry.readerFor(undefined)("s2", "/s2.jsonl", new AbortController().signal);
+    inspected(owner);
+    expect(await first).toBeNull();
+    await second;
+    expect(context.activate).toHaveBeenCalledOnce();
+    expect(context.activate.mock.calls[0]?.[0]).toEqual({ sessionId: "s2", sessionFile: "/s2.jsonl" });
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(context.register.mock.calls[0]?.[0]).toEqual({ sessionId: "s2", sessionFile: "/s2.jsonl" });
+    await registry.dispose();
+  });
+
+  it("keeps retrying failures and preserves independent agents", async () => {
+    vi.useFakeTimers();
+    context.register.mockRejectedValue(new Error("busy"));
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: async () => owner, refreshMs: 1_000 });
+    await registry.readerFor(undefined)("s1", "/s1.jsonl", new AbortController().signal);
+    await registry.readerFor("agent-2")("s2", "/s2.jsonl", new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(context.register).toHaveBeenCalledTimes(6);
+    expect(context.register.mock.calls.map(call => (call[0] as { sessionId: string }).sessionId)).toEqual(["s1", "s2", "s1", "s2", "s1", "s2"]);
+    await registry.dispose();
   });
 
   it("publishes no claims when the runtime's own identity cannot be read", async () => {

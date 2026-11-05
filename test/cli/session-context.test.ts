@@ -1,11 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { runSessionContextCommand } from "../../src/cli/session-context.js";
 import type { SessionContextOutcome } from "../../src/features/launch/index.js";
 
-const launch = vi.hoisted(() => ({ outcome: null as SessionContextOutcome | null }));
+const launch = vi.hoisted(() => ({ outcome: null as SessionContextOutcome | null, error: null as Error | null }));
+afterEach(() => { launch.error = null; });
 vi.mock("../../src/features/launch/index.js", async importOriginal => ({
   ...await importOriginal<typeof import("../../src/features/launch/index.js")>(),
-  updateSessionRepositoryContext: async () => launch.outcome,
+  updateSessionRepositoryContext: async () => { if (launch.error !== null) throw launch.error; return launch.outcome; },
 }));
 
 describe("session context command", () => {
@@ -18,6 +19,31 @@ describe("session context command", () => {
     )).resolves.toBe(2);
     expect(stdout).not.toHaveBeenCalled();
     expect(stderr).toHaveBeenCalledWith(expect.stringMatching(/active A1 shell-tool session/));
+  });
+
+  it.each([
+    ["worktree-claim-busy", "retry this link shortly"],
+    ["worktree-legacy-recovery-required", "stop all older A1 processes"],
+    ["worktree-coordination-unavailable", "repair or update"],
+    ["worktree-coordination-io", "permissions"],
+    ["worktree-coordination-boundary", "retain it for inspection"],
+    ["process-inspection-unavailable", "no ownership was overridden"],
+    ["session-runtime-unverifiable", "no ownership was overridden"],
+    ["session-runtime-unavailable", "retries registration automatically"],
+    ["session-runtime-stopped", "resume in a running A1 session"],
+    ["worktree-active-in-another-session", "another live agent owns"],
+    ["worktree-owner-unverifiable", "retain the claim"],
+  ])("explains %s without leaking native diagnostics", async (code, expected) => {
+    launch.error = Object.assign(new Error("private-session-file secret-token pid=123"), { code });
+    const stdout = vi.fn(), stderr = vi.fn();
+    expect(await runSessionContextCommand({ action: "link-worktree", path: "D:/delivery" }, {
+      environment: { PI_SESSION_ID: "session", PI_SESSION_FILE: "D:/session.jsonl", A1_SESSION_RUNTIME_ID: "runtime" },
+      inspectProcess: async () => null, stdout, stderr,
+    })).toBe(1);
+    expect(stdout).not.toHaveBeenCalled();
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining(`(${code})`));
+    expect(stderr).toHaveBeenCalledWith(expect.stringContaining(expected));
+    expect(stderr.mock.calls[0]?.[0]).not.toMatch(/private-session|secret-token|pid=/);
   });
 
   it("names a claiming agent only when it is not the runtime's primary agent", async () => {

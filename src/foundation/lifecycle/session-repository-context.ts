@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import type { NativeProcessIdentity } from "./model.js";
 import { resolveProductPaths } from "./paths.js";
+import { claimMutationPending, withSessionClaimLock } from "./session-claim-lock.js";
 
 const CONTEXT_SCHEMA = "a1-session-repository-context-v1";
 const RUNTIME_SCHEMA = "a1-session-runtime-v1";
@@ -13,8 +14,6 @@ const MAX_RECORD_BYTES = 16 * 1024;
 const MAX_HEADER_BYTES = 64 * 1024;
 const MAX_WORKTREES = 256;
 const GIT_TIMEOUT_MS = 5_000;
-const LOCK_TIMEOUT_MS = 2_000;
-const LOCK_RETRY_MS = 20;
 /** Records without an agent id were written by a single-agent release and belong to its one agent. */
 export const PRIMARY_SESSION_AGENT_ID = "primary";
 const RECORD_FORMAT_VERSION = 2;
@@ -84,14 +83,6 @@ interface SessionRuntimeRecord {
 interface ClaimOwner {
   readonly runtimeId: string;
   readonly agentId: string;
-}
-
-interface MutationLockRecord {
-  readonly pid: number;
-  /** Absent when the holder could not inspect itself; such a lock is never evicted. */
-  readonly startIdentity?: string;
-  readonly acquiredAt: string;
-  readonly nonce: string;
 }
 
 interface WorktreeClaimRecord {
@@ -602,94 +593,11 @@ async function executeGit(
 }
 
 async function mutationLockExists(options: SessionRepositoryContextOptions): Promise<boolean> {
-  try {
-    await lstat(join(claimStoreRoot(options), "mutation.lock"));
-    return true;
-  } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") return false;
-    return true;
-  }
+  return await claimMutationPending(claimStoreRoot(options));
 }
 
 async function withClaimLock<T>(options: SessionRepositoryContextOptions, operation: () => Promise<T>): Promise<T> {
-  const directory = claimStoreRoot(options);
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  const path = join(directory, "mutation.lock");
-  const deadline = Date.now() + (options.lockTimeoutMs ?? LOCK_TIMEOUT_MS);
-  const holder = await lockHolderIdentity(options);
-  let handle;
-  for (let attempt = 0; handle === undefined; attempt++) {
-    try {
-      handle = await open(path, "wx", 0o600);
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "EEXIST")) throw error;
-      if (attempt === 0 && await evictDeadLockHolder(path, options)) continue;
-      if (Date.now() >= deadline) throw contextError("worktree claim mutation is busy", "worktree-claim-busy");
-      await new Promise(resolvePromise => setTimeout(resolvePromise, LOCK_RETRY_MS));
-    }
-  }
-  try {
-    const record: MutationLockRecord = {
-      pid: process.pid,
-      ...(holder === null ? {} : { startIdentity: holder.startIdentity }),
-      acquiredAt: new Date().toISOString(),
-      nonce: randomUUID(),
-    };
-    await handle.writeFile(`${JSON.stringify(record)}\n`);
-    return await operation();
-  } finally {
-    await handle.close().catch(() => undefined);
-    await rm(path, { force: true }).catch(() => undefined);
-  }
-}
-
-const lockHolderIdentities = new WeakMap<(pid: number) => Promise<NativeProcessIdentity | null>, Promise<NativeProcessIdentity | null>>();
-
-/** This process's identity as recorded in the lock; null leaves the lock unevictable, never wrongly evictable. */
-async function lockHolderIdentity(options: SessionRepositoryContextOptions): Promise<NativeProcessIdentity | null> {
-  if (options.runtimeIdentity?.pid === process.pid) return options.runtimeIdentity;
-  const inspection = options.inspectProcess;
-  if (inspection === undefined) return null;
-  let identity = lockHolderIdentities.get(inspection);
-  if (identity === undefined) {
-    identity = inspection(process.pid)
-      .then(observed => observed !== null && observed.pid === process.pid ? observed : null)
-      .catch(() => null);
-    lockHolderIdentities.set(inspection, identity);
-  }
-  return await identity;
-}
-
-/**
- * Evict the mutation lock only when its recorded holder is proven dead: the pid is gone or now names a process
- * with another start identity. A lock without a holder identity, or a holder that cannot be inspected, is kept.
- */
-async function evictDeadLockHolder(path: string, options: SessionRepositoryContextOptions): Promise<boolean> {
-  const inspection = options.inspectProcess;
-  if (inspection === undefined) return false;
-  const holder = await readJsonRecord(path, isMutationLockRecord);
-  if (holder === null || holder.startIdentity === undefined || holder.pid === process.pid) return false;
-  let observed: NativeProcessIdentity | null;
-  try {
-    observed = await inspection(holder.pid);
-  } catch {
-    return false;
-  }
-  if (observed !== null && observed.pid === holder.pid && observed.startIdentity === holder.startIdentity) return false;
-  const evicted = `${path}.${randomUUID()}.evicted`;
-  try {
-    await rename(path, evicted);
-  } catch {
-    return false;
-  }
-  const moved = await readJsonRecord(evicted, isMutationLockRecord);
-  if (moved?.nonce !== holder.nonce) {
-    // Concurrency: another waiter evicted first and a live holder took the lock since; hand it back untouched.
-    await rename(evicted, path).catch(() => undefined);
-    return false;
-  }
-  await rm(evicted, { force: true });
-  return true;
+  return await withSessionClaimLock(claimStoreRoot(options), options, operation);
 }
 
 async function atomicWrite(path: string, value: unknown): Promise<void> {
@@ -838,13 +746,6 @@ function isStoredClaimRecord(value: unknown): value is Stored<WorktreeClaimRecor
     && Number.isSafeInteger(value.pid) && Number(value.pid) > 0
     && typeof value.startIdentity === "string" && value.startIdentity.length > 0 && value.startIdentity.length <= 512
     && !value.startIdentity.includes("\0") && typeof value.updatedAt === "string";
-}
-
-function isMutationLockRecord(value: unknown): value is MutationLockRecord {
-  return isRecord(value) && Number.isSafeInteger(value.pid) && Number(value.pid) > 0
-    && (value.startIdentity === undefined || (typeof value.startIdentity === "string" && value.startIdentity.length > 0
-      && value.startIdentity.length <= 512 && !value.startIdentity.includes("\0")))
-    && typeof value.acquiredAt === "string" && typeof value.nonce === "string" && value.nonce.length > 0;
 }
 
 function validRecordVersion(value: Record<string, unknown>): boolean {
