@@ -73,6 +73,23 @@ process.exitCode = await dispatchCli(process.argv.slice(2), {
     const { runTabsCommand } = await import("../dist/cli/tabs.js");
     return await runTabsCommand(request, { packageRoot: fileURLToPath(packageRoot) });
   },
+  uninstall: async request => {
+    const [{ runUninstall }, { createInterface }] = await Promise.all([
+      import("../dist/cli/uninstall.js"),
+      import("node:readline/promises"),
+    ]);
+    const interactive = process.stdin.isTTY === true && process.stdout.isTTY === true;
+    return await runUninstall(request, {
+      packageRoot: fileURLToPath(packageRoot),
+      output: { stdout: message => process.stdout.write(message), stderr: message => process.stderr.write(message) },
+      ...(interactive ? {
+        confirm: async question => {
+          const prompt = createInterface({ input: process.stdin, output: process.stdout });
+          try { return /^y(?:es)?$/iu.test((await prompt.question(question)).trim()); } finally { prompt.close(); }
+        },
+      } : {}),
+    });
+  },
 }, {
   stdout: message => process.stdout.write(message),
   stderr: message => process.stderr.write(message),

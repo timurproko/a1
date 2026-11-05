@@ -48,7 +48,7 @@ impl RuntimeControl {
             || self.release_id != release
             || self.scope != scope
             || self.epoch != epoch
-            || self.boot_id != boot
+            || !crate::identity::same_boot(&self.boot_id, boot)
             || self.os_session_id != login
             || self.retry_input
             || self.frame_limit != crate::protocol::MAX_FRAME_BYTES as u32

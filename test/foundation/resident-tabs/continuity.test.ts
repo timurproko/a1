@@ -41,7 +41,7 @@ describe("resident client activation continuity", () => {
   });
   it("refuses an unstable source set without changing the selected client", async () => {
     const inspect = vi.fn().mockResolvedValueOnce("a").mockResolvedValueOnce("a+b").mockResolvedValueOnce("a+c");
-    await expect(assertResidentContinuity({ ...context, inspect })).rejects.toThrow("prior client remains selected");
+    await expect(assertResidentContinuity({ ...context, inspect })).rejects.toThrow("Resident workspace changed during update readiness");
   });
   it("propagates unsupported or unverifiable mandatory control without an optimistic result", async () => {
     const inspect = vi.fn(async () => { throw new Error("unsupported source API"); });

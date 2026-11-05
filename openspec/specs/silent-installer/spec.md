@@ -245,12 +245,12 @@ The installer SHALL use the same release-target grammar as A1 self-update. Bare 
 
 The published application version list SHALL remain authoritative for requested previews. An absent or ambiguous numeric preview, absent exact preview, stable version after `--develop`, zero or malformed preview, repeated selector, missing usable selector value, unsupported option, or extra argument SHALL fail before installation mutation. The installer SHALL NOT support `--version`, `--latest`, or `--next` as compatibility aliases. npm package suffixes on `@timurproko/a1-install` SHALL remain installer-acquisition selectors and SHALL NOT be interpreted as application-target syntax.
 
-When an existing valid installation receives an exact preview request, the installer SHALL delegate through `a1 update --develop <full-development-version>`. Documentation and help SHALL present only this aligned grammar through the preferred `npm x -y -- @timurproko/a1-install` invocation.
+When an existing valid installation is found, bare invocation SHALL delegate through `a1 update --release`, `--develop` SHALL delegate through `a1 update --develop`, and an exact preview request SHALL delegate through `a1 update --develop <full-development-version>`. Documentation and help SHALL present only this aligned grammar through the preferred `npm x -y -- @timurproko/a1-install` invocation.
 
 #### Scenario: A user selects stable installation
 - **WHEN** the user runs `npm x -y -- @timurproko/a1-install`
 - **THEN** the installer SHALL resolve and install the application package's `latest` channel
-- **AND** the form SHALL match bare `a1 update` for an existing installation
+- **AND** for an existing installation the form SHALL match `a1 update --release`
 
 #### Scenario: A user selects the development head
 - **WHEN** the user runs `npm x -y -- @timurproko/a1-install --develop`
@@ -300,3 +300,26 @@ When the per-user `bin` directory is not on the invoking PATH, the installer SHA
 #### Scenario: The per-user installation is rerun
 - **WHEN** a later installer run finds no A1 under active npm's global root and a verified A1 installation under `~/.local`
 - **THEN** the installer SHALL delegate to that installation's cancellation-safe updater rather than install another copy
+
+### Requirement: Development requests run the development installer
+When invoked with `--develop` from a non-development installer build and without the installer's handoff marker, the installer SHALL, before its runtime check or any other installation work, run `npm x -y -- @timurproko/a1-install@next` with the original arguments, inherited standard streams, and the handoff marker set, and SHALL exit with that child's status. A development installer build, or a process carrying the marker, SHALL NOT hand off again.
+
+#### Scenario: A stable installer receives a development request
+- **WHEN** the user runs `npm x -y -- @timurproko/a1-install --develop` and npm resolves the stable installer
+- **THEN** the development installer SHALL perform the installation with the same arguments
+- **AND** the user SHALL see one installer's output and exit status
+
+#### Scenario: The handed-off installer starts
+- **WHEN** the development installer starts with the handoff marker
+- **THEN** it SHALL proceed with installation and SHALL NOT start another installer
+
+### Requirement: An installation at or above the target is success
+After resolution or delegated update, an installed application whose version is equal to or newer than the resolved target on the same channel SHALL be reported as installed with status zero. A delegated update whose activation was deferred for resident continuity SHALL also count as installed. A failure SHALL keep its single concise `installation failed: <reason>` line and, when diagnostics were recorded, add one `Details: <log path>` line naming a private log file, without requiring `--verbose`; the explicit verbose mode keeps printing its bounded inline diagnostics instead.
+
+#### Scenario: The channel head is older than the installation
+- **WHEN** the installed development build is newer than the current `next` head
+- **THEN** the installer SHALL report success and SHALL NOT report a version mismatch
+
+#### Scenario: Activation is deferred
+- **WHEN** the delegated update exits zero with a prepared candidate waiting for continuity
+- **THEN** the installer SHALL report success

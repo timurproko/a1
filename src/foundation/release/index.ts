@@ -163,6 +163,7 @@ export {
   prepareUpdateRecoveryCapsule,
   readUpdateRecoveryCapsule,
   removeUpdateRecoveryCapsule,
+  resolveNpmCli,
   runProtectedPackageReplacement,
   updateLauncherPaths,
   updateNpmInstallArguments,

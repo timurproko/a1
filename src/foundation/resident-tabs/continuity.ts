@@ -20,7 +20,7 @@ export async function assertResidentContinuity(options: ContinuityOptions): Prom
   const first = await inspect(context);
   const second = await inspect(context);
   if (first !== second && second !== await inspect(context)) {
-    throw new Error("Resident workspace changed during update readiness; the prior client remains selected.");
+    throw new Error("Resident workspace changed during update readiness");
   }
 }
 
@@ -48,12 +48,21 @@ export async function inspectResidentContinuity(options: Omit<ContinuityOptions,
     "workspace-check", "--profile", options.profileRoot,
     "--data-dir", options.dataDir, "--runtime-dir", options.runtimeDir,
   ], { label: "resident continuity check", maxStdoutBytes: 4096, timeoutMs: 8_000, environment: options.environment });
+  const unverified = new Error(continuityFailure(result.stderr));
   let report: Record<string, unknown>;
   try { report = JSON.parse(result.stdout.trim()) as Record<string, unknown>; }
-  catch { throw new Error("Resident control compatibility could not be verified; the prior client remains selected."); }
+  catch { throw unverified; }
   if (result.code !== 0 || report.schema !== "resident-workspace-check-v1" || report.compatible !== true
     || typeof report.fingerprint !== "string" || !/^[a-f0-9]{64}$/u.test(report.fingerprint)) {
-    throw new Error("Resident control compatibility could not be verified; the prior client remains selected.");
+    throw unverified;
   }
   return report.fingerprint;
+}
+
+/** Names the native reason when the host reported one, without the host's own prefix. */
+function continuityFailure(diagnostic: string): string {
+  const reason = diagnostic.replace(/^a1-terminal-host:\s*/u, "").replace(/[.\s]+$/u, "");
+  return reason.length > 0
+    ? `Resident control compatibility could not be verified: ${reason}`
+    : "Resident control compatibility could not be verified";
 }

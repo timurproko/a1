@@ -1,5 +1,6 @@
 use std::ffi::{OsStr, OsString};
 use std::fmt;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::OnceLock;
@@ -242,7 +243,7 @@ fn launch_resident_with_config_from<T: Serialize>(
     ));
     let context_path = result.with_extension("context.json");
     write_private_context(&context_path, context)?;
-    let _context_cleanup = ContextCleanup(context_path.clone());
+    let _context_cleanup = FileCleanup(context_path.clone());
     let mut command = Command::new(&host.executable);
     command
         .args(&host.arguments)
@@ -383,7 +384,7 @@ pub fn run_resident_child(
                 .map_err(LaunchError)
         }
         "fixture" => {
-            std::fs::write(ready, format!("{}:{role}\n", std::process::id()))
+            publish_readiness(Path::new(ready), &format!("{}:{role}\n", std::process::id()))
                 .map_err(|error| LaunchError(format!("write resident readiness: {error}")))?;
             loop {
                 std::thread::sleep(Duration::from_secs(60));
@@ -393,20 +394,49 @@ pub fn run_resident_child(
     };
     if let Err(error) = &outcome {
         let message = error.0.replace(['\r', '\n'], " ");
-        let _ = std::fs::write(ready, format!("error:{message}\n"));
+        let _ = publish_readiness(Path::new(ready), &format!("error:{message}\n"));
     }
     outcome
 }
 
-struct ContextCleanup(PathBuf);
-impl Drop for ContextCleanup {
+/// Publishes a complete launch result at once. An empty or partial PID must never make the
+/// parent retry a launch whose holder has already been admitted to the registry.
+pub(crate) fn publish_readiness(ready: &Path, value: &str) -> std::io::Result<()> {
+    publish_readiness_with(ready, |file| file.write_all(value.as_bytes()))
+}
+
+/// Stages the write beside its target so publication is a same-filesystem rename. The writer
+/// boundary lets tests pause a partial write without depending on scheduler timing.
+fn publish_readiness_with(
+    ready: &Path,
+    write: impl FnOnce(&mut std::fs::File) -> std::io::Result<()>,
+) -> std::io::Result<()> {
+    let pending = ready.with_extension(format!("ready-{:016x}.pending", rand::random::<u64>()));
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    let mut file = options.open(&pending)?;
+    let _cleanup = FileCleanup(pending.clone());
+    let written = write(&mut file);
+    // Platform: close the staging handle before renaming or cleaning up on Windows.
+    drop(file);
+    written?;
+    // Rationale: readiness is a transient handoff, not durable state; no fsync is needed.
+    std::fs::rename(pending, ready)
+}
+
+struct FileCleanup(PathBuf);
+impl Drop for FileCleanup {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.0);
     }
 }
 
 fn write_private_context(path: &Path, context: &impl Serialize) -> Result<(), LaunchError> {
-    use std::io::Write;
     let bytes = serde_json::to_vec(context)
         .map_err(|error| LaunchError(format!("encode resident role context: {error}")))?;
     let mut options = std::fs::OpenOptions::new();
@@ -639,4 +669,79 @@ fn verify_detached(pid: u32) -> Result<(), LaunchError> {
         return Err(LaunchError("resident child remained in a job".to_owned()));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod readiness_tests {
+    use super::*;
+
+    #[test]
+    fn readiness_is_absent_until_the_complete_pid_and_role_are_written() {
+        let directory = tempfile::tempdir().unwrap();
+        let ready = directory.path().join("launch.ready");
+        publish_readiness_with(&ready, |file| {
+            assert!(
+                !ready.exists(),
+                "creating the staging file must not signal readiness"
+            );
+            file.write_all(b"12")?;
+            assert!(!ready.exists(), "a partial PID must not signal readiness");
+            file.write_all(b"345:holder\n")?;
+            assert!(!ready.exists(), "only publication may signal readiness");
+            Ok(())
+        })
+        .unwrap();
+        assert_eq!(std::fs::read_to_string(&ready).unwrap(), "12345:holder\n");
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn replacement_keeps_the_previous_result_visible_until_publication() {
+        let directory = tempfile::tempdir().unwrap();
+        let ready = directory.path().join("launch.ready");
+        publish_readiness(&ready, "12345:server\n").unwrap();
+        publish_readiness_with(&ready, |file| {
+            file.write_all(b"error:")?;
+            assert_eq!(std::fs::read_to_string(&ready)?, "12345:server\n");
+            file.write_all(b"launch failed\n")
+        })
+        .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(&ready).unwrap(),
+            "error:launch failed\n"
+        );
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn failed_write_neither_publishes_partial_bytes_nor_leaks_staging_files() {
+        for previous in [None, Some("12345:fixture\n")] {
+            let directory = tempfile::tempdir().unwrap();
+            let ready = directory.path().join("launch.ready");
+            if let Some(previous) = previous {
+                publish_readiness(&ready, previous).unwrap();
+            }
+            let error = publish_readiness_with(&ready, |file| {
+                file.write_all(b"error:partial")?;
+                Err(std::io::Error::other("injected write failure"))
+            })
+            .unwrap_err();
+            assert_eq!(error.to_string(), "injected write failure");
+            assert_eq!(std::fs::read_to_string(&ready).ok().as_deref(), previous);
+            assert_eq!(
+                std::fs::read_dir(directory.path()).unwrap().count(),
+                usize::from(previous.is_some())
+            );
+        }
+    }
+
+    #[test]
+    fn failed_publication_cleans_up_the_staging_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let ready = directory.path().join("launch.ready");
+        std::fs::create_dir(&ready).unwrap();
+        assert!(publish_readiness(&ready, "12345:holder\n").is_err());
+        assert!(ready.is_dir());
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
 }

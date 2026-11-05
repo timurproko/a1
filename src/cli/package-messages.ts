@@ -54,6 +54,7 @@ export function packageCommandHelp(
   const header = verb === "update" && namespace === "direct"
     ? `${style.bold("Usage:")}\n`
       + `  ${command} update\n`
+      + `  ${command} update --release\n`
       + `  ${command} update --develop [preview-or-version]\n`
       + `  ${command} update --models\n`
       + `  ${command} update --extensions\n`
@@ -75,7 +76,7 @@ Examples:
     case "remove":
       return header + `Remove a package and its source from settings.
 Alias: ${command} uninstall <source>
-
+${namespace === "direct" ? `\nRemove A1 from this machine (sessions and settings stay unless --purge):\n  ${command} uninstall [--yes] [--purge]\n` : ""}
 Examples:
   ${command} remove npm:@foo/bar
   ${command} uninstall npm:@foo/bar
@@ -87,11 +88,11 @@ Examples:
       return header + `${namespace === "direct" ? "Update A1, installed packages, or model catalogs." : "Update installed packages or model catalogs."}
 
 Options:
-${namespace === "direct" ? "  --develop [target]     Update to develop or one preview\n" : ""}  --extensions            Update installed packages only
+${namespace === "direct" ? "  --release              Update to the release\n  --develop [target]     Update to develop or one preview\n" : ""}  --extensions            Update installed packages only
   --models                Refresh model catalogs only
 
 Short forms:
-${namespace === "direct" ? `  ${command} update                Update A1 to the release\n  ${command} update --develop      Update A1 to develop\n` : ""}  ${command} update --extensions   Update installed packages only
+${namespace === "direct" ? `  ${command} update                Update A1 on its current channel\n  ${command} update --release      Update A1 to the release\n  ${command} update --develop      Update A1 to develop\n` : ""}  ${command} update --extensions   Update installed packages only
   ${command} update --models       Refresh model catalogs only
   ${command} update <source>       Update one package
 

@@ -31,7 +31,8 @@ describe("A1 CLI dispatch", () => {
     [["version"], { kind: "version" }],
     [["--version"], { kind: "version" }],
     [["-v"], { kind: "version" }],
-    [["update"], { kind: "update", channel: "stable" }],
+    [["update"], { kind: "update", channel: "next" }],
+    [["update", "--release"], { kind: "update", channel: "stable" }],
     [["update", "--develop"], { kind: "update", channel: "next" }],
     [["update", "--develop", "107"], { kind: "update", channel: "next", target: "107" }],
     [["update", "--develop", "0.1.8-dev.107"], { kind: "update", channel: "next", target: "0.1.8-dev.107" }],
@@ -173,7 +174,8 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each([
-    ["update", "stable", undefined],
+    ["update", "next", undefined],
+    ["update --release", "stable", undefined],
     ["update --develop", "next", undefined],
     ["update --develop 107", "next", "107"],
     ["update --develop 0.1.8-dev.107", "next", "0.1.8-dev.107"],
@@ -388,7 +390,7 @@ describe("A1 CLI dispatch in a release build", () => {
     { arguments_: ["version"] as const },
     { arguments_: ["--version"] as const },
     { arguments_: ["-v"] as const },
-    { arguments_: ["update"] as const },
+    { arguments_: ["update", "--release"] as const },
     { arguments_: ["update", "--develop"] as const },
     { arguments_: ["update", "--extensions"] as const },
     { arguments_: ["update", "npm:x"] as const },
@@ -402,6 +404,25 @@ describe("A1 CLI dispatch in a release build", () => {
     { arguments_: ["pi", "update", "--models"] as const },
   ])("parses supported maintenance form $arguments_ identically", ({ arguments_ }) => {
     expect(parseCliCommand(arguments_, RELEASE)).toEqual(parseCliCommand(arguments_, PRERELEASE));
+  });
+
+  it("keeps bare update on the running build's channel", () => {
+    expect(parseCliCommand(["update"], RELEASE)).toEqual({ kind: "update", channel: "stable" });
+    expect(parseCliCommand(["update"], PRERELEASE)).toEqual({ kind: "update", channel: "next" });
+    expect(parseCliCommand(["update"], { developmentComparison: false })).toEqual({ kind: "update", channel: "stable" });
+  });
+
+  it("refuses a selector combined with --release before any update work", () => {
+    expect(parseCliCommand(["update", "--release", "107"], RELEASE)).toMatchObject({ kind: "error" });
+  });
+
+  it("parses machine removal without a source and keeps package removal with one", () => {
+    expect(parseCliCommand(["uninstall"], RELEASE)).toEqual({ kind: "uninstall", request: { yes: false, purge: false } });
+    expect(parseCliCommand(["uninstall", "--yes", "--purge"], RELEASE)).toEqual({ kind: "uninstall", request: { yes: true, purge: true } });
+    expect(parseCliCommand(["uninstall", "npm:pi-mcp-adapter"], RELEASE))
+      .toEqual({ kind: "packages", request: { verb: "remove", source: "npm:pi-mcp-adapter" } });
+    expect(parseCliCommand(["pi", "uninstall"], RELEASE)).toMatchObject({ kind: "package-error" });
+    expect(parseCliCommand(["uninstall", "--yes", "--yes"], RELEASE)).not.toMatchObject({ kind: "uninstall" });
   });
 });
 

@@ -620,6 +620,19 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stdout.join("")).not.toContain("updated successfully");
   });
 
+  it("reports a continuity-deferred manual update as one successful result line", async () => {
+    const harness = createHarness({ transactionPhase: "certified", responses: [success(`${resolve("fixtures", "global")}\n`)] });
+    harness.lifecycle.activatePrepared = async () => {
+      throw new UpdateActivationBlockedError("Resident control compatibility could not be verified: resident source belongs to another boot or login");
+    };
+
+    await expect(runSelfUpdate({ ...harness, resolvedTarget: "1.3.0" })).resolves.toBe(0);
+    expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\na1 updated to 1.3.0; it takes over automatically once running Agents can switch\n");
+    expect(harness.stderr.join("")).toBe("");
+    expect((await harness.transactionStore.read())).toMatchObject({ status: "active", phase: "certified" });
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+  });
+
   it("keeps certified preparation active and retries selection without reinstalling", async () => {
     const harness = createHarness({ transactionPhase: "certified", responses: [success(`${resolve("fixtures", "global")}\n`), success(`${resolve("fixtures", "global")}\n`)] });
     let attempts = 0;
@@ -730,7 +743,7 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stdout.join("")).not.toContain("updated successfully");
     expect(harness.stdout.at(-1)).toBe(`${RETURN}${" ".repeat(44)}${RETURN}`);
     expect(harness.stderr.join("")).toContain("immutable startup warmup failed");
-    expect(harness.stderr.join("")).toContain("previous test lifecycle retained");
+    expect(harness.stderr.join("")).toContain("Run a1 update to retry");
   });
 
   it("represents bounded warmup as a measured monotonic update phase", async () => {
@@ -1203,7 +1216,7 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate(harness)).resolves.toBe(77);
 
     expect(harness.stderr.join("")).toContain("update failed");
-    expect(harness.stderr.join("")).toContain("Diagnostics:");
+    expect(harness.stderr.join("")).toContain("Details:");
   });
 
   it("reports a spawn failure while starting installation", async () => {

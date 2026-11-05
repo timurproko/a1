@@ -381,12 +381,22 @@ fn restore_foreground(process_group: Option<i32>) -> Result<(), String> {
     if let Some(process_group) = process_group
         && unsafe { libc::tcsetpgrp(libc::STDIN_FILENO, process_group) } != 0
     {
+        let error = std::io::Error::last_os_error();
+        if foreground_already_restored(error.raw_os_error()) {
+            return Ok(());
+        }
         return Err(format!(
-            "cannot restore the inherited terminal foreground group: {}",
-            std::io::Error::last_os_error()
+            "cannot restore the inherited terminal foreground group: {error}"
         ));
     }
     Ok(())
+}
+
+/// Platform: once the guardian has exited, its watcher runs in an orphaned process group and the
+/// shell has already reclaimed the terminal; the kernel then refuses the transfer with `EIO` or
+/// `EPERM`, which means there is nothing left to restore.
+fn foreground_already_restored(code: Option<i32>) -> bool {
+    matches!(code, Some(libc::EIO) | Some(libc::EPERM))
 }
 
 fn c_string(value: &str, description: &str) -> Result<CString, String> {
@@ -457,6 +467,14 @@ impl Drop for SpawnFileActions {
 #[cfg(test)]
 mod tests {
     use super::inspect_process_start;
+
+    #[test]
+    fn a_reclaimed_terminal_counts_as_restored() {
+        assert!(super::foreground_already_restored(Some(libc::EIO)));
+        assert!(super::foreground_already_restored(Some(libc::EPERM)));
+        assert!(!super::foreground_already_restored(Some(libc::EBADF)));
+        assert!(!super::foreground_already_restored(None));
+    }
 
     #[test]
     fn inspects_the_current_process_start_identity() {

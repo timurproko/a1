@@ -163,7 +163,7 @@ impl SourceRoute {
         }
         let system = crate::identity::current_system()
             .map_err(|_| "resident source login identity unavailable")?;
-        if registry.boot_id != system.boot {
+        if !crate::identity::same_boot(&registry.boot_id, &system.boot) {
             return Err("resident source belongs to another boot or login".into());
         }
         verify_login(
@@ -212,7 +212,7 @@ impl SourceRoute {
         }
         let system = crate::identity::current_system()
             .map_err(|_| "closed source boot identity unavailable")?;
-        let ended_login = registry.boot_id != system.boot
+        let ended_login = !crate::identity::same_boot(&registry.boot_id, &system.boot)
             || crate::identity::login_change_proven(&registry.os_session_id, &system.os_session);
         let complete_stop = registry.epoch == source.epoch
             && registry.registry_revision >= source.revision

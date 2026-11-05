@@ -1055,6 +1055,81 @@ setInterval(() => {}, 1000);
 }
 
 #[test]
+fn utility_starts_do_not_block_later_requests_on_the_same_connection() {
+    use terminal_host_contracts::roles::{credentials::ProfileCredentials, wire};
+
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let profile = directory(root.path(), "profile");
+    let data = directory(root.path(), "data");
+    let runtime = directory(root.path(), "runtime");
+    let release = directory(root.path(), "release");
+    protect_runtime(&runtime);
+    let address = fixture_endpoint(&runtime);
+    let executable = PathBuf::from(env!("CARGO_BIN_EXE_role-host"));
+    let mut server = server_command(&executable, &profile, &data, &runtime, &address);
+    server.args(["--max-concurrent-starts", "1"])
+        .env("A1_TABS_FAULT_DELAY_TAB_START_MS", "8000");
+    assert!(server.output().expect("server").status.success());
+    let credentials_root = data.join("tabs").join(endpoint::endpoint_token(&profile).unwrap());
+    let mut cleanup = Cleanup {
+        credentials_root: credentials_root.clone(),
+        pids: server_pids(&credentials_root),
+    };
+    let credentials = ProfileCredentials::load_or_create(&credentials_root).unwrap();
+    let mut stream = endpoint::connect(&address).unwrap();
+    endpoint::set_handshake_deadline(&stream, Duration::from_secs(4)).unwrap();
+    wire::send(&mut stream, "hello", Some(1), wire::RoleHello {
+        role: "attach".into(),
+        generation: terminal_host_contracts::protocol::GENERATION,
+        build: "fixture".into(),
+        release_id: terminal_host_contracts::roles::scope::fixture_release_id(&executable).unwrap(),
+        features: Vec::new(),
+        token: credentials.client_token.to_vec(),
+        tab_id: None,
+        pid: Some(std::process::id()),
+        start_identity: None,
+        incarnation: 0,
+        child_pid: None,
+        child_start_identity: None,
+        highest_epoch: 0,
+    }).unwrap();
+    for expected in ["welcome", "attached"] {
+        let payload = wire::read_payload(&mut stream).unwrap().unwrap();
+        assert_eq!(wire::kind(&payload).unwrap().message_type, expected);
+    }
+    let create = wire::TabCreate {
+        cwd: text(&release).into(),
+        columns: 80,
+        rows: 23,
+        release_root: text(&release).into(),
+        node_executable: env!("CARGO_BIN_EXE_fake-tab").into(),
+        environment: std::env::vars().collect(),
+    };
+    // Concurrency: each launch deliberately takes eight seconds. A later read-path request
+    // must finish before either launch, including when another utility is queued behind it.
+    wire::send(&mut stream, "tab.prewarm-settings", Some(2), &create).unwrap();
+    wire::send(&mut stream, "tab.open-changelog", Some(3), &create).unwrap();
+    wire::send(&mut stream, "tab.list", Some(4), wire::ResultBody::ok()).unwrap();
+    let payload = wire::read_payload(&mut stream)
+        .expect("utility launches must not block the connection's read loop").unwrap();
+    let response = wire::kind(&payload).unwrap();
+    assert_eq!(response.message_type, "tab.list");
+    assert_eq!(response.request_id, Some(4));
+
+    // Invariant: keeping the read loop responsive must not drop or reorder utility launches.
+    endpoint::set_handshake_deadline(&stream, Duration::from_secs(25)).unwrap();
+    for (request_id, prefix) in [(2, "settings-"), (3, "changelog-")] {
+        let payload = wire::read_payload(&mut stream).unwrap().unwrap();
+        assert_eq!(wire::kind(&payload).unwrap().message_type, "tab.created");
+        let (actual_id, target): (_, wire::TabTarget) = wire::body(&payload).unwrap();
+        assert_eq!(actual_id, Some(request_id));
+        assert!(target.tab_id.starts_with(prefix), "{target:?}");
+    }
+    cleanup.pids.extend(holder_pids(&credentials_root));
+}
+
+#[test]
 fn closing_a_pending_agent_cancels_its_queued_start_without_closing_the_old_agent() {
     let _serial = serialize_role_fixture();
     let root = tempfile::tempdir().expect("fixture root");
@@ -1111,7 +1186,13 @@ setInterval(() => {}, 1000);
     std::thread::sleep(Duration::from_millis(500));
     let first = attach.retained_len();
     attach.write(b"\x1ba");
-    assert!(attach.output_containing("no-model", Duration::from_secs(2)));
+    // Invariant: the earlier cancelled preview cannot satisfy this new Agent's readiness check.
+    let deadline = Instant::now() + Duration::from_secs(2);
+    while !attach.output_since(first).contains("no-model") && Instant::now() < deadline {
+        attach.settle(Duration::from_millis(25));
+    }
+    assert!(attach.output_since(first).contains("no-model"),
+        "{}\n--- key trace ---\n{}", attach.output_text(), std::fs::read_to_string(&trace_path).unwrap());
     attach.write(b"cancelled-private\n");
     let before_close = attach.retained_len();
     attach.write(b"\x1bw");
@@ -1126,7 +1207,8 @@ setInterval(() => {}, 1000);
         "closing a provisional tab must not register another Agent: {after_close:?}");
     assert!(!attach.output_since(first).contains("echo:cancelled-private"));
     attach.write(b"restored\n");
-    assert!(attach.output_containing("echo:restored", Duration::from_secs(15)), "{}", attach.output_text());
+    assert!(attach.output_containing("echo:restored", Duration::from_secs(15)),
+        "{}\n--- key trace ---\n{}", attach.output_text(), std::fs::read_to_string(&trace_path).unwrap());
     attach.write(b"\x1ba");
     attach.write(b"new-private\n");
     let result = occupying.wait_with_output().unwrap();
@@ -1972,7 +2054,25 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
     takeover.lose_launch_tree();
     takeover.wait(Duration::from_secs(8));
 
-    let holders_before_client_loss = holder_identities(&credentials_root);
+    // Concurrency: utility prewarming runs behind the attach read loop. Wait for both
+    // singleton holders before freezing the full identity set; Agent input alone does
+    // not mean Changelog has finished starting. Keep utilities in both equality checks.
+    let prewarm_deadline = Instant::now() + Duration::from_secs(15);
+    let holders_before_client_loss = loop {
+        let holders = holder_identities(&credentials_root);
+        if holders.len() == 4
+            && ["settings-", "changelog-"]
+                .iter()
+                .all(|prefix| holders.iter().any(|(tab, _, _)| tab.starts_with(prefix)))
+        {
+            break holders;
+        }
+        assert!(
+            Instant::now() < prewarm_deadline,
+            "two Agent holders and both prewarmed utilities did not converge: {holders:?}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    };
     first.lose_launch_tree();
     second.lose_launch_tree();
     first.wait(Duration::from_secs(8));
@@ -4085,6 +4185,8 @@ impl AttachFixture {
         }
         let mut command = CommandBuilder::new(executable);
         command.env("TERMINAL_HOST_FIXTURE_SIZE", "100x24");
+        // Invariant: provisional footer assertions must not read the developer's model settings.
+        command.env("PI_CODING_AGENT_DIR", profile.join("agent-settings"));
         for (name, value) in environment {
             command.env(name, value);
         }
@@ -4522,10 +4624,104 @@ fn fixture_terminal_host_pids() -> Vec<u32> {
     }
     matches
 }
-#[cfg(not(windows))]
+#[cfg(unix)]
 fn fixture_terminal_host_pids() -> Vec<u32> {
-    Vec::new()
+    // Concurrency: a detached holder may outlive the registry entry that identifies it.
+    // Windows already scans the exact fixture executable; Unix needs the same inventory.
+    let listing = Command::new("ps")
+        .args(["-axww", "-o", "pid=,command="])
+        .output()
+        .expect("list fixture processes");
+    assert!(
+        listing.status.success(),
+        "list fixture processes: {}",
+        String::from_utf8_lossy(&listing.stderr)
+    );
+    let executable = std::fs::canonicalize(env!("CARGO_BIN_EXE_role-host"))
+        .expect("resolve fixture executable");
+    fixture_pids_from_process_listing(
+        &String::from_utf8_lossy(&listing.stdout),
+        &executable.to_string_lossy(),
+    )
 }
+
+fn fixture_pids_from_process_listing(listing: &str, executable: &str) -> Vec<u32> {
+    listing
+        .lines()
+        .filter_map(|line| {
+            let (pid, command) = line.trim_start().split_once(char::is_whitespace)?;
+            let pid = pid.parse::<u32>().ok().filter(|pid| *pid != 0)?;
+            let suffix = command.trim_start().strip_prefix(executable)?;
+            (suffix.is_empty() || suffix.starts_with(char::is_whitespace)).then_some(pid)
+        })
+        .collect()
+}
+
+#[test]
+fn fixture_inventory_finds_unregistered_unix_holders_by_exact_executable() {
+    let executable = "/Users/runner/work/a1/a1/native/terminal-host/target/debug/role-host";
+    let listing = format!(
+        " 7460 {executable} --resident-role-child holder /private/var/folders/fixture/profile launch.ready launch.context.json\n\
+         7401 {executable} --resident-role-child server /private/var/folders/fixture/profile launch.ready launch.context.json\n"
+    );
+    assert_eq!(
+        fixture_pids_from_process_listing(&listing, executable),
+        [7460, 7401]
+    );
+    assert_eq!(
+        fixture_pids_from_process_listing(
+            " 42 /checkout with spaces/role-host --resident-role-child holder\n",
+            "/checkout with spaces/role-host"
+        ),
+        [42]
+    );
+}
+
+#[test]
+fn fixture_inventory_never_adopts_another_executable_or_an_argument_match() {
+    let executable = "/worktree/target/debug/role-host";
+    let listing = format!(
+        "1 /sbin/launchd\n\
+         2 /another-worktree/target/debug/role-host --resident-role-child holder\n\
+         3 {executable}-other --resident-role-child holder\n\
+         4 /bin/sh -c {executable}\n\
+         5 grep {executable}\n\
+         invalid {executable}\n\
+         0 {executable}\n"
+    );
+    assert!(fixture_pids_from_process_listing(&listing, executable).is_empty());
+}
+
+#[test]
+fn cleanup_terminates_a_fixture_missing_from_the_registry() {
+    let _serial = serialize_role_fixture();
+    let root = tempfile::tempdir().expect("fixture root");
+    let session = root.path().join("session.jsonl");
+    std::fs::write(&session, b"").unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_role-host"))
+        .arg("--fixture-session-writer")
+        .arg(&session)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("unregistered fixture");
+    let mut ready = [0; 13];
+    child.stdout.take().unwrap().read_exact(&mut ready).unwrap();
+    // Invariant: no PID or registry record is supplied; only executable inventory can find it.
+    drop(Cleanup {
+        credentials_root: root.path().join("unregistered"),
+        pids: Vec::new(),
+    });
+    let stopped = child.try_wait().unwrap().is_some();
+    if !stopped {
+        child.kill().expect("clean up failed fixture");
+        child.wait().unwrap();
+    }
+    assert_eq!(&ready, b"writer-ready\n");
+    assert!(stopped, "cleanup left an unregistered fixture process alive");
+}
+
 fn node_executable() -> String {
     let output = Command::new(if cfg!(windows) { "node.exe" } else { "node" })
         .args(["-p", "process.execPath"])

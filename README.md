@@ -113,13 +113,19 @@ a1 tabs doctor
 
 ## Update
 
-Install the release:
+Update on the channel you already use (release stays on release, develop stays on develop):
 
 ```text
 a1 update
 ```
 
-Install develop:
+Switch to the release:
+
+```text
+a1 update --release
+```
+
+Switch to develop:
 
 ```text
 a1 update --develop
@@ -156,6 +162,22 @@ The **Update** setting controls release discovery:
 - **No** performs no update check; updates remain available through the commands above.
 
 `A1_SKIP_VERSION_CHECK=1` disables both Auto and Notify discovery. Manual stable, development, and exact-version update commands remain available in every mode.
+
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
+
+## Uninstall
+
+Remove A1 from this machine. It stops running tabs and asks before deleting your sessions and settings in `~/.a1`:
+
+```text
+a1 uninstall
+```
+
+Remove everything without questions:
+
+```text
+a1 uninstall --yes --purge
+```
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 

@@ -143,7 +143,7 @@ pub fn adopt_verified_holder(
     expected_credential: &[u8; 32],
 ) -> bool {
     observed.is_some_and(|identity| identity == &record.identity)
-        && record.boot_identity == boot_identity
+        && crate::identity::same_boot(&record.boot_identity, boot_identity)
         && record.credential == *expected_credential
         && presented_credential == expected_credential
 }
@@ -859,7 +859,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         && registry.os_session_id != "unavailable"
         && system.os_session != "unavailable"
         && registry.os_session_id != system.os_session;
-    let prior_session_ended = registry.boot_id != system.boot
+    let prior_session_ended = !crate::identity::same_boot(&registry.boot_id, &system.boot)
         || ((os_session_changed || system.os_session == "unavailable")
             && all_holders_gone
             && !registry.tabs.is_empty());
@@ -918,7 +918,7 @@ pub fn run_server_child(profile: &Path, ready: &Path, context: &[u8]) -> Result<
         crate::roles::scope::write_owner_marker(&root, &config.endpoint, profile)?;
         crate::fault_injection::crash_at("after-marker");
     }
-    std::fs::write(ready, format!("{}:server\n", std::process::id()))
+    launch::publish_readiness(ready, &format!("{}:server\n", std::process::id()))
         .map_err(|error| format!("write server readiness: {error}"))?;
     #[cfg(unix)]
     let endpoint_address = endpoint.path().to_string_lossy().into_owned();
@@ -2653,6 +2653,13 @@ mod tests {
         assert_eq!(lifecycle_refusal("tab.restart"), "tab.restarted");
         assert_eq!(lifecycle_refusal("tab.rename"), "tab.rename-refused");
         assert_eq!(lifecycle_refusal("tab.reorder"), "tab.reordered");
+        for kind in TabKind::SINGLETONS {
+            for operation in ["open", "prewarm"] {
+                let message = format!("tab.{operation}-{}", kind.provider().name);
+                assert_eq!(lifecycle_refusal(&message), "error");
+                assert_eq!(lifecycle_failure_message(&message, "private path"), "Tab change could not be completed");
+            }
+        }
         assert_eq!(
             lifecycle_failure_message("tab.create", TAB_START_BUSY),
             TAB_START_BUSY
