@@ -35,7 +35,7 @@ export async function recoverSupervisorEndpoint(options: SupervisorRecoveryOptio
       if (!await removeEndpointArtifacts(metadataPath, endpoint, metadata)) continue;
       await diagnostic(metadataPath, "stale-owner-retired", attempt + 1);
     }
-    // The child takes the same endpoint gate before binding/publication. If another launch wins,
+    // Concurrency: the child takes the same endpoint gate before binding/publication. If another launch wins,
     // startAndWait joins its authenticated endpoint; it never unlinks that winner's socket.
     await options.startAndWait();
     if (recovered) await diagnostic(metadataPath, "recovered", attempt + 1);
@@ -46,6 +46,6 @@ export async function recoverSupervisorEndpoint(options: SupervisorRecoveryOptio
 }
 
 async function diagnostic(path: string, reason: string, attempts: number): Promise<void> {
-  // Privacy: one bounded summary per endpoint, no raw metadata, user paths, or session content.
+  // Security: one bounded summary per endpoint, no raw metadata, user paths, or session content.
   await writeFile(`${path}.recovery.json`, JSON.stringify({ reason, attempts, at: new Date().toISOString() }), { mode: 0o600 }).catch(() => undefined);
 }

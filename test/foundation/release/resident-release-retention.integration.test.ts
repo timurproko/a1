@@ -21,6 +21,7 @@ import { ControlStore } from "../../../src/foundation/storage/index.js";
 import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
 import { SupervisorClient } from "../../../src/foundation/protocol/index.js";
 import { fixturePaths } from "./supervisor-recovery-fixture.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 // Rationale: the native terminal-host lane builds these fixture binaries before it runs this file;
 // other lanes have no native build, so the real-process test runs only where the binaries exist.
@@ -90,12 +91,12 @@ describe("resident release retention with real processes", () => {
       for (const identity of role === "all" ? [before.server, before.holder, before.child] : [before[role as keyof typeof before]]) {
         // Security: only identities returned by this fixture's isolated registry may be killed.
         const observed = await observeSupervisorProcess(identity.pid);
-        if (observed === null) continue; // A killed holder may already have closed its child's job.
+        if (observed === null) continue; // Platform: a killed holder may already have closed its child's job.
         expect(observed).toEqual(identity);
         try { process.kill(identity.pid, "SIGKILL"); }
         catch (error) { if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error; }
       }
-      // The native resident capability owns its own reconciliation; supervisor startup must not
+      // Invariant: the native resident capability owns its own reconciliation; supervisor startup must not
       // reinterpret its stale markers as permission to stop surviving holders or delete sessions.
       const started = run(["server", "--detach"]);
       expect(started.status, started.stderr).toBe(0);
@@ -106,7 +107,11 @@ describe("resident release retention with real processes", () => {
         const after = await identities(freshTabId).catch(() => null);
         return after !== null && Boolean(after.child.pid) && await observeSupervisorProcess(after.child.pid) !== null;
       });
-      await ensureSupervisor(release, { A1_DATA_DIR: fixture.dataDir, A1_RUNTIME_DIR: paths.runtimeDir, A1_ENDPOINT: paths.endpoint });
+      await ensureSupervisor(release, {
+        [PRODUCT_IDENTITY.environment.dataDir]: fixture.dataDir,
+        [PRODUCT_IDENTITY.environment.runtimeDir]: paths.runtimeDir,
+        [PRODUCT_IDENTITY.environment.endpoint]: paths.endpoint,
+      });
       await client.connect(paths.endpoint);
       const instanceId = randomUUID();
       expect(await client.command({ type: "create-launch-instance", requestId: randomUUID(), instanceId, profileId: "a1", shutdownPolicy: "terminate-tree-on-close", guardianIdentity: (await observeSupervisorProcess(process.pid))! })).toMatchObject({ ok: true });

@@ -43,7 +43,7 @@ export async function runBootstrap(options: BootstrapOptions): Promise<number> {
   try { return await runBootstrapAttempt(options, 1); }
   catch (error) {
     if (!(error instanceof Error && "code" in error && typeof error.code === "string" && error.code.startsWith("SUPERVISOR_RECOVERY_"))) throw error;
-    // UX: actionable recovery failures are a single line, not an uncaught Node stack trace.
+    // Rationale: actionable recovery failures are a single line, not an uncaught Node stack trace.
     (options.output ?? process.stderr).write(`${PRODUCT_TEXT.diagnostic(error.message)}\n`);
     return 1;
   }

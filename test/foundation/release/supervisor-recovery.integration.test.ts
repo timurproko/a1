@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { once } from "node:events";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type Server, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -14,6 +14,8 @@ import { recoverSupervisorEndpoint } from "../../../src/foundation/release/endpo
 import { probeOwnership, readEndpointMetadata, removeEndpointArtifacts, sweepDeadEndpoints } from "../../../src/foundation/release/endpoints.js";
 import { withEndpointLock } from "../../../src/foundation/release/endpoint-lock.js";
 import { fixtureMetadata, fixturePaths, fixtureRelease } from "./supervisor-recovery-fixture.js";
+import { resolveProcessGuardianPath } from "../../../src/foundation/process-containment/index.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 const roots: string[] = [];
 const children: ChildProcess[] = [];
@@ -73,7 +75,7 @@ describe("automatic supervisor recovery", () => {
       const watcherPid = Number(await readFile(resolve(paths.dataDir, `${guardian.pid}.watcher-ready`), "utf8"));
       expect(await observeSupervisorProcess(watcherPid)).not.toBeNull();
       process.kill(watcherPid, "SIGKILL");
-      // Kill only recorded fixture identities, never all node.exe processes on the machine.
+      // Security: kill only recorded fixture identities, never all node.exe processes on the machine.
       process.kill(rootPid, "SIGKILL");
       await Promise.all([killFixture(guardian), killFixture(supervisor)]);
     } else if (target === "guardian") await killFixture(guardian);
@@ -86,6 +88,21 @@ describe("automatic supervisor recovery", () => {
     expect(await observeSupervisorProcess(freshRoot)).not.toBeNull();
     expect(await observeSupervisorProcess(independent.pid!)).toEqual(sentinelIdentity);
     if (survivingRoot !== null) expect(await observeSupervisorProcess(survivingRoot)).not.toBeNull();
+  }, 30_000);
+
+  it("uses the verified release guardian when the inherited inspector addon has no manifest", async () => {
+    const paths = await pathsFixture();
+    await startChild("supervisor", paths);
+    const bareAddon = resolve(paths.dataDir, "process-guardian.node");
+    await copyFile(resolveProcessGuardianPath(process.cwd(), {}), bareAddon);
+    await expect(readFile(resolve(paths.dataDir, "manifest.json"))).rejects.toMatchObject({ code: "ENOENT" });
+    const guardian = await startChild("guardian", paths, {
+      ...process.env, [PRODUCT_IDENTITY.environment.processGuardianPath]: bareAddon,
+    });
+    const rootPid = Number(await readFile(resolve(paths.dataDir, `${guardian.pid}.root-ready`), "utf8"));
+    expect(await observeSupervisorProcess(rootPid)).not.toBeNull();
+    await killFixture(guardian);
+    await vi.waitFor(async () => expect(await observeSupervisorProcess(rootPid)).toBeNull(), { timeout: 8_000 });
   }, 30_000);
 
   it("does not let a losing startup or a second cohort rewrite the live winner's control rows", async () => {
@@ -228,8 +245,8 @@ async function listen(endpoint: string, connection: (socket: Socket) => void) {
   await new Promise<void>((done, reject) => { server.once("error", reject); server.listen(endpoint, done); });
 }
 
-async function startChild(mode: string, paths: ReturnType<typeof fixturePaths>) {
-  const child = spawn(process.execPath, ["--import", "tsx", resolve("test/foundation/release/supervisor-recovery-child.ts"), mode, paths.dataDir, paths.endpoint], { stdio: ["ignore", "ignore", "pipe", "ipc"], windowsHide: true });
+async function startChild(mode: string, paths: ReturnType<typeof fixturePaths>, environment = process.env) {
+  const child = spawn(process.execPath, ["--import", "tsx", resolve("test/foundation/release/supervisor-recovery-child.ts"), mode, paths.dataDir, paths.endpoint], { env: environment, stdio: ["ignore", "ignore", "pipe", "ipc"], windowsHide: true });
   children.push(child);
   let stderr = "";
   child.stderr?.on("data", chunk => { stderr += String(chunk); });

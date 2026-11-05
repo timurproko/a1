@@ -162,7 +162,7 @@ export class SupervisorServer {
       // Concurrency: only the bound winner may reconcile shared control data. Other cohort boots
       // remain protected even when temporarily unresponsive; their instances never become ours.
       await withEndpointLock(this.paths.databasePath, async () => {
-        // All cohorts sharing SQLite serialize boot reconciliation plus publication, so a new
+        // Concurrency: all cohorts sharing SQLite serialize boot reconciliation plus publication, so a new
         // cohort cannot insert instances between another cohort's inventory and stale-row update.
         const protectedBoots: string[] = [];
         for (const other of await listRecordedEndpoints(this.paths)) {

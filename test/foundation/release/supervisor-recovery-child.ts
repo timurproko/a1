@@ -7,7 +7,7 @@ import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
 import { withEndpointLock } from "../../../src/foundation/release/endpoint-lock.js";
 import { fixturePaths, fixtureRelease } from "./supervisor-recovery-fixture.js";
 
-// Test-only child. Every path and process belongs to the caller's isolated fixture.
+// Security: every path and process in this test-only child belongs to the caller's isolated fixture.
 const [mode, root, endpoint] = process.argv.slice(2);
 if (!root || !endpoint) throw new Error("fixture requires its isolated root and endpoint");
 const paths = fixturePaths(root, endpoint);
@@ -18,12 +18,15 @@ if (mode === "gate") {
     await new Promise(() => {});
   });
 } else if (mode === "guardian") {
-  // Use the built production guardian so its detached watcher has a real JavaScript entry.
+  // Rationale: use the built production guardian so its detached watcher has a real JavaScript entry.
   const { runLaunchGuardian } = await import(new URL("../../../dist/foundation/launch-guardian/main.js", import.meta.url).href);
   const { loadProcessGuardianAddon, resolveProcessGuardianPath } = await import(new URL("../../../dist/foundation/process-containment/index.js", import.meta.url).href);
-  const addon = loadProcessGuardianAddon(resolveProcessGuardianPath(process.cwd(), process.env));
+  // Invariant: managed launches verify the release addon and its manifest. The inherited native
+  // inspector override may point to CI's bare debug addon, which has no artifact manifest.
+  const helperPath = resolveProcessGuardianPath(process.cwd(), {});
+  const addon = loadProcessGuardianAddon(helperPath);
   const ready = resolve(root, `${process.pid}.root-ready`);
-  const running = runLaunchGuardian({ profileId: "a1", releaseRoot: process.cwd(), uiEntry: "unused",
+  const running = runLaunchGuardian({ profileId: "a1", releaseRoot: process.cwd(), uiEntry: "unused", helperPath,
     addon: { ...addon, spawnWatcher: (options: { executable: string; arguments: string[] }) => {
       const pid = addon.spawnWatcher(options);
       writeFileSync(resolve(root, `${process.pid}.watcher-ready`), String(pid));
