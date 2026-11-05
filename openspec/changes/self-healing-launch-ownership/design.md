@@ -67,7 +67,8 @@ Fault injection exposed an additional race within the approved concurrency scope
 
 ## Focused Evidence and Gap Disposition
 
-- Source compilation with `tsc -p tsconfig.build.json` and source typechecking with `tsgo -p tsconfig.json --noEmit` passed.
+- Source compilation with `tsc -p tsconfig.build.json` and source typechecking with `tsgo -p tsconfig.json --noEmit` passed. Reconciled current develop at `111a66b7` through a normal merge; a subsequent five-file focused run passed 94 tests with one existing update case skipped.
+- Architecture boundaries passed after declaring release's native process-containment dependency. The supervisor retained its existing method/field counts, and the bootstrap function size ceiling was lowered from 250 to 244 lines; no size or startup budget was raised.
 - The final focused Windows run covered 17 named test files: 103 tests passed and the six resident-native cases were skipped because the fixture host addon was unavailable. This included real supervisor/guardian/root/gate termination, all recorded fixture Node roles including the watcher, surviving-runtime and unrelated-process preservation, shared-database ownership, PID reuse, legacy/malformed identity, transient probes, sanitized diagnostics, and validation ownership routing.
 - Four existing Windows native containment/identity/exit-watcher tests passed against the newly built process-guardian addon. Linux and macOS recovery fixtures are registered in the existing bounded Unix containment scope; Windows recovery runs in the existing release-update scope.
 - Local resident-native execution was not claimed: the trusted terminal-library fetch found no recent eligible develop artifact. The four new resident server/holder/child/all-loss cases remain in the existing native resident test file executed by selected native CI. Disposition: retain those assertions and require CI's actual native builds; do not substitute an older binary or weaken the cases.

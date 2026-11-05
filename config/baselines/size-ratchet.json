@@ -200,7 +200,7 @@
       "lines": 125
     },
     "src/foundation/release/bootstrap.ts::runBootstrapAttempt": {
-      "lines": 250
+      "lines": 244
     },
     "src/foundation/release/update.ts::createUpdateLifecycleCoordinator": {
       "lines": 107

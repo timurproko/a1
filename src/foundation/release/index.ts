@@ -65,7 +65,7 @@ export type {
   SelectedRuntimePayload,
 } from "./dependency-layer.js";
 export { listRecordedEndpoints, liveReleaseIds, probeOwnership, readEndpointMetadata, removeEndpointArtifacts, sweepDeadEndpoints } from "./endpoints.js";
-export { observeSupervisorProcess, supervisorProcessState } from "./supervisor-identity.js";
+export { currentSupervisorStartIdentity, observeSupervisorProcess, supervisorProcessState } from "./supervisor-identity.js";
 export { withEndpointLock } from "./endpoint-lock.js";
 export type { RecordedEndpoint } from "./endpoints.js";
 export { cleanupProvenIdleOwner, cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";

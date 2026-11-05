@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { supervisorProcessState, observeSupervisorProcess } from "../../../src/foundation/release/supervisor-identity.js";
+import { currentSupervisorStartIdentity, supervisorProcessState, observeSupervisorProcess } from "../../../src/foundation/release/supervisor-identity.js";
 import { cleanupProvenIdleOwner } from "../../../src/foundation/release/process-cleanup.js";
 import { fixtureMetadata } from "./supervisor-recovery-fixture.js";
 
@@ -41,6 +41,7 @@ describe("independent supervisor generation identity", () => {
   it("never signals a reused PID or an unresponsive live process merely because its stored list is empty", async () => {
     const current = await observeSupervisorProcess(process.pid);
     expect(current).not.toBeNull();
+    expect(currentSupervisorStartIdentity()).toBe(current!.startIdentity);
     const idle = fixtureMetadata({ nativeStartIdentity: current!.startIdentity, ownership: { state: "idle", liveInstanceIds: [], nonResumableInstanceIds: [], uncertainInstanceIds: [] } });
     expect(await cleanupProvenIdleOwner(idle, 1)).toMatchObject({ terminated: false, attempted: ["live-owner-preserved"] });
     expect(await cleanupProvenIdleOwner({ ...idle, nativeStartIdentity: current!.startIdentity.replace(/\d+/, token => String(BigInt(token) + 1n)) }, 1)).toMatchObject({ terminated: true, attempted: ["owner-already-dead"] });

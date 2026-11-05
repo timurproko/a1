@@ -12,6 +12,17 @@ export async function observeSupervisorProcess(pid: number): Promise<NativeProce
   return await (await createNativeProcessInspector(process.env, process.platform, ownRoot)).observe(pid);
 }
 
+/** New supervisors use a native creation token as their opaque handshake identity as well. */
+export function currentSupervisorStartIdentity(): string {
+  try {
+    const token = loadProcessGuardianAddon(resolveProcessGuardianPath(ownRoot, process.env)).inspectProcessStart(process.pid);
+    if (!validNativeToken(token)) throw new Error("native process identity is unavailable");
+    return token;
+  } catch (cause) {
+    throw Object.assign(new Error("cannot verify A1's background service process; check installation and process-inspection permissions", { cause }), { code: "SUPERVISOR_RECOVERY_UNAVAILABLE" });
+  }
+}
+
 /** The current runtime also owns the OS gate ABI; metadata cannot choose a different addon. */
 export function acquireSupervisorGate(path: string): { readonly acquired: boolean; release(): void } {
   const addon = loadProcessGuardianAddon(resolveProcessGuardianPath(ownRoot, process.env));
