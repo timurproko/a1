@@ -306,6 +306,19 @@ impl NodeSessionLock {
             .map_err(node_error)
     }
 
+    /// Claim mutations use location authority even when their diagnostic metadata is replaced.
+    #[napi(factory)]
+    pub fn try_acquire_gate(path: String) -> Result<Self> {
+        SessionLock::try_acquire_gate(path)
+            .map(|inner| Self { inner })
+            .map_err(node_error)
+    }
+
+    #[napi(getter)]
+    pub fn acquired(&self) -> bool {
+        self.inner.is_some()
+    }
+
     #[napi]
     pub fn bind_created(&mut self, path: String) -> Result<()> {
         self.inner
