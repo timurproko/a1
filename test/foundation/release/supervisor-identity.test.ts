@@ -1,7 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { currentSupervisorStartIdentity, supervisorProcessState, observeSupervisorProcess } from "../../../src/foundation/release/supervisor-identity.js";
 import { cleanupProvenIdleOwner } from "../../../src/foundation/release/process-cleanup.js";
-import { fixtureMetadata } from "./supervisor-recovery-fixture.js";
+import { fixtureMetadata, residentIdentityForGuardian } from "./supervisor-recovery-fixture.js";
+
+describe("resident fixture identity comparison", () => {
+  it("compares the macOS addon namespaces without discarding PID or start-time precision", () => {
+    const resident = { pid: 28751, startIdentity: "macos-proc-start:1793907606:77719" };
+    const observed = { pid: 28751, startIdentity: "darwin-proc-start:1793907606:77719" };
+    expect(residentIdentityForGuardian(resident)).toEqual(observed);
+    expect(residentIdentityForGuardian({ ...resident, pid: resident.pid + 1 })).not.toEqual(observed);
+    expect(residentIdentityForGuardian({ ...resident, startIdentity: "macos-proc-start:1793907607:77719" })).not.toEqual(observed);
+    expect(residentIdentityForGuardian({ ...resident, startIdentity: "macos-proc-start:1793907606:77720" })).not.toEqual(observed);
+  });
+
+  it.each(["windows-filetime:123", "linux-proc-start:123", "darwin-proc-start:123:456", "macos-proc-start:invalid:456", "macos-proc-start:123:1234567", "123:legacy"])("does not reinterpret other or malformed tokens: %s", startIdentity => {
+    const identity = { pid: 123, startIdentity };
+    expect(residentIdentityForGuardian(identity)).toEqual(identity);
+  });
+});
 
 describe("independent supervisor generation identity", () => {
   it("distinguishes the native generation from a reused PID and a terminated object", async () => {

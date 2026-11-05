@@ -90,3 +90,11 @@ Run `42090108486` passed all 13 Linux recovery cases, then exposed a separate pa
 The helper now sends the existing boot-nonce-authenticated idle-release request before its bounded exit wait. The live supervisor checks its own active instances, so stale empty metadata cannot authorize shutdown of a now-busy owner; a different boot also refuses the request. No signal-based fallback was restored.
 
 A real-child regression reproduced the same false-versus-true failure before the fix and passed afterward. Another regression preserves both a different boot and a busy owner when given an old idle snapshot. The focused Windows run passed 39 tests, source compilation, source typecheck, documentation/naming checks, and architecture checks. Full local typecheck retains the documented generated-descriptor prerequisite gap; the exact Linux packaged-resume suite requires renewed CI.
+
+## CI Repair: Resident macOS Identity Namespace
+
+Run `42092936750` failed four macOS resident-loss fixtures before fault injection: terminal-host registry tokens use `macos-proc-start`, while the independent guardian inspector uses `darwin-proc-start`. Both native implementations read the same `proc_bsdinfo.pbi_start_tvsec` and `pbi_start_tvusec` fields; the log showed identical PID, seconds, and microseconds with only the prefix differing.
+
+A fixture-only adapter translates that exact valid namespace at both resident-versus-guardian comparison points. PID and both kernel fields remain exact; production identity formats, ownership decisions, and all kill guards remain unchanged. Seven portable regression cases cover the real failing token pair, reject PID/seconds/microseconds mismatches, and preserve other or malformed tokens.
+
+Focused local validation passed 32 identity/recovery tests and documentation, naming, architecture, and source typechecking. The six resident-native cases still require CI's native fixture build, and full local typecheck retains the generated-startup-descriptor limitation. No macOS execution is claimed locally and no native scenario was removed or relaxed.

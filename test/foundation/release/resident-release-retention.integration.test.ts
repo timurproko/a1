@@ -20,7 +20,7 @@ import { readResidentReleaseHolds } from "../../../src/foundation/resident-tabs/
 import { ControlStore } from "../../../src/foundation/storage/index.js";
 import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
 import { SupervisorClient } from "../../../src/foundation/protocol/index.js";
-import { fixturePaths } from "./supervisor-recovery-fixture.js";
+import { fixturePaths, residentIdentityForGuardian } from "./supervisor-recovery-fixture.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 // Rationale: the native terminal-host lane builds these fixture binaries before it runs this file;
@@ -92,7 +92,7 @@ describe("resident release retention with real processes", () => {
         // Security: only identities returned by this fixture's isolated registry may be killed.
         const observed = await observeSupervisorProcess(identity.pid);
         if (observed === null) continue; // Platform: a killed holder may already have closed its child's job.
-        expect(observed).toEqual(identity);
+        expect(observed).toEqual(residentIdentityForGuardian(identity));
         try { process.kill(identity.pid, "SIGKILL"); }
         catch (error) { if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error; }
       }
@@ -122,7 +122,7 @@ describe("resident release retention with real processes", () => {
         expect(surviving.child).toEqual(before.child);
       }
       const after = await identities(freshTabId);
-      expect(await observeSupervisorProcess(after.child.pid)).toEqual(after.child);
+      expect(await observeSupervisorProcess(after.child.pid)).toEqual(residentIdentityForGuardian(after.child));
     } finally {
       client.close();
       await supervisor.close();
