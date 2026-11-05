@@ -621,13 +621,116 @@ fn conpty_parallel_captures_preserve_complete_independent_surfaces() {
     });
 }
 
+// Invariant: the mutex protects capture ordering, not shared data. A failed probe must still
+// fail, but poisoning the ordering lock must not prevent the other probes from running.
+#[cfg(windows)]
+fn conpty_capture_lock(lock: &std::sync::Mutex<()>) -> std::sync::MutexGuard<'_, ()> {
+    lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+// Platform: child exit can precede ConPTY's final output and EOF. Drain under the same
+// lifecycle deadline instead of imposing a shorter post-exit deadline on console shutdown.
+#[cfg(windows)]
+fn conpty_receive_output<T>(
+    receiver: &std::sync::mpsc::Receiver<T>,
+    deadline: std::time::Instant,
+) -> Result<T, std::sync::mpsc::RecvTimeoutError> {
+    receiver.recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+}
+
+#[cfg(windows)]
+#[test]
+fn conpty_capture_lock_remains_usable_after_a_failed_probe() {
+    let lock = std::sync::Mutex::new(());
+    assert!(std::panic::catch_unwind(|| {
+        let _capture = conpty_capture_lock(&lock);
+        panic!("fixture failure");
+    }).is_err());
+    assert!(lock.is_poisoned());
+    let capture = conpty_capture_lock(&lock);
+    assert!(lock.try_lock().is_err(), "recovered lock still excludes captures");
+    drop(capture);
+    drop(conpty_capture_lock(&lock));
+}
+
+#[cfg(windows)]
+#[test]
+fn conpty_output_wait_retains_late_bytes_and_requires_eof() {
+    use std::sync::{Arc, Mutex, mpsc};
+    struct GatedReader {
+        chunks: mpsc::Receiver<Vec<u8>>,
+        entered: mpsc::Sender<()>,
+    }
+    impl std::io::Read for GatedReader {
+        fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+            self.entered.send(()).unwrap();
+            let chunk = self.chunks.recv().unwrap_or_default();
+            buffer[..chunk.len()].copy_from_slice(&chunk);
+            Ok(chunk.len())
+        }
+    }
+    let (chunks, input) = mpsc::channel();
+    let (entered, reads) = mpsc::channel();
+    let (output, receiver) = mpsc::channel();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let reader = std::thread::spawn(move || {
+        output.send(conpty_capture_output(
+            GatedReader { chunks: input, entered },
+            Arc::new(Mutex::new(Some(Vec::<u8>::new()))),
+        )).unwrap();
+    });
+    conpty_receive_output(&reads, deadline).unwrap();
+    chunks.send(b"frame".to_vec()).unwrap();
+    conpty_receive_output(&reads, deadline).unwrap();
+    assert!(matches!(receiver.try_recv(), Err(mpsc::TryRecvError::Empty)));
+    chunks.send(b"last-cell".to_vec()).unwrap();
+    conpty_receive_output(&reads, deadline).unwrap();
+    assert!(matches!(receiver.try_recv(), Err(mpsc::TryRecvError::Empty)));
+    drop(chunks);
+    let (result, bytes) = conpty_receive_output(&receiver, deadline).unwrap();
+    reader.join().unwrap();
+    result.unwrap();
+    assert_eq!(bytes, b"framelast-cell");
+}
+
+#[cfg(windows)]
+#[test]
+fn conpty_output_wait_allows_eof_after_the_former_ten_second_cutoff() {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+    let reader = std::thread::spawn(move || {
+        // Regression: a successful child need not imply console EOF within ten seconds.
+        std::thread::sleep(std::time::Duration::from_secs(11));
+        sender.send(b"complete-output").unwrap();
+    });
+    let output = conpty_receive_output(&receiver, deadline).unwrap();
+    reader.join().unwrap();
+    assert_eq!(output, b"complete-output");
+}
+
+#[cfg(windows)]
+#[test]
+fn conpty_output_wait_rejects_expired_or_disconnected_capture() {
+    use std::sync::mpsc::{self, RecvTimeoutError};
+    let (sender, receiver) = mpsc::channel::<Vec<u8>>();
+    assert!(matches!(
+        conpty_receive_output(&receiver, std::time::Instant::now()),
+        Err(RecvTimeoutError::Timeout)
+    ));
+    drop(sender);
+    assert!(matches!(
+        conpty_receive_output(&receiver, std::time::Instant::now() + std::time::Duration::from_secs(60)),
+        Err(RecvTimeoutError::Disconnected)
+    ));
+}
+
 #[cfg(windows)]
 fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns: u16) -> Vec<u8> {
     // Concurrency: these probes repeatedly create and tear down console hosts. Own one complete
     // capture through EOF before another unit probe starts; resident concurrency has separate
     // real-process coverage. Pure frame comparison remains parallel and no output is discarded.
     static CAPTURE: std::sync::Mutex<()> = std::sync::Mutex::new(());
-    let _capture = CAPTURE.lock().expect("exclusive ConPTY fixture capture");
+    let _capture = conpty_capture_lock(&CAPTURE);
     let rows = if case == "hover" {
         31
     } else if case == "recorded" {
@@ -680,7 +783,7 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
         if std::time::Instant::now() >= deadline {
             child.kill().unwrap();
             child.wait().unwrap();
-            panic!("ConPTY fixture child did not finish within ten seconds");
+            panic!("ConPTY fixture child did not finish within sixty seconds");
         }
         std::thread::sleep(std::time::Duration::from_millis(10));
     }
@@ -689,9 +792,10 @@ fn conpty_output(resident_output: bool, case: &str, frame_limit: usize, columns:
     drop(child);
     drop(writer.lock().unwrap().take());
     drop(pair.master);
-    let (result, bytes) = receiver
-        .recv_timeout(std::time::Duration::from_secs(10))
-        .expect("PTY output completed");
+    let (result, bytes) = conpty_receive_output(&receiver, deadline)
+        .unwrap_or_else(|error| panic!(
+            "ConPTY output did not reach EOF within the capture deadline: {error:?}; case={case} frames={frame_limit} columns={columns} resident={resident_output}"
+        ));
     if let Some(status) = failure {
         let text = String::from_utf8_lossy(&bytes);
         let tail: String = text
