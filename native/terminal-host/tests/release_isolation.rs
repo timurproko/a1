@@ -9,6 +9,8 @@ use terminal_host_contracts::roles::{registry::RegistryStore, scope};
 
 #[path = "release_isolation/coordinator_recovery.rs"]
 mod coordinator_recovery;
+#[path = "release_isolation/update_readiness.rs"]
+mod update_readiness;
 
 struct Host {
     executable: PathBuf,

@@ -3425,6 +3425,7 @@ impl Client {
         {
             return Ok(());
         }
+        super::update_notice::suppress_legacy_blocked_surface(&mut surface.structured);
         if self.suppress_satisfied_update_notice {
             super::update_notice::suppress_satisfied_restart_surface(&mut surface.structured);
         }

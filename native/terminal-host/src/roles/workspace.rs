@@ -159,6 +159,53 @@ impl WorkspaceStore {
         })
     }
 
+    /// Read committed topology without taking a writer lease, recovering files, or advancing epochs.
+    pub fn inspect(profile: &Path, data: &Path) -> Result<Option<WorkspaceDocument>, String> {
+        let token = scope::workspace_token(profile)?;
+        let parent = data.join("resident-workspaces");
+        let root = parent.join(&token);
+        for path in [&parent, &root] {
+            let metadata = match std::fs::symlink_metadata(path) {
+                Ok(metadata) => metadata,
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+                Err(_) => return Err("inspect workspace directory".into()),
+            };
+            if !metadata.is_dir() || metadata.file_type().is_symlink() {
+                return Err("workspace directory is linked or invalid".into());
+            }
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::MetadataExt;
+                if metadata.uid() != unsafe { libc::geteuid() } || metadata.mode() & 0o077 != 0 {
+                    return Err("workspace directory is not owner-private".into());
+                }
+            }
+        }
+        let primary = read_bytes(&root.join("workspace.json"))?;
+        let document = match primary
+            .as_deref()
+            .map(|bytes| decode(bytes, &token))
+            .transpose()
+        {
+            Ok(Some(document)) => document,
+            Err(error)
+                if error == "workspace schema is unsupported"
+                    || error == "workspace profile mismatch" =>
+            {
+                return Err(error);
+            }
+            _ => read_document(&root.join("workspace.previous.json"), &token)?
+                .ok_or("workspace profile generation is unavailable")?,
+        };
+        if scope::workspace_token(Path::new(&document.profile_root))? != token {
+            return Err("workspace profile binding mismatch".into());
+        }
+        if read_epoch(&root)? < document.epoch {
+            return Err("workspace durable epoch regressed".into());
+        }
+        Ok(Some(document))
+    }
+
     pub fn snapshot(&self) -> &WorkspaceDocument {
         &self.document
     }

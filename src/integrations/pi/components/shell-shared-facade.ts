@@ -34,20 +34,12 @@ import {
 export const piShellVisibleWidth = visibleWidth;
 export const piShellTruncateToWidth = (text: string, width: number): string => truncateToWidth(text, width, "");
 export const INSTALLED_UPDATE_STATUS_TEXT = "Update installed, restart to update";
-export const BLOCKED_UPDATE_STATUS_TEXT = "Update prepared; activation blocked";
 
 /** Shared green restart notice for the pinned status and bare-A1 prompt overlay. */
 export function renderPiShellInstalledUpdateStatus(width: number): string {
   if (width <= 0) return "";
   ensurePiTheme();
   return piShellTruncateToWidth(piTheme().fg("success", INSTALLED_UPDATE_STATUS_TEXT), width);
-}
-
-/** Sanitized warning for a certified candidate that cannot yet preserve resident continuity. */
-export function renderPiShellBlockedUpdateStatus(width: number): string {
-  if (width <= 0) return "";
-  ensurePiTheme();
-  return piShellTruncateToWidth(piTheme().fg("warning", BLOCKED_UPDATE_STATUS_TEXT), width);
 }
 
 /** A clickable URL in pinned Pi's grammar: an OSC 8 link where the terminal supports one, the plain URL otherwise. */

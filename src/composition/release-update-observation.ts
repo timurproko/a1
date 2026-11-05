@@ -78,6 +78,7 @@ class ReleaseUpdateObservation {
         onActivationBlocked: version => {
           const clientVersion = input.clientVersion?.();
           if (version !== null && clientVersion && !releases.isNewerRelease(version, clientVersion)) return;
+          if (version !== null) this.#nextDelay = module.AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS;
           this.#announce(version === null ? "blocked-cleared" : "blocked", version ?? release.version);
         },
       }));

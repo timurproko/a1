@@ -5,6 +5,7 @@ import type { AvailableRelease, StartupReleaseCheckOptions } from "../../src/fou
 
 const automatic = vi.hoisted(() => ({ request: vi.fn() }));
 vi.mock("../../src/foundation/release/automatic-update.js", () => ({
+  AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS: 15_000,
   requestAutomaticUpdate: automatic.request,
   observeNewerActiveRelease: () => () => {},
 }));
