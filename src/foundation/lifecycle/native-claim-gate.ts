@@ -24,7 +24,7 @@ export function tryAcquireClaimGate(path: string): ClaimGateHandle | null {
           backend = loaded.SessionLock;
           break;
         }
-      } catch { /* An incompatible addon is unavailable, not evidence of lock contention. */ }
+      } catch { /* Compatibility: an unusable addon is unavailable, not contended. */ }
     }
   }
   if (backend === undefined) throw Object.assign(new Error("native worktree coordination is unavailable; repair or update this A1 installation and retry"), {

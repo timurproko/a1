@@ -55,7 +55,7 @@ export async function withSessionClaimLock<T>(directory: string, options: ClaimL
       throw failure("worktree-coordination-boundary", "worktree mutation barrier is not a regular file or directory; retain it for inspection");
     }
     if (metadata.isFile()) {
-      // A new OS gate proves nothing about an older writer that does not participate in it.
+      // Security: a new OS gate proves nothing about an older writer that does not participate in it.
       // Even a dead legacy PID does not exclude a competing legacy reclaimer's rename race.
       throw failure("worktree-legacy-recovery-required", "legacy worktree lock prevents safe recovery; stop all older A1 processes, back up only session-worktree-claims/mutation.lock while stopped, then start the updated A1; do not delete sessions or worktree claims");
     }
@@ -68,7 +68,7 @@ export async function withSessionClaimLock<T>(directory: string, options: ClaimL
     const owner = join(barrier, "owner.json");
     const pending = join(barrier, "owner.next");
     if (await exists(owner) || await exists(pending)) {
-      // One bounded summary, not an accumulating dump of potentially sensitive corrupt bytes.
+      // Security: keep one bounded summary, not an accumulating dump of potentially sensitive corrupt bytes.
       await publish(barrier, "recovery", { reason: "abandoned-mutation-metadata", recoveredAt: new Date().toISOString() });
       await rm(owner, { force: true });
       await rm(pending, { force: true });
@@ -79,7 +79,7 @@ export async function withSessionClaimLock<T>(directory: string, options: ClaimL
       operationStarted = true;
       return await operation();
     } finally {
-      // Authority is still held; no successor can publish until after this removal completes.
+      // Concurrency: authority is still held; no successor can publish until after this removal completes.
       await rm(owner, { force: true });
     }
   } catch (error) {

@@ -30,7 +30,7 @@ export class SessionRuntimeRegistry {
       if (this.#disposed || runtimeId === undefined || inspectProcess === undefined) return null;
       const identity = { sessionId, sessionFile };
       this.#identities.set(agentId, identity);
-      // A failed first activation or self-inspection must not prevent the first retry.
+      // Invariant: initial activation or inspection failure must not disable retries.
       this.#arm();
       return await this.#enqueue(async () => {
         const owner = await this.#ownerIdentity();
@@ -68,7 +68,7 @@ export class SessionRuntimeRegistry {
       .then(owner => owner?.pid === process.pid && owner.startIdentity.length > 0 ? owner : null)
       .catch(() => null);
     const owner = await pending;
-    // Cache successes, not transient failures.
+    // Performance: cache success, not failure.
     if (owner === null && this.#owner === pending) this.#owner = null;
     return owner;
   }

@@ -156,7 +156,7 @@ impl LockedFile {
 
 fn lock_contended(error: &std::io::Error) -> bool {
     #[cfg(windows)]
-    { error.raw_os_error() == Some(33) } // ERROR_LOCK_VIOLATION
+    { error.raw_os_error() == Some(33) } // Platform: ERROR_LOCK_VIOLATION.
     #[cfg(unix)]
     { matches!(error.raw_os_error(), Some(code) if code == libc::EAGAIN || code == libc::EACCES) }
 }
@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     fn gate_child() {
-        let Ok(root) = std::env::var("A1_TEST_CLAIM_GATE_ROOT") else { return; };
+        let Ok(root) = std::env::var("TERMINAL_HOST_TEST_CLAIM_GATE_ROOT") else { return; };
         let root = PathBuf::from(root);
         let _held = SessionLock::try_acquire_gate(root.join("authority")).unwrap().unwrap();
         std::fs::write(root.join("ready"), "ready").unwrap();
@@ -387,7 +387,7 @@ mod tests {
         let root = tempfile::tempdir().unwrap();
         let mut child = Child(std::process::Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "session_lock::tests::gate_child", "--nocapture"])
-            .env("A1_TEST_CLAIM_GATE_ROOT", root.path())
+            .env("TERMINAL_HOST_TEST_CLAIM_GATE_ROOT", root.path())
             .spawn().unwrap());
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
         while !root.path().join("ready").exists() {
