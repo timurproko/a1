@@ -21,25 +21,10 @@ pub fn check(profile: &Path, data: &Path, root: &Path) -> Result<String, String>
                 route.epoch()
             ));
         }
-        if !routes.is_empty()
-            || data
-                .join("resident-workspaces")
-                .join(scope::workspace_token(&profile)?)
-                .exists()
-        {
-            let mut store = WorkspaceStore::open(&profile, data)?;
-            reconcile_closed(&mut store, &profile, data, &routes)?;
-            drop(store);
-            persist(
-                &profile,
-                data,
-                Persistence {
-                    selected: None,
-                    order: vec![],
-                    routes,
-                    view: None,
-                },
-            )?;
+        // Concurrency: readiness observes custody; opening a writer here competes with live
+        // viewers and repeatedly fsyncs topology inside the activation command's deadline.
+        if let Some(document) = WorkspaceStore::inspect(&profile, data)? {
+            closed_sources(&document, &profile, data, &routes)?;
         }
     }
     identities.sort();
@@ -76,9 +61,21 @@ fn reconcile_closed(
     data: &Path,
     routes: &[Arc<SourceRoute>],
 ) -> Result<(), String> {
-    let previous_tabs = store.snapshot().tabs.clone();
-    let previous = store
-        .snapshot()
+    let closed = closed_sources(store.snapshot(), profile, data, routes)?;
+    let identity = store.snapshot().profile.clone();
+    for source in closed {
+        store.reconcile_verified_source(&identity, source, vec![])?;
+    }
+    Ok(())
+}
+fn closed_sources(
+    document: &WorkspaceDocument,
+    profile: &Path,
+    data: &Path,
+    routes: &[Arc<SourceRoute>],
+) -> Result<Vec<SourceIdentity>, String> {
+    let previous_tabs = &document.tabs;
+    let previous = document
         .sources
         .iter()
         .filter(|source| {
@@ -88,7 +85,7 @@ fn reconcile_closed(
         })
         .cloned()
         .collect::<Vec<_>>();
-    let identity = store.snapshot().profile.clone();
+    let mut verified = Vec::new();
     for source in previous {
         if routes
             .iter()
@@ -98,17 +95,13 @@ fn reconcile_closed(
         }
         let closed = SourceRoute::closed_snapshot(profile, data, &source, &previous_tabs)?
             .ok_or("recorded source is unavailable; workspace preserved")?;
-        store.reconcile_verified_source(
-            &identity,
-            SourceIdentity {
-                epoch: closed.epoch,
-                revision: closed.registry_revision,
-                ..source
-            },
-            vec![],
-        )?;
+        verified.push(SourceIdentity {
+            epoch: closed.epoch,
+            revision: closed.registry_revision,
+            ..source
+        });
     }
-    Ok(())
+    Ok(verified)
 }
 pub(super) fn persist(
     profile: &Path,
@@ -223,6 +216,22 @@ pub(super) fn worker(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn activation_check_does_not_compete_with_a_live_metadata_writer() {
+        let root = tempfile::tempdir().unwrap();
+        let profile = root.path().join("profile");
+        let data = root.path().join("data");
+        std::fs::create_dir_all(&profile).unwrap();
+        let held = WorkspaceStore::open(&profile, &data).unwrap();
+        let before = held.snapshot().clone();
+        let first = check(&profile, &data, root.path()).unwrap();
+        assert_eq!(check(&profile, &data, root.path()).unwrap(), first);
+        assert_eq!(
+            WorkspaceStore::inspect(&profile, &data).unwrap(),
+            Some(before)
+        );
+    }
+
     #[test]
     fn another_clients_writer_lease_waits_off_loop_without_error_or_lost_view() {
         let root = tempfile::tempdir().unwrap();

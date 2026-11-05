@@ -134,9 +134,20 @@ pub fn suppress_satisfied_restart_surface(surface: &mut Option<StructuredSurface
     surface.as_mut().is_some_and(suppress_satisfied_restart)
 }
 
-/// Removes one exact owned restart instruction without interpreting any other terminal content.
+/// Retained agents cannot replace their old status renderer when the outer client upgrades.
+pub fn suppress_legacy_blocked_surface(surface: &mut Option<StructuredSurface>) -> bool {
+    surface.as_mut().is_some_and(|surface| {
+        suppress_owned_notice(surface, "Update prepared; activation blocked")
+    })
+}
+
 fn suppress_satisfied_restart(surface: &mut StructuredSurface) -> bool {
-    let expected = SATISFIED_RESTART_NOTICE
+    suppress_owned_notice(surface, SATISFIED_RESTART_NOTICE)
+}
+
+/// Removes one exact styled right-edge status without interpreting arbitrary terminal content.
+fn suppress_owned_notice(surface: &mut StructuredSurface, notice: &str) -> bool {
+    let expected = notice
         .chars()
         .map(|character| character.to_string())
         .collect::<Vec<_>>();
@@ -311,6 +322,39 @@ mod tests {
         )
         .unwrap();
         assert!(!restart_is_satisfied(root.path(), "0.2.7-dev.1235"));
+    }
+
+    #[test]
+    fn retained_agent_blocked_status_is_hidden_without_claiming_restart_readiness() {
+        let mut value = Some(surface(&[
+            "Working",
+            " Update prepared; activation blocked│",
+            "prompt",
+        ]));
+        assert!(suppress_legacy_blocked_surface(&mut value));
+        let value = value.unwrap();
+        assert_eq!(row_text(&value, 0).trim_end(), "Working");
+        assert_eq!(row_text(&value, 1).trim_start(), "│");
+        assert_eq!(row_text(&value, 2).trim_end(), "prompt");
+        assert!(!row_text(&value, 1).contains("Update installed"));
+        assert!(!suppress_legacy_blocked_surface(&mut None));
+    }
+
+    #[test]
+    fn retained_agent_projection_preserves_quoted_ambiguous_and_installed_text() {
+        for rows in [
+            vec!["Update prepared; activation blocked"],
+            vec![
+                " Update prepared; activation blocked",
+                " Update prepared; activation blocked",
+            ],
+            vec![" Update installed, restart to update"],
+        ] {
+            let mut value = Some(surface(&rows));
+            let before = value.clone();
+            assert!(!suppress_legacy_blocked_surface(&mut value));
+            assert_eq!(value, before);
+        }
     }
 
     #[test]

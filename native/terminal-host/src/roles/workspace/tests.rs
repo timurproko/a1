@@ -32,6 +32,65 @@ fn setup() -> (tempfile::TempDir, PathBuf, PathBuf) {
 }
 
 #[test]
+fn readiness_inspection_preserves_the_live_writer_and_committed_bytes() {
+    let (root, profile, data) = setup();
+    let mut store = WorkspaceStore::open(&profile, &data).unwrap();
+    let source = source(root.path(), 'a', 1);
+    let first = tab(&source, "tab-1");
+    let identity = store.snapshot().profile.clone();
+    store.reconcile_verified_source(&identity, source, vec![first.clone()]).unwrap();
+    store.select(&first.id).unwrap();
+    let before = store.snapshot().clone();
+    let bytes = std::fs::read(store.root.join("workspace.json")).unwrap();
+    let epoch = std::fs::read(store.root.join("workspace.epoch")).unwrap();
+    for _ in 0..4 {
+        assert_eq!(WorkspaceStore::inspect(&profile, &data).unwrap(), Some(before.clone()));
+    }
+    assert_eq!(std::fs::read(store.root.join("workspace.json")).unwrap(), bytes);
+    assert_eq!(std::fs::read(store.root.join("workspace.epoch")).unwrap(), epoch);
+    store.select(&first.id).unwrap();
+}
+
+#[test]
+fn readiness_inspection_never_creates_workspace_state() {
+    let (_root, profile, data) = setup();
+    assert!(WorkspaceStore::inspect(&profile, &data).unwrap().is_none());
+    assert!(!data.exists());
+}
+
+#[test]
+fn readiness_inspection_reads_recoverable_history_without_repairing_it() {
+    let (root, profile, data) = setup();
+    let mut store = WorkspaceStore::open(&profile, &data).unwrap();
+    let prior = store.snapshot().clone();
+    let source = source(root.path(), 'a', 1);
+    store.reconcile_verified_source(&prior.profile, source.clone(), vec![tab(&source, "tab-1")]).unwrap();
+    let directory = store.root.clone();
+    drop(store);
+    std::fs::write(directory.join("workspace.json"), "broken").unwrap();
+    let entries = std::fs::read_dir(&directory).unwrap().count();
+    assert_eq!(WorkspaceStore::inspect(&profile, &data).unwrap(), Some(prior));
+    assert_eq!(std::fs::read(directory.join("workspace.json")).unwrap(), b"broken");
+    assert_eq!(std::fs::read_dir(&directory).unwrap().count(), entries);
+    std::fs::write(directory.join("workspace.previous.json"), "broken").unwrap();
+    assert!(WorkspaceStore::inspect(&profile, &data).is_err());
+}
+
+#[test]
+fn readiness_inspection_rejects_foreign_profiles_and_regressed_epochs() {
+    let (_root, profile, data) = setup();
+    let store = WorkspaceStore::open(&profile, &data).unwrap();
+    let mut document = store.snapshot().clone();
+    let directory = store.root.clone();
+    drop(store);
+    std::fs::write(directory.join("workspace.epoch"), b"0").unwrap();
+    assert!(WorkspaceStore::inspect(&profile, &data).is_err());
+    document.profile = "a".repeat(20);
+    std::fs::write(directory.join("workspace.json"), serde_json::to_vec(&document).unwrap()).unwrap();
+    assert!(WorkspaceStore::inspect(&profile, &data).is_err());
+}
+
+#[test]
 fn workspace_v1_shape_and_logical_identity_are_frozen() {
     let pinned:serde_json::Value = serde_json::from_str(include_str!("../../../protocol/workspace-v1.json")).unwrap();
     let document:WorkspaceDocument = serde_json::from_value(pinned.clone()).unwrap();

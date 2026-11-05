@@ -131,13 +131,11 @@ describe("bare-A1 progress status animation", () => {
     }
   });
 
-  it("shows the sanitized blocked status in the pinned compact region", () => {
+  it("keeps blocked diagnostics out of the pinned compact region", () => {
     const status = createPiShellStatus(blockedView(), presentation);
     try {
       const row = status.render(60).join("\n");
-      expect(stripTerminalSequences(row).trim()).toBe("Update prepared; activation blocked");
-      expect(cellStyle(row, "U").foreground)
-        .toBe(cellStyle(piTheme().fg("warning", "U"), "U").foreground);
+      expect(stripTerminalSequences(row).trim()).toBe("");
     } finally {
       status.dispose?.();
     }

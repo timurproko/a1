@@ -7,6 +7,7 @@ import type { PiEngineHostOptions } from "../../src/integrations/pi/engine/host.
 const observed = vi.hoisted(() => ({
   updateCheck: "notify" as unknown,
   automaticInstalled: "0.3.1" as string | null,
+  activationBlocked: false,
   automaticRequests: [] as unknown[],
   activeReleaseCallbacks: [] as Array<(version: string) => void>,
   activeReleaseRunningVersions: [] as string[],
@@ -37,8 +38,10 @@ vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async im
 }));
 vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/foundation/release/automatic-update.js", () => ({
-  requestAutomaticUpdate: async (input: unknown) => {
+  AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS: 15_000,
+  requestAutomaticUpdate: async (input: { release: AvailableRelease; onActivationBlocked?: (version: string | null) => void }) => {
     observed.automaticRequests.push(input);
+    if (observed.activationBlocked) input.onActivationBlocked?.(input.release.version);
     return observed.automaticInstalled;
   },
   observeNewerActiveRelease: (input: { runningVersion: string; onNewer(version: string): void }) => {
@@ -91,6 +94,7 @@ vi.mock("../../src/app/session-shell/session-shell.js", () => ({
 afterEach(() => {
   observed.updateCheck = "notify";
   observed.automaticInstalled = "0.3.1";
+  observed.activationBlocked = false;
   observed.automaticRequests.length = 0;
   observed.activeReleaseCallbacks.length = 0;
   observed.activeReleaseRunningVersions.length = 0;
@@ -352,6 +356,30 @@ describe("startup release check composition", () => {
       await composed.application.dispose();
       await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL_MS);
       expect(checks).toHaveLength(2);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("retries prepared activation before registry cache expiry and stops after activation", async () => {
+    observed.updateCheck = "auto";
+    observed.activationBlocked = true;
+    observed.automaticInstalled = null;
+    const { composed, announced, checks } = await compose({ profileId: "a1", nextCheckDelay: UPDATE_CHECK_INTERVAL_MS });
+    vi.useFakeTimers();
+    try {
+      composed.application.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(observed.automaticRequests).toHaveLength(1);
+      expect(announced).toEqual([{ status: "blocked", version: STABLE.version }]);
+      await vi.advanceTimersByTimeAsync(14_999);
+      expect(checks).toHaveLength(1);
+      observed.activationBlocked = false;
+      observed.automaticInstalled = STABLE.version;
+      await vi.advanceTimersByTimeAsync(1);
+      expect(observed.automaticRequests).toHaveLength(2);
+      expect(announced.at(-1)).toEqual({ status: "installed", version: STABLE.version });
+      await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL_MS);
+      expect(checks).toHaveLength(2);
+      await composed.application.dispose();
     } finally { vi.useRealTimers(); }
   });
 
