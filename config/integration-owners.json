@@ -22,6 +22,7 @@
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/session-resume.integration.test.ts",
         "test/foundation/release/update-transition.integration.test.ts",
+        "test/foundation/release/supervisor-recovery.integration.test.ts",
         "test/repository-governance/release-command.test.ts"
       ],
       "tests": [
@@ -31,11 +32,14 @@
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/session-resume.integration.test.ts",
         "test/foundation/release/update-transition.integration.test.ts",
+        "test/foundation/release/supervisor-recovery.integration.test.ts",
         "test/repository-governance/release-command.test.ts"
       ],
       "support": [
         "test/support/session-resume-fixture.ts",
-        "test/foundation/release/package-candidate-fixture.ts"
+        "test/foundation/release/package-candidate-fixture.ts",
+        "test/foundation/release/supervisor-recovery-child.ts",
+        "test/foundation/release/supervisor-recovery-fixture.ts"
       ],
       "cadence": "pull-request"
     },
@@ -202,6 +206,8 @@
         "test/foundation/process-containment/source-boundary.test.ts",
         "test/foundation/process-containment/unix-process-group.integration.test.ts",
         "test/foundation/process-containment/windows-job.integration.test.ts",
+        "test/foundation/release/supervisor-recovery.integration.test.ts",
+        "test/foundation/release/supervisor-identity.test.ts",
         "test/app/session-shell/image-preparation.test.ts",
         "test/app/session-shell/image-worker-package.test.ts",
         "test/features/prompt-history/concurrency.integration.test.ts",
@@ -224,11 +230,19 @@
         "test/foundation/process-containment/addon-process-inspector.test.ts",
         "test/foundation/process-containment/source-boundary.test.ts",
         "test/foundation/process-containment/unix-process-group.integration.test.ts",
-        "test/foundation/process-containment/windows-job.integration.test.ts"
+        "test/foundation/process-containment/windows-job.integration.test.ts",
+        "test/foundation/release/supervisor-identity.test.ts"
       ],
       "support": [
         "native/process-guardian/",
         "src/foundation/process-containment/",
+        "src/foundation/release/endpoint-recovery.ts",
+        "src/foundation/release/endpoint-lock.ts",
+        "src/foundation/release/supervisor-identity.ts",
+        "src/foundation/release/endpoints.ts",
+        "src/foundation/supervision/",
+        "test/foundation/release/supervisor-recovery-child.ts",
+        "test/foundation/release/supervisor-recovery-fixture.ts",
         "src/foundation/protocol/",
         "test/foundation/process-containment/"
       ],

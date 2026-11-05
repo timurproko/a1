@@ -14,7 +14,7 @@ import {
   type SupervisorSnapshot,
 } from "../lifecycle/index.js";
 import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures, type ServerMessage } from "../protocol/index.js";
-import { observeSupervisorProcess, withEndpointLock, processIsAlive, type MaterializedRelease } from "../release/index.js";
+import { listRecordedEndpoints, readEndpointMetadata, supervisorProcessState, observeSupervisorProcess, withEndpointLock, processIsAlive, type MaterializedRelease } from "../release/index.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveProductPaths, type ProductPaths } from "./paths.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
@@ -115,7 +115,7 @@ export class SupervisorServer {
     this.supersededPollMs = supersededPollMs;
     this.bootNonce = bootNonce;
     this.paths = paths;
-    for (const instance of store.loadActiveLaunchInstances()) this.#instances.set(instance.id, instance);
+    for (const instance of store.loadActiveLaunchInstances(bootNonce)) this.#instances.set(instance.id, instance);
   }
 
   snapshot(): SupervisorSnapshot {
@@ -139,6 +139,10 @@ export class SupervisorServer {
     if (this.#server) throw new Error("supervisor is already listening");
     await mkdir(this.paths.runtimeDir, { recursive: true, mode: 0o700 });
     await mkdir(this.paths.endpointsDir, { recursive: true, mode: 0o700 });
+    const recorded = await readEndpointMetadata(this.paths.endpointMetadataPath);
+    if (recorded && await supervisorProcessState(recorded) !== "gone") {
+      throw Object.assign(new Error("another supervisor still owns this endpoint"), { code: "EADDRINUSE" });
+    }
     if (platform() !== "win32") {
       if (this.paths.endpointDirectory) await ensureManagedEndpointDirectory(dirname(this.paths.endpoint));
       const existing = await lstat(this.paths.endpoint).catch(error => {
@@ -162,7 +166,19 @@ export class SupervisorServer {
         resolve();
       });
     });
-    await this.#writeEndpointMetadata();
+    // Concurrency: only the bound winner may reconcile shared control data. Other cohort boots
+    // remain protected even when temporarily unresponsive; their instances never become ours.
+    await withEndpointLock(this.paths.databasePath, async () => {
+      // All cohorts sharing SQLite serialize boot reconciliation plus publication, so a new
+      // cohort cannot insert instances between another cohort's inventory and stale-row update.
+      const protectedBoots: string[] = [];
+      for (const other of await listRecordedEndpoints(this.paths)) {
+        if (other.paths.endpointMetadataPath !== this.paths.endpointMetadataPath
+          && await supervisorProcessState(other.metadata) !== "gone") protectedBoots.push(other.metadata.bootNonce);
+      }
+      this.store.reconcilePriorBootLaunchInstances(this.bootNonce, new Date().toISOString(), protectedBoots);
+      await this.#writeEndpointMetadata();
+    });
     if (this.readActiveReleaseId) {
       const poll = setInterval(() => void this.#refreshCohortRole(), this.supersededPollMs);
       poll.unref();

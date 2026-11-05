@@ -21,9 +21,12 @@ export interface RecordedEndpoint {
  */
 export async function listRecordedEndpoints(paths: ProductPaths): Promise<readonly RecordedEndpoint[]> {
   const recorded: RecordedEndpoint[] = [];
-  const legacy = await readEndpointMetadata(paths.endpointMetadataPath);
+  // Compatibility: a cohort listener passes its scoped paths here; legacy discovery still
+  // names the runtime directory's fixed metadata path, not that listener's own record.
+  const legacyPath = resolve(paths.runtimeDir, PRODUCT_IDENTITY.endpoint.metadataFilename);
+  const legacy = await readEndpointMetadata(legacyPath);
   if (legacy) {
-    recorded.push({ metadata: legacy, paths: { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath } });
+    recorded.push({ metadata: legacy, paths: { endpoint: legacy.endpoint, endpointMetadataPath: legacyPath } });
   }
   const names = await readdir(paths.endpointsDir).catch(() => [] as string[]);
   for (const name of names) {

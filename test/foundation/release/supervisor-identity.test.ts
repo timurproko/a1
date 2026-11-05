@@ -29,6 +29,10 @@ describe("independent supervisor generation identity", () => {
     await expect(supervisorProcessState(metadata, async pid => ({ pid, startIdentity: token(published + 10_000) }))).resolves.toBe("gone");
   });
 
+  it.each(["windows-filetime:broken", "", 123])("preserves malformed recorded native identity %s", async token => {
+    await expect(supervisorProcessState(fixtureMetadata({ nativeStartIdentity: token as string }), async pid => ({ pid, startIdentity: "windows-filetime:123" }))).resolves.toBe("unknown");
+  });
+
   it("preserves legacy tick-only and malformed publication evidence", async () => {
     await expect(supervisorProcessState(fixtureMetadata(), async pid => ({ pid, startIdentity: "linux-proc-start:999999999" }))).resolves.toBe("unknown");
     await expect(supervisorProcessState(fixtureMetadata({ startedAt: "invalid" }), async pid => ({ pid, startIdentity: "windows-filetime:999999999999999999" }))).resolves.toBe("unknown");
@@ -39,7 +43,7 @@ describe("independent supervisor generation identity", () => {
     expect(current).not.toBeNull();
     const idle = fixtureMetadata({ nativeStartIdentity: current!.startIdentity, ownership: { state: "idle", liveInstanceIds: [], nonResumableInstanceIds: [], uncertainInstanceIds: [] } });
     expect(await cleanupProvenIdleOwner(idle, 1)).toMatchObject({ terminated: false, attempted: ["live-owner-preserved"] });
-    expect(await cleanupProvenIdleOwner({ ...idle, nativeStartIdentity: `${current!.startIdentity}0` }, 1)).toMatchObject({ terminated: true, attempted: ["owner-already-dead"] });
+    expect(await cleanupProvenIdleOwner({ ...idle, nativeStartIdentity: current!.startIdentity.replace(/\d+/, token => String(BigInt(token) + 1n)) }, 1)).toMatchObject({ terminated: true, attempted: ["owner-already-dead"] });
     expect(await observeSupervisorProcess(process.pid)).toEqual(current);
     await expect(cleanupProvenIdleOwner({ ...idle, ownership: { ...idle.ownership, uncertainInstanceIds: ["unknown"] } })).rejects.toThrow(/recorded live/);
   });

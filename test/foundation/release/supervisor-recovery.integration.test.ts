@@ -10,7 +10,7 @@ import { SupervisorClient } from "../../../src/foundation/protocol/index.js";
 import { ControlStore } from "../../../src/foundation/storage/index.js";
 import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
 import { observeSupervisorProcess } from "../../../src/foundation/release/supervisor-identity.js";
-import { recoverSupervisorEndpoint } from "../../../src/foundation/release/supervisor-recovery.js";
+import { recoverSupervisorEndpoint } from "../../../src/foundation/release/endpoint-recovery.js";
 import { probeOwnership, readEndpointMetadata, removeEndpointArtifacts, sweepDeadEndpoints } from "../../../src/foundation/release/endpoints.js";
 import { withEndpointLock } from "../../../src/foundation/release/endpoint-lock.js";
 import { fixtureMetadata, fixturePaths, fixtureRelease } from "./supervisor-recovery-fixture.js";
@@ -56,6 +56,63 @@ describe("automatic supervisor recovery", () => {
     fresh.close();
   });
 
+  it.each(["guardian", "root", ...(process.platform === "win32" ? ["all"] : [])])("admits a fresh managed runtime after killing fixture %s processes", async target => {
+    const paths = await pathsFixture();
+    const supervisor = await startChild("supervisor", paths);
+    const guardian = await startChild("guardian", paths);
+    const rootPid = Number(await readFile(resolve(paths.dataDir, `${guardian.pid}.root-ready`), "utf8"));
+    const rootIdentity = await observeSupervisorProcess(rootPid);
+    expect(rootIdentity).not.toBeNull();
+    const independent = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { stdio: "ignore", windowsHide: true });
+    children.push(independent);
+    await once(independent, "spawn");
+    const sentinelIdentity = await observeSupervisorProcess(independent.pid!);
+    const survivingGuardian = target === "all" ? null : await startChild("guardian", paths);
+    const survivingRoot = survivingGuardian ? Number(await readFile(resolve(paths.dataDir, `${survivingGuardian.pid}.root-ready`), "utf8")) : null;
+    if (target === "all") {
+      const watcherPid = Number(await readFile(resolve(paths.dataDir, `${guardian.pid}.watcher-ready`), "utf8"));
+      expect(await observeSupervisorProcess(watcherPid)).not.toBeNull();
+      process.kill(watcherPid, "SIGKILL");
+      // Kill only recorded fixture identities, never all node.exe processes on the machine.
+      process.kill(rootPid, "SIGKILL");
+      await Promise.all([killFixture(guardian), killFixture(supervisor)]);
+    } else if (target === "guardian") await killFixture(guardian);
+    else process.kill(rootPid, "SIGKILL");
+    await vi.waitFor(async () => expect(await observeSupervisorProcess(rootPid)).toBeNull(), { timeout: 8_000 });
+    if (survivingRoot !== null) expect(await observeSupervisorProcess(survivingRoot)).not.toBeNull();
+    await recover(paths);
+    const freshGuardian = await startChild("guardian", paths);
+    const freshRoot = Number(await readFile(resolve(paths.dataDir, `${freshGuardian.pid}.root-ready`), "utf8"));
+    expect(await observeSupervisorProcess(freshRoot)).not.toBeNull();
+    expect(await observeSupervisorProcess(independent.pid!)).toEqual(sentinelIdentity);
+    if (survivingRoot !== null) expect(await observeSupervisorProcess(survivingRoot)).not.toBeNull();
+  }, 30_000);
+
+  it("does not let a losing startup or a second cohort rewrite the live winner's control rows", async () => {
+    const paths = await pathsFixture();
+    await recover(paths);
+    const client = new SupervisorClient(fixtureRelease().releaseId);
+    await client.connect(paths.endpoint);
+    const instanceId = randomUUID();
+    try {
+      expect(await client.command({ type: "create-launch-instance", requestId: randomUUID(), instanceId, profileId: "a1", shutdownPolicy: "terminate-tree-on-close", guardianIdentity: (await observeSupervisorProcess(process.pid))! })).toMatchObject({ ok: true });
+      const loser = new SupervisorServer(new ControlStore(paths.databasePath, "loser", { reconcileOnOpen: false }), paths, fixtureRelease(), "loser");
+      servers.push(loser);
+      await expect(loser.listen()).rejects.toMatchObject({ code: "EADDRINUSE" });
+      await loser.close();
+      const otherPaths = { ...paths, endpoint: fixturePaths(paths.dataDir).endpoint, endpointMetadataPath: resolve(paths.endpointsDir, "other.json") };
+      if (process.platform !== "win32") roots.push(otherPaths.endpoint);
+      const other = new SupervisorServer(new ControlStore(paths.databasePath, "other", { reconcileOnOpen: false }), otherPaths, fixtureRelease(), "other");
+      servers.push(other);
+      await other.listen();
+      expect(other.snapshot().activeInstances).toEqual([]);
+      const read = new ControlStore(paths.databasePath);
+      expect(read.loadLaunchInstance(instanceId)).toMatchObject({ state: "requested" });
+      read.close();
+      expect(await client.command({ type: "complete-launch-instance", requestId: randomUUID(), instanceId, terminalState: "completed", outcome: { kind: "exited", exitCode: 0 } })).toMatchObject({ ok: true });
+    } finally { client.close(); }
+  });
+
   it("converges concurrent recoverers without unlinking the winning listener", async () => {
     const paths = await pathsFixture();
     await writeFile(paths.endpointMetadataPath, JSON.stringify(fixtureMetadata({ pid: 2_000_000_000, endpoint: paths.endpoint })));
@@ -89,7 +146,7 @@ describe("automatic supervisor recovery", () => {
   it("retires a stale generation while the unrelated process reusing its PID survives", async () => {
     const paths = await pathsFixture();
     const identity = (await observeSupervisorProcess(process.pid))!;
-    await writeFile(paths.endpointMetadataPath, JSON.stringify(fixtureMetadata({ endpoint: paths.endpoint, nativeStartIdentity: `${identity.startIdentity}0` })));
+    await writeFile(paths.endpointMetadataPath, JSON.stringify(fixtureMetadata({ endpoint: paths.endpoint, nativeStartIdentity: identity.startIdentity.replace(/\d+/, token => String(BigInt(token) + 1n)) })));
     await recover(paths);
     expect(await observeSupervisorProcess(process.pid)).toEqual(identity);
     expect(await probeOwnership((await readEndpointMetadata(paths.endpointMetadataPath))!)).toBe("live-verified");
@@ -153,7 +210,7 @@ async function recover(paths: ReturnType<typeof fixturePaths>) {
   await recoverSupervisorEndpoint({ metadataPath: paths.endpointMetadataPath, endpoint: paths.endpoint, matches: metadata => metadata.releaseId === fixtureRelease().releaseId,
     startAndWait: async () => {
       const boot = randomUUID();
-      const server = new SupervisorServer(new ControlStore(paths.databasePath, boot), paths, fixtureRelease(), boot);
+      const server = new SupervisorServer(new ControlStore(paths.databasePath, boot, { reconcileOnOpen: false }), paths, fixtureRelease(), boot);
       servers.push(server);
       try { await server.listen(); }
       catch (error) {

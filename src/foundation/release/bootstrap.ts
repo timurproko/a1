@@ -4,7 +4,7 @@ import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { resolve } from "node:path";
 import { selectCohortLaunch } from "./cohort-selection.js";
-import { recoverSupervisorEndpoint } from "./supervisor-recovery.js";
+import { recoverSupervisorEndpoint } from "./endpoint-recovery.js";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
 import { releaseChannelOf } from "./latest-release.js";
 import { CohortStateStore, type CohortState, type SupervisorEndpointMetadata } from "./cohort-state.js";
@@ -40,7 +40,13 @@ export interface BootstrapOptions {
 const RELEASE_RESELECTION_MESSAGE = "a1-release-reselection";
 
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
-  return await runBootstrapAttempt(options, 1);
+  try { return await runBootstrapAttempt(options, 1); }
+  catch (error) {
+    if (!(error instanceof Error && "code" in error && typeof error.code === "string" && error.code.startsWith("SUPERVISOR_RECOVERY_"))) throw error;
+    // UX: actionable recovery failures are a single line, not an uncaught Node stack trace.
+    (options.output ?? process.stderr).write(`${PRODUCT_TEXT.diagnostic(error.message)}\n`);
+    return 1;
+  }
 }
 
 async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: number): Promise<number> {
@@ -561,8 +567,8 @@ export async function releaseVerifiedIdleOwner(
     await (operations.waitForExit ?? waitForProcessExit)(metadata.pid, 3_000);
     return true;
   } catch {
-    // Security: the authenticated idle-release handshake authorizes bounded cleanup of
-    // this exact boot when a native handle outlives graceful shutdown.
+    // Security: a lingering Windows handle can keep numeric PID probes positive after exit.
+    // Native observation may retire that exact dead boot, but never signals a still-live owner.
     const diagnostics = await (operations.cleanup ?? cleanupProvenIdleOwner)(metadata);
     await writeFile(resolve(dataDir, `cleanup-${Date.now()}.json`), JSON.stringify(diagnostics, null, 2));
     return diagnostics.terminated;

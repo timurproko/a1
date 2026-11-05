@@ -5,8 +5,13 @@ import { acquireSupervisorGate } from "./supervisor-identity.js";
 
 /** Serialize endpoint publication and retirement using a lock released by the OS on process death. */
 export async function withEndpointLock<T>(metadataPath: string, operation: () => Promise<T>): Promise<T> {
-  await mkdir(dirname(metadataPath), { recursive: true, mode: 0o700 });
-  const authority = join(await realpath(dirname(metadataPath)), `${basename(metadataPath)}.authority`);
+  let authority: string;
+  try {
+    await mkdir(dirname(metadataPath), { recursive: true, mode: 0o700 });
+    authority = join(await realpath(dirname(metadataPath)), `${basename(metadataPath)}.authority`);
+  } catch (cause) {
+    throw Object.assign(new Error("cannot access A1 startup state; check runtime-directory permissions and free disk space", { cause }), { code: "SUPERVISOR_RECOVERY_UNAVAILABLE" });
+  }
   const deadline = Date.now() + 3_000;
   for (;;) {
     let gate;

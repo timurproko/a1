@@ -31,7 +31,8 @@ export async function supervisorProcessState(
   if (identity.pid !== metadata.pid) return "unknown";
   if (metadata.nativeStartIdentity !== undefined) {
     // Compatibility: only compare tokens of the same native format, not an old Node timestamp.
-    if (identity.startIdentity.split(":")[0] !== metadata.nativeStartIdentity.split(":")[0]) return "unknown";
+    if (!validNativeToken(metadata.nativeStartIdentity) || !validNativeToken(identity.startIdentity)
+      || identity.startIdentity.split(":")[0] !== metadata.nativeStartIdentity.split(":")[0]) return "unknown";
     return identity.startIdentity === metadata.nativeStartIdentity ? "same" : "gone";
   }
   // Compatibility: legacy publication happened after process creation. A native creation time
@@ -40,6 +41,10 @@ export async function supervisorProcessState(
   const published = Date.parse(metadata.startedAt);
   const created = nativeCreationTime(identity.startIdentity);
   return Number.isFinite(published) && created !== null && created > published + 1_000 ? "gone" : "unknown";
+}
+
+function validNativeToken(value: unknown): value is string {
+  return typeof value === "string" && /^(?:windows-filetime:\d{1,20}|linux-proc-start:\d{1,20}|darwin-proc-start:\d{1,20}:\d{1,6})$/.test(value);
 }
 
 function nativeCreationTime(identity: string): number | null {

@@ -55,4 +55,21 @@ Before pushing implementation, run typecheck, only the changed test files, and s
 - Historical approximate start timestamps do not supply exact native identity. Legacy recovery needs proof, not permissive string comparison.
 - Global Node termination cannot preserve unsaved memory or an exit-notice watcher killed in the same action; the existing accepted limitation remains.
 - A truly live inaccessible/unresponsive owner may still require a concise failure after the bounded recovery budget. This plan removes recoverable stale-state blockers, not operating-system security boundaries.
-- Planned tests and implementation are not yet delivered. No production runtime state was changed during diagnosis.
+- Disposition: recovery code and regression fixtures are delivered; the earlier incident remains unconfirmed rather than retroactively claimed as reproduced. No production runtime state was changed during diagnosis or fault injection.
+
+## Implementation Record
+
+Native supervisor identity is additive. `supervisor-identity.ts` uses this runtime's process-guardian inspector, validates token formats, and retains conservative legacy handling. `endpoint-lock.ts` uses the process-guardian addon's persistent OS descriptor gate; it does not depend on a live holder PID or a heartbeat. Record retirement compares the publication again inside the gate and never removes a socket. The gated listener alone handles Unix stale-socket removal. Ordinary recovery never signals a still-live owner, even when its stored instance list is empty.
+
+`endpoint-recovery.ts` is shared by `ensureSupervisor`, including ordinary and retained-release callers. Probe retries are bounded, concurrent metadata changes cause rereads, replacement startup joins an authenticated winner, and final recovery errors are rendered as one line by bootstrap. Per-endpoint recovery summaries are bounded and contain no raw metadata or session content.
+
+Fault injection exposed an additional race within the approved concurrency scope: opening a losing supervisor's control store reconciled another boot before endpoint admission. Production startup now defers reconciliation until successful bind, preserves independently recorded surviving cohort boots, and loads only its own boot's active instances. A shared-database descriptor gate makes boot reconciliation and publication atomic relative to other new cohorts.
+
+## Focused Evidence and Gap Disposition
+
+- Source compilation with `tsc -p tsconfig.build.json` and source typechecking with `tsgo -p tsconfig.json --noEmit` passed.
+- The final focused Windows run covered 17 named test files: 103 tests passed and the six resident-native cases were skipped because the fixture host addon was unavailable. This included real supervisor/guardian/root/gate termination, all recorded fixture Node roles including the watcher, surviving-runtime and unrelated-process preservation, shared-database ownership, PID reuse, legacy/malformed identity, transient probes, sanitized diagnostics, and validation ownership routing.
+- Four existing Windows native containment/identity/exit-watcher tests passed against the newly built process-guardian addon. Linux and macOS recovery fixtures are registered in the existing bounded Unix containment scope; Windows recovery runs in the existing release-update scope.
+- Local resident-native execution was not claimed: the trusted terminal-library fetch found no recent eligible develop artifact. The four new resident server/holder/child/all-loss cases remain in the existing native resident test file executed by selected native CI. Disposition: retain those assertions and require CI's actual native builds; do not substitute an older binary or weaken the cases.
+- The local full `npm run typecheck` was blocked at the generated startup-descriptor prerequisite. Building the Pi startup artifact with the shared dependency junction produced 10,405,174 evaluated bytes against the unchanged 10,392,238 ceiling; its inputs contain none of this change's modified production modules. Disposition: preserve the budget and report this local build limitation; require clean-install build and full typecheck in exact-head CI rather than claiming the bin pass succeeded locally.
+- No payload-wide local suite or machine-wide process-kill command was used. Interactive manual validation and unsaved-memory recovery are not completion gates or claims of this change.
