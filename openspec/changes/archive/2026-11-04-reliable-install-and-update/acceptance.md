@@ -21,7 +21,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-04-reliable-install-and-update/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-04-reliable-install-and-update/acceptance.md",
   "finalizedDate": "2026-11-04",
-  "specBaseSha": "4a4ec11bb234d121938edf16599e1bc05d08be15",
+  "specBaseSha": "1b5babf30d8f201fd5d30c48626aac27c369c237",
   "acceptanceScenarios": [
     "A host started before a macOS clock correction stays attachable, updatable, and keeps its tabs after the correction.",
     "An update while an older host runs Agents exits zero with one line and takes over automatically later.",
