@@ -49,7 +49,7 @@ export async function runSessionContextCommand(
     return 0;
   } catch (error) {
     const code = errorCode(error);
-    const detail = error instanceof Error ? error.message : String(error);
+    const detail = recoveryDetail(code) ?? (error instanceof Error ? error.message : String(error));
     stderr(`${PRODUCT_TEXT.diagnostic(`could not update session context${code === null ? "" : ` (${code})`}: ${detail}`)}\n`);
     return 1;
   }
@@ -65,6 +65,24 @@ function readIdentity(environment: NodeJS.ProcessEnv): {
   const runtimeId = environment[PRODUCT_IDENTITY.environment.sessionRuntimeId];
   if (!sessionId || !sessionFile || !runtimeId) return null;
   return { sessionId, sessionFile, runtimeId };
+}
+
+/** Known coordination failures must not expose native paths or another session's identity. */
+function recoveryDetail(code: string | null): string | undefined {
+  const details: Readonly<Record<string, string>> = {
+    "worktree-claim-busy": "another mutation is still running; runtime registration retries automatically, so retry this link shortly",
+    "worktree-legacy-recovery-required": "an older-format worktree lock requires safe recovery; stop all older A1 processes, move only session-worktree-claims/mutation.lock to a backup while stopped, then start the updated A1; keep all sessions and worktree claims",
+    "worktree-coordination-unavailable": "native worktree coordination is unavailable; repair or update this A1 installation, then retry",
+    "worktree-coordination-io": "worktree coordination could not access its files; check A1 data-directory permissions and filesystem availability, then retry",
+    "worktree-coordination-boundary": "unexpected worktree coordination entry; retain it for inspection, and do not delete the claim store",
+    "process-inspection-unavailable": "native process inspection is unavailable; repair the A1 installation before retrying; no ownership was overridden",
+    "session-runtime-unverifiable": "runtime identity could not be verified; check native process inspection and retry; no ownership was overridden",
+    "session-runtime-unavailable": "this session has not registered yet; updated A1 retries registration automatically; retry shortly and follow any specific coordination error if it persists",
+    "session-runtime-stopped": "this shell belongs to a stopped runtime; resume in a running A1 session before linking",
+    "worktree-active-in-another-session": "another live agent owns this worktree; use a different worktree or wait for its owner to release it",
+    "worktree-owner-unverifiable": "worktree ownership cannot be verified; retain the claim and use another worktree rather than forcing recovery",
+  };
+  return code === null ? undefined : details[code];
 }
 
 function errorCode(error: unknown): string | null {

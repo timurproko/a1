@@ -34,6 +34,23 @@ impl SessionLock {
         })
     }
 
+    /// Nonblocking persistent gate, never unlinked or replaced by its callers. Unlike session
+    /// locks this lives beside the claim store, so different process temp roots cannot split it.
+    pub fn try_acquire_gate(path: impl AsRef<Path>) -> Result<Option<Self>, LockError> {
+        let requested = absolute(path.as_ref())?;
+        match std::fs::symlink_metadata(&requested) {
+            Ok(metadata) if !metadata.is_file() || metadata.file_type().is_symlink() =>
+                return Err(LockError("mutation gate must be a regular file".to_owned())),
+            Err(error) if error.kind() != std::io::ErrorKind::NotFound =>
+                return Err(LockError(format!("inspect mutation gate: {error}"))),
+            _ => {}
+        }
+        let Some(reservation) = LockedFile::try_acquire(&requested)? else {
+            return Ok(None);
+        };
+        Ok(Some(Self { requested, reservation: Some(reservation), identity: None }))
+    }
+
     pub fn acquire(path: impl AsRef<Path>) -> Result<Self, LockError> {
         let requested = absolute(path.as_ref())?;
         if requested.exists() {
@@ -116,6 +133,10 @@ struct LockedFile {
 
 impl LockedFile {
     fn acquire(path: &Path) -> Result<Self, LockError> {
+        Self::try_acquire(path)?.ok_or_else(|| LockError(format!("acquire lock {}: busy", path.display())))
+    }
+
+    fn try_acquire(path: &Path) -> Result<Option<Self>, LockError> {
         let file = OpenOptions::new()
             .read(true)
             .write(true)
@@ -123,10 +144,21 @@ impl LockedFile {
             .truncate(false)
             .open(path)
             .map_err(|error| LockError(format!("open lock {}: {error}", path.display())))?;
-        platform_lock(&file)
-            .map_err(|error| LockError(format!("acquire lock {}: {error}", path.display())))?;
-        Ok(Self { file })
+        if let Err(error) = platform_lock(&file) {
+            if lock_contended(&error) {
+                return Ok(None);
+            }
+            return Err(LockError(format!("acquire lock {}: {error}", path.display())));
+        }
+        Ok(Some(Self { file }))
     }
+}
+
+fn lock_contended(error: &std::io::Error) -> bool {
+    #[cfg(windows)]
+    { error.raw_os_error() == Some(33) } // ERROR_LOCK_VIOLATION
+    #[cfg(unix)]
+    { matches!(error.raw_os_error(), Some(code) if code == libc::EAGAIN || code == libc::EACCES) }
 }
 
 impl Drop for LockedFile {
@@ -336,6 +368,50 @@ fn platform_unlock(file: &File) -> std::io::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gate_child() {
+        let Ok(root) = std::env::var("A1_TEST_CLAIM_GATE_ROOT") else { return; };
+        let root = PathBuf::from(root);
+        let _held = SessionLock::try_acquire_gate(root.join("authority")).unwrap().unwrap();
+        std::fs::write(root.join("ready"), "ready").unwrap();
+        std::thread::sleep(std::time::Duration::from_secs(120));
+    }
+
+    #[test]
+    fn persistent_gate_excludes_processes_and_releases_on_crash() {
+        struct Child(std::process::Child);
+        impl Drop for Child {
+            fn drop(&mut self) { let _ = self.0.kill(); let _ = self.0.wait(); }
+        }
+        let root = tempfile::tempdir().unwrap();
+        let mut child = Child(std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "session_lock::tests::gate_child", "--nocapture"])
+            .env("A1_TEST_CLAIM_GATE_ROOT", root.path())
+            .spawn().unwrap());
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(15);
+        while !root.path().join("ready").exists() {
+            assert!(std::time::Instant::now() < deadline, "child did not acquire gate");
+            assert!(child.0.try_wait().unwrap().is_none(), "child exited before acquiring");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let path = root.path().join("authority");
+        assert!(SessionLock::try_acquire_gate(&path).unwrap().is_none());
+        child.0.kill().unwrap();
+        child.0.wait().unwrap();
+        let held = SessionLock::try_acquire_gate(&path).unwrap().expect("crash released gate");
+        assert!(SessionLock::try_acquire_gate(&path).unwrap().is_none());
+        held.release();
+        assert!(path.is_file(), "persistent authority must never be unlinked");
+        assert!(SessionLock::try_acquire_gate(&path).unwrap().is_some());
+    }
+
+    #[test]
+    fn gate_io_failure_is_not_contention() {
+        let root = tempfile::tempdir().unwrap();
+        assert!(SessionLock::try_acquire_gate(root.path()).is_err());
+        assert!(SessionLock::try_acquire_gate(root.path().join("missing/authority")).is_err());
+    }
 
     #[test]
     fn existing_aliases_contend_and_release() {

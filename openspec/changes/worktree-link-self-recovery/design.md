@@ -30,9 +30,9 @@ Metadata recovery must happen only while holding authoritative exclusion and aft
 
 An OS lock held by upgraded code does not exclude an old process that never takes it. Retain interoperation with the legacy `mutation.lock` gate while such writers can exist; do not merely switch to a new filename and allow parallel writers.
 
-Valid legacy metadata keeps exact PID/start-identity checks: a live or uninspectable owner blocks, while a proven-dead owner is recoverable with replacement-race protection. Malformed legacy metadata supplies no owner proof. Age, stable bytes, a missing runtime record, or acquiring only the new OS gate is insufficient to evict it.
+A live or uninspectable legacy owner blocks. Even valid metadata naming a dead owner does not exclude another old-version reclaimer: the existing rename-before-nonce-check implementation can move a successor's gate. Malformed legacy metadata supplies no owner proof at all. Age, stable bytes, a missing runtime record, or acquiring only the new OS gate is insufficient to evict a legacy file.
 
-Before implementing migration, establish and document the supported platform mechanism for proving legacy-writer exclusion. Automatically migrate a corrupt legacy artifact only when that exclusion can be established. Otherwise return a specific legacy-recovery-required diagnostic with a safe quiescence/restart path; never claim that ambiguous old state was automatically repaired. This is a deliberate compatibility limit, not permission to require manual file deletion for ordinary upgraded-protocol crashes/corruption.
+The implemented compatibility fallback retains every existing legacy regular-file gate and returns `worktree-legacy-recovery-required` with a quiescence/restart procedure. All participating processes must use the upgraded protocol; mixed-version mutation/recovery is unsupported. This is a deliberate compatibility limit, not a requirement for manual file deletion after ordinary upgraded-protocol crashes/corruption.
 
 ### 3. Keep runtime registration recoverable
 
@@ -56,6 +56,27 @@ Keep genuine live worktree ownership conflicts distinct from mutation-gate conte
 
 ## Risks / Rollout
 
-Native ABI/packaging availability and mixed-version coordination must be resolved before the first implementation outcome is checked. Do not reuse session-writer fallback semantics as recovery proof. Windows sharing violations remain bounded, classified failures. A damaged durable claim remains unverifiable even if the global mutation gate recovers.
+The Node-API addon exposes an acquired-state handle because N-API class factories cannot return an optional class instance. The TypeScript adapter maps a non-acquired handle to contention and loads only the owning release's addon (or its explicit development override), never a binary chosen by tool cwd. Missing/old addons fail explicitly. Windows sharing violations remain bounded, classified failures. A damaged durable claim remains unverifiable even if the global mutation gate recovers.
 
-Planning has no implementation or runtime validation evidence. Implementation must record the chosen legacy exclusion mechanism, concrete retry bounds, diagnostics, targeted test results, and any residual compatibility limitation here before final readiness. Canonical specs remain untouched until trusted finalization.
+### Implemented coordination decision
+
+The native `SessionLock.tryAcquireGate` holds a descriptor on the persistent claim-store `mutation.authority` file. It reuses the existing Windows LockFileEx / Linux OFD / macOS flock primitives but does not use process-dependent temporary roots. The file is never unlinked. Genuine contention returns null; unavailable/old addons and filesystem failures have separate errors, with no portable PID-file fallback.
+
+A persistent real directory at the legacy `mutation.lock` pathname is the compatibility barrier: legacy exclusive file creation cannot acquire it, and legacy JSON parsing cannot mistake it for an evictable owner. Upgraded operations hold native authority throughout metadata publication, recovery, mutation, and cleanup. The directory is never removed. Fully initialized `owner.next` is synced and renamed to `owner.json`; any abandoned owner/pending metadata is recoverable after acquiring native authority, regardless of its bytes. A single overwritten `recovery.json` records only reason and time. Unknown entries, links, and special files fail closed. Acquisition retries every at most 20 ms for a default 2 seconds and accepts cancellation.
+
+**Legacy exclusion limit:** a legacy PID proven dead still does not exclude a concurrent old-version reclaimer that can rename a successor's sentinel. No portable proof was found for safe in-place migration of an existing legacy regular-file gate. All such files are therefore retained with `worktree-legacy-recovery-required`, including valid/dead-owner files. This chooses the approved conservative compatibility fallback rather than the old unsafe rename-and-restore race. After older processes are stopped and only that exact legacy file is backed up, updated A1 can initialize the barrier. Normal migration from an absent gate requires no file deletion. Older versions cannot mutate claims after this barrier is established; all participating sessions must use the updated release. Neither the barrier nor authority file may be deleted while A1 is running.
+
+## Implementation evidence
+
+- 52 focused TypeScript cases pass across claim-lock, native-adapter, repository-context, runtime-registry, and CLI files. They include corruption recovery, preservation of live claims, legacy refusal, cancellation, linked-path refusal, startup/self-inspection retry, coalescing, disposal, session replacement, sibling agents, and diagnostic privacy.
+- Six native session-lock cases pass on Windows, including a real child-process kill followed by gate reacquisition. Native Node-API release build and artifact identity verification pass. An isolated Node child-process smoke also passed live exclusion, process kill, and recovery of the exact 155-NUL-byte metadata shape through the real addon and TypeScript coordinator.
+- Managed core build, typecheck, architecture boundaries, session-writer guard, strict OpenSpec validation, and diff whitespace checks pass. No validation budget was increased. An initial shared-dependency build exposed dependency-tree drift; installing this worktree's exact lockfile resolved it without changing dependencies or baselines.
+- Runtime registration retries every 30 seconds by default; only one refresh can be queued/in flight. Activation and refresh share the disposal-drained queue; obsolete queued identities are ignored. Only verified self-identity is cached. CLI errors distinguish mutation, runtime, and editing-ownership failures without exposing native error details.
+
+## Known limitations and disposition
+
+- Legacy regular-file gates are intentionally retained, including dead-owner gates; safe one-time recovery requires stopping older processes and backing up only that file. All participating sessions must then use the upgraded release. Accepted as the approved conservative legacy fallback, not advertised as automatic legacy repair.
+- Arbitrary corrupted editing-claim records remain unverifiable. Recovery grants no ownership or cleanup authority; this is an intentional safety boundary.
+- Linux/macOS native execution and exact-head product validation belong to CI; local native execution covered Windows. No manual validation is claimed or required for implementation completion.
+
+Canonical specs remain untouched until trusted finalization.
