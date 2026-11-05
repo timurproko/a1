@@ -2054,7 +2054,25 @@ fn two_tabs_are_isolated_and_readmitted_after_server_replacement() {
     takeover.lose_launch_tree();
     takeover.wait(Duration::from_secs(8));
 
-    let holders_before_client_loss = holder_identities(&credentials_root);
+    // Concurrency: utility prewarming runs behind the attach read loop. Wait for both
+    // singleton holders before freezing the full identity set; Agent input alone does
+    // not mean Changelog has finished starting. Keep utilities in both equality checks.
+    let prewarm_deadline = Instant::now() + Duration::from_secs(15);
+    let holders_before_client_loss = loop {
+        let holders = holder_identities(&credentials_root);
+        if holders.len() == 4
+            && ["settings-", "changelog-"]
+                .iter()
+                .all(|prefix| holders.iter().any(|(tab, _, _)| tab.starts_with(prefix)))
+        {
+            break holders;
+        }
+        assert!(
+            Instant::now() < prewarm_deadline,
+            "two Agent holders and both prewarmed utilities did not converge: {holders:?}"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    };
     first.lose_launch_tree();
     second.lose_launch_tree();
     first.wait(Duration::from_secs(8));
