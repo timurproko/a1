@@ -11,6 +11,9 @@ import {
   conciseFailure,
   consumeProcessLines,
   activateShellPath,
+  compareVersions,
+  INSTALLER_HANDOFF_ENVIRONMENT,
+  isDevelopmentInstaller,
   installerHelp,
   isSupportedNodeVersion,
   main,
@@ -842,5 +845,117 @@ describe("installer package manifest", () => {
     expect(manifest.scripts).toBeUndefined();
     expect(manifest.version).toBe(applicationManifest.version);
     expect(installerLicense).toBe(applicationLicense);
+  });
+});
+
+describe("installer channel handoff and delegation", () => {
+  function delegatingRunner(globalRoot: string, view: string, nodeCalls: string[][]) {
+    return {
+      npmCli: resolve(globalRoot, "..", "npm-cli.js"),
+      async npm(args: string[]) {
+        return args[0] === "view"
+          ? { code: 0, signal: null, stdout: view, stderr: "" }
+          : { code: 0, signal: null, stdout: globalRoot, stderr: "" };
+      },
+      async node(_entry: string, args: string[]) {
+        nodeCalls.push(args);
+        return { code: 0, signal: null, stdout: "", stderr: "" };
+      },
+    };
+  }
+
+  it("hands a development request from a release installer to the development installer first", async () => {
+    const handOffs: string[][] = [];
+    const runner = { async npm(): Promise<never> { throw new Error("no installation work before handoff"); }, async node(): Promise<never> { throw new Error("unused"); } };
+    const code = await runInstaller(["--develop", "--verbose"], {
+      runner, installerVersion: "0.2.7", nodeVersion: "v20.0.0", environment: {}, handleSignals: false,
+      handOff: async (argv: string[]) => { handOffs.push(argv); return 0; },
+    });
+    expect(code).toBe(0);
+    expect(handOffs).toEqual([["--develop", "--verbose"]]);
+  });
+
+  it("never hands off again from a development build or a handed-off process", async () => {
+    for (const [installerVersion, environment] of [["0.2.7-dev.900", {}], ["0.2.7", { [INSTALLER_HANDOFF_ENVIRONMENT]: "1" }]] as const) {
+      let handedOff = false;
+      await main(["--develop"], {
+        stderr: capture().stream, installerVersion, nodeVersion: "v20.0.0", environment, handleSignals: false,
+        handOff: async () => { handedOff = true; return 0; },
+      });
+      expect(handedOff).toBe(false);
+    }
+  });
+
+  it("delegates the release explicitly to an installation that understands --release", async () => {
+    const setup = await fixture("0.2.8");
+    await setup.materialize();
+    await writeFile(resolve(setup.packageRoot, "package.json"), `${JSON.stringify({
+      name: "@timurproko/a1", version: "0.2.8", updateActivationContracts: ["activate-v1"], updateCommandContracts: ["update-release-v1"],
+    })}\n`);
+    const nodeCalls: string[][] = [];
+    const code = await runInstaller([], {
+      stdout: capture().stream, stderr: capture().stream, platform: process.platform, handleSignals: false,
+      runner: delegatingRunner(setup.globalRoot, '"0.2.8"', nodeCalls),
+      environment: { PATH: `${setup.launcherDirectory}${delimiter}${process.env.PATH ?? ""}` },
+    });
+    expect(code).toBe(0);
+    expect(nodeCalls).toEqual([["update", "--release"]]);
+  });
+
+  it("keeps bare update for an installation that predates --release", async () => {
+    const setup = await fixture("0.2.6");
+    await setup.materialize();
+    const nodeCalls: string[][] = [];
+    await runInstaller([], {
+      stdout: capture().stream, stderr: capture().stream, platform: process.platform, handleSignals: false,
+      runner: delegatingRunner(setup.globalRoot, '"0.2.6"', nodeCalls),
+      environment: { PATH: `${setup.launcherDirectory}${delimiter}${process.env.PATH ?? ""}` },
+    });
+    expect(nodeCalls).toEqual([["update"]]);
+  });
+
+  it("treats an installation newer than the channel head as installed", async () => {
+    const setup = await fixture("0.2.7-dev.1240");
+    await setup.materialize();
+    const stdout = capture();
+    const stderr = capture();
+    const code = await runInstaller(["--develop"], {
+      stdout: stdout.stream, stderr: stderr.stream, platform: process.platform, handleSignals: false,
+      installerVersion: "0.2.7-dev.1240",
+      runner: delegatingRunner(setup.globalRoot, '"0.2.7-dev.1239"', []),
+      environment: { PATH: `${setup.launcherDirectory}${delimiter}${process.env.PATH ?? ""}` },
+    });
+    expect(stderr.read()).toBe("");
+    expect(code).toBe(0);
+    expect(stdout.read()).toBe("a1 successfully installed\n");
+  });
+
+  it("points a failure at a private diagnostics log without requiring --verbose", async () => {
+    const setup = await fixture();
+    await setup.materialize();
+    const stderr = capture();
+    const logged: string[] = [];
+    const runner = {
+      ...delegatingRunner(setup.globalRoot, '"0.2.1-dev.591"', []),
+      async node() { return { code: 7, signal: null, stdout: "", stderr: "protected update failed" }; },
+    };
+    const code = await runInstaller(exactTarget, {
+      stdout: capture().stream, stderr: stderr.stream, platform: process.platform, handleSignals: false, runner,
+      installerVersion: "0.2.1-dev.591",
+      environment: { PATH: `${setup.launcherDirectory}${delimiter}${process.env.PATH ?? ""}` },
+      writeFailureLog: async (details: string) => { logged.push(details); return "/tmp/a1-install-1.log"; },
+    });
+    expect(code).toBe(7);
+    expect(stderr.read()).toBe("installation failed: existing installation could not be updated\nDetails: /tmp/a1-install-1.log\n");
+    expect(logged.join("")).toContain("protected update failed");
+  });
+
+  it("orders release and development versions", () => {
+    expect(compareVersions("0.2.7-dev.1240", "0.2.7-dev.1239")).toBe(1);
+    expect(compareVersions("0.2.7", "0.2.7-dev.1240")).toBe(1);
+    expect(compareVersions("0.2.6", "0.2.7-dev.1")).toBe(-1);
+    expect(compareVersions("0.2.7", "0.2.7")).toBe(0);
+    expect(isDevelopmentInstaller("0.2.7-dev.1")).toBe(true);
+    expect(isDevelopmentInstaller("0.2.7")).toBe(false);
   });
 });

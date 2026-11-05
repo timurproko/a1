@@ -8,7 +8,19 @@ const node = { executable: process.execPath, entry: "-e" };
 describe("bounded terminal-host command", () => {
   it("returns a report within its caps", async () => {
     const result = await runBoundedHostCommand(node, ["process.stdout.write('{\"ok\":true}')"], { maxStdoutBytes: 1024, timeoutMs: 10_000, label: "fixture" });
-    expect(result).toEqual({ code: 0, stdout: "{\"ok\":true}" });
+    expect(result).toEqual({ code: 0, stdout: "{\"ok\":true}", stderr: "" });
+  });
+
+  it("keeps the last bounded diagnostic line without terminal controls", async () => {
+    const script = "process.stderr.write('warning\\n\\u001b[31ma1-terminal-host: resident source belongs to another boot or login\\u001b[0m\\n'); process.exit(2)";
+    const result = await runBoundedHostCommand(node, [script], { maxStdoutBytes: 1024, timeoutMs: 10_000, label: "fixture" });
+    expect(result).toEqual({ code: 2, stdout: "", stderr: "a1-terminal-host: resident source belongs to another boot or login" });
+  });
+
+  it("bounds an oversized diagnostic stream", async () => {
+    const script = "process.stderr.write('x'.repeat(100000), () => process.exit(1))";
+    const result = await runBoundedHostCommand(node, [script], { maxStdoutBytes: 1024, timeoutMs: 10_000, label: "fixture" });
+    expect(result.stderr.length).toBeLessThanOrEqual(300);
   });
 
   it.each([

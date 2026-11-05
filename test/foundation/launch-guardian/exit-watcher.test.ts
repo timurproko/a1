@@ -38,6 +38,17 @@ describe("launch exit watcher", () => {
     expect(events).toEqual(["wait:10", "stop:12", "foreground:13", "deliver"]);
   });
 
+  it("delivers the armed notice even when foreground restoration fails", async () => {
+    const events: string[] = [];
+    const addon = fakeAddon({
+      restoreForegroundGroup: () => { throw new Error("cannot restore the inherited terminal foreground group: EBADF"); },
+      deliverExitNotice: () => { events.push("deliver"); },
+    });
+
+    await expect(runExitWatcher(exitWatcherArguments(base), "darwin", () => addon)).rejects.toThrow(/EBADF/u);
+    expect(events).toEqual(["deliver"]);
+  });
+
   it("rejects malformed and unknown arguments", async () => {
     await expect(runExitWatcher(["--guardian-pid", "0"], "win32", () => fakeAddon())).rejects.toThrow(/positive safe integer/u);
     await expect(runExitWatcher([...exitWatcherArguments(base), "--other", "x"], "win32", () => fakeAddon())).rejects.toThrow(/unknown argument/u);

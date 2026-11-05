@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { access, appendFile, lstat, mkdir, readFile, realpath, stat } from "node:fs/promises";
+import { access, appendFile, lstat, mkdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { constants, lstatSync, realpathSync, readFileSync, statSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { SHARED_PROGRESS_ACCENT_ANSI, SHARED_PROGRESS_PALETTE } from "./progress-palette.js";
@@ -28,6 +28,12 @@ const DEVELOPMENT_VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]
 const PREVIEW_NUMBER_PATTERN = /^[1-9]\d*$/u;
 const VERSION_PATTERN = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-dev\.[1-9]\d*)?$/u;
 const DEFAULT_REGISTRY = "https://registry.npmjs.org";
+const INSTALLER_PACKAGE = "@timurproko/a1-install";
+/** Marks an installer started by another installer's development handoff, so it never hands off again. */
+const HANDOFF_MARKER = "A1_INSTALLER_HANDOFF";
+export const INSTALLER_HANDOFF_ENVIRONMENT = HANDOFF_MARKER;
+const RELEASE_UPDATE_CONTRACT = "update-release-v1";
+const INSTALLER_VERSION = readInstallerVersion();
 const PACKAGE_DOCUMENT_TIMEOUT_MS = 30_000;
 const MAX_PACKAGE_DOCUMENT_BYTES = 32 * 1024 * 1024;
 
@@ -370,10 +376,78 @@ function recordedPullRequest(manifest) {
   return typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
-function updateArguments(target, targetVersion) {
+/**
+ * The release form is explicit so a development installation moves to the release. An installed
+ * A1 that predates `--release` already treats bare `update` as the release.
+ */
+function updateArguments(target, targetVersion, existing = null) {
   if (target.kind === "develop") return ["update", "--develop"];
   if (target.kind === "preview") return ["update", "--develop", targetVersion];
-  return ["update"];
+  const contracts = existing?.updateCommandContracts;
+  return Array.isArray(contracts) && contracts.includes(RELEASE_UPDATE_CONTRACT) ? ["update", "--release"] : ["update"];
+}
+
+function readInstallerVersion() {
+  try {
+    const manifest = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+    return typeof manifest.version === "string" ? manifest.version : "";
+  } catch {
+    return "";
+  }
+}
+
+/** A development installer build carries a prerelease suffix; only a release build hands off. */
+export function isDevelopmentInstaller(version) {
+  return String(version).includes("-");
+}
+
+/** Compares `X.Y.Z` and `X.Y.Z-dev.N` versions; a release sorts after its development builds. */
+export function compareVersions(left, right) {
+  const parse = value => {
+    const match = /^(\d+)\.(\d+)\.(\d+)(?:-dev\.(\d+))?$/u.exec(String(value));
+    return match ? [Number(match[1]), Number(match[2]), Number(match[3]), match[4] === undefined ? Infinity : Number(match[4])] : null;
+  };
+  const first = parse(left);
+  const second = parse(right);
+  if (first === null || second === null) return Number.NaN;
+  for (let index = 0; index < first.length; index += 1) {
+    if (first[index] !== second[index]) return first[index] < second[index] ? -1 : 1;
+  }
+  return 0;
+}
+
+/** Whether an installed version satisfies the selected target on the same channel. */
+function installedSatisfies(installed, target, targetVersion) {
+  if (installed === targetVersion) return true;
+  if (target.kind === "preview") return false;
+  const sameChannel = isDevelopmentInstaller(installed) === isDevelopmentInstaller(targetVersion);
+  return sameChannel && compareVersions(installed, targetVersion) > 0;
+}
+
+/**
+ * Runs the development installer for a development request, with this process's arguments and
+ * terminal, so a release installer never decides how a development build is installed.
+ */
+async function handOffToDevelopmentInstaller(argv, environment) {
+  const npmCli = resolveInstallerNpmCli(environment);
+  return await new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(process.execPath, [npmCli, "x", "-y", "--", `${INSTALLER_PACKAGE}@next`, ...argv], {
+      env: { ...environment, [HANDOFF_MARKER]: "1", NO_UPDATE_NOTIFIER: "1", npm_config_update_notifier: "false" },
+      stdio: "inherit",
+      windowsHide: true,
+    });
+    // Rationale: the terminal delivers interrupts to the child too; it owns cancellation.
+    const ignore = () => {};
+    process.on("SIGINT", ignore);
+    child.once("error", error => {
+      process.removeListener("SIGINT", ignore);
+      rejectPromise(new InstallationFailure("npm is unavailable", String(error)));
+    });
+    child.once("close", (code, signal) => {
+      process.removeListener("SIGINT", ignore);
+      resolvePromise(code ?? (signal === "SIGINT" ? 130 : 1));
+    });
+  });
 }
 
 function parseResolvedVersion(stdout, target) {
@@ -590,11 +664,19 @@ export async function activateShellPath(activation) {
   return true;
 }
 
-async function verifyInstalledPackage(packageRoot, targetVersion) {
+/** Writes sanitized failure diagnostics to one private log file and returns its path. */
+async function writeFailureLog(details) {
+  const path = join(tmpdir(), `a1-install-${Date.now()}-${process.pid}.log`);
+  await writeFile(path, `${details}\n`, { mode: 0o600, flag: "wx" });
+  return path;
+}
+
+async function verifyInstalledPackage(packageRoot, targetVersion, target = null) {
   const manifest = await readManifest(packageRoot);
   if (manifest === null) throw new InstallationFailure("the installed package is incomplete");
   if (manifest.name !== APPLICATION_PACKAGE) throw new InstallationFailure("the installed package identity is invalid");
-  if (manifest.version !== targetVersion) throw new InstallationFailure("the installed version does not match the selected release");
+  const satisfied = target === null ? manifest.version === targetVersion : installedSatisfies(manifest.version, target, targetVersion);
+  if (!satisfied) throw new InstallationFailure("the installed version does not match the selected release");
   if (!Array.isArray(manifest.updateActivationContracts) || !manifest.updateActivationContracts.includes("activate-v1")) {
     throw new InstallationFailure("activation failed", "the selected release does not declare the required activation contract");
   }
@@ -648,6 +730,13 @@ export async function runInstaller(argv, options = {}) {
   if (parsed.help) {
     stdout.write(installerHelp());
     return 0;
+  }
+  // Invariant: npm resolves the bare installer package to its release build before arguments
+  // reach it. A development request is handed to the development installer before any check this
+  // build makes, so an older release installer can never block it.
+  if (parsed.target.kind !== "stable" && environment[HANDOFF_MARKER] !== "1"
+    && !isDevelopmentInstaller(options.installerVersion ?? INSTALLER_VERSION)) {
+    return await (options.handOff ?? handOffToDevelopmentInstaller)(argv, environment);
   }
   const nodeVersion = options.nodeVersion ?? process.version;
   if (!isSupportedNodeVersion(nodeVersion)) throw new OutdatedNodeFailure(nodeVersion);
@@ -759,7 +848,7 @@ export async function runInstaller(argv, options = {}) {
         ...Object.fromEntries(Object.entries(environment).filter(([key]) => key.toLowerCase() !== "npm_execpath")),
         npm_execpath: npmCli,
       };
-      const updateResult = await runner.node(cli, updateArguments(parsed.target, targetVersion), {
+      const updateResult = await runner.node(cli, updateArguments(parsed.target, targetVersion, existing), {
         onChild: setActiveChild,
         environment: delegatedEnvironment,
       });
@@ -792,7 +881,8 @@ export async function runInstaller(argv, options = {}) {
     }
 
     progress.set(98, "Verifying", 99);
-    await verifyInstalledPackage(packageRoot, targetVersion);
+    // Invariant: an installation already newer than the selected channel head is installed.
+    await verifyInstalledPackage(packageRoot, targetVersion, parsed.target);
     const launchers = await verifyLaunchers(installRoot, platform);
     await verifyCommandResolution(launchers, resolutionEnvironment, platform);
     if (activatePath) {
@@ -814,9 +904,12 @@ export async function runInstaller(argv, options = {}) {
       ? error
       : new InstallationFailure("unexpected installer failure", error instanceof Error ? error.message : String(error));
     stderr.write(`${failureLine(failure)}\n`);
-    if (parsed.verbose) {
-      const details = sanitizeDiagnostic(failure.details);
-      if (details) stderr.write(`Details: ${details}\n`);
+    const details = sanitizeDiagnostic(failure.details);
+    if (details && parsed.verbose) stderr.write(`Details: ${details}\n`);
+    else if (details && options.writeFailureLog) {
+      // Rationale: the full reason stays one path away instead of a wall of npm output.
+      const log = await options.writeFailureLog(details).catch(() => null);
+      if (log !== null) stderr.write(`Details: ${log}\n`);
     }
     return failure.exitCode;
   } finally {
@@ -832,7 +925,7 @@ export async function runInstaller(argv, options = {}) {
 
 export async function main(argv = process.argv.slice(2), options = {}) {
   try {
-    return await runInstaller(argv, options);
+    return await runInstaller(argv, { writeFailureLog, ...options });
   } catch (error) {
     const failure = error instanceof InstallationFailure
       ? error

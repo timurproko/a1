@@ -15,6 +15,20 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 type RecordValue = Record<string, unknown>;
 interface Tab { tabId: string; kind: string; incarnation: number; holderPid: number; childPid: number; sessionFile: string | null }
 
+/** Accepts a baseline only after the original Agents publish their session identities. */
+export function residentPredecessorBaseline(expected: readonly Tab[], current: readonly Tab[]): readonly Tab[] | undefined {
+  if (current.length !== expected.length || new Set(current.map(tab => tab.tabId)).size !== expected.length) return undefined;
+  for (const original of expected) {
+    const tab = current.find(candidate => candidate.tabId === original.tabId);
+    if (tab === undefined) return undefined;
+    for (const key of ["kind", "incarnation", "holderPid", "childPid"] as const) {
+      assert.equal(tab[key], original[key], `original Agent ${original.tabId} changed ${key} before continuity baseline`);
+    }
+    if (original.sessionFile !== null) assert.equal(tab.sessionFile, original.sessionFile, `original Agent ${original.tabId} changed session before continuity baseline`);
+  }
+  return current.every(tab => typeof tab.sessionFile === "string" && tab.sessionFile.length > 0) ? current : undefined;
+}
+
 /** Owns one fixture client only; closing it never sends Agent stop/restart or replays input. */
 class Client {
   readonly socket: Socket;
@@ -206,7 +220,11 @@ const timer=setInterval(()=>{if(fs.existsSync(release)){fs.writeFileSync(done,me
     const progressBefore = await until(async () => { const tick = Number(await readFile(toolProgress, "utf8").catch(() => "")); return tick > 0 ? tick : undefined; }, "published tool progress");
     process.kill(runningTool.pid, 0);
     old.close(); await delay(250);
-    const before = (await registry(priorRoot)).tabs.filter(tab => tab.kind === "agent");
+    // Concurrency: a child PID and a visible model label can precede the durable bridge.session
+    // publication. Freeze identities only after every original Agent has published its session.
+    const before = await until(async () => residentPredecessorBaseline(
+      tabs, (await registry(priorRoot)).tabs.filter(tab => tab.kind === "agent"),
+    ), "published session identities for all three original Agents");
     const titlesBeforeUpdate = titleRequests;
     await call(candidateRoot, ["workspace-check"]);
     startedCandidate = true; await call(candidateRoot, ["server", "--detach"]);

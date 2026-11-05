@@ -4,7 +4,12 @@ import type { TerminalHostCommand } from "./ensure-terminal-host.js";
 export interface BoundedHostCommandResult {
   readonly code: number;
   readonly stdout: string;
+  /** The command's last diagnostic line, bounded and stripped of control characters; never parsed. */
+  readonly stderr: string;
 }
+
+/** Diagnostics beyond this many bytes are dropped rather than buffered. */
+const MAX_STDERR_BYTES = 4096;
 
 export interface BoundedHostCommandLimits {
   /** Output beyond this many bytes fails the exchange instead of being parsed. */
@@ -28,9 +33,17 @@ export async function runBoundedHostCommand(
     const child = spawn(command.executable, [command.entry, ...arguments_], {
       env: limits.environment,
       windowsHide: true,
-      stdio: ["ignore", "pipe", "ignore"],
+      stdio: ["ignore", "pipe", "pipe"],
     });
     const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let stderrSize = 0;
+    child.stderr.on("data", (chunk: Buffer) => {
+      if (stderrSize >= MAX_STDERR_BYTES) return;
+      const kept = chunk.subarray(0, MAX_STDERR_BYTES - stderrSize);
+      stderrSize += kept.length;
+      stderr.push(Buffer.from(kept));
+    });
     let size = 0;
     let overflowed = false;
     child.stdout.on("data", chunk => {
@@ -44,9 +57,10 @@ export async function runBoundedHostCommand(
     child.once("error", rejectPromise);
     child.once("close", code => {
       clearTimeout(timer);
+      const diagnostic = lastDiagnosticLine(Buffer.concat(stderr).toString("utf8"));
       resolvePromise(overflowed
-        ? { code: code === 0 || code === null ? 1 : code, stdout: "" }
-        : { code: code ?? 1, stdout: Buffer.concat(stdout).toString("utf8") });
+        ? { code: code === 0 || code === null ? 1 : code, stdout: "", stderr: diagnostic }
+        : { code: code ?? 1, stdout: Buffer.concat(stdout).toString("utf8"), stderr: diagnostic });
     });
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
@@ -54,4 +68,16 @@ export async function runBoundedHostCommand(
     }, limits.timeoutMs);
     timer.unref();
   });
+}
+
+/** Keeps one terminal-safe line: the native host reports its reason last. */
+function lastDiagnosticLine(text: string): string {
+  const lines = text.split(/\r?\n/u)
+    // Security: diagnostics never carry terminal controls into a later message.
+    .map(line => line
+      .replace(/\u001b\[[0-?]*[ -/]*[@-~]/gu, "")
+      .replace(/[\u0000-\u001f\u007f-\u009f]/gu, "")
+      .trim())
+    .filter(line => line.length > 0);
+  return (lines.at(-1) ?? "").slice(0, 300);
 }

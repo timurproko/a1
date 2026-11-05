@@ -15,6 +15,9 @@ export function resolveInstallerNpmCli(environment: NodeJS.ProcessEnv): string;
 export function consumeProcessLines(pending: string, chunk: string, callback?: (line: string) => void): string;
 export function sanitizeDiagnostic(value: string): string;
 export function isSupportedNodeVersion(version: string): boolean;
+export const INSTALLER_HANDOFF_ENVIRONMENT: string;
+export function isDevelopmentInstaller(version: string): boolean;
+export function compareVersions(left: string, right: string): number;
 export function npmPrefixIsWritable(globalRoot: string, platform: NodeJS.Platform): Promise<boolean>;
 export function userInstallPrefix(home: string): string;
 export function shellPathActivation(

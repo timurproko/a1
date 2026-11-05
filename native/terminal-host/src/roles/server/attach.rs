@@ -359,9 +359,9 @@ fn reserve_utility_tab(
     }
 }
 
-/// Opens, reveals, or prewarms a singleton utility tab for a client, as `utility_request` reads
-/// its message.
-fn open_utility_tab(
+/// Opens, reveals, or prewarms a singleton utility tab on the client's lifecycle worker.
+/// Waiting for a start permit must never block that client's input or cancellation requests.
+pub(super) fn open_utility_tab(
     state: &Arc<Mutex<RuntimeState>>,
     profile: &Path,
     tx: &Peer,
@@ -625,15 +625,9 @@ pub(super) fn serve_attach(
                 tx.offer_control(wire::frame("tab.list", kind.request_id, list)?)
                     .map_err(str::to_owned)?;
             }
-            message if utility_request(message).is_some() => open_utility_tab(
-                &state,
-                &profile,
-                &tx,
-                &client_id,
-                &kind.message_type,
-                kind.request_id,
-                &payload,
-            )?,
+            message if utility_request(message).is_some() => {
+                enqueue_attached_lifecycle(&state, &lifecycle_tx, &tx, &client_id, &create_cancel, kind, payload)?;
+            }
             "tab.view" => {
                 let (_, target): (_, ViewTarget) = wire::body(&payload)?;
                 let mut locked = lock_state(&state)?;

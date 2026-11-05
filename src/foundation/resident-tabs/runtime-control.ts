@@ -1,3 +1,4 @@
+import { sameBootIdentity } from "./boot-identity.js";
 import { runTerminalHostMaintenance, type MaintenanceOptions, type MaintenanceReport } from "./maintenance.js";
 
 /** Mandatory native control semantics; optional methods never establish source authority. */
@@ -42,7 +43,7 @@ export function assessRuntimeControl(value: unknown, expected: RuntimeControlIde
     return blocked("invalid-contract");
   }
   if (value.releaseId !== expected.releaseId || value.scope !== expected.scope
-    || value.bootId !== expected.bootId || value.osSessionId !== expected.osSessionId) return blocked("source-mismatch");
+    || !sameBootIdentity(value.bootId, expected.bootId) || value.osSessionId !== expected.osSessionId) return blocked("source-mismatch");
   if (value.epoch !== expected.epoch) return blocked("stale-epoch");
   const core = value.core;
   if (value.retryInput || RUNTIME_CONTROL_CORE.some(method => !core.includes(method))) return blocked("missing-core");

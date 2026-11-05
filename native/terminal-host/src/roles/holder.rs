@@ -882,7 +882,7 @@ fn run_holder(
     });
     let (command_tx, command_rx) = mpsc::sync_channel::<HolderCommand>(256);
     spawn_command_reader(command_stream, command_tx.clone(), wake_tx.clone());
-    std::fs::write(ready, format!("{}:holder\n", std::process::id()))
+    crate::launch::publish_readiness(ready, &format!("{}:holder\n", std::process::id()))
         .map_err(|error| format!("write holder readiness: {error}"))?;
     crate::fault_injection::freeze_role("holder");
     let mut terminal = GhosttyTerminal::new(config.columns, config.rows)?;

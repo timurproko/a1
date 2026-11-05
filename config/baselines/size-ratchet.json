@@ -137,7 +137,7 @@
       "lines": 111
     },
     "native/terminal-host/src/roles/server/attach.rs::serve_attach": {
-      "lines": 398
+      "lines": 392
     },
     "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
       "lines": 336
@@ -155,7 +155,7 @@
       "lines": 185
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
-      "lines": 193
+      "lines": 152
     },
     "native/terminal-host/src/roles/server/lifecycle.rs::stop_tabs": {
       "lines": 157
