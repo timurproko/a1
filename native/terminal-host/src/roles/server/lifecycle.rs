@@ -792,6 +792,61 @@ fn start_requested_agent(
     Ok(())
 }
 
+/// Creates one requested Agent on the lifecycle worker, preserving cancellation across standby
+/// promotion and a queued holder start. Replies keep the originating request's identity.
+fn create_agent(
+    state: &Arc<Mutex<RuntimeState>>,
+    profile: &Path,
+    tx: &Peer,
+    client_id: &str,
+    request: &LifecycleRequest,
+) -> Result<(), String> {
+    let request_id = request.request_id;
+    let cancelled = || request.cancelled.as_ref().is_some_and(|flag| flag.load(Ordering::Acquire));
+    if cancelled() {
+        tx.offer_control(wire::frame("tab.create-failed", request_id, wire::ResultBody::refused("cancelled".into()))?)
+            .map_err(str::to_owned)?;
+        return Ok(());
+    }
+    let (_, create): (_, TabCreate) = wire::body(&request.payload)?;
+    let mut start = AttachStart {
+        client_id: client_id.to_owned(),
+        tabs_max: usize::MAX,
+        cwd: create.cwd,
+        columns: create.columns,
+        rows: create.rows,
+        release_root: create.release_root,
+        node_executable: create.node_executable,
+        environment: create.environment,
+        session_file: None,
+        session_dir: None,
+    };
+    sanitize_tab_environment(&mut start.environment);
+    match promote_standby(state, start.clone()) {
+        Ok(Some(tab_id)) => {
+            if cancelled() { close_tab(state, &tab_id, request_id)?; }
+            tx.offer_control(wire::frame(
+                "tab.created",
+                request_id,
+                TabTarget { tab_id },
+            )?)
+            .map_err(str::to_owned)?;
+            return Ok(());
+        }
+        Ok(None) => discard_standby(state),
+        Err(error) => {
+            tx.offer_control(wire::frame(
+                "tab.create-failed",
+                request_id,
+                wire::ResultBody::refused(error),
+            )?)
+            .map_err(str::to_owned)?;
+            return Ok(());
+        }
+    }
+    start_requested_agent(state, profile, tx, request_id, start, request.cancelled.as_deref())
+}
+
 /// Runs one lifecycle request from an attached client on that client's lifecycle worker.
 pub(super) fn handle_lifecycle(
     state: &Arc<Mutex<RuntimeState>>,
@@ -831,51 +886,7 @@ pub(super) fn handle_lifecycle(
                 .map_err(str::to_owned)?;
             }
         }
-        "tab.create" => {
-            let cancelled = || request.cancelled.as_ref().is_some_and(|flag| flag.load(Ordering::Acquire));
-            if cancelled() {
-                tx.offer_control(wire::frame("tab.create-failed", request_id, wire::ResultBody::refused("cancelled".into()))?)
-                    .map_err(str::to_owned)?;
-                return Ok(());
-            }
-            let (_, create): (_, TabCreate) = wire::body(payload)?;
-            let mut start = AttachStart {
-                client_id: client_id.clone(),
-                tabs_max: usize::MAX,
-                cwd: create.cwd,
-                columns: create.columns,
-                rows: create.rows,
-                release_root: create.release_root,
-                node_executable: create.node_executable,
-                environment: create.environment,
-                session_file: None,
-                session_dir: None,
-            };
-            sanitize_tab_environment(&mut start.environment);
-            match promote_standby(&state, start.clone()) {
-                Ok(Some(tab_id)) => {
-                    if cancelled() { close_tab(&state, &tab_id, request_id)?; }
-                    tx.offer_control(wire::frame(
-                        "tab.created",
-                        request_id,
-                        TabTarget { tab_id },
-                    )?)
-                    .map_err(str::to_owned)?;
-                    return Ok(());
-                }
-                Ok(None) => discard_standby(&state),
-                Err(error) => {
-                    tx.offer_control(wire::frame(
-                        "tab.create-failed",
-                        request_id,
-                        wire::ResultBody::refused(error),
-                    )?)
-                    .map_err(str::to_owned)?;
-                    return Ok(());
-                }
-            }
-            start_requested_agent(&state, &profile, tx, request_id, start, request.cancelled.as_deref())?;
-        }
+        "tab.create" => create_agent(&state, &profile, tx, &client_id, request)?,
         message if utility_request(message).is_some() => {
             open_utility_tab(&state, &profile, tx, &client_id, message, request_id, payload)?;
         }
