@@ -20,4 +20,4 @@
 
 - [x] 4.1 Run only targeted changed-code checks, typecheck, and strict OpenSpec validation; record results and resolve substantive gaps in the design.
 - [x] 4.2 Reconcile the implemented compatibility behavior and acceptance outcomes with the approved scope, preserving any explicit unresolved legacy limitation.
-- [ ] 4.3 Add plain Acceptance outcomes to the existing draft, reconcile and push current origin/develop, and validate the intended final delivery body before checking the final Implementation outcome.
+- [x] 4.3 Add plain Acceptance outcomes to the existing draft, reconcile and push current origin/develop, and validate the intended final delivery body before checking the final Implementation outcome.
