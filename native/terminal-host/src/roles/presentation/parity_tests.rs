@@ -699,7 +699,7 @@ fn conpty_output_wait_allows_eof_after_the_former_ten_second_cutoff() {
     let (sender, receiver) = std::sync::mpsc::channel();
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
     let reader = std::thread::spawn(move || {
-        // Regression: a successful child need not imply console EOF within ten seconds.
+        // Platform: a successful child need not imply console EOF within ten seconds.
         std::thread::sleep(std::time::Duration::from_secs(11));
         sender.send(b"complete-output").unwrap();
     });
