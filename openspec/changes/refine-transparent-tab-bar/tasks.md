@@ -3,6 +3,7 @@
 - [x] 1.1 Add canvas-aware inactive/control style helpers and verify truecolor and palette assertions distinguish transparent, black, and accent canvases.
 - [x] 1.2 Make inactive tabs, overflow, and `+` inherit the transparent canvas at rest and use one accent-derived foreground hover treatment, verifying the active chip and every hit range remain unchanged.
 - [x] 1.3 Refine all strip hover targets to reuse the owned menu accent-selected background while preserving their resting label foregrounds and unchanged hit geometry.
+- [ ] 1.4 Make `+` rest directly on Black and Accent canvases, and give `+` and the grouped right side one shared subtly lightened canvas hover while preserving Transparent behavior and stable foregrounds.
 
 ## 2. Grouped right-side interaction
 
@@ -24,3 +25,4 @@
 - [x] 4.2 Add truecolor and palette regressions proving strip hover backgrounds match owned popup menus without label recoloring, then rerun the focused terminal-host suites.
 - [x] 4.3 Add regressions for padded right-side hover geometry, the bullet separator, and immediate pending-prompt content, then rerun the focused terminal-host suites.
 - [ ] 4.4 Add truecolor and palette regressions proving the provisional submitted-message row matches the final design at wide and constrained widths, then rerun the focused terminal-host suites.
+- [ ] 4.5 Add truecolor and palette regressions for canvas-resting `+` and shared lighter Black/Accent hover backgrounds, then rerun the focused terminal-host suites.

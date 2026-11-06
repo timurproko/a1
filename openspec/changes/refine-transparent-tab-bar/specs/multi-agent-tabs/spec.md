@@ -9,6 +9,12 @@ The strip SHALL retain the approved v2 geometry, clipping, status, overflow, and
 - **AND** hovering it SHALL use the owned popup menu's accent-selected background without changing its label foreground or hit range
 - **AND** the active tab SHALL retain its existing selected treatment
 
+#### Scenario: Black and Accent plus controls stay on their canvas
+- **WHEN** the tab-bar canvas is Black or Accent and the strip shows `+`
+- **THEN** `+` SHALL rest directly on the configured strip canvas without a separate black block
+- **AND** hovering `+` or the grouped right side SHALL use the same subtly lightened canvas background without recoloring either label
+- **AND** Black hover SHALL remain a neutral lighter black while Accent hover SHALL preserve the accent-canvas hue
+
 #### Scenario: Wide names are clipped by display width
 - **WHEN** a tab name contains CJK characters or emoji wider than the chip allows
 - **THEN** its name SHALL clip with `…` at a grapheme boundary while the complete chip remains within 20 columns
@@ -173,7 +179,7 @@ Printable Unicode keys, ordinary single-line cursor/editing keys, and paste SHAL
 
 The complete physically rendered right-side group, from one blank cell before the first visible Version or Time glyph through one blank cell after the final visible glyph, SHALL have one explicit hover and hit range. When both items are present, ` • ` SHALL separate Version from Time, matching the model/thinking separator convention. Hovering any cell in that padded range SHALL apply one consistent group treatment to every rendered item and both padding cells. Right-clicking anywhere in the group SHALL open a context menu containing `Configure`; activating it SHALL open the native searchable multi-select titled `Right Side`, where Version and Time toggle independently and persist in fixed order. Items omitted by narrow layout SHALL contribute no cells to the group, and space outside the rendered group SHALL not consume child input.
 
-The group's resting foreground SHALL use the resident status/footer dim color. Its hover treatment SHALL use the owned popup menu's accent-selected background while retaining that dim foreground, and SHALL remain independent of tab chips, popups, overflow, drag targets, and child-surface input.
+The group's resting foreground SHALL use the resident status/footer dim color. On Transparent, its hover treatment SHALL use the owned popup menu's accent-selected background; on Black and Accent, it SHALL use the same subtly lightened canvas background as `+`. Every hover SHALL retain the dim foreground and remain independent of tab chips, popups, overflow, drag targets, and child-surface input.
 
 #### Scenario: Hover the complete configured group
 

@@ -23,9 +23,9 @@ See `proposal.md` for motivation. The native strip renderer already receives the
 
 The strip renderer will derive inactive/control styling from `StripCanvas`. For `Transparent`, inactive tabs, overflow, and `+` will emit the default-background SGR rather than fixed RGB `38,38,38` at rest. Their hover state will reuse the owned popup menus' accent-selected background token while retaining each control's resting foreground, producing a restrained cell background without turning the label into accent-colored text. Status glyphs retain their semantic colors, and the active chip keeps its existing accent fill.
 
-Black and Accent canvases will keep explicit readable resting backgrounds and palette fallbacks, then use the same menu-hover token for interaction consistency. Centralizing these states in canvas-aware style helpers avoids separate visual rules for tabs and controls.
+Black and Accent canvases keep their existing readable inactive-tab and overflow treatment, but `+` rests directly on the configured strip canvas just as the grouped right side already does. Hovering either `+` or the right-side group uses the same canvas-relative lightening: Black becomes a lighter neutral black, while Accent becomes a lighter form of its accent canvas. Truecolor and palette paths derive the same state, and the target geometry remains unchanged.
 
-Terminal SGR backgrounds are opaque, so this refinement deliberately uses the existing subtle menu token rather than pretending to alpha-blend with an unknown terminal default. The block appears only while hovered and is bounded by the unchanged target geometry.
+Terminal SGR backgrounds are opaque, so Transparent continues to use the existing subtle menu token rather than pretending to alpha-blend with an unknown terminal default. Black and Accent can safely derive a less jarring hover from their known canvas RGB values. Centralizing the canvas-resting and canvas-hover states in one helper keeps `+` and the right-side group visually identical without changing inactive tabs.
 
 ### D2. The right side is one rendered interaction group
 
@@ -45,7 +45,7 @@ Focused native tests will assert SGR background ownership, menu-consistent accen
 
 ## Risks / Trade-offs
 
-- **An opaque hover cell can contrast with an unknown terminal default** → Reuse the already approved subtle menu-hover token only during hover, preserve resting transparency, and retain semantic status colors.
+- **An opaque hover cell can contrast with its strip canvas** → Keep the approved menu token for unknown Transparent backgrounds, but derive Black and Accent hovers by subtly lightening their known canvas RGB values; preserve resting canvas ownership and semantic label colors.
 - **Changing hit identities can disturb context-menu routing** → Keep one explicit right-configuration action from renderer through the attach state machine and cover right-click behavior at both strip positions.
 - **Default-background resets can expose stale cells** → Continue repainting the full strip row on every strip frame and assert that child output never owns strip content.
 - **A landing draft could leak to the wrong process** → Bind submission to the one pending Agent creation, release it only after that view commits, and discard it on cancellation or failure; keep the immediate content echo strictly presentation-only.
