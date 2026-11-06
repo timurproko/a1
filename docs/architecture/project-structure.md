@@ -95,31 +95,37 @@ Build output mirrors the production namespaces directly under ignored `dist/`, w
 
 Every task worktree must be created at `{working-dir}/.worktrees/<task-id>`, where `{working-dir}` is the agent session's initial working directory. The `.worktrees` directory is inside that working directory, not beside it. For working directory `D:/Git/a1`, `D:/Git/a1/.worktrees/<task-id>` is correct and `D:/Git/a1-<task-id>` is forbidden.
 
-From the initial working directory, run `a1 session worktrees` to inspect cooperative live ownership before selecting an existing checkout. A `busy` or `unverifiable` worktree is unavailable. An `available` checkout may be reused only when its exact branch, OpenSpec change, and pull request match the requested stream and atomic `a1 session link-worktree <absolute-worktree>` succeeds; names, similar files, recency, cleanliness, and ancestry are not ownership evidence. Otherwise create a fresh task branch/worktree, link it from the owning A1 session, and continue to address it explicitly:
+### Common Git workflow
 
-```sh
-a1 session worktrees
-git fetch origin develop
-git worktree add -b <type>/<short-description> .worktrees/<task-id> origin/develop
-a1 session link-worktree <absolute-worktree>
-git -C .worktrees/<task-id> status
+External agents use ordinary Git without an A1 installation, runtime, or session link. Keep primary on `develop`, run the bounded cleanup sweep and relay its `lines`, then inspect `git worktree list --porcelain` from primary. Inventory is read-only and advisory; it is not atomic editing exclusion or permission to adopt a checkout.
+
+For a new delivery, create a unique absent task path and a new topic branch from freshly fetched `origin/develop`, unless the maintainer selected another base. For example, with primary at `D:/Git/a1` and unused task/branch names:
+
+```bash
+cd /d/Git/a1 && git fetch origin develop && git worktree add -b feature/example-task .worktrees/example-task origin/develop && git -C .worktrees/example-task rev-parse --show-toplevel --git-common-dir && git -C .worktrees/example-task status --short --branch
 ```
 
-Claude Code sessions have no A1 shell-tool session, so they link with Claude Code's `EnterWorktree` tool by task name. The tracked `.claude/settings.json` wires a `WorktreeCreate` hook, `scripts/governance/claude-worktree-create.mjs`, that creates `.worktrees/<task-id>` detached at fresh `origin/develop`, or returns it when it is already registered, so Claude Code anchors the session there without an approval prompt. The agent then creates the task branch inside it:
+Successful creation by this session establishes provenance for that fresh checkout. Before planning, implementation, test, or delivery-documentation edits, verify the exact canonical root, common Git repository, intended branch, and working-tree state. Relative Git directory results must resolve to the primary repository's common directory. A path/branch collision never permits force creation, overwriting, or adoption of the existing checkout. A context mismatch means stop edits and report the blocker; never fall back to task edits in primary.
 
-```sh
-git -C .worktrees/<task-id> switch -c <type>/<short-description>
-```
+### Resume and ownership
 
-Passing an absolute `path` to `EnterWorktree` is reserved for a worktree created by hand, from the primary checkout, before any shell command in that session; Claude Code otherwise keeps its shell tools anchored to the primary checkout and refuses their commands. The matching `WorktreeRemove` hook declines removal, so sessions leave with `ExitWorktree` `keep` and worktrees are removed only by the cleanup tool.
+Reuse an existing checkout only when its exact branch, OpenSpec change, and PR match the requested stream and continuing ownership or explicit handoff from the prior owner or maintainer is established without conflicting ownership evidence. Names, similar files, recency, cleanliness, and ancestry are not ownership evidence. Inspect Git worktree locks and the cleanup journal's `status`; claim any released cleanup registration through the [cleanup ownership protocol](../local-worktree-cleanup.md#resume-or-recover-ownership) before editing. An owned registration requires matching owner authority. Neither an unregistered path nor a successful cleanup claim proves that no other editor is using it.
 
-Inventory is read-only and advisory because another runtime may win a later race. A successful link response confirming the exact canonical worktree is required before planning, implementation, test, or delivery-documentation edits. If inventory or linking fails, reports a live/unverifiable owner, loses a race, or confirms another path, stop task edits and report the blocker; use a separate fresh worktree rather than overriding, unlinking, or recovering that owner. A session resuming an existing delivery or switching streams atomically claims and links the exact worktree before editing it.
+Known live editing claims, foreign cleanup ownership, Git locks, and unverifiable handoffs block reuse. Stop edits and report the blocker, or use a safe fresh worktree without overriding, recovering, unlocking, unlinking, or waiting out another owner. Preserve the existing delivery's branch/history/PR: do not force a branch checked out elsewhere or create a replacement PR to evade ownership. If the same stream cannot safely continue, report that concrete blocker.
 
-Mutation-gate corruption and transient startup-registration failures have a separate [worktree-link recovery procedure](../worktree-link-recovery.md). Automatic recovery never overrides a live or unverifiable editing claim; ambiguous legacy gates remain protected.
+Repeat exact-context and ownership verification when resuming or switching streams. Handoffs name the absolute worktree, branch, change, PR, and whether editing ownership is being handed over. This is cooperative coordination, not enforcement against arbitrary external editors. Missing A1 integration alone never blocks external agents and is not evidence of a conflicting owner.
 
-The link acquires a cooperative live-session editing claim and switches bare A1's footer repository context and pull-request discovery. It does not change process or tool cwd, create a Git worktree lock, or register, release, or authorize cleanup. Clean unlink/disposal releases live editing authority; a crashed owner becomes reusable only after exact process death is verified. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.
+### Environment-specific adapters
 
-An agent that directly chooses a transient file path for a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log must place it beneath the linked worktree's exact `.artifacts/` root, never the primary checkout, another worktree, OS temp, home/desktop, or a sibling path. Such scratch remains ignored, unstaged, uncommitted, disposable, non-authoritative, and secret-free. This repository path rule does not relocate storage internally selected by tools, product runtime code, or hermetic tests.
+Inside an active A1 shell-tool session only, run `a1 session worktrees` and `a1 session link-worktree <absolute-worktree>` before edits to acquire the runtime's editing claim and footer association. An `available` result still needs atomic linking; a `busy` or `unverifiable` owner, failed association, lost race, or different returned path blocks edits there. A failed stream switch preserves the prior association. External agents use the common Git workflow instead of fabricating runtime identities or starting A1 just to satisfy repository policy.
+
+A stale Git registration elsewhere whose directory is missing and whose row is `prunable` may be pruned before retrying inventory; this does not permit removing a live checkout. Mutation-gate corruption and transient A1 startup-registration failures have a separate [worktree-link recovery procedure](../worktree-link-recovery.md). Recovery never overrides a live or unverifiable editing claim.
+
+Claude Code uses its established `EnterWorktree` tool by task name. The tracked `.claude/settings.json` wires `scripts/governance/claude-worktree-create.mjs` to create `.worktrees/<task-id>` detached at fresh `origin/develop`, or return an already registered path. The agent must still establish ownership before reusing that path and create the topic branch in a new detached worktree before editing. Passing an absolute `path` to `EnterWorktree` is reserved for a worktree created by hand, from primary before any shell command in that session. The matching `WorktreeRemove` hook declines removal: leave with `ExitWorktree` `keep` and use only the guarded cleanup tool for removal. Other agents do not need these tools or hooks.
+
+A1 linking acquires a cooperative live-session editing claim and switches footer repository/PR discovery; an existing draft PR is not required when linking first succeeds. Clean unlink/disposal releases that runtime claim; a crashed A1 owner becomes reusable only after exact process death is verified. Runtime association does not change process or tool cwd, create a Git lock, or register, release, or authorize cleanup. Context verification and editing handoff also grant no acceptance, finalization, merge, deletion, or cleanup authority. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.
+
+An agent that directly chooses a transient file path for a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log must place it beneath the verified task worktree's exact `.artifacts/` root, never the primary checkout, another worktree, OS temp, home/desktop, or a sibling path. Such scratch remains ignored, unstaged, uncommitted, disposable, non-authoritative, and secret-free. This repository path rule does not relocate storage internally selected by tools, product runtime code, or hermetic tests.
 
 ## Documentation and comments
 

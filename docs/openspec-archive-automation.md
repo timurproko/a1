@@ -6,6 +6,14 @@ Unrelated standalone documentation remains separate: a non-draft unassociated PR
 
 Version-1 and version-2 deliveries and their existing comments, acceptance PRs, archive PRs, receipts, retries, and bounded catch-up remain supported under [Legacy delivery](#legacy-delivery). Do not silently convert an in-flight legacy delivery.
 
+## Worktree context across agent environments
+
+External agents use ordinary Git worktrees without an A1 installation, runtime, or session link. Follow the [development worktree protocol](architecture/project-structure.md#development-worktrees): keep primary on `develop`, run the cleanup sweep, inspect Git inventory, and verify the exact task root, common repository, branch, and state before edits. A fresh worktree created by the session establishes its provenance. An existing delivery needs continuing ownership or explicit handoff plus the exact branch, change, and PR; inventory and a clean checkout alone grant nothing.
+
+Use A1 inventory/linking only inside an active A1 shell-tool session, and Claude Code's established worktree hooks in that environment. Missing A1 integration alone does not block an external agent. A known live owner, Git lock, conflicting cleanup owner, or unverifiable handoff still blocks reuse. Claim any released cleanup registration through the [cleanup ownership protocol](local-worktree-cleanup.md#resume-or-recover-ownership) before editing. Neither a runtime link nor a cleanup claim proves the absence of arbitrary external editors; coordination remains cooperative.
+
+Repeat context and ownership verification on resume or stream changes, preserve the delivery's branch/history/PR, and keep every command explicitly scoped to its worktree. Handoffs name the absolute worktree path, branch, change, PR, and whether editing ownership is being handed over. An editing handoff does not register, release, or authorize cleanup and grants no integration authority. The lifecycle below applies equally to all agent environments.
+
 ## Version-3 lifecycle
 
 1. **Draft plan:** create one normally named branch/PR such as `feature/...`, `fix/...`, or `chore/...`. Start the body with `## Proposal`, use it for one or two sentences of intent, and follow it with one or more unchecked, outcome-sized task items under `## Implementation`, with no fixed maximum. Each item names a delivered code outcome. Omit generic process tasks; run, verify, validate, evidence, or manual-test items; quoted phase lines; and routine validation command lists, and keep machine linkage under final collapsed `Automation`. Keep it draft and include only planning artifacts until the maintainer approves the plan and explicitly requests implementation.
@@ -94,11 +102,11 @@ Keep acceptance absent during proposal review so unfinished intent is not mistak
 
 ## Agent scratch files
 
-When an agent chooses a path for a transient repository-delivery file—such as a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log—it must use a purpose-specific descendant of the exact `.artifacts/` root in the worktree that owns the operation. A linked delivery uses its linked task worktree, not the primary checkout, another worktree, the operating-system temporary directory, home/desktop, or a sibling path. Address the worktree path explicitly because session linking does not change tool cwd.
+When an agent chooses a path for a transient repository-delivery file—such as a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log—it must use a purpose-specific descendant of the exact `.artifacts/` root in the worktree that owns the operation. Use the verified task worktree, not the primary checkout, another worktree, the operating-system temporary directory, home/desktop, or a sibling path. Address the worktree path explicitly; context verification and optional runtime association do not change tool cwd.
 
 Keep these files ignored, unstaged, uncommitted, disposable, non-authoritative, and free of credentials or other prohibited sensitive data. Required durable evidence belongs in its declared tracked OpenSpec location. This rule governs paths selected by the agent; it does not relocate temporary storage internally selected by Git, GitHub CLI, OpenSpec, language/package tooling, product runtime code, test frameworks, or hermetic fixtures.
 
-For example, create `.artifacts/agent/pr-body.md` in the linked worktree before passing it to `gh pr create --body-file` or `gh pr edit --body-file`. The exact `.artifacts/` root remains subject to the existing guarded generated-content cleanup policy; this guidance does not authorize deletion outside that root or through unsafe filesystem boundaries.
+For example, create `.artifacts/agent/pr-body.md` in the verified task worktree before passing it to `gh pr create --body-file` or `gh pr edit --body-file`. The exact `.artifacts/` root remains subject to the existing guarded generated-content cleanup policy; this guidance does not authorize deletion outside that root or through unsafe filesystem boundaries.
 
 ## Version-3 implementation metadata
 
@@ -190,7 +198,7 @@ If an unassociated implementation has already integrated, do not edit its merged
 
 ## Finalization command
 
-The local command remains available for inspection or when a developer prefers to finalize before the automatic ready transition; the workflow then verifies the head and pushes nothing. It has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Run from the linked worktree and use an ignored artifact body file so the operation can update exact version-3 paths without mutating remote PR state:
+The local command remains available for inspection or when a developer prefers to finalize before the automatic ready transition; the workflow then verifies the head and pushes nothing. It has inspection mode by default and an explicit `--write` mode. It never commits, pushes, edits GitHub, marks a PR ready, or merges. Run from the verified task worktree and use an ignored artifact body file so the operation can update exact version-3 paths without mutating remote PR state:
 
 ```bash
 git fetch origin develop
