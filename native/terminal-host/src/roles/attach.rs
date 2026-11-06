@@ -3043,12 +3043,7 @@ impl Client {
         if footer_only {
             landing::render_agent_preview_footer(&input, self.preview_footer.as_ref())
         } else if let Some(prompt) = self.pending_prompt.as_deref() {
-            landing::render_ready_prompt(
-                &input,
-                self.preview_footer.as_ref(),
-                prompt,
-                prompt.graphemes(true).count(),
-            )
+            landing::render_submitted_agent_preview(&input, self.preview_footer.as_ref(), prompt)
         } else {
             landing::render_agent_preview(&input, self.preview_footer.as_ref())
         }

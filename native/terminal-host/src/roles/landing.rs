@@ -246,7 +246,7 @@ fn wordmark_row(line: &str, accent: &str, columns: usize) -> String {
 /// below it and the wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
 /// folder stays in place when a tab opens or closes, whichever edge the strip is on.
 pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
-    render_body(input, None, false, None)
+    render_body(input, None, false, None, None)
 }
 
 /// Rows rendered by the real Agent's owned footer. Retain the status cells and styles as hints;
@@ -306,6 +306,24 @@ pub fn render_ready_prompt(
         Some(footer.unwrap_or(&fallback)),
         false,
         Some((text, cursor)),
+        None,
+    )
+}
+
+/// A submitted empty-shell prompt shown as provisional content while its exact Agent starts.
+/// The editor stays empty because the draft has already been accepted for deferred delivery.
+pub fn render_submitted_agent_preview(
+    input: &LandingInput<'_>,
+    footer: Option<&AgentPreviewFooter>,
+    text: &str,
+) -> Vec<u8> {
+    let fallback = AgentPreviewFooter::default();
+    render_body(
+        input,
+        Some(footer.unwrap_or(&fallback)),
+        false,
+        None,
+        Some(text),
     )
 }
 
@@ -316,7 +334,7 @@ pub fn render_agent_preview_footer(
     footer: Option<&AgentPreviewFooter>,
 ) -> Vec<u8> {
     let fallback = AgentPreviewFooter::default();
-    render_body(input, Some(footer.unwrap_or(&fallback)), true, None)
+    render_body(input, Some(footer.unwrap_or(&fallback)), true, None, None)
 }
 
 /// Cold fallback when no actual Agent footer exists yet; the owned shell renders the footer
@@ -371,6 +389,17 @@ fn preview_status_content(footer: &AgentPreviewFooter, columns: usize, truecolor
         separator,
         model,
         thinking
+    )
+}
+
+fn submitted_prompt_row(text: &str, columns: usize, accent: [u8; 3], truecolor: bool) -> String {
+    if columns < 2 {
+        return clip("❯", columns);
+    }
+    format!(
+        "{}❯\x1b[0m {}",
+        foreground(accent, truecolor),
+        clip(text, columns - 2)
     )
 }
 
@@ -434,6 +463,7 @@ fn render_body(
     footer: Option<&AgentPreviewFooter>,
     footer_only: bool,
     draft: Option<(&str, usize)>,
+    submitted: Option<&str>,
 ) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
@@ -457,6 +487,19 @@ fn render_body(
         // preserve the footer and show as much of the editor as fits above it.
         let editor_rows = cwd_row.min(3);
         let first = cwd_row - editor_rows;
+        if first > 0 {
+            if let Some(text) = submitted {
+                place(
+                    0,
+                    submitted_prompt_row(
+                        text,
+                        columns,
+                        accent_colors(input.accent).accent,
+                        input.truecolor,
+                    ),
+                );
+            }
+        }
         let border = format!(
             "{}{}\x1b[0m",
             fg(prompt_chrome_color(input.accent)),
@@ -467,8 +510,9 @@ fn render_body(
         }
         if editor_rows >= 2 {
             place(cwd_row - 1, border);
-            let (text, cursor) = draft.unwrap_or(("", 0));
-            place(cwd_row - 2, editor_row(text, cursor, columns));
+            if let Some((text, cursor)) = draft {
+                place(cwd_row - 2, editor_row(text, cursor, columns));
+            }
         }
         if cwd_row + 1 < body_rows && actual.is_none() {
             place(cwd_row + 1, preview_status_row(footer, columns, input.truecolor));
@@ -505,7 +549,7 @@ fn render_body(
             input.columns, &actual.styles, &actual.links).is_err() {
             let mut fallback = footer.cloned().unwrap_or_default();
             fallback.actual = None;
-            return render_body(input, Some(&fallback), footer_only, draft);
+            return render_body(input, Some(&fallback), footer_only, draft, submitted);
         }
         output.extend(footer_bytes);
     }
@@ -625,6 +669,43 @@ mod tests {
             5,
         );
         assert!(narrow.iter().all(|row| UnicodeWidthStr::width(row.as_str()) <= 4));
+    }
+
+    #[test]
+    fn submitted_prompt_moves_into_pending_content_while_the_editor_stays_empty() {
+        let bytes = render_submitted_agent_preview(
+            &LandingInput {
+                accent: Some("cyan"),
+                ..input(80, 23)
+            },
+            None,
+            "ask me 10 questions 界",
+        );
+        let grid = cells(&bytes, 80, 23);
+        assert_eq!(grid[0], "❯ ask me 10 questions 界");
+        assert_eq!(
+            grid[19], "",
+            "the accepted prompt no longer appears in the editor"
+        );
+        assert_eq!(grid[21], " ~/src/a1");
+        let styled = String::from_utf8(bytes).unwrap();
+        assert!(styled.contains("\x1b[38;2;93;179;186m❯\x1b[0m ask me 10 questions 界"));
+        assert!(
+            !styled.contains("\x1b[7m"),
+            "the pending editor has no visual caret"
+        );
+
+        let constrained = cells(
+            &render_submitted_agent_preview(&input(8, 6), None, "abcdefghijk"),
+            8,
+            6,
+        );
+        assert_eq!(constrained[0], "❯ abcdef");
+        assert!(
+            constrained
+                .iter()
+                .all(|row| UnicodeWidthStr::width(row.as_str()) <= 8)
+        );
     }
 
     #[test]

@@ -1010,7 +1010,7 @@ fn render_frame_filled_with_right(
         version,
         right_items,
     );
-    let right_reserve = right.as_ref().map_or(0, |status| status.width() + 1);
+    let right_reserve = right.as_ref().map_or(0, RightStatus::width);
     let available = usize::from(columns).saturating_sub(right_reserve);
     let (selected, tab_width, overflow_width) =
         select_visible_chips(tabs, viewed, available, plus_width);
@@ -1242,9 +1242,9 @@ struct RightStatus {
 
 impl RightStatus {
     fn width(&self) -> usize {
-        self.version.as_deref().map_or(0, UnicodeWidthStr::width)
+        2 + self.version.as_deref().map_or(0, UnicodeWidthStr::width)
             + if self.version.is_some() && self.time.is_some() {
-                2
+                3
             } else {
                 0
             }
@@ -1274,18 +1274,20 @@ impl RightStatus {
             bytes.push_str(&canvas_background(canvas, truecolor));
             bytes.push_str(&foreground(Rgb(126, 136, 142), truecolor));
         }
+        bytes.push(' ');
         if let Some(version) = self.version.as_deref() {
             bytes.push_str(version);
         }
         if self.version.is_some() && self.time.is_some() {
-            bytes.push_str("  ");
+            bytes.push_str(" • ");
         }
         if let Some(time) = self.time.as_deref() {
             bytes.push_str(time);
         }
+        bytes.push(' ');
         let end = start.saturating_add(self.width() as u16);
         hits.push((start, end, StripHit::Right));
-        bytes.push_str("\x1b[0m ");
+        bytes.push_str("\x1b[0m");
     }
 }
 
@@ -1307,7 +1309,7 @@ fn right_status_text(
         return None;
     }
     let minimum = plus_width + if tabs_empty { 0 } else { 3 };
-    let fits = |status: &RightStatus| usize::from(columns) >= status.width() + 1 + minimum;
+    let fits = |status: &RightStatus| usize::from(columns) >= status.width() + minimum;
     let both = RightStatus {
         version: version.clone(),
         time: time.clone(),
@@ -2159,7 +2161,8 @@ mod tests {
     }
 
     #[test]
-    fn renders_configured_version_before_time_and_yields_version_first_on_narrow_rows() {
+    fn renders_padded_version_and_time_group_with_bullet_separator() {
+        let _clock = clock_at(14, 21);
         let tabs = [tab("one", "agent")];
         let render_right = |columns, truecolor, items| {
             render_frame_filled_with_right(
@@ -2189,7 +2192,7 @@ mod tests {
         );
         let both = plain(&both_frame.bytes);
         let version_at = both.find("v0.2.7-dev.1238").expect("executing version");
-        let time_at = both[version_at..].find("  ").expect("ordered separator") + version_at;
+        let time_at = both[version_at..].find(" • ").expect("ordered separator") + version_at;
         assert!(version_at < time_at);
         assert_eq!(UnicodeWidthStr::width(both.as_str()), 80);
         let right_hits = both_frame
@@ -2199,9 +2202,14 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(right_hits.len(), 1, "Version and Time are one target");
         let (right_start, right_end, _) = *right_hits[0];
-        assert!(right_start < right_end);
-        let group = &both[usize::from(right_start)..usize::from(right_end)];
-        assert!(group.starts_with("v0.2.7-dev.1238") && group.contains("  "));
+        let expected_group = " v0.2.7-dev.1238 • 2:21 PM ";
+        assert_eq!(right_end, 80, "the final blank cell is hover padding");
+        assert_eq!(
+            usize::from(right_start),
+            80 - UnicodeWidthStr::width(expected_group),
+            "the leading blank cell is part of the hit target"
+        );
+        assert!(both.ends_with(expected_group));
         let palette = render_right(
             80,
             false,
@@ -2224,7 +2232,7 @@ mod tests {
                 )
                 .bytes
             )
-            .ends_with("v0.2.7-dev.1238 ")
+            .ends_with(" v0.2.7-dev.1238 ")
         );
         let neither_frame = render_right(
             80,
@@ -2298,6 +2306,7 @@ mod tests {
 
     #[test]
     fn transparent_controls_share_menu_hover_background_without_recoloring_labels() {
+        let _clock = clock_at(14, 21);
         let tabs = [tab("one", "active"), tab("two", "inactive")];
         let render = |hovered: Option<StripHover>, truecolor, canvas| {
             render_frame_filled_with_right(
@@ -2347,11 +2356,20 @@ mod tests {
             ),
             "\x1b[48;2;52;57;69m\x1b[38;2;126;136;142m"
         );
-        for hover in [StripHover::Tab("two".into()), StripHover::New, StripHover::Right] {
-            let hovered = render(Some(hover), true, StripCanvas::Transparent);
+        for hover in [
+            StripHover::Tab("two".into()),
+            StripHover::New,
+            StripHover::Right,
+        ] {
+            let hovered = render(Some(hover.clone()), true, StripCanvas::Transparent);
             assert_eq!(hovered.hits, resting.hits);
             assert!(hovered.bytes.contains("\x1b[48;2;52;57;69m"));
             assert!(!hovered.bytes.contains("\x1b[38;2;91;141;239m"));
+            if hover == StripHover::Right {
+                assert!(hovered.bytes.contains(
+                    "\x1b[48;2;52;57;69m\x1b[38;2;126;136;142m v0.2.7-dev.1238 • 2:21 PM \x1b[0m"
+                ));
+            }
         }
         let crowded = (0..10)
             .map(|index| tab(&format!("tab-{index}"), &format!("long agent {index}")))
@@ -2643,10 +2661,7 @@ mod tests {
         assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
         // Invariant: the twelve-hour clock width varies by hour; 24-hour time is stable.
         let twelve_hour = widths(render(&tabs[..3], Some("tab-0"), 65));
-        assert!(matches!(
-            twelve_hour.as_slice(),
-            [17, 17, 17] | [18, 18, 18]
-        ));
+        assert_eq!(twelve_hour, [17, 17, 17]);
         assert_eq!(
             widths(render_configured(
                 &tabs[..3],
@@ -2682,13 +2697,10 @@ mod tests {
                 })
                 .collect::<Vec<_>>()
         };
-        for (hour, twelve_hour_width) in [(0, 17), (4, 18), (12, 17), (16, 18), (23, 17)] {
+        for hour in [0, 4, 12, 16, 23] {
             let _clock = clock_at(hour, 5);
             assert_eq!(widths(render(&tabs[..1], Some("tab-0"), 120)), [20]);
-            assert_eq!(
-                widths(render(&tabs[..3], Some("tab-0"), 65)),
-                [twelve_hour_width; 3]
-            );
+            assert_eq!(widths(render(&tabs[..3], Some("tab-0"), 65)), [17; 3]);
             // Invariant: a fixed-width 24-hour clock keeps the measured width independent of the hour.
             assert_eq!(
                 widths(render_configured(
