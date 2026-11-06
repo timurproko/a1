@@ -517,87 +517,121 @@ Implementation, substantive tasks, focused evidence, and gap disposition SHALL b
 
 ### Requirement: Agents bind the owning session to the active delivery worktree
 
-An interactive A1 delivery agent SHALL treat its one exclusively claimed task worktree as the active repository context for the delivery. After the standard cleanup sweep and before choosing an existing checkout, the agent SHALL run `a1 session worktrees` from the owning session. It SHALL treat `busy` and `unverifiable` worktrees as unavailable, SHALL NOT enter them for active repository work, and SHALL create a separate fresh task worktree when the intended candidate has either status. An `available` result is advisory rather than authority: the agent MAY reuse that checkout only when its exact branch, OpenSpec change, and pull request match the requested stream and `a1 session link-worktree <absolute-worktree>` subsequently acquires it successfully. Similar names, files, task descriptions, recent activity, clean status, or ancestry SHALL NOT establish permission to adopt a worktree.
+Every delivery agent SHALL establish an owned task worktree and explicitly scope repository operations to its exact canonical path. Repository delivery SHALL support agents outside A1 using ordinary Git and SHALL NOT require an installed A1 product, an active A1 shell-tool runtime, or an A1 footer association for those agents.
 
-Immediately after creating a new worktree, or after selecting an available existing worktree for a resumed delivery, the agent SHALL run `a1 session link-worktree <absolute-worktree>` from the owning session and SHALL require the command to confirm that exact canonical worktree before changing planning, implementation, test, or delivery-documentation files. A conflicting or unverifiable live-session claim SHALL be a hard pre-edit failure; the agent SHALL NOT override, recover, unlink, or wait out another owner and SHALL create a separate worktree instead. The successful claim and association SHALL remain bound to the same worktree, branch, history, and pull request through plan review and approved implementation.
+After the standard cleanup sweep, the agent SHALL inspect `git worktree list --porcelain`. It MAY create a fresh worktree at an unused task path on a new topic branch from current `origin/develop`, unless the maintainer selected another base. Before planning, implementation, test, or delivery-documentation edits, it SHALL verify the exact worktree root, common Git repository, intended branch, and working-tree state. A path or branch collision SHALL NOT authorize force creation, overwriting, or adoption of the existing checkout.
 
-The agent SHALL keep the primary checkout on `develop` and SHALL explicitly scope repository reads, edits, Git operations, builds, and tests to the active worktree. Live-session claim and repository association SHALL NOT be treated as a process/tool cwd change, Git lock, worktree cleanup registration, acceptance, finalization, merge, deletion, or cleanup authority.
+An existing worktree MAY be reused only when its exact branch, OpenSpec change, and pull request match the requested stream and the agent has established its own continuing ownership or an explicit handoff from the previous owner or maintainer without conflicting ownership evidence. Similar names, files, task descriptions, recent activity, clean status, or ancestry SHALL NOT establish permission to adopt a worktree. Git inventory SHALL remain advisory and SHALL NOT be described as atomic editing exclusion. A released cleanup registration SHALL be claimed through the existing cleanup ownership protocol before reuse; a foreign owned registration, Git lock, known live editing claim, or unverifiable handoff SHALL block reuse. Missing A1 integration alone SHALL NOT be treated as a conflicting or unverifiable owner.
 
-If inventory or association fails, identifies another path, or is unavailable in the owning interactive session, the agent SHALL report the blocker and SHALL NOT silently continue feature edits while the footer remains associated with the primary checkout. The agent SHALL NOT infer a replacement context by scanning worktrees, choosing a recent branch or pull request, or adopting another session's checkout. When the owning session deliberately switches delivery streams, it SHALL atomically claim and link the new exact worktree before work begins there; failure SHALL leave the prior stream claimed and selected until the agent instead creates and links a fresh worktree.
+Within an active A1 shell-tool runtime, the agent SHALL use `a1 session worktrees` and `a1 session link-worktree <absolute-worktree>` to acquire the runtime's editing claim and associate its exact task worktree. A conflicting or unverifiable live-session claim, failed association, or different returned path SHALL remain a pre-edit failure for that runtime. External agents SHALL use the Git path instead of fabricating A1 session identity or switching applications. Claude Code sessions with the established worktree integration SHALL continue following the separate Claude Code hook requirement; that adapter SHALL NOT be required of other agents.
 
-A draft pull request need not exist when the worktree is first claimed and linked. After that pull request exists, the established bounded repository refresh SHALL discover its open branch association and make its `#<number>` visible in the linked bare-A1 footer without requiring tool-cwd mutation or another delivery identity.
+The primary checkout SHALL remain on `develop`. Repository reads, edits, Git operations, builds, and tests SHALL explicitly address the task worktree. Context verification or runtime association SHALL NOT grant acceptance, finalization, merge, deletion, cleanup authority, or a change to process/tool cwd. Scratch SHALL remain under the task worktree's ignored `.artifacts/` root.
+
+Resuming or switching streams SHALL repeat exact-context and ownership verification before editing. A known owner conflict SHALL NOT be bypassed, unlinked, recovered, or waited out. An agent MAY create a fresh separate worktree where safe, but SHALL preserve the existing delivery's branch/history/PR and SHALL NOT force a branch checked out by another owner or create a replacement PR to evade ownership. If no safe continuation exists it SHALL report the concrete blocker. Handoffs SHALL name the exact worktree, branch, change, and PR.
+
+For A1 sessions, successful runtime association SHALL continue to drive bounded footer repository and PR discovery; a draft PR need not exist when linking first succeeds. External agents SHALL have no footer requirement. Cleanup ownership and runtime editing claims SHALL remain independent; neither SHALL imply authority to override the other.
+
+#### Scenario: External agent starts a new delivery without A1
+
+- **GIVEN** an external coding agent has Git and the repository tooling but no active A1 runtime
+- **WHEN** it creates a fresh isolated task worktree and verifies its exact repository, path, branch, and state
+- **THEN** it SHALL be permitted to write authorized planning or implementation files there without running A1 session commands
+- **AND** the primary checkout SHALL remain on develop
+
+#### Scenario: Resume approved implementation
+
+- **GIVEN** an existing worktree matches the requested branch, change, and PR and has an explicit ownership handoff with no conflicting editor or Git lock
+- **WHEN** the agent verifies its exact context and successfully claims any released cleanup registration
+- **THEN** it MAY resume in that same worktree, branch, history, and PR without an A1 footer association
+
+#### Scenario: Familiar checkout has no ownership evidence
+
+- **WHEN** a checkout looks related or clean but its ownership or handoff cannot be established
+- **THEN** the agent SHALL NOT adopt it based on Git inventory alone
+- **AND** it SHALL use a safe fresh worktree or report the exact continuation blocker
+
+#### Scenario: Resume conflicts with a live owner
+
+- **WHEN** a live editing owner, foreign cleanup owner, Git lock, or failed cleanup claim prevents reuse
+- **THEN** the agent SHALL stop before edits in that checkout
+- **AND** it SHALL NOT override, recover, unlock, or release the other owner's work
+
+#### Scenario: Active A1 session links its delivery
+
+- **GIVEN** the agent runs inside an active A1 shell-tool session
+- **WHEN** it begins or resumes a delivery
+- **THEN** it SHALL require successful atomic linking of the exact task worktree before edits
+- **AND** a conflict or failed link SHALL preserve the previous association and stop edits in the candidate checkout
+- **AND** bounded footer discovery SHALL identify the linked branch's PR once it exists
+
+#### Scenario: External agent has no session-link command
+
+- **WHEN** A1 is absent or its command reports that an active A1 shell-tool runtime is required in an external agent environment
+- **THEN** that absence alone SHALL NOT block the ordinary Git worktree path
+- **AND** the agent SHALL NOT forge a runtime identity or claim that A1 linking succeeded
+
+#### Scenario: Worktree context is wrong
+
+- **WHEN** the canonical root, shared repository, or intended branch verification fails
+- **THEN** the agent SHALL stop edits and report the mismatch
+- **AND** it SHALL NOT fall back to editing the primary checkout
+
+#### Scenario: Linking does not transfer other authority
+
+- **WHEN** an agent establishes or resumes an owned task worktree through any supported environment
+- **THEN** approval, finalization, exact-head CI, maintainer integration, and guarded cleanup SHALL retain their existing independent requirements
+- **AND** command paths and scratch SHALL remain explicitly scoped to that worktree
 
 #### Scenario: Start a feature from the primary checkout
 
-- **GIVEN** an interactive A1 delivery session started in the primary checkout on `develop`
-- **WHEN** the agent runs the worktree inventory and creates its fresh feature worktree from the selected target
-- **THEN** it SHALL successfully claim and link that absolute worktree to the owning session before writing planning or implementation files
-- **AND** all repository operations SHALL be explicitly scoped to that worktree
-- **AND** the primary checkout SHALL remain on `develop`
+- **GIVEN** a delivery session starts in the primary checkout on develop
+- **WHEN** it creates a fresh feature worktree from the selected target
+- **THEN** it SHALL establish exact Git context and ownership before writing planning or implementation files
+- **AND** an active A1 session SHALL also acquire its runtime claim and association
+- **AND** external agents SHALL not need A1 integration
 
 #### Scenario: Similar existing worktree is busy
 
 - **GIVEN** an existing worktree appears related to the requested task
-- **WHEN** inventory reports that another live session owns it
-- **THEN** the agent SHALL NOT use that checkout for repository work or attempt to displace its owner
-- **AND** SHALL create and claim a separate task worktree
+- **WHEN** available ownership evidence reports another live owner
+- **THEN** the agent SHALL NOT use or displace that checkout
+- **AND** it SHALL create a safe separate worktree or report the exact continuation blocker
 
 #### Scenario: Existing worktree is available and matches the stream
 
-- **GIVEN** inventory reports an existing worktree as available
-- **AND** its exact branch, OpenSpec change, and pull request match the delivery being resumed
-- **WHEN** atomic linking still finds it available
-- **THEN** the agent MAY claim and reuse that exact checkout
-- **AND** SHALL NOT treat inventory alone as ownership authority
+- **GIVEN** the exact branch, change, and PR match the delivery being resumed
+- **WHEN** ownership or explicit handoff is established and any applicable cleanup and runtime claims succeed
+- **THEN** the agent MAY reuse the checkout after exact-context verification
+- **AND** inventory alone SHALL NOT grant authority
 
 #### Scenario: Available result loses a race
 
-- **GIVEN** inventory reported an existing worktree as available
-- **WHEN** another runtime claims it before this session links it
-- **THEN** this session's link SHALL fail without changing either session's ownership
-- **AND** the agent SHALL create a fresh worktree rather than override or retry takeover
+- **GIVEN** inventory reported a worktree as available
+- **WHEN** a competing owner acquires the applicable runtime or cleanup claim first
+- **THEN** this session SHALL stop before edits without changing the competing ownership
+- **AND** it SHALL use a safe fresh checkout or report the blocker rather than override or retry takeover
 
 #### Scenario: The linked feature gains a draft pull request
 
-- **GIVEN** the owning session is linked to its feature worktree and branch
-- **AND** the feature's draft pull request did not exist when the link was established
-- **WHEN** the draft pull request is created and bounded repository refresh observes it
-- **THEN** the bare-A1 footer SHALL show that worktree path and branch with the pull request's `#<number>`
-- **AND** it SHALL NOT continue presenting the primary checkout's `develop` context
-
-#### Scenario: Resume approved implementation
-
-- **GIVEN** planning exists in a released worktree, branch, and draft pull request
-- **WHEN** a later interactive session verifies availability and acquires that delivery for approved implementation
-- **THEN** it SHALL claim and link the exact existing worktree before editing
-- **AND** implementation SHALL continue in the same worktree, branch, history, and pull request rather than create a second delivery context
-
-#### Scenario: Resume conflicts with a live owner
-
-- **GIVEN** planning exists in a worktree associated with an earlier session
-- **WHEN** that worktree remains claimed by a live runtime or its ownership cannot be verified
-- **THEN** the later session SHALL NOT resume or edit it
-- **AND** SHALL use a separate worktree unless the original runtime is cleanly stopped or later verified absent
+- **GIVEN** an active A1 session linked its feature worktree before creating the draft PR
+- **WHEN** bounded repository refresh observes the new PR
+- **THEN** the footer SHALL show the linked branch's PR number
+- **AND** this A1 display behavior SHALL impose no footer requirement on external agents
 
 #### Scenario: Switch to another delivery stream
 
-- **GIVEN** the session claims and associates one delivery worktree
-- **WHEN** it deliberately begins or resumes another owned delivery
-- **THEN** it SHALL atomically claim and link the new exact worktree before reading or changing that stream as active work
-- **AND** a failed transfer SHALL preserve the prior claim and association
-- **AND** footer discovery SHALL stop using the prior stream's branch and pull request only after a successful transfer
+- **GIVEN** an agent has an established delivery context
+- **WHEN** it deliberately begins or resumes another delivery
+- **THEN** it SHALL verify the new exact worktree and ownership before editing
+- **AND** an active A1 session SHALL atomically claim and link the new context, preserving the prior association on failure
+- **AND** external agents SHALL explicitly scope their tools to the newly verified worktree
 
 #### Scenario: Worktree association fails
 
-- **WHEN** worktree inventory or `a1 session link-worktree` fails, is unavailable, reports a live or unverifiable owner, or confirms a path other than the intended worktree
-- **THEN** the agent SHALL report the exact blocker and stop before feature edits in that checkout
-- **AND** SHALL NOT continue from the primary checkout, guess among local worktrees, claim that the session switched successfully, or bypass ownership with an ad hoc command
-
-#### Scenario: Linking does not transfer other authority
-
-- **WHEN** an owned worktree is claimed and linked to the session
-- **THEN** commands SHALL still address that worktree explicitly because tool cwd is unchanged
-- **AND** Git locks, cleanup ownership, acceptance, finalization, merge, and deletion SHALL continue to require their independent established evidence and commands
+- **WHEN** inventory or linking inside an active A1 runtime fails, is unavailable, reports a conflicting owner, or confirms another path
+- **THEN** that session SHALL report the blocker and stop before edits in the candidate checkout
+- **AND** it SHALL NOT spoof a successful association, override ownership, or edit primary instead
+- **AND** an external agent with no A1 runtime SHALL follow the ordinary Git path and its independent ownership checks
 
 ### Requirement: Active implementation delivery cannot pass without association
 
