@@ -17,7 +17,7 @@ class FakeSession {
   };
   readonly agent = {
     streamFunction: async (..._args: unknown[]): Promise<unknown> => ({
-      result: async () => ({}),
+      result: async () => ({ stopReason: "stop" }),
       async *[Symbol.asyncIterator]() {},
     }),
   };
@@ -143,10 +143,17 @@ describe("PiEngineRuntime", () => {
     const { engine, runtime, calls } = harness({ compactionProgress: percent => { progress.push(percent); } });
     const session = runtime.session;
     session.branchEntries.push({ type: "compaction", summary: "xxxx" });
-    session.agent.streamFunction = vi.fn(async () => ({
-      result: async () => ({}),
-      async *[Symbol.asyncIterator]() { yield { type: "text_delta", delta: "xx" }; },
-    }));
+    session.agent.streamFunction = vi.fn(async () => {
+      let resolveResult!: (value: { stopReason: "stop" }) => void;
+      const result = new Promise<{ stopReason: "stop" }>(resolve => { resolveResult = resolve; });
+      return {
+        result: () => result,
+        async *[Symbol.asyncIterator]() {
+          yield { type: "text_delta", delta: "xx" };
+          resolveResult({ stopReason: "stop" });
+        },
+      };
+    });
     const configuredStreamFunction = session.agent.streamFunction;
 
     await engine.start();
