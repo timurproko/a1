@@ -61,7 +61,7 @@ fn cold_attach_enters_the_screen_with_a_named_tab_not_an_empty_strip() {
     assert!(
         output
             .find("Agent")
-            .is_some_and(|name| output.find(" + ").is_some_and(|plus| name < plus)),
+            .is_some_and(|name| output.find(" +").is_some_and(|plus| name < plus)),
         "first strip must already have its tab name: {output}"
     );
     let name = output.find("Agent").expect("first tab name");
