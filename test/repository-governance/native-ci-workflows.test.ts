@@ -52,6 +52,70 @@ describe("direct native CI and automatic repair validation", () => {
     );
   });
 
+  it("restores an exact-input release terminal host and re-certifies it before the build receipt", async () => {
+    const steps = (await workflow("ci")).jobs.modular.steps;
+    const at = (name: string) => steps.findIndex((step: { name?: string }) => step.name === name);
+    const step = (name: string) => steps[at(name)];
+    const restore = step("Restore release terminal host build");
+    const save = step("Save release terminal host build");
+    expect(restore.id).toBe("release-terminal-host");
+    expect(restore.if).toBe("steps.job-selection.outputs.packs_candidate == 'true'");
+    expect(restore.uses).toMatch(/^actions\/cache\/restore@/u);
+    expect(save.uses).toMatch(/^actions\/cache\/save@/u);
+    expect(save.with.key).toBe("${{ steps.release-terminal-host.outputs.cache-primary-key }}");
+    expect(save.with.path).toBe(restore.with.path);
+    // Invariant: only the release files are cached, so the guardian built by `npm ci` is never clobbered.
+    expect(restore.with.path.trim().split("\n")).toEqual([
+      "dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host.node",
+      "dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host.manifest.json",
+      "dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host-THIRD-PARTY-NOTICES.txt",
+    ]);
+    for (const input of ["native/terminal-host/**", "rust-toolchain.toml", "config/terminal-host-provenance.json", "scripts/development/build-terminal-host.mjs", "scripts/development/native-build-environment.mjs", "scripts/development/native-target.mjs", "scripts/development/prepare-ci-rust.sh", "scripts/release/generate-terminal-host-notices.mjs"]) {
+      expect(restore.with.key, input).toContain(`'${input}'`);
+    }
+    expect(restore.with.key).toContain("zig-0.15.2");
+    expect(restore.with.key).toContain("${{ runner.os }}-${{ runner.arch }}");
+    const miss = "steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'";
+    for (const name of ["Prepare release terminal host Rust toolchain", "Set up Zig for the release terminal host", "Cache release terminal host build", "Build the release terminal host into the candidate", "Save release terminal host build"]) {
+      expect(step(name).if, name).toBe(miss);
+      expect(at("Install exact dependencies and build"), name).toBeLessThan(at("Restore release terminal host build"));
+      expect(at("Restore release terminal host build"), name).toBeLessThan(at(name));
+    }
+    const reuse = step("Reuse the restored release terminal host");
+    expect(reuse.if).toBe("steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit == 'true'");
+    expect(reuse.run).toBe("node scripts/development/build-terminal-host.mjs --reuse");
+    const verify = step("Verify the candidate's release terminal host");
+    expect(verify.if).toBe("steps.job-selection.outputs.packs_candidate == 'true'");
+    expect(verify.run).toBe("node scripts/release/verify-native-artifacts.mjs --local");
+    for (const name of ["Build the release terminal host into the candidate", "Reuse the restored release terminal host"]) {
+      expect(at(name), name).toBeLessThan(at("Verify the candidate's release terminal host"));
+    }
+    expect(at("Verify the candidate's release terminal host")).toBeLessThan(at("Record verified install-time build"));
+  });
+
+  it("caches the Linux fuzz tool and installs it only on a miss", async () => {
+    const steps = (await workflow("ci")).jobs.modular.steps;
+    const cache = steps.find((step: { name?: string }) => step.name === "Cache the terminal-host fuzz tool");
+    const fuzz = steps.find((step: { name?: string }) => step.name === "Run bounded terminal-host decoder fuzzing");
+    expect(cache.id).toBe("cargo-fuzz");
+    expect(cache.if).toBe(fuzz.if);
+    expect(cache.uses).toMatch(/^actions\/cache@/u);
+    expect(cache.with.path).toBe("~/.cargo/bin/cargo-fuzz");
+    expect(cache.with.key).toBe("cargo-fuzz-0.13.2-nightly-2026-10-01-${{ runner.os }}-${{ runner.arch }}");
+    expect(steps.indexOf(cache)).toBeLessThan(steps.indexOf(fuzz));
+    expect(fuzz.run).toMatch(/if \[ "\$\{\{ steps\.cargo-fuzz\.outputs\.cache-hit \}\}" != "true" \]; then\n\s*cargo \+nightly-2026-10-01 install cargo-fuzz --version 0\.13\.2 --locked\n\s*fi/u);
+  });
+
+  it("runs only the role slice in a partition and keeps the unit tests in the skip lane", async () => {
+    const source = await readFile("scripts/development/run-terminal-host-probe.mjs", "utf8");
+    const partition = source.slice(source.indexOf("if (partition && !partition.skip) {"), source.indexOf("if (partition?.skip) {"));
+    const skip = source.slice(source.indexOf("if (partition?.skip) {"));
+    expect(partition).toContain('"--test", "role_integration"');
+    expect(partition).not.toContain('"--lib"');
+    expect(skip).toContain('"--lib", "--bins"');
+    expect(skip).toContain('"--test", "release_isolation"');
+  });
+
   it("retains required native partitions, chaos and predecessor target platforms", () => {
     for (const platform of ["win32", "linux", "darwin"]) {
       expect(
@@ -98,7 +162,7 @@ describe("direct native CI and automatic repair validation", () => {
     for (const name of ["Install exact dependencies and build", "Build the release terminal host into the candidate", "Run exact selected scopes"]) {
       expect(index).toBeLessThan(steps.findIndex((step: { name?: string }) => step.name === name));
     }
-    for (const name of ["Set up Zig for the release terminal host", "Set up Zig for terminal host", "Cache process guardian build", "Cache release terminal host build", "Cache terminal host build", "Restore vendored Ghostty VT test result", "Save vendored Ghostty VT test result"]) {
+    for (const name of ["Set up Zig for the release terminal host", "Set up Zig for terminal host", "Cache process guardian build", "Cache release terminal host build", "Restore release terminal host build", "Cache terminal host build", "Restore vendored Ghostty VT test result", "Save vendored Ghostty VT test result"]) {
       const step = steps.find((step: { name?: string }) => step.name === name);
       expect(index, name).toBeLessThan(steps.indexOf(step));
       const key = step.with["cache-key"] ?? step.with["shared-key"] ?? step.with.key;

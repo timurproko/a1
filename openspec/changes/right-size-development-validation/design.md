@@ -25,11 +25,11 @@ Scheduled Full regression and scheduled Publish ran against the same `develop` c
 
 ### 1. Cache the release terminal-host output by exact inputs, not by job dependency
 
-Candidate lanes restore `dist/native/<platform>-<arch>/` (the addon, `terminal-host.manifest.json`, and notices) from `actions/cache` before any toolchain step. The key names the runner OS and architecture, the macOS image and SDK pin where applicable, the Rust channel from `rust-toolchain.toml`, the Zig version, and `hashFiles` over `native/terminal-host/**` (including `Cargo.lock` and the vendored VT tree), `rust-toolchain.toml`, `scripts/development/build-terminal-host.mjs`, and the modules it imports. On a hit the toolchain, Zig, Cargo-cache, and build steps are skipped; on a miss the lane builds exactly as today and saves the directory. Parallel misses in one run build independently and race harmlessly on save.
+Candidate lanes restore the release files in `dist/native/<platform>-<arch>/` (the addon, `terminal-host.manifest.json`, and notices, listed explicitly so the guardian files written by `npm ci` are never clobbered) from `actions/cache` after dependency installation and before any toolchain step. The key names the runner OS and architecture, the macOS image and SDK pin where applicable, the Zig version, and `hashFiles` over `native/terminal-host/**` (including `Cargo.lock` and the vendored VT tree), `rust-toolchain.toml`, `config/terminal-host-provenance.json`, `scripts/development/prepare-ci-rust.sh`, `scripts/development/build-terminal-host.mjs`, and the modules it imports. On a hit the toolchain, Zig, Cargo-cache, and build steps are skipped; on a miss the lane builds exactly as today and saves the three files. Parallel misses in one run build independently and race harmlessly on save.
 
 A shared predecessor job was rejected: `needs` would serialize the build before every consumer, adding about 4 minutes to the 7.5-minute `pi` lane that currently defines light-run wall-clock. The cache has no dependency edge and pays only a few megabytes of restore.
 
-The restored directory is verified with `verify-native-artifacts.mjs --local` before `record-validation-prerequisite.mjs build`, which already requires the addon to be present and valid before packing. `builtAt` in the manifest reflects the producing run; provenance fields (`cargoLockSha256`, `rustVersion`, `zigVersion`, `libghosttyVtCommit`) are inputs of the key and therefore identical for every consumer.
+The manifest's `entry` record digests `dist/foundation/resident-tabs/host-entry.js`, which the runtime and `verify-native-artifacts.mjs` both check and which changes with every TypeScript build, so a restored manifest cannot be used verbatim. On a hit the lane runs `build-terminal-host.mjs --reuse`, which refuses the restored files unless the manifest schema, target, crate version, and `Cargo.lock` digest match the checkout and the addon and notices match their records byte for byte, then re-records only the `entry` digest and rewrites the manifest with `builtAt` and provenance unchanged. Every candidate lane then runs `verify-native-artifacts.mjs --local` before `record-validation-prerequisite.mjs build`, and `prepare-validation-package.mjs` re-checks the same problems before packing. Provenance fields (`cargoLockSha256`, `rustVersion`, `zigVersion`, `libghosttyVtCommit`) are inputs of the key and therefore identical for every consumer.
 
 ### 2. Partitions run the role slice only
 
@@ -41,7 +41,7 @@ The partition branch of `run-terminal-host-probe.mjs` drops `cargo test --lib`. 
 
 ### 4. Governance tests pin the reused shapes
 
-`native-ci-workflows.test.ts` already asserts that Development builds, scopes, certifies, and fuzzes directly. It gains assertions that the cache restore precedes the release build with a key covering every input group, that the build step is conditional on a miss, that the fuzz-binary cache exists, and that the partition command set includes no unit-test invocation.
+`native-ci-workflows.test.ts` already asserts that Development builds, scopes, certifies, and fuzzes directly. It gains assertions that the cache restore precedes the release build with a key covering every input group, that the toolchain, build, and save steps are conditional on a miss, that the reuse and verify steps precede the build receipt, that the fuzz-binary cache exists and gates the install, and that the partition command set includes no unit-test invocation. `terminal-host-release-artifact.test.ts` covers the reuse decision: matching files pass, and a tampered addon, missing notices, changed `Cargo.lock`, crate version, target, or schema each name their reason.
 
 ## Risks / Trade-offs
 
@@ -54,3 +54,17 @@ The partition branch of `run-terminal-host-probe.mjs` drops `cargo test --lib`. 
 ## Migration Plan
 
 No data migration. Reverting restores unconditional release builds, partition unit-test runs, and the per-run `cargo-fuzz` install.
+
+## Implementation Evidence
+
+Structural reductions (measured on the runs named in Context, before this change):
+- Release terminal-host builds per candidate run: one per `packs_candidate` lane (four on a resident-tabs pull request, 2.6 to 3.4 minutes each) → one per distinct input set per platform across runs; a hit replaces toolchain, Zig, Cargo-cache, and build steps with a cache restore of three files plus `--reuse` and `--local` verification.
+- Terminal-host unit-test executions per target per run: four (three partitions plus the build-and-probe lane) → one.
+- `cargo-fuzz` compiles per Linux terminal-host run: one → zero on a hit.
+
+Local validation in the task worktree (Windows, no `bash` on PATH, no `dist/` build):
+- `npx vitest run test/repository-governance/native-ci-workflows.test.ts test/repository-governance/terminal-host-release-artifact.test.ts`: 20 passed, 1 failed. The failure is the pre-existing `exports the selected SDK with spaces…` case, which spawns `bash` and is unrelated to this change; it passes on CI runners.
+- `npm run typecheck`: no diagnostics in the changed files; the remaining diagnostics are `bin/*.js` imports of the unbuilt `dist/` tree, identical before the change.
+- `npx openspec validate right-size-development-validation --strict`: valid.
+
+Known gaps: observed run timings for the cache hit path are recorded only once Development validation runs on this pull request's head; the first run on any platform is a miss by construction, so the hit timing appears from the second run with unchanged native inputs.

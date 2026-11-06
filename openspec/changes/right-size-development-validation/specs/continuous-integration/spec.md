@@ -49,7 +49,7 @@ The crate's build script SHALL refuse to build on a Windows host outside CI unle
 - **THEN** the build SHALL proceed as it does in CI without weakening selected CI requirements
 
 ### Requirement: Validation candidates carry the lane's release terminal host
-Every pull-request validation lane whose selected scopes consume a packed candidate, and every Full regression job that packs one, SHALL carry the release terminal-host addon for its own platform in `dist/native` after installation and before recording the build receipt. A pull-request validation lane MAY restore that output from a cache whose key names the runner operating system and architecture, the platform SDK pin where one applies, the pinned Rust and Zig versions, and a content hash of the complete terminal-host source tree, its lock file, the toolchain pin, and the build script with its imported modules; a lane that restores the output SHALL verify the restored artifacts before recording the build receipt and SHALL NOT provision the release toolchain or rebuild. A lane without a matching cache entry SHALL build the addon as before and MAY save the verified output for the same key. Publication lanes SHALL build the release terminal host within their own run. On CI, validation packing SHALL fail before `npm pack` when the candidate lacks the platform's verified process-guardian addon or terminal-host addon, naming each problem.
+Every pull-request validation lane whose selected scopes consume a packed candidate, and every Full regression job that packs one, SHALL carry the release terminal-host addon for its own platform in `dist/native` after installation and before recording the build receipt. A pull-request validation lane MAY restore that output from a cache whose key names the runner operating system and architecture, the platform SDK pin where one applies, the pinned Rust and Zig versions, and a content hash of the complete terminal-host source tree, its lock file, the toolchain pin, and the build script with its imported modules; a lane that restores the output SHALL verify the restored addon and notices against the restored manifest and the manifest's target, crate version, and lock-file digest against the checkout, MAY re-record only the manifest's role-entry digest from the lane's own build, SHALL verify the result before recording the build receipt, and SHALL NOT provision the release toolchain or rebuild. A lane without a matching cache entry SHALL build the addon as before and MAY save the verified output for the same key. Publication lanes SHALL build the release terminal host within their own run. On CI, validation packing SHALL fail before `npm pack` when the candidate lacks the platform's verified process-guardian addon or terminal-host addon, naming each problem.
 
 #### Scenario: A pull request changes resident launch routing
 - **WHEN** pull-request validation runs packaged suites for the change
@@ -66,7 +66,7 @@ Every pull-request validation lane whose selected scopes consume a packed candid
 - **AND** it MAY save the verified output under the new key for later lanes and runs
 
 #### Scenario: A restored artifact does not verify
-- **WHEN** a restored directory is missing a file or its bytes differ from its manifest record
+- **WHEN** a restored directory is missing a file, its bytes differ from its manifest record, or the manifest's target, crate version, or lock-file digest differs from the checkout
 - **THEN** the lane SHALL fail before recording the build receipt and SHALL NOT pack
 
 #### Scenario: A lane packs without the host
