@@ -576,11 +576,11 @@ describe("the settings screen", () => {
 
   it("configures the tab bar's Version and Time items independently", async () => {
     const { app: target, session } = await app();
-    selectRow(target, "Right side");
+    selectRow(target, "Widgets");
     target.onInput?.("\r", HOST);
     let rows = modalScreen(target);
-    expect(rows.findIndex(row => row.trim() === "Right Side")).toBe(1);
-    expect(rows.join("\n")).toContain("Choose what the right side of the tab bar shows.");
+    expect(rows.findIndex(row => row.trim() === "Widgets")).toBe(1);
+    expect(rows.join("\n")).toContain("Choose which widgets the tab bar shows.");
     expect(rows.join("\n")).toContain("● Version");
     expect(rows.join("\n")).toContain("● Time");
     target.onInput?.("time", HOST);

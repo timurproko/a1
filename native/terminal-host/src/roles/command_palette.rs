@@ -25,8 +25,8 @@ const PLUS_HINTS: &[ShortcutHint<'static>] = &[
     ShortcutHint::new("esc", "close"),
 ];
 const PLUS_EMPTY: &str = "No tabs match";
-const RIGHT_TITLE: &str = "Right Side";
-const RIGHT_DESCRIPTION: &str = "Choose what the right side of the tab bar shows.";
+const RIGHT_TITLE: &str = "Widgets";
+const RIGHT_DESCRIPTION: &str = "Choose which widgets the tab bar shows.";
 const RIGHT_EMPTY: &str = "No items match";
 const MAX_WIDTH: usize = 60;
 const PADDING: usize = 2;
@@ -350,6 +350,23 @@ mod tests {
             !rows.iter().any(|row| row.contains("Alt+")),
             "kinds show no shortcuts"
         );
+    }
+
+    #[test]
+    fn widgets_dialog_uses_the_user_facing_name_and_description() {
+        let rows = plain(&render(
+            &CommandPalette::right_side(),
+            &Labels,
+            PlusMenu::default(),
+            RightItems::default(),
+            80,
+            24,
+            STYLE,
+        ));
+        assert_eq!(rows[1].trim(), "Widgets");
+        assert_eq!(rows[2].trim(), "Choose which widgets the tab bar shows.");
+        assert!(rows.iter().any(|row| row.trim_end().ends_with("Version")));
+        assert!(rows.iter().any(|row| row.trim_end().ends_with("Time")));
     }
 
     #[test]

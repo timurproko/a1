@@ -128,7 +128,7 @@ describe("owned UI setting declarations", () => {
       allowedValues: ["top", "bottom"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabBarRightItems")).toMatchObject({
-      label: "Right side",
+      label: "Widgets",
       section: { id: "tabs", title: "Tab Bar" },
       application: "live",
       defaultValue: "version,time",
