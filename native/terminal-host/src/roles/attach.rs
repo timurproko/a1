@@ -66,6 +66,24 @@ struct PendingAgent {
 struct PendingPrompt {
     text: String,
     submitted_at: SystemTime,
+    /// The activation commit predates deferred input; keep the preview until this tab's next live surface.
+    handoff_tab: Option<String>,
+}
+
+impl PendingPrompt {
+    fn begin_handoff(&mut self, tab_id: &str) {
+        self.handoff_tab = Some(tab_id.to_owned());
+    }
+
+    fn held_for(&self, viewed: Option<&str>) -> bool {
+        self.handoff_tab
+            .as_deref()
+            .is_some_and(|tab_id| viewed == Some(tab_id))
+    }
+
+    fn completes_with(&self, tab_id: &str, requested: bool) -> bool {
+        !requested && self.handoff_tab.as_deref() == Some(tab_id)
+    }
 }
 
 struct CancelledAgent {
@@ -2526,6 +2544,15 @@ impl Client {
     /// Steps the core and applies its effects in order; returns the forwarded-input effects,
     /// which the caller delivers with the original terminal event.
     fn run(&mut self, core: &mut State, event: core_attach::Event) -> Result<Vec<Effect>, String> {
+        let clear_failed_handoff = matches!(
+            &event,
+            core_attach::Event::Server(
+                ServerEvent::Failure { .. } | ServerEvent::InputRejected { .. }
+            )
+        );
+        if clear_failed_handoff {
+            self.pending_prompt = None;
+        }
         let now = self.now();
         let effects = self.with_context(|context| core.step(context, event, now));
         let mut forwarded = Vec::new();
@@ -2542,6 +2569,7 @@ impl Client {
                     }
                     if !core.view.pending_agent_visible {
                         self.pending_agent = None;
+                        self.pending_prompt = None;
                     } else if let Some(pending) = self.pending_agent.as_mut() {
                         pending.real_id = Some(tab_id.clone());
                     }
@@ -2553,6 +2581,7 @@ impl Client {
                     self.clear_chip_fill();
                     key_trace(self.key_trace_path.as_deref(), "effect=cancel-view");
                     self.pending_agent = None;
+                    self.pending_prompt = None;
                     self.cancel_view_request()?;
                     if self.swap_in_flight.take().is_some() {
                         self.chip_priority.clear();
@@ -2579,14 +2608,21 @@ impl Client {
                 forward => forwarded.push(forward),
             }
         }
-        if !core.view.pending_agent_visible
-            && self
+        if !core.view.pending_agent_visible {
+            if self
                 .pending_agent
                 .as_ref()
                 .is_some_and(|pending| pending.real_id.is_none())
-        {
-            self.pending_agent = None;
-            self.pending_prompt = None;
+            {
+                self.pending_agent = None;
+            }
+            if self
+                .pending_prompt
+                .as_ref()
+                .is_some_and(|prompt| prompt.handoff_tab.is_none())
+            {
+                self.pending_prompt = None;
+            }
         }
         Ok(forwarded)
     }
@@ -2635,8 +2671,16 @@ impl Client {
             {
                 self.hidden_cancelled_tabs.insert(tab_id.clone());
             }
+            if self
+                .pending_prompt
+                .as_ref()
+                .is_some_and(|prompt| prompt.handoff_tab.as_deref() == Some(tab_id))
+            {
+                self.pending_prompt = None;
+            }
         } else if matches!(request, Request::Open(_)) && !core.view.pending_agent_visible {
             self.pending_agent = None;
+            self.pending_prompt = None;
         }
         if matches!(request, Request::Reorder { .. }) {
             self.chip_priority.clear();
@@ -2645,6 +2689,7 @@ impl Client {
         self.send(request)?;
         if cancelled {
             self.pending_agent = None;
+            self.pending_prompt = None;
         }
         Ok(())
     }
@@ -2655,6 +2700,7 @@ impl Client {
         self.presented = Presented::new();
         self.pending_terminal_effects.clear();
         self.pending_agent = None;
+        self.pending_prompt = None;
         self.swap_in_flight = None;
         self.chip_priority.clear();
         self.has_shown_tabs = true;
@@ -2804,6 +2850,7 @@ impl Client {
         self.pending_prompt = Some(PendingPrompt {
             text: text.clone(),
             submitted_at: SystemTime::now(),
+            handoff_tab: None,
         });
         for (event, legacy) in landing_submission_events(&text) {
             self.send_input(core, Some(event), legacy)?;
@@ -3119,8 +3166,13 @@ impl Client {
         dimmed: bool,
     ) -> Result<(), String> {
         let ready = landing.is_some();
-        let pending_body = pending.then(|| self.pending_agent_shell(false));
-        let child_surface = !ready && !pending;
+        let prompt_held = !pending
+            && self
+                .pending_prompt
+                .as_ref()
+                .is_some_and(|prompt| prompt.held_for(self.view.viewed.as_deref()));
+        let pending_body = (pending || prompt_held).then(|| self.pending_agent_shell(false));
+        let child_surface = !ready && !pending && !prompt_held;
         // Invariant: only the footer stays provisional. Reconstruct each latest complete real
         // surface so its editor and input remain live throughout the bounded chip fill.
         let held_body = if child_surface {
@@ -3153,12 +3205,12 @@ impl Client {
                 .or(held_body)
                 .unwrap_or_else(|| self.presented.surface.clone()),
             overlay,
-            cursor: if pending || ready || dimmed {
+            cursor: if pending || prompt_held || ready || dimmed {
                 Some(FinalCursor::Hidden)
             } else {
                 self.presented.cursor
             },
-            modes: if pending || ready {
+            modes: if pending || prompt_held || ready {
                 None
             } else {
                 self.presented.modes.clone()
@@ -3193,6 +3245,25 @@ impl Client {
         requested: bool,
     ) -> Result<(), String> {
         key_trace(self.key_trace_path.as_deref(), "commit=surface");
+        let fill = fill_on_agent_handoff(
+            self.pending_agent.as_ref(),
+            &surface.tab_id,
+            requested,
+            Instant::now(),
+        );
+        if self
+            .pending_prompt
+            .as_ref()
+            .is_some_and(|prompt| prompt.completes_with(&surface.tab_id, requested))
+        {
+            self.pending_prompt = None;
+        } else if fill.is_some() && surface.status != "failed"
+            && let Some(prompt) = self.pending_prompt.as_mut()
+        {
+            // Invariant: deferred input is queued by the commit below; retain the submitted row
+            // over this pre-input surface and release it only to the next coherent live surface.
+            prompt.begin_handoff(&surface.tab_id);
+        }
         if let Some(next) = staged {
             self.tabs = next;
         }
@@ -3216,12 +3287,7 @@ impl Client {
             tab.accent = surface.accent.clone();
             effective_status.clone_from(&tab.status);
         }
-        if let Some(fill) = fill_on_agent_handoff(
-            self.pending_agent.as_ref(),
-            &surface.tab_id,
-            requested,
-            Instant::now(),
-        ) {
+        if let Some(fill) = fill {
             // Invariant: the preview footer is frozen before the real Agent's first status is cached.
             // Without a complete structured frame or truecolor fill the real footer shows at once.
             if should_hold_activation_footer(
@@ -3233,7 +3299,6 @@ impl Client {
                 self.last_strip_frame = Instant::now();
             }
             self.pending_agent = None;
-            self.pending_prompt = None;
         }
         if !core_attach::is_utility_tab(&surface.tab_id)
             && let Some(footer) = surface.structured.as_ref().and_then(agent_preview_footer)
@@ -5047,6 +5112,23 @@ mod tests {
             !should_hold_activation_footer(true, false),
             "legacy bodies cannot safely hold status rows"
         );
+    }
+
+    #[test]
+    fn submitted_prompt_handoff_waits_for_the_same_agents_next_live_surface() {
+        let mut prompt = PendingPrompt {
+            text: "ask me 10 questions".into(),
+            submitted_at: SystemTime::UNIX_EPOCH,
+            handoff_tab: None,
+        };
+        assert!(!prompt.held_for(None));
+        assert!(!prompt.held_for(Some("agent-2")));
+        prompt.begin_handoff("agent-2");
+        assert!(prompt.held_for(Some("agent-2")));
+        assert!(!prompt.held_for(Some("agent-3")));
+        assert!(!prompt.completes_with("agent-2", true));
+        assert!(!prompt.completes_with("agent-3", false));
+        assert!(prompt.completes_with("agent-2", false));
     }
 
     #[test]
