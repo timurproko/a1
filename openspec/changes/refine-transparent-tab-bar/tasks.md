@@ -23,6 +23,7 @@
 - [x] 3.5 Make the provisional submission use the final submitted-message row geometry and semantic styling, including prefix, projected background, text, stored submission time, configured time format, and narrow fallback.
 - [x] 3.6 Place the provisional submitted-message row after the same leading breathing row as the first real prompt so startup handoff cannot shift it vertically.
 - [x] 3.7 Hold the provisional submitted-message shell across the initial pre-input child commit, release it on the next coherent same-Agent surface, and clear it on cancellation, failure, or view change.
+- [ ] 3.8 Keep the hold across intermediate startup/Working surfaces and release only when retained structured or legacy content contains the real submitted-message marker and accepted prompt probe.
 
 ## 4. Focused regression coverage
 
@@ -35,3 +36,4 @@
 - [x] 4.7 Add truecolor and palette regressions for Accent inactive-tab rest and hover without changing Black or Transparent, then rerun the focused strip suite.
 - [x] 4.8 Add activation-handoff regressions proving no blank/editor frame appears between provisional and real submitted prompts, including cleanup paths, then rerun the focused attach suites.
 - [x] 4.9 Update Settings and native palette copy regressions for the `Widgets` label and description, then rerun the focused TypeScript and terminal-host suites.
+- [ ] 4.10 Add structured and legacy handoff regressions proving blank and Working-only surfaces retain the preview while the first real submitted-message surface releases it.
