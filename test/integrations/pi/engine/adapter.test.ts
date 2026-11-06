@@ -858,15 +858,21 @@ describe("Pi engine adapter", () => {
     const streamFunction = vi.fn(async () => {
       const queue: unknown[] = [];
       const waiters: Array<(value: IteratorResult<unknown>) => void> = [];
+      let resolveResult!: (value: { stopReason: "stop" }) => void;
+      const result = new Promise<{ stopReason: "stop" }>(resolve => { resolveResult = resolve; });
       let done = false;
       const stream = {
         events: queue,
         push(event: unknown) { const waiter = waiters.shift(); if (waiter) waiter({ value: event, done: false }); else queue.push(event); },
-        end() { done = true; for (const waiter of waiters.splice(0)) waiter({ value: undefined, done: true }); },
+        end() {
+          resolveResult({ stopReason: "stop" });
+          done = true;
+          for (const waiter of waiters.splice(0)) waiter({ value: undefined, done: true });
+        },
         [Symbol.asyncIterator]() {
           return { next: () => queue.length > 0 ? Promise.resolve({ value: queue.shift(), done: false }) : done ? Promise.resolve({ value: undefined, done: true }) : new Promise<IteratorResult<unknown>>(resolve => waiters.push(resolve)) };
         },
-        result: () => Promise.resolve({}),
+        result: () => result,
       };
       streams.push(stream);
       return stream;

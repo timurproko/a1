@@ -43,7 +43,7 @@ export function observeCompactionProgress(
   let reported: number | null = null;
 
   const report = (percent = Math.min(MAX_STREAMING_PERCENT, Math.floor((100 * streamed) / expected))): void => {
-    if (percent === reported) return;
+    if (reported !== null && percent <= reported) return;
     reported = percent;
     onProgress(percent);
   };
@@ -52,6 +52,16 @@ export function observeCompactionProgress(
     const stream = await original(model, context, options);
     if (!active || disposed) return stream;
     const observed = generation;
+    // Concurrency: Pi resolves result() before an independent iterator receives the terminal
+    // event, so register first to publish 100 before Pi can emit compaction_end.
+    try {
+      void stream.result().then(result => {
+        if (observed !== generation || !active || disposed || result.stopReason !== "stop") return;
+        report(COMPLETE_PERCENT);
+      }, () => undefined);
+    } catch {
+      // Invariant: optional observation never affects the stream returned to Pi.
+    }
     void (async () => {
       report();
       // Invariant: observation never affects the request; a stream that cannot be iterated ends observation only.
@@ -63,9 +73,6 @@ export function observeCompactionProgress(
             report();
           }
         }
-        // Invariant: normal exhaustion is the only observed completion boundary. The real
-        // compaction_end event owns work-state exit; errors and stale generations never claim 100%.
-        if (observed === generation && active && !disposed) report(COMPLETE_PERCENT);
       } catch {
         return;
       }

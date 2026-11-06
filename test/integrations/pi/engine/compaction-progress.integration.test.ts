@@ -18,13 +18,15 @@ function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
   return { promise, resolve };
 }
 
-function controlledSummaryStream(result: Promise<unknown>): {
+function controlledSummaryStream(): {
   stream: unknown;
   push(event: unknown): void;
-  end(): void;
+  finish(result: unknown): void;
 } {
   const queue: unknown[] = [];
   const waiters: Array<(value: IteratorResult<unknown>) => void> = [];
+  let resolveResult!: (value: unknown) => void;
+  const result = new Promise<unknown>(resolve => { resolveResult = resolve; });
   let done = false;
   return {
     stream: {
@@ -44,7 +46,10 @@ function controlledSummaryStream(result: Promise<unknown>): {
       if (waiter) waiter({ value: event, done: false });
       else queue.push(event);
     },
-    end() {
+    finish(value: unknown) {
+      if (done) return;
+      // Protocol: Pi's AssistantMessageEventStream resolves its result before iterator termination.
+      resolveResult(value);
       done = true;
       for (const waiter of waiters.splice(0)) waiter({ value: undefined, done: true });
     },
@@ -134,8 +139,7 @@ describe("pinned AgentSession compaction progress", () => {
         stopReason: "stop",
         timestamp: 4,
       };
-      const summaryResult = deferred<unknown>();
-      const summaryStream = controlledSummaryStream(summaryResult.promise);
+      const summaryStream = controlledSummaryStream();
       const streamStarted = deferred<void>();
       const streamFunction = vi.fn(async () => {
         streamStarted.resolve(undefined);
@@ -157,6 +161,10 @@ describe("pinned AgentSession compaction progress", () => {
         }) as unknown as AgentSessionRuntime,
       });
 
+      const statuses: string[] = [];
+      const unsubscribe = adapter.onEvent(event => {
+        if (event.type === "status") statuses.push(`${event.status.workingMessage}:${event.status.workingProgress ?? "-"}`);
+      });
       let compacting: ReturnType<typeof session.compact> | undefined;
       let compactionSettled = false;
       try {
@@ -174,25 +182,20 @@ describe("pinned AgentSession compaction progress", () => {
           expect(adapter.view().status.workingProgress).toBe(50);
         });
 
-        summaryStream.end();
-        await vi.waitFor(async () => {
-          await adapter.flushEvents();
-          expect(adapter.view().status).toMatchObject({ workingMessage: "Compacting", workingProgress: 100 });
-        });
-        expect(compactionSettled).toBe(false);
-
-        summaryResult.resolve(completedSummary);
+        summaryStream.finish(completedSummary);
         await compacting;
         await adapter.flushEvents();
 
         expect(compactionSettled).toBe(true);
+        expect(statuses).toContain("Compacting:100");
+        expect(statuses.indexOf("Compacting:100")).toBeLessThan(statuses.lastIndexOf("null:-"));
         expect(adapter.view().status).toMatchObject({ workingMessage: null, workingProgress: null });
         expect(sessionManager.getBranch().at(-1)).toMatchObject({ type: "compaction", summary: "Completed summary" });
       } finally {
         releaseAuth.resolve(undefined);
-        summaryStream.end();
-        summaryResult.resolve(completedSummary);
+        summaryStream.finish(completedSummary);
         await compacting?.catch(() => undefined);
+        unsubscribe();
         await adapter.dispose();
       }
     } finally {
