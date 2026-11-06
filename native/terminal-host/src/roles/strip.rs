@@ -306,6 +306,8 @@ pub fn menu_hover_background(accent: Option<&str>) -> [u8; 3] {
     }
 }
 
+const BLACK_CANVAS: [u8; 3] = [20, 20, 20];
+
 fn control_style(
     canvas: StripCanvas,
     hovered: bool,
@@ -349,6 +351,19 @@ fn canvas_control_style(
         _ => canvas_background(canvas, truecolor),
     };
     format!("{background}{}", foreground(text_color, truecolor))
+}
+
+/// Accent is the only known RGB canvas other than Black. Its inactive tabs belong to the
+/// canvas; Black retains its dark chip and Transparent remains text-only.
+fn inactive_tab_style(
+    canvas: StripCanvas, hovered: bool, truecolor: bool, active_accent: &str, text_color: Rgb,
+) -> String {
+    match canvas {
+        StripCanvas::Rgb(rgb) if rgb != BLACK_CANVAS => {
+            canvas_control_style(canvas, hovered, truecolor, active_accent, text_color)
+        }
+        _ => control_style(canvas, hovered, truecolor, active_accent, text_color),
+    }
 }
 
 const SETTLED_FG: Rgb = Rgb(170, 170, 170);
@@ -649,7 +664,7 @@ fn chip(
             foreground(Rgb(255, 255, 255), truecolor)
         )
     } else {
-        control_style(canvas, hovered, truecolor, active_accent, SETTLED_FG)
+        inactive_tab_style(canvas, hovered, truecolor, active_accent, SETTLED_FG)
     };
     let title = chip_title(
         tab,
@@ -2449,6 +2464,34 @@ mod tests {
                 crate::roles::landing::palette_index(canvas)
             )));
         }
+    }
+
+    #[test]
+    fn accent_inactive_tabs_inherit_canvas_while_black_and_transparent_stay_unchanged() {
+        let inactive = tab("settings-1", "Settings");
+        let now = Instant::now();
+        let render = |canvas, hovered, truecolor| chip(
+            &inactive, false, hovered, now, truecolor, None, None, "blue", None, canvas,
+        );
+        let accent = StripCanvas::Rgb([52, 57, 69]);
+        let (resting, width) = render(accent, false, true);
+        assert!(resting.starts_with("\x1b[48;2;52;57;69m\x1b[38;2;170;170;170m"));
+        let (hovered, hovered_width) = render(accent, true, true);
+        assert_eq!(hovered_width, width, "hover cannot move the chip hit target");
+        assert!(hovered.starts_with("\x1b[48;2;68;72;83m\x1b[38;2;170;170;170m"));
+        let (palette_resting, _) = render(accent, false, false);
+        let (palette_hovered, _) = render(accent, true, false);
+        let palette = crate::roles::landing::palette_index;
+        assert!(palette_resting.starts_with(&format!(
+            "\x1b[48;5;{}m\x1b[38;5;{}m", palette([52, 57, 69]), palette([170; 3])
+        )));
+        assert!(palette_hovered.starts_with(&format!(
+            "\x1b[48;5;{}m\x1b[38;5;{}m", palette([68, 72, 83]), palette([170; 3])
+        )));
+        let (black, _) = render(StripCanvas::Rgb(BLACK_CANVAS), false, true);
+        assert!(black.starts_with("\x1b[48;2;38;38;38m"));
+        let (transparent, _) = render(StripCanvas::Transparent, false, true);
+        assert!(transparent.starts_with("\x1b[49m"));
     }
 
     #[test]

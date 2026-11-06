@@ -755,6 +755,9 @@ impl State {
     }
 
     fn create(&mut self, request: Request, effects: &mut Vec<Effect>) {
+        // Invariant: creating/opening inserts a chip before `+`; hover belongs to the old geometry
+        // until the pointer moves again, so it must not follow the relocated control across repaint.
+        self.hovered = None;
         self.view.pending_created_activation = true;
         if request == Request::Create {
             self.view.pending_agent_visible = true;
@@ -2312,6 +2315,7 @@ mod tests {
             "Agent alone adds an Agent without a menu"
         );
         assert!(state.mode.popup().is_none());
+        assert_eq!(state.hovered, None, "the relocated plus does not retain hover");
 
         state.plus_menu = PlusMenu::from_setting(Some(""));
         assert_eq!(fixture.step(&mut state, mouse(LEFT, 31, 0)), [PAINT]);
@@ -2337,6 +2341,7 @@ mod tests {
             [Effect::Send(Request::Open(UtilityKind::Settings)), PAINT],
             "the hidden Settings is revealed through the server"
         );
+        assert_eq!(state.hovered, None, "opening a utility also changes strip geometry");
 
         assert_eq!(fixture.step(&mut state, mouse(RIGHT, 31, 0)), [PAINT]);
         let configure = state.mode.popup().expect("configure menu").clone();
@@ -2425,6 +2430,7 @@ mod tests {
             fixture.step(&mut state, mouse(LEFT, add.column, 1)),
             [Effect::Send(Request::Create), PAINT]
         );
+        assert_eq!(state.hovered, None, "Agent clears the old plus hover");
 
         fixture.step(&mut state, mouse(LEFT, 41, 0));
         let menu = state.mode.popup().expect("overflow menu").clone();

@@ -502,6 +502,37 @@ fn editor_row(text: &str, cursor: usize, columns: usize) -> String {
     output
 }
 
+fn provisional_prompt(
+    submitted: Option<(&str, &str)>, available_rows: usize, columns: usize,
+    colors: AccentColors, truecolor: bool,
+) -> Option<(usize, String)> {
+    let (text, timestamp) = submitted.filter(|_| available_rows > 0)?;
+    // Invariant: reserve the real transcript's leading row when space permits; a one-row
+    // content region retains the message itself as its constrained fallback.
+    let row = usize::from(available_rows > 1);
+    Some((row, submitted_prompt_row(text, timestamp, columns, colors, truecolor)))
+}
+
+fn painted_rows(input: &LandingInput<'_>, rows: &[String], start: usize) -> Vec<u8> {
+    // Invariant: a painted canvas fills every cell and survives each run's style reset, so the
+    // landing matches the Agent canvas that replaces it.
+    let columns = usize::from(input.columns);
+    let canvas = input.background.map(|rgb| background(rgb, input.truecolor));
+    let mut bytes = String::new();
+    for (index, content) in rows.iter().enumerate().skip(start) {
+        let row = index + 2;
+        bytes.push_str(&format!("\x1b[{row};1H\x1b[0m\x1b[2K"));
+        if let Some(canvas) = canvas.as_deref() {
+            let content = content.replace("\x1b[0m", &format!("\x1b[0m{canvas}"));
+            bytes.push_str(&format!("{canvas}{}\x1b[{row};1H{canvas}{content}", " ".repeat(columns)));
+        } else {
+            bytes.push_str(content);
+        }
+    }
+    bytes.push_str("\x1b[0m");
+    bytes.into_bytes()
+}
+
 fn render_body(
     input: &LandingInput<'_>,
     footer: Option<&AgentPreviewFooter>,
@@ -531,19 +562,10 @@ fn render_body(
         // preserve the footer and show as much of the editor as fits above it.
         let editor_rows = cwd_row.min(3);
         let first = cwd_row - editor_rows;
-        if first > 0 {
-            if let Some((text, timestamp)) = submitted {
-                place(
-                    0,
-                    submitted_prompt_row(
-                        text,
-                        timestamp,
-                        columns,
-                        accent_colors(input.accent),
-                        input.truecolor,
-                    ),
-                );
-            }
+        if let Some((row, content)) = provisional_prompt(
+            submitted, first, columns, accent_colors(input.accent), input.truecolor,
+        ) {
+            place(row, content);
         }
         let border = format!(
             "{}{}\x1b[0m",
@@ -571,23 +593,7 @@ fn render_body(
         }
     }
 
-    // Invariant: a painted canvas fills every cell and survives each run's style reset, so the
-    // landing matches the Agent canvas that replaces it.
-    let canvas = input.background.map(|rgb| background(rgb, input.truecolor));
-    let mut bytes = String::new();
-    for (index, content) in rows.iter().enumerate().skip(if footer_only { cwd_row } else { 0 }) {
-        let row = index + 2;
-        bytes.push_str(&format!("\x1b[{row};1H\x1b[0m\x1b[2K"));
-        if let Some(canvas) = canvas.as_deref() {
-            let content = content.replace("\x1b[0m", &format!("\x1b[0m{canvas}"));
-            let fill = " ".repeat(columns);
-            bytes.push_str(&format!("{canvas}{fill}\x1b[{row};1H{canvas}{content}"));
-        } else {
-            bytes.push_str(content);
-        }
-    }
-    bytes.push_str("\x1b[0m");
-    let mut output = bytes.into_bytes();
+    let mut output = painted_rows(input, &rows, if footer_only { cwd_row } else { 0 });
     if let Some(actual) = actual {
         let mut footer_bytes = Vec::new();
         if super::presentation::render_surface_row(&mut footer_bytes, &actual.status, cwd_row + 1,
@@ -728,8 +734,9 @@ mod tests {
             "3:19 PM",
         );
         let grid = cells(&bytes, 80, 23);
-        assert!(grid[0].starts_with(" ❯ ask me 10 questions 界"));
-        assert!(grid[0].ends_with("3:19 PM"));
+        assert_eq!(grid[0], "", "the real transcript's breathing row is reserved");
+        assert!(grid[1].starts_with(" ❯ ask me 10 questions 界"));
+        assert!(grid[1].ends_with("3:19 PM"));
         assert_eq!(
             grid[19], "",
             "the accepted prompt no longer appears in the editor"
@@ -750,7 +757,12 @@ mod tests {
             8,
             6,
         );
-        assert_eq!(constrained[0], " ❯ abcde");
+        assert_eq!(constrained[0], " ❯ abcde", "one-row fallback keeps the message");
+        let compact = cells(
+            &render_submitted_agent_preview(&input(20, 7), None, "compact", "3:19 PM"), 20, 7,
+        );
+        assert_eq!(compact[0], "");
+        assert!(compact[1].starts_with(" ❯ compact"));
         assert!(
             constrained
                 .iter()
