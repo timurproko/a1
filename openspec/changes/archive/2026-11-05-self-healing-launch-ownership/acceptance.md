@@ -26,7 +26,7 @@ The maintainer integration decision accepts these scenarios:
     "Transient probe failures recover silently, while unresolved live ownership returns a concise message without a stack trace.",
     "Resident role loss does not prevent fresh launch admission or authorize termination of surviving holders."
   ],
-  "archiveDigest": "7819003d2822d0441ee4735f0656f0509f332581e5aad00344783e1322d2f28d",
+  "archiveDigest": "09a66beff1670b2e3cb634e8c9c0c6cb23b8fb0c7502eae11698245b4540afdd",
   "specDigest": "a50ba5fb7bdad041d1ec48f23aae25176589b9d32d17c9c652dfab06ef842998",
   "tasksDigest": "8899a8d45a16320aeded34b75f8bef4bab4e6beb5abdc8f1f1d07e3c18a88dd2",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
