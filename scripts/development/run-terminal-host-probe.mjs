@@ -72,9 +72,10 @@ async function main() {
   if (partition && !partition.skip) {
     // Concurrency: one partition of the serialized role suite runs here; the other partitions and the
     // builds, probes, addon, and release artifact run on their own runners in the same validation run.
+    // Rationale: the skip lane owns the unit tests, so a partition compiles the test profile once and runs
+    // only its role slice; repeating `--lib` here would re-run the same unit suite on every partition.
     const selected = partitionRoleTests(roleTestNames(readFileSync(resolve(ROLE_TEST_SOURCE), "utf8")), partition);
-    console.log(`terminal-host role tests partition ${partition.index}/${partition.count}: ${selected.join(", ")}`);
-    run(cargo, ["test", "--manifest-path", manifest, "--lib", "--features", ROLE_TEST_FEATURES], environment);
+    console.log(`terminal-host role tests partition ${partition.index}/${partition.count} (role slice only): ${selected.join(", ")}`);
     run(cargo, ["test", "--manifest-path", manifest, "--test", "role_integration", "--features", ROLE_TEST_FEATURES, "--", "--exact", ...selected], environment);
     assertNoFixtureProcesses(environment);
     console.log(`Terminal host role tests partition ${partition.index}/${partition.count} OK`);
