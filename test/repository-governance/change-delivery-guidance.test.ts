@@ -115,27 +115,57 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(skill).toContain("Never infer integration authority");
   });
 
-  it("requires the owning session to link its exact worktree before delivery edits", async () => {
+  it("allows external agents to use Git worktrees while preserving ownership boundaries", async () => {
     const config = await readFile("openspec/config.yaml", "utf8");
     const skill = await readFile(".agents/skills/change-delivery/SKILL.md", "utf8");
     const structure = await readFile("docs/architecture/project-structure.md", "utf8");
     for (const guidance of [config, skill, structure]) {
-      expect(guidance).toContain("`a1 session link-worktree <absolute-worktree>`");
-      expect(guidance).toContain("`a1 session worktrees`");
-      expect(guidance).toMatch(/before (?:changing |any )?(?:planning|planning or implementation)/i);
-      expect(guidance).toMatch(/stop (?:feature |task )?edits? and report the blocker|report the blocker and stop feature edits/);
-      expect(guidance).toMatch(/not tool cwd|does not change process or tool cwd/);
-      expect(guidance).toMatch(/resuming or switching streams|resuming an existing delivery or switching streams/);
-      expect(guidance).toMatch(/busy.*unverifiable|unverifiable.*busy/i);
-      expect(guidance).toMatch(/separate|fresh/);
+      expect(guidance).toContain("`git worktree list --porcelain`");
+      expect(guidance).toContain("External agents use ordinary Git without an A1 installation, runtime, or session link");
+      expect(guidance).toMatch(/before (?:planning|planning or implementation)/i);
+      expect(guidance).toContain("continuing ownership or explicit handoff");
+      expect(guidance).toMatch(/claim(?:ing)? any released cleanup registration/i);
+      expect(guidance).toMatch(/Git locks/);
+      expect(guidance).toMatch(/unverifiable handoffs/);
+      expect(guidance).toContain("resuming or switching streams");
+      expect(guidance).not.toContain("continue only after link confirms the exact path");
     }
-    expect(config).toContain("Continue only when the command confirms that exact canonical worktree");
+    for (const guidance of [config, structure]) {
+      expect(guidance).toContain("canonical root, common Git repository, intended branch, and working-tree state");
+      expect(guidance).toContain("stop edits and report the blocker");
+      expect(guidance).toMatch(/(?:not|not be described as) atomic editing exclusion/);
+      expect(guidance).toContain("replacement PR to evade ownership");
+      expect(guidance).toContain("Missing A1 integration alone never blocks external agents");
+    }
     expect(config).toContain("similarity, recency, cleanliness, or ancestry grants nothing");
-    expect(skill).toContain("continue only after link confirms the exact path");
-    expect(structure).toContain("A successful link response confirming the exact canonical worktree is required");
-    expect(structure).toContain("git worktree add -b <type>/<short-description>");
+    expect(structure).toContain("git worktree add -b feature/example-task");
     expect(structure).toContain("Inventory is read-only and advisory");
     expect(structure).toContain("Repository commands therefore keep an explicit worktree path");
+    expect(structure).toContain("never fall back to task edits in primary");
+    expect(skill).toContain("../../../docs/architecture/project-structure.md");
+    expect(skill).toContain("Verify root/repository/branch/state");
+    expect(skill).toContain("Foreign owners, Git locks, and unverifiable handoffs block reuse");
+  });
+
+  it("scopes runtime linking to its environment and keeps cleanup authority independent", async () => {
+    for (const path of ["openspec/config.yaml", ".agents/skills/change-delivery/SKILL.md", "docs/architecture/project-structure.md"]) {
+      const guidance = await readFile(path, "utf8");
+      expect(guidance).toMatch(/Inside an active A1 shell-tool session only,[^\n]*`a1 session worktrees`[^\n]*`a1 session link-worktree <absolute-worktree>`/);
+      expect(guidance).toMatch(/failed (?:links|association)[^\n]*block/);
+      expect(guidance).toContain("`EnterWorktree`");
+      expect(guidance).toMatch(/(?:does not change process or tool cwd|changes neither tool cwd)/);
+      expect(guidance).toContain("cleanup authority");
+    }
+    const runbook = await readFile("docs/openspec-archive-automation.md", "utf8");
+    expect(runbook).toContain("without an A1 installation, runtime, or session link");
+    expect(runbook).toContain("An editing handoff does not register, release, or authorize cleanup");
+    expect(runbook).toContain("grants no integration authority");
+    const cleanup = await readFile("docs/local-worktree-cleanup.md", "utf8");
+    expect(cleanup).toContain("without an A1 installation, runtime, or session link");
+    expect(cleanup).toContain("the atomic claim below is mandatory before editing");
+    expect(cleanup).toContain("A failed claim never authorizes recovery or takeover");
+    expect(cleanup).toContain("does not prove exclusive editing ownership");
+    expect(cleanup).toContain("an A1 runtime link does not claim the cleanup journal");
   });
 
   it("keeps agent-selected delivery scratch in the owning worktree artifacts", async () => {
@@ -152,7 +182,7 @@ describe("repository-owned atomic delivery guidance", () => {
     const deliveryPolicy = `${canonicalSpec}\n${activeDelta}`;
     for (const guidance of [config, skill, runbook, structure]) {
       expect(guidance).toContain("`.artifacts/`");
-      expect(guidance).toMatch(/(?:owning|linked)(?: task)? worktree|worktree that owns/i);
+      expect(guidance).toMatch(/(?:owning|linked|verified task)(?: task)? worktree|worktree that owns/i);
       expect(guidance).toMatch(/(?:ignored|unstaged)/i);
       expect(guidance).toMatch(/(?:non-authoritative|authoritative)/i);
     }
@@ -163,7 +193,7 @@ describe("repository-owned atomic delivery guidance", () => {
     expect(runbook).toContain("mkdir -p .artifacts/agent");
     expect(runbook).toContain("--body-file .artifacts/agent/openspec-pr-body.md");
     expect(runbook).not.toContain("$TMPDIR/openspec-pr-body.md");
-    expect(structure).toContain("must place it beneath the linked worktree's exact `.artifacts/` root");
+    expect(structure).toContain("must place it beneath the verified task worktree's exact `.artifacts/` root");
     expect(deliveryPolicy).toContain("Agents keep repository-delivery scratch files inside the owning worktree");
     expect(deliveryPolicy).toContain("SHALL place that file beneath the exact `.artifacts/` root");
     expect(deliveryPolicy).toContain("SHALL remain ignored, unstaged, uncommitted, disposable, and non-authoritative");
@@ -171,7 +201,7 @@ describe("repository-owned atomic delivery guidance", () => {
 
   it("ships a concise first-party skill with resolvable local guidance links", async () => {
     const path = resolve(".agents/skills/change-delivery/SKILL.md");
-    const skill = await readFile(path, "utf8");
+    const skill = (await readFile(path, "utf8")).replace(/\r\n/g, "\n");
     expect(skill).toMatch(/^---\nname: change-delivery\ndescription: .+\n---/);
     expect(skill).toContain("same worktree, branch, history, and PR");
     expect(skill).not.toContain("> Phase: Proposal");
@@ -241,7 +271,7 @@ describe("repository-owned atomic delivery guidance", () => {
   });
 
   it("documents valid draft and finalized single-PR links without inventing acceptance", async () => {
-    const docs = await readFile("docs/openspec-archive-automation.md", "utf8");
+    const docs = (await readFile("docs/openspec-archive-automation.md", "utf8")).replace(/\r\n/g, "\n");
     const examples = [...docs.matchAll(/```openspec-implementation\n([\s\S]*?)\n```/g)].map(match =>
       parseImplementation(`\`\`\`openspec-implementation\n${match[1]}\n\`\`\``));
     expect(examples.map(value => value?.version)).toEqual([3, 3]);

@@ -184,6 +184,10 @@ After a low-level release, request a pass from the stable checkout if queue clea
 
 ## Resume or recover ownership
 
+This protocol works for external agents without an A1 installation, runtime, or session link. First verify the exact delivery branch, change, and PR plus continuing editing ownership or explicit handoff under the [worktree protocol](architecture/project-structure.md#development-worktrees). Inspect Git locks and this tool's `status` from the primary checkout. A familiar path, clean status, or missing A1 runtime is not evidence of another editor's absence. Known live editing claims, foreign cleanup ownership, Git locks, and unverifiable handoffs block reuse.
+
+For a worktree with no cleanup registration, this tool supplies no ownership claim: a fresh checkout created by this session or verified continuing ownership/explicit handoff establishes editing provenance. Do not register with fabricated PR identities or create a cleanup claim solely to simulate an A1 link. For a released registration, the atomic claim below is mandatory before editing; an already-owned registration requires matching owner authority. A failed claim never authorizes recovery or takeover. A successful cleanup claim prevents cleanup but does not prove exclusive editing ownership, and an A1 runtime link does not claim the cleanup journal. Both remain cooperative, independent safeguards.
+
 Before resuming a released worktree, acquire it:
 
 ```bash

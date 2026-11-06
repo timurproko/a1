@@ -5,11 +5,11 @@ description: Policy for repository change delivery.
 
 # Change delivery
 
-Read [project workflow](../../../openspec/config.yaml) and [delivery runbook](../../../docs/openspec-archive-automation.md) first.
+Read [project workflow](../../../openspec/config.yaml) and [delivery runbook](../../../docs/openspec-archive-automation.md).
 
 ## Deliver
 
-1. Keep primary on `develop`; run `local-worktree-cleanup.mjs sweep --repo <primary>`, relay `lines`, then `a1 session worktrees`. Never use `busy` or `unverifiable`. Reuse `available` only after `a1 session link-worktree <absolute-worktree>` succeeds; else create fresh. Claude Code uses `EnterWorktree`. Before planning or implementation edits, continue only after link confirms the exact path; if the task link fails or has another owner, stop feature edits and report the blocker. Prunable registration elsewhere: prune and retry. Relink when resuming or switching streams. Linking claims editing, not tool cwd or cleanup authority.
+1. Keep primary on `develop`; run `local-worktree-cleanup.mjs sweep --repo <primary>`, relay `lines`, then `git worktree list --porcelain`. Follow the [worktree protocol](../../../docs/architecture/project-structure.md) before planning or implementation edits and when resuming or switching streams. External agents use ordinary Git without an A1 installation, runtime, or session link. Verify root/repository/branch/state. Reuse: continuing ownership or explicit handoff; claim any released cleanup registration. Foreign owners, Git locks, and unverifiable handoffs block reuse. Inside an active A1 shell-tool session only, use `a1 session worktrees` and `a1 session link-worktree <absolute-worktree>`; failed links block edits. Claude Code retains `EnterWorktree`. Association changes neither tool cwd nor cleanup authority.
 2. Store scratch in the owning worktree's ignored `.artifacts/`, never OS temp, home/desktop, primary, or another worktree. Keep it unstaged, non-authoritative, secret-free; tool/runtime/test-internal temp is out of scope.
 3. Start one planning-only draft PR: `## Proposal` with one or two sentences of intent, one or more unchecked outcomes under `## Implementation` with no fixed maximum, then collapsed `## Automation`; do not add a quoted phase line. Deliver only after the maintainer approves the plan and explicitly requests implementation.
 4. Continue in the same worktree, branch, history, and PR; keep draft. When code, tests, and tasks complete an outcome, change only its `[ ]` to `[x]`; manual validation never blocks a checkbox, finalization, or merge. Outcome edits are scope refinement requiring approval before code.
@@ -20,7 +20,7 @@ Read [project workflow](../../../openspec/config.yaml) and [delivery runbook](..
 9. Never infer integration authority. Only when an authorized maintainer explicitly asks in the current interaction to merge one eligible PR, re-read exact head, current `develop`, finalized binding, successful `Development validation required`, positive mergeability, and authorized human `User`. Issue one protected squash merge with expected-head enforcement. Changed or ineligible state needs a fresh request. Never wait, arm auto-merge, use queue/automation credentials, retry, or bypass protection.
 10. Create no acceptance, spec-only, or archive-only follow-up PR. After merge, report `Archived` only after archive, specs, acceptance provenance, and remote cleanup verify; never edit its body.
 
-Allowlisted docs/OpenSpec and verified release reopening retain CI-gated integration; documentation automation never creates a human arm.
+Docs/release exceptions retain CI-gated integration, never human authority.
 
 ## Reject or refine
 
@@ -30,7 +30,7 @@ Allowlisted docs/OpenSpec and verified release reopening retain CI-gated integra
 
 ## Handoff
 
-Provide worktree, commit, commands, behavior, and gaps. Use `./scripts/dev` or `./scripts/dev pi` interactively. Runnable replies end with `🧪 Manual test:` plus one forward-slash inline command.
+Provide worktree, branch, change, PR, commit, commands, behavior, and gaps. State editing handoff. Use `./scripts/dev` or `./scripts/dev pi` interactively. Runnable replies end with `🧪 Manual test:` plus one forward-slash inline command.
 
 ## Cleanup
 
