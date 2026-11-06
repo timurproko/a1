@@ -49,7 +49,7 @@ impl CommandPalette {
         }
     }
 
-    /// The Right Side dialog, where Space toggles Version and Time.
+    /// The Widgets dialog, where Space toggles Version and Time.
     pub fn right_side() -> Self {
         Self {
             configure: Some(ConfigureKind::Right),

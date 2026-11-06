@@ -2400,7 +2400,7 @@ mod tests {
             fixture.step(&mut state, mouse(LEFT, configure.column, 1)),
             [PAINT]
         );
-        let palette = state.mode.palette().expect("Right Side palette");
+        let palette = state.mode.palette().expect("Widgets palette");
         assert_eq!(palette.shown(), [("Version", "version"), ("Time", "time")]);
     }
 

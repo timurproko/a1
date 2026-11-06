@@ -346,7 +346,7 @@ pub enum PopupAction {
     Activate(TabKind),
     /// Opens the plus-menu dialog in the Settings tab.
     ConfigurePlus,
-    /// Opens the native Right Side configuration dialog.
+    /// Opens the native Widgets configuration dialog.
     ConfigureRight,
     View(String),
 }

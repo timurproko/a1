@@ -690,8 +690,8 @@ export class SettingsApp implements UiApp {
       flagDialog: entry.backend !== "a1" ? null
         : entry.id === PLUS_MENU_SETTING_ID ? new PlusMenuDialog(entry.flags)
           : entry.id === TAB_BAR_RIGHT_ITEMS_SETTING_ID ? new FlagToggleDialog(entry.flags, {
-            title: "Right Side",
-            description: "Choose what the right side of the tab bar shows.",
+            title: "Widgets",
+            description: "Choose which widgets the tab bar shows.",
             empty: "No items match",
           }) : null,
       filter: modelDialog === null ? null : new LineInput(""),

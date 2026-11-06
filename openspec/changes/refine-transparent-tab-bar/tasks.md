@@ -12,7 +12,7 @@
 - [x] 2.1 Replace separate Version and Time hover/hit identities with one rendered right-side group identity, verifying top, bottom, narrow, and single-item geometry.
 - [x] 2.2 Apply one complete-group hover treatment and route its context action to the existing Right Side configuration surface, verifying every rendered group cell opens the same Configure flow.
 - [x] 2.3 Pad the grouped hover/hit span by one cell on each side and replace the Version/Time gap with ` • ` while keeping the visible text alignment and constrained geometry valid.
-- [ ] 2.4 Rename the user-facing right-side setting and native multi-select to `Widgets`, update its description and save error copy, and preserve internal/persisted setting identities.
+- [x] 2.4 Rename the user-facing right-side setting and native multi-select to `Widgets`, update its description and save error copy, and preserve internal/persisted setting identities.
 
 ## 3. Empty landing refinement
 
@@ -34,4 +34,4 @@
 - [x] 4.6 Add regressions for relocated-control hover clearing and stable provisional-to-real prompt placement, then rerun the focused terminal-host suites.
 - [x] 4.7 Add truecolor and palette regressions for Accent inactive-tab rest and hover without changing Black or Transparent, then rerun the focused strip suite.
 - [x] 4.8 Add activation-handoff regressions proving no blank/editor frame appears between provisional and real submitted prompts, including cleanup paths, then rerun the focused attach suites.
-- [ ] 4.9 Update Settings and native palette copy regressions for the `Widgets` label and description, then rerun the focused TypeScript and terminal-host suites.
+- [x] 4.9 Update Settings and native palette copy regressions for the `Widgets` label and description, then rerun the focused TypeScript and terminal-host suites.

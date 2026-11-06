@@ -2725,7 +2725,7 @@ impl Client {
                 core.right_items = RightItems::from_setting(Some(&right_items_setting(
                     self.time_format.right_items,
                 )));
-                core.notice = Some(format!("Right side not saved: {error}"));
+                core.notice = Some(format!("Widgets not saved: {error}"));
             }
         }
     }
