@@ -22,7 +22,7 @@ The maintainer integration decision accepts these scenarios:
     "An agent resumes the same delivery only with verified context and continuing ownership or explicit handoff, claiming a released cleanup registration before edits and refusing conflicting owners.",
     "A1 runtime linking and Claude worktree hooks apply within their respective environments, while missing A1 integration alone does not block external agents."
   ],
-  "archiveDigest": "a17bd9a7b5d1a471972640a6e0e1901a8b75a1d3a4c95d6d7d54239d67c047cb",
+  "archiveDigest": "8c663931666112972f218071d4aa4b83e3c7e03a0d5a2e93025c59f80c8a46cf",
   "specDigest": "526b96f091694ca11dbf8adfac5364b7266dd88dc76b40e21ea8365219271b57",
   "tasksDigest": "f19aabfd7918ced5fb2826cc95f2df2d8d085223442d7ed2e33c0fe6c0a834f3",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
