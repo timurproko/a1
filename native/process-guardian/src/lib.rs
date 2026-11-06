@@ -8,6 +8,9 @@ use napi_derive::napi;
 #[cfg(target_os = "macos")]
 mod darwin;
 mod exit_notice;
+mod process_gate;
+#[cfg(any(target_os = "macos", test))]
+mod process_inspection;
 #[cfg(target_os = "linux")]
 mod linux;
 #[cfg(windows)]

@@ -40,7 +40,9 @@ export async function runSupervisor(arguments_: readonly string[] = []): Promise
     paths = { ...productPaths, ...resolveCohortEndpoint(productPaths, release.releaseId) };
     stage = "storage";
     const bootNonce = randomUUID();
-    const store = new ControlStore(paths.databasePath, bootNonce);
+    // Concurrency: opening SQLite does not establish endpoint authority. The winning listener
+    // reconciles old boots only after binding; losing startup attempts must not mutate live rows.
+    const store = new ControlStore(paths.databasePath, bootNonce, { reconcileOnOpen: false });
     const cohortState = new CohortStateStore(paths.dataDir);
     server = new SupervisorServer(
       store,

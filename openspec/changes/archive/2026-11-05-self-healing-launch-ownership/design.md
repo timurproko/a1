@@ -1,0 +1,108 @@
+## Context
+
+The reported message comes from `src/foundation/release/bootstrap.ts` after `selectCohortLaunch` classifies an unresponsive endpoint with recorded instance IDs as blocked. `endpoints.ts` currently tests numeric PID existence and then performs one 500 ms identity request. Its dead-endpoint sweep uses numeric PID existence alone. Supervisor `pidStartIdentity` is an estimated Node start timestamp, compared only to the endpoint's reply, not independently to the operating system's process generation. `ensureSupervisor` separately refuses every non-dead, non-verified owner, so changing only the displayed message or one cohort decision would not fix all launch paths.
+
+The existing native process inspector can distinguish active process objects, absent or exited objects, and exact native creation identities. Windows already handles terminated-but-queryable process objects in that inspector. Existing cleanup code must not gain permission to terminate an unrelated reused PID merely because persisted instance lists are empty.
+
+Read-only local observation on 2026-11-05 found one recorded installed stable 0.2.6 supervisor with three recorded instances. It responded with matching supervisor and boot identities; its observed native creation time agreed with its recorded boot time. This does not reproduce or prove the cause of the earlier failure. The observed stable release contains the historical executable guardian, while a retained preview contains the native addon, so legacy metadata and artifact compatibility must be deliberate rather than assuming every retained release has the new format.
+
+## Goals / Non-Goals
+
+**Goals**
+- Ordinary launch recovers after forced loss of supervisor, guardian, resident roles, or all A1 processes, without manual state removal.
+- PID reuse and retained Windows process objects cannot turn stale records into permanent live ownership.
+- Transient handshake failure is retried within one bounded recovery budget.
+- Concurrent launchers converge without deleting a successor's metadata or starting two owners of an endpoint.
+- Recovery preserves surviving instances, session writer exclusivity, explicit session selection, and certified release selection.
+
+**Non-goals**
+- Resurrecting killed process memory or promising preservation of unsaved in-memory work.
+- Killing all Node processes, terminating unrelated processes, disabling ownership checks, or deleting session databases.
+- Treating inaccessible process identity as proof of death, bypassing permissions, or repairing arbitrary filesystem corruption.
+- Replacing resident-host recovery architecture or changing update integration policy.
+
+## Decisions
+
+### 1. Independent process-generation evidence
+
+Publish an additive native supervisor identity and use the existing platform inspector from trusted current runtime content. Do not load arbitrary code from metadata paths as a recovery shortcut. Keep the established handshake fields compatible. Observation distinguishes verified live owner, proven absent/exited owner, proven replaced generation, temporarily unresponsive owner, and unavailable/conflicting evidence. Empty instance lists, elapsed time, and PID existence alone never authorize termination.
+
+Legacy metadata remains readable. A successful identity handshake remains authoritative for a live compatible legacy supervisor. A dead legacy PID is reclaimable; a live legacy PID requires independent evidence before its record can be retired. Do not compare the old approximate timestamp directly to a native token or interpret differing string formats as PID reuse. Implement and document a bounded compatibility proof for legacy reuse where the OS can establish it; otherwise preserve the process and evidence rather than inventing certainty.
+
+### 2. One bounded startup recovery path
+
+Share reconciliation between ordinary bootstrap, retained-active launch, and `ensureSupervisor`. Re-read metadata and retry transient connection/identity failures before deciding. Proven stale records are retired under a recovery ownership gate with an exact snapshot/generation check, followed by verified supervisor startup or joining the concurrent winner. Use an OS-released gate or another mechanism whose own owner death is recoverable; do not introduce another abandoned lock that prevents startup.
+
+Recheck process and record identity at destructive boundaries. Never unlink an endpoint or metadata published by a newer owner. Preserve surviving instance and resident ownership; existing runtime/session admission remains authoritative, and no second writer is permitted. A killed process is recorded as interrupted, not reported as still active solely because a durable row remains. Check active-release reselection throughout recovery and preserve launch profile, mode, and explicit session selection.
+
+### 3. Safe cleanup is distinct from launch progress
+
+Retiring a record that names a dead/replaced generation must not signal the PID now occupying that number. Bounded termination of an actual stale idle supervisor requires exact current identity and proven idle ownership, including uncertain-instance evidence; it must not expand into a blanket process-tree kill. A genuinely live, unresponsive owner with unprovable containment cannot be killed just to satisfy startup. After bounded retries, such an exceptional unresolved conflict remains a safe failure rather than a false success. This is not the expected outcome for recoverable forced termination.
+
+### 4. Quiet success, actionable failure
+
+Successful recovery continues to the UI without printing ownership internals or asking the user to discover PIDs, delete state, restart supervisors, or reboot. Keep sanitized bounded reason/attempt evidence available for support. If recovery cannot safely proceed, distinguish the actual problem (for example inaccessible process inspection or persistent control connection failure) instead of repeating the generic uncertain-live-ownership paragraph. Never silently report that a new UI launched when it did not.
+
+## Validation Strategy
+
+Use focused unit fixtures for identity classification, metadata compatibility, bounded retry, exact-generation retirement, and cleanup refusal. Add isolated process integration fixtures that kill only fixture-owned PIDs for supervisor-only, guardian/root-only, resident-role, and all-fixture-Node loss, then exercise a fresh launch with retained control records. Include another live session and an unrelated sentinel process to prove isolation. Simulate PID reuse deterministically; exercise the Windows terminated-but-queryable process case with native fixtures. Race two launchers and crash the recovery owner before and after publication. Include stale metadata replacement, inspection denial, handshake mismatch, transient slowness, and legacy records.
+
+Before pushing implementation, run typecheck, only the changed test files, and strict validation of this change. Platform-specific fixture results must be reported honestly; exact-head CI after readiness remains validation authority. Manual process killing in the user's running environment is not a test prerequisite.
+
+## Risks and Known Gaps
+
+- The earlier failure is not currently reproducible; PID reuse and transient probe timeout are code-supported failure hypotheses, not an asserted incident diagnosis.
+- Historical approximate start timestamps do not supply exact native identity. Legacy recovery needs proof, not permissive string comparison.
+- Global Node termination cannot preserve unsaved memory or an exit-notice watcher killed in the same action; the existing accepted limitation remains.
+- A truly live inaccessible/unresponsive owner may still require a concise failure after the bounded recovery budget. This plan removes recoverable stale-state blockers, not operating-system security boundaries.
+- Disposition: recovery code and regression fixtures are delivered; the earlier incident remains unconfirmed rather than retroactively claimed as reproduced. No production runtime state was changed during diagnosis or fault injection.
+
+## Implementation Record
+
+Native supervisor identity is additive. `supervisor-identity.ts` uses this runtime's process-guardian inspector, validates token formats, and retains conservative legacy handling. `endpoint-lock.ts` uses the process-guardian addon's persistent OS descriptor gate; it does not depend on a live holder PID or a heartbeat. Record retirement compares the publication again inside the gate and never removes a socket. The gated listener alone handles Unix stale-socket removal. Ordinary recovery never signals a still-live owner, even when its stored instance list is empty.
+
+`endpoint-recovery.ts` is shared by `ensureSupervisor`, including ordinary and retained-release callers. Probe retries are bounded, concurrent metadata changes cause rereads, replacement startup joins an authenticated winner, and final recovery errors are rendered as one line by bootstrap. Per-endpoint recovery summaries are bounded and contain no raw metadata or session content.
+
+Fault injection exposed an additional race within the approved concurrency scope: opening a losing supervisor's control store reconciled another boot before endpoint admission. Production startup now defers reconciliation until successful bind, preserves independently recorded surviving cohort boots, and loads only its own boot's active instances. A shared-database descriptor gate makes boot reconciliation and publication atomic relative to other new cohorts.
+
+## Focused Evidence and Gap Disposition
+
+- Source compilation with `tsc -p tsconfig.build.json` and source typechecking with `tsgo -p tsconfig.json --noEmit` passed. Reconciled current develop at `111a66b7` through a normal merge; a subsequent five-file focused run passed 94 tests with one existing update case skipped.
+- Architecture boundaries passed after declaring release's native process-containment dependency. The supervisor retained its existing method/field counts, and the bootstrap function size ceiling was lowered from 250 to 244 lines; no size or startup budget was raised.
+- The final focused Windows run covered 17 named test files: 103 tests passed and the six resident-native cases were skipped because the fixture host addon was unavailable. This included real supervisor/guardian/root/gate termination, all recorded fixture Node roles including the watcher, surviving-runtime and unrelated-process preservation, shared-database ownership, PID reuse, legacy/malformed identity, transient probes, sanitized diagnostics, and validation ownership routing.
+- Four existing Windows native containment/identity/exit-watcher tests passed against the newly built process-guardian addon. Linux and macOS recovery fixtures are registered in the existing bounded Unix containment scope; Windows recovery runs in the existing release-update scope.
+- Local resident-native execution was not claimed: the trusted terminal-library fetch found no recent eligible develop artifact. The four new resident server/holder/child/all-loss cases remain in the existing native resident test file executed by selected native CI. Disposition: retain those assertions and require CI's actual native builds; do not substitute an older binary or weaken the cases.
+- The local full `npm run typecheck` was blocked at the generated startup-descriptor prerequisite. Building the Pi startup artifact with the shared dependency junction produced 10,405,174 evaluated bytes against the unchanged 10,392,238 ceiling; its inputs contain none of this change's modified production modules. Disposition: preserve the budget and report this local build limitation; require clean-install build and full typecheck in exact-head CI rather than claiming the bin pass succeeded locally.
+- No payload-wide local suite or machine-wide process-kill command was used. Interactive manual validation and unsaved-memory recovery are not completion gates or claims of this change.
+
+## CI Repair: Native Fixture Artifact Selection
+
+Development validation run `42087710717` failed two Linux recovery cases before fault injection: the managed guardian inherited CI's bare debug addon override, but production launch correctly required its missing sibling manifest. The fixture now explicitly selects the built release addon and keeps production manifest/digest verification intact. A new cross-platform regression supplies a manifest-free inspector override; it reproduced `CONTAINMENT_ARTIFACT_MISSING` before the fix and passed afterward, including root cleanup after guardian termination.
+
+The same run reported nine implementation-comment category violations and three hard-coded environment identifiers. Comments now declare their rationale, security, platform, or concurrency intent; the resident admission fixture uses the central product-identity environment keys. No assertion, verification gate, CI selection, or coverage was weakened.
+
+Focused repair checks passed: 18 Windows recovery/diagnostic tests, source typecheck, the exact changed-documentation selection, and the full naming audit (zero violations). Full local typecheck still requires the previously unavailable generated startup descriptor; Unix execution and resident-native fixtures remain delegated to renewed exact-head CI.
+
+## CI Repair: Cooperative Idle Release
+
+Run `42090108486` passed all 13 Linux recovery cases, then exposed a separate packaged-resume failure in `stopSupervisor`: `releaseVerifiedIdleOwner` waited for process exit without requesting it. Direct callers had previously depended on force-kill fallback, which this delivery intentionally removed for unresolved live ownership.
+
+The helper now sends the existing boot-nonce-authenticated idle-release request before its bounded exit wait. The live supervisor checks its own active instances, so stale empty metadata cannot authorize shutdown of a now-busy owner; a different boot also refuses the request. No signal-based fallback was restored.
+
+A real-child regression reproduced the same false-versus-true failure before the fix and passed afterward. Another regression preserves both a different boot and a busy owner when given an old idle snapshot. The focused Windows run passed 39 tests, source compilation, source typecheck, documentation/naming checks, and architecture checks. Full local typecheck retains the documented generated-descriptor prerequisite gap; the exact Linux packaged-resume suite requires renewed CI.
+
+## CI Repair: Resident macOS Identity Namespace
+
+Run `42092936750` failed four macOS resident-loss fixtures before fault injection: terminal-host registry tokens use `macos-proc-start`, while the independent guardian inspector uses `darwin-proc-start`. Both native implementations read the same `proc_bsdinfo.pbi_start_tvsec` and `pbi_start_tvusec` fields; the log showed identical PID, seconds, and microseconds with only the prefix differing.
+
+A fixture-only adapter translates that exact valid namespace at both resident-versus-guardian comparison points. PID and both kernel fields remain exact; production identity formats, ownership decisions, and all kill guards remain unchanged. Seven portable regression cases cover the real failing token pair, reject PID/seconds/microseconds mismatches, and preserve other or malformed tokens.
+
+Focused local validation passed 32 identity/recovery tests and documentation, naming, architecture, and source typechecking. The six resident-native cases still require CI's native fixture build, and full local typecheck retains the generated-startup-descriptor limitation. No macOS execution is claimed locally and no native scenario was removed or relaxed.
+
+## CI Repair: macOS Exit Observation
+
+Run `42097442353` passed the individual resident server, holder, and child loss cases, but the all-loss case exposed an exited-process inspection race. `proc_pidinfo` returned ESRCH while the unreaped PID still answered `kill(pid, 0)`; the guardian incorrectly surfaced `PROCESS_INSPECTION_FAILED` instead of absence.
+
+The guardian now captures the native inspection error before another syscall can overwrite errno and treats ESRCH as conclusive exit evidence without consulting a later PID probe. Permission, I/O, and unknown errors still preserve live owners. A shared pure classifier makes this decision testable on Windows; two regression cases failed with the old classification and all four pass after the fix. A macOS-specific native test retains an exited child without reaping it until inspection completes, then always reaps it before asserting.
+
+Local validation passed all nine guardian Rust tests, 36 focused TypeScript tests, Rust formatting, and diff checks. Disposition: the macOS native regression and full resident integration remain required in exact-head CI because this Windows workstation cannot execute them; no local macOS success is claimed. The repair was held until the maintainer explicitly requested this push after that limitation was disclosed.

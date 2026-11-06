@@ -47,6 +47,8 @@ Three layer boundaries hold regardless of the DAG: `src/contracts/*` import noth
 
 `src/cli` contains command policy but delegates runtime work. `src/composition` is the concrete dependency-injection boundary: it may know both neutral contracts and Pi implementations, while product features receive vendor-neutral ports. Foundation modules never import product features. Pi package knowledge remains inside the Pi adapter owners.
 
+Release-owned endpoint observation and recovery coordinate with supervision-owned publication and storage-owned boot reconciliation through the process guardian's OS-released gates; see [startup recovery](../launch-recovery.md) for the identity, concurrency, and diagnostic boundaries.
+
 Shared code moves to foundation only when it is product-agnostic, has a precise contract, and has more than one real consumer. Do not create `core`, `common`, `utils`, or `misc` dumping grounds.
 
 ## Feature ownership

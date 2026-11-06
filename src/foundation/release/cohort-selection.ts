@@ -8,7 +8,6 @@ export type CohortLaunchDecision =
   | { readonly action: "activate-candidate"; readonly releaseId: string; readonly releaseRoot: string; readonly reason: string }
   | { readonly action: "replace-idle-cohort"; readonly releaseId: string; readonly releaseRoot: string; readonly reason: string; readonly pid: number }
   | { readonly action: "start-active"; readonly releaseId: string; readonly releaseRoot: string; readonly reason: string }
-  | { readonly action: "clean-stale-owner"; readonly releaseId: string; readonly releaseRoot: string; readonly reason: string; readonly pid: number }
   | { readonly action: "blocked"; readonly releaseId: string; readonly releaseRoot: string; readonly reason: string; readonly pid: number | null };
 
 export function selectCohortLaunch(
@@ -49,20 +48,12 @@ export function selectCohortLaunch(
   }
 
   if (endpoint && probe === "unresponsive") {
-    if (endpoint.ownership.liveInstanceIds.length > 0 || endpoint.ownership.nonResumableInstanceIds.length > 0) {
-      return {
-        action: "blocked",
-        releaseId: endpoint.releaseId,
-        releaseRoot: endpoint.releaseRoot,
-        reason: "ownership of live launch instances is uncertain; preserving the unresponsive supervisor",
-        pid: endpoint.pid,
-      };
-    }
+    // Security: even an empty persisted list cannot authorize killing an unresponsive process.
     return {
-      action: "clean-stale-owner",
-      releaseId: candidate.releaseId,
-      releaseRoot: candidate.releaseRoot,
-      reason: "unresponsive owner has no recorded live generation and is safe for bounded cleanup",
+      action: "blocked",
+      releaseId: endpoint.releaseId,
+      releaseRoot: endpoint.releaseRoot,
+      reason: "the background service did not respond after automatic recovery; retry shortly",
       pid: endpoint.pid,
     };
   }

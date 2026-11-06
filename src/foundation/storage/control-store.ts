@@ -48,7 +48,7 @@ export class ControlStore {
   readonly database: DatabaseSync;
 
   readonly bootNonce: string | null;
-  constructor(path: string, bootNonce: string | null = null) {
+  constructor(path: string, bootNonce: string | null = null, options: { readonly reconcileOnOpen?: boolean } = {}) {
     this.bootNonce = bootNonce;
     mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.database = new DatabaseSync(path);
@@ -56,7 +56,7 @@ export class ControlStore {
       this.database.exec("PRAGMA journal_mode = WAL");
       this.database.exec("PRAGMA foreign_keys = ON");
       this.migrate();
-      if (bootNonce !== null) this.reconcilePriorBootLaunchInstances(bootNonce);
+      if (bootNonce !== null && options.reconcileOnOpen !== false) this.reconcilePriorBootLaunchInstances(bootNonce);
     } catch (error) {
       this.database.close();
       throw error;
@@ -310,9 +310,9 @@ export class ControlStore {
     return Number(result.changes) === 1;
   }
 
-  loadActiveLaunchInstances(): LaunchInstance[] {
+  loadActiveLaunchInstances(bootNonce?: string): LaunchInstance[] {
     return (this.database.prepare(`SELECT * FROM launch_instances
-      WHERE state IN ('requested', 'active', 'stopping') ORDER BY created_at, id`).all() as unknown as LaunchInstanceRow[])
+      WHERE state IN ('requested', 'active', 'stopping') ${bootNonce === undefined ? "" : "AND owner_boot_nonce = ?"} ORDER BY created_at, id`).all(...(bootNonce === undefined ? [] : [bootNonce])) as unknown as LaunchInstanceRow[])
       .map(launchInstanceFromRow);
   }
 
@@ -321,7 +321,7 @@ export class ControlStore {
     return row ? launchInstanceFromRow(row) : null;
   }
 
-  reconcilePriorBootLaunchInstances(bootNonce: string, reconciledAt = new Date().toISOString()): number {
+  reconcilePriorBootLaunchInstances(bootNonce: string, reconciledAt = new Date().toISOString(), protectedBoots: readonly string[] = []): number {
     const outcome: LaunchInstanceOutcome = {
       kind: "interrupted",
       reason: "supervisor-disconnect",
@@ -329,8 +329,9 @@ export class ControlStore {
     };
     const result = this.database.prepare(`UPDATE launch_instances
       SET state = 'interrupted', completed_at = ?, outcome_json = ?
-      WHERE state IN ('requested', 'active', 'stopping') AND owner_boot_nonce <> ?`)
-      .run(reconciledAt, JSON.stringify(outcome), bootNonce);
+      WHERE state IN ('requested', 'active', 'stopping') AND owner_boot_nonce <> ?
+      ${protectedBoots.length === 0 ? "" : `AND owner_boot_nonce NOT IN (${protectedBoots.map(() => "?").join(",")})`}`)
+      .run(reconciledAt, JSON.stringify(outcome), bootNonce, ...protectedBoots);
     return Number(result.changes);
   }
 

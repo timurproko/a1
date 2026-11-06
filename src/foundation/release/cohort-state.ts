@@ -117,6 +117,8 @@ export interface SupervisorEndpointMetadata {
   readonly endpoint: string;
   readonly pid: number;
   readonly pidStartIdentity: string;
+  /** Exact OS creation token; absent on historical supervisor metadata. */
+  readonly nativeStartIdentity?: string;
   readonly bootNonce: string;
   readonly startedAt: string;
   readonly releaseId: string;

@@ -4,6 +4,7 @@ import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { connect } from "node:net";
 import { resolve } from "node:path";
 import { selectCohortLaunch } from "./cohort-selection.js";
+import { recoverSupervisorEndpoint } from "./endpoint-recovery.js";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
 import { releaseChannelOf } from "./latest-release.js";
 import { CohortStateStore, type CohortState, type SupervisorEndpointMetadata } from "./cohort-state.js";
@@ -39,7 +40,13 @@ export interface BootstrapOptions {
 const RELEASE_RESELECTION_MESSAGE = "a1-release-reselection";
 
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
-  return await runBootstrapAttempt(options, 1);
+  try { return await runBootstrapAttempt(options, 1); }
+  catch (error) {
+    if (!(error instanceof Error && "code" in error && typeof error.code === "string" && error.code.startsWith("SUPERVISOR_RECOVERY_"))) throw error;
+    // Rationale: actionable recovery failures are a single line, not an uncaught Node stack trace.
+    (options.output ?? process.stderr).write(`${PRODUCT_TEXT.diagnostic(error.message)}\n`);
+    return 1;
+  }
 }
 
 async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: number): Promise<number> {
@@ -131,7 +138,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
       return await launchSelected(retained);
     }
     if (endpoint === null || probe === "dead") {
-      if (endpoint) await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
+      if (endpoint) await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint, endpoint);
       await markStartupPhase(environment, "durable-validation-start");
       const retained = await readRestartCertifiedRelease(active, paths.dataDir).catch(async () => {
         let verified: MaterializedRelease;
@@ -222,19 +229,13 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   let decision = selectCohortLaunch(candidate, state, endpoint, probe);
 
   if (decision.action === "blocked") {
-    await stateStore.blockPending(decision.reason, endpoint?.ownership.liveInstanceIds ?? []);
-    output.write(`${PRODUCT_TEXT.diagnostic(`startup is blocked to preserve uncertain live ownership: ${decision.reason}`)}\n`);
-    return 1;
+    // Concurrency: reread through the common recovery path rather than fail on an old snapshot.
+    await ensureSupervisor(candidate, environment);
+    return await launchSelected(candidate);
   }
 
-  if (decision.action === "clean-stale-owner" && endpoint) {
-    const diagnostics = await cleanupProvenIdleOwner(endpoint);
-    await writeFile(resolve(paths.dataDir, `cleanup-${Date.now()}.json`), JSON.stringify(diagnostics, null, 2));
-    if (!diagnostics.terminated) throw new Error(`could not safely clean stale ${PRODUCT_TEXT.displayName} supervisor ${endpoint.pid}`);
-    await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
-    decision = selectCohortLaunch(candidate, await stateStore.read(), null, "dead");
-  } else if (endpoint && probe === "dead") {
-    await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
+  if (endpoint && probe === "dead") {
+    await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint, endpoint);
   }
 
   if (decision.action === "launch-retained-ui") {
@@ -264,7 +265,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
       output.write(`${PRODUCT_TEXT.diagnostic("could not complete bounded idle cohort shutdown; the candidate remains pending.")}\n`);
       return 1;
     }
-    await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint);
+    await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint, endpoint);
     await stateStore.activate(candidate.releaseId);
     decision = { action: "activate-candidate", releaseId: candidate.releaseId, releaseRoot: candidate.releaseRoot, reason: "idle cohort released ownership" };
   }
@@ -403,16 +404,15 @@ export interface SupervisorStartupAttempt extends SupervisorStartupAttemptIdenti
 /** Reuse a verified owner, or join the winner if another launch starts the same cohort first. */
 export async function ensureSupervisor(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<void> {
   const paths = resolveCohortEndpoint(resolveProductPaths(environment), release.releaseId, environment);
-  const metadata = await readEndpointMetadata(paths.endpointMetadataPath);
-  if (metadata) {
-    const probe = await probeOwnership(metadata);
-    if (probe !== "dead") {
-      if (probe === "live-verified" && endpointMatchesRelease(metadata, release)) return;
-      throw new Error(PRODUCT_TEXT.diagnostic(`refused duplicate supervisor startup: existing ownership is ${probe}`));
-    }
-  }
-  const startup = await startSupervisor(release, environment);
-  await waitForVerifiedEndpoint(paths.endpointMetadataPath, release, 8_000, startup);
+  await recoverSupervisorEndpoint({
+    metadataPath: paths.endpointMetadataPath,
+    endpoint: paths.endpoint,
+    matches: metadata => endpointMatchesRelease(metadata, release),
+    startAndWait: async () => {
+      const startup = await startSupervisor(release, environment);
+      await waitForVerifiedEndpoint(paths.endpointMetadataPath, release, 8_000, startup);
+    },
+  });
 }
 
 function endpointMatchesRelease(metadata: SupervisorEndpointMetadata, release: MaterializedRelease): boolean {
@@ -508,7 +508,7 @@ export async function waitForVerifiedEndpoint(
   void startup?.childOutcome.then(outcome => { childOutcome = outcome; });
   while (Date.now() < deadline) {
     const metadata = await readEndpointMetadata(path);
-    if (metadata && endpointMatchesRelease(metadata, release) && await probeOwnership(metadata) === "live-verified") {
+    if (metadata && endpointMatchesRelease(metadata, release) && await probeOwnership(metadata, { attempts: 1 }) === "live-verified") {
       if (startup) await rm(startup.resultPath, { force: true });
       return;
     }
@@ -550,7 +550,7 @@ async function activatePendingAfterBlockerExit(
     profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir, runtimeDir: paths.runtimeDir });
   if (!await requestIdleOwnershipRelease(endpoint, candidate.releaseId, 2_000)) return;
   if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) return;
-  await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint);
+  await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint, endpoint);
   await stateStore.activate(candidate.releaseId);
   await ensureSupervisor(candidate, environment);
 }
@@ -564,11 +564,14 @@ export async function releaseVerifiedIdleOwner(
   } = {},
 ): Promise<boolean> {
   try {
+    // Protocol: the owner rechecks its boot nonce and live instances before cooperative exit.
+    // A durable idle snapshot alone never authorizes a signal to a still-live process.
+    await requestIdleOwnershipRelease(metadata, metadata.releaseId, 2_000);
     await (operations.waitForExit ?? waitForProcessExit)(metadata.pid, 3_000);
     return true;
   } catch {
-    // Security: the authenticated idle-release handshake authorizes bounded cleanup of
-    // this exact boot when a native handle outlives graceful shutdown.
+    // Security: a lingering Windows handle can keep numeric PID probes positive after exit.
+    // Native observation may retire that exact dead boot, but never signals a still-live owner.
     const diagnostics = await (operations.cleanup ?? cleanupProvenIdleOwner)(metadata);
     await writeFile(resolve(dataDir, `cleanup-${Date.now()}.json`), JSON.stringify(diagnostics, null, 2));
     return diagnostics.terminated;

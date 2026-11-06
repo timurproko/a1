@@ -320,7 +320,7 @@ export function createUpdateLifecycleCoordinator(
       }
       const plan = planUpdateOwnership(ownership, await canonicalImmutableRoot(paths.dataDir, endpoint.releaseRoot));
       if (plan === "clean-dead-record") {
-        await removeEndpointArtifacts(owner.paths.endpointMetadataPath, owner.paths.endpoint);
+        await removeEndpointArtifacts(owner.paths.endpointMetadataPath, owner.paths.endpoint, endpoint);
         return { priorActiveVersion };
       }
       // Rationale: leaving sessions alone is the expected outcome, and saying so mid-update tears
@@ -344,7 +344,7 @@ export function createUpdateLifecycleCoordinator(
           if (!cleanup.terminated) throw new Error(`verified ${PRODUCT_TEXT.displayName} owner ${endpoint.pid} did not terminate`);
         });
       }
-      await removeEndpointArtifacts(owner.paths.endpointMetadataPath, owner.paths.endpoint);
+      await removeEndpointArtifacts(owner.paths.endpointMetadataPath, owner.paths.endpoint, endpoint);
       return { priorActiveVersion };
     },
     async verifyPackageUnlocked(packageRoot) {

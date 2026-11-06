@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { selectCohortLaunch } from "../../../src/foundation/release/index.js";
 import { CohortStateStore, type SupervisorEndpointMetadata } from "../../../src/foundation/release/index.js";
-import { cleanupProvenIdleOwner } from "../../../src/foundation/release/index.js";
+import { cleanupProvenIdleOwner, observeSupervisorProcess } from "../../../src/foundation/release/index.js";
 import { materializeRelease, verifyMaterializedRelease, type MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { runSelfUpdate, UPDATE_JOURNAL_SCHEMA, type UpdateLifecycleCoordinator, type UpdateTransactionJournal } from "../../../src/foundation/release/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
@@ -55,11 +55,20 @@ describe("release-gating N-1 update transitions", () => {
       const sleeper = spawn(process.execPath, ["-e", "setInterval(()=>{},1000)"], { detached: true, stdio: "ignore", windowsHide: true });
       await new Promise<void>((resolvePromise, rejectPromise) => { sleeper.once("spawn", resolvePromise); sleeper.once("error", rejectPromise); });
       sleeper.unref();
-      const staleIdle = metadata(old, sleeper.pid!, []);
+      const staleIdle = { ...metadata(old, sleeper.pid!, []), nativeStartIdentity: (await observeSupervisorProcess(sleeper.pid!))!.startIdentity };
       const staleDecision = selectCohortLaunch(candidate, activated, staleIdle, "unresponsive");
-      expect(staleDecision).toMatchObject({ action: "clean-stale-owner" });
+      try {
+        expect(staleDecision).toMatchObject({ action: "blocked" });
+        expect((await cleanupProvenIdleOwner(staleIdle, 500)).terminated).toBe(false);
+        expect(sleeper.exitCode).toBeNull();
+        assertions.push({ id: "unverified-idle-process-preserved", passed: true });
+      } finally {
+        const exited = new Promise<void>(resolvePromise => sleeper.once("close", () => resolvePromise()));
+        sleeper.kill();
+        await exited;
+      }
       expect((await cleanupProvenIdleOwner(staleIdle, 500)).terminated).toBe(true);
-      assertions.push({ id: "unresponsive-idle-owner-cleaned", passed: true });
+      assertions.push({ id: "proven-dead-idle-record-reconciled", passed: true });
 
       const failedCandidate = await materializeRelease(await fixturePackage(root, "0.1.5", "uncertified"), dataDir);
       await store.recordCandidate(failedCandidate);

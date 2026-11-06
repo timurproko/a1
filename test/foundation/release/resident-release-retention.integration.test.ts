@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, realpath, rm, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,12 +9,19 @@ import {
   CohortStateStore,
   createUpdateLifecycleCoordinator,
   materializeRelease,
+  ensureSupervisor,
+  observeSupervisorProcess,
   runBoundedReleaseCleanup,
   type MaterializedRelease,
 } from "../../../src/foundation/release/index.js";
 import { cleanupLiveCohorts, liveCohort } from "./live-cohort-fixture.js";
 import { runBoundedHostCommand } from "../../../src/foundation/resident-tabs/bounded-host-command.js";
 import { readResidentReleaseHolds } from "../../../src/foundation/resident-tabs/release-holds.js";
+import { ControlStore } from "../../../src/foundation/storage/index.js";
+import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
+import { SupervisorClient } from "../../../src/foundation/protocol/index.js";
+import { fixturePaths, residentIdentityForGuardian } from "./supervisor-recovery-fixture.js";
+import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 // Rationale: the native terminal-host lane builds these fixture binaries before it runs this file;
 // other lanes have no native build, so the real-process test runs only where the binaries exist.
@@ -43,6 +51,84 @@ afterEach(async () => {
 const noTransaction = { read: async () => null };
 
 describe("resident release retention with real processes", () => {
+  nativeIt.each(["server", "holder", "child", "all"])("keeps fresh launch admission usable after fixture resident %s loss", async role => {
+    const fixture = await releaseFixture(1);
+    const release = fixture.releases[0]!;
+    const host = await installHost(release.releaseRoot);
+    const profile = resolve(fixture.root, "profile");
+    await mkdir(profile, { recursive: true });
+    const runtime = process.platform === "win32" ? resolve(fixture.root, "runtime") : await mkdtemp("/tmp/a1rc-");
+    if (process.platform !== "win32") roots.push(runtime);
+    await mkdir(runtime, { recursive: true, mode: 0o700 });
+    const endpoint = process.platform === "win32" ? `\\\\.\\pipe\\a1-resident-loss-${randomUUID()}` : resolve(runtime, "resident.sock");
+    const common = ["--profile", profile, "--data-dir", fixture.dataDir, "--runtime-dir", runtime];
+    const run = (args: string[]) => spawnSync(process.execPath, [host.entry, ...args, ...common], {
+      encoding: "utf8", env: hostEnvironment(host.addon, endpoint), cwd: release.releaseRoot, timeout: 30_000, windowsHide: true,
+    });
+    stops.push(() => { run(["tabs", "host-stop"]); });
+    expect(run(["server", "--detach"]).status).toBe(0);
+    const created = run(["internal", "tab-create", "--cwd", release.releaseRoot, "--release-root", release.releaseRoot, "--node-executable", process.execPath]);
+    expect(created.status, created.stderr).toBe(0);
+    const tabId = JSON.parse(created.stdout).tabId as string;
+    const stateDir = JSON.parse(run(["tabs", "host-status"]).stdout.trim().split("\n").at(-1)!).stateDir as string;
+    const identities = async (selectedTabId = tabId) => {
+      const registry = JSON.parse(await readFile(resolve(stateDir, "registry.json"), "utf8"));
+      const tab = registry.tabs.find((candidate: { tabId: string }) => candidate.tabId === selectedTabId);
+      const marker = JSON.parse(await readFile(resolve(stateDir, "server.json"), "utf8"));
+      return { server: { pid: marker.pid as number, startIdentity: marker.startIdentity as string },
+        holder: { pid: tab?.holderPid as number, startIdentity: tab?.holderStartIdentity as string },
+        child: { pid: tab?.childPid as number, startIdentity: tab?.childStartIdentity as string } };
+    };
+    await until(async () => Boolean((await identities().catch(() => null))?.child.pid));
+    const before = await identities();
+    const paths = fixturePaths(fixture.dataDir);
+    if (process.platform !== "win32") roots.push(paths.endpoint);
+    const boot = randomUUID();
+    const supervisor = new SupervisorServer(new ControlStore(paths.databasePath, boot, { reconcileOnOpen: false }), paths, release, boot);
+    const client = new SupervisorClient(release.releaseId);
+    try {
+      await supervisor.listen();
+      for (const identity of role === "all" ? [before.server, before.holder, before.child] : [before[role as keyof typeof before]]) {
+        // Security: only identities returned by this fixture's isolated registry may be killed.
+        const observed = await observeSupervisorProcess(identity.pid);
+        if (observed === null) continue; // Platform: a killed holder may already have closed its child's job.
+        expect(observed).toEqual(residentIdentityForGuardian(identity));
+        try { process.kill(identity.pid, "SIGKILL"); }
+        catch (error) { if (!(error instanceof Error && "code" in error && error.code === "ESRCH")) throw error; }
+      }
+      // Invariant: the native resident capability owns its own reconciliation; supervisor startup must not
+      // reinterpret its stale markers as permission to stop surviving holders or delete sessions.
+      const started = run(["server", "--detach"]);
+      expect(started.status, started.stderr).toBe(0);
+      const fresh = run(["internal", "tab-create", "--cwd", release.releaseRoot, "--release-root", release.releaseRoot, "--node-executable", process.execPath]);
+      expect(fresh.status, fresh.stderr).toBe(0);
+      const freshTabId = JSON.parse(fresh.stdout).tabId as string;
+      await until(async () => {
+        const after = await identities(freshTabId).catch(() => null);
+        return after !== null && Boolean(after.child.pid) && await observeSupervisorProcess(after.child.pid) !== null;
+      });
+      await ensureSupervisor(release, {
+        [PRODUCT_IDENTITY.environment.dataDir]: fixture.dataDir,
+        [PRODUCT_IDENTITY.environment.runtimeDir]: paths.runtimeDir,
+        [PRODUCT_IDENTITY.environment.endpoint]: paths.endpoint,
+      });
+      await client.connect(paths.endpoint);
+      const instanceId = randomUUID();
+      expect(await client.command({ type: "create-launch-instance", requestId: randomUUID(), instanceId, profileId: "a1", shutdownPolicy: "terminate-tree-on-close", guardianIdentity: (await observeSupervisorProcess(process.pid))! })).toMatchObject({ ok: true });
+      expect(await client.command({ type: "complete-launch-instance", requestId: randomUUID(), instanceId, terminalState: "completed", outcome: { kind: "exited", exitCode: 0 } })).toMatchObject({ ok: true });
+      if (role === "server") {
+        const surviving = await identities();
+        expect(surviving.holder).toEqual(before.holder);
+        expect(surviving.child).toEqual(before.child);
+      }
+      const after = await identities(freshTabId);
+      expect(await observeSupervisorProcess(after.child.pid)).toEqual(residentIdentityForGuardian(after.child));
+    } finally {
+      client.close();
+      await supervisor.close();
+    }
+  }, 120_000);
+
   nativeIt("keeps live and private-recovery releases until recovery custody expires", async () => {
     const fixture = await releaseFixture(4);
     await activateAll(fixture.store, fixture.releases);

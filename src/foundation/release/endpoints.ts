@@ -1,11 +1,11 @@
 import { readdir, readFile, rm } from "node:fs/promises";
 import { connect } from "node:net";
-import { platform } from "node:os";
 import { resolve } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import type { OwnershipProbe } from "./cohort-selection.js";
-import { processIsAlive } from "./process-cleanup.js";
+import { supervisorProcessState, type ObserveSupervisorProcess } from "./supervisor-identity.js";
+import { withEndpointLock } from "./endpoint-lock.js";
 import type { SupervisorEndpointMetadata } from "./cohort-state.js";
 import type { CohortEndpointPaths, ProductPaths } from "../lifecycle/index.js";
 
@@ -21,9 +21,12 @@ export interface RecordedEndpoint {
  */
 export async function listRecordedEndpoints(paths: ProductPaths): Promise<readonly RecordedEndpoint[]> {
   const recorded: RecordedEndpoint[] = [];
-  const legacy = await readEndpointMetadata(paths.endpointMetadataPath);
+  // Compatibility: a cohort listener passes its scoped paths here; legacy discovery still
+  // names the runtime directory's fixed metadata path, not that listener's own record.
+  const legacyPath = resolve(paths.runtimeDir, PRODUCT_IDENTITY.endpoint.metadataFilename);
+  const legacy = await readEndpointMetadata(legacyPath);
   if (legacy) {
-    recorded.push({ metadata: legacy, paths: { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath } });
+    recorded.push({ metadata: legacy, paths: { endpoint: legacy.endpoint, endpointMetadataPath: legacyPath } });
   }
   const names = await readdir(paths.endpointsDir).catch(() => [] as string[]);
   for (const name of names) {
@@ -43,9 +46,10 @@ export async function listRecordedEndpoints(paths: ProductPaths): Promise<readon
 export async function sweepDeadEndpoints(paths: ProductPaths): Promise<readonly string[]> {
   const swept: string[] = [];
   for (const recorded of await listRecordedEndpoints(paths)) {
-    if (processIsAlive(recorded.metadata.pid)) continue;
-    await removeEndpointArtifacts(recorded.paths.endpointMetadataPath, recorded.paths.endpoint);
-    swept.push(recorded.metadata.releaseId);
+    if (await supervisorProcessState(recorded.metadata) !== "gone") continue;
+    if (await removeEndpointArtifacts(recorded.paths.endpointMetadataPath, recorded.paths.endpoint, recorded.metadata)) {
+      swept.push(recorded.metadata.releaseId);
+    }
   }
   return swept;
 }
@@ -91,16 +95,28 @@ export async function readEndpointMetadata(path: string): Promise<SupervisorEndp
   }
 }
 
-export async function probeOwnership(metadata: SupervisorEndpointMetadata): Promise<OwnershipProbe> {
-  if (!processIsAlive(metadata.pid)) return "dead";
-  const identity = await requestIdentity(metadata.endpoint, 500);
-  if (!identity) return "unresponsive";
-  return identity.supervisorId === metadata.supervisorId
-    && identity.bootNonce === metadata.bootNonce
-    && identity.pidStartIdentity === metadata.pidStartIdentity
-    && identity.releaseId === metadata.releaseId
-    ? "live-verified"
-    : "identity-mismatch";
+export interface OwnershipProbeOptions {
+  readonly observe?: ObserveSupervisorProcess;
+  readonly attempts?: number;
+  readonly timeoutMs?: number;
+}
+
+/** Reprobe transient failures; only native absence or a replaced generation establishes death. */
+export async function probeOwnership(metadata: SupervisorEndpointMetadata, options: OwnershipProbeOptions = {}): Promise<OwnershipProbe> {
+  const attempts = options.attempts ?? 3;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const identity = await requestIdentity(metadata.endpoint, options.timeoutMs ?? 500);
+    if (identity) {
+      return identity.supervisorId === metadata.supervisorId
+        && identity.bootNonce === metadata.bootNonce
+        && identity.pidStartIdentity === metadata.pidStartIdentity
+        && identity.releaseId === metadata.releaseId
+        ? "live-verified" : "identity-mismatch";
+    }
+    if (await supervisorProcessState(metadata, options.observe) === "gone") return "dead";
+    if (attempt + 1 < attempts) await new Promise(resolvePromise => setTimeout(resolvePromise, 50));
+  }
+  return "unresponsive";
 }
 
 async function requestIdentity(endpoint: string, timeoutMs: number): Promise<{ supervisorId: string; bootNonce: string; pidStartIdentity: string; releaseId: string } | null> {
@@ -111,6 +127,7 @@ async function requestIdentity(endpoint: string, timeoutMs: number): Promise<{ s
     const finish = (value: { supervisorId: string; bootNonce: string; pidStartIdentity: string; releaseId: string } | null) => {
       if (settled) return;
       settled = true;
+      clearTimeout(timer);
       socket.destroy();
       resolvePromise(value);
     };
@@ -125,7 +142,7 @@ async function requestIdentity(endpoint: string, timeoutMs: number): Promise<{ s
         }
       } catch { finish(null); }
     });
-    setTimeout(() => finish(null), timeoutMs).unref();
+    const timer = setTimeout(() => finish(null), timeoutMs);
   });
 }
 
@@ -133,7 +150,17 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every(item => typeof item === "string" && item.length > 0);
 }
 
-export async function removeEndpointArtifacts(metadataPath: string, endpoint: string): Promise<void> {
-  await rm(metadataPath, { force: true });
-  if (platform() !== "win32") await rm(endpoint, { force: true });
+/** Retire only a still-dead exact publication. Socket removal belongs to the gated listener. */
+export async function removeEndpointArtifacts(
+  metadataPath: string,
+  endpoint: string,
+  expected: SupervisorEndpointMetadata,
+): Promise<boolean> {
+  return await withEndpointLock(metadataPath, async () => {
+    const current = await readEndpointMetadata(metadataPath);
+    if (!current || current.endpoint !== endpoint || JSON.stringify(current) !== JSON.stringify(expected)) return false;
+    if (await supervisorProcessState(current) !== "gone" || await probeOwnership(current, { attempts: 1 }) !== "dead") return false;
+    await rm(metadataPath, { force: true });
+    return true;
+  });
 }

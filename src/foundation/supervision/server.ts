@@ -14,7 +14,7 @@ import {
   type SupervisorSnapshot,
 } from "../lifecycle/index.js";
 import { encodeFrame, isCommandMessage, isControlHello, LineFrameDecoder, localControlHello, MAX_CONTROL_FRAME_BYTES, negotiateControlFeatures, type ServerMessage } from "../protocol/index.js";
-import { processIsAlive, type MaterializedRelease } from "../release/index.js";
+import { listRecordedEndpoints, readEndpointMetadata, supervisorProcessState, currentSupervisorStartIdentity, withEndpointLock, processIsAlive, type MaterializedRelease } from "../release/index.js";
 import { ControlStore } from "../storage/index.js";
 import { resolveProductPaths, type ProductPaths } from "./paths.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
@@ -63,7 +63,7 @@ export async function commitEndpointMetadata(
 export class SupervisorServer {
   readonly id = randomUUID();
   readonly bootNonce: string;
-  readonly pidStartIdentity = `${process.pid}:${Math.floor(Date.now() - process.uptime() * 1_000)}`;
+  readonly pidStartIdentity = currentSupervisorStartIdentity();
   readonly startedAt = new Date().toISOString();
   readonly paths: ProductPaths;
   #server: Server | null = null;
@@ -114,7 +114,7 @@ export class SupervisorServer {
     this.supersededPollMs = supersededPollMs;
     this.bootNonce = bootNonce;
     this.paths = paths;
-    for (const instance of store.loadActiveLaunchInstances()) this.#instances.set(instance.id, instance);
+    for (const instance of store.loadActiveLaunchInstances(bootNonce)) this.#instances.set(instance.id, instance);
   }
 
   snapshot(): SupervisorSnapshot {
@@ -128,38 +128,56 @@ export class SupervisorServer {
   }
 
   async listen(): Promise<void> {
-    if (this.#server) throw new Error("supervisor is already listening");
-    await mkdir(this.paths.runtimeDir, { recursive: true, mode: 0o700 });
-    await mkdir(this.paths.endpointsDir, { recursive: true, mode: 0o700 });
-    if (platform() !== "win32") {
-      if (this.paths.endpointDirectory) await ensureManagedEndpointDirectory(dirname(this.paths.endpoint));
-      const existing = await lstat(this.paths.endpoint).catch(error => {
-        if (error.code === "ENOENT") return null;
-        throw error;
-      });
-      if (existing) {
-        if (await endpointIsLive(this.paths.endpoint)) {
-          throw Object.assign(new Error(PRODUCT_TEXT.diagnostic(`supervisor already owns ${this.paths.endpoint}`)), { code: "EADDRINUSE" });
-        }
-        await rm(this.paths.endpoint, { force: true });
+    await withEndpointLock(this.paths.endpointMetadataPath, async () => {
+      if (this.#server) throw new Error("supervisor is already listening");
+      await mkdir(this.paths.runtimeDir, { recursive: true, mode: 0o700 });
+      await mkdir(this.paths.endpointsDir, { recursive: true, mode: 0o700 });
+      const recorded = await readEndpointMetadata(this.paths.endpointMetadataPath);
+      if (recorded && await supervisorProcessState(recorded) !== "gone") {
+        throw Object.assign(new Error("another supervisor still owns this endpoint"), { code: "EADDRINUSE" });
       }
-    }
-    const server = createServer(socket => this.#attach(socket));
-    this.#server = server;
-    await new Promise<void>((resolve, reject) => {
-      server.once("error", reject);
-      server.listen(this.paths.endpoint, () => {
-        this.#ownsEndpoint = true;
-        server.off("error", reject);
-        resolve();
+      if (platform() !== "win32") {
+        if (this.paths.endpointDirectory) await ensureManagedEndpointDirectory(dirname(this.paths.endpoint));
+        const existing = await lstat(this.paths.endpoint).catch(error => {
+          if (error.code === "ENOENT") return null;
+          throw error;
+        });
+        if (existing) {
+          if (await endpointIsLive(this.paths.endpoint)) {
+            throw Object.assign(new Error(PRODUCT_TEXT.diagnostic(`supervisor already owns ${this.paths.endpoint}`)), { code: "EADDRINUSE" });
+          }
+          await rm(this.paths.endpoint, { force: true });
+        }
+      }
+      const server = createServer(socket => this.#attach(socket));
+      this.#server = server;
+      await new Promise<void>((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(this.paths.endpoint, () => {
+          this.#ownsEndpoint = true;
+          server.off("error", reject);
+          resolve();
+        });
       });
+      // Concurrency: only the bound winner may reconcile shared control data. Other cohort boots
+      // remain protected even when temporarily unresponsive; their instances never become ours.
+      await withEndpointLock(this.paths.databasePath, async () => {
+        // Concurrency: all cohorts sharing SQLite serialize boot reconciliation plus publication, so a new
+        // cohort cannot insert instances between another cohort's inventory and stale-row update.
+        const protectedBoots: string[] = [];
+        for (const other of await listRecordedEndpoints(this.paths)) {
+          if (other.paths.endpointMetadataPath !== this.paths.endpointMetadataPath
+            && await supervisorProcessState(other.metadata) !== "gone") protectedBoots.push(other.metadata.bootNonce);
+        }
+        this.store.reconcilePriorBootLaunchInstances(this.bootNonce, new Date().toISOString(), protectedBoots);
+        await this.#writeEndpointMetadata();
+      });
+      if (this.readActiveReleaseId) {
+        const poll = setInterval(() => void this.#refreshCohortRole(), this.supersededPollMs);
+        poll.unref();
+        this.#supersededPoll = poll;
+      }
     });
-    await this.#writeEndpointMetadata();
-    if (this.readActiveReleaseId) {
-      const poll = setInterval(() => void this.#refreshCohortRole(), this.supersededPollMs);
-      poll.unref();
-      this.#supersededPoll = poll;
-    }
   }
 
   // Invariant: superseding a cohort never interrupts its held instances; it retires only when empty.
@@ -191,25 +209,27 @@ export class SupervisorServer {
     if (this.#supersededPoll) clearInterval(this.#supersededPoll);
     this.#supersededPoll = null;
     for (const client of this.#clients) client.destroy();
-    try {
-      await this.#metadataWrites.catch(() => undefined);
-      if (this.#ownsEndpoint) {
-        // Concurrency: remove only our publication, before releasing the listening endpoint.
-        // A contender that failed to bind must never erase the successful owner's discovery file.
-        const metadata = await readFile(this.paths.endpointMetadataPath, "utf8").then(source => JSON.parse(source)).catch(() => null);
-        if (metadata?.supervisorId === this.id && metadata.bootNonce === this.bootNonce) {
-          await rm(this.paths.endpointMetadataPath, { force: true });
+    await withEndpointLock(this.paths.endpointMetadataPath, async () => {
+      try {
+        await this.#metadataWrites.catch(() => undefined);
+        if (this.#ownsEndpoint) {
+          // Concurrency: remove only our publication, before releasing the listening endpoint.
+          // A contender that failed to bind must never erase the successful owner's discovery file.
+          const metadata = await readFile(this.paths.endpointMetadataPath, "utf8").then(source => JSON.parse(source)).catch(() => null);
+          if (metadata?.supervisorId === this.id && metadata.bootNonce === this.bootNonce) {
+            await rm(this.paths.endpointMetadataPath, { force: true });
+          }
+          // Platform: Node unlinks its Unix socket when the server closes; unlinking it early would
+          // let a replacement bind before the old server finishes releasing that path.
         }
-        // Platform: Node unlinks its Unix socket when the server closes; unlinking it early would
-        // let a replacement bind before the old server finishes releasing that path.
+      } finally {
+        // Platform: a metadata sharing error must not leave a bound but undiscoverable listener.
+        if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
+        this.#server = null;
+        this.#ownsEndpoint = false;
+        this.store.close();
       }
-    } finally {
-      // Platform: a metadata sharing error must not leave a bound but undiscoverable listener.
-      if (this.#server) await new Promise<void>(resolve => this.#server?.close(() => resolve()));
-      this.#server = null;
-      this.#ownsEndpoint = false;
-      this.store.close();
-    }
+    });
   }
 
   async closeForReleaseReplacement(stopAgents: boolean): Promise<void> {
@@ -528,6 +548,7 @@ export class SupervisorServer {
       supervisorId: this.id,
       pid: process.pid,
       pidStartIdentity: this.pidStartIdentity,
+      nativeStartIdentity: this.pidStartIdentity,
       bootNonce: this.bootNonce,
       endpoint: this.paths.endpoint,
       databasePath: this.paths.databasePath,
