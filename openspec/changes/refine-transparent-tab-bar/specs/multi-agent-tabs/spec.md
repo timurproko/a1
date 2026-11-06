@@ -132,6 +132,7 @@ Printable Unicode keys, ordinary single-line cursor/editing keys, and paste SHAL
 #### Scenario: Submit directly from the empty shell
 - **WHEN** the ready prompt holds a non-empty draft and the user presses Enter
 - **THEN** exactly one Agent SHALL be created and its pending presentation SHALL appear immediately
+- **AND** the pending body SHALL immediately show the submitted prompt in its provisional content area with an empty editor
 - **AND** the draft and submit action SHALL reach only that Agent after its view commits
 
 #### Scenario: Failed direct submission cannot leak
@@ -152,7 +153,7 @@ Printable Unicode keys, ordinary single-line cursor/editing keys, and paste SHAL
 
 #### Scenario: Pending and first-draw handoff
 - **WHEN** a direct prompt submission starts an Agent
-- **THEN** the pending chip/editor/footer SHALL replace the ready prompt without a wipe or fade
+- **THEN** the pending chip, provisional submitted-prompt content, empty editor, and footer SHALL replace the ready prompt without a wipe or fade
 - **AND** the first complete Agent frame SHALL replace that pending presentation at once
 
 #### Scenario: The ready prompt follows the background setting
@@ -169,15 +170,16 @@ Printable Unicode keys, ordinary single-line cursor/editing keys, and paste SHAL
 
 ### Requirement: Resident right-side items expose configuration controls
 
-The complete physically rendered right-side group, from the first visible Version or Time cell through the final visible item and including the configured separation between them, SHALL have one explicit hover and hit range. Hovering any cell in that range SHALL apply one consistent group treatment to every rendered item. Right-clicking anywhere in the group SHALL open a context menu containing `Configure`; activating it SHALL open the native searchable multi-select titled `Right Side`, where Version and Time toggle independently and persist in fixed order. Items omitted by narrow layout SHALL contribute no cells to the group, and space outside the rendered group SHALL not consume child input.
+The complete physically rendered right-side group, from one blank cell before the first visible Version or Time glyph through one blank cell after the final visible glyph, SHALL have one explicit hover and hit range. When both items are present, ` • ` SHALL separate Version from Time, matching the model/thinking separator convention. Hovering any cell in that padded range SHALL apply one consistent group treatment to every rendered item and both padding cells. Right-clicking anywhere in the group SHALL open a context menu containing `Configure`; activating it SHALL open the native searchable multi-select titled `Right Side`, where Version and Time toggle independently and persist in fixed order. Items omitted by narrow layout SHALL contribute no cells to the group, and space outside the rendered group SHALL not consume child input.
 
 The group's resting foreground SHALL use the resident status/footer dim color. Its hover treatment SHALL use the owned popup menu's accent-selected background while retaining that dim foreground, and SHALL remain independent of tab chips, popups, overflow, drag targets, and child-surface input.
 
 #### Scenario: Hover the complete configured group
 
 - **WHEN** Version and Time are rendered and the pointer rests over either item or their internal separation
-- **THEN** the complete Version-and-Time group SHALL show one continuous hover state
-- **AND** its full rendered span SHALL remain one configuration hit target
+- **THEN** the complete Version-and-Time group SHALL show one continuous hover state with one blank cell before and after it
+- **AND** Version and Time SHALL be separated by ` • `
+- **AND** its full padded rendered span SHALL remain one configuration hit target
 
 #### Scenario: Configure Version from the strip
 
@@ -188,5 +190,5 @@ The group's resting foreground SHALL use the resident status/footer dim color. I
 #### Scenario: Narrow strip omits Version
 
 - **WHEN** the strip is too narrow to render Version beside the required controls and Time
-- **THEN** the right-side group hit range SHALL cover only the rendered Time item
+- **THEN** the right-side group hit range SHALL cover the rendered Time item plus its one-cell leading and trailing padding
 - **AND** tabs, overflow, plus, and child input SHALL retain valid geometry

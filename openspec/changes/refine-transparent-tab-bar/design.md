@@ -29,26 +29,26 @@ Terminal SGR backgrounds are opaque, so this refinement deliberately uses the ex
 
 ### D2. The right side is one rendered interaction group
 
-The renderer will emit one hover/hit identity spanning the physically rendered right-side content, including the Version/Time separator when both are present. Hovering any cell will style all visible right-side text with the same canvas-aware treatment used by other strip controls. Right-clicking any cell continues to open the existing Configure menu and Right Side multi-select.
+The renderer will emit one hover/hit identity spanning the physically rendered right-side content, including a ` • ` Version/Time separator when both are present and one blank padding cell before and after the visible text. Hovering any cell will style the complete padded span with the same canvas-aware treatment used by other strip controls, matching the visual breathing room around `+`. Right-clicking any cell continues to open the existing Configure menu and Right Side multi-select.
 
-Narrow layout computes the group from the items that remain visible, so omitted Version text owns no cells. This preserves current width reservation and child-input boundaries while removing separate Version and Time hover regions that imply separate configuration actions.
+Narrow layout computes the group from the items that remain visible, so omitted Version text owns no cells. The added leading cell participates in width reservation while the existing final blank cell becomes the trailing group padding; the visible right-side text stays in its current columns. This preserves valid child-input boundaries while removing separate Version and Time hover regions that imply separate configuration actions.
 
 ### D3. The empty shell is a ready Agent prompt
 
 The empty resident body will use the existing pending-Agent editor and status-footer visual language instead of a passive wordmark. It keeps the launch cwd in the same footer position, omits the package version, and owns a bounded local draft while no child is viewed. Printable input, ordinary single-line editing, and paste update that draft without starting a process; Enter on a non-empty draft creates one Agent and queues the draft plus submit action for that exact pending creation. The pending chip/editor appears immediately, and the queued input is released only after the created Agent commits its view.
 
-This keeps the initial shell useful without sending input to a hidden utility or an unrelated tab. Empty Enter does nothing, tab shortcuts and `+` retain precedence, and cancellation or creation failure discards the bound draft rather than leaking it to a later Agent.
+This keeps the initial shell useful without sending input to a hidden utility or an unrelated tab. As soon as Enter accepts a non-empty draft, the provisional pending-Agent body echoes that submitted text as a prompt in the content area and leaves the editor empty, so the action feels immediate while process creation continues. The provisional row is presentation-only: it does not alter deferred delivery, and the first real Agent surface replaces it. Empty Enter does nothing, tab shortcuts and `+` retain precedence, and cancellation or creation failure discards the bound submission rather than leaking it to a later Agent; the local draft remains available if the ready prompt returns.
 
 ### D4. Rendering assertions cover styles and geometry together
 
-Focused native tests will assert SGR background ownership, menu-consistent accent hover output with stable label foregrounds, unchanged hit spans, grouped right-side targeting, palette fallback, and the version-free landing cell grid. Existing active-chip, overflow, narrow-layout, and canvas tests will be updated rather than replaced so the visual refinement cannot regress interaction geometry.
+Focused native tests will assert SGR background ownership, menu-consistent accent hover output with stable label foregrounds, stable padded hit spans, grouped right-side targeting, provisional submitted-prompt rendering, palette fallback, and the version-free landing cell grid. Existing active-chip, overflow, narrow-layout, and canvas tests will be updated rather than replaced so the visual refinement cannot regress interaction geometry.
 
 ## Risks / Trade-offs
 
 - **An opaque hover cell can contrast with an unknown terminal default** → Reuse the already approved subtle menu-hover token only during hover, preserve resting transparency, and retain semantic status colors.
 - **Changing hit identities can disturb context-menu routing** → Keep one explicit right-configuration action from renderer through the attach state machine and cover right-click behavior at both strip positions.
 - **Default-background resets can expose stale cells** → Continue repainting the full strip row on every strip frame and assert that child output never owns strip content.
-- **A landing draft could leak to the wrong process** → Bind submission to the one pending Agent creation, release it only after that view commits, and discard it on cancellation or failure.
+- **A landing draft could leak to the wrong process** → Bind submission to the one pending Agent creation, release it only after that view commits, and discard it on cancellation or failure; keep the immediate content echo strictly presentation-only.
 - **Palette terminals cannot reproduce truecolor accents exactly** → Map the hover foreground through the existing palette color strategy and assert stable fallback bytes and geometry.
 
 ## Migration Plan
