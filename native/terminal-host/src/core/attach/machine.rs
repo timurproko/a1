@@ -24,8 +24,7 @@ pub enum Hover {
     Tab(String),
     Overflow,
     New,
-    RightVersion,
-    RightTime,
+    Right,
 }
 
 /// The one interaction that owns the pointer and keyboard before the child does.
@@ -141,6 +140,10 @@ pub struct State {
     pub user_input_pending: bool,
     pub registry_revision: u64,
     pub pending_manual_name: Option<(String, String)>,
+    /// Local single-line input shown while the resident shell has no viewed tab.
+    pub landing_draft: RenameEditor,
+    /// A submitted landing draft stays visible until its exact pending Agent commits or fails.
+    pub pending_landing_submission: Option<String>,
     pub deferred: DeferredInput,
     /// Pointer ownership that began in the child remains there across the resident tab strip.
     child_primary_drag: bool,
@@ -213,6 +216,8 @@ pub enum Effect {
     ForwardKey,
     ForwardMouse,
     ForwardPaste(String),
+    /// Queues a locally composed empty-shell prompt behind the Agent creation emitted first.
+    SubmitLanding(String),
     ForwardFocus {
         gained: bool,
     },
@@ -369,6 +374,7 @@ impl State {
         {
             self.view.pending_agent_visible = false;
             self.view.pending_agent_cancelled = self.view.pending_created_activation;
+            self.pending_landing_submission = None;
         }
         effects
     }
@@ -481,6 +487,9 @@ impl State {
             effects.push(Effect::Paint { clear: false });
             return;
         }
+        if context.landing && self.landing_key(context, key, effects) {
+            return;
+        }
         effects.push(Effect::ForwardKey);
     }
 
@@ -583,6 +592,83 @@ impl State {
         consume
     }
 
+    fn landing_key<T: TabView>(
+        &mut self,
+        context: &Context<'_, T>,
+        key: AttachKey,
+        effects: &mut Vec<Effect>,
+    ) -> bool {
+        const MAX_DRAFT_BYTES: usize = 32 * 1024;
+        let control_or_alt = key.modifiers.control || key.modifiers.alt;
+        let mut submit = false;
+        let handled = match key.code {
+            KeyCode::Enter => {
+                submit = !self.landing_draft.text.trim().is_empty();
+                true
+            }
+            KeyCode::Esc if !self.landing_draft.is_empty() => {
+                self.landing_draft = RenameEditor::default();
+                true
+            }
+            _ if apply_rename_control_key(
+                &mut self.landing_draft,
+                key.code,
+                key.modifiers,
+            ) => true,
+            KeyCode::Backspace => {
+                self.landing_draft.backspace();
+                true
+            }
+            KeyCode::Delete => {
+                self.landing_draft.delete();
+                true
+            }
+            KeyCode::Left if key.modifiers.control => {
+                self.landing_draft.move_word_left();
+                true
+            }
+            KeyCode::Right if key.modifiers.control => {
+                self.landing_draft.move_word_right();
+                true
+            }
+            KeyCode::Left => {
+                self.landing_draft
+                    .move_cursor(self.landing_draft.cursor.saturating_sub(1));
+                true
+            }
+            KeyCode::Right => {
+                self.landing_draft
+                    .move_cursor((self.landing_draft.cursor + 1).min(self.landing_draft.len()));
+                true
+            }
+            KeyCode::Home => {
+                self.landing_draft.move_cursor(0);
+                true
+            }
+            KeyCode::End => {
+                self.landing_draft.move_cursor(self.landing_draft.len());
+                true
+            }
+            KeyCode::Char(value) if !control_or_alt && !value.is_control() => {
+                self.landing_draft.insert_bounded(value, MAX_DRAFT_BYTES);
+                true
+            }
+            _ => false,
+        };
+        if !handled {
+            return false;
+        }
+        if submit {
+            let editor = std::mem::take(&mut self.landing_draft);
+            self.pending_landing_submission = Some(editor.text.clone());
+            self.create_agent(context, effects);
+            effects.push(Effect::SubmitLanding(editor.text));
+            self.user_input_pending = true;
+        }
+        effects.push(Effect::Paint { clear: false });
+        true
+    }
+
     fn invoke<T: TabView + Clone>(
         &mut self,
         context: &Context<'_, T>,
@@ -645,6 +731,7 @@ impl State {
         self.view.pending_created_activation = false;
         self.view.pending_agent_visible = false;
         self.view.pending_agent_cancelled = false;
+        self.pending_landing_submission = None;
         self.deferred.discard_created();
         if let Some(tab_id) = context.requested {
             self.deferred.discard_tab(tab_id);
@@ -668,6 +755,9 @@ impl State {
     }
 
     fn create(&mut self, request: Request, effects: &mut Vec<Effect>) {
+        // Invariant: creating/opening inserts a chip before `+`; hover belongs to the old geometry
+        // until the pointer moves again, so it must not follow the relocated control across repaint.
+        self.hovered = None;
         self.view.pending_created_activation = true;
         if request == Request::Create {
             self.view.pending_agent_visible = true;
@@ -876,6 +966,21 @@ impl State {
         if self.failed(context.viewed) || matches!(self.mode, Mode::Popup(_)) {
             return;
         }
+        if context.landing {
+            const MAX_DRAFT_BYTES: usize = 32 * 1024;
+            let text = text
+                .chars()
+                .filter_map(|value| match value {
+                    '\r' | '\n' => Some(' '),
+                    value if value.is_control() => None,
+                    value => Some(value),
+                })
+                .collect::<String>();
+            self.landing_draft
+                .insert_text_bounded(&text, MAX_DRAFT_BYTES);
+            effects.push(Effect::Paint { clear: false });
+            return;
+        }
         self.user_input_pending = true;
         effects.push(Effect::ForwardPaste(text));
     }
@@ -1072,8 +1177,7 @@ impl State {
                     StripHitKind::View(id) => Hover::Tab(id),
                     StripHitKind::Overflow => Hover::Overflow,
                     StripHitKind::New => Hover::New,
-                    StripHitKind::RightVersion => Hover::RightVersion,
-                    StripHitKind::RightTime => Hover::RightTime,
+                    StripHitKind::Right => Hover::Right,
                 });
                 if next != self.hovered {
                     self.hovered = next;
@@ -1088,13 +1192,9 @@ impl State {
                     Some(StripHitKind::New) => {
                         PopupMenu::configure(mouse.column, self.columns, PopupAction::ConfigurePlus)
                     }
-                    Some(StripHitKind::RightVersion | StripHitKind::RightTime) => {
-                        PopupMenu::configure(
-                            mouse.column,
-                            self.columns,
-                            PopupAction::ConfigureRight,
-                        )
-                    }
+                    Some(StripHitKind::Right) => PopupMenu::configure(
+                        mouse.column, self.columns, PopupAction::ConfigureRight,
+                    ),
                     _ => return,
                 };
                 self.mode = Mode::Popup(menu);
@@ -1139,7 +1239,7 @@ impl State {
                     }
                     effects.push(Effect::Paint { clear: false });
                 }
-                Some(StripHitKind::RightVersion | StripHitKind::RightTime) => {}
+                Some(StripHitKind::Right) => {}
                 Some(StripHitKind::Overflow) => {
                     let anchor = context
                         .strip
@@ -1323,6 +1423,7 @@ impl State {
         self.view.pending_created_activation = false;
         self.view.pending_agent_visible = false;
         self.view.pending_agent_cancelled = false;
+        self.pending_landing_submission = None;
         self.user_input_pending = false;
         self.notice = Some(notice);
         effects.push(Effect::Paint { clear: false });
@@ -1349,6 +1450,7 @@ impl State {
             // Invariant: a later explicit view wins over the Agent this client started. Never deliver its
             // buffered input to the old child or steal the view when startup finishes.
             self.deferred.discard_created();
+            self.pending_landing_submission = None;
             self.user_input_pending = false;
             effects.push(Effect::Send(Request::List));
             return;
@@ -1380,6 +1482,7 @@ impl State {
             self.notice = None;
             self.sync_prompt(viewed);
             let (frames, mut dropped) = self.deferred.resolve(tab_id);
+            self.pending_landing_submission = None;
             if status == "failed" {
                 dropped |= !frames.is_empty();
             } else if !frames.is_empty() {
@@ -2212,6 +2315,7 @@ mod tests {
             "Agent alone adds an Agent without a menu"
         );
         assert!(state.mode.popup().is_none());
+        assert_eq!(state.hovered, None, "the relocated plus does not retain hover");
 
         state.plus_menu = PlusMenu::from_setting(Some(""));
         assert_eq!(fixture.step(&mut state, mouse(LEFT, 31, 0)), [PAINT]);
@@ -2237,6 +2341,7 @@ mod tests {
             [Effect::Send(Request::Open(UtilityKind::Settings)), PAINT],
             "the hidden Settings is revealed through the server"
         );
+        assert_eq!(state.hovered, None, "opening a utility also changes strip geometry");
 
         assert_eq!(fixture.step(&mut state, mouse(RIGHT, 31, 0)), [PAINT]);
         let configure = state.mode.popup().expect("configure menu").clone();
@@ -2268,6 +2373,38 @@ mod tests {
     }
 
     #[test]
+    fn the_complete_right_side_is_one_hover_and_configuration_target() {
+        let mut fixture = Fixture::new(&["a"], "a");
+        fixture.strip.hits.push((52, 79, StripHitKind::Right));
+        let mut state = fixture.state();
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Moved, 60, 0)),
+            [PAINT]
+        );
+        assert_eq!(state.hovered, Some(Hover::Right));
+        assert!(
+            fixture
+                .step(&mut state, mouse(MouseKind::Moved, 75, 0))
+                .is_empty(),
+            "moving between Version and Time stays in one target"
+        );
+        assert_eq!(fixture.step(&mut state, mouse(RIGHT, 75, 0)), [PAINT]);
+        let configure = state
+            .mode
+            .popup()
+            .expect("right-side configure menu")
+            .clone();
+        assert_eq!(configure.kind, PopupKind::Configure);
+        assert_eq!(configure.items[0].label, "Configure");
+        assert_eq!(
+            fixture.step(&mut state, mouse(LEFT, configure.column, 1)),
+            [PAINT]
+        );
+        let palette = state.mode.palette().expect("Widgets palette");
+        assert_eq!(palette.shown(), [("Version", "version"), ("Time", "time")]);
+    }
+
+    #[test]
     fn strip_pointer_hovers_opens_menus_and_drags() {
         let mut fixture = Fixture::new(&["a", "b", "c"], "a");
         fixture.strip.hits.push((40, 42, StripHitKind::Overflow));
@@ -2293,6 +2430,7 @@ mod tests {
             fixture.step(&mut state, mouse(LEFT, add.column, 1)),
             [Effect::Send(Request::Create), PAINT]
         );
+        assert_eq!(state.hovered, None, "Agent clears the old plus hover");
 
         fixture.step(&mut state, mouse(LEFT, 41, 0));
         let menu = state.mode.popup().expect("overflow menu").clone();
@@ -3108,6 +3246,75 @@ mod tests {
         state.user_input_pending = true;
         state.drop_request(Some("x"));
         assert!(!state.user_input_pending);
+    }
+
+    #[test]
+    fn the_ready_landing_edits_locally_and_submits_to_one_new_agent() {
+        let mut fixture = Fixture::new(&[], "none");
+        fixture.viewed = None;
+        fixture.landing = true;
+        let mut state = fixture.state();
+
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Enter)), [PAINT]);
+        assert!(!state.view.pending_created_activation);
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Char('界'))), [PAINT]);
+        assert_eq!(fixture.step(&mut state, Event::Paste(" prompt".into())), [PAINT]);
+        assert_eq!(state.landing_draft.text, "界 prompt");
+        assert_eq!(state.landing_draft.cursor, 8);
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Left)), [PAINT]);
+        assert_eq!(fixture.step(&mut state, key(KeyCode::Backspace)), [PAINT]);
+        assert_eq!(state.landing_draft.text, "界 promt");
+
+        assert_eq!(
+            fixture.step(&mut state, key(KeyCode::Enter)),
+            [
+                Effect::Send(Request::Create),
+                Effect::SubmitLanding("界 promt".into()),
+                PAINT,
+            ]
+        );
+        assert!(state.view.pending_created_activation && state.view.pending_agent_visible);
+        assert!(state.landing_draft.is_empty());
+        assert_eq!(state.pending_landing_submission.as_deref(), Some("界 promt"));
+
+        assert_eq!(
+            fixture.step(
+                &mut state,
+                server(ServerEvent::CreateFailed {
+                    notice: "limit".into(),
+                }),
+            ),
+            [Effect::CancelViewRequest, PAINT]
+        );
+        assert!(state.pending_landing_submission.is_none());
+    }
+
+    #[test]
+    fn cancelling_a_direct_landing_submission_discards_its_bound_draft() {
+        let mut fixture = Fixture::new(&[], "none");
+        fixture.viewed = None;
+        fixture.landing = true;
+        let mut state = fixture.state();
+        fixture.step(&mut state, key(KeyCode::Char('x')));
+        fixture.step(&mut state, key(KeyCode::Enter));
+        let mut effects = Vec::new();
+        state.close_pending_agent(&fixture.context(), &mut effects);
+        assert_eq!(effects, [Effect::Send(Request::CancelCreate)]);
+        assert!(state.pending_landing_submission.is_none());
+        assert!(!state.view.pending_created_activation && !state.view.pending_agent_visible);
+    }
+
+    #[test]
+    fn landing_shortcuts_take_precedence_over_the_local_editor() {
+        let mut fixture = Fixture::new(&[], "none");
+        fixture.viewed = None;
+        fixture.landing = true;
+        let mut state = fixture.state();
+        assert_eq!(
+            fixture.step(&mut state, shortcut("tabs.new")),
+            [Effect::Send(Request::Create), PAINT]
+        );
+        assert!(state.landing_draft.is_empty());
     }
 
     #[test]

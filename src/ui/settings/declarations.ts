@@ -204,7 +204,7 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   }),
   tabBarRightItems: Object.freeze({
     id: "tabBarRightItems",
-    label: "Right side",
+    label: "Widgets",
     section: TABS_SECTION,
     description: "Choose whether the tab bar's right side shows the executing Version, Time, both, or neither.",
     application: "live",

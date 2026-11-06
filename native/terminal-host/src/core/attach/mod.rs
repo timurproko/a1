@@ -115,8 +115,7 @@ pub enum StripHitKind {
     View(String),
     Overflow,
     New,
-    RightVersion,
-    RightTime,
+    Right,
 }
 
 /// The interactive part of a rendered strip: column ranges `[start, end)` and the tabs that did
@@ -347,7 +346,7 @@ pub enum PopupAction {
     Activate(TabKind),
     /// Opens the plus-menu dialog in the Settings tab.
     ConfigurePlus,
-    /// Opens the native Right Side configuration dialog.
+    /// Opens the native Widgets configuration dialog.
     ConfigureRight,
     View(String),
 }
@@ -601,6 +600,12 @@ pub struct RenameEditor {
     last_edit: Option<RenameEdit>,
 }
 
+impl Default for RenameEditor {
+    fn default() -> Self {
+        Self::new(String::new(), String::new())
+    }
+}
+
 impl RenameEditor {
     pub fn new(tab_id: String, text: String) -> Self {
         let cursor = text.graphemes(true).count();
@@ -707,14 +712,41 @@ impl RenameEditor {
     }
 
     pub fn insert(&mut self, value: char) {
+        self.insert_bounded(value, 64);
+    }
+
+    pub fn insert_bounded(&mut self, value: char, max_bytes: usize) {
         self.edit(RenameEdit::Typing, |editor| {
             editor.delete_selection();
-            if editor.len() >= 64 {
+            if editor.text.len().saturating_add(value.len_utf8()) > max_bytes {
                 return;
             }
             let offset = editor.byte_offset(editor.cursor);
             editor.text.insert(offset, value);
             editor.cursor += 1;
+        });
+    }
+
+    pub fn insert_text_bounded(&mut self, value: &str, max_bytes: usize) {
+        if value.is_empty() {
+            return;
+        }
+        self.edit(RenameEdit::Typing, |editor| {
+            editor.delete_selection();
+            let available = max_bytes.saturating_sub(editor.text.len());
+            let end = value
+                .char_indices()
+                .map(|(offset, character)| offset + character.len_utf8())
+                .take_while(|end| *end <= available)
+                .last()
+                .unwrap_or(0);
+            if end == 0 {
+                return;
+            }
+            let value = &value[..end];
+            let offset = editor.byte_offset(editor.cursor);
+            editor.text.insert_str(offset, value);
+            editor.cursor += value.graphemes(true).count();
         });
     }
 

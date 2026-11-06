@@ -1,6 +1,5 @@
-//! The a1 landing the attach client shows while it has no tab: the launch cwd where an Agent
-//! tab's footer shows it, `a1` and its version below it, and the prompt-border-colored wordmark above it.
-//! Rendering is pure; the attach role presents the bytes as the frame's body.
+//! The ready Agent prompt the attach client shows while it has no tab, plus the provisional
+//! Agent shell used during creation. Rendering is pure; the attach role presents the bytes.
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -12,13 +11,16 @@ const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "▄█▀▀█  █ ", "
 /// The owned dark theme's `dim` foreground, which an Agent footer draws its cwd and status in;
 /// `landing_accents.json` pins it with the accents.
 const DIM: [u8; 3] = [126, 136, 142];
+const MUTED: [u8; 3] = [157, 165, 169];
+const MESSAGE_TEXT: [u8; 3] = [222, 224, 225];
 
-/// The accent and border foregrounds `derivePiAccentProjection(accent, "dark")` gives each A1
-/// accent; `landing_accents.json` pins them and the TypeScript projection test checks that file.
+/// The accent, border, and submitted-message background projection for each dark A1 accent;
+/// `landing_accents.json` pins them and the TypeScript projection test checks that file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AccentColors {
     pub accent: [u8; 3],
     pub border: [u8; 3],
+    pub user_message_background: [u8; 3],
 }
 
 pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
@@ -27,6 +29,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [167, 152, 215],
             border: [105, 115, 167],
+            user_message_background: [53, 52, 58],
         },
     ),
     (
@@ -34,6 +37,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [130, 160, 241],
             border: [116, 102, 197],
+            user_message_background: [50, 53, 60],
         },
     ),
     (
@@ -41,6 +45,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [93, 179, 186],
             border: [74, 128, 146],
+            user_message_background: [46, 54, 55],
         },
     ),
     (
@@ -48,6 +53,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [104, 183, 141],
             border: [75, 132, 120],
+            user_message_background: [48, 55, 51],
         },
     ),
     (
@@ -55,6 +61,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [231, 135, 83],
             border: [178, 89, 79],
+            user_message_background: [59, 51, 47],
         },
     ),
     (
@@ -62,6 +69,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [223, 122, 199],
             border: [150, 91, 171],
+            user_message_background: [58, 50, 55],
         },
     ),
 ];
@@ -114,8 +122,6 @@ pub fn prompt_chrome_color(accent: Option<&str>) -> [u8; 3] {
 pub struct LandingInput<'a> {
     pub columns: u16,
     pub body_rows: u16,
-    /// The running a1 package version, shown after the name.
-    pub version: Option<&'a str>,
     pub accent: Option<&'a str>,
     pub truecolor: bool,
     pub half_blocks: bool,
@@ -249,7 +255,7 @@ fn wordmark_row(line: &str, accent: &str, columns: usize) -> String {
 /// below it and the wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
 /// folder stays in place when a tab opens or closes, whichever edge the strip is on.
 pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
-    render_body(input, None, false)
+    render_body(input, None, false, None, None)
 }
 
 /// Rows rendered by the real Agent's owned footer. Retain the status cells and styles as hints;
@@ -293,8 +299,42 @@ pub fn render_agent_preview(
     input: &LandingInput<'_>,
     footer: Option<&AgentPreviewFooter>,
 ) -> Vec<u8> {
+    render_ready_prompt(input, footer, "", 0)
+}
+
+/// The editable empty-shell prompt. `cursor` is a grapheme index into the bounded local draft.
+pub fn render_ready_prompt(
+    input: &LandingInput<'_>,
+    footer: Option<&AgentPreviewFooter>,
+    text: &str,
+    cursor: usize,
+) -> Vec<u8> {
     let fallback = AgentPreviewFooter::default();
-    render_body(input, Some(footer.unwrap_or(&fallback)), false)
+    render_body(
+        input,
+        Some(footer.unwrap_or(&fallback)),
+        false,
+        Some((text, cursor)),
+        None,
+    )
+}
+
+/// A submitted empty-shell prompt shown as provisional content while its exact Agent starts.
+/// The editor stays empty because the draft has already been accepted for deferred delivery.
+pub fn render_submitted_agent_preview(
+    input: &LandingInput<'_>,
+    footer: Option<&AgentPreviewFooter>,
+    text: &str,
+    timestamp: &str,
+) -> Vec<u8> {
+    let fallback = AgentPreviewFooter::default();
+    render_body(
+        input,
+        Some(footer.unwrap_or(&fallback)),
+        false,
+        None,
+        Some((text, timestamp)),
+    )
 }
 
 /// Repaint just the provisional footer while the real Agent's chip finishes its fill.
@@ -304,7 +344,7 @@ pub fn render_agent_preview_footer(
     footer: Option<&AgentPreviewFooter>,
 ) -> Vec<u8> {
     let fallback = AgentPreviewFooter::default();
-    render_body(input, Some(footer.unwrap_or(&fallback)), true)
+    render_body(input, Some(footer.unwrap_or(&fallback)), true, None, None)
 }
 
 /// Cold fallback when no actual Agent footer exists yet; the owned shell renders the footer
@@ -362,7 +402,144 @@ fn preview_status_content(footer: &AgentPreviewFooter, columns: usize, truecolor
     )
 }
 
-fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, footer_only: bool) -> Vec<u8> {
+fn submitted_prompt_row(
+    text: &str,
+    timestamp: &str,
+    columns: usize,
+    colors: AccentColors,
+    truecolor: bool,
+) -> String {
+    const PREFIX_WIDTH: usize = 3;
+    const TIMESTAMP_MARGIN: usize = 3;
+    const MIN_CONTENT_WIDTH: usize = 8;
+    if columns == 0 {
+        return String::new();
+    }
+    let mut row = format!(
+        "{} ",
+        background(colors.user_message_background, truecolor)
+    );
+    if columns == 1 {
+        return row;
+    }
+    row.push_str(&format!("{}❯", foreground(MUTED, truecolor)));
+    if columns == 2 {
+        return row;
+    }
+    row.push_str(&format!("{} ", foreground(MESSAGE_TEXT, truecolor)));
+    let timestamp_width = UnicodeWidthStr::width(timestamp);
+    let show_timestamp = columns.saturating_sub(PREFIX_WIDTH + timestamp_width + TIMESTAMP_MARGIN)
+        >= MIN_CONTENT_WIDTH;
+    let reserve = if show_timestamp {
+        timestamp_width + TIMESTAMP_MARGIN
+    } else {
+        0
+    };
+    let content = clip(text, columns.saturating_sub(PREFIX_WIDTH + reserve));
+    let content_width = UnicodeWidthStr::width(content.as_str());
+    row.push_str(&content);
+    if show_timestamp {
+        row.push_str(&" ".repeat(columns - PREFIX_WIDTH - content_width - timestamp_width));
+        row.push_str(&format!("{}{}", foreground(DIM, truecolor), timestamp));
+    } else {
+        row.push_str(&" ".repeat(columns - PREFIX_WIDTH - content_width));
+    }
+    row
+}
+
+fn editor_row(text: &str, cursor: usize, columns: usize) -> String {
+    if columns == 0 {
+        return String::new();
+    }
+    let graphemes = text.graphemes(true).collect::<Vec<_>>();
+    let cursor = cursor.min(graphemes.len());
+    let mut start = 0;
+    while start < cursor {
+        let before = graphemes[start..cursor]
+            .iter()
+            .map(|value| UnicodeWidthStr::width(*value))
+            .sum::<usize>();
+        let caret = graphemes
+            .get(cursor)
+            .map_or(1, |value| UnicodeWidthStr::width(*value).max(1));
+        if before + caret <= columns {
+            break;
+        }
+        start += 1;
+    }
+    let mut output = String::new();
+    let mut width = 0;
+    let mut index = start;
+    let mut caret_drawn = false;
+    while width < columns && index <= graphemes.len() {
+        if index == cursor && !caret_drawn {
+            let value = graphemes.get(index).copied().unwrap_or(" ");
+            let value_width = UnicodeWidthStr::width(value).max(1);
+            if width + value_width > columns {
+                break;
+            }
+            output.push_str(&format!("\x1b[7m{value}\x1b[27m"));
+            width += value_width;
+            caret_drawn = true;
+            if index < graphemes.len() {
+                index += 1;
+            } else {
+                break;
+            }
+            continue;
+        }
+        let Some(value) = graphemes.get(index) else {
+            break;
+        };
+        let value_width = UnicodeWidthStr::width(*value).max(1);
+        if width + value_width > columns {
+            break;
+        }
+        output.push_str(value);
+        width += value_width;
+        index += 1;
+    }
+    output
+}
+
+fn provisional_prompt(
+    submitted: Option<(&str, &str)>, available_rows: usize, columns: usize,
+    colors: AccentColors, truecolor: bool,
+) -> Option<(usize, String)> {
+    let (text, timestamp) = submitted.filter(|_| available_rows > 0)?;
+    // Invariant: reserve the real transcript's leading row when space permits; a one-row
+    // content region retains the message itself as its constrained fallback.
+    let row = usize::from(available_rows > 1);
+    Some((row, submitted_prompt_row(text, timestamp, columns, colors, truecolor)))
+}
+
+fn painted_rows(input: &LandingInput<'_>, rows: &[String], start: usize) -> Vec<u8> {
+    // Invariant: a painted canvas fills every cell and survives each run's style reset, so the
+    // landing matches the Agent canvas that replaces it.
+    let columns = usize::from(input.columns);
+    let canvas = input.background.map(|rgb| background(rgb, input.truecolor));
+    let mut bytes = String::new();
+    for (index, content) in rows.iter().enumerate().skip(start) {
+        let row = index + 2;
+        bytes.push_str(&format!("\x1b[{row};1H\x1b[0m\x1b[2K"));
+        if let Some(canvas) = canvas.as_deref() {
+            let content = content.replace("\x1b[0m", &format!("\x1b[0m{canvas}"));
+            bytes.push_str(&format!("{canvas}{}\x1b[{row};1H{canvas}{content}", " ".repeat(columns)));
+        } else {
+            bytes.push_str(content);
+        }
+    }
+    bytes.push_str("\x1b[0m");
+    bytes.into_bytes()
+}
+
+fn render_body(
+    input: &LandingInput<'_>,
+    footer: Option<&AgentPreviewFooter>,
+    footer_only: bool,
+    draft: Option<(&str, usize)>,
+    submitted: Option<(&str, &str)>,
+) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
     let fg = |rgb| foreground(rgb, input.truecolor);
@@ -385,6 +562,11 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, fo
         // preserve the footer and show as much of the editor as fits above it.
         let editor_rows = cwd_row.min(3);
         let first = cwd_row - editor_rows;
+        if let Some((row, content)) = provisional_prompt(
+            submitted, first, columns, accent_colors(input.accent), input.truecolor,
+        ) {
+            place(row, content);
+        }
         let border = format!(
             "{}{}\x1b[0m",
             fg(prompt_chrome_color(input.accent)),
@@ -395,52 +577,30 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, fo
         }
         if editor_rows >= 2 {
             place(cwd_row - 1, border);
-            place(cwd_row - 2, "\x1b[7m \x1b[27m".into());
+            if let Some((text, cursor)) = draft {
+                place(cwd_row - 2, editor_row(text, cursor, columns));
+            }
         }
         if cwd_row + 1 < body_rows && actual.is_none() {
             place(cwd_row + 1, preview_status_row(footer, columns, input.truecolor));
         }
-    } else {
-        // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
-        if let Some(version) = input.version.filter(|version| !version.is_empty())
-            && cwd_row + 1 < body_rows && columns > 1
-        {
-            let version = clip(&format!("v{version}"), columns.saturating_sub(1));
-            place(cwd_row + 1, format!(" {}{version}\x1b[0m", fg(DIM)));
-        }
-        if input.half_blocks && cwd_row >= WORDMARK.len() {
-            let prompt_chrome = fg(prompt_chrome_color(input.accent));
-            for (offset, line) in WORDMARK.iter().enumerate() {
-                let row = cwd_row - WORDMARK.len() + offset;
-                place(row, wordmark_row(line, &prompt_chrome, columns));
-            }
+    } else if input.half_blocks && cwd_row >= WORDMARK.len() {
+        // Rationale: the wordmark and cwd identify the empty shell; the final row stays quiet.
+        let prompt_chrome = fg(prompt_chrome_color(input.accent));
+        for (offset, line) in WORDMARK.iter().enumerate() {
+            let row = cwd_row - WORDMARK.len() + offset;
+            place(row, wordmark_row(line, &prompt_chrome, columns));
         }
     }
 
-    // Invariant: a painted canvas fills every cell and survives each run's style reset, so the
-    // landing matches the Agent canvas that replaces it.
-    let canvas = input.background.map(|rgb| background(rgb, input.truecolor));
-    let mut bytes = String::new();
-    for (index, content) in rows.iter().enumerate().skip(if footer_only { cwd_row } else { 0 }) {
-        let row = index + 2;
-        bytes.push_str(&format!("\x1b[{row};1H\x1b[0m\x1b[2K"));
-        if let Some(canvas) = canvas.as_deref() {
-            let content = content.replace("\x1b[0m", &format!("\x1b[0m{canvas}"));
-            let fill = " ".repeat(columns);
-            bytes.push_str(&format!("{canvas}{fill}\x1b[{row};1H{canvas}{content}"));
-        } else {
-            bytes.push_str(content);
-        }
-    }
-    bytes.push_str("\x1b[0m");
-    let mut output = bytes.into_bytes();
+    let mut output = painted_rows(input, &rows, if footer_only { cwd_row } else { 0 });
     if let Some(actual) = actual {
         let mut footer_bytes = Vec::new();
         if super::presentation::render_surface_row(&mut footer_bytes, &actual.status, cwd_row + 1,
             input.columns, &actual.styles, &actual.links).is_err() {
             let mut fallback = footer.cloned().unwrap_or_default();
             fallback.actual = None;
-            return render_body(input, Some(&fallback), footer_only);
+            return render_body(input, Some(&fallback), footer_only, draft, submitted);
         }
         output.extend(footer_bytes);
     }
@@ -487,7 +647,6 @@ mod tests {
         LandingInput {
             columns,
             body_rows: rows,
-            version: Some("0.2.7"),
             accent: None,
             truecolor: true,
             half_blocks: true,
@@ -497,7 +656,7 @@ mod tests {
     }
 
     #[test]
-    fn the_cwd_sits_where_the_agent_footer_shows_it_with_the_version_below_and_logo_above() {
+    fn the_cwd_sits_where_the_agent_footer_shows_it_with_a_blank_row_below() {
         let grid = cells(&render(&input(80, 23)), 80, 23);
         assert!(grid[..18].iter().all(String::is_empty), "{grid:#?}");
         assert_eq!(grid[18], WORDMARK[0].trim_end());
@@ -507,7 +666,7 @@ mod tests {
             grid[21], " ~/src/a1",
             "the second-to-last body row matches the Agent footer's one-cell gutter"
         );
-        assert_eq!(grid[22], " v0.2.7");
+        assert_eq!(grid[22], "");
         // Invariant: the reference's lower-half descender never becomes a full-height block.
         assert!(grid[19].starts_with("▄█▀▀█"), "the a has a short left descender");
         assert_eq!(WORDMARK.iter().map(|row| row.chars().count()).collect::<Vec<_>>(), [9, 9, 9]);
@@ -543,6 +702,87 @@ mod tests {
         let short = String::from_utf8(render_agent_preview_footer(&input(8, 3), None)).unwrap();
         assert!(short.contains("\x1b[3;1H") && short.contains("\x1b[4;1H"));
         assert!(!short.contains("\x1b[2;1H"));
+    }
+
+    #[test]
+    fn ready_prompt_renders_the_local_unicode_draft_and_visual_caret() {
+        let bytes = render_ready_prompt(&input(80, 23), None, "hello界", 5);
+        let grid = cells(&bytes, 80, 23);
+        assert!(grid[19].starts_with("hello界"));
+        assert_eq!(grid[21], " ~/src/a1");
+        assert!(grid.iter().all(|row| !row.contains("▀▀▀")));
+        let styled = String::from_utf8(bytes).unwrap();
+        assert!(styled.contains("hello\x1b[7m界\x1b[27m"));
+
+        let narrow = cells(
+            &render_ready_prompt(&input(4, 5), None, "ab界cd", 5),
+            4,
+            5,
+        );
+        assert!(narrow.iter().all(|row| UnicodeWidthStr::width(row.as_str()) <= 4));
+    }
+
+    #[test]
+    fn submitted_prompt_moves_into_pending_content_while_the_editor_stays_empty() {
+        let bytes = render_submitted_agent_preview(
+            &LandingInput {
+                accent: Some("cyan"),
+                ..input(80, 23)
+            },
+            None,
+            "ask me 10 questions 界",
+            "3:19 PM",
+        );
+        let grid = cells(&bytes, 80, 23);
+        assert_eq!(grid[0], "", "the real transcript's breathing row is reserved");
+        assert!(grid[1].starts_with(" ❯ ask me 10 questions 界"));
+        assert!(grid[1].ends_with("3:19 PM"));
+        assert_eq!(
+            grid[19], "",
+            "the accepted prompt no longer appears in the editor"
+        );
+        assert_eq!(grid[21], " ~/src/a1");
+        let styled = String::from_utf8(bytes).unwrap();
+        assert!(styled.contains(
+            "\x1b[48;2;46;54;55m \x1b[38;2;157;165;169m❯\x1b[38;2;222;224;225m ask me 10 questions 界"
+        ));
+        assert!(styled.contains("\x1b[38;2;126;136;142m3:19 PM"));
+        assert!(
+            !styled.contains("\x1b[7m"),
+            "the pending editor has no visual caret"
+        );
+
+        let constrained = cells(
+            &render_submitted_agent_preview(&input(8, 6), None, "abcdefghijk", "3:19 PM"),
+            8,
+            6,
+        );
+        assert_eq!(constrained[0], " ❯ abcde", "one-row fallback keeps the message");
+        let compact = cells(
+            &render_submitted_agent_preview(&input(20, 7), None, "compact", "3:19 PM"), 20, 7,
+        );
+        assert_eq!(compact[0], "");
+        assert!(compact[1].starts_with(" ❯ compact"));
+        assert!(
+            constrained
+                .iter()
+                .all(|row| UnicodeWidthStr::width(row.as_str()) <= 8)
+        );
+        let palette = String::from_utf8(render_submitted_agent_preview(
+            &LandingInput {
+                truecolor: false,
+                ..input(40, 6)
+            },
+            None,
+            "palette prompt",
+            "15:19",
+        ))
+        .unwrap();
+        assert!(palette.contains(&format!(
+            "\x1b[48;5;{}m",
+            palette_index([53, 52, 58])
+        )));
+        assert!(!palette.contains(";2;"));
     }
 
     #[test]
@@ -591,13 +831,13 @@ mod tests {
         let short = cells(&render(&input(40, 3)), 40, 3);
         assert_eq!(
             short,
-            ["", " ~/src/a1", " v0.2.7"],
-            "no room for the wordmark"
+            ["", " ~/src/a1", ""],
+            "no room for the wordmark and no duplicate version"
         );
         assert_eq!(cells(&render(&input(40, 1)), 40, 1), [" ~/src/a1"]);
         let narrow = cells(&render(&input(6, 23)), 6, 23);
         assert_eq!(narrow[21], " …/a1");
-        assert_eq!(narrow[22], " v0.2.");
+        assert_eq!(narrow[22], "");
     }
 
     #[test]
@@ -617,7 +857,7 @@ mod tests {
     }
 
     #[test]
-    fn accents_palette_fallback_text_header_and_missing_version() {
+    fn accents_palette_fallback_and_version_free_landing() {
         let blue = String::from_utf8(render(&LandingInput {
             accent: Some("blue"),
             ..input(80, 23)
@@ -643,16 +883,12 @@ mod tests {
             23,
         );
         assert!(plain.iter().all(|row| !row.contains('▀')));
-        assert_eq!(plain[21..], [" ~/src/a1", " v0.2.7"]);
-        let unversioned = cells(
-            &render(&LandingInput {
-                version: None,
-                ..input(80, 23)
-            }),
-            80,
-            23,
+        assert_eq!(plain[21..], [" ~/src/a1", ""]);
+        let landing = cells(&render(&input(80, 23)), 80, 23);
+        assert!(
+            landing[22].is_empty(),
+            "the landing never repeats the package version"
         );
-        assert!(unversioned[22].is_empty(), "no version, no version row");
     }
 
     #[test]
@@ -706,6 +942,11 @@ mod tests {
             };
             assert_eq!(rgb("accent"), colors.accent, "{name} accent");
             assert_eq!(rgb("border"), colors.border, "{name} border");
+            assert_eq!(
+                rgb("userMessageBackground"),
+                colors.user_message_background,
+                "{name} user message background"
+            );
         }
         assert_eq!(accent_colors(Some("unknown")), LANDING_ACCENTS[0].1);
         let rgb_of = |value: &serde_json::Value| {
@@ -716,15 +957,13 @@ mod tests {
             assert_eq!(rgb_of(&accents[name]["canvas"]), canvas, "{name} canvas");
         }
         assert_eq!(rgb_of(&fixture["darkCanvas"]), LANDING_DARK_CANVAS);
-        let dim = fixture["dim"].as_array().unwrap();
-        assert_eq!(
-            [0, 1, 2].map(|index| dim[index].as_u64().unwrap() as u8),
-            DIM
-        );
+        assert_eq!(rgb_of(&fixture["dim"]), DIM);
+        assert_eq!(rgb_of(&fixture["muted"]), MUTED);
+        assert_eq!(rgb_of(&fixture["messageText"]), MESSAGE_TEXT);
     }
 
     #[test]
-    fn the_landing_composes_under_either_strip_with_no_cursor() {
+    fn the_ready_prompt_composes_under_either_strip_with_no_hardware_cursor() {
         use crate::roles::presentation::{DesiredPresentation, FinalCursor, PresentationComposer};
         let desired = |offset: u16| DesiredPresentation {
             tab_id: None,
@@ -733,7 +972,7 @@ mod tests {
             geometry_generation: 0,
             strip: "strip".into(),
             structured: None,
-            legacy_body: render(&input(80, 23)),
+            legacy_body: render_ready_prompt(&input(80, 23), None, "draft", 5),
             overlay: None,
             cursor: Some(FinalCursor::Hidden),
             modes: None,
