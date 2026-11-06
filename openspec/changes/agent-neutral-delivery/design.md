@@ -56,3 +56,23 @@ Exercise the documented plain-Git preparation path with A1 runtime absent, then 
 - Updating only the skill would leave contradictory configuration, specifications, and governance assertions. All maintained delivery surfaces must be reconciled together.
 - External agents must reclaim released cleanup registrations before resuming, even though A1 session linking is unnecessary.
 - The PR #873 failure remains unresolved until its separate repair resumes with a safe ownership handoff.
+
+## Implementation results
+
+The maintainer approved implementation after reviewing planning PR #874. The delivery skill, OpenSpec context, architecture guide, and delivery/cleanup runbooks now distinguish the common Git path from A1 and Claude adapters. The existing guidance suite covers portable context verification, explicit resumed ownership, cleanup claims, conflicting owners, scoped adapters, scratch, and independent integration authority. Its two newline-sensitive document reads normalize CRLF so the same contracts work in a Windows Git checkout.
+
+Validation completed on 2026-11-06:
+
+- Focused `change-delivery-guidance.test.ts`: 11 tests passed.
+- `npm run typecheck`: passed after generating the fresh worktree's TypeScript output and startup descriptor with the existing compiler and startup-artifact script. No product source or generated output is committed.
+- Skill Creator `quick_validate.py`: passed; its PyYAML dependency was installed only into ignored worktree artifacts.
+- `openspec validate agent-neutral-delivery --strict`: passed.
+- `git diff --check`: passed.
+
+The actual external-agent path created this task worktree without an A1 runtime and resumed the same verified root, common repository, branch, and PR for approved implementation. Git inventory and cleanup status showed no lock or registration for this checkout. Primary remained on develop and PR #873's checkout was not adopted.
+
+Scenario review (instruction review, not live ownership mutation): an explicitly handed-off registered checkout must claim its released cleanup entry before editing; an unknown handoff, foreign cleanup owner, or known live editor must stop reuse. Missing A1 integration alone selects the portable path. No takeover, recovery, forced checkout, or cleanup was executed to simulate those cases.
+
+Gap disposition: no remaining implementation gap within the approved policy scope. Cooperative ownership does not police arbitrary external editors; that documented limitation is intentional and no universal lock service is promised. PR #873's supervisor repair is outside this change. Required remote validation remains workflow-owned after finalization and is reported in Actions, not as a committed future task.
+
+The optional local finalization inspection stopped at `delivery-specs-diverged`: this Windows checkout uses `core.autocrlf=true`, while the inspector compares raw canonical-spec bytes to Git blobs. The first inspected canonical file had CRLF in the checkout and LF in Git, with identical normalized content; Git reports no canonical-spec diff against current origin/develop. No local finalization or canonical-spec edits were performed. Trusted workflow finalization remains authoritative.
