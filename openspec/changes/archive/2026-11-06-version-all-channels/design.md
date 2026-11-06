@@ -23,6 +23,12 @@ Stable version commands will also perform the existing best-effort preview attri
 
 Focused local checks passed: `npm run typecheck`, `npm exec vitest -- run test/cli/version-stats.test.ts` (28 tests), and `npm exec openspec -- validate version-all-channels --strict`. The fresh worktree initially lacked local dependencies and generated bin imports; installing dependencies without lifecycle scripts, compiling TypeScript, and generating the startup public artifact resolved those setup failures. Required CI remains authoritative after finalization.
 
+## Finalized-spec CI repair
+
+Development validation run 42281638022 passed typechecking but failed the architecture gate because finalization shifted four existing canonical a1-shell identity references by seven lines. Regenerated and reviewed the inventory and exact allowlist: all 74 occurrences, values, contexts, classifications, and approval reasons are unchanged; only those four locations/fingerprints and generation timestamps changed. No checker or assertion was relaxed.
+
+Local repair checks passed: `npm run check:architecture`, `npm run typecheck`, and focused version, product-identity governance, and inventory tests (45 tests across three files). Trusted finalization must refresh this delivery's archive digests before renewed exact-head CI.
+
 ## Known gaps
 
 None identified in the proposed scope. Already-installed stable binaries will retain their old output until the fix is distributed and installed.
