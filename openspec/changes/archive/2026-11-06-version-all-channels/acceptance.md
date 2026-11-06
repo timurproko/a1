@@ -22,9 +22,9 @@ The maintainer integration decision accepts these scenarios:
     "Develop shows the published preview's recorded pull request when available, while stable Current and Release remain unattributed.",
     "Missing preview metadata and registry failures preserve unavailable output, concise diagnostics, and successful version-command exit behavior."
   ],
-  "archiveDigest": "71387e47ca40542ba8ad3f2433943ab723e96138d0d32c3e93e589f4d1682028",
+  "archiveDigest": "6ecc3537b584bae9c0979ba774d09e0013edf3cafeb946a507aae437b3ef526f",
   "specDigest": "209ae799f38888526a74e0a72aaf558792e89d080e66322426fc304826f6cf6d",
-  "tasksDigest": "d5bb5e76f069f4a8d0e03af2c6f6b9f02470f6ddcaddb84c461a6808a264c893",
+  "tasksDigest": "ab7fd91cb87e68b3d7a6a78a11f37798b8af6b806a2e3a8152eb2f5a0fa0b607",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
