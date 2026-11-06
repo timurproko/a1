@@ -118,12 +118,12 @@ The strip row SHALL repaint its full width with the live `tabBarBackgroundStyle`
 - **WHEN** a child changes the terminal default background or writes content that would reach the strip row
 - **THEN** the strip row SHALL show only current strip content over the configured canvas semantics
 
-### Requirement: The empty resident shell presents a ready Agent prompt
+### Requirement: The empty resident shell presents the a1 landing
 While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present a ready local Agent editor and status footer in the body. The launch cwd SHALL be formatted and placed exactly where an Agent footer shows it, with the same one-cell gutter and dim style, and neither a wordmark nor package-version label SHALL occupy the editor or footer. This ready prompt SHALL appear from the first registry list with no running tab or pending create. Its body SHALL follow the Agent `backgroundStyle`, including the terminal default for `transparent`.
 
 Printable Unicode keys, ordinary single-line cursor/editing keys, and paste SHALL update a bounded local draft without starting a process or forwarding input to any child. Enter on a non-empty draft SHALL create exactly one Agent, immediately present its pending chip, submitted-message bar, empty editor, and footer, and bind the draft plus submit action to that pending creation; buffered input SHALL be released only after that exact Agent commits its view. The submitted-message preview SHALL remain painted across the initial pre-input child commit and every intermediate startup or Working surface, then SHALL hand off directly to the first coherent same-Agent surface whose retained content contains the submitted message. Empty Enter SHALL do nothing. Cancellation or creation failure SHALL discard the bound submission without delivering it to a later Agent, hidden utility, or unrelated viewed tab. Tab shortcuts, `+` and its popups, strip pointer interactions, and double-`Ctrl+C` detach SHALL retain precedence and existing behavior. A hidden utility SHALL retain its first-draw handoff, a tab already starting for this attach SHALL retain its first-draw gate, and the ready prompt SHALL never be shown while a tab is viewed.
 
-#### Scenario: Last tab closes into the ready prompt
+#### Scenario: Last tab closes into the landing
 - **WHEN** the final Agent or Settings tab closes while the attach client stays open
 - **THEN** the strip SHALL show `+` and the clock and the body SHALL show an empty editor, status footer, cwd, and caret at either strip position
 
@@ -162,13 +162,28 @@ Printable Unicode keys, ordinary single-line cursor/editing keys, and paste SHAL
 - **WHEN** the user creates an Agent from the ready prompt at either tab-bar position
 - **THEN** the Agent footer SHALL show the cwd on the same row and one-cell-gutter column
 
-#### Scenario: Start an Agent from the launcher
+#### Scenario: Start an Agent from the landing
 - **WHEN** the user presses the `New A1 tab` shortcut or chooses `+ Agent` from the ready prompt
 - **THEN** one Agent SHALL be created and presented through the ordinary tab UI
 
-#### Scenario: Open Settings from the ready prompt
+#### Scenario: Open Settings from the landing
 - **WHEN** the user presses the `Open Settings tab` shortcut or chooses `Settings` from `+`
 - **THEN** the hidden Settings tab kept ready SHALL be shown without receiving or consuming the Agent draft
+
+#### Scenario: Adding a tab hides the landing
+- **WHEN** the user submits a non-empty draft from the ready prompt
+- **THEN** the ready prompt SHALL immediately give way to the pending Agent presentation
+- **WHEN** the user opens a utility tab from the ready prompt
+- **THEN** the ready prompt SHALL remain until the utility tab's first drawn frame replaces it
+
+#### Scenario: The wordmark hands over to the Agent caret
+- **WHEN** the user starts an Agent from the ready prompt
+- **THEN** no wipe or fade SHALL run between the ready editor, provisional submission, and first real submitted-message surface
+
+#### Scenario: The landing wordmark has a clean a
+- **WHEN** the ready prompt is visible
+- **THEN** the obsolete landing wordmark SHALL NOT render in the editor body
+- **AND** the cwd SHALL retain the Agent footer's one-cell gutter and row
 
 #### Scenario: Pending and first-draw handoff
 - **WHEN** a direct prompt submission starts an Agent
@@ -178,7 +193,7 @@ Printable Unicode keys, ordinary single-line cursor/editing keys, and paste SHAL
 - **AND** the first coherent same-Agent surface containing the submitted-message marker and accepted prompt content SHALL replace the provisional presentation directly without an intervening blank or editor flash
 - **AND** cancellation, failure, or an explicit view change SHALL clear the held preview before another tab can be shown
 
-#### Scenario: The ready prompt follows the background setting
+#### Scenario: The landing follows the background setting
 - **WHEN** `backgroundStyle` is `accent`, `dark`, or `transparent`
 - **THEN** every prompt body cell SHALL use the same canvas semantics as an Agent tab
 
@@ -192,7 +207,7 @@ Printable Unicode keys, ordinary single-line cursor/editing keys, and paste SHAL
 
 ### Requirement: Resident right-side items expose configuration controls
 
-The complete physically rendered right-side group, from one blank cell before the first visible Version or Time glyph through one blank cell after the final visible glyph, SHALL have one explicit hover and hit range. Its user-facing Settings row and native multi-select title SHALL be `Widgets`, and the dialog SHALL describe choosing which widgets the tab bar shows; persisted setting identities SHALL remain unchanged. When both items are present, ` • ` SHALL separate Version from Time, matching the model/thinking separator convention. Hovering any cell in that padded range SHALL apply one consistent group treatment to every rendered item and both padding cells. Right-clicking anywhere in the group SHALL open a context menu containing `Configure`; activating it SHALL open the native searchable multi-select titled `Right Side`, where Version and Time toggle independently and persist in fixed order. Items omitted by narrow layout SHALL contribute no cells to the group, and space outside the rendered group SHALL not consume child input.
+The complete physically rendered right-side group, from one blank cell before the first visible Version or Time glyph through one blank cell after the final visible glyph, SHALL have one explicit hover and hit range. Its user-facing Settings row and native multi-select title SHALL be `Widgets`, and the dialog SHALL describe choosing which widgets the tab bar shows; persisted setting identities SHALL remain unchanged. When both items are present, ` • ` SHALL separate Version from Time, matching the model/thinking separator convention. Hovering any cell in that padded range SHALL apply one consistent group treatment to every rendered item and both padding cells. Right-clicking anywhere in the group SHALL open a context menu containing `Configure`; activating it SHALL open the native searchable multi-select titled `Widgets`, where Version and Time toggle independently and persist in fixed order. Items omitted by narrow layout SHALL contribute no cells to the group, and space outside the rendered group SHALL not consume child input.
 
 The group's resting foreground SHALL use the resident status/footer dim color. On Transparent, its hover treatment SHALL use the owned popup menu's accent-selected background; on Black and Accent, it SHALL use the same subtly lightened canvas background as `+`. Every hover SHALL retain the dim foreground and remain independent of tab chips, popups, overflow, drag targets, and child-surface input.
 
