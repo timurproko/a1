@@ -21,7 +21,7 @@ Stable version commands will also perform the existing best-effort preview attri
 
 ## Validation strategy
 
-After implementation approval, use TypeScript checking, focused CLI version tests, and strict validation of this OpenSpec change. Required CI remains authoritative after finalization. No implementation or tests are changed in this planning PR.
+Focused local checks passed: `npm run typecheck`, `npm exec vitest -- run test/cli/version-stats.test.ts` (28 tests), and `npm exec openspec -- validate version-all-channels --strict`. The fresh worktree initially lacked local dependencies and generated bin imports; installing dependencies without lifecycle scripts, compiling TypeScript, and generating the startup public artifact resolved those setup failures. Required CI remains authoritative after finalization.
 
 ## Known gaps
 
