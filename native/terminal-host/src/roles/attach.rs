@@ -81,9 +81,46 @@ impl PendingPrompt {
             .is_some_and(|tab_id| viewed == Some(tab_id))
     }
 
-    fn completes_with(&self, tab_id: &str, requested: bool) -> bool {
-        !requested && self.handoff_tab.as_deref() == Some(tab_id)
+    fn completes_with(&self, surface: &Surface, requested: bool) -> bool {
+        !requested
+            && self.handoff_tab.as_deref() == Some(surface.tab_id.as_str())
+            && surface_contains_submitted_prompt(surface, &self.text)
     }
+}
+
+fn prompt_probe(text: &str, max_cells: usize) -> String {
+    let mut probe = String::new();
+    let mut cells = 0;
+    for grapheme in text.trim_start().graphemes(true) {
+        let width = UnicodeWidthStr::width(grapheme);
+        if cells + width > max_cells.min(12) {
+            break;
+        }
+        probe.push_str(grapheme);
+        cells += width;
+    }
+    probe
+}
+
+/// A real submitted-message row owns the `❯` marker and the accepted prompt's leading cells.
+fn surface_contains_submitted_prompt(surface: &Surface, prompt: &str) -> bool {
+    let matches = |value: &str, probe: &str| {
+        value.contains('❯') && (probe.is_empty() || value.contains(probe))
+    };
+    if let Some(structured) = surface.structured.as_ref() {
+        let probe = prompt_probe(prompt, usize::from(structured.columns.saturating_sub(3)));
+        if structured.row_data.iter().any(|row| {
+            let text = row.cells.iter()
+                .filter(|cell| cell.width > 0)
+                .map(|cell| cell.text.as_str())
+                .collect::<String>();
+            matches(&text, &probe)
+        }) {
+            return true;
+        }
+    }
+    let legacy = String::from_utf8_lossy(&surface.bytes);
+    matches(&legacy, &prompt_probe(prompt, 4))
 }
 
 struct CancelledAgent {
@@ -3254,7 +3291,7 @@ impl Client {
         if self
             .pending_prompt
             .as_ref()
-            .is_some_and(|prompt| prompt.completes_with(&surface.tab_id, requested))
+            .is_some_and(|prompt| prompt.completes_with(&surface, requested))
         {
             self.pending_prompt = None;
         } else if fill.is_some() && surface.status != "failed"
@@ -5115,20 +5152,30 @@ mod tests {
     }
 
     #[test]
-    fn submitted_prompt_handoff_waits_for_the_same_agents_next_live_surface() {
-        let mut prompt = PendingPrompt {
-            text: "ask me 10 questions".into(),
-            submitted_at: SystemTime::UNIX_EPOCH,
-            handoff_tab: None,
-        };
-        assert!(!prompt.held_for(None));
-        assert!(!prompt.held_for(Some("agent-2")));
-        prompt.begin_handoff("agent-2");
-        assert!(prompt.held_for(Some("agent-2")));
-        assert!(!prompt.held_for(Some("agent-3")));
-        assert!(!prompt.completes_with("agent-2", true));
-        assert!(!prompt.completes_with("agent-3", false));
-        assert!(prompt.completes_with("agent-2", false));
+    fn submitted_prompt_handoff_waits_until_the_real_message_surface() {
+        for structured in [false, true] {
+            let mut prompt = PendingPrompt {
+                text: "ask me 10 questions".into(),
+                submitted_at: SystemTime::UNIX_EPOCH,
+                handoff_tab: None,
+            };
+            assert!(!prompt.held_for(None));
+            prompt.begin_handoff("tab-1");
+            assert!(prompt.held_for(Some("tab-1")));
+            assert!(!prompt.held_for(Some("tab-2")));
+
+            let blank = startup_surface(1, "", structured);
+            let working = startup_surface(2, "⋮ Working…", structured);
+            let real = startup_surface(3, " ❯ ask me 10 questions", structured);
+            assert!(!prompt.completes_with(&blank, false));
+            assert!(!prompt.completes_with(&working, false));
+            assert!(!prompt.completes_with(&real, true));
+            assert!(prompt.completes_with(&real, false));
+
+            let mut wrong_agent = real.clone();
+            wrong_agent.tab_id = "tab-2".into();
+            assert!(!prompt.completes_with(&wrong_agent, false));
+        }
     }
 
     #[test]
