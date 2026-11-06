@@ -1770,9 +1770,18 @@ fn ten_concurrent_tab_starts_respect_the_server_limit() {
     assert_eq!(registry.tabs.len(), 10);
     assert!(registry.tabs.iter().all(|tab| tab.lifecycle == "running"));
     assert_eq!(holder_identities(&credentials_root).len(), 10);
-    for child in registry.tabs.iter().filter_map(|tab| tab.child_pid) {
-        kill_now(child);
-    }
+    let children = registry
+        .tabs
+        .iter()
+        .filter_map(|tab| {
+            Some(terminal_host_contracts::identity::ProcessIdentity {
+                pid: tab.child_pid?,
+                start: tab.child_start_identity.clone()?,
+            })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(children.len(), 10);
+    kill_now_batch(&children);
     let restart_deadline = Instant::now() + Duration::from_secs(30);
     loop {
         let restarted = RegistryStore::read(&credentials_root.join("registry.json"))
@@ -4861,6 +4870,28 @@ fn kill_now(pid: u32) {
 #[cfg(windows)]
 fn kill_now(pid: u32) {
     signal_terminate(pid);
+}
+
+fn kill_now_batch(expected: &[terminal_host_contracts::identity::ProcessIdentity]) {
+    for identity in expected {
+        let actual = terminal_host_contracts::identity::inspect_process(identity.pid)
+            .ok()
+            .flatten();
+        if actual.as_ref() == Some(identity) {
+            kill_now(identity.pid);
+        }
+    }
+    for identity in expected {
+        wait_for_terminated_identity(Some(identity.clone()));
+        let actual = terminal_host_contracts::identity::inspect_process(identity.pid)
+            .ok()
+            .flatten();
+        assert_ne!(
+            actual.as_ref(),
+            Some(identity),
+            "child did not terminate after the forced restart signal: {identity:?}"
+        );
+    }
 }
 
 fn terminate_batch(pids: &[u32]) {
