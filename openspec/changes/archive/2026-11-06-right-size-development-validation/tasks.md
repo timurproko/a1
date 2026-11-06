@@ -16,3 +16,8 @@
 ## 4. Validate
 
 - [x] 4.1 Run typechecking, the native workflow governance tests, the probe script unit tests, and strict OpenSpec validation; record the outcomes and known-gap disposition in the design artifact.
+
+## 5. Repair the reported CI shutdown race
+
+- [x] 5.1 Keep supervisor storage open until in-flight disconnect reconciliation settles, and prevent new reconciliation after shutdown begins.
+- [x] 5.2 Cover shutdown during reconciliation for both exited and surviving roots; reproduce the original SQLite rejection before the fix and verify the focused supervision tests, recovery integration tests, and typechecking after the fix.

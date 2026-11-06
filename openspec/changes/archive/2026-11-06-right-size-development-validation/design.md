@@ -68,3 +68,16 @@ Local validation in the task worktree (Windows, no `bash` on PATH, no `dist/` bu
 - `npx openspec validate right-size-development-validation --strict`: valid.
 
 Known gaps: observed run timings for the cache hit path are recorded only once Development validation runs on this pull request's head; the first run on any platform is a miss by construction, so the hit timing appears from the second run with unchanged native inputs.
+
+### CI repair: supervisor shutdown reconciliation
+
+The Pi release/resume integration job in run `42229356128` passed its assertions but failed on an unhandled `database is not open` rejection. Owner-disconnect reconciliation could resume after its process wait and write a terminal outcome after supervisor shutdown had closed SQLite. Shutdown now blocks new reconciliation and settles existing reconciliation before retiring the endpoint and closing storage, retaining the existing bounded process wait.
+
+The regression uses a real supervisor, authenticated socket, and SQLite store with controlled root liveness and timers. Both exited-root and surviving-root cases reproduced premature storage closure and the exact unhandled rejection before the fix. After the fix:
+
+- `foreground-terminal-lease.test.ts` and `supervisor-release-exit.test.ts`: 17 tests passed, including both new cases.
+- `supervisor-recovery.integration.test.ts`: all 16 tests passed, including the original kill-all recovery case.
+- `npm run typecheck`: passed after building the TypeScript output and startup assets.
+- `openspec validate right-size-development-validation --archived --strict`: this archive passed. The CLI scans all archives despite the supplied name and exits nonzero for 69 unrelated historical archives with incomplete tasks.
+
+Local Windows validation used the installed release process-guardian addon and matching manifest (protocol 2, N-API 9, crate `0.1.0-dev`) because the local Microsoft C++ tools and Windows SDK are unavailable. CI retains the native build and platform coverage. Separately, run `42251993339` cancelled two macOS arm64 partitions before any runner or step started; GitHub annotated hosted-runner acquisition failures and capacity constraints. Those infrastructure cancellations do not justify weakening checks or assertions.
