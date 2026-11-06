@@ -69,6 +69,63 @@ async function fileRecord(path, filename = path.split(/[\\/]/).at(-1)) {
   return { filename, sha256: createHash("sha256").update(bytes).digest("hex"), size: metadata.size };
 }
 
+/**
+ * Lists every reason a restored release manifest cannot certify this checkout without rebuilding. The
+ * restored addon and notices must match their records byte for byte, and the manifest must describe this
+ * target, crate version, and Cargo.lock; the role entry is re-recorded from the current build instead.
+ */
+export function reuseProblems(manifest, { platform, architecture, crateVersion, cargoLockSha256, artifact, notices }) {
+  const problems = [];
+  if (manifest?.schema !== TERMINAL_HOST_SCHEMA) problems.push(`manifest schema ${manifest?.schema} is not ${TERMINAL_HOST_SCHEMA}`);
+  if (manifest?.platform !== platform || manifest?.architecture !== architecture) {
+    problems.push(`manifest records ${manifest?.platform}-${manifest?.architecture}, not ${platform}-${architecture}`);
+  }
+  if (manifest?.capability !== "supported") problems.push("manifest is not marked supported");
+  if (manifest?.crateVersion !== crateVersion) problems.push(`crate version ${manifest?.crateVersion} is not ${crateVersion}`);
+  if (manifest?.provenance?.cargoLockSha256 !== cargoLockSha256) problems.push("Cargo.lock digest differs from the restored build");
+  for (const [field, record] of [["artifact", artifact], ["notices", notices]]) {
+    const expected = manifest?.[field];
+    if (record === null) problems.push(`${field} file is missing`);
+    else if (expected?.filename !== record.filename || expected?.sha256 !== record.sha256 || expected?.size !== record.size) {
+      problems.push(`${field} does not match its manifest record`);
+    }
+  }
+  return problems;
+}
+
+async function optionalFileRecord(path) {
+  try {
+    return await fileRecord(path);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+/** Re-certify a restored release build for this checkout's role entry; returns the rewritten manifest. */
+export async function reuseTerminalHostBuild({ repositoryRoot, platform, architecture, crateVersion }) {
+  const targetDirectory = resolve(repositoryRoot, "dist/native", `${platform}-${architecture}`);
+  const manifestPath = resolve(targetDirectory, TERMINAL_HOST_MANIFEST);
+  let manifest;
+  try {
+    manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  } catch {
+    throw new Error(`restored terminal host cannot be reused: ${TERMINAL_HOST_MANIFEST} is missing or malformed`);
+  }
+  const problems = reuseProblems(manifest, {
+    platform,
+    architecture,
+    crateVersion,
+    cargoLockSha256: createHash("sha256").update(await readFile(resolve(repositoryRoot, "native/terminal-host/Cargo.lock"))).digest("hex"),
+    artifact: await optionalFileRecord(resolve(targetDirectory, TERMINAL_HOST_ADDON)),
+    notices: await optionalFileRecord(resolve(targetDirectory, NOTICES_FILENAME)),
+  });
+  if (problems.length > 0) throw new Error(`restored terminal host cannot be reused:\n${problems.map(problem => `- ${problem}`).join("\n")}`);
+  const reused = { ...manifest, entry: await fileRecord(resolve(repositoryRoot, TERMINAL_HOST_ENTRY), TERMINAL_HOST_ENTRY) };
+  await writeFile(manifestPath, `${JSON.stringify(reused, null, 2)}\n`, "utf8");
+  return reused;
+}
+
 function run(executable, arguments_, verbose, options = {}) {
   const { environment = process.env, ...spawnOptions } = options;
   const result = crossSpawn.sync(executable, arguments_, {
@@ -97,14 +154,22 @@ export function terminalHostZigVersion(environment, observe) {
 
 async function main() {
   const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-  const target = resolveBuildTarget({ argv: process.argv.slice(2) });
+  const argv = process.argv.slice(2);
+  const target = resolveBuildTarget({ argv: argv.filter(argument => argument !== "--reuse") });
   const { platform, architecture } = target;
-  const environment = requireNativeBuildEnvironment(resolveNativeBuildEnvironment());
-  const cargo = environment.CARGO ?? "cargo";
-  const verbose = environment.A1_BUILD_VERBOSE === "1";
   const cargoManifest = resolve(repositoryRoot, "native/terminal-host/Cargo.toml");
   const crateVersion = (await readFile(cargoManifest, "utf8")).match(/^version\s*=\s*"([^"]+)"/m)?.[1];
   if (!crateVersion) throw new Error("terminal host Cargo manifest has no package version");
+  if (argv.includes("--reuse")) {
+    // Rationale: a restored exact-input build needs no toolchain; only the role entry built by this
+    // checkout is re-recorded, because the manifest certifies that file's bytes at load time.
+    const reused = await reuseTerminalHostBuild({ repositoryRoot, platform, architecture, crateVersion });
+    process.stdout.write(`Reused ${platform}-${architecture}/${TERMINAL_HOST_ADDON} (${reused.artifact.sha256}, built ${reused.builtAt})\n`);
+    return;
+  }
+  const environment = requireNativeBuildEnvironment(resolveNativeBuildEnvironment());
+  const cargo = environment.CARGO ?? "cargo";
+  const verbose = environment.A1_BUILD_VERBOSE === "1";
   const releaseDirectory = resolve(repositoryRoot, "native/terminal-host/target", target.outputDirectory);
   const targetDirectory = resolve(repositoryRoot, "dist/native", `${platform}-${architecture}`);
   await mkdir(targetDirectory, { recursive: true });

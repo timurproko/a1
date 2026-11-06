@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LaunchInstance, LaunchProfileId } from "../../../src/foundation/lifecycle/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
@@ -122,6 +123,60 @@ describe("plural launch-instance supervision", () => {
     await harness.server.close();
   });
 
+  it.each([false, true])("settles disconnected reconciliation before closing storage (root survives: %s)", async survives => {
+    const harness = await createHarness(250);
+    const owner = new SupervisorClient();
+    const rootPid = 2_000_000_000;
+    const reconciling = Promise.withResolvers<void>();
+    const kill = process.kill.bind(process);
+    let rootAlive = true;
+    let closing: Promise<void> | undefined;
+    let stateAtClose: string | undefined;
+    const closeStore = harness.store.close.bind(harness.store);
+    const storeClose = vi.spyOn(harness.store, "close").mockImplementation(() => {
+      stateAtClose = harness.store.loadLaunchInstance("instance-closing")?.state;
+      closeStore();
+    });
+    const probe = vi.spyOn(process, "kill").mockImplementation((pid, signal) => {
+      if (pid !== rootPid || signal !== 0) return kill(pid, signal);
+      reconciling.resolve();
+      if (!rootAlive) throw Object.assign(new Error("fixture root exited"), { code: "ESRCH" });
+      return true;
+    });
+    try {
+      await owner.connect(harness.paths.endpoint);
+      await owner.command(createCommand("create-closing", "instance-closing", "pi"));
+      await owner.command({
+        type: "activate-launch-instance", requestId: "activate-closing", instanceId: "instance-closing",
+        rootIdentity: { pid: rootPid, startIdentity: "closing:root" },
+        containmentIdentity: { provider: "test", token: "scope-closing" },
+      });
+      // Concurrency: hold reconciliation at its timer while socket and filesystem I/O continue.
+      vi.useFakeTimers({ toFake: ["setTimeout", "Date"] });
+      owner.close();
+      await reconciling.promise;
+      closing = harness.server.close();
+      expect(await Promise.race([closing.then(() => "closed"), delay(100, "pending")])).toBe("pending");
+      expect(storeClose).not.toHaveBeenCalled();
+
+      rootAlive = survives;
+      await vi.advanceTimersByTimeAsync(250);
+      await closing;
+      expect(storeClose).toHaveBeenCalledOnce();
+      expect(stateAtClose).toBe(survives ? "active" : "interrupted");
+      await expect(readFile(harness.paths.endpointMetadataPath)).rejects.toMatchObject({ code: "ENOENT" });
+    } finally {
+      rootAlive = false;
+      owner.close();
+      await vi.runAllTimersAsync();
+      await closing;
+      vi.useRealTimers();
+      probe.mockRestore();
+      storeClose.mockRestore();
+      await harness.server.close();
+    }
+  });
+
   it("fans update shutdown out and waits for every active instance outcome", async () => {
     const harness = await createHarness();
     const first = new SupervisorClient();
@@ -198,7 +253,7 @@ function launchInstance(id: string, ownerClientId: string, profileId: LaunchProf
   };
 }
 
-async function createHarness() {
+async function createHarness(reconciliationDeadlineMs = 25) {
   const root = await mkdtemp(resolve(tmpdir(), "a1-launch-supervisor-"));
   roots.push(root);
   const runtimeDir = resolve(root, "runtime");
@@ -209,7 +264,7 @@ async function createHarness() {
     endpointMetadataPath: resolve(runtimeDir, "supervisor.json"), endpointsDir: resolve(runtimeDir, "endpoints"), supervisorLogPath: resolve(runtimeDir, "supervisor.log"),
   };
   const store = new ControlStore(paths.databasePath, "boot-current");
-  const server = new SupervisorServer(store, paths, release(), "boot-current", vi.fn(), 25, 2_000);
+  const server = new SupervisorServer(store, paths, release(), "boot-current", vi.fn(), reconciliationDeadlineMs, 2_000);
   await server.listen();
   return { root, paths, store, server };
 }

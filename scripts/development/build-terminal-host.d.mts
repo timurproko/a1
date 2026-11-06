@@ -39,6 +39,20 @@ export interface TerminalHostArtifactManifest {
 }
 
 export function verifyVersionReport(report: unknown, crateVersion: string): string[];
+export function reuseProblems(manifest: unknown, input: {
+  platform: string;
+  architecture: string;
+  crateVersion: string;
+  cargoLockSha256: string;
+  artifact: ArtifactFileRecord | null;
+  notices: ArtifactFileRecord | null;
+}): string[];
+export function reuseTerminalHostBuild(input: {
+  repositoryRoot: string;
+  platform: string;
+  architecture: string;
+  crateVersion: string;
+}): Promise<TerminalHostArtifactManifest>;
 export function buildManifest(input: {
   platform: string;
   architecture: string;

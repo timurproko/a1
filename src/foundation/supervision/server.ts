@@ -209,6 +209,9 @@ export class SupervisorServer {
     if (this.#supersededPoll) clearInterval(this.#supersededPoll);
     this.#supersededPoll = null;
     for (const client of this.#clients) client.destroy();
+    // Concurrency: disconnect reconciliation can still commit a terminal outcome after its
+    // bounded process wait. Settle it before retiring the endpoint and closing shared storage.
+    await Promise.allSettled(this.#reconciliations.values());
     await withEndpointLock(this.paths.endpointMetadataPath, async () => {
       try {
         await this.#metadataWrites.catch(() => undefined);
@@ -461,6 +464,7 @@ export class SupervisorServer {
   #reconcileLaunchInstance(instanceId: string): Promise<void> {
     const existing = this.#reconciliations.get(instanceId);
     if (existing) return existing;
+    if (this.#closing) return Promise.resolve();
     const reconciliation = this.#performReconciliation(instanceId).finally(() => this.#reconciliations.delete(instanceId));
     this.#reconciliations.set(instanceId, reconciliation);
     return reconciliation;

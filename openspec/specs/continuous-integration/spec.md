@@ -1328,7 +1328,7 @@ Manual Development dispatch, scheduled/manual Full regression, release validatio
 - **AND** the protected aggregate SHALL remain unavailable rather than trusting stale event metadata
 
 ### Requirement: The native terminal host is validated in CI rather than on workstations
-Development validation SHALL own `native/terminal-host/**`, its run scripts, Node-addon harness, protocol fixtures and fuzz corpus, and provenance check through one deterministic pull-request-cadence validation owner. When impact classification selects that owner, CI SHALL schedule exactly Windows x64, Linux x64, and macOS arm64 targets with pinned Rust and Zig toolchains. Every target SHALL build the terminal-host binary and Node-API 9 lock artifact, run unit tests, platform-primitive tests, addon lifecycle/alias tests, fixture roles, and non-interactive probes, and upload the debug artifacts under platform-neutral names. The fixture-role integration test binary MAY execute as a fixed number of deterministic partition jobs per target, each on its own runner, provided every test belongs to exactly one partition, each partition records its identity in its outcome, and the protected development check requires every partition of every selected target. Each native dependency included in an uploaded artifact SHALL be compiled for the exact declared operating-system and architecture target with a baseline CPU model rather than the producing runner's native CPU features; an unsupported Cargo-to-native target mapping SHALL fail before compilation. The Linux x64 target SHALL additionally build and run the decoder fuzz target for a pinned bounded duration against its checked-in corpus. Every selected target SHALL participate in the protected development check. Changes touching none of the owned paths SHALL NOT schedule the owner. Until milestone 6 adds complete packaged lanes, terminal-host scope SHALL remain excluded from `full-release`, so nightly Full regression and release gates SHALL NOT infer terminal-host coverage.
+Development validation SHALL own `native/terminal-host/**`, its run scripts, Node-addon harness, protocol fixtures and fuzz corpus, and provenance check through one deterministic pull-request-cadence validation owner. When impact classification selects that owner, CI SHALL schedule exactly Windows x64, Linux x64, and macOS arm64 targets with pinned Rust and Zig toolchains. Every target SHALL build the terminal-host binary and Node-API 9 lock artifact, run unit tests, platform-primitive tests, addon lifecycle/alias tests, fixture roles, and non-interactive probes, and upload the debug artifacts under platform-neutral names. The fixture-role integration test binary MAY execute as a fixed number of deterministic partition jobs per target, each on its own runner, provided every test belongs to exactly one partition, each partition records its identity in its outcome, and the protected development check requires every partition of every selected target. A partition job SHALL run only its assigned role-fixture slice and the fixture-process cleanup check; the unit, binary, and release-isolation tests SHALL run once per target in the build-and-probe lane rather than in every partition. Each native dependency included in an uploaded artifact SHALL be compiled for the exact declared operating-system and architecture target with a baseline CPU model rather than the producing runner's native CPU features; an unsupported Cargo-to-native target mapping SHALL fail before compilation. The Linux x64 target SHALL additionally build and run the decoder fuzz target for a pinned bounded duration against its checked-in corpus; it MAY restore the pinned fuzz tool binary from a cache keyed by the tool version and the pinned nightly toolchain instead of compiling it, without changing the fuzz targets, corpus, or budget. Every selected target SHALL participate in the protected development check. Changes touching none of the owned paths SHALL NOT schedule the owner. Until milestone 6 adds complete packaged lanes, terminal-host scope SHALL remain excluded from `full-release`, so nightly Full regression and release gates SHALL NOT infer terminal-host coverage.
 
 The crate's build script SHALL refuse to build on a Windows host outside CI unless the explicit `TERMINAL_HOST_LOCAL_BUILD=1` override is set. It SHALL fail before invoking Zig or fetching Zig packages, with a concise message naming the CI job and the override. The same guard SHALL cover binary and addon builds.
 
@@ -1343,8 +1343,14 @@ The crate's build script SHALL refuse to build on a Windows host outside CI unle
 #### Scenario: Fixture-role tests run as partitions
 - **WHEN** the terminal-host owner is selected and its fixture-role integration tests are partitioned
 - **THEN** each partition job SHALL run its fixed subset of the unchanged test binary on its own runner and record its partition identity
-- **AND** the union of the partitions SHALL execute every test exactly once per target
+- **AND** no partition job SHALL run the crate's unit, binary, or release-isolation tests
+- **AND** the union of the partitions and the build-and-probe lane SHALL execute every test exactly once per target
 - **AND** a missing, skipped, failed, or stale partition SHALL fail the protected development check
+
+#### Scenario: The Linux fuzz tool is restored from cache
+- **WHEN** the Linux x64 build-and-probe lane finds a cached `cargo-fuzz` binary for the pinned version and nightly toolchain
+- **THEN** it SHALL skip compiling the tool and SHALL run every fuzz target against its corpus with the unchanged bounded budget
+- **AND** a cache miss SHALL install the pinned tool and run the same targets
 
 #### Scenario: Downloaded artifact runs on another supported CPU
 - **WHEN** a terminal-host artifact is downloaded from its producing runner to another machine satisfying the artifact's declared operating-system and architecture baseline
@@ -1679,11 +1685,25 @@ Development validation SHALL defer an implementation candidate whose finalized-h
 - **AND** SHALL NOT replace the PR-associated delivery, acceptance, selection, visibility, or aggregate evidence required for integration
 
 ### Requirement: Validation candidates carry the lane's release terminal host
-Every pull-request validation lane whose selected scopes consume a packed candidate, and every Full regression job that packs one, SHALL build the release terminal-host addon for its own platform into `dist/native` after installation and before recording the build receipt. On CI, validation packing SHALL fail before `npm pack` when the candidate lacks the platform's verified process-guardian addon or terminal-host addon, naming each problem.
+Every pull-request validation lane whose selected scopes consume a packed candidate, and every Full regression job that packs one, SHALL carry the release terminal-host addon for its own platform in `dist/native` after installation and before recording the build receipt. A pull-request validation lane MAY restore that output from a cache whose key names the runner operating system and architecture, the platform SDK pin where one applies, the pinned Rust and Zig versions, and a content hash of the complete terminal-host source tree, its lock file, the toolchain pin, and the build script with its imported modules; a lane that restores the output SHALL verify the restored addon and notices against the restored manifest and the manifest's target, crate version, and lock-file digest against the checkout, MAY re-record only the manifest's role-entry digest from the lane's own build, SHALL verify the result before recording the build receipt, and SHALL NOT provision the release toolchain or rebuild. A lane without a matching cache entry SHALL build the addon as before and MAY save the verified output for the same key. Publication lanes SHALL build the release terminal host within their own run. On CI, validation packing SHALL fail before `npm pack` when the candidate lacks the platform's verified process-guardian addon or terminal-host addon, naming each problem.
 
 #### Scenario: A pull request changes resident launch routing
 - **WHEN** pull-request validation runs packaged suites for the change
 - **THEN** the packed candidate SHALL carry the release terminal-host addon and its role entry, and packaged launches SHALL take the route a published package takes
+
+#### Scenario: A pull request leaves the native tree unchanged
+- **WHEN** a candidate-packing lane finds a cache entry for its complete terminal-host input key
+- **THEN** it SHALL restore and verify the release addon, manifest, and notices without installing Rust or Zig or running the release build
+- **AND** the recorded build receipt and the packed candidate SHALL be the same as if the lane had built the addon
+
+#### Scenario: The native tree or toolchain changes
+- **WHEN** any hashed input, the SDK pin, or a pinned toolchain version differs from every cached key
+- **THEN** the lane SHALL build the release terminal host as before
+- **AND** it MAY save the verified output under the new key for later lanes and runs
+
+#### Scenario: A restored artifact does not verify
+- **WHEN** a restored directory is missing a file, its bytes differ from its manifest record, or the manifest's target, crate version, or lock-file digest differs from the checkout
+- **THEN** the lane SHALL fail before recording the build receipt and SHALL NOT pack
 
 #### Scenario: A lane packs without the host
 - **WHEN** a CI lane reaches validation packing without this platform's terminal-host addon
