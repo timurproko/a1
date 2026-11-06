@@ -115,8 +115,7 @@ pub enum StripHitKind {
     View(String),
     Overflow,
     New,
-    RightVersion,
-    RightTime,
+    Right,
 }
 
 /// The interactive part of a rendered strip: column ranges `[start, end)` and the tabs that did

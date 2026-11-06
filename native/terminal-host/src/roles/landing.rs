@@ -114,8 +114,6 @@ pub fn prompt_chrome_color(accent: Option<&str>) -> [u8; 3] {
 pub struct LandingInput<'a> {
     pub columns: u16,
     pub body_rows: u16,
-    /// The running a1 package version, shown after the name.
-    pub version: Option<&'a str>,
     pub accent: Option<&'a str>,
     pub truecolor: bool,
     pub half_blocks: bool,
@@ -400,20 +398,12 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, fo
         if cwd_row + 1 < body_rows && actual.is_none() {
             place(cwd_row + 1, preview_status_row(footer, columns, input.truecolor));
         }
-    } else {
-        // Rationale: the wordmark already names a1, so the row below the cwd carries only the version.
-        if let Some(version) = input.version.filter(|version| !version.is_empty())
-            && cwd_row + 1 < body_rows && columns > 1
-        {
-            let version = clip(&format!("v{version}"), columns.saturating_sub(1));
-            place(cwd_row + 1, format!(" {}{version}\x1b[0m", fg(DIM)));
-        }
-        if input.half_blocks && cwd_row >= WORDMARK.len() {
-            let prompt_chrome = fg(prompt_chrome_color(input.accent));
-            for (offset, line) in WORDMARK.iter().enumerate() {
-                let row = cwd_row - WORDMARK.len() + offset;
-                place(row, wordmark_row(line, &prompt_chrome, columns));
-            }
+    } else if input.half_blocks && cwd_row >= WORDMARK.len() {
+        // Rationale: the wordmark and cwd identify the empty shell; the final row stays quiet.
+        let prompt_chrome = fg(prompt_chrome_color(input.accent));
+        for (offset, line) in WORDMARK.iter().enumerate() {
+            let row = cwd_row - WORDMARK.len() + offset;
+            place(row, wordmark_row(line, &prompt_chrome, columns));
         }
     }
 
@@ -487,7 +477,6 @@ mod tests {
         LandingInput {
             columns,
             body_rows: rows,
-            version: Some("0.2.7"),
             accent: None,
             truecolor: true,
             half_blocks: true,
@@ -497,7 +486,7 @@ mod tests {
     }
 
     #[test]
-    fn the_cwd_sits_where_the_agent_footer_shows_it_with_the_version_below_and_logo_above() {
+    fn the_cwd_sits_where_the_agent_footer_shows_it_with_a_blank_row_below() {
         let grid = cells(&render(&input(80, 23)), 80, 23);
         assert!(grid[..18].iter().all(String::is_empty), "{grid:#?}");
         assert_eq!(grid[18], WORDMARK[0].trim_end());
@@ -507,7 +496,7 @@ mod tests {
             grid[21], " ~/src/a1",
             "the second-to-last body row matches the Agent footer's one-cell gutter"
         );
-        assert_eq!(grid[22], " v0.2.7");
+        assert_eq!(grid[22], "");
         // Invariant: the reference's lower-half descender never becomes a full-height block.
         assert!(grid[19].starts_with("▄█▀▀█"), "the a has a short left descender");
         assert_eq!(WORDMARK.iter().map(|row| row.chars().count()).collect::<Vec<_>>(), [9, 9, 9]);
@@ -591,13 +580,13 @@ mod tests {
         let short = cells(&render(&input(40, 3)), 40, 3);
         assert_eq!(
             short,
-            ["", " ~/src/a1", " v0.2.7"],
-            "no room for the wordmark"
+            ["", " ~/src/a1", ""],
+            "no room for the wordmark and no duplicate version"
         );
         assert_eq!(cells(&render(&input(40, 1)), 40, 1), [" ~/src/a1"]);
         let narrow = cells(&render(&input(6, 23)), 6, 23);
         assert_eq!(narrow[21], " …/a1");
-        assert_eq!(narrow[22], " v0.2.");
+        assert_eq!(narrow[22], "");
     }
 
     #[test]
@@ -617,7 +606,7 @@ mod tests {
     }
 
     #[test]
-    fn accents_palette_fallback_text_header_and_missing_version() {
+    fn accents_palette_fallback_and_version_free_landing() {
         let blue = String::from_utf8(render(&LandingInput {
             accent: Some("blue"),
             ..input(80, 23)
@@ -643,16 +632,12 @@ mod tests {
             23,
         );
         assert!(plain.iter().all(|row| !row.contains('▀')));
-        assert_eq!(plain[21..], [" ~/src/a1", " v0.2.7"]);
-        let unversioned = cells(
-            &render(&LandingInput {
-                version: None,
-                ..input(80, 23)
-            }),
-            80,
-            23,
+        assert_eq!(plain[21..], [" ~/src/a1", ""]);
+        let landing = cells(&render(&input(80, 23)), 80, 23);
+        assert!(
+            landing[22].is_empty(),
+            "the landing never repeats the package version"
         );
-        assert!(unversioned[22].is_empty(), "no version, no version row");
     }
 
     #[test]

@@ -24,8 +24,7 @@ pub enum Hover {
     Tab(String),
     Overflow,
     New,
-    RightVersion,
-    RightTime,
+    Right,
 }
 
 /// The one interaction that owns the pointer and keyboard before the child does.
@@ -1072,8 +1071,7 @@ impl State {
                     StripHitKind::View(id) => Hover::Tab(id),
                     StripHitKind::Overflow => Hover::Overflow,
                     StripHitKind::New => Hover::New,
-                    StripHitKind::RightVersion => Hover::RightVersion,
-                    StripHitKind::RightTime => Hover::RightTime,
+                    StripHitKind::Right => Hover::Right,
                 });
                 if next != self.hovered {
                     self.hovered = next;
@@ -1088,13 +1086,9 @@ impl State {
                     Some(StripHitKind::New) => {
                         PopupMenu::configure(mouse.column, self.columns, PopupAction::ConfigurePlus)
                     }
-                    Some(StripHitKind::RightVersion | StripHitKind::RightTime) => {
-                        PopupMenu::configure(
-                            mouse.column,
-                            self.columns,
-                            PopupAction::ConfigureRight,
-                        )
-                    }
+                    Some(StripHitKind::Right) => PopupMenu::configure(
+                        mouse.column, self.columns, PopupAction::ConfigureRight,
+                    ),
                     _ => return,
                 };
                 self.mode = Mode::Popup(menu);
@@ -1139,7 +1133,7 @@ impl State {
                     }
                     effects.push(Effect::Paint { clear: false });
                 }
-                Some(StripHitKind::RightVersion | StripHitKind::RightTime) => {}
+                Some(StripHitKind::Right) => {}
                 Some(StripHitKind::Overflow) => {
                     let anchor = context
                         .strip
@@ -2265,6 +2259,38 @@ mod tests {
         assert!(fixture.step(&mut state, mouse(LEFT, 31, 0)).is_empty());
         assert_eq!(fixture.step(&mut state, key(KeyCode::Esc)), [PAINT]);
         assert!(state.mode.palette().is_none());
+    }
+
+    #[test]
+    fn the_complete_right_side_is_one_hover_and_configuration_target() {
+        let mut fixture = Fixture::new(&["a"], "a");
+        fixture.strip.hits.push((52, 79, StripHitKind::Right));
+        let mut state = fixture.state();
+        assert_eq!(
+            fixture.step(&mut state, mouse(MouseKind::Moved, 60, 0)),
+            [PAINT]
+        );
+        assert_eq!(state.hovered, Some(Hover::Right));
+        assert!(
+            fixture
+                .step(&mut state, mouse(MouseKind::Moved, 75, 0))
+                .is_empty(),
+            "moving between Version and Time stays in one target"
+        );
+        assert_eq!(fixture.step(&mut state, mouse(RIGHT, 75, 0)), [PAINT]);
+        let configure = state
+            .mode
+            .popup()
+            .expect("right-side configure menu")
+            .clone();
+        assert_eq!(configure.kind, PopupKind::Configure);
+        assert_eq!(configure.items[0].label, "Configure");
+        assert_eq!(
+            fixture.step(&mut state, mouse(LEFT, configure.column, 1)),
+            [PAINT]
+        );
+        let palette = state.mode.palette().expect("Right Side palette");
+        assert_eq!(palette.shown(), [("Version", "version"), ("Time", "time")]);
     }
 
     #[test]

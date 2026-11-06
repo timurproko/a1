@@ -75,8 +75,7 @@ pub enum StripHover {
     Tab(String),
     Overflow,
     New,
-    RightVersion,
-    RightTime,
+    Right,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -92,8 +91,7 @@ pub enum StripHit {
     View(String),
     Overflow,
     New,
-    RightVersion,
-    RightTime,
+    Right,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -270,6 +268,57 @@ fn tinted_background(color: Rgb, truecolor: bool) -> String {
     }
     let Rgb(red, green, blue) = tint(55, color, 24);
     format!("\x1b[48;2;{red};{green};{blue}m")
+}
+
+fn canvas_background(canvas: StripCanvas, truecolor: bool) -> String {
+    match canvas {
+        StripCanvas::Transparent => "\x1b[49m".into(),
+        StripCanvas::Rgb([red, green, blue]) if truecolor => {
+            format!("\x1b[48;2;{red};{green};{blue}m")
+        }
+        StripCanvas::Rgb(rgb) => {
+            format!("\x1b[48;5;{}m", super::landing::palette_index(rgb))
+        }
+    }
+}
+
+fn foreground(color: Rgb, truecolor: bool) -> String {
+    if truecolor {
+        let Rgb(red, green, blue) = color;
+        format!("\x1b[38;2;{red};{green};{blue}m")
+    } else {
+        format!(
+            "\x1b[38;5;{}m",
+            super::landing::palette_index([color.0, color.1, color.2])
+        )
+    }
+}
+
+fn control_foreground(hovered: bool, truecolor: bool, active_accent: &str) -> String {
+    if hovered {
+        foreground(tab_accent(Some(active_accent)), truecolor)
+    } else {
+        foreground(SETTLED_FG, truecolor)
+    }
+}
+
+fn control_style(
+    canvas: StripCanvas,
+    hovered: bool,
+    truecolor: bool,
+    active_accent: &str,
+) -> String {
+    let background = match (canvas, hovered, truecolor) {
+        (StripCanvas::Transparent, _, _) => "\x1b[49m",
+        (_, true, true) => "\x1b[48;2;48;48;48m",
+        (_, true, false) => "\x1b[48;5;236m",
+        (_, false, true) => "\x1b[48;2;38;38;38m",
+        (_, false, false) => "\x1b[48;5;235m",
+    };
+    format!(
+        "{background}{}",
+        control_foreground(hovered, truecolor, active_accent)
+    )
 }
 
 const SETTLED_FG: Rgb = Rgb(170, 170, 170);
@@ -552,6 +601,7 @@ fn chip(
     target_width: Option<usize>,
     active_accent: &str,
     fill: Option<&ChipFill>,
+    canvas: StripCanvas,
 ) -> (String, usize) {
     let glyph = status_glyph(&tab.status);
     let icon = if glyph.is_empty() { " " } else { &glyph };
@@ -564,13 +614,12 @@ fn chip(
     };
     let background = if active {
         format!(
-            "{}\x1b[38;2;255;255;255m",
-            tinted_background(selected_color, truecolor)
+            "{}{}",
+            tinted_background(selected_color, truecolor),
+            foreground(Rgb(255, 255, 255), truecolor)
         )
-    } else if hovered {
-        "\x1b[48;2;48;48;48m\x1b[38;2;170;170;170m".to_owned()
     } else {
-        "\x1b[48;2;38;38;38m\x1b[38;2;170;170;170m".to_owned()
+        control_style(canvas, hovered, truecolor, active_accent)
     };
     let title = chip_title(
         tab,
@@ -584,7 +633,12 @@ fn chip(
     let width = target_width.unwrap_or(fixed + title.width);
     let padding = " ".repeat(width.saturating_sub(fixed + title.width));
     let glyph_color = accent(&tab.status, tab.accent.as_deref());
-    let body = format!(" {glyph_color}{icon}\x1b[39m {name}{padding} ");
+    let restore_foreground = if active {
+        "\x1b[39m".to_owned()
+    } else {
+        control_foreground(hovered, truecolor, active_accent)
+    };
+    let body = format!(" {glyph_color}{icon}{restore_foreground} {name}{padding} ");
     let text = if active
         && truecolor
         && rename.is_none()
@@ -912,6 +966,7 @@ fn render_frame_filled_with_right(
             Some(target),
             active_accent,
             fill,
+            canvas,
         )
     };
     // Invariant: reserve controls before the configured right side on narrow rows. A disabled
@@ -959,17 +1014,25 @@ fn render_frame_filled_with_right(
         hovered,
         overflow_width,
         plus_width,
+        canvas,
+        truecolor,
+        active_accent,
     );
     let padding = usize::from(columns).saturating_sub(column as usize + right_reserve);
     bytes.push_str(&" ".repeat(padding));
     if let Some(right) = right {
         let right_start = column.saturating_add(padding as u16);
-        right.render(&mut bytes, &mut hits, right_start, hovered);
+        right.render(
+            &mut bytes,
+            &mut hits,
+            right_start,
+            hovered,
+            canvas,
+            truecolor,
+            active_accent,
+        );
     }
-    let canvas_sgr = match canvas {
-        StripCanvas::Transparent => "\x1b[49m".to_owned(),
-        StripCanvas::Rgb([red, green, blue]) => format!("\x1b[48;2;{red};{green};{blue}m"),
-    };
+    let canvas_sgr = canvas_background(canvas, truecolor);
     bytes = bytes.replace("\x1b[0m", &format!("\x1b[0m{canvas_sgr}"));
     bytes.push_str("\x1b[0m");
     if !truecolor {
@@ -1042,21 +1105,23 @@ fn append_controls(
     hovered: Option<&StripHover>,
     overflow_width: usize,
     plus_width: usize,
+    canvas: StripCanvas,
+    truecolor: bool,
+    active_accent: &str,
 ) {
     if overflow_width > 0 {
-        let background = if hovered == Some(&StripHover::Overflow) {
-            "48;48;48"
-        } else {
-            "38;38;38"
-        };
+        let style = control_style(
+            canvas,
+            hovered == Some(&StripHover::Overflow),
+            truecolor,
+            active_accent,
+        );
         let label = match overflow_width {
             1 => "⋯",
             2 => " ⋯",
             _ => " ⋯ ",
         };
-        bytes.push_str(&format!(
-            "\x1b[48;2;{background}m\x1b[38;2;170;170;170m{label}\x1b[0m"
-        ));
+        bytes.push_str(&format!("{style}{label}\x1b[0m"));
         hits.push((
             *column,
             column.saturating_add(overflow_width as u16),
@@ -1064,20 +1129,19 @@ fn append_controls(
         ));
         *column = column.saturating_add(overflow_width as u16);
     }
-    let plus_background = if hovered == Some(&StripHover::New) {
-        "48;48;48"
-    } else {
-        "38;38;38"
-    };
+    let plus_style = control_style(
+        canvas,
+        hovered == Some(&StripHover::New),
+        truecolor,
+        active_accent,
+    );
     let plus_label = match plus_width {
         0 => "",
         1 => "+",
         2 => " +",
         _ => " + ",
     };
-    bytes.push_str(&format!(
-        "\x1b[48;2;{plus_background}m\x1b[38;2;170;170;170m{plus_label}\x1b[0m"
-    ));
+    bytes.push_str(&format!("{plus_style}{plus_label}\x1b[0m"));
     if plus_width > 0 {
         hits.push((
             *column,
@@ -1160,33 +1224,28 @@ impl RightStatus {
         hits: &mut Vec<(u16, u16, StripHit)>,
         start: u16,
         hovered: Option<&StripHover>,
+        canvas: StripCanvas,
+        truecolor: bool,
+        active_accent: &str,
     ) {
-        let mut column = start;
-        let item = |bytes: &mut String, text: &str, hover: bool| {
-            if hover {
-                bytes.push_str("\x1b[48;2;48;48;48m");
-            }
-            bytes.push_str("\x1b[38;2;126;136;142m");
-            bytes.push_str(text);
-            if hover {
-                bytes.push_str("\x1b[0m");
-            }
-        };
+        let hovered = hovered == Some(&StripHover::Right);
+        if hovered {
+            bytes.push_str(&control_style(canvas, true, truecolor, active_accent));
+        } else {
+            bytes.push_str(&canvas_background(canvas, truecolor));
+            bytes.push_str(&foreground(Rgb(126, 136, 142), truecolor));
+        }
         if let Some(version) = self.version.as_deref() {
-            item(bytes, version, hovered == Some(&StripHover::RightVersion));
-            let end = column.saturating_add(UnicodeWidthStr::width(version) as u16);
-            hits.push((column, end, StripHit::RightVersion));
-            column = end;
+            bytes.push_str(version);
         }
         if self.version.is_some() && self.time.is_some() {
             bytes.push_str("  ");
-            column = column.saturating_add(2);
         }
         if let Some(time) = self.time.as_deref() {
-            item(bytes, time, hovered == Some(&StripHover::RightTime));
-            let end = column.saturating_add(UnicodeWidthStr::width(time) as u16);
-            hits.push((column, end, StripHit::RightTime));
+            bytes.push_str(time);
         }
+        let end = start.saturating_add(self.width() as u16);
+        hits.push((start, end, StripHit::Right));
         bytes.push_str("\x1b[0m ");
     }
 }
@@ -1205,6 +1264,9 @@ fn right_status_text(
     } else {
         None
     };
+    if version.is_none() && time.is_none() {
+        return None;
+    }
     let minimum = plus_width + if tabs_empty { 0 } else { 3 };
     let fits = |status: &RightStatus| usize::from(columns) >= status.width() + 1 + minimum;
     let both = RightStatus {
@@ -1824,6 +1886,7 @@ mod tests {
                 None,
                 "blue",
                 None,
+                StripCanvas::Rgb([20, 20, 20]),
             );
             let chip_style = text.split(' ').next().unwrap().to_owned();
             assert!(
@@ -1992,10 +2055,7 @@ mod tests {
         );
         assert_eq!(UnicodeWidthStr::width(text.as_str()), 80);
         assert_eq!(frame.hits.first(), Some(&(0, 3, StripHit::New)));
-        assert!(matches!(
-            frame.hits.last(),
-            Some((_, _, StripHit::RightTime))
-        ));
+        assert!(matches!(frame.hits.last(), Some((_, _, StripHit::Right))));
         // Platform: `render` detects truecolor from the environment, so either row background may
         // follow the reset.
         assert!(
@@ -2093,18 +2153,16 @@ mod tests {
         let time_at = both[version_at..].find("  ").expect("ordered separator") + version_at;
         assert!(version_at < time_at);
         assert_eq!(UnicodeWidthStr::width(both.as_str()), 80);
-        assert!(
-            both_frame
-                .hits
-                .iter()
-                .any(|(_, _, hit)| matches!(hit, StripHit::RightVersion))
-        );
-        assert!(
-            both_frame
-                .hits
-                .iter()
-                .any(|(_, _, hit)| matches!(hit, StripHit::RightTime))
-        );
+        let right_hits = both_frame
+            .hits
+            .iter()
+            .filter(|(_, _, hit)| matches!(hit, StripHit::Right))
+            .collect::<Vec<_>>();
+        assert_eq!(right_hits.len(), 1, "Version and Time are one target");
+        let (right_start, right_end, _) = *right_hits[0];
+        assert!(right_start < right_end);
+        let group = &both[usize::from(right_start)..usize::from(right_end)];
+        assert!(group.starts_with("v0.2.7-dev.1238") && group.contains("  "));
         let palette = render_right(
             80,
             false,
@@ -2129,18 +2187,20 @@ mod tests {
             )
             .ends_with("v0.2.7-dev.1238 ")
         );
-        let neither = plain(
-            &render_right(
-                80,
-                true,
-                StripRightItems {
-                    version: false,
-                    time: false,
-                },
-            )
-            .bytes,
+        let neither_frame = render_right(
+            80,
+            true,
+            StripRightItems {
+                version: false,
+                time: false,
+            },
         );
+        let neither = plain(&neither_frame.bytes);
         assert!(!neither.contains("v0.2.7-dev.1238"));
+        assert!(neither_frame
+            .hits
+            .iter()
+            .all(|(_, _, hit)| !matches!(hit, StripHit::Right)));
         assert_eq!(UnicodeWidthStr::width(neither.as_str()), 80);
         let narrow_frame = render_right(
             20,
@@ -2198,43 +2258,109 @@ mod tests {
     }
 
     #[test]
-    fn transparent_canvas_clears_the_row_and_right_text_uses_the_status_dim_token() {
-        let frame = render_frame_filled_with_right(
-            &[tab("one", "agent")],
-            Some("one"),
-            80,
-            Some(&StripHover::RightVersion),
-            TimeFormat::Twelve,
-            None,
-            Instant::now(),
-            true,
-            true,
-            "blue",
-            None,
-            Some("0.2.7-dev.1238"),
-            StripRightItems {
-                version: true,
-                time: false,
-            },
-            StripCanvas::Transparent,
-        );
-        assert!(
-            frame.bytes.contains("\x1b[49m"),
-            "transparent canvas restores default background"
-        );
-        assert!(frame.bytes.contains("\x1b[38;2;126;136;142m"));
-        assert!(
-            frame
+    fn transparent_controls_keep_the_canvas_and_share_accent_hover_feedback() {
+        let tabs = [tab("one", "active"), tab("two", "inactive")];
+        let render = |hovered: Option<StripHover>, truecolor, canvas| {
+            render_frame_filled_with_right(
+                &tabs,
+                Some("one"),
+                80,
+                hovered.as_ref(),
+                TimeFormat::Twelve,
+                None,
+                Instant::now(),
+                truecolor,
+                true,
+                "blue",
+                None,
+                Some("0.2.7-dev.1238"),
+                StripRightItems {
+                    version: true,
+                    time: true,
+                },
+                canvas,
+            )
+        };
+        let resting = render(None, true, StripCanvas::Transparent);
+        assert!(resting.bytes.contains("\x1b[49m"));
+        assert!(!resting.bytes.contains("\x1b[48;2;38;38;38m"));
+        assert!(resting.bytes.contains("\x1b[38;2;126;136;142m"));
+        assert_eq!(
+            resting
                 .hits
                 .iter()
-                .any(|(_, _, hit)| matches!(hit, StripHit::RightVersion))
+                .filter(|(_, _, hit)| matches!(hit, StripHit::Right))
+                .count(),
+            1
+        );
+        for hover in [StripHover::Tab("two".into()), StripHover::New, StripHover::Right] {
+            let hovered = render(Some(hover), true, StripCanvas::Transparent);
+            assert_eq!(hovered.hits, resting.hits);
+            assert!(hovered.bytes.contains("\x1b[38;2;91;141;239m"));
+            assert!(
+                !hovered.bytes.contains("\x1b[48;2;48;48;48m"),
+                "transparent hover never introduces an opaque block"
+            );
+        }
+        let crowded = (0..10)
+            .map(|index| tab(&format!("tab-{index}"), &format!("long agent {index}")))
+            .collect::<Vec<_>>();
+        let overflow = |hovered| {
+            render_frame_filled_with_right(
+                &crowded,
+                None,
+                40,
+                hovered,
+                TimeFormat::Twelve,
+                None,
+                Instant::now(),
+                true,
+                true,
+                "blue",
+                None,
+                None,
+                StripRightItems {
+                    version: false,
+                    time: false,
+                },
+                StripCanvas::Transparent,
+            )
+        };
+        let overflow_resting = overflow(None);
+        let overflow_hovered = overflow(Some(&StripHover::Overflow));
+        assert!(!overflow_resting.hidden_tabs.is_empty());
+        assert_eq!(overflow_resting.hits, overflow_hovered.hits);
+        assert!(
+            overflow_hovered
+                .bytes
+                .contains("\x1b[38;2;91;141;239m")
         );
         assert!(
-            !frame
-                .hits
-                .iter()
-                .any(|(_, _, hit)| matches!(hit, StripHit::RightTime))
+            !overflow_hovered
+                .bytes
+                .contains("\x1b[48;2;48;48;48m")
         );
+
+        let palette = render(Some(StripHover::New), false, StripCanvas::Transparent);
+        assert!(!palette.bytes.contains(";2;") && palette.bytes.contains("\x1b[49m"));
+        let dark_canvas = [20, 20, 20];
+        let accent_canvas = [27, 26, 32];
+        assert_eq!(
+            canvas_background(StripCanvas::Rgb(dark_canvas), true),
+            "\x1b[48;2;20;20;20m"
+        );
+        assert_eq!(
+            canvas_background(StripCanvas::Rgb(accent_canvas), true),
+            "\x1b[48;2;27;26;32m"
+        );
+        for canvas in [dark_canvas, accent_canvas] {
+            let palette = render(None, false, StripCanvas::Rgb(canvas));
+            assert!(!palette.bytes.contains(";2;"));
+            assert!(palette.bytes.contains(&format!(
+                "\x1b[48;5;{}m",
+                crate::roles::landing::palette_index(canvas)
+            )));
+        }
     }
 
     #[test]
@@ -2295,6 +2421,7 @@ mod tests {
                 None,
                 "blue",
                 None,
+                StripCanvas::Rgb([20, 20, 20]),
             );
             let text = plain(&bytes);
             assert!(text.starts_with(' '), "status={status}");
@@ -2543,7 +2670,17 @@ mod tests {
         assert_eq!(UnicodeWidthStr::width("⋯"), 1);
         for (width, expected) in [(1, "⋯"), (2, " ⋯"), (3, " ⋯ ")] {
             let (mut bytes, mut hits, mut column) = (String::new(), Vec::new(), 4);
-            append_controls(&mut bytes, &mut hits, &mut column, None, width, 1);
+            append_controls(
+                &mut bytes,
+                &mut hits,
+                &mut column,
+                None,
+                width,
+                1,
+                StripCanvas::Rgb([20, 20, 20]),
+                true,
+                "blue",
+            );
             assert_eq!(plain(&bytes), format!("{expected}+"));
             assert_eq!(hits[0], (4, 4 + width as u16, StripHit::Overflow));
             assert!(

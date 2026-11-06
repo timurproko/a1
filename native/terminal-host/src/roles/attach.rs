@@ -1725,8 +1725,7 @@ impl From<&StripHit> for core_attach::StripHitKind {
             StripHit::View(id) => Self::View(id.clone()),
             StripHit::Overflow => Self::Overflow,
             StripHit::New => Self::New,
-            StripHit::RightVersion => Self::RightVersion,
-            StripHit::RightTime => Self::RightTime,
+            StripHit::Right => Self::Right,
         }
     }
 }
@@ -2939,7 +2938,6 @@ impl Client {
         Some(landing::render(&landing::LandingInput {
             columns: self.columns,
             body_rows: self.outer_rows.saturating_sub(1),
-            version: self.version.as_deref(),
             accent: self.time_format.accent_color,
             truecolor: !palette_fallback_requested(),
             half_blocks: landing::half_blocks_supported(),
@@ -2971,7 +2969,6 @@ impl Client {
         let input = landing::LandingInput {
             columns: self.columns,
             body_rows: self.outer_rows.saturating_sub(1),
-            version: None,
             accent: self.time_format.accent_color,
             truecolor: !palette_fallback_requested(),
             half_blocks: false,
@@ -3961,8 +3958,7 @@ impl From<&Hover> for StripHover {
             Hover::Tab(id) => Self::Tab(id.clone()),
             Hover::Overflow => Self::Overflow,
             Hover::New => Self::New,
-            Hover::RightVersion => Self::RightVersion,
-            Hover::RightTime => Self::RightTime,
+            Hover::Right => Self::Right,
         }
     }
 }
@@ -4035,8 +4031,7 @@ fn strip_hover_present(frame: &strip::StripFrame, hovered: &StripHover) -> bool 
         (StripHover::Tab(hovered), StripHit::View(id)) => hovered == id,
         (StripHover::Overflow, StripHit::Overflow)
         | (StripHover::New, StripHit::New)
-        | (StripHover::RightVersion, StripHit::RightVersion)
-        | (StripHover::RightTime, StripHit::RightTime) => true,
+        | (StripHover::Right, StripHit::Right) => true,
         _ => false,
     })
 }
@@ -4758,7 +4753,6 @@ mod tests {
             &landing::LandingInput {
                 columns: 80,
                 body_rows: 23,
-                version: None,
                 accent: None,
                 truecolor: true,
                 half_blocks: false,
@@ -4838,7 +4832,6 @@ mod tests {
             &landing::LandingInput {
                 columns: columns as u16,
                 body_rows: 23,
-                version: None,
                 accent: None,
                 truecolor: true,
                 half_blocks: false,
@@ -4858,7 +4851,6 @@ mod tests {
             &landing::LandingInput {
                 columns: columns as u16,
                 body_rows: 23,
-                version: None,
                 accent: None,
                 truecolor: true,
                 half_blocks: false,
@@ -4879,7 +4871,6 @@ mod tests {
             &landing::LandingInput {
                 columns: 24,
                 body_rows: 23,
-                version: None,
                 accent: None,
                 truecolor: true,
                 half_blocks: false,
@@ -4896,7 +4887,6 @@ mod tests {
             &landing::LandingInput {
                 columns: columns as u16,
                 body_rows: 23,
-                version: None,
                 accent: None,
                 truecolor: true,
                 half_blocks: false,
@@ -4934,7 +4924,6 @@ mod tests {
             &landing::LandingInput {
                 columns: columns as u16,
                 body_rows: 5,
-                version: None,
                 accent: None,
                 truecolor: true,
                 half_blocks: false,
