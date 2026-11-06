@@ -328,6 +328,29 @@ fn control_style(
     format!("{background}{}", foreground(text_color, truecolor))
 }
 
+fn canvas_control_style(
+    canvas: StripCanvas,
+    hovered: bool,
+    truecolor: bool,
+    active_accent: &str,
+    text_color: Rgb,
+) -> String {
+    let background = match (canvas, hovered) {
+        (StripCanvas::Transparent, true) => canvas_background(
+            StripCanvas::Rgb(menu_hover_background(Some(active_accent))),
+            truecolor,
+        ),
+        (StripCanvas::Rgb(rgb), true) => {
+            let lighten = |value: u8| {
+                ((u16::from(value) * 92 + u16::from(u8::MAX) * 8) / 100) as u8
+            };
+            canvas_background(StripCanvas::Rgb(rgb.map(lighten)), truecolor)
+        }
+        _ => canvas_background(canvas, truecolor),
+    };
+    format!("{background}{}", foreground(text_color, truecolor))
+}
+
 const SETTLED_FG: Rgb = Rgb(170, 170, 170);
 const STRIP_ROW_BACKGROUND: &str = "\x1b[48;2;20;20;20m";
 const STRIP_ROW_BACKGROUND_PALETTE: &str = "\x1b[48;5;233m";
@@ -1161,7 +1184,7 @@ fn append_controls(
         ));
         *column = column.saturating_add(overflow_width as u16);
     }
-    let plus_style = control_style(
+    let plus_style = canvas_control_style(
         canvas,
         hovered == Some(&StripHover::New),
         truecolor,
@@ -1262,18 +1285,13 @@ impl RightStatus {
         active_accent: &str,
     ) {
         let hovered = hovered == Some(&StripHover::Right);
-        if hovered {
-            bytes.push_str(&control_style(
-                canvas,
-                true,
-                truecolor,
-                active_accent,
-                Rgb(126, 136, 142),
-            ));
-        } else {
-            bytes.push_str(&canvas_background(canvas, truecolor));
-            bytes.push_str(&foreground(Rgb(126, 136, 142), truecolor));
-        }
+        bytes.push_str(&canvas_control_style(
+            canvas,
+            hovered,
+            truecolor,
+            active_accent,
+            Rgb(126, 136, 142),
+        ));
         bytes.push(' ');
         if let Some(version) = self.version.as_deref() {
             bytes.push_str(version);
@@ -1333,7 +1351,12 @@ fn clock_text(format: TimeFormat) -> String {
     if let Some((hour, minute)) = tests::FIXED_CLOCK.with(|clock| clock.get()) {
         return format_clock(hour, minute, format);
     }
-    let seconds = SystemTime::now()
+    clock_text_at(SystemTime::now(), format)
+}
+
+/// Format one stored wall-clock instant with the same local clock rules as the strip.
+pub fn clock_text_at(source: SystemTime, format: TimeFormat) -> String {
+    let seconds = source
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
@@ -2424,6 +2447,59 @@ mod tests {
             assert!(palette.bytes.contains(&format!(
                 "\x1b[48;5;{}m",
                 crate::roles::landing::palette_index(canvas)
+            )));
+        }
+    }
+
+    #[test]
+    fn black_and_accent_plus_rest_on_canvas_and_share_lighter_hover_with_right() {
+        let _clock = clock_at(14, 21);
+        let render = |canvas, hovered: Option<StripHover>, truecolor| {
+            render_frame_filled_with_right(
+                &[],
+                None,
+                80,
+                hovered.as_ref(),
+                TimeFormat::Twelve,
+                None,
+                Instant::now(),
+                truecolor,
+                true,
+                "blue",
+                None,
+                Some("0.2.7-dev.1238"),
+                StripRightItems {
+                    version: true,
+                    time: true,
+                },
+                StripCanvas::Rgb(canvas),
+            )
+        };
+        for (canvas, hover) in [([20, 20, 20], [38, 38, 38]), ([52, 57, 69], [68, 72, 83])] {
+            let resting = render(canvas, None, true);
+            assert!(resting.bytes.contains(&format!(
+                "\x1b[48;2;{};{};{}m\x1b[38;2;170;170;170m + ",
+                canvas[0], canvas[1], canvas[2]
+            )));
+            assert!(!resting.bytes.contains("\x1b[48;2;38;38;38m"));
+            for target in [StripHover::New, StripHover::Right] {
+                let hovered = render(canvas, Some(target.clone()), true);
+                assert_eq!(hovered.hits, resting.hits);
+                let foreground = if target == StripHover::New {
+                    "\x1b[38;2;170;170;170m + "
+                } else {
+                    "\x1b[38;2;126;136;142m v0.2.7-dev.1238 • 2:21 PM "
+                };
+                assert!(hovered.bytes.contains(&format!(
+                    "\x1b[48;2;{};{};{}m{foreground}",
+                    hover[0], hover[1], hover[2]
+                )));
+            }
+            let palette = render(canvas, Some(StripHover::Right), false);
+            assert!(!palette.bytes.contains(";2;"));
+            assert!(palette.bytes.contains(&format!(
+                "\x1b[48;5;{}m",
+                crate::roles::landing::palette_index(hover)
             )));
         }
     }

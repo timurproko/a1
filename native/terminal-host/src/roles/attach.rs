@@ -63,6 +63,11 @@ struct PendingAgent {
     real_id: Option<String>,
 }
 
+struct PendingPrompt {
+    text: String,
+    submitted_at: SystemTime,
+}
+
 struct CancelledAgent {
     request_id: u64,
     known_ids: HashSet<String>,
@@ -2356,8 +2361,8 @@ struct Client {
     tabs: Vec<StripTab>,
     /// Only the attach client sees this visual intent; it is never a server tab identity.
     pending_agent: Option<PendingAgent>,
-    /// A direct empty-shell submission remains visible in the provisional editor until handoff.
-    pending_prompt: Option<String>,
+    /// A direct empty-shell submission retains its text and acceptance time until handoff.
+    pending_prompt: Option<PendingPrompt>,
     cancelled_agents: Vec<CancelledAgent>,
     hidden_cancelled_tabs: HashSet<String>,
     closed_tab_ids: HashSet<String>,
@@ -2796,7 +2801,10 @@ impl Client {
     }
 
     fn submit_landing(&mut self, core: &mut State, text: String) -> Result<(), String> {
-        self.pending_prompt = Some(text.clone());
+        self.pending_prompt = Some(PendingPrompt {
+            text: text.clone(),
+            submitted_at: SystemTime::now(),
+        });
         for (event, legacy) in landing_submission_events(&text) {
             self.send_input(core, Some(event), legacy)?;
         }
@@ -3042,8 +3050,14 @@ impl Client {
         };
         if footer_only {
             landing::render_agent_preview_footer(&input, self.preview_footer.as_ref())
-        } else if let Some(prompt) = self.pending_prompt.as_deref() {
-            landing::render_submitted_agent_preview(&input, self.preview_footer.as_ref(), prompt)
+        } else if let Some(prompt) = self.pending_prompt.as_ref() {
+            let timestamp = strip::clock_text_at(prompt.submitted_at, self.time_format.value);
+            landing::render_submitted_agent_preview(
+                &input,
+                self.preview_footer.as_ref(),
+                &prompt.text,
+                &timestamp,
+            )
         } else {
             landing::render_agent_preview(&input, self.preview_footer.as_ref())
         }

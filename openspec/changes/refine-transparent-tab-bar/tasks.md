@@ -3,7 +3,7 @@
 - [x] 1.1 Add canvas-aware inactive/control style helpers and verify truecolor and palette assertions distinguish transparent, black, and accent canvases.
 - [x] 1.2 Make inactive tabs, overflow, and `+` inherit the transparent canvas at rest and use one accent-derived foreground hover treatment, verifying the active chip and every hit range remain unchanged.
 - [x] 1.3 Refine all strip hover targets to reuse the owned menu accent-selected background while preserving their resting label foregrounds and unchanged hit geometry.
-- [ ] 1.4 Make `+` rest directly on Black and Accent canvases, and give `+` and the grouped right side one shared subtly lightened canvas hover while preserving Transparent behavior and stable foregrounds.
+- [x] 1.4 Make `+` rest directly on Black and Accent canvases, and give `+` and the grouped right side one shared subtly lightened canvas hover while preserving Transparent behavior and stable foregrounds.
 
 ## 2. Grouped right-side interaction
 
@@ -17,12 +17,12 @@
 - [x] 3.2 Replace the passive landing wordmark with a local Agent editor and status footer that preserves cwd placement, creates one Agent on non-empty Enter, and binds the draft submission to that exact pending tab.
 - [x] 3.3 Cover Unicode editing, paste, empty submission, shortcuts, cancellation/failure, top/bottom placement, and constrained geometry without forwarding landing drafts to hidden or unrelated tabs.
 - [x] 3.4 Echo a submitted landing draft immediately in the pending Agent's provisional content area with an empty editor, then hand off to the exact real Agent surface without changing deferred input delivery.
-- [ ] 3.5 Make the provisional submission use the final submitted-message row geometry and semantic styling, including prefix, projected background, text, stored submission time, configured time format, and narrow fallback.
+- [x] 3.5 Make the provisional submission use the final submitted-message row geometry and semantic styling, including prefix, projected background, text, stored submission time, configured time format, and narrow fallback.
 
 ## 4. Focused regression coverage
 
 - [x] 4.1 Update native strip and landing regressions for transparent resting/hover bytes, palette fallback, grouped interaction, child isolation, and version-free landing geometry, and verify the focused terminal-host test target passes.
 - [x] 4.2 Add truecolor and palette regressions proving strip hover backgrounds match owned popup menus without label recoloring, then rerun the focused terminal-host suites.
 - [x] 4.3 Add regressions for padded right-side hover geometry, the bullet separator, and immediate pending-prompt content, then rerun the focused terminal-host suites.
-- [ ] 4.4 Add truecolor and palette regressions proving the provisional submitted-message row matches the final design at wide and constrained widths, then rerun the focused terminal-host suites.
-- [ ] 4.5 Add truecolor and palette regressions for canvas-resting `+` and shared lighter Black/Accent hover backgrounds, then rerun the focused terminal-host suites.
+- [x] 4.4 Add truecolor and palette regressions proving the provisional submitted-message row matches the final design at wide and constrained widths, then rerun the focused terminal-host suites.
+- [x] 4.5 Add truecolor and palette regressions for canvas-resting `+` and shared lighter Black/Accent hover backgrounds, then rerun the focused terminal-host suites.

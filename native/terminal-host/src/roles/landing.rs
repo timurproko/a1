@@ -11,13 +11,16 @@ const WORDMARK: [&str; 3] = [" ▀▀▀▄ ▄█ ", "▄█▀▀█  █ ", "
 /// The owned dark theme's `dim` foreground, which an Agent footer draws its cwd and status in;
 /// `landing_accents.json` pins it with the accents.
 const DIM: [u8; 3] = [126, 136, 142];
+const MUTED: [u8; 3] = [157, 165, 169];
+const MESSAGE_TEXT: [u8; 3] = [222, 224, 225];
 
-/// The accent and border foregrounds `derivePiAccentProjection(accent, "dark")` gives each A1
-/// accent; `landing_accents.json` pins them and the TypeScript projection test checks that file.
+/// The accent, border, and submitted-message background projection for each dark A1 accent;
+/// `landing_accents.json` pins them and the TypeScript projection test checks that file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AccentColors {
     pub accent: [u8; 3],
     pub border: [u8; 3],
+    pub user_message_background: [u8; 3],
 }
 
 pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
@@ -26,6 +29,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [167, 152, 215],
             border: [105, 115, 167],
+            user_message_background: [53, 52, 58],
         },
     ),
     (
@@ -33,6 +37,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [130, 160, 241],
             border: [116, 102, 197],
+            user_message_background: [50, 53, 60],
         },
     ),
     (
@@ -40,6 +45,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [93, 179, 186],
             border: [74, 128, 146],
+            user_message_background: [46, 54, 55],
         },
     ),
     (
@@ -47,6 +53,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [104, 183, 141],
             border: [75, 132, 120],
+            user_message_background: [48, 55, 51],
         },
     ),
     (
@@ -54,6 +61,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [231, 135, 83],
             border: [178, 89, 79],
+            user_message_background: [59, 51, 47],
         },
     ),
     (
@@ -61,6 +69,7 @@ pub const LANDING_ACCENTS: [(&str, AccentColors); 6] = [
         AccentColors {
             accent: [223, 122, 199],
             border: [150, 91, 171],
+            user_message_background: [58, 50, 55],
         },
     ),
 ];
@@ -316,6 +325,7 @@ pub fn render_submitted_agent_preview(
     input: &LandingInput<'_>,
     footer: Option<&AgentPreviewFooter>,
     text: &str,
+    timestamp: &str,
 ) -> Vec<u8> {
     let fallback = AgentPreviewFooter::default();
     render_body(
@@ -323,7 +333,7 @@ pub fn render_submitted_agent_preview(
         Some(footer.unwrap_or(&fallback)),
         false,
         None,
-        Some(text),
+        Some((text, timestamp)),
     )
 }
 
@@ -392,15 +402,49 @@ fn preview_status_content(footer: &AgentPreviewFooter, columns: usize, truecolor
     )
 }
 
-fn submitted_prompt_row(text: &str, columns: usize, accent: [u8; 3], truecolor: bool) -> String {
-    if columns < 2 {
-        return clip("❯", columns);
+fn submitted_prompt_row(
+    text: &str,
+    timestamp: &str,
+    columns: usize,
+    colors: AccentColors,
+    truecolor: bool,
+) -> String {
+    const PREFIX_WIDTH: usize = 3;
+    const TIMESTAMP_MARGIN: usize = 3;
+    const MIN_CONTENT_WIDTH: usize = 8;
+    if columns == 0 {
+        return String::new();
     }
-    format!(
-        "{}❯\x1b[0m {}",
-        foreground(accent, truecolor),
-        clip(text, columns - 2)
-    )
+    let mut row = format!(
+        "{} ",
+        background(colors.user_message_background, truecolor)
+    );
+    if columns == 1 {
+        return row;
+    }
+    row.push_str(&format!("{}❯", foreground(MUTED, truecolor)));
+    if columns == 2 {
+        return row;
+    }
+    row.push_str(&format!("{} ", foreground(MESSAGE_TEXT, truecolor)));
+    let timestamp_width = UnicodeWidthStr::width(timestamp);
+    let show_timestamp = columns.saturating_sub(PREFIX_WIDTH + timestamp_width + TIMESTAMP_MARGIN)
+        >= MIN_CONTENT_WIDTH;
+    let reserve = if show_timestamp {
+        timestamp_width + TIMESTAMP_MARGIN
+    } else {
+        0
+    };
+    let content = clip(text, columns.saturating_sub(PREFIX_WIDTH + reserve));
+    let content_width = UnicodeWidthStr::width(content.as_str());
+    row.push_str(&content);
+    if show_timestamp {
+        row.push_str(&" ".repeat(columns - PREFIX_WIDTH - content_width - timestamp_width));
+        row.push_str(&format!("{}{}", foreground(DIM, truecolor), timestamp));
+    } else {
+        row.push_str(&" ".repeat(columns - PREFIX_WIDTH - content_width));
+    }
+    row
 }
 
 fn editor_row(text: &str, cursor: usize, columns: usize) -> String {
@@ -463,7 +507,7 @@ fn render_body(
     footer: Option<&AgentPreviewFooter>,
     footer_only: bool,
     draft: Option<(&str, usize)>,
-    submitted: Option<&str>,
+    submitted: Option<(&str, &str)>,
 ) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
@@ -488,13 +532,14 @@ fn render_body(
         let editor_rows = cwd_row.min(3);
         let first = cwd_row - editor_rows;
         if first > 0 {
-            if let Some(text) = submitted {
+            if let Some((text, timestamp)) = submitted {
                 place(
                     0,
                     submitted_prompt_row(
                         text,
+                        timestamp,
                         columns,
-                        accent_colors(input.accent).accent,
+                        accent_colors(input.accent),
                         input.truecolor,
                     ),
                 );
@@ -680,32 +725,52 @@ mod tests {
             },
             None,
             "ask me 10 questions 界",
+            "3:19 PM",
         );
         let grid = cells(&bytes, 80, 23);
-        assert_eq!(grid[0], "❯ ask me 10 questions 界");
+        assert!(grid[0].starts_with(" ❯ ask me 10 questions 界"));
+        assert!(grid[0].ends_with("3:19 PM"));
         assert_eq!(
             grid[19], "",
             "the accepted prompt no longer appears in the editor"
         );
         assert_eq!(grid[21], " ~/src/a1");
         let styled = String::from_utf8(bytes).unwrap();
-        assert!(styled.contains("\x1b[38;2;93;179;186m❯\x1b[0m ask me 10 questions 界"));
+        assert!(styled.contains(
+            "\x1b[48;2;46;54;55m \x1b[38;2;157;165;169m❯\x1b[38;2;222;224;225m ask me 10 questions 界"
+        ));
+        assert!(styled.contains("\x1b[38;2;126;136;142m3:19 PM"));
         assert!(
             !styled.contains("\x1b[7m"),
             "the pending editor has no visual caret"
         );
 
         let constrained = cells(
-            &render_submitted_agent_preview(&input(8, 6), None, "abcdefghijk"),
+            &render_submitted_agent_preview(&input(8, 6), None, "abcdefghijk", "3:19 PM"),
             8,
             6,
         );
-        assert_eq!(constrained[0], "❯ abcdef");
+        assert_eq!(constrained[0], " ❯ abcde");
         assert!(
             constrained
                 .iter()
                 .all(|row| UnicodeWidthStr::width(row.as_str()) <= 8)
         );
+        let palette = String::from_utf8(render_submitted_agent_preview(
+            &LandingInput {
+                truecolor: false,
+                ..input(40, 6)
+            },
+            None,
+            "palette prompt",
+            "15:19",
+        ))
+        .unwrap();
+        assert!(palette.contains(&format!(
+            "\x1b[48;5;{}m",
+            palette_index([53, 52, 58])
+        )));
+        assert!(!palette.contains(";2;"));
     }
 
     #[test]
@@ -865,6 +930,11 @@ mod tests {
             };
             assert_eq!(rgb("accent"), colors.accent, "{name} accent");
             assert_eq!(rgb("border"), colors.border, "{name} border");
+            assert_eq!(
+                rgb("userMessageBackground"),
+                colors.user_message_background,
+                "{name} user message background"
+            );
         }
         assert_eq!(accent_colors(Some("unknown")), LANDING_ACCENTS[0].1);
         let rgb_of = |value: &serde_json::Value| {
@@ -875,11 +945,9 @@ mod tests {
             assert_eq!(rgb_of(&accents[name]["canvas"]), canvas, "{name} canvas");
         }
         assert_eq!(rgb_of(&fixture["darkCanvas"]), LANDING_DARK_CANVAS);
-        let dim = fixture["dim"].as_array().unwrap();
-        assert_eq!(
-            [0, 1, 2].map(|index| dim[index].as_u64().unwrap() as u8),
-            DIM
-        );
+        assert_eq!(rgb_of(&fixture["dim"]), DIM);
+        assert_eq!(rgb_of(&fixture["muted"]), MUTED);
+        assert_eq!(rgb_of(&fixture["messageText"]), MESSAGE_TEXT);
     }
 
     #[test]
