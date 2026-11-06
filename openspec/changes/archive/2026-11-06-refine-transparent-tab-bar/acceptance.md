@@ -20,7 +20,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-06-refine-transparent-tab-bar/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-06-refine-transparent-tab-bar/acceptance.md",
   "finalizedDate": "2026-11-06",
-  "specBaseSha": "2ac8757a1f0fddf0534e86330097aa7453f5b987",
+  "specBaseSha": "39d736278b229bb8e2f8fd5b7c87d6ea8b4f321b",
   "acceptanceScenarios": [
     "Transparent inactive tabs, overflow, and plus controls keep the terminal canvas at rest and use the same subtle background hover treatment as menus without recoloring labels or moving hit targets.",
     "Version and Time render and configure as one padded right-side pointer target, use a ` • ` separator, and retain valid constrained layouts; the Settings row and configuration dialog are labeled Widgets.",
