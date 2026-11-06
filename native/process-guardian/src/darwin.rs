@@ -256,13 +256,17 @@ pub(super) fn inspect_process_start(pid: u32) -> Result<Option<String>, String> 
         )
     };
     if received == 0 {
-        if !process_exists(pid as i32) {
+        // Platform: proc_pidinfo can report ESRCH for an exited, unreaped process whose PID
+        // still answers kill(pid, 0). Preserve this errno before any fallback syscall.
+        let error = std::io::Error::last_os_error();
+        if super::process_inspection::inspection_proves_exit(
+            error.raw_os_error(),
+            libc::ESRCH,
+            || process_exists(pid as i32),
+        ) {
             return Ok(None);
         }
-        return Err(format!(
-            "cannot inspect Darwin process start time: {}",
-            std::io::Error::last_os_error()
-        ));
+        return Err(format!("cannot inspect Darwin process start time: {error}"));
     }
     if received as usize != expected || info.pbi_pid != pid {
         return Err(
@@ -474,6 +478,37 @@ mod tests {
         assert!(super::foreground_already_restored(Some(libc::EPERM)));
         assert!(!super::foreground_already_restored(Some(libc::EBADF)));
         assert!(!super::foreground_already_restored(None));
+    }
+
+    #[test]
+    fn an_exited_unreaped_child_has_no_live_start_identity() {
+        let mut child = std::process::Command::new("/bin/sh")
+            .args(["-c", "exit 0"])
+            .spawn()
+            .expect("start isolated child");
+        let pid = child.id();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        let result = loop {
+            match inspect_process_start(pid) {
+                Ok(None) => break Ok(()),
+                Err(error) => break Err(error),
+                Ok(Some(_)) => {
+                    if std::time::Instant::now() >= deadline {
+                        break Err("exited child still has a live start identity".to_owned());
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+            }
+        };
+        let pid_still_exists = super::process_exists(pid as i32);
+        // Invariant: reap the fixture before asserting, including when inspection failed.
+        let status = child.wait().expect("reap isolated child");
+        assert!(status.success());
+        assert!(
+            pid_still_exists,
+            "the fixture must exercise an unreaped PID"
+        );
+        result.expect("native exit is conclusive even while its PID remains queryable");
     }
 
     #[test]

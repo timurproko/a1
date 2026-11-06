@@ -98,3 +98,11 @@ Run `42092936750` failed four macOS resident-loss fixtures before fault injectio
 A fixture-only adapter translates that exact valid namespace at both resident-versus-guardian comparison points. PID and both kernel fields remain exact; production identity formats, ownership decisions, and all kill guards remain unchanged. Seven portable regression cases cover the real failing token pair, reject PID/seconds/microseconds mismatches, and preserve other or malformed tokens.
 
 Focused local validation passed 32 identity/recovery tests and documentation, naming, architecture, and source typechecking. The six resident-native cases still require CI's native fixture build, and full local typecheck retains the generated-startup-descriptor limitation. No macOS execution is claimed locally and no native scenario was removed or relaxed.
+
+## CI Repair: macOS Exit Observation
+
+Run `42097442353` passed the individual resident server, holder, and child loss cases, but the all-loss case exposed an exited-process inspection race. `proc_pidinfo` returned ESRCH while the unreaped PID still answered `kill(pid, 0)`; the guardian incorrectly surfaced `PROCESS_INSPECTION_FAILED` instead of absence.
+
+The guardian now captures the native inspection error before another syscall can overwrite errno and treats ESRCH as conclusive exit evidence without consulting a later PID probe. Permission, I/O, and unknown errors still preserve live owners. A shared pure classifier makes this decision testable on Windows; two regression cases failed with the old classification and all four pass after the fix. A macOS-specific native test retains an exited child without reaping it until inspection completes, then always reaps it before asserting.
+
+Local validation passed all nine guardian Rust tests, 36 focused TypeScript tests, Rust formatting, and diff checks. Disposition: the macOS native regression and full resident integration remain required in exact-head CI because this Windows workstation cannot execute them; no local macOS success is claimed. The repair was held until the maintainer explicitly requested this push after that limitation was disclosed.
