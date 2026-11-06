@@ -59,4 +59,5 @@ No data migration is required. Reverting the result handler and its focused cove
 - The pinned `AgentSession` integration now resolves the result before terminating iteration, matching Pi 1.5.0 ordering, and records `Compacting:100` before the lifecycle clears status.
 - Four focused engine files passed 65 tests, and the shell component file passed 49 tests.
 - The core release build, full TypeScript typecheck, strict OpenSpec validation, and diff checks passed.
+- Initial exact-head CI identified documentation-comment prefixes and intentional startup-graph growth; the repair normalized those comments, repinned the measured graph, and passed full documentation governance, architecture checks, and the two focused progress files (8 tests).
 - Known gaps: none.

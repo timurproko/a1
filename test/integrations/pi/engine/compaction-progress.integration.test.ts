@@ -48,7 +48,7 @@ function controlledSummaryStream(): {
     },
     finish(value: unknown) {
       if (done) return;
-      // Match Pi's AssistantMessageEventStream: result resolves before iterator termination.
+      // Protocol: Pi's AssistantMessageEventStream resolves its result before iterator termination.
       resolveResult(value);
       done = true;
       for (const waiter of waiters.splice(0)) waiter({ value: undefined, done: true });

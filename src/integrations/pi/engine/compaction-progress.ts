@@ -52,15 +52,15 @@ export function observeCompactionProgress(
     const stream = await original(model, context, options);
     if (!active || disposed) return stream;
     const observed = generation;
-    // Pi's event stream resolves result() before an independent iterator receives the terminal
-    // event. Register first so successful completion reaches 100 before Pi can emit compaction_end.
+    // Concurrency: Pi resolves result() before an independent iterator receives the terminal
+    // event, so register first to publish 100 before Pi can emit compaction_end.
     try {
       void stream.result().then(result => {
         if (observed !== generation || !active || disposed || result.stopReason !== "stop") return;
         report(COMPLETE_PERCENT);
       }, () => undefined);
     } catch {
-      // Observation is optional and must not affect the stream returned to Pi.
+      // Invariant: optional observation never affects the stream returned to Pi.
     }
     void (async () => {
       report();
