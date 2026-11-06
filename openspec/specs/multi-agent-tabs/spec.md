@@ -145,13 +145,7 @@ An Agent record whose child has exited and that no holder owns SHALL NOT count a
 - **THEN** no tab strip, resident server, holder, or tab bridge SHALL be involved
 
 ### Requirement: Tab chips reproduce the approved v2 strip
-The strip SHALL retain the approved v2 geometry, clipping, status, overflow, and active-chip treatment while adapting non-active chrome to the configured tab-bar canvas. With a transparent canvas, inactive chips, the overflow control, and `+` SHALL retain the terminal default background at rest instead of painting opaque neutral blocks; their hover feedback SHALL retain that background and add a consistent accent-derived foreground emphasis. The viewed chip SHALL keep its existing resolved active treatment. Black and Accent canvases SHALL retain readable canvas-relative inactive and hover treatments. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible when space permits, and a trailing `+` SHALL be reserved while at least one plus-menu kind is enabled. The muted single-column centered `⋯` overflow control SHALL appear only while some chips do not fit and SHALL open a keyboard- and mouse-navigable popup listing only tabs whose chips are not drawn, without checkmarks, in strip order. Each row SHALL reserve a one-cell status-glyph slot and separator before its name; it SHALL show the same current status glyph and semantic color as the chip when present, or a blank slot while idle. Names SHALL clip by display width without shifting the icon slot, leaking icon style into the title, or changing popup hit geometry. Choosing a popup row SHALL view exactly that tab with either top or bottom strip placement and place its chip in the currently active chip's strip slot when that chip was drawn and the two do not both fit, even if a different non-swap view request was pending; the displaced tab SHALL appear in the popup. Other visible chips SHALL remain visible when geometry permits, and a pending view request SHALL NOT briefly repaint the old viewed chip in the slot or replay the newly drawn chip's hidden-name transition. The popup SHALL track the current drawn chips across resize, reorder, creation, removal, and view changes; removed tabs SHALL NOT remain actionable. The strip SHALL NOT wrap. The right edge SHALL render the configured right-side items followed by one blank terminal cell; no wallpaper text SHALL render.
-
-#### Scenario: Transparent inactive controls blend with the canvas
-- **WHEN** the tab-bar canvas is Transparent and the strip shows an inactive tab, overflow, or `+`
-- **THEN** the control SHALL paint no opaque neutral background at rest
-- **AND** hovering it SHALL retain the terminal background and add the same accent-derived foreground emphasis without changing its hit range
-- **AND** the active tab SHALL retain its existing selected treatment
+The strip SHALL use the v2 default top-row presentation as fixed behavior rather than settings: normal chips SHALL use RGB background `38,38,38` with foreground `170,170,170`, hovered chips background `48,48,48`, and the viewed chip background `55,55,55` with white text, with v2's palette fallback. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible when space permits, and a trailing `+` SHALL be reserved while at least one plus-menu kind is enabled. The muted single-column centered `⋯` overflow control SHALL appear only while some chips do not fit and SHALL open a keyboard- and mouse-navigable popup listing only tabs whose chips are not drawn, without checkmarks, in strip order. Each row SHALL reserve a one-cell status-glyph slot and separator before its name; it SHALL show the same current status glyph and semantic color as the chip when present, or a blank slot while idle. Names SHALL clip by display width without shifting the icon slot, leaking icon style into the title, or changing popup hit geometry. Choosing a popup row SHALL view exactly that tab with either top or bottom strip placement and place its chip in the currently active chip's strip slot when that chip was drawn and the two do not both fit, even if a different non-swap view request was pending; the displaced tab SHALL appear in the popup. Other visible chips SHALL remain visible when geometry permits, and a pending view request SHALL NOT briefly repaint the old viewed chip in the slot or replay the newly drawn chip's hidden-name transition. The popup SHALL track the current drawn chips across resize, reorder, creation, removal, and view changes; removed tabs SHALL NOT remain actionable. The strip SHALL NOT wrap. The right edge SHALL show local time in the active owned time format followed by one blank terminal cell, whether or not tabs are open; no wallpaper text SHALL render.
 
 #### Scenario: Wide names are clipped by display width
 - **WHEN** a tab name contains CJK characters or emoji wider than the chip allows
@@ -918,15 +912,15 @@ An open context, overflow, or launcher popup SHALL be presented with each outer 
 - **THEN** those rows SHALL show the child's newest content
 
 ### Requirement: The strip row has a solid dark background
-The strip row SHALL repaint its full width with the live `tabBarBackgroundStyle`: Transparent SHALL restore the terminal default background, Black SHALL use the established dark canvas, and Accent SHALL use the active profile accent canvas. The selected canvas SHALL appear behind padding, the space after controls, and the right-side group. Child-controlled colors and output SHALL NOT leak into the strip. Chips and controls SHALL apply their canvas-relative states without replacing a transparent resting canvas with fixed black blocks.
+The strip row SHALL be painted across its full width with a fixed dark background, RGB `20,20,20` with a palette fallback. That background SHALL appear behind padding, the space after `+`, and the clock, and chips SHALL keep their own v2 backgrounds. The row SHALL NOT inherit a child-controlled default background or retain child output.
 
 #### Scenario: Strip with tabs
-- **WHEN** the tab-bar background is Transparent and tabs are present
-- **THEN** every resting strip cell outside the active chip SHALL retain the terminal default background unless another visible state explicitly owns that cell
+- **WHEN** tabs are present
+- **THEN** every strip cell outside chips, overflow, and `+` SHALL carry the dark row background
 
 #### Scenario: Child output cannot reach the strip
-- **WHEN** a child changes the terminal default background or writes content that would reach the strip row
-- **THEN** the strip row SHALL show only current strip content over the configured canvas semantics
+- **WHEN** a child changes the terminal default background or writes content that would reach the first row
+- **THEN** the strip row SHALL keep the dark background and show only strip content
 
 ### Requirement: Resident tabs keep the outer terminal theme for unset colors
 The resident presentation SHALL publish a child's default foreground, default background, or palette entry to the outer terminal only when the child set that color. Colors a child left at the emulator's initial values SHALL be reset to the outer terminal's own theme rather than replaced with emulator defaults.
@@ -1111,17 +1105,12 @@ The resident tab presentation SHALL draw every scrollbar track and thumb cell in
 - **THEN** the retained resident rows match a complete capture of the child terminal and every rail cell stays in the gutter column
 
 ### Requirement: The empty resident shell presents the a1 landing
-While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body: the launch cwd, formatted and placed as an Agent tab's footer shows it (one-cell left gutter on the second-to-last body row, with the home directory as `~`, in the footer's dim color), a blank row below the cwd, and the three-row half-block `a1` wordmark in the profile's accent color on the rows above it (omitted where half-block glyphs are unsupported or rows run out), so the folder stays in place when a tab opens or closes at either strip position. This SHALL hold from the first registry list the client receives: a list with no running tab and no pending create SHALL paint the landing at once, without waiting for a tab to have been shown first. The landing body SHALL be painted with the canvas the `backgroundStyle` setting gives Agent tabs, and SHALL leave the terminal background when it is `transparent`. When an Agent is added from the landing, the single pending Agent chip and complete idle editor/footer SHALL replace the landing on the initiating event; the first drawn Agent frame SHALL replace that pending presentation without a wipe or fade. A hidden utility tab SHALL retain its existing first-draw handoff. A tab the server is starting for this attach SHALL keep the established first-draw gate instead of the landing. The landing SHALL hold no input: keys, paste, and body mouse input SHALL reach no child, while tab shortcuts, the `+` launcher and its popups, strip hover, strip mouse input, and the double-`Ctrl+C` detach SHALL behave exactly as with tabs. The landing SHALL render no cursor and SHALL never be shown while a tab is viewed.
+While the attach client has no tab to show and no view request pending, it SHALL keep the strip with its `+` control and clock and SHALL present the a1 landing in the body: the launch cwd, formatted and placed as an Agent tab's footer shows it (one-cell left gutter on the second-to-last body row, with the home directory as `~`, in the footer's dim color), the running version as `v<version>` with the same left gutter in the footer's dim color on the row below it, and the three-row half-block `a1` wordmark in the profile's accent color on the rows above it (omitted where half-block glyphs are unsupported or rows run out), so the folder stays in place when a tab opens or closes at either strip position. This SHALL hold from the first registry list the client receives: a list with no running tab and no pending create SHALL paint the landing at once, without waiting for a tab to have been shown first. The landing body SHALL be painted with the canvas the `backgroundStyle` setting gives Agent tabs, and SHALL leave the terminal background when it is `transparent`. When an Agent is added from the landing, the single pending Agent chip and complete idle editor/footer SHALL replace the landing on the initiating event; the first drawn Agent frame SHALL replace that pending presentation without a wipe or fade. A hidden utility tab SHALL retain its existing first-draw handoff. A tab the server is starting for this attach SHALL keep the established first-draw gate instead of the landing. The landing SHALL hold no input: keys, paste, and body mouse input SHALL reach no child, while tab shortcuts, the `+` launcher and its popups, strip hover, strip mouse input, and the double-`Ctrl+C` detach SHALL behave exactly as with tabs. The landing SHALL render no cursor and SHALL never be shown while a tab is viewed.
 
 #### Scenario: Last tab closes into the landing
 - **WHEN** the final Agent or Settings tab closes while the attach client stays open and the strip is at the top
-- **THEN** the strip SHALL show `+` and the clock and the body SHALL show the launch cwd on the row where an Agent's footer shows it, a blank row below it, and the wordmark above it
+- **THEN** the strip SHALL show `+` and the clock and the body SHALL show the launch cwd on the row where an Agent's footer shows it, the version below it, and the wordmark above it
 - **AND** no cursor SHALL show
-
-#### Scenario: Empty landing omits the package version
-- **WHEN** the landing is visible at either tab-bar position
-- **THEN** its left side SHALL show the wordmark and launch cwd without a package-version label
-- **AND** the row below the cwd SHALL remain blank while the optional strip Version item remains independently configurable
 
 #### Scenario: A fresh attach lists no running tab
 - **WHEN** the attach client's first registry list holds only stopped records or nothing, and no Agent start is pending for this attach
@@ -1158,7 +1147,7 @@ While the attach client has no tab to show and no view request pending, it SHALL
 - **WHEN** the landing is visible with half-block glyphs supported
 - **THEN** its accent-colored `a1` wordmark SHALL NOT render a stray full block to the left of the `a`'s middle row
 - **AND** its middle row SHALL have a lower-half left descender with the upper half of that cell empty, matching the approved `a` shape without increasing the wordmark's width or moving its placement
-- **AND** the cwd SHALL start after the same one-cell gutter as the Agent footer and the row below it SHALL remain blank
+- **AND** the cwd and version rows SHALL each start after the same one-cell gutter as the Agent footer
 
 #### Scenario: The landing follows the background setting
 - **WHEN** `backgroundStyle` is `accent` or `dark` and the landing is shown
@@ -1492,24 +1481,18 @@ The configured enabled subset SHALL apply live. With both enabled, Version SHALL
 
 ### Requirement: Resident right-side items expose configuration controls
 
-The complete physically rendered right-side group, from the first visible Version or Time cell through the final visible item and including the configured separation between them, SHALL have one explicit hover and hit range. Hovering any cell in that range SHALL apply one consistent group treatment to every rendered item. Right-clicking anywhere in the group SHALL open a context menu containing `Configure`; activating it SHALL open the native searchable multi-select titled `Right Side`, where Version and Time toggle independently and persist in fixed order. Items omitted by narrow layout SHALL contribute no cells to the group, and space outside the rendered group SHALL not consume child input.
+Physically rendered Version and Time text on the resident strip SHALL each have an explicit hover and hit range. Hovering either SHALL provide strip-control feedback. Right-clicking either SHALL open a context menu containing `Configure`; activating it SHALL open the native searchable multi-select titled `Right Side`, where Version and Time toggle independently and persist in fixed order. Omitted narrow items SHALL have no hit range and SHALL not consume child input.
 
-The group's resting foreground SHALL use the resident status/footer dim color. Its hover treatment SHALL follow the same canvas-aware additive visual language as the transparent strip controls while remaining independent of tab chips, popups, overflow, drag targets, and child-surface input.
-
-#### Scenario: Hover the complete configured group
-
-- **WHEN** Version and Time are rendered and the pointer rests over either item or their internal separation
-- **THEN** the complete Version-and-Time group SHALL show one continuous hover state
-- **AND** its full rendered span SHALL remain one configuration hit target
+The right-side foreground SHALL use the resident status/footer dim color. This text styling SHALL remain independent of tab chips, popups, overflow, drag targets, and child-surface input.
 
 #### Scenario: Configure Version from the strip
 
-- **WHEN** the user right-clicks anywhere in the rendered right-side group and chooses `Configure`
+- **WHEN** the user right-clicks the rendered Version item and chooses `Configure`
 - **THEN** the native `Right Side` multi-select SHALL open with Version and Time rows
 - **AND** toggling a row SHALL persist the ordered `tabBarRightItems` subset and repaint the strip live
 
 #### Scenario: Narrow strip omits Version
 
 - **WHEN** the strip is too narrow to render Version beside the required controls and Time
-- **THEN** the right-side group hit range SHALL cover only the rendered Time item
-- **AND** tabs, overflow, plus, and child input SHALL retain valid geometry
+- **THEN** Version SHALL have no visible or clickable hit range
+- **AND** Time, tabs, overflow, plus, and child input SHALL retain valid geometry

@@ -4,9 +4,9 @@ The transparent resident tab bar still paints opaque neutral blocks behind inact
 
 ## What Changes
 
-- Make inactive tabs, overflow, and `+` inherit the transparent strip canvas at rest, with a subtle additive accent treatment on hover; keep the active tab treatment unchanged.
+- Make inactive tabs, overflow, and `+` inherit the transparent strip canvas at rest, then reuse the owned menus' subtle accent-selected background on hover without recoloring labels; keep the active tab treatment unchanged.
 - Treat the complete rendered Version/Time group, including its internal spacing, as one configurable hover and context-menu target with consistent feedback.
-- Remove the package version from the left-side empty landing body while retaining the logo and working-directory placement; the optional right-side Version item remains unchanged.
+- Replace the passive empty landing with a ready Agent prompt and status footer: the user can compose locally and press Enter to create an Agent and submit that draft without clicking `+`; retain cwd placement and omit the redundant version.
 - Preserve dark/accent tab-bar readability, palette fallback, narrow geometry, top/bottom placement, and existing tab actions while covering the revised visual states with focused native tests.
 
 ## Capabilities
