@@ -20,7 +20,7 @@ The maintainer integration decision accepts these scenarios:
     "Successful observable compactions publish terminal 100% before their working status clears, even when the character estimate ends near 40% to 50%.",
     "Failed, aborted, stale, ended, and disposed observations never claim terminal completion, while running estimates remain monotonic."
   ],
-  "archiveDigest": "08bdc38e5f5c30a9651dc43cd59a9e5b868c98a135cf01328e3ca6b266dddd38",
+  "archiveDigest": "ff1209dcf06cd2eabcaf0230d6b6b5a5dcbc28bde47ea4571290d11c8fc397a7",
   "specDigest": "14a116fbd80d2f4043bb7fe39fedfb43f382a4850eeeef27756aec5d636e680a",
   "tasksDigest": "9fb915dae93c31a8ad58996a5f9c46de8d30c286a3c805546a063af8d4c57d47",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
