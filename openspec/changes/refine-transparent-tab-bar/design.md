@@ -31,6 +31,8 @@ Terminal SGR backgrounds are opaque, so Transparent continues to render inactive
 
 The renderer will emit one hover/hit identity spanning the physically rendered right-side content, including a ` • ` Version/Time separator when both are present and one blank padding cell before and after the visible text. Hovering any cell will style the complete padded span with the same canvas-aware treatment used by other strip controls, matching the visual breathing room around `+`. Right-clicking any cell continues to open the existing Configure menu and Right Side multi-select.
 
+The configuration concept is presented to users as `Widgets`: the Settings row and native multi-select title both use that label, and the dialog describes choosing which widgets the tab bar shows. Internal `rightItems` storage, actions, and protocol-free native state retain their existing identities, so the copy change requires no migration.
+
 Narrow layout computes the group from the items that remain visible, so omitted Version text owns no cells. The added leading cell participates in width reservation while the existing final blank cell becomes the trailing group padding; the final visible item keeps its current right alignment while the wider separator moves Version one cell left. This preserves valid child-input boundaries while removing separate Version and Time hover regions that imply separate configuration actions.
 
 ### D3. The empty shell is a ready Agent prompt
