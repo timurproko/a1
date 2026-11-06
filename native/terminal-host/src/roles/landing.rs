@@ -1,6 +1,5 @@
-//! The a1 landing the attach client shows while it has no tab: the launch cwd where an Agent
-//! tab's footer shows it, `a1` and its version below it, and the prompt-border-colored wordmark above it.
-//! Rendering is pure; the attach role presents the bytes as the frame's body.
+//! The ready Agent prompt the attach client shows while it has no tab, plus the provisional
+//! Agent shell used during creation. Rendering is pure; the attach role presents the bytes.
 
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
@@ -247,7 +246,7 @@ fn wordmark_row(line: &str, accent: &str, columns: usize) -> String {
 /// below it and the wordmark above it. Invariant: that is where an Agent tab's footer shows its cwd, so the
 /// folder stays in place when a tab opens or closes, whichever edge the strip is on.
 pub fn render(input: &LandingInput<'_>) -> Vec<u8> {
-    render_body(input, None, false)
+    render_body(input, None, false, None)
 }
 
 /// Rows rendered by the real Agent's owned footer. Retain the status cells and styles as hints;
@@ -291,8 +290,23 @@ pub fn render_agent_preview(
     input: &LandingInput<'_>,
     footer: Option<&AgentPreviewFooter>,
 ) -> Vec<u8> {
+    render_ready_prompt(input, footer, "", 0)
+}
+
+/// The editable empty-shell prompt. `cursor` is a grapheme index into the bounded local draft.
+pub fn render_ready_prompt(
+    input: &LandingInput<'_>,
+    footer: Option<&AgentPreviewFooter>,
+    text: &str,
+    cursor: usize,
+) -> Vec<u8> {
     let fallback = AgentPreviewFooter::default();
-    render_body(input, Some(footer.unwrap_or(&fallback)), false)
+    render_body(
+        input,
+        Some(footer.unwrap_or(&fallback)),
+        false,
+        Some((text, cursor)),
+    )
 }
 
 /// Repaint just the provisional footer while the real Agent's chip finishes its fill.
@@ -302,7 +316,7 @@ pub fn render_agent_preview_footer(
     footer: Option<&AgentPreviewFooter>,
 ) -> Vec<u8> {
     let fallback = AgentPreviewFooter::default();
-    render_body(input, Some(footer.unwrap_or(&fallback)), true)
+    render_body(input, Some(footer.unwrap_or(&fallback)), true, None)
 }
 
 /// Cold fallback when no actual Agent footer exists yet; the owned shell renders the footer
@@ -360,7 +374,67 @@ fn preview_status_content(footer: &AgentPreviewFooter, columns: usize, truecolor
     )
 }
 
-fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, footer_only: bool) -> Vec<u8> {
+fn editor_row(text: &str, cursor: usize, columns: usize) -> String {
+    if columns == 0 {
+        return String::new();
+    }
+    let graphemes = text.graphemes(true).collect::<Vec<_>>();
+    let cursor = cursor.min(graphemes.len());
+    let mut start = 0;
+    while start < cursor {
+        let before = graphemes[start..cursor]
+            .iter()
+            .map(|value| UnicodeWidthStr::width(*value))
+            .sum::<usize>();
+        let caret = graphemes
+            .get(cursor)
+            .map_or(1, |value| UnicodeWidthStr::width(*value).max(1));
+        if before + caret <= columns {
+            break;
+        }
+        start += 1;
+    }
+    let mut output = String::new();
+    let mut width = 0;
+    let mut index = start;
+    let mut caret_drawn = false;
+    while width < columns && index <= graphemes.len() {
+        if index == cursor && !caret_drawn {
+            let value = graphemes.get(index).copied().unwrap_or(" ");
+            let value_width = UnicodeWidthStr::width(value).max(1);
+            if width + value_width > columns {
+                break;
+            }
+            output.push_str(&format!("\x1b[7m{value}\x1b[27m"));
+            width += value_width;
+            caret_drawn = true;
+            if index < graphemes.len() {
+                index += 1;
+            } else {
+                break;
+            }
+            continue;
+        }
+        let Some(value) = graphemes.get(index) else {
+            break;
+        };
+        let value_width = UnicodeWidthStr::width(*value).max(1);
+        if width + value_width > columns {
+            break;
+        }
+        output.push_str(value);
+        width += value_width;
+        index += 1;
+    }
+    output
+}
+
+fn render_body(
+    input: &LandingInput<'_>,
+    footer: Option<&AgentPreviewFooter>,
+    footer_only: bool,
+    draft: Option<(&str, usize)>,
+) -> Vec<u8> {
     let columns = usize::from(input.columns);
     let body_rows = usize::from(input.body_rows);
     let fg = |rgb| foreground(rgb, input.truecolor);
@@ -393,7 +467,8 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, fo
         }
         if editor_rows >= 2 {
             place(cwd_row - 1, border);
-            place(cwd_row - 2, "\x1b[7m \x1b[27m".into());
+            let (text, cursor) = draft.unwrap_or(("", 0));
+            place(cwd_row - 2, editor_row(text, cursor, columns));
         }
         if cwd_row + 1 < body_rows && actual.is_none() {
             place(cwd_row + 1, preview_status_row(footer, columns, input.truecolor));
@@ -430,7 +505,7 @@ fn render_body(input: &LandingInput<'_>, footer: Option<&AgentPreviewFooter>, fo
             input.columns, &actual.styles, &actual.links).is_err() {
             let mut fallback = footer.cloned().unwrap_or_default();
             fallback.actual = None;
-            return render_body(input, Some(&fallback), footer_only);
+            return render_body(input, Some(&fallback), footer_only, draft);
         }
         output.extend(footer_bytes);
     }
@@ -532,6 +607,24 @@ mod tests {
         let short = String::from_utf8(render_agent_preview_footer(&input(8, 3), None)).unwrap();
         assert!(short.contains("\x1b[3;1H") && short.contains("\x1b[4;1H"));
         assert!(!short.contains("\x1b[2;1H"));
+    }
+
+    #[test]
+    fn ready_prompt_renders_the_local_unicode_draft_and_visual_caret() {
+        let bytes = render_ready_prompt(&input(80, 23), None, "hello界", 5);
+        let grid = cells(&bytes, 80, 23);
+        assert!(grid[19].starts_with("hello界"));
+        assert_eq!(grid[21], " ~/src/a1");
+        assert!(grid.iter().all(|row| !row.contains("▀▀▀")));
+        let styled = String::from_utf8(bytes).unwrap();
+        assert!(styled.contains("hello\x1b[7m界\x1b[27m"));
+
+        let narrow = cells(
+            &render_ready_prompt(&input(4, 5), None, "ab界cd", 5),
+            4,
+            5,
+        );
+        assert!(narrow.iter().all(|row| UnicodeWidthStr::width(row.as_str()) <= 4));
     }
 
     #[test]
@@ -709,7 +802,7 @@ mod tests {
     }
 
     #[test]
-    fn the_landing_composes_under_either_strip_with_no_cursor() {
+    fn the_ready_prompt_composes_under_either_strip_with_no_hardware_cursor() {
         use crate::roles::presentation::{DesiredPresentation, FinalCursor, PresentationComposer};
         let desired = |offset: u16| DesiredPresentation {
             tab_id: None,
@@ -718,7 +811,7 @@ mod tests {
             geometry_generation: 0,
             strip: "strip".into(),
             structured: None,
-            legacy_body: render(&input(80, 23)),
+            legacy_body: render_ready_prompt(&input(80, 23), None, "draft", 5),
             overlay: None,
             cursor: Some(FinalCursor::Hidden),
             modes: None,

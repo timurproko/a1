@@ -26,8 +26,8 @@ use crate::core::attach::{
 use crate::core::tab_bar::append_visible_tab;
 use crate::endpoint;
 use crate::protocol::{
-    self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, TerminalEffect, TerminalModes,
-    Welcome,
+    self, BridgeAttachment, EffectKind, InputEvent, MAX_INPUT_BYTES, MAX_KEY_TEXT_BYTES,
+    TerminalEffect, TerminalModes, Welcome,
 };
 use crate::roles::command_palette;
 use crate::roles::credentials::ProfileCredentials;
@@ -1149,14 +1149,7 @@ fn tab_bar_canvas(style: Option<&str>, accent: Option<&str>) -> strip::StripCanv
 }
 
 fn accent_selected_background(accent: Option<&str>) -> [u8; 3] {
-    match accent {
-        Some("blue") => [52, 57, 69],
-        Some("cyan") => [48, 60, 61],
-        Some("green") => [50, 60, 54],
-        Some("orange") => [67, 54, 48],
-        Some("pink") => [65, 53, 62],
-        _ => [58, 56, 66],
-    }
+    strip::menu_hover_background(accent)
 }
 
 #[cfg(test)]
@@ -2314,6 +2307,48 @@ fn apply_tab_accent_fallback(tabs: &mut [StripTab], color: Option<&str>) {
     }
 }
 
+fn landing_submission_events(text: &str) -> Vec<(InputEvent, Vec<u8>)> {
+    let mut events = Vec::new();
+    let mut chunk = String::new();
+    for value in text.chars() {
+        if chunk.len().saturating_add(value.len_utf8()) > MAX_KEY_TEXT_BYTES {
+            let bytes = chunk.as_bytes().to_vec();
+            events.push((
+                InputEvent::Key {
+                    key: "unidentified".into(),
+                    mods: 0,
+                    text: Some(std::mem::take(&mut chunk)),
+                    repeat: false,
+                },
+                bytes,
+            ));
+        }
+        chunk.push(value);
+    }
+    if !chunk.is_empty() {
+        let bytes = chunk.as_bytes().to_vec();
+        events.push((
+            InputEvent::Key {
+                key: "unidentified".into(),
+                mods: 0,
+                text: Some(chunk),
+                repeat: false,
+            },
+            bytes,
+        ));
+    }
+    events.push((
+        InputEvent::Key {
+            key: "enter".into(),
+            mods: 0,
+            text: None,
+            repeat: false,
+        },
+        vec![b'\r'],
+    ));
+    events
+}
+
 struct Client {
     stream: AttachServerWriter,
     terminal: OuterTerminal,
@@ -2321,12 +2356,15 @@ struct Client {
     tabs: Vec<StripTab>,
     /// Only the attach client sees this visual intent; it is never a server tab identity.
     pending_agent: Option<PendingAgent>,
+    /// A direct empty-shell submission remains visible in the provisional editor until handoff.
+    pending_prompt: Option<String>,
     cancelled_agents: Vec<CancelledAgent>,
     hidden_cancelled_tabs: HashSet<String>,
     closed_tab_ids: HashSet<String>,
     pending_close_quiet_until: Option<Instant>,
     next_create_request_id: u64,
     preview_footer: Option<landing::AgentPreviewFooter>,
+    landing_footer_ready: bool,
     chip_priority: Vec<String>,
     chip_fill: Option<strip::ChipFill>,
     preview_footer_hold: Option<Vec<u8>>,
@@ -2356,7 +2394,7 @@ struct Client {
     pressed_chars: std::collections::HashSet<char>,
     key_trace_path: Option<PathBuf>,
     settings_file: PathBuf,
-    /// The running a1 package version the landing header names, when the release records one.
+    /// The running a1 package version shown by the optional right-side strip item.
     version: Option<String>,
     suppress_satisfied_update_notice: bool,
     data_dir: PathBuf,
@@ -2410,12 +2448,14 @@ impl Client {
             view,
             tabs: Vec::new(),
             pending_agent: None,
+            pending_prompt: None,
             cancelled_agents: Vec::new(),
             hidden_cancelled_tabs: HashSet::new(),
             closed_tab_ids: HashSet::new(),
             pending_close_quiet_until: None,
             next_create_request_id: 1,
             preview_footer: None,
+            landing_footer_ready: false,
             chip_priority: Vec::new(),
             chip_fill: None,
             preview_footer_hold: None,
@@ -2527,6 +2567,7 @@ impl Client {
                             .map_err(|error| format!("queue deferred resident input: {error}"))?;
                     }
                 }
+                Effect::SubmitLanding(text) => self.submit_landing(core, text)?,
                 Effect::Paint { clear } => self.paint(core, clear)?,
                 Effect::SavePlusMenu(menu) => self.save_plus_menu(core, menu),
                 Effect::SaveRightItems(items) => self.save_right_items(core, items),
@@ -2540,6 +2581,7 @@ impl Client {
                 .is_some_and(|pending| pending.real_id.is_none())
         {
             self.pending_agent = None;
+            self.pending_prompt = None;
         }
         Ok(forwarded)
     }
@@ -2753,6 +2795,14 @@ impl Client {
         Ok(())
     }
 
+    fn submit_landing(&mut self, core: &mut State, text: String) -> Result<(), String> {
+        self.pending_prompt = Some(text.clone());
+        for (event, legacy) in landing_submission_events(&text) {
+            self.send_input(core, Some(event), legacy)?;
+        }
+        Ok(())
+    }
+
     fn send_input(
         &mut self,
         core: &mut State,
@@ -2778,11 +2828,18 @@ impl Client {
             return Ok(());
         }
         self.has_shown_tabs |= !self.tabs.is_empty();
+        let landing_shown = self.landing_shown();
+        if landing_shown && !self.landing_footer_ready {
+            self.refresh_pending_agent_footer();
+            self.landing_footer_ready = true;
+        } else if !landing_shown {
+            self.landing_footer_ready = false;
+        }
         let pending = core.view.pending_agent_visible && self.pending_agent.is_some();
         let shown = self.prepare_strip(core, pending);
         self.render_strip(core, &shown, pending);
         let overlay = self.overlay(core);
-        let landing = self.landing();
+        let landing = self.landing(core);
         self.present(
             overlay,
             landing,
@@ -2926,7 +2983,7 @@ impl Client {
         self.view.viewed.is_none() && self.has_shown_tabs && self.pending_agent.is_none()
     }
 
-    fn landing(&self) -> Option<Vec<u8>> {
+    fn landing(&self, core: &State) -> Option<Vec<u8>> {
         if !self.landing_shown() {
             return None;
         }
@@ -2935,18 +2992,23 @@ impl Client {
             .or_else(|_| std::env::var("USERPROFILE"))
             .ok();
         let cwd = landing::display_cwd(&self.create.cwd, home.as_deref());
-        Some(landing::render(&landing::LandingInput {
-            columns: self.columns,
-            body_rows: self.outer_rows.saturating_sub(1),
-            accent: self.time_format.accent_color,
-            truecolor: !palette_fallback_requested(),
-            half_blocks: landing::half_blocks_supported(),
-            cwd: &cwd,
-            background: landing::canvas_background(
-                self.time_format.background_style,
-                self.time_format.accent_color,
-            ),
-        }))
+        Some(landing::render_ready_prompt(
+            &landing::LandingInput {
+                columns: self.columns,
+                body_rows: self.outer_rows.saturating_sub(1),
+                accent: self.time_format.accent_color,
+                truecolor: !palette_fallback_requested(),
+                half_blocks: false,
+                cwd: &cwd,
+                background: landing::canvas_background(
+                    self.time_format.background_style,
+                    self.time_format.accent_color,
+                ),
+            },
+            self.preview_footer.as_ref(),
+            &core.landing_draft.text,
+            core.landing_draft.cursor,
+        ))
     }
 
     fn refresh_pending_agent_footer(&mut self) {
@@ -2980,6 +3042,13 @@ impl Client {
         };
         if footer_only {
             landing::render_agent_preview_footer(&input, self.preview_footer.as_ref())
+        } else if let Some(prompt) = self.pending_prompt.as_deref() {
+            landing::render_ready_prompt(
+                &input,
+                self.preview_footer.as_ref(),
+                prompt,
+                prompt.graphemes(true).count(),
+            )
         } else {
             landing::render_agent_preview(&input, self.preview_footer.as_ref())
         }
@@ -3040,8 +3109,9 @@ impl Client {
         clear: bool,
         dimmed: bool,
     ) -> Result<(), String> {
+        let ready = landing.is_some();
         let pending_body = pending.then(|| self.pending_agent_shell(false));
-        let child_surface = landing.is_none() && !pending;
+        let child_surface = !ready && !pending;
         // Invariant: only the footer stays provisional. Reconstruct each latest complete real
         // surface so its editor and input remain live throughout the bounded chip fill.
         let held_body = if child_surface {
@@ -3074,12 +3144,12 @@ impl Client {
                 .or(held_body)
                 .unwrap_or_else(|| self.presented.surface.clone()),
             overlay,
-            cursor: if pending || dimmed {
+            cursor: if pending || ready || dimmed {
                 Some(FinalCursor::Hidden)
             } else {
                 self.presented.cursor
             },
-            modes: if pending {
+            modes: if pending || ready {
                 None
             } else {
                 self.presented.modes.clone()
@@ -3154,6 +3224,7 @@ impl Client {
                 self.last_strip_frame = Instant::now();
             }
             self.pending_agent = None;
+            self.pending_prompt = None;
         }
         if !core_attach::is_utility_tab(&surface.tab_id)
             && let Some(footer) = surface.structured.as_ref().and_then(agent_preview_footer)
@@ -5224,6 +5295,33 @@ mod tests {
         assert!(
             !should_paint_strip(false, false, false),
             "a staged registry alone must not enter the screen"
+        );
+    }
+
+    #[test]
+    fn landing_submission_chunks_unicode_then_submits_once() {
+        let text = format!("{}界", "a".repeat(MAX_KEY_TEXT_BYTES));
+        let events = landing_submission_events(&text);
+        assert_eq!(events.len(), 3);
+        let reconstructed = events[..events.len() - 1]
+            .iter()
+            .flat_map(|(_, bytes)| bytes.iter().copied())
+            .collect::<Vec<_>>();
+        assert_eq!(String::from_utf8(reconstructed).unwrap(), text);
+        assert!(events[..events.len() - 1]
+            .iter()
+            .all(|(_, bytes)| bytes.len() <= MAX_KEY_TEXT_BYTES));
+        assert_eq!(
+            events.last(),
+            Some(&(
+                InputEvent::Key {
+                    key: "enter".into(),
+                    mods: 0,
+                    text: None,
+                    repeat: false,
+                },
+                vec![b'\r'],
+            ))
         );
     }
 
