@@ -1,7 +1,10 @@
 import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildManifest, TERMINAL_HOST_ADDON, TERMINAL_HOST_ENTRY, verifyVersionReport, type TerminalHostVersionReport } from "../../scripts/development/build-terminal-host.mjs";
-import { licenseAllowed, renderTerminalHostNotices, type CargoMetadata, type NoticeReader } from "../../scripts/release/generate-terminal-host-notices.mjs";
+import { buildManifest, reuseProblems, reuseTerminalHostBuild, TERMINAL_HOST_ADDON, TERMINAL_HOST_ENTRY, verifyVersionReport, type TerminalHostVersionReport } from "../../scripts/development/build-terminal-host.mjs";
+import { licenseAllowed, NOTICES_FILENAME, renderTerminalHostNotices, type CargoMetadata, type NoticeReader } from "../../scripts/release/generate-terminal-host-notices.mjs";
 
 const report: TerminalHostVersionReport = {
   schema: "a1-terminal-host-version-v1",
@@ -154,5 +157,68 @@ describe("terminal-host release build", () => {
       notices: { filename: "terminal-host-THIRD-PARTY-NOTICES.txt" },
       provenance: { libghosttyVtCommit: report.libghosttyVtCommit, cargoLockSha256: "b".repeat(64), signatureStatus: "ci-attestation-required" },
     });
+  });
+});
+
+describe("terminal-host release build reuse", () => {
+  const bytes = (text: string) => ({ sha256: digest(text), size: Buffer.byteLength(text) });
+  const addon = "addon bytes";
+  const notices = "notices text";
+  const lock = "[[package]]\nname = \"terminal-host\"\n";
+  const manifest = () => buildManifest({
+    platform: "linux",
+    architecture: "x64",
+    triple: "x86_64-unknown-linux-gnu",
+    crateVersion: "0.1.0-dev",
+    report,
+    artifact: { filename: TERMINAL_HOST_ADDON, ...bytes(addon) },
+    entry: { filename: TERMINAL_HOST_ENTRY, ...bytes("old entry") },
+    notices: { filename: NOTICES_FILENAME, ...bytes(notices) },
+    cargoLockSha256: digest(lock),
+    rustVersion: "rustc 1.99.1",
+    zigVersion: "0.15.2",
+    builtAt: "2026-10-14T00:00:00.000Z",
+  });
+  const current = (overrides: Partial<Parameters<typeof reuseProblems>[1]> = {}) => ({
+    platform: "linux",
+    architecture: "x64",
+    crateVersion: "0.1.0-dev",
+    cargoLockSha256: digest(lock),
+    artifact: { filename: TERMINAL_HOST_ADDON, ...bytes(addon) },
+    notices: { filename: NOTICES_FILENAME, ...bytes(notices) },
+    ...overrides,
+  });
+
+  it("accepts a restored build only when its shipped files, target, crate version and lock match", () => {
+    expect(reuseProblems(manifest(), current())).toEqual([]);
+    expect(reuseProblems(manifest(), current({ artifact: { filename: TERMINAL_HOST_ADDON, ...bytes("tampered") } }))).toEqual(["artifact does not match its manifest record"]);
+    expect(reuseProblems(manifest(), current({ notices: null }))).toEqual(["notices file is missing"]);
+    expect(reuseProblems(manifest(), current({ cargoLockSha256: digest("other lock") }))).toEqual(["Cargo.lock digest differs from the restored build"]);
+    expect(reuseProblems(manifest(), current({ crateVersion: "0.2.0" }))).toEqual(["crate version 0.1.0-dev is not 0.2.0"]);
+    expect(reuseProblems(manifest(), current({ architecture: "arm64" }))).toEqual(["manifest records linux-x64, not linux-arm64"]);
+    expect(reuseProblems({ ...manifest(), schema: "other" }, current())).toContain("manifest schema other is not a1-terminal-host-artifact-v2");
+  });
+
+  it("re-records the current role entry and keeps the restored build identity", async () => {
+    const root = await mkdtemp(join(tmpdir(), "terminal-host-reuse-"));
+    try {
+      const target = join(root, "dist", "native", "linux-x64");
+      await mkdir(target, { recursive: true });
+      await mkdir(join(root, "native", "terminal-host"), { recursive: true });
+      await mkdir(join(root, "dist", "foundation", "resident-tabs"), { recursive: true });
+      await writeFile(join(root, "native", "terminal-host", "Cargo.lock"), lock);
+      await writeFile(join(target, TERMINAL_HOST_ADDON), addon);
+      await writeFile(join(target, NOTICES_FILENAME), notices);
+      await writeFile(join(target, "terminal-host.manifest.json"), JSON.stringify(manifest()));
+      await writeFile(join(root, TERMINAL_HOST_ENTRY), "new entry");
+      const reused = await reuseTerminalHostBuild({ repositoryRoot: root, platform: "linux", architecture: "x64", crateVersion: "0.1.0-dev" });
+      expect(reused.entry).toEqual({ filename: TERMINAL_HOST_ENTRY, ...bytes("new entry") });
+      expect(reused.builtAt).toBe("2026-10-14T00:00:00.000Z");
+      expect(reused.artifact.sha256).toBe(digest(addon));
+      expect(JSON.parse(await readFile(join(target, "terminal-host.manifest.json"), "utf8"))).toEqual(reused);
+      await writeFile(join(target, TERMINAL_HOST_ADDON), "tampered");
+      await expect(reuseTerminalHostBuild({ repositoryRoot: root, platform: "linux", architecture: "x64", crateVersion: "0.1.0-dev" }))
+        .rejects.toThrow(/restored terminal host cannot be reused:\n- artifact does not match its manifest record/u);
+    } finally { await rm(root, { recursive: true, force: true }); }
   });
 });

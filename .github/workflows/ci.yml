@@ -649,26 +649,53 @@ jobs:
         run: npm ci --ignore-scripts
       # Invariant: a packed candidate carries the release terminal host a published package ships.
       # Without it every packaged launch falls back to the direct UI and the resident route is untested.
-      - name: Prepare release terminal host Rust toolchain
+      # Rationale: the release addon depends only on the native tree, its toolchains, and the build scripts,
+      # so an exact-input hit restores the built addon and the lane re-certifies it instead of compiling.
+      - name: Restore release terminal host build
+        id: release-terminal-host
         if: steps.job-selection.outputs.packs_candidate == 'true'
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host.node
+            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host.manifest.json
+            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host-THIRD-PARTY-NOTICES.txt
+          key: terminal-host-release-v1-${{ runner.os }}-${{ runner.arch }}${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}-zig-0.15.2-${{ hashFiles('native/terminal-host/**', 'rust-toolchain.toml', 'config/terminal-host-provenance.json', 'scripts/development/build-terminal-host.mjs', 'scripts/development/native-build-environment.mjs', 'scripts/development/native-target.mjs', 'scripts/development/prepare-ci-rust.sh', 'scripts/release/generate-terminal-host-notices.mjs') }}
+      - name: Prepare release terminal host Rust toolchain
+        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'
         shell: bash
         run: bash scripts/development/prepare-ci-rust.sh
       - name: Set up Zig for the release terminal host
-        if: steps.job-selection.outputs.packs_candidate == 'true'
+        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'
         uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
         with:
           version: 0.15.2
           cache-key: development-validation${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}
           cache-size-limit: 512
       - name: Cache release terminal host build
-        if: steps.job-selection.outputs.packs_candidate == 'true'
+        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'
         uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           shared-key: terminal-host-release${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}
           workspaces: native/terminal-host
       - name: Build the release terminal host into the candidate
-        if: steps.job-selection.outputs.packs_candidate == 'true'
+        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'
         run: npm run build:terminal-host
+      - name: Save release terminal host build
+        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host.node
+            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host.manifest.json
+            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host-THIRD-PARTY-NOTICES.txt
+          key: ${{ steps.release-terminal-host.outputs.cache-primary-key }}
+      - name: Reuse the restored release terminal host
+        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit == 'true'
+        run: node scripts/development/build-terminal-host.mjs --reuse
+      - name: Verify the candidate's release terminal host
+        if: steps.job-selection.outputs.packs_candidate == 'true'
+        run: node scripts/release/verify-native-artifacts.mjs --local
       - name: Record verified install-time build
         if: steps.job-selection.outputs.active == 'true' && matrix.build
         run: node scripts/release/record-validation-prerequisite.mjs build
@@ -804,12 +831,23 @@ jobs:
           fi
           sleep 5
           node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"
+      # Rationale: the fuzz driver is a fixed binary keyed by its version and the nightly it builds with,
+      # so caching it removes a recurring compile from the only lane that fuzzes.
+      - name: Cache the terminal-host fuzz tool
+        id: cargo-fuzz
+        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && matrix.platform == 'linux'
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-fuzz
+          key: cargo-fuzz-0.13.2-nightly-2026-10-01-${{ runner.os }}-${{ runner.arch }}
       - name: Run bounded terminal-host decoder fuzzing
         if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && matrix.platform == 'linux'
         shell: bash
         run: |
           rustup toolchain install nightly-2026-10-01 --profile minimal --no-self-update
-          cargo +nightly-2026-10-01 install cargo-fuzz --version 0.13.2 --locked
+          if [ "${{ steps.cargo-fuzz.outputs.cache-hit }}" != "true" ]; then
+            cargo +nightly-2026-10-01 install cargo-fuzz --version 0.13.2 --locked
+          fi
           cd native/terminal-host
           # Rationale: every decoder and parser gets the same bounded budget; this proves parser
           # robustness on Linux and is not platform evidence.
