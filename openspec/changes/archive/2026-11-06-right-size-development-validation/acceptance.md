@@ -17,7 +17,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-06-right-size-development-validation/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-06-right-size-development-validation/acceptance.md",
   "finalizedDate": "2026-11-06",
-  "specBaseSha": "7f9f16dd125e0b71f9f1731878605a0adb822a5c",
+  "specBaseSha": "2ac8757a1f0fddf0534e86330097aa7453f5b987",
   "acceptanceScenarios": [
     "A candidate-packing lane whose native inputs match a cached key restores the release terminal host, re-records the host-entry digest, verifies it, and packs without installing Rust or Zig.",
     "A changed native tree, toolchain pin, or build script misses the cache and builds the release terminal host as before; a tampered restored file fails the lane before the build receipt.",
