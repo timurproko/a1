@@ -1,7 +1,7 @@
 ## MODIFIED Requirements
 
 ### Requirement: Tab chips reproduce the approved v2 strip
-The strip SHALL retain the approved v2 geometry, clipping, status, overflow, and active-chip treatment while adapting non-active chrome to the configured tab-bar canvas. With a transparent canvas, inactive chips, the overflow control, and `+` SHALL retain the terminal default background at rest instead of painting opaque neutral blocks; their hover feedback SHALL use the same subtle accent-selected background as owned popup menus while retaining their resting label foreground. The viewed chip SHALL keep its existing resolved active treatment. Black and Accent canvases SHALL retain readable canvas-relative inactive and hover treatments. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible when space permits, and a trailing `+` SHALL be reserved while at least one plus-menu kind is enabled. The muted single-column centered `⋯` overflow control SHALL appear only while some chips do not fit and SHALL open a keyboard- and mouse-navigable popup listing only tabs whose chips are not drawn, without checkmarks, in strip order. Each row SHALL reserve a one-cell status-glyph slot and separator before its name; it SHALL show the same current status glyph and semantic color as the chip when present, or a blank slot while idle. Names SHALL clip by display width without shifting the icon slot, leaking icon style into the title, or changing popup hit geometry. Choosing a popup row SHALL view exactly that tab with either top or bottom strip placement and place its chip in the currently active chip's strip slot when that chip was drawn and the two do not both fit, even if a different non-swap view request was pending; the displaced tab SHALL appear in the popup. Other visible chips SHALL remain visible when geometry permits, and a pending view request SHALL NOT briefly repaint the old viewed chip in the slot or replay the newly drawn chip's hidden-name transition. The popup SHALL track the current drawn chips across resize, reorder, creation, removal, and view changes; removed tabs SHALL NOT remain actionable. The strip SHALL NOT wrap. The right edge SHALL render the configured right-side items followed by one blank terminal cell; no wallpaper text SHALL render.
+The strip SHALL retain the approved v2 geometry, clipping, status, overflow, and active-chip treatment while adapting non-active chrome to the configured tab-bar canvas. With a transparent canvas, inactive chips, the overflow control, and `+` SHALL retain the terminal default background at rest instead of painting opaque neutral blocks; their hover feedback SHALL use the same subtle accent-selected background as owned popup menus while retaining their resting label foreground. The viewed chip SHALL keep its existing resolved active treatment. Black SHALL retain its readable dark inactive-tab treatment. Accent inactive tabs SHALL rest directly on the accent canvas and hover with a lighter form of that canvas, while Transparent inactive tabs SHALL remain text on the terminal-default background at rest. Each chip SHALL render one space, an optional status glyph and space, the display name, and one space, with no close glyph and a maximum width of 20 terminal columns. Names SHALL be clipped with `…` at grapheme boundaries using display width. When chips do not fit, the viewed chip SHALL stay visible when space permits, and a trailing `+` SHALL be reserved while at least one plus-menu kind is enabled. The muted single-column centered `⋯` overflow control SHALL appear only while some chips do not fit and SHALL open a keyboard- and mouse-navigable popup listing only tabs whose chips are not drawn, without checkmarks, in strip order. Each row SHALL reserve a one-cell status-glyph slot and separator before its name; it SHALL show the same current status glyph and semantic color as the chip when present, or a blank slot while idle. Names SHALL clip by display width without shifting the icon slot, leaking icon style into the title, or changing popup hit geometry. Choosing a popup row SHALL view exactly that tab with either top or bottom strip placement and place its chip in the currently active chip's strip slot when that chip was drawn and the two do not both fit, even if a different non-swap view request was pending; the displaced tab SHALL appear in the popup. Other visible chips SHALL remain visible when geometry permits, and a pending view request SHALL NOT briefly repaint the old viewed chip in the slot or replay the newly drawn chip's hidden-name transition. The popup SHALL track the current drawn chips across resize, reorder, creation, removal, and view changes; removed tabs SHALL NOT remain actionable. The strip SHALL NOT wrap. The right edge SHALL render the configured right-side items followed by one blank terminal cell; no wallpaper text SHALL render.
 
 #### Scenario: Transparent inactive controls blend with the canvas
 - **WHEN** the tab-bar canvas is Transparent and the strip shows an inactive tab, overflow, or `+`
@@ -9,11 +9,22 @@ The strip SHALL retain the approved v2 geometry, clipping, status, overflow, and
 - **AND** hovering it SHALL use the owned popup menu's accent-selected background without changing its label foreground or hit range
 - **AND** the active tab SHALL retain its existing selected treatment
 
+#### Scenario: Accent inactive tabs inherit the canvas
+- **WHEN** the tab-bar canvas is Accent and an inactive tab is shown
+- **THEN** that tab SHALL use the accent canvas at rest instead of a dark neutral block
+- **AND** hover SHALL use the same lighter accent canvas language as the strip controls
+- **AND** Black SHALL keep its dark inactive-tab treatment while Transparent keeps text on its terminal-default background at rest
+
 #### Scenario: Black and Accent plus controls stay on their canvas
 - **WHEN** the tab-bar canvas is Black or Accent and the strip shows `+`
 - **THEN** `+` SHALL rest directly on the configured strip canvas without a separate black block
 - **AND** hovering `+` or the grouped right side SHALL use the same subtly lightened canvas background without recoloring either label
 - **AND** Black hover SHALL remain a neutral lighter black while Accent hover SHALL preserve the accent-canvas hue
+
+#### Scenario: Creating a tab clears relocated plus hover
+- **WHEN** the pointer activates `+` and the resulting tab chip moves `+` to a different column without pointer motion
+- **THEN** the relocated `+` SHALL render at rest rather than retaining hover from its old position
+- **AND** only a new pointer event over the relocated hit range SHALL restore its hover
 
 #### Scenario: Wide names are clipped by display width
 - **WHEN** a tab name contains CJK characters or emoji wider than the chip allows
@@ -138,7 +149,8 @@ Printable Unicode keys, ordinary single-line cursor/editing keys, and paste SHAL
 #### Scenario: Submit directly from the empty shell
 - **WHEN** the ready prompt holds a non-empty draft and the user presses Enter
 - **THEN** exactly one Agent SHALL be created and its pending presentation SHALL appear immediately
-- **AND** the pending body SHALL immediately show the submitted prompt in a full-width accent-projected message row with the muted ` ❯ ` prefix, ordinary prompt text, and right-aligned submission time when width permits
+- **AND** the pending body SHALL immediately show one blank breathing row followed by the submitted prompt in a full-width accent-projected message row with the muted ` ❯ ` prefix, ordinary prompt text, and right-aligned submission time when width permits
+- **AND** the provisional message row SHALL occupy the same vertical position as the first real submitted prompt so handoff does not jump
 - **AND** the configured 12- or 24-hour time format and palette fallback SHALL match the final Agent design while the editor remains empty
 - **AND** the draft and submit action SHALL reach only that Agent after its view commits
 

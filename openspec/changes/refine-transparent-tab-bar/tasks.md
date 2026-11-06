@@ -4,6 +4,8 @@
 - [x] 1.2 Make inactive tabs, overflow, and `+` inherit the transparent canvas at rest and use one accent-derived foreground hover treatment, verifying the active chip and every hit range remain unchanged.
 - [x] 1.3 Refine all strip hover targets to reuse the owned menu accent-selected background while preserving their resting label foregrounds and unchanged hit geometry.
 - [x] 1.4 Make `+` rest directly on Black and Accent canvases, and give `+` and the grouped right side one shared subtly lightened canvas hover while preserving Transparent behavior and stable foregrounds.
+- [ ] 1.5 Clear stale strip hover when tab creation/opening relocates `+`, requiring a fresh pointer event before the moved control can hover again.
+- [ ] 1.6 Make inactive tabs inherit the Accent canvas and its lighter hover while preserving current Black and Transparent inactive-tab treatments.
 
 ## 2. Grouped right-side interaction
 
@@ -18,6 +20,7 @@
 - [x] 3.3 Cover Unicode editing, paste, empty submission, shortcuts, cancellation/failure, top/bottom placement, and constrained geometry without forwarding landing drafts to hidden or unrelated tabs.
 - [x] 3.4 Echo a submitted landing draft immediately in the pending Agent's provisional content area with an empty editor, then hand off to the exact real Agent surface without changing deferred input delivery.
 - [x] 3.5 Make the provisional submission use the final submitted-message row geometry and semantic styling, including prefix, projected background, text, stored submission time, configured time format, and narrow fallback.
+- [ ] 3.6 Place the provisional submitted-message row after the same leading breathing row as the first real prompt so startup handoff cannot shift it vertically.
 
 ## 4. Focused regression coverage
 
@@ -26,3 +29,5 @@
 - [x] 4.3 Add regressions for padded right-side hover geometry, the bullet separator, and immediate pending-prompt content, then rerun the focused terminal-host suites.
 - [x] 4.4 Add truecolor and palette regressions proving the provisional submitted-message row matches the final design at wide and constrained widths, then rerun the focused terminal-host suites.
 - [x] 4.5 Add truecolor and palette regressions for canvas-resting `+` and shared lighter Black/Accent hover backgrounds, then rerun the focused terminal-host suites.
+- [ ] 4.6 Add regressions for relocated-control hover clearing and stable provisional-to-real prompt placement, then rerun the focused terminal-host suites.
+- [ ] 4.7 Add truecolor and palette regressions for Accent inactive-tab rest and hover without changing Black or Transparent, then rerun the focused strip suite.
