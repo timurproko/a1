@@ -24,9 +24,9 @@ The maintainer integration decision accepts these scenarios:
     "Terminal-host partitions run only their role_integration slice while the build-and-probe lane still runs the unit, binary, and release-isolation tests once per target.",
     "The Linux terminal-host lane runs the same four fuzz targets with the same budget using a cached cargo-fuzz binary, installing it only on a cache miss."
   ],
-  "archiveDigest": "273abfb13a25cb0e81161c45e3624db07a4d16bfddd5a7b0eeda614e230e6548",
+  "archiveDigest": "41af32126873de5d57ca5f2b45ca1807b165a8551019e5f56018ec76be254942",
   "specDigest": "57ca6521080b8d1f226bdd1d4d4aa6dfeb9800819bea2d10c137db14aa468ec2",
-  "tasksDigest": "92cf2517db49f1dddf4c228bda684c430edac0410e2ff0fbf3555f76ed06e8b2",
+  "tasksDigest": "d6976196a8fa0327a0bf9291de6c1b84681e3776c82b6e6231a4e2f1f62543cf",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
