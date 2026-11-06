@@ -10,4 +10,4 @@
 
 ## 3. Validate
 
-- [ ] 3.1 Run the focused compaction observer, adapter, runtime, pinned-session, and shell status tests plus typechecking and strict OpenSpec validation; record outcomes and known-gap disposition in the design artifact.
+- [x] 3.1 Run the focused compaction observer, adapter, runtime, pinned-session, and shell status tests plus typechecking and strict OpenSpec validation; record outcomes and known-gap disposition in the design artifact.

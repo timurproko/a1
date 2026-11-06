@@ -51,3 +51,12 @@ The pinned `AgentSession` integration will no longer establish terminal visibili
 ## Migration Plan
 
 No data migration is required. Reverting the result handler and its focused coverage restores iterator-exhaustion terminal reporting.
+
+## Implementation Evidence
+
+- The observer registers on the public stream result before returning the stream to Pi, reports 100 only for a current successful `stop` result, and keeps character estimates monotonic and capped at 99 before completion.
+- Focused observer coverage proves a successful result reaches 100 before iterator exhaustion and rejects error, abort, length, rejected, ended, disposed, and stale outcomes.
+- The pinned `AgentSession` integration now resolves the result before terminating iteration, matching Pi 1.5.0 ordering, and records `Compacting:100` before the lifecycle clears status.
+- Four focused engine files passed 65 tests, and the shell component file passed 49 tests.
+- The core release build, full TypeScript typecheck, strict OpenSpec validation, and diff checks passed.
+- Known gaps: none.
