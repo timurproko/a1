@@ -4,7 +4,8 @@
  * Modifications: Mechanical source port with Node import prefixes, public package-root agent-directory
  * resolution, and an opt-in bare-A1 input profile including Ctrl+L level cycling, unbound model
  * selection, Tab tree-filter cycling, tree-local navigation aliases, cross-platform Alt+Up
- * queued-message restoration, and an implicit Ctrl+C selection-cancel alias omitted from shortcut
+ * queued-message restoration, Ctrl+/ (and the legacy Ctrl+- byte it shares) opening the command menu
+ * with prompt undo on Ctrl+Z, and an implicit Ctrl+C selection-cancel alias omitted from shortcut
  * labels.
  * Deviations: keybindings-public-config-boundary, owned-level-cycle-shortcut,
  * owned-input-keybinding-aliases, owned-session-tree-dialog, owned-dialog-ctrl-c-cancel.
@@ -71,6 +72,7 @@ export interface AppKeybindings {
 	"owned.editor.cut": true;
 	"owned.editor.paste": true;
 	"owned.editor.redo": true;
+	"owned.editor.commands": true;
 	"owned.editor.extendLeft": true;
 	"owned.editor.extendRight": true;
 	"owned.tree.collapse": true;
@@ -274,9 +276,10 @@ const OWNED_INPUT_KEYBINDINGS = {
 		...KEYBINDINGS["tui.editor.deleteWordForward"],
 		defaultKeys: [...KEYBINDINGS["tui.editor.deleteWordForward"].defaultKeys, "ctrl+delete"],
 	},
+	// Invariant: legacy terminals send Ctrl+/ as the Ctrl+- byte, so bare A1 undoes with Ctrl+Z (or Alt+Z) and gives Ctrl+- to the command menu.
 	"tui.editor.undo": {
 		...KEYBINDINGS["tui.editor.undo"],
-		defaultKeys: [KEYBINDINGS["tui.editor.undo"].defaultKeys, "ctrl+z"],
+		defaultKeys: KEYBINDINGS["tui.editor.undo"].defaultKeys === "alt+z" ? ["alt+z", "ctrl+z"] : "ctrl+z",
 	},
 	// Ctrl+Z edits the prompt in bare A1 instead of suspending the process.
 	"app.suspend": { ...KEYBINDINGS["app.suspend"], defaultKeys: [] },
@@ -285,6 +288,7 @@ const OWNED_INPUT_KEYBINDINGS = {
 	"owned.editor.cut": { defaultKeys: "ctrl+x", description: "Cut selected prompt text" },
 	"owned.editor.paste": { defaultKeys: "ctrl+v", description: "Paste clipboard text" },
 	"owned.editor.redo": { defaultKeys: "ctrl+y", description: "Redo prompt edit" },
+	"owned.editor.commands": { defaultKeys: ["ctrl+/", "ctrl+-"], description: "Open the command menu" },
 	"owned.editor.extendLeft": { defaultKeys: "shift+left", description: "Extend prompt selection left" },
 	"owned.editor.extendRight": { defaultKeys: "shift+right", description: "Extend prompt selection right" },
 	"owned.tree.collapse": { defaultKeys: "left", description: "Collapse selected tree branch" },

@@ -159,6 +159,29 @@ describe("skills command helpers", () => {
 });
 
 describe.each([false, true])("skills tunnel in the bare-A1 editor (history=%s)", history => {
+  it.each([["the legacy byte", "\u001f"], ["the Kitty sequence", "\u001b[47;5u"]])("opens and closes the command menu with Ctrl+/ sent as %s", async (_label, ctrlSlash) => {
+    const { editor, dispose } = await fixture(history);
+    try {
+      editor.setAutocompleteCommands([...COMMANDS]);
+      editor.handleInput?.(ctrlSlash);
+      await settle();
+      expect(editor.getText()).toBe("/");
+      expect(menuText(editor).some(row => row.includes("model"))).toBe(true);
+      editor.handleInput?.(ctrlSlash);
+      await settle();
+      expect(editor.getText()).toBe("");
+      expect(menuText(editor)).toEqual([]);
+
+      editor.setText("draft");
+      editor.handleInput?.(ctrlSlash);
+      await settle();
+      expect(editor.getText()).toBe("draft");
+      editor.handleInput?.("x");
+      editor.handleInput?.(UNDO);
+      expect(editor.getText()).toBe("draft");
+    } finally { await dispose(); }
+  });
+
   it("leaves completed top-level commands ready for a delimiter or arguments", async () => {
     const { editor, submitted, dispose } = await fixture(history);
     try {
