@@ -105,7 +105,8 @@ export async function inspectVersion3DeliverySnapshot(reader, pull, implementati
   requireAcceptance(!associationRepair || associationRepair.repository === reader.repository
     && associationRepair.change === implementation.change && associationRepair.correctivePr === pull.number,
   "association-repair-corrective");
-  return { snapshot, manifest, archiveEntries, specEntries, evidenceEntries, tasksBytes, scenarios, associationRepair, ...verified };
+  const retiredSpecPaths = [...retired].map(capability => `openspec/specs/${capability}/spec.md`);
+  return { snapshot, manifest, archiveEntries, specEntries, retiredSpecPaths, evidenceEntries, tasksBytes, scenarios, associationRepair, ...verified };
 }
 
 async function verifyAssociationRepairSource(reader, correctivePull, record) {
@@ -150,7 +151,8 @@ export async function validateVersion3Candidate(reader, number) {
   const changed = new Set(files.flatMap(file => [file.filename, ...(file.status === "renamed" ? [file.previous_filename] : [])]));
   requireAcceptance(value.archiveEntries.every(([path]) => changed.has(path)) && changed.has(implementation.acceptanceManifest),
     "delivery-diff-incomplete");
-  const specPaths = new Set(value.specEntries.map(([path]) => path));
+  // Invariant: a delivery may change only the specs it digests, plus the specs it retires by deleting them.
+  const specPaths = new Set([...value.specEntries.map(([path]) => path), ...value.retiredSpecPaths]);
   const activePrefix = `openspec/changes/${implementation.change}/`;
   const deliveredArchivePaths = new Set([...value.archiveEntries.map(([path]) => path), implementation.acceptanceManifest]);
   const archivedSources = new Set(files.flatMap(file => {
