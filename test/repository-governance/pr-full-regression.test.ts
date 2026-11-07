@@ -32,7 +32,7 @@ const context = () => fullContext({ FULL_SOURCE: head, FULL_BASE: base, FULL_PR:
 describe("trusted complete-regression selection", () => {
   it.each([".github/workflows/publish.yml", ".github/workflows/ci.yml", ".github/workflows/full-regression.yml", ".github/workflows/full-regression-shared.yml",
     "scripts/release/require-development-validation.mjs", "src/foundation/release/update.ts", "test/foundation/release/update-predecessor.integration.test.ts",
-    "scripts/development/environment-probe.mjs", "scripts/development/prepare-ci-rust.sh", "package.json", "package-lock.json", "bin/cli.js", "native/process-guardian/Cargo.lock",
+    "scripts/development/environment-probe.mjs", "package.json", "package-lock.json", "bin/cli.js",
     "config/integration-owners.json", "config/validation-ownership.json", "config/validation-suites.json", "tsconfig.build.json", "vitest.config.ts",
     "src/cli/dispatch.ts", "src/cli/version-stats.ts", "test/cli/update-cli.test.ts", "test/support/release-command-fixture.ts", "test/fixtures/package.ts",
     "new-build-input.yaml"])("keeps ordinary cadence for former broad trigger: %s", path => {

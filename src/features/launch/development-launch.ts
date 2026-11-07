@@ -50,7 +50,6 @@ export function resolveDevelopmentLaunchEnvironment(
       [PRODUCT_IDENTITY.environment.configDir]: resolve(source[PRODUCT_IDENTITY.environment.configDir] ?? persistentConfigDir),
       [PRODUCT_IDENTITY.environment.dataDir]: dataDir,
       [PRODUCT_IDENTITY.environment.runtimeDir]: resolve(source[PRODUCT_IDENTITY.environment.runtimeDir] ?? join(developmentRoot, "runtime")),
-      [PRODUCT_IDENTITY.environment.databasePath]: resolve(source[PRODUCT_IDENTITY.environment.databasePath] ?? join(dataDir, PRODUCT_IDENTITY.endpoint.databaseFilename)),
     },
   };
 }

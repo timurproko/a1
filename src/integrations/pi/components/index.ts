@@ -50,7 +50,6 @@ export {
   isAutocompleteProvider,
   isPiPromptStyleCompaction,
   isRecord,
-  paintPiSubmittedPromptTimestamp,
   piShellHyperlink,
   piShellTruncateToWidth,
   piShellVisibleWidth,

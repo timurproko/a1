@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { readPackedEntries, readPackedManifest } from "../governance/candidate-evidence.mjs";
 
 const exec = promisify(execFile);
-const BUILD_INPUTS = ["package.json", "package-lock.json", "tsconfig.json", "tsconfig.build.json", "src", "bin", "native/process-guardian/Cargo.toml", "native/process-guardian/Cargo.lock", "native/process-guardian/src", "scripts/clean.mjs", "scripts/development/build-process-guardian.mjs", "scripts/release/generate-runtime-payload-inventory.mjs"];
+const BUILD_INPUTS = ["package.json", "package-lock.json", "tsconfig.json", "tsconfig.build.json", "src", "bin", "scripts/clean.mjs", "scripts/release/generate-runtime-payload-inventory.mjs"];
 const MAX_FILES = 4096;
 const MAX_BYTES = 128 * 1024 * 1024;
 
@@ -46,13 +46,7 @@ async function buildReceipt(repository, options) {
   if (!toolchain || typeof toolchain !== "object" || Array.isArray(toolchain)) throw new Error("validation build receipt requires toolchain identity");
   const inputs = await inventory(repository, BUILD_INPUTS);
   const artifacts = await inventory(repository, ["dist"]);
-  const guardian = JSON.parse(await readFile(resolve(repository, "dist", "native", `${platform()}-${arch()}`, "manifest.json"), "utf8"));
-  const executable = resolve(repository, "dist", "native", `${platform()}-${arch()}`, guardian.artifact?.filename ?? "missing");
-  const bytes = await readFile(executable);
-  if (createHash("sha256").update(bytes).digest("hex") !== guardian.artifact?.sha256 || bytes.length !== guardian.artifact?.size) throw new Error("built native artifact differs from its manifest");
-  const payload = { schema: "a1-validation-build-receipt-v1", head, toolchain, inputs, artifacts,
-    native: { schema: guardian.schema, protocolVersion: guardian.protocolVersion, crateVersion: guardian.crateVersion,
-      platform: guardian.platform, architecture: guardian.architecture, filename: guardian.artifact.filename, sha256: guardian.artifact.sha256, size: guardian.artifact.size } };
+  const payload = { schema: "a1-validation-build-receipt-v1", head, toolchain, inputs, artifacts };
   return { ...payload, receiptId: digest(payload) };
 }
 
@@ -124,12 +118,7 @@ function summarize(files) {
 async function currentToolchain(repository) {
   const manifest = JSON.parse(await readFile(resolve(repository, "package.json"), "utf8"));
   return { platform: platform(), architecture: arch(), node: process.version, modules: process.versions.modules,
-    packageManager: manifest.packageManager, typescript: manifest.devDependencies?.typescript,
-    cargo: await version("cargo"), rustc: await version("rustc") };
-}
-async function version(command) {
-  try { return (await exec(command, ["--version"], { encoding: "utf8", windowsHide: true, timeout: 10000 })).stdout.trim(); }
-  catch { throw new Error("validation build toolchain is unavailable"); }
+    packageManager: manifest.packageManager, typescript: manifest.devDependencies?.typescript };
 }
 async function gitHead(repository) {
   const head = (await exec("git", ["rev-parse", "HEAD^{commit}"], { cwd: repository, encoding: "utf8", windowsHide: true })).stdout.trim();

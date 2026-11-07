@@ -22,45 +22,30 @@ const { parseCliCommand, cliCapabilities } = await import("../../dist/cli/index.
 const { sessionSelectionArguments } = await import("../../dist/foundation/lifecycle/index.js");
 const command = parseCliCommand(inspectedArguments, cliCapabilities(release.version));
 const directProfile = command.kind === "launch" ? command.profileId : null;
-const launchMode = command.kind === "launch" ? command.launchMode : null;
 const childArguments = command.kind === "launch" ? sessionSelectionArguments(command.sessionSelection) : inspectedArguments;
-const prepared = directProfile === null ? null : await prepareDirectProfile(directProfile, launchMode, environment);
+const prepared = directProfile === null ? null : await prepareDirectProfile(directProfile, environment);
 const { withLaunchContext } = await import("../../dist/foundation/launch-context/index.js");
-const profileEnvironment = prepared === null || launchMode === null
+const profileEnvironment = prepared === null
   ? environment
-  : withLaunchContext(prepared.environment, { launchProfile: directProfile, launchMode });
+  : withLaunchContext(prepared.environment, { launchProfile: directProfile });
 // Performance: mutable development builds create fresh compile-cache identities whose exit-time
 // serialization occurs after terminal restoration. Production launch and warmup caching stay intact.
 const childEnvironment = directProfile === null ? profileEnvironment : { ...profileEnvironment, NODE_DISABLE_COMPILE_CACHE: "1" };
-// Rationale: resident development launches traverse the production bootstrap, supervisor, and guardian;
-// explicit solo/comparison launches keep the fast direct UI entry.
-const entry = directProfile === null || launchMode === "tabs" ? identity.artifacts.cliEntry : identity.artifacts.uiEntry;
-const selectedChildArguments = directProfile === null || launchMode === "tabs" ? inspectedArguments : childArguments;
+// Rationale: a development launch runs the checkout's own build in place, so it skips release
+// selection and starts the UI entry directly; other commands go through the ordinary CLI.
+const entry = directProfile === null ? identity.artifacts.cliEntry : identity.artifacts.uiEntry;
+const selectedChildArguments = childArguments;
 
 if (launchArguments[0] === "--print-environment") {
-  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, childArguments: selectedChildArguments, directProfile, launchMode, selectedEntry: entry, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
+  process.stdout.write(`${JSON.stringify({ checkoutId, instanceId, releaseId: release.releaseId, developmentRoot, launchArguments: inspectedArguments, childArguments: selectedChildArguments, directProfile, selectedEntry: entry, profileConfigurationRoot: prepared?.configurationRoot ?? null, environment: {
     A1_CONFIG_DIR: childEnvironment.A1_CONFIG_DIR,
     A1_DATA_DIR: childEnvironment.A1_DATA_DIR,
     A1_DEV_HISTORY_DATA_DIR: childEnvironment.A1_DEV_HISTORY_DATA_DIR,
     A1_RUNTIME_DIR: childEnvironment.A1_RUNTIME_DIR,
-    A1_DATABASE_PATH: childEnvironment.A1_DATABASE_PATH,
     PI_CODING_AGENT_DIR: childEnvironment.PI_CODING_AGENT_DIR ?? null,
     NODE_DISABLE_COMPILE_CACHE: childEnvironment.NODE_DISABLE_COMPILE_CACHE ?? null,
   } }, null, 2)}\n`);
 } else {
-  // Rationale: a checkout's earlier development launch keeps its resident server owning the tab
-  // endpoint, which silently forces this launch onto the single-agent fallback; testing always
-  // wants the fresh build, so stop that checkout-owned run first. The stop converges on its own
-  // and reports only what survived it.
-  const { describeSurvivors, stopCheckoutProcesses } = await import("./stop-checkout-processes.mjs");
-  // Rationale: automated probes start a second instance beside a running one and opt out of the stop.
-  const keepProcesses = process.env.A1_DEV_KEEP_PROCESSES === "1";
-  const stopCheckout = async () => {
-    if (keepProcesses) return;
-    const { survivors } = await stopCheckoutProcesses({ root: canonicalRoot });
-    process.stderr.write(describeSurvivors(survivors));
-  };
-  await stopCheckout();
   const child = spawn(process.execPath, [resolve(packageRoot, entry), ...selectedChildArguments], {
     cwd: process.cwd(),
     env: childEnvironment,
@@ -73,16 +58,12 @@ if (launchArguments[0] === "--print-environment") {
   });
   child.once("close", (code, signal) => {
     process.exitCode = restoreAfterOwnedExit(directProfile === "a1", code, signal);
-    // Rationale: a development instance is disposable test state. Resident roles are designed to
-    // outlive a detached `a1`, which for a checkout means a supervisor, server, holders, and tabs
-    // left running after every `./scripts/dev` session; the launch that created them ends them.
-    void stopCheckout();
   });
 }
 
-async function prepareDirectProfile(profileId, launchMode, sourceEnvironment) {
+async function prepareDirectProfile(profileId, sourceEnvironment) {
   const { interactiveLaunchIntent, prepareInteractiveLaunch } = await import("../../dist/features/launch/index.js");
-  return await prepareInteractiveLaunch(interactiveLaunchIntent(profileId, undefined, launchMode), sourceEnvironment);
+  return await prepareInteractiveLaunch(interactiveLaunchIntent(profileId), sourceEnvironment);
 }
 
 async function deriveDevelopmentReleaseIdentity(root) {

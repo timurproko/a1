@@ -36,18 +36,11 @@ A1 SHALL verify through npm's global package-root resolution that the running pa
 
 #### Scenario: Running package is not managed by global npm
 - **WHEN** the running package path does not have npm's exact global package layout or active npm does not confirm the inferred root
-- **THEN** A1 exits unsuccessfully and prints the manual npm installation command without modifying any package, launcher, supervisor, or update transaction
+- **THEN** A1 exits unsuccessfully and prints the manual npm installation command without modifying any package, launcher, release, or update transaction
 
 #### Scenario: Running package is linked or checked out locally
 - **WHEN** the running A1 package canonicalizes to a local checkout, npm link target, or another package-manager context
 - **THEN** A1 exits unsuccessfully and prints the manual npm installation command without modifying any installation
-
-### Requirement: Update is isolated from the interactive runtime
-The update subcommand SHALL complete or fail without starting the A1 supervisor, attaching to an existing supervisor, launching the TUI, or launching an agent.
-
-#### Scenario: Update is requested while no supervisor exists
-- **WHEN** the user invokes the update subcommand
-- **THEN** only the npm update workflow runs and no supervisor endpoint is created
 
 ### Requirement: Immutable release preparation avoids redundant payload passes
 For a newly installed target, A1 SHALL derive release identity while writing the immutable candidate in one bounded payload pass and SHALL certify the atomically committed candidate from process-local proof produced by that pass. It MUST NOT perform a second complete destination-content read solely to certify bytes that the same uninterrupted materialization operation just hashed and wrote. An existing release lacking valid trusted certification SHALL still receive complete verification before selection.
@@ -150,7 +143,7 @@ Pi runtime. `--models` SHALL NOT combine with `--release`, `--develop`, or a pre
 
 #### Scenario: Update selectors conflict
 - **WHEN** `--release`, `--develop`, its optional preview value, or `--models` are combined outside the declared grammar
-- **THEN** A1 SHALL fail before registry, package, supervisor, or runtime work
+- **THEN** A1 SHALL fail before registry, package, release, or runtime work
 
 ### Requirement: Update progress follows the work
 When A1 shows update progress, the display SHALL advance with the work being done
@@ -215,7 +208,7 @@ The update subcommand SHALL complete while other A1 sessions are working, and SH
 to stop or wait for them to finish. A session already running SHALL keep the release it started
 on and SHALL be unaffected in its transcript, its terminal, and the agent turn in progress. The
 release the update successfully installs and activates SHALL be what every subsequent ordinary
-launch starts on, including when older retained cohorts remain live or concurrent launches observe
+launch starts on, including when sessions on older retained releases remain live or concurrent launches observe
 the activation handoff.
 
 Where a running session cannot be preserved because it runs from the package being replaced, the
@@ -340,19 +333,19 @@ For equivalent profile contents and refresh results, `a1 update --models` and `a
 
 #### Scenario: Refresh remains profile-local and non-interactive
 - **WHEN** either model-refresh alias runs
-- **THEN** it SHALL use only A1's selected profile and SHALL NOT update packages, update either executable, launch the UI, or contact the supervisor
+- **THEN** it SHALL use only A1's selected profile and SHALL NOT update packages, update either executable, launch the UI, or start a background runtime
 
 ### Requirement: Successful update initiates bounded release cleanup
 Before reporting a completed update, A1 SHALL durably commit the protected release set and a restart-safe cleanup disposition for obsolete releases. Potentially long physical deletion MAY continue after that commit, but the update SHALL start background maintenance that continues ordinary eligible work to completion without requiring another user command. Update and later maintenance entry points SHALL resume interrupted or temporarily blocked cleanup without requiring manual state or directory deletion, and SHALL retain bounded evidence of worker progress, continuation, and top-level failure.
 
 #### Scenario: Update activates a new release
-- **WHEN** the new release is certified, active, and served by a verified supervisor
-- **THEN** the update SHALL commit retention of the active, rollback, pending, live, and externally held releases
+- **WHEN** the new release is certified and active
+- **THEN** the update SHALL commit retention of the active, rollback, in-flight candidate, transaction-prior, and recently approved or materialized releases
 - **AND** SHALL initiate collection of every other known release
 
 #### Scenario: Historical append-only state exists
-- **WHEN** the first cleanup-aware update reads a valid older cohort state whose retention list contains every previously activated release
-- **THEN** A1 SHALL migrate it to the bounded protected set without deleting a release used by a verified live cohort or rollback
+- **WHEN** the first cleanup-aware update reads a valid older release state whose retention list contains every previously activated release
+- **THEN** A1 SHALL migrate it to the bounded protected set without deleting the active, rollback, or a recently approved release
 
 #### Scenario: Physical deletion is slow
 - **WHEN** removing an obsolete release tree would materially delay return to the invoking shell
@@ -404,7 +397,7 @@ Runtime-target eligibility SHALL be established from verified target metadata be
 
 #### Scenario: A current-contract target is activated
 - **WHEN** a verified installed candidate uses the current private contract
-- **THEN** its warmup and supervision SHALL receive the required neutral launch context and satisfy the existing readiness and verification requirements
+- **THEN** its warmup and launch SHALL receive the required neutral launch context and satisfy the existing readiness and verification requirements
 
 #### Scenario: A pre-cutover retained target is selected
 - **WHEN** a launch candidate lacks the current private-contract identity
@@ -421,7 +414,7 @@ Runtime-target eligibility SHALL be established from verified target metadata be
 - **AND** it SHALL NOT execute a pre-cutover target or silently declare rollback successful
 
 ### Requirement: The initial private-contract cutover protects user data
-The first installation adopting the neutral private contract SHALL be a deliberate clean cutover, not a supported old-to-new self-update or migration path. Its handoff SHALL instruct the maintainer to stop existing application, supervisor, and worker processes and install the accepted new package directly through npm. It SHALL NOT rely on an old `a1 update` command or old recovery launcher completing the cutover.
+The first installation adopting the neutral private contract SHALL be a deliberate clean cutover, not a supported old-to-new self-update or migration path. Its handoff SHALL instruct the maintainer to stop existing application and worker processes and install the accepted new package directly through npm. It SHALL NOT rely on an old `a1 update` command or old recovery launcher completing the cutover.
 
 Any required reset SHALL be restricted to individually identified disposable runtime/release state after affected processes stop. The handoff SHALL identify exact resolved paths and their purpose and require separate explicit confirmation before removal. The application SHALL NOT automatically delete or convert existing state to resolve an unsupported contract. Whole configuration/data-root deletion SHALL NOT be used as a shortcut when user and disposable data coexist.
 
@@ -447,7 +440,7 @@ The public command, package identity, supported user-facing environment settings
 - **AND** it SHALL NOT translate the capsule or activate an obsolete runtime
 
 ### Requirement: Current-contract lifecycle behavior retains its safety guarantees
-After the clean cutover, different release versions using the same private contract SHALL support normal launch, comparison launch, update activation, retained-session continuity, rollback, and interrupted-update recovery under the existing lifecycle rules. The naming refactor SHALL NOT weaken immutable-root verification, content certification, ownership checks, containment, public-setting validation, or existing startup/update budgets.
+After the clean cutover, different release versions using the same private contract SHALL support normal launch, comparison launch, update activation, retained-session continuity, rollback, and interrupted-update recovery under the existing lifecycle rules. The naming refactor SHALL NOT weaken immutable-root verification, content certification, ownership checks, public-setting validation, or existing startup/update budgets.
 
 Owned outgoing context SHALL be reconstructed from the verified selected target and current launch intent rather than stale inherited private values. Required fields SHALL form a coherent current context, and invalid or missing fields SHALL fail before use without falling back to another release or default path. Platform-specific casing SHALL NOT permit ambiguous duplicate private keys. Diagnostics SHALL identify the logical setting without dumping unrelated environment values.
 
@@ -455,7 +448,7 @@ Acceptance SHALL include executable tests for current-contract lifecycle operati
 
 #### Scenario: A supported session remains active during update
 - **WHEN** an update installs another release using the current private contract while a retained session on that contract is working
-- **THEN** the session SHALL retain its release, transcript, input, containment, and cohort connection
+- **THEN** the session SHALL retain its release, transcript, and input
 - **AND** subsequent launches SHALL select the appropriate installed release
 
 #### Scenario: Rollback or recovery uses the current contract
@@ -581,7 +574,7 @@ Where required to satisfy first-launch performance, update SHALL warm the common
 - **THEN** update MAY omit the warmup phase
 
 ### Requirement: Update progress uses the shared semantic accent
-When A1 shows self-update progress in a color-capable terminal, the completed segment SHALL use the active global A1 profile's selected semantic Accent color, or the blue default if no valid choice can be read. Self-update and fresh installation SHALL consume byte-equivalent release-owned forms of the same named A1 palette contract, and palette synchronization SHALL regenerate and validate them when the named A1 palette changes. The remaining segment SHALL retain its muted track color, and the percentage text SHALL retain its existing neutral treatment. Resolving the color SHALL NOT require starting an interactive agent, supervisor, or project resource pipeline.
+When A1 shows self-update progress in a color-capable terminal, the completed segment SHALL use the active global A1 profile's selected semantic Accent color, or the blue default if no valid choice can be read. Self-update and fresh installation SHALL consume byte-equivalent release-owned forms of the same named A1 palette contract, and palette synchronization SHALL regenerate and validate them when the named A1 palette changes. The remaining segment SHALL retain its muted track color, and the percentage text SHALL retain its existing neutral treatment. Resolving the color SHALL NOT require starting an interactive agent, background runtime, or project resource pipeline.
 
 The color source change SHALL NOT alter the progress bar's glyphs, width, percentage calculation, monotonic movement, or cleanup behavior.
 
@@ -628,7 +621,7 @@ A tree that declares no contract the updater serves SHALL be activated in-proces
 #### Scenario: The installed tree serves the contract
 - **WHEN** the newly installed manifest lists `activate-v1` and the updater serves it
 - **THEN** the updater starts the tree's `bin/activate.js` and advances its journal phases and progress display from the events that entry reports
-- **AND** the updater runs none of the materialization, certification, warmup, or supervision steps itself
+- **AND** the updater runs none of the materialization, certification, or warmup steps itself
 
 #### Scenario: The installed tree predates the contract
 - **WHEN** the newly installed manifest declares no `updateActivationContracts`, or only contracts the updater does not serve
@@ -664,68 +657,6 @@ After ownership of the installed package has been released, A1 SHALL verify that
 - **WHEN** the check has moved the tree and a holder appears before it is moved back
 - **THEN** the update SHALL keep trying to restore it for the remainder of the window
 - **AND** if the tree cannot be restored SHALL name both where it is and where it belongs
-
-### Requirement: Interactive startup checks for a newer release on the running channel
-
-When an interactive profile (`a1` or `a1 pi`) starts from a published build, A1 SHALL determine whether a newer release exists on the channel applicable to the selected update mode. In `Auto`, the applicable version SHALL be the immutable release executing the session. In `Notify`, the applicable version SHALL be the installed package that accepted the public launch command when current launch context provides that validated version; otherwise it SHALL fall back to the executing version. A version without a prerelease component SHALL select npm dist-tag `latest`, and an `X.Y.Z-dev.N` version SHALL select `next`. A version is newer only when both versions are valid semver and the candidate is greater than the applicable version. Discovery SHALL NOT delay the first usable frame and SHALL NOT run for noninteractive commands. Lookup, parse, or cache failure SHALL NOT produce a UI diagnostic.
-
-A1 SHALL keep independent bounded atomic user-level cache records for the stable and development channels under its configuration directory. In `Auto`, a successful result for the applicable channel SHALL be reused for at most fifteen minutes; the first check and later checks while the same interactive process remains alive SHALL fetch the channel tag after that record expires, without requiring a restart. A1 SHALL bound concurrent stale refreshes from multiple sessions and use the same certified release activation/lease path for every eligible discovered target. In `Notify`, discovery SHALL remain startup-only and SHALL reuse a same-channel successful result for up to 24 hours. An old single-channel cache MAY be reused only when its channel and timestamp satisfy the selected mode's freshness bound. A missing, unreadable, malformed, expired, or other-channel entry SHALL cause a bounded background query instead of an error. A failed query SHALL leave the prior successful record unchanged and SHALL allow a later bounded retry.
-
-Bare A1 SHALL apply its `Update` mode after discovery. `Auto` SHALL request a silent exact-target background update after the first usable frame and SHALL show no availability notice. `Notify` SHALL preserve the existing check-only behavior and update-available popup, including the channel-appropriate manual command and stable changelog link, and SHALL install nothing. `No` SHALL skip the check entirely so updates remain user-driven. `a1 pi`, which does not expose the A1 setting, SHALL use `Auto` when otherwise eligible.
-
-Both `Auto` and `Notify` SHALL be skipped when `PI_OFFLINE` is truthy, when `A1_SKIP_VERSION_CHECK` is truthy, when `CI` is truthy, when standard output is not a terminal, or when the applicable version is a source-checkout version without a numeric development suffix. Session disposal SHALL cancel later checks and observation without cancelling a detached worker already performing a certified installation.
-
-#### Scenario: A newer stable release exists
-- **WHEN** a stable `0.3.0` build runs interactively in `Auto` mode and the `latest` dist-tag advances to `0.3.1`
-- **THEN** A1 SHALL discover and request a silent exact-target background update to `0.3.1` within the next eligible discovery interval, even if that session was already open
-- **AND** SHALL NOT inspect or install the development `next` release or show an availability popup
-
-#### Scenario: A newer development release exists
-- **WHEN** a numbered `0.3.1-dev.640` build runs interactively in `Auto` mode and the `next` dist-tag advances to `0.3.1-dev.652`
-- **THEN** A1 SHALL discover and request a silent exact-target background update to `0.3.1-dev.652` within the next eligible discovery interval, even if a prior check cached `640`
-- **AND** SHALL NOT inspect or install the stable `latest` release
-
-#### Scenario: The running release is current or newer
-- **WHEN** the applicable channel's dist-tag is equal to or lower than the applicable version, or either version is not valid semver
-- **THEN** no automatic update or availability popup SHALL be produced
-
-#### Scenario: A fresh cache exists
-- **WHEN** the cache holds a successful result for the applicable channel within the selected mode's freshness window
-- **THEN** A1 SHALL reuse it without querying the registry and SHALL apply `Auto` or `Notify` behavior only if that result is newer
-
-#### Scenario: A publication follows a cached result
-- **WHEN** a new version appears after an Auto-mode check cached the old head and the session remains open or restarts
-- **THEN** the next eligible check after at most fifteen minutes SHALL fetch the new tag and request its installation without a manual update command
-
-#### Scenario: The registry cannot be reached
-- **WHEN** a background query fails, times out, or returns malformed data
-- **THEN** A1 SHALL start no update, show no notice, retain any previous cache content, and retry on a later bounded check rather than treating the failed lookup as a successful fresh result
-
-#### Scenario: The check is disabled
-- **WHEN** any environment/profile opt-out holds or bare A1 selects `No`
-- **THEN** A1 SHALL neither read the release cache, contact the registry, start an automatic-update worker, nor observe automatic-update state for this check
-
-#### Scenario: Notify preserves the current popup
-- **WHEN** bare A1 selects `Notify` and startup discovery resolves a newer release on the applicable channel
-- **THEN** A1 SHALL show the existing update-available popup with the channel-appropriate manual command and SHALL NOT start automatic installation or later Auto-mode polling
-
-#### Scenario: Stable notify follows the invoking package
-- **WHEN** a stable installed package starts in `Notify` mode but ordinary launch selection executes an approved development runtime
-- **THEN** A1 SHALL inspect only `latest`, compare it with the stable invoking package version, and show `a1 update` only when a newer stable release exists
-- **AND** SHALL NOT announce the `next` development preview or show `a1 update --develop`
-
-#### Scenario: Development notify follows the invoking package
-- **WHEN** a development installed package starts in `Notify` mode but ordinary launch selection executes an approved stable runtime
-- **THEN** A1 SHALL inspect only `next`, compare it with the development invoking package version, and show `a1 update --develop` only when a newer development preview exists
-- **AND** SHALL NOT announce the `latest` stable release
-
-#### Scenario: Notify has no invocation metadata
-- **WHEN** `Notify` starts through a supported path that supplies no invocation-version launch context
-- **THEN** A1 SHALL use the executing published version as the channel and comparison baseline
-
-#### Scenario: Auto is the default
-- **WHEN** bare A1 has no persisted `updateCheck` choice
-- **THEN** it SHALL resolve `Auto` and silently request installation when discovery resolves a newer release
 
 ### Requirement: Channel-head update never downgrades
 
@@ -767,71 +698,6 @@ A target-side fix that cannot be reached from the source release SHALL block rel
 #### Scenario: Neither direct update nor protected bridge succeeds
 - **WHEN** the supported predecessor cannot reach the exact candidate through either required path
 - **THEN** publication SHALL fail rather than ship an update that affected users cannot install
-
-### Requirement: Automatic self-update is single-owner and restart-safe
-
-Automatic and explicit self-update SHALL share one cross-process execution lease before package mutation or prepared-candidate activation. The lease SHALL bind the canonical managed installation, verified process identity, channel, target version, execution mode, and acquisition time. A live owner SHALL prevent another package replacement or activation commit. A dead owner whose durable transaction names the same target as the new request MAY be reclaimed after process identity and transaction state are reconciled. A dead owner whose durable transaction names a different target SHALL be settled by an explicit update before it proceeds: the explicit command SHALL roll that transaction back to its recorded prior verified cohort through the existing rollback path, finish it as rolled back, remove the stale lease, and report in one line which interrupted target it rolled back, then continue with its own target. Automatic mode SHALL still fail closed on a foreign target and SHALL NOT rewrite, join, replace, or roll back another transaction. A dead attempt SHALL NOT be reported as in progress.
-
-Automatic update coordination SHALL use bounded atomically written state under the A1 data directory. That state MAY describe a running, prepared/activation-blocked, installed, or failed attempt, but successful installation SHALL be established only by the ordinary update transaction and an approved active cohort whose version satisfies the exact target. Prepared/activation-blocked state SHALL be bound to the exact target and valid certified immutable candidate and SHALL NOT claim active or restart-ready status. Concurrent sessions SHALL observe one owner rather than starting duplicate workers. A missing or dead worker with a stale `running` document SHALL be reconciled against its lease, transaction, prepared candidate, and approved active cohort, without treating that document as evidence of ongoing work or an installed release. Worker failures before or after lease acquisition SHALL record a bounded failure when safely attributable to that attempt. An interrupted attempt SHALL remain resumable through the existing transaction and recovery lifecycle.
-
-A failed target SHALL use a 24-hour automatic retry cooldown for registry, package replacement, recovery, materialization, certification, warmup, and non-continuity activation failure. A candidate prepared and certified successfully but refused solely because resident continuity cannot currently be verified SHALL instead remain activation-blocked and SHALL receive bounded activation-only retries on the ordinary short observation cadence. Such a retry SHALL revalidate candidate certification, installed-target identity, prior-client eligibility, and current continuity before activation commit and SHALL NOT repeat registry lookup, npm replacement, materialization, or certification while their exact proof remains valid. A strictly newer discovered target and an explicit update command MAY attempt without waiting for either retry bound.
-
-#### Scenario: Concurrent sessions discover one target
-- **WHEN** two interactive sessions discover the same newer release at the same time
-- **THEN** exactly one automatic worker SHALL own package replacement or prepared-candidate activation and the other session SHALL observe its state
-
-#### Scenario: An explicit update overlaps automatic work
-- **WHEN** `a1 update` is invoked while a live automatic worker owns installation or activation
-- **THEN** the command SHALL report that an update is already in progress and SHALL NOT start a second package replacement or activation commit
-
-#### Scenario: Automatic work overlaps another target
-- **WHEN** a live update owns one target and another automatic or explicit caller requests a conflicting target
-- **THEN** the conflicting caller SHALL fail safely without changing the active transaction, prepared candidate, package tree, launchers, or lease ownership
-
-#### Scenario: A dead owner left another target behind
-- **WHEN** `a1 update --develop 828` runs while the lease names a process that is not alive and the active transaction targets `0.2.7-dev.835`
-- **THEN** A1 SHALL roll the `0.2.7-dev.835` transaction back to its prior verified cohort, remove the stale lease, say that the interrupted `0.2.7-dev.835` update was rolled back, and install preview 828
-- **AND** an automatic worker meeting the same state SHALL fail closed without touching that transaction
-
-#### Scenario: The automatic owner exits
-- **WHEN** the worker exits after a durable update phase and its process identity is no longer live
-- **THEN** a later eligible worker SHALL reconcile the lease and resume, retry activation, or roll back through the existing update recovery rules
-
-#### Scenario: A stale running record has no owner
-- **WHEN** a coordinator file still says `running` but no matching live lease or transaction remains
-- **THEN** A1 SHALL NOT treat it as a live update or an installed release and SHALL safely settle its status before another eligible attempt
-
-#### Scenario: Prepared activation is continuity-blocked
-- **WHEN** npm replacement and certified candidate preparation succeed but resident continuity inspection cannot currently verify activation safety
-- **THEN** A1 SHALL retain the prior verified client selection, record prepared/activation-blocked state, and retry only activation after the bounded short interval
-- **AND** SHALL NOT apply the failed-install cooldown or reinstall the same exact target while its candidate proof remains valid
-
-#### Scenario: Prepared proof is no longer valid
-- **WHEN** an activation retry cannot revalidate the exact installed target or certified candidate
-- **THEN** A1 SHALL refuse activation and SHALL use the ordinary safe failure or fresh preparation path rather than trusting stale prepared state
-
-#### Scenario: The automatic attempt fails
-- **WHEN** registry, worker startup, permission, package replacement, recovery, certification, warmup, or activation work other than a continuity-only refusal fails
-- **THEN** A1 SHALL record bounded failed-attempt state when an attempt began, retain ordinary rollback/recovery guarantees, show no raw automatic failure popup, and avoid retrying that target during the cooldown
-
-### Requirement: Automatic self-update never disrupts a running session
-
-The automatic-update worker SHALL execute from the selected immutable release without inheriting the terminal and SHALL continue independently when the initiating interactive process exits. Before ownership shutdown, package rename, transaction creation, or replacement, automatic mode SHALL verify that every live update owner executes from a retained immutable release. It SHALL leave those owners and their sessions running while installing and activating the target.
-
-If a live owner executes from the mutable npm package tree or otherwise cannot be proven safe to retain, automatic mode SHALL stop before mutation and SHALL NOT request shutdown or terminate the session. Explicit `a1 update` SHALL retain its existing consent-backed lifecycle behavior. Automatic mode SHALL otherwise reuse the same managed-installation verification, prefix pinning, protected replacement, launcher recovery, transaction, rollback, materialization, certification, warmup, supervisor verification, active-reference commit, and cleanup guarantees as explicit update.
-
-#### Scenario: Current sessions use immutable releases
-- **WHEN** automatic update starts while one or more verified sessions execute from retained immutable release roots
-- **THEN** A1 SHALL leave those sessions running, install and activate the newer release, and admit later launches to the new release
-
-#### Scenario: A legacy session uses the mutable installation
-- **WHEN** automatic update finds a verified live owner executing from the npm package tree being replaced
-- **THEN** it SHALL stop before transaction creation or package mutation and SHALL NOT end that session
-- **AND** the user MAY still run the explicit update command to perform the existing consent-backed transition
-
-#### Scenario: The initiating terminal closes
-- **WHEN** the interactive process that requested automatic update exits after the detached worker starts
-- **THEN** the worker SHALL continue or leave resumable durable state without requiring that terminal to remain open
 
 ### Requirement: Explicit update commands remain available
 
@@ -887,61 +753,14 @@ Automatic self-update SHALL run without opening, focusing, flashing, or closing 
 - **THEN** progress and actionable diagnostics SHALL remain visible in the invoking terminal
 - **AND** no separate terminal window SHALL be opened for update children
 
-### Requirement: Update activation preserves a usable control path to live Agents
-Automatic and explicit update SHALL verify that the candidate client can reconnect to every affected supported live profile runtime through its required authenticated control contract before committing client activation or announcing successful/restart-ready activation. Mandatory compatibility SHALL include live view, input, current controller/interaction semantics and source identity, not merely matching version/generation. The verdict SHALL be fenced/revalidated against concurrent workspace/runtime changes. Historical owner metadata whose exact recorded native process identity is provably gone SHALL NOT count as an affected live runtime merely because the record predates the current schema. A live, uninspectable, or not-provably-dead record SHALL remain a compatibility blocker.
-
-If compatibility cannot be established, candidate preparation SHALL NOT become active client selection, a verified eligible prior client SHALL remain callable through the launcher, and live execution/data SHALL remain untouched. A certified prepared candidate blocked only on continuity MAY remain available for bounded activation-only retry, but it SHALL NOT be reported as active or restart-ready. No update SHALL require idle waits, Agent closure, state deletion, machine restart or manual session reconstruction to preserve ordinary resident access. Obsolete private-launch contracts SHALL remain ineligible.
-
-#### Scenario: Default background update is compatible
-- **WHEN** Auto prepares a candidate compatible with every affected live runtime
-- **THEN** it MAY activate the updated client and announce restart readiness while all busy and idle Agents keep running unchanged
-
-#### Scenario: Dead historical metadata remains
-- **WHEN** continuity inspection encounters a schema-incomplete owner whose exact recorded process is provably gone beside supported live sources
-- **THEN** that dead record SHALL NOT block candidate activation
-- **AND** it SHALL remain untouched on disk
-
-#### Scenario: Candidate cannot control a live source
-- **WHEN** required source view/input/interaction semantics are unsupported or cannot be verified
-- **THEN** update SHALL leave the verified usable prior client active and callable, MAY retain exact prepared proof for retry, and SHALL NOT announce restart readiness or terminate, hide or replace Agents
-
-#### Scenario: Workspace changes during readiness inspection
-- **WHEN** a new runtime or changed source/controller contract invalidates the inspected workspace before activation commits
-- **THEN** activation SHALL revalidate or refuse rather than commit a stale continuity verdict
-
-#### Scenario: Blocker clears after preparation
-- **WHEN** the exact prepared candidate remains certified and the previously blocking live or uncertain source is later absent or verifiably compatible
-- **THEN** activation-only retry MAY commit the candidate without another npm installation
-- **AND** restart readiness SHALL appear only after that commit succeeds
-
-### Requirement: Post-update relaunch reconnects the same live workspace
-After a compatible automatic or explicit update in the same OS login session, ordinary bare A1 SHALL launch the updated client and reconnect the canonical profile's same live resident Agents. Busy and idle Agent/holder/tool processes SHALL retain their identities, work, session authority, input state and outstanding interactions. Relaunch SHALL NOT stop/restart/suspend them, wait for idle, reopen their transcripts as replacement Agents, replay work or trigger a later idle restart. The selected release's initially empty local registry SHALL NOT imply the profile workspace is empty. Existing source custody SHALL remain intact while new Agents use the selected release. An inaccessible tab/recovery tile or per-session resume instruction SHALL NOT count as successful seamless restoration. Closing the multitab client SHALL remain detach, not Agent exit, with the same live-access expectation before and after update. Solo SHALL retain its existing explicit exit/resume-message behavior; solo/external writer adoption and reboot/logout restoration remain outside this resident reconnect contract.
-
-#### Scenario: User follows the default automatic-update restart instruction
-- **WHEN** two A Agents work and one is idle, B compatibly activates, and the user closes the terminal and reopens A1
-- **THEN** the updated client SHALL show those same three Agents with their names/order/selection and immediate ordinary view/input/interaction access
-- **AND** holder, Agent and tool identities SHALL remain unchanged and work performed while detached SHALL be visible
-
-#### Scenario: Agents become idle after reconnect
-- **WHEN** the two previously working Agents finish in the updated workspace
-- **THEN** all three SHALL remain the same live processes without deferred upgrade restarts
-
-#### Scenario: Update was explicit
-- **WHEN** a compatible explicit update activates while resident Agents remain open
-- **THEN** the same live-workspace continuity SHALL apply without weakening explicit progress or diagnostic behavior
-
-#### Scenario: No resident workspace exists
-- **WHEN** no open or recoverable workspace/source records exist
-- **THEN** ordinary launch SHALL retain its normal fresh-workspace behavior without inventing prior sessions
-
 ### Requirement: Restart-readiness observation is independent of release discovery
 Every interactive published A1 process SHALL compare its executing immutable release with the locally recorded approved active release on a bounded short cadence. This local comparison SHALL not require a registry request, a successful dist-tag lookup, ownership of the automatic-update worker, or evidence that the process launched the active release. When the active release is valid semver, belongs to the executing release's channel, and is newer, the process SHALL report restart readiness and stop polling after that result. Unreadable, malformed, unapproved, same-version, older, source-checkout, and cross-channel state SHALL not produce restart readiness.
 
-The local comparison SHALL remain available when update discovery is `Notify` or `No`, when registry lookup fails, and when network-oriented version checks are disabled, because it reads only already-committed local release state and starts no update. Disposal SHALL cancel the local observer. Registry discovery, automatic installation eligibility, and their existing opt-outs SHALL otherwise remain unchanged.
+The local comparison SHALL remain available when update discovery is `No`, when registry lookup fails, and when network-oriented version checks are disabled, because it reads only already-committed local release state and starts no update. Disposal SHALL cancel the local observer.
 
 #### Scenario: Another process activates the update
 - **WHEN** one process activates an approved same-channel release newer than several still-running A1 processes
-- **THEN** every older process containing this behavior SHALL report restart readiness within the bounded local observation interval
+- **THEN** every older process SHALL report restart readiness within the bounded local observation interval
 - **AND** none SHALL need to have launched, discovered, or installed the active version itself
 
 #### Scenario: Registry discovery fails
@@ -950,83 +769,166 @@ The local comparison SHALL remain available when update discovery is `Notify` or
 - **AND** the failed discovery SHALL start no additional update
 
 #### Scenario: Update discovery is disabled
-- **WHEN** a published older process uses `Notify` or `No`, or a network version-check opt-out applies, while a newer same-channel approved release is already active locally
+- **WHEN** a published older process uses `No`, or a network version-check opt-out applies, while a newer same-channel approved release is already active locally
 - **THEN** the process SHALL report restart readiness without reading the release cache or contacting the registry
 
 #### Scenario: Local state does not prove staleness
 - **WHEN** local release state is missing, unreadable, malformed, unapproved, equal, older, cross-channel, or compared with an unpublished executing version
 - **THEN** A1 SHALL show no restart readiness and SHALL perform no mutation
 
-### Requirement: Native resident clients observe committed update activation
-
-A resident attach client SHALL independently observe bounded local release-cohort state after it has painted. When the approved active release is newer and in the same channel as the immutable attach-client package, it SHALL show `Update installed, restart to update` in native chrome and stop observing. It SHALL fail closed without exposing release diagnostics or mutating release, registry, or Agent state. A restarted successor whose installed-update state matches its package SHALL not repeat the notice.
-
-#### Scenario: A predecessor Agent lacks JavaScript observation
-
-- **WHEN** a retained Agent still runs code from an older release and a newer approved same-channel release becomes active
-- **THEN** its native attach client SHALL show `Update installed, restart to update` within the bounded observation interval
-- **AND** the Agent's holder and child identities SHALL remain unchanged
-
-#### Scenario: The successor reconnects
-
-- **WHEN** the user restarts into the installed successor release
-- **THEN** the successor SHALL reconnect to the retained Agent without replaying input or replacing its execution identities
-- **AND** it SHALL not show a satisfied restart notice
-
-#### Scenario: State is not trusted
-
-- **WHEN** release state is unreadable, malformed, unapproved, equal, older, or cross-channel
-- **THEN** the attach client SHALL not show restart readiness or mutate local state
-
-### Requirement: Transient continuity inspection delays recover without user repair
-
-For supported resident runtimes, background update SHALL complete candidate activation without requiring agents to become idle, windows to close, state deletion, or manual reinstall. A transient continuity-inspection timeout SHALL retain the exact certified candidate and the previous usable active release, preserve live execution, and receive bounded automatic activation-only retries. Inspection SHALL keep bounded work and authenticated source identity checks; timeout alone SHALL NOT be treated as proof of incompatibility or readiness.
-
-#### Scenario: Healthy sources encounter a transient inspection delay
-- **WHEN** a certified prepared update encounters a transient continuity inspection delay while supported agents are busy or waiting for input
-- **THEN** the agents SHALL continue running unchanged while bounded activation-only retries resolve readiness
-- **AND** a successful retry SHALL commit the candidate as active without repeating package replacement or requiring manual recovery
-
-#### Scenario: Continuity cannot safely be established
-- **WHEN** an authenticated compatibility check fails or a live source remains uninspectable
-- **THEN** the prior verified active release and all live execution SHALL remain intact
-- **AND** the updater SHALL NOT bypass compatibility checks or claim restart readiness
-
 ### Requirement: Restart update notification describes a usable user action
 
-The normal update status SHALL show the existing green `Update installed, restart to update` text only when an approved successor is durably active and an ordinary app restart selects it. Technical prepared or activation-blocked state SHALL remain diagnostic rather than appearing as `Update prepared; activation blocked` in the normal status line. Replacing failure wording SHALL NOT manufacture installation success.
+The normal update status SHALL show the existing green `Update installed, restart to update` text only when an approved successor is durably active and an ordinary restart selects it. No other automatic-update state SHALL appear in the normal status line; failures remain in bounded diagnostics. Replacing failure wording SHALL NOT manufacture installation success.
 
 #### Scenario: User restarts after background installation
-- **WHEN** an automatic update commits a compatible approved successor and the user restarts the resident app window after the green restart instruction
-- **THEN** the restarted window SHALL run the new client and reconnect the same busy and input-waiting agents, workspace order, session authority, and outstanding interactions
-- **AND** no agent or tool SHALL be killed, restarted, replaced, or lose work because of the client update
-- **AND** new agents SHALL use the successor release and the satisfied update notice SHALL disappear
+- **WHEN** an automatic update commits an approved successor and the user exits and runs `a1` again after the green restart instruction
+- **THEN** the new process SHALL run the successor release and SHALL show no satisfied restart notice
 
 #### Scenario: Automatic activation has not completed
-- **WHEN** a prepared candidate has not passed continuity verification and activation commit
-- **THEN** normal status SHALL NOT display internal activation-blocked terminology or a false installed/restart-ready notice
+- **WHEN** an automatic attempt is still running or has failed
+- **THEN** normal status SHALL display neither internal terminology nor a false installed/restart-ready notice
 - **AND** bounded diagnostic evidence SHALL retain the failure reason while safe automatic recovery continues
 
-### Requirement: Continuity-deferred activation is a successful update
-When a certified prepared candidate is blocked only because a live resident source cannot yet be proven controllable, an explicit update SHALL exit with status zero and print one result line naming the target and saying that it takes over automatically, with no blocker sentence or instruction to retry. The prepared candidate SHALL activate through the existing activation-only retry as soon as continuity can be established, without another npm installation and without user action. A source whose recorded owner process is provably gone SHALL NOT defer activation. Continuity inspection SHALL produce a verdict per source, so one unreadable historical source cannot veto the others.
+### Requirement: Immutable release retention is age-based
+Release retention SHALL need no supervisor, cohort registry, or live-instance inventory. At update time and at every launch, A1 SHALL keep the approved active release, the executing release, and every release approved within the last seven days, remove the rest with their unreferenced dependency layers, and print nothing on success.
 
-#### Scenario: A live Agent runs during update
-- **WHEN** the user runs `a1 update` while a resident Agent of an older release is busy and continuity is not yet provable
-- **THEN** the command SHALL exit zero with that single result line
-- **AND** the Agent SHALL keep running and the candidate SHALL activate once continuity holds
+#### Scenario: An old release is collected
+- **WHEN** a launch finds a release approved more than seven days ago that is neither active nor executing
+- **THEN** that release and its unreferenced dependency layers SHALL be removed before the UI starts, without delaying the first frame
 
-#### Scenario: A dead legacy host left records behind
-- **WHEN** a namespace's registry names a server whose recorded process is gone
-- **THEN** activation SHALL proceed without waiting for that namespace
+#### Scenario: A recent release is kept
+- **WHEN** a release was approved within the last seven days but is no longer active
+- **THEN** it SHALL remain on disk so sessions started from it keep running
 
-### Requirement: Routine update outcomes are quiet
-Explicit update SHALL print progress and exactly one result line for success, already-current, and deferred-activation outcomes. A failure the user must act on SHALL print one line holding a concise reason and one next step, followed by `Details: <log path>` when diagnostics were recorded. Bounded native host-command stderr and child diagnostics SHALL be captured into that update log rather than discarded or printed raw. Messages SHALL NOT repeat a sentence or end in doubled punctuation.
+#### Scenario: The record cannot be read
+- **WHEN** a release's approval record is missing or malformed
+- **THEN** retention SHALL keep that release and continue
 
-#### Scenario: Native continuity check reports a reason
-- **WHEN** the resident workspace check exits unsuccessfully with a stderr reason
-- **THEN** the reason SHALL be recorded in the update log
-- **AND** the terminal SHALL show it only if the outcome is an actionable failure
+### Requirement: Interactive startup checks for a newer release in Auto mode
+When an interactive profile starts from a published build and the `Update` mode is not `No`, A1 SHALL discover whether a newer release exists on the executing release's channel, comparing valid semver only, after the first usable frame and never for noninteractive commands. `Auto` SHALL request a silent exact-target background update and show no availability notice; `No` SHALL skip the check entirely. Lookup, parse, or cache failure SHALL produce no UI diagnostic.
+
+#### Scenario: A newer stable release exists
+- **WHEN** a stable `0.3.0` build runs interactively in `Auto` mode and the `latest` dist-tag advances to `0.3.1`
+- **THEN** A1 SHALL discover and request a silent exact-target background update to `0.3.1` within the next eligible discovery interval, even if that session was already open
+- **AND** SHALL NOT inspect or install the development `next` release or show an availability popup
+
+#### Scenario: A newer development release exists
+- **WHEN** a numbered `0.3.1-dev.640` build runs interactively in `Auto` mode and the `next` dist-tag advances to `0.3.1-dev.652`
+- **THEN** A1 SHALL discover and request a silent exact-target background update to `0.3.1-dev.652` within the next eligible discovery interval, even if a prior check cached `640`
+- **AND** SHALL NOT inspect or install the stable `latest` release
+
+#### Scenario: The running release is current or newer
+- **WHEN** the applicable channel's dist-tag is equal to or lower than the executing version, or either version is not valid semver
+- **THEN** no automatic update SHALL be produced
+
+#### Scenario: A fresh cache exists
+- **WHEN** the cache holds a successful result for the applicable channel within the fifteen-minute window
+- **THEN** A1 SHALL reuse it without querying the registry and SHALL request installation only if that result is newer
+
+#### Scenario: A publication follows a cached result
+- **WHEN** a new version appears after an Auto-mode check cached the old head and the session remains open or restarts
+- **THEN** the next eligible check after at most fifteen minutes SHALL fetch the new tag and request its installation without a manual update command
+
+#### Scenario: The registry cannot be reached
+- **WHEN** a background query fails, times out, or returns malformed data
+- **THEN** A1 SHALL start no update, show no notice, retain any previous cache content, and retry on a later bounded check rather than treating the failed lookup as a successful fresh result
+
+#### Scenario: The check is disabled
+- **WHEN** any environment opt-out holds or bare A1 selects `No`
+- **THEN** A1 SHALL neither read the release cache, contact the registry, start an automatic-update worker, nor observe automatic-update state for this check
+
+#### Scenario: Auto is the default
+- **WHEN** bare A1 has no persisted `updateCheck` choice
+- **THEN** it SHALL resolve `Auto` and silently request installation when discovery resolves a newer release
+
+#### Scenario: The channel follows the executing version
+- **WHEN** the executing version has no prerelease component
+- **THEN** discovery SHALL read npm dist-tag `latest`
+- **AND** an `X.Y.Z-dev.N` version SHALL read `next` and SHALL never inspect the other channel
+
+#### Scenario: Channel results are cached per channel
+- **WHEN** a check succeeds for the executing release's channel
+- **THEN** A1 SHALL store it in a bounded atomic per-channel cache under its configuration directory and reuse it for at most fifteen minutes
+- **AND** a missing, malformed, expired, or other-channel entry SHALL cause a bounded background query, with stale refreshes bounded across sessions
+
+#### Scenario: An environment opt-out applies
+- **WHEN** `PI_OFFLINE`, `A1_SKIP_VERSION_CHECK`, or `CI` is truthy, standard output is not a terminal, or the executing version is an unnumbered source checkout
+- **THEN** no check SHALL run
+
+#### Scenario: The session is disposed
+- **WHEN** the interactive session ends while a check is pending
+- **THEN** later checks SHALL be cancelled without cancelling a detached worker that is already installing
+
+#### Scenario: The comparison profile runs
+- **WHEN** prerelease `a1 pi` starts eligible for discovery
+- **THEN** it SHALL behave as `Auto` because it exposes no A1 `Update` setting
+
+### Requirement: Automatic self-update is single-owner and restart-safe without activation blocking
+Automatic and explicit self-update SHALL share one cross-process execution lease, bound to the managed installation, process identity, channel, target, mode, and acquisition time, before mutation or activation. A live owner SHALL block other replacements; a dead owner SHALL be reconciled against its lease and transaction and never reported as in progress. Success SHALL be established only by the update transaction and an approved active release. There SHALL be no activation-blocked state.
+
+#### Scenario: Concurrent sessions discover one target
+- **WHEN** two interactive sessions discover the same newer release at the same time
+- **THEN** exactly one automatic worker SHALL own package replacement and activation and the other session SHALL observe its state
+
+#### Scenario: An explicit update overlaps automatic work
+- **WHEN** `a1 update` is invoked while a live automatic worker owns installation or activation
+- **THEN** the command SHALL report that an update is already in progress and SHALL NOT start a second package replacement or activation commit
+
+#### Scenario: Automatic work overlaps another target
+- **WHEN** a live update owns one target and another automatic or explicit caller requests a conflicting target
+- **THEN** the conflicting caller SHALL fail safely without changing the active transaction, package tree, launchers, or lease ownership
+
+#### Scenario: A dead owner left another target behind
+- **WHEN** `a1 update --develop 828` runs while the lease names a process that is not alive and the active transaction targets `0.2.7-dev.835`
+- **THEN** A1 SHALL roll the `0.2.7-dev.835` transaction back to its prior verified release, remove the stale lease, say that the interrupted `0.2.7-dev.835` update was rolled back, and install preview 828
+- **AND** an automatic worker meeting the same state SHALL fail closed without touching that transaction
+
+#### Scenario: The automatic owner exits
+- **WHEN** the worker exits after a durable update phase and its process is no longer live
+- **THEN** a later eligible worker SHALL reconcile the lease and resume or roll back through the existing update recovery rules
+
+#### Scenario: A stale running record has no owner
+- **WHEN** a coordinator file still says `running` but no matching live lease or transaction remains
+- **THEN** A1 SHALL NOT treat it as a live update or an installed release and SHALL safely settle its status before another eligible attempt
+
+#### Scenario: The automatic attempt fails
+- **WHEN** registry, worker startup, permission, package replacement, recovery, certification, warmup, or activation work fails
+- **THEN** A1 SHALL record bounded failed-attempt state when an attempt began, retain ordinary rollback/recovery guarantees, show no raw automatic failure popup, and avoid retrying that target during the cooldown
+
+#### Scenario: A failed target waits for its cooldown
+- **WHEN** an attempt at a target fails in registry, replacement, recovery, materialization, certification, warmup, or activation work
+- **THEN** automatic mode SHALL NOT retry that target for 24 hours
+- **AND** a strictly newer discovered target or an explicit update command MAY proceed without waiting
+
+### Requirement: Automatic self-update leaves running sessions on their release
+The automatic-update worker SHALL execute from the selected immutable release without inheriting the terminal and SHALL continue when the initiating process exits. It SHALL leave every running session untouched: running processes keep the immutable release they started from, and the next launch selects the new one. Automatic mode SHALL reuse the explicit update's verification, replacement, recovery, transaction, rollback, certification, warmup, activation, and retention guarantees.
+
+#### Scenario: Current sessions use immutable releases
+- **WHEN** automatic update starts while one or more sessions execute from retained immutable release roots
+- **THEN** A1 SHALL leave those sessions running, install and activate the newer release, and admit later launches to the new release
+
+#### Scenario: The initiating terminal closes
+- **WHEN** the interactive process that requested automatic update exits after the detached worker starts
+- **THEN** the worker SHALL continue or leave resumable durable state without requiring that terminal to remain open
+
+#### Scenario: Explicit update keeps its progress
+- **WHEN** the user runs an explicit `a1 update` command
+- **THEN** progress and actionable diagnostics SHALL remain visible in the invoking terminal and no second terminal window SHALL open
+
+### Requirement: Routine update outcomes print one result line
+Explicit update SHALL print progress and exactly one result line for success and already-current outcomes. A failure the user must act on SHALL print one line holding a concise reason and one next step, followed by `Details: <log path>` when diagnostics were recorded. Child diagnostics SHALL be captured into that update log rather than discarded or printed raw. Messages SHALL NOT repeat a sentence or end in doubled punctuation.
 
 #### Scenario: Update succeeds
 - **WHEN** an explicit update installs and activates the target
 - **THEN** the terminal SHALL show only progress and the result line
+
+#### Scenario: Update is already current
+- **WHEN** the selected channel head equals the installed version
+- **THEN** the terminal SHALL show one result line and no diagnostics
+
+### Requirement: Update runs apart from interactive sessions
+The update subcommand SHALL complete or fail without launching the TUI, launching an agent, or attaching to a running A1 session.
+
+#### Scenario: Update is requested
+- **WHEN** the user invokes the update subcommand
+- **THEN** only the npm update workflow and its release activation run, and no interactive A1 process is started

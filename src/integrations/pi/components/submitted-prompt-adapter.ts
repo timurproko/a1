@@ -4,15 +4,11 @@ import { protectPiPromptChipPresentation } from "./prompt-chip-presentation.js";
 import { getPiMarkdownTheme, piTheme } from "./theme.js";
 
 export interface PiShellSubmittedPromptComposer {
-  readonly layout: (width: number, source?: Date | number | null) => { readonly contentWidth: number };
+  readonly layout: (width: number) => { readonly contentWidth: number };
   readonly compose: (
     contentRows: readonly string[],
     width: number,
-    source?: Date | number | null,
-    style?: {
-      readonly prefix?: (text: string) => string;
-      readonly timestamp?: (text: string) => string;
-    },
+    style?: { readonly prefix?: (text: string) => string },
   ) => readonly string[];
 }
 
@@ -23,20 +19,12 @@ export function isPiPromptStyleCompaction(block: OwnedUiTranscriptBlock): boolea
     && (block.payload as Record<string, unknown>).role === "compactionSummary";
 }
 
-/** Keep prompt timestamps metadata-grey even inside hover and quiet whole-row wrappers. */
-export function paintPiSubmittedPromptTimestamp(text: string): string {
-  // Protocol: combine the intensity/foreground reset so quietSticky does not immediately
-  // reapply faint; the semantic foreground that follows remains theme-controlled.
-  return `\u001b[22;39m${piTheme().fg("dim", text)}`;
-}
-
 /** Pi owns Markdown and theme adaptation; the injected composer owns neutral row geometry. */
 export function createPiSubmittedPromptComponent(
   block: OwnedUiTranscriptBlock,
   composer: PiShellSubmittedPromptComposer,
   heading?: string,
 ): Component {
-  const timestamp = numericTimestamp(block);
   // Invariant: presentation-only chrome stays outside the summary's Markdown parser and stored text.
   const header = heading === undefined ? undefined : new Text(heading, 0, 0);
   let chipWrapping: PromptChipWrapProtection | undefined;
@@ -58,7 +46,7 @@ export function createPiSubmittedPromptComponent(
   );
   const content: Component = {
     render(width: number): string[] {
-      const layout = composer.layout(width, timestamp);
+      const layout = composer.layout(width);
       const renderedBodyRows = markdown.render(layout.contentWidth);
       const wrapping = chipWrapping;
       const bodyRows = wrapping === undefined ? renderedBodyRows : renderedBodyRows.map(row => wrapping.restore(row));
@@ -66,9 +54,8 @@ export function createPiSubmittedPromptComponent(
         ...header.render(layout.contentWidth).map(row => piTheme().fg("userMessageText", row)),
         ...(bodyRows.length === 0 ? [] : ["", ...bodyRows]),
       ];
-      return [...composer.compose(rows, width, timestamp, {
+      return [...composer.compose(rows, width, {
         prefix: text => piTheme().fg("muted", text),
-        timestamp: paintPiSubmittedPromptTimestamp,
       })];
     },
     invalidate() {
@@ -79,10 +66,4 @@ export function createPiSubmittedPromptComponent(
   const box = new Box(0, 0, line => piTheme().bg("userMessageBg", line));
   box.addChild(content);
   return box;
-}
-
-function numericTimestamp(block: OwnedUiTranscriptBlock): number | null {
-  if (typeof block.payload !== "object" || block.payload === null) return null;
-  const value = (block.payload as Record<string, unknown>).timestamp;
-  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

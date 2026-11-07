@@ -5,19 +5,11 @@ import { resolve } from "node:path";
 import { assertPackingNpm, normalizeNpmPackMetadata, parseNpmPackOutput } from "./npm-pack-metadata.mjs";
 import { createValidationPhaseRecorder } from "./validation-phase.mjs";
 import { recordPackageReceipt, verifyBuildReceipt } from "./validation-receipt.mjs";
-import { nativeArtifactProblems, RELEASE_NATIVE_TARGETS } from "./verify-native-artifacts.mjs";
 
 const phases = createValidationPhaseRecorder("candidate-package");
 const buildReceipt = process.env.VALIDATION_BUILD_RECEIPT;
 if (!buildReceipt) throw new Error("VALIDATION_BUILD_RECEIPT is required before candidate packing");
 await phases.run("verify-build-receipt", () => verifyBuildReceipt(buildReceipt));
-// Invariant: a CI candidate carries this platform's release terminal host. Without it every launch
-// falls back to the direct UI, so packaged suites pass while testing a route no release ships.
-if (process.env.GITHUB_ACTIONS === "true") {
-  const local = RELEASE_NATIVE_TARGETS.filter(target => target.platform === process.platform && target.architecture === process.arch);
-  const problems = await phases.run("verify-local-native-artifacts", () => nativeArtifactProblems(resolve("dist", "native"), local));
-  if (problems.length > 0) throw new Error(`Validation candidate lacks this platform's release native artifacts; run npm run build:terminal-host before recording the build:\n${problems.map(problem => `- ${problem}`).join("\n")}`);
-}
 const outputDirectory = resolve(".artifacts", "validation", "package");
 await rm(outputDirectory, { recursive: true, force: true });
 await mkdir(outputDirectory, { recursive: true });
@@ -36,8 +28,8 @@ const metadata = phases.runSync("npm-pack", () => {
 });
 const source = resolve(outputDirectory, metadata.filename);
 const target = resolve(outputDirectory, "candidate.tgz");
-// Rationale: native release payloads are loadable addons, so package identity is host-independent
-// and needs no executable-mode rewrite after `npm pack`.
+// Rationale: the package carries no executable payload, so its identity is host-independent and
+// needs no executable-mode rewrite after `npm pack`.
 const bytes = await phases.run("read-packed-candidate", () => readFile(source));
 phases.bindCandidate(bytes);
 await phases.run("write-exact-candidate", () => writeFile(target, bytes));

@@ -1,7 +1,6 @@
 import { DynamicBorder } from "../startup-public.js";
 import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth, type KeybindingsConfig } from "@earendil-works/pi-tui";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
-import { projectResidentTabShortcuts, RESIDENT_TAB_GLOBAL_SHORTCUTS } from "../../../features/resident-tab/index.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { getPiHotkeysMarkdownTheme, getPiMarkdownTheme, paintPiBorder, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
 import { componentPort, ensureTheme, formatSessionTokens, type PiShellComponentPort, type PiShellExtensionRendererResolver } from "./shell-shared-facade.js";
@@ -189,17 +188,15 @@ export interface PiShellHotkeysPresentation {
   readonly bindings?: KeybindingsConfig;
   readonly getShortcuts?: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>;
   readonly profile?: "pi" | "a1";
-  readonly residentTabs?: boolean;
 }
 
 export function createPiShellHotkeys(
   bindings?: KeybindingsConfig,
   getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]> = () => [],
   profile: "pi" | "a1" = "pi",
-  residentTabs = false,
 ): PiShellComponentPort {
   ensureTheme();
-  const markdown = hotkeysMarkdown(bindings, getShortcuts, profile, residentTabs);
+  const markdown = hotkeysMarkdown(bindings, getShortcuts, profile);
   const container = new Container(); container.addChild(new Spacer(1)); container.addChild(new DynamicBorder(paintPiBorder)); container.addChild(new Text(piTheme().bold(piTheme().fg("accent", "Keyboard Shortcuts")), 1, 0)); container.addChild(new Spacer(1)); container.addChild(hotkeysMarkdownComponent(markdown)); container.addChild(new DynamicBorder(paintPiBorder));
   return componentPort(container);
 }
@@ -211,7 +208,6 @@ export function renderPiShellHotkeysLines(presentation: PiShellHotkeysPresentati
     presentation.bindings,
     presentation.getShortcuts ?? (() => []),
     presentation.profile ?? "pi",
-    presentation.residentTabs,
   )).render(width);
 }
 
@@ -219,16 +215,10 @@ function hotkeysMarkdownComponent(markdown: string): Markdown {
   return new Markdown(markdown, 1, 1, getPiHotkeysMarkdownTheme());
 }
 
-/** The global tab declarations the hotkeys document lists, straight from the feature's declarations. */
-export const TAB_HOTKEYS = RESIDENT_TAB_GLOBAL_SHORTCUTS.map(shortcut =>
-  [shortcut.id, shortcut.defaultKey, shortcut.description] as const,
-) as readonly (readonly [string, string | null, string])[];
-
 export function hotkeysMarkdown(
   bindings: KeybindingsConfig | undefined,
   getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>,
   profile: "pi" | "a1",
-  residentTabs = false,
 ): string {
   const keys = profile === "a1" ? KeybindingsManager.fromOwnedBindings(bindings) : new KeybindingsManager(bindings);
   // Compatibility: the owned viewport consumes these physical chords before editor actions.
@@ -242,17 +232,6 @@ export function hotkeysMarkdown(
       : `\`${label}\``;
   }).join(" / ")} | ${description} |`;
   let markdown = ["**Navigation**", "| Key | Action |", "|-----|--------|", row(["tui.editor.cursorUp", "tui.editor.cursorDown", "tui.editor.cursorLeft", "tui.editor.cursorRight"], "Move cursor / browse history"), row(["tui.editor.cursorWordLeft", "tui.editor.cursorWordRight"], "Move by word"), row(["tui.editor.cursorLineStart"], profile === "a1" ? "Start of prompt line" : "Start of line"), row(["tui.editor.cursorLineEnd"], profile === "a1" ? "End of prompt line" : "End of line"), ...(profile === "a1" ? ["| `Ctrl+Home` | Start of content |", "| `Ctrl+End` | End of content / follow output |"] : []), row(["tui.editor.jumpForward"], "Jump forward to character"), row(["tui.editor.jumpBackward"], "Jump backward to character"), row(["tui.editor.pageUp", "tui.editor.pageDown"], "Scroll by page"), "", "**Editing**", "| Key | Action |", "|-----|--------|", row(["tui.input.submit"], "Send message"), row(["tui.input.newLine"], `New line${process.platform === "win32" ? " (Ctrl+Enter on Windows Terminal)" : ""}`), row(["tui.editor.deleteWordBackward"], "Delete word backwards"), row(["tui.editor.deleteWordForward"], "Delete word forwards"), row(["tui.editor.deleteToLineStart"], "Delete to start of line"), row(["tui.editor.deleteToLineEnd"], "Delete to end of line"), row(["tui.editor.yank"], "Paste the most-recently-deleted text"), row(["tui.editor.yankPop"], "Cycle through the deleted text after pasting"), row(["tui.editor.undo"], "Undo"), "", "**Other**", "| Key | Action |", "|-----|--------|", row(["tui.input.tab"], "Path completion / accept autocomplete"), row(["app.interrupt"], "Cancel autocomplete / abort streaming"), row(["app.clear"], "Clear editor (first) / exit (second)"), row(["app.exit"], "Exit (when editor is empty)"), row(["app.suspend"], "Suspend to background"), row(["app.thinking.cycle"], "Cycle thinking level"), row(["app.model.cycleForward", "app.model.cycleBackward"], "Cycle models"), row(["app.model.select"], profile === "a1" ? "Open the Models dialog" : "Open model selector"), row(["app.tools.expand"], "Toggle tool output expansion"), row(["app.thinking.toggle"], "Toggle thinking block visibility"), row(["app.editor.external"], "Edit message in external editor"), row(["app.message.copy"], "Copy selection or last assistant message"), row(["app.message.followUp"], "Queue follow-up message"), row(["app.message.dequeue"], "Restore queued messages"), row(["app.clipboard.pasteImage"], profile === "a1" ? "Paste image or text from clipboard" : "Paste files on macOS, images, or text from clipboard"), "| `/` | Slash commands |", "| `!` | Run bash command |", "| `!!` | Run bash command (excluded from context) |", ...(profile === "a1" ? ["", "**Models dialog**", "| Key | Action |", "|-----|--------|", "| `Space` | Toggle the selected model in the cycling scope |", "| `Tab` | Switch the all/scoped filter |", row(["app.models.save"], "Save the scope to settings"), row(["app.models.enableAll"], "Scope every listed model"), row(["app.models.clearAll"], "Clear the listed models from the scope"), row(["app.models.toggleProvider"], "Toggle the selected model's provider"), row(["app.models.reorderUp", "app.models.reorderDown"], "Reorder the cycling scope")] : [])].join("\n");
-  if (profile === "a1" && residentTabs) {
-    // Invariant: the Tabs section shows the same projection the resident shell dispatches: the
-    // effective A1 declarations keep their keys and earlier tab declarations keep duplicates.
-    const projection = projectResidentTabShortcuts({ configured: bindings, reserved: keys.getEffectiveConfig() });
-    markdown += "\n\n**Tabs**\n| Key | Action |\n|-----|--------|\n";
-    markdown += RESIDENT_TAB_GLOBAL_SHORTCUTS.map(shortcut => {
-      const assigned = projection.assignments[shortcut.id as keyof typeof projection.assignments];
-      const label = assigned === null ? "Unbound" : `\`${shortcutDisplay(assigned)}\``;
-      return `| ${label} | ${shortcut.description} |`;
-    }).join("\n");
-  }
   const shortcuts = getShortcuts(bindings ?? keys.getEffectiveConfig());
   if (shortcuts.length > 0) {
     markdown += "\n\n**Extensions**\n| Key | Action |\n|-----|--------|\n";

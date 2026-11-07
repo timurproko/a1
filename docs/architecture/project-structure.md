@@ -28,13 +28,12 @@ src/
       session-presenters/          pinned Pi selectors and transcript renderers built from engine objects
       tui-runtime/                 neutral presentation runtime over pinned Pi TUI
   foundation/
-    launch-guardian/               authenticated launch-instance coordination
-    lifecycle/                     dependency-free launch, process identity, and path contracts
-    process-containment/           verified native containment and process inspection
-    protocol/                      authenticated control framing and client contracts
-    release/                       immutable releases, update, rollback, cohorts, and cleanup
-    storage/                       control-store persistence
-    supervision/                   endpoint, launch-instance, and release-cohort ownership
+    launch-context/                neutral private launch environment contract
+    lifecycle/                     paths, session selection, and session worktree claims
+    release/                       immutable releases, bootstrap, update, rollback, and age-based cleanup
+    session-writer-lock/           one writer per Pi session file through proper-lockfile
+    startup/                       startup trace phases and startup budgets
+    terminal-cleanup/              bounded terminal reset, exit notice, and fatal-exit diagnostics
   ui/
     apps/                          application registry and host lifecycle
     components/                    vendor-neutral terminal UI primitives
@@ -46,8 +45,6 @@ Each directory owner exposes `index.ts`, which lists its named exports; `export 
 Three layer boundaries hold regardless of the DAG: `src/contracts/*` import nothing outside their own contract; `src/ui/components` imports only contracts; only `src/integrations/pi/*` and the shipped `bin/` entries import the pinned Pi packages. The session shell under `src/app` is the application layer: it may import the contracts, the UI foundations, the three Pi adapters, and the feature owners, and only composition imports it. The shell never holds a Pi engine object: selectors and transcript renderers built from one live in `src/integrations/pi/session-presenters`, the only owner besides composition that may import both the engine and the component adapters, and the shell opens them through the `OwnedUiSessionPresenters` contract.
 
 `src/cli` contains command policy but delegates runtime work. `src/composition` is the concrete dependency-injection boundary: it may know both neutral contracts and Pi implementations, while product features receive vendor-neutral ports. Foundation modules never import product features. Pi package knowledge remains inside the Pi adapter owners.
-
-Release-owned endpoint observation and recovery coordinate with supervision-owned publication and storage-owned boot reconciliation through the process guardian's OS-released gates; see [startup recovery](../launch-recovery.md) for the identity, concurrency, and diagnostic boundaries.
 
 Shared code moves to foundation only when it is product-agnostic, has a precise contract, and has more than one real consumer. Do not create `core`, `common`, `utils`, or `misc` dumping grounds.
 
@@ -89,7 +86,7 @@ Prefer the smallest independent boundary that proves the observable result. Do n
 
 The repository has one root `package.json`, `package-lock.json`, TypeScript configuration, Vitest configuration, and dependency installation. Nested manifests, lockfiles, `node_modules`, vendored package caches, logs, sessions, browser profiles, generated output, and runtime state are forbidden under production and feature trees.
 
-Build output mirrors the production namespaces directly under ignored `dist/`, without an intermediate `src/` directory; generated release/test evidence and agent-selected scratch files belong in ignored `.artifacts/`; task worktrees and local package outputs belong in ignored `.worktrees/` and `.builds/`. Repository tooling is grouped under `scripts/governance`, `scripts/release`, `scripts/pi`, and `scripts/development`; the few root scripts are standalone maintenance or build commands. Package contents are selected by the root manifest. The Rust process guardian and console terminal-host proof live under `native/`; Cargo output is ignored. Third-party terminal parser sources are isolated under `native/terminal-host/vendor/` and are not owned application modules.
+Build output mirrors the production namespaces directly under ignored `dist/`, without an intermediate `src/` directory; generated release/test evidence and agent-selected scratch files belong in ignored `.artifacts/`; task worktrees and local package outputs belong in ignored `.worktrees/` and `.builds/`. Repository tooling is grouped under `scripts/governance`, `scripts/release`, `scripts/pi`, and `scripts/development`; the few root scripts are standalone maintenance or build commands. Package contents are selected by the root manifest. The repository contains no native code; the published package is pure JavaScript.
 
 ## Development worktrees
 
@@ -123,7 +120,7 @@ A stale Git registration elsewhere whose directory is missing and whose row is `
 
 Claude Code uses its established `EnterWorktree` tool by task name. The tracked `.claude/settings.json` wires `scripts/governance/claude-worktree-create.mjs` to create `.worktrees/<task-id>` detached at fresh `origin/develop`, or return an already registered path. The agent must still establish ownership before reusing that path and create the topic branch in a new detached worktree before editing. Passing an absolute `path` to `EnterWorktree` is reserved for a worktree created by hand, from primary before any shell command in that session. The matching `WorktreeRemove` hook declines removal: leave with `ExitWorktree` `keep` and use only the guarded cleanup tool for removal. Other agents do not need these tools or hooks.
 
-A1 linking acquires a cooperative live-session editing claim and switches footer repository/PR discovery; an existing draft PR is not required when linking first succeeds. Clean unlink/disposal releases that runtime claim; a crashed A1 owner becomes reusable only after exact process death is verified. Runtime association does not change process or tool cwd, create a Git lock, or register, release, or authorize cleanup. Context verification and editing handoff also grant no acceptance, finalization, merge, deletion, or cleanup authority. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.
+A1 linking acquires a cooperative live-session editing claim and switches footer repository/PR discovery; an existing draft PR is not required when linking first succeeds. Clean unlink/disposal releases that runtime claim; a crashed A1 owner becomes reusable only after its recorded process is no longer running. Runtime association does not change process or tool cwd, create a Git lock, or register, release, or authorize cleanup. Context verification and editing handoff also grant no acceptance, finalization, merge, deletion, or cleanup authority. Repository commands therefore keep an explicit worktree path. The primary worktree stays on `develop` for integration and must not be used for task edits. Do not edit, adopt, move, or remove another session's worktree.
 
 An agent that directly chooses a transient file path for a PR/comment body, command payload, captured output, temporary patch/diff, or ad hoc log must place it beneath the verified task worktree's exact `.artifacts/` root, never the primary checkout, another worktree, OS temp, home/desktop, or a sibling path. Such scratch remains ignored, unstaged, uncommitted, disposable, non-authoritative, and secret-free. This repository path rule does not relocate storage internally selected by tools, product runtime code, or hermetic tests.
 
@@ -140,6 +137,4 @@ An agent that directly chooses a transient file path for a PR/comment body, comm
 
 Both interactive profiles use the owned rendering pipeline. Bare `a1` exposes A1-owned surfaces; `a1 pi` withholds those surfaces while using Pi's ordinary profile root. The retired transparent attachment owner is not part of the production tree or dependency map.
 
-The current JavaScript control plane does not provide arbitrary-CLI tabs. Such tabs require the separately bounded console terminal host to own PTYs, authoritative terminal state, rendering, input routing, inactive-surface lifecycle, and reconnection. JavaScript may exchange typed identity, topology revision, capability, lifecycle, status, and recovery messages only; it must not relay terminal output, per-event child input, or rendered cells.
-
-Structured agents remain semantically separate and use typed events, commands, snapshots, cancellation, and recovery evidence. They must not derive state from ANSI text, terminal timing, or screen content. Native source ownership remains outside `src/`; packaged host selection is governed by release/package owners. Architecture tests reject terminal-host hot-path bytes in JavaScript protocols, terminal inference in structured runtimes, and replacement lightweight terminal parsers or renderers.
+Each launch runs one agent in one directly attached process; there are no tabs, resident sessions, or arbitrary-CLI terminal surfaces. Production code under `src/` may not import `node-pty` or a terminal emulator or spawn a pseudoterminal, and the architecture gate rejects replacement lightweight terminal parsers or renderers. A multi-agent or composed-terminal feature needs its own approved change.

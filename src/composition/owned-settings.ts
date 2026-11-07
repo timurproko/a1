@@ -7,7 +7,6 @@ import { OwnedSettingsManager } from "../ui/settings/manager.js";
 
 export interface OwnedSettingsManagerFactoryOptions {
   readonly profileId: string;
-  readonly hideTabSettings?: boolean;
   readonly agent?: AgentSettingsPort | null;
   readonly agentProvider?: () => AgentSettingsPort | null;
 }
@@ -23,7 +22,6 @@ export function createOwnedSettingsManager(options: OwnedSettingsManagerFactoryO
     legacyConfigDir: productPaths.configDir,
     ...(options.agent === undefined ? {} : { agent: options.agent }),
     ...(options.agentProvider === undefined ? {} : { agentProvider: options.agentProvider }),
-    ...(options.hideTabSettings ? { hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabBarPlusMenu", "tabBarRightItems"] } : {}),
     hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
     agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
   });

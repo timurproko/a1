@@ -29,10 +29,8 @@ export interface TranscriptPromptAnchor {
   readonly id: string;
   readonly firstRow: number;
   readonly lastRow: number;
-  /** The source first row, including its submitted-prompt styling and timestamp. */
+  /** The source first row, including its submitted-prompt styling. */
   readonly sourceRow: string;
-  /** Right-edge metadata cells omitted from semantic prompt copies. */
-  readonly copySuffixWidth?: number;
   /** Optional source-styled row used only while prominent and not hovered. */
   readonly prominentSourceRow?: string;
 }
@@ -461,10 +459,7 @@ export class TranscriptViewport {
         const dock = anchor?.kind === "dock" ? this.#copyableDockRows.get(anchor.fromBottom) : undefined;
         if (prompt !== undefined && anchor?.kind === "document") {
           const first = anchor.row === prompt.firstRow;
-          const copyRow = first && (prompt.copySuffixWidth ?? 0) > 0
-            ? truncateToWidth(row, Math.max(0, displayWidth(row) - (prompt.copySuffixWidth ?? 0)))
-            : row;
-          return selectionCopyLineContent(copyRow, first ? "first" : "continuation");
+          return selectionCopyLineContent(row, first ? "first" : "continuation");
         }
         // Invariant: the dock editor has no prefix; transcript prompts still carry chrome.
         return dock?.prompt !== undefined ? usefulTextLineContent(row, 1) : usefulTextLineContent(row);

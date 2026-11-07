@@ -23,7 +23,6 @@ if (identity) {
 
   await requiredFile(identity.artifacts?.cliEntry, "authoritative CLI entry");
   await checkWorkflows(identity);
-  await checkNativeMetadata(identity);
   await checkSingleAuthority();
 }
 
@@ -45,17 +44,6 @@ async function checkWorkflows(identity) {
     const derivesSourceIdentity = source.includes("identity.packageName") && source.includes("identity.commandName") && source.includes("identity.artifacts.cliEntry");
     const derivesCertifiedIdentity = consumesCertifiedIdentity && source.includes("evidence.identity.packageName") && source.includes("evidence.identity.commandName") && source.includes("evidence.identity.cliEntry");
     if (!derivesSourceIdentity && !derivesCertifiedIdentity) fail(`${path} does not derive package and bin metadata from product identity`);
-  }
-}
-
-async function checkNativeMetadata(identity) {
-  const cargo = await text("native/terminal-host/Cargo.toml", "native Cargo manifest");
-  const lock = await text("native/terminal-host/Cargo.lock", "native Cargo lockfile");
-  if (cargo !== null && !new RegExp(`^name\\s*=\\s*"${escapeRegExp(identity.artifacts.nativeCrate)}"`, "m").test(cargo)) {
-    fail("native Cargo package name differs from product identity");
-  }
-  if (lock !== null && !new RegExp(`^name\\s*=\\s*"${escapeRegExp(identity.artifacts.nativeCrate)}"`, "m").test(lock)) {
-    fail("native Cargo lockfile name differs from product identity");
   }
 }
 
@@ -120,8 +108,4 @@ async function text(path, name) {
 
 function fail(message) {
   errors.push(message);
-}
-
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

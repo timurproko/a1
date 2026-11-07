@@ -66,6 +66,8 @@ export const REPOSITORY_DISPOSABLE_PATHS = Object.freeze([
   "dist",
   ".builds",
   ".artifacts",
+  // Compatibility: worktrees created before the native crates were removed still hold their Cargo
+  // output; cleanup keeps treating it as disposable so those worktrees can be retired.
   "native/process-guardian/target",
   "native/terminal-host/target",
   "src/integrations/pi/engine/pi-settings-metadata.json",

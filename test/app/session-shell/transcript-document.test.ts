@@ -53,7 +53,6 @@ function harness(options: {
       resourceRows: () => ["resources", ""],
       hasExtensionHeader: options.extensionHeader ?? (() => false),
       thinkingVisible: options.thinkingVisible ?? (() => true),
-      timeFormat: () => undefined,
     },
   });
   return { document, mounted };

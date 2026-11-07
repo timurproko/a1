@@ -1,0 +1,120 @@
+## ADDED Requirements
+
+### Requirement: A1 exposes one single-agent launch and one prerelease comparison launch
+The `a1` binary SHALL be the sole installed public command. Bare invocation SHALL launch the A1 single-agent product surface directly. A prerelease build SHALL additionally expose `a1 pi` as a development comparison against the pinned Pi interface. A release build SHALL not expose the comparison launch. A1 SHALL NOT install another executable or expose `agent`, `solo`, `ui`, or `tabs` subcommands.
+
+#### Scenario: Launch normal A1
+- **WHEN** the user runs `a1` without a subcommand
+- **THEN** A1 SHALL launch the owned single-agent UI using the normal A1 profile
+
+#### Scenario: Launch the Pi comparison
+- **WHEN** the user runs `a1 pi` from a prerelease build
+- **THEN** A1 SHALL launch the shared owned rendering pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected
+
+#### Scenario: A removed launch word is given
+- **WHEN** the user runs `a1 solo` or `a1 tabs`
+- **THEN** A1 SHALL return quietly without launching a profile
+
+### Requirement: Both launch forms are directly attached processes with one pipeline
+Bare `a1` and prerelease `a1 pi` SHALL retain the shared A1-owned rendering and input pipeline declared by the canonical launch profile, differing only in configuration root and product-surface availability. Neither SHALL add process containment, supervision, or a resident capability around that pipeline.
+
+#### Scenario: Compare profile paths
+- **WHEN** the user launches bare `a1` alongside prerelease `a1 pi`
+- **THEN** both SHALL use the shared owned pipeline as independent directly attached processes
+
+## MODIFIED Requirements
+
+### Requirement: Both launch forms use one rendering pipeline
+Normal A1 and the Pi comparison SHALL use the A1-owned rendering and input pipeline. Profile selection SHALL change configuration and product-surface availability, not introduce a PTY, terminal parser, byte relay, child terminal renderer, resident host, or native addon.
+
+#### Scenario: Compare terminal paths
+- **WHEN** either launch form starts
+- **THEN** it SHALL use the same owned runtime composition inside the same single-process launch boundary
+
+### Requirement: Maintenance commands remain unambiguous
+`--help`, `-h`, `--version`, `-v`, `update`, and the declared operations under
+`a1 pi` SHALL retain their maintenance meanings and SHALL NOT be interpreted as
+profile names or forwarded into an interactive runtime. `a1 update --develop` MAY
+carry one numbered or full-version preview selector. A prerelease build SHALL expose
+bare `a1 pi` as its comparison launch; a release build SHALL treat that launch form
+as unsupported.
+
+Normal A1 SHALL additionally recognize `a1 --session <path|id>` with an optional
+`--session-dir <dir>` in either option order as an interactive launch using the A1
+profile. These options SHALL NOT be interpreted as maintenance operations or
+forwarded into Pi package commands. A malformed invocation of this recognized
+session grammar SHALL fail before startup with focused guidance and nonzero status.
+This addition SHALL NOT expose CLI picker/continue aliases, a `resume` subcommand,
+a `solo` word, or session arguments on the Pi comparison launch.
+
+An unsupported command or operation SHALL exit successfully without output before
+any runtime, shell, or operation startup. A malformed invocation of a recognized
+maintenance command SHALL fail before startup with focused command guidance and
+without automatically printing the complete help.
+
+#### Scenario: Query help
+- **WHEN** the user runs `a1 --help` or `a1 -h`
+- **THEN** A1 SHALL print help including the supported normal A1 session launch forms without launching any profile
+
+#### Scenario: Query version
+- **WHEN** the user runs `a1 --version` or `a1 -v`
+- **THEN** A1 SHALL execute the dependency-light version query without launching any profile
+
+#### Scenario: Manage packages
+- **WHEN** the user runs `a1 pi install`, `a1 pi remove`, `a1 pi uninstall`, `a1 pi list`, or an accepted package update form
+- **THEN** A1 SHALL run the package operation against the A1 profile without launching any interactive profile
+
+#### Scenario: Launch form is given an argument
+- **WHEN** an interactive launch form is followed by an argument outside the declared maintenance and normal A1 session-selection grammars
+- **THEN** A1 SHALL return successfully and silently without launching a profile unless it is a malformed invocation of the recognized session grammar
+
+#### Scenario: Unknown subcommand
+- **WHEN** the user provides a word outside the declared grammar
+- **THEN** A1 SHALL return successfully and silently without invoking a shell or child process
+
+#### Scenario: Comparison launch is absent from a release
+- **WHEN** the user runs bare `a1 pi` from a stable release build
+- **THEN** A1 SHALL return successfully and silently without launching a profile
+
+#### Scenario: Removed update command is provided
+- **WHEN** the user provides a command beginning `update:`
+- **THEN** A1 SHALL return successfully and silently without update or runtime work
+
+#### Scenario: Resume from either release channel
+- **WHEN** the user runs a valid normal A1 `--session` launch from a stable or prerelease build
+- **THEN** A1 SHALL launch the selected session under the normal A1 profile and shared owned runtime
+
+#### Scenario: Session arguments are supplied to the comparison
+- **WHEN** the user runs `a1 pi --session <id>`
+- **THEN** that unsupported comparison operation SHALL remain a silent no-op rather than fall through to a normal A1 session launch
+
+### Requirement: Interactive launch forms are concurrently independent
+A1 SHALL permit multiple simultaneous instances of bare `a1`, prerelease `a1 pi`, or both. Profile selection, profile data, and process lifetime SHALL remain scoped to the originating invocation rather than a product-wide foreground slot. A1-owned runtimes in either profile SHALL share the session-writer admission guard only when selecting the same canonical session file. The guard SHALL be implemented in Node without native code and SHALL start no host, holder, strip, or bridge. Different session files SHALL remain independently writable, and unmodified external Pi or older nonparticipating builds SHALL NOT be claimed as covered.
+
+#### Scenario: Start the same profile twice
+- **WHEN** the user starts two instances of the same profile
+- **THEN** both SHALL launch independently without sharing foreground ownership or contacting each other
+
+#### Scenario: Start both profile forms
+- **WHEN** owned A1 or Pi-comparison instances are already active and another supported form is launched
+- **THEN** the new invocation SHALL start independently without requiring an existing instance to exit
+
+#### Scenario: Comparison profile selects a session held by another A1 writer
+- **WHEN** a Pi-comparison runtime selects the canonical file already held by a direct A1 runtime
+- **THEN** the shared writer guard SHALL reject duplicate writing with the existing safe conflict behavior
+
+#### Scenario: Different session files across profiles
+- **WHEN** bare-A1 and Pi-comparison runtimes select distinct unheld session files
+- **THEN** both SHALL proceed concurrently without a product-wide foreground lock
+
+## REMOVED Requirements
+
+### Requirement: A1 exposes one product launch and one prerelease comparison launch
+**Reason**: The reserved multi-agent presentation scenario is withdrawn with the pivot to a single agent.
+
+**Migration**: None.
+
+### Requirement: Launch-instance ownership preserves the shared rendering pipeline
+**Reason**: Launch-instance ownership and containment are removed.
+
+**Migration**: None.

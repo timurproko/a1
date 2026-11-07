@@ -172,11 +172,14 @@ describe("dependency certification directory migration", () => {
   });
 });
 
+/** Cleanup options under which every approval is past the retention window. */
+const expired = { retentionMs: 1, wallClock: () => Date.now() + 1_000 } as const;
+
 describe("dependency certification retention integration", () => {
   it("preserves old rollback/live evidence, seals new releases canonically, then removes the legacy duplicate", async () => {
     const fixture = await legacyFixture();
     const oldMetadata = await fs.lstat(fixture.legacy, { bigint: true });
-    await fs.writeFile(resolve(fixture.packageRoot, "bin", "supervisor.js"), "updated supervisor");
+    await fs.writeFile(resolve(fixture.packageRoot, "bin", "ui.js"), "updated ui");
     const next = await materializeRelease(fixture.packageRoot, fixture.dataDir);
     const diagnostics = await certifyMaterializedRelease(next, fixture.dataDir);
     await fixture.store.recordCandidate(next);
@@ -189,12 +192,12 @@ describe("dependency certification retention integration", () => {
     await expect(readRestartCertifiedRelease(fixture.record, fixture.dataDir)).resolves.toBeTruthy();
     await expect(readRestartCertifiedRelease(next, fixture.dataDir)).resolves.toBeTruthy();
     await fixture.store.update(state => ({ ...state, references: { ...state.references, rollback: null } }));
-    // Invariant: a live-cohort hold still pins the old release after rollback is cleared.
+    // Invariant: the command's own release still pins the old release after rollback is cleared.
     await runBoundedReleaseCleanup(fixture.dataDir, undefined, {
-      transactionStore: noTransaction, externalHolds: [{ authority: "agent", releaseId: fixture.release.releaseId }],
+      transactionStore: noTransaction, ...expired, ownReleaseIds: [fixture.release.releaseId],
     });
     await expect(fs.lstat(fixture.legacy)).resolves.toBeTruthy();
-    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction });
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ...expired, ownReleaseIds: [] });
     await expect(fs.lstat(fixture.legacy)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(fs.lstat(fixture.canonical)).resolves.toBeTruthy();
     await expect(readRestartCertifiedRelease(next, fixture.dataDir)).resolves.toBeTruthy();
@@ -224,10 +227,10 @@ describe("dependency certification retention integration", () => {
       if (String(path) === fixture.legacy) throw Object.assign(new Error("sharing violation"), { code: "EPERM" });
       return fs.rm(path, options);
     });
-    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, operations: { remove } });
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, operations: { remove }, ...expired });
     await expect(fs.lstat(fixture.legacy)).resolves.toBeTruthy();
     expect((await fixture.store.read()).cleanup.diagnostics.some(item => item.error.includes("sharing violation"))).toBe(true);
-    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction });
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ...expired });
     await expect(fs.lstat(fixture.legacy)).rejects.toMatchObject({ code: "ENOENT" });
     await expect(fs.lstat(fixture.canonical)).rejects.toMatchObject({ code: "ENOENT" });
   });
@@ -292,8 +295,7 @@ async function certifiedFixture() {
   await fs.writeFile(resolve(packageRoot, "package.json"), JSON.stringify({
     name: "@timurproko/a1", privateLaunchContract: "neutral-launch-v1", version: "2.0.0", files: ["bin"], dependencies: { "fixture-dependency": "1.0.0" },
   }));
-  await fs.writeFile(resolve(packageRoot, "bin", "supervisor.js"), "supervisor");
-  await fs.writeFile(resolve(packageRoot, "bin", "guardian.js"), "guardian");
+  await fs.writeFile(resolve(packageRoot, "bin", "ui.js"), "ui");
   await fs.writeFile(resolve(packageRoot, "node_modules", "fixture-dependency", "package.json"), JSON.stringify({ name: "fixture-dependency", version: "1.0.0", main: "index.js" }));
   await fs.writeFile(resolve(packageRoot, "node_modules", "fixture-dependency", "index.js"), "dependency");
   const release = await materializeRelease(packageRoot, dataDir);

@@ -16,7 +16,6 @@ export function renderPiShellHotkeySections(presentation: PiShellHotkeysPresenta
     presentation.bindings,
     shortcuts,
     presentation.profile ?? "pi",
-    presentation.residentTabs,
   );
   const sections: { title: string; lines: string[] }[] = [];
   for (const line of markdown.split("\n")) {

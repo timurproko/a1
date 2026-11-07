@@ -63,7 +63,7 @@ describe("validation suite ownership", () => {
       ],
     }));
 
-    const crossRuntime = new Set(["image-compatibility", "history-compatibility", "unix-containment"]);
+    const crossRuntime = new Set(["image-compatibility", "history-compatibility", "unix-release"]);
     expect(ownership.filter(entry => entry.owners.filter(owner => !crossRuntime.has(owner)).length !== 1)).toEqual([]);
     expect(ownership.flatMap(entry => entry.owners.slice(1).filter(owner => !crossRuntime.has(owner)).map(owner => ({ test: entry.test, owner })))).toEqual([]);
     expect([...explicitOwners.keys()].filter(test => !tests.includes(test))).toEqual([]);
@@ -89,7 +89,7 @@ describe("validation suite ownership", () => {
       return values;
     }));
     const excluded = Object.entries(suites.scopes).filter(([, definition]) => definition.fullReleaseExclusion !== undefined);
-    expect(excluded.map(([scope]) => scope)).toEqual(["terminal-host", "resident-chaos"]);
+    expect(excluded.map(([scope]) => scope)).toEqual([]);
     for (const [scope, definition] of excluded) {
       expect(definition.fullReleaseExclusion).toMatch(/\S{8,}/u);
       expect(included.has(scope)).toBe(false);
@@ -121,13 +121,10 @@ describe("validation suite ownership", () => {
       "test/repository-governance/pr-full-regression-history.test.ts",
       "test/foundation/launch-context/cutover.test.ts",
       "test/foundation/lifecycle/session-repository-context.test.ts",
-      "test/foundation/supervision/foreground-terminal-lease.test.ts",
       "test/repository-governance/code-documentation.test.ts",
       "test/repository-governance/local-cleanup.test.ts",
-      "test/foundation/storage/storage.test.ts",
       "test/foundation/release/cohort-state.test.ts",
       "test/foundation/release/release-gc.test.ts",
-      "test/foundation/release/update-live-cohort.test.ts",
       "test/features/prompt-history/concurrency.integration.test.ts",
       "test/features/prompt-history/store.test.ts",
       "test/app/session-shell/command-message-parity.test.ts",

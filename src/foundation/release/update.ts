@@ -1,7 +1,6 @@
 import { spawn, type StdioOptions } from "node:child_process";
 import { access, lstat, readFile, realpath, rename } from "node:fs/promises";
-import { connect } from "node:net";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { dirname, resolve } from "node:path";
 import crossSpawn from "cross-spawn";
 import { valid as validSemver } from "semver";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
@@ -12,21 +11,13 @@ import {
   createRegistryFetcher, invalidateReleaseCheckCache, isNewerRelease, queryPublishedVersions, releaseChannelOf,
   type PublishedVersion, type RegistryFetcher,
 } from "./latest-release.js";
-import {
-  certifyMaterializedRelease,
-  ensureSupervisor,
-  waitForProcessExit,
-} from "./bootstrap.js";
-import { probeOwnership, readEndpointMetadata, removeEndpointArtifacts } from "./endpoints.js";
-import { resolveCohortEndpoint, resolveProductPaths, type CohortEndpointPaths, type ProductPaths } from "../lifecycle/index.js";
-import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
-import { CohortStateStore, type SupervisorEndpointMetadata } from "./cohort-state.js";
-import { cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
+import { certifyMaterializedRelease } from "./bootstrap.js";
+import { resolveProductPaths } from "../lifecycle/index.js";
+import { CohortStateStore } from "./cohort-state.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
 import {
   UPDATE_ACTIVATION_CONTRACT,
-  UpdateActivationBlockedError,
   activateInstalledRelease,
   delegateActivation,
   readActivationContracts,
@@ -84,7 +75,6 @@ export type UpdateMeasuredPhase =
   | "certified"
   | "active-reference-committed"
   | "warmup"
-  | "supervisor-verified"
   | "transaction-complete";
 export interface UpdatePhaseTimingEvent { readonly phase: UpdateMeasuredPhase; readonly durationMs: number }
 export interface UpdatePerformanceEvidence {
@@ -132,8 +122,6 @@ export type { UpdateActivationPhase, UpdateMaterializationProgress } from "./upd
 
 export interface UpdateLifecycleCoordinator {
   targetIsActive(targetVersion: string): Promise<boolean>;
-  verifyAutomaticSafety?(): Promise<void>;
-  shutdownVerifiedOwners(targetVersion: string): Promise<{ priorActiveVersion: string | null }>;
   verifyPackageUnlocked(packageRoot: string): Promise<void>;
   activateInstalled(
     packageRoot: string,
@@ -141,10 +129,6 @@ export interface UpdateLifecycleCoordinator {
     phase: (phase: UpdateActivationPhase) => Promise<void>,
     onMaterializing?: (progress: UpdateMaterializationProgress) => void,
     onWarmup?: (state: "started" | "completed") => void,
-  ): Promise<void>;
-  activatePrepared?(
-    targetVersion: string,
-    phase: (phase: UpdateActivationPhase) => Promise<void>,
   ): Promise<void>;
 }
 export interface UpdateTransactionJournal {
@@ -186,7 +170,6 @@ const defaultFileSystem: UpdateFileSystem = {
  */
 export const PACKAGE_UNLOCK_PATIENCE_MS = 15_000;
 export const UPDATE_ALREADY_RUNNING_EXIT_CODE = 75;
-export const UPDATE_ACTIVATION_BLOCKED_EXIT_CODE = 76;
 /** A named preview reads the registry's whole package document, which is larger than a dist-tag lookup. */
 const PREVIEW_LOOKUP_TIMEOUT_MS = 30_000;
 const PACKAGE_UNLOCK_INITIAL_DELAY_MS = 100;
@@ -205,7 +188,7 @@ export function isPackageLockError(error: unknown): boolean {
 export function lockedPackageDiagnostic(packageRoot: string, waitedMs: number, attempts: number, error: unknown): string {
   const seconds = Math.max(1, Math.round(waitedMs / 1_000));
   return PRODUCT_TEXT.diagnostic(
-    `package remained locked for ${seconds}s after verified shutdown (${attempts} checks): ${errorMessage(error)}. `
+    `package remained locked for ${seconds}s (${attempts} checks): ${errorMessage(error)}. `
     + `Another program is holding a file under ${packageRoot}: an antivirus scan, a file browser or terminal open inside it, `
     + `or a session still shutting down. Close it and run the update again; nothing was changed.`,
   );
@@ -237,64 +220,10 @@ export function createNpmProcessRunner(platform: NodeJS.Platform = process.platf
   });
 }
 
-export type UpdateOwnershipAction = "clean-dead-record" | "leave-running" | "end-session";
-
-/**
- * What an update does about the owner it found. A cohort running from retained immutable
- * content keeps its work: the installation replaces files it does not read, and it listens on
- * its own endpoint. A cohort running from the mutable installation is the one exception,
- * because that installation is exactly what is about to be replaced under it.
- */
-async function verifyAutomaticUpdateSafety(
-  paths: ReturnType<typeof resolveProductPaths>,
-  stateStore: CohortStateStore,
-  environment: NodeJS.ProcessEnv,
-): Promise<void> {
-  const state = await stateStore.read();
-  const owner = await readActiveEndpoint(paths, state.references.active, environment);
-  if (!owner) return;
-  const ownership = await probeOwnership(owner.metadata);
-  if (ownership === "dead") return;
-  if (ownership !== "live-verified") {
-    throw new UpdateAutomaticDeferred(PRODUCT_TEXT.diagnostic(`automatic update deferred because supervisor ownership is ${ownership}`));
-  }
-  if (!await canonicalImmutableRoot(paths.dataDir, owner.metadata.releaseRoot)) {
-    throw new UpdateAutomaticDeferred(PRODUCT_TEXT.diagnostic("automatic update deferred because the running session is not using a retained immutable release; run the update command manually"));
-  }
-}
-
-export function planUpdateOwnership(
-  ownership: "live-verified" | "dead",
-  runsFromRetainedRelease: boolean,
-): UpdateOwnershipAction {
-  if (ownership === "dead") return "clean-dead-record";
-  return runsFromRetainedRelease ? "leave-running" : "end-session";
-}
-
-/**
- * The endpoint of the active cohort, together with where it is recorded, so a caller that
- * finds it can also clean it up. A release that predates cohort-scoped endpoints published
- * one endpoint for the runtime directory, and that one is recognized too.
- */
-async function readActiveEndpoint(
-  paths: ProductPaths,
-  activeReleaseId: string | null,
-  environment: NodeJS.ProcessEnv,
-): Promise<{ readonly metadata: SupervisorEndpointMetadata; readonly paths: CohortEndpointPaths } | null> {
-  if (activeReleaseId !== null) {
-    const cohort = resolveCohortEndpoint(paths, activeReleaseId, environment);
-    const metadata = await readEndpointMetadata(cohort.endpointMetadataPath);
-    if (metadata) return { metadata, paths: cohort };
-  }
-  const legacyPaths = { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath };
-  const legacy = await readEndpointMetadata(legacyPaths.endpointMetadataPath);
-  return legacy ? { metadata: legacy, paths: legacyPaths } : null;
-}
-
 export function createUpdateLifecycleCoordinator(
   environment: NodeJS.ProcessEnv = process.env,
   fileSystem: UpdateFileSystem = defaultFileSystem,
-  output: UpdateOutput = defaultOutput,
+  _output: UpdateOutput = defaultOutput,
   patience: UpdateUnlockPatience = {},
 ): UpdateLifecycleCoordinator {
   const paths = resolveProductPaths(environment);
@@ -302,50 +231,8 @@ export function createUpdateLifecycleCoordinator(
   return {
     async targetIsActive(targetVersion) {
       const state = await stateStore.read(), activeId = state.references.active;
-      if (!activeId || state.releases[activeId]?.packageVersion !== targetVersion) return false;
-      const endpoint = await readActiveEndpoint(paths, activeId, environment);
-      return endpoint?.metadata.releaseId === activeId && await probeOwnership(endpoint.metadata) === "live-verified";
-    },
-    async verifyAutomaticSafety() { await verifyAutomaticUpdateSafety(paths, stateStore, environment); },
-    async shutdownVerifiedOwners(targetVersion) {
-      const state = await stateStore.read();
-      const activeId = state.references.active;
-      const priorActiveVersion = activeId ? state.releases[activeId]?.packageVersion ?? null : null;
-      const owner = await readActiveEndpoint(paths, activeId, environment);
-      if (!owner) return { priorActiveVersion };
-      const endpoint = owner.metadata;
-      const ownership = await probeOwnership(endpoint);
-      if (ownership !== "live-verified" && ownership !== "dead") {
-        throw new Error(PRODUCT_TEXT.diagnostic(`refused update shutdown because supervisor ownership is ${ownership}`));
-      }
-      const plan = planUpdateOwnership(ownership, await canonicalImmutableRoot(paths.dataDir, endpoint.releaseRoot));
-      if (plan === "clean-dead-record") {
-        await removeEndpointArtifacts(owner.paths.endpointMetadataPath, owner.paths.endpoint, endpoint);
-        return { priorActiveVersion };
-      }
-      // Rationale: leaving sessions alone is the expected outcome, and saying so mid-update tears
-      // the progress bar; only ending a session (below) is worth interrupting it for.
-      if (plan === "leave-running") return { priorActiveVersion };
-
-      // Rationale: say whose work is ending before it ends.
-      const live = endpoint.ownership.liveInstanceIds.length;
-      if (live > 0) {
-        output.stderr(`${PRODUCT_TEXT.diagnostic(`ending ${live === 1 ? "one session" : `${live} sessions`} that run from the installation being replaced; a session started by an installed release would have been left alone.`)}\n`);
-      }
-      const identity = await requestUpdateShutdown(endpoint, targetVersion, 2_000);
-      if (!identity.accepted && processIsAlive(endpoint.pid)) {
-        // Security: explicit update consent permits bounded cleanup of an authenticated
-        // older owner that predates the update-shutdown message.
-        const cleanup = await cleanupVerifiedOwner(endpoint, { allowLiveInstances: true, reason: "legacy-mutable-install" });
-        if (!cleanup.terminated) throw new Error(`verified ${PRODUCT_TEXT.displayName} owner ${endpoint.pid} rejected shutdown and could not be terminated: ${identity.reason}`);
-      } else if (identity.accepted) {
-        await waitForProcessExit(endpoint.pid, 3_000).catch(async () => {
-          const cleanup = await cleanupVerifiedOwner(endpoint, { allowLiveInstances: true, reason: "legacy-mutable-install" });
-          if (!cleanup.terminated) throw new Error(`verified ${PRODUCT_TEXT.displayName} owner ${endpoint.pid} did not terminate`);
-        });
-      }
-      await removeEndpointArtifacts(owner.paths.endpointMetadataPath, owner.paths.endpoint, endpoint);
-      return { priorActiveVersion };
+      const active = activeId === null ? undefined : state.releases[activeId];
+      return active?.approval === "approved" && active.packageVersion === targetVersion;
     },
     async verifyPackageUnlocked(packageRoot) {
       if (fileSystem.access) await fileSystem.access(packageRoot);
@@ -357,7 +244,7 @@ export function createUpdateLifecycleCoordinator(
       const startedAt = now();
       let delay = PACKAGE_UNLOCK_INITIAL_DELAY_MS;
       let attempts = 0;
-      // Rationale: a holder found right after ownership was released is almost always transient,
+      // Rationale: a holder found before the replacement is almost always transient,
       // so one failed rename is a reason to look again, not to abandon an update that has not
       // yet changed anything. The wait is bounded so a genuine lock still fails clearly.
       const withPatience = async (from: string, to: string, describeFailure: (error: unknown) => Error): Promise<void> => {
@@ -395,18 +282,7 @@ export function createUpdateLifecycleCoordinator(
       if (contracts.includes(UPDATE_ACTIVATION_CONTRACT)) await delegateActivation(request, callbacks);
       else await activateInstalledRelease(request, callbacks);
     },
-    async activatePrepared(targetVersion, phase) { await retryPreparedActivation(paths.dataDir, environment, targetVersion, phase); },
   };
-}
-
-async function retryPreparedActivation(
-  dataDir: string,
-  environment: NodeJS.ProcessEnv,
-  targetVersion: string,
-  phase: (phase: UpdateActivationPhase) => Promise<void>,
-): Promise<void> {
-  await (await import("./prepared-update-activation.js"))
-    .activatePreparedRelease({ dataDir, targetVersion, environment }, { phase });
 }
 
 const PROGRESS_BAR_WIDTH = 38;
@@ -729,10 +605,10 @@ async function withUpdateExecutionLease(
   let lease = await acquireUpdateExecutionLease(input);
   if (lease.status === "interrupted") {
     // Rationale: the owner that targeted another version is gone. Its durable transaction is rolled
-    // back to the cohort that ran before it, so this request proceeds as an ordinary update of its
+    // back to the release that ran before it, so this request proceeds as an ordinary update of its
     // own target instead of reporting a dead attempt as in progress.
     const interrupted = lease.owner.targetVersion;
-    const rollback = await rollbackPriorCohort(input.dataDir, options.environment ?? process.env, lease.transaction.priorActiveReleaseId)
+    const rollback = await rollbackPriorRelease(input.dataDir, lease.transaction.priorActiveReleaseId)
       .catch(error => `rollback failed: ${errorMessage(error)}`);
     const store = new UpdateTransactionStore(input.dataDir);
     await store.finish("rolled-back", `interrupted ${interrupted} update settled by ${input.targetVersion}; ${rollback}`);
@@ -825,7 +701,6 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     let transaction = await transactionStore.read();
     let npmCli: string | undefined;
     try {
-      if (mode === "automatic") await lifecycle.verifyAutomaticSafety?.();
       if ((!transaction || transaction.status === "completed") && await lifecycle.targetIsActive(targetVersion)) {
       await maintenance();
       await transactionStore.clearCompleted();
@@ -863,10 +738,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       priorActiveReleaseId,
     });
     if (phaseBefore(transaction.phase, "ownership-released")) {
-      await measure("ownership-release", async () => {
-        await lifecycle.shutdownVerifiedOwners(targetVersion);
-        await lifecycle.verifyPackageUnlocked(packageRoot);
-      });
+      await measure("ownership-release", async () => { await lifecycle.verifyPackageUnlocked(packageRoot); });
       transaction = await transactionStore.advance("ownership-released");
     }
     progress.set(15, 70);
@@ -928,13 +800,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       }
     }
 
-    progress.set(70, 75);
-
-    // Concurrency: ownership can be reacquired after an interrupted installation (for
-    // example, if bare A1 is launched before the update is resumed). Recheck
-    // immediately before activation so recovery cannot start a second cohort.
-    await measure("ownership-release", async () => { await lifecycle.shutdownVerifiedOwners(targetVersion); });
-    progress.set(75, MATERIALIZE_PROGRESS.from);
+    progress.set(70, MATERIALIZE_PROGRESS.from);
     let activationPhaseStartedAt = now();
     const recordActivationPhase = async (phase: UpdateActivationPhase) => {
       options.onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - activationPhaseStartedAt) });
@@ -942,7 +808,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
       progress.set(ACTIVATION_PROGRESS[phase].at, ACTIVATION_PROGRESS[phase].creepTo);
       activationPhaseStartedAt = now();
     };
-    await activateUpdateTransaction(lifecycle, transaction, packageRoot, targetVersion, recordActivationPhase,
+    await lifecycle.activateInstalled(packageRoot, targetVersion, recordActivationPhase,
       ({ completed, total }) => progress.set(MATERIALIZE_PROGRESS.from
         + (MATERIALIZE_PROGRESS.to - MATERIALIZE_PROGRESS.from) * (total > 0 ? Math.min(1, completed / total) : 0)),
       state => {
@@ -952,9 +818,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
           activationPhaseStartedAt = now(); progress.set(99);
         }
       });
-    options.onPhaseTiming?.({ phase: "supervisor-verified", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
     const transactionStartedAt = now();
-    await transactionStore.advance("supervisor-verified");
     if (transaction.recovery?.capsulePath) await removeUpdateRecoveryCapsule(paths.dataDir, transaction.transactionId);
     // Invariant: successful output follows the durable cleanup disposition. Slow recursive
     // removal belongs to the detached worker started by this maintenance coordinator.
@@ -969,16 +833,13 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     } catch (error) {
       progress.clear();
       const message = errorMessage(error);
-      if (error instanceof UpdateAutomaticDeferred) return 1;
-      const blockedExit = await preparedActivationExit(error, transaction, mode, output, transactionStore, targetVersion, paths.configDir);
-      if (blockedExit !== null) return blockedExit;
       if (error instanceof UpdatePreflightFailure) {
         output.stderr(`${PRODUCT_TEXT.diagnostic(`update could not start safely: ${message}. Nothing was changed. Retry with npm x -y -- ${PRODUCT_PACKAGE}-install`)}\n`);
         return 1;
       }
       const rollback = options.lifecycle
         ? "previous test lifecycle retained"
-        : await rollbackPriorCohort(paths.dataDir, environment, transaction?.priorActiveReleaseId ?? null).catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
+        : await rollbackPriorRelease(paths.dataDir, transaction?.priorActiveReleaseId ?? null).catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
       if (transaction) await transactionStore.finish(rollback === "rolled back" ? "rolled-back" : "failed", `${message}; ${rollback}`);
       output.stderr(updateFailureLine(message, rollback, transactionStore.path));
       return error instanceof UpdateFailure ? error.exitCode : 1;
@@ -1000,30 +861,6 @@ export function assertUpdatePerformanceBudget(
   if (failures.length > 0) throw new Error(`update performance budget failed: ${failures.join("; ")}`);
 }
 
-async function requestUpdateShutdown(metadata: SupervisorEndpointMetadata, targetVersion: string, timeoutMs: number): Promise<{ accepted: boolean; reason: string }> {
-  if (!processIsAlive(metadata.pid)) return { accepted: false, reason: "recorded owner is dead" };
-  return await new Promise(resolvePromise => {
-    const socket = connect(metadata.endpoint);
-    const decoder = new LineFrameDecoder();
-    let settled = false;
-    const finish = (value: { accepted: boolean; reason: string }) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolvePromise(value);
-    };
-    socket.once("error", () => finish({ accepted: false, reason: "verified endpoint did not respond" }));
-    socket.once("connect", () => socket.write(encodeFrame({ type: "release-update-ownership", bootNonce: metadata.bootNonce, targetVersion })));
-    socket.on("data", chunk => {
-      try {
-        const message = decoder.push(chunk)[0] as Record<string, unknown> | undefined;
-        if (message?.type === "release-update-result") finish({ accepted: message.accepted === true, reason: String(message.reason ?? "shutdown rejected") });
-      } catch { finish({ accepted: false, reason: "invalid shutdown response" }); }
-    });
-    setTimeout(() => finish({ accepted: false, reason: "verified endpoint shutdown timed out" }), timeoutMs).unref();
-  });
-}
-
 async function runNpm(runner: UpdateProcessRunner, arguments_: readonly string[], captureStdout: boolean, output: UpdateOutput, action: string, reportNonzero = true): Promise<{ result: ProcessResult | null; exitCode: number }> {
   let result: ProcessResult;
   try { result = await runner("npm", arguments_, { captureStdout }); }
@@ -1042,53 +879,19 @@ function reportChildDiagnostics(output: UpdateOutput, result: { readonly stdout:
   output.stderr(`${text}\n`);
   return true;
 }
-async function rollbackPriorCohort(dataDir: string, environment: NodeJS.ProcessEnv, priorReleaseId: string | null): Promise<string> {
-  if (!priorReleaseId) return "no prior cohort was available for rollback";
+async function rollbackPriorRelease(dataDir: string, priorReleaseId: string | null): Promise<string> {
+  if (!priorReleaseId) return "no prior release was available for rollback";
   const stateStore = new CohortStateStore(dataDir);
   const state = await stateStore.read();
   const prior = state.releases[priorReleaseId];
-  if (!prior || prior.approval !== "approved") return "prior cohort is not a verified rollback candidate";
+  if (!prior || prior.approval !== "approved") return "prior release is not a verified rollback candidate";
   if (state.references.active !== priorReleaseId) {
-    if (state.references.rollback === priorReleaseId) await stateStore.rollback(true);
-    else throw new Error(`prior release ${priorReleaseId} is not the recorded rollback cohort`);
+    if (state.references.rollback === priorReleaseId) await stateStore.rollback();
+    else throw new Error(`prior release ${priorReleaseId} is not the recorded rollback release`);
   }
-  const release = await readMaterializedRelease(prior.releaseRoot);
-  // Invariant: rollback reuses a surviving prior cohort rather than racing its occupied endpoint.
-  await ensureSupervisor(release, environment);
+  // Invariant: rollback selects only a prior release whose retained content still verifies.
+  await readMaterializedRelease(prior.releaseRoot);
   return "rolled back";
-}
-
-async function activateUpdateTransaction(
-  lifecycle: UpdateLifecycleCoordinator,
-  transaction: UpdateTransaction,
-  packageRoot: string,
-  targetVersion: string,
-  phase: (phase: UpdateActivationPhase) => Promise<void>,
-  materializing: (progress: UpdateMaterializationProgress) => void,
-  warmup: (state: "started" | "completed") => void,
-): Promise<void> {
-  if (!phaseBefore(transaction.phase, "certified") && phaseBefore(transaction.phase, "active-reference-committed")
-    && lifecycle.activatePrepared !== undefined) await lifecycle.activatePrepared(targetVersion, phase);
-  else await lifecycle.activateInstalled(packageRoot, targetVersion, phase, materializing, warmup);
-}
-
-async function preparedActivationExit(
-  error: unknown,
-  transaction: UpdateTransaction | null,
-  mode: "manual" | "automatic",
-  output: UpdateOutput,
-  journal: UpdateTransactionJournal,
-  targetVersion: string,
-  configDir: string,
-): Promise<number | null> {
-  if (!(error instanceof UpdateActivationBlockedError) || transaction === null || phaseBefore(transaction.phase, "certified")) return null;
-  await journal.recordActiveError?.(error.message);
-  if (mode === "automatic") return UPDATE_ACTIVATION_BLOCKED_EXIT_CODE;
-  // Invariant: a certified candidate waiting only for resident continuity is an installed update;
-  // the next startup check retries activation without another installation.
-  await invalidateReleaseCheckCache(configDir).catch(() => undefined);
-  output.stdout(`${PRODUCT_TEXT.commandName} updated to ${targetVersion}; it takes over automatically once running Agents can switch\n`);
-  return 0;
 }
 
 /** One reason and one next step; routine rollback detail stays in the journal. */
@@ -1098,7 +901,7 @@ function updateFailureLine(message: string, rollback: string, journalPath: strin
 }
 
 function phaseBefore(current: UpdateTransactionPhase, target: UpdateTransactionPhase): boolean {
-  const phases = ["shutdown-intent", "ownership-released", "package-installed", "materialized", "certified", "active-reference-committed", "supervisor-verified"] as const;
+  const phases = ["shutdown-intent", "ownership-released", "package-installed", "materialized", "certified", "active-reference-committed"] as const;
   return phases.indexOf(current) < phases.indexOf(target);
 }
 
@@ -1108,17 +911,6 @@ class UpdateFailure extends Error {
 }
 
 class UpdatePreflightFailure extends Error {}
-class UpdateAutomaticDeferred extends Error {}
-
-async function canonicalImmutableRoot(dataDir: string, releaseRoot: string): Promise<boolean> {
-  try {
-    const [store, selected] = await Promise.all([realpath(resolve(dataDir, "releases")), realpath(releaseRoot)]);
-    const fromStore = relative(store, selected);
-    return fromStore.length > 0 && fromStore !== ".." && !fromStore.startsWith(`..${sep}`) && !isAbsolute(fromStore);
-  } catch {
-    return false;
-  }
-}
 
 function samePath(left: string, right: string): boolean {
   return process.platform === "win32" ? resolve(left).toLowerCase() === resolve(right).toLowerCase() : resolve(left) === resolve(right);

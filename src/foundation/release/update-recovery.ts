@@ -4,7 +4,7 @@ import { chmod, lstat, mkdir, open, readFile, readdir, realpath, rename, rm, wri
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
-import { processIsAlive } from "./process-cleanup.js";
+import { processIsAlive } from "./process-liveness.js";
 import { PRIVATE_LAUNCH_CONTRACT, assertCurrentLaunchContract } from "../launch-context/index.js";
 import type { UpdateTransaction, UpdateRecoveryState } from "./update-transaction.js";
 

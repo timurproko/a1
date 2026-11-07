@@ -2,14 +2,12 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
-import { certifyMaterializedRelease, ensureSupervisor } from "./bootstrap.js";
+import { PRODUCT_TEXT } from "../../product-identity.js";
+import { certifyMaterializedRelease } from "./bootstrap.js";
 import { CohortStateStore } from "./cohort-state.js";
-import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
 import { materializeRelease } from "./release-store.js";
 import { warmMaterializedRelease } from "./warmup.js";
-import type { ContinuityOptions } from "../resident-tabs/index.js";
 
 /**
  * The one activation contract an installed tree can offer the updater that installed it.
@@ -21,13 +19,10 @@ export const UPDATE_ACTIVATION_ENTRY = "bin/activate.js";
 /** Manifest field listing the activation contracts an installed tree serves. */
 export const UPDATE_ACTIVATION_MANIFEST_FIELD = "updateActivationContracts";
 const ACTIVATION_DIAGNOSTIC_LIMIT = 2_000;
+/** Bound on one progress line; the activator's events are all far shorter. */
+const ACTIVATION_LINE_LIMIT = 64 * 1_024;
 
 export type UpdateActivationPhase = "materialized" | "certified" | "active-reference-committed";
-
-/** A certified candidate is safe to retain, but resident control continuity blocks selection. */
-export class UpdateActivationBlockedError extends Error {
-  readonly code = "resident-continuity-blocked" as const;
-}
 
 /**
  * Copying the release is the longest step with nothing to say for itself, so it
@@ -58,12 +53,12 @@ export type UpdateActivationEvent =
   | { readonly event: "phase"; readonly phase: UpdateActivationPhase }
   | { readonly event: "warmup"; readonly state: "started" | "completed" }
   | { readonly event: "completed" }
-  | { readonly event: "failed"; readonly message: string; readonly code?: UpdateActivationBlockedError["code"] };
+  | { readonly event: "failed"; readonly message: string };
 
 /**
  * Activate the installed tree at `packageRoot` with this process's own release code:
- * materialize it into the immutable store, certify, warm, verify supervision, and only
- * then move the active reference. This is what the installed tree runs for itself through
+ * materialize it into the immutable store, certify, warm, and only then move the active
+ * reference. This is what the installed tree runs for itself through
  * its activation entry, and what an updater runs in-process for a tree older than the contract.
  */
 export async function activateInstalledRelease(request: UpdateActivationRequest, callbacks: UpdateActivationCallbacks): Promise<void> {
@@ -90,22 +85,6 @@ export async function activateInstalledRelease(request: UpdateActivationRequest,
   callbacks.onWarmup?.("started");
   await warmMaterializedRelease(candidate, request.environment);
   callbacks.onWarmup?.("completed");
-  await completeActivation(candidate, request, callbacks, stateStore);
-}
-
-async function completeActivation(
-  candidate: Awaited<ReturnType<typeof materializeRelease>>,
-  request: Omit<UpdateActivationRequest, "packageRoot">,
-  callbacks: UpdateActivationCallbacks,
-  stateStore: CohortStateStore,
-): Promise<void> {
-  const paths = resolveProductPaths(request.environment);
-  const continuity = { releaseRoot: candidate.releaseRoot, dataDir: request.dataDir, environment: request.environment,
-    profileRoot: request.environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir, runtimeDir: paths.runtimeDir };
-  await assertContinuityOrBlock(continuity);
-  await ensureSupervisor(candidate, request.environment);
-  // Invariant: revalidate after supervision, before committing client activation or restart readiness.
-  await assertContinuityOrBlock(continuity);
   await stateStore.activate(candidate.releaseId);
   await callbacks.phase("active-reference-committed");
 }
@@ -136,7 +115,7 @@ export async function delegateActivation(request: UpdateActivationRequest, callb
     stdio: ["ignore", "pipe", "pipe"],
     windowsHide: true,
   });
-  const decoder = new LineFrameDecoder();
+  let pending = "";
   let diagnostics = "";
   let failure: Error | null = null;
   let completed = false;
@@ -144,9 +123,16 @@ export async function delegateActivation(request: UpdateActivationRequest, callb
   let relay: Promise<void> = Promise.resolve();
   child.stderr?.setEncoding("utf8");
   child.stderr?.on("data", chunk => { diagnostics = `${diagnostics}${chunk}`.slice(-ACTIVATION_DIAGNOSTIC_LIMIT); });
+  child.stdout?.setEncoding("utf8");
   child.stdout?.on("data", chunk => {
-    let events: unknown[];
-    try { events = decoder.push(chunk); } catch (error) { failure ??= new Error(errorMessage(error)); return; }
+    const lines = `${pending}${String(chunk)}`.split("\n");
+    pending = lines.pop() ?? "";
+    if (pending.length > ACTIVATION_LINE_LIMIT) { failure ??= new Error("activation event exceeds the line limit"); pending = ""; }
+    const events: unknown[] = [];
+    for (const line of lines) {
+      if (line.trim().length === 0) continue;
+      try { events.push(JSON.parse(line)); } catch (error) { failure ??= new Error(errorMessage(error)); return; }
+    }
     for (const event of events) {
       relay = relay.then(async () => {
         const parsed = parseActivationEvent(event);
@@ -155,9 +141,7 @@ export async function delegateActivation(request: UpdateActivationRequest, callb
         else if (parsed.event === "phase") await callbacks.phase(parsed.phase);
         else if (parsed.event === "warmup") callbacks.onWarmup?.(parsed.state);
         else if (parsed.event === "completed") completed = true;
-        else failure ??= parsed.code === "resident-continuity-blocked"
-          ? new UpdateActivationBlockedError(parsed.message)
-          : new Error(parsed.message);
+        else failure ??= new Error(parsed.message);
       }).catch(error => { failure ??= new Error(errorMessage(error)); });
     }
   });
@@ -183,7 +167,7 @@ export async function runActivationEntry(
   io: { write(line: string): void } = { write: line => process.stdout.write(line) },
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<number> {
-  const emit = (event: UpdateActivationEvent) => io.write(encodeFrame(event));
+  const emit = (event: UpdateActivationEvent) => io.write(`${JSON.stringify(event)}\n`);
   try {
     const arguments_ = parseEntryArguments(argv);
     const packageRoot = resolve(fileURLToPath(new URL("..", entryUrl)));
@@ -200,7 +184,7 @@ export async function runActivationEntry(
     emit({ event: "completed" });
     return 0;
   } catch (error) {
-    emit({ event: "failed", message: errorMessage(error), ...(error instanceof UpdateActivationBlockedError ? { code: error.code } : {}) });
+    emit({ event: "failed", message: errorMessage(error) });
     return 1;
   }
 }
@@ -231,18 +215,10 @@ function parseActivationEvent(value: unknown): UpdateActivationEvent | null {
     case "completed":
       return { event: "completed" };
     case "failed":
-      return typeof record.message === "string" && (record.code === undefined || record.code === "resident-continuity-blocked")
-        ? { event: "failed", message: record.message, ...(record.code === undefined ? {} : { code: record.code }) }
-        : null;
+      return typeof record.message === "string" ? { event: "failed", message: record.message } : null;
     default:
       return null;
   }
-}
-
-export async function assertContinuityOrBlock(context: ContinuityOptions): Promise<void> {
-  const { assertResidentContinuity } = await import("../resident-tabs/index.js");
-  try { await assertResidentContinuity(context); }
-  catch (error) { throw new UpdateActivationBlockedError(errorMessage(error), { cause: error }); }
 }
 
 function summarize(text: string): string {

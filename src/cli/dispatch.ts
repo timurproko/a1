@@ -1,8 +1,7 @@
-import { interactiveLaunchIntent, parseSessionSelection, type InteractiveLaunchIntent, type InteractiveLaunchMode, type LaunchProfileId, type SessionSelection } from "../features/launch/index.js";
+import { interactiveLaunchIntent, parseSessionSelection, type InteractiveLaunchIntent, type LaunchProfileId, type SessionSelection } from "../features/launch/index.js";
 import type { CliCapabilities } from "./capabilities.js";
 import type { PackageCommandRequest } from "./packages.js";
 import type { SessionContextRequest } from "./session-context.js";
-import type { TabsRequest } from "./tabs-request.js";
 import {
   packageCommandHelp,
   renderPackageSyntax,
@@ -20,7 +19,6 @@ export interface CliHandlers {
   readonly update: (channel: UpdateChannel, target?: string) => Promise<number>;
   readonly packages: (request: PackageCommandRequest) => Promise<number>;
   readonly sessionContext: (request: SessionContextRequest) => Promise<number>;
-  readonly tabs: (request: TabsRequest) => Promise<number>;
   /** Removes A1 from the machine; absent in hosts that cannot uninstall. */
   readonly uninstall?: (request: { readonly yes: boolean; readonly purge: boolean }) => Promise<number>;
 }
@@ -35,9 +33,6 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "",
     "--session <path|id>",
     "--session-dir <dir> --session <path|id>",
-    "solo",
-    "solo --session <path|id>",
-    "solo --session-dir <dir> --session <path|id>",
     ...(capabilities.developmentComparison ? ["pi"] : []),
     "help",
     "version",
@@ -55,10 +50,6 @@ export function cliUsage(capabilities: CliCapabilities): string {
     "session worktrees",
     "session link-worktree <path>",
     "session unlink-worktree",
-    "tabs",
-    "tabs stop <id>|--all",
-    "tabs host status|stop",
-    "tabs doctor",
   ]);
 }
 
@@ -69,9 +60,6 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command}`,
     `  ${command} --session <path|id>`,
     `  ${command} --session-dir <dir> --session <path|id>`,
-    `  ${command} solo`,
-    `  ${command} solo --session <path|id>`,
-    `  ${command} solo --session-dir <dir> --session <path|id>`,
     ...(capabilities.developmentComparison ? [`  ${command} pi`] : []),
     `  ${command} help`,
     `  ${command} version`,
@@ -96,34 +84,10 @@ export function cliHelp(capabilities: CliCapabilities): string {
     `  ${command} session link-worktree <path>`,
     `  ${command} session unlink-worktree`,
     "",
-    "Tabs:",
-    `  ${command} tabs`,
-    `  ${command} tabs stop <id>|--all`,
-    `  ${command} tabs host status|stop`,
-    `  ${command} tabs doctor`,
-    "",
   ].join("\n");
 }
 
-/** Focused help for the resident-tab maintenance forms; printing it contacts no host. */
-export function tabsHelp(): string {
-  const command = PRODUCT_TEXT.commandName;
-  return [
-    "Resident tabs:",
-    `  ${command} tabs                    List running tabs`,
-    `  ${command} tabs stop <id>          Stop one tab; its session stays resumable`,
-    `  ${command} tabs stop --all         Stop every tab and keep the host`,
-    `  ${command} tabs host status        Show host identity, limits, and health counters`,
-    `  ${command} tabs host stop          Stop every tab and the host`,
-    `  ${command} tabs doctor             Write a redacted diagnostic bundle`,
-    "",
-    "Options:",
-    "  --json                     Print the versioned machine-readable report",
-    "",
-  ].join("\n");
-}
-
-const PROFILE_WORDS = new Set(["pi", "solo"]);
+const PROFILE_WORDS = new Set(["pi"]);
 
 export async function dispatchCli(
   arguments_: readonly string[],
@@ -149,15 +113,10 @@ export async function dispatchCli(
     output.stderr(`${command.message}\n`);
     return 2;
   }
-  if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId, command.sessionSelection, command.launchMode));
+  if (command.kind === "launch") return await handlers.launch(interactiveLaunchIntent(command.profileId, command.sessionSelection));
   if (command.kind === "version") return await handlers.version();
   if (command.kind === "packages") return await handlers.packages(command.request);
   if (command.kind === "session-context") return await handlers.sessionContext(command.request);
-  if (command.kind === "tabs-help") {
-    output.stdout(tabsHelp());
-    return 0;
-  }
-  if (command.kind === "tabs") return await handlers.tabs(command.request);
   if (command.kind === "uninstall") return handlers.uninstall ? await handlers.uninstall(command.request) : 2;
   return await handlers.update(command.channel, command.target);
 }
@@ -167,24 +126,22 @@ export type CliCommand =
   | { readonly kind: "help" }
   | { readonly kind: "package-help"; readonly verb: PackageCliVerb; readonly namespace: PackageCommandNamespace }
   | { readonly kind: "package-error"; readonly diagnostic: PackageSyntaxDiagnostic; readonly namespace: PackageCommandNamespace }
-  | { readonly kind: "launch"; readonly profileId: LaunchProfileId; readonly launchMode: InteractiveLaunchMode; readonly sessionSelection?: SessionSelection }
+  | { readonly kind: "launch"; readonly profileId: LaunchProfileId; readonly sessionSelection?: SessionSelection }
   | { readonly kind: "version" }
   | { readonly kind: "update"; readonly channel: UpdateChannel; readonly target?: string }
   | { readonly kind: "packages"; readonly request: PackageCommandRequest }
   | { readonly kind: "session-context"; readonly request: SessionContextRequest }
-  | { readonly kind: "tabs"; readonly request: TabsRequest }
-  | { readonly kind: "tabs-help" }
   | { readonly kind: "uninstall"; readonly request: { readonly yes: boolean; readonly purge: boolean } }
   | { readonly kind: "error"; readonly message: string };
 
 export function parseCliCommand(arguments_: readonly string[], capabilities: CliCapabilities): CliCommand {
-  if (arguments_.length === 0) return { kind: "launch", profileId: "a1", launchMode: "tabs" };
+  if (arguments_.length === 0) return { kind: "launch", profileId: "a1" };
   const [command, ...rest] = arguments_;
 
   if (command === "--session" || command === "--session-dir") {
     try {
       const sessionSelection = parseSessionSelection(arguments_);
-      return { kind: "launch", profileId: "a1", launchMode: "tabs", ...(sessionSelection === undefined ? {} : { sessionSelection }) };
+      return { kind: "launch", profileId: "a1", ...(sessionSelection === undefined ? {} : { sessionSelection }) };
     } catch (error) {
       return { kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse session launch: ${error instanceof Error ? error.message : String(error)}`) };
     }
@@ -201,52 +158,15 @@ export function parseCliCommand(arguments_: readonly string[], capabilities: Cli
   }
   if (command === "pi") {
     if (rest.length > 0) return parsePackageCommand(rest, "pi");
-    return capabilities.developmentComparison ? { kind: "launch", profileId: "pi", launchMode: "solo" } : { kind: "noop" };
-  }
-  if (command === "solo") {
-    if (rest.length === 0) return { kind: "launch", profileId: "a1", launchMode: "solo" };
-    try {
-      const sessionSelection = parseSessionSelection(rest);
-      return { kind: "launch", profileId: "a1", launchMode: "solo", ...(sessionSelection === undefined ? {} : { sessionSelection }) };
-    } catch (error) {
-      return { kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse solo session launch: ${error instanceof Error ? error.message : String(error)}`) };
-    }
+    return capabilities.developmentComparison ? { kind: "launch", profileId: "pi" } : { kind: "noop" };
   }
   if (command === "update") return parseUpdate(rest, capabilities.runningChannel ?? "stable");
   if (command === "session") return parseSessionContext(rest);
-  if (command === "tabs") return parseTabs(rest);
   if (command?.startsWith("update:")) return { kind: "noop" };
 
   // Rationale: unsupported and reserved command spaces are deliberately quiet. Help is
   // explicit, and a typo must never start an interactive or maintenance path.
   return { kind: "noop" };
-}
-
-/** Parses `a1 tabs` before any I/O; a malformed form fails with one line and contacts no host. */
-function parseTabs(rest: readonly string[]): CliCommand {
-  if (rest.some(value => value === "--help" || value === "-h")) return { kind: "tabs-help" };
-  const json = rest.includes("--json");
-  const words = rest.filter(value => value !== "--json");
-  const fail = (detail: string): CliCommand => ({ kind: "error", message: PRODUCT_TEXT.diagnostic(`could not parse tabs: ${detail}`) });
-  const [action, value, extra] = words;
-  if (action === undefined) return { kind: "tabs", request: { action: "list", json } };
-  if (action === "stop") {
-    if (value === undefined) return fail("stop requires a tab id or --all.");
-    if (extra !== undefined) return fail("stop accepts one tab id or --all.");
-    if (value === "--all") return { kind: "tabs", request: { action: "stop-all", json } };
-    if (value.startsWith("-")) return fail(`unknown option ${value}.`);
-    return { kind: "tabs", request: { action: "stop", tabId: value, json } };
-  }
-  if (action === "host") {
-    if (extra !== undefined || (value !== "status" && value !== "stop")) return fail("host accepts status or stop.");
-    return { kind: "tabs", request: { action: value === "status" ? "host-status" : "host-stop", json } };
-  }
-  if (action === "doctor") {
-    if (value !== undefined) return fail("doctor does not accept arguments.");
-    return { kind: "tabs", request: { action: "doctor", json } };
-  }
-  if (action.startsWith("-")) return fail(`unknown option ${action}.`);
-  return fail(`unknown subcommand ${action}; use list, stop, host, or doctor.`);
 }
 
 function parseSessionContext(rest: readonly string[]): CliCommand {

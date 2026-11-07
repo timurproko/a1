@@ -99,7 +99,7 @@ describe("durable restart certification", () => {
     await expect(readRestartCertifiedRelease(fixture.record, fixture.dataDir)).resolves.toMatchObject({ releaseId: fixture.release.releaseId });
   });
 
-  it("upgrades certification written by the immediately preceding updater before supervisor readiness", async () => {
+  it("upgrades certification written by the immediately preceding updater before launch", async () => {
     const fixture = await certifiedFixture(1);
     const layer = fixture.release.dependencyLayers![0]!;
     const layerCertificationPath = dependencyLayerCertificationPath(fixture.dataDir, layer.layerId);
@@ -139,7 +139,7 @@ describe("durable restart certification", () => {
     expect(() => assertImmutableFileMode({ mode: 0o600 }, "writable.js")).toThrow(/writable/);
 
     const fixture = await certifiedFixture(1);
-    for (const path of ["bin/supervisor.js", "bin/guardian.js", "dist/extra-0.js"]) {
+    for (const path of ["bin/ui.js", "dist/extra-0.js"]) {
       expect((await lstat(resolve(fixture.release.releaseRoot, path))).mode & 0o222).toBe(0);
     }
     await expect(writeFile(resolve(fixture.release.releaseRoot, "dist/extra-0.js"), "ordinary mutation"))
@@ -165,8 +165,7 @@ async function certifiedFixture(extraFiles: number) {
     files: ["bin", "dist"],
     dependencies: { "fixture-dependency": "1.0.0" },
   }));
-  await writeFile(resolve(packageRoot, "bin", "supervisor.js"), "supervisor");
-  await writeFile(resolve(packageRoot, "bin", "guardian.js"), "guardian");
+  await writeFile(resolve(packageRoot, "bin", "ui.js"), "ui");
   await writeFile(resolve(packageRoot, "node_modules", "fixture-dependency", "package.json"), JSON.stringify({
     name: "fixture-dependency",
     version: "1.0.0",

@@ -9,8 +9,6 @@ import type { QuitOutroEffect } from "./quit-outro-effects.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
 import { piCanvasBackgroundAnsi } from "../../integrations/pi/components/theme.js";
-import { residentFixtureControl } from "../../foundation/resident-tabs/fixture-control.js";
-import { residentProgressObserver } from "../../foundation/resident-tabs/progress-observation.js";
 import {
   DamageAwareTerminalAdapter,
   type PiTuiDamageDecision,
@@ -171,8 +169,6 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     this.#customViewport = options.layout === "custom-viewport";
     this.#quitOutro = options.quitOutro;
     const input = options.input;
-    const fixtureControl = residentFixtureControl();
-    const progressObserver = residentProgressObserver();
     let damageTerminal: DamageAwareTerminalAdapter | undefined;
     const surface: PiTuiComponentPort = {
       render: width => this.#active?.render(width) ?? [],
@@ -198,14 +194,6 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
             inspectHyperlinks: readVisibleHyperlinks,
             onResize: () => this.#active?.noteImmediatePresentation(),
             onHyperlinkCleanupRequired: () => this.runtime?.requestRender(true),
-            ...(fixtureControl === null ? {} : {
-              allowWrite: () => !fixtureControl.stopped("child-render-write"),
-              writeChunks: data => fixtureControl.fragmentChildWrite(data),
-            }),
-            ...(progressObserver === null ? {} : {
-              onWrite: ({ bytes, fragments, transaction, frameId, cause }) =>
-                progressObserver.childRenderWrite(bytes, fragments, transaction, frameId, cause),
-            }),
           });
           return damageTerminal;
         },
@@ -220,12 +208,9 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
           },
         }),
       } : { layoutRoot: pinnedLayoutRoot(this.#delegatingLayoutParts()) }),
-      ...(input?.onEvent === undefined && progressObserver === null ? {} : {
+      ...(input?.onEvent === undefined ? {} : {
         inputDiagnostics: {
-          onEvent: event => {
-            input?.onEvent?.(event);
-            progressObserver?.inputPhase?.(event.phase, event.revision);
-          },
+          onEvent: input.onEvent,
           ...(input?.now === undefined ? {} : { now: input.now }),
         },
       }),
@@ -283,8 +268,6 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     return this.#active;
   }
 
-  // Invariant: resident tab visibility never gates rendering here; a hidden tab keeps painting into its
-  // resident terminal, and the native holder alone withholds inactive surfaces from attach clients.
   requestRender(from: OwnedUiHostedPresenter, force = false): void {
     if (from === this.#active) this.runtime.requestRender(force);
   }

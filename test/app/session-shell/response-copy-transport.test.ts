@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vitest";
 import { createResponseCopyExecutor, platformClipboardWriteOptions, responseCopyDestination } from "../../../src/app/session-shell/response-copy-transport.js";
 import { MAX_COPY_BYTES, MAX_COPY_CONTROL_BYTES } from "../../../src/app/session-shell/response-copy-protocol.js";
 import type { SelectionCopySnapshot } from "../../../src/ui/components/selection-copy.js";
-import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
 function source(text = "hello 界 e\u0301 👩‍💻"): SelectionCopySnapshot {
   return { selection: { start: { line: 0, column: 0 }, end: { line: 0, column: Number.MAX_SAFE_INTEGER } },
@@ -11,7 +10,7 @@ function source(text = "hello 界 e\u0301 👩‍💻"): SelectionCopySnapshot {
 
 /** Real isolated preparation, but a fake terminal: these tests never write the system clipboard. */
 describe("response-copy transport isolation", () => {
-  it.each([{}, { [PRODUCT_IDENTITY.environment.tabId]: "resident" }, { SSH_TTY: "tty" }, { SSH_CONNECTION: "remote" }, { TMUX: "mux" }, { STY: "screen" }, { WSL_DISTRO_NAME: "distro" }])("routes destination for %j", env => {
+  it.each([{}, { SSH_TTY: "tty" }, { SSH_CONNECTION: "remote" }, { TMUX: "mux" }, { STY: "screen" }, { WSL_DISTRO_NAME: "distro" }])("routes destination for %j", env => {
     expect(responseCopyDestination(env)).toBe(Object.keys(env).length ? "terminal" : "native");
   });
 

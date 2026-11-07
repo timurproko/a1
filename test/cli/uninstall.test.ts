@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { access, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, resolve } from "node:path";
+import { resolve } from "node:path";
 import { runUninstall, type UninstallDependencies } from "../../src/cli/uninstall.js";
 import { PRODUCT_IDENTITY } from "../../src/product-identity.js";
 
@@ -32,8 +32,6 @@ async function machine() {
   const dependencies: UninstallDependencies = {
     packageRoot, environment, home, platform: process.platform,
     output: { stdout: message => { stdout.push(message); }, stderr: message => { stderr.push(message); } },
-    stopResidentHost: async releaseRoot => { events.push(`host-stop:${basename(releaseRoot)}`); },
-    stopSupervisors: async () => { events.push("supervisors"); },
     removePackage: async () => { events.push("package"); },
   };
   return { dataDir, configDir, runtimeDir, profileHome, events, stdout, stderr, dependencies };
@@ -42,10 +40,10 @@ async function machine() {
 const exists = async (path: string) => await access(path).then(() => true, () => false);
 
 describe("a1 uninstall", () => {
-  it("stops every release host and supervisor before removing the package and A1 state", async () => {
+  it("removes the package before A1 state and keeps the profile home", async () => {
     const setup = await machine();
     await expect(runUninstall({ yes: true, purge: false }, setup.dependencies)).resolves.toBe(0);
-    expect(setup.events).toEqual(["host-stop:0.2.7-dev.1", "host-stop:0.2.7-dev.2", "supervisors", "package"]);
+    expect(setup.events).toEqual(["package"]);
     for (const path of [setup.dataDir, setup.configDir, setup.runtimeDir]) expect(await exists(path)).toBe(false);
     expect(await exists(resolve(setup.profileHome, "agent", "settings.json"))).toBe(true);
     expect(setup.stdout.join("")).toBe(`a1 uninstalled; your sessions and settings remain in ${setup.profileHome}\n`);
@@ -67,7 +65,7 @@ describe("a1 uninstall", () => {
       confirm: async question => { questions.push(question); return answers.shift() ?? false; },
     })).resolves.toBe(0);
     expect(questions).toEqual([
-      "Remove a1 from this machine? Running Agents will stop. [y/N] ",
+      "Remove a1 from this machine? [y/N] ",
       `Also delete your sessions, settings, and sign-ins in ${setup.profileHome}? [y/N] `,
     ]);
     expect(await exists(setup.profileHome)).toBe(true);
@@ -86,14 +84,6 @@ describe("a1 uninstall", () => {
     await expect(runUninstall({ yes: false, purge: false }, setup.dependencies)).resolves.toBe(2);
     expect(setup.events).toEqual([]);
     expect(setup.stderr.join("")).toContain("a1 uninstall --yes");
-  });
-
-  it("refuses to run inside an A1 tab it would stop", async () => {
-    const setup = await machine();
-    const environment = { ...setup.dependencies.environment, [PRODUCT_IDENTITY.environment.tabId]: "tab-1" };
-    await expect(runUninstall({ yes: true, purge: true }, { ...setup.dependencies, environment })).resolves.toBe(1);
-    expect(setup.events).toEqual([]);
-    expect(await exists(setup.dataDir)).toBe(true);
   });
 
   it("refuses a checkout that is not a managed global installation", async () => {

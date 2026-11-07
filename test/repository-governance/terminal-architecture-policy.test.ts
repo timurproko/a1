@@ -90,7 +90,6 @@ describe("terminal-core architecture policy", () => {
     ["src/features/owned-ui/root.ts", "import { sleep } from 'bun'; export { sleep };", "Bun-only dependency"],
     ["src/features/owned-ui/root.ts", "import { InteractiveMode } from '@earendil-works/pi-coding-agent/dist/modes/index.js'; export { InteractiveMode };", "private Pi distribution import"],
     ["src/features/owned-ui/root.ts", "const api: ExtensionUIContext = host;", "stock Pi extension UI context"],
-    ["src/features/owned-ui/root.ts", "import { nativeHostCommandResult } from '../../foundation/native-host-protocol/index.js'; export { nativeHostCommandResult };", "terminal-host coupling"],
   ])("rejects owned-UI boundary violation in %s: %s", async (path, source, diagnostic) => {
     const root = await fixture({ [path]: source });
     const result = runPolicy(root);
@@ -127,11 +126,26 @@ describe("terminal-core architecture policy", () => {
     expect(result.stderr).toContain("launch may not import owned-ui");
   });
 
-  it("rejects a replacement lightweight terminal parser or renderer in native sources", async () => {
-    const root = await fixture({ "native/windows/parser.ts": "class LightweightTerminalParser {}" });
+  it.each([
+    ["import pty from 'node-pty';", "pseudoterminal or terminal emulator import 'node-pty'"],
+    ["import pty from '@lydell/node-pty';", "pseudoterminal or terminal emulator import '@lydell/node-pty'"],
+    ["import { Terminal } from '@xterm/headless';", "pseudoterminal or terminal emulator import '@xterm/headless'"],
+    ["const { Terminal } = await import('@xterm/xterm');", "pseudoterminal or terminal emulator import '@xterm/xterm'"],
+    ["import { Terminal } from 'xterm';", "pseudoterminal or terminal emulator import 'xterm'"],
+    ["export const child = pty.spawn('pi', [], {});", "may not spawn a pseudoterminal"],
+    ["export const call = 'CreatePseudoConsole';", "may not spawn a pseudoterminal"],
+    ["export const call = 'forkpty';", "may not spawn a pseudoterminal"],
+  ])("rejects a pseudoterminal or terminal emulator in any production module: %s", async (source, diagnostic) => {
+    const root = await fixture({ "src/foundation/lifecycle/child.ts": source });
     const result = runPolicy(root);
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("new lightweight terminal parser or renderer");
+    expect(result.stderr).toContain(diagnostic);
+  });
+
+  it("leaves pseudoterminal and terminal emulator imports to tests", async () => {
+    const root = await fixture({ "test/support/emulator.ts": "import pty from 'node-pty'; import { Terminal } from '@xterm/headless'; export { pty, Terminal };" });
+    const result = runPolicy(root);
+    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
   });
 
   it("rejects cross-owner private imports through the containing architecture gate", async () => {

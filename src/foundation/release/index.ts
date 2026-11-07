@@ -1,25 +1,15 @@
 export {
   certifyMaterializedRelease,
-  ensureSupervisor,
   recordParentCertifiedRelease,
   releaseEnvironment,
-  releaseVerifiedIdleOwner,
   runBootstrap,
-  startSupervisor,
-  waitForProcessExit,
-  waitForVerifiedEndpoint,
 } from "./bootstrap.js";
-export type { BootstrapOptions, SupervisorStartupAttempt } from "./bootstrap.js";
-export { selectCohortLaunch } from "./cohort-selection.js";
+export type { BootstrapOptions } from "./bootstrap.js";
 export { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
-export type { CohortLaunchDecision, OwnershipProbe } from "./cohort-selection.js";
-export { CohortStateStore, RELEASE_COHORT_SCHEMA, emptyState, planProtectedReleases } from "./cohort-state.js";
+export { CohortStateStore, RELEASE_COHORT_SCHEMA, RELEASE_RETENTION_MS, emptyState, planProtectedReleases, withinRetention } from "./cohort-state.js";
 export type {
   ActiveReleaseTransactionReference,
   CohortState,
-  EndpointOwnership,
-  ExternalReleaseHold,
-  ExternalReleaseHoldAuthority,
   OrphanReleaseDisposition,
   ProtectedReleaseInputs,
   ProtectedReleasePlan,
@@ -34,7 +24,6 @@ export type {
   ReleaseRecord,
   ReleaseReferences,
   ReleaseRetentionReconciliation,
-  SupervisorEndpointMetadata,
 } from "./cohort-state.js";
 export {
   DEPENDENCY_LAYER_MANIFEST,
@@ -64,12 +53,7 @@ export type {
   RuntimePayloadInventory,
   SelectedRuntimePayload,
 } from "./dependency-layer.js";
-export { listRecordedEndpoints, liveReleaseIds, probeOwnership, readEndpointMetadata, removeEndpointArtifacts, sweepDeadEndpoints } from "./endpoints.js";
-export { currentSupervisorStartIdentity, observeSupervisorProcess, supervisorProcessState } from "./supervisor-identity.js";
-export { withEndpointLock } from "./endpoint-lock.js";
-export type { RecordedEndpoint } from "./endpoints.js";
-export { cleanupProvenIdleOwner, cleanupVerifiedOwner, processIsAlive } from "./process-cleanup.js";
-export type { CleanupDiagnostics } from "./process-cleanup.js";
+export { processIsAlive } from "./process-liveness.js";
 export {
   PRODUCT_PACKAGE_NAME,
   createReleaseIdentity,
@@ -81,7 +65,7 @@ export {
   resolveWithin,
 } from "./release.js";
 export type { DiscoverReleasePayloadOptions, DiscoveredReleasePayload, ReleaseFileIdentity, ReleaseIdentity } from "./release.js";
-export { collectRelease, prepareReleaseCleanup, runBoundedReleaseCleanup, runReleaseCleanupWorker, scheduleReleaseCleanup } from "./release-gc.js";
+export { prepareReleaseCleanup, runBoundedReleaseCleanup, runReleaseCleanupWorker, scheduleReleaseCleanup } from "./release-gc.js";
 export type { ReleaseCleanupLimits, ReleaseCleanupOperations, ReleaseCleanupOptions, ReleaseCleanupResult, ReleaseCleanupWorkerOptions } from "./release-gc.js";
 export {
   RELEASE_MANIFEST_FILENAME,
@@ -111,7 +95,6 @@ export { STABLE_RELEASE_SCHEMA, createStableReleaseEvidence, verifyStableRegistr
 export type { StableRegistryState, StableRegistryVerificationOptions, StableReleaseEvidence, StableReleaseEvidenceInput } from "./stable-release.js";
 export {
   PACKAGE_UNLOCK_PATIENCE_MS,
-  UPDATE_ACTIVATION_BLOCKED_EXIT_CODE,
   UPDATE_ALREADY_RUNNING_EXIT_CODE,
   PRODUCT_PACKAGE,
   assertUpdatePerformanceBudget,
@@ -119,7 +102,6 @@ export {
   createUpdateLifecycleCoordinator,
   isPackageLockError,
   lockedPackageDiagnostic,
-  planUpdateOwnership,
   renderUpdateProgressBar,
   runSelfUpdate,
 } from "./update.js";
@@ -135,7 +117,6 @@ export type {
   UpdateMaterializationProgress,
   UpdateMeasuredPhase,
   UpdateOutput,
-  UpdateOwnershipAction,
   UpdatePackageReplacementInput,
   UpdatePerformanceEvidence,
   UpdatePhaseTimingEvent,
@@ -147,14 +128,13 @@ export {
   UPDATE_ACTIVATION_CONTRACT,
   UPDATE_ACTIVATION_ENTRY,
   UPDATE_ACTIVATION_MANIFEST_FIELD,
-  UpdateActivationBlockedError,
   activateInstalledRelease,
   delegateActivation,
   readActivationContracts,
   runActivationEntry,
 } from "./update-activation.js";
 export type { UpdateActivationCallbacks, UpdateActivationEvent, UpdateActivationRequest } from "./update-activation.js";
-export { selectSupervisorLaunchReleaseId, selectUpdateLaunchRelease } from "./update-launch.js";
+export { selectUpdateLaunchRelease } from "./update-launch.js";
 export {
   UPDATE_RECOVERY_SCHEMA,
   cleanupUpdateRecoveryCapsules,

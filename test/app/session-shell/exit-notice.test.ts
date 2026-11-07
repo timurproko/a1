@@ -5,7 +5,6 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { armExitNotice, uncleanExitNoticeLines, type ExitNoticeSource } from "../../../src/app/session-shell/exit-notice.js";
 import type { SessionResumeCommandMetadata } from "../../../src/app/session-shell/session-shell.js";
-import { EMERGENCY_TERMINAL_RESET } from "../../../src/foundation/terminal-cleanup/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -60,32 +59,11 @@ describe("unclean-exit notice", () => {
     expect(source.listenerCount).toBe(0);
   });
 
-  it("arms a solo-form unclean-exit hint only when that solo session persists", async () => {
-    const path = await noticePath();
-    const source = fakeSource();
-    const notice = armExitNotice(source, path, true);
-    await expect(readFile(path, "utf8")).resolves.toBe("a1 was stopped unexpectedly.\n");
-    source.resume = { sessionId: "solo-id", sessionDir: "/s dir", usesDefaultSessionDir: false };
-    source.emit("assistant-message-completed");
-    await expect(readFile(path, "utf8")).resolves.toBe(
-      "a1 was stopped unexpectedly.\nTo resume this session: a1 solo --session-dir '/s dir' --session solo-id\n");
-    notice.clear();
-  });
-
   it("names the resume command only once the session is persisted", () => {
     expect(uncleanExitNoticeLines(null)).toEqual(["a1 was stopped unexpectedly."]);
     expect(uncleanExitNoticeLines({ sessionId: "01a1", sessionDir: "/s dir", usesDefaultSessionDir: false })).toEqual([
       "a1 was stopped unexpectedly.",
       "To resume this session: a1 --session-dir '/s dir' --session 01a1",
     ]);
-  });
-
-  it("keeps the native guardian's reset identical to the runtime's emergency reset", async () => {
-    const source = await readFile(resolve("native/process-guardian/src/exit_notice.rs"), "utf8");
-    const literal = /pub\(crate\) const TERMINAL_RESET: &str = "((?:[^"\\]|\\.)*)";/.exec(source)?.[1];
-    expect(literal).toBeDefined();
-    const decoded = literal!.replace(/\\x([0-9a-fA-F]{2})|\\\\/g, (_match, hex: string | undefined) =>
-      hex === undefined ? "\\" : String.fromCharCode(Number.parseInt(hex, 16)));
-    expect(decoded).toBe(EMERGENCY_TERMINAL_RESET);
   });
 });

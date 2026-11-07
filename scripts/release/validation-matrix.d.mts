@@ -1,23 +1,13 @@
 export interface DevelopmentValidationMatrixEntry {
-  group: "core" | "resource" | "pi" | "promoted" | "package" | "startup" | "compatibility" | "containment" | "terminal-host" | "resident-chaos";
+  group: "core" | "resource" | "pi" | "promoted" | "package" | "startup" | "compatibility" | "unix";
   label: string;
   os: "windows-2025" | "ubuntu-24.04" | "macos-26";
   platform: "win32" | "linux" | "darwin";
   architecture: "x64" | "arm64";
   node: 22 | 24;
   build: boolean;
-  guardian: boolean;
   defender: boolean;
-  addon: "process-guardian.node";
-  terminalHost?: boolean;
-  terminalHostAddon?: "terminal-host.node";
-  chaos?: boolean;
-  /** `<index>/<count>` of the terminal-host role-fixture suite this entry runs; absent for every other job. */
-  partition?: string;
-  partitionSlug?: string;
 }
-
-export const TERMINAL_HOST_TEST_PARTITIONS: number;
 
 export interface ValidationJobSelection {
   schema: "a1-validation-job-selection-v3";

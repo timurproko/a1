@@ -6,7 +6,6 @@ const SETTINGS_ROUTE_HOST = "src/composition/settings-route-host.ts";
 const SETTINGS_SEARCH_INPUT = "src/composition/settings-search-input.ts";
 const VALUE_MENU = "src/ui/components/value-menu.ts";
 const DIALOG_PANEL = "src/ui/components/dialog-panel.ts";
-const NATIVE_DIALOG = "native/terminal-host/src/roles/command_palette.rs";
 const PROVENANCE = "config/baselines/pi-session-shell-provenance.json";
 const REFERENCE = "docs/architecture/ui-reference-provenance.md";
 
@@ -34,20 +33,17 @@ describe("owned settings interaction boundary", () => {
   });
 
   it("keeps panel and selected-row contrast at shared owned-theme boundaries", async () => {
-    const [host, menu, app, dialog, native] = await Promise.all([
+    const [host, menu, app, dialog] = await Promise.all([
       readFile(SETTINGS_ROUTE_HOST, "utf8"),
       readFile(VALUE_MENU, "utf8"),
       readFile(SETTINGS_APP, "utf8"),
       readFile(DIALOG_PANEL, "utf8"),
-      readFile(NATIVE_DIALOG, "utf8"),
     ]);
     expect(host).toContain("renderFloatingDialogSurface");
     expect(host).toContain('bg("selectedBg", text)');
     expect(host).not.toMatch(/48;(?:2|5);/u);
     expect(dialog).toContain("48;2;38;38;38");
     expect(dialog).toContain("48;5;235");
-    expect(native).toContain("[38, 38, 38]");
-    expect(native).toContain("else { 235 }");
     expect(menu).toContain('paint(theme.fg("text", "✓"))');
     expect(menu).not.toContain('theme.fg("accent", "✓")');
     expect(app).toContain('theme.accentPreview?.(String(choice), "■")');

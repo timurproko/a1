@@ -68,20 +68,14 @@ describe("Pi engine adapter as the owned-UI session backend", () => {
     }
   });
 
-  it("transitions a sanitized blocked release status to installed readiness", () => {
+  it("shows one installed-readiness status per announced version", () => {
     const adapter = new PiEngineAdapter({ cwd: "D:/work", agentDir: "D:/agent", sessionId: "backend-contract" });
-    adapter.extensions.announceReleaseUpdate({ status: "blocked", version: "1.2.4" });
-    expect(adapter.session.view().diagnostics).toEqual([
-      expect.objectContaining({ code: "release-update-blocked", message: "Update 1.2.4 prepared; activation blocked." }),
-    ]);
-    adapter.extensions.announceReleaseUpdate({ status: "blocked-cleared", version: "1.2.4" });
-    expect(adapter.session.view().diagnostics).toEqual([]);
-    adapter.extensions.announceReleaseUpdate({ status: "blocked", version: "1.2.4" });
     adapter.extensions.announceReleaseUpdate({ status: "installed", version: "1.2.4" });
+    adapter.extensions.announceReleaseUpdate({ status: "installed", version: "1.2.5" });
     expect(adapter.session.view().diagnostics).toEqual([
-      expect.objectContaining({ code: "release-update-installed", message: "Update 1.2.4 installed; restart to update." }),
+      expect.objectContaining({ code: "release-update-installed", message: "Update 1.2.5 installed; restart to update." }),
     ]);
-    expect(adapter.session.view().diagnostics.some(diagnostic => diagnostic.code === "release-update" || diagnostic.code === "release-update-blocked")).toBe(false);
+    expect(adapter.session.view().diagnostics.some(diagnostic => diagnostic.code === "release-update")).toBe(false);
   });
 
   it("reads identity at call time, so disposal is visible through a port obtained earlier", async () => {

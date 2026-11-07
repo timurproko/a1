@@ -56,7 +56,6 @@ export class SessionViewportController {
   #pasteDiagnosticRequest = 0;
   readonly #viewport = new TranscriptViewport();
   #config: OwnedUiViewportSettings = {
-    timeFormat: "8:00 PM",
     scrollbarAppearance: "auto",
     scrollbarStyle: "thin",
     scrollbarSpeed: "normal",
@@ -229,11 +228,9 @@ export class SessionViewportController {
 
   /** Returns true when document wrapping may have changed. */
   setConfig(config: OwnedUiViewportSettings): boolean {
-    const normalized = { ...config, timeFormat: config.timeFormat ?? "8:00 PM" as const };
-    const layoutChanged = normalized.scrollbarAppearance !== this.#config.scrollbarAppearance
-      || normalized.timeFormat !== this.#config.timeFormat;
-    this.#config = normalized;
-    this.#viewport.setConfig(normalized);
+    const layoutChanged = config.scrollbarAppearance !== this.#config.scrollbarAppearance;
+    this.#config = config;
+    this.#viewport.setConfig(config);
     this.#requestRender();
     return layoutChanged;
   }

@@ -10,7 +10,6 @@ import type { PiSessionPresenterBackend } from "../integrations/pi/session-prese
  */
 export interface ComposedSessionBackend extends PiSessionPresenterBackend, OwnedUiPromptSuggestionGeneratorPort {
   settingsPort(): AgentSettingsPort | null;
-  generateResidentTabName(instruction: string, maxTokens: number, signal: AbortSignal): Promise<string | null>;
 }
 
 /** The process-level engine host as composition drives it: sessions, the live accent, and disposal. */

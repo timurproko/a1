@@ -13,16 +13,13 @@ import {
   PRODUCT_PACKAGE,
   runSelfUpdate,
   updateNpmInstallArguments,
-  UPDATE_ACTIVATION_BLOCKED_EXIT_CODE,
   UPDATE_ALREADY_RUNNING_EXIT_CODE,
-  UpdateActivationBlockedError,
   UPDATE_JOURNAL_SCHEMA,
   type ProcessRequest,
   type ProcessResult,
   type UpdateFileSystem,
   type UpdateLifecycleCoordinator,
   type UpdateOutput,
-  type UpdatePackageReplacementInput,
   type UpdateProcessRunner,
   type UpdateTransactionJournal,
   type UpdateTransactionPhase,
@@ -90,7 +87,6 @@ function createHarness(options: {
   const lifecycleCalls: string[] = [];
   const lifecycle: UpdateLifecycleCoordinator = {
     async targetIsActive() { return false; },
-    async shutdownVerifiedOwners(targetVersion) { lifecycleCalls.push(`shutdown:${targetVersion}`); return { priorActiveVersion: null }; },
     async verifyPackageUnlocked(path) { lifecycleCalls.push(`unlock:${path}`); },
     async activateInstalled(path, targetVersion, phase) {
       lifecycleCalls.push(`activate:${path}:${targetVersion}`);
@@ -210,28 +206,6 @@ describe("A1 self-update orchestration", () => {
     } finally {
       await lease.release();
     }
-  });
-
-  it("refuses automatic mutation before shutdown when the live cohort is not immutable-safe", async () => {
-    const harness = createHarness({ responses: [success(`${TEST_GLOBAL_ROOT}\n`)] });
-    const packageReplacement = vi.fn(async (_input: UpdatePackageReplacementInput): Promise<never> => {
-      throw new Error("package replacement must not run");
-    });
-    const lifecycle: UpdateLifecycleCoordinator = {
-      ...harness.lifecycle,
-      async verifyAutomaticSafety() { throw new Error("live session is not immutable-safe"); },
-    };
-
-    await expect(runSelfUpdate({
-      ...harness,
-      lifecycle,
-      packageReplacement,
-      resolvedTarget: "1.3.0",
-      mode: "automatic",
-    })).resolves.toBe(1);
-
-    expect(packageReplacement).not.toHaveBeenCalled();
-    expect(harness.lifecycleCalls).toEqual([]);
   });
 
   it("reinstalls the current version when it is not the active release", async () => {
@@ -490,7 +464,7 @@ describe("A1 self-update orchestration", () => {
     };
     const durable = new UpdateTransactionStore(dataDir);
     await durable.begin({ channel: "next", targetVersion: "0.2.7-dev.835", packageRoot: harness.packageRoot, priorActiveReleaseId: null });
-    await durable.advance("supervisor-verified");
+    await durable.advance("active-reference-committed");
     await writeFile(resolve(dataDir, UPDATE_EXECUTION_LEASE_FILENAME), JSON.stringify({
       schema: 1, ownerId: "dead-automatic-worker", pid: 2_000_000_000, pidStartIdentity: "gone",
       packageRoot: harness.packageRoot, channel: "next", targetVersion: "0.2.7-dev.835", mode: "automatic",
@@ -611,7 +585,7 @@ describe("A1 self-update orchestration", () => {
     expect(finish).toHaveBeenCalledWith("completed");
   });
 
-  it("does not publish success when maintenance fails after supervisor verification", async () => {
+  it("does not publish success when maintenance fails after activation", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
     const finish = vi.spyOn(harness.transactionStore, "finish");
     await expect(runSelfUpdate({ ...harness, maintenance: async () => { throw new Error("maintenance failed"); } })).resolves.toBe(1);
@@ -620,40 +594,18 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stdout.join("")).not.toContain("updated successfully");
   });
 
-  it("reports a continuity-deferred manual update as one successful result line", async () => {
+  it("resumes a certified transaction by activating again without reinstalling", async () => {
     const harness = createHarness({ transactionPhase: "certified", responses: [success(`${resolve("fixtures", "global")}\n`)] });
-    harness.lifecycle.activatePrepared = async () => {
-      throw new UpdateActivationBlockedError("Resident control compatibility could not be verified: resident source belongs to another boot or login");
-    };
 
     await expect(runSelfUpdate({ ...harness, resolvedTarget: "1.3.0" })).resolves.toBe(0);
-    expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\na1 updated to 1.3.0; it takes over automatically once running Agents can switch\n");
+    expect(harness.lifecycleCalls).toEqual([`activate:${harness.packageRoot}:1.3.0`]);
+    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+    expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\na1 updated successfully to 1.3.0\n");
     expect(harness.stderr.join("")).toBe("");
-    expect((await harness.transactionStore.read())).toMatchObject({ status: "active", phase: "certified" });
-    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+    expect(await harness.transactionStore.read()).toBeNull();
   });
 
-  it("keeps certified preparation active and retries selection without reinstalling", async () => {
-    const harness = createHarness({ transactionPhase: "certified", responses: [success(`${resolve("fixtures", "global")}\n`), success(`${resolve("fixtures", "global")}\n`)] });
-    let attempts = 0;
-    harness.lifecycle.activatePrepared = async (_target, phase) => {
-      attempts += 1;
-      if (attempts === 1) throw new UpdateActivationBlockedError("resident continuity is blocked");
-      await phase("active-reference-committed");
-    };
-
-    await expect(runSelfUpdate({ ...harness, resolvedTarget: "1.3.0", mode: "automatic" }))
-      .resolves.toBe(UPDATE_ACTIVATION_BLOCKED_EXIT_CODE);
-    expect((await harness.transactionStore.read())).toMatchObject({ status: "active", phase: "certified", error: "resident continuity is blocked" });
-    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
-
-    await expect(runSelfUpdate({ ...harness, resolvedTarget: "1.3.0", mode: "automatic" })).resolves.toBe(0);
-    expect(attempts).toBe(2);
-    expect(harness.lifecycleCalls.filter(call => call.startsWith("activate:"))).toEqual([]);
-    expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
-  });
-
-  it("resumes unfinished activation even if the target supervisor already responds", async () => {
+  it("resumes unfinished activation even if the target is already the active release", async () => {
     const harness = createHarness({ transactionPhase: "active-reference-committed", responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
     harness.lifecycle.targetIsActive = async () => true;
     await expect(runSelfUpdate(harness)).resolves.toBe(0);
@@ -915,7 +867,7 @@ describe("A1 self-update orchestration", () => {
     }
   });
 
-  it("rechecks ownership before activating an installation resumed after interruption", async () => {
+  it("activates an installation resumed after interruption without reinstalling", async () => {
     const harness = createHarness({
       responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()],
       transactionPhase: "package-installed",
@@ -928,7 +880,6 @@ describe("A1 self-update orchestration", () => {
       { command: "npm", arguments: ["root", "--global"], request: { captureStdout: true } },
     ]);
     expect(harness.lifecycleCalls).toEqual([
-      "shutdown:1.3.0",
       `activate:${harness.packageRoot}:1.3.0`,
     ]);
     expect(harness.stdout.join("")).toBe("a1 update: 1.2.3 → 1.3.0\na1 updated successfully to 1.3.0\n");
@@ -951,11 +902,9 @@ describe("A1 self-update orchestration", () => {
       "global-root",
       "ownership-release",
       "npm-install",
-      "ownership-release",
       "materialized",
       "certified",
       "active-reference-committed",
-      "supervisor-verified",
       "transaction-complete",
     ]);
     expect(timings.every(event => event.durationMs === 5)).toBe(true);

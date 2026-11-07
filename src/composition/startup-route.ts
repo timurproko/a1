@@ -43,7 +43,6 @@ export function deferStartupReleaseUpdateObservation(
       }).catch(() => { /* Rationale: optional observation must not interrupt the owned session. */ });
     },
     stop() { stopped = true; observation?.stop(); },
-    clientChanged() { observation?.clientChanged(); },
   };
 }
 

@@ -271,17 +271,6 @@ describe("owned reference routes", () => {
     expect(copyText).toHaveBeenCalledTimes(copied);
     expect(hotkeys.handleInput(INTERRUPT)).toBe(true);
     expect(hotkeys.isClosed()).toBe(true);
-
-    const pinnedHost = createOwnedRouteHost(session, references, { copyText, tabRoute: "changelog" });
-    const pinned = pinnedHost.open("changelog")!;
-    let exits = 0;
-    pinned.onExitRequested(() => { exits += 1; });
-    await settled(pinned, current => current[2]?.startsWith("alpha") === true);
-    expect(pinned.handleInput(INTERRUPT)).toBe(true);
-    expect(pinned.isClosed()).toBe(false);
-    expect(pinned.handleInput(INTERRUPT)).toBe(true);
-    expect(pinned.isClosed()).toBe(true);
-    expect(exits).toBe(1);
   });
 
   it("forwards keys and pointer reports and closes reference screens on one Ctrl+C", async () => {

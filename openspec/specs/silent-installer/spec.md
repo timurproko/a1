@@ -118,7 +118,7 @@ A fresh installation SHALL report success only after npm exits successfully, the
 - **THEN** the installer SHALL fail without printing the success message
 
 #### Scenario: Installation is complete
-- **WHEN** package installation, launcher verification, immutable materialization, certification, warmup, supervision, active-reference commit, and command-resolution verification all succeed for the exact target
+- **WHEN** package installation, launcher verification, immutable materialization, certification, warmup, active-reference commit, and command-resolution verification all succeed for the exact target
 - **THEN** the installer SHALL print its exact success result without printing the installation destination
 - **AND** the next `a1` invocation SHALL use the already active release without installation diagnostics
 
@@ -313,13 +313,9 @@ When invoked with `--develop` from a non-development installer build and without
 - **WHEN** the development installer starts with the handoff marker
 - **THEN** it SHALL proceed with installation and SHALL NOT start another installer
 
-### Requirement: An installation at or above the target is success
-After resolution or delegated update, an installed application whose version is equal to or newer than the resolved target on the same channel SHALL be reported as installed with status zero. A delegated update whose activation was deferred for resident continuity SHALL also count as installed. A failure SHALL keep its single concise `installation failed: <reason>` line and, when diagnostics were recorded, add one `Details: <log path>` line naming a private log file, without requiring `--verbose`; the explicit verbose mode keeps printing its bounded inline diagnostics instead.
+### Requirement: An installation at or above the target reports success
+After resolution or delegated update, an installed application whose version is equal to or newer than the resolved target on the same channel SHALL be reported as installed with status zero. A failure SHALL keep its single concise `installation failed: <reason>` line and, when diagnostics were recorded, add one `Details: <log path>` line naming a private log file, without requiring `--verbose`; the explicit verbose mode keeps printing its bounded inline diagnostics instead.
 
 #### Scenario: The channel head is older than the installation
 - **WHEN** the installed development build is newer than the current `next` head
 - **THEN** the installer SHALL report success and SHALL NOT report a version mismatch
-
-#### Scenario: Activation is deferred
-- **WHEN** the delegated update exits zero with a prepared candidate waiting for continuity
-- **THEN** the installer SHALL report success

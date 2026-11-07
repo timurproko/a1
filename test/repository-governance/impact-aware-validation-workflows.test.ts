@@ -106,10 +106,9 @@ describe("impact-aware validation workflows", () => {
   it("keeps the bounded PR core and selected resource-sensitive work isolated", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];
-    expect(entries.find(entry => entry.group === "core")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: true, addon: "process-guardian.node" });
-    expect(entries.find(entry => entry.group === "resource")).toMatchObject({ os: "windows-2025", node: 24, build: true, guardian: false, addon: "process-guardian.node" });
-    // Invariant: every job builds the workspace except the terminal-host test partitions, which run only Cargo.
-    expect(entries.every(entry => entry.build || (entry.partition && entry.group === "terminal-host"))).toBe(true);
+    expect(entries.find(entry => entry.group === "core")).toMatchObject({ os: "windows-2025", node: 24, build: true });
+    expect(entries.find(entry => entry.group === "resource")).toMatchObject({ os: "windows-2025", node: 24, build: true });
+    expect(entries.every(entry => entry.build)).toBe(true);
     expect(workflow.jobs.modular.steps.some((step: any) => step.name === "Install exact analysis dependencies")).toBe(false);
     expect(entries.filter(entry => ["core", "resource"].includes(entry.group))).toHaveLength(2);
     const resolver = workflow.jobs.modular.steps.find((step: any) => step.id === "job-selection");
@@ -125,78 +124,26 @@ describe("impact-aware validation workflows", () => {
     expect(run.env).toMatchObject({ VALIDATION_HEAD: "${{ steps.job-selection.outputs.head }}", VALIDATION_SELECTION_ID: "${{ steps.job-selection.outputs.selection_id }}" });
   });
 
-  it("runs terminal-host test partitions as their own evidence-bearing jobs", async () => {
+  it("runs every modular job as one evidence-bearing target without native build or certification steps", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const modular = workflow.jobs.modular;
-    expect(modular["timeout-minutes"]).toBe("${{ matrix.partition && 25 || (matrix.terminalHost || matrix.chaos) && 45 || 35 }}");
-    const install = modular.steps.find((step: any) => step.name === "Install dependencies for the test partition");
-    expect(install).toMatchObject({ if: "steps.job-selection.outputs.active == 'true' && matrix.partition", run: "npm ci --ignore-scripts" });
-    for (const name of ["Prepare terminal host Rust toolchain", "Set up Zig for terminal host", "Cache terminal host build"]) {
-      expect(modular.steps.find((step: any) => step.name === name).if, name).toBe("steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos || matrix.partition)");
+    expect(modular["timeout-minutes"]).toBe(35);
+    const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];
+    for (const field of ["partition", "partitionSlug", "terminalHost", "terminalHostAddon", "chaos", "guardian", "addon"]) {
+      expect(entries.some(entry => field in entry), field).toBe(false);
+    }
+    const source = JSON.stringify(modular);
+    for (const retired of ["matrix.partition", "matrix.terminalHost", "matrix.chaos", "matrix.guardian", "setup-zig", "rust-cache", "cargo", "terminal-host", "RESIDENT_CHAOS_SECONDS", "packs_candidate"]) {
+      expect(source, retired).not.toContain(retired);
     }
     const run = modular.steps.find((step: any) => step.name === "Run exact selected scopes");
-    expect(run.env.VALIDATION_PARTITION).toBe("${{ matrix.partition || '' }}");
-    expect(run.env.TERMINAL_HOST_PARTITION).toBe("${{ matrix.partition || (matrix.terminalHost && 'none') || '' }}");
-    const suffix = "${{ matrix.partitionSlug && format('-{0}', matrix.partitionSlug) || '' }}-attempt-${{ github.run_attempt }}";
+    const suffix = "-attempt-${{ github.run_attempt }}";
     expect(run.run).toContain(`node${"${{ matrix.node }}"}${suffix}.json`);
-    expect(modular.steps.find((step: any) => step.name === "Upload modular outcome and fixture phases").with.name).toContain(suffix);
+    expect(modular.steps.find((step: any) => step.name === "Upload modular outcome and fixture phases").with.name).toContain(`node${"${{ matrix.node }}"}${suffix}`);
     const envelope = modular.steps.find((step: any) => step.name === "Complete content-free job envelope");
-    expect(envelope.env).toMatchObject({ PARTITION: "${{ matrix.partition || '' }}", PARTITION_SLUG: "${{ matrix.partitionSlug || '' }}" });
-    expect(envelope.run).toContain("...(process.env.PARTITION?{partition:process.env.PARTITION}:{})");
-    expect(envelope.run).toContain("${process.env.PARTITION_SLUG?`-${process.env.PARTITION_SLUG}`:\"\"}-attempt-");
+    expect(envelope.run).toContain("node${process.env.NODE_VERSION}-attempt-");
     const summary = modular.steps.find((step: any) => step.name === "Add modular timing summary");
-    expect(summary.env.PARTITION_SLUG).toBe("${{ matrix.partitionSlug || '' }}");
-    expect(summary.run).toContain("${process.env.PARTITION_SLUG ? `-${process.env.PARTITION_SLUG}` : \"\"}-attempt-");
-    // Invariant: certification, fuzzing, and host uploads stay with the build-and-probe job.
-    for (const name of ["Run vendored Ghostty VT tests", "Certify terminal fidelity and resident latency", "Run bounded terminal-host decoder fuzzing", "Upload terminal host contract artifacts", "Upload linked terminal library"]) {
-      expect(modular.steps.find((step: any) => step.name === name).if, name).toContain("matrix.terminalHost");
-    }
-    // Rationale: the role suite warmed every resident launch path before certification; one unmeasured pass
-    // now does, and the measured pass keeps its budgets and runs exactly once.
-    const certify = modular.steps.find((step: any) => step.name === "Certify terminal fidelity and resident latency").run as string;
-    expect(certify).toContain('host=".artifacts/terminal-host/performance/${{ matrix.terminalHostAddon }}"');
-    const hostArtifacts = modular.steps.find((step: any) => step.name === "Upload terminal host contract artifacts").with.path;
-    expect(hostArtifacts).toContain(".artifacts/terminal-host/${{ matrix.terminalHostAddon }}");
-    expect(hostArtifacts).toContain(".artifacts/terminal-host/performance/${{ matrix.terminalHostAddon }}");
-    const measured = 'node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"';
-    const warmUp = 'node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-warm-up-${{ matrix.platform }}-${{ matrix.architecture }}.json" || echo';
-    expect(certify.indexOf("verify-terminal-fidelity.mjs")).toBeLessThan(certify.indexOf(warmUp));
-    // Invariant: interaction parity runs on the same built host before the latency passes, so the
-    // warm-up's process cleanup and the measured pass stay last.
-    const parity = certify.indexOf("verify-interaction-parity.mjs");
-    expect(parity).toBeGreaterThan(certify.indexOf("verify-terminal-fidelity.mjs"));
-    expect(parity).toBeLessThan(certify.indexOf(warmUp));
-    const parallel = certify.indexOf("verify-resident-parallel-progress.mjs");
-    expect(parallel).toBeGreaterThan(parity);
-    expect(parallel).toBeLessThan(certify.indexOf(warmUp));
-    expect(certify.indexOf(warmUp)).toBeLessThan(certify.indexOf(measured));
-    expect(certify.split("measure-resident-tabs.mjs")).toHaveLength(3);
-    // Invariant: the warm-up's leftover host processes are stopped before the measured pass starts.
-    const cleanup = certify.indexOf('Get-CimInstance Win32_Process');
-    expect(cleanup).toBeGreaterThan(certify.indexOf(warmUp));
-    expect(cleanup).toBeLessThan(certify.indexOf(measured));
-    expect(certify).toContain('CommandLine.Contains("host-entry.js")');
-    expect(certify).not.toContain("taskkill //IM");
-    expect(certify).not.toContain("pkill -f");
-    expect(certify).toContain('pgrep -f "a1-resident-measure-"');
-    expect(certify).toContain('ps -p "$pid" -o comm=');
-    expect(certify).toContain('kill -TERM "$pid"');
-    expect(certify.endsWith(`${measured}\n`) || certify.endsWith(measured)).toBe(true);
-    const upload = modular.steps.find((step: any) => step.name === "Upload terminal host contract artifacts");
-    expect(upload.with.path).toContain(".artifacts/terminal-host/${{ matrix.terminalHostAddon }}");
-    expect(upload.with.path).toContain("parallel-progress-${{ matrix.platform }}-${{ matrix.architecture }}.json");
-    expect(upload.with.path).not.toContain("a1_session_lock.node");
-  });
-
-  it("shortens the resident chaos budget on pull requests only and leaves the script default elsewhere", async () => {
-    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
-    const run = workflow.jobs.modular.steps.find((step: any) => step.name === "Run exact selected scopes");
-    expect(run.env.RESIDENT_CHAOS_SECONDS).toBe("${{ github.event_name == 'pull_request' && '300' || '600' }}");
-    const chaos = await readFile("scripts/development/run-resident-chaos.mjs", "utf8");
-    expect(chaos).toContain("const DEFAULT_SECONDS = 600;");
-    expect(chaos).toContain('process.env.RESIDENT_CHAOS_SECONDS ?? String(DEFAULT_SECONDS)');
-    expect(chaos).toContain("seconds: planned === null ? seconds : null,");
-    for (const file of ["full-regression-shared.yml", "publish.yml"]) expect(await readFile(`.github/workflows/${file}`, "utf8")).not.toContain("RESIDENT_CHAOS_SECONDS");
+    expect(summary.run).toContain("node${process.env.NODE_VERSION}-attempt-");
   });
 
   it("pins npm only on Node 22 lanes, because packing needs npm 11 and Node 24 ships it", async () => {
@@ -206,18 +153,11 @@ describe("impact-aware validation workflows", () => {
     expect(pin.run).toContain('npm install -g "npm@$pinned"');
   });
 
-  it("keeps bounded Zig caches per toolchain instead of one per run", async () => {
-    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
-    const zig = workflow.jobs.modular.steps.filter((step: any) => step.uses?.startsWith("mlugg/setup-zig@"));
-    expect(zig).toHaveLength(2);
-    for (const step of zig) expect(step.with).toEqual({ version: "0.15.2", "cache-key": "development-validation${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}", "cache-size-limit": 512 });
-  });
-
   it("retains Node 22 Defender startup and all declared platform/runtime owner targets", async () => {
     const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
     const entries = DEVELOPMENT_VALIDATION_MATRIX as any[];
     expect(entries.find(entry => entry.group === "startup")).toMatchObject({ os: "windows-2025", platform: "win32", node: 22, defender: true });
-    expect(entries.filter(entry => entry.group === "containment").map(entry => `${entry.platform}:${entry.node}`).sort()).toEqual(["darwin:24", "linux:24"]);
+    expect(entries.filter(entry => entry.group === "unix").map(entry => `${entry.platform}:${entry.node}`).sort()).toEqual(["darwin:24", "linux:24"]);
     expect(entries.some(entry => entry.group === "startup" && entry.node === 24)).toBe(false);
     const defender = workflow.jobs.modular.steps.find((step: any) => step.name === "Enable Defender real-time protection for startup acceptance");
     expect(defender.if).toContain("matrix.defender");

@@ -44,11 +44,11 @@ imported automatically.
 The default uses A1's effective profile home: `A1_PROFILE_HOME` when set, otherwise
 the operating-system home. A custom agent-profile directory changes the history
 identity, not this default root. `A1_DATA_DIR` takes precedence for storage;
-`XDG_DATA_HOME` does not redirect default history. Control metadata, settings,
+`XDG_DATA_HOME` does not redirect default history. Release state, settings,
 agent resources, releases, logs, runtime files, and caches keep their existing
 locations. For repository-local `./scripts/dev` launches, history uses a stable
-checkout-wide data root so two independent solo instances share the selected
-Shared database, while control and runtime data remain isolated per launch.
+checkout-wide data root so two independent instances share the selected
+Shared database, while release and runtime data remain isolated per launch.
 The development-only `A1_DEV_HISTORY_DATA_DIR` selects that root; an explicit
 `A1_DATA_DIR` still overrides its launcher default. Existing histories in old
 per-instance development roots are not moved or combined.
@@ -62,14 +62,14 @@ Old and new releases using different roots do not synchronize history.
 In Shared mode the filename is the original `a1-` SHA-256 profile identity,
 independent of project, session, checkout, and release. In Unique mode (the
 default), a domain-separated digest also includes the stable conversation session
-ID; two solo launches or resident tabs therefore use different databases and
+ID; two concurrent launches therefore use different databases and
 image sidecars. Resuming the same session reuses its store; starting or forking a
 session selects a different one. Windows ordinary case and separator variants
 normalize together. Moving a profile, unresolved symlink aliases, or selecting a
 different data root can select a different history; A1 never silently merges or
 imports it.
 
-The database is separate from `control.sqlite3`, agent resources, and disposable
+The database is separate from release state, agent resources, and disposable
 caches. Upgrades, ordinary npm uninstall/reinstall, release rollback, cache cleanup,
 and conversation deletion do not clear it. Reusing saved history requires the
 same profile and history root; explicitly deleting user data still removes it.
@@ -91,9 +91,9 @@ The History section in `/settings` provides:
   storage and durable recall for subsequent launches, not current-session
   recovery. Existing enabled instances keep running until closed.
 - **History scope:** Unique (default) keeps each agent session's durable prompts
-  separate across solo launches and resident tabs. Shared restores the former
-  profile-wide store. Switching applies to running agents, including other solo
-  processes and resident tabs, when their shared settings update arrives. New
+  separate across concurrent launches. Shared restores the former
+  profile-wide store. Switching applies to running agents, including other A1
+  processes, when their shared settings update arrives. New
   prompts use the newly selected store; already-submitted writes finish in their
   original store. Switching never transfers or deletes records, and it preserves
   unsent drafts. Existing profiles without this setting default to Unique, so
@@ -145,9 +145,8 @@ Build the checkout, then launch it through `./scripts/dev`. Use an isolated
 `A1_DATA_DIR` for disposable history checks; keep that same directory on each
 restart and in both concurrent terminals. The development launcher always sets
 an isolated `A1_DATA_DIR`; to try the home-based location in that launcher,
-explicitly select `A1_DATA_DIR=<effective-home>/.a1/data` and keep
-`A1_DATABASE_PATH` in a separate disposable directory so control metadata is not
-placed beside history. For a history-only review, `NODE_DISABLE_COMPILE_CACHE=1`
+explicitly select `A1_DATA_DIR=<effective-home>/.a1/data` in a disposable
+profile home. For a history-only review, `NODE_DISABLE_COMPILE_CACHE=1`
 also avoids creating compile-cache files under that explicitly overridden root.
 The focused path/composition tests cover normal no-override selection. Test:
 

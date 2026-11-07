@@ -34,8 +34,8 @@ describe("stopping a checkout's running A1", () => {
     expect(id).toBe(resolveDevelopmentLaunchEnvironment(root, "0.0.0-dev", {}).checkoutId);
     const temp = process.platform === "win32" ? "C:\\Users\\me\\AppData\\Local\\Temp" : "/tmp";
     const processes = [
-      { pid: 1, commandLine: `node ${join(temp, "a1-development", id, "0.2.7-dev-x", "instances", "i", "data", "releases", "r", "bin", "supervisor.js")}` },
-      { pid: 2, commandLine: `node ${join(temp, "a1-development", "ffffffffffffffff", "r", "bin", "supervisor.js")}` },
+      { pid: 1, commandLine: `node ${join(temp, "a1-development", id, "0.2.7-dev-x", "instances", "i", "data", "releases", "r", "bin", "cli.js")}` },
+      { pid: 2, commandLine: `node ${join(temp, "a1-development", "ffffffffffffffff", "r", "bin", "cli.js")}` },
     ];
     expect(selectCheckoutProcesses(processes, root, 99).map(({ pid }) => pid)).toEqual([1]);
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PRIVATE_ENVIRONMENT, PRIVATE_LAUNCH_CONTRACT, assertCurrentLaunchContract, hidesTabSettings, readLaunchContext, withLaunchContext, withoutLaunchContext } from "../../../src/foundation/launch-context/index.js";
+import { PRIVATE_ENVIRONMENT, PRIVATE_LAUNCH_CONTRACT, assertCurrentLaunchContract, readLaunchContext, withLaunchContext, withoutLaunchContext } from "../../../src/foundation/launch-context/index.js";
 import { PRODUCT_IDENTITY, validateProductIdentity } from "../../../src/product-identity.js";
 
 const release = {
@@ -8,19 +8,7 @@ const release = {
   releaseDigest: "a".repeat(64),
   releaseLayers: "",
   launchProfile: "a1" as const,
-  launchMode: "tabs" as const,
-  updateVersion: "1.0.0",
 };
-
-describe("tab settings visibility", () => {
-  it("hides the Tabs settings for every launch that runs the direct route", () => {
-    expect(hidesTabSettings({ launchMode: "tabs" })).toBe(false);
-    expect(hidesTabSettings({ launchMode: "solo" })).toBe(true);
-    // Invariant: a bare launch that fell back shows no Tabs section either; nothing in it could apply.
-    expect(hidesTabSettings({ launchMode: "tabs", residentFallback: "terminal host not installed" })).toBe(true);
-    expect(hidesTabSettings({})).toBe(false);
-  });
-});
 
 describe("neutral private launch contract", () => {
   it("reads and writes only one supported set of private keys", () => {
@@ -71,10 +59,10 @@ describe("neutral private launch contract", () => {
       A1_CONFIG_DIR: "my-config", PATH: "my-path", THIRD_PARTY_SETTING: "keep",
     };
     const result = withLaunchContext(environment, {
-      ...release, releaseId: `2.0.0-${"b".repeat(20)}`, launchProfile: "pi", launchMode: "solo", updateVersion: "2.0.0-dev.4",
+      ...release, releaseId: `2.0.0-${"b".repeat(20)}`, launchProfile: "pi",
     });
     expect(readLaunchContext(result, "release")).toMatchObject({
-      releaseId: `2.0.0-${"b".repeat(20)}`, launchProfile: "pi", updateVersion: "2.0.0-dev.4",
+      releaseId: `2.0.0-${"b".repeat(20)}`, launchProfile: "pi",
     });
     expect(result[PRIVATE_ENVIRONMENT.immutableWarmup]).toBeUndefined();
     expect(withoutLaunchContext(result)).toEqual({ A1_CONFIG_DIR: "my-config", PATH: "my-path", THIRD_PARTY_SETTING: "keep" });
@@ -90,21 +78,25 @@ describe("neutral private launch contract", () => {
   });
 
   it.each([
-    { launchProfile: "other" }, { launchMode: "other" }, { launchProfile: "pi", launchMode: "tabs" },
+    { launchProfile: "other" },
     { immutableWarmup: "yes" }, { releaseDigest: "invalid" }, { releaseRoot: "bad\0root" },
   ])("rejects invalid current values: %j", value => {
     const environment = Object.fromEntries(Object.entries(value).map(([key, entry]) => [PRIVATE_ENVIRONMENT[key as keyof typeof PRIVATE_ENVIRONMENT], entry]));
     expect(() => readLaunchContext(environment)).toThrow(/Invalid private launch context/);
   });
 
-  it("round-trips and validates the optional resident root command", () => {
-    const context = { ...release, residentRootExecutable: "/host", residentRootArguments: '["attach"]', residentFallback: "blocked" };
-    expect(readLaunchContext(withLaunchContext({}, context), "release")).toEqual(context);
-    expect(() => readLaunchContext({ [PRIVATE_ENVIRONMENT.residentRootExecutable]: "/host" })).toThrow(/incomplete/);
-    expect(() => readLaunchContext({
-      [PRIVATE_ENVIRONMENT.residentRootExecutable]: "/host",
-      [PRIVATE_ENVIRONMENT.residentRootArguments]: "not-json",
-    })).toThrow(/JSON argument list/);
+  it("treats retired mode, resident, and update-version keys as unknown", () => {
+    const environment = {
+      ...withLaunchContext({}, release),
+      LAUNCH_CONTEXT_MODE: "tabs",
+      LAUNCH_CONTEXT_RESIDENT_ROOT_EXECUTABLE: "/host",
+      LAUNCH_CONTEXT_RESIDENT_ROOT_ARGUMENTS: "not-json",
+      LAUNCH_CONTEXT_RESIDENT_FALLBACK: "blocked",
+      LAUNCH_CONTEXT_UPDATE_VERSION: "1.0.0",
+    };
+    expect(readLaunchContext(environment, "release")).toEqual(release);
+    expect(Object.keys(PRIVATE_ENVIRONMENT)).not.toEqual(expect.arrayContaining(["launchMode"]));
+    expect(withoutLaunchContext(environment)).toMatchObject({ LAUNCH_CONTEXT_MODE: "tabs" });
   });
 
   it("requires all release fields even when some are valid", () => {

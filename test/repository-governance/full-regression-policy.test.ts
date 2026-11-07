@@ -42,7 +42,7 @@ describe("complete regression automation", () => {
     // Invariant: the package and predecessor shards each pack and prepare their own exact installation;
     // Defender-backed startup measurement stays with the package shard alone.
     const shard = workflow.jobs["windows-shard"];
-    for (const name of ["Set up Zig for the release terminal host", "Cache release terminal host build", "Build the release terminal host into the candidate", "Pack exact regression candidate once", "Prepare the exact package"]) {
+    for (const name of ["Pack exact regression candidate once", "Prepare the exact package"]) {
       expect(shard.steps.find((step: { name: string }) => step.name === name).if, name).toBe("matrix.shard == 'package' || matrix.shard == 'predecessor'");
     }
     expect(shard.steps.find((step: { name: string }) => step.name === "Enable Defender real-time protection for startup acceptance").if).toBe("matrix.shard == 'package'");
@@ -105,8 +105,6 @@ describe("complete regression automation", () => {
       .filter(([, job]) => job.strategy?.matrix)
       .map(([id, job]) => [id, job.name]));
     expect(names).toEqual({
-      guardians: "Build process guardian",
-      terminal_hosts: "Build terminal host",
       validate_sequential: "Validate sequential",
       validate_windows_shard: "Validate Windows shard",
       validate_windows_lane: "Reconstruct Windows lane",
@@ -162,10 +160,8 @@ describe("complete regression automation", () => {
     expect(() => publicationValidationMatrix("preview")).toThrow(/unknown publication mode/);
     expect(() => publicationSequentialValidationMatrix("preview")).toThrow(/unknown publication mode/);
     expect(() => publicationWindowsShardMatrix("preview")).toThrow(/unknown publication mode/);
-    const guardianCache = release.jobs.guardians.steps.find((step: { name: string }) => step.name === "Cache process guardian build");
-    expect(guardianCache.uses).toBe("Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6");
-    expect(guardianCache.with).toEqual({ workspaces: "native/process-guardian" });
-    expect(release.jobs.guardians.steps.indexOf(guardianCache)).toBeLessThan(release.jobs.guardians.steps.findIndex((step: { run: string }) => step.run === "npm run build:process-guardian"));
+    expect(release.jobs.guardians).toBeUndefined();
+    expect(release.jobs.terminal_hosts).toBeUndefined();
     for (const job of [releaseShard, fullJob]) {
       expect(job.steps.find((step: { name: string }) => step.name === "Prepare the exact package").if).toBe("matrix.shard == 'package' || matrix.shard == 'predecessor'");
       expect(job.steps.find((step: { name: string }) => step.name === "Prepare the exact package").run).toContain('--full-shard "${{ matrix.shard }}"');
@@ -230,7 +226,7 @@ describe("complete regression automation", () => {
 
   it("keeps every deferred startup, image, and history test in the actual full plan exactly once", async () => {
     const plan = await createTierPlan(["full-release"]);
-    expect(plan.selected).toEqual(expect.arrayContaining(["fast-remainder", "fast-resource-sensitive", "dist-integration", "package-contracts", "package-startup", "image-compatibility", "history-compatibility", "unix-containment"]));
+    expect(plan.selected).toEqual(expect.arrayContaining(["fast-remainder", "fast-resource-sensitive", "dist-integration", "package-contracts", "package-startup", "image-compatibility", "history-compatibility", "unix-release"]));
     expect(plan.consumesPackage).toBe(true);
     const invocations = plan.vitest!.invocations;
     const remainder = invocations.find(invocation => invocation.id === "vitest-full-without-isolated")!;

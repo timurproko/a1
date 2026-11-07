@@ -22,7 +22,7 @@ import {
   releaseSessionRepositoryRuntime,
   setSessionRepositoryContext,
 } from "../../../src/foundation/lifecycle/session-repository-context.js";
-import type { NativeProcessIdentity } from "../../../src/foundation/lifecycle/model.js";
+import type { ProcessIdentity } from "../../../src/foundation/lifecycle/model.js";
 
 const execFileAsync = promisify(execFile);
 const roots: string[] = [];
@@ -47,7 +47,7 @@ async function repositoryFixture() {
   const secondIdentity = { sessionId: "second-session", sessionFile: join(root, "second-session.jsonl") };
   await writeFile(secondIdentity.sessionFile, `${JSON.stringify({ type: "session", version: 3, id: secondIdentity.sessionId, cwd: primary })}\n`);
   const processes = new Map<number, string>([[1001, "fixture:one"], [1002, "fixture:two"], [1003, "fixture:three"]]);
-  const inspectProcess = async (pid: number): Promise<NativeProcessIdentity | null> => {
+  const inspectProcess = async (pid: number): Promise<ProcessIdentity | null> => {
     const startIdentity = processes.get(pid);
     return startIdentity === undefined ? null : { pid, startIdentity };
   };
@@ -61,7 +61,7 @@ async function repositoryFixture() {
 
 function runtimeOptions(
   fixture: Awaited<ReturnType<typeof repositoryFixture>>,
-  runtime: { runtimeId: string; process: NativeProcessIdentity },
+  runtime: { runtimeId: string; process: ProcessIdentity },
 ) {
   return { dataDir: fixture.dataDir, runtimeId: runtime.runtimeId, inspectProcess: fixture.inspectProcess };
 }
@@ -69,7 +69,7 @@ function runtimeOptions(
 async function register(
   fixture: Awaited<ReturnType<typeof repositoryFixture>>,
   identity: { sessionId: string; sessionFile: string },
-  runtime: { runtimeId: string; process: NativeProcessIdentity },
+  runtime: { runtimeId: string; process: ProcessIdentity },
 ) {
   await registerSessionRepositoryRuntime(identity, runtime.runtimeId, runtime.process, {
     dataDir: fixture.dataDir,
