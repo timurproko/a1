@@ -4,6 +4,7 @@ import type {
   OwnedUiSessionSettingsSnapshot,
   OwnedUiSettingOwner,
   OwnedUiSettingOwnerHandlers,
+  OwnedUiViewportSettingsPort,
 } from "../../contracts/owned-ui/index.js";
 import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 import type { OwnedUiSessionShellRoot } from "./session-shell-root.js";
@@ -131,6 +132,42 @@ export function bindSessionSettings(
       }
       releases.push(settings.bindOwner(owner, handlers));
     }
+  } catch (error) {
+    release();
+    throw error;
+  }
+  return release;
+}
+
+/** The shell's own live setting sources besides the session settings; absent sources bind nothing. */
+export interface ShellSettingSources {
+  readonly customViewport: boolean;
+  readonly promptImages: { onChange(listener: () => void): () => void } | null;
+  readonly skills: { onChange(listener: () => void): () => void } | null;
+  readonly viewport: OwnedUiViewportSettingsPort | undefined;
+  readonly historyScope: ((listener: (scope: "unique" | "shared") => void) => () => void) | undefined;
+}
+
+/** What those sources change: the prompt-image notice, the command menu, the viewport, and the transcript binding. */
+export interface ShellSettingEffects {
+  readonly root: Pick<OwnedUiSessionShellRoot, "setViewportConfig">;
+  promptImageLimitChanged(): void;
+  skillsChanged(): void;
+  historyScopeChanged(scope: "unique" | "shared"): void;
+}
+
+/** Seeds the viewport and subscribes every shell setting source; the returned release undoes all of them. */
+export function bindShellSettings(sources: ShellSettingSources, effects: ShellSettingEffects): () => void {
+  const releases: (() => void)[] = [];
+  const release = () => { for (const unbind of releases.splice(0).reverse()) unbind(); };
+  try {
+    if (sources.promptImages !== null) releases.push(sources.promptImages.onChange(() => effects.promptImageLimitChanged()));
+    // Rationale: the same listener refreshes the menu for the A1 presentation choice and for the engine's
+    // skill-command registration, both of which the owned settings manager reports through one change.
+    if (sources.skills !== null) releases.push(sources.skills.onChange(() => effects.skillsChanged()));
+    effects.root.setViewportConfig(sources.viewport?.snapshot() ?? { scrollbarAppearance: "auto", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+    if (sources.customViewport && sources.viewport !== undefined) releases.push(sources.viewport.onChange(settings => effects.root.setViewportConfig(settings)));
+    if (sources.customViewport && sources.historyScope !== undefined) releases.push(sources.historyScope(scope => effects.historyScopeChanged(scope)));
   } catch (error) {
     release();
     throw error;

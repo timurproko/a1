@@ -9,11 +9,9 @@ import { PromptSubmission } from "./prompt-submission.js";
 import { SessionConcerns } from "./session-concern.js";
 import { composeExitText, SessionStopLatch } from "./session-lifecycle.js";
 import { openWorkflowSelector } from "./workflow-router.js";
-import { bindSessionSettings } from "./settings-bindings.js";
+import { bindSessionSettings, bindShellSettings } from "./settings-bindings.js";
 import {
   promptSuggestionSurface,
-  routeResponseToSuggestions,
-  suggestionModelKey,
   suggestionPresentationBlockReason,
 } from "./suggestion-surface.js";
 import { CLEAR_EXIT_INTERVAL_MS, boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
@@ -33,7 +31,7 @@ import type {
   SuggestionDecision,
 } from "../../contracts/owned-ui/index.js";
 import { copyAcknowledgementText, type SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
-import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
+import { ShellPromptSuggestions } from "./shell-prompt-suggestions.js";
 import type {
   OwnedUiShellExtensionUiBridge,
   OwnedUiShellHotkeysPresentation,
@@ -101,12 +99,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #concerns: SessionConcerns;
   readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
   readonly #unsubscribe: () => void;
-  readonly #unsubscribePromptSuggestions: () => void;
-  readonly #promptSuggestions: ContextualPromptSuggestionController | null;
+  #promptSuggestions: ShellPromptSuggestions | undefined;
   readonly #promptImages: OwnedUiShellPromptImagesOptions | null;
   readonly #skills: OwnedUiShellSkillsOptions | null;
-  readonly #unsubscribePromptImages: () => void;
-  readonly #unsubscribeSkills: () => void;
   #installedCommandSignature = "";
   #promptHistory: PromptHistoryController | null = null;
   #historyBinding: { options: OwnedUiShellHistoryOptions; scope: "unique" | "shared"; sessionId: string | undefined; imageSidecar: import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort | undefined } | undefined;
@@ -130,7 +125,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #reloadPresentation: OwnedUiShellPresentationOptions["reload"];
   readonly #streamPresentation: StreamPresentationCoalescer;
   readonly #inputCoordination: boolean;
-  readonly #unsubscribeSettings: () => void;
+  readonly #unbindShellSettings: () => void;
   readonly #unbindSessionSettings: () => void;
   #terminalProgressEnabled = false;
   readonly #programStatus: OwnedUiShellProgramStatusReporter;
@@ -139,7 +134,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   #lastEscapeTime = 0;
   #sessionGeneration: number;
   #sessionBindingGeneration: number;
-  #suggestionModelKey: string;
 
   constructor(host: OwnedUiTerminalHost, options: OwnedUiSessionShellOptions) {
     const { backend, cwd, routeHost, sessionLayout } = options.engine;
@@ -154,14 +148,12 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#presenters = options.presenters;
     this.#sessionGeneration = this.backend.identity.sessionGeneration;
     this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
-    this.#suggestionModelKey = suggestionModelKey(this.backend.session.view());
     this.#customViewport = sessionLayout === "custom-viewport";
     this.#inputCoordination = inputPresentation?.coordination !== false;
     this.#host = host;
     this.#terminal = host.connect(this);
     // Invariant: the host's optional members follow the layout, so it is built only once the layout is known.
     this.#dialogHost = this.#createDialogHost();
-    let promptSuggestionController: ContextualPromptSuggestionController | null = null;
     // Invariant: owned prompt limits and collapsed skills are bare-A1 replacements; comparison profiles keep pinned behavior.
     this.#promptImages = this.#customViewport ? options.promptImages ?? null : null;
     this.#skills = this.#customViewport ? options.skills ?? null : null;
@@ -211,20 +203,20 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         onDequeue: () => this.restoreQueuedInput(),
         onEditorChange: text => {
           this.#submission.noteEditorChange();
-          promptSuggestionController?.abortPending();
+          this.#promptSuggestions?.abortPending();
           if (text.length === 0) {
             // Concurrency: the editor synchronizes deletion-owned autocomplete after onChange.
             // Reassert retained ghost text in the microtask before Pi emits its scheduled frame.
-            queueMicrotask(() => promptSuggestionController?.restoreAvailable());
+            queueMicrotask(() => this.#promptSuggestions?.restoreAvailable());
           }
           this.root.reconcilePromptImageLimitNotice(text);
         },
-        onPromptSuggestionAccepted: () => promptSuggestionController?.accept(),
+        onPromptSuggestionAccepted: () => this.#promptSuggestions?.accept(),
         onPromptSuggestionEligibilityChanged: () => {
-          queueMicrotask(() => promptSuggestionController?.restoreAvailable());
+          queueMicrotask(() => this.#promptSuggestions?.restoreAvailable());
         },
         onInputSurfaceChanged: () => {
-          promptSuggestionController?.invalidate();
+          this.#promptSuggestions?.invalidate();
           this.#promptHistory?.synchronize();
         },
         onCopyText: (text, cut) => {
@@ -277,50 +269,28 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
             streamPresentationOptions.scheduler,
           );
       constructed.push(() => this.#streamPresentation.dispose());
-      const promptSuggestionOptions = this.#customViewport ? options.suggestions : undefined;
-      promptSuggestionController = promptSuggestionOptions === undefined ? null : new ContextualPromptSuggestionController({
-        generator: promptSuggestionOptions.generator,
-        enabled: promptSuggestionOptions.enabled(),
-        ...(promptSuggestionOptions.diagnostics === undefined ? {} : { diagnostics: promptSuggestionOptions.diagnostics }),
-        surface: promptSuggestionSurface(
-          this.root,
-          identity => this.#promptSuggestionPresentationBlockReason(identity),
-          () => this.#terminal.requestRender(),
-        ),
-      });
-      this.#promptSuggestions = promptSuggestionController;
+      this.#promptSuggestions = new ShellPromptSuggestions(this.#customViewport ? options.suggestions : undefined, promptSuggestionSurface(
+        this.root,
+        identity => this.#promptSuggestionPresentationBlockReason(identity),
+        () => this.#terminal.requestRender(),
+      ), this.backend.session.view());
       constructed.push(() => this.#promptSuggestions?.dispose());
-      this.#unsubscribePromptSuggestions = promptSuggestionOptions === undefined
-        ? () => {}
-        : promptSuggestionOptions.onChange(enabled => this.#promptSuggestions?.setEnabled(enabled));
-      constructed.push(this.#unsubscribePromptSuggestions);
-      this.#unsubscribePromptImages = this.#promptImages === null ? () => {} : this.#promptImages.onChange(() => {
-        if (!this.#disposed && this.root.reconcilePromptImageLimitNotice()) this.#terminal.requestRender();
-      });
-      constructed.push(this.#unsubscribePromptImages);
-      // Rationale: the same listener refreshes the menu for the A1 presentation choice and for the engine's
-      // skill-command registration, both of which the owned settings manager reports through one change.
-      this.#unsubscribeSkills = this.#skills === null ? () => {} : this.#skills.onChange(() => {
-        // Invariant: reinstalling drops extension provider wrappers, so an unrelated setting change leaves the list alone.
-        if (this.#disposed || this.#commandListSignature() === this.#installedCommandSignature) return;
-        this.#installAutocompleteCommands();
-        this.#terminal.requestRender();
-      });
-      constructed.push(this.#unsubscribeSkills);
       this.#fullscreenExitOutput = initialPiSettings.fullscreenExitOutput;
-      const applyViewportSettings = () => {
-        const snapshot = viewportSettings?.snapshot();
-        this.root.setViewportConfig(snapshot ?? {
-          scrollbarAppearance: "auto",
-          scrollbarStyle: "thin",
-          scrollbarSpeed: "normal",
-        });
-      };
-      applyViewportSettings();
-      const unsubscribeViewport = this.#customViewport && viewportSettings ? viewportSettings.onChange(settings => this.root.setViewportConfig(settings)) : () => {};
-      const unsubscribeHistoryScope = this.#customViewport && promptHistory?.onScopeChange?.(scope => this.#rebindTranscript(scope));
-      this.#unsubscribeSettings = () => { unsubscribeViewport(); if (unsubscribeHistoryScope) unsubscribeHistoryScope(); };
-      constructed.push(this.#unsubscribeSettings);
+      this.#unbindShellSettings = bindShellSettings({
+        customViewport: this.#customViewport, promptImages: this.#promptImages, skills: this.#skills,
+        viewport: viewportSettings, historyScope: promptHistory?.onScopeChange,
+      }, {
+        root: this.root,
+        promptImageLimitChanged: () => { if (!this.#disposed && this.root.reconcilePromptImageLimitNotice()) this.#terminal.requestRender(); },
+        skillsChanged: () => {
+          // Invariant: reinstalling drops extension provider wrappers, so an unrelated setting change leaves the list alone.
+          if (this.#disposed || this.#commandListSignature() === this.#installedCommandSignature) return;
+          this.#installAutocompleteCommands();
+          this.#terminal.requestRender();
+        },
+        historyScopeChanged: scope => this.#rebindTranscript(scope),
+      });
+      constructed.push(this.#unbindShellSettings);
       this.#unbindSessionSettings = bindSessionSettings(this.backend.settings, initialPiSettings, {
         terminal: this.#terminal,
         root: this.root,
@@ -379,23 +349,19 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         }
         if (event.type === "assistant-message-completed") {
           this.root.noteCompletedAssistantMessage();
-          routeResponseToSuggestions(this.#promptSuggestions, event, () => this.root.promptSuggestionPrepareBlockReason());
+          this.#promptSuggestions?.route(event, () => this.root.promptSuggestionPrepareBlockReason());
         }
         const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
         const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.identity.sessionGeneration
           ? this.#syncBlock(event.block)
           : semanticOnly ? this.view() : this.#syncView();
         this.#syncTerminalProgress(view);
-        const currentModelKey = suggestionModelKey(view);
-        if (this.backend.identity.sessionGeneration !== this.#sessionGeneration || currentModelKey !== this.#suggestionModelKey) {
-          this.#promptSuggestions?.invalidate();
-          this.#suggestionModelKey = currentModelKey;
-        }
+        this.#promptSuggestions?.noteView(view, this.backend.identity.sessionGeneration !== this.#sessionGeneration);
         if (event.type === "status" && /^(Retrying|Compacting)/.test(event.status.workingMessage ?? "")) {
           this.#promptSuggestions?.invalidate();
         }
         if (event.type === "agent-run-settled") {
-          routeResponseToSuggestions(this.#promptSuggestions, event, () => this.root.promptSuggestionPrepareBlockReason());
+          this.#promptSuggestions?.route(event, () => this.root.promptSuggestionPrepareBlockReason());
         }
         if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#stop.settleAfter(() => this.dispose());
       });
@@ -1063,10 +1029,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     attempt(() => this.root.clearViewportPointerState());
     attempt(() => this.#streamPresentation.dispose());
     attempt(() => this.#promptSuggestions?.dispose());
-    attempt(() => this.#unsubscribePromptSuggestions());
-    attempt(() => this.#unsubscribePromptImages());
-    attempt(() => this.#unsubscribeSkills());
-    attempt(() => this.#unsubscribeSettings());
+    attempt(() => this.#unbindShellSettings());
     let exitText = "";
     attempt(() => {
       exitText = composeExitText({
