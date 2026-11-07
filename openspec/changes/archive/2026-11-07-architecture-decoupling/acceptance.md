@@ -22,7 +22,7 @@ The maintainer integration decision accepts these scenarios:
   "archive": "openspec/changes/archive/2026-11-07-architecture-decoupling/",
   "acceptanceManifest": "openspec/changes/archive/2026-11-07-architecture-decoupling/acceptance.md",
   "finalizedDate": "2026-11-07",
-  "specBaseSha": "e9c99ad02e5ed2f45cb4fbdf7013dd6386ab78ad",
+  "specBaseSha": "2912427a0061994d2997eeae5c73f9cb68cf9849",
   "acceptanceScenarios": [
     "No file under `src/app` imports `src/integrations/pi`; the architecture gate rejects such an import, and the shell gets the theme, terminal runtime, and Pi component factories from the presenters composition injects.",
     "Every exported value under `src/` has a production consumer, enforced by the architecture gate; test-only helpers are private and their cases run through the public owner.",
