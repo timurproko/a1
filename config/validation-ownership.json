@@ -223,7 +223,7 @@
         "test/app/session-shell/"
       ],
       "criticalTests": [
-        "test/integrations/pi/components/components.test.ts",
+        "test/integrations/pi/components/conformance.test.ts",
         "test/integrations/pi/engine/command-dispatch.test.ts",
         "test/app/session-shell/session-shell.test.ts"
       ],

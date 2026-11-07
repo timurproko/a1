@@ -332,7 +332,7 @@ export async function fixture(
       ...(clipboard === undefined ? {} : { clipboard }),
       ...(pasteDiagnostics === undefined ? {} : { paste: pasteDiagnostics }),
       ...(pastePreparation === "forked" ? {} : { pastePreparation }),
-      ...(lazySelectors === undefined ? {} : { lazySelectors }),
+
       responseCopy: responseCopy === "forked" ? {} : responseCopy ?? { execute: (snapshot, phase) => {
       const text = snapshot.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
       phase("extracted", Buffer.byteLength(text), "injected");

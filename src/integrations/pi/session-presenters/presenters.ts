@@ -18,6 +18,7 @@ import {
   type PiShellSettingsSelectorOptions,
 } from "../components/shell-selectors-dialogs.js";
 import { PI_SHELL_PRESENTATION } from "./presentation.js";
+import { createPiShellComponents } from "./components.js";
 
 const MODEL_REFRESH_TIMEOUT_MS = 15_000;
 const MODEL_REFRESH_TIMED_OUT = "Model refresh timed out; showing cached models.";
@@ -55,7 +56,7 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
     getShortcuts: bindings => source().pinnedShortcutDescriptions(bindings as Parameters<PiSessionPresentationSource["pinnedShortcutDescriptions"]>[0]),
   };
 
-  return { ...PI_SHELL_PRESENTATION,
+  return { ...PI_SHELL_PRESENTATION, components: createPiShellComponents(loadLazySelectors),
     transcriptRenderers: () => renderers,
 
     openModelSelector(host, initialSearchInput) {

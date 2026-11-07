@@ -142,9 +142,6 @@ if (errors.length > 0) {
 
 function inspectOwnedShellModules() {
   const prefix = "src/integrations/pi/components/";
-  const barrelPath = `${prefix}shell-components.ts`;
-  const barrel = sourceFiles[barrelPath];
-  if (barrel === undefined) return;
   const modules = [
     "shell-shared-facade.ts",
     "shell-editor-autocomplete.ts",
@@ -154,10 +151,7 @@ function inspectOwnedShellModules() {
     "shell-footer-status.ts",
     "shell-extension-ui.ts",
   ];
-  const barrelLines = barrel.trim().split(/\r?\n/);
-  if (barrelLines.length > modules.length || barrelLines.some(line => !/^export \* from "\.\/shell-[a-z-]+\.js";$/.test(line))) {
-    errors.push(`${barrelPath}: shell barrel must contain only bounded responsibility-module exports`);
-  }
+  if (!modules.some(module => sourceFiles[`${prefix}${module}`] !== undefined)) return;
   for (const module of modules) {
     const path = `${prefix}${module}`;
     const source = sourceFiles[path];

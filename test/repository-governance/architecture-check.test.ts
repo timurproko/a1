@@ -154,7 +154,6 @@ function shellModuleFixture(overrides: Readonly<Record<string, string>> = {}): R
     "shell-extension-ui.ts",
   ];
   return Object.fromEntries([
-    [`${prefix}shell-components.ts`, modules.map(module => `export * from \"./${module.replace(/\.ts$/, ".js")}\";`).join("\n")],
     ...modules.map(module => [`${prefix}${module}`, overrides[module] ?? "export {};\n"]),
   ]);
 }

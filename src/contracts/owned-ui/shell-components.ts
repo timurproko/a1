@@ -1,4 +1,6 @@
-import type { OwnedUiImageAttachment, OwnedUiSessionViewModel, OwnedUiThinkingLevel, OwnedUiTranscriptBlock } from "./model.js";
+import type { OwnedUiDialog, OwnedUiEvent, OwnedUiImageAttachment, OwnedUiSessionViewModel, OwnedUiThinkingLevel, OwnedUiTranscriptBlock } from "./model.js";
+import type { OwnedUiExtensionOverlayHandle, OwnedUiExtensionOverlayOptions, OwnedUiExtensionUiPort } from "./extension-ui.js";
+import type { OwnedUiSessionInfoPresentation, OwnedUiSessionProductMode } from "./session-workflows.js";
 import type { SuggestionDecision } from "./suggestion-diagnostics.js";
 import type { PROMPT_HISTORY_EDITOR_REPLACEMENT } from "./prompt-history.js";
 
@@ -293,4 +295,260 @@ export interface OwnedUiShellPromptInputPresentation {
   geometry(width: number, padding?: number): OwnedUiShellPromptInputGeometry;
   styleRule(text: string): string;
   render(width: number, body: (innerWidth: number) => OwnedUiShellPromptInputBody, ruled?: boolean, padding?: number): string[];
+}
+
+/** The size and render request a vendor component reads from the terminal it is shown on. */
+export type OwnedUiShellRuntime = Pick<OwnedUiShellEditorOptions, "getColumns" | "getRows" | "requestRender">;
+
+export type OwnedUiShellMermaidRenderingMode = "off" | "final" | "streaming";
+
+export interface OwnedUiShellSubmittedPromptComposer {
+  readonly layout: (width: number) => { readonly contentWidth: number };
+  readonly compose: (
+    contentRows: readonly string[],
+    width: number,
+    style?: { readonly prefix?: (text: string) => string },
+  ) => readonly string[];
+}
+
+export interface OwnedUiShellCommandMessage {
+  readonly kind: "error" | "warning" | "accent" | "new" | "name" | "debug";
+  readonly message: string;
+  readonly detail?: string;
+}
+
+/** What the hotkeys presenters render: the editor bindings and the extension shortcuts declared over them. */
+export interface OwnedUiShellHotkeysPresentation {
+  readonly bindings?: OwnedUiShellKeybindings;
+  readonly getShortcuts?: NonNullable<OwnedUiShellExtensionRendererResolver["getShortcuts"]>;
+  readonly profile?: "pi" | "a1";
+}
+
+export interface OwnedUiShellReleaseUpdate {
+  readonly version: string;
+  readonly command: string;
+  readonly changelogUrl: string | null;
+}
+
+export interface OwnedUiShellReleaseUpdateBanner {
+  readonly rows: readonly string[];
+  /** Clickable close area: zero-based rows within `rows`, one-based inclusive columns. */
+  readonly close: { readonly rowStart: number; readonly rowEnd: number; readonly columnStart: number; readonly columnEnd: number };
+}
+
+export interface OwnedUiShellOperationLoaderPort extends OwnedUiShellComponentPort {
+  readonly signal: AbortSignal;
+  /** Relabels the running operation; the pinned comparison loader keeps its first label. */
+  readonly setMessage?: (message: string) => void;
+}
+
+export interface OwnedUiShellAuthProviderOption extends OwnedUiShellSelectorOption {
+  readonly providerId: string;
+  readonly authType: "oauth" | "api_key";
+  readonly status?: { readonly type: "oauth" | "api_key"; readonly source?: string };
+}
+
+export interface OwnedUiShellLoginDialogPort extends OwnedUiShellComponentPort {
+  showAuth(url: string, instructions?: string): void;
+  showDeviceCode(info: { readonly verificationUri: string; readonly userCode: string }): void;
+  showManualInput(message: string): Promise<string>;
+  showPrompt(message: string, placeholder?: string): Promise<string>;
+  showDetails(lines: readonly string[]): void;
+  showInfo(message: string, links?: readonly { readonly label?: string; readonly url: string }[], showCloseHint?: boolean): void;
+  showWaiting(message: string): void;
+  showProgress(message: string): void;
+}
+
+export interface OwnedUiShellSkillSummary {
+  readonly name: string;
+  readonly description: string;
+}
+
+export interface OwnedUiShellTrustUpdate { readonly path: string; readonly decision: boolean | null }
+export interface OwnedUiShellTrustDecision { readonly path: string; readonly decision: boolean }
+export interface OwnedUiShellTrustOption {
+  readonly label: string;
+  readonly trusted: boolean;
+  readonly updates: readonly OwnedUiShellTrustUpdate[];
+  readonly savedPath?: string;
+}
+
+export interface OwnedUiShellTrustSelectorOptions {
+  readonly cwd: string;
+  readonly savedDecision: OwnedUiShellTrustDecision | null;
+  readonly projectTrusted: boolean;
+  readonly trustOptions: readonly OwnedUiShellTrustOption[];
+  readonly onSelect: (selection: { readonly trusted: boolean; readonly updates: readonly OwnedUiShellTrustUpdate[] }) => void;
+  readonly onCancel: () => void;
+}
+
+/** A program-status report for terminals that show one; `clear` removes it. */
+export interface OwnedUiShellProgramStatus {
+  state: "idle" | "working" | "blocked" | "done" | "error" | "clear";
+  app?: string;
+  kind?: "permission" | "question" | "auth";
+}
+
+export interface OwnedUiShellProgramStatusBlocked {
+  readonly kind: NonNullable<OwnedUiShellProgramStatus["kind"]>;
+  readonly message: string;
+}
+
+/** Turns run lifecycle events and blocking prompts into terminal program-status reports. */
+export interface OwnedUiShellProgramStatusReporter {
+  handleEvent(event: Extract<OwnedUiEvent, { type: "agent-run-started" | "assistant-message-completed" | "agent-run-settled" }>): void;
+  setBlocked(source: string, status: OwnedUiShellProgramStatusBlocked | undefined): void;
+  setErrorMessage(message: string | undefined): void;
+  reset(): void;
+  clear(): void;
+  report(): void;
+}
+
+/** What the extension UI bridge needs from the shell that hosts it. */
+export interface OwnedUiShellExtensionUiBridgeHost {
+  readonly runtime: OwnedUiShellRuntime;
+  readonly agentDir?: string;
+  setInputSurface(component: OwnedUiShellComponentPort | null): void;
+  setProgramStatusBlocked(status: OwnedUiShellProgramStatusBlocked | undefined): void;
+  showOverlay(component: OwnedUiShellComponentPort, options?: OwnedUiExtensionOverlayOptions): OwnedUiExtensionOverlayHandle;
+  listenInput(handler: (data: string) => { readonly consume?: boolean; readonly data?: string } | undefined): () => void;
+  replaceWidget(key: string, component: OwnedUiShellComponentPort | null, placement: "aboveEditor" | "belowEditor"): void;
+  replaceHeader(component: OwnedUiShellComponentPort | null): void;
+  replaceFooter(component: OwnedUiShellComponentPort | null): void;
+  setStatus(key: string, text: string | undefined): void;
+  setWorking(message: string | undefined, visible?: boolean): void;
+  notify(message: string, type: "info" | "warning" | "error"): void;
+  setTitle(title: string): void;
+  getEditorText(): string;
+  setEditorText(text: string): void;
+  pasteToEditor(text: string): void;
+  addAutocompleteProvider(factory: unknown): void;
+  setCustomEditor(component: OwnedUiShellComponentPort | null): void;
+  getFooterData(): unknown;
+  getToolsExpanded(): boolean;
+  setToolsExpanded(expanded: boolean): void;
+}
+
+export interface OwnedUiShellExtensionUiBridge {
+  /** The extension UI context the engine binds to a session. */
+  readonly context: OwnedUiExtensionUiPort;
+  input(title: string, placeholder: string, options?: { readonly retainSurfaceOnSettle?: boolean }): Promise<string | undefined>;
+  reset(): void;
+  dispose(): void;
+}
+
+export type OwnedUiShellThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type OwnedUiShellTreeFilterMode = "default" | "no-tools" | "user-only" | "labeled-only" | "all";
+
+export interface OwnedUiShellThinkingSelectorOptions {
+  readonly currentLevel: OwnedUiShellThinkingLevel;
+  readonly availableLevels: readonly OwnedUiShellThinkingLevel[];
+  readonly onSelect: (level: OwnedUiShellThinkingLevel) => void;
+  readonly onCancel: () => void;
+  readonly onSelectAsDefault?: (level: OwnedUiShellThinkingLevel) => void;
+  readonly defaultLevel?: OwnedUiShellThinkingLevel;
+  readonly presentation?: { readonly profile: "bare"; readonly cycleBinding: string | readonly string[] };
+}
+
+export interface OwnedUiShellTreeSelectorOptions {
+  readonly tree: readonly unknown[];
+  readonly currentLeafId: string | null;
+  readonly terminalHeight: number;
+  readonly onSelect: (id: string) => void;
+  readonly onCancel: () => void;
+  readonly onLabelChange: (entryId: string, label: string | undefined) => void;
+  readonly onCopy?: (text: string | undefined) => void;
+  readonly initialSelectedId?: string;
+  readonly initialFilterMode?: OwnedUiShellTreeFilterMode;
+}
+
+/** Selectors whose modules load on first use, so they stay off the startup path. */
+export interface OwnedUiShellLazySelectorLoader {
+  prepare(): Promise<void>;
+  createThinking(options: OwnedUiShellThinkingSelectorOptions): Promise<OwnedUiShellComponentPort>;
+  createTree(options: OwnedUiShellTreeSelectorOptions): Promise<OwnedUiShellComponentPort>;
+}
+
+/**
+ * The vendor components and text helpers the session shell renders with, grouped by role. The vendor component
+ * adapter implements every member; the shell receives the record through the session presenters.
+ */
+export interface OwnedUiShellComponents {
+  readonly editor: {
+    create(options: OwnedUiShellEditorOptions): OwnedUiShellEditorPort;
+  };
+  readonly chrome: {
+    header(options?: OwnedUiShellHeaderOptions): OwnedUiShellHeaderPort;
+    status(view: OwnedUiSessionViewModel, progress: OwnedUiShellProgressStatusPresentation, runtime?: OwnedUiShellRuntime): OwnedUiShellStatusPort;
+    footer(view: OwnedUiSessionViewModel, cwd: string, profile?: "pi" | "a1", showLevel?: () => boolean): OwnedUiShellViewComponentPort;
+    queuedInput(submissions: readonly string[], presentation?: "pinned" | "custom-viewport", getKeybindings?: () => OwnedUiShellKeybindings): OwnedUiShellQueuedInputPort;
+    loadedResources(resources: readonly OwnedUiShellResourceEntry[], initialExpanded?: boolean): OwnedUiShellLoadedResourcesPort;
+    installedUpdateStatus(width: number): string;
+    releaseUpdateBanner(release: OwnedUiShellReleaseUpdate, width: number, closeHovered: boolean): OwnedUiShellReleaseUpdateBanner;
+    programStatusReporter(report: (status: OwnedUiShellProgramStatus) => void, getSessionName: () => string | undefined, app?: string): OwnedUiShellProgramStatusReporter;
+  };
+  readonly transcript: {
+    component(
+      initial: OwnedUiTranscriptBlock,
+      cwd: string,
+      extensions?: OwnedUiShellExtensionRendererResolver,
+      submittedPrompt?: OwnedUiShellSubmittedPromptComposer,
+      initialOutputPad?: 0 | 1,
+      initialHideThinkingBlock?: boolean,
+      initialMermaidRenderingMode?: OwnedUiShellMermaidRenderingMode,
+      initialShowImages?: boolean,
+      initialImageWidthCells?: number,
+      imageAssets?: OwnedUiShellImageAssetResolver,
+      presentation?: { readonly getColumns: () => number; readonly getRows: () => number; readonly changed: () => void },
+    ): OwnedUiShellTranscriptComponentPort;
+    renderBlock(block: OwnedUiTranscriptBlock, width: number, cwd: string): readonly string[];
+    renderStartupDiagnostic(diagnostic: { readonly severity: "info" | "warning" | "error"; readonly message: string }, width: number): readonly string[];
+    isPromptStyleCompaction(block: OwnedUiTranscriptBlock): boolean;
+  };
+  readonly info: {
+    changelog(markdown: string): OwnedUiShellComponentPort;
+    collapsedChangelog(): OwnedUiShellComponentPort;
+    hotkeys(bindings?: OwnedUiShellKeybindings, getShortcuts?: NonNullable<OwnedUiShellExtensionRendererResolver["getShortcuts"]>, profile?: "pi" | "a1"): OwnedUiShellComponentPort;
+    sessionInfo(presentation: OwnedUiSessionInfoPresentation): OwnedUiShellComponentPort;
+    commandMessage(presentation: OwnedUiShellCommandMessage, width: number, outputPad?: 0 | 1): readonly string[];
+    statusText(message: string, width: number, outputPad?: 0 | 1): readonly string[];
+    packageUpdateNotice(packages: readonly string[], width: number): readonly string[];
+    releaseUpdateNotice(release: OwnedUiShellReleaseUpdate, width: number): readonly string[];
+    armin(runtime: OwnedUiShellRuntime): OwnedUiShellComponentPort;
+    earendilAnnouncement(): OwnedUiShellComponentPort;
+    reloadBox(): OwnedUiShellComponentPort;
+  };
+  readonly dialogs: {
+    dialog(dialog: OwnedUiDialog, handlers?: { readonly onSelect?: (id: string) => void; readonly onCancel?: () => void }): OwnedUiShellComponentPort;
+    selector(options: OwnedUiShellSelectorOptions): OwnedUiShellComponentPort;
+    extensionSelector(title: string, options: readonly string[], onSelect: (value: string) => void, onCancel: () => void): OwnedUiShellComponentPort;
+    authProviderSelector(mode: "login" | "logout", providers: readonly OwnedUiShellAuthProviderOption[], onSelect: (id: string) => void, onCancel: () => void, initialSearchInput?: string): OwnedUiShellComponentPort;
+    loginDialog(runtime: OwnedUiShellRuntime, providerId: string, onComplete: (success: boolean, message?: string) => void, providerName?: string, title?: string): OwnedUiShellLoginDialogPort;
+    skillsSelector(options: { readonly skills: readonly OwnedUiShellSkillSummary[]; readonly onSelect: (name: string) => void; readonly onCancel: () => void }): OwnedUiShellComponentPort;
+    trustSelector(options: OwnedUiShellTrustSelectorOptions): OwnedUiShellComponentPort;
+    userMessageSelector(messages: readonly OwnedUiShellSelectorOption[], onSelect: (id: string) => void, onCancel: () => void, initialSelectedId?: string): OwnedUiShellComponentPort;
+    /** The cancellable share progress surface: a bordered dialog or a plain loader; loads its module on first use. */
+    shareProgress(runtime: OwnedUiShellRuntime, message: string, style: "dialog" | "loader"): Promise<OwnedUiShellOperationLoaderPort>;
+    extensionUiBridge(host: OwnedUiShellExtensionUiBridgeHost): OwnedUiShellExtensionUiBridge;
+    /** Absent until composition supplies a loader; the shell loads the vendor's own on first use otherwise. */
+    readonly lazySelectors: () => Promise<OwnedUiShellLazySelectorLoader>;
+  };
+  readonly text: {
+    /** Terminal-cell width of painted text. */
+    visibleWidth(text: string): number;
+    truncateToWidth(text: string, width: number): string;
+    /** A clickable URL: an OSC 8 link where the terminal supports one, the plain URL otherwise. */
+    hyperlink(url: string, text?: string): string;
+  };
+  readonly workflows: {
+    /** The workflow command names the active product mode routes. */
+    commandNames(mode: OwnedUiSessionProductMode): readonly string[];
+  };
+  readonly skills: {
+    readonly commandName: string;
+    fromCommands(commands: readonly OwnedUiShellAutocompleteCommand[]): readonly OwnedUiShellSkillSummary[];
+    findByArgument(skills: readonly OwnedUiShellSkillSummary[], token: string): OwnedUiShellSkillSummary | undefined;
+    rewriteTunnelSubmission(text: string): string;
+    prompt(name: string, args?: string): string;
+  };
 }

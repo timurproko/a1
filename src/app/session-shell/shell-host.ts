@@ -552,7 +552,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
         write: data => this.runtime.writeControl(data),
         ...(capture.settings.canvasBackgroundAnsi === null
           ? {}
-          : { canvasBackgroundAnsi: capture.settings.canvasBackgroundAnsi }),
+          : { canvas: { ansi: capture.settings.canvasBackgroundAnsi, rebase: this.#runtimeFactory.rebaseDefaultBackground } }),
         ...(outro.now === undefined ? {} : { now: outro.now }),
         ...(outro.sleep === undefined ? {} : { sleep: outro.sleep }),
         ...(outro.seed === undefined ? {} : { seed: outro.seed }),

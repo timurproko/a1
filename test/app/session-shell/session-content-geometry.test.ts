@@ -1,4 +1,5 @@
 import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/session-presenters/presentation.js";
+import { PI_SHELL_COMPONENTS } from "../../../src/integrations/pi/session-presenters/components.js";
 import HeadlessXterm from "@xterm/headless";
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
@@ -62,7 +63,7 @@ function fixture(childRows: number) {
   let runtime: PiTuiRuntimeAdapter | undefined;
   let composed: readonly string[] = [];
   const root = new OwnedUiSessionShellRoot(view, "D:/synthetic", {
-    presentation: PI_SHELL_PRESENTATION,
+    presentation: PI_SHELL_PRESENTATION, components: PI_SHELL_COMPONENTS,
     getColumns: () => terminal.columns, getRows: () => terminal.rows,
     requestRender: force => runtime?.requestRender(force),
     onViewportFrame: () => {

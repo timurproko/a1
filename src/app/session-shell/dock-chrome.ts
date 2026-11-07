@@ -1,14 +1,7 @@
-import type { ImageAttachmentError, OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
+import type { ImageAttachmentError, OwnedUiSessionViewModel, OwnedUiShellComponents, OwnedUiShellReleaseUpdateBanner } from "../../contracts/owned-ui/index.js";
 import type { ThemeSource } from "../../contracts/presentation/index.js";
 import { COPY_ACKNOWLEDGEMENT_DURATION_MS } from "../../ui/components/selection-copy.js";
 import type { TranscriptViewportFrame } from "../../ui/components/transcript-viewport.js";
-import {
-  renderPiShellCommandMessage,
-  renderPiShellReleaseUpdateBanner,
-  renderPiShellStatusText,
-  type PiShellReleaseUpdateBanner,
-} from "../../integrations/pi/components/shell-presenters-info.js";
-import { piShellTruncateToWidth, renderPiShellInstalledUpdateStatus } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { SessionViewportController, TailControlRegion } from "./session-viewport-controller.js";
 import { parseReleaseUpdateDiagnostic } from "./transcript-document.js";
 
@@ -21,6 +14,7 @@ interface DockNotice {
 
 interface DockChromePorts {
   readonly theme: ThemeSource;
+  readonly components: Pick<OwnedUiShellComponents, "chrome" | "info" | "text">;
   /** Columns the pinned layout pads command output with. */
   readonly outputPad: 0 | 1;
   /** Chrome changed; the root invalidates its chrome components. */
@@ -71,9 +65,9 @@ export class DockChrome {
     if (notice === undefined) return [];
     if (notice.kind === "status") {
       // Compatibility: Pi pads its status text by one cell regardless of the output pad setting.
-      return ["", ...renderPiShellStatusText(notice.message, width, this.#ports.outputPad)];
+      return ["", ...this.#ports.components.info.statusText(notice.message, width, this.#ports.outputPad)];
     }
-    return renderPiShellCommandMessage({
+    return this.#ports.components.info.commandMessage({
       kind: notice.kind === "new-session" ? "accent" : notice.kind,
       message: notice.message,
     }, width, outputPad);
@@ -106,29 +100,29 @@ export class DockChrome {
 
   renderCopyAcknowledgement(width: number): string | undefined {
     if (this.#copyAcknowledgement === undefined || width <= 0) return undefined;
-    return this.#ports.theme.current().fg("accent", piShellTruncateToWidth(this.#copyAcknowledgement, width));
+    return this.#ports.theme.current().fg("accent", this.#ports.components.text.truncateToWidth(this.#copyAcknowledgement, width));
   }
 
   renderPromptOverlay(diagnostics: OwnedUiSessionViewModel["diagnostics"], width: number): string | undefined {
     const acknowledgement = this.renderCopyAcknowledgement(width);
     if (acknowledgement !== undefined) return acknowledgement;
     if (diagnostics.some(diagnostic => diagnostic.code === "release-update-installed")) {
-      return renderPiShellInstalledUpdateStatus(width) || undefined;
+      return this.#ports.components.chrome.installedUpdateStatus(width) || undefined;
     }
     return undefined;
   }
 
-  renderReleaseBanner(diagnostics: OwnedUiSessionViewModel["diagnostics"], width: number): PiShellReleaseUpdateBanner | undefined {
+  renderReleaseBanner(diagnostics: OwnedUiSessionViewModel["diagnostics"], width: number): OwnedUiShellReleaseUpdateBanner | undefined {
     if (this.#releaseDismissed) return undefined;
     const diagnostic = diagnostics.findLast(item => item.code === "release-update");
     const release = diagnostic === undefined ? null : parseReleaseUpdateDiagnostic(diagnostic.message);
     if (release === null) return undefined;
-    return renderPiShellReleaseUpdateBanner(release, width, this.#ports.viewport.tailControlHovered(this.#releaseCloseTarget));
+    return this.#ports.components.chrome.releaseUpdateBanner(release, width, this.#ports.viewport.tailControlHovered(this.#releaseCloseTarget));
   }
 
   locateReleaseClose(
     frame: TranscriptViewportFrame,
-    banner: PiShellReleaseUpdateBanner | undefined,
+    banner: OwnedUiShellReleaseUpdateBanner | undefined,
     tailEnd: number,
     tailLength: number,
   ): void {

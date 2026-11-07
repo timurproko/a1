@@ -1,3 +1,4 @@
+import { PI_TERMINAL_RUNTIME } from "../../../src/integrations/pi/tui-runtime/runtime-factory.js";
 import { describe, expect, it } from "vitest";
 import {
   QUIT_OUTRO_EFFECTS,
@@ -93,7 +94,7 @@ describe("quit outro capture", () => {
   it("keeps an opaque canvas behind seeded rows and restores terminal-default state", () => {
     const frame = captureQuitOutroFrame(["top\x1b[49m tail", "", "bottom"], 10, 3)!;
     const canvas = "\x1b[48;2;20;21;22m";
-    const surface = createQuitOutroSurfaceFrame(frame, canvas);
+    const surface = createQuitOutroSurfaceFrame(frame, { ansi: canvas, rebase: PI_TERMINAL_RUNTIME.rebaseDefaultBackground });
     expect(surface.startsWith(`${SYNC_BEGIN}\x1b[?25l\x1b[0m${canvas}\x1b[2J\x1b[H`)).toBe(true);
     expect(surface).toContain(`\x1b[1;1H${canvas}top\x1b[49m${canvas} tail`);
     expect(surface.endsWith(`\x1b[0m${SYNC_END}`)).toBe(true);
@@ -142,9 +143,9 @@ describe("quit outro playback", () => {
       now: () => clock,
       sleep: async ms => { clock += ms; },
       seed: 4,
-      canvasBackgroundAnsi: canvas,
+      canvas: { ansi: canvas, rebase: PI_TERMINAL_RUNTIME.rebaseDefaultBackground },
     });
-    expect(writes[0]).toBe(createQuitOutroSurfaceFrame(frame, canvas));
+    expect(writes[0]).toBe(createQuitOutroSurfaceFrame(frame, { ansi: canvas, rebase: PI_TERMINAL_RUNTIME.rebaseDefaultBackground }));
     expect(writes.slice(1).every(write => write.startsWith(`${SYNC_BEGIN}\x1b[0m${canvas}`))).toBe(true);
     expect(writes.join("")).toContain(`\x1b[0m${canvas} `);
     expect(writes.every(write => write.endsWith(`\x1b[0m${SYNC_END}`))).toBe(true);

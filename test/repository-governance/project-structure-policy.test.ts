@@ -113,10 +113,9 @@ describe("project structure ownership policy", () => {
     ]);
   });
 
-  it("keeps the application layer on the declared session backend port", () => {
+  it("keeps the application layer on the contracts instead of any Pi adapter", () => {
     expect(inspectLayerBoundaries({
       "src/app/session-shell/session-shell.ts": "import type { OwnedUiSessionBackend } from '../../contracts/owned-ui/index.js';",
-      "src/app/session-shell/exit-notice.ts": "import { workflowCommandNames } from '../../integrations/pi/engine/workflows.js';",
       "src/composition/owned-ui.ts": "import { createPiEngineAdapter, type PiEngineAdapter, type PiSessionPresentationSource } from '../integrations/pi/engine/adapter.js';",
     })).toEqual([]);
     expect(inspectLayerBoundaries({
@@ -124,11 +123,13 @@ describe("project structure ownership policy", () => {
       "src/app/session-shell/session-shell.ts": "import { PiEngineAdapter } from '../../integrations/pi/engine/index.js';",
       "src/app/session-shell/quit-outro.ts": "import type { PiSessionPresentationSource } from '../../integrations/pi/engine/index.js';",
       "src/app/session-shell/exit-notice.ts": "let backend: import('../../integrations/pi/engine/adapter.js').PiEngineAdapter;",
+      "src/app/session-shell/shell-host.ts": "import { PI_TERMINAL_RUNTIME } from '../../integrations/pi/tui-runtime/runtime-factory.js';",
     })).toEqual([
-      "src/app/session-shell/session-shell-root.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
-      "src/app/session-shell/session-shell.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
-      "src/app/session-shell/quit-outro.ts: the application layer opens Pi selectors through OwnedUiSessionPresenters, not the engine's presentation source",
-      "src/app/session-shell/exit-notice.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
+      "src/app/session-shell/session-shell-root.ts: the application layer reaches Pi only through the owned-UI and presentation contracts ('../../integrations/pi/engine/adapter.js')",
+      "src/app/session-shell/session-shell.ts: the application layer reaches Pi only through the owned-UI and presentation contracts ('../../integrations/pi/engine/index.js')",
+      "src/app/session-shell/quit-outro.ts: the application layer reaches Pi only through the owned-UI and presentation contracts ('../../integrations/pi/engine/index.js')",
+      "src/app/session-shell/exit-notice.ts: the application layer reaches Pi only through the owned-UI and presentation contracts ('../../integrations/pi/engine/adapter.js')",
+      "src/app/session-shell/shell-host.ts: the application layer reaches Pi only through the owned-UI and presentation contracts ('../../integrations/pi/tui-runtime/runtime-factory.js')",
     ]);
   });
 

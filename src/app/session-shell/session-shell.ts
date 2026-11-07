@@ -26,7 +26,6 @@ import type {
   OwnedUiDialogHost,
   OwnedUiPromptSuggestionIdentity,
   OwnedUiSessionBackend,
-  OwnedUiSessionPresenters,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
   OwnedUiWorkflowInteractionHost,
@@ -37,28 +36,12 @@ import type {
 } from "../../contracts/owned-ui/index.js";
 import { copyAcknowledgementText, type SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
 import { ContextualPromptSuggestionController } from "./prompt-suggestion-controller.js";
-import { workflowCommandNames } from "../../integrations/pi/engine/workflows.js";
-import { createPiExtensionUiBridge, type PiExtensionUiBridge } from "../../integrations/pi/components/shell-extension-ui.js";
-import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
-import { ProgramStatusReporter } from "../../integrations/pi/components/upstream/program-status-reporter.js";
-import {
-  SKILLS_COMMAND_NAME,
-  findSkillByArgument,
-  rewriteSkillsTunnelSubmission,
-  skillPrompt,
-  skillsFromCommands,
-  type PiShellSkillSummary,
-} from "../../integrations/pi/components/skills-command.js";
-import {
-  createPiShellAuthProviderSelector,
-  createPiShellExtensionSelector,
-  createPiShellLoginDialog,
-  createPiShellReloadBox,
-  createPiShellSkillsSelector,
-  createPiShellTrustSelector,
-  createPiShellUserMessageSelector,
-} from "../../integrations/pi/components/shell-selectors-dialogs.js";
-import type { PiShellHotkeysPresentation } from "../../integrations/pi/components/shell-presenters-info.js";
+import type {
+  OwnedUiShellExtensionUiBridge,
+  OwnedUiShellHotkeysPresentation,
+  OwnedUiShellProgramStatusReporter,
+  OwnedUiShellSkillSummary,
+} from "../../contracts/owned-ui/index.js";
 import type { TerminalDamageDecision, TerminalRuntimePort } from "../../contracts/presentation/index.js";
 import {
   OwnedUiTerminalHost,
@@ -115,7 +98,7 @@ export { formatSessionResumeCommand, quoteCommandArgument, type SessionResumeCom
  */
 export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly backend: OwnedUiSessionBackend;
-  readonly #presenters: OwnedUiSessionPresenters;
+  readonly #presenters: OwnedUiSessionShellOptions["presenters"];
   readonly #dialogHost: OwnedUiDialogHost;
   readonly root: OwnedUiSessionShellRoot;
   readonly #host: OwnedUiTerminalHost;
@@ -134,7 +117,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   #installedCommandSignature = "";
   #promptHistory: PromptHistoryController | null = null;
   #historyBinding: { options: OwnedUiShellHistoryOptions; scope: "unique" | "shared"; sessionId: string | undefined; imageSidecar: import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort | undefined } | undefined;
-  readonly #extensionBridge: PiExtensionUiBridge;
+  readonly #extensionBridge: OwnedUiShellExtensionUiBridge;
   readonly #stop = new SessionStopLatch();
   readonly #dialogs: SessionDialogCoordinator;
   #sequence = 0;
@@ -148,8 +131,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   // Invariant: translated startup diagnostics create at most one dock notice per kind per shell.
   #startupTrustHandled = false;
   readonly #customViewport: boolean;
-  #lazySelectors: PiShellLazySelectorLoader | undefined;
-  #lazySelectorsPromise: Promise<PiShellLazySelectorLoader> | undefined;
   readonly #responseCopy: ResponseCopyCoordinator | null;
   // Rationale: only an executor this shell created owns a spare copy helper worth warming and disposing.
   #copyExecutor: OwnedResponseCopyExecutor | undefined;
@@ -161,7 +142,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #unsubscribeSettings: () => void;
   readonly #unbindSessionSettings: () => void;
   #terminalProgressEnabled = false;
-  readonly #programStatus: ProgramStatusReporter;
+  readonly #programStatus: OwnedUiShellProgramStatusReporter;
   #fullscreenExitOutput: "transcript" | "resume-hint" = "transcript";
   #lastClearTime = 0;
   #lastEscapeTime = 0;
@@ -189,7 +170,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#terminal = host.connect(this);
     // Invariant: the host's optional members follow the layout, so it is built only once the layout is known.
     this.#dialogHost = this.#createDialogHost();
-    this.#lazySelectors = options.diagnostics?.lazySelectors;
     let promptSuggestionController: ContextualPromptSuggestionController | null = null;
     // Invariant: owned prompt limits and collapsed skills are bare-A1 replacements; comparison profiles keep pinned behavior.
     this.#promptImages = this.#customViewport ? options.promptImages ?? null : null;
@@ -233,7 +213,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         const text = await clipboard.readText(signal);
         return text === null ? null : { kind: "text", text };
       };
-      this.root = new OwnedUiSessionShellRoot(this.backend.session.view(), cwd, { presentation: options.presenters,
+      this.root = new OwnedUiSessionShellRoot(this.backend.session.view(), cwd, { presentation: options.presenters, components: options.presenters.components,
         getColumns: () => this.#terminal.viewport().columns,
         getRows: () => this.#terminal.viewport().rows,
         requestRender: force => this.#terminal.requestRender(force),
@@ -325,19 +305,19 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#dialogs = new SessionDialogCoordinator({
         terminal: this.#terminal,
         root: this.root,
-        routeHost: routeHost ?? null,
+        routeHost: routeHost ?? null, dialogs: options.presenters.components.dialogs,
         disposed: () => this.#disposed,
         exit: () => { void this.shutdown(); },
         ...(startupRoute === undefined ? {} : { startupRoute }),
       });
       constructed.push(() => this.#dialogs.dispose());
       const initialPiSettings = this.backend.settings.snapshot();
-      this.#programStatus = new ProgramStatusReporter(
+      this.#programStatus = options.presenters.components.chrome.programStatusReporter(
         status => this.#terminal.setProgramStatus(status),
         () => this.view().status.footer?.sessionName ?? undefined,
       );
       this.#login = new LoginInteraction({
-        terminal: this.#terminal, root: this.root, programStatus: this.#programStatus,
+        terminal: this.#terminal, root: this.root, programStatus: this.#programStatus, dialogs: options.presenters.components.dialogs,
         syncProgress: () => this.#syncTerminalProgress(this.view()),
       });
       this.#submission = this.#createSubmission(cwd);
@@ -601,7 +581,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     setImmediate(() => {
       if (this.#disposed || !this.#customViewport) return;
       this.#dialogs.presentStartupRoute();
-      void this.#loadLazySelectors().then(selectors => selectors.prepare()).catch(() => {});
+      void this.#presenters.components.dialogs.lazySelectors().then(selectors => selectors.prepare()).catch(() => {});
       this.root.warmPastePreparation();
       this.#copyExecutor?.warm();
     });
@@ -754,14 +734,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     };
   }
 
-  #loadLazySelectors(): Promise<PiShellLazySelectorLoader> {
-    if (this.#lazySelectors !== undefined) return Promise.resolve(this.#lazySelectors);
-    return this.#lazySelectorsPromise ??= import("../../integrations/pi/components/lazy-selectors.js").then(module => {
-      this.#lazySelectors = module.piShellLazySelectors;
-      return module.piShellLazySelectors;
-    });
-  }
-
   async showThinkingSelector(): Promise<void> {
     const snapshot = this.backend.settings.snapshot();
     const close = () => {
@@ -775,7 +747,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     };
     const releasePresentation = this.#customViewport ? this.#terminal.beginPresentationHold() : undefined;
     try {
-      const selectors = await this.#loadLazySelectors();
+      const selectors = await this.#presenters.components.dialogs.lazySelectors();
       const component = await selectors.createThinking({
         currentLevel: snapshot.thinkingLevel,
         availableLevels: snapshot.availableThinkingLevels,
@@ -800,13 +772,13 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   /** The Skills dialog: a replacement input like the model selector, applying the chosen skill through the prompt path. */
-  showSkillsSelector(skills: readonly PiShellSkillSummary[] = this.#skillSummaries()): void {
+  showSkillsSelector(skills: readonly OwnedUiShellSkillSummary[] = this.#skillSummaries()): void {
     const close = this.#dialogs.closeInputSurface;
-    const component = createPiShellSkillsSelector({
+    const component = this.#presenters.components.dialogs.skillsSelector({
       skills,
       onSelect: name => {
         close();
-        void this.#submission.sendSlashPrompt(skillPrompt(name), skillPrompt(name)).catch(() => this.#submission.reportError());
+        void this.#submission.sendSlashPrompt(this.#presenters.components.skills.prompt(name), this.#presenters.components.skills.prompt(name)).catch(() => this.#submission.reportError());
       },
       onCancel: close,
     });
@@ -826,7 +798,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       return;
     }
     const close = this.#dialogs.closeInputSurface;
-    const component = createPiShellUserMessageSelector(options, selection => {
+    const component = this.#presenters.components.dialogs.userMessageSelector(options, selection => {
       close();
       void this.runWorkflow({ command: "fork", argument: "", selection });
     }, close);
@@ -853,7 +825,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       return;
     }
     const close = this.#dialogs.closeInputSurface;
-    const component = createPiShellAuthProviderSelector("logout", options, selection => {
+    const component = this.#presenters.components.dialogs.authProviderSelector("logout", options, selection => {
       close();
       void this.runWorkflow({ command: "logout", argument: "", selection });
     }, close);
@@ -874,7 +846,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     }
     const close = this.#dialogs.closeInputSurface;
     const labels = method.options.map(option => option.label);
-    const component = createPiShellExtensionSelector(method.title, labels, label => {
+    const component = this.#presenters.components.dialogs.extensionSelector(method.title, labels, label => {
       const selection = method.options.find(option => option.label === label)?.id;
       if (!selection) return;
       close();
@@ -893,7 +865,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   showLoginAuthTypeSelector(): void {
     const close = this.#dialogs.closeInputSurface;
     const labels = ["Sign in with an account", "Sign in with an API key"];
-    const component = createPiShellExtensionSelector(
+    const component = this.#presenters.components.dialogs.extensionSelector(
       "Select authentication method:",
       labels,
       label => {
@@ -914,7 +886,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       return;
     }
     const close = this.#dialogs.closeInputSurface;
-    const component = createPiShellAuthProviderSelector("login", options, id => {
+    const component = this.#presenters.components.dialogs.authProviderSelector("login", options, id => {
       close();
       void this.runWorkflow({ command: "login", argument: "", selection: id });
     }, () => {
@@ -981,7 +953,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       const setup = this.backend.catalog.pinnedAmbientAuthentication(request.selection);
       if (setup) {
         const close = this.#dialogs.closeInputSurface;
-        const dialog = createPiShellLoginDialog(componentRuntime(this.#terminal), setup.providerId, close, setup.providerName, setup.title);
+        const dialog = this.#presenters.components.dialogs.loginDialog(componentRuntime(this.#terminal), setup.providerId, close, setup.providerName, setup.title);
         dialog.showInfo(setup.message, [], true);
         this.root.setInputSurface(dialog);
         this.#terminal.requestRender();
@@ -1003,8 +975,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       ? await import("./share-operation.js")
       : undefined;
     const shareSurface = shareDialog === undefined ? undefined
-      : (this.#customViewport ? shareDialog.createPiShellShareOperationDialog : shareDialog.createPiShellOperationLoader)(componentRuntime(this.#terminal), "Creating gist…");
-    const operationSurface = shareSurface ?? (request.command === "reload" ? createPiShellReloadBox() : undefined);
+      : await this.#presenters.components.dialogs.shareProgress(componentRuntime(this.#terminal), "Creating gist…", this.#customViewport ? "dialog" : "loader");
+    const operationSurface = shareSurface ?? (request.command === "reload" ? this.#presenters.components.info.reloadBox() : undefined);
     const now = this.#reloadPresentation?.now ?? Date.now;
     const shownAt = now();
     if (operationSurface) {
@@ -1065,7 +1037,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.root.resumeViewportFollowing();
     }
     if (shareDialog !== undefined && this.#customViewport && result.outcome === "completed" && result.detail !== undefined) {
-      this.root.appendWorkflowStatus(shareDialog.renderPiShellShareResult(result.message, result.detail));
+      this.root.appendWorkflowStatus(shareDialog.renderShellShareResult(result.message, result.detail, this.#presenters.theme.current(), url => this.#presenters.components.text.hyperlink(url)));
     } else {
       this.root.appendWorkflowResult(result);
     }
@@ -1084,7 +1056,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   showTrustSelector(): void {
     const context = this.backend.catalog.pinnedProjectTrustContext();
     const close = this.#dialogs.closeInputSurface;
-    const component = createPiShellTrustSelector({
+    const component = this.#presenters.components.dialogs.trustSelector({
       ...context,
       onSelect: selection => {
         try {
@@ -1109,7 +1081,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   // Invariant: bare A1 routes `models`; the comparison profile keeps the pinned `model`/`scoped-models` pair. Hidden routes are shared.
   #isWorkflowRoute(value: string): value is OwnedUiWorkflowRoute {
-    return (workflowCommandNames(this.backend.settings.productMode) as readonly string[]).includes(value)
+    return (this.#presenters.components.workflows.commandNames(this.backend.settings.productMode) as readonly string[]).includes(value)
       || (OWNED_UI_HIDDEN_COMMAND_NAMES as readonly string[]).includes(value);
   }
 
@@ -1199,8 +1171,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   // Rationale: extensions reach the shell only through this bridge; every surface they draw lands in the root.
-  #createExtensionBridge(): PiExtensionUiBridge {
-    return createPiExtensionUiBridge({
+  #createExtensionBridge(): OwnedUiShellExtensionUiBridge {
+    return this.#presenters.components.dialogs.extensionUiBridge({
       runtime: componentRuntime(this.#terminal),
       agentDir: this.backend.identity.agentDir,
       setInputSurface: component => this.root.setInputSurface(component, true, "opaque"),
@@ -1230,7 +1202,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       backend: this.backend,
       root: this.root,
       terminal: this.#terminal,
-      cwd,
+      cwd, statusText: this.#presenters.components.info.statusText,
       promptHistory: () => this.#promptHistory,
       imageSidecar: () => this.#historyBinding?.imageSidecar,
       disposed: () => this.#disposed,
@@ -1361,7 +1333,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     }
   }
 
-  hotkeysPresentation(): PiShellHotkeysPresentation {
+  hotkeysPresentation(): OwnedUiShellHotkeysPresentation {
     return this.root.hotkeysPresentation();
   }
 
@@ -1373,8 +1345,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     if (this.#dialogs.claimsRoute(name)) return this.#dialogs.openRoute(name);
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {
-      if (name === SKILLS_COMMAND_NAME) return this.#runSkillsCommand(text, argument);
-      const rewritten = rewriteSkillsTunnelSubmission(text);
+      if (name === this.#presenters.components.skills.commandName) return this.#runSkillsCommand(text, argument);
+      const rewritten = this.#presenters.components.skills.rewriteTunnelSubmission(text);
       if (rewritten !== text) return this.#submission.sendSlashPrompt(rewritten, text);
     }
     // Compatibility: unknown slash input, prompt templates, skills, and extension commands remain Pi prompt input.
@@ -1396,8 +1368,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       && !this.backend.identity.disposed && this.backend.settings.snapshot().enableSkillCommands;
   }
 
-  #skillSummaries(): readonly PiShellSkillSummary[] {
-    return skillsFromCommands(this.backend.workflows.workflowAutocompleteCommands());
+  #skillSummaries(): readonly OwnedUiShellSkillSummary[] {
+    return this.#presenters.components.skills.fromCommands(this.backend.workflows.workflowAutocompleteCommands());
   }
 
   // Protocol: bare "/skills" opens the dialog, "/skills <name> [args]" applies directly, and an unknown name is a command outcome.
@@ -1410,19 +1382,19 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     }
     const separator = trimmed.search(/\s/u);
     const token = separator < 0 ? trimmed : trimmed.slice(0, separator);
-    const skill = findSkillByArgument(skills, token);
+    const skill = this.#presenters.components.skills.findByArgument(skills, token);
     if (skill === undefined) {
       const message = "Unknown skill: " + token;
       this.root.appendWorkflowMessage({ kind: "error", message });
       this.#terminal.requestRender();
       return { outcome: "failed", diagnostic: message };
     }
-    return this.#submission.sendSlashPrompt(skillPrompt(skill.name, separator < 0 ? "" : trimmed.slice(separator + 1)), text);
+    return this.#submission.sendSlashPrompt(this.#presenters.components.skills.prompt(skill.name, separator < 0 ? "" : trimmed.slice(separator + 1)), text);
   }
 
   #treeSummary(): Promise<string | undefined> {
     return new Promise(resolve => {
-      this.root.setInputSurface(createPiShellExtensionSelector(
+      this.root.setInputSurface(this.#presenters.components.dialogs.extensionSelector(
         "Summarize Branch?",
         ["No summary", "Summarize", "Summarize with custom prompt"],
         resolve,

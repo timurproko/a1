@@ -1,29 +1,17 @@
-import type { OwnedUiShellTranscriptComponentPort } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiShellComponents, OwnedUiShellHotkeysPresentation, OwnedUiShellTranscriptComponentPort } from "../../contracts/owned-ui/index.js";
 import type { ImageAttachmentError, OwnedUiWorkflowMessage, OwnedUiWorkflowResult } from "../../contracts/owned-ui/index.js";
-import {
-  createPiShellArmin,
-  createPiShellEarendilAnnouncement,
-} from "../../integrations/pi/components/shell-selectors-dialogs.js";
-import {
-  createPiShellChangelog,
-  createPiShellHotkeys,
-  createPiShellSessionInfo,
-  renderPiShellCommandMessage,
-  renderPiShellStatusText,
-  type PiShellHotkeysPresentation,
-} from "../../integrations/pi/components/shell-presenters-info.js";
-import { piShellHyperlink } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { DockChrome } from "./dock-chrome.js";
 import type { TranscriptDocument } from "./transcript-document.js";
 
 interface WorkflowOutputPorts {
   readonly customViewport: boolean;
+  readonly components: Pick<OwnedUiShellComponents, "info" | "text">;
   readonly document: Pick<TranscriptDocument, "lastId" | "anchorOf" | "invalidate" | "appendAnchored" | "removeAnchored">;
   readonly dock: Pick<DockChrome, "setNotice" | "dismissNotice">;
   /** How many semantic transcript blocks precede new output; workflow output anchors after them. */
   transcriptLength(): number;
   outputPad(): 0 | 1;
-  hotkeysPresentation(): PiShellHotkeysPresentation;
+  hotkeysPresentation(): OwnedUiShellHotkeysPresentation;
   readonly componentRuntime: { getColumns(): number; getRows(): number; requestRender(): void };
   /** Output changed what the shell draws; the root invalidates. */
   invalidate(): void;
@@ -63,7 +51,7 @@ export class WorkflowOutput {
     }
     const id = this.#appendAnchored(width => [
       "",
-      ...renderPiShellStatusText(this.#statusMessages.get(id) ?? message, width),
+      ...this.#ports.components.info.statusText(this.#statusMessages.get(id) ?? message, width),
     ]);
     this.#statusMessages.set(id, message);
     this.#lastStatusId = id;
@@ -84,7 +72,7 @@ export class WorkflowOutput {
     }
     this.#lastStatusId = undefined;
     const presentation = { kind: message.kind, message: message.message };
-    this.#appendAnchored(width => renderPiShellCommandMessage(presentation, width, this.#ports.outputPad()));
+    this.#appendAnchored(width => this.#ports.components.info.commandMessage(presentation, width, this.#ports.outputPad()));
   }
 
   appendResult(result: OwnedUiWorkflowResult, errorCode?: ImageAttachmentError["code"]): void {
@@ -114,15 +102,16 @@ export class WorkflowOutput {
     if (result.outcome === "completed" && (result.command === "new" || result.command === "name" || result.command === "debug")) {
       this.#lastStatusId = undefined;
       const presentation = { kind: result.command, message: result.message, ...(result.detail === undefined ? {} : { detail: result.detail }) };
-      this.#appendAnchored(width => renderPiShellCommandMessage(presentation, width, this.#ports.outputPad()));
+      this.#appendAnchored(width => this.#ports.components.info.commandMessage(presentation, width, this.#ports.outputPad()));
       return;
     }
     if (result.outcome === "completed" && this.#appendAnnouncement(result.command)) return;
     // Rationale: the pinned engine links both share URLs; the workflow result carries the plain URLs.
+    const link = (url: string) => this.#ports.components.text.hyperlink(url);
     const message = result.command !== "share" ? result.message
-      : result.detail ? `${linkShareUrl(result.message)}\nGist: ${piShellHyperlink(result.detail)}`
+      : result.detail ? `${linkShareUrl(result.message, link)}\nGist: ${link(result.detail)}`
       // Protocol: Radius shares carry only the artifact URL.
-      : linkShareUrl(result.message);
+      : linkShareUrl(result.message, link);
     this.appendStatus(message);
   }
 
@@ -137,14 +126,14 @@ export class WorkflowOutput {
   #appendPresentation(result: OwnedUiWorkflowResult): boolean {
     if (result.command === "session" && result.presentation?.kind === "session-info") {
       this.#lastStatusId = undefined;
-      const sessionInfo = createPiShellSessionInfo(result.presentation);
+      const sessionInfo = this.#ports.components.info.sessionInfo(result.presentation);
       this.#appendAnchored(width => sessionInfo.render(width), () => sessionInfo.dispose?.());
       return true;
     }
     if (result.command === "hotkeys") {
       this.#lastStatusId = undefined;
       const presentation = this.#ports.hotkeysPresentation();
-      const hotkeys = createPiShellHotkeys(
+      const hotkeys = this.#ports.components.info.hotkeys(
         presentation.bindings,
         presentation.getShortcuts,
         presentation.profile,
@@ -154,7 +143,7 @@ export class WorkflowOutput {
     }
     if (result.command === "changelog") {
       this.#lastStatusId = undefined;
-      const changelog = createPiShellChangelog(result.detail ?? "No changelog entries found.");
+      const changelog = this.#ports.components.info.changelog(result.detail ?? "No changelog entries found.");
       this.#appendAnchored(width => changelog.render(width), () => changelog.dispose?.());
       return true;
     }
@@ -165,13 +154,13 @@ export class WorkflowOutput {
   #appendAnnouncement(command: string): boolean {
     if (command === "arminsayshi") {
       this.#lastStatusId = undefined;
-      const armin = createPiShellArmin(this.#ports.componentRuntime);
+      const armin = this.#ports.components.info.armin(this.#ports.componentRuntime);
       this.#appendAnchored(width => ["", ...armin.render(width)], () => armin.dispose?.());
       return true;
     }
     if (command === "dementedelves") {
       this.#lastStatusId = undefined;
-      const announcement = createPiShellEarendilAnnouncement();
+      const announcement = this.#ports.components.info.earendilAnnouncement();
       this.#appendAnchored(width => ["", ...announcement.render(width)], () => announcement.dispose?.());
       return true;
     }
@@ -204,7 +193,7 @@ export class WorkflowOutput {
 }
 
 /** "Share URL: <url>" with the URL made clickable; other share wordings pass through unchanged. */
-function linkShareUrl(message: string): string {
+function linkShareUrl(message: string, link: (url: string) => string): string {
   const match = /^Share URL: (\S+)$/.exec(message);
-  return match === null ? message : `Share URL: ${piShellHyperlink(match[1]!)}`;
+  return match === null ? message : `Share URL: ${link(match[1]!)}`;
 }

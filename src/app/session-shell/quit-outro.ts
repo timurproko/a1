@@ -6,7 +6,6 @@
  * terminal cannot delay restoration past the configured clamp.
  */
 import { displayWidth, truncateToWidth } from "../../ui/components/index.js";
-import { rebaseTerminalDefaultBackground } from "../../integrations/pi/tui-runtime/index.js";
 import { createQuitOutroPlan, type QuitOutroEffect } from "./quit-outro-effects.js";
 
 interface QuitOutroFrame {
@@ -27,7 +26,13 @@ interface QuitOutroPlayback {
   /** Plan seed; defaults to a time- and geometry-derived value. */
   readonly seed?: number;
   /** Active bare-A1 canvas; omitted preserves transparent playback bytes. */
-  readonly canvasBackgroundAnsi?: string;
+  readonly canvas?: QuitOutroCanvas;
+}
+
+/** A painted canvas: its background sequence and how to rebase a row's default background onto it. */
+export interface QuitOutroCanvas {
+  readonly ansi: string;
+  readonly rebase: (content: string, backgroundAnsi: string) => string;
 }
 
 export const QUIT_OUTRO_MIN_MS = 300;
@@ -69,8 +74,8 @@ export function captureQuitOutroFrame(presented: readonly string[], columns: num
 }
 
 /** The clear-and-repaint block that seeds the animation surface with the captured frame. */
-export function createQuitOutroSurfaceFrame(frame: QuitOutroFrame, canvasBackgroundAnsi?: string): string {
-  if (canvasBackgroundAnsi === undefined) {
+export function createQuitOutroSurfaceFrame(frame: QuitOutroFrame, canvas?: QuitOutroCanvas): string {
+  if (canvas === undefined) {
     let output = `${SYNC_BEGIN}${HIDE_CURSOR}${CLEAR_SCREEN}${HOME}${RESET}`;
     for (let row = 0; row < frame.rows; row++) {
       const line = frame.lines[row] ?? "";
@@ -78,12 +83,13 @@ export function createQuitOutroSurfaceFrame(frame: QuitOutroFrame, canvasBackgro
     }
     return `${output}${SYNC_END}`;
   }
+  const canvasBackgroundAnsi = canvas.ansi;
   let output = `${SYNC_BEGIN}${HIDE_CURSOR}${RESET}${canvasBackgroundAnsi}${CLEAR_SCREEN}${HOME}`;
   for (let row = 0; row < frame.rows; row++) {
     const line = frame.lines[row] ?? "";
     if (frame.rowWidths[row]! > 0) {
       output += `${cursorAt(row, 0)}${canvasBackgroundAnsi}`
-        + `${rebaseTerminalDefaultBackground(line, canvasBackgroundAnsi)}${RESET}${canvasBackgroundAnsi}`;
+        + `${canvas.rebase(line, canvasBackgroundAnsi)}${RESET}${canvasBackgroundAnsi}`;
     }
   }
   return `${output}${RESET}${SYNC_END}`;
@@ -110,8 +116,8 @@ export async function playQuitOutro(
   let clearIndex = 0;
   let ticks = 0;
 
-  const canvas = playback.canvasBackgroundAnsi;
-  playback.write(createQuitOutroSurfaceFrame(frame, canvas));
+  playback.write(createQuitOutroSurfaceFrame(frame, playback.canvas));
+  const canvas = playback.canvas?.ansi;
   const startedAt = now();
   for (;;) {
     ticks += 1;

@@ -1,6 +1,6 @@
 import type { OwnedUiShellEditorPort } from "../../contracts/owned-ui/index.js";
 import type { TerminalPointerSurface } from "../../contracts/presentation/index.js";
-import { samePointerSurfaces } from "../../integrations/pi/tui-runtime/overlay-geometry.js";
+import { samePointerSurfaces } from "../../contracts/presentation/index.js";
 import type { OwnedUiViewportSettings } from "../../contracts/owned-ui/index.js";
 import { TranscriptViewport, type TranscriptViewportFrame, type TranscriptViewportFrameInput } from "../../ui/components/transcript-viewport.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";

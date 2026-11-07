@@ -1,20 +1,9 @@
-import type { OwnedUiShellTranscriptComponentPort } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiShellComponents, OwnedUiShellTranscriptComponentPort } from "../../contracts/owned-ui/index.js";
 import { acceptsTranscriptUpdate } from "../../contracts/owned-ui/index.js";
 import type { OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
 import type { ThemeSource } from "../../contracts/presentation/index.js";
 import { nativeHyperlinkStyle } from "../../ui/components/spans.js";
 import type { TranscriptPromptAnchor } from "../../ui/components/transcript-viewport.js";
-import {
-  createPiShellChangelog,
-  createPiShellCollapsedChangelog,
-  renderPiShellPackageUpdateNotice,
-  renderPiShellReleaseUpdateNotice,
-} from "../../integrations/pi/components/shell-presenters-info.js";
-import {
-  isPiPromptStyleCompaction,
-  renderPiShellStartupDiagnostic,
-  renderPiShellTranscriptBlock,
-} from "../../integrations/pi/components/shell-presenters-transcript.js";
 
 type TranscriptBlock = OwnedUiSessionViewModel["transcript"][number];
 
@@ -56,6 +45,7 @@ interface TranscriptDocumentChrome {
 
 interface TranscriptDocumentOptions {
   readonly theme: ThemeSource;
+  readonly components: Pick<OwnedUiShellComponents, "info" | "transcript">;
   readonly customViewport: boolean;
   readonly cwd: string;
   /** Creates the component for a newly seen block; its change callback should call `blockChanged`. */
@@ -229,7 +219,7 @@ export class TranscriptDocument {
       // bare A1 presents them in its prompt-adjacent notice dock instead.
       .filter(diagnostic => diagnostic.code === "engine-startup"
         || !customViewport && diagnostic.code === "project-trust")
-      .flatMap(diagnostic => renderPiShellStartupDiagnostic(diagnostic, width));
+      .flatMap(diagnostic => this.#options.components.transcript.renderStartupDiagnostic(diagnostic, width));
     const resourceRows = [...chrome.resourceRows(width)];
     if (resourceRows.at(-1) === "") resourceRows.pop();
     const rows: string[] = [
@@ -247,7 +237,7 @@ export class TranscriptDocument {
       const block = this.#blocks.get(id);
       if (!thinkingVisible && block?.kind === "thinking") continue;
       const promptLike = block !== undefined
-        && (block.kind === "user" || customViewport && isPiPromptStyleCompaction(block));
+        && (block.kind === "user" || customViewport && this.#options.components.transcript.isPromptStyleCompaction(block));
       // Invariant: the custom viewport has already removed its rail gutter from this width.
       // Prompt-like and ordinary blocks therefore share one right content edge.
       const blockWidth = width;
@@ -294,11 +284,11 @@ export class TranscriptDocument {
       .filter(diagnostic => !customViewport && diagnostic.code === "release-update")
       .flatMap(diagnostic => {
         const release = parseReleaseUpdateDiagnostic(diagnostic.message);
-        return release === null ? [] : renderPiShellReleaseUpdateNotice(release, width);
+        return release === null ? [] : this.#options.components.info.releaseUpdateNotice(release, width);
       }));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code === "package-updates")
-      .flatMap(diagnostic => renderPiShellPackageUpdateNotice(
+      .flatMap(diagnostic => this.#options.components.info.packageUpdateNotice(
         diagnostic.message.split("\n").filter(line => line.startsWith("- ")).map(line => line.slice(2)),
         width,
       )));
@@ -309,8 +299,8 @@ export class TranscriptDocument {
       .flatMap(diagnostic => customViewport
         ? []
         : diagnostic.code === "changelog-collapsed"
-          ? createPiShellCollapsedChangelog().render(width)
-          : createPiShellChangelog(diagnostic.message).render(width)));
+          ? this.#options.components.info.collapsedChangelog().render(width)
+          : this.#options.components.info.changelog(diagnostic.message).render(width)));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "project-trust"
         && diagnostic.code !== "release-update" && diagnostic.code !== "release-update-installed"
@@ -319,7 +309,7 @@ export class TranscriptDocument {
         && diagnostic.code !== "changelog-expanded")
       .slice(-3)
       .flatMap(diagnostic =>
-        renderPiShellTranscriptBlock({
+        this.#options.components.transcript.renderBlock({
           id: `diagnostic-${diagnostic.sequence}`,
           kind: diagnostic.severity === "error" ? "error" : "system",
           status: "finalized",
@@ -338,7 +328,7 @@ export class TranscriptDocument {
     for (const id of this.#order) {
       const block = this.#blocks.get(id);
       if (block === undefined || (!thinkingVisible && block.kind === "thinking")) continue;
-      if (rows.length > 0 && (block.kind === "user" || this.#options.customViewport && isPiPromptStyleCompaction(block))) rows.push("");
+      if (rows.length > 0 && (block.kind === "user" || this.#options.customViewport && this.#options.components.transcript.isPromptStyleCompaction(block))) rows.push("");
       rows.push(...this.#blockRows(id, block, width).map(sanitizeExitTranscriptRow));
     }
     while (rows.at(-1) === "") rows.pop();

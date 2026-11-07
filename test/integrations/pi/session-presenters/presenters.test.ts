@@ -6,7 +6,8 @@ import { createPiSessionPresenters, type PiSessionPresenterBackend } from "../..
 // Rationale: the factories are replaced so each case drives a presenter's callbacks directly; the shell suites
 // cover the real components end to end.
 const created = vi.hoisted(() => new Map<string, { readonly options: any; readonly component: any }>());
-vi.mock("../../../../src/integrations/pi/components/shell-selectors-dialogs.js", () => {
+vi.mock("../../../../src/integrations/pi/components/shell-selectors-dialogs.js", async importOriginal => {
+  const original = await importOriginal<object>();
   const surface = (name: string, options: any, extra: object = {}) => {
     const component = { name, render: () => [name], invalidate() {}, dispose: vi.fn(), ...extra };
     created.set(name, { options, component });
@@ -14,6 +15,7 @@ vi.mock("../../../../src/integrations/pi/components/shell-selectors-dialogs.js",
   };
   const refreshing = () => ({ updateModels: vi.fn(), setRefreshStatus: vi.fn(), dirty: () => false });
   return {
+    ...original,
     createPiShellModelSelector: (options: any) => surface("model", options),
     createPiShellSessionSelector: async (options: any) => surface("session", options),
     createPiShellSettingsSelector: (options: any) => surface("settings", options),

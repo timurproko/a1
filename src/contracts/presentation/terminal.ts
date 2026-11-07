@@ -341,4 +341,6 @@ export interface TerminalRuntimeFactory {
   classifyInput(data: string, surface: TerminalInputSurfaceKind): TerminalInputCoordinationDecision;
   /** Decodes an enhanced-keyboard sequence to the legacy byte form, or "" for a key release. */
   legacyKeyInput(data: string): string;
+  /** Rebases a painted row's default background onto the given background sequence. */
+  rebaseDefaultBackground(content: string, backgroundAnsi: string): string;
 }

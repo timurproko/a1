@@ -3,6 +3,7 @@ import {
   assertPromptImages,
   ImageAttachmentError,
 } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiShellComponents } from "../../contracts/owned-ui/index.js";
 import type {
   OwnedUiCommand,
   OwnedUiCommandResult,
@@ -12,7 +13,6 @@ import type {
   PromptHistoryImageSidecarPort,
   PromptHistoryKind,
 } from "../../contracts/owned-ui/index.js";
-import { renderPiShellStatusText } from "../../integrations/pi/components/shell-presenters-info.js";
 import type { PromptHistoryController } from "./prompt-history-controller.js";
 import type { SessionConcern } from "./session-concern.js";
 import type { OwnedUiSessionShellRoot } from "./session-shell-root.js";
@@ -26,6 +26,7 @@ interface PromptSubmissionPorts {
     | "resumeViewportFollowing" | "beginImageSubmissionStatus" | "appendWorkflowResult">;
   readonly terminal: Pick<OwnedUiPresenterTerminal, "requestRender">;
   readonly cwd: string;
+  readonly statusText: OwnedUiShellComponents["info"]["statusText"];
   promptHistory(): PromptHistoryController | null;
   imageSidecar(): PromptHistoryImageSidecarPort | undefined;
   disposed(): boolean;
@@ -162,7 +163,7 @@ export class PromptSubmission implements SessionConcern {
   #showWaiting(): void {
     const count = this.#waiting.size;
     this.#ports.root.setExtensionWidget("owned-image-preparation", count === 0 ? null : {
-      render: width => [...renderPiShellStatusText(`Waiting for images (${count} submission${count === 1 ? "" : "s"}) — Esc cancels; dequeue restores`, width)],
+      render: width => [...this.#ports.statusText(`Waiting for images (${count} submission${count === 1 ? "" : "s"}) — Esc cancels; dequeue restores`, width)],
       invalidate: () => {},
     }, "aboveEditor");
     this.#ports.terminal.requestRender();

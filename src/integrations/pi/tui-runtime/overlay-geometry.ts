@@ -1,5 +1,6 @@
 import { TuiAltScreen, isFocusable, type Component, type OverlayHandle, type OverlayOptions } from "@earendil-works/pi-tui";
 import type { PresentationComponentPort, PresentationPointerSurface } from "../../../contracts/presentation/index.js";
+import { samePointerSurfaces } from "../../../contracts/presentation/index.js";
 import type { PiTuiOverlayOptions } from "./contracts.js";
 
 /** Observes public component renders in compositor order, without accessing renderer state. */
@@ -105,14 +106,7 @@ export class GeometryObservedAltScreen extends TuiAltScreen {
   }
 }
 
-/** Compare only geometry and ownership, never animation content or transcript position. */
-export function samePointerSurfaces(a: readonly PresentationPointerSurface[], b: readonly PresentationPointerSurface[]): boolean {
-  return a.length === b.length && a.every((surface, index) => {
-    const other = b[index]!;
-    return surface.component === other.component && surface.columnStart === other.columnStart
-      && surface.columnEnd === other.columnEnd && surface.rowStart === other.rowStart && surface.rowEnd === other.rowEnd;
-  });
-}
+export { samePointerSurfaces };
 
 /**
  * Resolve the pinned public overlay options against the actual render width/height.

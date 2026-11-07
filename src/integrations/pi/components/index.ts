@@ -1,7 +1,4 @@
-export { adaptPiAssistantMessage, adaptPiToolExecution, adaptPiUserMessage } from "./components.js";
 export { loadHistoryEditor, type HistoryEditorConstructor } from "./history-editor-loader.js";
-export { PiComponentConformanceError, runPiComponentConformance } from "./conformance.js";
-export type { PiComponentConformanceReport, PiComponentConformanceResult } from "./conformance.js";
 export {
   createPiShellOperationLoader,
   createPiShellShareOperationDialog,
@@ -10,69 +7,92 @@ export {
 export {
   OWNED_BUILTIN_SLASH_COMMANDS,
   PINNED_PI_BUILTIN_SLASH_COMMANDS,
+  createPiShellEditor,
+} from "./shell-editor-autocomplete.js";
+export {
   componentFromPort,
   componentPort,
+  createTuiFacade,
+  createPiKeybindingsHost,
+  ensureTheme,
+  formatSessionTokens,
+  isAutocompleteProvider,
+  isRecord,
+  piShellHyperlink,
+  piShellTruncateToWidth,
+  piShellVisibleWidth,
+} from "./shell-shared-facade.js";
+export {
   createPiExtensionUiBridge,
+} from "./shell-extension-ui.js";
+export {
   createPiQueuedInputStatus,
-  createPiShellArmin,
-  createPiShellAuthProviderSelector,
-  createPiShellChangelog,
-  createPiShellCollapsedChangelog,
-  createPiShellDialog,
-  createPiShellEarendilAnnouncement,
-  createPiShellEditor,
-  createPiShellExtensionSelector,
   createPiShellFooter,
   createPiShellHeader,
-  createPiShellHotkeys,
   createPiShellLoadedResources,
+  createPiShellStatus,
+} from "./shell-footer-status.js";
+export {
+  createPiShellArmin,
+  createPiShellAuthProviderSelector,
+  createPiShellDialog,
+  createPiShellEarendilAnnouncement,
+  createPiShellExtensionSelector,
   createPiShellLoginDialog,
   createPiShellModelSelector,
   createPiShellModelsDialog,
   createPiShellReloadBox,
   createPiShellScopedModelsSelector,
   createPiShellSelector,
-  createPiShellSessionInfo,
   createPiShellSessionSelector,
   createPiShellSettingsSelector,
   createPiShellShowImagesSelector,
   createPiShellSkillsSelector,
-  createPiShellStatus,
   createPiShellThemeSelector,
-  createPiShellTranscriptComponent,
   createPiShellTreeSelector,
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
-  createTuiFacade,
-  createPiKeybindingsHost,
-  ensureTheme,
-  formatSessionTokens,
-  isAutocompleteProvider,
-  isPiPromptStyleCompaction,
-  isRecord,
-  piShellHyperlink,
-  piShellTruncateToWidth,
-  piShellVisibleWidth,
+} from "./shell-selectors-dialogs.js";
+export {
+  createPiShellChangelog,
+  createPiShellCollapsedChangelog,
+  createPiShellHotkeys,
+  createPiShellSessionInfo,
   renderPiShellChangelogLines,
   renderPiShellCommandMessage,
   renderPiShellHotkeysLines,
   renderPiShellPackageUpdateNotice,
   renderPiShellReleaseUpdateBanner,
   renderPiShellReleaseUpdateNotice,
-  renderPiShellStartupDiagnostic,
   renderPiShellStatusText,
+} from "./shell-presenters-info.js";
+export {
+  createPiShellTranscriptComponent,
+  isPiPromptStyleCompaction,
+  renderPiShellStartupDiagnostic,
   renderPiShellTranscriptBlock,
   validatedAssistantMessage,
-} from "./shell-components.js";
+} from "./shell-presenters-transcript.js";
 export { renderPiShellHotkeySections } from "./shell-hotkey-sections.js";
 export type { PiShellHotkeySection } from "./shell-hotkey-sections.js";
 export type {
   PiExtensionUiBridge,
   PiExtensionUiBridgeHost,
+} from "./shell-extension-ui.js";
+export type {
   PiShellAuthProviderOption,
+  PiShellLoginDialogPort,
+  PiShellModelSelectorOptions,
+  PiShellModelsDialogOptions,
+  PiShellModelsDialogPort,
+  PiShellScopedModelDescriptor,
+  PiShellScopedModelsSelectorOptions,
+  PiShellScopedModelsSelectorPort,
+  PiShellSettingsSelectorOptions,
+} from "./shell-selectors-dialogs.js";
+export type {
   PiShellAutocompleteCommand,
   PiShellClipboardContent,
-  PiShellCommandMessagePresentation,
   PiShellComponentPort,
   PiShellEditorBodyGeometry,
   PiShellEditorOptions,
@@ -83,31 +103,28 @@ export type {
   PiShellExtensionRendererResolver,
   PiShellHeaderOptions,
   PiShellHeaderPort,
-  PiShellHotkeysPresentation,
   PiShellImageAssetResolver,
   PiShellLoadedResourcesPort,
-  PiShellLoginDialogPort,
-  PiShellModelSelectorOptions,
-  PiShellModelsDialogOptions,
-  PiShellModelsDialogPort,
   PiShellPasteReservation,
   PiShellQueuedInputPort,
   PiShellResourceEntry,
   PiShellResourceSection,
-  PiShellScopedModelDescriptor,
-  PiShellScopedModelsSelectorOptions,
-  PiShellScopedModelsSelectorPort,
   PiShellSelectorOption,
   PiShellSelectorOptions,
-  PiShellSessionInfoPresentation,
-  PiShellSettingsSelectorOptions,
   PiShellStartupNotice,
   PiShellStatusPlacement,
   PiShellStatusPort,
-  PiShellSubmittedPromptComposer,
   PiShellTranscriptComponentPort,
   PiShellViewComponentPort,
-} from "./shell-components.js";
+} from "./shell-shared-facade.js";
+export type {
+  PiShellCommandMessagePresentation,
+  PiShellHotkeysPresentation,
+  PiShellSessionInfoPresentation,
+} from "./shell-presenters-info.js";
+export type {
+  PiShellSubmittedPromptComposer,
+} from "./shell-presenters-transcript.js";
 export {
   PINNED_PI_LAYOUT,
   applyConfiguredPiTheme,
@@ -134,9 +151,6 @@ export {
 } from "./upstream/theme/theme.js";
 export type { PiAccentProjection, PiColorMode, PiTerminalTheme, PiTerminalThemeDetection, PiTerminalThemeDetector, PiThemeBackground, PiThemeResult } from "./upstream/theme/theme.js";
 export { PI_THEME_SOURCE, getPiSelectListTheme, piUiTheme } from "./theme.js";
-
-export { OwnedPiThemeController } from "./upstream/theme/theme-controller.js";
-export type { PiThemeRuntimePort, PiThemeSettingsPort } from "./upstream/theme/theme-controller.js";
 export {
   PI_MODAL_CONTENT_PADDING_X,
   PiModalFrame,

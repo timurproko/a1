@@ -1,4 +1,4 @@
-import type { OwnedUiShellClipboardContent, OwnedUiShellComponentPort, OwnedUiShellEditorPort, OwnedUiShellHeaderOptions, OwnedUiShellHeaderPort, OwnedUiShellHistoryEditor, OwnedUiShellImageAssetResolver, OwnedUiShellKeybindingsHost, OwnedUiShellLoadedResourcesPort, OwnedUiShellQueuedInputPort, OwnedUiShellResourceEntry, OwnedUiShellStatusPort, OwnedUiShellTranscriptComponentPort, OwnedUiShellViewComponentPort } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiShellComponents, OwnedUiShellHotkeysPresentation, OwnedUiShellSubmittedPromptComposer, OwnedUiShellClipboardContent, OwnedUiShellComponentPort, OwnedUiShellEditorPort, OwnedUiShellHeaderOptions, OwnedUiShellHeaderPort, OwnedUiShellHistoryEditor, OwnedUiShellImageAssetResolver, OwnedUiShellKeybindingsHost, OwnedUiShellLoadedResourcesPort, OwnedUiShellQueuedInputPort, OwnedUiShellResourceEntry, OwnedUiShellStatusPort, OwnedUiShellTranscriptComponentPort, OwnedUiShellViewComponentPort } from "../../contracts/owned-ui/index.js";
 import type { TerminalComponentPort, TerminalInputCoordinationScheduler, TerminalInputDiagnosticsEvent, TerminalInputSurfaceKind, TerminalLayoutNode, TerminalPointerSurface, TerminalPort } from "../../contracts/presentation/index.js";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type { ShellPresentationPorts, ThemeSource } from "../../contracts/presentation/index.js";
@@ -33,20 +33,6 @@ import type {
   TranscriptViewportFrameDescriptor,
   TranscriptViewportTheme,
 } from "../../ui/components/transcript-viewport.js";
-import type { PiShellLazySelectorLoader } from "../../integrations/pi/components/lazy-selectors.js";
-import {
-  createPiQueuedInputStatus,
-  createPiShellFooter,
-  createPiShellHeader,
-  createPiShellLoadedResources,
-  createPiShellStatus,
-} from "../../integrations/pi/components/shell-footer-status.js";
-import type { PiShellHotkeysPresentation } from "../../integrations/pi/components/shell-presenters-info.js";
-import {
-  createPiShellTranscriptComponent,
-  type PiShellSubmittedPromptComposer,
-} from "../../integrations/pi/components/shell-presenters-transcript.js";
-import { piShellTruncateToWidth } from "../../integrations/pi/components/shell-shared-facade.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
 import type { OwnedUiClipboardServices } from "./clipboard-services.js";
@@ -175,8 +161,6 @@ export interface OwnedUiShellDiagnosticOptions {
   readonly paste?: (event: PasteEvent) => void;
   /** Test seams for isolated paste preparation: an in-process starter, or the forked helper's entry. */
   readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent" | "spareIdleMs">;
-  /** Test seam for pending and failed optional selector-module preparation. */
-  readonly lazySelectors?: PiShellLazySelectorLoader;
 }
 
 /** Live prompt-image admission policy supplied only by the bare-A1 profile. */
@@ -217,6 +201,7 @@ export interface OwnedUiSessionShellOptions {
 /** What the render root needs from its presenter: terminal size and render requests, the theme, and input callbacks. */
 interface OwnedUiSessionShellRootHandlers {
   readonly presentation: ShellPresentationPorts;
+  readonly components: OwnedUiShellComponents;
   readonly getColumns: () => number;
   readonly getRows: () => number;
   readonly requestRender: (force?: boolean) => void;
@@ -268,14 +253,10 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   readonly #promptChips: PromptChipStore;
   #pasteDiagnosticId = 0;
   readonly #customViewport: boolean;
-  readonly #submittedPromptComposer: PiShellSubmittedPromptComposer | undefined;
+  readonly #submittedPromptComposer: OwnedUiShellSubmittedPromptComposer | undefined;
   readonly #viewportController: SessionViewportController;
   readonly #onPromptSuggestionEligibilityChanged: (() => void) | undefined;
-  readonly #componentRuntime: {
-    readonly getColumns: () => number;
-    readonly getRows: () => number;
-    readonly requestRender: (force?: boolean) => void;
-  };
+  readonly #componentRuntime: Pick<OwnedUiSessionShellRootHandlers, "getColumns" | "getRows" | "requestRender" | "components">;
   #toolsExpanded = false;
   #thinkingVisible = true;
   #footerLevel = true;
@@ -312,24 +293,24 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       ...(handlers.promptImageLimit === undefined ? {} : { imageLimit: handlers.promptImageLimit }) });
     this.#submittedPromptComposer = this.#customViewport ? this.#createSubmittedPromptComposer(handlers.presentation.theme) : undefined;
     this.#cwd = cwd;
-    this.#document = this.#createDocument(cwd, handlers.presentation.theme);
+    this.#document = this.#createDocument(cwd, handlers.presentation.theme, handlers.components);
     this.#extensionRenderers = extensionRenderers;
     this.#imageAssets = imageAssets;
     this.#componentRuntime = handlers;
     this.#onPromptSuggestionEligibilityChanged = handlers.onPromptSuggestionEligibilityChanged;
-    this.header = createPiShellHeader({
+    this.header = handlers.components.chrome.header({
       ...startup,
       ...(this.#customViewport ? { getKeybindings: () => this.editor.keybindingConfig() } : {}),
     });
-    this.resources = createPiShellLoadedResources(startup.resources ?? [], startup.expanded ?? false);
-    this.#status = createPiShellStatus(view, {
+    this.resources = handlers.components.chrome.loadedResources(startup.resources ?? [], startup.expanded ?? false);
+    this.#status = handlers.components.chrome.status(view, {
       text: (message, mode) => progressStatusText(message, mode === "custom-viewport" ? "…" : "..."),
       frame: progressStatusFrame,
     }, handlers);
     this.#status.setProgressPresentation(this.#customViewport ? "custom-viewport" : "pinned");
-    this.#footer = createPiShellFooter(this.#extensions.withStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel);
+    this.#footer = handlers.components.chrome.footer(this.#extensions.withStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel);
     this.editor = createShellEditor({
-      handlers, theme: handlers.presentation.theme,
+      handlers, theme: handlers.presentation.theme, components: handlers.components,
       customViewport: this.#customViewport,
       cwd,
       ...(agentDir === undefined ? {} : { agentDir }),
@@ -338,7 +319,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       nextPasteDiagnosticRequest: () => --this.#pasteDiagnosticId,
       toggleToolsExpanded: () => this.#setToolsExpanded(!this.#toolsExpanded),
     });
-    this.#queued = createPiQueuedInputStatus(
+    this.#queued = handlers.components.chrome.queuedInput(
       view.editor.queuedSubmissions,
       this.#customViewport ? "custom-viewport" : "pinned",
       this.#customViewport ? () => this.editor.keybindingConfig() : undefined,
@@ -352,13 +333,13 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       ...(handlers.pasteDiagnostics === undefined ? {} : { pasteDiagnostics: handlers.pasteDiagnostics }),
       nextPasteDiagnosticRequest: () => --this.#pasteDiagnosticId,
     });
-    this.#dockChrome = new DockChrome({ theme: handlers.presentation.theme, outputPad: handlers.presentation.pinnedOutputPad,
+    this.#dockChrome = new DockChrome({ theme: handlers.presentation.theme, outputPad: handlers.presentation.pinnedOutputPad, components: handlers.components,
       invalidateChrome: () => this.#invalidateChrome(),
       requestRender: () => this.#componentRuntime.requestRender(),
       viewport: this.#viewportController,
     });
     this.#workflowOutput = new WorkflowOutput({
-      customViewport: this.#customViewport,
+      customViewport: this.#customViewport, components: handlers.components,
       document: this.#document,
       dock: this.#dockChrome,
       transcriptLength: () => this.#view.transcript.length,
@@ -387,9 +368,9 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   }
 
   // Invariant: the document reads the shell's chrome lazily, so it may be built before the header and viewport.
-  #createDocument(cwd: string, theme: ThemeSource): TranscriptDocument {
+  #createDocument(cwd: string, theme: ThemeSource, components: OwnedUiShellComponents): TranscriptDocument {
     return new TranscriptDocument({
-      theme,
+      theme, components,
       customViewport: this.#customViewport,
       cwd,
       mount: block => this.#mountTranscript(block),
@@ -424,7 +405,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     return this.#customViewport ? new ViewportLayout(ports) : new PinnedLayout(ports);
   }
 
-  #createSubmittedPromptComposer(theme: ThemeSource): PiShellSubmittedPromptComposer {
+  #createSubmittedPromptComposer(theme: ThemeSource): OwnedUiShellSubmittedPromptComposer {
     const linkColor = transcriptLinkColor(theme);
     return {
       layout: width => submittedPromptLayout(width),
@@ -582,7 +563,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     // Invariant: the notice answers the reader's last command, so only their next prompt or
     // shell command retires it; assistant, tool, and compaction blocks streaming in keep it.
     if (block.kind === "user" || block.kind === "bash") this.dismissNotice();
-    const created = createPiShellTranscriptComponent(
+    const created = this.#componentRuntime.components.transcript.component(
       block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
       this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
       this.#showImages, this.#imageWidthCells, this.#imageAssets,
@@ -817,7 +798,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       : this.#extensions.working.visible ? this.#extensions.working.message : undefined, sending);
   }
 
-  hotkeysPresentation(): PiShellHotkeysPresentation {
+  hotkeysPresentation(): OwnedUiShellHotkeysPresentation {
     return {
       bindings: this.editor.keybindingConfig(),
       getShortcuts: bindings => this.#extensionRenderers.getShortcuts(bindings),
@@ -938,7 +919,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     const footer = this.#extensions.footer ?? this.#footer;
     if (!this.#customViewport) return footer.render(width);
     width = Math.max(0, width - 2);
-    return footer.render(width).map(row => ` ${piShellTruncateToWidth(row, width)}`);
+    return footer.render(width).map(row => ` ${this.#componentRuntime.components.text.truncateToWidth(row, width)}`);
   }
 
   #setToolsExpanded(expanded: boolean): void {

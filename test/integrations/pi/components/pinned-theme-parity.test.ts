@@ -2,13 +2,10 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { colorToOkhsl, okhslColor } from "@earendil-works/pi-tui";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import {
   PINNED_PI_LAYOUT,
-  OwnedPiThemeController,
-  adaptPiAssistantMessage,
-  adaptPiUserMessage,
   applyPiTheme,
   applyPiThemeInstance,
   createPiShellSelector,
@@ -16,6 +13,7 @@ import {
   derivePiAccentProjection,
   derivePiCanvasBackground,
   detectPiTerminalBackgroundFromEnv,
+  ensurePiTheme,
   getAvailablePiThemes,
   getPiSelectListTheme,
   loadPiTheme,
@@ -25,10 +23,11 @@ import {
   setPiAccentColor,
   setPiPackageBorderProjectionEnabled,
   stopPiThemeWatcher,
-  type PiTerminalTheme,
+  validatedAssistantMessage,
 } from "../../../../src/integrations/pi/components/index.js";
 import { isPiAccentProjectionEnabled, renderPiAccentPreview } from "../../../../src/integrations/pi/components/upstream/theme/theme.js";
-import { DynamicBorder } from "../../../../src/integrations/pi/startup-public.js";
+import { getPiMarkdownTheme } from "../../../../src/integrations/pi/components/theme.js";
+import { AssistantMessageComponent, DynamicBorder, UserMessageComponent } from "../../../../src/integrations/pi/startup-public.js";
 import { capturePinnedTheme } from "./pinned-theme-upstream-fixture.js";
 import {
   PI_PARITY_COLOR_MODES,
@@ -49,26 +48,14 @@ function block(kind: "user" | "assistant", text: string): OwnedUiTranscriptBlock
   return { id: `${kind}-theme`, kind, status: "finalized", revision: 1, title: null, text, payload: {} };
 }
 
-class ThemeRuntime {
-  readonly invalidate = vi.fn();
-  readonly requestRender = vi.fn();
-  readonly setTerminalColorSchemeNotifications = vi.fn();
-  listener: ((theme: PiTerminalTheme) => void) | undefined;
-  background: { r: number; g: number; b: number } | undefined;
-  scheme: PiTerminalTheme | undefined;
-  async queryTerminalBackgroundColor() { return this.background; }
-  async queryTerminalColorScheme() { return this.scheme; }
-  onTerminalColorSchemeChange(listener: (theme: PiTerminalTheme) => void) {
-    this.listener = listener;
-    return () => { if (this.listener === listener) this.listener = undefined; };
-  }
+function adaptPiUserMessage(owned: OwnedUiTranscriptBlock, width: number): readonly string[] {
+  ensurePiTheme();
+  return new UserMessageComponent(owned.text).render(width);
 }
 
-class ThemeSettings {
-  setting: string | undefined;
-  readonly setTheme = vi.fn((theme: string) => { this.setting = theme; });
-  readonly flush = vi.fn(async () => {});
-  getThemeSetting() { return this.setting; }
+function adaptPiAssistantMessage(owned: OwnedUiTranscriptBlock, width: number): readonly string[] {
+  ensurePiTheme();
+  return new AssistantMessageComponent(validatedAssistantMessage(owned), false, getPiMarkdownTheme()).render(width);
 }
 
 afterEach(() => {
@@ -446,40 +433,9 @@ describe("pinned Pi theme and layout parity", () => {
     }
   });
 
-  it("matches pinned environment and terminal background theme detection", async () => {
+  it("matches pinned environment background theme detection", () => {
     expect(detectPiTerminalBackgroundFromEnv({ COLORFGBG: "15;0" }).theme).toBe("dark");
     expect(detectPiTerminalBackgroundFromEnv({ COLORFGBG: "0;15" }).theme).toBe("light");
     expect(detectPiTerminalBackgroundFromEnv({}).confidence).toBe("low");
-
-    const runtime = new ThemeRuntime();
-    runtime.background = { r: 250, g: 250, b: 250 };
-    const settings = new ThemeSettings();
-    const changed = vi.fn();
-    const controller = new OwnedPiThemeController(runtime, settings, vi.fn(), changed);
-    await controller.applyFromSettings();
-    expect(controller.getTerminalTheme()).toBe("light");
-    expect(settings.setTheme).toHaveBeenCalledWith("light");
-    expect(settings.flush).toHaveBeenCalledOnce();
-    expect(changed).toHaveBeenCalled();
-    controller.dispose();
-    expect(runtime.listener).toBeUndefined();
-  });
-
-  it("tracks automatic terminal scheme changes and reports invalid themes with dark fallback", async () => {
-    const runtime = new ThemeRuntime();
-    runtime.scheme = "light";
-    const settings = new ThemeSettings();
-    settings.setting = "light/dark";
-    const showError = vi.fn();
-    const controller = new OwnedPiThemeController(runtime, settings, showError, vi.fn());
-    await controller.applyFromSettings();
-    expect(controller.getTerminalTheme()).toBe("light");
-    expect(runtime.setTerminalColorSchemeNotifications).toHaveBeenCalledWith(true);
-    runtime.listener?.("dark");
-    expect(controller.getTerminalTheme()).toBe("dark");
-
-    expect(controller.setThemeName("missing-theme", true)).toMatchObject({ success: false, name: "dark" });
-    expect(showError).toHaveBeenCalledWith(expect.stringContaining("Fell back to dark theme"));
-    controller.dispose();
   });
 });

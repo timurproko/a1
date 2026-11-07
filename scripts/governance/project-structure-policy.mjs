@@ -7,7 +7,7 @@ export const PROJECT_OWNERS = Object.freeze({
   composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "release", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters", "session-shell", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch"]),
   "session-shell": owner("session-shell", "app", "src/app/session-shell", "test/app/session-shell", [
     "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "ui-components", "ui-apps", "owned-ui-settings",
-    "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "terminal-cleanup", "owned-ui", "prompt-history", "prompt-suggestions", "launch",
+    "terminal-cleanup", "owned-ui", "prompt-history", "prompt-suggestions", "launch",
   ]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle"]),
   "owned-ui": owner("owned-ui", "feature", "src/features/owned-ui", "test/features/owned-ui", [
@@ -145,14 +145,9 @@ export function inspectLayerBoundaries(files) {
         errors.push(`${path}: ui/components import only contracts ('${specifier}')`);
       } else if (/^@earendil-works\//.test(specifier) && !path.startsWith("src/integrations/pi/")) {
         errors.push(`${path}: only the Pi adapters import '${specifier}'`);
-      } else if (path.startsWith("src/app/") && /\bPiEngineAdapter\b/.test(record.clause ?? "")) {
-        errors.push(`${path}: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class`);
-      } else if (path.startsWith("src/app/") && /\bPiSessionPresentationSource\b/.test(record.clause ?? "")) {
-        errors.push(`${path}: the application layer opens Pi selectors through OwnedUiSessionPresenters, not the engine's presentation source`);
+      } else if (path.startsWith("src/app/") && relativeTarget?.startsWith("src/integrations/pi/")) {
+        errors.push(`${path}: the application layer reaches Pi only through the owned-UI and presentation contracts ('${specifier}')`);
       }
-    }
-    if (path.startsWith("src/app/") && /\bimport\s*\(\s*["'][^"']+["']\s*\)\s*\.\s*PiEngineAdapter\b/.test(source)) {
-      errors.push(`${path}: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class`);
     }
   }
   return errors;

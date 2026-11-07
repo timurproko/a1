@@ -1,8 +1,7 @@
-import type { OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiShellComponents, OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
 import type { TerminalOverlayHandle } from "../../contracts/presentation/index.js";
 import type { OwnedUiCommandResult, OwnedUiDialog } from "../../contracts/owned-ui/index.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
-import { createPiShellDialog, createPiShellSelector } from "../../integrations/pi/components/shell-selectors-dialogs.js";
 import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 import type { OwnedUiSessionShellOptions, OwnedUiSessionShellRoot } from "./session-shell-root.js";
 
@@ -15,6 +14,7 @@ interface SessionDialogPorts {
   readonly terminal: Pick<OwnedUiPresenterTerminal, "running" | "hasOverlay" | "showOverlay" | "openRoute" | "requestRender">;
   readonly root: Pick<OwnedUiSessionShellRoot, "dismissNotice" | "setInputSurface" | "usesDefaultInputSurface">;
   readonly routeHost: UiRouteHost | null;
+  readonly dialogs: Pick<OwnedUiShellComponents["dialogs"], "dialog" | "selector">;
   readonly disposed: () => boolean;
   /** A route, or the interrupt chord over it, asked to leave A1. */
   readonly exit: () => void;
@@ -56,7 +56,7 @@ export class SessionDialogCoordinator {
     this.#handle?.hide();
     this.#source = "local";
     this.#id = undefined;
-    const component = createPiShellSelector({
+    const component = this.#ports.dialogs.selector({
       title,
       options,
       onSelect: id => {
@@ -85,7 +85,7 @@ export class SessionDialogCoordinator {
     if (this.#source === "backend" && this.#id === dialog.id) return;
     this.#handle?.hide();
     this.#source = "backend";
-    const component = createPiShellDialog(dialog, { onSelect: () => this.#close(), onCancel: () => this.#close() });
+    const component = this.#ports.dialogs.dialog(dialog, { onSelect: () => this.#close(), onCancel: () => this.#close() });
     this.#handle = this.#ports.terminal.showOverlay(component, OVERLAY_OPTIONS);
     this.#id = dialog.id;
   }

@@ -1,9 +1,11 @@
+import { PI_SHELL_COMPONENTS } from "../../../src/integrations/pi/session-presenters/components.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiDialog } from "../../../src/contracts/owned-ui/index.js";
 import type { UiRouteHost } from "../../../src/ui/apps/contracts.js";
 
 const created = vi.hoisted(() => [] as { kind: string; onSelect: (value?: string) => void; onCancel: () => void }[]);
-vi.mock("../../../src/integrations/pi/components/shell-selectors-dialogs.js", () => ({
+vi.mock("../../../src/integrations/pi/components/shell-selectors-dialogs.js", async importOriginal => ({
+  ...await importOriginal<object>(),
   createPiShellSelector: (options: { onSelect: (id: string) => void; onCancel: () => void }) => {
     const component = { kind: "selector", onSelect: options.onSelect, onCancel: options.onCancel };
     created.push(component as never);
@@ -48,6 +50,7 @@ function harness(overrides: { routeHost?: UiRouteHost | null; startupRoute?: { r
     terminal: terminal as never,
     root: root as never,
     routeHost,
+    dialogs: PI_SHELL_COMPONENTS.dialogs,
     disposed: () => false,
     exit,
     routeClosed,
