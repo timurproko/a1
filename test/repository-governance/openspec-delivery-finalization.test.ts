@@ -5,8 +5,9 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { prepareSinglePrDelivery, replaceImplementationMetadata } from "../../scripts/governance/openspec-delivery-finalization.mjs";
 import { parseConditionalAcceptance } from "../../scripts/governance/openspec-delivery-policy.mjs";
-import { inspectVersion3DeliverySnapshot } from "../../scripts/governance/openspec-archive-github.mjs";
+import { inspectVersion3DeliverySnapshot, validateVersion3Candidate } from "../../scripts/governance/openspec-archive-github.mjs";
 import { parseImplementation } from "../../scripts/governance/openspec-archive-policy.mjs";
+import { replaceImplementationMetadata as bindHead } from "../../scripts/governance/openspec-delivery-finalization.mjs";
 
 const roots: string[] = [];
 const requirement = (text: string) => `### Requirement: Example behavior\nThe system SHALL ${text}.\n\n#### Scenario: Example\n- **WHEN** an example is evaluated\n- **THEN** it SHALL ${text}\n`;
@@ -43,7 +44,7 @@ async function fixture({ incomplete = false, retire = false, declareRetirement =
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
 /** A GitHub reader serving one tree: the fixture's `openspec` files with their real git blob identities. */
-async function treeReader(root: string) {
+async function treeReader(root: string, candidate?: { pull: unknown; files: unknown[] }) {
   const blobs = new Map<string, Buffer>();
   const tree: { path: string; mode: string; type: string; sha: string }[] = [];
   async function walk(rel: string): Promise<void> {
@@ -62,11 +63,13 @@ async function treeReader(root: string) {
   const prefix = "/repos/owner/repo";
   return {
     repository: "owner/repo", prefix,
-    // Invariant: snapshot verification reads only the tree and its blobs.
-    pages: async () => { throw new Error("unused"); },
-    ancestor: async () => { throw new Error("unused"); },
+    // Invariant: snapshot verification reads only the tree and its blobs; candidate validation also reads the PR.
+    pages: async () => { if (candidate === undefined) throw new Error("unused"); return candidate.files; },
+    ancestor: async () => {},
     async get(url: string) {
       if (url === `${prefix}/git/trees/${"c".repeat(40)}?recursive=1`) return { truncated: false, tree };
+      if (candidate !== undefined && url === `${prefix}/pulls/42`) return candidate.pull;
+      if (candidate !== undefined && url === `${prefix}/git/ref/heads/develop`) return { object: { sha: "a".repeat(40) } };
       const data = blobs.get(url.slice(`${prefix}/git/blobs/`.length));
       if (data === undefined) throw new Error(`unexpected request ${url}`);
       return { encoding: "base64", size: data.length, content: data.toString("base64") };
@@ -166,6 +169,36 @@ describe("in-branch OpenSpec delivery finalization", () => {
     await rm(join(root, "openspec/specs/example/spec.md"));
     await expect(inspectVersion3DeliverySnapshot(await treeReader(root), pull, implementation, "c".repeat(40)))
       .rejects.toThrow("delivery-content-missing");
+  }, 30_000);
+
+  it("accepts a ready candidate that deletes the specs it retires and refuses any other spec change", async () => {
+    const root = await fixture({ retire: true });
+    const before = new Set<string>();
+    async function list(rel: string): Promise<void> {
+      for (const entry of await readdir(join(root, rel), { withFileTypes: true })) {
+        if (entry.isDirectory()) await list(`${rel}/${entry.name}`);
+        else before.add(`${rel}/${entry.name}`);
+      }
+    }
+    await list("openspec");
+    const bodyPath = join(root, "body.md");
+    await writeFile(bodyPath, body());
+    const written = await prepareSinglePrDelivery({ root, change: "example", repository: "owner/repo", sourcePr: 42, body: body(),
+      specBaseSha: "a".repeat(40), date: "2026-09-15", bodyPath, toolRoot: resolve("node_modules/@fission-ai/openspec"), write: true });
+    const finalized = parseImplementation(await readFile(bodyPath, "utf8"));
+    const candidateBody = bindHead(await readFile(bodyPath, "utf8"), { ...finalized, finalizedHead: "c".repeat(40) });
+    const files = written.changes.map((change: { filename: string; status: string }) => ({ filename: change.filename, status: change.status }));
+    const pull = { number: 42, state: "open", draft: false, body: candidateBody, changed_files: files.length,
+      base: { ref: "develop", sha: "a".repeat(40), repo: { full_name: "owner/repo" } },
+      head: { sha: "c".repeat(40), repo: { full_name: "owner/repo" } } };
+    expect(files).toContainEqual({ filename: "openspec/specs/legacy/spec.md", status: "removed" });
+    await expect(validateVersion3Candidate(await treeReader(root, { pull, files }), 42))
+      .resolves.toMatchObject({ disposition: "ready-for-maintainer-integration" });
+
+    const stray = [...files, { filename: "openspec/specs/unrelated/spec.md", status: "removed" }];
+    await expect(validateVersion3Candidate(await treeReader(root, { pull: { ...pull, changed_files: stray.length }, files: stray }), 42))
+      .rejects.toThrow("delivery-unexpected-openspec-path");
+    expect(before.has("openspec/specs/legacy/spec.md")).toBe(true);
   }, 30_000);
 
   it("still refuses a missing spec the change does not retire", async () => {

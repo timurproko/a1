@@ -81,6 +81,8 @@
   - Note: the launch kind is named `restart`, matching the canonical spec's "restart-equivalent" wording, rather than `cold`. The store already persisted `release-state.json`, so the module name now matches it. Historical partition evidence keeps the old test path. `supervisor-verified` already carried a Compatibility comment.
 - [x] 7.7 Remove the two "resident host" identities from `internal-naming-policy.json` and `product-identity.json`, regenerate `product-identity-legacy-inventory.json` so no entry names a deleted file, and rewrite the remaining resident-era comments and fixture names (`solo`, `utility tab`, `a1-resident-runtime-`, `resident-tabs/host-entry.js`, `resident-continuity-blocked`) in `src` and `test`; verify the naming and identity checks.
   - Note: the two identities existed only in `internal-naming-policy.json`. Predecessor-fixture "resident" wording stays because that test installs published releases that start resident processes, and `resident-continuity-blocked` stays as a reader for state older releases wrote.
+- [x] 7.8 Let finalized-delivery validation accept the canonical specs a delivery retires: `inspectVersion3DeliverySnapshot` reports the retired spec paths, and `validateVersion3Candidate` allows their deletion while still refusing any other spec path; cover a ready candidate that deletes a retired spec and one that changes an unrelated spec.
+  - Note: approved by the maintainer as part of this delivery. The retirement rule from #880 covered finalization and the snapshot, but the candidate's changed-path check still required every changed spec to be a digested one, so this delivery's six retirements failed `delivery-unexpected-openspec-path`.
 
 ## 8. Documentation and baselines
 
