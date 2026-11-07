@@ -31,8 +31,8 @@
       "fields": 13
     },
     "src/features/owned-ui/settings-app.ts::SettingsApp": {
-      "methods": 42,
-      "fields": 28
+      "methods": 36,
+      "fields": 23
     },
     "src/features/prompt-history/service.ts::PromptHistoryService": {
       "methods": 21,

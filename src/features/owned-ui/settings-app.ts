@@ -64,10 +64,10 @@ import {
 } from "../../ui/components/index.js";
 import type {
   OwnedUiSettingValue,
-  OwnedUiSettingsChangeOutcome,
   OwnedUiSettingsEntry,
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
+import { SettingsEdits, changeFailure, replaceRecord, sameRecord, structuredValue } from "./settings-edits.js";
 import { SETTINGS_APP_ID } from "./settings-route.js";
 import type { SettingsSearchInput, SettingsSearchInputFactory } from "./settings-search-input.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
@@ -203,22 +203,6 @@ interface ValueMenu {
   index: number;
 }
 
-interface ScalarUndoRecord {
-  readonly kind: "scalar";
-  readonly sequence: number;
-  readonly entry: OwnedUiSettingsEntry;
-  readonly previous: OwnedUiSettingValue;
-}
-
-interface StructuredUndoRecord {
-  readonly kind: "structured";
-  readonly sequence: number;
-  readonly entry: OwnedUiSettingsEntry;
-  readonly previous: Readonly<Record<string, boolean | string>>;
-  readonly forward: Readonly<Record<string, boolean | string>>;
-}
-
-type SettingsUndoRecord = ScalarUndoRecord | StructuredUndoRecord;
 
 /**
  * The settings screen. Rows, sticky headers, scrolling, and the keymap come from
@@ -237,12 +221,7 @@ export class SettingsApp implements UiApp {
   #menu: ValueMenu | null = null;
   #structured: StructuredEdit | null = null;
   // Invariant: pending values remain visible until the source reflects them.
-  readonly #pending = new Map<string, OwnedUiSettingValue>();
-  readonly #undoHistory: SettingsUndoRecord[] = [];
-  #editSequence = 0;
-  #undoRequests = 0;
-  #undoActive = false;
-  #closed = false;
+  readonly #edits: SettingsEdits;
   #bodyTopForFrame = SETTINGS_TOP_RULE_ROWS + SETTINGS_TITLE_ROWS;
   #bodyHeightForFrame = 0;
   #panelTopForFrame = 0;
@@ -267,6 +246,7 @@ export class SettingsApp implements UiApp {
     readonly dialogPanel?: (text: string) => string;
   }) {
     this.#session = session;
+    this.#edits = new SettingsEdits(session, () => this.#structured);
     this.#options = {
       dialogPanel: options.dialogPanel ?? null,
     };
@@ -279,14 +259,12 @@ export class SettingsApp implements UiApp {
   }
 
   onActivate(host: AppHostServices): void {
-    this.#closed = false;
+    this.#edits.open();
     void this.#session.load().then(() => host.requestRender());
   }
 
   onClose(_host: AppHostServices): void {
-    this.#closed = true;
-    this.#undoHistory.length = 0;
-    this.#undoRequests = 0;
+    this.#edits.close();
     this.#search.input?.setFocused(false);
     this.#search.input = null;
     this.#clearActivityTimer();
@@ -428,7 +406,7 @@ export class SettingsApp implements UiApp {
       case "activate": {
         const row = rows[selected];
         if (row?.kind === "element" && (row.value.structured || isDefaultModelEntry(row.value))) this.#openStructured(row.value);
-        else if (row?.kind === "element" && typeof this.#shownValue(row.value) === "number") this.#cycle(rows, selected, 1);
+        else if (row?.kind === "element" && typeof this.#edits.shown(row.value) === "number") this.#cycle(rows, selected, 1);
         else this.#openMenu(rows, selected, true);
         return { consumed: true };
       }
@@ -462,7 +440,7 @@ export class SettingsApp implements UiApp {
         this.#cycle(rows, selected, action === "next-value" ? 1 : -1);
         return { consumed: true };
       case "undo":
-        this.#undo();
+        this.#edits.undo();
         return { consumed: true };
       default:
         return { consumed: false };
@@ -502,7 +480,7 @@ export class SettingsApp implements UiApp {
       }
       const value = menu.choices[overRow];
       this.#closeMenu(menu);
-      if (value !== undefined) this.#apply(menu.entry, value);
+      if (value !== undefined) this.#edits.apply(menu.entry, value);
       return { consumed: true };
     }
 
@@ -612,7 +590,7 @@ export class SettingsApp implements UiApp {
       this.#openStructured(entry);
       return;
     }
-    const shown = this.#shownValue(entry);
+    const shown = this.#edits.shown(entry);
     // Rationale: a number is stepped, not picked from a list: it has its own two controls,
     // and pointing at it is not a request for anything else.
     if (typeof shown === "number") return;
@@ -701,7 +679,7 @@ export class SettingsApp implements UiApp {
         this.#toggleFlag(open.index);
         return { consumed: true };
       case "undo":
-        this.#undo();
+        this.#edits.undo();
         return { consumed: true };
       default:
         return { consumed: true, render: false };
@@ -845,14 +823,8 @@ export class SettingsApp implements UiApp {
     previous: Readonly<Record<string, boolean | string>>,
     forward: Readonly<Record<string, boolean | string>>,
   ): void {
-    const sequence = ++this.#editSequence;
-    void this.#session.changeStructured(open.entry.backend, open.entry.id, structuredValue(open.entry, forward)).then(outcome => {
-      const failure = changeFailure(outcome);
-      if (failure === null) {
-        this.#recordUndo({ kind: "structured", sequence, entry: open.entry, previous, forward });
-        return;
-      }
-      // Concurrency: only roll back the dialog if no later press has moved the record on.
+    // Concurrency: only roll back the dialog if no later press has moved the record on.
+    this.#edits.saveStructured(open.entry, previous, forward, () => {
       if (this.#structured === open && sameRecord(open.record, forward)) replaceRecord(open.record, previous);
     });
   }
@@ -863,7 +835,7 @@ export class SettingsApp implements UiApp {
     const key = KEYS[data] ?? data;
     if (SETTINGS_SHORTCUTS.resolve(key, SCOPE) === "undo") {
       this.#closeMenu(menu);
-      this.#undo();
+      this.#edits.undo();
       return { consumed: true };
     }
     if (key === "escape") {
@@ -879,7 +851,7 @@ export class SettingsApp implements UiApp {
     else if (key === "enter") {
       const value = menu.choices[menu.index];
       this.#closeMenu(menu);
-      if (value !== undefined) this.#apply(menu.entry, value);
+      if (value !== undefined) this.#edits.apply(menu.entry, value);
     }
     return { consumed: true };
   }
@@ -938,12 +910,12 @@ export class SettingsApp implements UiApp {
     if (row === undefined || row.kind !== "element") return;
     const entry = row.value;
     if (!entry.editable) return;
-    const shown = this.#shownValue(entry);
+    const shown = this.#edits.shown(entry);
     if (typeof shown === "number") {
       // Rationale: at the end of the range there is nothing to say: the arrow already reads
       // as unavailable, so a message would only repeat it.
       const next = steppedValue(rangeOf(entry), shown, delta);
-      if (next !== null) this.#apply(entry, next);
+      if (next !== null) this.#edits.apply(entry, next);
       return;
     }
     const choices = entry.choices;
@@ -952,84 +924,7 @@ export class SettingsApp implements UiApp {
     const next = choices[current < 0
       ? (delta > 0 ? 0 : choices.length - 1)
       : (current + delta + choices.length) % choices.length];
-    if (next !== undefined) this.#apply(entry, next);
-  }
-
-  #apply(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): void {
-    const key = `${entry.backend}:${entry.id}`;
-    const previous = this.#shownValue(entry);
-    const sequence = ++this.#editSequence;
-    // Invariant: shown immediately so the row never lags a keypress, and so the next press
-    // steps from here rather than from a value the source has not caught up to.
-    this.#pending.set(key, value);
-    void this.#session.change(entry.backend, entry.id, value).then(outcome => {
-      const failure = changeFailure(outcome);
-      if (failure !== null) {
-        if (this.#pending.get(key) === value) this.#pending.delete(key);
-        return;
-      }
-      if (previous !== null && previous !== value) this.#recordUndo({ kind: "scalar", sequence, entry, previous });
-      // Concurrency: a later press may have moved on; only the last request clears itself.
-      if (this.#pending.get(key) === value) this.#pending.delete(key);
-    });
-  }
-
-  #shownValue(entry: OwnedUiSettingsEntry): OwnedUiSettingValue | null {
-    return this.#pending.get(`${entry.backend}:${entry.id}`) ?? entry.value;
-  }
-
-  #recordUndo(record: SettingsUndoRecord): void {
-    if (this.#closed) return;
-    const after = this.#undoHistory.findIndex(candidate => candidate.sequence > record.sequence);
-    if (after < 0) this.#undoHistory.push(record);
-    else this.#undoHistory.splice(after, 0, record);
-  }
-
-  #undo(): void {
-    this.#undoRequests++;
-    this.#drainUndo();
-  }
-
-  #drainUndo(): void {
-    if (this.#undoActive || this.#undoRequests === 0) return;
-    const record = this.#undoHistory.pop();
-    if (record === undefined) {
-      this.#undoRequests = 0;
-      return;
-    }
-    this.#undoRequests--;
-    this.#undoActive = true;
-
-    if (record.kind === "scalar") {
-      const key = `${record.entry.backend}:${record.entry.id}`;
-      this.#pending.set(key, record.previous);
-      void this.#session.change(record.entry.backend, record.entry.id, record.previous).then(outcome => {
-        if (this.#pending.get(key) === record.previous) this.#pending.delete(key);
-        this.#finishUndo(record, outcome);
-      });
-      return;
-    }
-
-    const open = this.#structured;
-    if (open !== null && sameEntry(open.entry, record.entry)) replaceRecord(open.record, record.previous);
-    void this.#session.changeStructured(
-      record.entry.backend,
-      record.entry.id,
-      structuredValue(record.entry, record.previous),
-    ).then(outcome => {
-      const failure = changeFailure(outcome);
-      if (failure !== null && this.#structured === open && open !== null && sameRecord(open.record, record.previous)) {
-        replaceRecord(open.record, record.forward);
-      }
-      this.#finishUndo(record, outcome);
-    });
-  }
-
-  #finishUndo(record: SettingsUndoRecord, outcome: OwnedUiSettingsChangeOutcome): void {
-    const failure = changeFailure(outcome);
-    if (failure !== null) this.#recordUndo(record);
-    this.#undoActive = false;
-    this.#drainUndo();
+    if (next !== undefined) this.#edits.apply(entry, next);
   }
 
   #scrollbarSpeed(): ScrollbarSpeed {
@@ -1051,7 +946,7 @@ export class SettingsApp implements UiApp {
     const entry = this.#session.sections()
       .flatMap(section => section.entries)
       .find(candidate => candidate.backend === "a1" && candidate.id === id);
-    return entry === undefined ? this.#session.value(id) : this.#shownValue(entry);
+    return entry === undefined ? this.#session.value(id) : this.#edits.shown(entry);
   }
 
   #jump(rows: readonly Row[], target: number): void {
@@ -1127,7 +1022,7 @@ export class SettingsApp implements UiApp {
 
   #viewRow(entry: OwnedUiSettingsEntry): ListViewRow {
     const key = `${entry.backend}:${entry.id}`;
-    const shown = this.#shownValue(entry);
+    const shown = this.#edits.shown(entry);
     const value = entry.structured || isDefaultModelEntry(entry)
       ? CONFIGURE
       : shown === null
@@ -1163,7 +1058,7 @@ export class SettingsApp implements UiApp {
       ...(menu.entry.id === "accentColor" ? {
         previews: menu.choices.map(choice => theme.accentPreview?.(String(choice), "■") ?? ""),
       } : {}),
-      current: this.#shownValue(menu.entry) === null ? null : displaySettingValue(menu.entry, this.#shownValue(menu.entry)!),
+      current: this.#edits.shown(menu.entry) === null ? null : displaySettingValue(menu.entry, this.#edits.shown(menu.entry)!),
       index: menu.index,
     };
     const frame = valueMenuFrame(state, {
@@ -1352,46 +1247,6 @@ function thinkingLevelDescription(level: string): string {
     case "max": return "Maximum reasoning";
     default: return "";
   }
-}
-
-function structuredValue(
-  entry: OwnedUiSettingsEntry,
-  record: Readonly<Record<string, boolean | string>>,
-): Record<string, boolean | string> {
-  // Invariant: a choice part at its fallback is unset, so the engine's default applies.
-  return Object.fromEntries(Object.entries(record).filter(([key, value]) => {
-    const part = entry.flags.find(candidate => candidate.key === key);
-    return part?.choices === undefined || value !== part.fallback;
-  }));
-}
-
-function sameEntry(left: OwnedUiSettingsEntry, right: OwnedUiSettingsEntry): boolean {
-  return left.backend === right.backend && left.id === right.id;
-}
-
-function sameRecord(
-  left: Readonly<Record<string, boolean | string>>,
-  right: Readonly<Record<string, boolean | string>>,
-): boolean {
-  const leftEntries = Object.entries(left);
-  const rightEntries = Object.entries(right);
-  return leftEntries.length === rightEntries.length
-    && leftEntries.every(([key, value]) => right[key] === value);
-}
-
-function replaceRecord(
-  target: Record<string, boolean | string>,
-  source: Readonly<Record<string, boolean | string>>,
-): void {
-  for (const key of Object.keys(target)) delete target[key];
-  Object.assign(target, source);
-}
-
-function changeFailure(outcome: OwnedUiSettingsChangeOutcome): string | null {
-  if (outcome.failure !== null) return outcome.failure;
-  if (outcome.status === "failed") return "the effect failed";
-  if (outcome.status === "unavailable") return outcome.limitationReason ?? "the setting is unavailable";
-  return outcome.limitationReason;
 }
 
 function isDefaultModelEntry(entry: OwnedUiSettingsEntry): boolean {
