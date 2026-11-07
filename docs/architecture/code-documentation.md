@@ -9,8 +9,8 @@ Every first-party TypeScript class exposed through a production owner's public e
 Do not add JSDoc solely because a function, type, constructor, property, or method is exported. Do not document a class by repeating its name or listing its methods. Private and protected members never use JSDoc.
 
 ```ts
-/** Persists complete workspace views and recovery references through the control-store boundary. */
-export class WorkspaceStore {
+/** Persists durable update transaction phases so an interrupted update can resume or roll back. */
+export class UpdateTransactionStore {
 ```
 
 ## Implementation comments

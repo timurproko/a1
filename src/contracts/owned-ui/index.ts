@@ -86,7 +86,6 @@ export type {
   OwnedUiStatusView,
   OwnedUiTerminalSurface,
   OwnedUiThinkingLevel,
-  OwnedUiTimeFormat,
   OwnedUiToolRendering,
   OwnedUiToolResultPart,
   OwnedUiToolState,

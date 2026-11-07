@@ -218,13 +218,8 @@ A render root SHALL select one layout strategy at construction for the session's
 - **THEN** the caller SHALL invalidate the transcript document with a named reason
 - **AND** the document SHALL evict only what that reason requires
 
-### Requirement: The composition root constructs and returns
+### Requirement: The composition root constructs services and returns the application
 The composition root SHALL resolve paths, construct services, construct the backend, construct the presenter, and return the application. It SHALL NOT own timers, heartbeats, state machines, or runtime event handling. Runtime behavior that composition needs SHALL live in a class under an owning module that composition constructs and disposes.
-
-#### Scenario: Resident tab bridge behavior is needed
-- **WHEN** composition binds the resident tab bridge
-- **THEN** the auto-name, rename, route, stop, and status derivation logic SHALL live in a resident-tab bridge module that composition constructs and disposes, not in the composition root
-- **AND** the session presenter's own resident behavior (recovered input, progress reporting, journal admission, detach) SHALL live in its resident-tab coordinator
 
 #### Scenario: Session runtime identities must be refreshed
 - **WHEN** composition registers session runtime identities

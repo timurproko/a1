@@ -21,8 +21,6 @@
         "test/integrations/pi/engine/session-integration.test.ts",
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/session-resume.integration.test.ts",
-        "test/foundation/release/update-transition.integration.test.ts",
-        "test/foundation/release/supervisor-recovery.integration.test.ts",
         "test/repository-governance/release-command.test.ts"
       ],
       "tests": [
@@ -31,15 +29,11 @@
         "test/integrations/pi/engine/session-integration.test.ts",
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/session-resume.integration.test.ts",
-        "test/foundation/release/update-transition.integration.test.ts",
-        "test/foundation/release/supervisor-recovery.integration.test.ts",
         "test/repository-governance/release-command.test.ts"
       ],
       "support": [
         "test/support/session-resume-fixture.ts",
-        "test/foundation/release/package-candidate-fixture.ts",
-        "test/foundation/release/supervisor-recovery-child.ts",
-        "test/foundation/release/supervisor-recovery-fixture.ts"
+        "test/foundation/release/package-candidate-fixture.ts"
       ],
       "cadence": "pull-request"
     },
@@ -182,9 +176,9 @@
       "cadence": "direct-impact"
     },
     {
-      "id": "unix-containment",
+      "id": "unix-release",
       "scopes": [
-        "unix-containment",
+        "unix-release",
         "package-smoke"
       ],
       "targets": [
@@ -200,14 +194,6 @@
         }
       ],
       "entries": [
-        "test/foundation/process-containment/artifact.test.ts",
-        "test/foundation/process-containment/contracts.test.ts",
-        "test/foundation/process-containment/addon-process-inspector.test.ts",
-        "test/foundation/process-containment/source-boundary.test.ts",
-        "test/foundation/process-containment/unix-process-group.integration.test.ts",
-        "test/foundation/process-containment/windows-job.integration.test.ts",
-        "test/foundation/release/supervisor-recovery.integration.test.ts",
-        "test/foundation/release/supervisor-identity.test.ts",
         "test/app/session-shell/image-preparation.test.ts",
         "test/app/session-shell/image-worker-package.test.ts",
         "test/features/prompt-history/concurrency.integration.test.ts",
@@ -216,7 +202,6 @@
         "test/features/prompt-history/store.test.ts",
         "test/features/prompt-history/worker-package.test.ts",
         "test/foundation/launch-context/cutover.test.ts",
-        "test/foundation/release/update-transition.integration.test.ts",
         "test/foundation/release/dependency-certification.test.ts",
         "test/foundation/release/dependency-layer.test.ts",
         "test/foundation/release/restart-certification.test.ts",
@@ -224,28 +209,8 @@
         "test/foundation/release/package-surface.test.ts",
         "test/foundation/release/session-resume.integration.test.ts"
       ],
-      "tests": [
-        "test/foundation/process-containment/artifact.test.ts",
-        "test/foundation/process-containment/contracts.test.ts",
-        "test/foundation/process-containment/addon-process-inspector.test.ts",
-        "test/foundation/process-containment/source-boundary.test.ts",
-        "test/foundation/process-containment/unix-process-group.integration.test.ts",
-        "test/foundation/process-containment/windows-job.integration.test.ts",
-        "test/foundation/release/supervisor-identity.test.ts"
-      ],
-      "support": [
-        "native/process-guardian/",
-        "src/foundation/process-containment/",
-        "src/foundation/release/endpoint-recovery.ts",
-        "src/foundation/release/endpoint-lock.ts",
-        "src/foundation/release/supervisor-identity.ts",
-        "src/foundation/release/endpoints.ts",
-        "src/foundation/supervision/",
-        "test/foundation/release/supervisor-recovery-child.ts",
-        "test/foundation/release/supervisor-recovery-fixture.ts",
-        "src/foundation/protocol/",
-        "test/foundation/process-containment/"
-      ],
+      "tests": [],
+      "support": [],
       "cadence": "direct-impact"
     },
     {
@@ -270,8 +235,7 @@
       ],
       "support": [
         "src/features/launch/",
-        "src/foundation/launch-context/",
-        "src/foundation/launch-guardian/"
+        "src/foundation/launch-context/"
       ],
       "cadence": "direct-impact"
     },
@@ -325,98 +289,7 @@
         "test/foundation/release/update-predecessor.integration.test.ts"
       ],
       "support": [
-        "test/support/predecessor-fixture.ts",
-        "test/support/resident-predecessor.ts",
-        "src/foundation/resident-tabs/",
-        "native/terminal-host/"
-      ],
-      "cadence": "direct-impact"
-    },
-    {
-      "id": "terminal-host",
-      "scopes": [
-        "terminal-host"
-      ],
-      "targets": [
-        {
-          "platform": "win32",
-          "architecture": "x64",
-          "node": 24
-        },
-        {
-          "platform": "linux",
-          "architecture": "x64",
-          "node": 24
-        },
-        {
-          "platform": "darwin",
-          "architecture": "arm64",
-          "node": 24
-        }
-      ],
-      "entries": [
-        "scripts/development/run-terminal-host-probe.mjs",
-        "scripts/development/test-session-lock-addon.mjs",
-        "test/foundation/resident-tabs/resident-tabs.test.ts",
-        "test/foundation/release/resident-release-retention.integration.test.ts"
-      ],
-      "tests": [
-        "test/foundation/resident-tabs/resident-tabs.test.ts",
-        "test/foundation/release/resident-release-retention.integration.test.ts"
-      ],
-      "support": [
-        "native/terminal-host/",
-        "scripts/development/run-terminal-host-probe.mjs",
-        "scripts/development/test-session-lock-addon.mjs",
-        "scripts/development/run-terminal-host.mjs",
-        "scripts/governance/check-terminal-host-provenance.mjs",
-        "scripts/development/build-terminal-host.mjs",
-        "scripts/release/generate-terminal-host-notices.mjs",
-        "native/terminal-host/vendor/third-party-licenses/",
-        "src/foundation/resident-tabs/",
-        "src/features/resident-tab/",
-        "test/foundation/release/live-cohort-fixture.ts"
-      ],
-      "cadence": "direct-impact"
-    },
-    {
-      "id": "resident-chaos",
-      "scopes": [
-        "resident-chaos"
-      ],
-      "targets": [
-        {
-          "platform": "win32",
-          "architecture": "x64",
-          "node": 24
-        },
-        {
-          "platform": "linux",
-          "architecture": "x64",
-          "node": 24
-        },
-        {
-          "platform": "darwin",
-          "architecture": "arm64",
-          "node": 24
-        }
-      ],
-      "entries": [
-        "scripts/development/run-resident-chaos.mjs"
-      ],
-      "tests": [],
-      "support": [
-        "native/terminal-host/",
-        "scripts/development/run-terminal-host-probe.mjs",
-        "scripts/development/test-session-lock-addon.mjs",
-        "scripts/development/run-terminal-host.mjs",
-        "scripts/governance/check-terminal-host-provenance.mjs",
-        "scripts/development/build-terminal-host.mjs",
-        "scripts/release/generate-terminal-host-notices.mjs",
-        "native/terminal-host/vendor/third-party-licenses/",
-        "src/foundation/resident-tabs/",
-        "src/features/resident-tab/",
-        "scripts/development/run-resident-chaos.mjs"
+        "test/support/predecessor-fixture.ts"
       ],
       "cadence": "direct-impact"
     }

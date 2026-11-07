@@ -1,4 +1,3 @@
-import { gte, valid as validSemver } from "semver";
 import type { OwnedUiDiagnostics } from "../../../contracts/owned-ui/index.js";
 
 /** Bounded structured notices; acknowledgements never inspect terminal cells or touch Agent work. */
@@ -17,18 +16,6 @@ export class EngineDiagnostics {
   clearCodes(codes: readonly string[]): boolean {
     const selected = new Set(codes);
     return this.#remove(diagnostic => selected.has(diagnostic.code));
-  }
-  acknowledgeClientVersion(version: string): boolean {
-    if (validSemver(version) === null) return false;
-    return this.#remove(diagnostic => {
-      // Invariant: restart readiness describes this long-lived process, not the outer client that
-      // attached to it. A newer client can clear activation blocking, but only process exit clears
-      // an installed-update notice.
-      const target = diagnostic.code === "release-update-blocked"
-        ? /^Update (\S+) prepared; activation blocked\.$/u.exec(diagnostic.message)?.[1]
-        : undefined;
-      return target !== undefined && validSemver(target) !== null && gte(version, target);
-    });
   }
   #remove(predicate: (diagnostic: OwnedUiDiagnostics) => boolean): boolean {
     const removed = new Set<string>();

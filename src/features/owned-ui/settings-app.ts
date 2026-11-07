@@ -41,7 +41,6 @@ import {
   valueMenuFrame,
   blockRowSpan,
   displayWidth,
-  formatLocalTime,
   handleLineInputKey,
   humanizeLabel,
   humanizeTitle,
@@ -69,7 +68,6 @@ import type {
   OwnedUiSettingsEntry,
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
-import { FlagToggleDialog, PLUS_MENU_SETTING_ID, PlusMenuDialog } from "./plus-menu-dialog.js";
 import { SETTINGS_APP_ID } from "./settings-route.js";
 import type { SettingsSearchInput, SettingsSearchInputFactory } from "./settings-search-input.js";
 export { SETTINGS_APP_ID, SETTINGS_ROUTE } from "./settings-route.js";
@@ -92,7 +90,6 @@ const SCROLL_LINGER_MS = 900;
 const SCROLL_LINGER_REPAINT_MS = 925;
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
-const TAB_BAR_RIGHT_ITEMS_SETTING_ID = "tabBarRightItems";
 
 type Action =
   | "move-up" | "move-down" | "block-up" | "block-down" | "first" | "last"
@@ -186,7 +183,6 @@ interface StructuredEdit {
   readonly flags: readonly string[];
   readonly modelDialog: "thinking" | "default" | null;
   /** Searchable flag dialog for owned tab-bar configuration. */
-  readonly flagDialog: FlagToggleDialog | null;
   readonly filter: LineInput | null;
   step: "model" | "level";
   modelKey: string | null;
@@ -263,23 +259,15 @@ export class SettingsApp implements UiApp {
   #activityTimer: ReturnType<typeof setTimeout> | undefined;
   #renderedScroll: number | undefined;
 
-  readonly #options: { readonly pinned: boolean; readonly configurePlusMenu: (() => boolean) | null; readonly dialogPanel: ((text: string) => string) | null };
+  readonly #options: { readonly dialogPanel: ((text: string) => string) | null };
 
-  /**
-   * `pinned` presents the screen as a resident Settings tab, which offers no screen-level close;
-   * `configurePlusMenu` opens the tab bar's Plus Menu dialog in place of this screen's own.
-   */
   constructor(session: OwnedSettingsManager, options: {
-    readonly pinned?: boolean;
     readonly searchInputFactory: SettingsSearchInputFactory;
     readonly copyText?: (text: string) => void;
-    readonly configurePlusMenu?: (() => boolean) | null;
     readonly dialogPanel?: (text: string) => string;
   }) {
     this.#session = session;
     this.#options = {
-      pinned: options.pinned === true,
-      configurePlusMenu: options.configurePlusMenu ?? null,
       dialogPanel: options.dialogPanel ?? null,
     };
     this.#search = {
@@ -433,7 +421,7 @@ export class SettingsApp implements UiApp {
     const selected = indexOfKey(rows, this.#selectedKey);
     switch (action) {
       case "close":
-        if (!this.#options.pinned) host.close();
+        host.close();
         return { consumed: true };
       case "edit-filter":
         return { consumed: false };
@@ -665,8 +653,6 @@ export class SettingsApp implements UiApp {
     // flag still has a row, showing the default the source would apply. The default-model
     // selector may open empty so it can truthfully report that no authenticated models exist.
     if (entry.flags.length === 0 && modelDialog !== "default") return;
-    // Rationale: beside a tab bar, its own Plus Menu dialog configures `+`, so both ways look the same.
-    if (entry.backend === "a1" && entry.id === PLUS_MENU_SETTING_ID && this.#options.configurePlusMenu?.() === true) return;
     const stored = typeof entry.rawValue === "object" && entry.rawValue !== null && !Array.isArray(entry.rawValue)
       ? (entry.rawValue as Record<string, unknown>)
       : {};
@@ -687,13 +673,6 @@ export class SettingsApp implements UiApp {
       entry,
       flags: entry.flags.map(flag => flag.key),
       modelDialog,
-      flagDialog: entry.backend !== "a1" ? null
-        : entry.id === PLUS_MENU_SETTING_ID ? new PlusMenuDialog(entry.flags)
-          : entry.id === TAB_BAR_RIGHT_ITEMS_SETTING_ID ? new FlagToggleDialog(entry.flags, {
-            title: "Widgets",
-            description: "Choose which widgets the tab bar shows.",
-            empty: "No items match",
-          }) : null,
       filter: modelDialog === null ? null : new LineInput(""),
       step: "model",
       modelKey: null,
@@ -708,11 +687,6 @@ export class SettingsApp implements UiApp {
     const open = this.#structured;
     if (open === null) return { consumed: false };
     if (open.modelDialog !== null) return this.#modelDialogKey(open, data);
-    if (open.flagDialog !== null) {
-      const outcome = open.flagDialog.handle(KEYS[data] ?? data, data, key => this.#toggleFlag(open.flags.indexOf(key)));
-      if (outcome === "close") this.#structured = null;
-      return { consumed: true };
-    }
     switch (SETTINGS_SHORTCUTS.resolve(KEYS[data] ?? data, DIALOG_SCOPE)) {
       case "close":
         this.#structured = null;
@@ -1207,7 +1181,6 @@ export class SettingsApp implements UiApp {
 
   #dialogLines(open: StructuredEdit, width: number, height: number, theme: UiTheme): readonly string[] {
     if (open.modelDialog !== null) return this.#modelDialogLines(open, width, height, theme);
-    if (open.flagDialog !== null) return open.flagDialog.lines(open.record, width, theme);
     const rows = open.flags.map(key => {
       const declared = open.entry.flags.find(flag => flag.key === key);
       return {
@@ -1296,8 +1269,7 @@ export class SettingsApp implements UiApp {
   #footerLines(width: number, theme: UiTheme): readonly string[] {
     // Rationale: standing guidance is more useful than transient feedback; failures still
     // roll back without displacing the Settings interaction contract.
-    const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE).filter(entry => !this.#options.pinned
-      || entry.key !== DIALOG_CLOSE_SHORTCUT_HINT.key || entry.action !== DIALOG_CLOSE_SHORTCUT_HINT.action);
+    const entries = SETTINGS_SHORTCUTS.hintEntries(SCOPE);
     const status = renderShortcutHintsWithClose(entries, theme, width, width > 0 ? 1 : 0);
     const input = this.#search.input;
     if (input === null) return [status];
@@ -1436,11 +1408,8 @@ function rangeOf(entry: OwnedUiSettingsEntry): NumericRange {
   return { minimum: entry.minimum, maximum: entry.maximum, values: numericValues(entry.choices) };
 }
 
-/** Booleans read as yes and no; time-format choices preview the current local time. */
-function displaySettingValue(entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): string {
-  if (entry.backend === "a1" && entry.id === "timeFormat" && (value === "20:00" || value === "8:00 PM")) {
-    return formatLocalTime(new Date(), value) ?? value;
-  }
+/** Booleans read as yes and no. */
+function displaySettingValue(_entry: OwnedUiSettingsEntry, value: OwnedUiSettingValue): string {
   if (typeof value === "boolean") return value ? "yes" : "no";
   return String(value);
 }

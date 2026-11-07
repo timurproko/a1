@@ -147,7 +147,6 @@ export class WorkflowOutput {
         presentation.bindings,
         presentation.getShortcuts,
         presentation.profile,
-        presentation.residentTabs,
       );
       this.#appendAnchored(width => hotkeys.render(width), () => hotkeys.dispose?.());
       return true;

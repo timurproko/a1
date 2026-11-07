@@ -3,10 +3,7 @@ import { describe, expect, it } from "vitest";
 import { inspectProjectStructureImports } from "../../scripts/governance/project-structure-policy.mjs";
 
 describe("prompt history ownership", () => {
-  it("rejects control-store and private Pi coupling from the feature", () => {
-    expect(inspectProjectStructureImports({
-      "src/features/prompt-history/service.ts": 'import { ControlStore } from "../../foundation/storage/index.js";',
-    })).toEqual([expect.stringContaining("may not import storage")]);
+  it("rejects undeclared and private Pi coupling from the feature", () => {
     expect(inspectProjectStructureImports({
       "src/features/prompt-history/service.ts": 'import { resolvePromptHistoryDataDir } from "../launch/index.js";',
     })).toEqual([expect.stringContaining("may not import launch")]);

@@ -58,8 +58,7 @@ afterAll(async () => {
 
 describe("fresh first-attempt startup of the exact candidate", () => {
   it.runIf(process.platform === "win32")("gates post-update, no-live-supervisor, and warm startup for both exact packaged profiles", async () => {
-    const { certifyMaterializedRelease, CohortStateStore, materializeRelease, releaseVerifiedIdleOwner, startSupervisor, waitForVerifiedEndpoint, warmMaterializedRelease } = await import("../../../src/foundation/release/index.js");
-    const { resolveCohortEndpoint, resolveProductPaths } = await import("../../../src/foundation/lifecycle/index.js");
+    const { certifyMaterializedRelease, CohortStateStore, materializeRelease, warmMaterializedRelease } = await import("../../../src/foundation/release/index.js");
     const { PRODUCT_IDENTITY } = await import("../../../src/product-identity.js");
     const { cliCapabilities } = await import("../../../src/cli/index.js");
     await phases.run("defender-prerequisite", () => expectWindowsDefenderProtection());
@@ -74,19 +73,17 @@ describe("fresh first-attempt startup of the exact candidate", () => {
     const runtimeDir = resolve(root, "startup-runtime");
     const configDir = resolve(root, "startup-config");
     const homeDir = resolve(root, "startup-home");
-    const databasePath = resolve(root, "startup.sqlite3");
     const environment: NodeJS.ProcessEnv = {
       ...process.env,
       [PRODUCT_IDENTITY.environment.dataDir]: dataDir,
       [PRODUCT_IDENTITY.environment.runtimeDir]: runtimeDir,
       [PRODUCT_IDENTITY.environment.configDir]: configDir,
-      [PRODUCT_IDENTITY.environment.databasePath]: databasePath,
       HOME: homeDir,
       USERPROFILE: homeDir,
     };
     delete environment.NODE_COMPILE_CACHE;
     await phases.run("startup-cold-state", async () => {
-      for (const path of [dataDir, runtimeDir, configDir, homeDir, databasePath]) {
+      for (const path of [dataDir, runtimeDir, configDir, homeDir]) {
         await expect(accessPath(path)).resolves.toBe(false);
       }
       expect(environment.NODE_COMPILE_CACHE).toBeUndefined();
@@ -99,24 +96,17 @@ describe("fresh first-attempt startup of the exact candidate", () => {
     });
     await phases.run("startup-activation", () => state.activate(release.releaseId));
     await phases.run("startup-declared-warmup", () => warmMaterializedRelease(release, environment));
-    const startup = await phases.run("startup-supervisor-spawn", () => startSupervisor(release, environment));
-    const paths = resolveProductPaths(environment);
-    const cohort = resolveCohortEndpoint(paths, release.releaseId, environment);
-    await phases.run("startup-supervisor-ready", () => waitForVerifiedEndpoint(cohort.endpointMetadataPath, release, 8_000, startup));
-    try {
+    {
       for (const profileId of profiles) {
         const postUpdate = await captureReadyLaunch(packageRoot, environment, profileId, "post-update");
         await recordStartupMeasurement(profileId, "post-update", postUpdate, startupModuleGraph);
         await gateStartupBudget({ profileId, launchKind: "post-update", events: postUpdate, moduleGraph: startupModuleGraph });
-        await phases.run(`supervisor-stop-${profileId}`, () => stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner));
 
         const restarted = await captureReadyLaunch(packageRoot, environment, profileId, "no-live-supervisor");
         await recordStartupMeasurement(profileId, "no-live-supervisor", restarted, startupModuleGraph);
         await gateStartupBudget({ profileId, launchKind: "no-live-supervisor", events: restarted, moduleGraph: startupModuleGraph });
         const observedPhases = restarted.map(event => event.phase);
-        expect(observedPhases).toEqual(expect.arrayContaining([
-          "durable-validation-start", "durable-validation-complete", "replacement-supervisor-start", "replacement-supervisor-ready",
-        ]));
+        expect(observedPhases).toEqual(expect.arrayContaining(["durable-validation-start", "durable-validation-complete"]));
         const validationStart = restarted.find(event => event.phase === "durable-validation-start")!;
         const validationComplete = restarted.find(event => event.phase === "durable-validation-complete")!;
         expect(validationComplete.fileReadOperations - validationStart.fileReadOperations).toBeLessThan(64);
@@ -134,8 +124,6 @@ describe("fresh first-attempt startup of the exact candidate", () => {
         const refused = await captureQuietLaunch(packageRoot, environment);
         expect(refused, "stable a1 pi must exit quietly without launching").toEqual({ exitCode: 0, stdout: "", stderr: "", traced: false });
       });
-    } finally {
-      await phases.cleanup("supervisor-final-stop", () => stopPackagedSupervisor(cohort.endpointMetadataPath, dataDir, releaseVerifiedIdleOwner)).catch(() => {});
     }
   }, 600_000);
 });
@@ -243,8 +231,6 @@ async function captureReadyLaunch(
   }, `launch-exit-${profileId}-${launchKind}`, async () => {
     // Rationale: Ctrl+D is the empty-editor exit. Ctrl+C only clears the editor,
     // and loaded Defender runners can need more than two seconds to drain a graceful exit.
-    // Forcing the wrapper tree before that completes can strand the supervisor's launch
-    // instance in uncertain reconciliation.
     child.stdin?.write("\u0004");
     if (child.exitCode === null) {
       await Promise.race([
@@ -293,24 +279,6 @@ async function captureQuietLaunch(packageRoot: string, environment: NodeJS.Proce
   let traced = false;
   try { traced = parseStartupTrace(source).some(event => event.phase === "first-input-ready-render"); } catch { traced = false; }
   return { exitCode, stdout, stderr, traced };
-}
-
-async function stopPackagedSupervisor(
-  endpointMetadataPath: string,
-  dataDir: string,
-  releaseVerifiedIdleOwner: typeof import("../../../src/foundation/release/index.js")["releaseVerifiedIdleOwner"],
-): Promise<void> {
-  // Rationale: a force-stopped guardian is reconciled on the supervisor liveness cadence, which can
-  // consume almost five seconds on a loaded Defender runner before the verified idle check succeeds.
-  const deadline = Date.now() + 10_000;
-  let owner: Parameters<typeof releaseVerifiedIdleOwner>[0] | null = null;
-  while (Date.now() < deadline) {
-    owner = JSON.parse(await readFile(endpointMetadataPath, "utf8")) as Parameters<typeof releaseVerifiedIdleOwner>[0];
-    if (owner.ownership.liveInstanceIds.length === 0) break;
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
-  }
-  if (!owner || owner.ownership.liveInstanceIds.length !== 0) throw new Error("exact-package supervisor did not become idle");
-  expect(await releaseVerifiedIdleOwner(owner, dataDir)).toBe(true);
 }
 
 async function accessPath(path: string): Promise<boolean> {

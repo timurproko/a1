@@ -44,14 +44,14 @@ A transparent full-viewport session SHALL attach the child to inherited native t
 - **THEN** A1 SHALL add no parser, quiescence timer, transaction assembler, or guessed source-frame boundary
 
 ### Requirement: Transparent sessions advertise their limitations
-A transparent session SHALL advertise no A1-authoritative resident surface, internal pane, virtual scrollback, replayable display stream, or visual reconnection. A1 SHALL NOT claim those capabilities from a shadow parser or lifecycle metadata. Transparent direct attachment SHALL remain independent from both the A1-owned Pi UI and the terminal-host proof paths, and SHALL NOT be used to manufacture UI customization by interception.
+A transparent session SHALL advertise no A1-authoritative retained surface, internal pane, virtual scrollback, replayable display stream, or visual reconnection. A1 SHALL NOT claim those capabilities from a shadow parser or lifecycle metadata. Transparent direct attachment SHALL remain independent from the A1-owned Pi UI and SHALL NOT be used to manufacture UI customization by interception.
 
 #### Scenario: Foreground owner disconnects
 - **WHEN** the foreground owner disappears from a non-detachable transparent session
 - **THEN** A1 SHALL apply bounded declared cleanup and report the result rather than reconstruct terminal continuity
 
 #### Scenario: Internal arbitrary-CLI tabs are requested
-- **WHEN** a feature needs inactive resident terminal surfaces, switching, clipping, overlays, or reconnection
+- **WHEN** a feature needs inactive retained terminal surfaces, switching, clipping, overlays, or reconnection
 - **THEN** a separate composed-terminal capability SHALL be planned and certified instead of intercepting transparent mode
 
 #### Scenario: Owned UI is requested
@@ -60,7 +60,7 @@ A transparent session SHALL advertise no A1-authoritative resident surface, inte
 
 #### Scenario: Transparent fallback is selected
 - **WHEN** an explicit launch mode or recovery policy selects transparent direct attachment
-- **THEN** the child and physical terminal SHALL retain native rendering and input authority without initializing the owned UI, terminal-host proof, parser, renderer, topology, or input router
+- **THEN** the child and physical terminal SHALL retain native rendering and input authority without initializing the owned UI, parser, renderer, topology, or input router
 
 ### Requirement: Terminal exit returns a usable parent terminal
 On transparent child exit, A1 SHALL preserve child-produced final output and spacing, perform bounded ownership cleanup, report the process outcome, and leave the parent terminal usable. It SHALL NOT add, remove, relocate, parse, or reconstruct child output.
@@ -80,24 +80,24 @@ Transparent physical parity and supported-platform claims SHALL be certified sep
 - **WHEN** only structural and manual acceptance evidence exists
 - **THEN** A1 MAY continue development previews but SHALL NOT claim stable platform parity or move `latest` based on that evidence alone
 
-### Requirement: Transparent instance registration carries lifecycle but no terminal bytes
-A transparent launch owner and supervisor SHALL exchange only validated launch intent, launch-instance identity, native process and containment identity, ownership state, stop intent, and lifecycle outcome. Ordinary terminal bytes and reconstructed display state SHALL NOT cross the control protocol.
-
-#### Scenario: Handoff completes
-- **WHEN** a transparent child starts successfully
-- **THEN** its launch instance SHALL register exact process and containment identity and wait for lifecycle completion without ordinary terminal reads, writes, parsing, relaying, or render timers
-
-#### Scenario: Another transparent session is active
-- **WHEN** a transparent child starts while other transparent instances are active in other terminals
-- **THEN** A1 SHALL register the new instance independently without reassigning or terminating another session
-
-#### Scenario: Update requests shutdown
-- **WHEN** an update targets verified active transparent instances
-- **THEN** A1 SHALL apply bounded owned-process lifecycle control to every affected instance without introducing terminal emulation as a cleanup path
-
 ### Requirement: Transparent root exit closes remaining instance descendants
 A transparent instance SHALL reach its terminal outcome only after the root command has exited and its remaining verified descendants have been closed within the bounded instance cleanup policy.
 
 #### Scenario: Pi exits after starting a daemon
 - **WHEN** a transparent root exits while one of its verified descendants remains
 - **THEN** A1 SHALL terminate the remaining instance-owned process tree before returning the final command outcome
+
+### Requirement: Transparent launch tracks lifecycle but no terminal bytes
+A transparent launch owner SHALL track only validated launch intent, the directly attached child's process identity, stop intent, and lifecycle outcome. Ordinary terminal bytes and reconstructed display state SHALL NOT pass through A1, and no background coordinator SHALL be required to run the child.
+
+#### Scenario: Handoff completes
+- **WHEN** a transparent child starts successfully
+- **THEN** its launch owner SHALL record the child's process identity and wait for its exit without ordinary terminal reads, writes, parsing, relaying, or render timers
+
+#### Scenario: Another transparent session is active
+- **WHEN** a transparent child starts while other transparent sessions are active in other terminals
+- **THEN** A1 SHALL run the new child independently without reassigning or terminating another session
+
+#### Scenario: Update installs a newer release
+- **WHEN** an update installs a newer release while transparent sessions are active
+- **THEN** A1 SHALL leave those sessions running on their release without introducing terminal emulation or a cleanup path that ends them

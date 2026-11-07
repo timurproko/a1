@@ -29,15 +29,15 @@ describe("openWorkflowSelector", () => {
   it("opens the selector for every unchosen request", async () => {
     const { port, calls } = selectors();
     for (const command of ["scoped-models", "models", "model", "fork", "thinking", "trust", "settings", "resume", "login", "logout", "tree"]) {
-      expect(await openWorkflowSelector(request(command), port, { residentTab: false }), command).toEqual({ outcome: "completed", diagnostic: null });
+      expect(await openWorkflowSelector(request(command), port), command).toEqual({ outcome: "completed", diagnostic: null });
     }
     expect(calls).toEqual(["scoped", "models", "model", "fork", "thinking", "trust", "settings", "resume", "login-type", "logout", "tree"]);
   });
 
   it("passes arguments that pick within a selector and leaves chosen requests to the engine", async () => {
     const { port, calls } = selectors();
-    await openWorkflowSelector(request("models", { argument: " gpt " }), port, { residentTab: false });
-    await openWorkflowSelector(request("login", { argument: "anthropic" }), port, { residentTab: false });
+    await openWorkflowSelector(request("models", { argument: " gpt " }), port);
+    await openWorkflowSelector(request("login", { argument: "anthropic" }), port);
     expect(calls).toEqual(["models(gpt)", "login-method(anthropic)"]);
     for (const chosen of [
       request("model", { argument: "x" }),
@@ -48,14 +48,8 @@ describe("openWorkflowSelector", () => {
       request("tree", { selection: "e1" }),
       request("compact"),
     ]) {
-      expect(await openWorkflowSelector(chosen, port, { residentTab: false }), chosen.command).toBeUndefined();
+      expect(await openWorkflowSelector(chosen, port), chosen.command).toBeUndefined();
     }
   });
 
-  it("refuses the in-tab Settings selector inside a resident tab", async () => {
-    const { port, calls } = selectors();
-    expect(await openWorkflowSelector(request("settings"), port, { residentTab: true }))
-      .toEqual({ outcome: "rejected", diagnostic: "Settings is available from the global Settings tab." });
-    expect(calls).toEqual([]);
-  });
 });

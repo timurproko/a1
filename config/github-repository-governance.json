@@ -163,7 +163,7 @@
       "authority": ["Development validation required", "acceptance-only-routing", "acceptance-record-validation", "single-pr-finalization-validation", "archive-merge-result-validation", "complete-regression"],
       "concurrency": "development-validation-",
       "environments": [],
-      "artifactRetentionDays": [1, 14]
+      "artifactRetentionDays": [14]
     },
     {
       "name": "Documentation auto-merge",
@@ -295,7 +295,7 @@
       "authority": ["complete-regression", "master-fast-forward", "npm-latest", "npm-next"],
       "concurrency": "a1-registry-publication",
       "environments": ["npm-publish"],
-      "artifactRetentionDays": [1, 30]
+      "artifactRetentionDays": [30]
     },
     {
       "name": "Ready pull-request refresh",

@@ -1,8 +1,8 @@
 /**
- * The runtime's half of the unclean-exit protocol with the native process guardian. While the
- * notice is armed, the guardian treats the runtime's end as unclean: it restores the terminal and
- * prints these lines, so a killed session still leaves its resume command behind. A clean shutdown
- * clears the notice after the terminal is restored.
+ * The runtime's half of the unclean-exit protocol with the launcher. While the notice is armed,
+ * the launcher treats the runtime's end as unclean: it restores the terminal and prints these
+ * lines, so a killed session still leaves its resume command behind. A clean shutdown clears the
+ * notice after the terminal is restored.
  */
 import { renameSync, rmSync, writeFileSync } from "node:fs";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
@@ -22,25 +22,25 @@ export interface ArmedExitNotice {
   clear(): void;
 }
 
-export function uncleanExitNoticeLines(resume: SessionResumeCommandMetadata | null, soloResumeHint = false): string[] {
+export function uncleanExitNoticeLines(resume: SessionResumeCommandMetadata | null): string[] {
   return [
     `${PRODUCT_IDENTITY.displayName} was stopped unexpectedly.`,
-    ...(resume === null ? [] : [`To resume this session: ${formatSessionResumeCommand(resume, soloResumeHint)}`]),
+    ...(resume === null ? [] : [`To resume this session: ${formatSessionResumeCommand(resume)}`]),
   ];
 }
 
 /** Arms the notice and keeps its resume command following the bound session until cleared. */
-export function armExitNotice(source: ExitNoticeSource, path: string, soloResumeHint = false): ArmedExitNotice {
+export function armExitNotice(source: ExitNoticeSource, path: string): ArmedExitNotice {
   let current: string | null = null;
   let cleared = false;
   let generation = source.identity.sessionGeneration;
   const write = () => {
     if (cleared) return;
-    // Protocol: plain text only; the guardian strips control characters, so styling would be lost.
-    const text = `${uncleanExitNoticeLines(source.identity.currentSessionResumeMetadata(), soloResumeHint).join("\n")}\n`;
+    // Protocol: plain text only; the launcher strips control characters, so styling would be lost.
+    const text = `${uncleanExitNoticeLines(source.identity.currentSessionResumeMetadata()).join("\n")}\n`;
     if (text === current) return;
     try {
-      // Invariant: the guardian may read at any instant, so it sees the previous or the next notice, never half of one.
+      // Invariant: the launcher may read at any instant, so it sees the previous or the next notice, never half of one.
       const temporary = `${path}.${process.pid}.tmp`;
       writeFileSync(temporary, text, { mode: 0o600 });
       renameSync(temporary, path);

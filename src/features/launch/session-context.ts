@@ -2,7 +2,7 @@ import {
   clearSessionRepositoryContext,
   listSessionRepositoryWorktrees,
   setSessionRepositoryContext,
-  type NativeProcessIdentity,
+  type ProcessIdentity,
   type SessionRepositoryIdentity,
   type SessionWorktreeInventoryEntry,
 } from "../../foundation/lifecycle/index.js";
@@ -21,7 +21,7 @@ export type SessionContextOutcome =
 
 export interface SessionContextRuntime {
   readonly runtimeId: string;
-  readonly inspectProcess: (pid: number) => Promise<NativeProcessIdentity | null>;
+  readonly inspectProcess: (pid: number) => Promise<ProcessIdentity | null>;
 }
 
 export async function updateSessionRepositoryContext(

@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { lstat, mkdir, open, readdir, realpath, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { tryAcquireClaimGate } from "./native-claim-gate.js";
+import { tryAcquireClaimGate } from "./claim-gate.js";
 
 interface ClaimLockOptions { readonly signal?: AbortSignal; readonly lockTimeoutMs?: number }
 const FILES = new Set(["owner.json", "owner.next", "recovery.json", "recovery.next"]);
@@ -21,7 +21,7 @@ export async function claimMutationPending(directory: string): Promise<boolean> 
 }
 
 /**
- * The persistent directory excludes legacy wx-file writers. Only native descriptor authority
+ * The persistent directory excludes legacy wx-file writers. Only the gate beside the authority file
  * permits upgraded mutations; owner.json is disposable evidence, never a liveness oracle.
  * Never remove the barrier or authority file: doing so would create a second lock universe.
  */

@@ -2,8 +2,6 @@ import crossSpawn from "cross-spawn";
 import { readFile, rm } from "node:fs/promises";
 import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { guardianAddonReference, terminalHostAddonReference } from "../../../scripts/governance/candidate-evidence.mjs";
-import { RELEASE_NATIVE_TARGETS } from "../../../scripts/release/verify-native-artifacts.mjs";
 import { extractValidationCandidate, loadValidationCandidate } from "./package-candidate-fixture.js";
 
 let candidate: Awaited<ReturnType<typeof loadValidationCandidate>>;
@@ -35,9 +33,8 @@ describe("exact packed npm command surface", () => {
       "bin/automatic-update.js",
       "bin/cli.js",
       "bin/release-cleanup.js",
-      "bin/guardian.js",
       "bin/ui.js",
-      "bin/supervisor.js", "bin/update-recovery.js", "bin/warmup.js", "bin/sync-pi-tui-proxy.js", "dist/runtime-payload-inventory.json",
+      "bin/update-recovery.js", "bin/warmup.js", "bin/sync-pi-tui-proxy.js", "dist/runtime-payload-inventory.json",
       "dist/product-identity.js",
       "dist/product-identity.json",
       "dist/product-identity.d.ts",
@@ -45,10 +42,11 @@ describe("exact packed npm command surface", () => {
       "dist/integrations/pi/startup-public.js",
       "dist/integrations/pi/startup-public.manifest.json",
       "dist/foundation/startup/startup-descriptor.js",
-      `dist/native/${process.platform}-${process.arch}/manifest.json`,
-      "dist/foundation/launch-guardian/exit-watcher.js",
-      `dist/native/${process.platform}-${process.arch}/process-guardian.node`,
     ]));
+    // Invariant: the package ships no native code; the release store loads none.
+    expect(paths.filter(path => path.startsWith("dist/native/") || path.endsWith(".node"))).toEqual([]);
+    expect(paths).not.toEqual(expect.arrayContaining(["bin/supervisor.js"]));
+    expect(paths).not.toEqual(expect.arrayContaining(["bin/guardian.js"]));
     expect(paths.some(path => /addone/i.test(path))).toBe(false);
     expect(paths.some(path => path.startsWith("scripts/") || path.endsWith(".map"))).toBe(false);
     expect(paths).toEqual(expect.arrayContaining([
@@ -65,52 +63,6 @@ describe("exact packed npm command surface", () => {
     };
     expect(resource.schema).toBe("a1-release-notes-v1");
     expect(Array.isArray(resource.releases)).toBe(true);
-  });
-
-  it("records every packed native process guardian as a loadable addon", () => {
-    const manifests = candidate.entries.filter(entry => /^package\/dist\/native\/[^/]+\/manifest\.json$/.test(entry.path));
-    expect(manifests.length).toBeGreaterThan(0);
-    for (const manifestEntry of manifests) {
-      const reference = guardianAddonReference(manifestEntry.path, manifestEntry.content);
-      if (!reference) throw new Error(`packed guardian manifest is foreign: ${manifestEntry.path}`);
-      const addon = candidate.entries.find(entry => entry.path === reference.addonPath);
-      if (!addon) throw new Error(`packed guardian addon is missing: ${reference.addonPath}`);
-      expect(reference.addonPath).toMatch(/process-guardian\.node$/u);
-    }
-    const localPath = `package/dist/native/${process.platform}-${process.arch}/manifest.json`;
-    const localManifest = manifests.find(entry => entry.path === localPath);
-    if (!localManifest) throw new Error(`packed local guardian manifest is missing: ${localPath}`);
-    const local = guardianAddonReference(localManifest.path, localManifest.content);
-    if (!local) throw new Error(`packed local guardian manifest is foreign: ${localPath}`);
-    expect(readAddonVersion(resolve(extracted.packageRoot, local.addonPath.slice("package/".length)))).toMatchObject({ protocolVersion: 2 });
-  });
-
-  // Platform: only the publication package job assembles every platform; a lane that packs its own
-  // candidate carries one guardian and no terminal host, so the full set is required only there.
-  it("carries a verified terminal-host addon for every platform in a full release candidate", () => {
-    const guardians = candidate.entries.filter(entry => /^package\/dist\/native\/[^/]+\/manifest\.json$/.test(entry.path));
-    if (guardians.length < RELEASE_NATIVE_TARGETS.length) return;
-    for (const { platform, architecture } of RELEASE_NATIVE_TARGETS) {
-      const manifestPath = `package/dist/native/${platform}-${architecture}/terminal-host.manifest.json`;
-      const manifestEntry = candidate.entries.find(entry => entry.path === manifestPath);
-      if (!manifestEntry) throw new Error(`packed terminal host manifest is missing: ${manifestPath}`);
-      const reference = terminalHostAddonReference(manifestEntry.path, manifestEntry.content);
-      if (!reference) throw new Error(`packed terminal host manifest is foreign: ${manifestPath}`);
-      if (!candidate.entries.some(entry => entry.path === reference.addonPath)) throw new Error(`packed terminal host addon is missing: ${reference.addonPath}`);
-      const manifest = JSON.parse(manifestEntry.content.toString("utf8")) as { entry: { filename: string }; notices: { filename: string } };
-      expect(candidate.entries.some(entry => entry.path === `package/dist/native/${platform}-${architecture}/${manifest.notices.filename}`), manifest.notices.filename).toBe(true);
-      expect(candidate.entries.some(entry => entry.path === `package/${manifest.entry.filename}`), manifest.entry.filename).toBe(true);
-    }
-    const local = RELEASE_NATIVE_TARGETS.find(target => target.platform === process.platform && target.architecture === process.arch);
-    if (!local) return;
-    const localManifestPath = `package/dist/native/${local.platform}-${local.architecture}/terminal-host.manifest.json`;
-    const localManifest = candidate.entries.find(entry => entry.path === localManifestPath);
-    if (!localManifest) throw new Error(`packed terminal host manifest is missing: ${localManifestPath}`);
-    const localReference = terminalHostAddonReference(localManifest.path, localManifest.content);
-    if (!localReference) throw new Error(`packed terminal host manifest is foreign: ${localManifestPath}`);
-    const report = readAddonVersion(resolve(extracted.packageRoot, localReference.addonPath.slice("package/".length))) as { generation?: number; features?: { faultInjection?: boolean; residentFixtures?: boolean } };
-    expect(report.generation).toBe(1);
-    expect(report.features).toEqual({ faultInjection: false, residentFixtures: false });
   });
 
   it("resolves Pi's lazily loaded OAuth and bedrock modules from the packed startup artifact", async () => {
@@ -155,13 +107,3 @@ describe("exact packed npm command surface", () => {
     expect(command.stderr).toBe("");
   });
 });
-
-function readAddonVersion(path: string): unknown {
-  const probe = crossSpawn.sync(process.execPath, [
-    "-e",
-    "process.stdout.write(JSON.stringify(require(process.argv[1]).version()));",
-    path,
-  ], { encoding: "utf8", env: process.env, windowsHide: true });
-  if (probe.status !== 0) throw new Error(`packed addon version probe failed: ${probe.stderr}`);
-  return JSON.parse(probe.stdout);
-}

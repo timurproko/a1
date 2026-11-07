@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir, platform, arch } from "node:os";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { recordBuildReceipt, recordPackageReceipt, verifyBuildReceipt, verifyPackageReceipt } from "../../scripts/release/validation-receipt.mjs";
 
 const roots: string[] = [];
 const head = "a".repeat(40);
-const toolchain = { platform: "fixture", architecture: "x64", node: "v24.0.0", modules: "137", packageManager: "npm@11", typescript: "5.9.2", cargo: "cargo fixture", rustc: "rustc fixture" };
+const toolchain = { platform: "fixture", architecture: "x64", node: "v24.0.0", modules: "137", packageManager: "npm@11", typescript: "5.9.2" };
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
 
 async function put(root: string, path: string, source: string | Buffer) {
@@ -20,29 +20,20 @@ async function buildFixture() {
   for (const [path, source] of [
     ["package.json", '{"packageManager":"npm@11","devDependencies":{"typescript":"5.9.2"}}'], ["package-lock.json", "lock"],
     ["tsconfig.json", "{}"], ["tsconfig.build.json", "{}"], ["src/index.ts", "export {};"], ["bin/cli.js", "export {};"],
-    ["native/process-guardian/Cargo.toml", '[package]\nversion="1.0.0"'], ["native/process-guardian/Cargo.lock", "lock"],
-    ["native/process-guardian/src/lib.rs", "pub fn version() {}"], ["scripts/clean.mjs", "export {};"],
-    ["scripts/development/build-process-guardian.mjs", "export {};"], ["scripts/release/generate-runtime-payload-inventory.mjs", "export {};"],
+    ["scripts/clean.mjs", "export {};"], ["scripts/release/generate-runtime-payload-inventory.mjs", "export {};"],
     ["dist/index.js", "export {};"],
   ] as const) await put(root, path, source);
-  const addon = "process-guardian.node";
-  const bytes = Buffer.from("native fixture");
-  await put(root, `dist/native/${platform()}-${arch()}/${addon}`, bytes);
-  await put(root, `dist/native/${platform()}-${arch()}/manifest.json`, JSON.stringify({
-    schema: "a1-process-guardian-artifact-v2", kind: "node-addon", nodeApi: 9, protocolVersion: 2, crateVersion: "1.0.0", platform: platform(), architecture: arch(),
-    artifact: { filename: addon, sha256: createHash("sha256").update(bytes).digest("hex"), size: bytes.length },
-  }));
   return root;
 }
 
 describe("validation prerequisite receipts", () => {
-  it("records and re-verifies complete build inputs, toolchain, emitted files, and native bytes", async () => {
+  it("records and re-verifies complete build inputs, toolchain, and emitted files", async () => {
     const root = await buildFixture();
     const output = join(root, ".artifacts/build.json");
     const receipt = await recordBuildReceipt({ repository: root, output, head, toolchain });
     expect(receipt).toMatchObject({ schema: "a1-validation-build-receipt-v1", head, toolchain, receiptId: expect.stringMatching(/^[0-9a-f]{64}$/) });
-    expect((receipt as any).inputs.entries.map((entry: any) => entry.path)).toEqual(expect.arrayContaining(["src/index.ts", "package-lock.json", "native/process-guardian/src/lib.rs"]));
-    expect((receipt as any).artifacts.entries.map((entry: any) => entry.path)).toEqual(expect.arrayContaining(["dist/index.js", `dist/native/${platform()}-${arch()}/manifest.json`]));
+    expect((receipt as any).inputs.entries.map((entry: any) => entry.path)).toEqual(expect.arrayContaining(["src/index.ts", "package-lock.json", "scripts/clean.mjs"]));
+    expect((receipt as any).artifacts.entries.map((entry: any) => entry.path)).toEqual(expect.arrayContaining(["dist/index.js"]));
     await expect(verifyBuildReceipt(output, { repository: root, head, toolchain })).resolves.toEqual(receipt);
   });
 
@@ -56,7 +47,7 @@ describe("validation prerequisite receipts", () => {
     await expect(verifyBuildReceipt(output, { repository: root, head, toolchain })).rejects.toThrow("do not match");
   });
 
-  it("rejects changed head/toolchain, forged receipt identity, missing artifacts, and native mismatch", async () => {
+  it("rejects changed head/toolchain, forged receipt identity, and missing artifacts", async () => {
     const root = await buildFixture();
     const output = join(root, ".artifacts/build.json");
     await recordBuildReceipt({ repository: root, output, head, toolchain });
@@ -65,9 +56,6 @@ describe("validation prerequisite receipts", () => {
     const value = JSON.parse(await readFile(output, "utf8")); value.head = "b".repeat(40); await writeFile(output, JSON.stringify(value));
     await expect(verifyBuildReceipt(output, { repository: root, head, toolchain })).rejects.toThrow("identity is invalid");
     await rm(output); await expect(verifyBuildReceipt(output, { repository: root, head, toolchain })).rejects.toThrow();
-    await recordBuildReceipt({ repository: root, output, head, toolchain });
-    await put(root, `dist/native/${platform()}-${arch()}/process-guardian.node`, "tampered native");
-    await expect(verifyBuildReceipt(output, { repository: root, head, toolchain })).rejects.toThrow("native artifact differs");
   });
 
   it("records exact candidate bytes, entries, manifest, producer, and optional source identity", async () => {

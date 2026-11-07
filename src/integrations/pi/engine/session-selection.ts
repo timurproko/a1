@@ -10,7 +10,7 @@ import {
 } from "../../../foundation/session-writer-lock/index.js";
 
 // Invariant: the engine accepts a storage request, not launch/control infrastructure.
-// Public argv validation remains at CLI, guardian, and UI entry boundaries.
+// Public argv validation remains at the CLI and UI entry boundaries.
 export interface PiSessionSelection {
   readonly target: string;
   readonly sessionDir?: string;

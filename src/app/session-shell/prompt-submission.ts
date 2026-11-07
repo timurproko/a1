@@ -14,7 +14,6 @@ import type {
 } from "../../contracts/owned-ui/index.js";
 import { renderPiShellStatusText } from "../../integrations/pi/components/shell-presenters-info.js";
 import type { PromptHistoryController } from "./prompt-history-controller.js";
-import type { ResidentTabCoordinator } from "./resident-tab-coordinator.js";
 import type { SessionConcern } from "./session-concern.js";
 import type { OwnedUiSessionShellRoot } from "./session-shell-root.js";
 import type { OwnedUiPresenterTerminal } from "./shell-host.js";
@@ -26,7 +25,6 @@ export interface PromptSubmissionPorts {
     | "imageChipAttachmentsFromEditor" | "preparePromptSubmission" | "omitUnsentPromptImages"
     | "resumeViewportFollowing" | "beginImageSubmissionStatus" | "appendWorkflowResult">;
   readonly terminal: Pick<OwnedUiPresenterTerminal, "requestRender">;
-  readonly residentTab: ResidentTabCoordinator;
   readonly cwd: string;
   promptHistory(): PromptHistoryController | null;
   imageSidecar(): PromptHistoryImageSidecarPort | undefined;
@@ -44,8 +42,8 @@ const rejected = (diagnostic: string): OwnedUiCommandResult => ({ outcome: "reje
 
 /**
  * Turns editor input into engine commands: prompts, steering, follow-ups, and bash, each recorded
- * in history first. It holds a submission whose image pastes are still preparing, journals prompts
- * for resident tabs, and recovers the draft when a submission is rejected.
+ * in history first. It holds a submission whose image pastes are still preparing and recovers the
+ * draft when a submission is rejected.
  */
 export class PromptSubmission implements SessionConcern {
   readonly #ports: PromptSubmissionPorts;
@@ -239,27 +237,9 @@ export class PromptSubmission implements SessionConcern {
       text: input,
       ...(prepared.images.length === 0 ? {} : { images: prepared.images }),
     } as const;
-    let submission: { readonly id: string } | undefined;
-    try {
-      submission = await this.#ports.residentTab.admit({
-        sessionId: command.sessionId,
-        sessionFile: this.#ports.currentSessionFile(),
-        kind: type,
-        text: input,
-      });
-    } catch {
-      if (root.editor.getText().length === 0) root.editor.setText(displayInput);
-      const message = "Prompt was not sent because its recovery journal could not be synchronized.";
-      this.reportError(undefined, message);
-      return rejected(message);
-    }
     const finishSending = prepared.images.length === 0 ? () => {} : root.beginImageSubmissionStatus();
     try {
-      const result = await this.execute(command, displayInput);
-      if (submission !== undefined && result.outcome !== "rejected") {
-        await this.#ports.residentTab.dispatched(submission.id, command.correlationId);
-      }
-      return result;
+      return await this.execute(command, displayInput);
     } finally {
       finishSending();
     }

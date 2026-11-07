@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   UPDATE_CHECK_INTERVAL_MS,
-  NOTIFY_CHECK_INTERVAL_MS,
   availableRelease,
   checkForNewerRelease,
   distTagsUrl,
@@ -145,7 +144,7 @@ describe("startup release check", () => {
   });
 
   it.each([
-    ["stale", { version: 1, channel: "stable", latest: "0.3.5", checkedAt: NOW - NOTIFY_CHECK_INTERVAL_MS }],
+    ["stale", { version: 1, channel: "stable", latest: "0.3.5", checkedAt: NOW - UPDATE_CHECK_INTERVAL_MS }],
     ["future", { version: 1, channel: "stable", latest: "0.3.5", checkedAt: NOW + 60_000 }],
     ["other-channel", { version: 1, channel: "development", latest: "0.3.5-dev.1", checkedAt: NOW }],
     ["unknown-version", { version: 3, channel: "stable", latest: "0.3.5", checkedAt: NOW }],
@@ -164,7 +163,7 @@ describe("startup release check", () => {
     ["malformed data", async () => ({ ok: true, status: 200, text: async () => "{\"latest\":\"newest\"}" })],
   ] as const)("stays silent and keeps the previous cache on %s", async (_label, fetcher) => {
     const harness = await createHarness({ runningVersion: "0.3.0", fetcher: fetcher as RegistryFetcher });
-    const previous = JSON.stringify({ version: 1, channel: "stable", latest: "0.3.5", checkedAt: NOW - NOTIFY_CHECK_INTERVAL_MS - 1 });
+    const previous = JSON.stringify({ version: 1, channel: "stable", latest: "0.3.5", checkedAt: NOW - UPDATE_CHECK_INTERVAL_MS - 1 });
     await writeFile(join(harness.configDir, "update-check.json"), previous);
 
     await expect(checkForNewerRelease(harness.options)).resolves.toBeNull();
@@ -214,12 +213,9 @@ describe("startup release check", () => {
     await expect(readFile(join(harness.configDir, "update-check.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
   });
 
-  it("serializes concurrent stale refreshes and keeps Notify on the 24-hour window", async () => {
+  it("serializes concurrent stale refreshes into one registry query", async () => {
     const harness = await createHarness({ settingMode: "auto" });
     await Promise.all(Array.from({ length: 6 }, () => checkForNewerRelease(harness.options)));
-    expect(harness.urls).toHaveLength(1);
-    const notify = { ...harness.options, settingMode: "notify" as const, now: () => NOW + UPDATE_CHECK_INTERVAL_MS };
-    expect(await checkForNewerRelease(notify)).toMatchObject({ version: "0.3.1" });
     expect(harness.urls).toHaveLength(1);
   });
 
@@ -262,7 +258,7 @@ async function createHarness(overrides: Partial<StartupReleaseCheckOptions> & { 
     configDir,
     environment: {},
     interactive: true,
-    settingMode: "notify",
+    settingMode: "auto",
     now: () => NOW,
     ...overrides,
     fetcher: async url => { urls.push(url); return await fetcher(url); },

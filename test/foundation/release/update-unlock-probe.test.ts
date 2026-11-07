@@ -66,7 +66,7 @@ describe("update package unlock probe", () => {
 
   it("caps the pause between checks and keeps checking until the window closes", async () => {
     const { coordinator, renames, sleeps } = scriptedProbe(alwaysLocked(40));
-    await expect(coordinator.verifyPackageUnlocked(PACKAGE_ROOT)).rejects.toThrow(/remained locked for 4s after verified shutdown \(8 checks\)/);
+    await expect(coordinator.verifyPackageUnlocked(PACKAGE_ROOT)).rejects.toThrow(/remained locked for 4s \(8 checks\)/);
     // Rationale: the pauses grow to the cap and the last one is trimmed so the wait ends exactly
     // when the window closes.
     expect(sleeps).toEqual([100, 200, 400, 800, 1_000, 1_000, 500]);
@@ -173,7 +173,7 @@ describe("update package unlock probe against the real filesystem", () => {
     const handle = await open(join(packageRoot, "package.json"), "r");
     const coordinator = createUpdateLifecycleCoordinator({}, undefined, SILENT, { windowMs: 300 });
     try {
-      await expect(coordinator.verifyPackageUnlocked(packageRoot)).rejects.toThrow(/remained locked for 1s after verified shutdown/);
+      await expect(coordinator.verifyPackageUnlocked(packageRoot)).rejects.toThrow(/remained locked for 1s/);
     } finally {
       await handle.close();
     }

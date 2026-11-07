@@ -18,7 +18,7 @@ The product SHALL identify itself with display name `A1`, command `a1`, npm pack
 - **THEN** all identity-derived diagnostics and generated names under test SHALL use the substituted value without editing feature modules
 
 ### Requirement: Current environment and state names use the A1 namespace
-User-facing product configuration SHALL retain `A1_CONFIG_DIR`, `A1_DATA_DIR`, `A1_RUNTIME_DIR`, `A1_DATABASE_PATH`, `A1_ENDPOINT`, and any other explicitly classified supported external setting. Private process coordination, tests, and automation SHALL use separately classified, descriptive environment keys whose canonical spellings do not contain `a1`, case-insensitively. Confirmed private keys SHALL have one supported neutral spelling. Implementations SHALL NOT provide legacy private aliases, dual reads/writes, compatibility adapters, or migration helpers. Obsolete private spellings SHALL NOT supply missing current-contract values or influence runtime selection. Public and private key definitions SHALL be validated according to their respective contracts rather than requiring every environment key to use the product prefix. Default Windows and Unix control-state directory resolution SHALL remain unchanged and retain the product namespace. A1 SHALL NOT read variables or control-state directories using the former product identity. A1 SHALL retain `~/.a1/agent` for its profile and preserve the comparison launch's ordinary `~/.pi/agent` resolution. This internal naming change SHALL NOT relocate existing user data or alter independently specified history-storage behavior.
+User-facing product configuration SHALL retain `A1_CONFIG_DIR`, `A1_DATA_DIR`, `A1_RUNTIME_DIR`, and any other explicitly classified supported external setting. Private process coordination, tests, and automation SHALL use separately classified, descriptive environment keys whose canonical spellings do not contain `a1`, case-insensitively. Confirmed private keys SHALL have one supported neutral spelling. Implementations SHALL NOT provide legacy private aliases, dual reads/writes, compatibility adapters, or migration helpers. Obsolete private spellings SHALL NOT supply missing current-contract values or influence runtime selection. Public and private key definitions SHALL be validated according to their respective contracts rather than requiring every environment key to use the product prefix. Default Windows and Unix control-state directory resolution SHALL remain unchanged and retain the product namespace. A1 SHALL NOT read variables or control-state directories using the former product identity. A1 SHALL retain `~/.a1/agent` for its profile and preserve the comparison launch's ordinary `~/.pi/agent` resolution. This internal naming change SHALL NOT relocate existing user data or alter independently specified history-storage behavior.
 
 #### Scenario: Override A1 state roots
 - **WHEN** the user supplies valid `A1_CONFIG_DIR`, `A1_DATA_DIR`, and `A1_RUNTIME_DIR` values
@@ -33,14 +33,14 @@ User-facing product configuration SHALL retain `A1_CONFIG_DIR`, `A1_DATA_DIR`, `
 - **THEN** A1 SHALL resolve the same platform-appropriate defaults as before the internal naming change, containing the `A1` or `a1` product namespace
 
 ### Requirement: Current machine-readable identifiers use the A1 namespace
-Current release manifests, protocol and evidence schemas, endpoint and pipe names, and diagnostic identifiers SHALL use the `a1` namespace. A1 SHALL reject machine-readable identifiers using the former namespace and SHALL NOT migrate legacy control state. Filenames are governed separately: see the requirement that files are named for what they do.
+Current release manifests, protocol and evidence schemas, and diagnostic identifiers SHALL use the `a1` namespace. A1 SHALL reject machine-readable identifiers using the former namespace and SHALL NOT migrate legacy control state. Filenames are governed separately: see the requirement that files are named for what they do.
 
 #### Scenario: Validate current release state
-- **WHEN** A1 reads a release manifest, endpoint record, protocol frame, or evidence document created for the current product
+- **WHEN** A1 reads a release manifest, release-state or update-journal record, or evidence document created for the current product
 - **THEN** the identifier SHALL use its declared `a1` schema or namespace and validation SHALL succeed
 
 #### Scenario: Encounter legacy machine-readable state
-- **WHEN** A1 encounters a release manifest, endpoint record, protocol frame, or evidence schema using the former namespace
+- **WHEN** A1 encounters a release manifest, release-state or update-journal record, or evidence schema using the former namespace
 - **THEN** A1 SHALL reject it as unsupported without rewriting or importing it
 
 #### Scenario: Inspect installed package entries
@@ -59,13 +59,13 @@ Archived changes, immutable historical evidence, and explicit obsolete-package r
 - **THEN** the record SHALL remain unchanged and SHALL be excluded from current-identity generation paths
 
 ### Requirement: Files and code identifiers are named for what they do, not for the product
-Filenames, directory names, native crate and executable names, and source identifiers SHALL be named for their role rather than for the product. Internal constants, variables, parameters, functions, methods, classes, interfaces, types, enums, and members SHALL NOT contain the substring `a1`, matched case-insensitively, including in private names, aliases, destructuring bindings, and quoted or statically known computed member names. Existing file, directory, crate, and executable naming governance SHALL remain in effect.
+Filenames, directory names, executable names, and source identifiers SHALL be named for their role rather than for the product. Internal constants, variables, parameters, functions, methods, classes, interfaces, types, enums, and members SHALL NOT contain the substring `a1`, matched case-insensitively, including in private names, aliases, destructuring bindings, and quoted or statically known computed member names. Existing file, directory, crate, and executable naming governance SHALL remain in effect.
 
 The product name SHALL remain where users or independently versioned consumers address A1: the installed command `a1`, npm package identity, supported public environment settings, user-state paths, declared protocol and evidence schemas, and user-visible output. Supported external spellings SHALL be represented as classified boundary data rather than branded internal declarations. Confirmed private spellings SHALL NOT receive an external-boundary exemption merely to retain old behavior. An `A1_*` property spelling alone SHALL NOT establish an external contract or grant an exemption. External member names required by a declared serialization or third-party interface SHALL be confined to that interface boundary and SHALL NOT justify similarly named internal state.
 
 #### Scenario: Add an entry point or executable
-- **WHEN** a package entry, script, native crate, or built executable is added or renamed
-- **THEN** its name SHALL describe its role, such as `cli`, `ui`, `guardian`, `supervisor`, `process-guardian`, or `terminal-host`, and SHALL NOT embed the product name
+- **WHEN** a package entry, script, or built executable is added or renamed
+- **THEN** its name SHALL describe its role, such as `cli`, `ui`, `activate`, `warmup`, or `release-cleanup`, and SHALL NOT embed the product name
 
 #### Scenario: Name a source identifier
 - **WHEN** an internal declaration or member is introduced or changed

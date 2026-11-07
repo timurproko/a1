@@ -11,7 +11,7 @@ import { RELEASE_MANIFEST_FILENAME, type CertifiedReleaseRecord, type Materializ
 import { UpdateTransactionStore } from "./update-transaction.js";
 
 const RESTART_SEAL_VERSION = 1;
-const REQUIRED_LAUNCH_ENTRIES = ["bin/supervisor.js", "bin/guardian.js"] as const;
+const REQUIRED_LAUNCH_ENTRIES = ["bin/ui.js"] as const;
 
 type EvidenceKind = "directory" | "file" | "binding";
 

@@ -7,7 +7,6 @@ import { pathToFileURL } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { verifyExactPackagePreparation } from "../../../scripts/release/exact-package-preparation.mjs";
 import { PredecessorFixture } from "../../support/predecessor-fixture.js";
-import { exerciseResidentPredecessor } from "../../support/resident-predecessor.js";
 import { loadValidationCandidate } from "./package-candidate-fixture.js";
 
 /**
@@ -36,7 +35,6 @@ afterAll(async () => fixture.close(), 120_000);
 describe("update from every recent published release", () => {
   it("materializes and warms the candidate with each predecessor's own release code", async ({ signal }) => fixture.phase(1_800_000, async phaseSignal => {
     let exercised = 0;
-    let residentExercised = 0;
     for (const version of predecessors) {
       phaseSignal.throwIfAborted();
       if (exercised >= PREDECESSOR_COUNT) break;
@@ -57,7 +55,6 @@ describe("update from every recent published release", () => {
         A1_DATA_DIR: resolve(sandbox, "data"),
         A1_RUNTIME_DIR: resolve(sandbox, "runtime"),
         A1_CONFIG_DIR: resolve(sandbox, "config"),
-        A1_DATABASE_PATH: resolve(sandbox, "control.sqlite3"),
       };
       // Protocol: the predecessor copies the candidate payload and then imports the candidate's own
       // startup graph in a child process, exactly as `a1 update` does.
@@ -71,13 +68,6 @@ describe("update from every recent published release", () => {
       // and the warmed child has closed by now, so both are released under this phase's own budget.
       // Holding all of them until the teardown hook instead made removal outgrow that hook's limit.
       await fixture.discard(sandbox);
-      if (existsSync(resolve(priorRoot, "dist", "foundation", "resident-tabs", "host-entry.js"))) {
-        const priorManifest = JSON.parse(await readFile(resolve(priorRoot, "package.json"), "utf8")) as { privateLaunchContract?: string };
-        if (priorManifest.privateLaunchContract === "neutral-launch-v1") {
-          await exerciseResidentPredecessor(priorRoot, candidateRoot, fixture);
-          residentExercised++;
-        }
-      }
       if (process.platform === "win32" && version === predecessors[0]) {
         // Invariant: the direct replacement owner needs this same immutable predecessor tree. Fixture
         // ownership continues across the sequential test boundary and teardown remains fail-safe.
@@ -88,7 +78,6 @@ describe("update from every recent published release", () => {
       }
     }
     expect(exercised, "no published release carried a usable release store to update from").toBeGreaterThan(0);
-    expect(residentExercised, "no supported published resident predecessor exercised live continuity").toBeGreaterThan(0);
   }, signal), 1_800_000);
 
   it.runIf(process.platform === "win32")("replaces and activates the candidate through direct and bridged published updaters", async ({ signal }) => fixture.phase(1_800_000, async phaseSignal => {
@@ -224,7 +213,6 @@ async function exerciseProtectedReplacement(
     A1_DATA_DIR: dataDir,
     A1_RUNTIME_DIR: resolve(root, "runtime"),
     A1_CONFIG_DIR: resolve(root, "config"),
-    A1_DATABASE_PATH: resolve(root, "control.sqlite3"),
   };
   const materialized = await release.materializeRelease(packageRoot, dataDir);
   await release.warmMaterializedRelease(materialized, activationEnvironment, 120_000);

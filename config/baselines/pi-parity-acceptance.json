@@ -111,15 +111,7 @@
     "Ordinary prompt submission produced no visible turn",
     "Most pinned vanilla workflows absent"
   ],
-  "gateCorrections": [
-    {
-      "id": "javascript-package-authority",
-      "detectedBy": "test/repository-governance/native-host-boundary.test.ts",
-      "finding": "@xterm/headless is forbidden in JavaScript package authority, including development dependencies",
-      "correction": "Removed @xterm/headless and changed terminal parity from emulator-backed screens to normalized captured ANSI frames, an explicitly permitted fixture strategy.",
-      "status": "corrected"
-    }
-  ],
+  "gateCorrections": [],
   "gates": [
     {
       "command": "npm run build",

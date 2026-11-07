@@ -1,6 +1,6 @@
-import type { OwnedUiBackgroundStyle, OwnedUiTimeFormat, UiAccentColor } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 20;
+export const OWNED_UI_SETTINGS_VERSION = 21;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "blue", "purple", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
@@ -31,47 +31,16 @@ const GENERIC_SECTION = Object.freeze({ id: "generic", title: "Generic" });
 const APPEARANCE_SECTION = Object.freeze({ id: "appearance", title: "Appearance" });
 const SCROLL_SECTION = Object.freeze({ id: "scroll", title: "Scroll" });
 const AGENT_SECTION = Object.freeze({ id: "agent", title: "Agent" });
-const TABS_SECTION = Object.freeze({ id: "tabs", title: "Tab Bar" });
-
-/** The tab kinds the strip's `+` can offer, in the order it shows them. */
-const PLUS_MENU_KINDS = Object.freeze([
-  Object.freeze({ key: "agent", label: "Agent", description: "Add a new Agent tab every time." }),
-  Object.freeze({ key: "settings", label: "Settings", description: "Show the one Settings tab." }),
-  Object.freeze({ key: "changelog", label: "Changelog", description: "Show the one Changelog tab." }),
-]);
-
-/** Every enabled subset of the plus-menu kinds, each in kind order. */
-const PLUS_MENU_VALUES = Object.freeze([
-  "", "agent", "settings", "changelog", "agent,settings", "agent,changelog", "settings,changelog", "agent,settings,changelog",
-] as const);
-
-/** The right-side strip items, in their fixed presentation order. */
-const TAB_BAR_RIGHT_ITEMS = Object.freeze([
-  Object.freeze({ key: "version", label: "Version", description: "Show the executing A1 version." }),
-  Object.freeze({ key: "time", label: "Time", description: "Show the current time." }),
-]);
-const TAB_BAR_RIGHT_ITEM_VALUES = Object.freeze(["", "version", "time", "version,time"] as const);
 
 export const OWNED_SETTING_DECLARATIONS = Object.freeze({
   updateCheck: Object.freeze({
     id: "updateCheck",
     label: "Update",
     section: GENERIC_SECTION,
-    description: "Auto checks the running channel every 15 minutes while open and installs verified updates silently. Notify checks on startup and shows an update notice; No leaves updates manual. Applies on next start.",
+    description: "Auto checks the running channel every 15 minutes while open and installs verified updates silently, then shows Update installed, restart to update; the next start runs it. No leaves updates manual. Applies on next start.",
     application: "restart",
     defaultValue: "auto",
-    allowedValues: Object.freeze(["auto", "notify", "no"] as const),
-  }),
-  timeFormat: Object.freeze({
-    id: "timeFormat",
-    label: "Time format",
-    section: GENERIC_SECTION,
-    description: "Format used by submitted-prompt timestamps and the resident tab clock when Time is enabled.",
-    application: "live",
-    defaultValue: "8:00 PM",
-    allowedValues: Object.freeze([
-      "20:00", "8:00 PM",
-    ] as const satisfies readonly OwnedUiTimeFormat[]),
+    allowedValues: Object.freeze(["auto", "no"] as const),
   }),
   accentColor: Object.freeze({
     id: "accentColor",
@@ -182,53 +151,6 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     application: "live",
     defaultValue: 8,
     allowedValues: Object.freeze([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16] as const),
-  }),
-  tabsPosition: Object.freeze({
-    id: "tabsPosition",
-    label: "Position",
-    section: TABS_SECTION,
-    description: "Place the resident tab bar at the top or bottom of the terminal.",
-    application: "live",
-    defaultValue: "top",
-    allowedValues: Object.freeze(["top", "bottom"] as const),
-  }),
-  tabBarPlusMenu: Object.freeze({
-    id: "tabBarPlusMenu",
-    label: "Plus menu",
-    section: TABS_SECTION,
-    description: "The tabs + offers. With only Agent, + adds an Agent at once; with more, it opens a menu; with none, + is hidden.",
-    application: "live",
-    defaultValue: "agent",
-    allowedValues: PLUS_MENU_VALUES,
-    flags: PLUS_MENU_KINDS,
-  }),
-  tabBarRightItems: Object.freeze({
-    id: "tabBarRightItems",
-    label: "Widgets",
-    section: TABS_SECTION,
-    description: "Choose whether the tab bar's right side shows the executing Version, Time, both, or neither.",
-    application: "live",
-    defaultValue: "version,time",
-    allowedValues: TAB_BAR_RIGHT_ITEM_VALUES,
-    flags: TAB_BAR_RIGHT_ITEMS,
-  }),
-  tabBarBackgroundStyle: Object.freeze({
-    id: "tabBarBackgroundStyle",
-    label: "Background",
-    section: TABS_SECTION,
-    description: "Tab-bar canvas.",
-    application: "live",
-    defaultValue: "transparent",
-    allowedValues: Object.freeze(["transparent", "black", "accent"] as const),
-  }),
-  tabsAutoName: Object.freeze({
-    id: "tabsAutoName",
-    label: "Auto name",
-    section: TABS_SECTION,
-    description: "Automatically name a new tab from its first completed turn with the tab's current model.",
-    application: "live",
-    defaultValue: true,
-    allowedValues: Object.freeze([true, false] as const),
   }),
 } as const satisfies Readonly<Record<string, OwnedUiSettingDeclaration>>);
 

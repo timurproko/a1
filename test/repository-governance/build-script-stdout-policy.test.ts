@@ -14,13 +14,11 @@ describe("build script stdout discipline", () => {
       "scripts/release/generate-release-notes-resource.mjs",
       "scripts/pi/build-pi-settings-metadata.mjs",
       "scripts/pi/build-startup-public.mjs",
-      "scripts/development/build-process-guardian.mjs",
     ]);
     const clean = String(manifest.scripts.clean).match(/node (scripts\/[^\s&]+\.mjs)/u)?.[1];
     expect(clean).toBe("scripts/clean.mjs");
     const orchestrated = [
       "scripts/development/check-environment.mjs",
-      "scripts/development/prepare-local-terminal-host.mjs",
       "scripts/release/generate-runtime-payload-inventory.mjs",
     ];
     for (const path of [clean ?? "", ...chain, ...orchestrated]) {

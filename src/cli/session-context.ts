@@ -3,6 +3,7 @@ import {
   updateSessionRepositoryContext,
   type SessionContextRequest,
 } from "../features/launch/index.js";
+import { inspectLiveProcess } from "../foundation/lifecycle/index.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../product-identity.js";
 
 export type { SessionContextRequest } from "../features/launch/index.js";
@@ -28,14 +29,10 @@ export async function runSessionContextCommand(
     return 2;
   }
   try {
-    if (options.inspectProcess === undefined) throw Object.assign(
-      new Error("native process identity inspection is unavailable"),
-      { code: "process-inspection-unavailable" },
-    );
     const outcome = await updateSessionRepositoryContext(
       { sessionId: identity.sessionId, sessionFile: identity.sessionFile },
       request,
-      { runtimeId: identity.runtimeId, inspectProcess: options.inspectProcess },
+      { runtimeId: identity.runtimeId, inspectProcess: options.inspectProcess ?? inspectLiveProcess },
     );
     if (outcome.kind === "unlinked") stdout("Session worktree context cleared.\n");
     if (outcome.kind === "linked") stdout(`Session worktree context linked: ${outcome.cwd}\n`);
@@ -67,16 +64,15 @@ function readIdentity(environment: NodeJS.ProcessEnv): {
   return { sessionId, sessionFile, runtimeId };
 }
 
-/** Known coordination failures must not expose native paths or another session's identity. */
+/** Known coordination failures must not expose internal paths or another session's identity. */
 function recoveryDetail(code: string | null): string | undefined {
   const details: Readonly<Record<string, string>> = {
     "worktree-claim-busy": "another mutation is still running; runtime registration retries automatically, so retry this link shortly",
     "worktree-legacy-recovery-required": "an older-format worktree lock requires safe recovery; stop all older A1 processes, move only session-worktree-claims/mutation.lock to a backup while stopped, then start the updated A1; keep all sessions and worktree claims",
-    "worktree-coordination-unavailable": "native worktree coordination is unavailable; repair or update this A1 installation, then retry",
+    "worktree-coordination-unavailable": "worktree coordination is unavailable; repair or update this A1 installation, then retry",
     "worktree-coordination-io": "worktree coordination could not access its files; check A1 data-directory permissions and filesystem availability, then retry",
     "worktree-coordination-boundary": "unexpected worktree coordination entry; retain it for inspection, and do not delete the claim store",
-    "process-inspection-unavailable": "native process inspection is unavailable; repair the A1 installation before retrying; no ownership was overridden",
-    "session-runtime-unverifiable": "runtime identity could not be verified; check native process inspection and retry; no ownership was overridden",
+    "session-runtime-unverifiable": "runtime identity could not be verified; retry; no ownership was overridden",
     "session-runtime-unavailable": "this session has not registered yet; updated A1 retries registration automatically; retry shortly and follow any specific coordination error if it persists",
     "session-runtime-stopped": "this shell belongs to a stopped runtime; resume in a running A1 session before linking",
     "worktree-active-in-another-session": "another live agent owns this worktree; use a different worktree or wait for its owner to release it",

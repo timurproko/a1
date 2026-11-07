@@ -12,7 +12,6 @@ function handlers() {
     update: vi.fn(async () => 0),
     packages: vi.fn(async () => 0),
     sessionContext: vi.fn(async () => 0),
-    tabs: vi.fn(async () => 0),
   };
 }
 
@@ -22,9 +21,8 @@ function output() {
 
 describe("A1 CLI dispatch", () => {
   it.each([
-    [[], { kind: "launch", profileId: "a1", launchMode: "tabs" }],
-    [["solo"], { kind: "launch", profileId: "a1", launchMode: "solo" }],
-    [["pi"], { kind: "launch", profileId: "pi", launchMode: "solo" }],
+    [[], { kind: "launch", profileId: "a1" }],
+    [["pi"], { kind: "launch", profileId: "pi" }],
     [["help"], { kind: "help" }],
     [["--help"], { kind: "help" }],
     [["-h"], { kind: "help" }],
@@ -53,15 +51,10 @@ describe("A1 CLI dispatch", () => {
     [["session", "worktrees"], { kind: "session-context", request: { action: "worktrees" } }],
     [["session", "link-worktree", "D:/worktree"], { kind: "session-context", request: { action: "link-worktree", path: "D:/worktree" } }],
     [["session", "unlink-worktree"], { kind: "session-context", request: { action: "unlink-worktree" } }],
-    [["tabs"], { kind: "tabs", request: { action: "list", json: false } }],
-    [["tabs", "--json"], { kind: "tabs", request: { action: "list", json: true } }],
-    [["tabs", "stop", "tab-1"], { kind: "tabs", request: { action: "stop", tabId: "tab-1", json: false } }],
-    [["tabs", "stop", "--all"], { kind: "tabs", request: { action: "stop-all", json: false } }],
-    [["tabs", "host", "status", "--json"], { kind: "tabs", request: { action: "host-status", json: true } }],
-    [["tabs", "host", "stop"], { kind: "tabs", request: { action: "host-stop", json: false } }],
-    [["tabs", "doctor"], { kind: "tabs", request: { action: "doctor", json: false } }],
-    [["tabs", "--help"], { kind: "tabs-help" }],
-    [["tabs", "stop", "-h"], { kind: "tabs-help" }],
+    [["solo"], { kind: "noop" }],
+    [["solo", "--session", "saved-id"], { kind: "noop" }],
+    [["tabs"], { kind: "noop" }],
+    [["tabs", "stop", "--all"], { kind: "noop" }],
   ] as const)("parses %j", (arguments_, expected) => {
     expect(parseCliCommand(arguments_, PRERELEASE)).toEqual(expected);
   });
@@ -74,9 +67,9 @@ describe("A1 CLI dispatch", () => {
     expect(commands.launch).not.toHaveBeenCalled();
     expect(cliHelp(PRERELEASE)).toContain("session worktrees");
     expect(cliHelp(PRERELEASE)).toContain("session unlink-worktree");
-    expect(cliHelp(PRERELEASE)).toContain("a1 solo");
-    expect(cliUsage(PRERELEASE)).toContain("solo --session <path|id>");
-    expect(parseCliCommand(["solo"], RELEASE)).toEqual({ kind: "launch", profileId: "a1", launchMode: "solo" });
+    expect(cliHelp(PRERELEASE)).not.toContain("solo");
+    expect(cliUsage(PRERELEASE)).not.toContain("solo");
+    expect(parseCliCommand(["solo"], RELEASE)).toEqual({ kind: "noop" });
   });
 
   it.each([PRERELEASE, RELEASE])("dispatches explicit session selection in either option order (%j)", async capabilities => {
@@ -87,29 +80,12 @@ describe("A1 CLI dispatch", () => {
     ]) {
       const commands = handlers();
       const sessionSelection = { target: "saved-id", ...(arguments_.length === 2 ? {} : { sessionDir: "D:/session's store" }) };
-      expect(parseCliCommand(arguments_, capabilities)).toEqual({ kind: "launch", profileId: "a1", launchMode: "tabs", sessionSelection });
+      expect(parseCliCommand(arguments_, capabilities)).toEqual({ kind: "launch", profileId: "a1", sessionSelection });
       expect(await dispatchCli(arguments_, commands, output(), capabilities)).toBe(0);
-      expect(commands.launch).toHaveBeenCalledExactlyOnceWith({ kind: "interactive", profileId: "a1", launchMode: "tabs", sessionSelection });
+      expect(commands.launch).toHaveBeenCalledExactlyOnceWith({ kind: "interactive", profileId: "a1", sessionSelection });
       expect(commands.update).not.toHaveBeenCalled();
       expect(cliHelp(capabilities)).toContain("--session <path|id>");
       expect(cliHelp(capabilities)).toContain("--session-dir <dir> --session <path|id>");
-    }
-  });
-
-  it.each([PRERELEASE, RELEASE])("dispatches solo session selection with both option orders (%j)", async capabilities => {
-    for (const rest of [
-      ["--session", "saved-id"],
-      ["--session-dir", "D:/session's store", "--session", "saved-id"],
-      ["--session", "saved-id", "--session-dir", "D:/session's store"],
-    ]) {
-      const args = ["solo", ...rest];
-      const selection = { target: "saved-id", ...(rest.length === 2 ? {} : { sessionDir: "D:/session's store" }) };
-      const commands = handlers();
-      expect(parseCliCommand(args, capabilities)).toEqual({ kind: "launch", profileId: "a1", launchMode: "solo", sessionSelection: selection });
-      expect(await dispatchCli(args, commands, output(), capabilities)).toBe(0);
-      expect(commands.launch).toHaveBeenCalledExactlyOnceWith({ kind: "interactive", profileId: "a1", launchMode: "solo", sessionSelection: selection });
-      expect(cliHelp(capabilities)).toContain("a1 solo --session <path|id>");
-      expect(cliHelp(capabilities)).toContain("a1 solo --session-dir <dir> --session <path|id>");
     }
   });
 
@@ -150,16 +126,15 @@ describe("A1 CLI dispatch", () => {
   });
 
   it.each([
-    { arguments_: [] as const, profileId: "a1", launchMode: "tabs" },
-    { arguments_: ["solo"] as const, profileId: "a1", launchMode: "solo" },
-    { arguments_: ["pi"] as const, profileId: "pi", launchMode: "solo" },
-  ] as const)("dispatches interactive form $arguments_ as a typed intent", async ({ arguments_, profileId, launchMode }) => {
+    { arguments_: [] as const, profileId: "a1" },
+    { arguments_: ["pi"] as const, profileId: "pi" },
+  ] as const)("dispatches interactive form $arguments_ as a typed intent", async ({ arguments_, profileId }) => {
     const launch = vi.fn(async (_intent: InteractiveLaunchIntent) => 17);
     const result = await dispatchCli(arguments_, { ...handlers(), launch }, output(), PRERELEASE);
 
     expect(result).toBe(17);
     expect(launch).toHaveBeenCalledOnce();
-    expect(launch.mock.calls[0]?.[0]).toMatchObject({ kind: "interactive", profileId, launchMode });
+    expect(launch.mock.calls[0]?.[0]).toEqual({ kind: "interactive", profileId });
   });
 
   it("prints help only when explicitly requested", async () => {
@@ -237,9 +212,6 @@ describe("A1 CLI dispatch", () => {
     ["update", "--models", "extra"],
     ["update", "--all"],
     ["help", "extra"],
-    ["solo", "extra"], ["solo", "--session"], ["solo", "--session-dir", "dir"],
-    ["solo", "--session", "id", "extra"], ["solo", "--session", "id", "--session", "other"],
-    ["solo", "--session", "id", "--unknown", "value"],
     ["--help", "extra"],
     ["version", "extra"],
     ["--version", "extra"],
@@ -299,37 +271,6 @@ describe("A1 CLI dispatch", () => {
     expectNoHandler(commands);
   });
 
-  it("prints focused tabs help without contacting a host", async () => {
-    const commands = handlers();
-    const transcript = output();
-    await expect(dispatchCli(["tabs", "--help"], commands, transcript, PRERELEASE)).resolves.toBe(0);
-    const help = String(transcript.stdout.mock.calls[0]?.[0]);
-    for (const form of ["a1 tabs ", "a1 tabs stop <id>", "a1 tabs stop --all", "a1 tabs host status", "a1 tabs host stop", "a1 tabs doctor", "--json"]) {
-      expect(help).toContain(form);
-    }
-    expect(commands.tabs).not.toHaveBeenCalled();
-  });
-
-  it.each([
-    [["tabs", "stop"], "stop requires a tab id or --all."],
-    [["tabs", "stop", "a", "b"], "stop accepts one tab id or --all."],
-    [["tabs", "stop", "--force"], "unknown option --force."],
-    [["tabs", "host"], "host accepts status or stop."],
-    [["tabs", "host", "restart"], "host accepts status or stop."],
-    [["tabs", "doctor", "now"], "doctor does not accept arguments."],
-    [["tabs", "--bogus"], "unknown option --bogus."],
-    [["tabs", "restart"], "unknown subcommand restart"],
-  ] as const)("rejects malformed tabs form %j before any I/O", async (arguments_, detail) => {
-    const commands = handlers();
-    const transcript = output();
-    expect(await dispatchCli(arguments_, commands, transcript, PRERELEASE)).toBe(2);
-    const message = String(transcript.stderr.mock.calls[0]?.[0]);
-    expect(message).toContain(detail);
-    expect(message.trim().split("\n")).toHaveLength(1);
-    expect(commands.tabs).not.toHaveBeenCalled();
-    expect(transcript.stdout).not.toHaveBeenCalled();
-  });
-
   it("advertises exactly the preferred command design", () => {
     const usage = cliUsage(PRERELEASE);
     const help = cliHelp(PRERELEASE);
@@ -350,12 +291,10 @@ describe("A1 CLI dispatch", () => {
       "remove <source>",
       "uninstall <source>",
       "list",
-      "tabs",
-      "tabs stop <id>|--all",
-      "tabs host status|stop",
-      "tabs doctor",
     ]) expect(usage).toContain(form);
-    expect(help).toContain("\nTabs:\n");
+    expect(help).not.toContain("Tabs:");
+    expect(usage).not.toContain("tabs");
+    expect(usage).not.toContain("solo");
     expect(usage).not.toContain("--help");
     expect(usage).not.toContain("--version");
     expect(usage).not.toContain("pi install");

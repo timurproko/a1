@@ -7,12 +7,7 @@ export const PRIVATE_ENVIRONMENT = Object.freeze({
   releaseDigest: "LAUNCH_CONTEXT_RELEASE_DIGEST",
   releaseLayers: "LAUNCH_CONTEXT_RELEASE_LAYERS",
   launchProfile: "LAUNCH_CONTEXT_PROFILE",
-  launchMode: "LAUNCH_CONTEXT_MODE",
-  updateVersion: "LAUNCH_CONTEXT_UPDATE_VERSION",
   immutableWarmup: "LAUNCH_CONTEXT_WARMUP",
-  residentRootExecutable: "LAUNCH_CONTEXT_RESIDENT_ROOT_EXECUTABLE",
-  residentRootArguments: "LAUNCH_CONTEXT_RESIDENT_ROOT_ARGUMENTS",
-  residentFallback: "LAUNCH_CONTEXT_RESIDENT_FALLBACK",
 });
 
 /**
@@ -45,17 +40,7 @@ export interface LaunchContext {
   readonly releaseDigest?: string;
   readonly releaseLayers?: string;
   readonly launchProfile?: "a1" | "pi";
-  readonly launchMode?: "tabs" | "solo";
-  readonly updateVersion?: string;
   readonly immutableWarmup?: "1";
-  readonly residentRootExecutable?: string;
-  readonly residentRootArguments?: string;
-  readonly residentFallback?: string;
-}
-
-/** The Tabs settings configure resident tabs; a direct-route launch, by `a1 solo` or by a fallback, hides them. */
-export function hidesTabSettings(context: Pick<LaunchContext, "launchMode" | "residentFallback">): boolean {
-  return context.launchMode === "solo" || context.residentFallback !== undefined;
 }
 
 export type LaunchContextRequirement = "optional" | "profile" | "release" | "warmup";
@@ -91,18 +76,7 @@ export function readLaunchContext(
   if (values.launchProfile !== undefined && values.launchProfile !== "a1" && values.launchProfile !== "pi") {
     throw invalidContext("launchProfile", "unsupported profile");
   }
-  if (values.launchMode !== undefined && values.launchMode !== "tabs" && values.launchMode !== "solo") {
-    throw invalidContext("launchMode", "unsupported launch mode");
-  }
-  if (values.launchProfile === "pi" && values.launchMode === "tabs") throw invalidContext("launchMode", "Pi comparison cannot use tabs");
   if (values.immutableWarmup !== undefined && values.immutableWarmup !== "1") throw invalidContext("immutableWarmup", "invalid permission flag");
-  if ((values.residentRootExecutable === undefined) !== (values.residentRootArguments === undefined)) throw invalidContext("residentRootExecutable", "resident root command is incomplete");
-  if (values.residentRootArguments !== undefined) {
-    try {
-      const argumentsValue: unknown = JSON.parse(values.residentRootArguments);
-      if (!Array.isArray(argumentsValue) || argumentsValue.some(value => typeof value !== "string")) throw new Error("not string arguments");
-    } catch { throw invalidContext("residentRootArguments", "invalid JSON argument list"); }
-  }
   if (values.releaseDigest !== undefined && !/^[a-f0-9]{64}$/.test(values.releaseDigest)) throw invalidContext("releaseDigest", "invalid digest");
   if (requirement === "profile") requireFields(values, ["launchProfile"]);
   if (requirement === "release" || requirement === "warmup") {

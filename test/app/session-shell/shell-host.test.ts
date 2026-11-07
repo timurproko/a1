@@ -17,7 +17,7 @@ vi.mock("node:worker_threads", async importOriginal => {
     }
   } };
 });
-import { fixture, nextImmediate, residentFixture, secondPresenter } from "./session-shell-fixture.js";
+import { fixture, nextImmediate, secondPresenter } from "./session-shell-fixture.js";
 
 const reply = (text: string) => ({ role: "assistant", content: [{ type: "text", text }], timestamp: 1 });
 
@@ -84,11 +84,11 @@ describe("OwnedUiTerminalHost", () => {
     }
   });
 
-  it("keeps a resident tab streaming into its terminal with no visibility gate to defer it", async () => {
-    const { engine, adapter, terminal, shell } = await residentFixture({ requestDetach: async () => true });
+  it("keeps a session streaming into its terminal with no visibility gate to defer it", async () => {
+    const { engine, adapter, terminal, shell } = await fixture([], [], true);
     try {
       await settledFrames();
-      // Invariant: whether a client views the tab is the native holder's concern; nothing here can pause it.
+      // Invariant: nothing in the shell host can pause presentation of a running session.
       expect("setPresentationVisible" in shell.terminalHost).toBe(false);
       const redraws = shell.runtime.fullRedraws;
       const beforeStart = terminal.writes.length;

@@ -551,91 +551,6 @@ describe("the settings screen", () => {
     expect(writes).toEqual([]);
   });
 
-  it("opens the plus-menu dialog from its Tab Bar entry and toggles a kind with Space", async () => {
-    const { app: target, session } = await app();
-    selectRow(target, "Plus menu");
-    target.onInput?.("\r", HOST);
-    let rows = screen(target).map(row => row.trimEnd());
-    expect(rows.some(row => row.includes("● Agent"))).toBe(true);
-    expect(rows.some(row => row.includes("○ Settings"))).toBe(true);
-    expect(rows.some(row => row.includes("○ Changelog"))).toBe(true);
-    const dialog = modalScreen(target);
-    expect(dialog.findIndex(row => row.trim() === "Plus Menu")).toBe(1);
-    expect(dialog.join("\n")).toContain("Type search  ↑↓ navigate  Space toggle  Esc close");
-    expect(dialog.join("\n")).not.toContain(" · ");
-    target.onInput?.(`${ESC}[B`, HOST);
-    target.onInput?.(" ", HOST);
-    await settleChanges();
-    await session.load();
-    expect(session.value("tabBarPlusMenu")).toBe("agent,settings");
-    rows = screen(target).map(row => row.trimEnd());
-    expect(rows.some(row => row.includes("● Settings"))).toBe(true);
-    target.onInput?.(ESC, HOST);
-    expect(screen(target).some(row => row.includes("● Agent"))).toBe(false);
-  });
-
-  it("configures the tab bar's Version and Time items independently", async () => {
-    const { app: target, session } = await app();
-    selectRow(target, "Widgets");
-    target.onInput?.("\r", HOST);
-    let rows = modalScreen(target);
-    expect(rows.findIndex(row => row.trim() === "Widgets")).toBe(1);
-    expect(rows.join("\n")).toContain("Choose which widgets the tab bar shows.");
-    expect(rows.join("\n")).toContain("● Version");
-    expect(rows.join("\n")).toContain("● Time");
-    target.onInput?.("time", HOST);
-    rows = modalScreen(target);
-    expect(rows.join("\n")).not.toContain("● Version");
-    expect(rows.join("\n")).toContain("● Time");
-    target.onInput?.(ESC, HOST);
-    target.onInput?.(ENTER, HOST);
-    target.onInput?.(" ", HOST);
-    await settleChanges();
-    await session.load();
-    expect(session.value("tabBarRightItems")).toBe("time");
-    rows = modalScreen(target);
-    expect(rows.join("\n")).toContain("○ Version");
-    expect(rows.join("\n")).toContain("● Time");
-    target.onInput?.(`${ESC}[B`, HOST);
-    target.onInput?.(" ", HOST);
-    await settleChanges();
-    await session.load();
-    expect(session.value("tabBarRightItems")).toBe("");
-  });
-
-  it("hands the plus menu to the tab bar's own dialog when one can show it", async () => {
-    const { session } = await app();
-    const requests: string[] = [];
-    let available = true;
-    const target = settingsApp(session, { configurePlusMenu: () => { requests.push("plus"); return available; } });
-    selectRow(target, "Plus menu");
-    target.onInput?.("\r", HOST);
-    expect(requests).toEqual(["plus"]);
-    expect(screen(target).some(row => row.includes("○ Settings")), "no in-screen dialog opens").toBe(false);
-    available = false;
-    target.onInput?.("\r", HOST);
-    expect(screen(target).some(row => row.includes("○ Settings")), "without a tab bar the screen's own dialog opens").toBe(true);
-  });
-
-  it("changes the resident tab-bar position live and persists it", async () => {
-    const { app: target, session, writes } = await app();
-    selectRow(target, "Position");
-    const rows = screen(target);
-    const positionRow = rows.findIndex(line => /^→?\s*Position\s+top\b/.test(line.trimStart()));
-    expect(positionRow).toBeGreaterThan(0);
-    expect(rows[positionRow - 1]?.trimStart()).toMatch(/^Tab Bar\b/u);
-    expect(rows[positionRow + 1]).toContain("Plus menu");
-    expect(rows[positionRow + 1]).toContain("configure");
-    expect(find(target, "Position").trimStart()).toMatch(/^→.*top/);
-
-    target.onInput?.(`${ESC}[C`, HOST);
-    await settleChanges();
-    await session.load();
-    expect(session.value("tabsPosition")).toBe("bottom");
-    expect(find(target, "Position").trimStart()).toMatch(/^→.*bottom/);
-    expect(writes).toEqual([]);
-  });
-
   it.each(["absent", "failed", "read-only", "empty"] as const)("renders an editable Agent suggestion row with %s engine settings", async state => {
     const backing = port();
     const agent: AgentSettingsPort | null = state === "absent" ? null : {
@@ -700,24 +615,6 @@ describe("the settings screen", () => {
     expect(writes).toEqual([]);
   });
 
-  it("previews both time-format choices with the current local time", async () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 3, 2, 21, 4));
-    try {
-      const { app: target } = await app();
-      selectRow(target, "Time format");
-      expect(find(target, "Time format")).toMatch(/Time format\s+9:04 PM/u);
-      target.onInput?.(`${ESC}[C`, HOST);
-      expect(find(target, "Time format")).toMatch(/Time format\s+21:04/u);
-      target.onInput?.(ENTER, HOST);
-      const menu = target.render({ width: 80, height: 24 }, NAMING_HOST).join("\n");
-      expect(menu).toContain("21:04");
-      expect(menu).toContain("9:04 PM");
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
   it("shows only the selected value through a deferred save and keeps shortcut guidance", async () => {
     const { app: target, session } = await app();
     selectRow(target, "Update");
@@ -725,20 +622,20 @@ describe("the settings screen", () => {
     target.onInput?.(ENTER, HOST);
     const choices = screen(target).join("\n");
     expect(choices).toMatch(/\bauto\b/u);
-    expect(choices).toMatch(/\bnotify\b/u);
+    expect(choices).not.toMatch(/\bnotify\b/u);
     expect(choices).toMatch(/\bno\b/u);
     expect(choices).not.toMatch(/\b(?:Auto|Notify|No)\b/u);
     target.onInput?.(ESC, HOST);
 
     target.onInput?.(`${ESC}[C`, HOST);
     let row = find(target, "Update");
-    expect(row).toMatch(/Update\s+notify/u);
+    expect(row).toMatch(/Update\s+no\b/u);
     expect(row).not.toContain("effective");
     expect(row).not.toContain("next start");
 
     await settleChanges();
     row = find(target, "Update");
-    expect(row).toMatch(/Update\s+notify/u);
+    expect(row).toMatch(/Update\s+no\b/u);
     expect(row).not.toContain("effective");
     expect(row).not.toContain("next start");
     expect(find(target, "Type search")).not.toBe("");
@@ -747,7 +644,7 @@ describe("the settings screen", () => {
     const reopened = settingsApp(session);
     selectRow(reopened, "Update");
     row = find(reopened, "Update");
-    expect(row).toMatch(/Update\s+notify/u);
+    expect(row).toMatch(/Update\s+no\b/u);
     expect(row).not.toContain("effective");
     expect(row).not.toContain("next start");
 
@@ -1674,31 +1571,6 @@ describe("the input row and status line behind the screen", () => {
     expect(armed.join("\n")).not.toContain("press ctrl+c again");
     const narrow = target.render({ width: 24, height: 8 }, HOST).map(line => line.replace(STYLE, ""));
     expect(narrow.at(-1)).toHaveLength(24);
-  });
-
-  it("keeps a pinned resident Settings tab open on Esc and omits its close hint", async () => {
-    const { session } = await app();
-    const pinned = settingsApp(session, { pinned: true });
-    let closes = 0;
-    const host: AppHostServices = { ...HOST, close: () => { closes += 1; } };
-    const hint = pinned.render({ width: 200, height: 24 }, host).map(line => line.replace(STYLE, ""))
-      .find(line => line.includes("Type search")) ?? "";
-    expect(hint).toContain("Ctrl+Z undo");
-    expect(hint).not.toContain("Esc close");
-    expect(pinned.onInput?.("\u001b", host)).toEqual({ consumed: true });
-    expect(closes).toBe(0);
-
-    // Invariant: Esc still leaves search inside the pinned screen.
-    pinned.onInput?.("query", host);
-    expect(pinned.render({ width: 200, height: 24 }, host).map(stripTerminalSequences).join("\n"))
-      .toContain("query");
-    pinned.onInput?.("\u001b", host);
-    expect(pinned.render({ width: 200, height: 24 }, host).map(stripTerminalSequences).join("\n"))
-      .not.toContain("query");
-
-    const { app: ordinary } = await app();
-    ordinary.onInput?.("\u001b", host);
-    expect(closes).toBe(1);
   });
 
   it("uses the configured live scrollbar speed for settings-list wheel movement", async () => {

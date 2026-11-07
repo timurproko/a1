@@ -7,22 +7,20 @@ const INVALIDATORS = new Set([NAMING_POLICY_PATH, "package.json", "package-lock.
 
 /** Classify tracked paths independently of file contents, including unsupported owned inputs. */
 export function namingSourceRole(path) {
-  if (path.split("/").some(segment => ["node_modules", "dist", "target", ".worktrees", ".artifacts", ".builds", ".zig-cache", "zig-out"].includes(segment))) return "generated";
-  if (path.startsWith("native/terminal-host/vendor/")) return "vendor";
+  if (path.split("/").some(segment => ["node_modules", "dist", ".worktrees", ".artifacts", ".builds"].includes(segment))) return "generated";
   if (GENERATED.has(path) || path.startsWith("config/baselines/")) return "generated";
   if (path.startsWith("openspec/") || path.startsWith("docs/") || /[.](md|txt|lock|toml|svg|png|jpg|snap|jsonl)$/.test(path) || ["LICENSE", ".gitignore"].includes(path)) return "data";
   const extension = extname(path);
   if (SCRIPT_EXTENSIONS.has(extension)) return "script";
-  if (extension === ".rs") return "rust";
   if (extension === ".py") return "python";
   if ([".json", ".yaml", ".yml"].includes(extension)) return "configuration";
   if ([".sh", ".ps1", ".psm1"].includes(extension) || (path.startsWith("scripts/") && extension === "")) return "shell";
-  if (/^(src|bin|scripts|test|native)[/]/.test(path)) return "unsupported";
+  if (/^(src|bin|scripts|test)[/]/.test(path)) return "unsupported";
   return "data";
 }
 
 export function isNamingInput(path) {
-  return ["script", "rust", "python", "configuration", "shell", "unsupported"].includes(namingSourceRole(path));
+  return ["script", "python", "configuration", "shell", "unsupported"].includes(namingSourceRole(path));
 }
 
 /** Select whole destination files and full-audit invalidators from complete name-status data. */

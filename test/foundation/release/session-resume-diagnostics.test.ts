@@ -19,8 +19,8 @@ describe("packaged resume trace diagnostics", () => {
   });
 
   it("retains earlier phases when the last append is incomplete", () => {
-    const result = summarizeResumeTrace(`${event("guardian-start", 25.6)}\n{"partial-secret":`);
-    expect(result).toMatchObject({ invalidRecords: 1, lastPhase: "guardian-start", phases: [{ phase: "guardian-start", elapsedMs: 26 }] });
+    const result = summarizeResumeTrace(`${event("ui-entry", 25.6)}\n{"partial-secret":`);
+    expect(result).toMatchObject({ invalidRecords: 1, lastPhase: "ui-entry", phases: [{ phase: "ui-entry", elapsedMs: 26 }] });
     expect(JSON.stringify(result)).not.toContain("partial-secret");
   });
 

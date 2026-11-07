@@ -261,7 +261,7 @@ describe("clean installation of the exact candidate", () => {
       A1_DATA_DIR: dataDir,
       A1_RUNTIME_DIR: runtimeDir,
       RELEASE_CLEANUP_RUN_ID: "exact-package-cleanup",
-      RELEASE_CLEANUP_HOLDS: JSON.stringify([{ authority: "migration", releaseId: releases[39]!.releaseId }]),
+      RELEASE_CLEANUP_KEEP: JSON.stringify([releases[39]!.releaseId]),
     };
 
     const before = await phases.run("backlog-before-inventory", () => treeUsage(resolve(dataDir, "releases")));

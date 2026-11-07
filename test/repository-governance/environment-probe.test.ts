@@ -1,39 +1,37 @@
-import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { posix, resolve, win32 } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import { parse } from "yaml";
 import { locateExecutable, probeVersion, PROBE_TIMEOUT_MS } from "../../scripts/development/environment-probe.mjs";
 import { advisories, blockingFailures, evaluatePrerequisites, formatFailures } from "../../scripts/development/environment-prerequisites.mjs";
 
-const executable = resolve("fixture tool", "rustc.EXE");
+const executable = resolve("fixture tool", "git.EXE");
 const locate = () => executable;
 
 describe("build prerequisite executable probes", () => {
   it("resolves quoted Windows PATH entries and PATHEXT without invoking a shell", () => {
     const directory = win32.resolve("C:\\fixture tool");
-    const expected = win32.join(directory, "rustc.EXE");
-    const found = locateExecutable("rustc", { platform: "win32", env: { PATH: `"${directory}"`, PATHEXT: ".CMD;.EXE" },
+    const expected = win32.join(directory, "git.EXE");
+    const found = locateExecutable("git", { platform: "win32", env: { PATH: `"${directory}"`, PATHEXT: ".CMD;.EXE" },
       exists: (path: string) => path === expected });
     expect(found).toBe(expected);
   });
 
   it("resolves POSIX PATH entries with POSIX semantics regardless of the host", () => {
-    const expected = posix.join("/opt/fixture tool", "rustc");
-    const found = locateExecutable("rustc", { platform: "linux", env: { PATH: "/usr/missing:/opt/fixture tool" },
+    const expected = posix.join("/opt/fixture tool", "git");
+    const found = locateExecutable("git", { platform: "linux", env: { PATH: "/usr/missing:/opt/fixture tool" },
       exists: (path: string) => path === expected });
     expect(found).toBe(expected);
   });
 
   it("does not spawn when the executable is missing", () => {
     const spawn = vi.fn();
-    expect(probeVersion("rustc", { locate: () => null, spawn })).toEqual({ version: null, status: "missing" });
+    expect(probeVersion("git", { locate: () => null, spawn })).toEqual({ version: null, status: "missing" });
     expect(spawn).not.toHaveBeenCalled();
   });
 
   it("retains the deadline and directly executes binaries with argument vectors", () => {
-    const spawn = vi.fn(() => ({ status: 0, stdout: "rustc 1.90.0 (fixture)" }));
-    expect(probeVersion("rustc", { locate, spawn })).toEqual({ status: "ok", version: "1.90.0" });
+    const spawn = vi.fn(() => ({ status: 0, stdout: "git version 1.90.0 (fixture)" }));
+    expect(probeVersion("git", { locate, spawn })).toEqual({ status: "ok", version: "1.90.0" });
     expect(spawn).toHaveBeenCalledExactlyOnceWith(executable, ["--version"],
       { encoding: "utf8", windowsHide: true, timeout: 15000, shell: false });
     expect(PROBE_TIMEOUT_MS).toBe(15000);
@@ -53,16 +51,16 @@ describe("build prerequisite executable probes", () => {
     [{ status: 1 }, "exit", "exit 1"],
     [{ status: null, signal: "SIGTERM" }, "exit", "SIGTERM"],
     [{ status: 0, stdout: "not a version" }, "invalid-version", "no recognizable version"],
-  ])("reports an existing but unusable compiler without calling it absent: %s", (result, status, message) => {
-    const probe = probeVersion("rustc", { locate, spawn: () => ({ ...result, stderr: "private-output-must-not-leak" }) });
+  ])("reports an existing but unusable tool without calling it absent: %s", (result, status, message) => {
+    const probe = probeVersion("git", { locate, spawn: () => ({ ...result, stderr: "private-output-must-not-leak" }) });
     expect(probe.status).toBe(status);
-    const checks = evaluatePrerequisites({ cargo: "1.90.0", rustc: probe.version, probes: { rustc: probe } });
-    expect(blockingFailures(checks).find(check => check.id === "rustc")).toMatchObject({ satisfied: false, severity: "required" });
-    const diagnostic = checks.find(check => check.id === "rustc")!;
+    const checks = evaluatePrerequisites({ git: probe.version, probes: { git: probe } });
+    expect(blockingFailures(checks).find(check => check.id === "git")).toMatchObject({ satisfied: false, severity: "required" });
+    const diagnostic = checks.find(check => check.id === "git")!;
     expect(diagnostic.detail).toContain(message);
     expect(diagnostic.detail).toContain("found on PATH");
     expect(diagnostic.detail).not.toContain("not on PATH");
-    expect(diagnostic.remedy).toContain("rustc --version");
+    expect(diagnostic.remedy).toContain("git --version");
     expect(formatFailures(checks)).not.toContain("private-output-must-not-leak");
   });
 
@@ -73,7 +71,7 @@ describe("build prerequisite executable probes", () => {
   });
 
   it("does not echo arbitrary error codes or signal payloads", () => {
-    const checks = evaluatePrerequisites({ probes: { rustc: { version: null, status: "spawn-error", code: "private-output-must-not-leak" } } });
+    const checks = evaluatePrerequisites({ probes: { git: { version: null, status: "spawn-error", code: "private-output-must-not-leak" } } });
     expect(formatFailures(checks)).toContain("could not start (unknown)");
     expect(formatFailures(checks)).not.toContain("private-output-must-not-leak");
   });
@@ -83,54 +81,11 @@ describe("build prerequisite executable probes", () => {
   });
 });
 
-describe("CI Rust preparation", () => {
-  it("refuses to provision when the toolchain pin is missing", () => {
-    const script = `
-      cd "$(mktemp -d)"
-      printf '[toolchain]\\nprofile = "minimal"\\n' > rust-toolchain.toml
-      rustup() { echo "rustup must not run: $*"; exit 2; }
-      source "${resolve("scripts/development/prepare-ci-rust.sh").replaceAll("\\", "/")}"
-    `;
-    const result = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 10000 });
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("does not pin a toolchain channel");
-    expect(result.stdout).not.toContain("rustup must not run");
-  });
-
-  it.each([0, 1, 2, 3, 4])("stops at a failed provisioning/version command (failure index %i)", failure => {
-    // Security: hermetic shell functions exercise the real script, never the machine's Rust installation.
-    const script = `
-      count=0
-      probe() { count=$((count+1)); printf '%s\\n' "$*"; [ "$count" -ne "${failure}" ]; }
-      rustup() { probe rustup "$@"; }
-      cargo() { probe cargo "$@"; }
-      rustc() { probe rustc "$@"; }
-      source scripts/development/prepare-ci-rust.sh
-    `;
-    const result = spawnSync("bash", ["-c", script], { encoding: "utf8", timeout: 10000 });
-    expect(result.error).toBeUndefined();
-    expect(result.status).toBe(failure === 0 ? 0 : 1);
-    // Invariant: the script installs exactly the version rust-toolchain.toml pins, never a floating channel.
-    const channel = readFileSync("rust-toolchain.toml", "utf8").match(/^channel = "(\d+\.\d+\.\d+)"$/mu)?.[1];
-    expect(channel).toBeDefined();
-    const commands = [`rustup toolchain install ${channel} --profile minimal --no-self-update`, `rustup default ${channel}`, "cargo --version", "rustc --version"];
-    expect(result.stdout.trim().split(/\r?\n/u)).toEqual(commands.slice(0, failure || commands.length));
-  });
-
-  it.each([
-    ["publish.yml", "guardians", "npm run build:process-guardian"],
-    ["publish.yml", "package", "npm ci"],
-    ["publish.yml", "validate_sequential", "npm ci"],
-    ["publish.yml", "validate_windows_shard", "npm ci"],
-    ["full-regression-shared.yml", "full-regression", "npm ci"],
-  ])("prepares Rust before %s/%s builds", (file, job, build) => {
-    const workflow = parse(readFileSync(`.github/workflows/${file}`, "utf8"));
-    const steps = workflow.jobs[job].steps as Array<{ run?: string; shell?: string; if?: string }>;
-    const prepare = steps.findIndex(step => step.run === "bash scripts/development/prepare-ci-rust.sh");
-    const compile = steps.findIndex(step => step.run === build);
-    expect(prepare).toBeGreaterThanOrEqual(0);
-    expect(prepare).toBeLessThan(compile);
-    expect(steps[prepare]!.shell).toBe("bash");
-    expect(steps[prepare]!.if).toBe(steps[compile]!.if);
+describe("CI native toolchains", () => {
+  it.each(["ci.yml", "publish.yml", "full-regression-shared.yml"])("provisions no Rust, Zig, or native build cache in %s", file => {
+    const source = readFileSync(`.github/workflows/${file}`, "utf8");
+    for (const forbidden of ["prepare-ci-rust", "setup-zig", "rust-cache", "rustup", "cargo ", "build:process-guardian", "build:terminal-host"]) {
+      expect(source, `${file} contains ${forbidden}`).not.toContain(forbidden);
+    }
   });
 });

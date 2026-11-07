@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { claimMutationPending, withSessionClaimLock } from "../../../src/foundation/lifecycle/session-claim-lock.js";
 
 const gates = vi.hoisted(() => ({ held: new Set<string>(), acquire: vi.fn() }));
-vi.mock("../../../src/foundation/lifecycle/native-claim-gate.js", () => ({ tryAcquireClaimGate: (path: string) => {
+vi.mock("../../../src/foundation/lifecycle/claim-gate.js", () => ({ tryAcquireClaimGate: (path: string) => {
   gates.acquire(path);
   if (gates.held.has(path)) return null;
   gates.held.add(path);
@@ -105,7 +105,7 @@ describe("crash-recoverable claim coordination", () => {
     await withSessionClaimLock(root, {}, async () => {});
   });
 
-  it("classifies an inaccessible claim-store path without calling the native gate", async () => {
+  it("classifies an inaccessible claim-store path without calling the gate", async () => {
     const root = await fixture(), file = join(root, "not-a-directory");
     await writeFile(file, "retain");
     await expect(withSessionClaimLock(file, {}, async () => {})).rejects.toMatchObject({ code: "worktree-coordination-io" });
@@ -113,10 +113,10 @@ describe("crash-recoverable claim coordination", () => {
     expect(await readFile(file, "utf8")).toBe("retain");
   });
 
-  it("does not turn native failure into busy or enter the mutation", async () => {
+  it("does not turn gate failure into busy or enter the mutation", async () => {
     const root = await fixture(), mutate = vi.fn();
-    gates.acquire.mockImplementationOnce(() => { throw Object.assign(new Error("unavailable"), { code: "worktree-coordination-unavailable" }); });
-    await expect(withSessionClaimLock(root, {}, mutate)).rejects.toMatchObject({ code: "worktree-coordination-unavailable" });
+    gates.acquire.mockImplementationOnce(() => { throw Object.assign(new Error("io"), { code: "worktree-coordination-io" }); });
+    await expect(withSessionClaimLock(root, {}, mutate)).rejects.toMatchObject({ code: "worktree-coordination-io" });
     expect(mutate).not.toHaveBeenCalled();
   });
 });

@@ -12,7 +12,7 @@ import {
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
     expect(Object.keys(PROJECT_OWNERS)).toEqual([
-      "product-identity", "cli", "composition", "session-shell", "launch", "resident-tab", "owned-ui", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "resident-tabs", "session-writer-lock", "startup", "lifecycle", "process-containment", "launch-guardian", "protocol", "release", "storage", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters", "supervision",
+      "product-identity", "cli", "composition", "session-shell", "launch", "owned-ui", "prompt-suggestions", "prompt-history", "terminal-cleanup", "launch-context", "session-writer-lock", "startup", "lifecycle", "release", "owned-ui-contracts", "ui-components", "ui-apps", "owned-ui-settings", "agent-engine-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters",
     ]);
     for (const owner of Object.values(PROJECT_OWNERS)) {
       if (owner.id === "product-identity") {
@@ -39,16 +39,16 @@ describe("project structure ownership policy", () => {
     })).toHaveLength(1);
   });
 
-  it("keeps terminal cleanup dependency-free and outside the launch guardian", () => {
+  it("keeps terminal cleanup dependency-free and out of the lifecycle foundation", () => {
     expect(PROJECT_OWNERS["terminal-cleanup"]?.mayImport).toEqual([]);
     expect(inspectProjectStructureImports({
       "src/foundation/release/bootstrap.ts": "import { restoreAfterOwnedExit } from '../terminal-cleanup/index.js';",
       "src/integrations/pi/tui-runtime/adapter.ts": "import { boundedCleanup } from '../../../foundation/terminal-cleanup/index.js';",
     })).toEqual([]);
     expect(inspectProjectStructureImports({
-      "src/foundation/launch-guardian/main.ts": "import { restoreAfterOwnedExit } from '../terminal-cleanup/index.js';",
+      "src/foundation/lifecycle/main.ts": "import { restoreAfterOwnedExit } from '../terminal-cleanup/index.js';",
     })).toEqual([
-      "src/foundation/launch-guardian/main.ts: launch-guardian may not import terminal-cleanup (../terminal-cleanup/index.js)",
+      "src/foundation/lifecycle/main.ts: lifecycle may not import terminal-cleanup (../terminal-cleanup/index.js)",
     ]);
   });
 
@@ -70,11 +70,11 @@ describe("project structure ownership policy", () => {
     ]);
     expect(inspectProjectOwnerLayout(paths)).toEqual([]);
 
-    const withoutProtocolSource = inspectProjectOwnerLayout(paths.filter(path => !path.startsWith("src/foundation/protocol/")));
-    expect(withoutProtocolSource).toContain("protocol: declared source root has no files (src/foundation/protocol)");
-    expect(withoutProtocolSource).toContain("protocol: declared public entry is missing (src/foundation/protocol/index.ts)");
-    expect(inspectProjectOwnerLayout(paths.filter(path => !path.startsWith("test/foundation/protocol/")))).toContain(
-      "protocol: declared test root has no files (test/foundation/protocol)",
+    const withoutLaunchContextSource = inspectProjectOwnerLayout(paths.filter(path => !path.startsWith("src/foundation/launch-context/")));
+    expect(withoutLaunchContextSource).toContain("launch-context: declared source root has no files (src/foundation/launch-context)");
+    expect(withoutLaunchContextSource).toContain("launch-context: declared public entry is missing (src/foundation/launch-context/index.ts)");
+    expect(inspectProjectOwnerLayout(paths.filter(path => !path.startsWith("test/foundation/launch-context/")))).toContain(
+      "launch-context: declared test root has no files (test/foundation/launch-context)",
     );
   });
 
@@ -84,17 +84,17 @@ describe("project structure ownership policy", () => {
       "src/features/launch/index.ts": "import { PRODUCT_IDENTITY } from '../../product-identity.js'; export function profile() { return PRODUCT_IDENTITY.displayName; }",
       "src/cli/dispatch.ts": "import { profile } from '../features/launch/index.js'; export { profile };",
       "src/foundation/lifecycle/index.ts": "export type Id = string;",
-      "src/foundation/protocol/messages.ts": "import type { Id } from '../lifecycle/index.js'; export type Message = Id;",
-      "src/foundation/protocol/index.ts": "export type { Message } from './messages.js';",
-      "src/foundation/supervision/server.ts": "import type { Message } from '../protocol/index.js'; export type Server = Message;",
+      "src/foundation/release/messages.ts": "import type { Id } from '../lifecycle/index.js'; export type Message = Id;",
+      "src/foundation/release/index.ts": "export type { Message } from './messages.js';",
+      "src/cli/server.ts": "import type { Message } from '../foundation/release/index.js'; export type Server = Message;",
     })).toEqual([]);
   });
 
   it("rejects a public entry that re-exports a whole module instead of listing names", () => {
     expect(inspectProjectStructureImports({
-      "src/foundation/protocol/index.ts": "export * from './messages.js';\nexport { encodeFrame } from './framing.js';",
+      "src/foundation/lifecycle/index.ts": "export * from './messages.js';\nexport { encodeFrame } from './framing.js';",
     })).toEqual([
-      "src/foundation/protocol/index.ts: public entry must list its named exports rather than re-export a whole module",
+      "src/foundation/lifecycle/index.ts: public entry must list its named exports rather than re-export a whole module",
     ]);
   });
 
@@ -160,10 +160,10 @@ describe("project structure ownership policy", () => {
   it("rejects foundation-to-feature and undeclared dependencies", () => {
     expect(inspectProjectStructureImports({
       "src/foundation/lifecycle/process.ts": "import { profile } from '../../features/launch/index.js';",
-      "src/foundation/storage/store.ts": "import { frame } from '../protocol/index.js';",
+      "src/foundation/launch-context/store.ts": "import { claim } from '../lifecycle/index.js';",
     })).toEqual([
       "src/foundation/lifecycle/process.ts: lifecycle may not import launch (../../features/launch/index.js)",
-      "src/foundation/storage/store.ts: storage may not import protocol (../protocol/index.js)",
+      "src/foundation/launch-context/store.ts: launch-context may not import lifecycle (../lifecycle/index.js)",
     ]);
   });
 

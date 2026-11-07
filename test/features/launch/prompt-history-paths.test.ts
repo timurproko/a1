@@ -19,7 +19,6 @@ describe("prompt history root selection", () => {
     expect(dataDir).toBe(path.join(home, ".a1", "data"));
     expect(resolveProductPaths(environment, platform, home)).toEqual(before);
     expect(before.dataDir).toBe(path.join(home, platform === "win32" ? "appdata" : "xdg-data", "a1"));
-    expect(before.databasePath).toBe(path.join(before.dataDir, "control.sqlite3"));
     expect(before.runtimeDir).toBe(path.join(before.dataDir, "runtime"));
     expect(startupCompileCachePath(before.dataDir, "test-release", [])).toContain("cache");
     expect(startupCompileCachePath(before.dataDir, "test-release", [])).not.toContain(dataDir);

@@ -2,7 +2,6 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
-import { residentProgressObserver } from "../../../foundation/resident-tabs/progress-observation.js";
 import { observeCompactionProgress, type CompactionProgressObserver } from "./compaction-progress.js";
 import { createPiRuntimeIntegration, type PiStartupPhaseMarker } from "./runtime-integration.js";
 import { PiSessionCommandIntegration } from "./session-integration.js";
@@ -452,7 +451,6 @@ export class PiEngineRuntime {
     const generation = this.#sessionGeneration;
     this.#unsubscribe = session.subscribe(event => {
       if (generation !== this.#sessionGeneration || this.#ports.disposed()) return;
-      residentProgressObserver()?.engineDelivery(event);
       this.#ports.event(event);
     });
   }

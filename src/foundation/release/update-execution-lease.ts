@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import lockfile from "proper-lockfile";
-import { processIsAlive } from "./process-cleanup.js";
+import { processIsAlive } from "./process-liveness.js";
 import type { UpdateChannel } from "./types.js";
 import { UpdateTransactionStore, type UpdateTransaction } from "./update-transaction.js";
 

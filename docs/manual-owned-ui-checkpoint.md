@@ -22,7 +22,6 @@ $manualRoot = (Resolve-Path ".artifacts/manual-owned-ui").Path
 $env:A1_CONFIG_DIR = "$manualRoot\state\config"
 $env:A1_DATA_DIR = "$manualRoot\state\data"
 $env:A1_RUNTIME_DIR = "$manualRoot\state\runtime"
-$env:A1_DATABASE_PATH = "$manualRoot\state\data\control.sqlite3"
 ```
 
 Run each installed launch form yourself:

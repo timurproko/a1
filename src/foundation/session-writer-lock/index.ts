@@ -1,21 +1,17 @@
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { existsSync, mkdirSync, realpathSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
-import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import lockfile from "proper-lockfile";
 
-export interface NativeLock {
+/** One held authority; `bindCreated` moves a reservation onto the file it created. */
+export interface WriterLock {
   readonly bound: boolean;
   bindCreated(path: string): void;
   release(): void;
 }
-interface NativeLockConstructor {
-  acquire(path: string): NativeLock;
-}
 export interface LockBackend {
-  acquire(path: string): NativeLock;
+  acquire(path: string): WriterLock;
 }
 
 /** Reports that a canonical session identity already has a live writer. */
@@ -37,105 +33,62 @@ export interface SessionWriterHandle {
   release(): void;
 }
 
+/**
+ * A crashed writer is not released by the kernel; its lock becomes stale once its holder stops
+ * refreshing it. The bound keeps resume after a crash a matter of seconds.
+ */
+export const SESSION_WRITER_STALE_MS = 10_000;
+
 let backendOverride: LockBackend | undefined;
 let cachedBackend: LockBackend | undefined;
 
-/** Security: a release that carries its own terminal-host addon never loads one chosen by cwd. */
-export function nativeCandidates(moduleUrl = import.meta.url, env = process.env, cwd = process.cwd(), exists = existsSync): string[] {
-  const addon = `${PRODUCT_IDENTITY.artifacts.terminalHostAddon}.node`;
-  // Invariant: this module sits at dist/foundation/session-writer-lock/ inside the release root.
-  const own = resolve(fileURLToPath(new URL("../../../", moduleUrl)), "dist", "native", `${process.platform}-${process.arch}`, addon);
-  const override = env[PRODUCT_IDENTITY.environment.developmentInstanceId]
-    ? env[PRODUCT_IDENTITY.environment.terminalHostPath]?.trim() || undefined
-    : undefined;
-  const local = exists(own)
-    ? [own]
-    : [resolve(cwd, "dist", "native", `${process.platform}-${process.arch}`, addon), resolve(cwd, ".artifacts", "terminal-host", addon)];
-  return override ? [override, ...local] : local;
-}
-
-function loadNativeBackend(): LockBackend | undefined {
-  const require = createRequire(import.meta.url);
-  for (const candidate of nativeCandidates()) {
-    if (!existsSync(candidate)) continue;
-    try {
-      const loaded = require(candidate) as { SessionLock?: NativeLockConstructor };
-      if (loaded.SessionLock?.acquire) return loaded.SessionLock;
-    } catch {
-      // Compatibility: an addon for another Node ABI is unusable; try the next location.
-    }
-  }
-  return undefined;
-}
-
-function processIsLive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** Development fallback. Installed releases carry the verified Node-API lock resolved above. */
-function portableBackend(): LockBackend {
-  const root = join(tmpdir(), "a1-session-writer-locks");
-  mkdirSync(root, { recursive: true, mode: 0o700 });
+/**
+ * Locks live in one per-user directory keyed by canonical identity, not beside the session, so two
+ * spellings of one file (case, short names, links, hard links) contend for the same lock.
+ */
+export function lockfileBackend(root = join(tmpdir(), "a1-session-writer-locks"), staleMs = SESSION_WRITER_STALE_MS): LockBackend {
   const authorityPath = (kind: "location" | "identity", key: string) =>
     join(root, `${createHash("sha256").update(`${kind}\0${key}`).digest("hex")}.lock`);
+  // Platform: Windows file names are case-insensitive, and realpath canonicalizes only existing parents.
   const locationKey = (path: string) =>
     `${realpathSync.native(dirname(path))}\0${process.platform === "win32" ? basename(path).toLowerCase() : basename(path)}`;
   const identityKey = (path: string) => {
-    const physical = realpathSync.native(path);
-    const metadata = statSync(physical, { bigint: true });
+    const metadata = statSync(realpathSync.native(path), { bigint: true });
     return `${metadata.dev}:${metadata.ino}`;
   };
-  const acquireAuthority = (path: string) => {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      try {
-        const descriptor = openSync(path, "wx", 0o600);
-        writeFileSync(descriptor, JSON.stringify({ pid: process.pid, kind: process.env.A1_TAB_ID ? "resident tab" : "another A1 process" }));
-        closeSync(descriptor);
-        return;
-      } catch (error) {
-        if (attempt === 0) {
-          try {
-            const record = JSON.parse(readFileSync(path, "utf8")) as { pid?: unknown };
-            if (typeof record.pid === "number" && !processIsLive(record.pid)) {
-              rmSync(path, { force: true });
-              continue;
-            }
-          } catch {
-            // Security: malformed or racing lock evidence remains authoritative and fails closed.
-          }
-        }
-        throw error;
-      }
-    }
+  const acquireAuthority = (path: string): (() => void) => {
+    mkdirSync(root, { recursive: true, mode: 0o700 });
+    // Rationale: the lock directory is the authority; no target file exists or is needed.
+    return lockfile.lockSync(path, {
+      realpath: false,
+      lockfilePath: path,
+      stale: staleMs,
+      // Rationale: a missed refresh means this process stalled; the next writer takes over, and the
+      // stalled one must not crash for it.
+      onCompromised: () => {},
+    });
   };
   return {
-    acquire(requested: string): NativeLock {
+    acquire(requested: string): WriterLock {
       const absolute = resolve(requested);
-      const location = authorityPath("location", locationKey(absolute));
-      acquireAuthority(location);
-      let identity: string | undefined;
-      let identityAcquired = false;
+      let releaseCurrent = acquireAuthority(authorityPath("location", locationKey(absolute)));
       let bound = false;
-      try {
-        if (existsSync(absolute)) {
-          const key = identityKey(absolute);
-          identity = authorityPath("identity", key);
-          acquireAuthority(identity);
-          identityAcquired = true;
-          if (identityKey(absolute) !== key) {
-            throw new Error("session identity changed while its writer lock was acquired");
-          }
-          rmSync(location, { force: true });
-          bound = true;
+      const bindTo = () => {
+        const key = identityKey(absolute);
+        const releaseIdentity = acquireAuthority(authorityPath("identity", key));
+        if (identityKey(absolute) !== key) {
+          releaseIdentity();
+          throw new Error("session identity changed while its writer lock was acquired");
         }
+        // Invariant: the identity lock is held before the location lock goes, so there is no gap.
+        releaseCurrent();
+        releaseCurrent = releaseIdentity;
+        bound = true;
+      };
+      try {
+        if (existsSync(absolute)) bindTo();
       } catch (error) {
-        rmSync(location, { force: true });
-        if (identityAcquired && identity !== undefined) rmSync(identity, { force: true });
+        releaseCurrent();
         throw error;
       }
       let released = false;
@@ -145,21 +98,12 @@ function portableBackend(): LockBackend {
           if (bound || resolve(created) !== absolute || !existsSync(absolute)) {
             throw new Error("created session does not match its reservation");
           }
-          const key = identityKey(absolute);
-          identity = authorityPath("identity", key);
-          acquireAuthority(identity);
-          if (identityKey(absolute) !== key) {
-            rmSync(identity, { force: true });
-            identity = undefined;
-            throw new Error("created session identity changed during bind");
-          }
-          rmSync(location, { force: true });
-          bound = true;
+          bindTo();
         },
         release() {
           if (released) throw new Error("session lock was already released");
           released = true;
-          rmSync(bound ? identity! : location, { force: true });
+          try { releaseCurrent(); } catch { /* Compatibility: a reclaimed stale lock is already gone. */ }
         },
       };
     },
@@ -167,16 +111,16 @@ function portableBackend(): LockBackend {
 }
 
 function backend(): LockBackend {
-  return backendOverride ?? (cachedBackend ??= loadNativeBackend() ?? portableBackend());
+  return backendOverride ?? (cachedBackend ??= lockfileBackend());
 }
 
 function acquire(path: string): SessionWriterHandle {
   const absolute = resolve(path);
-  let lock: NativeLock;
+  let lock: WriterLock;
   try {
     lock = backend().acquire(absolute);
   } catch {
-    throw new SessionWriterConflict(absolute, process.env.A1_TAB_ID ? "a resident tab" : "another A1 process");
+    throw new SessionWriterConflict(absolute);
   }
   let released = false;
   return {
@@ -216,7 +160,7 @@ export function release(handle: SessionWriterHandle): void {
   handle.release();
 }
 
-/** Test-only backend seam; passing undefined restores native discovery. */
+/** Test-only backend seam; passing undefined restores the default backend. */
 export function setSessionWriterLockBackendForTest(value: LockBackend | undefined): void {
   backendOverride = value;
   cachedBackend = undefined;

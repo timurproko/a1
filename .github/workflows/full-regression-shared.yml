@@ -92,33 +92,8 @@ jobs:
           if [ "$current" != "$pinned" ]; then npm install -g "npm@$pinned"; fi
           npm --version
 
-      - name: Prepare Rust toolchain
-        shell: bash
-        run: bash scripts/development/prepare-ci-rust.sh
-
       - name: Install dependencies and build once
         run: npm ci
-
-      # Invariant: the candidate carries the release terminal host a published package ships, so
-      # packaged launches take the resident route a release takes instead of falling back.
-      - name: Set up Zig for the release terminal host
-        if: matrix.shard == 'package' || matrix.shard == 'predecessor'
-        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.15.2
-          cache-key: full-regression
-          cache-size-limit: 512
-
-      - name: Cache release terminal host build
-        if: matrix.shard == 'package' || matrix.shard == 'predecessor'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          shared-key: terminal-host-release
-          workspaces: native/terminal-host
-
-      - name: Build the release terminal host into the candidate
-        if: matrix.shard == 'package' || matrix.shard == 'predecessor'
-        run: npm run build:terminal-host
 
       - name: Record verified install-time build
         run: node scripts/release/record-validation-prerequisite.mjs build
@@ -342,30 +317,8 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
 
-      - name: Prepare Rust toolchain
-        shell: bash
-        run: bash scripts/development/prepare-ci-rust.sh
-
       - name: Install dependencies and build once
         run: npm ci
-
-      # Invariant: the candidate carries the release terminal host a published package ships, so
-      # packaged launches take the resident route a release takes instead of falling back.
-      - name: Set up Zig for the release terminal host
-        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.15.2
-          cache-key: full-regression
-          cache-size-limit: 512
-
-      - name: Cache release terminal host build
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          shared-key: terminal-host-release
-          workspaces: native/terminal-host
-
-      - name: Build the release terminal host into the candidate
-        run: npm run build:terminal-host
 
       - name: Record verified install-time build
         run: node scripts/release/record-validation-prerequisite.mjs build

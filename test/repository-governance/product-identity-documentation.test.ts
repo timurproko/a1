@@ -5,9 +5,9 @@ describe("A1 identity hard-cut documentation", () => {
   it("documents current paths, no migration, safe cleanup, and obsolete package status", async () => {
     const toolchain = await readFile("docs/architecture/toolchain.md", "utf8");
 
-    for (const current of ["A1_CONFIG_DIR", "A1_DATA_DIR", "A1_RUNTIME_DIR", "A1_DATABASE_PATH", "A1_ENDPOINT", "%APPDATA%\\\\a1", "/a1"]) {
-      expect(toolchain).toContain(current);
-    }
+    for (const current of ["A1_CONFIG_DIR", "A1_DATA_DIR", "A1_RUNTIME_DIR", "%APPDATA%\\\\a1", "/a1"]) expect(toolchain).toContain(current);
+    // Invariant: the control-store database and supervisor endpoint overrides left with their owners.
+    for (const removed of ["A1_DATABASE_PATH", "A1_ENDPOINT"]) expect(toolchain).not.toContain(removed);
     expect(toolchain).toContain("does not read or migrate legacy `ADDONE_*`");
     expect(toolchain).toContain("%APPDATA%\\\\AddOne");
     expect(toolchain).toContain("former `addone` directories");

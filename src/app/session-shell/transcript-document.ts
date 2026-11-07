@@ -1,8 +1,6 @@
 import { acceptsTranscriptUpdate } from "../../contracts/owned-ui/index.js";
-import type { OwnedUiSessionViewModel, OwnedUiViewportSettings } from "../../contracts/owned-ui/index.js";
-import { formatSubmittedPromptTime, submittedPromptLayout } from "../../ui/components/submitted-prompt.js";
-import { nativeHyperlinkStyle, overlaySpan } from "../../ui/components/spans.js";
-import { displayWidth } from "../../ui/components/text.js";
+import type { OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
+import { nativeHyperlinkStyle } from "../../ui/components/spans.js";
 import type { TranscriptPromptAnchor } from "../../ui/components/transcript-viewport.js";
 import {
   createPiShellChangelog,
@@ -12,7 +10,6 @@ import {
 } from "../../integrations/pi/components/shell-presenters-info.js";
 import {
   isPiPromptStyleCompaction,
-  paintPiSubmittedPromptTimestamp,
   renderPiShellStartupDiagnostic,
   renderPiShellTranscriptBlock,
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
@@ -55,7 +52,6 @@ export interface TranscriptDocumentChrome {
   /** An extension header may animate, so a document under one is never cached. */
   hasExtensionHeader(): boolean;
   thinkingVisible(): boolean;
-  timeFormat(): OwnedUiViewportSettings["timeFormat"];
 }
 
 export interface TranscriptDocumentOptions {
@@ -266,13 +262,11 @@ export class TranscriptDocument {
       }
       rows.push(...blockRows);
       if (promptLike && blockRows[0] !== undefined) {
-        const source = pinnedPromptSource(block, blockRows[0], blockWidth, chrome.timeFormat());
         promptAnchors.push({
           id: block.id,
           firstRow,
           lastRow: Math.max(firstRow, rows.length - 1),
-          sourceRow: source.row,
-          copySuffixWidth: source.copySuffixWidth,
+          sourceRow: blockRows[0],
           prominentSourceRow: blockRows[0],
         });
       }
@@ -399,25 +393,3 @@ export function nativeTranscriptLinkColor(text: string, target: string): string 
   return piTheme().fg(/^file:/iu.test(target) ? "accent" : "mdLink", text);
 }
 
-/** Preserve the stable metadata-grey foreground for every pinned timestamp state. */
-function pinnedPromptSource(
-  block: TranscriptBlock,
-  sourceRow: string,
-  width: number,
-  timeFormat: OwnedUiViewportSettings["timeFormat"],
-): { readonly row: string; readonly copySuffixWidth: number } {
-  const unchanged = { row: sourceRow, copySuffixWidth: 0 };
-  if (typeof block.payload !== "object" || block.payload === null) return unchanged;
-  const value = (block.payload as Record<string, unknown>).timestamp;
-  if (typeof value !== "number" || !Number.isFinite(value)) return unchanged;
-  const format = timeFormat ?? "8:00 PM";
-  const timestamp = formatSubmittedPromptTime(value, format);
-  if (timestamp === null || submittedPromptLayout(width, value, format).timestamp === null) return unchanged;
-  const rowWidth = displayWidth(sourceRow);
-  const timestampWidth = displayWidth(timestamp);
-  if (rowWidth < timestampWidth) return unchanged;
-  return {
-    row: overlaySpan(sourceRow, rowWidth - timestampWidth, rowWidth, paintPiSubmittedPromptTimestamp(timestamp)),
-    copySuffixWidth: timestampWidth,
-  };
-}

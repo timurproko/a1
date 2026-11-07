@@ -167,6 +167,20 @@ export const OWNED_UI_SETTINGS_MIGRATIONS: readonly OwnedUiSettingsMigration[] =
       return { ...values };
     },
   }),
+  Object.freeze({
+    to: 21,
+    description: "Retire tab-bar and time-format settings and reduce updates to auto or no.",
+    migrate(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
+      const migrated: Record<string, unknown> = { ...values };
+      // Compatibility: notify and the legacy boolean both meant "look for updates"; auto now does that.
+      if (migrated.updateCheck === "notify" || migrated.updateCheck === true) migrated.updateCheck = "auto";
+      if (migrated.updateCheck === false) migrated.updateCheck = "no";
+      for (const key of ["tabsPosition", "tabBarPlusMenu", "tabBarRightItems", "tabBarBackgroundStyle", "tabsAutoName", "timeFormat"]) {
+        delete migrated[key];
+      }
+      return migrated;
+    },
+  }),
 ]);
 
 export interface OwnedUiSettingsCompatibilityResult {
@@ -182,7 +196,7 @@ export function normalizeOwnedUiSettingsValues(
   // Compatibility: "high" is valid again, so the old speed meaning is ambiguous without legacy metadata.
   if (values.scrollbarAppearance === "hover") values.scrollbarAppearance = "auto";
   if (values.accentColor === "default") values.accentColor = "purple";
-  if (values.updateCheck === true) values.updateCheck = "notify";
+  if (values.updateCheck === true || values.updateCheck === "notify") values.updateCheck = "auto";
   else if (values.updateCheck === false) values.updateCheck = "no";
 
   if (values.quitEffect === "off") {

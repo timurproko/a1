@@ -7,6 +7,8 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
 export const RELEASE_COHORT_SCHEMA = PRODUCT_IDENTITY.protocol.releaseCohortSchema;
 const RELEASE_ID_PATTERN = /^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/;
+/** How long a release stays on disk after its approval, so processes started from it keep their files. */
+export const RELEASE_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
 
 export type ReleaseApproval = "candidate" | "approved" | "rejected";
 
@@ -18,6 +20,7 @@ export interface ReleaseRecord {
   readonly launchContract?: string;
   readonly approval: ReleaseApproval;
   readonly materializedAt: string;
+  /** When the release was approved; retention measures its age from this instant. */
   readonly certifiedAt: string | null;
   readonly diagnosticsPath: string | null;
 }
@@ -28,14 +31,6 @@ export interface ReleaseReferences {
   readonly approved: string | null;
   readonly rollback: string | null;
   readonly retention: readonly string[];
-}
-
-export type ExternalReleaseHoldAuthority = "agent" | "migration" | "resident";
-
-/** A current hold supplied by an authority that must participate in every reconciliation. */
-export interface ExternalReleaseHold {
-  readonly authority: ExternalReleaseHoldAuthority;
-  readonly releaseId: string;
 }
 
 export interface ActiveReleaseTransactionReference {
@@ -96,46 +91,16 @@ export interface CohortState {
   readonly releases: Readonly<Record<string, ReleaseRecord>>;
   readonly references: ReleaseReferences;
   readonly cleanup: ReleaseCleanupState;
-  readonly activation: {
-    readonly state: "idle" | "pending" | "draining" | "blocked" | "failed";
-    readonly reason: string | null;
-    readonly blockerGenerationIds: readonly string[];
-    readonly updatedAt: string;
-  };
-}
-
-export interface EndpointOwnership {
-  readonly state: "idle" | "busy" | "draining" | "released" | "blocked";
-  readonly liveInstanceIds: readonly string[];
-  readonly nonResumableInstanceIds: readonly string[];
-  readonly uncertainInstanceIds: readonly string[];
-}
-
-export interface SupervisorEndpointMetadata {
-  readonly schema: string;
-  readonly supervisorId: string;
-  readonly endpoint: string;
-  readonly pid: number;
-  readonly pidStartIdentity: string;
-  /** Exact OS creation token; absent on historical supervisor metadata. */
-  readonly nativeStartIdentity?: string;
-  readonly bootNonce: string;
-  readonly startedAt: string;
-  readonly releaseId: string;
-  readonly releaseRoot: string;
-  readonly contentDigest: string;
-  readonly ownership: EndpointOwnership;
-  readonly envelope: string;
-  readonly envelopeRevision: number;
-  readonly requiredFeatures: readonly string[];
-  readonly optionalFeatures: readonly string[];
-  readonly contractDigest: string;
 }
 
 export interface ProtectedReleaseInputs {
-  readonly liveReleaseIds?: readonly string[];
-  readonly externalHolds?: readonly ExternalReleaseHold[];
+  /** Releases the reconciling command itself runs from; they are never collected under it. */
+  readonly ownReleaseIds?: readonly string[];
   readonly transaction?: ActiveReleaseTransactionReference | null;
+  /** Clock for the age window; defaults to the wall clock. */
+  readonly now?: number;
+  /** Age window measured from approval; defaults to seven days. */
+  readonly retentionMs?: number;
 }
 
 export interface ProtectedReleasePlan {
@@ -157,25 +122,25 @@ export interface ReleaseRetentionReconciliation {
 }
 
 /**
- * Derive protection exclusively from current selectors and ownership authorities.
- * The historical retention snapshot is deliberately not an input to this plan.
+ * Age-based retention. A release stays while a selector names it (active, its rollback, or a
+ * candidate still being certified), while an unfinished update may return to it, while the
+ * reconciling command runs from it, or while its approval is younger than the retention window.
+ * Nothing asks which processes are running: a session that outlives the window and two updates
+ * can lose its release files, which is the documented trade-off.
  */
 export function planProtectedReleases(state: CohortState, inputs: ProtectedReleaseInputs = {}): ProtectedReleasePlan {
-  const holds = inputs.externalHolds ?? [];
-  for (const hold of holds) {
-    if (hold.authority !== "agent" && hold.authority !== "migration" && hold.authority !== "resident") throw new Error(`unknown release hold authority: ${String(hold.authority)}`);
-    if (!state.releases[hold.releaseId] && !state.cleanup.pending[hold.releaseId]) {
-      throw new Error(`external ${hold.authority} hold names unknown release ${hold.releaseId}`);
-    }
-  }
   const protectedIds = new Set<string>();
   for (const id of [state.references.active, state.references.pending, state.references.approved, state.references.rollback]) {
     if (id !== null) protectedIds.add(id);
   }
-  for (const id of inputs.liveReleaseIds ?? []) protectedIds.add(id);
-  for (const hold of holds) protectedIds.add(hold.releaseId);
+  for (const id of inputs.ownReleaseIds ?? []) protectedIds.add(id);
   if (inputs.transaction?.status === "active" && inputs.transaction.priorActiveReleaseId !== null) {
     protectedIds.add(inputs.transaction.priorActiveReleaseId);
+  }
+  const now = inputs.now ?? Date.now();
+  const window = inputs.retentionMs ?? RELEASE_RETENTION_MS;
+  for (const release of Object.values(state.releases)) {
+    if (withinRetention(release, now, window)) protectedIds.add(release.releaseId);
   }
   const protectedReleaseIds = [...protectedIds].sort();
   const known = Object.keys(state.releases).sort();
@@ -184,6 +149,18 @@ export function planProtectedReleases(state: CohortState, inputs: ProtectedRelea
     retainedReleaseIds: known.filter(id => protectedIds.has(id)),
     collectibleReleaseIds: known.filter(id => !protectedIds.has(id)),
   };
+}
+
+/**
+ * Whether a release is young enough to keep. An approved release counts from its approval; a
+ * candidate still awaiting certification counts from its materialization so concurrent work is
+ * not collected under it. A record without a readable timestamp is treated as old.
+ */
+export function withinRetention(release: ReleaseRecord, now: number, retentionMs: number = RELEASE_RETENTION_MS): boolean {
+  if (release.approval === "rejected") return false;
+  const stamp = release.approval === "approved" ? release.certifiedAt : release.materializedAt;
+  const at = stamp === null ? Number.NaN : Date.parse(stamp);
+  return Number.isFinite(at) && now - at < retentionMs;
 }
 
 /** Serializes validated cohort-state revisions under a lock and commits each update atomically. */
@@ -251,7 +228,6 @@ export class CohortStateStore {
           ...current.references,
           pending: current.references.active === release.releaseId ? current.references.pending : release.releaseId,
         },
-        activation: activation("pending", "candidate awaits certification and safe activation"),
       };
     });
   }
@@ -281,7 +257,6 @@ export class CohortStateStore {
           approved: releaseId,
           rollback: prior && prior !== releaseId ? prior : current.references.rollback,
         },
-        activation: activation("idle", null),
       };
     });
   }
@@ -302,8 +277,7 @@ export class CohortStateStore {
             pending: current.references.pending === releaseId ? null : current.references.pending,
             approved: selectedId,
           },
-          activation: activation("idle", null),
-        };
+          };
       }
       const prior = current.references.active;
       return {
@@ -315,17 +289,11 @@ export class CohortStateStore {
           approved: releaseId,
           rollback: prior && prior !== releaseId ? prior : current.references.rollback,
         },
-        activation: activation("idle", null),
       };
     });
   }
 
-  async blockPending(reason: string, blockerGenerationIds: readonly string[]): Promise<CohortState> {
-    return await this.update(current => ({ ...current, activation: { ...activation("blocked", reason), blockerGenerationIds: [...blockerGenerationIds] } }));
-  }
-
-  async rollback(ownershipReleased: boolean): Promise<CohortState> {
-    if (!ownershipReleased) throw new Error("cannot roll back before current cohort ownership is released");
+  async rollback(): Promise<CohortState> {
     return await this.update(current => {
       const rollbackId = current.references.rollback;
       if (!rollbackId) throw new Error("no rollback release is recorded");
@@ -340,15 +308,7 @@ export class CohortStateStore {
           approved: rollbackId,
           rollback: current.references.active,
         },
-        activation: activation("idle", null),
       };
-    });
-  }
-
-  async setRetention(releaseIds: readonly string[]): Promise<CohortState> {
-    return await this.update(current => {
-      for (const releaseId of releaseIds) requiredRelease(current, releaseId);
-      return { ...current, references: { ...current.references, retention: unique(releaseIds) } };
     });
   }
 
@@ -480,30 +440,6 @@ export class CohortStateStore {
     })));
   }
 
-  async removeUnreferencedRelease(releaseId: string, externalReferences: readonly string[]): Promise<CohortState> {
-    return await this.update(current => {
-      const release = requiredRelease(current, releaseId);
-      const protectedIds = new Set([
-        current.references.active,
-        current.references.pending,
-        current.references.approved,
-        current.references.rollback,
-        ...current.references.retention,
-        ...externalReferences,
-      ].filter((value): value is string => value !== null));
-      if (protectedIds.has(releaseId)) throw new Error(`release ${releaseId} is still referenced and cannot be collected`);
-      const releases = { ...current.releases };
-      delete releases[releaseId];
-      return {
-        ...current,
-        releases,
-        cleanup: {
-          ...current.cleanup,
-          pending: { ...current.cleanup.pending, [releaseId]: cleanupDisposition(release, "detached", null) },
-        },
-      };
-    });
-  }
 }
 
 export function emptyState(): CohortState {
@@ -513,7 +449,6 @@ export function emptyState(): CohortState {
     releases: {},
     references: { active: null, pending: null, approved: null, rollback: null, retention: [] },
     cleanup: { pending: {}, diagnostics: [], workerRuns: [] },
-    activation: activation("idle", null),
   };
 }
 
@@ -549,15 +484,11 @@ function replaceCleanupWorkerRun(
     : [...current.cleanup.workerRuns, operation(undefined)];
   return { ...current, cleanup: { ...current.cleanup, workerRuns: workerRuns.slice(-16) } };
 }
-function activation(state: CohortState["activation"]["state"], reason: string | null): CohortState["activation"] {
-  return { state, reason, blockerGenerationIds: [], updatedAt: new Date().toISOString() };
-}
 function requiredRelease(state: CohortState, releaseId: string): ReleaseRecord {
   const release = state.releases[releaseId];
   if (!release) throw new Error(`unknown release ${releaseId}`);
   return release;
 }
-function unique(values: readonly string[]): string[] { return [...new Set(values)]; }
 async function acquireLock(path: string) {
   const deadline = Date.now() + 5_000;
   while (true) {
@@ -605,7 +536,9 @@ async function reclaimAbandonedLock(path: string): Promise<boolean> {
 }
 function normalizeState(value: unknown): CohortState {
   if (!value || typeof value !== "object") return value as CohortState;
-  const state = value as Partial<CohortState>;
+  // Compatibility: state written while supervisors coordinated activation carries an
+  // `activation` record that nothing reads any more; it is dropped on the next write.
+  const { activation: _activation, ...state } = value as Partial<CohortState> & { activation?: unknown };
   const cleanup = state.cleanup;
   return {
     ...state,

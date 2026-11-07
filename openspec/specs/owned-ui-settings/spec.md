@@ -5,62 +5,6 @@ Defines A1-owned settings declarations, profile-local persistence and migration,
 
 ## Requirements
 
-### Requirement: The settings screen renders the section model
-A1 SHALL present its settings as an A1-owned application rendering the grouped section model rather than deriving its own view of where a value lives. In direct bare `a1 solo` it SHALL remain reachable through `/settings`. In resident bare A1 it SHALL instead occupy the singleton global Settings utility tab reached through the launcher or effective `tabs.settings` shortcut; resident Agent command discovery and execution SHALL omit `/settings`. The screen SHALL show every section with its entries, keep the current section's header visible while its entries are on screen, and let the user move between entries, jump between sections, filter, change a value, and close using the same declared keyboard interactions as direct Settings. Resident Settings pointer input SHALL follow the existing screen contracts. The screen SHALL be built from the shared component layer rather than drawing a list, menu, dialog, control, input row, or status line of its own. A change SHALL be routed by the entry's backend, and a change that could not be stored or written SHALL be reported rather than displayed as saved. An entry the model reports as not editable SHALL state why rather than accepting input. While the settings module is still loading, the screen SHALL render blank rows rather than a loading placeholder; only a failed module load SHALL print its failure message. Closing direct Settings SHALL restore the previous surface; closing resident Settings SHALL remove its utility tab and restore the prior surviving tab.
-
-#### Scenario: Open the settings screen
-- **WHEN** the user invokes `/settings` in `a1 solo`
-- **THEN** the screen SHALL open showing the A1 and Agent sections with current values
-- **AND** the pinned settings selector SHALL NOT open
-
-#### Scenario: Open resident settings
-- **WHEN** the user invokes the Settings launcher row or effective Settings tab shortcut in resident bare A1
-- **THEN** the singleton Settings utility tab SHALL open with the same global sections, values, navigation, and change behavior
-- **AND** resident Agent autocomplete SHALL not contain `settings`
-
-#### Scenario: Navigate and edit resident settings
-- **WHEN** the Settings utility receives its declared navigation, section-jump, search, value-change, adjustment, undo, or close shortcut
-- **THEN** it SHALL perform the same Settings action as the direct owned screen exactly once
-- **AND** the attach host SHALL NOT consume or reject that input as Agent input
-
-#### Scenario: Navigate between sections
-- **WHEN** the user jumps between sections
-- **THEN** the selection SHALL land on the first changeable entry of the target section and that section SHALL be brought into view
-
-#### Scenario: Keep the section visible while scrolling
-- **WHEN** entries are scrolled so their section header would leave the screen
-- **THEN** that section's header SHALL remain visible above the entries
-
-#### Scenario: Change a setting
-- **WHEN** the user changes a value
-- **THEN** it SHALL be routed to the backend the model names for that entry and the screen SHALL show the resulting global value
-
-#### Scenario: Change cannot be saved
-- **WHEN** a change cannot be stored or written through its backend
-- **THEN** the screen SHALL report the failure and SHALL NOT display the new value as saved
-
-#### Scenario: Entry is not editable
-- **WHEN** the user selects an entry the model reports as not editable
-- **THEN** the screen SHALL state the reported reason and SHALL NOT accept a change for it
-
-#### Scenario: Filter the entries
-- **WHEN** the user filters
-- **THEN** only matching entries SHALL remain under their sections and no matches SHALL be stated explicitly
-
-#### Scenario: Close the screen
-- **WHEN** the user closes direct Settings
-- **THEN** the previous direct surface SHALL be restored unchanged
-- **AND** when the user closes resident Settings, its utility tab SHALL close and the prior surviving tab SHALL be restored unchanged
-
-#### Scenario: Open before the settings module has loaded
-- **WHEN** the screen is painted before its module has finished loading
-- **THEN** every row SHALL be blank and no `Loading settings…` text SHALL appear
-- **AND** the next paint after loading SHALL show the sections and entries
-
-#### Scenario: Settings module fails to load
-- **WHEN** the settings module cannot be loaded
-- **THEN** the screen SHALL print the load failure on its first row
-
 ### Requirement: A1 settings have a declared shape, defaults, and validation
 Every A1 setting SHALL have a declared identifier, type, allowed values, and default. A1 SHALL resolve a complete value set from defaults overlaid with accepted properties in the product-owned object of the selected global agent settings document. Invalid values SHALL fall back individually. A1 settings SHALL remain logically distinct from Pi settings: they SHALL NOT become Pi root fields or engine descriptors. One manager SHALL own declaration-derived resolution, compatibility transforms, persistence, sections, and typed getters.
 
@@ -239,7 +183,7 @@ A1 SHALL expose the resolved settings as sections a consuming surface can presen
 #### Scenario: Render the empty settings query
 - **WHEN** Settings search is active with an empty query
 - **THEN** the shared input placeholder SHALL read exactly `Search settings`
-- **AND** direct and resident Settings SHALL render the same placeholder, caret, selection, and input rules
+- **AND** it SHALL use the same caret, selection, and input rules as the shared input component
 
 #### Scenario: Scroll the settings list
 - **WHEN** the user sends a wheel event over the settings list or search footer
@@ -388,66 +332,6 @@ A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` a
 #### Scenario: Use the pinned comparison profile
 - **WHEN** `a1 pi` presents its pinned interface
 - **THEN** A1's stored scrollbar appearance, style, and speed SHALL NOT modify that interface's scrollbar or wheel behavior
-
-### Requirement: Prompt history settings declare persistence and retention boundaries
-A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `promptHistoryMaxItems` as an integer allowing 10 through 100 in steps of 10 and defaulting to 100, and `promptHistoryScope` as `unique` (default) or `shared`. They SHALL appear in bare A1's History settings section as `Persistent history`, `History limit`, and `History scope`, using existing shared settings controls, profile-local A1 settings persistence, validation, and stored/effective-state presentation. `promptHistoryEnabled` and `promptHistoryMaxItems` SHALL declare a `next-start` application boundary; `promptHistoryScope` SHALL be live and apply to running bare-A1 agents sharing that profile. Unique SHALL select a durable history per agent session, while Shared SHALL retain the former profile-wide history. Saving a scope SHALL switch each running agent's selected durable history and image sidecars without migrating, merging, deleting, or rerouting already-submitted prompts; unsent drafts SHALL remain intact. No Pi settings document or separate history settings file SHALL be used, and `a1 pi` SHALL neither expose nor apply these A1 settings.
-
-#### Scenario: Start without stored history settings
-- **WHEN** a bare-A1 profile has no stored history settings, including an existing profile created before History scope was introduced
-- **THEN** its effective values SHALL enable persistence with a 100-entry count limit and Unique scope
-- **AND** byte retention limits SHALL still apply independently
-- **AND** any old shared profile history SHALL remain intact, but SHALL NOT appear in the new session's unique durable recall
-
-#### Scenario: Change retention
-- **WHEN** the user saves a valid history limit
-- **THEN** the settings surface SHALL show that it applies on the next start rather than claiming a live effect
-- **AND** the next enabled launch SHALL apply that count to its selected history store, pruning oldest entries if necessary
-- **AND** existing writers using that store SHALL follow its newly applied limit without restoring their older startup limit
-
-#### Scenario: Reject an invalid limit
-- **WHEN** a stored history limit is not one of 10, 20, 30, 40, 50, 60, 70, 80, 90, or 100
-- **THEN** existing settings validation SHALL reject that value and resolve the declared default without blocking startup
-
-#### Scenario: Set scope to Shared
-- **WHEN** the user saves Shared scope or starts a new enabled agent with Shared selected
-- **THEN** that agent SHALL read and write the unchanged profile-wide history store used before this setting existed
-- **AND** other sessions in Shared mode SHALL see its committed prompts
-
-#### Scenario: Reject an invalid scope
-- **WHEN** a stored history scope is neither `unique` nor `shared`
-- **THEN** existing settings validation SHALL reject that value and resolve Unique without blocking startup
-
-#### Scenario: Change scope while agents are running
-- **WHEN** the user saves another scope while an agent is already running
-- **THEN** that agent SHALL select the newly chosen store and show its own existing entries, preserving any unsent draft
-- **AND** submissions already captured SHALL finish in their original store, while future submissions use the newly selected one
-- **AND** no existing history store SHALL be copied, merged, or erased
-
-#### Scenario: Switch scope across resident tabs and solo processes
-- **WHEN** one agent changes History scope while other agents in the same profile are running
-- **THEN** each SHALL apply the saved scope on its next accepted settings notification, showing the selected store's recall rather than appending the other store's entries
-- **AND** a prompt submitted before that agent observes the change SHALL remain in its then-selected store
-- **AND** persistence enablement and retention count SHALL remain next-start settings
-
-#### Scenario: Disable history for subsequent launches
-- **WHEN** the user disables persistent history and restarts A1
-- **THEN** that process SHALL not create, read, write, or poll the durable history store in either scope
-- **AND** it SHALL keep existing current-session history behavior
-- **AND** disabling SHALL leave retained records intact rather than claiming to erase them
-
-#### Scenario: Another enabled process is already running
-- **WHEN** one instance saves disabled persistence while another enabled instance remains running
-- **THEN** the setting SHALL remain next-start and SHALL NOT claim to stop persistence in existing instances
-- **AND** the setting metadata and maintained documentation SHALL explain this boundary
-
-#### Scenario: Re-enable persistence
-- **WHEN** the user re-enables history and starts a new enabled process
-- **THEN** compatible previously retained records in that process's selected scope SHALL become available again under the configured count and byte limits
-
-#### Scenario: Keep history settings profile-local
-- **WHEN** different A1 profiles store different history settings or the Pi comparison starts
-- **THEN** each bare-A1 launch SHALL apply only its own profile's values
-- **AND** the Pi comparison and `~/.pi/agent` SHALL remain untouched
 
 ### Requirement: The settings list scrollbar follows the shared scrollbar settings
 The owned settings screen SHALL present its list scrollbar through the shared scrollbar presentation policy using the currently effective `scrollbarAppearance` and `scrollbarStyle`, including an accepted live value pending source reflection, rather than drawing a rail whenever the list overflows. Under `always` the rail SHALL be drawn whenever the list overflows. Under `auto` the rail SHALL be drawn while the list scrolls and for the transcript's linger afterwards, or while the pointer is over the rail or dragging its thumb, and SHALL fade on its own once the linger passes. Under `hidden` no rail SHALL be drawn and no rail column SHALL be reserved. Under `auto` and `always` the rail column SHALL remain reserved while the list fits, so revealing the rail does not reflow the rows. `thick`, a hovered thumb, and a dragged thumb SHALL use the shared thick glyph.
@@ -688,41 +572,6 @@ The setting SHALL remain visible and editable when engine settings are absent, u
 - **WHEN** the user opens or runs `a1 pi`
 - **THEN** its pinned settings presentation SHALL contain no A1 `Prompt image limit` entry
 - **AND** its prompt image count policy SHALL remain eight
-
-### Requirement: The startup update check is a Generic-section owned setting
-
-Bare A1 SHALL retain the persisted key `updateCheck`, present it as `Update`, and offer exactly `Auto`, `Notify`, and `No`, with `Auto` as the default. `Auto` SHALL check the executing published version's own channel after first paint and at a bounded cadence while an interactive session remains open, using a same-channel successful result for at most fifteen minutes. It SHALL install verified updates silently in the background and prompt for restart only after approved activation. `Notify` SHALL preserve the startup-only check and existing update-available popup without installing; its successful same-channel cache may be reused for up to 24 hours. `No` SHALL skip the cache and registry check so updates remain manual.
-
-The value SHALL remain stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage. Introducing the three-choice value SHALL retain the stored settings version. Migration SHALL map stored boolean `true` to `Notify`, stored boolean `false` to `No`, and an omitted key to the `Auto` default while preserving unknown values. The setting SHALL take effect at the next launch. `a1 pi` SHALL neither expose nor apply it and SHALL use Auto discovery when otherwise eligible.
-
-#### Scenario: Resolve an older profile
-- **WHEN** an older profile stores `updateCheck: true`, stores `updateCheck: false`, or omits the key
-- **THEN** migration SHALL resolve those cases to `Notify`, `No`, and `Auto` respectively while preserving other existing and unknown values
-
-#### Scenario: Present the Generic section
-- **WHEN** bare A1 opens the owned settings screen
-- **THEN** the `Generic` section SHALL offer `Update` first with choices `Auto`, `Notify`, and `No`
-- **AND** its description SHALL distinguish periodic silent installation, startup-only notification, and fully manual updating
-
-#### Scenario: Disable the check
-- **WHEN** the user selects `No` and restarts bare A1
-- **THEN** A1 SHALL neither read the release cache, contact the registry, start an automatic worker, nor observe automatic-update state for the startup flow
-
-#### Scenario: Preserve check-only behavior
-- **WHEN** the user selects `Notify` and restarts bare A1
-- **THEN** A1 SHALL check for a newer release at startup and show the existing update-available popup without installing it or scheduling automatic rechecks
-
-#### Scenario: Use the automatic default
-- **WHEN** the profile has no explicit `Update` choice
-- **THEN** bare A1 SHALL resolve `Auto` and silently install an eligible newer release when discovered, even if it was published after the session started
-
-#### Scenario: Reject an invalid value
-- **WHEN** a stored `updateCheck` value is not `auto`, `notify`, or `no` after migration
-- **THEN** existing settings validation SHALL reject that value and resolve `Auto` without blocking startup
-
-#### Scenario: Use the comparison profile
-- **WHEN** the user opens or runs `a1 pi`
-- **THEN** its pinned settings presentation SHALL contain no A1 `Update` entry
 
 ### Requirement: Pending setting values remain visually stable
 
@@ -1007,21 +856,6 @@ When an editable enumerated scalar row has focus in the owned Settings screen, E
 - **THEN** Enter SHALL retain that setting's existing stepper or structured-dialog behavior
 - **AND** Left and Right on a closed enumerated row SHALL retain direct value adjustment
 
-### Requirement: Resident tabs are an opt-in setting
-Bare A1 SHALL declare the persisted A1 setting `residentTabs` as a boolean defaulting to `false`, labeled `Resident tabs`, in the existing `Generic` section after `Update check`. Its description SHALL state that the agent keeps running after the terminal closes, that the change applies at the next launch, and that turning it off does not stop a tab that is already running. The value SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage. Introducing it SHALL advance the stored settings version with a forward migration that preserves existing and unknown values. The bare-A1 launch path SHALL read it before the launch guardian starts without loading the owned UI. `a1 pi` SHALL neither expose nor apply it.
-
-#### Scenario: Resolve an older profile
-- **WHEN** a profile written before `residentTabs` is loaded
-- **THEN** migration SHALL preserve existing and unknown values and `residentTabs` SHALL resolve to `false`
-
-#### Scenario: Enable resident tabs
-- **WHEN** the user sets `Resident tabs` to on and runs bare `a1` again
-- **THEN** the new launch SHALL take the resident route, and the session that was running when the setting changed SHALL be unaffected
-
-#### Scenario: Reject an invalid value
-- **WHEN** a stored `residentTabs` value is not a boolean
-- **THEN** existing settings validation SHALL reject it and resolve `false` without blocking startup
-
 ### Requirement: Settings footer always presents shortcut guidance
 The Settings status row SHALL always render the active shortcut hints. Save results, unavailable-entry feedback, document diagnostics, and interrupt confirmation SHALL NOT replace those hints.
 
@@ -1078,61 +912,6 @@ When the shared global agent settings document has no product object, A1 SHALL r
 - **THEN** A1 SHALL apply the existing unreadable-settings behavior to that object
 - **AND** it SHALL NOT resurrect values from the former standalone document
 
-### Requirement: Time format is a live Generic-section owned setting
-Bare A1 SHALL declare the persisted A1 setting `timeFormat`, labeled `Time format`, in `Generic` after `Update check` and before `Resident tabs`. It SHALL allow exactly `20:00` and `8:00 PM`, default to `8:00 PM`, and apply live to every A1-owned wall-clock label. Twelve-hour output SHALL use uppercase `AM` or `PM`. The setting SHALL use profile-local A1 persistence; `a1 pi` SHALL neither expose nor apply it.
-
-#### Scenario: Resolve a profile without the setting
-- **WHEN** a profile predates `timeFormat` or omits it
-- **THEN** migration SHALL preserve all existing and unknown values
-- **AND** `timeFormat` SHALL resolve to `8:00 PM`
-
-#### Scenario: Present time-format choices
-- **WHEN** bare A1 opens the owned Settings screen
-- **THEN** `Time format` SHALL appear after `Update check` and before `Resident tabs` in `Generic`
-- **AND** its current value and menu choices SHALL use current local-time examples in `20:00` and `8:00 PM` form
-- **AND** every twelve-hour example SHALL use uppercase `AM` or `PM`
-
-#### Scenario: Change time format live
-- **WHEN** the user selects the other time format
-- **THEN** the accepted value SHALL be stored in the profile-local A1 settings document
-- **AND** the active bare-A1 submitted-prompt timestamps and resident strip clock SHALL use that format without a restart
-- **AND** no Pi-owned settings value SHALL change
-
-#### Scenario: Reject an invalid time format
-- **WHEN** a stored `timeFormat` value is not `20:00` or `8:00 PM`
-- **THEN** existing settings validation SHALL reject it and resolve `8:00 PM` without blocking startup
-
-#### Scenario: Use twelve-hour boundaries
-- **WHEN** A1 formats local midnight, noon, or an afternoon time with `8:00 PM`
-- **THEN** it SHALL render `12` for the midnight and noon hour
-- **AND** it SHALL use uppercase `AM` before noon and uppercase `PM` from noon onward
-
-#### Scenario: Use the comparison profile
-- **WHEN** the reader starts or configures `a1 pi`
-- **THEN** no A1 `Time format` entry SHALL be presented
-- **AND** the pinned comparison presentation SHALL retain its own timestamp behavior
-
-### Requirement: Tabs settings expose tab-bar position
-During resident launches, the owned Settings screen SHALL expose `Tab bar position` in the existing section titled `Tab Bar` with exactly `top` and `bottom` choices, in that order, and `top` as the default. The setting SHALL use A1-owned profile-local persistence and live application. Direct `a1 solo` and `a1 pi` SHALL continue to omit the Tab Bar section and SHALL NOT apply this setting to their interfaces.
-
-#### Scenario: Inspect resident Tabs settings
-- **WHEN** the resident Settings utility presents the Tab Bar section
-- **THEN** it SHALL include `Auto name`, `Tab bar position`, and `Plus menu`
-- **AND** `Tab bar position` SHALL offer `top` and `bottom`
-
-#### Scenario: Resolve the default position
-- **WHEN** the active profile stores no tab-bar position
-- **THEN** the setting SHALL resolve to `top`
-
-#### Scenario: Change the position
-- **WHEN** the user changes `Tab bar position`
-- **THEN** the value SHALL be stored in the A1 settings namespace and applied to attached resident clients without an Agent restart
-- **AND** no Pi or Agent setting SHALL be written
-
-#### Scenario: Keep direct modes strip-free
-- **WHEN** the user opens Settings in `a1 solo` or starts `a1 pi`
-- **THEN** no tab-bar position entry SHALL be shown or applied
-
 ### Requirement: Settings text inputs omit prompt markers
 The owned full-screen Settings search input SHALL render no chevron or ASCII greater-than prompt marker. Its top and bottom rules, content inset, placeholder, block caret, filtering, navigation, and cancellation behavior SHALL remain unchanged. Settings-owned standard dialog searches, including the per-model Thinking Level selector's step-one model search, SHALL instead use the shared exact ASCII `> ` standard-dialog marker with the `>` in the active semantic accent role. Non-search structured text entries SHALL retain their established presentation.
 
@@ -1162,37 +941,11 @@ The owned Settings screen SHALL present its centered no-result state with the ex
 - **AND** the message row SHALL remain at its lowered position
 - **AND** the message SHALL NOT end with a period
 
-### Requirement: Tab Bar settings expose the plus menu
-During resident launches, the `Tab Bar` section SHALL expose `Plus menu` with the value `configure`. Activating it SHALL open the plus-menu dialog, which lists `Agent`, `Settings`, and `Changelog` with `●` for each kind `+` offers and `○` otherwise and toggles the selected kind with `Space`. The enabled kinds SHALL be stored as the A1 setting `tabBarPlusMenu` in A1-owned profile-local persistence and applied to attached resident clients without a restart; the default SHALL be `Agent` alone. Direct `a1 solo` and `a1 pi` SHALL continue to omit the section.
-
-#### Scenario: Open the plus-menu dialog from Settings
-- **WHEN** the user selects `Plus menu` in the Tab Bar section and presses `Enter`
-- **THEN** the plus-menu dialog SHALL open with `Agent` marked `●` and `Settings` and `Changelog` marked `○` under the default
-
-#### Scenario: Store a toggle
-- **WHEN** the user toggles `Settings` on in the dialog
-- **THEN** `tabBarPlusMenu` SHALL store `agent` and `settings` in kind order and no Pi or Agent setting SHALL be written
-
-### Requirement: The Settings tab serves Agent settings without an engine
-In a resident Settings tab, the Agent section SHALL read and write Pi's settings through a settings port built from Pi's settings manager without a running engine or session. It SHALL list and edit the same Agent rows as a Settings screen backed by an engine, persist each change to the shared settings document, and list per-model thinking levels from a model catalog read offline from the profile. A setting's live effect SHALL belong to each Agent's own process, which rereads the shared settings document.
-
-#### Scenario: Agent rows are complete
-- **WHEN** the Settings tab shows its Agent section
-- **THEN** every Agent setting that an engine-backed Settings screen lists SHALL be listed with its current value
-
-#### Scenario: An Agent setting is saved
-- **WHEN** the user changes an Agent setting in the Settings tab
-- **THEN** the shared settings document SHALL hold the new value and a running Agent tab SHALL read it on its next reread
-
-#### Scenario: Per-model thinking levels
-- **WHEN** the user opens the per-model thinking levels dialog in the Settings tab
-- **THEN** it SHALL list the profile's available models with their supported levels, read without network access
-
 ### Requirement: Every Settings configure workflow uses one centered modal frame
 
-When the owned Settings screen opens a configure workflow, it SHALL keep the Settings list and standing footer visible as a dimmed backdrop and present the workflow on the shared centered floating configure-modal frame. Warnings, generic object-valued settings, both steps of the per-model Thinking Level selector, the TypeScript Plus Menu fallback, and future structured settings SHALL use that frame rather than replacing the Settings footer with a full-width docked panel. Resident Settings MAY continue delegating Plus Menu to the native tab-bar dialog, which uses the same centered modal presentation.
+When the owned Settings screen opens a configure workflow, it SHALL keep the Settings list and standing footer visible as a dimmed backdrop and present the workflow on the shared centered floating configure-modal frame. Warnings, generic object-valued settings, both steps of the per-model Thinking Level selector, and future structured settings SHALL use that frame rather than replacing the Settings footer with a full-width docked panel.
 
-The centered modal SHALL use the shared component's native-matching floating panel background across its complete rectangular area, retain the active theme's semantic title, description, row, selection, input, and shortcut roles, and use the established compact dialog width when the terminal permits. Warnings, both Thinking Level steps, fallback Plus Menu, generic structured settings, and future configure workflows SHALL receive that palette through the same semantic panel role rather than route- or dialog-specific background values. Its selected row SHALL fill the inner content width with the active selection background while the two-column outer inset remains on the panel background. The existing configure workflow SHALL continue to own its keyboard behavior, pointer policy, writes, undo state, filtering, step transitions, and close behavior. The model and choice windows SHALL adapt to available height so title, active search or selection, and shortcut guidance remain visible on compact terminals.
+The centered modal SHALL use the shared component's native-matching floating panel background across its complete rectangular area, retain the active theme's semantic title, description, row, selection, input, and shortcut roles, and use the established compact dialog width when the terminal permits. Warnings, both Thinking Level steps, generic structured settings, and future configure workflows SHALL receive that palette through the same semantic panel role rather than route- or dialog-specific background values. Its selected row SHALL fill the inner content width with the active selection background while the two-column outer inset remains on the panel background. The existing configure workflow SHALL continue to own its keyboard behavior, pointer policy, writes, undo state, filtering, step transitions, and close behavior. The model and choice windows SHALL adapt to available height so title, active search or selection, and shortcut guidance remain visible on compact terminals.
 
 #### Scenario: Configure warnings
 
@@ -1274,40 +1027,148 @@ The pinned `a1 pi` comparison profile SHALL retain its existing model selector a
 - **THEN** its pinned model selector SHALL retain its existing current-model and select-as-default actions
 - **AND** the owned `Default model` Settings configurator SHALL NOT replace or modify that selector
 
-### Requirement: Tab Bar right-side items are configured through a live multi-select setting
-During resident launches, the `Tab Bar` section SHALL expose a `Right side` setting with the displayed value `configure`, ordered after `Plus menu` and before `Auto name`. Activating it SHALL open a searchable multi-select dialog titled `Tab Bar Right Side` with the description `Choose what the right side of the tab bar shows.` and the rows `Version` and `Time` in that order. Enabled rows SHALL use `●`, disabled rows SHALL use `○`, and `Space` SHALL toggle the selected row without closing the dialog.
+### Requirement: The update mode is a two-choice Generic-section owned setting
+Bare A1 SHALL keep the persisted key `updateCheck`, present it as `Update` first in `Generic`, and offer exactly `Auto` (default) and `No`. `Auto` SHALL check the executing release's channel after first paint and on a bounded cadence, install verified updates silently, and surface only the `Update installed, restart to update` status; `No` SHALL skip the check. The value SHALL stay in the profile-local A1 settings document, take effect at the next launch, and be absent from `a1 pi`.
 
-The enabled keys SHALL be stored in the profile-local A1 setting `tabBarRightItems` as a comma-joined ordered subset of `version,time`. Its default SHALL be `version,time`; every subset, including empty, SHALL be valid. Each toggle SHALL persist immediately under the existing settings lock and apply live to attached resident clients. Direct `a1 solo` and `a1 pi` settings SHALL omit the Tab Bar section and this setting.
+#### Scenario: Resolve an older profile
+- **WHEN** an older profile stores `updateCheck: true`, `updateCheck: "notify"`, `updateCheck: false`, or omits the key
+- **THEN** migration SHALL resolve those cases to `Auto`, `Auto`, `No`, and `Auto` respectively while preserving other existing and unknown values
 
-#### Scenario: Open right-side configuration
-- **WHEN** the user selects `Right side` in the Tab Bar section and presses Enter
-- **THEN** the `Tab Bar Right Side` dialog SHALL list enabled Version and Time rows in fixed order
-- **AND** the dialog SHALL provide the same search, navigation, Space-toggle, and Escape-close behavior as the Plus Menu multi-select dialog
+#### Scenario: Present the Generic section
+- **WHEN** bare A1 opens the owned settings screen
+- **THEN** the `Generic` section SHALL offer `Update` first with choices `Auto` and `No`
+- **AND** its description SHALL say that Auto installs silently and asks for a restart, and that No leaves updates manual
 
-#### Scenario: Toggle an item
-- **WHEN** the user toggles Version or Time
-- **THEN** `tabBarRightItems` SHALL persist the resulting ordered subset immediately
-- **AND** attached resident tab strips SHALL apply it without restart
+#### Scenario: Disable the check
+- **WHEN** the user selects `No` and restarts bare A1
+- **THEN** A1 SHALL neither read the release cache, contact the registry, start an automatic worker, nor observe automatic-update state for the startup flow
 
-#### Scenario: Existing profile has no setting
-- **WHEN** a profile predates `tabBarRightItems`
-- **THEN** Version and Time SHALL both be enabled by default without requiring migration input
+#### Scenario: Use the automatic default
+- **WHEN** the profile has no explicit `Update` choice
+- **THEN** bare A1 SHALL resolve `Auto` and silently install an eligible newer release when discovered, even if it was published after the session started
 
-#### Scenario: Settings run without a tab bar
-- **WHEN** Settings runs through `a1 solo` or `a1 pi`
-- **THEN** the Tab Bar section and `Right side` entry SHALL not be presented
+#### Scenario: Reject an invalid value
+- **WHEN** a stored `updateCheck` value is not `auto` or `no` after migration
+- **THEN** existing settings validation SHALL reject that value and resolve `Auto` without blocking startup
 
-### Requirement: Tab Bar canvas is a live resident setting
+#### Scenario: Use the comparison profile
+- **WHEN** the user opens or runs `a1 pi`
+- **THEN** its pinned settings presentation SHALL contain no A1 `Update` entry
 
-The resident `Tab Bar` settings section SHALL expose a live `Background` choice with `Transparent` as the default and `Black` and `Accent` as alternatives. The profile-local `tabBarBackgroundStyle` setting SHALL store the selected choice and apply without restarting the viewed Agent. Transparent SHALL restore the terminal default background on every unoccupied strip cell; Black and Accent SHALL use the established dark and selected-accent canvas semantics. Tab chips and popups SHALL retain their independent readable surfaces.
+#### Scenario: Choices shrink without a version bump
+- **WHEN** the stored settings document predates the two-choice `Update`
+- **THEN** the stored settings version SHALL be unchanged and unknown values SHALL be preserved
 
-#### Scenario: Select transparent canvas
+#### Scenario: The session stays open
+- **WHEN** an `Auto` session remains open past the fifteen-minute cache window
+- **THEN** the next check SHALL fetch the channel head again and install a newer release silently without a restart
 
-- **WHEN** `tabBarBackgroundStyle` is absent or the user selects Transparent
-- **THEN** the strip SHALL explicitly restore the terminal default background across its unoccupied row
+### Requirement: The in-shell settings screen renders the section model
+A1 SHALL present its settings as an A1-owned application rendering the grouped section model rather than deriving its own view of where a value lives. In bare `a1` it SHALL be reachable through `/settings`. The screen SHALL show every section with its entries, keep the current section's header visible while its entries are on screen, and let the user move between entries, jump between sections, filter, change a value, and close using its declared keyboard interactions. Pointer input SHALL follow the existing screen contracts. The screen SHALL be built from the shared component layer rather than drawing a list, menu, dialog, control, input row, or status line of its own. A change SHALL be routed by the entry's backend, and a change that could not be stored or written SHALL be reported rather than displayed as saved. An entry the model reports as not editable SHALL state why rather than accepting input. While the settings module is still loading, the screen SHALL render blank rows rather than a loading placeholder; only a failed module load SHALL print its failure message. Closing Settings SHALL restore the previous surface.
 
-#### Scenario: Change canvas while attached
+#### Scenario: Open the settings screen
+- **WHEN** the user invokes `/settings` in bare `a1`
+- **THEN** the screen SHALL open showing the A1 and Agent sections with current values
+- **AND** the pinned settings selector SHALL NOT open
 
-- **WHEN** the user changes the tab-bar Background from Transparent to Black or Accent while attached
-- **THEN** the full strip row SHALL repaint with that canvas
-- **AND** the retained Agent surface and input target SHALL remain unchanged
+#### Scenario: Navigate and edit settings
+- **WHEN** the Settings screen receives its declared navigation, section-jump, search, value-change, adjustment, undo, or close shortcut
+- **THEN** it SHALL perform that Settings action exactly once
+- **AND** the input SHALL NOT reach the agent prompt
+
+#### Scenario: Navigate between sections
+- **WHEN** the user jumps between sections
+- **THEN** the selection SHALL land on the first changeable entry of the target section and that section SHALL be brought into view
+
+#### Scenario: Keep the section visible while scrolling
+- **WHEN** entries are scrolled so their section header would leave the screen
+- **THEN** that section's header SHALL remain visible above the entries
+
+#### Scenario: Change a setting
+- **WHEN** the user changes a value
+- **THEN** it SHALL be routed to the backend the model names for that entry and the screen SHALL show the resulting global value
+
+#### Scenario: Change cannot be saved
+- **WHEN** a change cannot be stored or written through its backend
+- **THEN** the screen SHALL report the failure and SHALL NOT display the new value as saved
+
+#### Scenario: Entry is not editable
+- **WHEN** the user selects an entry the model reports as not editable
+- **THEN** the screen SHALL state the reported reason and SHALL NOT accept a change for it
+
+#### Scenario: Filter the entries
+- **WHEN** the user filters
+- **THEN** only matching entries SHALL remain under their sections and no matches SHALL be stated explicitly
+
+#### Scenario: Close the screen
+- **WHEN** the user closes Settings
+- **THEN** the previous surface SHALL be restored unchanged
+
+#### Scenario: Open before the settings module has loaded
+- **WHEN** the screen is painted before its module has finished loading
+- **THEN** every row SHALL be blank and no `Loading settings…` text SHALL appear
+- **AND** the next paint after loading SHALL show the sections and entries
+
+#### Scenario: Settings module fails to load
+- **WHEN** the settings module cannot be loaded
+- **THEN** the screen SHALL print the load failure on its first row
+
+### Requirement: Prompt history settings declare persistence, retention, and live-scope boundaries
+A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `promptHistoryMaxItems` as an integer allowing 10 through 100 in steps of 10 and defaulting to 100, and `promptHistoryScope` as `unique` (default) or `shared`. They SHALL appear in bare A1's History settings section as `Persistent history`, `History limit`, and `History scope`, using existing shared settings controls, profile-local A1 settings persistence, validation, and stored/effective-state presentation. `promptHistoryEnabled` and `promptHistoryMaxItems` SHALL declare a `next-start` application boundary; `promptHistoryScope` SHALL be live and apply to running bare-A1 agents sharing that profile. Unique SHALL select a durable history per agent session, while Shared SHALL retain the former profile-wide history. Saving a scope SHALL switch each running agent's selected durable history and image sidecars without migrating, merging, deleting, or rerouting already-submitted prompts; unsent drafts SHALL remain intact. No Pi settings document or separate history settings file SHALL be used, and `a1 pi` SHALL neither expose nor apply these A1 settings.
+
+#### Scenario: Start without stored history settings
+- **WHEN** a bare-A1 profile has no stored history settings, including an existing profile created before History scope was introduced
+- **THEN** its effective values SHALL enable persistence with a 100-entry count limit and Unique scope
+- **AND** byte retention limits SHALL still apply independently
+- **AND** any old shared profile history SHALL remain intact, but SHALL NOT appear in the new session's unique durable recall
+
+#### Scenario: Change retention
+- **WHEN** the user saves a valid history limit
+- **THEN** the settings surface SHALL show that it applies on the next start rather than claiming a live effect
+- **AND** the next enabled launch SHALL apply that count to its selected history store, pruning oldest entries if necessary
+- **AND** existing writers using that store SHALL follow its newly applied limit without restoring their older startup limit
+
+#### Scenario: Reject an invalid limit
+- **WHEN** a stored history limit is not one of 10, 20, 30, 40, 50, 60, 70, 80, 90, or 100
+- **THEN** existing settings validation SHALL reject that value and resolve the declared default without blocking startup
+
+#### Scenario: Set scope to Shared
+- **WHEN** the user saves Shared scope or starts a new enabled agent with Shared selected
+- **THEN** that agent SHALL read and write the unchanged profile-wide history store used before this setting existed
+- **AND** other sessions in Shared mode SHALL see its committed prompts
+
+#### Scenario: Reject an invalid scope
+- **WHEN** a stored history scope is neither `unique` nor `shared`
+- **THEN** existing settings validation SHALL reject that value and resolve Unique without blocking startup
+
+#### Scenario: Change scope while agents are running
+- **WHEN** the user saves another scope while an agent is already running
+- **THEN** that agent SHALL select the newly chosen store and show its own existing entries, preserving any unsent draft
+- **AND** submissions already captured SHALL finish in their original store, while future submissions use the newly selected one
+- **AND** no existing history store SHALL be copied, merged, or erased
+
+#### Scenario: Switch scope across concurrent agent processes
+- **WHEN** one agent changes History scope while other agents in the same profile are running
+- **THEN** each SHALL apply the saved scope on its next accepted settings notification, showing the selected store's recall rather than appending the other store's entries
+- **AND** a prompt submitted before that agent observes the change SHALL remain in its then-selected store
+- **AND** persistence enablement and retention count SHALL remain next-start settings
+
+#### Scenario: Disable history for subsequent launches
+- **WHEN** the user disables persistent history and restarts A1
+- **THEN** that process SHALL not create, read, write, or poll the durable history store in either scope
+- **AND** it SHALL keep existing current-session history behavior
+- **AND** disabling SHALL leave retained records intact rather than claiming to erase them
+
+#### Scenario: Another enabled process is already running
+- **WHEN** one instance saves disabled persistence while another enabled instance remains running
+- **THEN** the setting SHALL remain next-start and SHALL NOT claim to stop persistence in existing instances
+- **AND** the setting metadata and maintained documentation SHALL explain this boundary
+
+#### Scenario: Re-enable persistence
+- **WHEN** the user re-enables history and starts a new enabled process
+- **THEN** compatible previously retained records in that process's selected scope SHALL become available again under the configured count and byte limits
+
+#### Scenario: Keep history settings profile-local
+- **WHEN** different A1 profiles store different history settings or the Pi comparison starts
+- **THEN** each bare-A1 launch SHALL apply only its own profile's values
+- **AND** the Pi comparison and `~/.pi/agent` SHALL remain untouched

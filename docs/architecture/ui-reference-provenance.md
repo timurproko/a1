@@ -6,8 +6,8 @@ decisions, and the decisions are where the work is: column arithmetic, sticky-he
 reservation, block-jump targets, span overlay under styling, and pointer hit regions.
 
 This file records what came from where, so a divergence can be judged against its source
-instead of argued from memory. It is the same discipline as
-[`terminal-host-provenance.md`](terminal-host-provenance.md), applied to UI source.
+instead of argued from memory. It applies the same discipline as
+[`history-editor-provenance.md`](history-editor-provenance.md) to UI source.
 
 ## Source
 

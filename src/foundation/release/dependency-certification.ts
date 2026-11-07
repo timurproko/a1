@@ -9,7 +9,7 @@ export const DEPENDENCY_CERTIFICATIONS_DIRECTORY = "dependency-certifications";
 type LayerIdentity = { readonly layerId: string; readonly contentDigest: string };
 
 export interface ReadDependencyCertificationOptions {
-  /** Only authenticated parent-started supervisors may upgrade missing platform evidence. */
+  /** Only an authenticated parent certifying the exact release may upgrade missing platform evidence. */
   readonly allowLegacyParentCertification?: boolean;
   /** Cleanup must validate canonical evidence without migrating or falling back. */
   readonly canonicalOnly?: boolean;

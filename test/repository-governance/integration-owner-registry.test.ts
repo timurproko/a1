@@ -37,8 +37,8 @@ describe("integration owner registry", () => {
   it("declares every integration owner, cadence, and deliberate runtime target", async () => {
     const owners = await loadIntegrationOwners();
     expect(owners.map(owner => owner.id)).toEqual([
-      "pi-release-resume", "package-contracts", "startup", "image-compatibility", "history-compatibility", "unix-containment",
-      "launch-integration", "update-performance", "update-predecessor", "terminal-host", "resident-chaos",
+      "pi-release-resume", "package-contracts", "startup", "image-compatibility", "history-compatibility", "unix-release",
+      "launch-integration", "update-performance", "update-predecessor",
     ]);
     const targets = Object.fromEntries(owners.map(owner => [owner.id, owner.targets.map(target => `${target.platform}-${target.architecture}-node${target.node}`)]));
     expect(targets).toEqual({
@@ -47,18 +47,16 @@ describe("integration owner registry", () => {
       startup: ["win32-x64-node22"],
       "image-compatibility": ["win32-x64-node22", "linux-x64-node24", "darwin-arm64-node24"],
       "history-compatibility": ["win32-x64-node22", "linux-x64-node24", "darwin-arm64-node24"],
-      "unix-containment": ["linux-x64-node24", "darwin-arm64-node24"],
+      "unix-release": ["linux-x64-node24", "darwin-arm64-node24"],
       "launch-integration": ["win32-x64-node24"],
       "update-performance": ["win32-x64-node24"],
       "update-predecessor": ["win32-x64-node24", "linux-x64-node24", "darwin-arm64-node24"],
-      "terminal-host": ["win32-x64-node24", "linux-x64-node24", "darwin-arm64-node24"],
-      "resident-chaos": ["win32-x64-node24", "linux-x64-node24", "darwin-arm64-node24"],
     });
     expect(owners.filter(owner => owner.cadence === "exhaustive").map(owner => owner.id)).toEqual(["update-performance"]);
     expect(owners.filter(owner => owner.cadence === "pull-request").map(owner => owner.id)).toEqual(["pi-release-resume"]);
     expect(owners.filter(owner => owner.cadence === "direct-impact").map(owner => owner.id)).toEqual([
-      "package-contracts", "startup", "image-compatibility", "history-compatibility", "unix-containment",
-      "launch-integration", "update-predecessor", "terminal-host", "resident-chaos",
+      "package-contracts", "startup", "image-compatibility", "history-compatibility", "unix-release",
+      "launch-integration", "update-predecessor",
     ]);
   });
 
@@ -78,7 +76,7 @@ describe("integration owner registry", () => {
     const owners = await loadIntegrationOwners();
     const tests = owners.flatMap(owner => owner.tests.map(test => ({ owner: owner.id, test })));
     expect(tests.filter((entry, index) => tests.findIndex(candidate => candidate.test === entry.test) !== index)).toEqual([]);
-    expect(owners.find(owner => owner.id === "unix-containment")!.entries).toEqual(expect.arrayContaining([
+    expect(owners.find(owner => owner.id === "unix-release")!.entries).toEqual(expect.arrayContaining([
       "test/app/session-shell/image-preparation.test.ts",
       "test/features/prompt-history/store.test.ts",
       "test/foundation/release/session-resume.integration.test.ts",
@@ -96,7 +94,7 @@ describe("integration owner registry", () => {
       ...await planPaths(["package-startup"], paths), ...await planPaths(["package-contracts"], paths),
       ...await planPaths(["image-compatibility", "history-compatibility"], paths),
     ];
-    const unix = await planPaths(["image-compatibility", "history-compatibility", "unix-containment", "package-smoke"], paths);
+    const unix = await planPaths(["image-compatibility", "history-compatibility", "unix-release", "package-smoke"], paths);
     noDuplicates("windows-node24", win24);
     noDuplicates("windows-node22", win22);
     noDuplicates("unix-node24", unix);

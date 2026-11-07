@@ -566,9 +566,7 @@ jobs:
       # scripts/release/validation-matrix.mjs, and the in-job resolver remains the second check.
       matrix: ${{ fromJSON(needs.changes.outputs.modular-matrix) }}
     runs-on: ${{ matrix.os }}
-    # A cold terminal-host build compiles libghostty-vt with Zig before the Rust crate; lanes that
-    # pack a candidate build the release host too, which the selection decides after scheduling.
-    timeout-minutes: ${{ matrix.partition && 25 || (matrix.terminalHost || matrix.chaos) && 45 || 35 }}
+    timeout-minutes: 35
     steps:
       - name: Start job timing
         shell: bash
@@ -618,148 +616,12 @@ jobs:
             Start-Sleep -Seconds 1
           } while ((Get-Date) -lt $deadline)
           if (-not $enabled) { throw "Windows Defender real-time protection could not be enabled" }
-      # Platform: Zig 0.15.2 must not consume the image's rolling Xcode SDK or caches
-      # produced with a different SDK. Select an installed toolchain without changing the OS.
-      - name: Pin macOS native SDK
-        if: steps.job-selection.outputs.active == 'true' && runner.os == 'macOS'
-        shell: bash
-        env:
-          DEVELOPER_DIR: /Applications/Xcode_26.0.1.app/Contents/Developer
-        run: |
-          set -euo pipefail
-          test -d "$DEVELOPER_DIR"
-          sdk=$(xcrun --sdk macosx --show-sdk-path)
-          test -r "$sdk/usr/lib/libSystem.tbd"
-          printf 'DEVELOPER_DIR=%s\nSDKROOT=%s\n' "$DEVELOPER_DIR" "$sdk" >> "$GITHUB_ENV"
-          xcodebuild -version
-          xcrun --sdk macosx --show-sdk-version
-      - name: Cache process guardian build
-        if: steps.job-selection.outputs.active == 'true' && matrix.build
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          key: ${{ runner.os == 'macOS' && format('{0}-xcode-26.0.1', matrix.os) || '' }}
-          workspaces: native/process-guardian
       - name: Install exact dependencies and build
         if: steps.job-selection.outputs.active == 'true' && matrix.build
         run: npm ci
-      # Rationale: a partition job runs only Cargo and the tier runner, so it needs the scripts' dependencies
-      # but neither the TypeScript build nor the process guardian.
-      - name: Install dependencies for the test partition
-        if: steps.job-selection.outputs.active == 'true' && matrix.partition
-        run: npm ci --ignore-scripts
-      # Invariant: a packed candidate carries the release terminal host a published package ships.
-      # Without it every packaged launch falls back to the direct UI and the resident route is untested.
-      # Rationale: the release addon depends only on the native tree, its toolchains, and the build scripts,
-      # so an exact-input hit restores the built addon and the lane re-certifies it instead of compiling.
-      - name: Restore release terminal host build
-        id: release-terminal-host
-        if: steps.job-selection.outputs.packs_candidate == 'true'
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host.node
-            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host.manifest.json
-            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host-THIRD-PARTY-NOTICES.txt
-          key: terminal-host-release-v1-${{ runner.os }}-${{ runner.arch }}${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}-zig-0.15.2-${{ hashFiles('native/terminal-host/**', 'rust-toolchain.toml', 'config/terminal-host-provenance.json', 'scripts/development/build-terminal-host.mjs', 'scripts/development/native-build-environment.mjs', 'scripts/development/native-target.mjs', 'scripts/development/prepare-ci-rust.sh', 'scripts/release/generate-terminal-host-notices.mjs') }}
-      - name: Prepare release terminal host Rust toolchain
-        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'
-        shell: bash
-        run: bash scripts/development/prepare-ci-rust.sh
-      - name: Set up Zig for the release terminal host
-        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'
-        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.15.2
-          cache-key: development-validation${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}
-          cache-size-limit: 512
-      - name: Cache release terminal host build
-        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          shared-key: terminal-host-release${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}
-          workspaces: native/terminal-host
-      - name: Build the release terminal host into the candidate
-        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'
-        run: npm run build:terminal-host
-      - name: Save release terminal host build
-        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host.node
-            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host.manifest.json
-            dist/native/${{ matrix.platform }}-${{ matrix.architecture }}/terminal-host-THIRD-PARTY-NOTICES.txt
-          key: ${{ steps.release-terminal-host.outputs.cache-primary-key }}
-      - name: Reuse the restored release terminal host
-        if: steps.job-selection.outputs.packs_candidate == 'true' && steps.release-terminal-host.outputs.cache-hit == 'true'
-        run: node scripts/development/build-terminal-host.mjs --reuse
-      - name: Verify the candidate's release terminal host
-        if: steps.job-selection.outputs.packs_candidate == 'true'
-        run: node scripts/release/verify-native-artifacts.mjs --local
       - name: Record verified install-time build
         if: steps.job-selection.outputs.active == 'true' && matrix.build
         run: node scripts/release/record-validation-prerequisite.mjs build
-      - name: Test and build process guardian fixture addon
-        if: steps.job-selection.outputs.active == 'true' && matrix.guardian
-        shell: bash
-        run: |
-          cargo test --locked --manifest-path native/process-guardian/Cargo.toml
-          cargo build --locked --manifest-path native/process-guardian/Cargo.toml
-          mkdir -p .artifacts/process-guardian
-          case "${{ matrix.platform }}" in
-            win32) source="native/process-guardian/target/debug/process_guardian.dll" ;;
-            linux) source="native/process-guardian/target/debug/libprocess_guardian.so" ;;
-            darwin) source="native/process-guardian/target/debug/libprocess_guardian.dylib" ;;
-          esac
-          cp "$source" ".artifacts/process-guardian/${{ matrix.addon }}"
-          echo "A1_PROCESS_GUARDIAN_PATH=${{ github.workspace }}/.artifacts/process-guardian/${{ matrix.addon }}" >> "$GITHUB_ENV"
-      # Platform: the terminal host builds only here. Its Zig fetch unpacks upstream test data
-      # that workstation antivirus quarantines, so build.rs refuses local Windows builds.
-      - name: Prepare terminal host Rust toolchain
-        if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos || matrix.partition)
-        shell: bash
-        run: bash scripts/development/prepare-ci-rust.sh
-      - name: Set up Zig for terminal host
-        if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos || matrix.partition)
-        uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1
-        with:
-          version: 0.15.2
-          cache-key: development-validation${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}
-          cache-size-limit: 512
-      - name: Cache terminal host build
-        if: steps.job-selection.outputs.active == 'true' && (matrix.terminalHost || matrix.chaos || matrix.partition)
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
-        with:
-          key: terminal-host${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}
-          workspaces: native/terminal-host
-      # Performance: the vendored VT suite takes six to thirteen minutes per target and depends only on the
-      # vendored tree, Zig, and the target. A tree that already passed on this target is not retested; a
-      # changed tree, Zig version, or suite command changes the key and runs the suite again.
-      - name: Restore vendored Ghostty VT test result
-        id: vt-tests-passed
-        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .artifacts/vt-tests-passed
-          key: ghostty-vt-tests-v1-${{ runner.os }}-${{ runner.arch }}${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}-zig-0.15.2-${{ hashFiles('native/terminal-host/vendor/libghostty-vt/**') }}
-          lookup-only: true
-      - name: Run vendored Ghostty VT tests
-        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && steps.vt-tests-passed.outputs.cache-hit != 'true'
-        shell: bash
-        working-directory: native/terminal-host/vendor/libghostty-vt
-        # Rationale: Ghostty's module tests intentionally assert the Debug-only slow-runtime-safety contract;
-        # the exact ReleaseFast library remains built and linked by the following validation scope.
-        run: zig build test-lib-vt -Demit-lib-vt -Doptimize=Debug -Dsimd=true -Demit-xcframework=false -Dversion-string=$(cat VERSION)
-      - name: Record vendored Ghostty VT test result
-        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && steps.vt-tests-passed.outputs.cache-hit != 'true'
-        shell: bash
-        run: mkdir -p .artifacts && echo "$GITHUB_SHA" > .artifacts/vt-tests-passed
-      - name: Save vendored Ghostty VT test result
-        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && steps.vt-tests-passed.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: .artifacts/vt-tests-passed
-          key: ghostty-vt-tests-v1-${{ runner.os }}-${{ runner.arch }}${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}-zig-0.15.2-${{ hashFiles('native/terminal-host/vendor/libghostty-vt/**') }}
       - name: Run exact selected scopes
         if: steps.job-selection.outputs.active == 'true'
         shell: bash
@@ -776,121 +638,23 @@ jobs:
           VALIDATION_TARGET_PLATFORM: ${{ matrix.platform }}
           VALIDATION_TARGET_ARCHITECTURE: ${{ matrix.architecture }}
           VALIDATION_TARGET_NODE: ${{ matrix.node }}
-          VALIDATION_PARTITION: ${{ matrix.partition || '' }}
           VALIDATION_OWNERS_JSON: ${{ steps.job-selection.outputs.owners_json }}
           VALIDATION_CACHE_STATE: setup-node-download-cache
-          # Rationale: a partition job runs its third of the role-fixture suite; the build-and-probe job skips
-          # that suite and keeps everything else; other groups see no value.
-          TERMINAL_HOST_PARTITION: ${{ matrix.partition || (matrix.terminalHost && 'none') || '' }}
           A1_CONFIG_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-config
           A1_DATA_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-data
           A1_RUNTIME_DIR: ${{ runner.temp }}/a1-${{ matrix.group }}-runtime
-          RUN_PROCESS_CONTAINMENT_INTEGRATION: "1"
-          # Rationale: pull requests run a shorter bounded chaos budget; nightly, Full regression, and
-          # manual dispatch keep the script's 600-second default.
-          RESIDENT_CHAOS_SECONDS: ${{ github.event_name == 'pull_request' && '300' || '600' }}
           # Shared runners measure startup reliably but time it unreliably; this owner records
           # an overrun, and nightly publication and Full regression still fail on it.
           STARTUP_BUDGET_ENFORCEMENT: record
           STARTUP_PERFORMANCE_RESULT: .artifacts/validation/startup-node${{ matrix.node }}-performance.json
-          # Rationale: native lanes export the terminal library they link so a developer build can
-          # link the same bytes without Zig; other lanes leave it empty, which build.rs ignores.
-          TERMINAL_HOST_EXPORT_VT: ${{ matrix.terminalHost && format('{0}/.artifacts/terminal-vt', github.workspace) || '' }}
-        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}${{ matrix.partitionSlug && format('-{0}', matrix.partitionSlug) || '' }}-attempt-${{ github.run_attempt }}.json
-      - name: Certify terminal fidelity and resident latency
-        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
-        # Rationale: certification takes minutes on every target; a stalled fixture fails here, not at the job limit.
-        timeout-minutes: 20
-        shell: bash
-        run: |
-          mkdir -p .artifacts/terminal-host
-          # Provenance: debug unit/role coverage remains above; timed certificates use shipping
-          # optimization with all fixture controls retained and unchanged latency thresholds.
-          host=".artifacts/terminal-host/performance/${{ matrix.terminalHostAddon }}"
-          node scripts/development/verify-terminal-fidelity.mjs --host "$host" > ".artifacts/terminal-host/fidelity-${{ matrix.platform }}-${{ matrix.architecture }}.json"
-          # Invariant: the same built addon and certified parity child are driven directly and through
-          # server, holder, and attach; the child-observed bytes must match case by case on this platform.
-          node scripts/development/verify-interaction-parity.mjs --host "$host" --fake-tab "native/terminal-host/target/debug/fake-tab${{ matrix.platform == 'win32' && '.exe' || '' }}" --out ".artifacts/terminal-host/interaction-parity-${{ matrix.platform }}-${{ matrix.architecture }}.json" > /dev/null
-          # The deterministic loopback endpoint still traverses the real configured engine, owned
-          # shell renderer, PTY holder, server, attach compositor, and exact native artifact.
-          node scripts/development/verify-resident-parallel-progress.mjs --host "$host" > ".artifacts/terminal-host/parallel-progress-${{ matrix.platform }}-${{ matrix.architecture }}.json"
-          # Rationale: the role-fixture suite used to run in this job before certification and warmed every
-          # resident launch path; its partitions now run on other runners, so one unmeasured pass restores
-          # that state before the measured pass, whose single-sample budgets are unchanged.
-          node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-warm-up-${{ matrix.platform }}-${{ matrix.architecture }}.json" || echo "::notice::the unmeasured warm-up pass exceeded a budget; the measured pass follows"
-          # Invariant: the measured pass starts on a quiet machine, as it did after the role suite's cleanup; the
-          # warm-up's detached server, holders, and fixtures are stopped and given a moment to exit first.
-          if [ "${{ matrix.platform }}" = win32 ]; then
-            powershell.exe -NoProfile -NonInteractive -Command 'Get-CimInstance Win32_Process | Where-Object { $_.Name -eq "node.exe" -and $_.CommandLine -and $_.CommandLine.Contains("host-entry.js") -and $_.CommandLine.Contains("a1-resident-measure-") } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' > /dev/null 2>&1 || true
-          else
-            for pid in $(pgrep -f "a1-resident-measure-" || true); do
-              if ps -p "$pid" -o comm= 2>/dev/null | grep -Eq '^[[:space:]]*(.*/)?node[[:space:]]*$'; then
-                kill -TERM "$pid" > /dev/null 2>&1 || true
-              fi
-            done
-          fi
-          sleep 5
-          node scripts/development/measure-resident-tabs.mjs --host "$host" --direct-startup-budget-ms 2500 > ".artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json"
-      # Rationale: the fuzz driver is a fixed binary keyed by its version and the nightly it builds with,
-      # so caching it removes a recurring compile from the only lane that fuzzes.
-      - name: Cache the terminal-host fuzz tool
-        id: cargo-fuzz
-        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && matrix.platform == 'linux'
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cargo/bin/cargo-fuzz
-          key: cargo-fuzz-0.13.2-nightly-2026-10-01-${{ runner.os }}-${{ runner.arch }}
-      - name: Run bounded terminal-host decoder fuzzing
-        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost && matrix.platform == 'linux'
-        shell: bash
-        run: |
-          rustup toolchain install nightly-2026-10-01 --profile minimal --no-self-update
-          if [ "${{ steps.cargo-fuzz.outputs.cache-hit }}" != "true" ]; then
-            cargo +nightly-2026-10-01 install cargo-fuzz --version 0.13.2 --locked
-          fi
-          cd native/terminal-host
-          # Rationale: every decoder and parser gets the same bounded budget; this proves parser
-          # robustness on Linux and is not platform evidence.
-          for target in decode_frame decode_bridge parse_records boundary_marker; do
-            cargo +nightly-2026-10-01 fuzz run "$target" "fuzz/corpus/$target" -- -max_total_time=30 -timeout=5
-          done
-      - name: Upload resident chaos report
-        if: always() && steps.job-selection.outputs.active == 'true' && matrix.chaos
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: resident-chaos-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
-          path: .artifacts/validation/resident-chaos-*.json
-          if-no-files-found: warn
-      - name: Upload terminal host contract artifacts
-        if: always() && steps.job-selection.outputs.active == 'true' && matrix.terminalHost
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: terminal-host-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
-          path: |
-            .artifacts/terminal-host/${{ matrix.terminalHostAddon }}
-            .artifacts/terminal-host/performance/${{ matrix.terminalHostAddon }}
-            native/terminal-host/protocol/fixtures.json
-            .artifacts/terminal-host/fidelity-${{ matrix.platform }}-${{ matrix.architecture }}.json
-            .artifacts/terminal-host/performance-${{ matrix.platform }}-${{ matrix.architecture }}.json
-            .artifacts/terminal-host/interaction-parity-${{ matrix.platform }}-${{ matrix.architecture }}.json
-            .artifacts/terminal-host/parallel-progress-${{ matrix.platform }}-${{ matrix.architecture }}.json
-          if-no-files-found: error
-          retention-days: 1
-      - name: Upload linked terminal library
-        if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
-        with:
-          name: terminal-vt-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}
-          path: .artifacts/terminal-vt/
-          if-no-files-found: error
-          retention-days: 14
+        run: node scripts/release/run-validation-tier.mjs --result .artifacts/validation/outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json
       - name: Add modular timing summary
         if: always() && steps.job-selection.outputs.active == 'true'
         shell: bash
         run: |
           node --input-type=module <<'NODE' >> "$GITHUB_STEP_SUMMARY"
           import { readFile } from "node:fs/promises";
-          const result = JSON.parse(await readFile(`.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}${process.env.PARTITION_SLUG ? `-${process.env.PARTITION_SLUG}` : ""}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`, "utf8"));
+          const result = JSON.parse(await readFile(`.artifacts/validation/outcome-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`, "utf8"));
           const setup = Math.max(0, result.startedAt - Number(process.env.VALIDATION_JOB_STARTED_MS));
           console.log(`Setup: **${(setup / 1000).toFixed(2)}s**; gates: **${((result.completedAt - result.startedAt) / 1000).toFixed(2)}s**; invocations: **${result.outcomes.length}**.`);
           for (const outcome of result.outcomes) console.log(`- ${outcome.scopes.join(", ")}: **${(outcome.durationMs / 1000).toFixed(2)}s** (${outcome.id})`);
@@ -899,7 +663,6 @@ jobs:
           GROUP: ${{ matrix.group }}
           PLATFORM: ${{ matrix.platform }}
           NODE_VERSION: ${{ matrix.node }}
-          PARTITION_SLUG: ${{ matrix.partitionSlug || '' }}
       - name: Complete content-free job envelope
         if: always()
         shell: bash
@@ -908,18 +671,16 @@ jobs:
           PLATFORM: ${{ matrix.platform }}
           ARCHITECTURE: ${{ matrix.architecture }}
           NODE_VERSION: ${{ matrix.node }}
-          PARTITION: ${{ matrix.partition || '' }}
-          PARTITION_SLUG: ${{ matrix.partitionSlug || '' }}
           SELECTED_HEAD: ${{ needs.changes.outputs.head-sha }}
           JOB_STATUS: ${{ job.status }}
           ACTIVE: ${{ steps.job-selection.outputs.active || 'unknown' }}
           SELECTION_ID: ${{ steps.job-selection.outputs.selection_id }}
-        run: node -e 'const fs=require("fs"),p=`.artifacts/validation/job-envelope-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}${process.env.PARTITION_SLUG?`-${process.env.PARTITION_SLUG}`:""}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`,x={schema:"a1-validation-job-envelope-v2",head:process.env.SELECTED_HEAD,runId:process.env.GITHUB_RUN_ID,runAttempt:Number(process.env.GITHUB_RUN_ATTEMPT),selectionId:process.env.SELECTION_ID,job:process.env.GROUP,platform:process.env.PLATFORM,architecture:process.env.ARCHITECTURE,node:Number(process.env.NODE_VERSION),...(process.env.PARTITION?{partition:process.env.PARTITION}:{}),startedAt:Number(process.env.VALIDATION_JOB_STARTED_MS),completedAt:Date.now(),status:process.env.JOB_STATUS,active:process.env.ACTIVE};fs.mkdirSync(".artifacts/validation",{recursive:true});fs.writeFileSync(p,JSON.stringify(x,null,2)+"\n")'
+        run: node -e 'const fs=require("fs"),p=`.artifacts/validation/job-envelope-${process.env.GROUP}-${process.env.PLATFORM}-node${process.env.NODE_VERSION}-attempt-${process.env.GITHUB_RUN_ATTEMPT}.json`,x={schema:"a1-validation-job-envelope-v2",head:process.env.SELECTED_HEAD,runId:process.env.GITHUB_RUN_ID,runAttempt:Number(process.env.GITHUB_RUN_ATTEMPT),selectionId:process.env.SELECTION_ID,job:process.env.GROUP,platform:process.env.PLATFORM,architecture:process.env.ARCHITECTURE,node:Number(process.env.NODE_VERSION),startedAt:Number(process.env.VALIDATION_JOB_STARTED_MS),completedAt:Date.now(),status:process.env.JOB_STATUS,active:process.env.ACTIVE};fs.mkdirSync(".artifacts/validation",{recursive:true});fs.writeFileSync(p,JSON.stringify(x,null,2)+"\n")'
       - name: Upload modular outcome and fixture phases
         if: always()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
-          name: development-validation-outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}${{ matrix.partitionSlug && format('-{0}', matrix.partitionSlug) || '' }}-attempt-${{ github.run_attempt }}
+          name: development-validation-outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}
           path: |
             .artifacts/validation/job-envelope-*.json
             .artifacts/validation/outcome-*.json

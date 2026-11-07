@@ -12,7 +12,6 @@ const rootArgument = process.argv.indexOf("--root");
 const allowPartialLayout = process.argv.includes("--allow-partial-layout");
 const root = resolve(rootArgument >= 0 ? process.argv[rootArgument + 1] : new URL("../..", import.meta.url).pathname.replace(/^\/(.:)/, "$1"));
 const sourceRoot = resolve(root, "src");
-const nativeRoots = [resolve(root, "native"), resolve(root, "scripts", "native")];
 const errors = [];
 const sourceFiles = {};
 
@@ -27,17 +26,12 @@ async function walk(directory) {
   return files;
 }
 
-async function walkNative(directory) {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const files = [];
-  for (const entry of entries) {
-    if (["target", "vendor", ".zig-cache", "zig-out"].includes(entry.name)) continue;
-    const path = resolve(directory, entry.name);
-    if (entry.isDirectory()) files.push(...await walkNative(path));
-    else if ([".rs", ".zig", ".toml", ".ts", ".js", ".mjs"].includes(extname(entry.name))) files.push(path);
-  }
-  return files;
-}
+/**
+ * The product draws its one agent UI directly on the user's terminal. A pseudoterminal or a
+ * terminal emulator in production would be a second screen authority, so both stay test-only.
+ */
+const terminalEmulationImport = /^(?:node-pty|@[^/]+\/node-pty[^/]*|node-pty-prebuilt[^/]*|@xterm\/.+|xterm(?:-headless)?)(?:\/.*)?$/;
+const pseudoterminalSpawn = /\b(?:forkpty|openpty|posix_openpt|CreatePseudoConsole)\b|\bpty\.(?:spawn|fork|open)\s*\(/;
 
 for (const file of await walk(sourceRoot)) {
   const source = await readFile(file, "utf8");
@@ -64,8 +58,8 @@ for (const file of await walk(sourceRoot)) {
     if (/(?:^|\/)(?:dist|src|build)\//.test(specifier) && /pi/i.test(specifier)) {
       errors.push(`${path}: private Pi distribution import '${specifier}' is forbidden`);
     }
-    if (["node-pty", "@xterm/headless"].includes(specifier)) {
-      errors.push(`${path}: PTY/emulator import '${specifier}' is forbidden in the transparent baseline`);
+    if (terminalEmulationImport.test(specifier)) {
+      errors.push(`${path}: pseudoterminal or terminal emulator import '${specifier}' is forbidden in production source`);
     }
     if (!specifier.startsWith(".") && /pi-tui/.test(specifier) && !/^src\/integrations\/pi\/(?:components|tui-runtime)\//.test(path)) {
       errors.push(`${path}: Pi TUI import '${specifier}' is outside the runtime or component adapter boundary`);
@@ -73,6 +67,10 @@ for (const file of await walk(sourceRoot)) {
     if (path.startsWith("src/ui/") && ["node:child_process", "child_process", "node-pty"].includes(specifier)) {
       errors.push(`${path}: UI may not spawn agent processes`);
     }
+  }
+
+  if (pseudoterminalSpawn.test(source)) {
+    errors.push(`${path}: production source may not spawn a pseudoterminal`);
   }
 
   if (/\bglobalThis\s*[.[]/.test(source)) {
@@ -91,7 +89,6 @@ for (const file of await walk(sourceRoot)) {
       { pattern: /\b(?:previousLines|previousWidth|previousHeight|cursorRow|hardwareCursorRow|maxLinesRendered|previousViewportTop)\b/, label: "private Pi renderer-state inspection" },
       { pattern: /\bReflect\.getOwnPropertyDescriptor\b|__proto__|\bprototype\b/, label: "host prototype inspection or mutation" },
       { pattern: /(?:distribution|dist|package)[A-Za-z]*(?:Hash|Integrity)|hashFiles|SHA-256.*(?:Pi|TUI)|(?:Pi|TUI).*SHA-256/i, label: "distribution-hash gating" },
-      { pattern: /native-host-protocol|terminal-host|composedTerminal/i, label: "terminal-host coupling" },
     ];
     for (const { pattern, label } of ownedUiForbidden) {
       if (pattern.test(source)) errors.push(`${path}: owned UI contains forbidden ${label}`);
@@ -111,19 +108,10 @@ for (const file of await walk(sourceRoot)) {
 
   if (path.startsWith("src/features/launch/")) {
     const explicitModeForbidden = [
-      { pattern: /(?:native-host-protocol|structured-agent-runtime|features\/workspace|features\/owned-ui|nativeTerminalHost|composedTerminal)/i, label: "composed infrastructure dependency" },
+      { pattern: /(?:structured-agent-runtime|features\/workspace|features\/owned-ui)/i, label: "composed infrastructure dependency" },
     ];
     for (const { pattern, label } of explicitModeForbidden) {
       if (pattern.test(source)) errors.push(`${path}: launch profile code contains forbidden ${label}`);
-    }
-  }
-
-  if (path.startsWith("native/") || path.startsWith("scripts/native/")) {
-    const nativeForbidden = [
-      { pattern: /(?:node-pty|@xterm\/headless|custom(?:Ansi|Vt)(?:Parser|Renderer)|lightweight(?:Terminal|Ansi)(?:Parser|Renderer))/i, label: "new lightweight terminal parser or renderer" },
-    ];
-    for (const { pattern, label } of nativeForbidden) {
-      if (pattern.test(source)) errors.push(`${path}: native host contains forbidden ${label}`);
     }
   }
 
@@ -172,22 +160,6 @@ for (const file of await walk(sourceRoot)) {
     ];
     for (const { pattern, label } of identityPatterns) {
       if (pattern.test(source)) errors.push(`${path}: terminal boundary contains forbidden ${label}`);
-    }
-  }
-}
-
-for (const nativeRoot of nativeRoots) {
-  let nativeFiles = [];
-  try {
-    nativeFiles = await walkNative(nativeRoot);
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-  }
-  for (const file of nativeFiles) {
-    const source = await readFile(file, "utf8");
-    const path = relative(root, file).split(sep).join("/");
-    if (/(?:node-pty|@xterm\/headless|custom(?:Ansi|Vt)(?:Parser|Renderer)|lightweight(?:Terminal|Ansi)(?:Parser|Renderer))/i.test(source)) {
-      errors.push(`${path}: native host contains forbidden new lightweight terminal parser or renderer`);
     }
   }
 }
@@ -281,20 +253,12 @@ async function inspectRepositoryStructure() {
   const generatedSegments = /(?:^|\/)(?:node_modules|logs?|sessions?|cache|caches|browser-profile|browser-profiles|dist|coverage)(?:\/|$)/i;
   const nestedAuthority = /(?:^|\/)(?:package(?:-lock)?\.json)$/;
   for (const path of paths) {
-    if (genericSourceSegments.test(path) && !path.startsWith("native/terminal-host/src/core/")) {
+    if (genericSourceSegments.test(path)) {
       errors.push(`${path}: generic source dumping-ground directory is forbidden`);
     }
     if (path.startsWith("src/") && generatedSegments.test(path)) errors.push(`${path}: generated or runtime state is forbidden in production source`);
     if (nestedAuthority.test(path) && !["package.json", "package-lock.json", "packages/a1-install/package.json"].includes(path)) errors.push(`${path}: nested package manifest or lockfile is forbidden`);
     if (path.startsWith("test/") && /\.test\.ts$/.test(path) && !testOwnerForPath(path)) errors.push(`${path}: test has no declared owner`);
-  }
-
-  const forbiddenCoreImport = /\b(?:std::(?:fs|net|process|thread|os)|windows_sys|libc|portable_pty)::?/;
-  for (const path of paths.filter(path => path.startsWith("native/terminal-host/src/core/") && path.endsWith(".rs"))) {
-    const source = await readFile(resolve(root, path), "utf8");
-    if (forbiddenCoreImport.test(source)) {
-      errors.push(`${path}: sans-IO core imports filesystem, network, process, thread, or platform APIs`);
-    }
   }
 
   const staleMarkers = /(?:during (?:the )?redesign|terminal redesign|milestone branch|will be added later|temporary lifecycle-only)/i;
@@ -309,7 +273,6 @@ async function walkRepository(directory, prefix = "") {
   const paths = [];
   for (const entry of entries) {
     if ([".git", ".builds", ".worktrees", ".artifacts", "dist", "node_modules"].includes(entry.name) && prefix === "") continue;
-    if (["target", ".zig-cache", "zig-out"].includes(entry.name)) continue;
     const path = prefix ? `${prefix}/${entry.name}` : entry.name;
     if (entry.isDirectory()) paths.push(...await walkRepository(resolve(directory, entry.name), path));
     else paths.push(path);
@@ -318,7 +281,7 @@ async function walkRepository(directory, prefix = "") {
 }
 
 async function inspectTerminalParityBoundary() {
-  const productionPattern = /(?:pi-terminal-parity|TerminalParitySession|@xterm\/headless|node-pty|cell(?:Grid)?Capture|terminalCheckpointCapture)/i;
+  const productionPattern = /(?:pi-terminal-parity|TerminalParitySession|cell(?:Grid)?Capture|terminalCheckpointCapture)/i;
   for (const [path, source] of Object.entries(sourceFiles)) {
     if (productionPattern.test(source)) errors.push(`${path}: terminal parity PTY/process/cell capture is test-only`);
   }
@@ -370,9 +333,9 @@ async function inspectReleasePolicy() {
  * command, the package, `A1_*` variables, state directories, and schemas.
  */
 async function inspectFileNames() {
-  const roots = ["bin", "src", "scripts", "test", "native", "docs", "config"];
+  const roots = ["bin", "src", "scripts", "test", "docs", "config"];
   const productName = /(^|[^a-z0-9])a1([^a-z0-9]|$)/i;
-  const skipped = new Set(["node_modules", "dist", "target", "target-check", "vendor", ".git", "prebuilds"]);
+  const skipped = new Set(["node_modules", "dist", ".git"]);
   for (const root_ of roots) {
     for (const path of await filesUnder(resolve(root, root_), root_)) {
       const name = path.split("/").at(-1) ?? "";

@@ -1,6 +1,6 @@
 import { lstat, mkdir, mkdtemp, readFile, rename, rm, symlink, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { resolve, toNamespacedPath } from "node:path";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CohortStateStore,
@@ -124,93 +124,81 @@ describe("bounded immutable release cleanup", () => {
     expect(state.cleanup.diagnostics.some(item => item.releaseId === "linked-orphan")).toBe(true);
   });
 
-  it("keeps live, transaction, and external-hold releases until every authority releases them", async () => {
+  it("keeps the own release and an update's prior release until each stops protecting them", async () => {
     const fixture = await releaseFixture(5);
     await activateAll(fixture.store, fixture.releases);
-    const [live, held, transaction] = fixture.releases;
+    const [own, transaction, obsolete] = fixture.releases;
     const activeTransaction = transactionFixture(transaction!.releaseId);
 
-    await fixture.store.reconcileRetention(() => ({
-      liveReleaseIds: [live!.releaseId],
-      externalHolds: [{ authority: "agent", releaseId: held!.releaseId }],
-      transaction: activeTransaction,
-    }));
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, {
+      transactionStore: { read: async () => activeTransaction },
+      ownReleaseIds: [own!.releaseId],
+    });
     const protectedState = await fixture.store.read();
-    expect(protectedState.releases[live!.releaseId]).toBeDefined();
-    expect(protectedState.releases[held!.releaseId]).toBeDefined();
+    expect(protectedState.releases[own!.releaseId]).toBeDefined();
     expect(protectedState.releases[transaction!.releaseId]).toBeDefined();
+    expect(protectedState.releases[obsolete!.releaseId]).toBeUndefined();
 
-    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction });
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [] });
     const released = await fixture.store.read();
-    expect(released.releases[live!.releaseId]).toBeUndefined();
-    expect(released.releases[held!.releaseId]).toBeUndefined();
+    expect(released.releases[own!.releaseId]).toBeUndefined();
     expect(released.releases[transaction!.releaseId]).toBeUndefined();
   });
 
-  it("keeps a release that a live resident process records and collects it once the tab stops", async () => {
-    const fixture = await releaseFixture(4);
+  it("keeps releases approved within seven days and collects older ones, never the active release", async () => {
+    const fixture = await releaseFixture(5);
     await activateAll(fixture.store, fixture.releases);
-    const [heldByTab, unheld, , active] = fixture.releases;
-    const asked: string[][] = [];
-    let live = true;
-    const residentHolds = async (_dataDir: string, releaseRoots: readonly string[]) => {
-      asked.push([...releaseRoots]);
-      return { complete: true, releaseRoots: live ? [heldByTab!.releaseRoot] : [], uncertain: [] };
-    };
-
-    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
-    const retained = await fixture.store.read();
-    expect(retained.releases[heldByTab!.releaseId]).toBeDefined();
-    expect(retained.releases[unheld!.releaseId]).toBeUndefined();
-    await expect(lstat(heldByTab!.releaseRoot)).resolves.toBeTruthy();
-    expect(asked[0]?.[0]).toBe(active!.releaseRoot);
-
-    live = false;
-    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
-    expect((await fixture.store.read()).releases[heldByTab!.releaseId]).toBeUndefined();
-    await expect(lstat(heldByTab!.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
-  });
-
-  it.each(["namespaced", "aliased"])("matches %s resident paths to the same managed release", async spelling => {
-    const fixture = await releaseFixture(4);
-    await activateAll(fixture.store, fixture.releases);
-    const [held, unheld] = fixture.releases;
-    const alias = resolve(fixture.root, "data-alias");
-    await symlink(fixture.dataDir, alias, "junction");
-    const reportedRoot = spelling === "namespaced"
-      ? toNamespacedPath(held!.releaseRoot)
-      : resolve(alias, "releases", held!.releaseId);
-    const residentHolds = async () => ({ complete: true, releaseRoots: [reportedRoot], uncertain: [] });
-
-    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, residentHolds });
-    const state = await fixture.store.read();
-    expect(state.releases[held!.releaseId]).toBeDefined();
-    expect(state.releases[unheld!.releaseId]).toBeUndefined();
-    await expect(lstat(held!.releaseRoot)).resolves.toBeTruthy();
-
-    await runBoundedReleaseCleanup(fixture.dataDir, undefined, {
-      transactionStore: noTransaction,
-      residentHolds: async () => ({ complete: true, releaseRoots: [], uncertain: [] }),
+    const [stale, recent, edge, rollback, active] = fixture.releases;
+    const now = Date.parse("2026-11-07T12:00:00.000Z");
+    const day = 24 * 60 * 60 * 1_000;
+    await approvedAt(fixture.store, {
+      [stale!.releaseId]: now - 8 * day,
+      [recent!.releaseId]: now - 6 * day,
+      [edge!.releaseId]: now - 7 * day,
+      [rollback!.releaseId]: now - 30 * day,
+      [active!.releaseId]: now - 365 * day,
     });
-    expect((await fixture.store.read()).releases[held!.releaseId]).toBeUndefined();
+
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [], wallClock: () => now, limits: { maxItems: 8 } });
+    const state = await fixture.store.read();
+    expect(Object.keys(state.releases).sort()).toEqual([recent!.releaseId, rollback!.releaseId, active!.releaseId].sort());
+    await expect(lstat(stale!.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(lstat(edge!.releaseRoot)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(lstat(recent!.releaseRoot)).resolves.toBeTruthy();
+    await expect(lstat(active!.releaseRoot)).resolves.toBeTruthy();
+
+    // Invariant: the recent release ages out on a later pass without any other signal.
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [], wallClock: () => now + 2 * day });
+    expect(Object.keys((await fixture.store.read()).releases).sort()).toEqual([rollback!.releaseId, active!.releaseId].sort());
   });
 
-  it("keeps every release when resident inspection is incomplete or names an unknown stored release", async () => {
-    for (const report of [
-      { complete: false, releaseRoots: [] as string[], uncertain: ["registry unreadable"] },
-      { complete: true, releaseRoots: ["<store>/unknown-release"], uncertain: [] as string[] },
-      { complete: true, releaseRoots: ["<outside>/unresolvable-release"], uncertain: [] as string[] },
-    ]) {
-      const fixture = await releaseFixture(4);
-      await activateAll(fixture.store, fixture.releases);
-      const roots = report.releaseRoots.map(root => root.replace("<store>", resolve(fixture.dataDir, "releases")).replace("<outside>", fixture.root));
-      await runBoundedReleaseCleanup(fixture.dataDir, undefined, {
-        transactionStore: noTransaction,
-        residentHolds: async () => ({ ...report, releaseRoots: roots }),
-      });
-      const state = await fixture.store.read();
-      expect(Object.keys(state.releases).sort(), JSON.stringify(report)).toEqual(fixture.releases.map(release => release.releaseId).sort());
-    }
+  it("treats a record without an approval timestamp as old", async () => {
+    const fixture = await releaseFixture(3);
+    await activateAll(fixture.store, fixture.releases);
+    const [unstamped] = fixture.releases;
+    await fixture.store.update(state => ({
+      ...state,
+      releases: { ...state.releases, [unstamped!.releaseId]: { ...state.releases[unstamped!.releaseId]!, certifiedAt: null } },
+    }));
+    await runBoundedReleaseCleanup(fixture.dataDir, undefined, { transactionStore: noTransaction, ownReleaseIds: [] });
+    expect((await fixture.store.read()).releases[unstamped!.releaseId]).toBeUndefined();
+  });
+
+  it("hands the scheduling command's own release to the detached worker", async () => {
+    const fixture = await releaseFixture(3);
+    await activateAll(fixture.store, fixture.releases);
+    const [own] = fixture.releases;
+    const paths = resolveProductPaths({ A1_DATA_DIR: fixture.dataDir, A1_RUNTIME_DIR: resolve(fixture.dataDir, "runtime") });
+    let workerEnvironment: NodeJS.ProcessEnv = {};
+    await scheduleReleaseCleanup(fixture.dataDir, paths, {
+      ownReleaseIds: [own!.releaseId],
+      transactionStore: noTransaction,
+      workerSpawner: async (_entry, environment) => { workerEnvironment = environment; },
+    });
+    expect((await fixture.store.read()).releases[own!.releaseId]).toBeDefined();
+    await runReleaseCleanupWorker(workerEnvironment, { cleanup: { transactionStore: noTransaction } });
+    expect((await fixture.store.read()).releases[own!.releaseId]).toBeDefined();
+    await expect(lstat(own!.releaseRoot)).resolves.toBeTruthy();
   });
 
   it("attempts eligible work even when its physical batch clock is already exhausted", async () => {
@@ -514,6 +502,7 @@ async function releaseFixture(count: number) {
   return { root, dataDir, releases, store: new CohortStateStore(dataDir) };
 }
 
+/** Approve and activate each release in turn, with approvals old enough to be outside retention. */
 async function activateAll(store: CohortStateStore, releases: readonly MaterializedRelease[]): Promise<void> {
   for (const release of releases) {
     await store.recordCandidate(release);
@@ -522,6 +511,16 @@ async function activateAll(store: CohortStateStore, releases: readonly Materiali
     await store.approve(release.releaseId, certification);
     await store.activate(release.releaseId);
   }
+  const old = Date.now() - 30 * 24 * 60 * 60 * 1_000;
+  await approvedAt(store, Object.fromEntries(releases.map(release => [release.releaseId, old])));
+}
+
+async function approvedAt(store: CohortStateStore, approvals: Readonly<Record<string, number>>): Promise<void> {
+  await store.update(state => ({
+    ...state,
+    releases: Object.fromEntries(Object.entries(state.releases).map(([releaseId, record]) => [releaseId,
+      approvals[releaseId] === undefined ? record : { ...record, certifiedAt: new Date(approvals[releaseId]!).toISOString() }])),
+  }));
 }
 
 function cleanupEnvironment(dataDir: string, runId: string): NodeJS.ProcessEnv {

@@ -1,56 +1,51 @@
 # Architecture boundaries
 
-## Terminal and launch-instance ownership
+## One process per launch
 
-Every interactive command uses this profile-neutral lifecycle path:
+Every interactive command uses this profile-neutral path:
 
 ```text
-mutable a1 entry
-  -> verified immutable release
-  -> Node launch guardian loading the verified process-guardian addon
-  -> addon-held per-instance containment and profile-aware runtime selection
+mutable a1 entry (bin/cli.js)
+  -> runBootstrap selects the verified approved immutable release
+  -> one directly attached child: node <release>/bin/ui.js [session arguments], stdio inherited
   -> owned Pi-backed composition, with A1 surfaces enabled only for bare a1
 ```
 
-Launch-instance ownership is plural. The supervisor tracks any number of independently authenticated `a1` and `a1 pi` instances and never uses one product-wide foreground mutex. Closing one instance closes only its verified process tree. Persisted rows alone do not prove liveness, and uncertainty never authorizes terminating an unrelated process.
+The launcher waits for the child and returns its exit code. When the child reports that the active release changed during startup, the launcher re-reads the release store once and starts the newer release. There is no supervisor, launch guardian, control store, control protocol, cohort coordination, or process containment: any number of `a1` and `a1 pi` processes run independently, and only the session writer guard coordinates them. Closing the terminal ends the attached child through the operating system, as upstream Pi behaves; tool subprocesses behave as they do in upstream Pi.
 
-The launch guardian and process-guardian addon do not read ordinary terminal input, parse or relay runtime output, render cells, infer frames, or synthesize terminal responses. Their only terminal output is the bounded reset and sanitized armed exit notice after runtime failure. Both profiles use the same owned rendering and input pipeline. Bare `a1` exposes A1-owned surfaces; `a1 pi` withholds those surfaces and uses Pi's ordinary profile root. The containment boundary carries only bounded identity, readiness, stop, and outcome data.
+The launcher does not read terminal input, parse or relay output, render cells, or synthesize terminal responses. Its only terminal output after an unclean child exit is the bounded terminal reset and the armed exit notice. Both profiles use the same owned rendering and input pipeline. Bare `a1` exposes A1-owned surfaces; `a1 pi` withholds them and uses Pi's ordinary profile root.
 
-A detached Node exit watcher sits outside the launch guardian's containment. It waits for the guardian, performs bounded Unix process-group cleanup, and may deliver the same claimed exit notice. A kill aimed at every Node runtime also kills this watcher; the accepted loss of the notice and Unix fallback cleanup in that case is documented in [`process-guardian-provenance.md`](process-guardian-provenance.md), and A1 starts no native executable to close that gap.
-
-The owned Pi-backed surface is not an arbitrary-CLI terminal multiplexer. A feature that requires resident arbitrary CLI sessions, internal tabs, terminal-state reconnection, or A1-authoritative scrollback must introduce and certify the separate composed-terminal authority rather than reactivating the retired transparent attachment path.
+The owned Pi-backed surface is one agent per terminal. It is not a terminal multiplexer and has no tabs, resident sessions, reattach, or A1-authoritative scrollback. Any multi-agent or composed-terminal feature needs its own approved change.
 
 ## Current module responsibilities
 
-- `lifecycle`: dependency-free launch-instance, process identity, state transition, outcome, and control-command contracts.
-- `process-containment`: process-guardian addon loading and artifact verification, OS-verifiable process inspection, in-process containment adapters, and bounded graceful/forced cleanup; it owns no terminal content.
-- `launch-guardian`: one profile-neutral Node instance coordinator above runtime selection, plus the fixed Node exit-watcher entry used only for owner-death cleanup and the armed notice.
-- `protocol`: additive control handshake, bounded line framing, authenticated launch-instance commands, typed stop intent, snapshots, and command results.
-- `launch`: resolves the effective profile home and the history-specific data root. Composition uses its public path resolver to select `~/.a1/data` for history unless `A1_DATA_DIR` is explicit; global control/release/runtime/cache paths stay unchanged.
-- `prompt-history`: narrowly typed user-input retention in separate profile-owned databases under `~/.a1/data/history` (or `<A1_DATA_DIR>/history`), with bounded worker queues and no supervisor/control-store payloads. It receives a resolved root rather than importing launch-feature internals; it never probes, imports, or deletes the former platform-default history. The editor's owned history state machine remains inside the Pi component boundary; the session UI only coordinates snapshots and classified submissions.
+- `lifecycle` (`src/foundation/lifecycle`): product paths, session selection, launch-profile identifiers, and the repository-context helpers behind `a1 session worktrees` / `link-worktree` / `unlink-worktree`. Worktree claims are serialized by a `proper-lockfile` claim gate, and runtime liveness is `process.kill(pid, 0)`.
+- `launch-context`: the neutral private environment contract a launcher passes to the release it starts.
+- `session-writer-lock`: one writer per Pi session file through `proper-lockfile`. Lock directories live in one per-user directory, keyed by the session file's canonical identity so aliases contend for one lock; stale locks are reclaimed after a 10-second bound. Every writer route goes through it, which `check-session-writer-guard.mjs` enforces.
+- release/update/bootstrap (`src/foundation/release`): package-derived immutable release identity, certified release manifests, durable update transactions, atomic activation, rollback, age-based retention, and the dependency-light command entry. Before certified fast-path reuse it checks every recorded product file is present; a missing or altered file is replaced only from the matching installed package when its size and digest reproduce the approved release, followed by full verification. Dependency layers keep their separate verification and repair policy.
+- `startup`: startup trace phases and the startup budget evaluator.
+- `terminal-cleanup`: bounded, idempotent emergency restoration, the exit notice, and fatal-exit diagnostics for an explicitly owned terminal. It does not inspect commands, relay terminal input/output, or emulate terminal state. The owned UI installs its fatal boundary before terminal activation; the launcher performs the same bounded reset and delivers the armed notice when the child exits uncleanly. Fatal records retain at most ten 16 KiB records with trusted classifications and code locations, never prompts, attachments, raw input, credentials, or arbitrary exception messages.
+- `launch` (`src/features/launch`): resolves the effective profile home and the history-specific data root. Composition uses its public path resolver to select `~/.a1/data` for history unless `A1_DATA_DIR` is explicit; global release/runtime/cache paths stay unchanged.
+- `prompt-history`: narrowly typed user-input retention in separate profile-owned databases under `~/.a1/data/history` (or `<A1_DATA_DIR>/history`), with bounded worker queues. It receives a resolved root rather than importing launch-feature internals; it never probes, imports, or deletes the former platform-default history. The editor's owned history state machine remains inside the Pi component boundary; the session UI only coordinates snapshots and classified submissions.
 - `prompt-suggestions`: opt-in bounded diagnostic snapshots of neutral suggestion lifecycle metadata. Composition supplies an explicit local destination; this feature never imports Pi, generates suggestions, stores conversation text, or owns the editor. See [prompt suggestion diagnostics](prompt-suggestions.md).
-- `storage`: SQLite migrations, prior-boot reconciliation, and plural launch-instance persistence. Legacy foreground rows are historical migration input and never authorize current ownership.
-- `supervisor`: endpoint identity, plural cohort ownership, per-instance reconciliation, and aggregate release shutdown coordination. It owns no terminal surface.
-- `pi-engine-adapter`, `pi-component-adapter`, and `pi-tui-runtime-adapter`: isolate pinned Pi engine and presentation knowledge behind neutral contracts; product features do not import them directly. Inside the engine adapter, one process-level engine host owns what is process-wide (the HTTP dispatcher, the theme singletons, the one-time changelog and package-update announcements, the startup trace) and is the only place sessions are created, so every session id is unique per process.
+- `pi-engine-adapter`, `pi-component-adapter`, and `pi-tui-runtime-adapter` (`src/integrations/pi`): isolate pinned Pi engine and presentation knowledge behind neutral contracts; product features do not import them directly. Inside the engine adapter, one process-level engine host owns what is process-wide (the HTTP dispatcher, the theme singletons, the one-time changelog and package-update announcements, the startup trace) and is the only place sessions are created, so every session id is unique per process.
 - `session-shell` (`src/app/session-shell`): the application layer that composes the feature owners, the UI foundations, and the three Pi adapters into the interactive session; only composition imports it. Its render root assembles semantic document and dock rows, while its focused viewport controller owns follow state, pointer routing, selection, and interaction timers. Owned-app route lifecycle belongs to the neutral `ui-apps` owner and is only hosted by the session shell.
-- release/update/bootstrap: package-derived immutable release identity, native-addon integrity, cohort selection, durable update transactions, rollback, and dependency-light command entry. Before certified fast-path reuse it checks every recorded product file is present; a missing or altered file is replaced only from the matching installed package when its size and digest reproduce the approved release, followed by full verification. Dependency layers keep their separate verification and repair policy. After an unsuccessful bare-A1 child exit, the launch owner or its Node watcher restores owned terminal modes and emits only the armed bounded notice.
-- `terminal-cleanup`: bounded, idempotent emergency restoration and fatal-exit diagnostics for an explicitly owned terminal. It does not inspect commands, relay terminal input/output, or emulate terminal state. The owned UI installs its fatal boundary before terminal activation; packaged bootstrap and checkout launch provide the surviving-owner fallback. Fatal records retain at most ten 16 KiB records with trusted classifications and code locations, never prompts, attachments, raw input, credentials, or arbitrary exception messages.
 
 ## Dependency direction
 
 Terminal boundaries are application-agnostic. They may not select behavior from executable names, arguments, CLI-specific environment variables, or visible text. Production code may not import private Pi distribution APIs or use a Pi-specific terminal workaround.
 
-The JavaScript product path has no PTY or terminal-emulator dependency. Reintroducing `node-pty`, xterm state, custom input encoders, mode/query trackers, cadence-derived frame inference, or renderer/projection code requires an approved capability change and cannot become a second terminal authority. The Rust process guardian is a lifecycle-only Node-API addon loaded by the launch guardian and is independent from the terminal-host Node-API addon. No A1-built executable is part of the production process surface.
+The product has no native code and no PTY or terminal-emulator dependency: no module under `src/` may import `node-pty` or a terminal emulator or spawn a pseudoterminal. Reintroducing xterm state, custom input encoders, mode/query trackers, cadence-derived frame inference, or renderer/projection code requires an approved capability change and cannot become a second terminal authority. The published package is pure JavaScript.
 
 `scripts/governance/check-architecture.mjs` enforces the structural parts of these boundaries. Cross-cutting rationale belongs here; implementation history belongs in Git and archived OpenSpec changes.
 
 ## Session shell composition
 
-The session presenter (`src/app/session-shell/session-shell.ts`) coordinates; it does not own per-concern state. Each concern implements `SessionConcern` (`session-concern.ts`): it resets its own state in `onSessionReplaced` and releases it in `dispose`, and the presenter lists its concerns once, in reset order, in `#createConcerns`. New submission, routing, dialog, login, or resident-tab behavior goes into the concern that owns it, or a new concern added to that list. The render root (`session-shell-root.ts`) likewise picks one `ShellLayout` at construction and delegates transcript caching to `TranscriptDocument`, dock chrome to `DockChrome`, workflow output to `WorkflowOutput`, extension surfaces to `ExtensionSurface`, and the dock's input surface to `InputSurfaceSwitch`. The engine adapter serves the shell through the ports built in `src/integrations/pi/engine/ports.ts`, and the composition root delegates runtime claims, the startup release note, and the resident-tab bridge to their own modules under `src/composition/`.
+The session presenter (`src/app/session-shell/session-shell.ts`) coordinates; it does not own per-concern state. Each concern implements `SessionConcern` (`session-concern.ts`): it resets its own state in `onSessionReplaced` and releases it in `dispose`, and the presenter lists its concerns once, in reset order, in `#createConcerns`. New submission, routing, dialog, or login behavior goes into the concern that owns it, or a new concern added to that list. The render root (`session-shell-root.ts`) likewise picks one `ShellLayout` at construction and delegates transcript caching to `TranscriptDocument`, dock chrome to `DockChrome`, workflow output to `WorkflowOutput`, extension surfaces to `ExtensionSurface`, and the dock's input surface to `InputSurfaceSwitch`. The engine adapter serves the shell through the ports built in `src/integrations/pi/engine/ports.ts`, and the composition root delegates runtime claims and the startup release note to their own modules under `src/composition/`.
 
 ## Unit size ratchet
 
-Module boundaries do not stop one class or function inside a module from absorbing every feature. The architecture gate therefore measures every production TypeScript class under `src/` (methods and fields) and every TypeScript or Rust function under `src/` and `native/<crate>/src/` (inclusive lines), excluding vendored sources and Rust `#[cfg(test)]` code. A unit with more than 20 methods, 15 fields, or 100 function lines must be recorded in `config/baselines/size-ratchet.json`, and its recorded counts can only shrink:
+Module boundaries do not stop one class or function inside a module from absorbing every feature. The architecture gate therefore measures every production TypeScript class under `src/` (methods and fields) and every TypeScript function under `src/` (inclusive lines), excluding vendored sources. A unit with more than 20 methods, 15 fields, or 100 function lines must be recorded in `config/baselines/size-ratchet.json`, and its recorded counts can only shrink:
 
 - A recorded count that grows fails the gate. Split the unit instead. If growth is truly unavoidable, raise the entry by hand in the same pull request and say why in its description, so the growth is reviewed rather than silent.
 - An unrecorded unit over a threshold fails the gate; split it before it lands.
@@ -60,25 +55,13 @@ The measurement in `scripts/governance/size-ratchet-policy.mjs` masks strings, c
 
 ## Multi-session limits of the pinned engine
 
-The engine host removes A1's own obstacles to several Pi sessions in one process, but three remain in the pinned Pi SDK and must be planned around, not discovered:
+The engine host removes A1's own obstacles to several Pi sessions in one process (session switch, fork, and resume replace the session in place), but three limits remain in the pinned Pi SDK and must be planned around, not discovered:
 
 - The extension cache is keyed by one working directory and cleared on reload (`core/extensions/loader.js`), so sessions in different directories reload each other's extensions.
 - `SettingsManager` writes under a lockfile but never re-reads the file, so a second in-memory copy goes stale after another session writes a setting (`core/settings-manager.js`). The host keeps the one process-wide effect, the HTTP dispatcher, consistent itself.
 - `AgentSessionRuntime.dispose()` releases the session but not the model runtime or the resource loader it was created with (`core/agent-session-runtime.js`), so a session's services outlive it until the process ends.
 
-## Planned multi-agent boundaries
-
-The multi-agent workspace feature, its dependency-free contracts, the structured-agent runtime, and the Node side of the terminal-host protocol were removed from `develop`; their last state is commit `243eb7a7` in `develop` history. That structured-workspace plan was retired on 2026-10-10 in favor of `add-persistent-multi-agent-tabs`, where every tab runs the complete A1 UI under the native terminal host. A future implementation starts from the current codebase rather than from that copy. The boundary rules below remain the design intent for that work.
-
-The workspace feature may depend on workspace contracts and the structured/terminal-host foundations. Those foundations may depend only on dependency-free workspace contracts, never on product features, launch profiles, or each other unless an approved capability adds the dependency. Launch profiles do not import, initialize, launch, or connect to composed terminal-host infrastructure.
-
-Default future agents and composed hosts are children of the originating bare-`a1` launch instance and terminate when it closes. A process that survives command closure requires a separately approved explicit resident capability; durable identity or state recovery never implies an implicitly surviving process.
-
-The structured-agent runtime uses a versioned adapter hello and feature negotiation before readiness. Runtime state must use typed events, commands, snapshots, cancellation, and recovery evidence. It must not infer structured semantics from terminal text, terminal timing, or visual content and must not own pseudoterminals or renderer state.
-
-The JavaScript-to-native terminal-host boundary carries only the fixed role arguments, host command, return code, session-lock calls, and typed semantic bridge data. `host-entry.js` does not touch Node's stdin/stdout streams; pseudoterminal bytes, per-event child input, rendered cells, cell grids, framebuffers, and screen buffers remain inside the addon's native roles and their bounded native IPC. The verified addon and fixed entry are the packaged production host; no console host executable exists. Replacing libghostty-vt with a lightweight custom parser/renderer is forbidden. A desktop-native window and GPU application shell are postponed and are not required for the terminal-hosted product.
-
-Resource queues, retained state, evidence, logs, and diagnostics follow `docs/architecture/resource-and-data-policy.md`. Terminal content and authentication material are never control-store records. Unknown data is potentially sensitive by default and must be rejected or redacted before persistence.
+Resource queues, retained state, evidence, logs, and diagnostics follow `docs/architecture/resource-and-data-policy.md`. Terminal content and authentication material are never persisted as diagnostics. Unknown data is potentially sensitive by default and must be rejected or redacted before persistence.
 
 ## The rules every surface follows
 

@@ -232,7 +232,7 @@ The complete non-physical automated suite SHALL remain runnable locally (`npm ru
 
 Standalone and selected PR-attached Full regression SHALL execute the complete Windows Node 22 and Node 24 coverage through reviewed parallel hosted-runner shards. Each Windows runtime SHALL have `core`, `resource`, `rendering`, and `package` shard evidence derived from one canonical complete plan. Every canonical command and test invocation SHALL belong to exactly one shard, and one successful Windows lane result SHALL be reconstructed only from all four exact-source, exact-run, exact-attempt, exact-runtime shard results. Missing, duplicate, stale, malformed, failed, cancelled, or unexpected shard evidence SHALL fail the applicable lane and required aggregate. Linux, macOS, local full validation, and publication validation MAY retain one sequential complete plan.
 
-A scope that the complete-regression lanes cannot run MAY be excluded from the `full-release` plan only through an explicit `fullReleaseExclusion` reason on its definition in `config/validation-suites.json`. The only permitted exclusions are the `terminal-host` scope, whose pull-request owner validates every change to its paths, and the `resident-chaos` scope, whose bounded randomized run executes on every terminal-host change against the release-built artifact. Adding another exclusion SHALL require a reviewed change to this requirement.
+A scope that the complete-regression lanes cannot run MAY be excluded from the `full-release` plan only through an explicit `fullReleaseExclusion` reason on its definition in `config/validation-suites.json`. No scope is currently permitted such an exclusion; adding one SHALL require a reviewed change to this requirement that names the scope and its reason.
 
 #### Scenario: Maintainer requests full validation
 
@@ -261,7 +261,8 @@ A scope that the complete-regression lanes cannot run MAY be excluded from the `
 #### Scenario: A scope is excluded from complete regression
 
 - **WHEN** a scope definition declares `fullReleaseExclusion`
-- **THEN** it SHALL carry a non-empty reason, SHALL NOT be included by `full-release`, and SHALL be `terminal-host` or `resident-chaos`
+- **THEN** validation SHALL reject the definition unless this requirement names that scope as a permitted exclusion
+- **AND** a permitted exclusion SHALL carry a non-empty reason and SHALL NOT be included by `full-release`
 
 ### Requirement: Publication follows from what was pushed
 Publication SHALL use trusted workflows. It SHALL start nightly, by explicit
@@ -311,7 +312,7 @@ the release-note resource derived from the snapshotted body equals the packaged 
 it SHALL publish the validated bytes unchanged. Otherwise it SHALL replace only the
 packaged release-note resource with the one derived from the snapshotted body and
 SHALL prove every other entry, entry mode, and the installer package byte-identical
-to the validated pair. Stable publication SHALL NOT rebuild the process guardians or
+to the validated pair. Stable publication SHALL NOT rebuild the
 application, repack from source, or rerun the validation suite. It SHALL require the
 Release to remain published with the snapshotted body immediately before npm, publish both packages to npm `latest` with provenance, verify and exercise the
 published pair, upload the validated asset, fast-forward `master`, and prepare
@@ -594,7 +595,7 @@ unrelated API failures into success.
 - **THEN** that failure SHALL remain visible and SHALL NOT be reclassified as a successful unstable-state recovery
 
 ### Requirement: Resource-sensitive fast validation is partitioned deterministically
-The fast validation tier SHALL declare tests whose subprocess, temporary-repository, storage, or release-cohort workloads require protection from shared runner contention. Every declared resource-sensitive test SHALL be excluded from the parallel remainder, SHALL execute exactly once in one non-file-parallel partition process on an isolated runner under the partition's explicit hang bound, and SHALL retain all of its semantic assertions. The hang bound SHALL be the same explicit thirty-second bound the other explicit fast-tier invocations declare; it SHALL be recorded in the plan evidence as explicit, and it SHALL NOT serve as a performance assertion. Pull-request validation and exact-package validation SHALL derive the same partition from the same authoritative suite configuration on every platform. The ordinary remainder and resource-sensitive partition SHALL report separate planned commands, elapsed time, outcomes, and available subprocess or fixture timing. A failed assertion, process error, missing or duplicate test owner, or hang-bound expiry SHALL fail the tier without automatically retrying the test. Per-test durations SHALL remain available as evidence, and the focused timing report SHALL name every test body above five seconds so a slowdown is visible without failing the pull request on shared-runner variance.
+The fast validation tier SHALL declare tests whose subprocess, temporary-repository, or release-store workloads require protection from shared runner contention. Every declared resource-sensitive test SHALL be excluded from the parallel remainder, SHALL execute exactly once in one non-file-parallel partition process on an isolated runner under the partition's explicit hang bound, and SHALL retain all of its semantic assertions. The hang bound SHALL be the same explicit thirty-second bound the other explicit fast-tier invocations declare; it SHALL be recorded in the plan evidence as explicit, and it SHALL NOT serve as a performance assertion. Pull-request validation and exact-package validation SHALL derive the same partition from the same authoritative suite configuration on every platform. The ordinary remainder and resource-sensitive partition SHALL report separate planned commands, elapsed time, outcomes, and available subprocess or fixture timing. A failed assertion, process error, missing or duplicate test owner, or hang-bound expiry SHALL fail the tier without automatically retrying the test. Per-test durations SHALL remain available as evidence, and the focused timing report SHALL name every test body above five seconds so a slowdown is visible without failing the pull request on shared-runner variance.
 
 #### Scenario: Fast tier is planned
 - **WHEN** validation expands the fast tier
@@ -692,25 +693,6 @@ The required development aggregate SHALL require the applicable naming result an
 - **WHEN** every changed path is documentation or specification material outside naming-policy inputs
 - **THEN** naming validation SHALL record an explicit not-applicable result or selection-authorized skip without product execution
 - **AND** existing documentation-sensitive and strict OpenSpec gates SHALL remain required as applicable
-
-### Requirement: macOS release validation proves packaged supervision and containment
-Pull-request and exact-package validation for changes affecting supervision, containment, release startup, or native guardian artifacts SHALL exercise the supported macOS path rather than accepting build success alone. Exact-package preview publication SHALL remain ineligible unless the macOS package starts a correlated supervisor, launches the packaged public command through certified Darwin containment, completes representative resume and cleanup behavior, and reports actionable startup diagnostics on injected failure.
-
-#### Scenario: macOS supervisor starts from exact packaged bytes
-- **WHEN** the macOS exact-package lane materializes and launches a preview candidate
-- **THEN** the selected supervisor SHALL publish verified endpoint metadata for the candidate and the packaged public launch chain SHALL reach input-ready state
-
-#### Scenario: Darwin native containment regresses
-- **WHEN** process identity, process-group creation, foreground transfer, parent-loss cleanup, artifact support, or guardian integrity fails on macOS
-- **THEN** a required pull-request or exact-package macOS check SHALL fail before publication
-
-#### Scenario: Detached supervisor fails before listening
-- **WHEN** a macOS validation fixture injects a pre-listen supervisor failure
-- **THEN** validation SHALL observe the bounded correlated diagnostic rather than waiting for an undifferentiated endpoint timeout
-
-#### Scenario: Development publication is accepted
-- **WHEN** `npm run develop` selects a new authoritative candidate after this correction merges
-- **THEN** Windows Node 22/24, Linux Node 24, and macOS Node 24 exact-package lanes, the npm publisher, the aggregate result, and registry `next` verification SHALL all succeed for the same package bytes
 
 ### Requirement: Patch releases preserve prerelease-aware version semantics
 Invoking `npm run release -- patch` SHALL promote a valid current prerelease version to its stable core without incrementing that core, and SHALL increment the patch number when the current version is already stable. The command SHALL report the source version, selected stable target, and prospective next development version before mutations.
@@ -890,29 +872,6 @@ The single protected-branch aggregate SHALL require the PR core and every scope 
 - **WHEN** the trusted selection activates only some declared modular jobs
 - **THEN** the workflow SHALL schedule only the active entries and record the unscheduled ones in the run summary
 - **AND** the aggregate SHALL fail when an active entry produced no successful evidence
-
-### Requirement: Reused validation setup retains exact identity
-Validation SHALL avoid repeated successful builds and candidate packing within a job when the consuming scopes use unchanged source, platform, architecture, toolchain, dependencies, and build inputs. Reuse SHALL depend on verified prerequisite evidence and present artifacts rather than an unchecked environment flag. Missing or incompatible setup evidence SHALL cause fresh preparation or an explicit failure before tests, never successful validation with stale artifacts.
-
-Persistent caches SHALL be limited to integrity-checked dependency downloads and compatible native compiler intermediates, with validation of resulting artifacts after restoration. Clean-install gates SHALL still install exact candidate bytes into fresh private prefixes. Mutable installed fixtures, active releases, certification state, launch compile caches, and prior performance results SHALL not be restored as substitutes for current-head execution. Publication SHALL retain its existing pack-once and exact-byte authority.
-
-#### Scenario: Installation already built the job's candidate
-- **WHEN** dependency installation successfully builds the unchanged selected source and records compatible prerequisite evidence
-- **THEN** later scopes in that job SHALL consume that build without rebuilding it
-
-#### Scenario: A ready marker is stale or forged
-- **WHEN** setup is marked ready but its inputs differ or required artifacts cannot be verified
-- **THEN** validation SHALL rebuild or fail before consuming those artifacts
-
-#### Scenario: A package download cache is warm
-- **WHEN** a clean-install scenario can reuse cached dependency tarballs
-- **THEN** it SHALL verify their integrity and install into a new isolated prefix
-- **AND** first-attempt startup evidence SHALL not be replaced by warmed fixture or prior-run evidence
-
-#### Scenario: A native guardian compiler cache is warm
-- **WHEN** a publication guardian build can reuse cached compiler intermediates for the same toolchain and dependency lockfile
-- **THEN** the locked release build SHALL still run and its emitted artifact identity SHALL still be recorded
-- **AND** a changed guardian source or lockfile SHALL rebuild the affected units rather than reuse a stale binary
 
 ### Requirement: Feedback optimization is measured without weakening coverage
 Development validation SHALL report selection time, available queue time, setup/build/pack time, repository gate time, per-scope outcomes, and aggregate elapsed time separately. Package fixtures SHALL report bounded phase timings for installation, materialization, certification/warmup, launch, shutdown, and cleanup where executed, including unsuccessful phases. Evidence SHALL identify head, selection, runner, Node version, candidate digest where applicable, cache state, build/pack counts, and test ownership. Reporting SHALL not expose credentials or raw user content.
@@ -1327,54 +1286,6 @@ Manual Development dispatch, scheduled/manual Full regression, release validatio
 - **THEN** readiness SHALL fail visibly without executing pull-request test suites
 - **AND** the protected aggregate SHALL remain unavailable rather than trusting stale event metadata
 
-### Requirement: The native terminal host is validated in CI rather than on workstations
-Development validation SHALL own `native/terminal-host/**`, its run scripts, Node-addon harness, protocol fixtures and fuzz corpus, and provenance check through one deterministic pull-request-cadence validation owner. When impact classification selects that owner, CI SHALL schedule exactly Windows x64, Linux x64, and macOS arm64 targets with pinned Rust and Zig toolchains. Every target SHALL build the terminal-host binary and Node-API 9 lock artifact, run unit tests, platform-primitive tests, addon lifecycle/alias tests, fixture roles, and non-interactive probes, and upload the debug artifacts under platform-neutral names. The fixture-role integration test binary MAY execute as a fixed number of deterministic partition jobs per target, each on its own runner, provided every test belongs to exactly one partition, each partition records its identity in its outcome, and the protected development check requires every partition of every selected target. A partition job SHALL run only its assigned role-fixture slice and the fixture-process cleanup check; the unit, binary, and release-isolation tests SHALL run once per target in the build-and-probe lane rather than in every partition. Each native dependency included in an uploaded artifact SHALL be compiled for the exact declared operating-system and architecture target with a baseline CPU model rather than the producing runner's native CPU features; an unsupported Cargo-to-native target mapping SHALL fail before compilation. The Linux x64 target SHALL additionally build and run the decoder fuzz target for a pinned bounded duration against its checked-in corpus; it MAY restore the pinned fuzz tool binary from a cache keyed by the tool version and the pinned nightly toolchain instead of compiling it, without changing the fuzz targets, corpus, or budget. Every selected target SHALL participate in the protected development check. Changes touching none of the owned paths SHALL NOT schedule the owner. Until milestone 6 adds complete packaged lanes, terminal-host scope SHALL remain excluded from `full-release`, so nightly Full regression and release gates SHALL NOT infer terminal-host coverage.
-
-The crate's build script SHALL refuse to build on a Windows host outside CI unless the explicit `TERMINAL_HOST_LOCAL_BUILD=1` override is set. It SHALL fail before invoking Zig or fetching Zig packages, with a concise message naming the CI job and the override. The same guard SHALL cover binary and addon builds.
-
-#### Scenario: A pull request changes the terminal host
-- **WHEN** a pull request changes a terminal-host-owned source, script, fixture, corpus, or provenance path
-- **THEN** impact classification SHALL select the terminal-host owner
-- **AND** CI SHALL build, test, and probe the binary and addon on Windows x64, Linux x64, and macOS arm64
-- **AND** Linux x64 SHALL run the bounded decoder fuzz target
-- **AND** each platform's debug artifacts SHALL be available under unambiguous platform-neutral artifact names
-- **AND** a missing, skipped, failed, or stale selected target SHALL fail the protected development check
-
-#### Scenario: Fixture-role tests run as partitions
-- **WHEN** the terminal-host owner is selected and its fixture-role integration tests are partitioned
-- **THEN** each partition job SHALL run its fixed subset of the unchanged test binary on its own runner and record its partition identity
-- **AND** no partition job SHALL run the crate's unit, binary, or release-isolation tests
-- **AND** the union of the partitions and the build-and-probe lane SHALL execute every test exactly once per target
-- **AND** a missing, skipped, failed, or stale partition SHALL fail the protected development check
-
-#### Scenario: The Linux fuzz tool is restored from cache
-- **WHEN** the Linux x64 build-and-probe lane finds a cached `cargo-fuzz` binary for the pinned version and nightly toolchain
-- **THEN** it SHALL skip compiling the tool and SHALL run every fuzz target against its corpus with the unchanged bounded budget
-- **AND** a cache miss SHALL install the pinned tool and run the same targets
-
-#### Scenario: Downloaded artifact runs on another supported CPU
-- **WHEN** a terminal-host artifact is downloaded from its producing runner to another machine satisfying the artifact's declared operating-system and architecture baseline
-- **THEN** startup SHALL NOT depend on additional producer-specific CPU instructions
-- **AND** the build contract SHALL identify the exact native target and baseline CPU policy used for that artifact
-
-#### Scenario: A pull request does not touch the terminal host
-- **WHEN** a pull request changes no terminal-host-owned path
-- **THEN** the terminal-host owner SHALL be reported as not selected and SHALL schedule no terminal-host platform target
-
-#### Scenario: Cross-user endpoint fixture cannot run
-- **WHEN** a selected target cannot provision the second local identity required by the owner-only endpoint test
-- **THEN** that target SHALL fail rather than skip the ownership assertion
-
-#### Scenario: A developer builds the crate locally on Windows
-- **WHEN** `cargo test`, `cargo build`, an addon build, or `npm run test:terminal-host` runs on a Windows host without `CI` and without `TERMINAL_HOST_LOCAL_BUILD=1`
-- **THEN** the build SHALL fail before invoking Zig
-- **AND** the message SHALL name the CI job and the override
-- **AND** no Zig package-cache entries SHALL be created by that attempt
-
-#### Scenario: A developer explicitly overrides the guard
-- **WHEN** the same build runs with `TERMINAL_HOST_LOCAL_BUILD=1`
-- **THEN** the build SHALL proceed as it does in CI without weakening selected CI requirements
-
 ### Requirement: Allowed prerequisite skips do not suppress required publication outcomes
 A publication job that intentionally permits an upstream prerequisite to be skipped SHALL evaluate every subsequent required job explicitly. Post-publication smoke SHALL run only when its selected work requires publication and its direct plan, package, and publish dependencies all succeeded. Release completion SHALL run only when its direct plan, package, publish, and post-publication dependencies all succeeded. Both jobs SHALL evaluate their explicit predicates despite allowed transitive skips and SHALL remain ineligible after a failed, cancelled, or skipped direct prerequisite. The aggregate SHALL continue to reject missing or skipped post-publication smoke and completion whenever publication work was required.
 
@@ -1400,14 +1311,6 @@ Every checkout in the release workflow SHALL use the same repository-established
 - **WHEN** publication and registry verification succeed for a newly numbered candidate
 - **THEN** each selected native published-pair job SHALL resolve its immutable checkout action and execute the installation smoke steps
 
-### Requirement: Published-pair lanes expose their native identity
-Every post-publication native installation job SHALL display the selected platform and Node runtime from fields provided by the authoritative release matrix. A missing or invented matrix field SHALL NOT reduce the job name to an ambiguous empty label. Display identity SHALL NOT change runner selection, matrix breadth, artifact identity, or aggregate requirements.
-
-#### Scenario: A native published-pair lane is inspected
-- **WHEN** the release matrix expands a post-publication installation job
-- **THEN** its Actions job name SHALL identify the selected platform and Node runtime
-- **AND** a failure SHALL be attributable to its native lane without inspecting runner metadata through the API
-
 ### Requirement: Published-pair smoke uses the accepted installer target grammar
 
 Post-publication native installation smoke SHALL invoke the published installer through the public target grammar accepted by that same package. A develop candidate SHALL use `--develop <exact-preview-version>` so the immutable registry-verified application version remains explicit. A release candidate SHALL use bare invocation. The harness SHALL NOT use removed `--version`, `--latest`, or `--next` target options, and focused pull-request policy SHALL reject those stale forms before another candidate is published.
@@ -1427,29 +1330,6 @@ Post-publication native installation smoke SHALL invoke the published installer 
 
 - **WHEN** the published-installer harness uses `--version`, `--latest`, or `--next` as an application target option
 - **THEN** focused repository policy SHALL reject the candidate before publication
-
-### Requirement: Complete native validation distinguishes semantic failure from bounded fixture release
-
-Native complete-validation fixtures SHALL derive expected filesystem identities through the same platform filesystem semantics as the production contract when canonical identity is behaviorally required. A lexical session path MAY remain distinct where the product intentionally presents it, but tests SHALL NOT treat native aliases such as macOS `/var` and `/private/var` as different trust identities.
-
-After a fixture has awaited all owned runtime and adapter disposal, test-only removal MAY retry operating-system transient `EBUSY`, `EPERM`, or equivalent recursive-removal release conditions within a fixed bound. It SHALL NOT retry the test body, semantic assertions, application operation, or process lifecycle. Exhausting the cleanup bound SHALL remain a failed test with the fixture path available in the error.
-
-#### Scenario: macOS exposes a temporary-directory alias
-
-- **WHEN** a trust fixture receives lexical `/var` but the filesystem resolves the project under `/private/var`
-- **THEN** expected trust options and persisted identities SHALL use the canonical project and parent paths
-- **AND** an intentionally lexical prompt heading SHALL remain lexical
-
-#### Scenario: Windows briefly retains a disposed fixture path
-
-- **WHEN** all runtime owners have completed disposal but recursive temporary-root removal receives a transient filesystem lock
-- **THEN** test-only cleanup MAY retry removal within its fixed bound
-- **AND** a persistent lock after the bound SHALL fail validation
-
-#### Scenario: A semantic runtime assertion fails
-
-- **WHEN** session resumability, extension preservation, disposal, or another runtime assertion fails
-- **THEN** cleanup retry behavior SHALL NOT rerun or convert that assertion into success
 
 ### Requirement: Stable release notes are generated, editable, and manually accepted before publication
 The release command SHALL resolve the previous verified stable release as an ancestor
@@ -1684,101 +1564,6 @@ Development validation SHALL defer an implementation candidate whose finalized-h
 - **THEN** the run MAY provide diagnostic coverage in Actions
 - **AND** SHALL NOT replace the PR-associated delivery, acceptance, selection, visibility, or aggregate evidence required for integration
 
-### Requirement: Validation candidates carry the lane's release terminal host
-Every pull-request validation lane whose selected scopes consume a packed candidate, and every Full regression job that packs one, SHALL carry the release terminal-host addon for its own platform in `dist/native` after installation and before recording the build receipt. A pull-request validation lane MAY restore that output from a cache whose key names the runner operating system and architecture, the platform SDK pin where one applies, the pinned Rust and Zig versions, and a content hash of the complete terminal-host source tree, its lock file, the toolchain pin, and the build script with its imported modules; a lane that restores the output SHALL verify the restored addon and notices against the restored manifest and the manifest's target, crate version, and lock-file digest against the checkout, MAY re-record only the manifest's role-entry digest from the lane's own build, SHALL verify the result before recording the build receipt, and SHALL NOT provision the release toolchain or rebuild. A lane without a matching cache entry SHALL build the addon as before and MAY save the verified output for the same key. Publication lanes SHALL build the release terminal host within their own run. On CI, validation packing SHALL fail before `npm pack` when the candidate lacks the platform's verified process-guardian addon or terminal-host addon, naming each problem.
-
-#### Scenario: A pull request changes resident launch routing
-- **WHEN** pull-request validation runs packaged suites for the change
-- **THEN** the packed candidate SHALL carry the release terminal-host addon and its role entry, and packaged launches SHALL take the route a published package takes
-
-#### Scenario: A pull request leaves the native tree unchanged
-- **WHEN** a candidate-packing lane finds a cache entry for its complete terminal-host input key
-- **THEN** it SHALL restore and verify the release addon, manifest, and notices without installing Rust or Zig or running the release build
-- **AND** the recorded build receipt and the packed candidate SHALL be the same as if the lane had built the addon
-
-#### Scenario: The native tree or toolchain changes
-- **WHEN** any hashed input, the SDK pin, or a pinned toolchain version differs from every cached key
-- **THEN** the lane SHALL build the release terminal host as before
-- **AND** it MAY save the verified output under the new key for later lanes and runs
-
-#### Scenario: A restored artifact does not verify
-- **WHEN** a restored directory is missing a file, its bytes differ from its manifest record, or the manifest's target, crate version, or lock-file digest differs from the checkout
-- **THEN** the lane SHALL fail before recording the build receipt and SHALL NOT pack
-
-#### Scenario: A lane packs without the host
-- **WHEN** a CI lane reaches validation packing without this platform's terminal-host addon
-- **THEN** packing SHALL fail before `npm pack` and SHALL name the missing artifact
-
-### Requirement: Pull-request chaos runs use a shorter bounded budget
-The resident chaos validation owner SHALL run with a 300-second action budget on pull-request validation lanes and with its 600-second default budget on nightly publication, Full regression, and manual dispatch. The budget SHALL be recorded in the chaos report beside the seed and action schedule. The shorter budget SHALL NOT change the action set, invariants, replay contract, failure semantics, or the release build the run exercises.
-
-#### Scenario: A pull request selects resident chaos
-- **WHEN** impact classification selects the resident-chaos owner for a pull request
-- **THEN** each platform's chaos lane SHALL run a 300-second budget and record that budget in its report
-
-#### Scenario: Exhaustive cadence runs resident chaos
-- **WHEN** nightly publication, Full regression, or a manual dispatch runs the resident-chaos owner
-- **THEN** the run SHALL use the 600-second budget and record it in its report
-
-### Requirement: Native toolchains and caches are pinned and stable
-The Rust toolchain used by every validation and publication job SHALL be pinned by a repository `rust-toolchain.toml`, and the Linux fuzz toolchain and `cargo-fuzz` version SHALL be pinned and cached, so a new upstream release changes no job until the pin changes. The Zig cache SHALL use one stable key per workflow and platform with a declared size limit, so successive runs restore and replace the same cache rather than adding one cache per run. A warm cache for the terminal host test profile SHALL be saved from the default branch so pull requests can restore it. A cache miss SHALL change only duration, never the build inputs or outputs.
-
-#### Scenario: Upstream stable Rust releases
-- **WHEN** a newer stable Rust is published and the repository pin is unchanged
-- **THEN** every job SHALL continue to install the pinned version and SHALL restore its existing caches
-
-#### Scenario: Zig caches accumulate
-- **WHEN** many runs complete on one platform
-- **THEN** that platform SHALL hold one Zig cache per workflow, bounded by the declared size limit
-
-### Requirement: macOS x64 release artifacts are cross-compiled
-The publication build for the macOS x64 release terminal-host addon and process-guardian addon SHALL run on the macOS arm64 runner by compiling for the `x86_64-apple-darwin` target, placing the artifacts under the `darwin-x64` platform directory with a manifest, notices, and Zig target derived from the requested target rather than the host. The built addon's identity SHALL be verified on the producing runner by loading it into a Node runtime of that architecture (through Rosetta 2), or by its Mach-O architecture when the runner cannot load it, and the manifest SHALL record which check was performed. Packing SHALL continue to require every supported platform's artifact and manifest. The published-pair smoke matrix is unchanged; it has no macOS x64 lane, so a macOS x64 artifact is loaded in CI only through that identity check.
-
-#### Scenario: Publication builds native artifacts
-- **WHEN** a nightly, candidate, or development publication builds its terminal hosts and guardians
-- **THEN** the macOS arm64 job SHALL produce both the `darwin-arm64` and `darwin-x64` addons, each with a manifest naming its own target
-- **AND** no Intel macOS build job SHALL be scheduled
-
-#### Scenario: Cross-compiled identity cannot be executed
-- **WHEN** the producing runner cannot load the `x86_64` addon
-- **THEN** the build SHALL verify the artifact's Mach-O architecture and SHALL NOT report a native identity it did not observe
-
-### Requirement: Exact packages carry loadable native addons
-The exact packed package SHALL record, for every bundled platform, the process-guardian addon and the terminal-host addon with their manifests, and SHALL carry no executable built from A1 sources. Each manifest SHALL bind the addon bytes by digest and size, name the Node-API version, and declare supported or unsupported capability independently. Exact package surface validation SHALL verify every bundled manifest and SHALL load the lane's own platform addon and observe its version identity on every lane that runs it. Posix installation and immutable release materialization SHALL preserve the addon bytes without depending on executable permission.
-
-#### Scenario: Surface validation loads the lane's addon
-- **WHEN** exact package surface validation runs on any platform lane, including Windows
-- **THEN** it SHALL load that platform's packed process-guardian and terminal-host addons and SHALL fail unless each reports its recorded identity
-
-#### Scenario: Package carries an executable
-- **WHEN** a packed candidate contains an executable under `dist/native`
-- **THEN** native artifact verification SHALL fail before `npm pack`
-
-#### Scenario: Addon artifact remains unsupported
-- **WHEN** a bundled addon loads but its certified manifest declares the current platform unsupported
-- **THEN** launch SHALL continue to reject that containment provider until a separate platform-capability change certifies it
-
-### Requirement: Native assembly uses explicit complete and core build contracts
-
-The repository SHALL expose `npm run build` as the complete current-platform developer build and SHALL give npm installation plus CI lanes that assemble native artifacts separately an explicitly named core-build entry. The core entry SHALL compile the managed runtime and process guardian needed by those callers without building the terminal host. Selected native validation and publication lanes SHALL continue to build and certify terminal-host artifacts through their existing platform-owned steps, exactly once per intended candidate.
-
-#### Scenario: Developer invokes the normal build
-
-- **WHEN** a developer invokes `npm run build`
-- **THEN** the build SHALL run the core compilation followed by current-platform terminal-host assembly and final payload recording
-
-#### Scenario: npm installs repository dependencies
-
-- **WHEN** npm runs the repository's `prepare` lifecycle during dependency installation
-- **THEN** the lifecycle SHALL run the explicit core build without fetching or compiling the terminal host
-- **AND** later selected native lanes SHALL retain ownership of terminal-host assembly and certification
-
-#### Scenario: Native CI packs a candidate
-
-- **WHEN** a selected validation or publication lane builds a terminal host after its core installation build
-- **THEN** it SHALL retain its pinned Rust and Zig inputs, release-profile identity checks, and manifest verification
-- **AND** the complete developer-build contract SHALL NOT cause an extra implicit terminal-host build in that lane
-
 ### Requirement: npm publication recovers boundedly from duplicate transparency-log entries
 
 Trusted npm publication SHALL retry an exact validated package only when npm reports `TLOG_CREATE_ENTRY_ERROR` because an equivalent transparency-log entry already exists. Before another upload attempt, publication SHALL query the exact package version without cache. Exact expected integrity and shasum SHALL complete that package as an idempotent success, different registry bytes SHALL fail, and only an absent version SHALL permit retrying the same tarball with provenance.
@@ -1810,3 +1595,26 @@ The recovery SHALL preserve npm trusted publishing, provenance, public access, i
 
 - **WHEN** every bounded attempt returns the recognized duplicate transparency-log failure while the package remains absent
 - **THEN** publication SHALL fail and final pair verification SHALL remain ineligible
+
+### Requirement: Reused validation setup and build caches retain exact identity
+Validation SHALL avoid repeated successful builds and candidate packing within a job when the consuming scopes use unchanged source, platform, architecture, toolchain, dependencies, and build inputs. Reuse SHALL depend on verified prerequisite evidence and present artifacts rather than an unchecked environment flag. Missing or incompatible setup evidence SHALL cause fresh preparation or an explicit failure before tests, never successful validation with stale artifacts.
+
+Persistent caches SHALL be limited to integrity-checked dependency downloads and compatible build tool caches, with validation of resulting artifacts after restoration. Clean-install gates SHALL still install exact candidate bytes into fresh private prefixes. Mutable installed fixtures, active releases, certification state, launch compile caches, and prior performance results SHALL not be restored as substitutes for current-head execution. Publication SHALL retain its existing pack-once and exact-byte authority.
+
+#### Scenario: Installation already built the job's candidate
+- **WHEN** dependency installation successfully builds the unchanged selected source and records compatible prerequisite evidence
+- **THEN** later scopes in that job SHALL consume that build without rebuilding it
+
+#### Scenario: A ready marker is stale or forged
+- **WHEN** setup is marked ready but its inputs differ or required artifacts cannot be verified
+- **THEN** validation SHALL rebuild or fail before consuming those artifacts
+
+#### Scenario: A package download cache is warm
+- **WHEN** a clean-install scenario can reuse cached dependency tarballs
+- **THEN** it SHALL verify their integrity and install into a new isolated prefix
+- **AND** first-attempt startup evidence SHALL not be replaced by warmed fixture or prior-run evidence
+
+#### Scenario: A build cache is warm
+- **WHEN** a publication build can reuse cached build tool state for the same toolchain and dependency lockfile
+- **THEN** the locked release build SHALL still run and its emitted package identity SHALL still be recorded
+- **AND** a changed source or lockfile SHALL rebuild the affected output rather than reuse a stale artifact

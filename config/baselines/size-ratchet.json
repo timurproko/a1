@@ -20,7 +20,7 @@
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter": {
       "methods": 77,
-      "fields": 53
+      "fields": 52
     },
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController": {
       "methods": 34,
@@ -38,18 +38,6 @@
       "methods": 21,
       "fields": 25
     },
-    "src/foundation/resident-tabs/bridge-client.ts::TabBridgeClient": {
-      "methods": 26,
-      "fields": 20
-    },
-    "src/foundation/resident-tabs/draft-checkpoint.ts::DraftCheckpointer": {
-      "methods": 11,
-      "fields": 17
-    },
-    "src/foundation/supervision/server.ts::SupervisorServer": {
-      "methods": 27,
-      "fields": 27
-    },
     "src/integrations/pi/components/models-dialog.ts::ModelsDialogComponent": {
       "methods": 24,
       "fields": 15
@@ -59,7 +47,7 @@
       "fields": 12
     },
     "src/integrations/pi/engine/adapter.ts::PiEngineAdapter": {
-      "methods": 43,
+      "methods": 42,
       "fields": 21
     },
     "src/integrations/pi/engine/session-runtime.ts::PiEngineRuntime": {
@@ -88,95 +76,14 @@
     }
   },
   "functions": {
-    "native/terminal-host/src/core/server.rs::step": {
-      "lines": 339
-    },
-    "native/terminal-host/src/core/sim/mod.rs::execute": {
-      "lines": 432
-    },
-    "native/terminal-host/src/ghostty.rs::GhosttyTerminal::capture_retained_surface": {
-      "lines": 252
-    },
-    "native/terminal-host/src/ghostty.rs::GhosttyTerminal::compose_frame": {
-      "lines": 128
-    },
-    "native/terminal-host/src/launch.rs::launch_resident_with_config_from": {
-      "lines": 123
-    },
-    "native/terminal-host/src/node_addon.rs::inspect_terminal_snapshot": {
-      "lines": 106
-    },
-    "native/terminal-host/src/protocol.rs::StructuredSurface::validate": {
-      "lines": 112
-    },
-    "native/terminal-host/src/protocol.rs::fixture_set": {
-      "lines": 354
-    },
-    "native/terminal-host/src/roles/entry.rs::controller_boundary_child": {
-      "lines": 109
-    },
-    "native/terminal-host/src/roles/entry.rs::probe_controller_boundary": {
-      "lines": 151
-    },
-    "native/terminal-host/src/roles/entry.rs::probe_input": {
-      "lines": 155
-    },
-    "native/terminal-host/src/roles/entry.rs::resident_internal_command": {
-      "lines": 116
-    },
-    "native/terminal-host/src/roles/entry.rs::resident_server_command": {
-      "lines": 148
-    },
-    "native/terminal-host/src/roles/holder.rs::run_holder": {
-      "lines": 752
-    },
-    "native/terminal-host/src/roles/presentation.rs::PresentationComposer::prepare": {
-      "lines": 120
-    },
-    "native/terminal-host/src/roles/quit_outro.rs::fall_plan": {
-      "lines": 111
-    },
-    "native/terminal-host/src/roles/server/attach.rs::serve_attach": {
-      "lines": 392
-    },
-    "native/terminal-host/src/roles/server/bridge.rs::serve_bridge": {
-      "lines": 336
-    },
-    "native/terminal-host/src/roles/server/controller.rs::claim_client_control": {
-      "lines": 126
-    },
-    "native/terminal-host/src/roles/server/holder.rs::holder_lost": {
-      "lines": 120
-    },
-    "native/terminal-host/src/roles/server/holder.rs::serve_holder": {
-      "lines": 575
-    },
-    "native/terminal-host/src/roles/server/holder.rs::start_holder": {
-      "lines": 185
-    },
-    "native/terminal-host/src/roles/server/lifecycle.rs::handle_lifecycle": {
-      "lines": 152
-    },
-    "native/terminal-host/src/roles/server/lifecycle.rs::stop_tabs": {
-      "lines": 157
-    },
-    "native/terminal-host/src/roles/server/mod.rs::run_server_child": {
-      "lines": 306
-    },
-    "native/terminal-host/src/roles/server/mod.rs::serve_peer": {
-      "lines": 131
-    },
-    "native/terminal-host/src/roles/server/standby.rs::promote_standby": {
-      "lines": 105
-    },
     "src/app/session-shell/paste-executor.ts::startPasteExecutor": {
       "lines": 122
     },
     "src/app/session-shell/session-shell-root.ts::OwnedUiSessionShellRoot.constructor": {
-      "lines": 131
+      "lines": 128
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.constructor": {
-      "lines": 328
+      "lines": 320
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.runWorkflow": {
       "lines": 109
@@ -185,10 +92,7 @@
       "lines": 316
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 277
-    },
-    "src/composition/resident-tab-bridge.ts::bindResidentTabBridge": {
-      "lines": 113
+      "lines": 210
     },
     "src/features/owned-ui/project-trust-prompt.ts::createConsoleProjectTrustPrompt": {
       "lines": 150
@@ -196,20 +100,11 @@
     "src/features/owned-ui/settings-app.ts::SettingsApp.render": {
       "lines": 108
     },
-    "src/foundation/launch-guardian/main.ts::runLaunchGuardian": {
-      "lines": 125
-    },
     "src/foundation/release/bootstrap.ts::runBootstrapAttempt": {
-      "lines": 244
-    },
-    "src/foundation/release/update.ts::createUpdateLifecycleCoordinator": {
-      "lines": 107
+      "lines": 121
     },
     "src/foundation/release/update.ts::runSelfUpdate": {
-      "lines": 212
-    },
-    "src/foundation/storage/control-store.ts::ControlStore.migrate": {
-      "lines": 181
+      "lines": 197
     },
     "src/integrations/pi/components/owned-editor-ux.ts::PromptSelectionInterceptor.handleInput": {
       "lines": 109

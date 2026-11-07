@@ -1,13 +1,11 @@
 /**
  * Decide whether a working copy can build, from observations a caller has already gathered.
- * The build chain compiles a Rust crate and the release chain shells out to git, so a clone on a
- * machine without those tools fails deep inside them with no statement of what the machine lacks.
+ * The build chain resolves pinned dependencies and the release chain shells out to git, so a clone
+ * on a machine without them fails deep inside them with no statement of what the machine lacks.
  * This module owns the contract and the wording; probing the machine belongs to its callers.
  */
 
 import { probeFailureDetail } from "./environment-probe.mjs";
-
-export const CARGO_RANGE = ">=1.85";
 
 /**
  * Blocking prerequisites make the build physically impossible; advisory ones are contract
@@ -26,7 +24,7 @@ export function parseVersion(text) {
 }
 
 /**
- * Compatibility: the engine and Cargo contracts use only space-separated comparators over
+ * Compatibility: the engine contract uses only space-separated comparators over
  * possibly partial versions, so an exact reader for that shape keeps the check dependency-free
  * and therefore usable before `node_modules` exists — which is when it is needed most.
  */
@@ -66,9 +64,6 @@ export function evaluatePrerequisites(observation) {
   const platform = observation.platform ?? "linux";
   return [
     dependencyCheck(observation),
-    cargoCheck(observation, platform),
-    rustcCheck(observation, cargoRemedy(platform)),
-    ...(platform === "win32" ? [msvcCheck(observation)] : []),
     gitCheck(observation, platform),
     githubCliCheck(observation, platform),
     nodeCheck(observation),
@@ -99,70 +94,6 @@ function dependencyCheck({ dependencies }) {
     return failure("dependencies", "Dependencies", BLOCKING, `node_modules is stale: ${detail}`, remedy);
   }
   return success("dependencies", "Dependencies", `${dependencies.declared} declared dependencies installed`);
-}
-
-function cargoRemedy(platform) {
-  return platform === "win32"
-    ? "install Rustup with `winget install Rustlang.Rustup`, then rerun `npm run build`"
-    : "curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh, then open a new shell so ~/.cargo/bin is on PATH";
-}
-
-function sourceDescription(source) {
-  switch (source) {
-    case "override": return "explicit override";
-    case "rustup": return "canonical Rustup location";
-    case "path": return "PATH";
-    default: return null;
-  }
-}
-
-function cargoCheck({ cargo, cargoSource, cargoResolution }, platform) {
-  const remedy = cargoRemedy(platform);
-  if (cargoResolution === "invalid-override") {
-    return failure("cargo", "Rust toolchain", BLOCKING, "the explicit CARGO executable does not exist or cannot be resolved", "fix or remove CARGO, then rerun `npm run build`");
-  }
-  if (!cargo) return failure("cargo", "Rust toolchain", BLOCKING, `cargo was not found; the build compiles native addons and needs Cargo ${CARGO_RANGE}`, remedy);
-  if (!satisfiesRange(cargo, CARGO_RANGE)) {
-    return failure("cargo", "Rust toolchain", BLOCKING, `cargo ${cargo} is older than the required ${CARGO_RANGE}`, "rustup update stable");
-  }
-  const source = sourceDescription(cargoSource);
-  return success("cargo", "Rust toolchain", `cargo ${cargo}${source ? ` (${source})` : ""}`);
-}
-
-/**
- * Rationale: rustup installs cargo and rustc together, so an absent cargo makes the toolchain
- * install the fix for both. Only a working cargo beside a missing rustc is a partial toolchain
- * worth repairing with rustup itself, which is by then guaranteed to be present.
- */
-function rustcCheck({ rustc, cargo, rustcSource, rustcResolution }, toolchainRemedy) {
-  if (rustcResolution === "invalid-override") {
-    return failure("rustc", "Rust compiler", BLOCKING, "the explicit RUSTC executable does not exist or cannot be resolved", "fix or remove RUSTC, then rerun `npm run build`");
-  }
-  if (rustc) {
-    const source = sourceDescription(rustcSource);
-    return success("rustc", "Rust compiler", `rustc ${rustc}${source ? ` (${source})` : ""}`);
-  }
-  const remedy = cargo ? "rustup toolchain install stable" : toolchainRemedy;
-  return failure("rustc", "Rust compiler", BLOCKING, "rustc was not found; Cargo cannot compile the native crates without it", remedy);
-}
-
-function msvcCheck({ msvc }) {
-  const status = msvc?.status ?? "missing-installation";
-  if (status === "ready") {
-    const source = msvc.source === "discovered" ? "initialized automatically from Visual Studio" : "launching environment";
-    return success("msvc", "Microsoft C++", `x64 compiler, Microsoft linker, and Windows SDK ready (${source})`);
-  }
-  const remedy = "open Visual Studio Installer, select Desktop development with C++ including MSVC x64/x86 tools and a Windows SDK, then rerun `npm run build`";
-  switch (status) {
-    case "missing-workload":
-      return failure("msvc", "Microsoft C++", BLOCKING, "Visual Studio is installed without the Desktop development with C++ workload", remedy);
-    case "probe-failed":
-      return failure("msvc", "Microsoft C++", BLOCKING, `Visual Studio discovery failed (${msvc.probeStatus ?? "unknown probe result"})`, "repair Visual Studio Installer or run `vswhere.exe` directly, then rerun `npm run build`");
-    case "initialization-failed":
-      return failure("msvc", "Microsoft C++", BLOCKING, `the installed Visual Studio C++ environment could not be initialized (${msvc.probeStatus ?? msvc.reason ?? "incomplete environment"})`, remedy);
-    default:
-      return failure("msvc", "Microsoft C++", BLOCKING, "a complete Visual Studio C++ build-tools installation was not found; Visual Studio Code is not the required compiler", remedy);
-  }
 }
 
 function gitCheck({ git }, platform) {
@@ -239,11 +170,7 @@ export function formatReport(checks, packageName) {
 export function formatFailures(checks) {
   const blocking = blockingFailures(checks);
   const lines = blocking.map(check => `  ${check.label}: ${check.detail}\n    fix: ${check.remedy}`);
-  const windowsNative = blocking.some(check => check.id === "msvc");
-  const sequence = windowsNative
-    ? "\nWindows native setup order:\n  1. Install Rustup if the Rust checks above failed.\n  2. In Visual Studio Installer, select Desktop development with C++ and a Windows SDK.\n  3. Rerun `npm run build` from the same shell.\n"
-    : "";
-  return `Environment prerequisites are not met.\n${lines.join("\n")}\n${sequence}\nRun \`npm run doctor\` for the full report.\n`;
+  return `Environment prerequisites are not met.\n${lines.join("\n")}\n\nRun \`npm run doctor\` for the full report.\n`;
 }
 
 function summary(checks) {

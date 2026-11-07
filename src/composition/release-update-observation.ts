@@ -7,17 +7,17 @@ export interface StartupReleaseUpdateObservationOptions {
   readonly mode: StartupUpdateMode;
   readonly packageVersion: string | null;
   readonly readPackageVersion: () => Promise<string>;
-  readonly notificationVersion: string | undefined;
   readonly checkForNewerRelease: ((options: StartupReleaseCheckOptions) => Promise<AvailableRelease | null>) | undefined;
-  readonly clientVersion?: () => string | null;
 }
 
-/** Client readiness is unrelated to the retained Agent's engine version or execution lifecycle. */
+/**
+ * `Auto` installs a verified newer release in the background; the only thing the user sees is the
+ * installed status once the approved active release is newer than the one running here.
+ */
 class ReleaseUpdateObservation {
   readonly #input: StartupReleaseUpdateObservationOptions;
   readonly #controller = new AbortController();
   #timer: ReturnType<typeof setTimeout> | undefined;
-  #announced: string | null = null;
   #installedAnnounced = false;
   #eligible: boolean;
   #cadence: number | null = null;
@@ -28,16 +28,12 @@ class ReleaseUpdateObservation {
   #stopActiveReleaseObservation: () => void = () => {};
   constructor(input: StartupReleaseUpdateObservationOptions) { this.#input = input; this.#eligible = input.mode === "auto"; }
 
-  #announce(status: "blocked" | "blocked-cleared" | "installed", version: string): void {
-    const key = `${status}:${version}`;
-    if (key === this.#announced || (status === "installed" && this.#installedAnnounced) || this.#controller.signal.aborted) return;
-    this.#announced = key;
-    if (status === "installed") {
-      this.#installedAnnounced = true;
-      this.#eligible = false;
-      if (this.#timer !== undefined) clearTimeout(this.#timer);
-    }
-    this.#input.backend.extensions.announceReleaseUpdate({ status, version });
+  #announceInstalled(version: string): void {
+    if (this.#installedAnnounced || this.#controller.signal.aborted) return;
+    this.#installedAnnounced = true;
+    this.#eligible = false;
+    if (this.#timer !== undefined) clearTimeout(this.#timer);
+    this.#input.backend.extensions.announceReleaseUpdate({ status: "installed", version });
   }
   async #startActiveReleaseObservation(): Promise<void> {
     const runningVersion = this.#input.packageVersion ?? await this.#input.readPackageVersion();
@@ -47,7 +43,7 @@ class ReleaseUpdateObservation {
     this.#stopActiveReleaseObservation = module.observeNewerActiveRelease({
       runningVersion,
       signal: this.#controller.signal,
-      onNewer: version => this.#announce("installed", version),
+      onNewer: version => this.#announceInstalled(version),
     });
   }
   async #observe(): Promise<void> {
@@ -56,10 +52,9 @@ class ReleaseUpdateObservation {
     this.#cadence = releases.UPDATE_CHECK_INTERVAL_MS; this.#nextDelay = this.#cadence;
     const input = this.#input;
     const check = input.checkForNewerRelease ?? releases.checkForNewerRelease;
-    const client = input.clientVersion?.();
-    const runningVersion = client ?? input.packageVersion ?? await input.readPackageVersion();
+    const runningVersion = input.packageVersion ?? await input.readPackageVersion();
     const options: StartupReleaseCheckOptions = {
-      runningVersion: client ?? (input.mode === "notify" ? input.notificationVersion ?? runningVersion : runningVersion),
+      runningVersion,
       configDir: input.configDir, interactive: process.stdout.isTTY === true, settingMode: input.mode,
       signal: this.#controller.signal, onNextCheckDelay: delay => { this.#nextDelay = delay; },
     };
@@ -67,22 +62,10 @@ class ReleaseUpdateObservation {
       this.#eligible = false; return;
     }
     const release = await check(options);
-    if (release === null || this.#controller.signal.aborted) return;
-    const current = input.clientVersion?.();
-    if (current && !releases.isNewerRelease(release.version, current)) return;
-    if (input.mode === "notify") { input.backend.extensions.announceReleaseUpdate(release); return; }
-    if (input.mode !== "auto") return;
+    if (release === null || this.#controller.signal.aborted || input.mode !== "auto") return;
     const installed = await import("../foundation/release/automatic-update.js")
-      .then(module => module.requestAutomaticUpdate({
-        release, runningVersion, signal: this.#controller.signal,
-        onActivationBlocked: version => {
-          const clientVersion = input.clientVersion?.();
-          if (version !== null && clientVersion && !releases.isNewerRelease(version, clientVersion)) return;
-          if (version !== null) this.#nextDelay = module.AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS;
-          this.#announce(version === null ? "blocked-cleared" : "blocked", version ?? release.version);
-        },
-      }));
-    if (installed !== null) this.#announce("installed", installed);
+      .then(module => module.requestAutomaticUpdate({ release, runningVersion, signal: this.#controller.signal }));
+    if (installed !== null) this.#announceInstalled(installed);
   }
   async #run(): Promise<void> {
     if (this.#running) { this.#refresh = true; return; }
@@ -104,12 +87,6 @@ class ReleaseUpdateObservation {
     this.#controller.abort();
     this.#stopActiveReleaseObservation();
     if (this.#timer !== undefined) clearTimeout(this.#timer);
-  }
-  clientChanged(): void {
-    this.#announced = null;
-    if (!this.#started || this.#controller.signal.aborted || this.#installedAnnounced || this.#input.mode === "no") return;
-    if (this.#timer !== undefined) clearTimeout(this.#timer);
-    void this.#run();
   }
 }
 export function createStartupReleaseUpdateObservation(input: StartupReleaseUpdateObservationOptions) { return new ReleaseUpdateObservation(input); }

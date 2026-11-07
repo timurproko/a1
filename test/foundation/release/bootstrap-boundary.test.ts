@@ -6,96 +6,59 @@ import { describe, expect, it } from "vitest";
 const repository = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 
 describe("mutable bootstrap boundary", () => {
-  it("keeps the supervisor internal while publishing only the a1 executable", async () => {
+  it("publishes only the a1 executable", async () => {
     const manifest = JSON.parse(await readFile(resolve(repository, "package.json"), "utf8")) as { bin?: unknown };
     expect(manifest.bin).toEqual({ "a1": "bin/cli.js" });
-    await expect(readFile(resolve(repository, "bin/supervisor.js"), "utf8")).resolves.toContain("runSupervisor");
   });
 
   it("routes interactive launch through bootstrap and starts the owned runtime lazily", async () => {
-    const [bin, guardian, ui] = await Promise.all([
+    const [bin, ui] = await Promise.all([
       readFile(resolve(repository, "bin/cli.js"), "utf8"),
-      readFile(resolve(repository, "bin/guardian.js"), "utf8"),
       readFile(resolve(repository, "bin/ui.js"), "utf8"),
     ]);
     expect(bin).toContain('import("../dist/foundation/release/bootstrap.js")');
     expect(bin).not.toContain('import("../dist/foundation/release/index.js")');
     expect(bin).not.toContain("runOwnedUi");
-    expect(guardian).toContain("runLaunchGuardian");
     expect(ui).toContain("runSelectedInteractiveRuntime");
     expect(ui).toContain("runOwnedUi");
     expect(ui).toContain("terminateOwnedUiProcess");
-    // Invariant: both the Agent and the slim utility-tab runs complete through the owned-UI
-    // terminator, and a trust-prompt exit returns through that same terminator.
-    expect(ui).toContain("}), terminateOwnedUiProcess);");
-    expect(ui).toContain("}), utility.terminateOwnedUiProcess);");
-    expect(ui).toContain("if (trustExit) return terminate(error.exitCode);");
-    expect(`${bin}\n${guardian}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
-    expect(`${bin}\n${guardian}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
+    expect(`${bin}\n${ui}`).not.toMatch(/node-pty|pi-tui|@xterm|host-terminal-renderer|terminal-input/);
+    expect(`${bin}\n${ui}`).not.toMatch(/Start-Process|wt\.exe|SendInput|SetForegroundWindow/);
   });
 
-  it("keeps SQLite and its stability notice outside terminal-attached launch graphs", async () => {
-    const [guardianEntry, guardianMain, bootstrap] = await Promise.all([
-      readFile(resolve(repository, "bin/guardian.js"), "utf8"),
-      readFile(resolve(repository, "src/foundation/launch-guardian/main.ts"), "utf8"),
-      readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8"),
-    ]);
-    expect(guardianMain).toContain('from "../lifecycle/index.js"');
-    expect(guardianMain).not.toMatch(/supervision\/index|storage\/index|node:sqlite/);
-    expect(guardianEntry).toContain('type: "a1-release-reselection"');
-    expect(`${guardianEntry}\n${guardianMain}\n${bootstrap}`).not.toMatch(/--no-warnings|NODE_NO_WARNINGS|disable-warning|process\.emitWarning/);
+  it("starts the selected release's UI as the one attached child", async () => {
+    const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
+    expect(bootstrap).toContain('resolveReleaseEntryPoint(release, "bin/ui.js")');
+    expect(bootstrap).toContain('stdio: ["inherit", "inherit", "inherit", "ipc"]');
+    expect(bootstrap).toContain("deliverExitNotice(noticePath");
+    expect(bootstrap).toContain('"a1-release-reselection"');
+    expect(bootstrap).not.toMatch(/detached:\s*true|supervisor|guardian|endpoint/i);
+    expect(bootstrap).not.toMatch(/--no-warnings|NODE_NO_WARNINGS|disable-warning|process\.emitWarning|node:sqlite/);
   });
 
-  it("carries selected launch identity and the canonical settings file without importing terminal implementation", async () => {
+  it("carries selected launch identity without importing terminal implementation", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     expect(bootstrap).toContain("options.launchIntent?.profileId");
     expect(bootstrap).toContain("withLaunchContext(options.environment ?? process.env");
-    expect(bootstrap).toContain("residentRootExecutable: resident.executable.executable");
-    expect(bootstrap).toContain("resident.executable.entry");
-    expect(bootstrap).toContain('"--settings-file", resolve(agentProfileDir, "settings.json")');
-    expect(bootstrap).toContain('"--accent-color", (await residentLaunchSettings!).accentColor');
     expect(bootstrap).not.toMatch(/foundation\/transparent-terminal/);
   });
 
-  it("reuses an authenticated active cohort before deriving mutable package content", async () => {
-    const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
-    const reuse = bootstrap.indexOf("await readCertifiedReleaseManifest");
-    const materialization = bootstrap.indexOf("candidate = await materializeRelease");
-    expect(reuse).toBeGreaterThan(0);
-    expect(materialization).toBeGreaterThan(reuse);
-    expect(bootstrap).toContain('probe === "live-verified"');
-    expect(bootstrap).toContain('active?.approval === "approved"');
-  });
-
-  it("validates durable restart authority before starting a replacement supervisor", async () => {
+  it("validates durable restart authority before deriving mutable package content", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
     const presenceCheck = bootstrap.indexOf("await assertCertifiedFilesPresent(active.releaseRoot)");
     const validationStart = bootstrap.indexOf('"durable-validation-start"');
     const restartRead = bootstrap.indexOf("await readRestartCertifiedRelease");
     const completeFallback = bootstrap.indexOf("await readMaterializedRelease(active.releaseRoot");
     const repair = bootstrap.indexOf("await repairApprovedRelease(options.packageRoot, active, paths.dataDir)", completeFallback);
-    const supervisorStart = bootstrap.indexOf('"replacement-supervisor-start"');
-    const start = bootstrap.indexOf("await ensureSupervisor(retained", supervisorStart);
+    const materialization = bootstrap.indexOf("candidate = await materializeRelease");
 
     expect(presenceCheck).toBeGreaterThan(0);
     expect(validationStart).toBeGreaterThan(presenceCheck);
     expect(restartRead).toBeGreaterThan(validationStart);
     expect(completeFallback).toBeGreaterThan(restartRead);
     expect(repair).toBeGreaterThan(completeFallback);
-    expect(supervisorStart).toBeGreaterThan(repair);
-    expect(start).toBeGreaterThan(supervisorStart);
-  });
-
-  it("requires current certification before readiness without an old-updater upgrade path", async () => {
-    const supervisor = await readFile(resolve(repository, "src/foundation/supervision/main.ts"), "utf8");
-    const certifiedRead = supervisor.indexOf("await readCertifiedReleaseManifest");
-    const certificationRecord = supervisor.indexOf("await recordParentCertifiedRelease", certifiedRead);
-    const endpointListen = supervisor.indexOf("await server.listen()", certificationRecord);
-
-    expect(certifiedRead).toBeGreaterThan(0);
-    expect(supervisor).not.toContain("allowLegacyParentCertification: true");
-    expect(certificationRecord).toBeGreaterThan(certifiedRead);
-    expect(endpointListen).toBeGreaterThan(certificationRecord);
+    expect(materialization).toBeGreaterThan(repair);
+    expect(bootstrap).toContain('active?.approval === "approved"');
   });
 
   it("keeps launch and update activation progress out of the user-facing terminal", async () => {
@@ -111,14 +74,12 @@ describe("mutable bootstrap boundary", () => {
     expect(`${bootstrap}\n${update}`).not.toMatch(/installing .* files/);
   });
 
-  it("schedules release cleanup after endpoint sweeping without awaiting background deletion", async () => {
+  it("schedules release cleanup at launch before selection without awaiting background deletion", async () => {
     const bootstrap = await readFile(resolve(repository, "src/foundation/release/bootstrap.ts"), "utf8");
-    const sweep = bootstrap.indexOf("await sweepDeadEndpoints(paths)");
     const schedule = bootstrap.indexOf("void scheduleMaintenance(paths.dataDir, paths)");
-    const selection = bootstrap.indexOf("const activeReleaseId = state.references.active");
+    const selection = bootstrap.indexOf("const activeId = state.references.active");
 
-    expect(sweep).toBeGreaterThan(0);
-    expect(schedule).toBeGreaterThan(sweep);
+    expect(schedule).toBeGreaterThan(0);
     expect(selection).toBeGreaterThan(schedule);
     expect(bootstrap).not.toContain("await scheduleMaintenance(paths.dataDir, paths)");
   });

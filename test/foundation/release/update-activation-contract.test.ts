@@ -4,12 +4,11 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
-import { certifyMaterializedRelease, ensureSupervisor } from "../../../src/foundation/release/bootstrap.js";
+import { certifyMaterializedRelease } from "../../../src/foundation/release/bootstrap.js";
 import { materializeRelease, type MaterializedRelease } from "../../../src/foundation/release/release-store.js";
 import {
   UPDATE_ACTIVATION_CONTRACT,
   UPDATE_ACTIVATION_MANIFEST_FIELD,
-  UpdateActivationBlockedError,
   readActivationContracts,
   runActivationEntry,
   type UpdateActivationEvent,
@@ -22,7 +21,6 @@ import { warmMaterializedRelease } from "../../../src/foundation/release/warmup.
 vi.mock("../../../src/foundation/release/bootstrap.js", async importOriginal => ({
   ...await importOriginal<typeof import("../../../src/foundation/release/bootstrap.js")>(),
   certifyMaterializedRelease: vi.fn(async () => "certification.json"),
-  ensureSupervisor: vi.fn(),
 }));
 vi.mock("../../../src/foundation/release/release-store.js", async importOriginal => ({
   ...await importOriginal<typeof import("../../../src/foundation/release/release-store.js")>(),
@@ -85,21 +83,7 @@ ${emitting([
     expect(materializeRelease).not.toHaveBeenCalled();
     expect(certifyMaterializedRelease).not.toHaveBeenCalled();
     expect(warmMaterializedRelease).not.toHaveBeenCalled();
-    expect(ensureSupervisor).not.toHaveBeenCalled();
     await expect(import("node:fs/promises").then(fs => fs.readFile(resolve(dataDir, "seen-by-entry"), "utf8"))).resolves.toBe("yes");
-  });
-
-  it("preserves the typed continuity blocker reported by the installed tree", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-activation-contract-"));
-    roots.push(root);
-    const packageRoot = await installedTree(root, { entry: emitting([
-      { event: "phase", phase: "certified" },
-      { event: "failed", code: "resident-continuity-blocked", message: "prior client remains selected" },
-    ], 1) });
-    const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: resolve(root, "data") });
-
-    await expect(coordinator.activateInstalled(packageRoot, "1.1.0", async () => {}))
-      .rejects.toBeInstanceOf(UpdateActivationBlockedError);
   });
 
   it("fails with the entry's own reason when the tree reports a failure", async () => {

@@ -6,21 +6,6 @@ Defines how A1 integrates Pi through vendor-neutral owned contracts and document
 
 ## Requirements
 
-### Requirement: Product features depend only on vendor-neutral A1 contracts
-Owned UI, workspace, launch policy, and other product features SHALL consume A1-owned engine, session, presentation, component, and terminal-runtime contracts that do not expose Pi package types or require Pi-specific factories. Selection and construction of the Pi implementation SHALL occur only in a composition boundary outside those features.
-
-#### Scenario: Compose a Pi-backed owned session
-- **WHEN** A1 selects Pi as the engine for an owned session
-- **THEN** the composition boundary SHALL provide implementations of A1-owned ports to the feature without requiring the feature to import or construct a Pi adapter
-
-#### Scenario: Add structured Pi tabs
-- **WHEN** the workspace integrates multiple Pi-backed agents
-- **THEN** workspace state, routing, persistence, and presentation SHALL remain expressed only through A1 contracts and durable agent identities
-
-#### Scenario: Architecture dependency is violated
-- **WHEN** production feature or workspace code imports a Pi package, concrete Pi adapter, Pi-specific component factory, or Pi-named runtime contract
-- **THEN** the deterministic architecture gate SHALL fail with the offending path
-
 ### Requirement: Repository-global identifiers use semantic roles instead of the product name
 All current and future implementation identifiers across production, tooling, native code, tests, and generated source SHALL be named for their architectural or behavioral responsibility. This is a repository-global naming rule, not a Pi-boundary-only convention. The product name SHALL NOT be used as an ownership namespace or generic prefix/suffix for classes, interfaces, functions, variables, fields, or constants, including forms such as `A1OwnedEditor`, `A1Runtime`, `a1Client`, or `a1Manifest`. Exact externally observable identity tokens centralized by product identity governance—such as package names, command/profile literals, state paths, schema values, and `A1_*` environment-variable names—MAY retain the product name, but local bindings that read or write those tokens SHALL remain role-named. A deterministic repository gate SHALL enforce this rule for every subsequent change.
 
@@ -396,3 +381,18 @@ Everything in the Pi engine integration that is process-wide SHALL be owned by o
 #### Scenario: The host is disposed
 - **WHEN** the host is disposed
 - **THEN** its signal SHALL abort so host-level probes and timers stop, and every session still live SHALL be disposed
+
+### Requirement: Product features consume only vendor-neutral A1 contracts
+Owned UI, workspace, launch policy, and other product features SHALL consume A1-owned engine, session, presentation, component, and terminal-runtime contracts that do not expose Pi package types or require Pi-specific factories. Selection and construction of the Pi implementation SHALL occur only in a composition boundary outside those features.
+
+#### Scenario: Compose a Pi-backed owned session
+- **WHEN** A1 selects Pi as the engine for an owned session
+- **THEN** the composition boundary SHALL provide implementations of A1-owned ports to the feature without requiring the feature to import or construct a Pi adapter
+
+#### Scenario: Switch the Pi-backed session
+- **WHEN** the owned UI resumes, forks, or switches the Pi-backed session it presents
+- **THEN** session state, routing, persistence, and presentation SHALL remain expressed only through A1 contracts and durable session identities
+
+#### Scenario: Architecture dependency is violated
+- **WHEN** production feature or workspace code imports a Pi package, concrete Pi adapter, Pi-specific component factory, or Pi-named runtime contract
+- **THEN** the deterministic architecture gate SHALL fail with the offending path

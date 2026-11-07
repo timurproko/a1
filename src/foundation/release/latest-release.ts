@@ -7,7 +7,7 @@ import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 /** Published release channels: stable `X.Y.Z` on dist-tag `latest`, development `X.Y.Z-dev.N` on `next`. */
 export type ReleaseChannel = "stable" | "development";
-export type StartupUpdateMode = "auto" | "notify" | "no";
+export type StartupUpdateMode = "auto" | "no";
 
 export interface DistTagVersions {
   readonly release: string | null;
@@ -28,7 +28,6 @@ export interface AvailableRelease {
 
 export const DEFAULT_NPM_REGISTRY = "https://registry.npmjs.org";
 export const UPDATE_CHECK_INTERVAL_MS = 15 * 60_000;
-export const NOTIFY_CHECK_INTERVAL_MS = 24 * 60 * 60_000;
 const STARTUP_FETCH_TIMEOUT_MS = 3_000;
 const CACHE_FILENAME = "update-check.json";
 const CACHE_VERSION = 2;
@@ -191,7 +190,7 @@ export async function checkForNewerRelease(options: StartupReleaseCheckOptions):
   const now = options.now ?? Date.now;
   const cachePath = join(options.configDir, CACHE_FILENAME);
   try {
-    const interval = options.settingMode === "notify" ? NOTIFY_CHECK_INTERVAL_MS : UPDATE_CHECK_INTERVAL_MS;
+    const interval = UPDATE_CHECK_INTERVAL_MS;
     const latest = await withCacheLock(options.configDir, async () => {
       if (options.signal?.aborted) return null;
       const document = await readCache(cachePath);

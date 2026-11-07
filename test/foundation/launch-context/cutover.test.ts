@@ -3,11 +3,8 @@ import { dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRIVATE_LAUNCH_CONTRACT, readLaunchContext } from "../../../src/foundation/launch-context/index.js";
-import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
-import { CohortStateStore, certifyMaterializedRelease, materializeRelease, runBootstrap, startSupervisor, warmMaterializedRelease, type MaterializedRelease } from "../../../src/foundation/release/index.js";
+import { CohortStateStore, certifyMaterializedRelease, materializeRelease, runBootstrap, warmMaterializedRelease, type MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { readUpdateRecoveryCapsule } from "../../../src/foundation/release/update-recovery.js";
-import { ControlStore } from "../../../src/foundation/storage/index.js";
-import { SupervisorServer } from "../../../src/foundation/supervision/index.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
@@ -16,8 +13,7 @@ async function fixture(contract: string | undefined, warmupKeys: "current" | "su
   const packageRoot = resolve(root, "package"), dataDir = resolve(root, "data"), home = resolve(root, "home");
   await mkdir(resolve(packageRoot, "bin"), { recursive: true });
   await writeFile(resolve(packageRoot, "package.json"), JSON.stringify({ name: "@timurproko/a1", version: "1.0.0", files: ["bin"], ...(contract === undefined ? {} : { privateLaunchContract: contract }) }));
-  await writeFile(resolve(packageRoot, "bin", "supervisor.js"), "process.exit(0);");
-  await writeFile(resolve(packageRoot, "bin", "guardian.js"), "process.exit(0);");
+  await writeFile(resolve(packageRoot, "bin", "ui.js"), "process.exit(0);");
   const prefix = warmupKeys === "current" ? "LAUNCH_CONTEXT_" : "A1_";
   const warmupKey = warmupKeys === "current" ? "LAUNCH_CONTEXT_WARMUP" : "A1_IMMUTABLE_WARMUP";
   await writeFile(resolve(packageRoot, "bin", "warmup.js"), `
@@ -80,7 +76,6 @@ describe("private-contract negotiation across an upgrade", () => {
     const release = await materializeRelease(value.packageRoot, value.dataDir);
     const { launchContract: _contract, ...retained } = release;
     await expect(warmMaterializedRelease(retained, {}, 5_000)).resolves.toBeUndefined();
-    await expect(startSupervisor(retained, {})).resolves.toMatchObject({ releaseId: retained.releaseId });
     const store = new CohortStateStore(value.dataDir);
     await store.recordCandidate(retained);
     await store.approve(retained.releaseId, "fixture-certification");
@@ -98,9 +93,8 @@ describe("private-contract negotiation across an upgrade", () => {
     await writeFile(store.path, JSON.stringify({ ...snapshot, references: { ...snapshot.references, active: unsupported.releaseId } }));
     const scheduleMaintenance = vi.fn(async () => {});
     const environment = { A1_DATA_DIR: value.dataDir, A1_CONFIG_DIR: resolve(value.root, "config"), A1_RUNTIME_DIR: resolve(value.root, "runtime") };
-    // Rationale: the fixture supervisor exits immediately, so the launch cannot complete; what matters
-    // is that a stale record no longer stops the launch before reconciliation runs.
-    await expect(runBootstrap({ packageRoot: value.packageRoot, environment, scheduleMaintenance })).rejects.not.toThrow(/Unsupported private launch contract/);
+    // Invariant: a stale record no longer stops the launch before reconciliation runs.
+    await expect(runBootstrap({ packageRoot: value.packageRoot, environment, scheduleMaintenance })).resolves.toBe(0);
     expect(scheduleMaintenance).toHaveBeenCalled();
     await value.assertProtected();
   });
@@ -126,7 +120,7 @@ describe("private-contract negotiation across an upgrade", () => {
     expect(wrong.contentDigest).not.toBe(manifest.contentDigest);
   });
 
-  it("repairs a missing certified file before reusing a live approved release", async () => {
+  it("repairs a missing certified file before reusing an approved release", async () => {
     const value = await fixture(PRIVATE_LAUNCH_CONTRACT);
     const release = await materializeRelease(value.packageRoot, value.dataDir);
     const state = new CohortStateStore(value.dataDir);
@@ -137,32 +131,15 @@ describe("private-contract negotiation across an upgrade", () => {
       A1_CONFIG_DIR: resolve(value.root, "config"),
       A1_DATA_DIR: value.dataDir,
       A1_RUNTIME_DIR: resolve(value.root, "runtime"),
-      A1_DATABASE_PATH: resolve(value.root, "control.sqlite3"),
     };
-    const paths = resolveProductPaths(environment);
-    const cohort = resolveCohortEndpoint(paths, release.releaseId, environment);
-    const control = new ControlStore(":memory:", "bootstrap-repair");
-    const server = new SupervisorServer(
-      control,
-      { ...paths, endpoint: cohort.endpoint, endpointMetadataPath: cohort.endpointMetadataPath },
-      release,
-      "00000000-0000-4000-8000-000000000001",
-      () => {},
-    );
-    await server.listen();
-    try {
-      const missing = resolve(release.releaseRoot, "bin/warmup.js");
-      const expected = await readFile(resolve(value.packageRoot, "bin/warmup.js"), "utf8");
-      await rm(missing);
-      await expect(runBootstrap({
-        packageRoot: value.packageRoot,
-        environment,
-        interactiveTerminal: false,
-        scheduleMaintenance: async () => {},
-      })).resolves.toBe(0);
-      await expect(readFile(missing, "utf8")).resolves.toBe(expected);
-    } finally {
-      await server.close();
-    }
+    const missing = resolve(release.releaseRoot, "bin/warmup.js");
+    const expected = await readFile(resolve(value.packageRoot, "bin/warmup.js"), "utf8");
+    await rm(missing);
+    await expect(runBootstrap({
+      packageRoot: value.packageRoot,
+      environment,
+      scheduleMaintenance: async () => {},
+    })).resolves.toBe(0);
+    await expect(readFile(missing, "utf8")).resolves.toBe(expected);
   });
 });

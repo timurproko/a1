@@ -1890,9 +1890,9 @@
       "localDestination": "src/integrations/pi/components/upstream/components/session-footer.ts",
       "implementationStatus": "source-synchronized-port",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Owned UI/routing; A1 level color, linked PRs, resident names, dim ellipsis and model priority; Pi unchanged.",
+      "modifications": "Owned UI/routing; A1 level color, linked PRs, dim ellipsis and model priority; Pi unchanged.",
       "upgradeStrategy": "three-way",
-      "localSha256": "4c1c68e0ec0ba2cc924a5a821211ece38976ccc34dc352bd2a95b56358951443",
+      "localSha256": "a8208ea9abea618d37ca8ec791154b8d8743fbca6c62e3251b41e227f30519da",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",
@@ -1904,12 +1904,6 @@
           "id": "owned-pull-request-badge",
           "reason": "Approved show-pr-id-status-bar adds `PR #<number>` to bare A1 so the current branch's open pull request is available from the footer; only the number is a terminal-native hyperlink.",
           "upstreamBehavior": "The pinned comparison footer remains unchanged. Bare A1 preserves the upstream path, branch, session, width, usage, and extension-row behavior when no validated pull request identity is available.",
-          "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
-        },
-        {
-          "id": "owned-resident-session-name",
-          "reason": "Approved hide-resident-footer-session-name shows a resident session name once, in its tab chip, so the viewed resident shell omits the duplicate path-row suffix.",
-          "upstreamBehavior": "Direct bare A1, solo, resident fallback, and the pinned comparison footer keep the upstream session suffix; the session name stays in the owned view model, and path, branch, pull-request badge, width, usage, and extension rows are unchanged.",
           "acceptanceTest": "test/integrations/pi/components/prompt-input-ux.test.ts"
         },
         {

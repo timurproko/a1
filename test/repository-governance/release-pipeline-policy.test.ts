@@ -103,83 +103,38 @@ describe("deliberate publication pipeline", () => {
     expect(result).toContain('test "$COMPLETE" = success');
   });
 
-  it("runs every job below plan after a skipped approval and packs a build only with every guardian", async () => {
+  it("runs every job below plan after a skipped approval and packs a build only after its documentation gate", async () => {
     const source = await workflow();
     const jobs = [...source.matchAll(/^  ([a-z_]+):\n    name: /gm)].map(match => match[1]!);
     expect(jobs.slice(0, 3)).toEqual(["source", "approval", "plan"]);
     // Rationale: approval skips outside stable and candidate modes, and GitHub's implicit success()
-    // then skipped guardians and documentation, so nightly packed only the Windows guardian.
+    // would then skip documentation and every job that inherits that skip.
     for (const [index, name] of jobs.entries()) {
       if (index < 2) continue;
       const body = source.slice(source.indexOf(`\n  ${name}:\n`), index + 1 < jobs.length ? source.indexOf(`\n  ${jobs[index + 1]}:\n`) : undefined);
       expect(body.match(/^    if: (.+)$/m)?.[1], name).toMatch(/^always\(\)/);
     }
     const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));
-    expect(job("documentation", "guardians").match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'candidate')");
+    expect(job("documentation", "package").match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && (needs.plan.outputs.mode == 'nightly' || needs.plan.outputs.mode == 'candidate')");
     const pkg = job("package", "validate").match(/^    if: (.+)$/m)?.[1];
-    expect(pkg).toContain("(needs.guardians.result == 'success' || (needs.guardians.result == 'skipped' && (needs.plan.outputs.build != 'true' || needs.plan.outputs.mode == 'stable')))");
     expect(pkg).toContain("(needs.documentation.result == 'success' || (needs.documentation.result == 'skipped' && needs.plan.outputs.mode != 'nightly' && needs.plan.outputs.mode != 'candidate'))");
-    expect(pkg).toContain("(needs.terminal_hosts.result == 'success' || (needs.terminal_hosts.result == 'skipped' && (needs.plan.outputs.build != 'true' || needs.plan.outputs.mode == 'stable')))");
-    expect(job("package", "validate")).toContain("needs: [plan, guardians, terminal_hosts, documentation]");
+    expect(job("package", "validate")).toContain("needs: [plan, documentation]");
   });
 
-  it("builds the guardian and terminal host on all four release platforms and packs only a complete set", async () => {
+  it("packs the pure-JavaScript package without native artifact builds, assembly, or cross-compilation", async () => {
     const source = await workflow();
     const job = (name: string, next: string) => source.slice(source.indexOf(`\n  ${name}:`), source.indexOf(`\n  ${next}:`));
-    // Rationale: macOS x64 is cross-compiled on the arm64 runner; the Intel runner took two to three times as long.
-    const runners = "os: [windows-2025, ubuntu-24.04, macos-15]";
-    expect(source).not.toContain("macos-15-intel");
-    const guardians = job("guardians", "terminal_hosts");
-    expect(guardians).toContain(runners);
-    expect(guardians).toContain("- name: Add the macOS x64 target\n        if: runner.os == 'macOS'\n        run: rustup target add x86_64-apple-darwin");
-    expect(guardians).toContain("- name: Build the macOS x64 process guardian\n        if: runner.os == 'macOS'\n        run: npm run build:process-guardian -- --target x86_64-apple-darwin");
-    expect(guardians.indexOf("run: npm run build:process-guardian\n")).toBeLessThan(guardians.indexOf("- name: Add the macOS x64 target"));
-    const hosts = job("terminal_hosts", "package");
-    expect(hosts).toContain(runners);
-    expect(hosts).toContain("- name: Add the macOS x64 target\n        if: runner.os == 'macOS'\n        run: rustup target add x86_64-apple-darwin");
-    expect(hosts).toContain("- name: Build, verify, and record the macOS x64 release terminal host\n        if: runner.os == 'macOS'\n        run: npm run build:terminal-host -- --target x86_64-apple-darwin");
-    expect(hosts.indexOf("run: npm run build:terminal-host\n")).toBeLessThan(hosts.indexOf("- name: Add the macOS x64 target"));
-    expect(hosts.indexOf("- name: Build, verify, and record the macOS x64 release terminal host")).toBeLessThan(hosts.indexOf("- name: Run the nightly server-core simulation budget"));
-    expect(hosts.match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
-    expect(hosts).toContain("uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2.2.1");
-    expect(hosts).toContain("version: 0.15.2");
-    expect(hosts).toContain("cache-key: publication");
-    expect(hosts).toContain("cache-size-limit: 512");
-    const regression = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8"));
-    for (const step of Object.values(regression.jobs as Record<string, { steps?: { uses?: string; with?: Record<string, unknown> }[] }>).flatMap(job => job.steps ?? [])) {
-      if (step.uses?.startsWith("mlugg/setup-zig@")) expect(step.with).toEqual({ version: "0.15.2", "cache-key": "full-regression", "cache-size-limit": 512 });
+    expect(source).not.toMatch(/^  (?:guardians|terminal_hosts):$/m);
+    for (const retired of ["build:process-guardian", "build:terminal-host", "verify-native-artifacts", "release-process-guardian-", "release-terminal-host-",
+      "x86_64-apple-darwin", "rustup", "setup-zig", "rust-cache", "prepare-ci-rust", "macos-15-intel", "TERMINAL_HOST_"]) {
+      expect(source, retired).not.toContain(retired);
     }
-    expect(hosts).toContain("run: bash scripts/development/prepare-ci-rust.sh");
-    expect(hosts).toContain("run: node node_modules/typescript/bin/tsc -p tsconfig.build.json");
-    expect(hosts.indexOf("run: node node_modules/typescript/bin/tsc -p tsconfig.build.json")).toBeLessThan(hosts.indexOf("run: npm run build:terminal-host"));
-    expect(hosts).toContain("run: npm run build:terminal-host");
-    // Invariant: the larger simulation budget runs nightly on one platform, never on stable publication.
-    expect(hosts).toContain("if: needs.plan.outputs.mode == 'nightly' && runner.os == 'Linux'");
-    expect(hosts).toContain("TERMINAL_HOST_SIM_SEEDS: \"200000\"");
-    expect(hosts).toContain("run: cargo test --release --locked --manifest-path native/terminal-host/Cargo.toml --lib core::sim");
-    expect(hosts).toContain("name: release-terminal-host-${{ runner.os }}-${{ runner.arch }}");
-    expect(hosts).toContain("if-no-files-found: error");
     const pkg = job("package", "validate");
-    expect(pkg).toContain("pattern: release-terminal-host-*");
-    expect(pkg.indexOf("- name: Assemble all platform terminal hosts")).toBeLessThan(pkg.indexOf("- name: Require every platform native artifact before packing"));
-    expect(pkg.indexOf("- name: Require every platform native artifact before packing")).toBeLessThan(pkg.indexOf("- name: Pack the candidate exactly once"));
-    expect(pkg).toContain("run: node scripts/release/verify-native-artifacts.mjs");
-    const ciZig = (await readFile(".github/workflows/ci.yml", "utf8")).match(/uses: mlugg\/setup-zig@([a-f0-9]{40})/u)?.[1];
-    expect(ciZig).toBe("d1434d08867e3ee9daa34448df10607b98908d29");
-  });
-
-  it("publishes the linked terminal library from native validation lanes only and never feeds it to a release build", async () => {
-    const ci = await readFile(".github/workflows/ci.yml", "utf8");
-    expect(ci).toContain("TERMINAL_HOST_EXPORT_VT: ${{ matrix.terminalHost && format('{0}/.artifacts/terminal-vt', github.workspace) || '' }}");
-    const upload = ci.slice(ci.indexOf("- name: Upload linked terminal library"), ci.indexOf("- name: Add modular timing summary"));
-    expect(upload).toContain("if: steps.job-selection.outputs.active == 'true' && matrix.terminalHost");
-    expect(upload).toContain("name: terminal-vt-${{ matrix.platform }}-${{ matrix.architecture }}-attempt-${{ github.run_attempt }}");
-    expect(upload).toContain("path: .artifacts/terminal-vt/");
-    expect(upload).toContain("if-no-files-found: error");
-    for (const name of await readdir(".github/workflows")) {
-      expect(await readFile(`.github/workflows/${name}`, "utf8"), name).not.toContain("TERMINAL_HOST_PREBUILT_VT");
+    expect(pkg.indexOf("- name: Install dependencies and build source once")).toBeLessThan(pkg.indexOf("- name: Pack the candidate exactly once"));
+    for (const file of ["ci.yml", "full-regression-shared.yml"]) {
+      const other = await readFile(`.github/workflows/${file}`, "utf8");
+      for (const retired of ["setup-zig", "rust-cache", "prepare-ci-rust", "build:terminal-host", "TERMINAL_HOST_"]) expect(other, `${file}: ${retired}`).not.toContain(retired);
     }
-    expect(await workflow()).not.toContain("TERMINAL_HOST_EXPORT_VT");
   });
 
   it("publishes stable releases from the candidate-validated package without rebuilding or revalidating", async () => {
@@ -188,7 +143,6 @@ describe("deliberate publication pipeline", () => {
     expect(job("approval", "plan")).toContain("validation_run_id: ${{ steps.approval.outputs.validation_run_id }}");
     expect(job("approval", "plan")).toContain("console.log(`validation_run_id=${validationRunId ?? \"\"}`);");
     expect(job("plan", "documentation")).toContain("validation_run_id: ${{ needs.approval.outputs.validation_run_id }}");
-    expect(job("guardians", "terminal_hosts").match(/^    if: (.+)$/m)?.[1]).toBe("always() && needs.plan.result == 'success' && needs.plan.outputs.build == 'true' && needs.plan.outputs.mode != 'stable'");
     expect(job("validate", "publish").match(/^    if: (.+)$/m)?.[1]).toContain("needs.plan.outputs.mode != 'stable'");
     expect(job("validate", "publish")).not.toContain('[ "$MODE" = "stable" ]');
 
@@ -201,8 +155,8 @@ describe("deliberate publication pipeline", () => {
     expect(pkg).toContain("rerun candidate validation of this source and version");
     expect(pkg.indexOf("node scripts/release/adopt-validated-candidate.mjs")).toBeLessThan(pkg.indexOf("- name: Bind packed source and identity"));
     // Invariant: every build and pack step is closed to stable mode, so stable bytes come only from adoption.
-    for (const step of ["Prepare Rust toolchain", "Install dependencies and build source once", "Install package tooling without building the application",
-      "Assemble all platform process guardians", "Assemble all platform terminal hosts", "Require every platform native artifact before packing", "Stamp the published version on the open development source", "Record verified candidate build",
+    for (const step of ["Install dependencies and build source once", "Install package tooling without building the application",
+      "Stamp the published version on the open development source", "Record verified candidate build",
       "Pack the candidate exactly once", "Pack the installer candidate exactly once"]) {
       const body = pkg.slice(pkg.indexOf(`- name: ${step}`));
       expect(body.match(/^        if: (.+)$/m)?.[1], step).toContain("needs.plan.outputs.mode != 'stable'");
@@ -309,16 +263,14 @@ describe("deliberate publication pipeline", () => {
     expect(packing).toContain("export const MINIMUM_PACK_NPM_MAJOR = 11;");
   });
 
-  it("packs native addons without rewriting executable modes", async () => {
+  it("packs the candidate without rewriting executable modes", async () => {
     const packScript = await readFile("scripts/release/prepare-validation-package.mjs", "utf8");
     expect(packScript).not.toContain("repair-native-executable-modes");
     expect(packScript).toContain("read-packed-candidate");
     await expect(readFile("scripts/release/repair-native-executable-modes.mjs", "utf8")).rejects.toThrow();
     const evidence = await readFile("scripts/governance/candidate-evidence.mjs", "utf8");
-    expect(evidence).toContain("a1-process-guardian-artifact-v2");
-    expect(evidence).toContain("guardianAddonReference");
-    const surface = await readFile("test/foundation/release/package-surface.test.ts", "utf8");
-    expect(surface).toContain("records every packed native process guardian as a loadable addon");
+    expect(evidence).not.toContain("a1-process-guardian-artifact-v2");
+    expect(evidence).not.toContain("a1-terminal-host-artifact-v2");
   });
 
   it("stamps the published stable version on the open development source at pack time", async () => {

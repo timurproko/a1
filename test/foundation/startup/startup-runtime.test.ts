@@ -33,15 +33,13 @@ describe("opt-in startup evidence and compile cache", () => {
     await markStartupPhase(environment, "bootstrap-start");
     await markStartupPhase(environment, "durable-validation-start");
     await markStartupPhase(environment, "durable-validation-complete");
-    await markStartupPhase(environment, "replacement-supervisor-start");
-    await markStartupPhase(environment, "replacement-supervisor-ready");
     await markStartupPhase(environment, "first-input-ready-render");
 
     const source = await readFile(path, "utf8");
     const events = parseStartupTrace(source);
     expect(events.map(event => event.phase)).toEqual([
       "command-invoked", "bootstrap-start", "durable-validation-start", "durable-validation-complete",
-      "replacement-supervisor-start", "replacement-supervisor-ready", "first-input-ready-render",
+      "first-input-ready-render",
     ]);
     expect(events.map(event => event.elapsedMs)).toEqual([...events.map(event => event.elapsedMs)].sort((left, right) => left - right));
     expect(Object.keys(events[0]!).sort()).toEqual([

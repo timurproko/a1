@@ -264,7 +264,7 @@ The owned UI SHALL use documented public Pi engine and terminal contracts throug
 - **AND** the shell SHALL behave exactly as it did with the same seams supplied flat
 
 ### Requirement: Customization remains disabled above the 1:1 baseline until acceptance
-A1-specific themes, components, commands, layouts, structured tabs, and multi-agent presentation SHALL remain disabled until the complete pinned built-in and extension UI baseline passes source coverage, independent parity, real-prompt integration, and fresh manual acceptance. After acceptance, customization SHALL resolve through versioned A1-owned slots without mutating the baseline implementation or installed Pi code.
+A1-specific themes, components, commands, and layouts SHALL remain disabled until the complete pinned built-in and extension UI baseline passes source coverage, independent parity, real-prompt integration, and fresh manual acceptance. After acceptance, customization SHALL resolve through versioned A1-owned slots without mutating the baseline implementation or installed Pi code.
 
 #### Scenario: Request customization before parity
 - **WHEN** an A1-specific visual or layout customization is requested before 1:1 acceptance
@@ -430,7 +430,7 @@ The Pi-backed owned shell SHALL keep custom-viewport interaction state and input
 ### Requirement: The declared bare-A1 viewport customizes layout without replacing shell behavior
 After the pinned shell baseline and customization prerequisite are accepted, bare A1 SHALL apply the custom session viewport as a declared layout customization over the owned shell's existing engine, transcript components, input surfaces, status/footer components, extension bridge, commands, selectors, dialogs, and lifecycle. The customization SHALL own viewport composition and navigation but SHALL NOT patch installed Pi code, inspect private Pi renderer state, infer transcript semantics from rendered terminal text, or introduce a second agent or terminal authority.
 
-The viewport's intentional differences SHALL be limited to its declared capability: a bounded transcript above a pinned dock, A1 scrollbar presentation, detached/follow navigation, the scroll-to-bottom control, and timestamped sticky submitted prompts. Correct text or behavior from an existing shell surface SHALL NOT be reimplemented as viewport-specific status, editor, workflow, or extension behavior.
+The viewport's intentional differences SHALL be limited to its declared capability: a bounded transcript above a pinned dock, A1 scrollbar presentation, detached/follow navigation, the scroll-to-bottom control, and sticky submitted prompts. Correct text or behavior from an existing shell surface SHALL NOT be reimplemented as viewport-specific status, editor, workflow, or extension behavior.
 
 #### Scenario: Compose the custom viewport
 - **WHEN** bare A1 starts after the customization prerequisite is satisfied
@@ -444,7 +444,7 @@ The viewport's intentional differences SHALL be limited to its declared capabili
 #### Scenario: Compare an explicit profile
 - **WHEN** `a1 pi` is started
 - **THEN** the declared viewport layout customization SHALL be absent
-- **AND** those profiles SHALL remain suitable for observing the pinned presentation without A1 viewport rows, controls, prompt timestamps, or scrollbar settings
+- **AND** those profiles SHALL remain suitable for observing the pinned presentation without A1 viewport rows, controls, pinned prompts, or scrollbar settings
 
 #### Scenario: Upgrade the pinned integration
 - **WHEN** the pinned Pi or Pi TUI version changes
@@ -454,7 +454,6 @@ The viewport's intentional differences SHALL be limited to its declared capabili
 #### Scenario: Viewport customization is not yet accepted
 - **WHEN** its implementation, focused regression evidence, or user-controlled manual acceptance is incomplete or contradicted
 - **THEN** the custom viewport milestone SHALL remain unaccepted
-- **AND** that incomplete milestone SHALL NOT authorize the held multi-agent workspace work
 
 ### Requirement: Compact extension labels preserve source identity
 
@@ -1899,50 +1898,6 @@ Bare A1 SHALL color the status-bar thinking-level name with the same active-them
 - **WHEN** the footer must omit provider text or truncate its right-hand content to fit
 - **THEN** its existing width and truncation policy SHALL remain intact and any visible level-name span SHALL retain its level foreground without coloring adjacent text
 
-### Requirement: Graceful user quit returns control to the parent shell
-The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the existing clear/exit chord as complete graceful-exit requests. Each route SHALL stop the agent session, dispose the owned presentation, restore all terminal modes and screen state owned by A1, terminate the interactive A1 process successfully, and return control to the invoking shell without requiring another signal or keystroke. When the owned UI runs inside a resident tab, the attach client SHALL consume the second `Ctrl+C` of the chord as a local detach request, and `/quit` and `Ctrl+D` SHALL request through the tab bridge that only the client named by the immutable command-origin input-controller revision detach, and only while that revision is current; stale, ambiguous or unavailable attribution SHALL keep the tab process running and direct the user to `Ctrl+C` twice. The tab's agent session and A1 process SHALL keep running, and the detached client SHALL complete terminal restoration and parent-shell return. The built-in quit command's autocomplete description SHALL be exactly `Quit`.
-
-#### Scenario: Quit with the slash command
-- **WHEN** the user submits `/quit` from an active owned interactive session
-- **THEN** A1 SHALL complete graceful shutdown, restore the terminal, exit successfully, and make the invoking shell prompt available
-- **AND** no inactive or blank A1 fullscreen surface SHALL remain
-
-#### Scenario: Quit with the clear/exit chord
-- **WHEN** the user presses `Ctrl+C` twice within the existing clear/exit interval
-- **THEN** the second press SHALL complete the same graceful shutdown, terminal restoration, successful process exit, and parent-shell return as `/quit`
-
-#### Scenario: Quit inside a resident tab
-- **WHEN** the user submits `/quit` or presses `Ctrl+C` twice inside a resident A1 tab
-- **THEN** the attach client SHALL restore the terminal and exit successfully, and the tab's agent session SHALL keep running
-- **AND** `a1 pi` SHALL continue to stop its single agent session on quit
-
-#### Scenario: Resident tab bridge is unavailable
-- **WHEN** a quit route runs inside a resident tab whose bridge is unavailable
-- **THEN** A1 SHALL NOT exit the tab process and SHALL show a concise notice that pressing `Ctrl+C` twice leaves
-
-#### Scenario: Quit execution is delayed across control transfer
-- **WHEN** a quit command admitted under an old controller executes after control transfers
-- **THEN** A1 SHALL reject its stale or ambiguous origin without detaching the new controller or exiting the tab, and SHALL offer attach-local double-`Ctrl+C` as the safe exit route
-
-#### Scenario: Quit admitted under a previous attachment
-- **WHEN** a quit command admitted while one client was attached executes after that client has gone and another has attached
-- **THEN** A1 SHALL reject the stale request without detaching the new client or exiting the tab
-
-#### Scenario: An extension retains an event-loop handle
-- **WHEN** owned UI cleanup has completed but a loaded extension leaves a server, timer, or comparable event-loop handle active
-- **THEN** the interactive A1 executable SHALL preserve completed terminal restoration and configured exit output
-- **AND** it SHALL still terminate successfully and return control to the parent shell
-
-#### Scenario: Repository-local quit returns promptly
-- **WHEN** a user quits an interactive A1 session launched through the supported repository-local development command
-- **THEN** development-only cache persistence SHALL NOT introduce a visible post-restoration pause before the parent-shell prompt appears
-- **AND** production compile-cache behavior and completed owned cleanup SHALL remain unchanged
-
-#### Scenario: Describe the quit command
-- **WHEN** slash-command autocomplete presents the built-in `quit` command
-- **THEN** its description SHALL be `Quit`
-- **AND** the description SHALL NOT include `Pi`, `A1`, or another product qualifier
-
 ### Requirement: Escape clears a sole slash-command search in bare A1
 Bare A1 SHALL declare Escape on a sole top-level slash-command search as an input exception to pinned autocomplete cancellation. A sole top-level slash-command search is single-line default-editor content consisting of `/` followed by zero or more non-whitespace characters, including further `/` characters, with the cursor at its end and the slash-command menu open. When Escape is pressed in that state, the default editor SHALL close the menu and clear the prompt so the editor returns to its empty state, and SHALL NOT invoke the shell interrupt handler. The cleared text SHALL remain reachable through the editor's existing undo. Every other Escape path SHALL retain its existing contract: an open argument, path/resource, or extension-provider menu, a command search containing whitespace, multi-line content, and a cursor away from the end of the search SHALL only close the menu, and an editor without an open menu SHALL continue to route Escape to the shell interrupt handler. The `a1 pi` comparison profile and untouched pinned Pi SHALL retain pinned close-only cancellation.
 
@@ -2910,89 +2865,6 @@ When bare A1 presents an attachment-count warning for the current prompt, it SHA
 - **THEN** an active count notice for those ready attachments SHALL clear without restart
 - **AND** any count-rejected overflow chip SHALL retain its screenshot label while remaining dimmed and excluded until the user removes and pastes it again
 
-### Requirement: The owned shell announces an available A1 release in pinned Pi's style
-In bare A1 `Update: Notify` SHALL preserve the existing informational docked `Update Available` popup, channel-appropriate command, stable changelog link and session-only close control without installation. `Update: No` SHALL produce no release-update UI because no check runs.
-
-In default `Auto`, the owned shell SHALL show no availability popup, bordered notice, changelog link, close control, command instruction or installation progress. After verified compatible client activation, an older connected resident client SHALL show `Update installed, restart to update` right-aligned on the existing paint-only acknowledgement line above the editor in one success-green foreground. It SHALL allocate no row and change no transcript, Working status, dock, pointer or editor geometry. Restart readiness SHALL refer to the client that reconnects to live execution, not a promise or requirement to replace every live Agent.
-
-When package replacement and candidate certification succeeded but compatible activation is currently blocked, the observing Auto-mode client SHALL instead show exact text `Update prepared; activation blocked` in the same bounded non-transcript update-status area. The blocked status SHALL NOT claim restart readiness, SHALL NOT expose paths, PIDs, credentials, protocol details or raw native diagnostics, and SHALL NOT take focus or offer a destructive action. It SHALL remain distinct from ordinary failed, skipped, pending, malformed, or uncertified attempts, which SHALL show no automatic failure popup.
-
-Copy acknowledgement SHALL take priority for its existing lifetime/replacement behavior and the applicable prepared-blocked or restart-ready status SHALL return afterward while it remains true for that process. Narrow layouts MAY clip the message without changing usable editor geometry. The status SHALL take no focus/input and SHALL not be dismissible while it truthfully describes update state. After successful updated-client reconnect, Agents that retain old execution custody SHALL NOT continually request that same completed client restart. When a compatible immutable predecessor cannot consume the modern client-version acknowledgement, the current outer client MAY suppress only the exact owned restart-ready phrase from a complete structured surface after bounded durable state proves that the launching client exactly equals the installed target. It SHALL leave malformed, mismatched, blocked, failed, running, unstructured, or nonexact presentation unchanged and SHALL NOT restart execution, inject child input/output, alter transcript content, or hide another status.
-
-`a1 pi` and direct nonresident modes SHALL retain their process-scoped compact non-transcript update status with the same exact wording/color rules and existing extension-package presentation. Starting those processes from the activated release SHALL show no stale status. A prepared-blocked status SHALL transition to restart readiness only after verified activation; invalidated preparation or ordinary failure SHALL remove it without displaying raw automatic failure details.
-
-#### Scenario: Announce a stable release
-- **WHEN** bare A1 in Notify discovers newer stable `0.3.1`
-- **THEN** it SHALL show the existing `Update Available` popup with `a1 update`, stable changelog link and no installation
-
-#### Scenario: Announce a development release
-- **WHEN** bare A1 in Notify discovers newer development `0.3.1-dev.652`
-- **THEN** it SHALL show the existing popup with `a1 update --develop`, no changelog line and no installation
-
-#### Scenario: Result arrives after the first frame
-- **WHEN** Notify discovery, prepared-blocked state, or verified compatible Auto activation arrives after interaction begins
-- **THEN** the applicable notice SHALL appear without clearing the editor, moving focus or interrupting work
-
-#### Scenario: Dock and dismiss in bare A1
-- **WHEN** Notify reports a release during a turn
-- **THEN** the popup SHALL retain its existing dock geometry and session-only close behavior
-
-#### Scenario: Auto installation completes
-- **WHEN** a compatible candidate becomes active while the older resident client views a working Agent
-- **THEN** the success-green restart-ready status SHALL appear on the existing acknowledgement line without altering live working presentation or geometry
-- **AND** no Agent SHALL restart or wait for idle to apply that client update
-
-#### Scenario: Auto preparation is activation-blocked
-- **WHEN** the exact candidate is certified but continuity currently prevents compatible activation
-- **THEN** `Update prepared; activation blocked` SHALL appear in the bounded update-status area without a restart instruction
-- **AND** the notice SHALL contain no raw blocker detail or destructive remediation
-
-#### Scenario: Copy acknowledgement temporarily replaces restart readiness
-- **WHEN** successful copy produces `Copied N chars to clipboard` while prepared-blocked or restart readiness applies
-- **THEN** copy feedback SHALL replace the update status for its existing lifetime and the applicable status SHALL return afterward
-
-#### Scenario: Repeated copy acknowledgement retains priority
-- **WHEN** another copy succeeds before the previous acknowledgement expires
-- **THEN** the newer acknowledgement SHALL replace it and restart its existing lifetime before applicable update status returns
-
-#### Scenario: Blocked activation later succeeds
-- **WHEN** activation-only retry verifies continuity and commits the prepared candidate
-- **THEN** the blocked status SHALL be replaced by `Update installed, restart to update`
-- **AND** both statuses SHALL NOT appear simultaneously
-
-#### Scenario: Both update notices apply
-- **WHEN** A1 update status and extension-package availability both apply in `a1 pi`
-- **THEN** A1 status SHALL use its compact region and extension availability SHALL retain its transcript presentation without an added A1 banner
-
-#### Scenario: No newer release
-- **WHEN** discovery is skipped, No is selected or no newer release exists
-- **THEN** no A1 update status or popup SHALL render
-
-#### Scenario: Explicit update completes in another terminal
-- **WHEN** an older Auto-mode client observes explicit compatible client activation
-- **THEN** it SHALL show the same restart-ready status without an availability popup
-
-#### Scenario: The terminal is narrow
-- **WHEN** complete applicable update text does not fit
-- **THEN** it SHALL clip safely without changing editor geometry or hiding Working
-
-#### Scenario: The user restarts
-- **WHEN** the updated resident client reconnects to the same busy and idle Agents
-- **THEN** it SHALL preserve their live access and SHALL NOT show stale client restart readiness merely because their execution code originated on an older release
-
-#### Scenario: An immutable predecessor cannot acknowledge the updated client
-- **WHEN** a compatible retained predecessor still renders exact text `Update installed, restart to update` but durable installed state proves the launching client exactly matches that installed target
-- **THEN** the current client SHALL hide only that exact structured restart-ready phrase without restarting or mutating the predecessor
-- **AND** copy feedback, blocked status, working state, editor geometry, cursor, transcript content and every nonexact row SHALL remain unchanged
-
-#### Scenario: Prepared proof becomes invalid
-- **WHEN** a previously prepared candidate can no longer be certified or matched to the installed target
-- **THEN** the blocked status SHALL disappear and no raw automatic failure popup SHALL replace it
-
-#### Scenario: Automatic update does not succeed
-- **WHEN** an attempt fails, remains merely pending, is malformed, or cannot establish certified preparation
-- **THEN** no prepared-blocked or successful/restart-ready update status SHALL render and existing live access SHALL remain preserved
-
 ### Requirement: Bare-A1 changelog reference links use terminal-native decoration
 
 Bare A1 SHALL present hyperlinks in both the complete `/changelog` history and startup release-note reference documents with the same terminal-native decoration policy as agent-content links. Changelog links SHALL preserve their visible labels, foregrounds, exact OSC 8 targets, wrapping, scrolling, and activation behavior while omitting renderer-owned solid underline controls, allowing the terminal to provide its native idle decoration and solid hover decoration. This policy SHALL NOT alter hotkeys or other reference documents, the `a1 pi` comparison profile, untouched Pi, or installed Pi packages.
@@ -3915,36 +3787,96 @@ Bare A1 SHALL reserve exactly one terminal cell between visible session footer/s
 - **WHEN** the same footer state renders through the explicit `a1 pi` comparison profile
 - **THEN** it SHALL retain the pinned full-width footer bytes without the bare-A1 gutter customization
 
-### Requirement: Updated client preserves live Agent interaction without migration UI
-A compatible updated resident client SHALL reconnect the same logical/live Agents with preserved tab identity, names, order, selection, unsent input/attachments, queued work and active dialogs. It SHALL show current progress produced while detached and preserve normal working/idle/attention state. There SHALL be no update-specific disabled Agent, waiting-for-idle state, migration spinner or delayed restart of existing execution. Every source with a healthy compatible runtime route SHALL remain viewable and controllable through ordinary attach completion. A blocked/inaccessible placeholder SHALL NOT satisfy successful update continuity. Client version and execution origin SHALL remain truthful without relabelling an old live process as new engine code. Normal independent runtime faults retain their recovery UI and SHALL NOT be misreported as successful seamless update.
+### Requirement: The owned shell shows only the restart-ready update status
+With `Update: No` the shell SHALL show no release-update UI. In `Auto` it SHALL show no availability popup, notice, changelog link, command, or installation progress; once a newer approved same-channel release is active, it SHALL show `Update installed, restart to update` right-aligned in success green on the existing paint-only acknowledgement line above the editor, allocating no row, changing no geometry or transcript, taking no focus, and not dismissible while true.
 
-#### Scenario: Two working Agents and one idle Agent survive relaunch
-- **WHEN** the user closes the terminal and reopens a compatibly updated A1
-- **THEN** those same three tabs SHALL retain their live state and current output with normal interaction available on every Agent
-- **AND** neither busy nor idle execution SHALL be restarted or disabled because of the update
+#### Scenario: Auto installation completes
+- **WHEN** a newer approved same-channel release becomes active while the older process is running
+- **THEN** the success-green restart-ready status SHALL appear on the existing acknowledgement line without altering live working presentation or geometry
 
-#### Scenario: Permission request arrives while detached
-- **WHEN** an Agent waits for a permission/trust/extension response while no terminal is attached
-- **THEN** the updated client SHALL expose that same live interaction and deliver its response to the correct source/controller without dismissing it or recreating the Agent
+#### Scenario: Result arrives after the first frame
+- **WHEN** activation is observed after interaction begins
+- **THEN** the status SHALL appear without clearing the editor, moving focus, or interrupting work
 
-#### Scenario: Existing Agent remains idle after update
-- **WHEN** an Agent stays idle after client reconnect
-- **THEN** it SHALL remain live and usable with no pending-migration indicator or automatic later update restart
+#### Scenario: Copy acknowledgement temporarily replaces restart readiness
+- **WHEN** successful copy produces `Copied N chars to clipboard` while restart readiness applies
+- **THEN** copy feedback SHALL replace the update status for its existing lifetime and the status SHALL return afterward
 
-### Requirement: Every older owned process shows persistent restart readiness
-When local release observation establishes that an approved active release is newer than the version executing an owned A1 process, that process SHALL show `Update installed, restart to update` in its existing compact non-transcript status region. The status SHALL be emitted independently in every active older bare-A1 resident session, bare-A1 solo session, and `a1 pi` process containing this behavior. It SHALL remain visible until that process exits, take no focus or input, and disappear naturally when a restarted process executes the active version.
+#### Scenario: Repeated copy acknowledgement retains priority
+- **WHEN** another copy succeeds before the previous acknowledgement expires
+- **THEN** the newer acknowledgement SHALL replace it and restart its existing lifetime before the update status returns
 
-The status SHALL describe actual executing-versus-active release state and SHALL NOT imply that the user launched the active release. Registry failure, another process performing activation, or a different active session receiving the first completion event SHALL not suppress it.
+#### Scenario: Both update notices apply
+- **WHEN** A1 update status and extension-package availability both apply in `a1 pi`
+- **THEN** A1 status SHALL use its compact region and extension availability SHALL retain its transcript presentation without an added A1 banner
 
-#### Scenario: All resident agents are older
-- **WHEN** several active resident Agent tabs execute an older release and another process activates a newer approved same-channel release
-- **THEN** every older Agent process SHALL show `Update installed, restart to update`
+#### Scenario: No newer release
+- **WHEN** discovery is skipped, `No` is selected, or no newer release exists
+- **THEN** no A1 update status or popup SHALL render
+
+#### Scenario: Explicit update completes in another terminal
+- **WHEN** an older Auto-mode process observes an explicit activation performed elsewhere
+- **THEN** it SHALL show the same restart-ready status without an availability popup
+
+#### Scenario: The terminal is narrow
+- **WHEN** the complete status text does not fit
+- **THEN** it SHALL clip safely without changing editor geometry or hiding Working
+
+#### Scenario: The user restarts
+- **WHEN** the user exits and runs `a1` again after the status appeared
+- **THEN** the new process SHALL execute the active release and SHALL show no restart-ready status
+
+#### Scenario: Automatic update does not succeed
+- **WHEN** an attempt fails, remains merely pending, is malformed, or cannot establish certified preparation
+- **THEN** no update status or popup SHALL render and the running session SHALL be unaffected
+
+#### Scenario: The comparison profile observes activation
+- **WHEN** an older `a1 pi` process observes a newer approved same-channel active release
+- **THEN** it SHALL show the same compact status with the same wording and color beside its existing extension-package presentation
+
+### Requirement: Every older owned process shows restart readiness until it exits
+When local release observation shows an approved active release newer than the executing version, an owned A1 process SHALL show `Update installed, restart to update` in its compact non-transcript status region until it exits, taking no focus or input, independently in every older bare-A1 and `a1 pi` process. The status SHALL describe executing-versus-active state only and SHALL NOT be suppressed by registry failure or by another process performing the activation.
+
+#### Scenario: Several processes are older
+- **WHEN** several active A1 processes execute an older release and another process activates a newer approved same-channel release
+- **THEN** every older process SHALL show `Update installed, restart to update`
 - **AND** the notice SHALL remain present in each process until it exits
-
-#### Scenario: Solo and comparison processes are older
-- **WHEN** active `a1 solo` and `a1 pi` processes execute an older release than the approved active same-channel release
-- **THEN** each SHALL show the same compact restart status without adding update content to its transcript
 
 #### Scenario: A current process starts
 - **WHEN** a process executes the approved active release
 - **THEN** it SHALL show no restart-ready status from that release
+
+#### Scenario: The user did not run the update
+- **WHEN** another process activated the newer release
+- **THEN** the status SHALL NOT claim or imply that this process or its user launched the active release
+
+### Requirement: Graceful user quit ends the single-agent process and returns control to the parent shell
+The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the existing clear/exit chord as complete graceful-exit requests. Each route SHALL stop the agent session, dispose the owned presentation, restore all terminal modes and screen state owned by A1, terminate the interactive A1 process successfully, and return control to the invoking shell without requiring another signal or keystroke. The built-in quit command's autocomplete description SHALL be exactly `Quit`.
+
+#### Scenario: Quit with the slash command
+- **WHEN** the user submits `/quit` from an active owned interactive session
+- **THEN** A1 SHALL complete graceful shutdown, restore the terminal, exit successfully, and make the invoking shell prompt available
+- **AND** no inactive or blank A1 fullscreen surface SHALL remain
+
+#### Scenario: Quit with the clear/exit chord
+- **WHEN** the user presses `Ctrl+C` twice within the existing clear/exit interval
+- **THEN** the second press SHALL complete the same graceful shutdown, terminal restoration, successful process exit, and parent-shell return as `/quit`
+
+#### Scenario: Quit the comparison profile
+- **WHEN** the user submits `/quit` or presses `Ctrl+C` twice in `a1 pi`
+- **THEN** `a1 pi` SHALL stop its single agent session and return control to the parent shell in the same way
+
+#### Scenario: An extension retains an event-loop handle
+- **WHEN** owned UI cleanup has completed but a loaded extension leaves a server, timer, or comparable event-loop handle active
+- **THEN** the interactive A1 executable SHALL preserve completed terminal restoration and configured exit output
+- **AND** it SHALL still terminate successfully and return control to the parent shell
+
+#### Scenario: Repository-local quit returns promptly
+- **WHEN** a user quits an interactive A1 session launched through the supported repository-local development command
+- **THEN** development-only cache persistence SHALL NOT introduce a visible post-restoration pause before the parent-shell prompt appears
+- **AND** production compile-cache behavior and completed owned cleanup SHALL remain unchanged
+
+#### Scenario: Describe the quit command
+- **WHEN** slash-command autocomplete presents the built-in `quit` command
+- **THEN** its description SHALL be `Quit`
+- **AND** the description SHALL NOT include `Pi`, `A1`, or another product qualifier

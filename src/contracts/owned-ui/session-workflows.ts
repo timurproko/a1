@@ -382,7 +382,6 @@ export interface OwnedUiVisualExtensionSupport {
 
 /** A newer release found by the startup check, or one installed for the next restart. */
 export type OwnedUiReleaseUpdate =
-  | { readonly status: "client-connected"; readonly version: string }
   | {
     readonly status?: "available";
     readonly version: string;
@@ -390,6 +389,6 @@ export type OwnedUiReleaseUpdate =
     readonly changelogUrl: string | null;
   }
   | {
-    readonly status: "blocked" | "blocked-cleared" | "installed";
+    readonly status: "installed";
     readonly version: string;
   };

@@ -9,7 +9,8 @@ Exact package versions are recorded in `package-lock.json`.
 | Node.js | `>=22.19.0` |
 | Package manager | npm 11, lockfile v3 |
 | Language | TypeScript, strict native ESM, `NodeNext`, ES2023 |
-| Control storage | Built-in `node:sqlite` `DatabaseSync`, WAL mode |
+| Prompt history storage | Built-in `node:sqlite` `DatabaseSync`, WAL mode |
+| Session writer and worktree claim locks | `proper-lockfile` |
 | Process/version helpers | `cross-spawn`, `semver` |
 | Tests | Vitest |
 
@@ -23,24 +24,20 @@ Physical desktop automation is absent from the active repository baseline. Any f
 
 ## Package contents
 
-The published package contains:
+The published package is pure JavaScript and contains:
 
-- the sole public `a1` command;
-- the internal supervisor, launch-guardian, exit-watcher, and fixed terminal-host role entries;
-- immutable release/bootstrap, lifecycle, protocol, storage, update, owned-UI, and Pi-adapter modules, plus `process-guardian.node` and `terminal-host.node` for every supported target with manifests and terminal-host notices;
+- the sole public `a1` command and its directly attached `bin/ui.js` entry;
+- the internal activation, warmup, automatic-update, update-recovery, and release-cleanup entries;
+- immutable release/bootstrap, lifecycle, session-writer-lock, update, owned-UI, and Pi-adapter modules;
 - current user and architecture documentation.
 
-It contains no executable built from A1 sources, separate session-lock addon, browser/desktop GUI, physical automation driver, or generated runtime data. PTY ownership, terminal emulation, composition, and input translation exist only inside the terminal-host addon; the JavaScript product path does not relay terminal bytes.
+It contains no native addon, executable built from A1 sources, browser/desktop GUI, physical automation driver, or generated runtime data. No module owns a pseudoterminal, emulates a terminal, or relays terminal bytes; the UI child inherits the terminal directly.
 
-## Native addon layer
+## Build
 
-`npm run doctor` reports this contract against the current machine—Node range, npm major, git, the GitHub CLI, Rust/Cargo, Windows Microsoft C++ readiness where applicable, and whether `node_modules` matches the lockfile—and names the explicit setup action for anything missing. `npm run build` resolves the same native environment and runs the check before cleaning or compiling, so an unmet prerequisite fails by name rather than inside a module resolver, Cargo, or the linker. Unmet tool prerequisites block; a Node or npm version outside the declared contract is reported as an advisory without failing the build.
+`npm run doctor` reports this contract against the current machine—Node range, npm major, git, the GitHub CLI, and whether `node_modules` matches the lockfile—and names the explicit setup action for anything missing. `npm run build` runs the same check before compiling, so an unmet prerequisite fails by name rather than inside a module resolver. Unmet tool prerequisites block; a Node or npm version outside the declared contract is reported as an advisory without failing the build.
 
-Source builds require Rust/Cargo 1.85 or newer; `rust-toolchain.toml` pins the exact version CI and publication install through `scripts/development/prepare-ci-rust.sh`, and rustup selects that version for Cargo commands inside the repository, installing it on first use. On Windows, the resolver honors explicit `CARGO` and `RUSTC` executables, then the launching `PATH`, then `%USERPROFILE%\.cargo\bin`; the fallback changes only build-child state. Windows native linking also requires Visual Studio or Visual Studio Build Tools with the Desktop development with C++ workload, MSVC x64/x86 tools, and a Windows SDK. Visual Studio Code is not a compiler prerequisite. An already valid developer environment is retained; otherwise the resolver uses the installed stable Visual Studio locator and `vcvars64.bat`, verifies that `cl.exe` and Microsoft's `link.exe` come from the selected VC tools, and passes the captured environment only to child processes. This prevents Git Bash's GNU `link.exe` from shadowing MSVC without changing persistent `PATH`. A1 never installs these tools, elevates privileges, or accepts licenses automatically. The Zig cache (`mlugg/setup-zig`, one entry per workflow and platform per run, bounded to 512 MiB) stays enabled: measured on 2026-10-16, a cold Zig build of `libghostty-vt` added about 40 to 60 seconds to a terminal-host test build (Linux 2m21s cold against 1m20s warm, Windows 2m05s against 1m26s), which the cache saves on every warm run.
-
-`npm run build` compiles `native/process-guardian` as the host platform's Node-API 9 addon, places `process-guardian.node` under `dist/native/<platform>-<architecture>/`, loads it to observe its version identity, and writes the v2 integrity manifest. It also builds the current platform's release-profile `terminal-host.node`, whose v2 manifest binds the addon, `dist/foundation/resident-tabs/host-entry.js`, and notices, so the ordinary `npm run build && ./scripts/dev` handoff exercises resident tabs without deployment. On Windows the normal build reuses a compatible ignored terminal-library cache or downloads the newest compatible library from the current branch or a successful CI run belonging to a pull request already merged into `develop`, then links it under the crate's manifest verification; it never silently invokes the quarantined Zig package fetch. An unavailable or mismatched prerequisite fails the build instead of leaving a nominally successful single-agent-only tree. The npm `prepare` lifecycle and validation preflight use the explicit core build because selected native lanes assemble and certify terminal hosts separately.
-
-Preview and stable candidate workflows build the addons on isolated Windows, Linux, and macOS arm64 runners, cross-compile the macOS x64 addons on the arm64 runner with `--target x86_64-apple-darwin`, and assemble all targets before packing. Those release runners retain their explicit `npm run build:terminal-host` step and pinned Zig input rather than consuming a workstation cache; Development validation lanes may instead restore a CI-built release addon from an exact-input cache and re-verify it (see [`../ci-release-runbook.md`](../ci-release-runbook.md)). Cross-compiled artifacts record a Mach-O architecture check when they cannot be loaded on the producing runner. Supported native code is always loaded by Node; an absent, incompatible, or unsupported addon fails before runtime startup rather than falling back to PID-only cleanup. The process-guardian addon inherits terminal handles but transports no terminal bytes. Its separate Node-hosted exit watcher restores terminal state after guardian failure, subject to the documented node-wide-kill gap. See [`process-guardian-provenance.md`](process-guardian-provenance.md), [`terminal-host-provenance.md`](terminal-host-provenance.md), and [`resident-tabs.md`](resident-tabs.md).
+`npm run build` compiles TypeScript, runs the existing resource generators, and writes the runtime payload inventory. The npm `prepare` lifecycle runs the same build. Preview and stable candidate workflows pack the built tree once and validate those exact bytes on Windows, Linux, and macOS; there are no per-platform artifacts.
 
 ## Gates
 
@@ -89,19 +86,17 @@ One reusable workflow publishes both npm channels: `.github/workflows/publish.ym
 
 ## A1 state paths
 
-These paths are A1 control and release state, not Pi profile roots. All are overrideable for hermetic tests.
+These paths are A1 release, update, and runtime state, not Pi profile roots. All are overrideable for hermetic tests.
 
 | Purpose | Override | Windows default | Unix default |
 |---|---|---|---|
 | Config | `A1_CONFIG_DIR` | `%APPDATA%\\a1` | `$XDG_CONFIG_HOME/a1` or `~/.config/a1` |
-| Control/release data | `A1_DATA_DIR` | `%LOCALAPPDATA%\\a1` | `$XDG_DATA_HOME/a1` or `~/.local/share/a1` |
+| Release data | `A1_DATA_DIR` | `%LOCALAPPDATA%\\a1` | `$XDG_DATA_HOME/a1` or `~/.local/share/a1` |
 | Runtime | `A1_RUNTIME_DIR` | `%LOCALAPPDATA%\\a1\\runtime` | `$XDG_RUNTIME_DIR/a1` or `<data>/runtime` |
-| Database | `A1_DATABASE_PATH` | `<data>/control.sqlite3` | `<data>/control.sqlite3` |
-| Endpoint | `A1_ENDPOINT` | runtime-scoped `a1-*` named pipe | `<runtime>/supervisor.sock` |
 
 ### Identity hard cut and cleanup
 
-A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old processes: `%APPDATA%\\AddOne` and `%LOCALAPPDATA%\\AddOne` on Windows, or the former `addone` directories under XDG config, data, and runtime roots on Unix. This cleanup is manual and never imports data into A1.
+A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, or schemas. Remove obsolete control state only after stopping old processes: `%APPDATA%\\AddOne` and `%LOCALAPPDATA%\\AddOne` on Windows, or the former `addone` directories under XDG config, data, and runtime roots on Unix. This cleanup is manual and never imports data into A1.
 
 Do **not** remove `~/.a1/agent`; it is A1's current Pi profile root. `~/.pi/agent` remains the vanilla Pi profile.
 
@@ -118,7 +113,7 @@ The required PR naming job inspects complete new and changed source files. `npm 
 Prompt history has a separate default: `<effective-home>/.a1/data/history/<profile-id>.sqlite3`
 on Windows, Linux, and macOS. The effective home follows launch-profile resolution
 (`A1_PROFILE_HOME` or the OS home), not `XDG_DATA_HOME`. An explicit `A1_DATA_DIR`
-continues to select `<A1_DATA_DIR>/history` as well as the control/release data root.
+continues to select `<A1_DATA_DIR>/history` as well as the release data root.
 The home-based history default does not relocate the paths above or the compile
 cache at `<data>/cache/compile`. See [prompt history](../features/prompt-history.md)
 for the deliberate fresh start without migration, privacy, and manual removal.

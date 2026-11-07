@@ -29,7 +29,6 @@ describe("inventory-driven product identity governance", () => {
     expect(reasons).toEqual(new Set([
       "documented hard-cut or deprecation assertion",
       "explicit obsolete-package rejection or deprecation fixture",
-      "exact historical evidence record",
       "obsolete-package rejection requirement",
       "explicit legacy rejection fixture",
     ]));

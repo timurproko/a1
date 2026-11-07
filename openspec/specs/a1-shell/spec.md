@@ -19,10 +19,10 @@ result.
 
 The application SHALL NOT expose any `update:<selector>` command or `a1 update self`
 alias. Removed forms SHALL be unsupported silent no-ops and SHALL NOT resolve the
-registry, start the supervisor, install anything, or print migration guidance.
+registry, start the interactive runtime, install anything, or print migration guidance.
 
 #### Scenario: Replace the current preview
-- **WHEN** the user runs `a1 update --develop` while an older verified A1 cohort is active
+- **WHEN** the user runs `a1 update --develop` while an older verified A1 release is active
 - **THEN** A1 SHALL perform the replacement transaction using the exact version selected by the internal development dist-tag and return to the terminal prompt
 
 #### Scenario: Selected channel is current
@@ -30,16 +30,16 @@ registry, start the supervisor, install anything, or print migration guidance.
 - **THEN** A1 SHALL report that the channel is current without reinstalling it
 
 #### Scenario: Ownership cannot be verified
-- **WHEN** A1 cannot prove that a process belongs to the active cohort
-- **THEN** the update SHALL fail safely without terminating that process or deleting control state
+- **WHEN** A1 cannot prove that the update lease, transaction, or immutable release store belongs to the expected installation
+- **THEN** the update SHALL fail safely without terminating any process or deleting release or update state
 
 #### Scenario: Update is interrupted
 - **WHEN** an update is interrupted after a durable transaction phase
-- **THEN** the next invocation SHALL continue or roll back to one verified active cohort without manual cleanup
+- **THEN** the next invocation SHALL continue or roll back to one verified active release without manual cleanup
 
 #### Scenario: Another target was interrupted by a process that is gone
 - **WHEN** the user runs `a1 update --develop 828` while the update lease names a process that is no longer alive and the durable transaction targets `0.2.7-dev.835`
-- **THEN** A1 SHALL roll that transaction back to its prior verified cohort, say that the interrupted `0.2.7-dev.835` update was rolled back, and install preview 828 in the same invocation
+- **THEN** A1 SHALL roll that transaction back to its prior verified release, say that the interrupted `0.2.7-dev.835` update was rolled back, and install preview 828 in the same invocation
 
 #### Scenario: Launch after a completed update
 - **WHEN** the user runs bare `a1` after the update command reported success
@@ -58,7 +58,7 @@ registry, start the supervisor, install anything, or print migration guidance.
 - **THEN** A1 SHALL exit successfully without output or side effects
 
 ### Requirement: Version output follows the Pi command convention
-The installed application SHALL expose `a1 version` as the preferred version command and SHALL retain equivalent `a1 --version` and `a1 -v` compatibility forms. None of those forms SHALL start or mutate the interactive runtime, supervisor, storage, release cohort, or update transaction. Stable releases and development builds SHALL both report `Current`, `Develop`, and `Release` in that order. Both SHALL discover authoritative package dist-tags as one coherent result; an absent development tag SHALL be unavailable without a diagnostic, while discovery failure SHALL make every remote field unavailable with one concise `A1` diagnostic, keep the `Current` line, and exit successfully.
+The installed application SHALL expose `a1 version` as the preferred version command and SHALL retain equivalent `a1 --version` and `a1 -v` compatibility forms. None of those forms SHALL start or mutate the interactive runtime, release store, active release, or update transaction. Stable releases and development builds SHALL both report `Current`, `Develop`, and `Release` in that order. Both SHALL discover authoritative package dist-tags as one coherent result; an absent development tag SHALL be unavailable without a diagnostic, while discovery failure SHALL make every remote field unavailable with one concise `A1` diagnostic, keep the `Current` line, and exit successfully.
 
 A development build SHALL append the recorded pull request to its `Current` line as ` (#<number>)` when its installed manifest records one. Both stable releases and development builds SHALL append the recorded pull request to their `Develop` line when the development head's published manifest records one and that manifest can be read within the discovery budget. A missing or unreadable record SHALL leave the bare version on that line without a diagnostic. Stable `Current` lines and `Release` lines SHALL NOT carry a pull request.
 
@@ -94,55 +94,16 @@ A development build SHALL append the recorded pull request to its `Current` line
 - **WHEN** the user runs the formerly unsupported `a1 version` notation
 - **THEN** A1 SHALL now treat it as the preferred equivalent of `a1 --version` and `a1 -v`
 
-### Requirement: Interactive launch forms use the owned Pi UI pipeline
-Bare `a1` SHALL launch the A1-owned product surface through resident tabs on supported platforms (Windows x64, Linux x64, macOS arm64). Argument-free `a1 solo` SHALL launch the same owned product surface directly as one fresh agent; `a1 solo --session <path|id>` with an optional session directory SHALL resume the selected session directly. Both solo forms SHALL have no tab strip, Tabs settings section, or resident-host initialization. Explicit prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1-specific surfaces withheld and Pi's ordinary user profile selected. Profile selection SHALL NOT introduce transparent child attachment, a PTY, a terminal parser, a byte relay, or a second rendering path. The redundant `a1 ui` route SHALL NOT be exposed. Each resident tab SHALL run the same owned product UI in its own holder-owned pseudoterminal; pseudoterminals, terminal models, and composition SHALL exist only inside the resident terminal-host capability. Direct solo and Pi-comparison runtimes SHALL share only the canonical session-writer admission guard with resident runtimes; this guard SHALL NOT initialize a terminal host. An unsupported platform or resident-host startup failure SHALL leave bare `a1` on the direct owned path.
-
-#### Scenario: Launch bare A1
-- **WHEN** the user runs `a1`
-- **THEN** A1 SHALL start the owned product UI without requiring a profile argument
-
-#### Scenario: Launch after a prior exit
-- **WHEN** the user runs bare A1 after a previous resident foreground client exited
-- **THEN** A1 SHALL reattach to the running tabs and present their current retained surfaces
-
-#### Scenario: Launch bare A1 with resident tabs
-- **WHEN** the user runs `a1` on a supported platform
-- **THEN** every tab SHALL run the owned product UI, and Node SHALL NOT read, relay, or render tab terminal bytes
-
-#### Scenario: Launch solo A1
-- **WHEN** the user runs argument-free `a1 solo`
-- **THEN** A1 SHALL start a fresh direct single-agent owned UI without a tab strip or Tabs settings section and SHALL NOT start the resident host
-
-#### Scenario: Resume solo A1
-- **WHEN** the user runs a supported `a1 solo --session <path|id>` form
-- **THEN** A1 SHALL start the same direct single-agent owned UI for the selected saved session without a tab strip or resident host
-
-#### Scenario: Reject solo arguments
-- **WHEN** the user supplies unsupported arguments after `a1 solo`
-- **THEN** A1 SHALL reject the command without starting an interactive runtime
-
-#### Scenario: Resident tabs are unsupported
-- **WHEN** the platform is unsupported or the resident host cannot start safely
-- **THEN** bare A1 SHALL use the direct single-agent owned path and SHALL NOT leave an unverified resident host running
-
-#### Scenario: Resident tabs are not enabled
-- **WHEN** the user runs `a1 solo` or bare A1 uses unsupported-platform fallback
-- **THEN** A1 SHALL use the direct single-agent owned path and SHALL NOT start the resident host
-
-#### Scenario: Launch the Pi comparison
-- **WHEN** the user runs prerelease `a1 pi`
-- **THEN** A1 SHALL use the shared owned pipeline with product surfaces withheld and Pi's ordinary profile selected
-
-#### Scenario: Request the removed development alias
-- **WHEN** the user runs `a1 ui`
-- **THEN** A1 SHALL reject the unsupported profile and SHALL NOT silently select another runtime
-
 ### Requirement: Stable platform claims require certification
-The owned terminal UI architecture SHALL remain application-agnostic across its native platform launchers, but a stable terminal support or parity claim for a platform SHALL require the separately deferred physical and exact-package certification for that platform.
+The owned terminal UI SHALL be pure JavaScript on Node and SHALL carry no platform-specific native artifact. A stable support claim for a platform SHALL require that platform's exact-package validation lane to pass; no physical terminal, native addon, or terminal-host certification SHALL be required or implied.
 
 #### Scenario: Uncertified preview is published
-- **WHEN** a manually accepted candidate passes applicable non-desktop gates without complete physical certification
-- **THEN** it MAY publish only as an explicitly uncertified development preview and SHALL NOT move npm `latest` or claim stable cross-platform support
+- **WHEN** a manually accepted candidate passes its selected gates on some but not all supported platform lanes
+- **THEN** it MAY publish only as an explicitly uncertified development preview and SHALL NOT move npm `latest` or claim stable support for the unvalidated platforms
+
+#### Scenario: The package is inspected
+- **WHEN** a published package is unpacked on any platform
+- **THEN** it SHALL contain no `.node` addon, native manifest, or platform-specific directory
 
 ### Requirement: Official npm distribution has one fresh package identity
 The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its independent stable version lineage at `0.1.0`, and SHALL declare only `a1` as a public executable. Internal process entry files MAY remain in the package payload but SHALL NOT be installed as public npm executables. After `@timurproko/a1@0.1.0` is verified, every published version of the obsolete `@timurproko/addone` package SHALL be deprecated toward `@timurproko/a1`. The obsolete package SHALL NOT be retained as a compatibility package; later unpublication MAY occur as owner-controlled registry administration when npm policy permits.
@@ -170,42 +131,81 @@ Version discovery, self-update, installed metadata lookup, immutable release der
 - **WHEN** `a1 --version`, `a1 update`, or `a1 update:next` resolves npm metadata
 - **THEN** every registry query and installation target SHALL reference `@timurproko/a1`
 
-### Requirement: Interactive launch forms share one non-detachable instance boundary
-The immutable interactive launcher SHALL establish the same non-detachable launch-instance ownership boundary before selecting bare `a1`, `a1 solo`, or prerelease `a1 pi`. All forms SHALL retain the shared owned rendering and input pipeline inside that boundary. The lifecycle layer SHALL own process containment and cleanup without reading terminal input, parsing output, reconstructing display state, or selecting a second rendering path. Bare `a1`'s launch instance SHALL own its attach client and every ordinary descendant that client creates, without enabling job-wide breakaway, while the resident server, session holders, and tab processes SHALL belong to the explicit resident terminal-host capability.
+### Requirement: Interrupted update preserves the public command
+After an update accepts cancellation or loses its invoking updater or terminal process, A1 SHALL automatically leave or restore the complete platform launcher set needed to invoke `a1`. The recovered command SHALL execute either the prior verified immutable release or the completely installed target and SHALL retain the durable update transaction needed to continue or roll back. Recovery SHALL require no manual npm installation, launcher reconstruction, process termination, or A1 state deletion.
 
-#### Scenario: Launch owned A1 directly
-- **WHEN** the shell selects `a1 solo` or bare `a1` must use unsupported-platform fallback
-- **THEN** the owned product UI and every process it creates SHALL belong to that command's launch instance
+#### Scenario: User cancels during global package replacement
+- **WHEN** the user interrupts `a1 update` while the package manager has removed or renamed a public launcher
+- **THEN** A1 SHALL coordinate cancellation and SHALL NOT return an acknowledged cancellation to the shell until the complete platform launcher set is callable
+
+#### Scenario: Invoking updater or terminal exits
+- **WHEN** the invoking updater or its terminal process exits during global package replacement
+- **THEN** an independently surviving recovery owner SHALL complete a safe package boundary or restore a verified recovery launcher without user intervention
+
+#### Scenario: User invokes a restored recovery launcher
+- **WHEN** package replacement did not leave a complete installed target and the user next invokes `a1`
+- **THEN** the launcher SHALL use verified recovery evidence to run the prior immutable release or continue the recorded transaction to one verified active or rollback release
+
+#### Scenario: Recovery authority is invalid
+- **WHEN** launcher recovery evidence names an unexpected path, package, transaction, release identity, or changed launcher payload
+- **THEN** A1 SHALL reject that evidence and SHALL NOT execute or install content from it
+
+### Requirement: Interactive launch forms use the owned Pi UI pipeline directly
+Bare `a1` SHALL launch the A1-owned single-agent UI directly, and `a1 --session <path|id>` SHALL resume the selected session in that same UI. Prerelease `a1 pi` SHALL use the same owned rendering and input pipeline with A1 surfaces withheld and Pi's ordinary profile selected. No launch form SHALL present a tab strip, start a resident host or bridge, run more than one agent, or introduce a PTY, terminal parser, or byte relay. The `solo`, `tabs`, and `ui` words SHALL NOT be exposed.
+
+#### Scenario: Launch bare A1
+- **WHEN** the user runs `a1`
+- **THEN** A1 SHALL start one fresh direct single-agent owned UI without a tab strip, resident host, or profile argument
+
+#### Scenario: Resume a session
+- **WHEN** the user runs a supported `a1 --session <path|id>` form
+- **THEN** A1 SHALL start the same direct single-agent owned UI for the selected saved session
+
+#### Scenario: Launch after a prior exit
+- **WHEN** the user runs bare `a1` after a previous session exited
+- **THEN** A1 SHALL start a fresh session and SHALL NOT look for, reattach to, or restore earlier running agents
+
+#### Scenario: Launch the Pi comparison
+- **WHEN** the user runs prerelease `a1 pi`
+- **THEN** A1 SHALL use the shared owned pipeline with product surfaces withheld and Pi's ordinary profile selected
+
+#### Scenario: Removed words are given
+- **WHEN** the user runs `a1 solo`, `a1 tabs`, or `a1 ui`
+- **THEN** A1 SHALL treat the word as outside the grammar and return quietly without selecting another runtime
+
+#### Scenario: Two launches select one session
+- **WHEN** two A1 processes select the same canonical session file
+- **THEN** the shared session-writer guard, implemented without native code, SHALL admit one writer and apply the existing safe conflict behavior to the other
+
+### Requirement: Interactive launch forms run as one directly attached process
+Every interactive launch SHALL run as one directly attached process tree: the launcher selects the approved immutable release and runs its UI entry with inherited standard streams, and nothing survives the launcher. The launcher SHALL start no supervisor, detached host, job object, or process group, SHALL NOT read terminal input or parse output, and SHALL NOT select a second rendering path. Closing the terminal SHALL end the tree through ordinary operating-system behavior.
 
 #### Scenario: Launch owned A1
-- **WHEN** the shell selects `a1 solo` or bare `a1` uses unsupported-platform fallback
-- **THEN** the owned product UI and every process it creates SHALL belong to that command's launch instance
-
-#### Scenario: Launch owned A1 with resident tabs
-- **WHEN** the shell selects bare `a1` on a supported platform
-- **THEN** the attach client SHALL belong to that command's launch instance
-- **AND** the resident server, holders, and tab processes SHALL be started only through the explicit resident capability and SHALL NOT be members of the launch instance
+- **WHEN** the shell selects bare `a1` or `a1 --session …`
+- **THEN** the owned product UI SHALL run as the launcher's one directly attached child and SHALL exit when the launcher's terminal closes
 
 #### Scenario: Launch the Pi comparison
 - **WHEN** the shell selects prerelease `a1 pi`
-- **THEN** the owned comparison UI and every process it creates SHALL belong to that command's launch instance without changing the shared rendering pipeline
+- **THEN** the owned comparison UI SHALL run under the same single-process boundary without changing the shared rendering pipeline
 
 #### Scenario: Another instance is active
 - **WHEN** the shell launches while one or more interactive instances already exist
-- **THEN** it SHALL create another independent instance rather than acquiring a product-wide foreground slot
+- **THEN** it SHALL create another independent process tree rather than acquiring a product-wide foreground slot or contacting the other instances
 
-### Requirement: Help is explicit and unsupported commands are quiet
-The installed application SHALL expose `a1 help` as the preferred complete-help command and SHALL retain equivalent `a1 --help` and `a1 -h` compatibility forms. Complete help and generated usage SHALL advertise only the bare launch and `--session` launch forms, `solo`, the `session` context forms, and the direct `help`, `version`, `install`, `remove`, `uninstall`, `list`, `update`, and `tabs` forms and SHALL NOT include a compatibility-alias section or package forms under `a1 pi`. Explicit help on recognized direct or compatibility package commands SHALL print focused help for A1's supported subset without executing the command. Direct `a1 update --help` SHALL describe the supported stable, development, extension, model, and single-package update forms together. `a1 tabs --help` SHALL describe the resident-tab maintenance forms without probing or starting a resident server. A1 SHALL NOT append the complete application or command help to command failures; a focused syntax diagnostic MAY include pinned-style usage guidance for the affected supported command.
+#### Scenario: The UI exits uncleanly
+- **WHEN** the UI child ends with an unexpected status while the launcher still owns the terminal
+- **THEN** the launcher SHALL perform the bounded terminal reset and print the armed resume notice once, and SHALL NOT restart the child
 
-A word outside the supported command grammar SHALL be a silent successful no-op. It SHALL write nothing to stdout or stderr and SHALL NOT start an interactive runtime, supervisor, shell, update, package operation, or model refresh. A malformed invocation whose leading command is recognized MAY fail with one focused diagnostic and applicable usage guidance. A1-only update-selector errors SHALL retain their focused product-specific diagnostics.
+### Requirement: Help advertises the single-agent grammar and unsupported commands are quiet
+Help and usage SHALL advertise only the bare launch, the `--session` launch, the `session` context forms, and the direct `help`, `version`, `install`, `remove`, `uninstall`, `list`, and `update` forms, never `solo`, `tabs`, alias sections, or `a1 pi` package forms; `a1 help`, `--help`, and `-h` SHALL be equivalent. A word outside the grammar SHALL be a silent successful no-op that starts nothing. A malformed recognized command MAY fail with one focused diagnostic, never the complete help.
 
 #### Scenario: Help is requested
 - **WHEN** the user runs `a1 help`, `a1 --help`, or `a1 -h`
 - **THEN** A1 SHALL print the same direct-command list appropriate to that build and exit successfully without launching a runtime
-- **AND** the list SHALL omit compatibility help/version flags and `a1 pi` package aliases
+- **AND** the list SHALL omit `solo`, `tabs`, compatibility help/version flags, and `a1 pi` package aliases
 
 #### Scenario: Unknown top-level word is given
-- **WHEN** the user runs `a1 sdjjhd`
+- **WHEN** the user runs `a1 sdjjhd`, `a1 solo`, or `a1 tabs`
 - **THEN** A1 SHALL exit successfully with empty stdout and stderr and SHALL invoke no operation
 
 #### Scenario: Unknown Pi operation is given
@@ -229,42 +229,19 @@ A word outside the supported command grammar SHALL be a silent successful no-op.
 - **WHEN** a recognized direct or compatibility package command has a missing source, unexpected argument, or genuinely unknown option
 - **THEN** A1 SHALL emit its pinned-style diagnostic and focused usage guidance for the invoked namespace rather than the complete command help
 
-#### Scenario: Resident-tab maintenance help is requested
-- **WHEN** the user runs `a1 tabs --help`
-- **THEN** A1 SHALL print the `a1 tabs` maintenance forms and exit successfully without probing or starting a resident server, profile preparation, or runtime launch
+#### Scenario: Update help is requested
+- **WHEN** the user runs `a1 update --help`
+- **THEN** A1 SHALL describe the stable, development, extension, model, and single-package update forms together and exit without updating
 
-#### Scenario: Resident-tab maintenance command is malformed
-- **WHEN** the user runs `a1 tabs` with an unknown subcommand or option
-- **THEN** A1 SHALL fail with one concise diagnostic and a nonzero status, without the complete help text and without contacting a resident server
-
-### Requirement: Interrupted update preserves the public command
-After an update accepts cancellation or loses its invoking updater or terminal process, A1 SHALL automatically leave or restore the complete platform launcher set needed to invoke `a1`. The recovered command SHALL execute either the prior verified immutable release or the completely installed target and SHALL retain the durable update transaction needed to continue or roll back. Recovery SHALL require no manual npm installation, launcher reconstruction, process termination, or A1 state deletion.
-
-#### Scenario: User cancels during global package replacement
-- **WHEN** the user interrupts `a1 update` while the package manager has removed or renamed a public launcher
-- **THEN** A1 SHALL coordinate cancellation and SHALL NOT return an acknowledged cancellation to the shell until the complete platform launcher set is callable
-
-#### Scenario: Invoking updater or terminal exits
-- **WHEN** the invoking updater or its terminal process exits during global package replacement
-- **THEN** an independently surviving recovery owner SHALL complete a safe package boundary or restore a verified recovery launcher without user intervention
-
-#### Scenario: User invokes a restored recovery launcher
-- **WHEN** package replacement did not leave a complete installed target and the user next invokes `a1`
-- **THEN** the launcher SHALL use verified recovery evidence to run the prior immutable release or continue the recorded transaction to one verified active or rollback cohort
-
-#### Scenario: Recovery authority is invalid
-- **WHEN** launcher recovery evidence names an unexpected path, package, transaction, release identity, or changed launcher payload
-- **THEN** A1 SHALL reject that evidence and SHALL NOT execute or install content from it
-
-### Requirement: Installed interactive startup is measurable and bounded
-A1 SHALL measure invocation-to-first-usable-frame startup without changing normal terminal output. A first usable frame means the selected owned UI has painted and its editor accepts input. On the accepted Windows release runner, the first `a1` or `a1 pi` launch after a completed exact-package update or after loss of the active release's live supervisor SHALL reach that state within 5 seconds, and a subsequent warm launch SHALL reach it within 3 seconds.
+### Requirement: Installed interactive startup is measurable and bounded across update, restart, and warm launches
+A1 SHALL measure invocation-to-first-usable-frame startup without changing normal terminal output. A first usable frame means the selected owned UI has painted and its editor accepts input. On the accepted Windows release runner, the first `a1` or `a1 pi` launch after a completed exact-package update or after a machine restart SHALL reach that state within 5 seconds, and a subsequent warm launch SHALL reach it within 3 seconds.
 
 #### Scenario: Launch follows a successful update
 - **WHEN** the exact packaged updater reports success and the user starts either supported interactive profile on the accepted Windows release runner
 - **THEN** the selected UI SHALL paint an input-ready frame within 5 seconds of command invocation
 
-#### Scenario: Launch follows supervisor loss or machine restart
-- **WHEN** an approved active release remains installed but its previously verified supervisor is absent or dead after process loss, sign-out, or machine restart
+#### Scenario: Launch follows machine restart
+- **WHEN** an approved active release remains installed and no A1 process has run since sign-out or machine restart
 - **THEN** either supported interactive profile SHALL validate the selected immutable content and paint an input-ready frame within 5 seconds of command invocation
 
 #### Scenario: Launch uses warmed immutable content
@@ -273,16 +250,16 @@ A1 SHALL measure invocation-to-first-usable-frame startup without changing norma
 
 #### Scenario: Startup tracing is enabled
 - **WHEN** an isolated diagnostic run explicitly enables startup timing evidence
-- **THEN** A1 SHALL report bounded durations for bootstrap, durable release validation, supervisor startup, guardian startup, UI module loading, Pi services, resource loading, session creation, and first render without exposing credentials or prompt/session content
+- **THEN** A1 SHALL report bounded durations for bootstrap, durable release validation, UI child startup, UI module loading, Pi services, resource loading, session creation, and first render without exposing credentials or prompt/session content
 
 #### Scenario: Startup tracing is not enabled
 - **WHEN** the user performs an ordinary interactive launch
 - **THEN** A1 SHALL not print startup timing detail or an additional loading transcript
 
-### Requirement: Interactive startup evaluates a bounded readiness graph
-An installed interactive launch SHALL load and evaluate before first input-ready render only the runtime capabilities required to render the selected profile and safely accept user input. Settings, engine initialization, selected session state, model scope, executable resources, tools, extensions, terminal behavior, and launch containment that affect the first accepted prompt SHALL be ready before that frame. Optional workflows and presentation features that do not affect those guarantees SHALL NOT enlarge the eager startup graph.
+### Requirement: Interactive startup evaluates a bounded single-process readiness graph
+An installed interactive launch SHALL load and evaluate before first input-ready render only the runtime capabilities required to render the selected profile and safely accept user input. Settings, engine initialization, selected session state, model scope, executable resources, tools, extensions, and terminal behavior that affect the first accepted prompt SHALL be ready before that frame. Optional workflows and presentation features that do not affect those guarantees SHALL NOT enlarge the eager startup graph.
 
-On the accepted Defender-enabled Windows release runner, every interactive profile the candidate itself advertises SHALL reach the first input-ready frame within 2 seconds after a completed update and on a warm launch. When the active release has no live supervisor, each advertised profile SHALL reach that frame within 2.5 seconds. The measured set SHALL follow the candidate's own version-derived capabilities rather than a fixed pair: a prerelease candidate advertises `a1` and `a1 pi` and SHALL measure both, while a stable candidate advertises `a1` alone and SHALL measure it alone and SHALL prove that `a1 pi` remains the quiet no-op that a non-prerelease build is required to expose. The deliberate absence of the comparison profile SHALL NOT be recorded as a startup failure or as a missing measurement. These budgets SHALL apply to every supported Windows Node lane and SHALL be evaluated on the first attempt of every measurement. Stable publication SHALL fail on any first-attempt overrun. Development previews, nightly publication, and complete regression SHALL record every measurement as evidence and SHALL judge a lane, profile, and launch kind regressed only when its three most recent consecutive `develop` measurements of the same workflow all exceed the budget; a single overrun on those channels is a warning with the measured phases, never a run failure.
+On the accepted Defender-enabled Windows release runner, every interactive profile the candidate itself advertises SHALL reach the first input-ready frame within 2 seconds after a completed update and on a warm launch. On a restart-equivalent launch, in which no A1 process has run since the approved active release was last validated, each advertised profile SHALL reach that frame within 2.5 seconds. The measured set SHALL follow the candidate's own version-derived capabilities rather than a fixed pair: a prerelease candidate advertises `a1` and `a1 pi` and SHALL measure both, while a stable candidate advertises `a1` alone and SHALL measure it alone and SHALL prove that `a1 pi` remains the quiet no-op that a non-prerelease build is required to expose. The deliberate absence of the comparison profile SHALL NOT be recorded as a startup failure or as a missing measurement. These budgets SHALL apply to every supported Windows Node lane and SHALL be evaluated on the first attempt of every measurement. Stable publication SHALL fail on any first-attempt overrun. Development previews, nightly publication, and complete regression SHALL record every measurement as evidence and SHALL judge a lane, profile, and launch kind regressed only when its three most recent consecutive `develop` measurements of the same workflow all exceed the budget; a single overrun on those channels is a warning with the measured phases, never a run failure.
 
 #### Scenario: First launch follows update
 - **WHEN** a completed exact-package update has activated and warmed a new release
@@ -292,9 +269,9 @@ On the accepted Defender-enabled Windows release runner, every interactive profi
 - **WHEN** the active release and dependency layer have already served an interactive launch
 - **THEN** every advertised interactive profile SHALL paint a genuinely input-ready frame within 2 seconds
 
-#### Scenario: Launch replaces a missing supervisor
-- **WHEN** an approved active release has valid durable certification but no live supervisor
-- **THEN** every advertised interactive profile SHALL validate the release, start its replacement supervisor, and paint a genuinely input-ready frame within 2.5 seconds
+#### Scenario: Restart-equivalent launch
+- **WHEN** an approved active release has valid durable certification and no A1 process has run since it was last validated
+- **THEN** every advertised interactive profile SHALL validate the release, start its UI child, and paint a genuinely input-ready frame within 2.5 seconds
 
 #### Scenario: A stable candidate advertises no comparison profile
 - **WHEN** first-attempt startup validation runs against a candidate whose version declares no prerelease

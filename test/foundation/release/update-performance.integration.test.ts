@@ -4,20 +4,13 @@ import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import {
   assertUpdatePerformanceBudget,
   certifyMaterializedRelease,
   CohortStateStore,
-  createUpdateLifecycleCoordinator,
   materializeRelease,
-  readEndpointMetadata,
-  releaseVerifiedIdleOwner,
-  startSupervisor,
-  waitForVerifiedEndpoint,
   type ReleaseContentOperationEvent,
 } from "../../../src/foundation/release/index.js";
-import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 
 const repository = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const roots: string[] = [];
@@ -28,22 +21,12 @@ describe("packaged update activation performance", () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-update-performance-"));
     roots.push(root);
     const dataDir = resolve(root, "data");
-    const runtimeDir = resolve(root, "runtime");
-    const environment = {
-      ...process.env,
-      [PRODUCT_IDENTITY.environment.dataDir]: dataDir,
-      [PRODUCT_IDENTITY.environment.runtimeDir]: runtimeDir,
-      [PRODUCT_IDENTITY.environment.configDir]: resolve(root, "config"),
-      [PRODUCT_IDENTITY.environment.databasePath]: resolve(root, "control.sqlite3"),
-    };
     const operations: ReleaseContentOperationEvent[] = [];
     const startedAt = performance.now();
-    let release: Awaited<ReturnType<typeof materializeRelease>> | undefined;
-
-    try {
+    {
       let excludedFiles = 0;
       let excludedBytes = 0;
-      release = await materializeRelease(repository, dataDir, {
+      const release = await materializeRelease(repository, dataDir, {
         onOperation: event => operations.push(event),
         onRuntimeInventory: inventory => { excludedFiles = inventory.excludedFiles; excludedBytes = inventory.excludedBytes; },
       });
@@ -53,9 +36,6 @@ describe("packaged update activation performance", () => {
       await state.recordCandidate(release);
       await state.approve(release.releaseId, diagnostics);
       await state.activate(release.releaseId);
-      const startup = await startSupervisor(release, environment);
-      const cohort = resolveCohortEndpoint(resolveProductPaths(environment), release.releaseId, environment);
-      await waitForVerifiedEndpoint(cohort.endpointMetadataPath, release, 8_000, startup);
 
       const durationMs = performance.now() - startedAt;
       const counts = operationCounts(operations);
@@ -73,17 +53,7 @@ describe("packaged update activation performance", () => {
         payloadExcludedBytes: excludedBytes,
         postNpmDurationMs: durationMs,
       }, process.platform === "win32" ? 30_000 : Number.POSITIVE_INFINITY);
-      expect(await readEndpointMetadata(cohort.endpointMetadataPath)).toMatchObject({ releaseId: release.releaseId });
       expect((await state.read()).references).toMatchObject({ active: release.releaseId, pending: null });
-    } finally {
-      if (release) {
-        // Invariant: an update leaves a live cohort alone now, so the supervisor this test started is
-        // this test's to stop.
-        const cohort = resolveCohortEndpoint(resolveProductPaths(environment), release.releaseId, environment);
-        const owner = await readEndpointMetadata(cohort.endpointMetadataPath);
-        if (owner) await releaseVerifiedIdleOwner(owner, dataDir).catch(() => {});
-        await createUpdateLifecycleCoordinator(environment).shutdownVerifiedOwners(release.packageVersion).catch(() => {});
-      }
     }
   }, 60_000);
 

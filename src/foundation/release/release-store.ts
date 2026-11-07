@@ -217,8 +217,8 @@ export async function repairMaterializedRelease(packageRoot: string, releaseRoot
 
 /**
  * Load metadata for a release whose bytes were already certified by the
- * current parent process or an authenticated live supervisor. Callers must
- * establish one of those preconditions; untrusted releases require full
+ * current parent process or recorded by an authenticated certification. Callers must
+ * establish that precondition; untrusted releases require full
  * verification.
  */
 export async function readCertifiedReleaseManifest(

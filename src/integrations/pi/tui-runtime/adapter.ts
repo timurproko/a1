@@ -53,8 +53,8 @@ const LEGACY_KEY_BYTES: Readonly<Record<string, string>> = {
 };
 
 /**
- * Re-encodes one key report decoded by pi-tui in the legacy form, so a kitty-keyboard child
- * (resident tabs) and a legacy terminal produce the same owned-screen action. Releases decode
+ * Re-encodes one key report decoded by pi-tui in the legacy form, so a kitty-keyboard terminal
+ * and a legacy terminal produce the same owned-screen action. Releases decode
  * to nothing; mouse reports, paste, and unknown sequences pass through unchanged.
  */
 export function legacyKeyInput(data: string): string {

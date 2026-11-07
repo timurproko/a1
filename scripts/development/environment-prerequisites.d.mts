@@ -1,5 +1,4 @@
 import type { VersionProbeResult } from "./environment-probe.mjs";
-import type { MsvcResolution } from "./native-build-environment.mjs";
 
 export type PrerequisiteSeverity = "required" | "advisory";
 export interface PrerequisiteCheck {
@@ -24,17 +23,9 @@ export interface EnvironmentObservation {
   readonly npm?: string | null;
   readonly git?: string | null;
   readonly githubCli?: string | null;
-  readonly cargo?: string | null;
-  readonly rustc?: string | null;
-  readonly cargoSource?: string;
-  readonly rustcSource?: string;
-  readonly cargoResolution?: string;
-  readonly rustcResolution?: string;
-  readonly msvc?: MsvcResolution;
   readonly dependencies?: DependencyObservation;
   readonly probes?: Readonly<Record<string, VersionProbeResult>>;
 }
-export const CARGO_RANGE: string;
 export const BLOCKING: "required";
 export const ADVISORY: "advisory";
 export function parseVersion(text: unknown): readonly [number, number, number] | null;

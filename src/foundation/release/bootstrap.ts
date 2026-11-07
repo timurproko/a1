@@ -1,17 +1,11 @@
 import { spawn } from "node:child_process";
-import { RESIDENT_DETACH_INTERVAL_MS, restoreAfterOwnedExit } from "../terminal-cleanup/index.js";
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { connect } from "node:net";
+import { randomUUID } from "node:crypto";
+import { deliverExitNotice, restoreAfterOwnedExit } from "../terminal-cleanup/index.js";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { selectCohortLaunch } from "./cohort-selection.js";
-import { recoverSupervisorEndpoint } from "./endpoint-recovery.js";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
-import { releaseChannelOf } from "./latest-release.js";
-import { CohortStateStore, type CohortState, type SupervisorEndpointMetadata } from "./cohort-state.js";
-import { assertLaunchProfileId, createSupervisorStartupAttempt, readSupervisorStartupResult, resolveCohortEndpoint, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId, type SupervisorStartupAttemptIdentity } from "../lifecycle/index.js";
-import { encodeFrame, LineFrameDecoder } from "../protocol/index.js";
-import { cleanupProvenIdleOwner, processIsAlive } from "./process-cleanup.js";
-import { probeOwnership, readEndpointMetadata, removeEndpointArtifacts, sweepDeadEndpoints } from "./endpoints.js";
+import { CohortStateStore, type CohortState } from "./cohort-state.js";
+import { assertLaunchProfileId, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId } from "../lifecycle/index.js";
 import { UpdateTransactionStore } from "./update-transaction.js";
 import { selectUpdateLaunchRelease } from "./update-launch.js";
 import { assertCertifiedFilesPresent, consumeMaterializationProof, materializeRelease, readCertifiedReleaseManifest, readMaterializedRelease, repairMaterializedRelease, resolveReleaseEntryPoint, verifyMaterializedRelease, type CertifiedReleaseRecord, type MaterializedRelease, type VerifyMaterializedReleaseOptions } from "./release-store.js";
@@ -19,40 +13,28 @@ import { scheduleReleaseCleanup } from "./release-gc.js";
 import { createRestartSeal, readRestartCertifiedRelease, releaseCertificationDocument } from "./restart-certification.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { markStartupPhase } from "../startup/index.js";
-import { PRIVATE_ENVIRONMENT, isCurrentLaunchContract, launchContractTarget, readLaunchContext, withLaunchContext, type LaunchContext } from "../launch-context/index.js";
-import { assertResidentContinuity, ensureTerminalHost, readResidentTabLaunchSettings, selectResidentHost, type EnsureTerminalHostOptions, type EnsureTerminalHostResult } from "../resident-tabs/index.js";
+import { launchContractTarget, readLaunchContext, withLaunchContext } from "../launch-context/index.js";
 
 export interface BootstrapOptions {
   readonly packageRoot: string;
-  readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId; readonly launchMode: "tabs" | "solo"; readonly sessionSelection?: SessionSelection };
+  readonly launchIntent?: { readonly kind: "interactive"; readonly profileId: LaunchProfileId; readonly sessionSelection?: SessionSelection };
   readonly environment?: NodeJS.ProcessEnv;
   readonly output?: Pick<NodeJS.WriteStream, "write">;
   /** Optional package-resolution probe that excludes a damaged retained release. */
   readonly releaseIsLaunchable?: (releaseRoot: string) => boolean;
-  /** Test seam for bounded maintenance scheduled after stale endpoint sweeping. */
+  /** Test seam for bounded maintenance scheduled before the UI starts. */
   readonly scheduleMaintenance?: (dataDir: string, paths: ReturnType<typeof resolveProductPaths>) => Promise<void>;
-  /** Test seam for resident launch routing before the guardian starts. */
-  readonly ensureTerminalHost?: (options: EnsureTerminalHostOptions) => Promise<EnsureTerminalHostResult>;
-  /** Test seam for whether this process's standard input and output are terminals; absent reads them. */
-  readonly interactiveTerminal?: boolean;
 }
 
 const RELEASE_RESELECTION_MESSAGE = "a1-release-reselection";
 
 export async function runBootstrap(options: BootstrapOptions): Promise<number> {
-  try { return await runBootstrapAttempt(options, 1); }
-  catch (error) {
-    if (!(error instanceof Error && "code" in error && typeof error.code === "string" && error.code.startsWith("SUPERVISOR_RECOVERY_"))) throw error;
-    // Rationale: actionable recovery failures are a single line, not an uncaught Node stack trace.
-    (options.output ?? process.stderr).write(`${PRODUCT_TEXT.diagnostic(error.message)}\n`);
-    return 1;
-  }
+  return await runBootstrapAttempt(options, 1);
 }
 
 async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: number): Promise<number> {
   const launchProfileId = options.launchIntent?.profileId ?? "a1";
-  const launchMode = options.launchIntent?.launchMode ?? (launchProfileId === "a1" ? "tabs" : "solo");
-  const environment = withLaunchContext(options.environment ?? process.env, { launchProfile: launchProfileId, launchMode });
+  const environment = withLaunchContext(options.environment ?? process.env, { launchProfile: launchProfileId });
   await markStartupPhase(environment, "bootstrap-start");
   assertLaunchProfileId(launchProfileId);
   const sessionArgs = sessionSelectionArguments(options.launchIntent?.sessionSelection);
@@ -64,8 +46,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   await mkdir(paths.runtimeDir, { recursive: true, mode: 0o700 });
 
   const launchSelected = async (release: MaterializedRelease): Promise<number> => {
-    const residentContext = await residentLaunchContext(options, release, environment);
-    const result = await launchUi(release, environment, sessionArgs, residentContext);
+    const result = await launchUi(release, environment, sessionArgs, paths.runtimeDir);
     if (!result.releaseSuperseded) return result.code;
     if (retriesRemaining > 0) return await runBootstrapAttempt(options, retriesRemaining - 1);
     output.write(`${PRODUCT_TEXT.diagnostic("active release changed repeatedly during startup; launch could not converge")}\n`);
@@ -80,38 +61,15 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     const prior = selectUpdateLaunchRelease(await stateStore.read(), transaction);
     if (!prior) return null;
     const retained = await readCertifiedReleaseManifest(prior, resolve(paths.dataDir, "releases"));
-    await ensureSupervisor(retained, environment);
     return await launchSelected(retained);
   };
   const duringUpdate = await launchDuringUpdate();
   if (duringUpdate !== null) return duringUpdate;
-  // Invariant: records left by cohorts whose processes are gone say nothing about ownership, and there
-  // can now be several of them. Clearing them first keeps the decision below about what is
-  // actually running.
-  await sweepDeadEndpoints(paths).catch(() => []);
   // Performance: reconciliation is serialized by cohort state, but launch never awaits a physical
   // backlog. The scheduler commits a plan and starts a detached bounded worker.
   const scheduleMaintenance = options.scheduleMaintenance ?? scheduleReleaseCleanup;
   void scheduleMaintenance(paths.dataDir, paths).catch(() => {});
-  // Protocol: each cohort keeps its own endpoint, so a launch looks for the endpoint of the release it
-  // is about to run rather than for the one endpoint the runtime directory used to have.
-  const activeReleaseId = state.references.active;
-  let endpointPaths = activeReleaseId === null
-    ? { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath }
-    : resolveCohortEndpoint(paths, activeReleaseId, environment);
-  let endpoint = await readEndpointMetadata(endpointPaths.endpointMetadataPath);
-  if (endpoint === null) {
-    // Compatibility: a release that predates cohort-scoped endpoints published one endpoint for the whole
-    // runtime directory. Recognizing it is what lets a session started by that release keep
-    // working through the first launch that knows about cohorts.
-    const legacy = await readEndpointMetadata(paths.endpointMetadataPath);
-    if (legacy !== null) {
-      endpoint = legacy;
-      endpointPaths = { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath };
-    }
-  }
-  let probe = endpoint ? await probeOwnership(endpoint) : "dead";
-  const installedVersion = await readInstalledVersion(options.packageRoot); if (releaseChannelOf(installedVersion) !== null) environment[PRIVATE_ENVIRONMENT.updateVersion] = installedVersion;
+  const installedVersion = await readInstalledVersion(options.packageRoot);
   const activeId = state.references.active;
   const active = activeId === null ? undefined : state.releases[activeId];
   let activeIsLaunchable = active === undefined || (options.releaseIsLaunchable?.(active.releaseRoot) ?? true);
@@ -130,15 +88,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     }
   }
   if (activeIsLaunchable && active?.approval === "approved" && active.packageVersion === installedVersion) {
-    const endpointMatches = endpoint?.releaseId === active.releaseId
-      && endpoint.releaseRoot === active.releaseRoot
-      && endpoint.contentDigest === active.contentDigest;
-    if (endpointMatches && probe === "live-verified") {
-      const retained = await readCertifiedReleaseManifest(active, resolve(paths.dataDir, "releases"));
-      return await launchSelected(retained);
-    }
-    if (endpoint === null || probe === "dead") {
-      if (endpoint) await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint, endpoint);
+    {
       await markStartupPhase(environment, "durable-validation-start");
       const retained = await readRestartCertifiedRelease(active, paths.dataDir).catch(async () => {
         let verified: MaterializedRelease;
@@ -154,9 +104,6 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
       }).catch(() => null);
       if (retained !== null) {
         await markStartupPhase(environment, "durable-validation-complete");
-        await markStartupPhase(environment, "replacement-supervisor-start");
-        await ensureSupervisor(retained, environment);
-        await markStartupPhase(environment, "replacement-supervisor-ready");
         return await launchSelected(retained);
       }
       activeIsLaunchable = false;
@@ -172,7 +119,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   try {
     candidate = await materializeRelease(options.packageRoot, paths.dataDir);
   } catch (error) {
-    const fallback = await launchRetainedActive(state, paths, environment, launchSelected, excludedRetainedReleaseId);
+    const fallback = await launchRetainedActive(state, paths, launchSelected, excludedRetainedReleaseId);
     if (fallback === null) throw error;
     return fallback;
   }
@@ -187,7 +134,6 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     const retainedRecord = state.releases[ordinarySelection];
     if (!retainedRecord || retainedRecord.approval !== "approved") throw new Error("selected active release is not approved");
     const retained = await readCertifiedReleaseManifest(retainedRecord, resolve(paths.dataDir, "releases"));
-    await ensureSupervisor(retained, environment);
     return await launchSelected(retained);
   }
 
@@ -197,132 +143,15 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
     await stateStore.approve(candidate.releaseId, diagnosticsPath);
   }
-  try {
-    await assertResidentContinuity({ releaseRoot: candidate.releaseRoot, dataDir: paths.dataDir, environment,
-      profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir, runtimeDir: paths.runtimeDir });
-  } catch (error) {
-    const fallback = await launchRetainedActive(await stateStore.read(), paths, environment, launchSelected, excludedRetainedReleaseId);
-    if (fallback !== null) return fallback;
-    throw error;
-  }
   state = await stateStore.activateForLaunch(candidate.releaseId, !activeIsLaunchable ? activeId ?? undefined : undefined);
   if (state.references.active !== candidate.releaseId) {
     const retainedRecord = state.references.active === null ? undefined : state.releases[state.references.active];
     if (!retainedRecord || retainedRecord.approval !== "approved") throw new Error("ordinary launch has no approved active release");
     const retained = await readCertifiedReleaseManifest(retainedRecord, resolve(paths.dataDir, "releases"));
-    await ensureSupervisor(retained, environment);
     return await launchSelected(retained);
   }
 
-  // Protocol: the candidate's own endpoint decides whether this launch attaches or starts a supervisor.
-  // A cohort other than this one is not in the way: it listens somewhere else.
-  endpointPaths = resolveCohortEndpoint(paths, candidate.releaseId, environment);
-  endpoint = await readEndpointMetadata(endpointPaths.endpointMetadataPath);
-  if (endpoint === null) {
-    const legacy = await readEndpointMetadata(paths.endpointMetadataPath);
-    if (legacy?.releaseId === candidate.releaseId) {
-      endpoint = legacy;
-      endpointPaths = { endpoint: paths.endpoint, endpointMetadataPath: paths.endpointMetadataPath };
-    }
-  }
-  probe = endpoint ? await probeOwnership(endpoint) : "dead";
-  let decision = selectCohortLaunch(candidate, state, endpoint, probe);
-
-  if (decision.action === "blocked") {
-    // Concurrency: reread through the common recovery path rather than fail on an old snapshot.
-    await ensureSupervisor(candidate, environment);
-    return await launchSelected(candidate);
-  }
-
-  if (endpoint && probe === "dead") {
-    await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint, endpoint);
-  }
-
-  if (decision.action === "launch-retained-ui") {
-    const retainedRecord = state.releases[decision.releaseId];
-    const retained = retainedRecord?.approval === "approved"
-      ? await readCertifiedReleaseManifest(retainedRecord, resolve(paths.dataDir, "releases"))
-      : await verifyMaterializedRelease(decision.releaseRoot, undefined, resolve(paths.dataDir, "releases"));
-    if (decision.recordPending && endpoint) {
-      await stateStore.blockPending("candidate activation deferred by live non-resumable instances", endpoint.ownership.nonResumableInstanceIds);
-    }
-    const code = await launchSelected(retained);
-    if (decision.recordPending) await activatePendingAfterBlockerExit(candidate, stateStore, paths, environment);
-    return code;
-  }
-
-  if (decision.action === "replace-idle-cohort" && endpoint) {
-    const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
-    await stateStore.approve(candidate.releaseId, diagnosticsPath);
-    const released = await requestIdleOwnershipRelease(endpoint, candidate.releaseId, 2_000);
-    if (!released) {
-      await stateStore.blockPending("idle supervisor did not verify ownership release", endpoint.ownership.liveInstanceIds);
-      output.write(`${PRODUCT_TEXT.diagnostic("could not verify idle cohort ownership release; the retained release remains selected.")}\n`);
-      return 1;
-    }
-    if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) {
-      await stateStore.blockPending("idle supervisor acknowledged release but did not terminate", endpoint.ownership.liveInstanceIds);
-      output.write(`${PRODUCT_TEXT.diagnostic("could not complete bounded idle cohort shutdown; the candidate remains pending.")}\n`);
-      return 1;
-    }
-    await removeEndpointArtifacts(endpointPaths.endpointMetadataPath, endpointPaths.endpoint, endpoint);
-    await stateStore.activate(candidate.releaseId);
-    decision = { action: "activate-candidate", releaseId: candidate.releaseId, releaseRoot: candidate.releaseRoot, reason: "idle cohort released ownership" };
-  }
-
-  let selected: MaterializedRelease;
-  if (decision.action === "activate-candidate") {
-    const current = await stateStore.read();
-    if (current.releases[candidate.releaseId]?.approval !== "approved") {
-      const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
-      await stateStore.approve(candidate.releaseId, diagnosticsPath);
-    }
-    const activated = (await stateStore.read()).references.active === candidate.releaseId
-      ? await stateStore.read()
-      : await stateStore.activateForLaunch(candidate.releaseId);
-    if (activated.references.active === candidate.releaseId) selected = candidate;
-    else {
-      const retainedRecord = activated.references.active === null ? undefined : activated.releases[activated.references.active];
-      if (!retainedRecord || retainedRecord.approval !== "approved") throw new Error("ordinary launch has no approved active release");
-      selected = await readCertifiedReleaseManifest(retainedRecord, resolve(paths.dataDir, "releases"));
-    }
-  } else {
-    selected = await readMaterializedRelease(decision.releaseRoot);
-  }
-
-  await ensureSupervisor(selected, environment);
-  return await launchSelected(selected);
-}
-
-/** Select only client routing; a resident reconnect never asks execution to restart. */
-async function residentLaunchContext(options: BootstrapOptions, release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<LaunchContext> {
-  const paths = resolveProductPaths(environment);
-  const profileId = options.launchIntent?.profileId ?? "a1";
-  const mode = options.launchIntent?.launchMode ?? (profileId === "a1" ? "tabs" : "solo");
-  const agentProfileDir = environment.PI_CODING_AGENT_DIR ?? paths.configDir;
-  const residentLaunchSettings = profileId === "a1" ? readResidentTabLaunchSettings(agentProfileDir, PRODUCT_IDENTITY.commandName, paths.configDir, profileId) : null;
-  const resident = await selectResidentHost({
-    profileId, currentLaunchContract: isCurrentLaunchContract(release), solo: mode === "solo",
-    interactive: options.interactiveTerminal ?? (process.stdin.isTTY === true && process.stdout.isTTY === true),
-    ensureHost: async () => (options.ensureTerminalHost ?? ensureTerminalHost)({
-      releaseRoot: release.releaseRoot, profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
-      dataDir: paths.dataDir, runtimeDir: paths.runtimeDir, environment,
-      maxConcurrentStarts: (await residentLaunchSettings!).maxConcurrentStarts, unresponsiveRestartSeconds: (await residentLaunchSettings!).unresponsiveRestartSeconds,
-    }),
-  });
-  if (resident === null) return {};
-  if (resident.status !== "ready") return { residentFallback: resident.reason };
-  return {
-    residentRootExecutable: resident.executable.executable,
-    residentRootArguments: JSON.stringify([
-      resident.executable.entry, "attach", "--workspace", "--endpoint", resident.endpoint,
-      "--cwd", process.cwd(), "--clear-exit-ms", String(RESIDENT_DETACH_INTERVAL_MS),
-      "--profile", environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir,
-      "--settings-file", resolve(agentProfileDir, "settings.json"), "--accent-color", (await residentLaunchSettings!).accentColor,
-      "--data-dir", paths.dataDir, "--runtime-dir", paths.runtimeDir,
-      "--release-root", release.releaseRoot, "--node-executable", process.execPath,
-    ]),
-  };
+  return await launchSelected(candidate);
 }
 
 /**
@@ -334,7 +163,6 @@ async function residentLaunchContext(options: BootstrapOptions, release: Materia
 async function launchRetainedActive(
   state: CohortState,
   paths: ReturnType<typeof resolveProductPaths>,
-  environment: NodeJS.ProcessEnv,
   launch: (release: MaterializedRelease) => Promise<number>,
   excludedReleaseId?: string,
 ): Promise<number | null> {
@@ -343,7 +171,6 @@ async function launchRetainedActive(
   if (!active || active.approval !== "approved" || active.releaseId === excludedReleaseId) return null;
   try {
     const retained = await readCertifiedReleaseManifest(active, resolve(paths.dataDir, "releases"));
-    await ensureSupervisor(retained, environment);
     return await launch(retained);
   } catch {
     return null;
@@ -397,67 +224,26 @@ export async function recordParentCertifiedRelease(release: MaterializedRelease,
   return path;
 }
 
-export interface SupervisorStartupAttempt extends SupervisorStartupAttemptIdentity {
-  readonly childOutcome: Promise<{ readonly exitCode: number | null; readonly signal: NodeJS.Signals | null }>;
-}
-
-/** Reuse a verified owner, or join the winner if another launch starts the same cohort first. */
-export async function ensureSupervisor(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<void> {
-  const paths = resolveCohortEndpoint(resolveProductPaths(environment), release.releaseId, environment);
-  await recoverSupervisorEndpoint({
-    metadataPath: paths.endpointMetadataPath,
-    endpoint: paths.endpoint,
-    matches: metadata => endpointMatchesRelease(metadata, release),
-    startAndWait: async () => {
-      const startup = await startSupervisor(release, environment);
-      await waitForVerifiedEndpoint(paths.endpointMetadataPath, release, 8_000, startup);
-    },
-  });
-}
-
-function endpointMatchesRelease(metadata: SupervisorEndpointMetadata, release: MaterializedRelease): boolean {
-  return metadata.releaseId === release.releaseId && metadata.releaseRoot === release.releaseRoot
-    && metadata.contentDigest === release.contentDigest;
-}
-
-export async function startSupervisor(release: MaterializedRelease, environment: NodeJS.ProcessEnv): Promise<SupervisorStartupAttempt> {
-  const entry = await resolveReleaseEntryPoint(release, "bin/supervisor.js");
-  const paths = resolveProductPaths(environment);
-  const attempt = await createSupervisorStartupAttempt(paths.runtimeDir, release.releaseId);
-  const child = spawn(process.execPath, [entry, "--startup-attempt", attempt.attemptId], {
-    detached: true,
-    env: releaseEnvironment(environment, release),
-    stdio: "ignore",
-    windowsHide: true,
-  });
-  const childOutcome = new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>(resolvePromise => {
-    child.once("close", (exitCode, signal) => resolvePromise({ exitCode, signal }));
-  });
-  await new Promise<void>((resolvePromise, rejectPromise) => {
-    child.once("spawn", resolvePromise);
-    child.once("error", rejectPromise);
-  });
-  child.unref();
-  return { ...attempt, childOutcome };
-}
-
+/**
+ * Run the selected release's UI as the one attached child. The launcher still owns the terminal,
+ * so when the child ends uncleanly it restores the terminal and prints any notice the UI left armed.
+ */
 async function launchUi(
   release: MaterializedRelease,
   environment: NodeJS.ProcessEnv,
   sessionArgs: readonly string[],
-  residentContext: LaunchContext = {},
+  runtimeDir: string,
 ): Promise<{ readonly code: number; readonly releaseSuperseded: boolean }> {
   await markStartupPhase(environment, "bootstrap-selected");
-  const entry = await resolveReleaseEntryPoint(release, "bin/guardian.js");
+  const entry = await resolveReleaseEntryPoint(release, "bin/ui.js");
+  const ownsTerminal = readLaunchContext(environment).launchProfile === "a1";
+  const noticeDirectory = resolve(runtimeDir, "exit-notices");
+  const noticePath = resolve(noticeDirectory, `${randomUUID()}.notice`);
+  if (ownsTerminal) await mkdir(noticeDirectory, { recursive: true, mode: 0o700 });
+  const launchEnvironment = releaseEnvironment(environment, release, readLaunchContext(environment, "profile").launchProfile);
+  if (ownsTerminal) launchEnvironment[PRODUCT_IDENTITY.environment.exitNoticePath] = noticePath;
   return await new Promise((resolvePromise, rejectPromise) => {
     let releaseSuperseded = false;
-    const releaseEnv = releaseEnvironment(environment, release, readLaunchContext(environment, "profile").launchProfile);
-    const launchEnvironment = Object.keys(residentContext).length === 0 ? releaseEnv : withLaunchContext(
-      releaseEnv,
-      { ...readLaunchContext(releaseEnv), ...residentContext },
-      process.platform,
-      launchContractTarget(release),
-    );
     const child = spawn(process.execPath, [entry, ...sessionArgs], {
       env: launchEnvironment,
       stdio: ["inherit", "inherit", "inherit", "ipc"],
@@ -469,12 +255,12 @@ async function launchUi(
       }
     });
     child.once("error", rejectPromise);
-    child.once("close", (code, signal) => resolvePromise({
-      code: releaseSuperseded
-        ? code ?? 1
-        : restoreAfterOwnedExit(readLaunchContext(environment).launchProfile === "a1", code, signal),
-      releaseSuperseded,
-    }));
+    child.once("close", (code, signal) => {
+      const outcome = releaseSuperseded ? code ?? 1 : restoreAfterOwnedExit(ownsTerminal, code, signal);
+      // Invariant: the UI removes its notice on a clean exit; one still armed means the UI died.
+      if (ownsTerminal) deliverExitNotice(noticePath, message => process.stderr.write(message));
+      resolvePromise({ code: outcome, releaseSuperseded });
+    });
   });
 }
 
@@ -484,129 +270,11 @@ async function launchUi(
  * version instead of failing while an installation is being replaced.
  */
 export function releaseEnvironment(environment: NodeJS.ProcessEnv, release: MaterializedRelease, profile?: LaunchProfileId): NodeJS.ProcessEnv {
-  const context = readLaunchContext(environment);
   return withLaunchContext(environment, {
     releaseId: release.releaseId,
     releaseLayers: (release.dependencyLayers ?? []).map(layer => layer.layerId).join(","),
     releaseRoot: release.releaseRoot,
     releaseDigest: release.contentDigest,
     ...(profile === undefined ? {} : { launchProfile: profile }),
-    ...(context.launchMode === undefined ? {} : { launchMode: context.launchMode }),
-    ...(context.updateVersion === undefined ? {} : { updateVersion: context.updateVersion }),
   }, process.platform, launchContractTarget(release));
 }
-
-export async function waitForVerifiedEndpoint(
-  path: string,
-  release: MaterializedRelease,
-  timeoutMs: number,
-  startup?: SupervisorStartupAttempt,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  let childOutcome: { readonly exitCode: number | null; readonly signal: NodeJS.Signals | null } | null = null;
-  let collision: Error | null = null;
-  void startup?.childOutcome.then(outcome => { childOutcome = outcome; });
-  while (Date.now() < deadline) {
-    const metadata = await readEndpointMetadata(path);
-    if (metadata && endpointMatchesRelease(metadata, release) && await probeOwnership(metadata, { attempts: 1 }) === "live-verified") {
-      if (startup) await rm(startup.resultPath, { force: true });
-      return;
-    }
-    if (startup) {
-      const result = await readSupervisorStartupResult(startup.resultPath, startup.attemptId, startup.releaseId);
-      if (result?.outcome === "failure") {
-        const error = Object.assign(new Error(PRODUCT_TEXT.diagnostic(`supervisor startup failed at ${result.stage}: ${result.message}`)), {
-          code: result.code ?? "SUPERVISOR_STARTUP_FAILED",
-        });
-        if (result.code !== "EADDRINUSE") throw error;
-        // Concurrency: the winning process may not have published its authenticated metadata yet.
-        collision = error;
-      }
-    }
-    if (childOutcome && !collision) throw new Error(PRODUCT_TEXT.diagnostic(`supervisor exited before readiness: ${JSON.stringify(childOutcome)}`));
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
-  }
-  if (collision) throw collision;
-  throw new Error(PRODUCT_TEXT.diagnostic(`supervisor did not publish verified endpoint metadata within ${timeoutMs}ms`));
-}
-
-async function activatePendingAfterBlockerExit(
-  candidate: MaterializedRelease,
-  stateStore: CohortStateStore,
-  paths: ReturnType<typeof resolveProductPaths>,
-  environment: NodeJS.ProcessEnv,
-): Promise<void> {
-  const deadline = Date.now() + 2_000;
-  let endpoint: SupervisorEndpointMetadata | null = null;
-  while (Date.now() < deadline) {
-    endpoint = await readEndpointMetadata(paths.endpointMetadataPath);
-    if (!endpoint || endpoint.ownership.liveInstanceIds.length === 0) break;
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 40));
-  }
-  if (!endpoint || endpoint.ownership.liveInstanceIds.length > 0 || await probeOwnership(endpoint) !== "live-verified") return;
-  const diagnosticsPath = await certifyMaterializedRelease(candidate, paths.dataDir);
-  await stateStore.approve(candidate.releaseId, diagnosticsPath);
-  await assertResidentContinuity({ releaseRoot: candidate.releaseRoot, dataDir: paths.dataDir, environment,
-    profileRoot: environment[PRODUCT_IDENTITY.environment.profileHome] ?? paths.configDir, runtimeDir: paths.runtimeDir });
-  if (!await requestIdleOwnershipRelease(endpoint, candidate.releaseId, 2_000)) return;
-  if (!await releaseVerifiedIdleOwner(endpoint, paths.dataDir)) return;
-  await removeEndpointArtifacts(paths.endpointMetadataPath, paths.endpoint, endpoint);
-  await stateStore.activate(candidate.releaseId);
-  await ensureSupervisor(candidate, environment);
-}
-
-export async function releaseVerifiedIdleOwner(
-  metadata: SupervisorEndpointMetadata,
-  dataDir: string,
-  operations: {
-    readonly waitForExit?: typeof waitForProcessExit;
-    readonly cleanup?: typeof cleanupProvenIdleOwner;
-  } = {},
-): Promise<boolean> {
-  try {
-    // Protocol: the owner rechecks its boot nonce and live instances before cooperative exit.
-    // A durable idle snapshot alone never authorizes a signal to a still-live process.
-    await requestIdleOwnershipRelease(metadata, metadata.releaseId, 2_000);
-    await (operations.waitForExit ?? waitForProcessExit)(metadata.pid, 3_000);
-    return true;
-  } catch {
-    // Security: a lingering Windows handle can keep numeric PID probes positive after exit.
-    // Native observation may retire that exact dead boot, but never signals a still-live owner.
-    const diagnostics = await (operations.cleanup ?? cleanupProvenIdleOwner)(metadata);
-    await writeFile(resolve(dataDir, `cleanup-${Date.now()}.json`), JSON.stringify(diagnostics, null, 2));
-    return diagnostics.terminated;
-  }
-}
-
-async function requestIdleOwnershipRelease(metadata: SupervisorEndpointMetadata, candidateReleaseId: string, timeoutMs: number): Promise<boolean> {
-  return await new Promise(resolvePromise => {
-    const socket = connect(metadata.endpoint);
-    const decoder = new LineFrameDecoder();
-    let settled = false;
-    const finish = (released: boolean) => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      resolvePromise(released);
-    };
-    socket.once("error", () => finish(false));
-    socket.once("connect", () => socket.write(encodeFrame({ type: "release-idle-ownership", bootNonce: metadata.bootNonce, candidateReleaseId })));
-    socket.on("data", chunk => {
-      try {
-        const message = decoder.push(chunk)[0] as Record<string, unknown> | undefined;
-        if (message?.type === "release-ownership-result") finish(message.released === true);
-      } catch { finish(false); }
-    });
-    setTimeout(() => finish(false), timeoutMs).unref();
-  });
-}
-
-export async function waitForProcessExit(pid: number, timeoutMs: number): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (!processIsAlive(pid)) return;
-    await new Promise(resolvePromise => setTimeout(resolvePromise, 25));
-  }
-  throw new Error(PRODUCT_TEXT.diagnostic(`supervisor ${pid} did not release process ownership within ${timeoutMs}ms`));
-}
-

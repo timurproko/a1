@@ -289,16 +289,16 @@ Acceptance SHALL demonstrate actual same-instance recovery, safe commit accounti
 - **AND** draft, browse ordering, cursor behavior, input responsiveness, and configured retention SHALL remain intact
 - **AND** captured notifications, status, transcript, stdout, stderr, and exit output SHALL contain no prompt-history failure or recovery notices
 
-### Requirement: Durable history can be isolated by agent session
-Unique mode SHALL keep separate durable prompt history and image sidecars for each stable agent session within a profile, whether the agents run in distinct `a1 solo` processes or concurrent resident tabs. Shared mode SHALL continue to use the existing profile-wide database and sidecars for all agent sessions in that profile. Switching scope SHALL NOT transfer, import, merge, delete, or silently read records from the other scope. Both modes SHALL preserve the existing per-store limits, failure behavior, and transcript-based/session-local recall.
+### Requirement: Durable history can be isolated per agent session
+Unique mode SHALL keep separate durable prompt history and image sidecars for each stable agent session within a profile, including agents running concurrently in distinct `a1` processes. Shared mode SHALL continue to use the existing profile-wide database and sidecars for all agent sessions in that profile. Switching scope SHALL NOT transfer, import, merge, delete, or silently read records from the other scope. Both modes SHALL preserve the existing per-store limits, failure behavior, and transcript-based/session-local recall.
 
-#### Scenario: Two solo agents run concurrently with Unique history
-- **WHEN** two new `a1 solo` sessions share a profile and history root with Unique selected
+#### Scenario: Two agents run concurrently with Unique history
+- **WHEN** two new `a1` sessions share a profile and history root with Unique selected
 - **THEN** each SHALL recall only its own committed durable prompts, plus its own existing local and transcript fallback
 - **AND** neither SHALL modify the other's database or image sidecars
 
-#### Scenario: Resident tabs have distinct durable histories
-- **WHEN** two new resident Agent tabs run under the same profile with Unique selected
+#### Scenario: Concurrent agents share one scope setting
+- **WHEN** two new `a1` processes run under the same profile with Unique selected
 - **THEN** each SHALL read and write a different durable history while sharing the same global scope setting
 
 #### Scenario: Resume or fork an agent session

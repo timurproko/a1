@@ -1,151 +1,73 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-11-06T19:51:16.809Z",
+  "generatedAt": "2026-11-07T09:55:09.712Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
-      "id": "docs/architecture/evidence/terminal-host-spike/manual-one-pane-terminal-host.md:5:48",
-      "value": "addone",
-      "fingerprint": "697ec2b80f802c2a5916f143b5332664f1bf0e6258d588b380cf219016ad1d62",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md:7:48",
-      "value": "addone",
-      "fingerprint": "e2b8bd538f130c2f9ca6b1c4c5631521cd19cbbe6fb28644197d1ec863ec22c8",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md:28:106",
-      "value": "AddOne",
-      "fingerprint": "c047dfa940e62c68d10edf38dbb84839af43636702722a72c8fab816626add87",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:2:14",
-      "value": "addone",
-      "fingerprint": "f0d43747c75b4f726a735b6de521beb533ccee27747b3ec1261748fa30e975c1",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:21:26",
-      "value": "addone",
-      "fingerprint": "3295a52df4ffe9db4d82c5520503cbd8fd520ee04adda480e7a3ef2d1b3ae48b",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:29:31",
-      "value": "addone",
-      "fingerprint": "4ff433c77ea2c6e6e057685f3e6171a693b6b4c7f067092b63b443091ce0204c",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:47:6",
-      "value": "addone",
-      "fingerprint": "f845aa1770d80b8f2c1689571edbbb227c3203547792ca3a4f628e3ab9ea3372",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:102:16",
-      "value": "addone",
-      "fingerprint": "f75983763e5d0d2b683836dc7e2b47412b46c9712c5f87d18b26e1117aa80074",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:2:14",
-      "value": "addone",
-      "fingerprint": "fff66638ae03f076fcd11f49c52b76feb79ac9b52626ab6400d9af478833109c",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:11:29",
-      "value": "addone",
-      "fingerprint": "823f4d04dd7ac79ef0e1daa1125bd07cbda1bad154b489b7eccbf59147235463",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:13:51",
-      "value": "addone",
-      "fingerprint": "3416dadefebdf6b5b7108c77d1b00a2015f051c9f5b842b4b18ebff2c72dcb96",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:21:82",
-      "value": "AddOne",
-      "fingerprint": "1d68b1efa840ecdd2bf5e2900aa2dc29cc452114c47a1c18ff374aaf461527e8",
-      "reason": "exact historical evidence record"
-    },
-    {
-      "id": "docs/architecture/toolchain.md:104:37",
+      "id": "docs/architecture/toolchain.md:99:37",
       "value": "ADDONE",
-      "fingerprint": "3fb14e0c8f369cece20a61a5daf13050a97ba27ea6123ccb520fde312b5252d8",
+      "fingerprint": "28044f124dfeae2f985d3504db5d10d79f954dac3e39873e4bb0ea4153152911",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:104:59",
+      "id": "docs/architecture/toolchain.md:99:59",
       "value": "AddOne",
-      "fingerprint": "c635faf223ad6ba4b115a840e11ad26611fdbea50535f4b4c8a1d3cfbe970adc",
+      "fingerprint": "0e281c359ff773a11a5d4abcf98ab96c3815bcad3d605755b7eb45d5ff7d1898",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:104:68",
+      "id": "docs/architecture/toolchain.md:99:68",
       "value": "addone",
-      "fingerprint": "bf11c06ebbf35c5e46d87a2ae69563a4eb4bf348e70829aad61628515d00d605",
+      "fingerprint": "f9c81737afed0bccfb2d145ce67b9a30113ebeea54a5c5623d96cd358e044f21",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:104:255",
+      "id": "docs/architecture/toolchain.md:99:211",
       "value": "AddOne",
-      "fingerprint": "7032a2be39f19b6b16e638b6fc79dbb8d5744e5a1333bd673e5ab72161fcb4e5",
+      "fingerprint": "5ce986dfcccba2dc0d104095cb0301d36562a879f095cd9fd59a586f0016d7ec",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:104:284",
+      "id": "docs/architecture/toolchain.md:99:240",
       "value": "AddOne",
-      "fingerprint": "901128226423aa06a5277f3ca893d4aca34a382209ea8430eb196699416244e3",
+      "fingerprint": "658d0c7924039e25b6ae694935a6fcefea284bc940ae47d53b32947b100449af",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:104:319",
+      "id": "docs/architecture/toolchain.md:99:275",
       "value": "addone",
-      "fingerprint": "97e00c11b8b45894bef5698dade11e7c3211bb06d6de6f5fc6de8f57f49b4ddd",
+      "fingerprint": "fb5d58d65b596ac719afdc9f7514534197f6c63f0f5770103ac790cf0d627d07",
       "reason": "documented hard-cut or deprecation assertion"
     },
     {
-      "id": "docs/architecture/toolchain.md:108:39",
+      "id": "docs/architecture/toolchain.md:103:39",
       "value": "addone",
-      "fingerprint": "071aad773c1babb6adcc14b803b38faecd666cdf1d5d6dfa06429fe47fd967da",
+      "fingerprint": "711922dac811001e5af05e2325ef5bc713fd4436a4fe06d32fac33ac5b0ce8f9",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:148:391",
+      "id": "openspec/specs/a1-shell/spec.md:109:391",
       "value": "addone",
-      "fingerprint": "6ec8b088ce95e53a783cbf06384c587b57a4845843174fa85a49ad382c758f96",
+      "fingerprint": "bf2e7cfbd75e0b42e3f8dbfa549d726f5fde73b0a012c9f1b8dddc360442450e",
       "reason": "obsolete-package rejection requirement"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:160:52",
+      "id": "openspec/specs/a1-shell/spec.md:121:52",
       "value": "addone",
-      "fingerprint": "69dc0497ab37a3bc09fc2eeda323fbc5b3d22ea007683e652f2e52aa4361c504",
+      "fingerprint": "6f0330c22e998606f22d620e64cf98d40c7baee4d742df2cb62a838efe926625",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:163:322",
+      "id": "openspec/specs/a1-shell/spec.md:124:322",
       "value": "addone",
-      "fingerprint": "9441d9973393d183c40b80d31a060226232ca047aa271bb810c89c4fe5041388",
+      "fingerprint": "34fd10b6031e23f40e972d953e2b6b2f9120bcbf4e8f0c0b2510e79f53bbad36",
       "reason": "obsolete-package rejection requirement"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:167:84",
+      "id": "openspec/specs/a1-shell/spec.md:128:84",
       "value": "addone",
-      "fingerprint": "9d652198c003c6a0d063a65911d45fbf5ea4b66f5fff31d881c95b6ec33818a6",
+      "fingerprint": "1a791872275f1883f9b873e28f379cdd189345db25aebf9cb41803e1b73f4008",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
-    },
-    {
-      "id": "openspec/specs/launch-profiles/spec.md:10:315",
-      "value": "addone",
-      "fingerprint": "0b6a400944725108240927b232923969a6a9d7b8306034b1034016f72e8aefd9",
-      "reason": "obsolete-package rejection requirement"
     },
     {
       "id": "openspec/specs/product-identity/spec.md:51:172",
@@ -160,111 +82,93 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
+      "id": "test/features/launch/development-launch.test.ts:44:7",
+      "value": "ADDONE",
+      "fingerprint": "a6ecad1b7e751bbed2dcf9812366e7332ef28de704744c1367fa38889edc85c8",
+      "reason": "explicit legacy rejection fixture"
+    },
+    {
       "id": "test/features/launch/development-launch.test.ts:45:7",
       "value": "ADDONE",
-      "fingerprint": "44c2d4b8e737ca630daa5c421607cb19e073d36968cdb068cfd9da039ec1d4e2",
+      "fingerprint": "d88c03117a2c832cbb66e6d87e14d679d3d7a3696e846b84e00e379c6d13fa2a",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/features/launch/development-launch.test.ts:46:7",
       "value": "ADDONE",
-      "fingerprint": "6fd77982b91533c6653294c592f88947c2ea5924862c8a9ef9d6c4265bf42f32",
+      "fingerprint": "a8a5cbbeb76ea0ac49c9bb92c777aabcb12c867c0bb5d094c492b38095e28cdd",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/features/launch/development-launch.test.ts:47:7",
       "value": "ADDONE",
-      "fingerprint": "bf1ba13184e129544ae436fa30c47dade7064f4d1bc21cd598fd41e269a5fc28",
+      "fingerprint": "0037f5059dff679b63f94b477696d60b2cd3e4fb4bb73a0aa95ea05499b198ed",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/features/launch/development-launch.test.ts:48:7",
       "value": "ADDONE",
-      "fingerprint": "da05dc560bc934e40386abeb2a5a42ef211dfb7c52c8e0eca3b6eedb8eed685f",
+      "fingerprint": "e80b62550a3432fa3d970b4cba41cb26e4428613bb12116e5ff6032fa86c41a7",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/features/launch/development-launch.test.ts:49:7",
       "value": "ADDONE",
-      "fingerprint": "3f7bf9b7c70e5968ff25c030babff991d4f0ced85615adf3a7d47070b68b5c1a",
+      "fingerprint": "b5af6c8d5e9306979f9f5c3827a001cc4f6a965b5ccb81c0abab67224a2b5e37",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:50:7",
-      "value": "ADDONE",
-      "fingerprint": "59d29ae066279ad88cafdfb7c01ec20c9d373cdfa7703ac472ef39aca2e086a9",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:51:7",
-      "value": "ADDONE",
-      "fingerprint": "59ffc0efb3c65aabd9a4d84ef7f84c3d96be7c4b35f1f32499061ce4911c8e01",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/foundation/lifecycle/paths.test.ts:17:48",
+      "id": "test/foundation/lifecycle/paths.test.ts:15:48",
       "value": "AddOne",
-      "fingerprint": "c64040477768b3a3e11c3f77521c8d9689ef2556149083e248fd1b158c0587cf",
+      "fingerprint": "ef5c77c5cfb06b34848dd1f127542e898a4e2094327d21d4dd74ed154a631999",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:17:55",
+      "id": "test/foundation/lifecycle/paths.test.ts:15:55",
       "value": "addone",
-      "fingerprint": "05cdfa319da45d9f45815949f341887d24b624f35b85c3a5e06d160a67518152",
+      "fingerprint": "779fbb23556eacb4713c27f83828c95888460a2f4f5c9acec57f11d46f7433e8",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:35:48",
+      "id": "test/foundation/lifecycle/paths.test.ts:31:48",
       "value": "AddOne",
-      "fingerprint": "582746b23920458da7369d76931bcdc764cd9d46e999d64b17fdccca8aeabf1d",
+      "fingerprint": "9d6c14aa8258a7d7de1f91eaebba8a5ceec867f64261040a36e03ce8524ae59e",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:35:55",
+      "id": "test/foundation/lifecycle/paths.test.ts:31:55",
       "value": "addone",
-      "fingerprint": "5646264695dc31aca5de5b66fc78bb611f28696e8707d461221e1760cb4ba2b6",
+      "fingerprint": "5304298b97975e61bfdd0b8b75b5b5e4d8105f55511fe2bd3cb69982a5fabad5",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:63:7",
+      "id": "test/foundation/lifecycle/paths.test.ts:57:7",
       "value": "ADDONE",
-      "fingerprint": "fe1b8bb1a57c1a77e26cf64a54fd01fd345eecd850cebd1e11d68fd604d73306",
+      "fingerprint": "dc862ac50b5c3fcb6e653cf8bb91a283f376b6ad6214baa82df3f6c80bded489",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:64:7",
+      "id": "test/foundation/lifecycle/paths.test.ts:58:7",
       "value": "ADDONE",
-      "fingerprint": "24df2daabd3447c03a4ccb345748d35231f77cbd0d1dee2d6ea0a4d41da41780",
+      "fingerprint": "a86e3de93c44308dfd983add93cc000122aae3ae2c09cf928b8e8858bf186018",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:65:7",
+      "id": "test/foundation/lifecycle/paths.test.ts:59:7",
       "value": "ADDONE",
-      "fingerprint": "bc3a9c8ed05da81ebab15f437df29832d41f522a027336839c4fe0be4a10f014",
+      "fingerprint": "b61e74a9f14ba96781f76392dfe181f5f106303dfc3b2889fea5720d467629a7",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:66:7",
+      "id": "test/foundation/lifecycle/paths.test.ts:60:7",
       "value": "ADDONE",
-      "fingerprint": "e09db430dad2a418288294daf3d23f3cf505af3f18e74b89443405c29916423e",
+      "fingerprint": "9dec78d3ed4fcd5e144ab91a52043099a4a004269268f4e195cd3cc9751026ed",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:67:7",
-      "value": "ADDONE",
-      "fingerprint": "12947f8725393d8ca934ea927d063d54a55b1a68213e93ad77e983d7f635b067",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/foundation/protocol/protocol.test.ts:59:87",
+      "id": "test/foundation/release/cohort-state.test.ts:126:76",
       "value": "addone",
-      "fingerprint": "afb18a103d8ebf3a637cf075365f3886cbf0a9f15bbb147b0ea23237fe54ac86",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/foundation/release/cohort-state.test.ts:136:76",
-      "value": "addone",
-      "fingerprint": "bd82cd0554dfd37f6e4df3442c162e923a11f158956e0c062035d177da3abbe4",
+      "fingerprint": "fddfb435b630e3f4cf3883576618867d54e2bbff57899032f8c953e5a6c4845a",
       "reason": "explicit legacy rejection fixture"
     },
     {
@@ -280,9 +184,9 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:52:32",
+      "id": "test/foundation/release/package-surface.test.ts:50:32",
       "value": "addone",
-      "fingerprint": "50dda7bfc5fbd504724a00a17d69e734b7e92668dd0423b1eec82b3b5c5f4890",
+      "fingerprint": "fd15b741c7a1cd88fae2d75d0bfd6ad8a813fa6b7428d00f0c722027a307dbec",
       "reason": "explicit legacy rejection fixture"
     },
     {
@@ -322,21 +226,9 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:129:77",
-      "value": "addone",
-      "fingerprint": "b58d4af7886e0dac17cf4db9606efd9c4f42dd8bc30719d8ff6709833776dad4",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/foundation/storage/storage.test.ts:132:58",
-      "value": "addone",
-      "fingerprint": "103076018bf91a196d7374e29405579a6b4e1d66439967a50d204feabc385bd2",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/product-identity/product-identity.test.ts:71:65",
+      "id": "test/product-identity/product-identity.test.ts:68:65",
       "value": "ADDONE",
-      "fingerprint": "02325a6b5b562e18e16367ff72d4de37c56f0e19cded6e1d5fc198566506d53b",
+      "fingerprint": "ba597d24e6e38bab237ab42f99c65ac2f47db8ce3eaa40999bdaf6cdeedb3b46",
       "reason": "explicit legacy rejection fixture"
     },
     {
@@ -370,81 +262,81 @@
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:32:12",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:35:12",
       "value": "AddOne",
-      "fingerprint": "b57c37e51b41dfcffc25ad2716e24a1d80830c101de8aa094e0e708641a9abba",
+      "fingerprint": "dcb817bf217ee2bfff53569221cfdc8d54d90a001502e5535e8ec10bb5a79fb1",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:32:47",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:35:47",
       "value": "AddOne",
-      "fingerprint": "925e138437aecfd05ce7dd9191d140dfe2dd2052f1865b56b0be2e5f4a3ee175",
+      "fingerprint": "716657bd663acb017b2ac6fd0be4ffedad89900417618b190f3e4ecbd2f75334",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:32:70",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:35:70",
       "value": "addone",
-      "fingerprint": "c8b9077a9fe6e6b8793f2d9725f7da15aa7126f2778712758c8955b965f2fcb2",
+      "fingerprint": "a8f79952355f973f91d58bf9ac92b595e52c27f61792d3f1c0f6aaf8556d91e8",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:32:92",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:35:92",
       "value": "ADDONE",
-      "fingerprint": "196ccc02822622f135923d6f8bd1593409e3385f8fa436388bab28ec49698893",
+      "fingerprint": "6d35708901c02c64b96342f52dc5e211b351fb9864eae7d3d76bdc3ebc8d3058",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:33:64",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:36:64",
       "value": "AddOne",
-      "fingerprint": "2bda9506f1539de4c6066f7bfc1ab8bc5446a75c370298e221f33b0300155eea",
+      "fingerprint": "9ca46fb630cae8048c54fb2903f5e72790c18f56ccba99557fb773e30b0503f0",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:34:57",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:37:57",
       "value": "addone",
-      "fingerprint": "9da4d2a15bb5fbb8439249e20488d4622bc99b5883a13549e0c511f2cbd2cf0e",
+      "fingerprint": "750d17bcafdab70693a0c1c311d5badbbc02dfbef9aa694b55cb65affa497802",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:35:60",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:38:60",
       "value": "ADDONE",
-      "fingerprint": "cc92722a816a47c3f7f5eefbd39b0e4ceb79ad1ee3dc0292430f14ce1b3c9c0d",
+      "fingerprint": "8872a57203750beea790a60f5a888510482f875fbf619e2f59cd559832e137d4",
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:36:50",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:39:50",
       "value": "addone",
-      "fingerprint": "ecdea9804efffe21b7c51e361679a06e4e4a228ebd6bccd3af527e189f8dca83",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:41:8",
-      "value": "AddOne",
-      "fingerprint": "3e094bfad87c06f9efa1e335183cfc2bf82151a9b2fc0439c60b4ca10a2f69ea",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:42:8",
-      "value": "AddOne",
-      "fingerprint": "b202fbff84e90dedecd6240f06a39aa0ac826602d56af6e163547631567b2787",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:43:8",
-      "value": "AddOne",
-      "fingerprint": "4a9a98aec70e698b5278c8d1f8b9546e578f067b2302fb41aa44d183ad350a53",
+      "fingerprint": "1de32788e59046a1ff9365927c9b66aa3bf14ce3cad9125362d4b7a3d3d7fca5",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/repository-governance/product-identity-inventory.test.ts:44:8",
-      "value": "addone",
-      "fingerprint": "8343c521b30d8a82c52d20a3a88129158bfce52beb7cef7bbc940b919a383451",
+      "value": "AddOne",
+      "fingerprint": "8d73e4f2d103710e06e08729563b19b7d09541b4bc4f8f13e5e247b7eb188125",
       "reason": "explicit legacy rejection fixture"
     },
     {
       "id": "test/repository-governance/product-identity-inventory.test.ts:45:8",
+      "value": "AddOne",
+      "fingerprint": "584d84be8cf3e71efa2811dc552c953038057cf8e8ece583d1321c7fa66063b5",
+      "reason": "explicit legacy rejection fixture"
+    },
+    {
+      "id": "test/repository-governance/product-identity-inventory.test.ts:46:8",
+      "value": "AddOne",
+      "fingerprint": "6a7bb03efad096522e43f9e0f56585258784de269b0ac47fef501be02e520d3a",
+      "reason": "explicit legacy rejection fixture"
+    },
+    {
+      "id": "test/repository-governance/product-identity-inventory.test.ts:47:8",
+      "value": "addone",
+      "fingerprint": "19a2d6d1226dc0525975c0f04ea7a063d096f8e08498d55b6640b72893db60f8",
+      "reason": "explicit legacy rejection fixture"
+    },
+    {
+      "id": "test/repository-governance/product-identity-inventory.test.ts:48:8",
       "value": "ADDONE",
-      "fingerprint": "10c2b1519387a528824dedb11c486d54563302caf977aa3990e55f980e2920e1",
+      "fingerprint": "03d85f718c8e364950d46034b5bfce41f19760dbe9c33cdca957ff4c7e734bd0",
       "reason": "explicit legacy rejection fixture"
     }
   ]

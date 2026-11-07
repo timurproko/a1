@@ -13,8 +13,6 @@ describe("product identity authority", () => {
         configDir: "A1_CONFIG_DIR",
         dataDir: "A1_DATA_DIR",
         runtimeDir: "A1_RUNTIME_DIR",
-        databasePath: "A1_DATABASE_PATH",
-        endpoint: "A1_ENDPOINT",
       },
       state: {
         piAgentProfile: ".a1/agent",
@@ -22,8 +20,7 @@ describe("product identity authority", () => {
       },
       artifacts: {
         cliEntry: "bin/cli.js",
-        terminalHostAddon: "terminal-host",
-        terminalHostEntry: "host-entry",
+        uiEntry: "bin/ui.js",
       },
     });
     expect(allObjectsFrozen(PRODUCT_IDENTITY)).toBe(true);
@@ -51,7 +48,6 @@ describe("product identity authority", () => {
     candidate.filesystem.temporaryPrefix = "z1-";
     candidate.state.windowsControlDirectory = "z1";
     candidate.state.unixControlDirectory = "z1";
-    candidate.endpoint.windowsPipeStem = "z1";
     candidate.protocol = replaceValues(candidate.protocol, /^a1(?=-|$)/, "z1");
     candidate.evidence = replaceValues(candidate.evidence, /^a1-/, "z1-");
     candidate.environment = replaceValues(candidate.environment, /^A1_/, "Z1_");
@@ -67,7 +63,8 @@ describe("product identity authority", () => {
     ["non-object", null, /must be an object/],
     ["missing root key", without(structuredClone(PRODUCT_IDENTITY), "evidence"), /must contain exactly/],
     ["unknown root key", { ...structuredClone(PRODUCT_IDENTITY), duplicate: "A1" }, /must contain exactly/],
-    ["unknown nested key", { ...structuredClone(PRODUCT_IDENTITY), endpoint: { ...PRODUCT_IDENTITY.endpoint, duplicate: "a1" } }, /must contain exactly/],
+    ["unknown nested key", { ...structuredClone(PRODUCT_IDENTITY), manifest: { ...PRODUCT_IDENTITY.manifest, duplicate: "a1" } }, /must contain exactly/],
+    ["retired endpoint section", { ...structuredClone(PRODUCT_IDENTITY), endpoint: { windowsPipeStem: "a1" } }, /must contain exactly/],
     ["legacy environment prefix", withEnvironment("configDir", "ADDONE_CONFIG_DIR"), /must use A1_/],
     ["duplicate environment key", withEnvironment("dataDir", PRODUCT_IDENTITY.environment.configDir), /must be unique/],
     ["divergent namespace", { ...structuredClone(PRODUCT_IDENTITY), protocol: { ...PRODUCT_IDENTITY.protocol, namespace: "other" } }, /must match the command name/],
@@ -85,7 +82,6 @@ interface MutableIdentity extends Record<string, unknown> {
   filesystem: MutableStringRecord;
   environment: MutableStringRecord;
   state: MutableStringRecord;
-  endpoint: MutableStringRecord;
   protocol: MutableStringRecord;
   evidence: MutableStringRecord;
   artifacts: MutableStringRecord;

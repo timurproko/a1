@@ -43,229 +43,35 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 74,
-    "files": 23,
+    "total": 56,
+    "files": 16,
     "byLocationKind": {
-      "content": 74,
+      "content": 56,
       "path": 0
     },
     "byClass": {
-      "runtime-symbols": 49,
+      "runtime-symbols": 44,
       "diagnostics": 3,
-      "environment-keys": 14,
-      "paths": 50,
-      "schemas": 13,
-      "artifacts": 16,
-      "native-names": 3,
-      "tests": 49,
-      "current-docs-specs": 25,
-      "historical-records": 12,
+      "environment-keys": 12,
+      "paths": 42,
+      "schemas": 8,
+      "artifacts": 11,
+      "native-names": 1,
+      "tests": 44,
+      "current-docs-specs": 12,
+      "historical-records": 0,
       "explicit-obsolete-package-fixtures": 5
     }
   },
   "occurrences": [
     {
-      "id": "docs/architecture/evidence/terminal-host-spike/manual-one-pane-terminal-host.md:5:48",
-      "path": "docs/architecture/evidence/terminal-host-spike/manual-one-pane-terminal-host.md",
-      "locationKind": "content",
-      "line": 5,
-      "column": 48,
-      "value": "addone",
-      "context": "- Artifact: `native/terminal-host/target/debug/addone-terminal-host.exe`",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "artifacts",
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md:7:48",
-      "path": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md",
-      "locationKind": "content",
-      "line": 7,
-      "column": 48,
-      "value": "addone",
-      "context": "- Artifact: `native/terminal-host/target/debug/addone-terminal-host.exe`",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "artifacts",
-        "native-names",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md:28:106",
-      "path": "docs/architecture/evidence/terminal-host-spike/manual-two-by-two-basic-terminal-host.md",
-      "locationKind": "content",
-      "line": 28,
-      "column": 106,
-      "value": "AddOne",
-      "context": "Production tabs and panes are expected later to use authoritative arbitrary layouts selected through the AddOne UI. The proof implementation may be removed or replaced after the exact-artifact 2×2 gate is finished; it must not become the...",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:2:14",
-      "path": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-multi-agent-milestone-baseline-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:21:26",
-      "path": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json",
-      "locationKind": "content",
-      "line": 21,
-      "column": 26,
-      "value": "addone",
-      "context": "\"name\": \"@timurproko/addone\",",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:29:31",
-      "path": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json",
-      "locationKind": "content",
-      "line": 29,
-      "column": 31,
-      "value": "addone",
-      "context": "\"filename\": \"timurproko-addone-0.1.5-dev.10.tgz\",",
-      "matchedCase": "lower",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:47:6",
-      "path": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json",
-      "locationKind": "content",
-      "line": 47,
-      "column": 6,
-      "value": "addone",
-      "context": "\"addone\": {",
-      "matchedCase": "lower",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json:102:16",
-      "path": "docs/architecture/evidence/terminal-host-spike/milestone-baseline.json",
-      "locationKind": "content",
-      "line": 102,
-      "column": 16,
-      "value": "addone",
-      "context": "\"schema\": \"addone-development-preview-platform-verdict-v2\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:2:14",
-      "path": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json",
-      "locationKind": "content",
-      "line": 2,
-      "column": 14,
-      "value": "addone",
-      "context": "\"schema\": \"addone-multi-agent-owned-ui-prerequisite-v1\",",
-      "matchedCase": "lower",
-      "primaryClass": "schemas",
-      "classes": [
-        "schemas",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:11:29",
-      "path": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json",
-      "locationKind": "content",
-      "line": 11,
-      "column": 29,
-      "value": "addone",
-      "context": "\"package\": \"@timurproko/addone@0.1.5-dev.11\",",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:13:51",
-      "path": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json",
-      "locationKind": "content",
-      "line": 13,
-      "column": 51,
-      "value": "addone",
-      "context": "\"workflowRun\": \"https://github.com/timurproko/addone/actions/runs/32030101549\",",
-      "matchedCase": "lower",
-      "primaryClass": "paths",
-      "classes": [
-        "paths",
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json:21:82",
-      "path": "docs/architecture/evidence/terminal-host-spike/owned-ui-foundation-prerequisite.json",
-      "locationKind": "content",
-      "line": 21,
-      "column": 82,
-      "value": "AddOne",
-      "context": "\"extensionBoundary\": \"validated public ExtensionUIContext translated through AddOne-owned contracts\",",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "current-docs-specs",
-      "classes": [
-        "current-docs-specs",
-        "historical-records"
-      ]
-    },
-    {
-      "id": "docs/architecture/toolchain.md:104:37",
+      "id": "docs/architecture/toolchain.md:99:37",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 104,
+      "line": 99,
       "column": 37,
       "value": "ADDONE",
-      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
+      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, or schemas. Remove obsolete control state only after stopping old processes: `%APPDATA%\\\\AddOne` and `%LOCALAPPDATA%...",
       "matchedCase": "upper",
       "primaryClass": "paths",
       "classes": [
@@ -276,13 +82,13 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:104:59",
+      "id": "docs/architecture/toolchain.md:99:59",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 104,
+      "line": 99,
       "column": 59,
       "value": "AddOne",
-      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
+      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, or schemas. Remove obsolete control state only after stopping old processes: `%APPDATA%\\\\AddOne` and `%LOCALAPPDATA%...",
       "matchedCase": "title-or-mixed",
       "primaryClass": "paths",
       "classes": [
@@ -293,13 +99,13 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:104:68",
+      "id": "docs/architecture/toolchain.md:99:68",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 104,
+      "line": 99,
       "column": 68,
       "value": "addone",
-      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
+      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, or schemas. Remove obsolete control state only after stopping old processes: `%APPDATA%\\\\AddOne` and `%LOCALAPPDATA%...",
       "matchedCase": "lower",
       "primaryClass": "paths",
       "classes": [
@@ -310,13 +116,13 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:104:255",
+      "id": "docs/architecture/toolchain.md:99:211",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 104,
-      "column": 255,
+      "line": 99,
+      "column": 211,
       "value": "AddOne",
-      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
+      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, or schemas. Remove obsolete control state only after stopping old processes: `%APPDATA%\\\\AddOne` and `%LOCALAPPDATA%...",
       "matchedCase": "title-or-mixed",
       "primaryClass": "paths",
       "classes": [
@@ -327,13 +133,13 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:104:284",
+      "id": "docs/architecture/toolchain.md:99:240",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 104,
-      "column": 284,
+      "line": 99,
+      "column": 240,
       "value": "AddOne",
-      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
+      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, or schemas. Remove obsolete control state only after stopping old processes: `%APPDATA%\\\\AddOne` and `%LOCALAPPDATA%...",
       "matchedCase": "title-or-mixed",
       "primaryClass": "paths",
       "classes": [
@@ -344,13 +150,13 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:104:319",
+      "id": "docs/architecture/toolchain.md:99:275",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 104,
-      "column": 319,
+      "line": 99,
+      "column": 275,
       "value": "addone",
-      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, database schemas, endpoint records, or protocol frames. Remove obsolete control state only after stopping old proces...",
+      "context": "A1 does not read or migrate legacy `ADDONE_*` variables, `AddOne`/`addone` control-state directories, release manifests, or schemas. Remove obsolete control state only after stopping old processes: `%APPDATA%\\\\AddOne` and `%LOCALAPPDATA%...",
       "matchedCase": "lower",
       "primaryClass": "paths",
       "classes": [
@@ -361,10 +167,10 @@
       ]
     },
     {
-      "id": "docs/architecture/toolchain.md:108:39",
+      "id": "docs/architecture/toolchain.md:103:39",
       "path": "docs/architecture/toolchain.md",
       "locationKind": "content",
-      "line": 108,
+      "line": 103,
       "column": 39,
       "value": "addone",
       "context": "The obsolete npm package `@timurproko/addone` is deprecated with the registry message `This package is obsolete. Use @timurproko/a1 instead.` It is not a current identity, compatibility channel, or rollback source. Whole-package unpublic...",
@@ -378,10 +184,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:148:391",
+      "id": "openspec/specs/a1-shell/spec.md:109:391",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 148,
+      "line": 109,
       "column": 391,
       "value": "addone",
       "context": "The official npm distribution SHALL be named `@timurproko/a1`, SHALL begin its independent stable version lineage at `0.1.0`, and SHALL declare only `a1` as a public executable. Internal process entry files MAY remain in the package payl...",
@@ -393,10 +199,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:160:52",
+      "id": "openspec/specs/a1-shell/spec.md:121:52",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 160,
+      "line": 121,
       "column": 52,
       "value": "addone",
       "context": "- **THEN** every published version of `@timurproko/addone` SHALL carry an npm deprecation directing users to `@timurproko/a1`, and current product behavior SHALL continue to reject the obsolete identity",
@@ -409,10 +215,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:163:322",
+      "id": "openspec/specs/a1-shell/spec.md:124:322",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 163,
+      "line": 124,
       "column": 322,
       "value": "addone",
       "context": "Version discovery, self-update, installed metadata lookup, immutable release derivation, release validation, publication evidence, and registry verification SHALL use `@timurproko/a1` as the sole accepted package identity. The product SH...",
@@ -423,10 +229,10 @@
       ]
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:167:84",
+      "id": "openspec/specs/a1-shell/spec.md:128:84",
       "path": "openspec/specs/a1-shell/spec.md",
       "locationKind": "content",
-      "line": 167,
+      "line": 128,
       "column": 84,
       "value": "addone",
       "context": "- **THEN** it SHALL accept `@timurproko/a1` metadata and SHALL reject `@timurproko/addone` as an unexpected package identity",
@@ -437,21 +243,6 @@
         "paths",
         "current-docs-specs",
         "explicit-obsolete-package-fixtures"
-      ]
-    },
-    {
-      "id": "openspec/specs/launch-profiles/spec.md:10:315",
-      "path": "openspec/specs/launch-profiles/spec.md",
-      "locationKind": "content",
-      "line": 10,
-      "column": 315,
-      "value": "addone",
-      "context": "The `a1` binary SHALL be the sole installed public command. Bare invocation SHALL launch the A1 agent product surface. A prerelease build SHALL additionally expose `a1 pi` as a development comparison against the pinned Pi interface. A re...",
-      "matchedCase": "lower",
-      "primaryClass": "artifacts",
-      "classes": [
-        "artifacts",
-        "current-docs-specs"
       ]
     },
     {
@@ -486,10 +277,10 @@
       ]
     },
     {
-      "id": "test/features/launch/development-launch.test.ts:45:7",
+      "id": "test/features/launch/development-launch.test.ts:44:7",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
-      "line": 45,
+      "line": 44,
       "column": 7,
       "value": "ADDONE",
       "context": "ADDONE_DEV_INSTANCE_ID: \"legacy-instance\",",
@@ -502,13 +293,30 @@
       ]
     },
     {
+      "id": "test/features/launch/development-launch.test.ts:45:7",
+      "path": "test/features/launch/development-launch.test.ts",
+      "locationKind": "content",
+      "line": 45,
+      "column": 7,
+      "value": "ADDONE",
+      "context": "ADDONE_DEV_ROOT: \"D:/legacy/development\",",
+      "matchedCase": "upper",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "environment-keys",
+        "paths",
+        "tests"
+      ]
+    },
+    {
       "id": "test/features/launch/development-launch.test.ts:46:7",
       "path": "test/features/launch/development-launch.test.ts",
       "locationKind": "content",
       "line": 46,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_DEV_ROOT: \"D:/legacy/development\",",
+      "context": "ADDONE_CONFIG_DIR: \"D:/legacy/config\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -525,7 +333,7 @@
       "line": 47,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_CONFIG_DIR: \"D:/legacy/config\",",
+      "context": "ADDONE_DATA_DIR: \"D:/legacy/data\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -542,7 +350,7 @@
       "line": 48,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_DATA_DIR: \"D:/legacy/data\",",
+      "context": "ADDONE_RUNTIME_DIR: \"D:/legacy/runtime\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
       "classes": [
@@ -559,40 +367,6 @@
       "line": 49,
       "column": 7,
       "value": "ADDONE",
-      "context": "ADDONE_RUNTIME_DIR: \"D:/legacy/runtime\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:50:7",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 50,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_DATABASE_PATH: \"D:/legacy/database.sqlite3\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/features/launch/development-launch.test.ts:51:7",
-      "path": "test/features/launch/development-launch.test.ts",
-      "locationKind": "content",
-      "line": 51,
-      "column": 7,
-      "value": "ADDONE",
       "context": "ADDONE_ENDPOINT: \"legacy-endpoint\",",
       "matchedCase": "upper",
       "primaryClass": "runtime-symbols",
@@ -604,10 +378,10 @@
       ]
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:17:48",
+      "id": "test/foundation/lifecycle/paths.test.ts:15:48",
       "path": "test/foundation/lifecycle/paths.test.ts",
       "locationKind": "content",
-      "line": 17,
+      "line": 15,
       "column": 48,
       "value": "AddOne",
       "context": "expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);",
@@ -620,10 +394,10 @@
       ]
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:17:55",
+      "id": "test/foundation/lifecycle/paths.test.ts:15:55",
       "path": "test/foundation/lifecycle/paths.test.ts",
       "locationKind": "content",
-      "line": 17,
+      "line": 15,
       "column": 55,
       "value": "addone",
       "context": "expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);",
@@ -636,10 +410,10 @@
       ]
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:35:48",
+      "id": "test/foundation/lifecycle/paths.test.ts:31:48",
       "path": "test/foundation/lifecycle/paths.test.ts",
       "locationKind": "content",
-      "line": 35,
+      "line": 31,
       "column": 48,
       "value": "AddOne",
       "context": "expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);",
@@ -652,10 +426,10 @@
       ]
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:35:55",
+      "id": "test/foundation/lifecycle/paths.test.ts:31:55",
       "path": "test/foundation/lifecycle/paths.test.ts",
       "locationKind": "content",
-      "line": 35,
+      "line": 31,
       "column": 55,
       "value": "addone",
       "context": "expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);",
@@ -668,10 +442,10 @@
       ]
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:63:7",
+      "id": "test/foundation/lifecycle/paths.test.ts:57:7",
       "path": "test/foundation/lifecycle/paths.test.ts",
       "locationKind": "content",
-      "line": 63,
+      "line": 57,
       "column": 7,
       "value": "ADDONE",
       "context": "ADDONE_CONFIG_DIR: \"/legacy/config\",",
@@ -685,10 +459,10 @@
       ]
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:64:7",
+      "id": "test/foundation/lifecycle/paths.test.ts:58:7",
       "path": "test/foundation/lifecycle/paths.test.ts",
       "locationKind": "content",
-      "line": 64,
+      "line": 58,
       "column": 7,
       "value": "ADDONE",
       "context": "ADDONE_DATA_DIR: \"/legacy/data\",",
@@ -702,10 +476,10 @@
       ]
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:65:7",
+      "id": "test/foundation/lifecycle/paths.test.ts:59:7",
       "path": "test/foundation/lifecycle/paths.test.ts",
       "locationKind": "content",
-      "line": 65,
+      "line": 59,
       "column": 7,
       "value": "ADDONE",
       "context": "ADDONE_RUNTIME_DIR: \"/legacy/runtime\",",
@@ -719,27 +493,10 @@
       ]
     },
     {
-      "id": "test/foundation/lifecycle/paths.test.ts:66:7",
+      "id": "test/foundation/lifecycle/paths.test.ts:60:7",
       "path": "test/foundation/lifecycle/paths.test.ts",
       "locationKind": "content",
-      "line": 66,
-      "column": 7,
-      "value": "ADDONE",
-      "context": "ADDONE_DATABASE_PATH: \"/legacy/database.sqlite3\",",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "environment-keys",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/lifecycle/paths.test.ts:67:7",
-      "path": "test/foundation/lifecycle/paths.test.ts",
-      "locationKind": "content",
-      "line": 67,
+      "line": 60,
       "column": 7,
       "value": "ADDONE",
       "context": "ADDONE_ENDPOINT: \"legacy-endpoint\",",
@@ -753,25 +510,10 @@
       ]
     },
     {
-      "id": "test/foundation/protocol/protocol.test.ts:59:87",
-      "path": "test/foundation/protocol/protocol.test.ts",
-      "locationKind": "content",
-      "line": 59,
-      "column": 87,
-      "value": "addone",
-      "context": "const legacy = { type: \"client-hello\", clientId: \"legacy\", ...current, envelope: \"addone-control-envelope\" };",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/release/cohort-state.test.ts:136:76",
+      "id": "test/foundation/release/cohort-state.test.ts:126:76",
       "path": "test/foundation/release/cohort-state.test.ts",
       "locationKind": "content",
-      "line": 136,
+      "line": 126,
       "column": 76,
       "value": "addone",
       "context": "await writeFile(store.path, JSON.stringify({ ...emptyState(), schema: \"addone-release-cohort-v1\" }));",
@@ -817,10 +559,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:52:32",
+      "id": "test/foundation/release/package-surface.test.ts:50:32",
       "path": "test/foundation/release/package-surface.test.ts",
       "locationKind": "content",
-      "line": 52,
+      "line": 50,
       "column": 32,
       "value": "addone",
       "context": "expect(paths.some(path => /addone/i.test(path))).toBe(false);",
@@ -931,43 +673,10 @@
       ]
     },
     {
-      "id": "test/foundation/storage/storage.test.ts:129:77",
-      "path": "test/foundation/storage/storage.test.ts",
-      "locationKind": "content",
-      "line": 129,
-      "column": 77,
-      "value": "addone",
-      "context": "legacy.prepare(\"INSERT INTO product_identity (schema) VALUES (?)\").run(\"addone-control-store-v1\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/foundation/storage/storage.test.ts:132:58",
-      "path": "test/foundation/storage/storage.test.ts",
-      "locationKind": "content",
-      "line": 132,
-      "column": 58,
-      "value": "addone",
-      "context": "expect(() => new ControlStore(path)).toThrow(/schema addone-control-store-v1 is unsupported/);",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/product-identity/product-identity.test.ts:71:65",
+      "id": "test/product-identity/product-identity.test.ts:68:65",
       "path": "test/product-identity/product-identity.test.ts",
       "locationKind": "content",
-      "line": 71,
+      "line": 68,
       "column": 65,
       "value": "ADDONE",
       "context": "[\"legacy environment prefix\", withEnvironment(\"configDir\", \"ADDONE_CONFIG_DIR\"), /must use A1_/],",
@@ -1061,10 +770,10 @@
       ]
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:32:12",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:35:12",
       "path": "test/repository-governance/product-identity-inventory.test.ts",
       "locationKind": "content",
-      "line": 32,
+      "line": 35,
       "column": 12,
       "value": "AddOne",
       "context": "\"src/AddOne-path.ts\": \"const display = 'AddOne'; const slug = 'addone'; const key = 'ADDONE_DATA_DIR';\",",
@@ -1077,10 +786,10 @@
       ]
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:32:47",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:35:47",
       "path": "test/repository-governance/product-identity-inventory.test.ts",
       "locationKind": "content",
-      "line": 32,
+      "line": 35,
       "column": 47,
       "value": "AddOne",
       "context": "\"src/AddOne-path.ts\": \"const display = 'AddOne'; const slug = 'addone'; const key = 'ADDONE_DATA_DIR';\",",
@@ -1093,10 +802,10 @@
       ]
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:32:70",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:35:70",
       "path": "test/repository-governance/product-identity-inventory.test.ts",
       "locationKind": "content",
-      "line": 32,
+      "line": 35,
       "column": 70,
       "value": "addone",
       "context": "\"src/AddOne-path.ts\": \"const display = 'AddOne'; const slug = 'addone'; const key = 'ADDONE_DATA_DIR';\",",
@@ -1109,10 +818,10 @@
       ]
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:32:92",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:35:92",
       "path": "test/repository-governance/product-identity-inventory.test.ts",
       "locationKind": "content",
-      "line": 32,
+      "line": 35,
       "column": 92,
       "value": "ADDONE",
       "context": "\"src/AddOne-path.ts\": \"const display = 'AddOne'; const slug = 'addone'; const key = 'ADDONE_DATA_DIR';\",",
@@ -1126,10 +835,10 @@
       ]
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:33:64",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:36:64",
       "path": "test/repository-governance/product-identity-inventory.test.ts",
       "locationKind": "content",
-      "line": 33,
+      "line": 36,
       "column": 64,
       "value": "AddOne",
       "context": "\"openspec/changes/live/evidence/history.md\": \"Historical AddOne record.\",",
@@ -1142,10 +851,10 @@
       ]
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:34:57",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:37:57",
       "path": "test/repository-governance/product-identity-inventory.test.ts",
       "locationKind": "content",
-      "line": 34,
+      "line": 37,
       "column": 57,
       "value": "addone",
       "context": "\"openspec/changes/archive/old/spec.md\": \"Archived addone record.\",",
@@ -1158,10 +867,10 @@
       ]
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:35:60",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:38:60",
       "path": "test/repository-governance/product-identity-inventory.test.ts",
       "locationKind": "content",
-      "line": 35,
+      "line": 38,
       "column": 60,
       "value": "ADDONE",
       "context": "\"node_modules/fixture/index.js\": \"const generated = 'ADDONE';\",",
@@ -1174,10 +883,10 @@
       ]
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:36:50",
+      "id": "test/repository-governance/product-identity-inventory.test.ts:39:50",
       "path": "test/repository-governance/product-identity-inventory.test.ts",
       "locationKind": "content",
-      "line": 36,
+      "line": 39,
       "column": 50,
       "value": "addone",
       "context": "\"native/terminal-host/target/output.txt\": \"addone\",",
@@ -1191,59 +900,14 @@
       ]
     },
     {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:41:8",
-      "path": "test/repository-governance/product-identity-inventory.test.ts",
-      "locationKind": "content",
-      "line": 41,
-      "column": 8,
-      "value": "AddOne",
-      "context": "\"AddOne\",",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:42:8",
-      "path": "test/repository-governance/product-identity-inventory.test.ts",
-      "locationKind": "content",
-      "line": 42,
-      "column": 8,
-      "value": "AddOne",
-      "context": "\"AddOne\",",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/product-identity-inventory.test.ts:43:8",
-      "path": "test/repository-governance/product-identity-inventory.test.ts",
-      "locationKind": "content",
-      "line": 43,
-      "column": 8,
-      "value": "AddOne",
-      "context": "\"AddOne\",",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
       "id": "test/repository-governance/product-identity-inventory.test.ts:44:8",
       "path": "test/repository-governance/product-identity-inventory.test.ts",
       "locationKind": "content",
       "line": 44,
       "column": 8,
-      "value": "addone",
-      "context": "\"addone\",",
-      "matchedCase": "lower",
+      "value": "AddOne",
+      "context": "\"AddOne\",",
+      "matchedCase": "title-or-mixed",
       "primaryClass": "runtime-symbols",
       "classes": [
         "runtime-symbols",
@@ -1256,6 +920,51 @@
       "locationKind": "content",
       "line": 45,
       "column": 8,
+      "value": "AddOne",
+      "context": "\"AddOne\",",
+      "matchedCase": "title-or-mixed",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/repository-governance/product-identity-inventory.test.ts:46:8",
+      "path": "test/repository-governance/product-identity-inventory.test.ts",
+      "locationKind": "content",
+      "line": 46,
+      "column": 8,
+      "value": "AddOne",
+      "context": "\"AddOne\",",
+      "matchedCase": "title-or-mixed",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/repository-governance/product-identity-inventory.test.ts:47:8",
+      "path": "test/repository-governance/product-identity-inventory.test.ts",
+      "locationKind": "content",
+      "line": 47,
+      "column": 8,
+      "value": "addone",
+      "context": "\"addone\",",
+      "matchedCase": "lower",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/repository-governance/product-identity-inventory.test.ts:48:8",
+      "path": "test/repository-governance/product-identity-inventory.test.ts",
+      "locationKind": "content",
+      "line": 48,
+      "column": 8,
       "value": "ADDONE",
       "context": "\"ADDONE\",",
       "matchedCase": "upper",
@@ -1266,5 +975,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-11-06T19:51:16.751Z"
+  "generatedAt": "2026-11-07T09:55:09.559Z"
 }

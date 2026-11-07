@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { OwnedSettingsManager, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
+import { OWNED_UI_SETTINGS_VERSION, OwnedSettingsManager, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
@@ -90,14 +90,14 @@ afterEach(() => {
 });
 
 describe("owned settings manager", () => {
-  it("omits empty sections when a launch hides their owned settings", () => {
+  it("omits hidden owned settings from sections while keeping their values readable", () => {
     const manager = new OwnedSettingsManager({
       configDir: root,
       profileId: "a1",
-      hiddenOwnedSettingIds: ["tabsAutoName", "tabsPosition", "tabBarPlusMenu", "tabBarRightItems", "tabBarBackgroundStyle"],
+      hiddenOwnedSettingIds: ["promptImageLimit"],
     });
-    expect(manager.sections().find(section => section.id === "tabs")).toBeUndefined();
-    expect(manager.value("tabsAutoName")).toBe(true);
+    expect(manager.sections().flatMap(section => section.entries).some(entry => entry.id === "promptImageLimit")).toBe(false);
+    expect(manager.value("promptImageLimit")).toBe(8);
   });
 
   it("repairs harmless leading noise before resolving and writing settings", async () => {
@@ -132,7 +132,7 @@ describe("owned settings manager", () => {
       const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await target.load();
       expect(readFileSync(seed.file, "utf8")).toBe(before);
-      expect(target.resolution).toMatchObject({ version: 20, migrated: false, notices: [] });
+      expect(target.resolution).toMatchObject({ version: OWNED_UI_SETTINGS_VERSION, migrated: false, notices: [] });
       const group = target.sections().find(section => section.id === "agent");
       const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
       expect(group).toMatchObject({ unavailableReason: null, readOnlyReason: null });

@@ -32,11 +32,12 @@ describe("terminal colour fidelity", () => {
   // only sixteen colours. Every process in a launch inherits that decision, so the
   // chain must inherit the terminal it was started from rather than open its own.
   it("hands every launched process the terminal it was started from", async () => {
-    const guardian = await source("native/process-guardian/src/windows.rs");
+    const bootstrap = await source("src/foundation/release/bootstrap.ts");
+    const launch = bootstrap.slice(bootstrap.indexOf("async function launchUi("));
 
-    expect(guardian).not.toMatch(/CREATE_NEW_CONSOLE|CREATE_NO_WINDOW|DETACHED_PROCESS|CREATE_SUSPENDED/u);
-    expect(guardian).toMatch(/EXTENDED_STARTUPINFO_PRESENT \| CREATE_UNICODE_ENVIRONMENT/u);
-    expect(guardian).toContain("PROC_THREAD_ATTRIBUTE_JOB_LIST");
+    // Invariant: the UI is the launcher's attached child on the same console, never a detached one.
+    expect(launch).toMatch(/windowsHide: false/u);
+    expect(launch).not.toMatch(/detached: true/u);
   });
 
   it("keeps every launched process attached to the inherited streams", async () => {
