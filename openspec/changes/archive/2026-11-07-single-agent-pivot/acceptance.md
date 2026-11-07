@@ -30,7 +30,7 @@ The maintainer integration decision accepts these scenarios:
     "Update offers only Auto and No; an existing Notify setting reads as Auto, and an installed update shows the `installed; restart to update` status.",
     "The published package contains no native artifacts and CI provisions no Rust or Zig toolchain."
   ],
-  "archiveDigest": "ed248a6dd456dd02437ecbf17755d8e3cd656c02866dcdbd5510a1bef69972e7",
+  "archiveDigest": "bd9be54dd2716ed80ad2eb9c46e96985561d2b674cd89bd8ce50a7e0ace86450",
   "specDigest": "d099d1b3028a57be598b8674929774c8e493e87697c439ef4cb5d96131c67107",
   "tasksDigest": "74d455958ad1fb7811958f8931aaa8158cce1d1d7dc41c73bbd83c4f14898ff9",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
