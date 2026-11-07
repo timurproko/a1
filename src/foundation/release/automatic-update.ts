@@ -33,7 +33,7 @@ export interface AutomaticUpdateState {
   readonly failure: string | null;
 }
 
-export class AutomaticUpdateStateStore {
+class AutomaticUpdateStateStore {
   readonly path: string;
   constructor(dataDir: string) { this.path = resolve(dataDir, AUTOMATIC_UPDATE_STATE_FILENAME); }
 
@@ -78,7 +78,7 @@ interface ActiveReleaseObservationOptions {
 }
 
 /** Read the approved active release only when this process executes an older release on that channel. */
-export async function readNewerActiveRelease(
+async function readNewerActiveRelease(
   runningVersion: string,
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<string | null> {

@@ -1,8 +1,8 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AutomaticUpdateStateStore, observeNewerActiveRelease, readNewerActiveRelease, requestAutomaticUpdate, runAutomaticUpdateWorker, type AutomaticUpdateState } from "../../../src/foundation/release/automatic-update.js";
+import { observeNewerActiveRelease, requestAutomaticUpdate, runAutomaticUpdateWorker, type AutomaticUpdateState } from "../../../src/foundation/release/automatic-update.js";
 import { acquireUpdateExecutionLease } from "../../../src/foundation/release/update-execution-lease.js";
 import { ReleaseStateStore, emptyState } from "../../../src/foundation/release/release-state.js";
 import { UpdateTransactionStore } from "../../../src/foundation/release/update-transaction.js";
@@ -73,22 +73,21 @@ function failedState(now: number): AutomaticUpdateState {
 }
 
 describe("active release observation", () => {
-  it("accepts only approved newer releases on the executing channel", async () => {
+  it("announces only approved newer releases on the executing channel", async () => {
     const { dataDir, environment } = await harness();
     await setActiveRelease(dataDir, "1.2.4");
-    await expect(readNewerActiveRelease("1.2.3", environment)).resolves.toBe("1.2.4");
-    await expect(readNewerActiveRelease("1.2.4", environment)).resolves.toBeNull();
-    await expect(readNewerActiveRelease("1.2.5", environment)).resolves.toBeNull();
-    await expect(readNewerActiveRelease("1.2.3-dev.9", environment)).resolves.toBeNull();
-    await expect(readNewerActiveRelease("1.2.3-dev", environment)).resolves.toBeNull();
+    await expect(observedRelease("1.2.3", environment, true)).resolves.toEqual(["1.2.4"]);
+    for (const running of ["1.2.4", "1.2.5", "1.2.3-dev.9", "1.2.3-dev"]) {
+      await expect(observedRelease(running, environment, false)).resolves.toEqual([]);
+    }
     await setActiveRelease(dataDir, "1.2.5", "candidate");
-    await expect(readNewerActiveRelease("1.2.3", environment)).resolves.toBeNull();
+    await expect(observedRelease("1.2.3", environment, false)).resolves.toEqual([]);
   });
 
-  it("fails closed for malformed release state", async () => {
+  it("announces nothing for malformed release state", async () => {
     const { dataDir, environment } = await harness();
     await writeFile(resolve(dataDir, "release-state.json"), "{not-json");
-    await expect(readNewerActiveRelease("1.2.3", environment)).resolves.toBeNull();
+    await expect(observedRelease("1.2.3", environment, false)).resolves.toEqual([]);
   });
 
   it("detects atomic activation promptly and stops after one announcement", async () => {
@@ -209,9 +208,7 @@ describe("automatic update coordination", () => {
   it("ignores a legacy blocked record and starts the worker at once", async () => {
     const { dataDir, environment } = await harness();
     const now = 10_000;
-    const store = new AutomaticUpdateStateStore(dataDir);
-    await writeFile(store.path, JSON.stringify(legacyBlockedState(now)));
-    await expect(store.read()).resolves.toBeNull();
+    await writeFile(statePath(dataDir), JSON.stringify(legacyBlockedState(now)));
     const spawnWorker = vi.fn(async () => undefined);
     let clock = now + 1;
     await expect(requestAutomaticUpdate({
@@ -230,8 +227,7 @@ describe("automatic update coordination", () => {
   it("suppresses a failed target for the retry interval but permits a newer target and later retry", async () => {
     const { dataDir, environment } = await harness();
     const now = 10_000;
-    const store = new AutomaticUpdateStateStore(dataDir);
-    await store.write(failedState(now));
+    await writeState(dataDir, failedState(now));
     const spawnWorker = vi.fn(async (_entry: string, _arguments: readonly string[], _environment: NodeJS.ProcessEnv) => undefined);
     const common = {
       release,
@@ -268,8 +264,7 @@ describe("automatic update coordination", () => {
   it("settles a dead running record before trying a newer stable or preview target", async () => {
     for (const channel of ["stable", "development"] as const) {
       const { dataDir, environment } = await harness();
-      const store = new AutomaticUpdateStateStore(dataDir);
-      await store.write({ ...failedState(1), channel, status: "running", targetVersion: "1.2.2", failure: null });
+      await writeState(dataDir, { ...failedState(1), channel, status: "running", targetVersion: "1.2.2", failure: null });
       const spawnWorker = vi.fn(async () => undefined);
       let clock = 10_000;
       await requestAutomaticUpdate({ release: { ...release, channel,
@@ -278,15 +273,14 @@ describe("automatic update coordination", () => {
       now: () => clock, worker: { entry: resolve(dataDir, "worker.js"), packageRoot: resolve(dataDir, "release") },
       spawnWorker, activeVersion: async () => null, sleep: async () => { clock += 5_001; } });
       expect(spawnWorker).toHaveBeenCalledTimes(1);
-      expect(await store.read()).toMatchObject({ status: "failed", failure: "worker-exited" });
+      expect(await readState(dataDir)).toMatchObject({ status: "failed", failure: "worker-exited" });
     }
   });
 
   it("does not overwrite or spawn into a foreign unfinished transaction", async () => {
     const { dataDir, environment } = await harness();
-    const store = new AutomaticUpdateStateStore(dataDir);
     const existing = { ...failedState(1), status: "running" as const, targetVersion: "1.2.2", failure: null };
-    await store.write(existing);
+    await writeState(dataDir, existing);
     const transactionStore = new UpdateTransactionStore(dataDir);
     await transactionStore.begin({ channel: "stable", targetVersion: "1.2.7", packageRoot: resolve(dataDir, "release"), priorActiveReleaseId: null });
     const spawnWorker = vi.fn(async () => undefined);
@@ -294,18 +288,17 @@ describe("automatic update coordination", () => {
       worker: { entry: resolve(dataDir, "worker.js"), packageRoot: resolve(dataDir, "release") },
       spawnWorker, activeVersion: async () => null })).resolves.toBeNull();
     expect(spawnWorker).not.toHaveBeenCalled();
-    expect(await store.read()).toEqual(existing);
+    expect(await readState(dataDir)).toEqual(existing);
     expect(await transactionStore.read()).toMatchObject({ status: "active", targetVersion: "1.2.7" });
   });
 
   it("records worker startup failure instead of leaving a running attempt", async () => {
     const { dataDir, environment } = await harness();
-    const store = new AutomaticUpdateStateStore(dataDir);
     await expect(requestAutomaticUpdate({ release, runningVersion: "1.2.3", environment,
       worker: { entry: resolve(dataDir, "worker.js"), packageRoot: resolve(dataDir, "release") },
       spawnWorker: async () => { throw new Error("could not spawn"); },
       activeVersion: async () => null })).resolves.toBeNull();
-    expect(await store.read()).toMatchObject({ status: "failed", failure: "worker-start-failed", targetVersion: release.version });
+    expect(await readState(dataDir)).toMatchObject({ status: "failed", failure: "worker-start-failed", targetVersion: release.version });
   });
 
   it("records rejected worker provenance only when no foreign transaction owns the data root", async () => {
@@ -313,23 +306,44 @@ describe("automatic update coordination", () => {
     const arguments_ = ["--package-root", resolve(dataDir, "release"), "--channel", "stable",
       "--target-version", release.version, "--data-dir", dataDir];
     expect(await runAutomaticUpdateWorker(arguments_, environment)).toBe(1);
-    const store = new AutomaticUpdateStateStore(dataDir);
-    expect(await store.read()).toMatchObject({ status: "failed", failure: "worker-preflight-failed" });
+    expect(await readState(dataDir)).toMatchObject({ status: "failed", failure: "worker-preflight-failed" });
     const transactionStore = new UpdateTransactionStore(dataDir);
     await transactionStore.begin({ channel: "stable", targetVersion: "1.2.7",
       packageRoot: resolve(dataDir, "release"), priorActiveReleaseId: null });
     expect(await runAutomaticUpdateWorker(arguments_, environment)).toBe(1);
-    expect(await store.read()).toMatchObject({ status: "failed", failure: "worker-preflight-failed" });
+    expect(await readState(dataDir)).toMatchObject({ status: "failed", failure: "worker-preflight-failed" });
   });
 
-  it("fails closed on oversized or malformed persisted state", async () => {
-    const { dataDir } = await harness();
-    const store = new AutomaticUpdateStateStore(dataDir);
-    await writeFile(store.path, "{".repeat(20_000));
-    await expect(store.read()).rejects.toThrow(/oversized/);
-    await writeFile(store.path, JSON.stringify({ ...failedState(1), targetVersion: "latest" }));
-    await expect(store.read()).rejects.toThrow(/invalid automatic update state/);
-    await writeFile(store.path, JSON.stringify({ ...failedState(1), status: "prepared" }));
-    await expect(store.read()).rejects.toThrow(/invalid automatic update state/);
+  it.each([
+    ["oversized", "{".repeat(20_000)],
+    ["an invalid target", JSON.stringify({ ...failedState(1), targetVersion: "latest" })],
+    ["an unknown status", JSON.stringify({ ...failedState(1), status: "prepared" })],
+  ])("fails closed without a worker when the persisted state is %s", async (_label, contents) => {
+    const { dataDir, environment } = await harness();
+    await writeFile(statePath(dataDir), contents);
+    const spawnWorker = vi.fn(async () => undefined);
+    await expect(requestAutomaticUpdate({
+      release, runningVersion: "1.2.3", environment,
+      worker: { entry: resolve(dataDir, "worker.js"), packageRoot: resolve(dataDir, "release") },
+      spawnWorker, activeVersion: async () => null,
+    })).resolves.toBeNull();
+    expect(spawnWorker).not.toHaveBeenCalled();
   });
 });
+
+const statePath = (dataDir: string) => resolve(dataDir, "automatic-update.json");
+const readState = async (dataDir: string): Promise<AutomaticUpdateState> => JSON.parse(await readFile(statePath(dataDir), "utf8")) as AutomaticUpdateState;
+const writeState = (dataDir: string, value: AutomaticUpdateState) => writeFile(statePath(dataDir), JSON.stringify(value));
+
+/** What one observer announces for a running version: waits for an announcement, or a settle window for none. */
+async function observedRelease(runningVersion: string, environment: NodeJS.ProcessEnv, expectAnnouncement: boolean): Promise<string[]> {
+  const announced: string[] = [];
+  const stop = observeNewerActiveRelease({ runningVersion, environment, fallbackMs: 20, onNewer: version => { announced.push(version); } });
+  try {
+    if (expectAnnouncement) await vi.waitFor(() => { expect(announced).not.toEqual([]); });
+    else await new Promise(resolvePromise => setTimeout(resolvePromise, 60));
+  } finally {
+    stop();
+  }
+  return announced;
+}

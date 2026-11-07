@@ -50,7 +50,7 @@ export async function readPullRequest(
 }
 
 /** Parse and validate the normalized payload emitted by `gh pr view`. */
-export function parsePullRequest(stdout: string, branch: string): PiPullRequestIdentity | null {
+function parsePullRequest(stdout: string, branch: string): PiPullRequestIdentity | null {
   let value: unknown;
   try {
     value = JSON.parse(stdout);

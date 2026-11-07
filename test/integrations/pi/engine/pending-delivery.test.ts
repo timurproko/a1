@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { OwnedUiEvent, OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
-import { PendingEngineDelivery, replaceableEventKey } from "../../../../src/integrations/pi/engine/pending-delivery.js";
+import { PendingEngineDelivery } from "../../../../src/integrations/pi/engine/pending-delivery.js";
 
 const base = { sessionId: "test", sequence: 1 };
 function block(id: string, text: string, sequence: number, status: OwnedUiTranscriptBlock["status"] = "live"): OwnedUiEvent {
   return { ...base, sequence, type: "transcript-block", block: { id, text, status, revision: sequence, kind: "assistant", title: null, payload: null } };
 }
 function barrier(sequence: number): OwnedUiEvent { return { ...base, sequence, type: "command-outcome", correlationId: String(sequence), outcome: "completed", diagnostic: null }; }
+/** Whether the later of two queued events replaces the earlier one. */
+function coalesces(first: OwnedUiEvent, second: OwnedUiEvent): boolean {
+  const queue = new PendingEngineDelivery();
+  queue.push(first, 1);
+  queue.push(second, 1);
+  return queue.size === 1;
+}
 function drain(queue: PendingEngineDelivery): OwnedUiEvent[] {
   const events: OwnedUiEvent[] = [];
   while (queue.size) events.push(queue.shift()!.event);
@@ -22,13 +29,14 @@ describe("semantic pending engine delivery", () => {
       diagnostic: false, dialog: false, overlay: false, customization: false,
     };
     for (const [type, replaceable] of Object.entries(kinds)) {
-      const event = type === "transcript-block" ? block("a", "a", 1) : { ...base, type } as OwnedUiEvent;
-      expect(replaceableEventKey(event) !== null, type).toBe(replaceable);
+      const event = (sequence: number) => type === "transcript-block" ? block("a", "a", sequence) : { ...base, sequence, type } as OwnedUiEvent;
+      expect(coalesces(event(1), event(2)), type).toBe(replaceable);
     }
-    expect(replaceableEventKey(block("a", "final", 1, "finalized"))).toBeNull();
-    expect(replaceableEventKey({ ...base, type: "transcript-block", block: {
-      id: "tool", text: "error", revision: 1, status: "live", kind: "tool-call", title: null, payload: { isError: true },
-    } })).toBeNull();
+    expect(coalesces(block("a", "final", 1, "finalized"), block("a", "final", 2, "finalized"))).toBe(false);
+    const failedTool = (sequence: number): OwnedUiEvent => ({ ...base, sequence, type: "transcript-block", block: {
+      id: "tool", text: "error", revision: sequence, status: "live", kind: "tool-call", title: null, payload: { isError: true },
+    } });
+    expect(coalesces(failedTool(1), failedTool(2))).toBe(false);
   });
 
   it("matches an uncoalesced reference at every barrier through a 16,384 update / 32 block burst", () => {

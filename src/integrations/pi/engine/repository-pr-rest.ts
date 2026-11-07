@@ -70,7 +70,7 @@ export async function readPullRequestFromGitHub(
 }
 
 /** Parse a supported GitHub origin URL without accepting credentials or non-GitHub hosts. */
-export function parseGitHubRepositoryRemote(remote: string): PiGitHubRepositoryIdentity | null {
+function parseGitHubRepositoryRemote(remote: string): PiGitHubRepositoryIdentity | null {
   const value = remote.trim();
   if (value.length === 0 || /[\r\n]/u.test(value)) return null;
   const scp = /^git@github\.com:([^/]+)\/([^/]+)$/iu.exec(value);
@@ -94,7 +94,7 @@ export function parseGitHubRepositoryRemote(remote: string): PiGitHubRepositoryI
 }
 
 /** Validate a GitHub REST pull list as one exact branch association. */
-export function parseGitHubPullRequests(
+function parseGitHubPullRequests(
   value: unknown,
   expectedRepository: PiGitHubRepositoryIdentity,
   branch: string,

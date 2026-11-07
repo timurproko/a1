@@ -64,12 +64,12 @@ export function isNewerRelease(candidate: string, current: string): boolean {
   return left !== null && right !== null && gt(left, right);
 }
 
-export function distTagsUrl(registry: string = DEFAULT_NPM_REGISTRY): string {
+function distTagsUrl(registry: string = DEFAULT_NPM_REGISTRY): string {
   return `${registry.replace(/\/+$/u, "")}/-/package/${encodeURIComponent(PRODUCT_TEXT.packageName)}/dist-tags`;
 }
 
 /** Read `latest` (required) and `next` (optional) from a dist-tags object. */
-export function parseDistTags(metadata: unknown, source: string): DistTagVersions {
+function parseDistTags(metadata: unknown, source: string): DistTagVersions {
   if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
     return unavailableDistTags(`${source} returned a non-object dist-tags value`);
   }
@@ -93,12 +93,12 @@ async function queryRegistryDistTags(fetcher: RegistryFetcher, registry?: string
   }
 }
 
-export function packageDocumentUrl(registry: string = DEFAULT_NPM_REGISTRY): string {
+function packageDocumentUrl(registry: string = DEFAULT_NPM_REGISTRY): string {
   return `${registry.replace(/\/+$/u, "")}/${encodeURIComponent(PRODUCT_TEXT.packageName)}`;
 }
 
 /** The pull request a published or installed manifest records under `publication.pullRequest`, when valid. */
-export function recordedPullRequest(manifest: unknown): number | null {
+function recordedPullRequest(manifest: unknown): number | null {
   if (typeof manifest !== "object" || manifest === null) return null;
   const publication = (manifest as { publication?: unknown }).publication;
   if (typeof publication !== "object" || publication === null) return null;
@@ -123,7 +123,7 @@ export async function queryPublishedVersions(fetcher: RegistryFetcher, registry?
   }
 }
 
-export function parsePublishedVersions(document: unknown): PublishedVersions {
+function parsePublishedVersions(document: unknown): PublishedVersions {
   if (typeof document !== "object" || document === null || Array.isArray(document)) {
     return { versions: [], error: "registry returned a non-object package document" };
   }
@@ -214,7 +214,7 @@ export async function checkForNewerRelease(options: StartupReleaseCheckOptions):
   }
 }
 
-export function availableRelease(channel: ReleaseChannel, version: string): AvailableRelease {
+function availableRelease(channel: ReleaseChannel, version: string): AvailableRelease {
   return {
     channel,
     version,
