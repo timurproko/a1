@@ -4,9 +4,7 @@ import type {
   DialogRow,
   ListViewRow,
   NumericRange,
-  RailPosition,
   ScrollbarAppearance,
-  ScrollbarGeometry,
   ScrollbarSpeed,
   ScrollbarStyle,
 } from "../../ui/components/index.js";
@@ -49,10 +47,7 @@ import {
   moveSelection,
   rowKey,
   scrollForSelection,
-  scrollForTrackPage,
   scrollbarGeometry,
-  scrollbarPresentation,
-  ScrollbarRails,
   scrollbarWheelRows,
   selectableIndexes,
   type ListRow,
@@ -67,6 +62,7 @@ import type {
   OwnedUiSettingsEntry,
   OwnedSettingsManager,
 } from "../../ui/settings/index.js";
+import { SettingsScrollRail } from "./settings-scroll-rail.js";
 import { SettingsEdits, changeFailure, replaceRecord, sameRecord, structuredValue } from "./settings-edits.js";
 import { SETTINGS_APP_ID } from "./settings-route.js";
 import type { SettingsSearchInput, SettingsSearchInputFactory } from "./settings-search-input.js";
@@ -83,11 +79,6 @@ const DIALOG_SCOPE = `${SETTINGS_APP_ID}-parts`;
 const MODEL_SCOPE = `${SETTINGS_APP_ID}-models`;
 const MODEL_LEVEL_SCOPE = `${SETTINGS_APP_ID}-model-levels`;
 const SCROLLBAR_TOP_INSET = 0;
-/** Identity of the settings list rail in the shared rail state. */
-const RAIL_KEY = "settings";
-// Compatibility: the transcript rail stays lit this long after a scroll, and repaints just after.
-const SCROLL_LINGER_MS = 900;
-const SCROLL_LINGER_REPAINT_MS = 925;
 /** What a structured value offers instead of printing itself. */
 const CONFIGURE = "configure";
 
@@ -230,13 +221,8 @@ export class SettingsApp implements UiApp {
   #frameRows: { key: string; screenRow: number; valueColumn: number; valueWidth: number; stepper: boolean }[] = [];
   #menuFrame: { top: number; column: number; width: number; rows: number } | null = null;
   // Invariant: rail hover and drag live in the shared keyed state, as the transcript's do.
-  readonly #rails = new ScrollbarRails();
+  readonly #rail = new SettingsScrollRail();
   // Rationale: the rail as drawn in the last frame, or null when nothing can be pointed at.
-  #railFrame: { readonly rail: RailPosition; readonly geometry: ScrollbarGeometry; readonly page: number } | null = null;
-  // Invariant: a scroll lights the rail until this time; the timer repaints once it has passed.
-  #activeUntil = 0;
-  #activityTimer: ReturnType<typeof setTimeout> | undefined;
-  #renderedScroll: number | undefined;
 
   readonly #options: { readonly dialogPanel: ((text: string) => string) | null };
 
@@ -267,8 +253,7 @@ export class SettingsApp implements UiApp {
     this.#edits.close();
     this.#search.input?.setFocused(false);
     this.#search.input = null;
-    this.#clearActivityTimer();
-    this.#rails.clear();
+    this.#rail.dispose();
   }
 
   render(rect: PaneRect, host: AppHostServices): readonly string[] {
@@ -303,10 +288,7 @@ export class SettingsApp implements UiApp {
     this.#panelTopForFrame = topRows + contentHeight + dividerRows;
     this.#scroll = layout.scroll;
     const now = Date.now();
-    // Rationale: every way of scrolling ends in this frame, so a moved list is noticed here
-    // once rather than at each wheel, drag, key, and search branch.
-    if (this.#renderedScroll !== undefined && this.#renderedScroll !== layout.scroll) this.#noteScrollActivity(host, now);
-    this.#renderedScroll = layout.scroll;
+    this.#rail.noteRenderedScroll(layout.scroll, now, () => host.requestRender());
     // Invariant: auto and always keep the rail columns while the list fits, so a revealed
     // rail never reflows the rows; hidden gives the columns back to the rows.
     const appearance = this.#scrollbarAppearance();
@@ -319,22 +301,10 @@ export class SettingsApp implements UiApp {
       scroll: layout.scroll,
       trackHeight: Math.max(0, titleRows + bodyHeight - SCROLLBAR_TOP_INSET),
     });
-    const presentation = scrollbarPresentation({
-      geometry,
-      appearance,
-      style: this.#scrollbarStyle(),
-      hovered: this.#rails.isHovered(RAIL_KEY),
-      dragging: this.#rails.isDragging(RAIL_KEY),
-      activeUntil: this.#activeUntil,
-      now,
-    });
-    this.#railFrame = reservesRail && geometry !== null
-      ? {
-        rail: { key: RAIL_KEY, column: rect.width, rowStart: topRows + SCROLLBAR_TOP_INSET, trackHeight: geometry.trackHeight },
-        geometry,
-        page: layout.visible,
-      }
-      : null;
+    const presentation = this.#rail.presentation({ geometry, appearance, style: this.#scrollbarStyle(), now });
+    this.#rail.setFrame(reservesRail && geometry !== null
+      ? { rail: { column: rect.width, rowStart: topRows + SCROLLBAR_TOP_INSET, trackHeight: geometry.trackHeight }, geometry, page: layout.visible }
+      : null);
 
     const body: string[] = [];
     this.#frameRows = [];
@@ -506,7 +476,10 @@ export class SettingsApp implements UiApp {
       return { consumed: true, render: false };
     }
 
-    const rail = this.#railPointer(event);
+    const rail = this.#rail.pointer(event, this.#scroll);
+    if (rail.scroll !== undefined) this.#scroll = rail.scroll;
+    // Invariant: the rail is not a row: pointing at it lights nothing in the list.
+    if (rail.overRail) { this.#hoverKey = null; this.#hoverRegion = "label"; }
     if (rail.owned) return { consumed: true };
 
     const row = this.#frameRows.find(candidate => candidate.screenRow === event.row - 1);
@@ -535,51 +508,6 @@ export class SettingsApp implements UiApp {
     }
     const changed = previousKey !== this.#hoverKey || previousRegion !== this.#hoverRegion || rail.changed;
     return { consumed: event.kind !== "motion", render: changed };
-  }
-
-  // Rationale: the rail takes its share of a pointer report first: hover, a thumb drag, or a
-  // track page. Owned means the list must not see the report; changed means the rail looks different.
-  #railPointer(event: PaneMouseEvent): { readonly owned: boolean; readonly changed: boolean } {
-    const frame = this.#railFrame;
-    const wasHovered = this.#rails.isHovered(RAIL_KEY);
-    if (frame === null) {
-      this.#rails.clear();
-      return { owned: false, changed: wasHovered };
-    }
-    const pointer = { column: event.column, row: event.row - 1 };
-    if (this.#rails.isDragging(RAIL_KEY)) {
-      // Invariant: a drag keeps the pointer wherever it goes until the button comes up.
-      if (event.kind === "release") this.#rails.endDrag();
-      else {
-        const target = this.#rails.dragTo(frame.rail, frame.geometry, pointer);
-        if (target !== null) this.#scroll = target;
-      }
-      return { owned: true, changed: true };
-    }
-    const over = this.#rails.notePointer([frame.rail], pointer) !== null;
-    if (!over) return { owned: false, changed: wasHovered };
-    // Invariant: the rail is not a row: pointing at it lights nothing in the list.
-    this.#hoverKey = null;
-    this.#hoverRegion = "label";
-    if (event.kind === "press" && !this.#rails.beginDrag(frame.rail, frame.geometry, pointer)) {
-      this.#scroll = scrollForTrackPage(frame.geometry, pointer.row - frame.rail.rowStart, this.#scroll, frame.page);
-    }
-    return { owned: true, changed: true };
-  }
-
-  #noteScrollActivity(host: AppHostServices, now: number): void {
-    this.#activeUntil = Math.max(this.#activeUntil, now + SCROLL_LINGER_MS);
-    this.#clearActivityTimer();
-    this.#activityTimer = setTimeout(() => {
-      this.#activityTimer = undefined;
-      host.requestRender();
-    }, SCROLL_LINGER_REPAINT_MS);
-    this.#activityTimer.unref?.();
-  }
-
-  #clearActivityTimer(): void {
-    if (this.#activityTimer !== undefined) clearTimeout(this.#activityTimer);
-    this.#activityTimer = undefined;
   }
 
   #openMenu(rows: readonly Row[], selected: number, selectCurrent = false): void {
@@ -645,7 +573,7 @@ export class SettingsApp implements UiApp {
     // thing under the pointer, so it stops looking like it.
     this.#hoverKey = null;
     this.#hoverRegion = "label";
-    this.#rails.clear();
+    this.#rail.clear();
     const currentDefault = typeof entry.rawValue === "string" ? entry.rawValue : null;
     this.#structured = {
       entry,

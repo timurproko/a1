@@ -31,8 +31,8 @@
       "fields": 13
     },
     "src/features/owned-ui/settings-app.ts::SettingsApp": {
-      "methods": 36,
-      "fields": 23
+      "methods": 33,
+      "fields": 19
     },
     "src/features/prompt-history/service.ts::PromptHistoryService": {
       "methods": 21,
@@ -89,9 +89,6 @@
     },
     "src/features/owned-ui/project-trust-prompt.ts::createConsoleProjectTrustPrompt": {
       "lines": 150
-    },
-    "src/features/owned-ui/settings-app.ts::SettingsApp.render": {
-      "lines": 108
     },
     "src/foundation/release/bootstrap.ts::runBootstrapAttempt": {
       "lines": 121
