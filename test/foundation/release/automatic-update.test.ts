@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS,
   AUTOMATIC_UPDATE_RETRY_MS,
   AUTOMATIC_UPDATE_STATE_SCHEMA,
   AutomaticUpdateStateStore,
@@ -55,7 +54,8 @@ async function setActiveRelease(dataDir: string, version: string, approval: "app
   }));
 }
 
-function blockedState(now: number): AutomaticUpdateState {
+/** A record written while activation could wait on resident tabs; it no longer means anything. */
+function legacyBlockedState(now: number): Record<string, unknown> {
   return {
     schema: AUTOMATIC_UPDATE_STATE_SCHEMA,
     channel: "stable",
@@ -215,52 +215,25 @@ describe("automatic update coordination", () => {
     expect(spawnWorker).toHaveBeenCalledTimes(1);
   });
 
-  it("reports prepared activation and retries it on the short cadence", async () => {
+  it("ignores a legacy blocked record and starts the worker at once", async () => {
     const { dataDir, environment } = await harness();
     const now = 10_000;
     const store = new AutomaticUpdateStateStore(dataDir);
-    await store.write(blockedState(now));
+    await writeFile(store.path, JSON.stringify(legacyBlockedState(now)));
+    await expect(store.read()).resolves.toBeNull();
     const spawnWorker = vi.fn(async () => undefined);
-    const blocked = vi.fn();
-    const common = {
-      release,
-      runningVersion: "1.2.3",
-      environment,
-      worker: { entry: resolve(dataDir, "worker.js"), packageRoot: resolve(dataDir, "release") },
-      spawnWorker,
-      onActivationBlocked: blocked,
-      activeVersion: async () => null,
-    };
-
-    await expect(requestAutomaticUpdate({ ...common, now: () => now + AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS - 1 })).resolves.toBeNull();
-    expect(blocked).toHaveBeenLastCalledWith(release.version);
-    expect(spawnWorker).not.toHaveBeenCalled();
-
-    let clock = now + AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS;
-    await expect(requestAutomaticUpdate({ ...common, now: () => clock, sleep: async () => { clock += 5_001; } })).resolves.toBeNull();
-    expect(spawnWorker).toHaveBeenCalledOnce();
-  });
-
-  it("clears prepared status when an activation retry becomes an ordinary failure", async () => {
-    const { dataDir, environment } = await harness();
-    const now = 10_000;
-    const store = new AutomaticUpdateStateStore(dataDir);
-    await store.write(blockedState(now));
-    const blocked = vi.fn();
-
+    let clock = now + 1;
     await expect(requestAutomaticUpdate({
       release,
       runningVersion: "1.2.3",
       environment,
-      now: () => now + AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS,
+      now: () => clock,
+      sleep: async () => { clock += 5_001; },
       worker: { entry: resolve(dataDir, "worker.js"), packageRoot: resolve(dataDir, "release") },
-      spawnWorker: async () => { throw new Error("could not spawn"); },
-      onActivationBlocked: blocked,
+      spawnWorker,
       activeVersion: async () => null,
     })).resolves.toBeNull();
-
-    expect(blocked.mock.calls.map(call => call[0])).toEqual([release.version, null]);
-    expect(await store.read()).toMatchObject({ status: "failed", failure: "worker-start-failed" });
+    expect(spawnWorker).toHaveBeenCalledOnce();
   });
 
   it("suppresses a failed target for the retry interval but permits a newer target and later retry", async () => {
@@ -365,7 +338,7 @@ describe("automatic update coordination", () => {
     await expect(store.read()).rejects.toThrow(/oversized/);
     await writeFile(store.path, JSON.stringify({ ...failedState(1), targetVersion: "latest" }));
     await expect(store.read()).rejects.toThrow(/invalid automatic update state/);
-    await writeFile(store.path, JSON.stringify({ ...blockedState(1), failure: "raw native detail" }));
+    await writeFile(store.path, JSON.stringify({ ...failedState(1), status: "prepared" }));
     await expect(store.read()).rejects.toThrow(/invalid automatic update state/);
   });
 });

@@ -1,32 +1,25 @@
 #!/usr/bin/env node
-/** Run the normal build under one resolved native environment, before any clean or compilation. */
+/** Run the normal build: environment check, TypeScript and resource generation, then the payload inventory. */
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
-import { resolveNativeBuildEnvironment } from "./native-build-environment.mjs";
 
-export function buildStages({ core, npmCli, node = process.execPath }) {
-  const stages = [
+/** `--core` is the same build; it stays accepted for the `prepare` lifecycle and older callers. */
+export function buildStages({ npmCli, node = process.execPath }) {
+  return [
     { executable: node, arguments: [resolve("scripts/development/check-environment.mjs")] },
     { executable: node, arguments: [npmCli, "run", "build:managed"] },
+    { executable: node, arguments: [resolve("scripts/release/generate-runtime-payload-inventory.mjs")] },
   ];
-  if (!core) stages.push({ executable: node, arguments: [resolve("scripts/development/prepare-local-terminal-host.mjs")] });
-  stages.push({ executable: node, arguments: [resolve("scripts/release/generate-runtime-payload-inventory.mjs")] });
-  return stages;
 }
 
 export function runBuild({
-  argv = process.argv.slice(2),
-  environment: launchingEnvironment = process.env,
+  environment = process.env,
   spawn = spawnSync,
-  resolveEnvironment = resolveNativeBuildEnvironment,
 } = {}) {
-  const resolved = resolveEnvironment({ environment: launchingEnvironment });
-  const environment = resolved.environment;
   const npmCli = environment.npm_execpath?.trim();
   if (!npmCli) throw new Error("npm did not provide npm_execpath; run this build through `npm run build`");
-  const core = argv.includes("--core");
-  for (const stage of buildStages({ core, npmCli })) {
+  for (const stage of buildStages({ npmCli })) {
     const result = spawn(stage.executable, stage.arguments, {
       cwd: process.cwd(), env: environment, stdio: "inherit", windowsHide: true,
     });

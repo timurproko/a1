@@ -1,10 +1,10 @@
-import type { NativeProcessIdentity } from "../foundation/lifecycle/model.js";
+import type { ProcessIdentity } from "../foundation/lifecycle/model.js";
 
 export interface SessionRuntimeRegistryOptions {
   /** Absent outside claim-owning runtimes. */
   readonly runtimeId: string | undefined;
   /** Exact native inspection; absent SDK seams cannot claim. */
-  readonly inspectProcess: ((pid: number) => Promise<NativeProcessIdentity | null>) | undefined;
+  readonly inspectProcess: ((pid: number) => Promise<ProcessIdentity | null>) | undefined;
   readonly refreshMs?: number;
 }
 
@@ -15,7 +15,7 @@ export class SessionRuntimeRegistry {
   readonly #options: SessionRuntimeRegistryOptions;
   readonly #identities = new Map<string | undefined, SessionIdentity>();
   readonly #abort = new AbortController();
-  #owner: Promise<NativeProcessIdentity | null> | null = null;
+  #owner: Promise<ProcessIdentity | null> | null = null;
   #timer: NodeJS.Timeout | null = null;
   #work = Promise.resolve();
   #refreshPending = false;
@@ -61,7 +61,7 @@ export class SessionRuntimeRegistry {
       .catch(() => undefined);
   }
 
-  async #ownerIdentity(): Promise<NativeProcessIdentity | null> {
+  async #ownerIdentity(): Promise<ProcessIdentity | null> {
     const { inspectProcess } = this.#options;
     if (this.#disposed || inspectProcess === undefined) return null;
     const pending = this.#owner ??= Promise.resolve().then(() => inspectProcess(process.pid))

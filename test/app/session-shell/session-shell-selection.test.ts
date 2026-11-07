@@ -825,7 +825,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input(`\u001b[<0;1;${promptRow}M\u001b[<32;59;${answerRow}M\u001b[<0;59;${answerRow}m`);
       terminal.input("\u0003");
       await vi.waitFor(() => expect(copied).toHaveLength(2));
-      expect(copied[1]).toMatch(/^❯ ask me\s+\d{1,2}:\d{2} [AP]M\n\n answer body$/u);
+      expect(copied[1]).toBe("❯ ask me\n\n answer body");
 
       terminal.input(`\u001b[<0;${inputColumn};${inputRow}M\u001b[<32;${inputColumn + 5};${inputRow}M\u001b[<0;${inputColumn + 5};${inputRow}m`);
       shell.runtime.renderNow();

@@ -31,7 +31,6 @@ import type { PiShellLazySelectorLoader } from "../../../src/integrations/pi/com
 import {
   OwnedUiSessionPresenter,
   OwnedUiSessionShell,
-  type OwnedUiSessionShellOptions,
   type OwnedUiShellDiagnosticOptions,
   type OwnedUiShellHistoryOptions,
   type OwnedUiShellPresentationOptions,
@@ -305,7 +304,6 @@ export async function fixture(
   lazySelectors?: PiShellLazySelectorLoader,
   backgroundSettings?: OwnedUiBackgroundSettingsPort,
   shared?: OwnedUiShellSharedServices,
-  residentTab?: OwnedUiSessionShellOptions["engine"]["residentTab"],
 ) {
   const engine = new Runtime(messages);
   configureEngine?.(engine);
@@ -318,7 +316,6 @@ export async function fixture(
       backend: adapter,
       cwd: "D:/work",
       ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}),
-      ...(residentTab === undefined ? {} : { residentTab }),
     },
     presentation: {
       terminal,
@@ -354,18 +351,6 @@ export async function fixture(
   shell.start();
   shell.runtime.renderNow();
   return { engine, adapter, terminal, shell };
-}
-
-export function residentFixture(
-  residentTab: NonNullable<OwnedUiSessionShellOptions["engine"]["residentTab"]>,
-  promptHistory?: Omit<OwnedUiShellHistoryOptions, "editor">,
-) {
-  return fixture(
-    [], [], true,
-    undefined, undefined, undefined, undefined, undefined, promptHistory, undefined,
-    undefined, undefined, undefined, undefined, undefined, undefined, undefined,
-    undefined, undefined, undefined, residentTab,
-  );
 }
 
 /** Another session presenter on an existing shell's terminal host, over its own engine double; it starts detached. */

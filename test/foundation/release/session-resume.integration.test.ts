@@ -5,13 +5,11 @@ import { stripVTControlCharacters } from "node:util";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { readPinnedPiIdentity } from "../../../scripts/governance/pinned-pi-identity.mjs";
-import { resolveCohortEndpoint, resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
+import { resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 import {
   CohortStateStore,
   certifyMaterializedRelease,
   materializeRelease,
-  readEndpointMetadata,
-  releaseVerifiedIdleOwner,
 } from "../../../src/foundation/release/index.js";
 import { writeResumeFixture } from "../../support/session-resume-fixture.js";
 import { extractValidationCandidate, loadValidationCandidate } from "./package-candidate-fixture.js";
@@ -62,13 +60,11 @@ afterEach(async () => {
   await phases.cleanup("after-each-close", () => Promise.all([...children].map(closeLaunch)));
 }, 35_000);
 
-// Performance: teardown is two bounded steps whose worst cases sum past 30 s on a slow Windows
-// runner: the idle-owner release (3 s exit wait, then two taskkill grace windows) and rm's ten
-// linear retries (11 s of back-off, each re-walking the extracted and materialized candidate).
-// Each step records its own phase so an overrun names the step that stalled.
+// Performance: rm's ten linear retries (11 s of back-off, each re-walking the extracted and
+// materialized candidate) can be slow on a Windows runner; each step records its own phase so an
+// overrun names the step that stalled.
 afterAll(async () => {
   await phases.cleanup("after-all-close", async () => { for (const child of children) await closeLaunch(child); });
-  if (environment) await phases.cleanup("after-all-stop-supervisor", () => stopSupervisor());
   vi.unstubAllEnvs();
   if (extracted) await phases.cleanup("after-all-remove-candidate", () => rm(extracted.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }));
 }, 60_000);
@@ -116,7 +112,7 @@ describe("same-pin resume through the exact packaged public launch chain", () =>
     await assertIdle();
   }, 120_000);
 
-  it("preserves spaces/apostrophes through Git Bash quoting and a supervisor restart", async () => {
+  it("preserves spaces/apostrophes through Git Bash quoting across separate launches", async () => {
     const directory = resolve(extracted.root, "session's custom store");
     const saved = await writeResumeFixture(directory, cwd, { compacted: true });
     const first = await launch(["--session", saved.id, "--session-dir", directory]);
@@ -125,13 +121,12 @@ describe("same-pin resume through the exact packaged public launch chain", () =>
     const hint = resumeHint(first.output());
     expect(hint).toContain("--session-dir");
     expect(hint).toContain(saved.id);
-    await stopSupervisor();
     const restarted = await launchHint(hint);
     await restarted.ready(saved.marker);
     expect(restarted.output()).toContain(saved.marker);
     await restarted.close();
     expect(resumeHint(restarted.output())).toBe(hint);
-    expect(await restarted.trace()).toContain('"phase":"replacement-supervisor-ready"');
+    expect(await restarted.trace()).toContain('"phase":"durable-validation-complete"');
     await assertIdle();
   }, 120_000);
 
@@ -204,10 +199,7 @@ describe("same-pin resume through the exact packaged public launch chain", () =>
     expect(first.output()).not.toContain(b.marker);
     expect(second.output()).toContain(b.marker);
     expect(second.output()).not.toContain(a.marker);
-    const active = await endpoint();
-    expect(active?.ownership.liveInstanceIds).toHaveLength(2);
     await first.close();
-    await until(async () => (await endpoint())?.ownership.liveInstanceIds.length === 1);
     expect(second.child.exitCode).toBeNull();
     await second.close();
     await assertIdle();
@@ -323,22 +315,9 @@ async function closeLaunch(child: ChildProcess): Promise<void> {
   children.delete(child);
 }
 
-async function endpoint() {
-  const paths = resolveProductPaths(environment);
-  const state = JSON.parse(await readFile(resolve(paths.dataDir, "release-state.json"), "utf8")) as { references: { active: string } };
-  return readEndpointMetadata(resolveCohortEndpoint(paths, state.references.active, environment).endpointMetadataPath);
-}
-
+/** Every launch this test started has exited; nothing else runs on its behalf. */
 async function assertIdle() {
-  await until(async () => (await endpoint())?.ownership.liveInstanceIds.length === 0);
-}
-
-async function stopSupervisor() {
-  const owner = await endpoint().catch(() => null);
-  if (!owner) return;
-  await assertIdle();
-  const idle = await endpoint();
-  if (idle) expect(await releaseVerifiedIdleOwner(idle, resolveProductPaths(environment).dataDir)).toBe(true);
+  await until(async () => [...children].every(child => closedChildren.has(child)));
 }
 
 // Rationale: readiness is polled with backoff to a generous ceiling. The ceiling is a hang bound

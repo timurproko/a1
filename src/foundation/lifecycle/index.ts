@@ -1,29 +1,8 @@
-export type { LaunchInstanceStopIntent, SupervisorCommand } from "./commands.js";
-export { assertLaunchInstance, assertLaunchInstanceOutcome, assertLaunchInstanceTransition, assertProcessContainmentIdentity } from "./launch-instance.js";
-export type {
-  LaunchInstance,
-  LaunchInstanceId,
-  LaunchInstanceOutcome,
-  LaunchInstanceShutdownPolicy,
-  LaunchInstanceState,
-  LaunchInstanceStopReason,
-  ProcessContainmentIdentity,
-} from "./launch-instance.js";
-export { assertDimensions, assertLaunchProfileId, assertNativeProcessIdentity, assertTransparentTerminalLaunchProfile } from "./model.js";
-export type {
-  CommandResult,
-  DriverProfileId,
-  GenerationId,
-  LaunchProfileId,
-  NativeProcessIdentity,
-  RequestId,
-  SupervisorSnapshot,
-  TerminalDimensions,
-  TransparentTerminalLaunchProfile,
-  TransparentTerminalLifecycleOutcome,
-} from "./model.js";
-export { resolveCohortEndpoint, resolveProductPaths } from "./paths.js";
-export type { CohortEndpointPaths, ProductPaths } from "./paths.js";
+export { assertLaunchProfileId } from "./model.js";
+export type { LaunchProfileId, ProcessIdentity } from "./model.js";
+export { PID_LIVENESS_IDENTITY, inspectLiveProcess } from "./process-liveness.js";
+export { resolveProductPaths } from "./paths.js";
+export type { ProductPaths } from "./paths.js";
 export { parseSessionSelection, sessionSelectionArguments } from "./session-selection.js";
 export type { SessionSelection } from "./session-selection.js";
 export {
@@ -43,12 +22,3 @@ export type {
   SessionWorktreeInventoryEntry,
   SessionWorktreeStatus,
 } from "./session-repository-context.js";
-export {
-  createSupervisorStartupAttempt,
-  publishSupervisorStartupResult,
-  readSupervisorStartupResult,
-  supervisorStartupFailure,
-  supervisorStartupReady,
-  supervisorStartupResultPath,
-} from "./supervisor-startup.js";
-export type { SupervisorStartupAttemptIdentity, SupervisorStartupResult } from "./supervisor-startup.js";

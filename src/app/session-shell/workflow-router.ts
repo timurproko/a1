@@ -56,13 +56,9 @@ const SELECTOR_ROUTES: readonly SelectorRoute[] = [
 export function openWorkflowSelector(
   request: OwnedUiWorkflowRequest,
   selectors: WorkflowSelectors,
-  options: { readonly residentTab: boolean },
 ): OwnedUiCommandResult | Promise<OwnedUiCommandResult> | undefined {
   const route = SELECTOR_ROUTES.find(candidate => candidate.command === request.command && candidate.pending(request));
   if (route === undefined) return undefined;
-  if (route.command === "settings" && options.residentTab) {
-    return { outcome: "rejected", diagnostic: "Settings is available from the global Settings tab." };
-  }
   const completed: OwnedUiCommandResult = { outcome: "completed", diagnostic: null };
   const opened = route.open(selectors, request);
   return opened instanceof Promise ? opened.then(() => completed) : completed;

@@ -37,7 +37,6 @@ describe("owned UI setting declarations", () => {
   it("declares the grouped live viewport appearance, style, and speed controls", () => {
     expect(OWNED_UI_SETTING_DECLARATIONS.map(setting => setting.id)).toEqual([
       "updateCheck",
-      "timeFormat",
       "accentColor",
       "backgroundStyle",
       "quitAnimation",
@@ -50,19 +49,11 @@ describe("owned UI setting declarations", () => {
       "promptSuggestions",
       "skillsPresentation",
       "promptImageLimit",
-      "tabsPosition",
-      "tabBarPlusMenu",
-      "tabBarRightItems",
-      "tabBarBackgroundStyle",
-      "tabsAutoName",
     ]);
-    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "timeFormat")).toMatchObject({
-      label: "Time format",
-      section: { id: "generic", title: "Generic" },
-      application: "live",
-      defaultValue: "8:00 PM",
-      allowedValues: ["20:00", "8:00 PM"],
-    });
+    for (const retired of ["timeFormat", "tabsPosition", "tabBarPlusMenu", "tabBarRightItems", "tabBarBackgroundStyle", "tabsAutoName"]) {
+      expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, retired), retired).toBeNull();
+    }
+    expect(OWNED_UI_SETTING_DECLARATIONS.some(setting => setting.section?.id === "tabs")).toBe(false);
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "accentColor")).toMatchObject({
       label: "Accent color",
       section: { id: "appearance", title: "Appearance" },
@@ -78,13 +69,6 @@ describe("owned UI setting declarations", () => {
       application: "live",
       defaultValue: "transparent",
       allowedValues: ["transparent", "accent", "dark"],
-    });
-    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabBarBackgroundStyle")).toMatchObject({
-      label: "Background",
-      section: { id: "tabs", title: "Tab Bar" },
-      application: "live",
-      defaultValue: "transparent",
-      allowedValues: ["transparent", "black", "accent"],
     });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "skillsPresentation")).toMatchObject({
       label: "Skills",
@@ -113,28 +97,6 @@ describe("owned UI setting declarations", () => {
       .toContain("one background request, plus one bounded recovery request when needed");
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "residentTabs")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMax")).toBeNull();
-    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsAutoName")).toMatchObject({
-      label: "Auto name",
-      section: { id: "tabs", title: "Tab Bar" },
-      application: "live",
-      defaultValue: true,
-      allowedValues: [true, false],
-    });
-    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsPosition")).toMatchObject({
-      label: "Position",
-      section: { id: "tabs", title: "Tab Bar" },
-      application: "live",
-      defaultValue: "top",
-      allowedValues: ["top", "bottom"],
-    });
-    expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabBarRightItems")).toMatchObject({
-      label: "Widgets",
-      section: { id: "tabs", title: "Tab Bar" },
-      application: "live",
-      defaultValue: "version,time",
-      allowedValues: ["", "version", "time", "version,time"],
-      flags: [{ key: "version", label: "Version" }, { key: "time", label: "Time" }],
-    });
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsMaxConcurrentStarts")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsUnresponsiveRestartSeconds")).toBeNull();
     expect(findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "tabsStallNoticeSeconds")).toBeNull();
@@ -174,8 +136,8 @@ describe("owned UI setting declarations", () => {
   });
 
   it("declares the Appearance background and quit-animation controls after the accent", () => {
-    expect(OWNED_UI_SETTING_DECLARATIONS.slice(0, 5).map(setting => setting.id)).toEqual([
-      "updateCheck", "timeFormat", "accentColor", "backgroundStyle", "quitAnimation",
+    expect(OWNED_UI_SETTING_DECLARATIONS.slice(0, 4).map(setting => setting.id)).toEqual([
+      "updateCheck", "accentColor", "backgroundStyle", "quitAnimation",
     ]);
     const declaration = findOwnedUiSettingDeclaration(OWNED_UI_SETTING_DECLARATIONS, "quitAnimation");
     expect(declaration).toMatchObject({
@@ -264,7 +226,7 @@ describe("owned UI settings migrations", () => {
   });
 
   it("migrates the former speed and appearance names", () => {
-    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(19);
+    expect(OWNED_UI_SETTINGS_MIGRATIONS).toHaveLength(20);
     expect(OWNED_UI_SETTINGS_MIGRATIONS[0]?.migrate({ scrollbarSpeed: "high", future: true }))
       .toEqual({ scrollbarSpeed: "fast", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[1]?.migrate({ scrollbarAppearance: "hover", future: true }))
@@ -357,7 +319,7 @@ describe("owned UI settings migrations", () => {
       section: { id: "generic", title: "Generic" },
       application: "restart",
       defaultValue: "auto",
-      allowedValues: ["auto", "notify", "no"],
+      allowedValues: ["auto", "no"],
     });
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
@@ -460,12 +422,6 @@ describe("owned UI settings migrations", () => {
       document: { version: 15, values: { residentTabs: true, tabsMaxConcurrentStarts: 8 } },
     });
     expect(resolved).toMatchObject({ version: OWNED_UI_SETTINGS_VERSION, migrated: true, notices: [] });
-    expect(resolved.settings.find(setting => setting.declaration.id === "tabsAutoName"))
-      .toMatchObject({ value: true, source: "default" });
-    expect(resolved.settings.find(setting => setting.declaration.id === "timeFormat"))
-      .toMatchObject({ value: "8:00 PM", source: "default" });
-    expect(resolved.settings.find(setting => setting.declaration.id === "tabsPosition"))
-      .toMatchObject({ value: "top", source: "default" });
     expect(resolved.preserved).not.toHaveProperty("tabsMaxConcurrentStarts");
   });
 
@@ -477,7 +433,7 @@ describe("owned UI settings migrations", () => {
       .toEqual({ updateCheck: "no", future: true });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[17]?.migrate({ future: true })).toEqual({ future: true });
 
-    for (const [stored, expected] of [[true, "notify"], [false, "no"]] as const) {
+    for (const [stored, expected] of [[true, "auto"], [false, "no"]] as const) {
       const resolved = resolveOwnedUiSettings({
         declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
         document: { version: 18, values: { updateCheck: stored } },
@@ -491,7 +447,8 @@ describe("owned UI settings migrations", () => {
     });
     expect(absent.settings.find(setting => setting.declaration.id === "updateCheck"))
       .toMatchObject({ value: "auto", source: "default" });
-    expect(normalizeOwnedUiSettingsValues({ updateCheck: true }).values).toMatchObject({ updateCheck: "notify" });
+    expect(normalizeOwnedUiSettingsValues({ updateCheck: true }).values).toMatchObject({ updateCheck: "auto" });
+    expect(normalizeOwnedUiSettingsValues({ updateCheck: "notify" }).values).toMatchObject({ updateCheck: "auto" });
     expect(normalizeOwnedUiSettingsValues({ updateCheck: false }).values).toMatchObject({ updateCheck: "no" });
   });
 
@@ -499,12 +456,23 @@ describe("owned UI settings migrations", () => {
     expect(OWNED_UI_SETTINGS_MIGRATIONS[18]).toMatchObject({ to: 20 });
     expect(OWNED_UI_SETTINGS_MIGRATIONS[18]?.migrate({ tabsPosition: "bottom", future: true }))
       .toEqual({ tabsPosition: "bottom", future: true });
+  });
+
+  it("retires tab-bar and time-format settings and maps Notify to Auto", () => {
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[19]).toMatchObject({ to: 21 });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[19]?.migrate({
+      updateCheck: "notify", tabsPosition: "bottom", tabBarPlusMenu: "agent", tabBarRightItems: "time",
+      tabBarBackgroundStyle: "black", tabsAutoName: false, timeFormat: "20:00", future: true,
+    })).toEqual({ updateCheck: "auto", future: true });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[19]?.migrate({ updateCheck: "no" })).toEqual({ updateCheck: "no" });
+    expect(OWNED_UI_SETTINGS_MIGRATIONS[19]?.migrate({ updateCheck: false })).toEqual({ updateCheck: "no" });
     const resolved = resolveOwnedUiSettings({
       declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: OWNED_UI_SETTINGS_MIGRATIONS,
-      document: { version: 19, values: { tabsPosition: "bottom" } },
+      document: { version: 20, values: { updateCheck: "notify", tabsPosition: "bottom", timeFormat: "20:00" } },
     });
-    expect(resolved.settings.find(setting => setting.declaration.id === "tabBarRightItems"))
-      .toMatchObject({ value: "version,time", source: "default" });
+    expect(resolved).toMatchObject({ version: OWNED_UI_SETTINGS_VERSION, migrated: true, notices: [] });
+    expect(resolved.settings.find(setting => setting.declaration.id === "updateCheck")).toMatchObject({ value: "auto", source: "stored" });
+    expect(resolved.preserved).toEqual({});
   });
 
   it("rejects a list with a gap or a wrong end version", () => {

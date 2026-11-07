@@ -12,8 +12,10 @@ export type UpdateTransactionPhase =
   | "package-installed"
   | "materialized"
   | "certified"
-  | "active-reference-committed"
-  | "supervisor-verified";
+  | "active-reference-committed";
+
+/** Compatibility: a journal written before supervision was removed may name its last phase. */
+const LEGACY_FINAL_PHASE = "supervisor-verified";
 
 export interface UpdateRecoveryState {
   readonly capsulePath: string;
@@ -46,7 +48,8 @@ export class UpdateTransactionStore {
 
   async read(): Promise<UpdateTransaction | null> {
     try {
-      const value = JSON.parse(await readFile(this.path, "utf8")) as UpdateTransaction;
+      const parsed = JSON.parse(await readFile(this.path, "utf8")) as UpdateTransaction;
+      const value: UpdateTransaction = (parsed.phase as string) === LEGACY_FINAL_PHASE ? { ...parsed, phase: "active-reference-committed" } : parsed;
       validate(value);
       return value;
     } catch (error) {
@@ -126,7 +129,7 @@ export class UpdateTransactionStore {
 }
 
 function phaseOrder(phase: UpdateTransactionPhase): number {
-  return ["shutdown-intent", "ownership-released", "package-installed", "materialized", "certified", "active-reference-committed", "supervisor-verified"].indexOf(phase);
+  return ["shutdown-intent", "ownership-released", "package-installed", "materialized", "certified", "active-reference-committed"].indexOf(phase);
 }
 function validate(value: UpdateTransaction): void {
   if (value.schema !== UPDATE_JOURNAL_SCHEMA || typeof value.transactionId !== "string" || !["stable", "next"].includes(value.channel)

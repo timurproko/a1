@@ -5,7 +5,7 @@ import { stripTerminalSequences, visibleWidth } from "@earendil-works/pi-tui";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import { createPiShellTranscriptComponent } from "../../../../src/integrations/pi/components/index.js";
-import { composeSubmittedPromptRows, formatSubmittedPromptTime, submittedPromptLayout } from "../../../../src/ui/components/index.js";
+import { composeSubmittedPromptRows, submittedPromptLayout } from "../../../../src/ui/components/index.js";
 
 // Provenance: Pi owns a nested Chalk instance; set its capability explicitly rather than the checkout's copy.
 const pinnedRequire = createRequire(new URL("../../../../node_modules/@earendil-works/pi-coding-agent/dist/index.js", import.meta.url));
@@ -34,7 +34,7 @@ describe("prompt-style compaction presenter", () => {
     const rows = component.render(80);
     const text = plain(rows);
     expect(text[0]).toContain("❯ Compacted from 281,483 tokens");
-    expect(text[0]).toContain(formatSubmittedPromptTime(timestamp));
+    expect(text[0]!.trimEnd()).toMatch(/Compacted from 281,483 tokens$/);
     expect(text.join("\n")).toContain("Last summary line.");
     expect(text.join("\n")).not.toMatch(/\[compaction\]|ctrl\+o|expand/i);
     const ordinary = mount({ ...summary, kind: "user", text: `Compacted from 281,483 tokens\n\n${summary.text}` });
@@ -66,16 +66,13 @@ describe("prompt-style compaction presenter", () => {
     }
   });
 
-  it.each([1, 8, 20, 40, 80, 120])("reuses prompt width and timestamp rules at %i cells", width => {
+  it.each([1, 8, 20, 40, 80, 120])("reuses prompt width rules at %i cells", width => {
     const component = mount();
     const before = component.render(80);
     const rows = component.render(width);
     expect(rows.every(row => visibleWidth(row) <= width)).toBe(true);
     const ordinary = mount({ ...summary, kind: "user", text: `Compacted from 281,483 tokens\n\n${summary.text}` });
     if (width > 1) expect(plain(rows)).toEqual(plain(ordinary.render(width)));
-    if (submittedPromptLayout(width, timestamp).timestamp === null) {
-      expect(plain(rows).join("\n")).not.toContain(formatSubmittedPromptTime(timestamp));
-    }
     expect(component.render(80)).toEqual(before);
     component.invalidate();
     expect(component.render(80)).toEqual(before);
@@ -86,7 +83,6 @@ describe("prompt-style compaction presenter", () => {
     const text = plain(component.render(80)).join("\n");
     expect(text).toContain("Compacted from 0 tokens");
     expect(text).not.toMatch(/NaN|Invalid Date/);
-    expect(text).not.toContain(formatSubmittedPromptTime(timestamp));
   });
 
   it("still expands ordinary tool output alongside an unchanged compaction", () => {

@@ -25,7 +25,7 @@ describe("repository-local development launch", () => {
     expect(first.developmentRoot).toContain(first.instanceId);
     expect(first.environment.A1_RUNTIME_DIR).toBe(resolve(first.developmentRoot, "runtime"));
     expect(first.environment.A1_DATABASE_PATH).toBe(resolve(first.developmentRoot, "data/control.sqlite3"));
-    expect(resolveProductPaths(first.environment).endpoint).not.toBe(resolveProductPaths(second.environment).endpoint);
+    expect(resolveProductPaths(first.environment).runtimeDir).not.toBe(resolveProductPaths(second.environment).runtimeDir);
   });
 
   it("allows an explicit instance selector when intentional reconnection is needed", () => {
@@ -35,7 +35,7 @@ describe("repository-local development launch", () => {
 
     expect(first.instanceId).toBe(second.instanceId);
     expect(first.developmentRoot).toBe(second.developmentRoot);
-    expect(resolveProductPaths(first.environment).endpoint).toBe(resolveProductPaths(second.environment).endpoint);
+    expect(resolveProductPaths(first.environment).runtimeDir).toBe(resolveProductPaths(second.environment).runtimeDir);
   });
 
   it("ignores legacy-only environment overrides", () => {
@@ -58,7 +58,6 @@ describe("repository-local development launch", () => {
     expect(launch.environment.A1_DATA_DIR).not.toContain("legacy/data");
     expect(launch.environment.A1_RUNTIME_DIR).not.toContain("legacy/runtime");
     expect(paths.databasePath).not.toContain("legacy/database.sqlite3");
-    expect(paths.endpoint).not.toBe("legacy-endpoint");
   });
 
   it("preserves explicit development path overrides", () => {
@@ -91,8 +90,7 @@ describe("repository-local development launch", () => {
       expect(JSON.parse(owned.stdout)).toMatchObject({
         launchArguments: [],
         directProfile: "a1",
-        launchMode: "tabs",
-        selectedEntry: "bin/cli.js",
+        selectedEntry: "bin/ui.js",
         profileConfigurationRoot: resolve(profileHome, ".a1/agent"),
         environment: {
           PI_CODING_AGENT_DIR: resolve(profileHome, ".a1/agent"),
@@ -102,7 +100,6 @@ describe("repository-local development launch", () => {
       expect(JSON.parse(pi.stdout)).toMatchObject({
         launchArguments: ["pi"],
         directProfile: "pi",
-        launchMode: "solo",
         selectedEntry: "bin/ui.js",
         profileConfigurationRoot: null,
         environment: { PI_CODING_AGENT_DIR: null, NODE_DISABLE_COMPILE_CACHE: "1" },
@@ -113,47 +110,15 @@ describe("repository-local development launch", () => {
     }
   });
 
-  it("uses the direct development entry for explicit solo mode", async () => {
-    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-solo-"));
-    try {
-      const result = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "solo"], {
-        env: { ...process.env, A1_PROFILE_HOME: profileHome },
-      });
-      expect(JSON.parse(result.stdout)).toMatchObject({
-        launchArguments: ["solo"],
-        childArguments: [],
-        directProfile: "a1",
-        launchMode: "solo",
-        selectedEntry: "bin/ui.js",
-      });
-    } finally {
-      await rm(profileHome, { recursive: true, force: true });
-    }
-  });
-
-  it("routes selected solo sessions directly with intact arguments and leaves later solo launches fresh", async () => {
-    const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-solo-resume-"));
-    const args = ["solo", "--session-dir", "D:/session's store", "--session", "saved-id"];
-    try {
-      const env = { ...process.env, A1_PROFILE_HOME: profileHome, PI_SESSION_ID: "stale" };
-      const selected = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", ...args], { env });
-      expect(JSON.parse(selected.stdout)).toMatchObject({ directProfile: "a1", launchMode: "solo",
-        selectedEntry: "bin/ui.js", childArguments: args.slice(1) });
-      const fresh = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", "solo"], { env });
-      expect(JSON.parse(fresh.stdout)).toMatchObject({ directProfile: "a1", launchMode: "solo",
-        selectedEntry: "bin/ui.js", childArguments: [] });
-    } finally { await rm(profileHome, { recursive: true, force: true }); }
-  });
-
   it("forwards resume arguments intact through the development launcher and keeps later bare launches fresh", async () => {
     const profileHome = await mkdtemp(resolve(tmpdir(), "a1-development-resume-"));
     const env = { ...process.env, A1_PROFILE_HOME: profileHome, PI_SESSION_ID: "stale", PI_SESSION_FILE: "stale.jsonl" };
     const args = ["--session-dir", "D:/session's store", "--session", "D:\\session files\\saved.jsonl"];
     try {
       const selected = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment", ...args], { env });
-      expect(JSON.parse(selected.stdout)).toMatchObject({ directProfile: "a1", launchMode: "tabs", selectedEntry: "bin/cli.js", childArguments: args });
+      expect(JSON.parse(selected.stdout)).toMatchObject({ directProfile: "a1", selectedEntry: "bin/ui.js", childArguments: args });
       const fresh = await execute(process.execPath, ["scripts/development/start-local.mjs", "--print-environment"], { env });
-      expect(JSON.parse(fresh.stdout)).toMatchObject({ directProfile: "a1", launchMode: "tabs", selectedEntry: "bin/cli.js", childArguments: [] });
+      expect(JSON.parse(fresh.stdout)).toMatchObject({ directProfile: "a1", selectedEntry: "bin/ui.js", childArguments: [] });
     } finally {
       await rm(profileHome, { recursive: true, force: true });
     }
@@ -178,7 +143,7 @@ describe("repository-local development launch", () => {
     expect(first.environment.A1_CONFIG_DIR).not.toContain(first.instanceId);
   });
 
-  it("shares Shared history across solo launches without sharing their control state", async () => {
+  it("shares Shared history across launches without sharing their runtime state", async () => {
     const { resolvePromptHistoryPath } = await import("../../../src/features/prompt-history/index.js");
     const temporaryDirectory = resolve("C:/isolated-temp");
     const first = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "0.1.4-build", {}, temporaryDirectory);
@@ -193,7 +158,7 @@ describe("repository-local development launch", () => {
       .toBe(resolvePromptHistoryPath(secondHistory, profile, process.platform, "shared").path);
     expect(resolvePromptHistoryPath(firstHistory, profile, process.platform, "unique", "session-one").path)
       .not.toBe(resolvePromptHistoryPath(secondHistory, profile, process.platform, "unique", "session-two").path);
-    expect(resolveProductPaths(first.environment).endpoint).not.toBe(resolveProductPaths(second.environment).endpoint);
+    expect(resolveProductPaths(first.environment).runtimeDir).not.toBe(resolveProductPaths(second.environment).runtimeDir);
   });
 
   it("keeps an explicit development root self-contained while allowing a history-only override", () => {

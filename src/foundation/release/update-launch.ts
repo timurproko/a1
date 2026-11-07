@@ -11,9 +11,3 @@ export function selectUpdateLaunchRelease(state: CohortState, transaction: Updat
   return prior;
 }
 
-/** Pause cohort retirement during preparation; afterward only the successful launch release admits new sessions. */
-export function selectSupervisorLaunchReleaseId(state: CohortState, transaction: UpdateTransaction | null): string | null {
-  // Concurrency: both the previous cohort and the warming candidate must remain available until cutover.
-  if (transaction?.status === "active") return null;
-  return selectUpdateLaunchRelease(state, transaction)?.releaseId ?? state.references.active;
-}

@@ -114,34 +114,11 @@ export interface OwnedUiShellEngineOptions {
   };
   /** Bare A1 selects the owned bounded viewport; comparison profiles stay pinned. */
   readonly sessionLayout?: "pinned" | "custom-viewport";
-  /** Resident tab quit routes detach the outer client without stopping this engine session. */
-  readonly residentTab?: {
-    requestDetach(): Promise<boolean>;
-    closeOwnedRoute?(route: string): void;
-    reportStatus?(status: "working" | "idle"): void;
-    admit?(input: {
-      readonly sessionId: string;
-      readonly sessionFile: string | null;
-      readonly kind: "prompt" | "steer" | "follow-up";
-      readonly text: string;
-    }): Promise<{ readonly id: string }>;
-    dispatched?(): void;
-    correlated?(submissionId: string, entryId: string): Promise<void>;
-    checkpoint?(text: string): void;
-    gracefulStop?(sessionFile: string | null): Promise<void>;
-    readonly recovered?: {
-      readonly prompts: readonly { readonly id: string; readonly text: string }[];
-      readonly draft: string | null;
-    };
-    readonly unavailableNotice?: string;
-  };
 }
 
 /** Terminal, startup, viewport, and presentation-cadence seams; production leaves most at their defaults. */
 export interface OwnedUiShellPresentationOptions {
   readonly terminal?: OwnedUiTerminalPort;
-  /** Explicit direct solo launch, not a resident fallback or comparison launch. */
-  readonly soloResumeHint?: boolean;
   readonly startup?: OwnedUiStartupOptions;
   /** Live profile-local settings, supplied only to the bare-A1 composition. */
   readonly viewportSettings?: OwnedUiViewportSettingsPort;
@@ -311,7 +288,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly requestHyperlinkCleanup?: (rows?: readonly number[]) => void;
       readonly enableDockInputReuse?: boolean;
       readonly persistentHistory?: boolean;
-      readonly hideUtilityTabCommands?: boolean;
       readonly historyEditor?: import("../../integrations/pi/components/index.js").HistoryEditorConstructor;
       readonly onSubmit: (text: string) => void;
       readonly onPasteRejected?: (error: unknown) => void;
@@ -337,8 +313,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       readonly keybindings?: PiKeybindingsHost;
       readonly promptImageLimit?: () => number;
       readonly skillsPresentation?: () => "collapse" | "expand";
-      /** Resident tab chips already show the session name. */
-      readonly footerSessionName?: boolean;
     },
     startup: PiShellHeaderOptions = {},
     agentDir?: string,
@@ -373,7 +347,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
       frame: progressStatusFrame,
     }, handlers);
     this.#status.setProgressPresentation(this.#customViewport ? "custom-viewport" : "pinned");
-    this.#footer = createPiShellFooter(this.#extensions.withStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel, handlers.footerSessionName ?? true);
+    this.#footer = createPiShellFooter(this.#extensions.withStatuses(view), cwd, this.#customViewport ? "a1" : "pi", () => this.#footerLevel);
     this.editor = createShellEditor({
       handlers,
       customViewport: this.#customViewport,
@@ -445,7 +419,6 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
         resourceRows: width => this.#customViewport ? [] : this.resources.render(width),
         hasExtensionHeader: () => this.#extensions.header !== null,
         thinkingVisible: () => this.#thinkingVisible,
-        timeFormat: () => this.#viewportController.config.timeFormat,
       },
     });
   }
@@ -472,13 +445,11 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
 
   #createSubmittedPromptComposer(): PiShellSubmittedPromptComposer {
     return {
-      layout: (width, source) => submittedPromptLayout(width, source, this.#viewportController.config.timeFormat ?? "8:00 PM"),
-      compose: (rows, width, source, style) => composeSubmittedPromptRows(
+      layout: width => submittedPromptLayout(width),
+      compose: (rows, width, style) => composeSubmittedPromptRows(
         rows,
         width,
-        source,
         { ...style, prefix: text => promptArrow(text, piTheme()) },
-        this.#viewportController.config.timeFormat ?? "8:00 PM",
       ).map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor)),
     };
   }

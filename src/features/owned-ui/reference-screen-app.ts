@@ -97,8 +97,6 @@ export interface ReferenceScreenOptions {
   readonly document: ReferenceDocumentProvider;
   /** The reader's scroll settings, read on every frame so a live change is honored. */
   readonly scrollSettings: () => OwnedUiViewportSettings;
-  /** The screen is a resident tab, such as the Changelog tab: it offers no screen-level close. */
-  readonly pinned?: boolean;
   /** Enables owned text selection for document routes that explicitly opt in. */
   readonly selection?: ReferenceDocumentSelectionOptions;
 }
@@ -115,7 +113,6 @@ export class ReferenceScreenApp implements UiApp {
   readonly #title: string;
   readonly #document: ReferenceDocumentProvider;
   readonly #scrollSettings: () => OwnedUiViewportSettings;
-  readonly #pinned: boolean;
   readonly #selection: ReferenceDocumentSelection | undefined;
   #scroll = 0;
   #interruptArmed = false;
@@ -136,7 +133,6 @@ export class ReferenceScreenApp implements UiApp {
     this.#title = options.title;
     this.#document = options.document;
     this.#scrollSettings = options.scrollSettings;
-    this.#pinned = options.pinned === true;
     this.#selection = options.selection === undefined ? undefined : new ReferenceDocumentSelection(options.selection);
   }
 
@@ -242,7 +238,7 @@ export class ReferenceScreenApp implements UiApp {
     switch (action) {
       case "close":
         this.#selection?.handleInput(data);
-        if (!this.#pinned) host.close();
+        host.close();
         return { consumed: true };
       case "up":
         this.#scrollBy(-1);
@@ -310,11 +306,8 @@ export class ReferenceScreenApp implements UiApp {
     return { owned: true, changed: true };
   }
 
-  // Invariant: a pinned screen is its tab and `Esc` does not close it, so it shows no close hint.
   #hintEntries(): ReturnType<typeof REFERENCE_SCREEN_SHORTCUTS.hintEntries> {
-    const entries = REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE);
-    if (!this.#pinned) return entries;
-    return entries.filter(entry => entry.key !== DIALOG_CLOSE_SHORTCUT_HINT.key || entry.action !== DIALOG_CLOSE_SHORTCUT_HINT.action);
+    return REFERENCE_SCREEN_SHORTCUTS.hintEntries(SCOPE);
   }
 
   // Invariant: the title is the first document row, as in v2, so it scrolls with the document.

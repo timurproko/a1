@@ -5,9 +5,8 @@ import { UPDATE_CHECK_INTERVAL_MS, type AvailableRelease, type StartupReleaseChe
 import type { PiEngineHostOptions } from "../../src/integrations/pi/engine/host.js";
 
 const observed = vi.hoisted(() => ({
-  updateCheck: "notify" as unknown,
+  updateCheck: "auto" as unknown,
   automaticInstalled: "0.3.1" as string | null,
-  activationBlocked: false,
   automaticRequests: [] as unknown[],
   activeReleaseCallbacks: [] as Array<(version: string) => void>,
   activeReleaseRunningVersions: [] as string[],
@@ -38,10 +37,8 @@ vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async im
 }));
 vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/foundation/release/automatic-update.js", () => ({
-  AUTOMATIC_UPDATE_ACTIVATION_RETRY_MS: 15_000,
-  requestAutomaticUpdate: async (input: { release: AvailableRelease; onActivationBlocked?: (version: string | null) => void }) => {
+  requestAutomaticUpdate: async (input: { release: AvailableRelease }) => {
     observed.automaticRequests.push(input);
-    if (observed.activationBlocked) input.onActivationBlocked?.(input.release.version);
     return observed.automaticInstalled;
   },
   observeNewerActiveRelease: (input: { runningVersion: string; onNewer(version: string): void }) => {
@@ -92,9 +89,8 @@ vi.mock("../../src/app/session-shell/session-shell.js", () => ({
 }));
 
 afterEach(() => {
-  observed.updateCheck = "notify";
+  observed.updateCheck = "auto";
   observed.automaticInstalled = "0.3.1";
-  observed.activationBlocked = false;
   observed.automaticRequests.length = 0;
   observed.activeReleaseCallbacks.length = 0;
   observed.activeReleaseRunningVersions.length = 0;
@@ -117,7 +113,6 @@ async function compose(options: {
   ownedSurfaces?: "off";
   profileId?: string;
   packageVersion?: string;
-  notificationVersion?: string;
   release?: AvailableRelease | null;
   releaseSequence?: readonly (AvailableRelease | null)[];
   nextCheckDelay?: number;
@@ -132,7 +127,6 @@ async function compose(options: {
     ...(options.ownedSurfaces === undefined ? {} : { ownedSurfaces: options.ownedSurfaces }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
     packageVersion: options.packageVersion ?? "0.3.0",
-    ...(options.notificationVersion === undefined ? {} : { notificationVersion: options.notificationVersion }),
     releaseNotes: (options.releaseNotes ?? { current: () => null, completeMarkdown: "" }) as never,
     checkForNewerRelease: async input => {
       checks.push(input);
@@ -265,37 +259,10 @@ describe("owned session reference composition", () => {
 });
 
 describe("startup release check composition", () => {
-  it("starts the check after the shell starts and announces a newer release", async () => {
-    const { composed, announced, checks } = await compose({ profileId: "a1" });
-    expect(checks).toHaveLength(0);
-
-    composed.application.start();
-
-    expect(observed.started).toBe(1);
-    await vi.waitFor(() => { expect(announced).toEqual([STABLE]); });
-    expect(checks[0]).toMatchObject({ runningVersion: "0.3.0", settingMode: "notify" });
-    await composed.application.dispose();
-  });
-
-  it.each([
-    ["stable", "0.3.1-dev.640", "0.3.0", STABLE],
-    ["development", "0.3.1", "0.3.1-dev.640", DEVELOPMENT],
-  ] as const)("uses the invoking %s package version for notify discovery when another channel executes", async (
-    _channel, packageVersion, notificationVersion, release,
-  ) => {
-    const { composed, announced, checks } = await compose({
-      profileId: "a1", packageVersion, notificationVersion, release,
-    });
-    composed.application.start();
-    await vi.waitFor(() => { expect(announced).toEqual([release]); });
-    expect(checks[0]).toMatchObject({ runningVersion: notificationVersion, settingMode: "notify" });
-    await composed.application.dispose();
-  });
-
-  it("keeps automatic discovery on the executing release version", async () => {
+  it("starts after the shell and keeps discovery on the executing release version", async () => {
     observed.updateCheck = "auto";
     const { composed, announced, checks } = await compose({
-      profileId: "a1", packageVersion: "0.3.1-dev.640", notificationVersion: "0.3.0", release: STABLE,
+      profileId: "a1", packageVersion: "0.3.1-dev.640", release: STABLE,
     });
     composed.application.start();
     await vi.waitFor(() => { expect(announced).toEqual([{ status: "installed", version: "0.3.1" }]); });
@@ -359,30 +326,6 @@ describe("startup release check composition", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it("retries prepared activation before registry cache expiry and stops after activation", async () => {
-    observed.updateCheck = "auto";
-    observed.activationBlocked = true;
-    observed.automaticInstalled = null;
-    const { composed, announced, checks } = await compose({ profileId: "a1", nextCheckDelay: UPDATE_CHECK_INTERVAL_MS });
-    vi.useFakeTimers();
-    try {
-      composed.application.start();
-      await vi.advanceTimersByTimeAsync(0);
-      expect(observed.automaticRequests).toHaveLength(1);
-      expect(announced).toEqual([{ status: "blocked", version: STABLE.version }]);
-      await vi.advanceTimersByTimeAsync(14_999);
-      expect(checks).toHaveLength(1);
-      observed.activationBlocked = false;
-      observed.automaticInstalled = STABLE.version;
-      await vi.advanceTimersByTimeAsync(1);
-      expect(observed.automaticRequests).toHaveLength(2);
-      expect(announced.at(-1)).toEqual({ status: "installed", version: STABLE.version });
-      await vi.advanceTimersByTimeAsync(UPDATE_CHECK_INTERVAL_MS);
-      expect(checks).toHaveLength(2);
-      await composed.application.dispose();
-    } finally { vi.useRealTimers(); }
-  });
-
   it("polls at an existing cache's remaining lifetime", async () => {
     observed.updateCheck = "auto";
     const { composed, checks } = await compose({ profileId: "a1", release: null, nextCheckDelay: 1_000 });
@@ -398,7 +341,7 @@ describe("startup release check composition", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it.each(["notify", "no"] as const)("never polls again in %s mode", async mode => {
+  it.each(["no"] as const)("never polls again in %s mode", async mode => {
     observed.updateCheck = mode;
     const { composed, checks } = await compose({ profileId: "a1", release: null });
     vi.useFakeTimers();
@@ -412,7 +355,7 @@ describe("startup release check composition", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it.each(["auto", "notify", "no"] as const)("announces a locally active newer release once in %s mode without registry help", async mode => {
+  it.each(["auto", "no"] as const)("announces a locally active newer release once in %s mode without registry help", async mode => {
     observed.updateCheck = mode;
     observed.automaticInstalled = null;
     const { composed, announced, checks } = await compose({ profileId: "a1", packageVersion: "0.3.0", release: null });
@@ -437,7 +380,6 @@ describe("startup release check composition", () => {
       mode: "no",
       packageVersion: "0.3.0",
       readPackageVersion: async () => "0.3.0",
-      notificationVersion: undefined,
       checkForNewerRelease: async () => { checks += 1; return null; },
     });
     const first = make(firstAnnouncements);
@@ -450,10 +392,6 @@ describe("startup release check composition", () => {
     expect(firstAnnouncements).toEqual([{ status: "installed", version: "0.3.1" }]);
     expect(secondAnnouncements).toEqual([{ status: "installed", version: "0.3.1" }]);
     await vi.waitFor(() => { expect(checks).toBe(2); });
-    first.clientChanged();
-    second.clientChanged();
-    await new Promise(resolve => setImmediate(resolve));
-    expect(checks).toBe(2);
     first.stop();
     second.stop();
     expect(observed.activeReleaseStops).toBe(2);

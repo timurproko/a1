@@ -16,9 +16,8 @@ export class SessionFooter implements Component {
   private readonly cwd: string;
   private readonly profile: "pi" | "a1";
   private readonly show: () => boolean;
-  private readonly showSessionName: boolean;
-  constructor(getView: () => OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi", show: () => boolean = () => true, showSessionName = true) {
-    this.getView = getView; this.cwd = cwd; this.profile = profile; this.show = show; this.showSessionName = showSessionName;
+  constructor(getView: () => OwnedUiSessionViewModel, cwd: string, profile: "pi" | "a1" = "pi", show: () => boolean = () => true) {
+    this.getView = getView; this.cwd = cwd; this.profile = profile; this.show = show;
   }
   invalidate(): void {}
   dispose(): void {}
@@ -42,7 +41,7 @@ export class SessionFooter implements Component {
     let pwd = formatCwd(repositoryPath, process.env.HOME || process.env.USERPROFILE);
     const branch = view.status.footer?.branch;
     if (branch) pwd = `${pwd} (${branch})`;
-    const sessionName = this.showSessionName ? view.status.footer?.sessionName : null;
+    const sessionName = view.status.footer?.sessionName;
     const pullRequest = this.profile === "a1" ? view.status.footer?.pullRequest : null;
     let pathRow: string;
     if (pullRequest == null) {

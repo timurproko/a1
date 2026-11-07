@@ -5,7 +5,6 @@ import { PromptHistoryController } from "./prompt-history-controller.js";
 import { SessionDialogCoordinator } from "./dialog-coordinator.js";
 import { LoginInteraction } from "./login-interaction.js";
 import { PromptSubmission } from "./prompt-submission.js";
-import { ResidentTabCoordinator } from "./resident-tab-coordinator.js";
 import { SessionConcerns } from "./session-concern.js";
 import { composeExitText, SessionStopLatch } from "./session-lifecycle.js";
 import { openWorkflowSelector } from "./workflow-router.js";
@@ -104,15 +103,6 @@ import {
 
 // Invariant: a disposed shell leaves the engine a host that holds no reference back to it.
 const DETACHED_WORKFLOW_INTERACTION: OwnedUiWorkflowInteractionHost = { prompt: async () => null, notify() {} };
-// Invariant: the resume mode belongs to the presenter instance, not the persisted session or profile.
-const SOLO_RESUME_HINTS = new WeakSet<OwnedUiSessionPresenter>();
-/** Resident Agents refuse the commands their tab bar serves instead, naming where they live. */
-const RESIDENT_UTILITY_TAB_REFUSALS: Readonly<Record<string, string>> = Object.freeze({
-  settings: "Settings is available from the global Settings tab.",
-  // Platform: macOS labels Alt `Option`.
-  changelog: `The changelog opens as its own tab from the command palette (${process.platform === "darwin" ? "Option" : "Alt"}+/).`,
-  name: "Rename the session by renaming its tab (F2).",
-});
 
 export {
   OwnedUiSessionShellRoot,
@@ -140,7 +130,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly root: OwnedUiSessionShellRoot;
   readonly #host: OwnedUiTerminalHost;
   readonly #terminal: OwnedUiPresenterTerminal;
-  readonly #resident: ResidentTabCoordinator;
   readonly #submission: PromptSubmission;
   readonly #login: LoginInteraction;
   readonly #concerns: SessionConcerns;
@@ -204,7 +193,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#sessionGeneration = this.backend.identity.sessionGeneration;
     this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
     this.#suggestionModelKey = suggestionModelKey(this.backend.session.view());
-    this.#customViewport = sessionLayout === "custom-viewport"; if (options.presentation?.soloResumeHint) SOLO_RESUME_HINTS.add(this);
+    this.#customViewport = sessionLayout === "custom-viewport";
     this.#inputCoordination = inputPresentation?.coordination !== false;
     this.#host = host;
     this.#terminal = host.connect(this);
@@ -265,8 +254,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           replacementSurfaceActive: !this.root.usesDefaultInputSurface(),
         }),
         enableDockInputReuse: inputPresentation?.viewportReuse !== false,
-        footerSessionName: options.engine.residentTab === undefined,
-        hideUtilityTabCommands: options.engine.residentTab !== undefined,
         persistentHistory: this.#customViewport && promptHistory !== undefined,
         ...(promptHistory === undefined ? {} : { historyEditor: promptHistory.editor }),
         onSubmit: text => { void this.submit(text).catch(() => this.#submission.reportError()); },
@@ -286,7 +273,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         onDequeue: () => this.restoreQueuedInput(),
         onEditorChange: text => {
           this.#submission.noteEditorChange();
-          this.#resident.checkpoint(text);
           promptSuggestionController?.abortPending();
           if (text.length === 0) {
             // Concurrency: the editor synchronizes deletion-owned autocomplete after onChange.
@@ -345,8 +331,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       // Invariant: the presenter owns its root (theme subscription and helper clients) and disposes it once the
       // terminal no longer renders it.
       constructed.push(() => this.root.dispose());
-      this.#resident = new ResidentTabCoordinator(options.engine.residentTab, { root: this.root });
-      constructed.push(() => this.#resident.dispose());
       const startupRoute = options.engine.startupRoute;
       this.#dialogs = new SessionDialogCoordinator({
         terminal: this.#terminal,
@@ -354,7 +338,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         routeHost: routeHost ?? null,
         disposed: () => this.#disposed,
         exit: () => { void this.shutdown(); },
-        routeClosed: route => this.#resident.closeOwnedRoute(route),
         ...(startupRoute === undefined ? {} : { startupRoute }),
       });
       constructed.push(() => this.#dialogs.dispose());
@@ -368,7 +351,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         syncProgress: () => this.#syncTerminalProgress(this.view()),
       });
       this.#submission = this.#createSubmission(cwd);
-      this.#resident.restoreInput(options.history?.imageSidecar);
       this.#reloadPresentation = reloadPresentation;
       const presentationInterval = streamPresentationOptions?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
       this.#streamPresentation = streamPresentationOptions?.scheduler === undefined
@@ -466,7 +448,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#stop.settleAfter(() => this.dispose());
           return;
         }
-        this.#resident.observeLifecycle(event);
         // Performance: a streamed chunk names one block, and touching only that block is what keeps the
         // cost of a chunk the same in a long session as in a new one. Everything else
         // resynchronizes the view, which is cheap next to re-reading the transcript.
@@ -964,20 +945,13 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   shutdown(): Promise<OwnedUiCommandResult> {
     this.#shutdownPromise ??= this.#shutdown().finally(() => {
-      // Invariant: a rejected resident detach is retryable; ordinary shutdown has disposed the shell already.
+      // Invariant: a failed quit is retryable; ordinary shutdown has disposed the shell already.
       if (!this.#disposed) this.#shutdownPromise = undefined;
     });
     return this.#shutdownPromise;
   }
 
   async #shutdown(): Promise<OwnedUiCommandResult> {
-    const detached = await this.#resident.detach();
-    if (detached === true) return { outcome: "completed", diagnostic: null };
-    if (detached !== undefined) {
-      this.root.appendWorkflowStatus(detached);
-      this.#terminal.requestRender();
-      return rejected("resident tab detach is unavailable");
-    }
     try {
       const quit = this.backend.workflows.executeWorkflow({ command: "quit", argument: "" });
       // Invariant: a slow or hung engine quit never holds the terminal past the cleanup deadline. The
@@ -1024,7 +998,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         return { outcome: "completed", diagnostic: null };
       }
     }
-    const selected = openWorkflowSelector(request, this, { residentTab: this.#resident.active });
+    const selected = openWorkflowSelector(request, this);
     if (selected !== undefined) return selected;
     if (request.command === "reload") {
       const blocked = this.backend.workflows.reloadBlockedResult();
@@ -1197,7 +1171,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         customViewport: this.#customViewport,
         exitMode: this.backend.identity.disposed ? this.#fullscreenExitOutput : this.backend.settings.snapshot().fullscreenExitOutput,
         resume: this.backend.identity.currentSessionResumeMetadata(),
-        soloResumeHint: SOLO_RESUME_HINTS.has(this),
         transcript: () => this.root.exitTranscript(terminal.columns),
       });
     });
@@ -1213,8 +1186,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       try { this.root.dispose(); } catch (error) { settled.push(error); }
       await historyCleanup.catch(() => false); // Security: background durability outcomes never enter terminal output.
       await boundedCleanup(() => pasteCleanup).catch(error => settled.push(error));
-      await boundedCleanup(() => this.#resident.gracefulStop(this.#currentSessionFile()))
-        .catch(error => settled.push(error));
       await boundedCleanup(() => this.backend.extensions.unbindExtensionUi()).catch(error => settled.push(error));
       return settled;
     };
@@ -1269,7 +1240,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       backend: this.backend,
       root: this.root,
       terminal: this.#terminal,
-      residentTab: this.#resident,
       cwd,
       promptHistory: () => this.#promptHistory,
       imageSidecar: () => this.#historyBinding?.imageSidecar,
@@ -1299,7 +1269,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       { onSessionReplaced: () => this.root.setInputSurface(null) },
       { onSessionReplaced: () => this.root.resetExtensionUi() },
       { onSessionReplaced: () => this.root.resetWorkflowPresentation() },
-      this.#resident,
     ]);
   }
 
@@ -1390,8 +1359,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   openOwnedRoute(route: string): void {
     if (this.#disposed) return;
-    // Invariant: a route requested before the runtime runs (the resident Settings bridge route arrives
-    // before start()) is retained, latest wins, and presented through the startup-route path once started.
+    // Invariant: a route requested before the runtime runs is retained, latest wins, and presented
+    // through the startup-route path once started.
     if (!this.#terminal.running) {
       this.#dialogs.retainStartupRoute(route);
       return;
@@ -1403,8 +1372,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   hotkeysPresentation(): PiShellHotkeysPresentation {
-    const presentation = this.root.hotkeysPresentation();
-    return this.#resident.active ? { ...presentation, residentTabs: true } : presentation;
+    return this.root.hotkeysPresentation();
   }
 
   async #slashCommand(text: string): Promise<OwnedUiCommandResult> {
@@ -1412,8 +1380,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const separator = body.search(/\s/);
     const name = separator < 0 ? body : body.slice(0, separator);
     const argument = separator < 0 ? "" : body.slice(separator + 1).trimStart();
-    const utilityTab = this.#resident.active ? RESIDENT_UTILITY_TAB_REFUSALS[name] : undefined;
-    if (utilityTab !== undefined) return rejected(utilityTab);
     if (this.#dialogs.claimsRoute(name)) return this.#dialogs.openRoute(name);
     if (this.#isWorkflowRoute(name)) return this.runWorkflow({ command: name, argument });
     if (this.#skillsCollapsed()) {
@@ -1555,10 +1521,6 @@ function copyCharacters(snapshot: SelectionCopySnapshot): number | undefined {
     hasContent ||= /\S/u.test(text);
   }
   return hasContent ? count : undefined;
-}
-
-function rejected(diagnostic: string): OwnedUiCommandResult {
-  return { outcome: "rejected", diagnostic };
 }
 
 function workflowAdapterResult(result: OwnedUiWorkflowResult): OwnedUiCommandResult {

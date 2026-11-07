@@ -15,7 +15,7 @@ describe("durable update transaction journal", () => {
     const begun = await store.begin({ channel: "next", targetVersion: "1.2.0-dev.1", packageRoot: "/npm/a1", priorActiveReleaseId: "old" });
     expect((await store.begin({ channel: "next", targetVersion: "1.2.0-dev.1", packageRoot: "/npm/a1", priorActiveReleaseId: "old" })).transactionId).toBe(begun.transactionId);
 
-    for (const phase of ["ownership-released", "package-installed", "materialized", "certified", "active-reference-committed", "supervisor-verified"] as const) {
+    for (const phase of ["ownership-released", "package-installed", "materialized", "certified", "active-reference-committed"] as const) {
       expect((await store.advance(phase)).phase).toBe(phase);
     }
     await store.finish("completed");
@@ -68,9 +68,18 @@ describe("durable update transaction journal", () => {
     roots.push(root);
     const store = new UpdateTransactionStore(root);
     await store.begin({ channel: "stable", targetVersion: "1.2.0", packageRoot: "/npm/a1", priorActiveReleaseId: "old" });
-    expect((await store.recordActiveError("blocked\nresident detail")).error).toBe("blocked resident detail");
+    expect((await store.recordActiveError("npm failed\nwith detail")).error).toBe("npm failed with detail");
     await expect(store.begin({ channel: "next", targetVersion: "1.3.0-dev.0", packageRoot: "/npm/a1", priorActiveReleaseId: "old" })).rejects.toThrow(/a1 has unfinished update/);
-    const rolledBack = await store.finish("rolled-back", "candidate supervisor failed");
-    expect(rolledBack).toMatchObject({ status: "rolled-back", priorActiveReleaseId: "old", error: "candidate supervisor failed" });
+    const rolledBack = await store.finish("rolled-back", "candidate warmup failed");
+    expect(rolledBack).toMatchObject({ status: "rolled-back", priorActiveReleaseId: "old", error: "candidate warmup failed" });
+  });
+
+  it("reads a journal whose last phase predates the removal of supervision as committed activation", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-update-legacy-phase-"));
+    roots.push(root);
+    const store = new UpdateTransactionStore(root);
+    const begun = await store.begin({ channel: "stable", targetVersion: "1.2.0", packageRoot: "/npm/a1", priorActiveReleaseId: "old" });
+    await writeFile(store.path, JSON.stringify({ ...begun, phase: "supervisor-verified" }));
+    await expect(store.read()).resolves.toMatchObject({ phase: "active-reference-committed", status: "active" });
   });
 });

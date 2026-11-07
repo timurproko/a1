@@ -27,13 +27,12 @@ describe("session context command", () => {
     ["worktree-coordination-unavailable", "repair or update"],
     ["worktree-coordination-io", "permissions"],
     ["worktree-coordination-boundary", "retain it for inspection"],
-    ["process-inspection-unavailable", "no ownership was overridden"],
     ["session-runtime-unverifiable", "no ownership was overridden"],
     ["session-runtime-unavailable", "retries registration automatically"],
     ["session-runtime-stopped", "resume in a running A1 session"],
     ["worktree-active-in-another-session", "another live agent owns"],
     ["worktree-owner-unverifiable", "retain the claim"],
-  ])("explains %s without leaking native diagnostics", async (code, expected) => {
+  ])("explains %s without leaking internal diagnostics", async (code, expected) => {
     launch.error = Object.assign(new Error("private-session-file secret-token pid=123"), { code });
     const stdout = vi.fn(), stderr = vi.fn();
     expect(await runSessionContextCommand({ action: "link-worktree", path: "D:/delivery" }, {

@@ -1,18 +1,16 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, utimesSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import {
   acquireExisting,
-  nativeCandidates,
+  lockfileBackend,
   reserveNew,
   SessionWriterConflict,
   setSessionWriterLockBackendForTest,
   type LockBackend,
-  type NativeLock,
+  type WriterLock,
 } from "../../../src/foundation/session-writer-lock/index.js";
 
 const roots: string[] = [];
@@ -24,7 +22,7 @@ afterEach(async () => {
 function exclusiveBackend(): LockBackend {
   const held = new Set<string>();
   return {
-    acquire(path): NativeLock {
+    acquire(path): WriterLock {
       if (held.has(path)) throw new Error("held");
       held.add(path);
       let bound = false;
@@ -66,24 +64,39 @@ describe("session writer lock", () => {
   });
 });
 
-describe("session-writer lock addon resolution", () => {
-  const release = resolve("/release");
-  const moduleUrl = pathToFileURL(join(release, "dist", "foundation", "session-writer-lock", "index.js")).href;
-  const target = `${process.platform}-${process.arch}`;
-  const releaseAddon = join(release, "dist", "native", target, "terminal-host.node");
-  const development = { [PRODUCT_IDENTITY.environment.developmentInstanceId]: "dev", [PRODUCT_IDENTITY.environment.terminalHostPath]: "/override.node" };
-
-  it("loads only the release's own terminal-host addon when the release carries one", () => {
-    const candidates = nativeCandidates(moduleUrl, { [PRODUCT_IDENTITY.environment.terminalHostPath]: "/override.node" }, resolve("/elsewhere"), path => path === releaseAddon);
-    expect(candidates).toEqual([releaseAddon]);
+describe("session writer lockfile backend", () => {
+  it("excludes a second writer, then admits it after release", async () => {
+    const root = await mkdtemp(join(tmpdir(), "session-writer-")); roots.push(root);
+    const path = join(root, "session.jsonl");
+    writeFileSync(path, "{}\n");
+    const backend = lockfileBackend(join(root, "locks"));
+    const held = backend.acquire(path);
+    expect(held.bound).toBe(true);
+    expect(() => backend.acquire(path)).toThrow();
+    held.release();
+    backend.acquire(path).release();
   });
 
-  it("honors the override and working-directory addons only as development aids", () => {
-    expect(nativeCandidates(moduleUrl, development, resolve("/elsewhere"), path => path === releaseAddon)).toEqual(["/override.node", releaseAddon]);
-    const checkout = nativeCandidates(moduleUrl, {}, resolve("/checkout"), () => false);
-    expect(checkout).toEqual([
-      join(resolve("/checkout"), "dist", "native", target, "terminal-host.node"),
-      join(resolve("/checkout"), ".artifacts", "terminal-host", "terminal-host.node"),
-    ]);
+  it("treats Windows-style case aliases of one name as one location", async () => {
+    if (process.platform !== "win32") return;
+    const root = await mkdtemp(join(tmpdir(), "session-writer-")); roots.push(root);
+    const backend = lockfileBackend(join(root, "locks"));
+    const held = backend.acquire(join(root, "new.jsonl"));
+    expect(() => backend.acquire(join(root, "NEW.JSONL"))).toThrow();
+    held.release();
+  });
+
+  it("reclaims a lock whose holder stopped refreshing it", async () => {
+    const root = await mkdtemp(join(tmpdir(), "session-writer-")); roots.push(root);
+    const path = join(root, "session.jsonl");
+    writeFileSync(path, "{}\n");
+    const locks = join(root, "locks");
+    lockfileBackend(locks, 60_000).acquire(path);
+    // Invariant: an abandoned lock directory ages past the bound because nothing refreshes it.
+    const stale = new Date(Date.now() - 120_000);
+    for (const name of readdirSync(locks)) utimesSync(join(locks, name), stale, stale);
+    const reclaimed = lockfileBackend(locks, 60_000).acquire(path);
+    expect(reclaimed.bound).toBe(true);
+    reclaimed.release();
   });
 });

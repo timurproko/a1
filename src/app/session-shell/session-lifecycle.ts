@@ -6,9 +6,8 @@ export interface SessionResumeCommandMetadata {
   readonly usesDefaultSessionDir: boolean;
 }
 
-export function formatSessionResumeCommand(metadata: SessionResumeCommandMetadata, solo = false): string {
+export function formatSessionResumeCommand(metadata: SessionResumeCommandMetadata): string {
   const args = [PRODUCT_TEXT.commandName];
-  if (solo) args.push("solo");
   if (!metadata.usesDefaultSessionDir) args.push("--session-dir", quoteCommandArgument(metadata.sessionDir));
   args.push("--session", metadata.sessionId);
   return args.join(" ");
@@ -24,7 +23,6 @@ export interface ExitTextInput {
   readonly customViewport: boolean;
   readonly exitMode: "transcript" | "resume-hint";
   readonly resume: SessionResumeCommandMetadata | null;
-  readonly soloResumeHint?: boolean;
   /** The styled transcript, rendered only when the pinned profile asks for it. */
   readonly transcript: () => string;
 }
@@ -35,7 +33,7 @@ export interface ExitTextInput {
  */
 export function composeExitText(input: ExitTextInput): string {
   if (input.terminalMode !== "fullscreen") return "";
-  const resumeHint = input.resume === null ? "" : `${dim("To resume this session:")} ${formatSessionResumeCommand(input.resume, input.soloResumeHint)}`;
+  const resumeHint = input.resume === null ? "" : `${dim("To resume this session:")} ${formatSessionResumeCommand(input.resume)}`;
   // Invariant: bare A1 leaves only the hint behind; the pinned comparison profile still
   // honors fullscreenExitOutput, including the styled transcript.
   if (input.customViewport || input.exitMode === "resume-hint") return resumeHint;

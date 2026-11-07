@@ -3,7 +3,8 @@ import { open, lstat, mkdir, readFile, readdir, realpath, rename, rm, writeFile 
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
-import type { NativeProcessIdentity } from "./model.js";
+import type { ProcessIdentity } from "./model.js";
+import { inspectLiveProcess } from "./process-liveness.js";
 import { resolveProductPaths } from "./paths.js";
 import { claimMutationPending, withSessionClaimLock } from "./session-claim-lock.js";
 
@@ -105,8 +106,8 @@ export interface SessionRepositoryContextOptions {
   readonly runtimeId?: string;
   /** Agent within the runtime that owns the claim; defaults to the primary agent. */
   readonly agentId?: string;
-  readonly runtimeIdentity?: NativeProcessIdentity;
-  readonly inspectProcess?: (pid: number) => Promise<NativeProcessIdentity | null>;
+  readonly runtimeIdentity?: ProcessIdentity;
+  readonly inspectProcess?: (pid: number) => Promise<ProcessIdentity | null>;
   readonly lockTimeoutMs?: number;
 }
 
@@ -114,7 +115,7 @@ export interface SessionRepositoryContextOptions {
 export async function registerSessionRepositoryRuntime(
   identity: SessionRepositoryIdentity,
   runtimeId: string,
-  runtimeIdentity: NativeProcessIdentity,
+  runtimeIdentity: ProcessIdentity,
   options: SessionRepositoryContextOptions = {},
 ): Promise<void> {
   const header = await readSessionHeader(identity);
@@ -130,7 +131,7 @@ export async function registerSessionRepositoryRuntime(
 export async function activateSessionRepositoryContext(
   identity: SessionRepositoryIdentity,
   runtimeId: string,
-  runtimeIdentity: NativeProcessIdentity,
+  runtimeIdentity: ProcessIdentity,
   options: SessionRepositoryContextOptions = {},
 ): Promise<SessionRepositoryContext | null> {
   const header = await readSessionHeader(identity);
@@ -164,7 +165,7 @@ export async function activateSessionRepositoryContext(
 /** Release every agent's cooperative editing claims held by this exact runtime generation. */
 export async function releaseSessionRepositoryRuntime(
   runtimeId: string,
-  runtimeIdentity: NativeProcessIdentity,
+  runtimeIdentity: ProcessIdentity,
   options: SessionRepositoryContextOptions = {},
 ): Promise<void> {
   assertRuntimeId(runtimeId);
@@ -286,7 +287,7 @@ async function requireLiveRuntime(
     throw contextError("active session runtime is unavailable", "session-runtime-unavailable");
   }
   const inspection = requireInspector(options);
-  let observed: NativeProcessIdentity | null;
+  let observed: ProcessIdentity | null;
   try {
     observed = await inspection(runtime.pid);
   } catch {
@@ -309,7 +310,7 @@ async function claimAvailability(
   if (ownedBy(claim, owner)) return "current";
   // Invariant: a sibling agent of this runtime is live by construction, so its claim reads busy below.
   const inspection = requireInspector(options);
-  let observed: NativeProcessIdentity | null;
+  let observed: ProcessIdentity | null;
   try {
     observed = await inspection(claim.pid);
   } catch {
@@ -323,13 +324,13 @@ async function writeRuntimeRecord(
   header: SessionHeader,
   runtimeId: string,
   agentId: string,
-  runtimeIdentity: NativeProcessIdentity,
+  runtimeIdentity: ProcessIdentity,
   options: SessionRepositoryContextOptions,
 ): Promise<void> {
   const existing = await readRuntimeRecord({ runtimeId, agentId }, options);
   if (existing !== null && (existing.pid !== runtimeIdentity.pid || existing.startIdentity !== runtimeIdentity.startIdentity)) {
     const inspection = requireInspector(options);
-    let observed: NativeProcessIdentity | null;
+    let observed: ProcessIdentity | null;
     try {
       observed = await inspection(existing.pid);
     } catch {
@@ -377,7 +378,7 @@ async function writeClaim(
   header: SessionHeader,
   selected: GitWorktreeIdentity,
   owner: ClaimOwner,
-  runtimeIdentity: NativeProcessIdentity,
+  runtimeIdentity: ProcessIdentity,
   options: SessionRepositoryContextOptions,
 ): Promise<void> {
   const claim: WorktreeClaimRecord = {
@@ -671,12 +672,11 @@ function ownedBy(record: ClaimOwner, owner: ClaimOwner): boolean {
   return record.runtimeId === owner.runtimeId && record.agentId === owner.agentId;
 }
 
-function requireInspector(options: SessionRepositoryContextOptions): (pid: number) => Promise<NativeProcessIdentity | null> {
-  if (options.inspectProcess === undefined) throw contextError("native process identity inspection is unavailable", "process-inspection-unavailable");
-  return options.inspectProcess;
+function requireInspector(options: SessionRepositoryContextOptions): (pid: number) => Promise<ProcessIdentity | null> {
+  return options.inspectProcess ?? inspectLiveProcess;
 }
 
-function processIdentityOf(record: SessionRuntimeRecord): NativeProcessIdentity {
+function processIdentityOf(record: SessionRuntimeRecord): ProcessIdentity {
   return { pid: record.pid, startIdentity: record.startIdentity };
 }
 
@@ -706,7 +706,7 @@ function assertRuntimeId(value: unknown): asserts value is string {
   }
 }
 
-function assertProcessIdentity(value: NativeProcessIdentity): void {
+function assertProcessIdentity(value: ProcessIdentity): void {
   if (!Number.isSafeInteger(value.pid) || value.pid <= 0 || typeof value.startIdentity !== "string"
     || value.startIdentity.length === 0 || value.startIdentity.length > 512 || value.startIdentity.includes("\0")) {
     throw contextError("native process identity is invalid", "process-identity-invalid");

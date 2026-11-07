@@ -6,13 +6,11 @@ import { fileURLToPath } from "node:url";
 import {
   CohortStateStore,
   type CohortState,
-  type ExternalReleaseHold,
   type OrphanReleaseDisposition,
   type ProtectedReleaseInputs,
   type ReleaseCleanupDisposition,
   type ReleaseRecord,
 } from "./cohort-state.js";
-import { liveReleaseIds } from "./endpoints.js";
 import type { ProductPaths } from "../lifecycle/index.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
 import { RELEASE_MANIFEST_FILENAME } from "./release-store.js";
@@ -23,14 +21,15 @@ import { UpdateTransactionStore, type UpdateTransaction } from "./update-transac
 import { cleanupUpdateRecoveryCapsules } from "./update-recovery.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { collectCompileCaches, startupCompileCachePath } from "../startup/index.js";
-import { readResidentReleaseHolds, type ResidentReleaseHoldReport } from "../resident-tabs/index.js";
+import { readLaunchContext } from "../launch-context/index.js";
+import { processIsAlive } from "./process-liveness.js";
 
 const DEFAULT_CANDIDATE_AGE_MS = 60 * 60 * 1_000;
 const DEFAULT_LIMITS: ReleaseCleanupLimits = { maxItems: 8, maxDurationMs: 2_000, concurrency: 1 };
 const DEFAULT_WORKER_DURATION_MS = 10 * 60 * 1_000;
 const DEFAULT_NO_PROGRESS_BATCHES = 5;
 const DEFAULT_RETRY_DELAY_MS = 500;
-const WORKER_HOLDS_ENV = "RELEASE_CLEANUP_HOLDS";
+const WORKER_KEEP_ENV = "RELEASE_CLEANUP_KEEP";
 const WORKER_RUN_ID_ENV = "RELEASE_CLEANUP_RUN_ID";
 const WORKER_LEASE_FILENAME = "release-cleanup-worker.lock";
 
@@ -46,7 +45,15 @@ export interface ReleaseCleanupOperations {
 }
 
 export interface ReleaseCleanupOptions {
-  readonly externalHolds?: readonly ExternalReleaseHold[];
+  /**
+   * Releases the command that started cleanup runs from. Defaults to the release named by this
+   * process's launch context, so a command never collects the files it is running.
+   */
+  readonly ownReleaseIds?: readonly string[];
+  /** Age window measured from approval; defaults to seven days. */
+  readonly retentionMs?: number;
+  /** Wall clock the retention window is measured against; `now` only paces a batch. */
+  readonly wallClock?: () => number;
   readonly transactionStore?: Pick<UpdateTransactionStore, "read">;
   readonly limits?: Partial<ReleaseCleanupLimits>;
   readonly candidateAgeMs?: number;
@@ -55,8 +62,6 @@ export interface ReleaseCleanupOptions {
   readonly operations?: ReleaseCleanupOperations;
   /** Process-start seam for scheduler and continuation tests. */
   readonly workerSpawner?: (entry: string, environment: NodeJS.ProcessEnv) => Promise<void>;
-  /** Resident-tab inspection seam; the default asks a verified installed terminal host. */
-  readonly residentHolds?: (dataDir: string, releaseRoots: readonly string[]) => Promise<ResidentReleaseHoldReport>;
 }
 
 export interface ReleaseCleanupWorkerOptions {
@@ -86,18 +91,18 @@ interface DiscoveredCleanupInputs {
 }
 
 /**
- * Reconcile current ownership under the cohort-state lock and durably detach obsolete releases.
+ * Reconcile age-based retention under the cohort-state lock and durably detach obsolete releases.
  * This operation intentionally reads only manifests and directory metadata, never payload bytes.
  */
 export async function prepareReleaseCleanup(
   dataDir: string,
-  paths?: ProductPaths,
+  _paths?: ProductPaths,
   options: ReleaseCleanupOptions = {},
 ): Promise<{ readonly store: CohortStateStore; readonly discovered: DiscoveredCleanupInputs }> {
   const store = new CohortStateStore(dataDir);
   const discovered = await discoverCleanupInputs(dataDir, store, options);
   const transactionStore = options.transactionStore ?? new UpdateTransactionStore(dataDir);
-  await store.reconcileRetention(async () => await protectionInputs(dataDir, paths, transactionStore, options.externalHolds ?? [], options.residentHolds), discovered.orphans);
+  await store.reconcileRetention(async () => await protectionInputs(transactionStore, options), discovered.orphans);
   for (const diagnostic of discovered.diagnostics.slice(0, 16)) {
     await store.recordCleanupFailure(diagnostic.releaseId, diagnostic.stage, diagnostic.error);
   }
@@ -113,7 +118,7 @@ export async function runBoundedReleaseCleanup(
   const now = options.now ?? Date.now;
   const limits = normalizeLimits(options.limits);
   const { store, discovered } = await prepareReleaseCleanup(dataDir, paths, options);
-  // Performance: The physical-work allowance begins after discovery, ownership probes, and the
+  // Performance: The physical-work allowance begins after discovery and the
   // durable reconciliation write. A slow preparation phase must not starve every worker invocation.
   const startedAt = now();
   const initial = await store.read();
@@ -139,7 +144,7 @@ export async function runBoundedReleaseCleanup(
       pendingOffset += size;
       maximum -= size;
       attempted += batch.length;
-      const results = await Promise.all(batch.map(async disposition => await collectDisposition(store, dataDir, paths, disposition, options)));
+      const results = await Promise.all(batch.map(async disposition => await collectDisposition(store, dataDir, disposition, options)));
       completed += results.filter(Boolean).length;
       guaranteed = false;
     }
@@ -150,7 +155,7 @@ export async function runBoundedReleaseCleanup(
       maximum -= 1;
       const certificationId = certificationReleaseId(artifact);
       if (certificationId !== null) {
-        const inputs = await protectionInputs(dataDir, paths, transactionStore, options.externalHolds ?? [], options.residentHolds);
+        const inputs = await protectionInputs(transactionStore, options);
         if (isProtectedDetachedRelease(await store.read(), inputs, certificationId)) continue;
       }
       attempted += 1;
@@ -210,7 +215,7 @@ export async function scheduleReleaseCleanup(
     ...process.env,
     [PRODUCT_IDENTITY.environment.dataDir]: dataDir,
     [PRODUCT_IDENTITY.environment.runtimeDir]: paths.runtimeDir,
-    [WORKER_HOLDS_ENV]: JSON.stringify(options.externalHolds ?? []),
+    [WORKER_KEEP_ENV]: JSON.stringify(ownReleaseIds(options)),
     [WORKER_RUN_ID_ENV]: runId,
   };
   try {
@@ -234,7 +239,7 @@ export async function runReleaseCleanupWorker(
   const sleep = workerOptions.sleep ?? (async durationMs => await new Promise(resolvePromise => setTimeout(resolvePromise, durationMs)));
   const cleanupOptions: ReleaseCleanupOptions = {
     ...workerOptions.cleanup,
-    externalHolds: workerOptions.cleanup?.externalHolds ?? parseWorkerHolds(environment[WORKER_HOLDS_ENV]),
+    ownReleaseIds: workerOptions.cleanup?.ownReleaseIds ?? parseWorkerKeep(environment[WORKER_KEEP_ENV]),
   };
   const summary = { batches: 0, attempted: 0, completed: 0, remaining: Object.keys((await store.read()).cleanup.pending).length };
   let lease: FileHandle | null = null;
@@ -301,34 +306,15 @@ export async function runReleaseCleanupWorker(
   };
 }
 
-/** Compatibility helper: detach one requested release and execute a one-item pass. */
-export async function collectRelease(
-  store: CohortStateStore,
-  dataDir: string,
-  releaseId: string,
-  externalReferences: readonly string[],
-  paths?: ProductPaths,
-): Promise<void> {
-  const holds = externalReferences.map(referenced => ({ authority: "migration" as const, releaseId: referenced }));
-  const state = await store.read();
-  if (!state.releases[releaseId]) throw new Error(`unknown release ${releaseId}`);
-  await store.reconcileRetention(async () => ({ ...(await protectionInputs(dataDir, paths, new UpdateTransactionStore(dataDir), holds) ) }));
-  const disposition = (await store.read()).cleanup.pending[releaseId];
-  if (!disposition) throw new Error(`release ${releaseId} is still referenced and cannot be collected`);
-  const removed = await collectDisposition(store, dataDir, paths, disposition, { externalHolds: holds, limits: { maxItems: 1 } });
-  if (!removed) throw new Error(`release ${releaseId} could not be collected`);
-}
-
 async function collectDisposition(
   store: CohortStateStore,
   dataDir: string,
-  paths: ProductPaths | undefined,
   disposition: ReleaseCleanupDisposition,
   options: ReleaseCleanupOptions,
 ): Promise<boolean> {
   const releaseId = disposition.release.releaseId;
   try {
-    const inputs = await protectionInputs(dataDir, paths, options.transactionStore ?? new UpdateTransactionStore(dataDir), options.externalHolds ?? [], options.residentHolds);
+    const inputs = await protectionInputs(options.transactionStore ?? new UpdateTransactionStore(dataDir), options);
     const current = await store.read();
     if (isProtectedDetachedRelease(current, inputs, releaseId)) return false;
 
@@ -368,72 +354,33 @@ async function collectDisposition(
 function isProtectedDetachedRelease(state: CohortState, inputs: ProtectedReleaseInputs, releaseId: string): boolean {
   const selected = [state.references.active, state.references.pending, state.references.approved, state.references.rollback]
     .some(reference => reference === releaseId);
+  // Concurrency: a launch may have recorded the same release again after it was detached.
   return selected
-    || (inputs.liveReleaseIds ?? []).includes(releaseId)
-    || (inputs.externalHolds ?? []).some(hold => hold.releaseId === releaseId)
+    || state.releases[releaseId] !== undefined
+    || (inputs.ownReleaseIds ?? []).includes(releaseId)
     || (inputs.transaction?.status === "active" && inputs.transaction.priorActiveReleaseId === releaseId);
 }
 
 async function protectionInputs(
-  dataDir: string,
-  paths: ProductPaths | undefined,
   transactionStore: Pick<UpdateTransactionStore, "read">,
-  externalHolds: readonly ExternalReleaseHold[],
-  residentHolds?: ResidentHoldReader,
+  options: ReleaseCleanupOptions,
 ): Promise<ProtectedReleaseInputs> {
-  const [liveIds, transaction, resident] = await Promise.all([
-    paths ? liveReleaseIds(paths) : Promise.resolve([] as readonly string[]),
-    transactionStore.read(),
-    residentReleaseHolds(dataDir, residentHolds),
-  ]);
-  return { liveReleaseIds: liveIds, externalHolds: [...externalHolds, ...resident], transaction: transactionReference(transaction) };
+  return {
+    ownReleaseIds: ownReleaseIds(options),
+    transaction: transactionReference(await transactionStore.read()),
+    now: (options.wallClock ?? Date.now)(),
+    ...(options.retentionMs === undefined ? {} : { retentionMs: options.retentionMs }),
+  };
 }
 
-type ResidentHoldReader = (dataDir: string, releaseRoots: readonly string[]) => Promise<ResidentReleaseHoldReport>;
-
-/**
- * Holds every release a live resident server, holder, or tab child runs from. Retention fails
- * closed: an incomplete report, or a recorded root inside the release store that names no known
- * release, holds every known release.
- */
-async function residentReleaseHolds(dataDir: string, reader?: ResidentHoldReader): Promise<readonly ExternalReleaseHold[]> {
-  const state = await new CohortStateStore(dataDir).read();
-  const records = [
-    ...Object.values(state.releases),
-    ...Object.values(state.cleanup.pending).map(disposition => disposition.release),
-  ];
-  const preferred = [state.references.active, state.references.rollback]
-    .flatMap(id => id && state.releases[id] ? [state.releases[id].releaseRoot] : []);
-  const roots = [...new Set([...preferred, ...Object.values(state.releases).map(record => record.releaseRoot)])];
-  const report = await (reader ?? ((directory, releaseRoots) => readResidentReleaseHolds({ dataDir: directory, releaseRoots })))(dataDir, roots);
-  const everything = () => [...new Set(records.map(record => record.releaseId))].map(releaseId => ({ authority: "resident" as const, releaseId }));
-  if (!report.complete) return everything();
-  if (report.releaseRoots.length === 0) return [];
-  // Rationale: native Windows extended paths and Unix aliases must match the catalog's spelling.
-  const byRoot = new Map<string, string>();
-  for (const record of records) {
-    const canonical = await realpath(record.releaseRoot).catch(() => record.releaseRoot);
-    byRoot.set(comparablePath(canonical), record.releaseId);
+function ownReleaseIds(options: ReleaseCleanupOptions): readonly string[] {
+  if (options.ownReleaseIds !== undefined) return options.ownReleaseIds;
+  try {
+    const own = readLaunchContext(process.env).releaseId;
+    return own === undefined ? [] : [own];
+  } catch {
+    return [];
   }
-  const directory = await realpath(resolve(dataDir, "releases")).catch(() => null);
-  if (directory === null) return everything();
-  const store = comparablePath(directory);
-  const holds = new Set<string>();
-  for (const root of report.releaseRoots) {
-    // Security: an unresolved live root may alias managed content; uncertainty must retain it.
-    const canonical = await realpath(root).catch(() => null);
-    if (canonical === null) return everything();
-    const key = comparablePath(canonical);
-    const releaseId = byRoot.get(key);
-    if (releaseId) holds.add(releaseId);
-    else if (key.startsWith(`${store}${sep}`)) return everything();
-  }
-  return [...holds].sort().map(releaseId => ({ authority: "resident" as const, releaseId }));
-}
-
-function comparablePath(path: string): string {
-  const absolute = resolve(path);
-  return process.platform === "win32" ? absolute.toLowerCase() : absolute;
 }
 
 function transactionReference(transaction: UpdateTransaction | null) {
@@ -855,23 +802,11 @@ async function readWorkerLease(path: string): Promise<{ readonly runId?: string;
   }
 }
 
-function processIsAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return error instanceof Error && "code" in error && error.code === "EPERM";
-  }
-}
-
-function parseWorkerHolds(value: string | undefined): readonly ExternalReleaseHold[] {
+function parseWorkerKeep(value: string | undefined): readonly string[] {
   if (!value) return [];
   try {
     const parsed = JSON.parse(value) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((hold): hold is ExternalReleaseHold => Boolean(hold) && typeof hold === "object"
-      && ["agent", "migration", "resident"].includes((hold as ExternalReleaseHold).authority)
-      && typeof (hold as ExternalReleaseHold).releaseId === "string");
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === "string" && id.length > 0) : [];
   } catch {
     return [];
   }

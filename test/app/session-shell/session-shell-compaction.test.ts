@@ -1,5 +1,4 @@
 import HeadlessXterm from "@xterm/headless";
-import { formatSubmittedPromptTime } from "../../../src/ui/components/index.js";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -31,7 +30,6 @@ import { withPinnedHyperlinks, fixture, nextImmediate } from "./session-shell-fi
 
 describe("prompt-style compaction in the real engine and shell", () => {
   const time = new Date(2026, 8, 13, 14, 35).getTime();
-  const formattedTime = formatSubmittedPromptTime(time)!;
   const compaction = (tokensBefore = 281483, summary = Array.from({ length: 24 }, (_, i) => `summary-${i} alpha beta`).join("\n\n")) => ({
     role: "compactionSummary", summary, tokensBefore, timestamp: time,
   });
@@ -100,7 +98,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
       const firstExtent = shell.root.viewportPresentationEvidence().maxScroll;
       frame = await key("\u001b[<65;3;3M");
       expect(frame[0]).toContain("❯ Compacted from 281,483 tokens");
-      expect(frame[0]).toContain(formattedTime);
+      expect(frame[0]!.trimEnd()).toMatch(/❯ Compacted from 281,483 tokens$/);
       expect(shell.root.render(80)[0]).not.toContain("\u001b[2m");
       expect(frame.filter(row => row.includes("Compacted from 281,483 tokens"))).toHaveLength(1);
       expect(shell.root.viewportPresentationEvidence().maxScroll).toBe(firstExtent);
@@ -135,14 +133,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
     } finally { await shell.dispose(); }
   });
 
-  it.each(["hidden", "always", "auto"] as const)("keeps timestamps metadata-grey across source, quiet, and hover states with a %s scrollbar", async appearance => {
-    const expectedScreen = new HeadlessXterm.Terminal({ cols: 1, rows: 1, allowProposedApi: true });
-    let expectedGreyStyle: readonly number[];
-    try {
-      await new Promise<void>(resolve => expectedScreen.write(`${piTheme().fg("dim", "x")}\u001b[0m`, resolve));
-      const cell = expectedScreen.buffer.active.getLine(0)!.getCell(0)!;
-      expectedGreyStyle = [cell.getFgColorMode(), cell.getFgColor(), cell.isDim(), cell.isBold()];
-    } finally { expectedScreen.dispose(); }
+  it.each(["hidden", "always", "auto"] as const)("presents compaction and prompt headers identically across source, quiet, and hover states with a %s scrollbar", async appearance => {
     const snapshots = [];
     for (const kind of ["compaction", "user"] as const) {
       const summary = compaction();
@@ -174,26 +165,9 @@ describe("prompt-style compaction in the real engine and shell", () => {
           } finally { screen.dispose(); }
         }
         const labelColumn = stripTerminalSequences(frames[1]![0]!).indexOf("Compacted");
-        const timeColumn = stripTerminalSequences(frames[1]![0]!).indexOf(formattedTime);
         expect(labelColumn).toBeGreaterThanOrEqual(0);
-        expect(timeColumn).toBeGreaterThan(labelColumn);
-        const sourceTimeColumn = stripTerminalSequences(frames[0]![1]!).indexOf(formattedTime);
-        expect(sourceTimeColumn).toBeGreaterThanOrEqual(0);
-        const sourceTimeStyle = rendered[0]![1]![sourceTimeColumn]!.foreground!;
-        expect(sourceTimeStyle[2]).toBe(0);
-        expect(sourceTimeStyle[3]).toBe(0);
-        // Invariant: timestamp foreground and intensity stay on metadata grey in every state.
-        expect(sourceTimeStyle).toEqual(expectedGreyStyle);
-        expect(sourceTimeStyle.slice(0, 2)).not.toEqual(rendered[7]![0]![labelColumn]!.foreground!.slice(0, 2));
-        expect(rendered[5]![1]![sourceTimeColumn]!.foreground).toEqual(sourceTimeStyle);
-        for (const state of [1, 2, 3, 4, 6, 7, 8]) {
-          for (let column = timeColumn; column < timeColumn + formattedTime.length; column++) {
-            if (formattedTime[column - timeColumn] !== " ") {
-              expect(rendered[state]![0]![column]!.foreground).toEqual(sourceTimeStyle);
-            }
-            expect(rendered[state]![0]![column]!.background).toEqual(rendered[state]![0]![labelColumn]!.background);
-          }
-        }
+        // Invariant: the pinned header carries no trailing metadata after the prompt text.
+        expect(stripTerminalSequences(frames[1]![0]!).trimEnd()).toMatch(/Compacted from 281,483 tokens$/);
         // Compatibility: prompt bodies still enter and leave quiet/hover presentation independently.
         expect(rendered[3]![0]![labelColumn]!.foreground![2]).toBe(0);
         expect(rendered[4]![0]![labelColumn]!.foreground![2]).not.toBe(0);
@@ -208,56 +182,47 @@ describe("prompt-style compaction in the real engine and shell", () => {
     expect(snapshots[0]).toEqual(snapshots[1]);
   });
 
-  it("keeps selected source timestamp foreground and intensity while painting the selection background", async () => {
-    const { terminal, shell } = await fixture([user("Select the timestamp")], [], true);
+  it("paints the selection background over a selected prompt and copies exactly the prompt text", async () => {
+    const prompt = "Select the prompt";
+    const { terminal, shell } = await fixture([user(prompt)], [], true);
     try {
       terminal.resize(80, 24);
       const beforeFrame = shell.root.render(80);
-      const formatted = formatSubmittedPromptTime(time)!;
-      const rowIndex = beforeFrame.findIndex(row => stripTerminalSequences(row).includes(formatted));
+      const rowIndex = beforeFrame.findIndex(row => stripTerminalSequences(row).includes(prompt));
       expect(rowIndex).toBeGreaterThanOrEqual(0);
-      const timeColumn = stripTerminalSequences(beforeFrame[rowIndex]!).indexOf(formatted);
-      expect(timeColumn).toBeGreaterThanOrEqual(0);
+      expect(stripTerminalSequences(beforeFrame[rowIndex]!).trimEnd()).toBe(` ❯ ${prompt}`);
+      const textColumn = stripTerminalSequences(beforeFrame[rowIndex]!).indexOf(prompt);
       const terminalRow = rowIndex + 1;
-      terminal.input(`\u001b[<0;${timeColumn + 1};${terminalRow}M`);
-      terminal.input(`\u001b[<32;${timeColumn + formatted.length};${terminalRow}M`);
-      terminal.input(`\u001b[<0;${timeColumn + formatted.length};${terminalRow}m`);
+      // Invariant: a drag across the whole row copies the prompt without its prefix or trailing padding.
+      terminal.input(`\u001b[<0;1;${terminalRow}M`);
+      terminal.input(`\u001b[<32;79;${terminalRow}M`);
+      terminal.input(`\u001b[<0;79;${terminalRow}m`);
       await nextImmediate();
+      expect(shell.root.hasActiveSelection()).toBe(true);
       const selectedRow = shell.root.render(80)[rowIndex]!;
-      const screen = new HeadlessXterm.Terminal({ cols: 80, rows: 3, allowProposedApi: true });
+      const screen = new HeadlessXterm.Terminal({ cols: 80, rows: 2, allowProposedApi: true });
       try {
-        await new Promise<void>(resolve => screen.write(
-          `${beforeFrame[rowIndex]}\u001b[0m\r\n${selectedRow}\u001b[0m\r\nsentinel`,
-          resolve,
-        ));
-        const before = screen.buffer.active.getLine(0)!;
-        const selected = screen.buffer.active.getLine(1)!;
-        for (let column = timeColumn; column < timeColumn + formatted.length; column++) {
-          const beforeCell = before.getCell(column)!;
-          const selectedCell = selected.getCell(column)!;
-          expect([
-            selectedCell.getFgColorMode(), selectedCell.getFgColor(), selectedCell.isDim(), selectedCell.isBold(),
-          ]).toEqual([
-            beforeCell.getFgColorMode(), beforeCell.getFgColor(), beforeCell.isDim(), beforeCell.isBold(),
-          ]);
-          expect(selectedCell.getBgColor()).toBe(0x264f78);
+        await new Promise<void>(resolve => screen.write(`${selectedRow}\u001b[0m\r\nsentinel`, resolve));
+        const selected = screen.buffer.active.getLine(0)!;
+        for (let column = textColumn; column < textColumn + prompt.length; column++) {
+          expect(selected.getCell(column)!.getBgColor()).toBe(0x264f78);
         }
-        const sentinel = screen.buffer.active.getLine(2)!.getCell(0)!;
+        const sentinel = screen.buffer.active.getLine(1)!.getCell(0)!;
         expect(sentinel.getFgColor()).toBe(-1);
         expect(sentinel.isDim()).toBe(0);
         expect(sentinel.isBold()).toBe(0);
       } finally { screen.dispose(); }
+      terminal.input("\u0003");
+      await nextImmediate();
+      await vi.waitFor(() => expect(terminal.writes).toContain(`\u001b]52;c;${Buffer.from(prompt).toString("base64")}\u0007`));
     } finally { await shell.dispose(); }
   });
 
-  it.each([undefined, null, Number.NaN, 8.64e15 + 1, time])("dims quiet bodies but keeps a fitting timestamp at normal intensity through resize and unavailable metadata (%s)", async timestamp => {
+  it.each([undefined, null, Number.NaN, 8.64e15 + 1, time])("dims every quiet header glyph through resize and unavailable metadata (%s)", async timestamp => {
     for (const kind of ["user", "compaction"] as const) {
       const message = { ...(kind === "user" ? user("14:35 clock-like content") : compaction(281483, "Short summary.")), timestamp };
-      const { adapter, terminal, shell } = await fixture([message, reply("tail")], [], true);
+      const { terminal, shell } = await fixture([message, reply("tail")], [], true);
       try {
-        // Compatibility: the engine normalizes unavailable compaction timestamps to epoch zero.
-        const sourceTimestamp = (adapter.view().transcript[0]!.payload as { timestamp?: unknown }).timestamp;
-        const formatted = typeof sourceTimestamp === "number" ? formatSubmittedPromptTime(sourceTimestamp) : null;
         shell.root.setViewportConfig({ scrollbarAppearance: "hidden", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
         for (const width of [80, 18, 17, 48]) {
           terminal.resize(width, 24);
@@ -265,15 +230,11 @@ describe("prompt-style compaction in the real engine and shell", () => {
           const screen = new HeadlessXterm.Terminal({ cols: width, rows: 25, allowProposedApi: true });
           try {
             await new Promise<void>(resolve => screen.write(frame.map(row => `${row}\u001b[0m`).join("\r\n"), resolve));
-            const hasTimestamp = formatted !== null && width >= 20;
             const line = screen.buffer.active.getLine(0)!;
-            if (hasTimestamp) expect(line.translateToString().slice(-formatted.length)).toBe(formatted);
             for (let column = 0; column < width; column++) {
               const cell = line.getCell(column)!;
               if (!cell.getChars().trim()) continue;
-              const isTimestamp = hasTimestamp && column >= width - formatted.length;
-              expect(cell.isDim() !== 0, `${kind} width=${width} column=${column}`).toBe(!isTimestamp);
-              if (isTimestamp) expect(cell.isBold()).toBe(0);
+              expect(cell.isDim() !== 0, `${kind} width=${width} column=${column}`).toBe(true);
               expect(cell.getBgColor()).toBe(line.getCell(0)!.getBgColor());
             }
             if (kind === "user") expect(line.translateToString()).toContain("14:35");
@@ -323,7 +284,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
     }
   });
 
-  it("replaces quiet timestamp metadata while dimming only the prompt body without leaking intensity", async () => {
+  it("replaces the quiet pinned header while dimming the prompt body without leaking intensity", async () => {
     const later = { ...user("14:35 is content, not metadata"), timestamp: time + 60_000 };
     const { terminal, shell } = await fixture([compaction(281483, "Short summary."), reply("first"), later, reply("tail")], [], true);
     try {
@@ -335,7 +296,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
       terminal.input("\u001b[<65;3;3M");
       await nextImmediate();
       shell.root.render(80);
-      for (const [data, expected] of [["\u001b[<65;3;3M", formattedTime], ["\u001b[1;5F", formatSubmittedPromptTime(time + 60_000)!]] as const) {
+      for (const [data, expected] of [["\u001b[<65;3;3M", "Compacted from 281,483 tokens"], ["\u001b[1;5F", "14:35 is content, not metadata"]] as const) {
         terminal.input(data!);
         await nextImmediate();
         const frame = shell.root.render(80);
@@ -343,11 +304,11 @@ describe("prompt-style compaction in the real engine and shell", () => {
         try {
           await new Promise<void>(resolve => screen.write(`${frame[0]}\r\nsentinel`, resolve));
           const row = screen.buffer.active.getLine(0)!;
-          const timestampStart = 79 - expected.length;
-          expect(row.translateToString().slice(timestampStart, 79)).toBe(expected);
-          for (let column = timestampStart; column < 79; column++) expect(row.getCell(column)!.isDim()).toBe(0);
+          expect(row.translateToString().trimEnd()).toBe(` ❯ ${expected}`);
           expect(row.getCell(2)!.isDim()).not.toBe(0);
-          expect(row.getCell(timestampStart - 1)!.isDim()).not.toBe(0);
+          for (let column = 3; column < 3 + expected.length; column++) {
+            if (expected[column - 3] !== " ") expect(row.getCell(column)!.isDim()).not.toBe(0);
+          }
           expect(screen.buffer.active.getLine(1)!.getCell(0)!.isDim()).toBe(0);
           expect(screen.buffer.active.getLine(1)!.getCell(0)!.isBold()).toBe(0);
         } finally { screen.dispose(); }

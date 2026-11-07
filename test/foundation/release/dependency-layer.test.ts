@@ -163,7 +163,12 @@ describe("certified immutable dependency layers", () => {
       ...state,
       references: { active: null, pending: null, approved: null, rollback: null, retention: [] },
     }));
-    await runBoundedReleaseCleanup(dataDir, undefined, { transactionStore: { read: async () => null } });
+    // Invariant: a fresh approval still retains its release; the layer goes once the approval ages out.
+    await runBoundedReleaseCleanup(dataDir, undefined, { transactionStore: { read: async () => null }, ownReleaseIds: [] });
+    await expect(lstat(layerRoot)).resolves.toBeTruthy();
+    await runBoundedReleaseCleanup(dataDir, undefined, {
+      transactionStore: { read: async () => null }, ownReleaseIds: [], retentionMs: 1, wallClock: () => Date.now() + 1_000,
+    });
     await expect(lstat(layerRoot)).rejects.toMatchObject({ code: "ENOENT" });
   });
 

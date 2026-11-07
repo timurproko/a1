@@ -19,13 +19,6 @@ export interface OwnedReferenceProviders {
 
 /** How the settings route is presented. */
 export interface OwnedRouteHostOptions {
-  /**
-   * The route whose screen is this resident utility tab. That screen is the tab, so it offers no
-   * screen-level close: neither Esc nor one Ctrl+C dismisses it, and it shows no close hint.
-   */
-  readonly tabRoute?: string | null;
-  /** Opens the tab bar's own Plus Menu dialog; false when no tab bar can show it. */
-  readonly configurePlusMenu?: () => boolean;
   readonly keybindings?: PiKeybindingsHost;
   readonly agentDir?: string;
   readonly cwd?: string;
@@ -50,8 +43,7 @@ export function createOwnedRouteHost(
       const session = route === "session";
       const title = session ? "Session Info" : changelog ? input ? "What's New" : "Changelog" : HOTKEYS_TITLE;
       const document = session ? references!.session() : changelog ? references!.changelog(input) : references!.hotkeys();
-      const pinned = options.tabRoute === route;
-      return deferredSurface(route, title, () => loadReferenceSurface(settings, route, title, document, pinned, options));
+      return deferredSurface(route, title, () => loadReferenceSurface(settings, route, title, document, options));
     },
   };
 }
@@ -97,20 +89,16 @@ async function loadSettingsSurface(settings: OwnedSettingsManager, options: Owne
     import("./settings-search-input.js"),
     import("../ui/components/dialog-panel.js"),
   ]);
-  const pinned = options.tabRoute === SETTINGS_ROUTE;
   const searchInputFactory = createSettingsSearchInputFactory({
     ...(options.keybindings === undefined ? {} : { keybindings: options.keybindings }),
     ...(options.agentDir === undefined ? {} : { agentDir: options.agentDir }),
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
   });
-  // Invariant: a pinned Settings tab closes as a tab; neither Esc nor one unclaimed Ctrl+C dismisses its screen.
   return hostApp(SETTINGS_APP_ID, SETTINGS_ROUTE, () => new SettingsApp(settings, {
-    pinned,
     searchInputFactory,
-    configurePlusMenu: options.configurePlusMenu ?? null,
     dialogPanel: text => renderFloatingDialogSurface(text, piTheme().getColorMode()),
     ...(options.copyText === undefined ? {} : { copyText: options.copyText }),
-  }), !pinned, true, text => renderFloatingMenuSurface(text, piTheme().getColorMode()));
+  }), true, true, text => renderFloatingMenuSurface(text, piTheme().getColorMode()));
 }
 
 async function loadReferenceSurface(
@@ -118,7 +106,6 @@ async function loadReferenceSurface(
   route: string,
   title: string,
   document: Promise<ReferenceDocumentProvider>,
-  pinned: boolean,
   options: OwnedRouteHostOptions,
 ): Promise<UiRouteSurface> {
   const id = route;
@@ -138,9 +125,8 @@ async function loadReferenceSurface(
       scrollbarStyle: settings.value("scrollbarStyle"),
       scrollbarSpeed: settings.value("scrollbarSpeed"),
     }),
-    pinned,
     ...(selection === undefined ? {} : { selection }),
-  }), !pinned, selection !== undefined);
+  }), true, selection !== undefined);
 }
 
 async function hostApp(
