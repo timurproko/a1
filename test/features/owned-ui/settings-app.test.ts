@@ -279,10 +279,10 @@ async function app(
   stored: Readonly<Record<string, OwnedUiSettingValue>> = {},
 ): Promise<{ app: SettingsApp; session: OwnedSettingsManager; writes: { key: string; value: AgentJsonValue }[] }> {
   const backing = port(failWrites);
-  const seed = new OwnedSettingsManager({ configDir: root, profileId: "profile", declarations, migrations: [] });
+  const seed = new OwnedSettingsManager({ configDir: root, profileId: "profile", declarations });
   if (scrollbarSpeed !== undefined) await seed.change("a1", "scrollbarSpeed", scrollbarSpeed);
   for (const [id, value] of Object.entries(stored)) await seed.change("a1", id, value);
-  const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", declarations, migrations: [], agent: backing.port });
+  const session = new OwnedSettingsManager({ configDir: root, profileId: "profile", declarations, agent: backing.port });
   await session.load();
   return { app: settingsApp(session), session, writes: backing.writes };
 }

@@ -1,6 +1,5 @@
 import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 21;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "blue", "purple", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);

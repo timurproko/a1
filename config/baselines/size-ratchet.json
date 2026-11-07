@@ -69,10 +69,6 @@
     "src/ui/components/transcript-viewport.ts::TranscriptViewport": {
       "methods": 36,
       "fields": 34
-    },
-    "src/ui/settings/manager.ts::OwnedSettingsManager": {
-      "methods": 21,
-      "fields": 15
     }
   },
   "functions": {
@@ -129,9 +125,6 @@
     },
     "src/ui/components/transcript-viewport.ts::TranscriptViewport.compose": {
       "lines": 348
-    },
-    "src/ui/settings/resolution.ts::resolveOwnedUiSettings": {
-      "lines": 102
     }
   }
 }

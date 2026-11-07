@@ -315,7 +315,7 @@ describe("owned screens decode legacy and kitty keys alike", () => {
   async function changelogRoutes() {
     const root = mkdtempSync(path.join(tmpdir(), "a1-kitty-keys-"));
     roots.push(root);
-    const settings = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: [], migrations: [], agent: null });
+    const settings = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: [], agent: null });
     await settings.load();
     const rows = Array.from({ length: 40 }, (_row, index) => `row ${String(index + 1).padStart(2, "0")}`);
     const real = createOwnedRouteHost(settings, {

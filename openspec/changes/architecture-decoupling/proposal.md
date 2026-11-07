@@ -34,6 +34,7 @@ This change makes the architecture match its own documentation, splits the class
 - `owned-ux-architecture`: the application layer reaches vendor presentation only through neutral ports; one theme contract is consumed outside the vendor boundary; profile capabilities are resolved once in composition.
 - `project-structure-governance`: the shell's layer rule loses its Pi-adapter exemption; governance tests prove gates through fixtures rather than prose; a production export needs a production consumer; the transparent-baseline scope requirement is removed.
 - `isolated-regression-testing`: the physical-host automation, transparent manual-first, transparent physical-evidence, and raw-relay requirements are removed.
+- `owned-ui-settings`: settings resolve directly from the flat product object; the forward-migration and former-standalone-document requirements are removed, and requirements that carried upgrade scenarios are restated without them.
 
 ### Removed Capabilities
 

@@ -37,7 +37,7 @@ src/
   ui/
     apps/                          application registry and host lifecycle
     components/                    vendor-neutral terminal UI primitives
-    settings/                      owned settings declarations, resolution, migration, and persistence
+    settings/                      owned settings declarations, resolution, and persistence
 ```
 
 Each directory owner exposes `index.ts`, which lists its named exports; `export *` is rejected there so a public contract is readable in one place. Imports within one owner may use private files. Imports crossing owners must use the provider's public entry and follow the dependency DAG declared by `PROJECT_OWNERS`. Two exceptions exist: `src/composition` is the dependency-injection root and may reach past any public entry, and a module on the eager startup path may import a leaf of a provider whose public entry is a prohibited startup entry (`PROHIBITED_STARTUP_ENTRIES` in `startup-graph-policy.mjs`), because loading that barrel would pull the provider's whole graph into startup. `product-identity` is the sole exception to the directory-entry convention because its public entry is `src/product-identity.ts`.

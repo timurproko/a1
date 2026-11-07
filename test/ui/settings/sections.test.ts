@@ -29,9 +29,7 @@ const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [
 function resolution(values: Record<string, unknown> = {}) {
   return resolveOwnedUiSettings({
     declarations: DECLARATIONS,
-    migrations: [],
-    document: { version: 1, values },
-    currentVersion: 1,
+    values,
   });
 }
 
@@ -69,8 +67,8 @@ const AGENT: AgentSettingsSnapshot = {
 describe("owned UI settings sections", () => {
   it("places owned agent controls once after engine entries in a single Agent group", () => {
     const resolved = resolveOwnedUiSettings({
-      declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [],
-      document: { version: 21, values: { promptSuggestions: false } },
+      declarations: OWNED_UI_SETTING_DECLARATIONS,
+      values: { promptSuggestions: false },
     });
     const sections = buildOwnedUiSettingsSections({ resolution: resolved, agent: AGENT });
     expect(sections.map(section => [section.id, section.title])).toEqual([
@@ -115,7 +113,6 @@ describe("owned UI settings sections", () => {
       origin: "stored", backend: "a1", editable: true, application: "live", choices: [true, false],
     });
     expect(findOwnedUiSettingsEntry(sections, "promptSuggestions", "agent")).toBeNull();
-    expect(resolved.migrated).toBe(false);
     expect(resolved.notices).toEqual([]);
     expect(AGENT.descriptors.map(entry => entry.key)).toEqual(["autoCompact", "thinkingLevel", "providerProfile", "installId"]);
   });
@@ -128,7 +125,7 @@ describe("owned UI settings sections", () => {
     ["unavailable controls", { ...AGENT, descriptors: [descriptor("hidden", "boolean", true, { available: false })] }],
   ])("keeps the owned Agent control editable with %s engine settings", (_label, agent) => {
     const sections = buildOwnedUiSettingsSections({
-      resolution: resolveOwnedUiSettings({ declarations: OWNED_UI_SETTING_DECLARATIONS, migrations: [], document: null }),
+      resolution: resolveOwnedUiSettings({ declarations: OWNED_UI_SETTING_DECLARATIONS, values: null }),
       agent,
     });
     expect(sections.map(section => section.id)).toEqual(["generic", "appearance", "scroll", "history", "agent"]);
