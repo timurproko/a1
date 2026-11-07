@@ -25,7 +25,6 @@ function editor(overrides: Partial<PiShellEditorPort> = {}): PiShellEditorPort {
     setSubmitHandler() {},
     setInterruptHandler() {},
     setAutocompleteCommands() {},
-    commandCatalog: () => [],
     setPaddingX() {},
     setAutocompleteMaxVisible() {},
     addAutocompleteProvider() {},

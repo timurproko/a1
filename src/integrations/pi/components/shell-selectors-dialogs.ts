@@ -49,7 +49,7 @@ import {
   type PiShellSelectorOptions,
 } from "./shell-shared-facade.js";
 
-export { createPiShellCommandsSelector, createPiShellSkillsSelector, type PiShellSkillsSelectorOptions } from "./skills-dialog.js";
+export { createPiShellSkillsSelector, type PiShellSkillsSelectorOptions } from "./skills-dialog.js";
 
 export function createPiShellSelector(options: PiShellSelectorOptions): PiShellComponentPort {
   ensureTheme();

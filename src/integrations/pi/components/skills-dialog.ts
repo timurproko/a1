@@ -17,11 +17,6 @@ export interface PiShellSkillsSelectorOptions {
   readonly skills: readonly PiShellSkillSummary[];
   readonly onSelect: (name: string) => void;
   readonly onCancel: () => void;
-  /** The dialog title and the plural its empty states name; Skills by default. */
-  readonly title?: string;
-  readonly noun?: string;
-  /** Shown before each row's name, such as `/` for commands. */
-  readonly rowPrefix?: string;
 }
 
 /** A single line clipped at the viewport width: no wrap, no ellipsis, padded to the full width. */
@@ -62,8 +57,6 @@ class SkillsSelectorComponent extends Container {
   readonly #skills: readonly PiShellSkillSummary[];
   readonly #onSelect: (name: string) => void;
   readonly #onCancel: () => void;
-  readonly #noun: string;
-  readonly #rowPrefix: string;
   #filtered: readonly PiShellSkillSummary[];
   #selectedIndex = 0;
   #focused = false;
@@ -74,10 +67,8 @@ class SkillsSelectorComponent extends Container {
     this.#filtered = options.skills;
     this.#onSelect = options.onSelect;
     this.#onCancel = options.onCancel;
-    this.#noun = options.noun ?? "skills";
-    this.#rowPrefix = options.rowPrefix ?? "";
     this.#searchInput.onSubmit = () => this.#selectCurrent();
-    const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), new Text(piTheme().fg("accent", piTheme().bold(options.title ?? "Skills")), 0, 0));
+    const header = addPiModalHeader(this, new DynamicBorder(paintPiBorder), new Text(piTheme().fg("accent", piTheme().bold("Skills")), 0, 0));
     this.addChild(new Spacer(1));
     addPiModalSearchInput(this, this.#searchInput);
     this.addChild(new Spacer(1));
@@ -136,7 +127,7 @@ class SkillsSelectorComponent extends Container {
     this.#listContainer.clear();
     const theme = piTheme();
     if (this.#filtered.length === 0) {
-      this.#listContainer.addChild(new Text(theme.fg("muted", this.#skills.length === 0 ? `  No ${this.#noun} yet` : `  No matching ${this.#noun}`), 0, 0));
+      this.#listContainer.addChild(new Text(theme.fg("muted", this.#skills.length === 0 ? "  No skills yet" : "  No matching skills"), 0, 0));
       return;
     }
     const maxVisible = PINNED_PI_LAYOUT.selectorMaxVisible;
@@ -145,7 +136,7 @@ class SkillsSelectorComponent extends Container {
     for (let index = start; index < end; index++) {
       const skill = this.#filtered[index]!;
       const selected = index === this.#selectedIndex;
-      const label = `${this.#rowPrefix}${skill.name}`;
+      const label = skill.name;
       const content = `${selected ? theme.fg("accent", "→ ") : "  "}${selected ? theme.fg("text", label) : label}`;
       this.#listContainer.addChild(new SkillRow(content, selected));
     }
@@ -159,11 +150,6 @@ class SkillsSelectorComponent extends Container {
       this.#listContainer.addChild(new ClippedLine(theme.fg("muted", `  ${description}`)));
     }
   }
-}
-
-/** The searchable Commands dialog: the same list as Skills, over every slash command with its description. */
-export function createPiShellCommandsSelector(options: Omit<PiShellSkillsSelectorOptions, "title" | "noun" | "rowPrefix">): PiShellComponentPort {
-  return createPiShellSkillsSelector({ ...options, title: "Commands", noun: "commands", rowPrefix: "/" });
 }
 
 export function createPiShellSkillsSelector(options: PiShellSkillsSelectorOptions): PiShellComponentPort {

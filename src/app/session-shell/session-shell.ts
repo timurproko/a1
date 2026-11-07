@@ -189,7 +189,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         onInterrupt: () => { void this.interrupt(); },
         onClear: () => { void this.clearOrExit(); },
         onExit: () => { void this.shutdown(); },
-        onModelSelect: () => this.#customViewport ? this.showModelsDialog() : this.showModelSelector(), ...(this.#customViewport ? { onCommandMenu: () => void import("./commands-dialog.js").then(({ openCommandsDialog }) => openCommandsDialog({ root: this.root, dialogs: this.#presenters.components.dialogs, close: this.#dialogs.closeInputSurface, requestRender: () => this.#terminal.requestRender(), submit: text => { void this.submit(text).catch(() => this.#submission.reportError()); } })) } : {}),
+        onModelSelect: () => this.#customViewport ? this.showModelsDialog() : this.showModelSelector(),
         onModelCycle: direction => { void this.cycleModel(direction); },
         onThinkingCycle: () => { void this.cycleThinkingLevel(); },
         onThinkingToggle: () => {
