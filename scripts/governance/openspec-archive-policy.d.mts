@@ -39,6 +39,7 @@ export function selectAcceptance(comments: readonly unknown[], implementation: I
 };
 export function assertMergedImplementation(pull: unknown, repository: string, files: readonly PullRequestChangedFile[], options?: { allowDocumentation?: boolean }): void;
 export function assertRepositoryPath(value: unknown): string;
+export function retiredCapability(metadataText: string | undefined, deltaText: string | undefined): boolean;
 export function inspectTasks(text: string, mapping?: ImplementationMetadata["archivePreparationTasks"], options?: { allowIncomplete?: boolean }): { id: string; done: boolean; text: string }[];
 export function completePreparationTask(text: string, mapping: NonNullable<ImplementationMetadata["archivePreparationTasks"]>, kind: keyof typeof ARCHIVE_TASKS): string;
 export function archivePaths(change: string, date: string, capabilities: string[]): ArchivePaths;
