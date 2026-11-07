@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-11-07T09:23:15.542Z",
+  "generatedAt": "2026-11-07T09:55:09.712Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -46,34 +46,28 @@
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:148:391",
+      "id": "openspec/specs/a1-shell/spec.md:109:391",
       "value": "addone",
-      "fingerprint": "6ec8b088ce95e53a783cbf06384c587b57a4845843174fa85a49ad382c758f96",
+      "fingerprint": "bf2e7cfbd75e0b42e3f8dbfa549d726f5fde73b0a012c9f1b8dddc360442450e",
       "reason": "obsolete-package rejection requirement"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:160:52",
+      "id": "openspec/specs/a1-shell/spec.md:121:52",
       "value": "addone",
-      "fingerprint": "69dc0497ab37a3bc09fc2eeda323fbc5b3d22ea007683e652f2e52aa4361c504",
+      "fingerprint": "6f0330c22e998606f22d620e64cf98d40c7baee4d742df2cb62a838efe926625",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:163:322",
+      "id": "openspec/specs/a1-shell/spec.md:124:322",
       "value": "addone",
-      "fingerprint": "9441d9973393d183c40b80d31a060226232ca047aa271bb810c89c4fe5041388",
+      "fingerprint": "34fd10b6031e23f40e972d953e2b6b2f9120bcbf4e8f0c0b2510e79f53bbad36",
       "reason": "obsolete-package rejection requirement"
     },
     {
-      "id": "openspec/specs/a1-shell/spec.md:167:84",
+      "id": "openspec/specs/a1-shell/spec.md:128:84",
       "value": "addone",
-      "fingerprint": "9d652198c003c6a0d063a65911d45fbf5ea4b66f5fff31d881c95b6ec33818a6",
+      "fingerprint": "1a791872275f1883f9b873e28f379cdd189345db25aebf9cb41803e1b73f4008",
       "reason": "explicit obsolete-package rejection or deprecation fixture"
-    },
-    {
-      "id": "openspec/specs/launch-profiles/spec.md:10:315",
-      "value": "addone",
-      "fingerprint": "0b6a400944725108240927b232923969a6a9d7b8306034b1034016f72e8aefd9",
-      "reason": "obsolete-package rejection requirement"
     },
     {
       "id": "openspec/specs/product-identity/spec.md:51:172",
