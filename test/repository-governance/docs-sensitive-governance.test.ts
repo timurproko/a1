@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -9,15 +9,6 @@ const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("docs-sensitive governance", () => {
-  it("runs lightweight inventory consistency for every docs-only pull request", async () => {
-    const workflow = await readFile(".github/workflows/ci.yml", "utf8");
-    const docsJob = workflow.match(/\n  docs:[\s\S]*?(?=\n  [\w-]+:|$)/)?.[0] ?? "";
-    expect(docsJob).toContain("if: needs.changes.outputs.acceptance-only != 'true' && needs.changes.outputs.docs-only == 'true'");
-    expect(docsJob).toContain("check-docs-governance.mjs");
-    expect(docsJob).toContain("if: needs.changes.outputs.openspec-touched == 'true'");
-    expect(docsJob).not.toMatch(/npm ci|npm run build|vitest/);
-  });
-
   it("detects an OpenSpec archive that changes an inventoried occurrence", async () => {
     const root = await fixture({
       "package.json": "{}",

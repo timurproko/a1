@@ -43,24 +43,24 @@
     "explicit-obsolete-package-fixtures"
   ],
   "summary": {
-    "total": 56,
-    "files": 16,
+    "total": 52,
+    "files": 15,
     "byLocationKind": {
-      "content": 56,
+      "content": 52,
       "path": 0
     },
     "byClass": {
-      "runtime-symbols": 44,
+      "runtime-symbols": 40,
       "diagnostics": 3,
       "environment-keys": 12,
-      "paths": 42,
+      "paths": 39,
       "schemas": 8,
       "artifacts": 11,
       "native-names": 1,
-      "tests": 44,
+      "tests": 40,
       "current-docs-specs": 12,
       "historical-records": 0,
-      "explicit-obsolete-package-fixtures": 5
+      "explicit-obsolete-package-fixtures": 4
     }
   },
   "occurrences": [
@@ -690,10 +690,10 @@
       ]
     },
     {
-      "id": "test/repository-governance/docs-sensitive-governance.test.ts:24:59",
+      "id": "test/repository-governance/docs-sensitive-governance.test.ts:15:59",
       "path": "test/repository-governance/docs-sensitive-governance.test.ts",
       "locationKind": "content",
-      "line": 24,
+      "line": 15,
       "column": 59,
       "value": "AddOne",
       "context": "\"openspec/changes/current/evidence.md\": \"Historical AddOne record.\",",
@@ -703,70 +703,6 @@
         "runtime-symbols",
         "paths",
         "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/product-identity-documentation.test.ts:11:67",
-      "path": "test/repository-governance/product-identity-documentation.test.ts",
-      "locationKind": "content",
-      "line": 11,
-      "column": 67,
-      "value": "ADDONE",
-      "context": "expect(toolchain).toContain(\"does not read or migrate legacy `ADDONE_*`\");",
-      "matchedCase": "upper",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/product-identity-documentation.test.ts:12:47",
-      "path": "test/repository-governance/product-identity-documentation.test.ts",
-      "locationKind": "content",
-      "line": 12,
-      "column": 47,
-      "value": "AddOne",
-      "context": "expect(toolchain).toContain(\"%APPDATA%\\\\\\\\AddOne\");",
-      "matchedCase": "title-or-mixed",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/product-identity-documentation.test.ts:13:42",
-      "path": "test/repository-governance/product-identity-documentation.test.ts",
-      "locationKind": "content",
-      "line": 13,
-      "column": 42,
-      "value": "addone",
-      "context": "expect(toolchain).toContain(\"former `addone` directories\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests"
-      ]
-    },
-    {
-      "id": "test/repository-governance/product-identity-documentation.test.ts:16:47",
-      "path": "test/repository-governance/product-identity-documentation.test.ts",
-      "locationKind": "content",
-      "line": 16,
-      "column": 47,
-      "value": "addone",
-      "context": "expect(toolchain).toContain(\"`@timurproko/addone` is deprecated\");",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "tests",
-        "explicit-obsolete-package-fixtures"
       ]
     },
     {
@@ -975,5 +911,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-11-07T09:55:09.559Z"
+  "generatedAt": "2026-11-07T12:43:30.397Z"
 }

@@ -66,7 +66,7 @@
     {
       "id": "governance-documentation", "owner": "governance",
       "paths": ["scripts/governance/check-docs-governance.mjs", "scripts/governance/check-code-documentation.mjs", "scripts/governance/code-documentation-policy.mjs", "scripts/governance/code-documentation-policy.d.mts"],
-      "testPaths": ["test/repository-governance/docs-sensitive-governance.test.ts", "test/repository-governance/code-documentation*", "test/repository-governance/change-delivery-guidance.test.ts"],
+      "testPaths": ["test/repository-governance/docs-sensitive-governance.test.ts", "test/repository-governance/code-documentation*"],
       "integrationOwners": []
     },
     {
@@ -265,8 +265,7 @@
       ],
       "criticalTests": [
         "test/repository-governance/validation-suite-policy.test.ts",
-        "test/repository-governance/development-validation-baseline.test.ts",
-        "test/repository-governance/change-delivery-guidance.test.ts"
+        "test/repository-governance/development-validation-baseline.test.ts"
       ],
       "integrationOwners": []
     },

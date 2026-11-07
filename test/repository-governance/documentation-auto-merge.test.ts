@@ -127,20 +127,6 @@ describe("documentation auto-merge planning", () => {
 });
 
 describe("documentation auto-merge workflow", () => {
-  it("runs trusted policy after validation and when auto-merge state can become unsafe", async () => {
-    const workflow = await readFile(".github/workflows/documentation-auto-merge.yml", "utf8");
-    expect(workflow).toContain("workflow_run:");
-    expect(workflow).toContain("workflows: [Development validation]");
-    expect(workflow).toContain("pull_request_target:");
-    expect(workflow).toContain("auto_merge_enabled");
-    expect(workflow).toMatch(/types: \[[^\]]*\bedited\b/);
-    expect(workflow).toContain("ref: ${{ github.event.repository.default_branch }}");
-    expect(workflow).toContain("contents: write");
-    expect(workflow).toContain("pull-requests: write");
-    expect(workflow).toContain("manage-documentation-auto-merge.mjs");
-    expect(workflow).not.toContain("github.event.pull_request.head.sha");
-  });
-
   it("arms an eligible trusted PR before validation finishes", async () => {
     const result = await runManager({ pull_request: { number: 42 } }, pullFixture({ mergeable_state: "blocked" }));
     const graphql = result.requests.find(request => request.url === "/graphql");

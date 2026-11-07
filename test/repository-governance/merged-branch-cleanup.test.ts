@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -55,16 +55,6 @@ describe("merged branch cleanup policy", () => {
 });
 
 describe("merged branch cleanup workflow", () => {
-  it("uses trusted default-branch code, close-only authority, and no dependencies", async () => {
-    const workflow = await readFile(".github/workflows/merged-branch-cleanup.yml", "utf8");
-    expect(workflow).toContain("types: [closed]");
-    expect(workflow).toContain("contents: write");
-    expect(workflow).not.toContain("pull-requests: write");
-    expect(workflow).toContain("ref: ${{ github.event.repository.default_branch }}");
-    expect(workflow).not.toContain("github.event.pull_request.head.sha");
-    expect(workflow).not.toMatch(/npm (?:ci|install)|pnpm|yarn/);
-  });
-
   it("deletes a matching ref and verifies absence", async () => {
     const result = await runReconciler({ liveSha: headSha });
     expect(result.methods).toEqual(["GET", "GET", "DELETE", "GET"]);

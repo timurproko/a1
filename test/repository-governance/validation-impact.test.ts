@@ -212,7 +212,7 @@ describe("development validation impact", () => {
       { status: "M", path: "scripts/governance/local-cleanup-reconcile.mjs" },
       { status: "M", path: "scripts/governance/local-cleanup-state.mjs" },
       { status: "M", path: "scripts/governance/local-worktree-cleanup.mjs" },
-      { status: "M", path: "test/repository-governance/change-delivery-guidance.test.ts" },
+      { status: "M", path: "test/repository-governance/check-delivery-body.test.ts" },
       { status: "M", path: "test/repository-governance/local-cleanup-evidence.node.mjs" },
       { status: "M", path: "test/repository-governance/local-cleanup.node.mjs" },
     ];
