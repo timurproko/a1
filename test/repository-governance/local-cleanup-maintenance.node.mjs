@@ -66,7 +66,7 @@ async function linkFixture(t) {
   const entry = (await f.store.read()).entries[0];
   const target = join(f.temporary, "external-generated");
   await mkdir(target); await writeFile(join(target, "keep.txt"), "external target must survive\n");
-  // If the implementation traverses the target, this nested marker must make normal inspection fail.
+  // Invariant: target traversal would encounter this nested marker and fail normal inspection.
   await mkdir(join(target, ".git")); await writeFile(join(target, ".git", "keep"), "not cleanup authority\n");
   await mkdir(join(path, ".artifacts", "agent"), { recursive: true });
   const linkedPath = join(path, link), type = process.platform === "win32" ? "junction" : "dir";
@@ -184,11 +184,10 @@ describe("guarded cleanup maintenance", { concurrency: 4 }, () => {
       if (++reads === 2) f.pull.state = "open";
       return f.reader.pages(path, maximum);
     } };
-    // Reopening after one evidence read is caught by the next mandatory live verification.
+    // Invariant: the next live verification must catch reopening after an earlier evidence read.
     const report = await f.pass({ reader });
     assert.equal(result(report).reason, "discard-source-association");
     assert.equal(await f.local(), f.head);
-    // The PR reopened during the second read, before the remote Git primitive is entered.
     assert.equal(f.remote.sha, f.head);
   });
 

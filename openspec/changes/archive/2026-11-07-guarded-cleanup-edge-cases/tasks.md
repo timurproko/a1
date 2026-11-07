@@ -18,3 +18,9 @@
 ## 4. Focused validation
 
 - [x] 4.1 Run TypeScript checking, focused cleanup tests, strict OpenSpec validation, and the delivery body check; disposition every observed gap before the final Implementation checkbox.
+
+## 5. CI guidance and comment repair
+
+- [x] 5.1 Classify retained implementation comments by their actual security, rationale, or invariant intent and remove redundant narration without changing cleanup behavior.
+- [x] 5.2 Condense the delivery skill below its existing 600-word bound while keeping detailed cleanup safeguards in the linked runbook and policy context.
+- [x] 5.3 Run the failed delivery-guidance tests, full code-documentation gate, TypeScript checking, and maintenance regressions without changing assertions or thresholds.

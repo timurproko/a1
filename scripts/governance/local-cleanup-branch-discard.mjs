@@ -110,6 +110,6 @@ export async function discardBranchCleanup({ identity, store, reader, branch, ch
     row.disposition = journal?.step === "remote-ref-removed" || remoteAttempted || row.steps.length ? "partial" : row.reason === "resource-busy" ? "deferred" : "blocked";
   } finally { if (release) await release(); }
   report.coverage.visited = 1; report.coverage.complete = true;
-  try { await writeLocalCleanupReport(store, report, now()); } catch { /* The operation's stdout remains authoritative. */ }
+  try { await writeLocalCleanupReport(store, report, now()); } catch { /* Rationale: report persistence must not obscure the authoritative operation result. */ }
   return report;
 }

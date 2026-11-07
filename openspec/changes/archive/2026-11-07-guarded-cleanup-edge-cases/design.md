@@ -45,6 +45,12 @@ Branch-only state uses a separate validated ref-scoped journal beside existing w
 
 Focused local checks passed: 35 new maintenance regressions (including a real hermetic bare-remote CLI deletion), the complete cleanup Vitest wrapper over all four dependency-free node-test files, `npm run typecheck`, `npm run check:architecture`, `npm run check:docs-governance`, and strict OpenSpec change validation. An early ancestor-replacement fixture initially reached the generic unsafe-link blocker; validation ordering was tightened so ancestor drift is checked before full-tree inspection, and all focused regressions passed afterward. No real candidate was discarded or unlinked using this unintegrated policy.
 
+## CI guidance and comment repair
+
+Development validation run 42351835165 rejected six unclassified implementation comments and the delivery skill's 649-word length against its existing strict 600-word bound. Labeled the retained comments with their actual intent, removed redundant narration, and condensed the skill to 591 words while retaining the linked detailed cleanup policy. No runtime behavior, assertion, threshold, or cleanup safeguard changed.
+
+Local repair checks passed: all 11 delivery-guidance tests, the full code-documentation gate (zero violations), TypeScript checking, and all 35 maintenance regressions. Trusted automation will refresh the archived delivery manifest before renewed exact-head CI.
+
 ## Known gaps
 
 No proposed safety exemptions beyond the two explicitly scoped operations. Protected master, open PR 876, and locked transparent-tab-bar residue remain outside this fix.

@@ -67,7 +67,7 @@ export async function unlinkDisposableLink({ identity, store, reader, path, chan
       let target;
       try { target = await canonical(selectedPath); } catch { fail("disposable-link-unresolved"); }
       if (inside(target, selectedPath)) fail("content-link-cycle");
-      // Internal targets belong to ordinary generated-content inspection, not this no-target-enumeration exception.
+      // Security: internal targets retain ordinary inspection; remediation must never enumerate a target.
       if (samePath(target, absolute) || inside(absolute, target)) fail("disposable-link-internal-target");
       if (target.split(/[\\/]/).some(part => part.toLowerCase() === ".git")
         || samePath(target, identity.common) || inside(identity.common, target)) fail("disposable-link-git-target");
@@ -114,6 +114,6 @@ export async function unlinkDisposableLink({ identity, store, reader, path, chan
     row.disposition = row.steps.length ? "partial" : row.reason === "resource-busy" ? "deferred" : "blocked";
   } finally { if (release) await release(); }
   report.coverage.visited = 1; report.coverage.complete = true;
-  try { await writeLocalCleanupReport(store, report, now()); } catch { /* The operation's stdout remains authoritative. */ }
+  try { await writeLocalCleanupReport(store, report, now()); } catch { /* Rationale: report persistence must not obscure the authoritative operation result. */ }
   return report;
 }
