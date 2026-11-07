@@ -1,4 +1,4 @@
-import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/components/theme.js";
+import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/session-presenters/presentation.js";
 import HeadlessXterm from "@xterm/headless";
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";

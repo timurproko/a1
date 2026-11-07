@@ -1,10 +1,12 @@
-export type PiTuiInputCoordinationDecision = "safe" | "barrier";
-export type PiTuiInputSurfaceKind = "editor" | "owned" | "opaque";
+import type {
+  TerminalInputCoordinationDecision,
+  TerminalInputCoordinationScheduler,
+  TerminalInputSurfaceKind,
+} from "../../../contracts/presentation/index.js";
 
-export interface PiTuiInputCoordinationScheduler {
-  scheduleImmediate(callback: () => void): ReturnType<typeof setImmediate>;
-  cancelImmediate(handle: ReturnType<typeof setImmediate>): void;
-}
+export type PiTuiInputCoordinationDecision = TerminalInputCoordinationDecision;
+export type PiTuiInputSurfaceKind = TerminalInputSurfaceKind;
+export type PiTuiInputCoordinationScheduler = TerminalInputCoordinationScheduler;
 
 export interface PiTuiInputCoordinationTrace {
   readonly phase: "receipt" | "semantic-start" | "semantic-end";

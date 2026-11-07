@@ -1,5 +1,5 @@
+import type { TerminalPointerSurface } from "../../contracts/presentation/index.js";
 import { samePointerSurfaces } from "../../integrations/pi/tui-runtime/overlay-geometry.js";
-import type { PiTuiPointerSurface } from "../../integrations/pi/tui-runtime/contracts.js";
 import type { OwnedUiViewportSettings } from "../../contracts/owned-ui/index.js";
 import { TranscriptViewport, type TranscriptViewportFrame, type TranscriptViewportFrameInput } from "../../ui/components/transcript-viewport.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
@@ -61,10 +61,10 @@ export class SessionViewportController {
     scrollbarSpeed: "normal",
   };
   #dragGrabOffset: number | null = null;
-  #inputSurface: PiTuiPointerSurface | undefined;
+  #inputSurface: TerminalPointerSurface | undefined;
   #inputSurfacePending = false;
-  #overlays: readonly PiTuiPointerSurface[] | null = [];
-  #pointerOwner: PiTuiPointerSurface | "viewport" | "drain" | undefined;
+  #overlays: readonly TerminalPointerSurface[] | null = [];
+  #pointerOwner: TerminalPointerSurface | "viewport" | "drain" | undefined;
   // Invariant: a right-click editor gesture remains owned by the dock.
   #dockPointerSuppressed = false;
   // Invariant: a gesture begun on an explicit control remains owned by that control.
@@ -157,7 +157,7 @@ export class SessionViewportController {
     this.#cancelGesture();
   }
 
-  setInputSurfaceFrame(surface: PiTuiPointerSurface | undefined): void {
+  setInputSurfaceFrame(surface: TerminalPointerSurface | undefined): void {
     if (!samePointerSurfaces(this.#inputSurface === undefined ? [] : [this.#inputSurface], surface === undefined ? [] : [surface])) {
       this.#cancelGesture();
     }
@@ -165,7 +165,7 @@ export class SessionViewportController {
     this.#inputSurfacePending = false;
   }
 
-  setOverlaySurfaces(surfaces: readonly PiTuiPointerSurface[] | null): void {
+  setOverlaySurfaces(surfaces: readonly TerminalPointerSurface[] | null): void {
     if (surfaces === this.#overlays || surfaces !== null && this.#overlays !== null && samePointerSurfaces(surfaces, this.#overlays)) return;
     this.#cancelGesture();
     this.#overlays = surfaces;
@@ -615,8 +615,8 @@ export class SessionViewportController {
     return completedCopy === undefined ? routed : { ...routed, copySelection: completedCopy };
   }
 
-  #modalAt(column: number, row: number): PiTuiPointerSurface | undefined {
-    const contains = (surface: PiTuiPointerSurface) => column >= surface.columnStart && column <= surface.columnEnd
+  #modalAt(column: number, row: number): TerminalPointerSurface | undefined {
+    const contains = (surface: TerminalPointerSurface) => column >= surface.columnStart && column <= surface.columnEnd
       && row >= surface.rowStart && row <= surface.rowEnd;
     const overlay = this.#overlays?.findLast(contains);
     return overlay ?? (this.#inputSurface !== undefined && contains(this.#inputSurface) ? this.#inputSurface : undefined);

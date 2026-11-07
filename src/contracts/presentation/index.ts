@@ -1,4 +1,43 @@
+import type { PresentationComponentPort } from "./component.js";
+export type { PresentationComponentPort, PresentationPointerSurface } from "./component.js";
 export type { CanvasBackgroundStyle, ShellPresentationPorts, ThemeSource, UiTheme, UiThemeBackground, UiThemeToken } from "./theme.js";
+export type {
+  TerminalComponentPort,
+  TerminalDamageDecision,
+  TerminalDamageDecisionReason,
+  TerminalDamageFrameDescriptor,
+  TerminalDamageFrameSafety,
+  TerminalDamageOptions,
+  TerminalDamagePort,
+  TerminalHyperlinkInspection,
+  TerminalInputCoordinationDecision,
+  TerminalInputCoordinationScheduler,
+  TerminalInputDiagnosticsEvent,
+  TerminalInputDiagnosticsPhase,
+  TerminalInputListener,
+  TerminalInputListenerResult,
+  TerminalInputSurfaceKind,
+  TerminalLayoutEntry,
+  TerminalLayoutNode,
+  TerminalOverlayAnchor,
+  TerminalOverlayHandle,
+  TerminalOverlayMargin,
+  TerminalOverlayOptions,
+  TerminalOverlayUnfocusOptions,
+  TerminalPointerSurface,
+  TerminalPort,
+  TerminalPreInputListener,
+  TerminalProgramStatus,
+  TerminalRuntimeFactory,
+  TerminalRuntimeOptions,
+  TerminalRuntimePort,
+  TerminalRuntimeState,
+  TerminalScrollState,
+  TerminalSizeValue,
+  TerminalStopOptions,
+  TerminalViewport,
+  TerminalWheelScrollLines,
+} from "./terminal.js";
 export { SHARED_PROGRESS_ACCENT_ANSI, SHARED_PROGRESS_PALETTE } from "./progress-palette.generated.js";
 
 export type PresentationRuntimeState = "idle" | "running" | "stopping" | "stopped" | "failed";
@@ -75,22 +114,6 @@ export function renderSemanticShortcutHints(
   return `${" ".repeat(Math.max(0, indent))}${rendered.join(separator)}`;
 }
 
-export interface PresentationComponentPort {
-  render(width: number): readonly string[];
-  invalidate(): void;
-  handleInput?(data: string): void;
-  setFocused?(focused: boolean): void;
-  dispose?(): void;
-}
-
-/** A painted input surface in terminal coordinates (one-based, inclusive bounds). */
-export interface PresentationPointerSurface {
-  readonly component: PresentationComponentPort;
-  readonly columnStart: number;
-  readonly columnEnd: number;
-  readonly rowStart: number;
-  readonly rowEnd: number;
-}
 
 export interface PresentationEditorPort extends PresentationComponentPort {
   getText(): string;

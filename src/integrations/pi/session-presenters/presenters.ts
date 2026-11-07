@@ -17,7 +17,7 @@ import {
   type PiShellScopedModelsSelectorPort,
   type PiShellSettingsSelectorOptions,
 } from "../components/shell-selectors-dialogs.js";
-import { PI_SHELL_PRESENTATION } from "../components/theme.js";
+import { PI_SHELL_PRESENTATION } from "./presentation.js";
 
 const MODEL_REFRESH_TIMEOUT_MS = 15_000;
 const MODEL_REFRESH_TIMED_OUT = "Model refresh timed out; showing cached models.";

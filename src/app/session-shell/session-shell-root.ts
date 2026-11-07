@@ -1,3 +1,4 @@
+import type { TerminalComponentPort, TerminalInputCoordinationScheduler, TerminalInputDiagnosticsEvent, TerminalInputSurfaceKind, TerminalLayoutNode, TerminalPointerSurface, TerminalPort } from "../../contracts/presentation/index.js";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type { ShellPresentationPorts, ThemeSource } from "../../contracts/presentation/index.js";
 import type {
@@ -17,7 +18,6 @@ import type {
   SuggestionDecision,
   SuggestionDiagnosticObserver,
 } from "../../contracts/owned-ui/index.js";
-import type { PiTuiPointerSurface } from "../../integrations/pi/tui-runtime/contracts.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
 import { promptArrow } from "../../ui/components/prompt-input.js";
 import {
@@ -61,16 +61,6 @@ import {
   type PiShellTranscriptComponentPort,
   type PiShellViewComponentPort,
 } from "../../integrations/pi/components/shell-shared-facade.js";
-import {
-  type PiTuiInputCoordinationScheduler,
-  type PiTuiInputSurfaceKind,
-} from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
-import type {
-  PiTuiComponentPort,
-  PiTuiInputDiagnosticsEvent,
-  PiTuiLayoutNode,
-  PiTuiTerminalPort,
-} from "../../integrations/pi/tui-runtime/contracts.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
 import type { OwnedUiClipboardServices } from "./clipboard-services.js";
@@ -88,7 +78,7 @@ import { ViewportLayout } from "./viewport-layout.js";
 import { transcriptLinkColor, TranscriptDocument } from "./transcript-document.js";
 import type { StreamPresentationScheduler } from "./stream-presentation-coalescer.js";
 
-type OwnedUiTerminalPort = PiTuiTerminalPort;
+type OwnedUiTerminalPort = TerminalPort;
 type OwnedUiStartupOptions = PiShellHeaderOptions;
 
 interface OwnedUiClipboardPort {
@@ -150,8 +140,8 @@ export interface OwnedUiShellPresentationOptions {
     readonly seed?: number;
   };
   readonly input?: {
-    readonly scheduler?: PiTuiInputCoordinationScheduler;
-    readonly onEvent?: (event: PiTuiInputDiagnosticsEvent) => void;
+    readonly scheduler?: TerminalInputCoordinationScheduler;
+    readonly onEvent?: (event: TerminalInputDiagnosticsEvent) => void;
     readonly now?: () => number;
     /** Evidence-only baseline seam; production leaves coordination enabled. */
     readonly coordination?: boolean;
@@ -276,7 +266,7 @@ interface OwnedUiSessionShellRootHandlers {
 }
 
 /** Composes session state into the owned transcript, viewport, editor, and dock. */
-export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
+export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   readonly editor: PiShellEditorPort;
   readonly header: PiShellHeaderPort;
   readonly resources: PiShellLoadedResourcesPort;
@@ -393,7 +383,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     });
     this.editor.setThinkingLevel(view.thinkingLevel);
     this.#input = new InputSurfaceSwitch(this.editor, {
-      dockInputReuse: this.#customViewport && (handlers.enableDockInputReuse ?? true),
+      dockInputReuse: this.#customViewport && (handlers.enableDockInputReuse ?? true), classifyInput: handlers.presentation.terminalRuntime.classifyInput,
       viewport: this.#viewportController,
       ...(handlers.onInputSurfaceChanged === undefined ? {} : { onChanged: handlers.onInputSurfaceChanged }),
     });
@@ -695,7 +685,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     this.#viewportController.clearPointerState();
   }
 
-  setViewportOverlaySurfaces(surfaces: readonly PiTuiPointerSurface[] | null): void {
+  setViewportOverlaySurfaces(surfaces: readonly TerminalPointerSurface[] | null): void {
     this.#viewportController.setOverlaySurfaces(surfaces);
   }
 
@@ -886,7 +876,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
     return this.#input.usesEditor;
   }
 
-  inputCoordinationSurface(): PiTuiInputSurfaceKind {
+  inputCoordinationSurface(): TerminalInputSurfaceKind {
     return this.#input.coordination;
   }
 
@@ -903,7 +893,7 @@ export class OwnedUiSessionShellRoot implements PiTuiComponentPort {
   setInputSurface(
     component: PiShellComponentPort | null,
     disposePrevious = true,
-    coordination: Exclude<PiTuiInputSurfaceKind, "editor"> = "owned",
+    coordination: Exclude<TerminalInputSurfaceKind, "editor"> = "owned",
   ): void {
     if (this.#input.set(component, disposePrevious, coordination)) this.invalidate();
   }
@@ -986,13 +976,13 @@ function withoutTerminalBackground(text: string): string {
 }
 
 export type PinnedLayoutPart = "document" | "queued" | "aboveWidgets" | "status" | "editor" | "belowWidgets" | "footer";
-export type PinnedLayoutParts = Readonly<Record<PinnedLayoutPart, PiTuiComponentPort>>;
+export type PinnedLayoutParts = Readonly<Record<PinnedLayoutPart, TerminalComponentPort>>;
 
 /**
  * The pinned-profile screen: a followed transcript scroll above the dock. The runtime mounts one such layout,
  * so its single `transcript` scroll view is shared by whichever session the parts currently resolve to.
  */
-export function pinnedLayoutRoot(parts: PinnedLayoutParts, theme: ThemeSource): PiTuiLayoutNode {
+export function pinnedLayoutRoot(parts: PinnedLayoutParts, theme: ThemeSource): TerminalLayoutNode {
   return {
     type: "stack",
     direction: "vertical",
@@ -1040,7 +1030,7 @@ function layoutPort(
   render: (width: number) => readonly string[],
   invalidate: () => void,
   handleInput?: (data: string) => void,
-): PiTuiComponentPort {
+): TerminalComponentPort {
   return {
     render,
     invalidate,

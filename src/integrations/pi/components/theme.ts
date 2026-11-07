@@ -3,7 +3,6 @@ import {
   displayShortcutKeyLabel,
   renderSemanticShortcutHints,
   type SemanticShortcutHint,
-  type ShellPresentationPorts,
   type ThemeSource,
   type UiTheme,
   type UiThemeBackground,
@@ -11,7 +10,7 @@ import {
 } from "../../../contracts/presentation/index.js";
 import { stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
 import { getMarkdownTheme } from "../startup-public.js";
-import { onPiThemeChange, piCanvasBackgroundAnsi, piTheme, PINNED_PI_LAYOUT, renderPiAccentPreview } from "./upstream/theme/theme.js";
+import { onPiThemeChange, piTheme, renderPiAccentPreview } from "./upstream/theme/theme.js";
 
 export {
   PINNED_PI_LAYOUT,
@@ -45,11 +44,6 @@ export function piUiTheme(options: { readonly panel?: Paint; readonly disabled?:
 
 const PI_UI_THEME = Object.freeze(piUiTheme());
 export const PI_THEME_SOURCE: ThemeSource = Object.freeze({ current: () => PI_UI_THEME, onChange: (listener: () => void) => onPiThemeChange(listener) });
-export const PI_SHELL_PRESENTATION: ShellPresentationPorts = Object.freeze({
-  theme: PI_THEME_SOURCE,
-  canvasBackground: (style: Parameters<ShellPresentationPorts["canvasBackground"]>[0]) => piCanvasBackgroundAnsi(style),
-  pinnedOutputPad: PINNED_PI_LAYOUT.outputPad,
-});
 
 export type PiModalShortcutHint = SemanticShortcutHint;
 export { DIALOG_CLOSE_SHORTCUT_HINT, displayShortcutKeyLabel };

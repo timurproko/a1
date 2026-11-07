@@ -1,10 +1,11 @@
+import type { TerminalInputSurfaceKind, TerminalRuntimeFactory } from "../../contracts/presentation/index.js";
 import type { PiShellComponentPort, PiShellEditorPort } from "../../integrations/pi/components/shell-shared-facade.js";
-import { classifyPiTuiInput, type PiTuiInputSurfaceKind } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
 import type { SessionViewportController } from "./session-viewport-controller.js";
 
 interface InputSurfaceSwitchPorts {
   /** Whether keystrokes that cannot change the transcript may repaint the dock alone. */
   readonly dockInputReuse: boolean;
+  readonly classifyInput: TerminalRuntimeFactory["classifyInput"];
   readonly viewport: Pick<SessionViewportController, "invalidateInputSurface" | "presentationRevision">;
   /** The surface changed; listeners outside the root react. */
   readonly onChanged?: () => void;
@@ -19,7 +20,7 @@ export class InputSurfaceSwitch {
   readonly #editor: PiShellEditorPort;
   readonly #ports: InputSurfaceSwitchPorts;
   #surface: PiShellComponentPort;
-  #coordination: PiTuiInputSurfaceKind = "editor";
+  #coordination: TerminalInputSurfaceKind = "editor";
   #dockInputCandidate = false;
   // Invariant: receipt-time eligibility is evidence, never authorization for composition-time reuse.
   #dockInputRevision: number | undefined;
@@ -34,7 +35,7 @@ export class InputSurfaceSwitch {
     return this.#surface;
   }
 
-  get coordination(): PiTuiInputSurfaceKind {
+  get coordination(): TerminalInputSurfaceKind {
     return this.#coordination;
   }
 
@@ -54,7 +55,7 @@ export class InputSurfaceSwitch {
    * Shows `component` in the dock, or the editor for null. Returns false when the surface is
    * unchanged, in which case only its coordination kind is updated.
    */
-  set(component: PiShellComponentPort | null, disposePrevious: boolean, coordination: Exclude<PiTuiInputSurfaceKind, "editor">): boolean {
+  set(component: PiShellComponentPort | null, disposePrevious: boolean, coordination: Exclude<TerminalInputSurfaceKind, "editor">): boolean {
     const next = component ?? this.#editor;
     const nextCoordination = next === this.#editor ? "editor" : coordination;
     if (next === this.#surface) {
@@ -73,7 +74,7 @@ export class InputSurfaceSwitch {
   }
 
   handleInput(data: string): void {
-    this.#dockInputCandidate = this.#ports.dockInputReuse && classifyPiTuiInput(data, this.#coordination) === "safe";
+    this.#dockInputCandidate = this.#ports.dockInputReuse && this.#ports.classifyInput(data, this.#coordination) === "safe";
     this.#dockInputRevision = this.#dockInputCandidate ? this.#ports.viewport.presentationRevision : undefined;
     try {
       this.#surface.handleInput?.(data);

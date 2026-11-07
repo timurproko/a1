@@ -1,3 +1,4 @@
+import { PI_TERMINAL_RUNTIME } from "../../../src/integrations/pi/tui-runtime/runtime-factory.js";
 import { describe, expect, it, vi } from "vitest";
 import { InputSurfaceSwitch } from "../../../src/app/session-shell/input-surface-switch.js";
 
@@ -9,7 +10,7 @@ function harness(dockInputReuse = true) {
   const editor = surface();
   const viewport = { invalidateInputSurface: vi.fn(), presentationRevision: 7 };
   const onChanged = vi.fn();
-  const input = new InputSurfaceSwitch(editor as never, { dockInputReuse, viewport, onChanged });
+  const input = new InputSurfaceSwitch(editor as never, { dockInputReuse, viewport, onChanged, classifyInput: PI_TERMINAL_RUNTIME.classifyInput });
   return { input, editor, viewport, onChanged };
 }
 

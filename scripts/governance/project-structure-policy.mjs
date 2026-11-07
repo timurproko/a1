@@ -31,7 +31,7 @@ export const PROJECT_OWNERS = Object.freeze({
   "pi-component-adapter": owner("pi-component-adapter", "foundation", "src/integrations/pi/components", "test/integrations/pi/components", ["owned-ui-contracts", "presentation-contracts"]),
   "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/integrations/pi/tui-runtime", "test/integrations/pi/tui-runtime", ["presentation-contracts", "terminal-cleanup"]),
   "pi-session-presenters": owner("pi-session-presenters", "foundation", "src/integrations/pi/session-presenters", "test/integrations/pi/session-presenters", [
-    "owned-ui-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter",
+    "owned-ui-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter",
   ]),
 });
 

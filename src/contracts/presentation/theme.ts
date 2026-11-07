@@ -38,6 +38,8 @@ export interface ThemeSource {
   onChange(listener: () => void): () => void;
 }
 
+import type { TerminalRuntimeFactory } from "./terminal.js";
+
 /** How the full-screen canvas behind the session is painted. */
 export type CanvasBackgroundStyle = "transparent" | "accent" | "dark";
 
@@ -48,4 +50,5 @@ export interface ShellPresentationPorts {
   canvasBackground(style: CanvasBackgroundStyle): string | null;
   /** Columns the pinned comparison layout pads command output with. */
   readonly pinnedOutputPad: 0 | 1;
+  readonly terminalRuntime: TerminalRuntimeFactory;
 }

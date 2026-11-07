@@ -1,4 +1,4 @@
-import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/components/theme.js";
+import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/session-presenters/presentation.js";
 import type { OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../src/contracts/owned-ui/index.js";
 import { applyPiTheme, createPiShellDialog, createPiShellSelector } from "../../../src/integrations/pi/components/index.js";
 import { OwnedUiSessionShellRoot } from "../../../src/app/session-shell/index.js";

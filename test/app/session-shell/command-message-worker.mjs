@@ -30,6 +30,9 @@ const owned = producer === "owned"
 const ownedTheme = producer === "owned"
   ? await import(pathToFileURL(join(repository, "src/integrations/pi/components/theme.ts")).href)
   : undefined;
+const ownedPresentation = producer === "owned"
+  ? await import(pathToFileURL(join(repository, "src/integrations/pi/session-presenters/presentation.ts")).href)
+  : undefined;
 const results = [];
 for (const mode of modes) {
 setCapabilities({ ...getCapabilities(), trueColor: mode === "truecolor", hyperlinks: false });
@@ -61,7 +64,7 @@ for (const theme of ["dark", "light"]) {
         }
       }
       const root = owned ? new owned.OwnedUiSessionShellRoot(view, home, {
-        presentation: ownedTheme.PI_SHELL_PRESENTATION,
+        presentation: ownedPresentation.PI_SHELL_PRESENTATION,
         getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {},
         onInterrupt() {}, onExit() {}, onModelSelect() {}, onThinkingCycle() {},
       }, { quiet: true }, agentDir) : undefined;

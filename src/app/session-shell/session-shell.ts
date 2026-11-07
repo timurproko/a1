@@ -1,3 +1,4 @@
+import type { TerminalComponentPort, TerminalInputListenerResult, TerminalInputSurfaceKind, TerminalOverlayHandle, TerminalPointerSurface } from "../../contracts/presentation/index.js";
 import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
 import { createResponseCopyExecutor, responseCopyDestination, type OwnedResponseCopyExecutor } from "./response-copy-transport.js";
 import { MAX_COPY_CONTROL_BYTES, type CopyResult } from "./response-copy-protocol.js";
@@ -61,15 +62,7 @@ import type {
   PiShellClipboardContent,
   PiShellSelectorOption,
 } from "../../integrations/pi/components/shell-shared-facade.js";
-import type { PiTuiDamageDecision } from "../../integrations/pi/tui-runtime/damage-aware-terminal.js";
-import type { PiTuiRuntimeAdapter } from "../../integrations/pi/tui-runtime/adapter.js";
-import type { PiTuiInputSurfaceKind } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
-import type {
-  PiTuiComponentPort,
-  PiTuiInputListenerResult,
-  PiTuiOverlayHandle,
-  PiTuiPointerSurface,
-} from "../../integrations/pi/tui-runtime/contracts.js";
+import type { TerminalDamageDecision, TerminalRuntimePort } from "../../contracts/presentation/index.js";
 import {
   OwnedUiTerminalHost,
   componentRuntime,
@@ -524,11 +517,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.root.setFocused(focused);
   }
 
-  inputCoordinationSurface(): PiTuiInputSurfaceKind {
+  inputCoordinationSurface(): TerminalInputSurfaceKind {
     return this.root.inputCoordinationSurface();
   }
 
-  setOverlaySurfaces(surfaces: readonly PiTuiPointerSurface[] | null): void {
+  setOverlaySurfaces(surfaces: readonly TerminalPointerSurface[] | null): void {
     this.root.setViewportOverlaySurfaces(surfaces);
   }
 
@@ -536,7 +529,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#streamPresentation.noteImmediatePresentation();
   }
 
-  layoutPart(part: PinnedLayoutPart): PiTuiComponentPort {
+  layoutPart(part: PinnedLayoutPart): TerminalComponentPort {
     this.#layoutParts ??= this.root.layoutParts();
     return this.#layoutParts[part];
   }
@@ -545,7 +538,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#syncTerminalProgress(this.view());
   }
 
-  handleViewportInput(data: string): PiTuiInputListenerResult | undefined {
+  handleViewportInput(data: string): TerminalInputListenerResult | undefined {
     if (!this.#inputCoordination) this.#streamPresentation.noteImmediatePresentation();
     // Compatibility: route modal paging and boundary keys before Pi's fullscreen handlers.
     const isDefault = this.root.usesDefaultInputSurface();
@@ -741,7 +734,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     options: readonly PiShellSelectorOption[],
     onSelect: (id: string) => void,
     onCancel?: () => void,
-  ): PiTuiOverlayHandle {
+  ): TerminalOverlayHandle {
     return this.#dialogs.showSelector(title, options, onSelect, onCancel);
   }
 
@@ -1500,11 +1493,11 @@ export class OwnedUiSessionShell extends OwnedUiSessionPresenter {
     host.attach(this);
   }
 
-  get runtime(): PiTuiRuntimeAdapter {
+  get runtime(): TerminalRuntimePort {
     return this.terminalHost.runtime;
   }
 
-  damagePresentationDecision(): PiTuiDamageDecision | null {
+  damagePresentationDecision(): TerminalDamageDecision | null {
     return this.terminalHost.damagePresentationDecision;
   }
 }
