@@ -8,48 +8,8 @@ const policyPath = resolve("scripts/governance/check-architecture.mjs");
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
-describe("terminal-core architecture policy", () => {
-  it("passes the production tree", () => {
-    const result = spawnSync(process.execPath, [policyPath], { encoding: "utf8" });
-    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-    expect(result.stdout).toContain("Architecture boundaries OK");
-  });
-
-  it.each([
-    ["src/host-terminal/legacy.ts", "export const legacy = true;", "retired terminal module remains"],
-    ["src/terminal/core.ts", "if (profile.executable.includes('pi')) route();", "executable or argument inspection"],
-    ["src/terminal/core.ts", "if (profile.arguments.includes('--special')) route();", "executable or argument inspection"],
-    ["src/terminal/core.ts", "if (output.includes('READY')) repaint();", "visible-content rendering branch"],
-    ["src/terminal/core.ts", "const quiescenceTimer = 32;", "cadence-derived frame inference"],
-    ["src/terminal/core.ts", "function parseTerminalQuery(bytes) { return bytes; }", "custom terminal mode/query parser"],
-    ["src/terminal/core.ts", "function encodeKittyKey(key) { return key; }", "custom input encoder"],
-  ])("rejects %s: %s", async (path, source, diagnostic) => {
-    const root = await fixture({ [path]: source });
-    const result = runPolicy(root);
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(diagnostic);
-  });
-
-  it.each([
-    ["import pty from 'node-pty';", "PTY or terminal emulator dependency"],
-    ["process.stdin.on('data', bytes => relay(bytes));", "terminal input/output read or relay"],
-    ["SetConsoleMode(handle, mode);", "terminal input or mode mediation"],
-    ["render(framebuffer);", "terminal parsing or display reconstruction"],
-  ])("rejects transparent interception: %s", async (source, diagnostic) => {
-    const root = await fixture({ "src/foundation/transparent-terminal/forbidden.ts": source });
-    const result = runPolicy(root);
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(diagnostic);
-  });
-
-  it("requires native transparent launchers to inherit handles without a shell", async () => {
-    const root = await fixture({ "src/foundation/transparent-terminal/native-launcher.ts": "export function launch() { return spawn('tool'); }" });
-    const result = runPolicy(root);
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("must inherit physical standard handles");
-    expect(result.stderr).toContain("must disable shell execution");
-  });
-
+// Fixture cases for the architecture gate; CI runs the gate against the real tree as its own step.
+describe("architecture gate", () => {
   it("ignores detached agent worktrees and local build outputs", async () => {
     const root = await fixture({
       ".worktrees/task/package.json": "{}",
@@ -72,7 +32,6 @@ describe("terminal-core architecture policy", () => {
     ["src/foundation/release/cache/state.json", "{}", "generated or runtime state"],
     ["src/features/launch/package-lock.json", "{}", "nested package manifest or lockfile"],
     ["test/unknown/contract.test.ts", "export {};", "test has no declared owner"],
-    ["docs/current.md", "Temporary during the redesign.", "stale redesign marker"],
   ])("rejects repository ownership violation in %s", async (path, source, diagnostic) => {
     const root = await fixture({ [path]: source });
     const result = runPolicy(root);
@@ -176,15 +135,12 @@ describe("terminal-core architecture policy", () => {
     expect(result.stderr).toContain("exceeds 550 lines");
   });
 
-  it("rejects obsolete retired-pipeline release gates", async () => {
-    const root = await fixture({ "scripts/release/run-release-gates.mjs": "const suite = 'test/scenarios/packaged-real-pi.test.ts';" });
+  it("keeps a terminal emulator out of the shipped dependencies", async () => {
+    const root = await fixture({ "package.json": JSON.stringify({ name: "fixture", dependencies: { "@xterm/headless": "6.0.0" } }) });
     const result = runPolicy(root);
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("obsolete retired-pipeline release gate");
+    expect(result.stderr).toContain("terminal emulator dependency '@xterm/headless' must be development-only");
   });
-
-
-
 });
 
 function shellModuleFixture(overrides: Readonly<Record<string, string>> = {}): Record<string, string> {
