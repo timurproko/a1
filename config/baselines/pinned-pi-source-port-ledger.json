@@ -1892,7 +1892,7 @@
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Owned UI/routing; A1 level color, linked PRs, dim ellipsis and model priority; Pi unchanged.",
       "upgradeStrategy": "three-way",
-      "localSha256": "4c1c68e0ec0ba2cc924a5a821211ece38976ccc34dc352bd2a95b56358951443",
+      "localSha256": "a8208ea9abea618d37ca8ec791154b8d8743fbca6c62e3251b41e227f30519da",
       "approvedDeviations": [
         {
           "id": "owned-status-level-color",

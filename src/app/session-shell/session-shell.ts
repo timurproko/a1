@@ -213,7 +213,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           ...(sharedClipboard === undefined ? {} : { pool: sharedClipboard.copy }),
           ...(terminal === undefined && clipboard === undefined ? {} : { destination: "terminal" }),
           ...(clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => clipboard!.writeText!(text, signal) }),
-          // Invariant: the owned host is the route contract. Resident and pseudoterminal children must not infer
+          // Invariant: the owned host is the route contract. Pseudoterminal children must not infer
           // clipboard reachability from Node's view of stdout, and inactive presenters are fenced here.
           terminal: { submit: async (control, signal) => {
             if (signal.aborted || this.#disposed || !this.#terminal.running || !this.#terminal.attached) throw new Error("Copy canceled");

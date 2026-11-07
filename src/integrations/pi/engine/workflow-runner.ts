@@ -631,7 +631,7 @@ export class PiWorkflowRunner {
 
 /**
  * The name the session normalized the request to, or the request when it reports none. `/name`
- * publishes a view right after setting it, so a resident tab takes the name as its tab name.
+ * publishes a view right after setting it, so the footer shows the new name at once.
  */
 function sessionNameOr(normalized: unknown, requested: string): string {
   return typeof normalized === "string" ? normalized : requested;

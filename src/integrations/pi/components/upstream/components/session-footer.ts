@@ -1,10 +1,10 @@
 /**
  * Provenance: @earendil-works/pi-coding-agent 1.5.0 (MIT), commit f9a26365568127461c47a07a37dcb42c140a3ac5,
  * packages/coding-agent/src/modes/interactive/components/footer.ts.
- * Modifications: Owned UI/routing; A1 level color, linked PRs, resident names, dim ellipsis and model
- * priority; Pi unchanged.
- * Deviations: owned-status-level-color, owned-pull-request-badge, owned-resident-session-name,
- * owned-footer-ellipsis, owned-footer-model-priority.
+ * Modifications: Owned UI/routing; A1 level color, linked PRs, dim ellipsis and model priority; Pi
+ * unchanged.
+ * Deviations: owned-status-level-color, owned-pull-request-badge, owned-footer-ellipsis,
+ * owned-footer-model-priority.
  */
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { hyperlink, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
