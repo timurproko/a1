@@ -6,7 +6,6 @@ export interface ProductPaths {
   readonly configDir: string;
   readonly dataDir: string;
   readonly runtimeDir: string;
-  readonly databasePath: string;
 }
 
 export function resolveProductPaths(
@@ -20,7 +19,6 @@ export function resolveProductPaths(
   const configOverride = environment[PRODUCT_IDENTITY.environment.configDir];
   const dataOverride = environment[PRODUCT_IDENTITY.environment.dataDir];
   const runtimeOverride = environment[PRODUCT_IDENTITY.environment.runtimeDir];
-  const databaseOverride = environment[PRODUCT_IDENTITY.environment.databasePath];
   const configDir = path.resolve(configOverride
     ?? (windows
       ? path.join(environment.APPDATA ?? home, PRODUCT_IDENTITY.state.windowsControlDirectory)
@@ -39,6 +37,5 @@ export function resolveProductPaths(
     configDir,
     dataDir,
     runtimeDir,
-    databasePath: path.resolve(databaseOverride ?? path.join(dataDir, PRODUCT_IDENTITY.endpoint.databaseFilename)),
   };
 }

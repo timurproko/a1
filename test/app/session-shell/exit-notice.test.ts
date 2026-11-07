@@ -5,7 +5,6 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { armExitNotice, uncleanExitNoticeLines, type ExitNoticeSource } from "../../../src/app/session-shell/exit-notice.js";
 import type { SessionResumeCommandMetadata } from "../../../src/app/session-shell/session-shell.js";
-import { EMERGENCY_TERMINAL_RESET } from "../../../src/foundation/terminal-cleanup/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
@@ -66,14 +65,5 @@ describe("unclean-exit notice", () => {
       "a1 was stopped unexpectedly.",
       "To resume this session: a1 --session-dir '/s dir' --session 01a1",
     ]);
-  });
-
-  it("keeps the native guardian's reset identical to the runtime's emergency reset", async () => {
-    const source = await readFile(resolve("native/process-guardian/src/exit_notice.rs"), "utf8");
-    const literal = /pub\(crate\) const TERMINAL_RESET: &str = "((?:[^"\\]|\\.)*)";/.exec(source)?.[1];
-    expect(literal).toBeDefined();
-    const decoded = literal!.replace(/\\x([0-9a-fA-F]{2})|\\\\/g, (_match, hex: string | undefined) =>
-      hex === undefined ? "\\" : String.fromCharCode(Number.parseInt(hex, 16)));
-    expect(decoded).toBe(EMERGENCY_TERMINAL_RESET);
   });
 });

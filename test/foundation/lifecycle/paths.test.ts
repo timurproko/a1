@@ -12,7 +12,6 @@ describe("product control paths", () => {
     expect(paths.configDir).toBe("C:\\Users\\Alice\\AppData\\Roaming\\a1");
     expect(paths.dataDir).toBe("C:\\Users\\Alice\\AppData\\Local\\a1");
     expect(paths.runtimeDir).toBe("C:\\Users\\Alice\\AppData\\Local\\a1\\runtime");
-    expect(paths.databasePath).toBe("C:\\Users\\Alice\\AppData\\Local\\a1\\control.sqlite3");
     expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);
   });
 
@@ -28,7 +27,6 @@ describe("product control paths", () => {
       configDir: "/config/a1",
       dataDir: "/data/a1",
       runtimeDir: "/run/user/1000/a1",
-      databasePath: "/data/a1/control.sqlite3",
     });
     expect(JSON.stringify(paths)).not.toMatch(/AddOne|addone/);
   });
@@ -38,7 +36,6 @@ describe("product control paths", () => {
       A1_CONFIG_DIR: "/custom/config",
       A1_DATA_DIR: "/custom/data",
       A1_RUNTIME_DIR: "/custom/runtime-one",
-      A1_DATABASE_PATH: "/custom/database.sqlite3",
     }, "linux", "/fallback");
     const second = resolveProductPaths({
       A1_CONFIG_DIR: "/custom/config",
@@ -50,7 +47,6 @@ describe("product control paths", () => {
       configDir: "/custom/config",
       dataDir: "/custom/data",
       runtimeDir: "/custom/runtime-one",
-      databasePath: "/custom/database.sqlite3",
     });
     expect(second.runtimeDir).toBe("/custom/runtime-two");
   });
@@ -61,7 +57,6 @@ describe("product control paths", () => {
       ADDONE_CONFIG_DIR: "/legacy/config",
       ADDONE_DATA_DIR: "/legacy/data",
       ADDONE_RUNTIME_DIR: "/legacy/runtime",
-      ADDONE_DATABASE_PATH: "/legacy/database.sqlite3",
       ADDONE_ENDPOINT: "legacy-endpoint",
     }, "linux", "/fallback");
 

@@ -92,17 +92,17 @@ describe("same-pin resume through the exact packaged public launch chain", () =>
     await assertIdle();
   }, 120_000);
 
-  it.each([false, true])("reopens an exited solo session through its own packaged-entry hint (custom store: %s)", async custom => {
-    const directory = custom ? resolve(extracted.root, "solo session's store") : store;
+  it.each([false, true])("reopens an exited session through its packaged-entry hint (custom store: %s)", async custom => {
+    const directory = custom ? resolve(extracted.root, "session's store") : store;
     const saved = await writeResumeFixture(directory, cwd, { compacted: custom });
     const original = await readFile(saved.path);
-    const first = await launch(["solo", "--session", saved.path]);
+    const first = await launch(custom ? ["--session-dir", directory, "--session", saved.path] : ["--session", saved.path]);
     await first.ready(saved.marker);
     await first.close();
     const hint = resumeHint(first.output());
     expect(hint).toBe(custom
-      ? `a1 solo --session-dir '${directory.replaceAll("'", `'\\''`)}' --session ${saved.id}`
-      : `a1 solo --session ${saved.id}`);
+      ? `a1 --session-dir '${directory.replaceAll("'", `'\\''`)}' --session ${saved.id}`
+      : `a1 --session ${saved.id}`);
     const resumed = await launchHint(hint);
     await resumed.ready(saved.marker);
     expect(resumed.output()).toContain(saved.marker);
@@ -130,11 +130,11 @@ describe("same-pin resume through the exact packaged public launch chain", () =>
     await assertIdle();
   }, 120_000);
 
-  it("keeps an occupied solo session single-writer and resumes it after the owner exits", async () => {
+  it("keeps an occupied session single-writer and resumes it after the owner exits", async () => {
     const saved = await writeResumeFixture(store, cwd);
-    const first = await launch(["solo", "--session", saved.id]);
+    const first = await launch(["--session", saved.id]);
     await first.ready(saved.marker);
-    const blocked = await launch(["solo", "--session", saved.id]);
+    const blocked = await launch(["--session", saved.id]);
     await until(async () => blocked.output().includes("Fork this session into current directory?"), () => blocked.output());
     blocked.child.stdin!.write("n\n");
     expect(await blocked.exited()).toBe(1);
@@ -164,8 +164,8 @@ describe("same-pin resume through the exact packaged public launch chain", () =>
     await assertIdle();
   }, 120_000);
 
-  it("keeps bare and argument-free solo launches fresh despite inherited session metadata", async () => {
-    for (const args of [[], ["solo"]]) {
+  it("keeps bare launches fresh despite inherited session metadata", async () => {
+    for (const args of [[]]) {
       const fresh = await launch(args);
       await fresh.ready();
       await fresh.close();
@@ -177,7 +177,7 @@ describe("same-pin resume through the exact packaged public launch chain", () =>
 
   it("reports invalid targets through containment without creating replacement sessions", async () => {
     const before = (await SessionManager.list(cwd)).map(session => session.id);
-    for (const args of [[], ["solo"]]) {
+    for (const args of [[] as string[]]) {
       for (const target of ["unknown-id", resolve(cwd, "missing.jsonl")]) {
         const child = await launch([...args, "--session", target]);
         expect(await child.exited()).toBe(1);
@@ -268,7 +268,7 @@ async function launch(args: string[], shell?: { command: string; args: string[] 
             return `Packaged launch not ready; phases reached: ${phases.join(", ") || "none"}; output: ${output}`;
           });
           const source = await trace();
-          for (const phase of ["bootstrap-selected", "guardian-start", "ui-entry", "session-created"]) expect(source).toContain(`"phase":"${phase}"`);
+          for (const phase of ["bootstrap-selected", "ui-entry", "session-created"]) expect(source).toContain(`"phase":"${phase}"`);
           passed = true;
         } finally {
           const diagnostic = {

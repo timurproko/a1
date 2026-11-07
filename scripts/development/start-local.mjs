@@ -42,7 +42,6 @@ if (launchArguments[0] === "--print-environment") {
     A1_DATA_DIR: childEnvironment.A1_DATA_DIR,
     A1_DEV_HISTORY_DATA_DIR: childEnvironment.A1_DEV_HISTORY_DATA_DIR,
     A1_RUNTIME_DIR: childEnvironment.A1_RUNTIME_DIR,
-    A1_DATABASE_PATH: childEnvironment.A1_DATABASE_PATH,
     PI_CODING_AGENT_DIR: childEnvironment.PI_CODING_AGENT_DIR ?? null,
     NODE_DISABLE_COMPILE_CACHE: childEnvironment.NODE_DISABLE_COMPILE_CACHE ?? null,
   } }, null, 2)}\n`);

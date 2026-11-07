@@ -73,19 +73,17 @@ describe("fresh first-attempt startup of the exact candidate", () => {
     const runtimeDir = resolve(root, "startup-runtime");
     const configDir = resolve(root, "startup-config");
     const homeDir = resolve(root, "startup-home");
-    const databasePath = resolve(root, "startup.sqlite3");
     const environment: NodeJS.ProcessEnv = {
       ...process.env,
       [PRODUCT_IDENTITY.environment.dataDir]: dataDir,
       [PRODUCT_IDENTITY.environment.runtimeDir]: runtimeDir,
       [PRODUCT_IDENTITY.environment.configDir]: configDir,
-      [PRODUCT_IDENTITY.environment.databasePath]: databasePath,
       HOME: homeDir,
       USERPROFILE: homeDir,
     };
     delete environment.NODE_COMPILE_CACHE;
     await phases.run("startup-cold-state", async () => {
-      for (const path of [dataDir, runtimeDir, configDir, homeDir, databasePath]) {
+      for (const path of [dataDir, runtimeDir, configDir, homeDir]) {
         await expect(accessPath(path)).resolves.toBe(false);
       }
       expect(environment.NODE_COMPILE_CACHE).toBeUndefined();

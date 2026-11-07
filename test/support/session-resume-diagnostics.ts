@@ -3,8 +3,7 @@ const MAX_TRACE_EVENTS = 64;
 const knownPhases = new Set([
   "command-invoked", "bootstrap-start", "bootstrap-selected",
   "durable-validation-start", "durable-validation-complete",
-  "replacement-supervisor-start", "replacement-supervisor-ready",
-  "guardian-start", "guardian-connected", "ui-entry", "ui-modules-loaded",
+  "ui-entry", "ui-modules-loaded",
   "pi-services", "resource-discovery", "session-created", "settings-loaded",
   "first-input-ready-render",
 ]);

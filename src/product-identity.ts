@@ -1,17 +1,16 @@
 import rawIdentity from "./product-identity.json" with { type: "json" };
 
 const ENVIRONMENT_KEYS = [
-  "clipboardDiagnostics", "configDir", "dataDir", "databasePath", "developmentHistoryDataDir", "developmentInstanceId", "developmentRoot", "endpoint", "exitNoticePath",
+  "clipboardDiagnostics", "configDir", "dataDir", "developmentHistoryDataDir", "developmentInstanceId", "developmentRoot", "exitNoticePath",
   "probeTrace", "prFooterPreview", "profileHome", "runtimeDir", "sessionRuntimeId", "skipVersionCheck", "startupTrace", "suggestionDiagnostics",
 ] as const;
 const FILESYSTEM_KEYS = ["slug", "windowsDirectory", "unixDirectory", "temporaryPrefix"] as const;
 const STATE_KEYS = ["windowsControlDirectory", "unixControlDirectory", "developmentDirectory", "piAgentProfile", "piVanillaProfile", "sessionRepositoryDirectory", "sessionWorktreeClaimDirectory"] as const;
-const ENDPOINT_KEYS = ["windowsPipeStem", "unixSocketFilename", "metadataFilename", "supervisorLogFilename", "databaseFilename"] as const;
 const MANIFEST_KEYS = ["releaseFilename", "packageFilename"] as const;
 const PROTOCOL_KEYS = ["namespace", "promptHistorySchema", "releaseCohortSchema", "updateJournalSchema"] as const;
 const EVIDENCE_KEYS = ["stableReleaseSchema", "previewReleaseSchema", "releaseCertificationSchema", "previewPlatformVerdictSchema", "piSourceLedgerSchema", "piComponentParitySchema", "piEventFrameParitySchema", "startupTraceSchema", "dependencyLayerSchema", "dependencyLayerCertificationSchema", "runtimePayloadSchema"] as const;
 const ARTIFACT_KEYS = ["cliEntry", "uiEntry", "releaseTarballStem", "diagnosticStem"] as const;
-const ROOT_KEYS = ["schema", "displayName", "commandName", "packageName", "filesystem", "environment", "state", "endpoint", "manifest", "protocol", "evidence", "artifacts"] as const;
+const ROOT_KEYS = ["schema", "displayName", "commandName", "packageName", "filesystem", "environment", "state", "manifest", "protocol", "evidence", "artifacts"] as const;
 
 type StringRecord<Keys extends readonly string[]> = { readonly [Key in Keys[number]]: string };
 
@@ -23,7 +22,6 @@ export interface ProductIdentity {
   readonly filesystem: StringRecord<typeof FILESYSTEM_KEYS>;
   readonly environment: StringRecord<typeof ENVIRONMENT_KEYS>;
   readonly state: StringRecord<typeof STATE_KEYS>;
-  readonly endpoint: StringRecord<typeof ENDPOINT_KEYS>;
   readonly manifest: StringRecord<typeof MANIFEST_KEYS>;
   readonly protocol: StringRecord<typeof PROTOCOL_KEYS>;
   readonly evidence: StringRecord<typeof EVIDENCE_KEYS>;
@@ -39,7 +37,6 @@ export function validateProductIdentity(value: unknown): ProductIdentity {
   const filesystem = stringObject(root.filesystem, FILESYSTEM_KEYS, "filesystem identity");
   const environment = stringObject(root.environment, ENVIRONMENT_KEYS, "environment identity");
   const state = stringObject(root.state, STATE_KEYS, "state identity");
-  const endpoint = stringObject(root.endpoint, ENDPOINT_KEYS, "endpoint identity");
   const manifest = stringObject(root.manifest, MANIFEST_KEYS, "manifest identity");
   const protocol = stringObject(root.protocol, PROTOCOL_KEYS, "protocol identity");
   const evidence = stringObject(root.evidence, EVIDENCE_KEYS, "evidence identity");
@@ -56,7 +53,6 @@ export function validateProductIdentity(value: unknown): ProductIdentity {
   if (state.windowsControlDirectory !== filesystem.windowsDirectory || state.unixControlDirectory !== filesystem.unixDirectory) {
     throw new TypeError("product state directories must match the filesystem identity");
   }
-  if (endpoint.windowsPipeStem !== filesystem.slug) throw new TypeError("product endpoint stem must match the filesystem slug");
   if (protocol.namespace !== commandName) throw new TypeError("product protocol namespace must match the command name");
   if (artifacts.diagnosticStem !== filesystem.slug) throw new TypeError("product diagnostic stem must match the filesystem slug");
 
@@ -85,7 +81,6 @@ export function validateProductIdentity(value: unknown): ProductIdentity {
     filesystem,
     environment,
     state,
-    endpoint,
     manifest,
     protocol,
     evidence,

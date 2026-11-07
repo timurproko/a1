@@ -24,7 +24,6 @@ describe("repository-local development launch", () => {
     expect(first.developmentRoot).toContain("0.1.4-build");
     expect(first.developmentRoot).toContain(first.instanceId);
     expect(first.environment.A1_RUNTIME_DIR).toBe(resolve(first.developmentRoot, "runtime"));
-    expect(first.environment.A1_DATABASE_PATH).toBe(resolve(first.developmentRoot, "data/control.sqlite3"));
     expect(resolveProductPaths(first.environment).runtimeDir).not.toBe(resolveProductPaths(second.environment).runtimeDir);
   });
 
@@ -47,17 +46,15 @@ describe("repository-local development launch", () => {
       ADDONE_CONFIG_DIR: "D:/legacy/config",
       ADDONE_DATA_DIR: "D:/legacy/data",
       ADDONE_RUNTIME_DIR: "D:/legacy/runtime",
-      ADDONE_DATABASE_PATH: "D:/legacy/database.sqlite3",
       ADDONE_ENDPOINT: "legacy-endpoint",
     };
     const launch = resolveDevelopmentLaunchEnvironment("D:/Git/a1", "release", legacy, "D:/temp");
-    const paths = resolveProductPaths(legacy);
+    expect(JSON.stringify(resolveProductPaths(legacy))).not.toContain("legacy");
 
     expect(launch.developmentRoot).not.toContain("legacy/development");
     expect(launch.environment.A1_CONFIG_DIR).not.toContain("legacy/config");
     expect(launch.environment.A1_DATA_DIR).not.toContain("legacy/data");
     expect(launch.environment.A1_RUNTIME_DIR).not.toContain("legacy/runtime");
-    expect(paths.databasePath).not.toContain("legacy/database.sqlite3");
   });
 
   it("preserves explicit development path overrides", () => {
@@ -66,14 +63,12 @@ describe("repository-local development launch", () => {
       A1_CONFIG_DIR: "D:/custom/config",
       A1_DATA_DIR: "D:/custom/data",
       A1_RUNTIME_DIR: "D:/custom/runtime",
-      A1_DATABASE_PATH: "D:/custom/database.sqlite3",
     }, "D:/temp").environment;
 
     expect(environment).toMatchObject({
       A1_CONFIG_DIR: resolve("D:/custom/config"),
       A1_DATA_DIR: resolve("D:/custom/data"),
       A1_RUNTIME_DIR: resolve("D:/custom/runtime"),
-      A1_DATABASE_PATH: resolve("D:/custom/database.sqlite3"),
       A1_DEV_HISTORY_DATA_DIR: resolve("D:/custom/data"),
     });
   });

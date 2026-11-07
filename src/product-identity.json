@@ -13,11 +13,9 @@
     "clipboardDiagnostics": "A1_CLIPBOARD_DIAGNOSTICS",
     "configDir": "A1_CONFIG_DIR",
     "dataDir": "A1_DATA_DIR",
-    "databasePath": "A1_DATABASE_PATH",
     "developmentHistoryDataDir": "A1_DEV_HISTORY_DATA_DIR",
     "developmentInstanceId": "A1_DEV_INSTANCE_ID",
     "developmentRoot": "A1_DEV_ROOT",
-    "endpoint": "A1_ENDPOINT",
     "exitNoticePath": "A1_EXIT_NOTICE_PATH",
     "probeTrace": "A1_PROBE_TRACE",
     "prFooterPreview": "A1_PR_FOOTER_PREVIEW",
@@ -36,13 +34,6 @@
     "piVanillaProfile": ".pi/agent",
     "sessionRepositoryDirectory": "session-repositories",
     "sessionWorktreeClaimDirectory": "session-worktree-claims"
-  },
-  "endpoint": {
-    "windowsPipeStem": "a1",
-    "unixSocketFilename": "supervisor.sock",
-    "metadataFilename": "supervisor.json",
-    "supervisorLogFilename": "supervisor.log",
-    "databaseFilename": "control.sqlite3"
   },
   "manifest": {
     "releaseFilename": ".a1-release.json",
