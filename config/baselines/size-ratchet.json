@@ -59,8 +59,8 @@
       "fields": 2
     },
     "src/integrations/pi/tui-runtime/adapter.ts::PiTuiRuntimeAdapter": {
-      "methods": 56,
-      "fields": 26
+      "methods": 54,
+      "fields": 24
     },
     "src/integrations/pi/tui-runtime/damage-aware-terminal.ts::DamageAwareTerminalAdapter": {
       "methods": 35,

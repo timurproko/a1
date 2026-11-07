@@ -23,7 +23,6 @@ import { GeometryObservedAltScreen, OverlayGeometryTracker } from "./overlay-geo
 import { boundedCleanup, EMERGENCY_TERMINAL_RESET } from "../../../foundation/terminal-cleanup/terminal-reset.js";
 import {
   InputPresentationCoordinator,
-  type PiTuiInputCoordinationTrace,
 } from "./input-presentation-coordinator.js";
 import type {
   PiTuiComponentPort,
@@ -196,8 +195,6 @@ export class PiTuiRuntimeAdapter {
   readonly #preInputListeners = new Set<PiTuiPreInputListener>();
   readonly #consumeUnhandledMouse: boolean;
   readonly #inputCoordinator: InputPresentationCoordinator | undefined;
-  readonly #inputDiagnostics: PiTuiRuntimeAdapterOptions["inputDiagnostics"];
-  readonly #diagnosticNow: () => number;
   #inputSink: ((data: string) => void) | undefined;
   #state: PiTuiRuntimeState = "idle";
   #stopPromise: Promise<void> | undefined;
@@ -210,15 +207,14 @@ export class PiTuiRuntimeAdapter {
     this.#overlayGeometry = options.onOverlayGeometry === undefined ? undefined : new OverlayGeometryTracker(options.onOverlayGeometry);
     this.#terminal = options.terminal ?? new ProcessTerminal();
     this.#consumeUnhandledMouse = options.consumeUnhandledMouse ?? false;
-    this.#inputDiagnostics = options.inputDiagnostics;
-    this.#diagnosticNow = options.inputDiagnostics?.now ?? (() => performance.now());
+    const diagnostics = options.inputDiagnostics;
+    const diagnosticNow = diagnostics?.now ?? (() => performance.now());
+    const tracePhase = diagnostics === undefined ? undefined : runtimePhaseTracer(diagnostics, diagnosticNow, () => this.#inputCoordinator);
     // Invariant: the pinned renderer's frames pass through this gate, while writeControl and
     // the stop sequence reach the terminal directly. Freezing drops frames without touching
     // the renderer, so a scheduled repaint cannot land on top of the quit outro.
     const gatedTerminal = frozenGateTerminal(this.#terminal, () => this.#presentationFrozen || this.#presentationHolds.size > 0);
-    const tracedTerminal = options.inputDiagnostics === undefined
-      ? gatedTerminal
-      : diagnosticTerminal(gatedTerminal, phase => this.#traceRuntimePhase(phase));
+    const tracedTerminal = tracePhase === undefined ? gatedTerminal : diagnosticTerminal(gatedTerminal, tracePhase);
     const decoratedTerminal = options.decorateTerminal?.(tracedTerminal) ?? tracedTerminal;
     const coordination = options.inputCoordination ?? (options.inputDiagnostics === undefined
       ? undefined
@@ -233,10 +229,8 @@ export class PiTuiRuntimeAdapter {
           },
           ...(coordination.onReceipt === undefined ? {} : { onReceipt: coordination.onReceipt }),
           ...(coordination.scheduler === undefined ? {} : { scheduler: coordination.scheduler }),
-          now: this.#diagnosticNow,
-          ...(options.inputDiagnostics === undefined ? {} : {
-            onTrace: event => this.#traceInputCoordination(event),
-          }),
+          now: diagnosticNow,
+          ...(diagnostics === undefined ? {} : { onTrace: event => diagnostics.onEvent(event) }),
         });
     this.#tuiTerminal = this.#inputCoordinator === undefined
       ? preInputTerminal(decoratedTerminal, data => this.#routePreInput(data), this.#overlayGeometry !== undefined)
@@ -252,9 +246,7 @@ export class PiTuiRuntimeAdapter {
     this.#tuiTerminal.restoreOnExit = (before, after) => exitTerminal.restoreOnExit?.(before, after);
     this.#layoutRoot = options.layoutRoot;
     this.#logDirectory = options.logDirectory;
-    this.#rootBridge = new ComponentBridge(options.root, options.inputDiagnostics === undefined
-      ? undefined
-      : phase => this.#traceRuntimePhase(phase));
+    this.#rootBridge = new ComponentBridge(options.root, tracePhase);
     this.#bridges.set(options.root, this.#rootBridge);
     this.#mountedComponents.add(options.root);
 
@@ -625,23 +617,6 @@ export class PiTuiRuntimeAdapter {
     return undefined;
   }
 
-  #traceInputCoordination(event: PiTuiInputCoordinationTrace): void {
-    this.#inputDiagnostics?.onEvent(event);
-  }
-
-  #traceRuntimePhase(phase: "composition-start" | "composition-end" | "write-start" | "write-end"): void {
-    if (this.#inputDiagnostics === undefined) return;
-    const coordinator = this.#inputCoordinator;
-    this.#inputDiagnostics.onEvent({
-      phase,
-      revision: coordinator?.appliedRevision ?? 0,
-      atMs: this.#diagnosticNow(),
-      pendingDepth: coordinator?.pendingDepth ?? 0,
-      pendingPresentationDepth: coordinator?.pendingPresentation === true ? 1 : 0,
-      appliedRevision: coordinator?.appliedRevision ?? 0,
-    });
-  }
-
   #mountTui(tui: TUI): void {
     tui.addChild(this.#rootBridge);
     if (tui instanceof TuiAltScreen && this.#layoutRoot !== undefined) {
@@ -903,4 +878,25 @@ function toOverlayOptions(options: PiTuiOverlayOptions | undefined): OverlayOpti
   if (options.visible !== undefined) mapped.visible = options.visible;
   if (options.nonCapturing !== undefined) mapped.nonCapturing = options.nonCapturing;
   return mapped;
+}
+
+type RuntimePhase = "composition-start" | "composition-end" | "write-start" | "write-end";
+
+/** Reports one runtime phase with the input coordinator's depth and revision at that moment. */
+function runtimePhaseTracer(
+  diagnostics: NonNullable<PiTuiRuntimeAdapterOptions["inputDiagnostics"]>,
+  now: () => number,
+  coordinator: () => InputPresentationCoordinator | undefined,
+): (phase: RuntimePhase) => void {
+  return phase => {
+    const current = coordinator();
+    diagnostics.onEvent({
+      phase,
+      revision: current?.appliedRevision ?? 0,
+      atMs: now(),
+      pendingDepth: current?.pendingDepth ?? 0,
+      pendingPresentationDepth: current?.pendingPresentation === true ? 1 : 0,
+      appliedRevision: current?.appliedRevision ?? 0,
+    });
+  };
 }
