@@ -5,7 +5,7 @@ import {
   SettingsManager,
 } from "../startup-public.js";
 
-export type PiProjectTrustChoiceId =
+type PiProjectTrustChoiceId =
   | "trust"
   | "trust-parent"
   | "trust-session"

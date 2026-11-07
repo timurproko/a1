@@ -6,10 +6,10 @@ export {
 } from "./bootstrap.js";
 export type { BootstrapOptions } from "./bootstrap.js";
 export { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
-export { CohortStateStore, RELEASE_COHORT_SCHEMA, RELEASE_RETENTION_MS, emptyState, planProtectedReleases, withinRetention } from "./cohort-state.js";
+export { ReleaseStateStore, RELEASE_STATE_SCHEMA, RELEASE_RETENTION_MS, emptyState, planProtectedReleases, withinRetention } from "./release-state.js";
 export type {
   ActiveReleaseTransactionReference,
-  CohortState,
+  ReleaseState,
   OrphanReleaseDisposition,
   ProtectedReleaseInputs,
   ProtectedReleasePlan,
@@ -24,7 +24,7 @@ export type {
   ReleaseRecord,
   ReleaseReferences,
   ReleaseRetentionReconciliation,
-} from "./cohort-state.js";
+} from "./release-state.js";
 export {
   DEPENDENCY_LAYER_MANIFEST,
   DEPENDENCY_LAYER_SCHEMA,

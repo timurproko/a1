@@ -42,8 +42,7 @@ describe("inventory-driven product identity governance", () => {
     ["state path", "src/path.ts", `export const statePath = '/var/lib/${["add", "one"].join("")}';`],
     ["schema identifier", "src/schema.ts", `export const schema = '${["add", "one-control-v1"].join("")}';`],
     ["protocol identifier", "src/protocol.ts", `export const envelope = '${["add", "one-control-envelope"].join("")}';`],
-    ["bin artifact", `bin/${["add", "one-supervisor.js"].join("")}`, "#!/usr/bin/env node\n"],
-    ["native artifact", `native/terminal-host/${["add", "one-terminal-host.exe"].join("")}.txt`, "fixture"],
+    ["bin artifact", `bin/${["add", "one-launcher.js"].join("")}`, "#!/usr/bin/env node\n"],
   ])("rejects an unreviewed %s mutation", async (_name, path, source) => {
     const root = await fixture();
     await writeText(root, path, source);

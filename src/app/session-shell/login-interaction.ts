@@ -1,22 +1,20 @@
 import type {
+  OwnedUiShellComponents,
+  OwnedUiShellLoginDialogPort,
+  OwnedUiShellProgramStatusReporter,
   OwnedUiWorkflowInteractionRequest,
   OwnedUiWorkflowLoginNotification,
   OwnedUiWorkflowLoginStart,
 } from "../../contracts/owned-ui/index.js";
-import {
-  createPiShellExtensionSelector,
-  createPiShellLoginDialog,
-  type PiShellLoginDialogPort,
-} from "../../integrations/pi/components/shell-selectors-dialogs.js";
-import type { ProgramStatusReporter } from "../../integrations/pi/components/upstream/program-status-reporter.js";
 import type { SessionConcern } from "./session-concern.js";
 import type { OwnedUiSessionShellRoot } from "./session-shell-root.js";
 import { componentRuntime, type OwnedUiPresenterTerminal } from "./shell-host.js";
 
-export interface LoginInteractionPorts {
+interface LoginInteractionPorts {
   readonly terminal: Pick<OwnedUiPresenterTerminal, "viewport" | "requestRender">;
   readonly root: Pick<OwnedUiSessionShellRoot, "setInputSurface">;
-  readonly programStatus: Pick<ProgramStatusReporter, "setBlocked">;
+  readonly programStatus: Pick<OwnedUiShellProgramStatusReporter, "setBlocked">;
+  readonly dialogs: Pick<OwnedUiShellComponents["dialogs"], "loginDialog" | "extensionSelector">;
   /** The blocked-on-authentication state changed; the presenter republishes terminal progress. */
   readonly syncProgress: () => void;
 }
@@ -27,7 +25,7 @@ export interface LoginInteractionPorts {
  */
 export class LoginInteraction implements SessionConcern {
   readonly #ports: LoginInteractionPorts;
-  #dialog: PiShellLoginDialogPort | undefined;
+  #dialog: OwnedUiShellLoginDialogPort | undefined;
 
   constructor(ports: LoginInteractionPorts) {
     this.#ports = ports;
@@ -35,7 +33,7 @@ export class LoginInteraction implements SessionConcern {
 
   start(request: OwnedUiWorkflowLoginStart): void {
     this.finish();
-    const dialog = createPiShellLoginDialog(componentRuntime(this.#ports.terminal), request.providerId, success => {
+    const dialog = this.#ports.dialogs.loginDialog(componentRuntime(this.#ports.terminal), request.providerId, success => {
       if (!success) this.finish();
     }, request.providerName);
     this.#dialog = dialog;
@@ -60,7 +58,7 @@ export class LoginInteraction implements SessionConcern {
           if (this.#dialog === dialog) this.#ports.root.setInputSurface(dialog);
           this.#ports.terminal.requestRender();
         };
-        const selector = createPiShellExtensionSelector(request.message, labels, label => {
+        const selector = this.#ports.dialogs.extensionSelector(request.message, labels, label => {
           const id = options.find(option => option.label === label)?.id;
           restoreDialog();
           resolve(id ?? null);

@@ -52,8 +52,8 @@ async function runOwned(
       }
       presentations.push({ frameId: descriptor?.frameId ?? null, writeStart: terminal.writes.length, rows: [...rows],
         blocks: shell.view().transcript.slice(-64).map(block => ({ id: block.id,
-          semanticRevision: shell.root.transcriptComponent(block.id)?.revision ?? block.revision,
-          presentationRevision: shell.root.transcriptComponent(block.id)?.presentationRevision ?? 0 })),
+          semanticRevision: shell.root.transcript.component(block.id)?.revision ?? block.revision,
+          presentationRevision: shell.root.transcript.component(block.id)?.presentationRevision ?? 0 })),
         documentRange: descriptor?.nextDocumentRange ?? null });
       return rows;
     };

@@ -1,5 +1,7 @@
+import type { OwnedUiShellKeybindings } from "../../../contracts/owned-ui/index.js";
+import { piKeybindings } from "./shell-shared-facade.js";
 import { DynamicBorder } from "../startup-public.js";
-import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth, type KeybindingsConfig } from "@earendil-works/pi-tui";
+import { Container, getCapabilities, hyperlink, Markdown, Spacer, Text, visibleWidth } from "@earendil-works/pi-tui";
 import { PRODUCT_TEXT } from "../../../product-identity.js";
 import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { getPiHotkeysMarkdownTheme, getPiMarkdownTheme, paintPiBorder, PINNED_PI_LAYOUT, piTheme } from "./theme.js";
@@ -18,7 +20,7 @@ export interface PiShellSessionInfoPresentation {
   readonly cacheWarming: PiShellCacheWarmingPresentation;
 }
 
-export interface PiShellCacheWarmingPresentation {
+interface PiShellCacheWarmingPresentation {
   readonly mode: string;
   readonly status?: {
     readonly state: "inactive" | "scheduled" | "refreshing";
@@ -185,13 +187,13 @@ function shortcutDisplay(key: string): string {
 
 /** What the hotkeys presenters render: the editor bindings and the extension shortcuts declared over them. */
 export interface PiShellHotkeysPresentation {
-  readonly bindings?: KeybindingsConfig;
+  readonly bindings?: OwnedUiShellKeybindings;
   readonly getShortcuts?: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>;
   readonly profile?: "pi" | "a1";
 }
 
 export function createPiShellHotkeys(
-  bindings?: KeybindingsConfig,
+  bindings?: OwnedUiShellKeybindings,
   getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]> = () => [],
   profile: "pi" | "a1" = "pi",
 ): PiShellComponentPort {
@@ -216,11 +218,11 @@ function hotkeysMarkdownComponent(markdown: string): Markdown {
 }
 
 export function hotkeysMarkdown(
-  bindings: KeybindingsConfig | undefined,
+  bindings: OwnedUiShellKeybindings | undefined,
   getShortcuts: NonNullable<PiShellExtensionRendererResolver["getShortcuts"]>,
   profile: "pi" | "a1",
 ): string {
-  const keys = profile === "a1" ? KeybindingsManager.fromOwnedBindings(bindings) : new KeybindingsManager(bindings);
+  const keys = profile === "a1" ? KeybindingsManager.fromOwnedBindings(piKeybindings(bindings)) : new KeybindingsManager(piKeybindings(bindings));
   // Compatibility: the owned viewport consumes these physical chords before editor actions.
   const display = (action: Parameters<typeof keys.getKeys>[0]) => keys.getKeys(action)
     .filter(key => profile !== "a1" || (key !== "ctrl+home" && key !== "ctrl+end"))

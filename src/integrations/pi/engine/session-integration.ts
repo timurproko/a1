@@ -28,7 +28,7 @@ export type PiSessionCommand =
   | { readonly type: "abort" | "retry" | "compact" }
   | { readonly type: "bash"; readonly command: string; readonly excludeFromContext: boolean; readonly onChunk?: (chunk: string) => void };
 
-export type PiSessionCommandOutcome = "completed" | "rejected" | "failed" | "cancelled";
+type PiSessionCommandOutcome = "completed" | "rejected" | "failed" | "cancelled";
 
 export interface PiSessionCommandResult {
   readonly outcome: PiSessionCommandOutcome;

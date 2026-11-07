@@ -1,6 +1,7 @@
+import type { OwnedUiShellEditorRecall } from "../../../contracts/owned-ui/index.js";
 import type { Editor } from "@earendil-works/pi-tui";
 
-export interface EditorInteractionState {
+interface EditorInteractionState {
   lines: string[];
   cursorLine: number;
   cursorCol: number;
@@ -16,14 +17,7 @@ export interface EditorInteractionPort {
   setSegmentTransform(transform: (text: string, mode: "word" | "grapheme", segments: Iterable<Intl.SegmentData>) => Iterable<Intl.SegmentData>): void;
 }
 
-export interface EditorRecallPort {
-  replace(entries: readonly string[]): void;
-  position(): { readonly index: number; readonly total: number };
-  observe(listener: () => void): () => void;
-  reset(): void;
-  /** Exit a recall browse cycle by restoring the unsent draft rather than keeping the recalled entry. */
-  restoreDraft?(): void;
-}
+export type EditorRecallPort = OwnedUiShellEditorRecall;
 
 export interface EditorSurface extends Pick<Editor, Exclude<keyof Editor, "setText" | "render" | "handleInput">> {
   setText(text: string): void;

@@ -14,7 +14,7 @@ export type PackageSyntaxDiagnostic =
 
 type MessageStyle = Pick<typeof chalk, "red" | "dim" | "bold">;
 
-export function packageCommandUsage(verb: PackageCliVerb, namespace: PackageCommandNamespace = "pi"): string {
+function packageCommandUsage(verb: PackageCliVerb, namespace: PackageCommandNamespace = "pi"): string {
   const command = namespace === "direct"
     ? `${PRODUCT_TEXT.commandName} ${verb}`
     : `${PRODUCT_TEXT.commandName} pi ${verb}`;

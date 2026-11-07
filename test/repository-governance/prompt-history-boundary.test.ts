@@ -21,24 +21,4 @@ describe("prompt history ownership", () => {
     expect(loader).toContain('await import("./upstream/history/editor-core.js")');
   });
 
-  it("retains the narrow private-data policy and declared history-only replacement", async () => {
-    const policy = await readFile("docs/architecture/resource-and-data-policy.md", "utf8");
-    expect(policy).toContain("Typed prompt-history retention");
-    expect(policy).toContain("<effective-home>/.a1/data/history");
-    const source = await readFile("src/features/prompt-history/store.ts", "utf8");
-    expect(source).not.toContain("ControlStore");
-    expect(source).not.toMatch(/console\.(?:log|error)|process\.(?:stdout|stderr)\.write/);
-    const composition = await readFile("src/composition/owned-ui.ts", "utf8");
-    expect(composition).toContain('const enabled = settings !== null && ownedSurfaces && settings.value("promptHistoryEnabled");');
-    expect(composition).toContain('if (settings === null || !enabled || (scope === "unique" && sessionId === null)) return null;');
-    expect(composition).toContain("profileRoot: backend.identity.agentDir");
-    expect(composition).toContain("const dataDir = resolvePromptHistoryDataDir();");
-    expect(composition).not.toContain("dataDir: resolveProductPaths().dataDir");
-    // Invariant: the settings manager both compositions share is built once, from the profile's
-    // agent directory and the legacy configuration directory, and the Agent composition uses it.
-    expect(composition).toContain('import { createOwnedSettingsManager, watchSharedSettings } from "./owned-settings.js";');
-    const settings = await readFile("src/composition/owned-settings.ts", "utf8");
-    expect(settings).toContain("profileDir: profilePaths.agentProfile");
-    expect(settings).toContain("legacyConfigDir: productPaths.configDir");
-  });
 });

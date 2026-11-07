@@ -76,7 +76,7 @@ const shell = "a1";
 function startupEvidence(...samples: Array<[string, string, number]>) {
   return JSON.stringify({
     schema: "a1-startup-performance-evidence-v1", enforcement: "record", budgetViolations: [],
-    measurements: samples.map(([profileId, launchKind, elapsedMs]) => ({ profileId, launchKind, elapsedMs, budgetMs: launchKind === "no-live-supervisor" ? 2500 : 2000 })),
+    measurements: samples.map(([profileId, launchKind, elapsedMs]) => ({ profileId, launchKind, elapsedMs, budgetMs: launchKind === "restart" ? 2500 : 2000 })),
   });
 }
 
@@ -221,31 +221,31 @@ describe("nightly regression fix proposal", () => {
     const gh = recorder(ghAnswers({ view: runView({ conclusion: "success", jobs: [] }) }));
     const git = recorder(gitAnswers());
     const files = memoryFiles({
-      [startupArtifact(9001, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 2715], [shell, "post-update", 1700]),
-      [startupArtifact(8995, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 2532], [shell, "post-update", 1650]),
-      [startupArtifact(8990, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 2601], [shell, "post-update", 2012]),
-      [startupArtifact(9001, "windows-2025-node24")]: startupEvidence([shell, "no-live-supervisor", 1400]),
+      [startupArtifact(9001, "windows-2025-node22")]: startupEvidence([shell, "restart", 2715], [shell, "post-update", 1700]),
+      [startupArtifact(8995, "windows-2025-node22")]: startupEvidence([shell, "restart", 2532], [shell, "post-update", 1650]),
+      [startupArtifact(8990, "windows-2025-node22")]: startupEvidence([shell, "restart", 2601], [shell, "post-update", 2012]),
+      [startupArtifact(9001, "windows-2025-node24")]: startupEvidence([shell, "restart", 1400]),
     });
     const result = await proposeRegressionFix({ runId: 9001, repository, output, gh: gh.executor, git: git.executor, files, today });
     expect(result).toMatchObject({ changed: true, mode: "new", key: "full-regression.yml:package-startup", pr: 777 });
     expect(result.summary!.failures).toEqual([expect.objectContaining({ id: "startup-budget", scopes: ["package-startup"], tests: ["test/foundation/release/package-startup.integration.test.ts"], lanes: [expect.objectContaining({ id: "windows-2025-node22" })] })]);
-    expect(result.startup).toMatchObject({ persistent: ["windows-2025-node22/a1/no-live-supervisor"] });
+    expect(result.startup).toMatchObject({ persistent: ["windows-2025-node22/a1/restart"] });
     expect(gh.calls.some(call => call.includes("--log-failed"))).toBe(false);
     const comment = files.files.get(`${output}/comment.md`)!;
     expect(comment).toContain("- `startup-budget` (`package-startup`) failed on windows-2025-node22 with exit 1.");
-    expect(comment).toContain("| windows-2025-node22 | a1 | no-live-supervisor | 2500ms | 2715ms (over) #412 | 2532ms (over) #411 | 2601ms (over) #410 |");
+    expect(comment).toContain("| windows-2025-node22 | a1 | restart | 2500ms | 2715ms (over) #412 | 2532ms (over) #411 | 2601ms (over) #410 |");
   });
 
   it("records a single overrun on a green run and proposes nothing", async () => {
     const gh = recorder(ghAnswers({ view: runView({ conclusion: "success", jobs: [] }) }));
     const git = recorder(gitAnswers());
     const files = memoryFiles({
-      [startupArtifact(9001, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 2715]),
-      [startupArtifact(8995, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 1900]),
-      [startupArtifact(8990, "windows-2025-node22")]: startupEvidence([shell, "no-live-supervisor", 2601]),
+      [startupArtifact(9001, "windows-2025-node22")]: startupEvidence([shell, "restart", 2715]),
+      [startupArtifact(8995, "windows-2025-node22")]: startupEvidence([shell, "restart", 1900]),
+      [startupArtifact(8990, "windows-2025-node22")]: startupEvidence([shell, "restart", 2601]),
     });
     const result = await proposeRegressionFix({ runId: 9001, repository, output, gh: gh.executor, git: git.executor, files, today });
-    expect(result).toMatchObject({ changed: false, message: "run 9001 succeeded; startup: single overrun on windows-2025-node22/a1/no-live-supervisor, not persistent" });
+    expect(result).toMatchObject({ changed: false, message: "run 9001 succeeded; startup: single overrun on windows-2025-node22/a1/restart, not persistent" });
     expect(git.calls).toHaveLength(0);
     expect(gh.calls.some(call => call[0] === "pr")).toBe(false);
   });

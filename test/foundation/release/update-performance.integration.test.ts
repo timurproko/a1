@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   assertUpdatePerformanceBudget,
   certifyMaterializedRelease,
-  CohortStateStore,
+  ReleaseStateStore,
   materializeRelease,
   type ReleaseContentOperationEvent,
 } from "../../../src/foundation/release/index.js";
@@ -32,7 +32,7 @@ describe("packaged update activation performance", () => {
       });
       expect(release.dependencyLayers).toHaveLength(1);
       const diagnostics = await certifyMaterializedRelease(release, dataDir, { onOperation: event => operations.push(event) });
-      const state = new CohortStateStore(dataDir);
+      const state = new ReleaseStateStore(dataDir);
       await state.recordCandidate(release);
       await state.approve(release.releaseId, diagnostics);
       await state.activate(release.releaseId);

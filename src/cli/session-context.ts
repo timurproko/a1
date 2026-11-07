@@ -8,7 +8,7 @@ import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../product-identity.js";
 
 export type { SessionContextRequest } from "../features/launch/index.js";
 
-export interface SessionContextCommandOptions {
+interface SessionContextCommandOptions {
   readonly environment?: NodeJS.ProcessEnv;
   readonly inspectProcess?: (pid: number) => Promise<{ readonly pid: number; readonly startIdentity: string } | null>;
   readonly stdout?: (message: string) => void;

@@ -1,7 +1,7 @@
+import type { OwnedUiShellComponentPort } from "../../contracts/owned-ui/index.js";
 import type { OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
-import type { PiShellComponentPort } from "../../integrations/pi/components/shell-shared-facade.js";
 
-export type ExtensionWidgetPlacement = "aboveEditor" | "belowEditor";
+type ExtensionWidgetPlacement = "aboveEditor" | "belowEditor";
 
 /**
  * What extensions draw into the shell: a header that replaces the built-in one, a footer, widgets
@@ -9,18 +9,18 @@ export type ExtensionWidgetPlacement = "aboveEditor" | "belowEditor";
  * disposes each one it replaces; the root decides what to invalidate after a change.
  */
 export class ExtensionSurface {
-  #header: PiShellComponentPort | null = null;
-  #footer: PiShellComponentPort | null = null;
-  readonly #widgets = new Map<string, { readonly component: PiShellComponentPort; readonly placement: ExtensionWidgetPlacement }>();
+  #header: OwnedUiShellComponentPort | null = null;
+  #footer: OwnedUiShellComponentPort | null = null;
+  readonly #widgets = new Map<string, { readonly component: OwnedUiShellComponentPort; readonly placement: ExtensionWidgetPlacement }>();
   readonly #statuses = new Map<string, string>();
   #workingMessage: string | undefined;
   #workingVisible = true;
 
-  get header(): PiShellComponentPort | null {
+  get header(): OwnedUiShellComponentPort | null {
     return this.#header;
   }
 
-  get footer(): PiShellComponentPort | null {
+  get footer(): OwnedUiShellComponentPort | null {
     return this.#footer;
   }
 
@@ -28,19 +28,19 @@ export class ExtensionSurface {
     return { message: this.#workingMessage, visible: this.#workingVisible };
   }
 
-  placeWidget(key: string, component: PiShellComponentPort | null, placement: ExtensionWidgetPlacement): void {
+  placeWidget(key: string, component: OwnedUiShellComponentPort | null, placement: ExtensionWidgetPlacement): void {
     const previous = this.#widgets.get(key)?.component;
     if (component === null) this.#widgets.delete(key);
     else this.#widgets.set(key, { component, placement });
     if (previous !== undefined && previous !== component) previous.dispose?.();
   }
 
-  replaceHeader(component: PiShellComponentPort | null): void {
+  replaceHeader(component: OwnedUiShellComponentPort | null): void {
     if (this.#header !== component) this.#header?.dispose?.();
     this.#header = component;
   }
 
-  replaceFooter(component: PiShellComponentPort | null): void {
+  replaceFooter(component: OwnedUiShellComponentPort | null): void {
     if (this.#footer !== component) this.#footer?.dispose?.();
     this.#footer = component;
   }

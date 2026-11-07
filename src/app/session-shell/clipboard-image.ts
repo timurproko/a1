@@ -18,7 +18,7 @@ export function canonicalizeClipboardImage(image: ClipboardImageData, source = f
   return data === null ? null : { data, mimeType: image.mimeType };
 }
 
-export function canonicalizeStandardBase64(value: string, source = false): string | null {
+function canonicalizeStandardBase64(value: string, source = false): string | null {
   if (typeof value !== "string" || value.length === 0) return null;
   const maximum = source ? Math.ceil(MAX_SOURCE_IMAGE_BYTES / 3) * 4 : MAX_IMAGE_DATA_BYTES;
   if (Math.ceil(value.length / 4) * 4 > maximum) throw new ImageAttachmentError(source ? "image-source-size" : "image-size");

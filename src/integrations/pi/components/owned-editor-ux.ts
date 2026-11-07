@@ -19,7 +19,7 @@ import type {
  * vanilla Pi renders. This keeps owned UX additions out of the synchronized
  * Pi editor port and gives future interactions one registration point.
  */
-export interface OwnedEditorUxInterceptor {
+interface OwnedEditorUxInterceptor {
   handleInput(data: string, next: (data?: string) => void): void;
   render(width: number, next: () => string[]): string[];
   reset(): void;
@@ -31,7 +31,7 @@ export interface OwnedEditorUxInterceptor {
   cancelPendingPastes?(): void;
 }
 
-export interface OwnedEditorPointerEvent {
+interface OwnedEditorPointerEvent {
   readonly kind: "press" | "motion" | "release";
   readonly button: number;
   readonly column: number;
@@ -145,7 +145,7 @@ type WordDirection = -1 | 1;
 const ATOMIC_SEGMENTATION = Symbol("a1.editor.atomicSegmentation");
 const ATOMIC_SPACE_SENTINEL = "\uE000";
 
-export interface PromptSelectionUxOptions {
+interface PromptSelectionUxOptions {
   readonly copyText: (text: string, cut: boolean) => void;
   readonly readClipboardContent: () => Promise<PiShellClipboardContent | null>;
   readonly beginClipboardPaste?: () => PiShellPasteReservation;

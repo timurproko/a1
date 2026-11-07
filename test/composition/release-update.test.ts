@@ -110,7 +110,7 @@ const STABLE: AvailableRelease = { channel: "stable", version: "0.3.1", command:
 const DEVELOPMENT: AvailableRelease = { channel: "development", version: "0.3.1-dev.652", command: "a1 update --develop", changelogUrl: null };
 
 async function compose(options: {
-  ownedSurfaces?: "off";
+  productMode?: "comparison";
   profileId?: string;
   packageVersion?: string;
   release?: AvailableRelease | null;
@@ -124,7 +124,7 @@ async function compose(options: {
   const host = { options: null as PiEngineHostOptions | null, accentCalls: [] as string[], disposed: 0 };
   const backend = backendFixture(announced);
   const composed = await composeOwnedUi({
-    ...(options.ownedSurfaces === undefined ? {} : { ownedSurfaces: options.ownedSurfaces }),
+    ...(options.productMode === undefined ? {} : { productMode: options.productMode }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
     packageVersion: options.packageVersion ?? "0.3.0",
     releaseNotes: (options.releaseNotes ?? { current: () => null, completeMarkdown: "" }) as never,
@@ -199,7 +199,7 @@ describe("owned accent composition", () => {
 
   it("keeps the A1 facade on purple while comparison follows Pi's configured theme and changelog", async () => {
     observed.accentColor = "pink";
-    const { composed, host } = await compose({ profileId: "a1", ownedSurfaces: "off", release: null });
+    const { composed, host } = await compose({ profileId: "a1", productMode: "comparison", release: null });
     expect(host.options).toMatchObject({ productMode: "comparison", announceStartupChangelog: true });
     expect(host.options!.theme).toMatchObject({ base: "engine-configured", accentColor: "purple", packageBorderProjection: false });
     await composed.application.dispose();
@@ -271,11 +271,11 @@ describe("startup release check composition", () => {
   });
 
   it("passes the no mode to the check and does not announce", async () => {
-    observed.updateCheck = "no";
+    observed.updateCheck = "manual";
     const { composed, announced, checks } = await compose({ profileId: "a1" });
     composed.application.start();
     await vi.waitFor(() => { expect(checks).toHaveLength(1); });
-    expect(checks[0]!.settingMode).toBe("no");
+    expect(checks[0]!.settingMode).toBe("manual");
     expect(announced).toEqual([]);
     expect(observed.automaticRequests).toEqual([]);
     await composed.application.dispose();
@@ -292,8 +292,8 @@ describe("startup release check composition", () => {
   });
 
   it("uses auto when a comparison profile has no A1 setting", async () => {
-    observed.updateCheck = "no";
-    const { composed, announced, checks } = await compose({ profileId: "a1", ownedSurfaces: "off" });
+    observed.updateCheck = "manual";
+    const { composed, announced, checks } = await compose({ profileId: "a1", productMode: "comparison" });
     composed.application.start();
     await vi.waitFor(() => { expect(announced).toEqual([{ status: "installed", version: "0.3.1" }]); });
     expect(checks[0]!.settingMode).toBe("auto");
@@ -355,7 +355,7 @@ describe("startup release check composition", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it.each(["auto", "no"] as const)("announces a locally active newer release once in %s mode without registry help", async mode => {
+  it.each(["auto", "manual"] as const)("announces a locally active newer release once in %s mode without registry help", async mode => {
     observed.updateCheck = mode;
     observed.automaticInstalled = null;
     const { composed, announced, checks } = await compose({ profileId: "a1", packageVersion: "0.3.0", release: null });
@@ -377,7 +377,7 @@ describe("startup release check composition", () => {
     const make = (announced: unknown[]) => createStartupReleaseUpdateObservation({
       backend: backendFixture(announced) as never,
       configDir: "synthetic",
-      mode: "no",
+      mode: "manual",
       packageVersion: "0.3.0",
       readPackageVersion: async () => "0.3.0",
       checkForNewerRelease: async () => { checks += 1; return null; },

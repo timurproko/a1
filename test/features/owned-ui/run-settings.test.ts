@@ -79,7 +79,7 @@ function settingDescriptor(key: string, valueType: AgentSettingDescriptor["value
 let root: string;
 
 function session(agent: AgentSettingsPort | null): OwnedSettingsManager {
-  return new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [], agent });
+  return new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, agent });
 }
 
 beforeEach(() => {

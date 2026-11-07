@@ -143,7 +143,7 @@ for (const theme of ["dark", "light"]) {
       let focused;
       let progressRows;
       const ownedDocument = width => {
-        const layout = ownedRoot.pinnedLayoutRoot(shell.root.layoutParts());
+        const layout = ownedRoot.pinnedLayoutRoot(shell.root.layoutParts(), ownedTheme.PI_THEME_SOURCE);
         const transcript = layout.type === "stack" ? layout.children[0]?.node : undefined;
         if (transcript?.type !== "scroll" || transcript.id !== "transcript" || transcript.child.type !== "component") throw new Error("Missing semantic transcript region");
         return transcript.child.component.render(width);
@@ -234,14 +234,14 @@ for (const theme of ["dark", "light"]) {
           } else if (entry.command === "thinking") owner.handleThinkingCommand(entry.argument);
           else throw new Error(`Unmapped pinned outcome command: ${entry.command}`);
         } else {
-          adapter = await engine.createPiEngineAdapter({ sessionId: "owned-test",cwd, agentDir, createRuntime: async () => state.runtime, workflowHost: state.host });
+          adapter = await engine.createPiEngineAdapter({ sessionId: "owned-test", cwd, agentDir, settingsProductMode: "comparison", createRuntime: async () => state.runtime, workflowHost: state.host });
           shell = new owned.OwnedUiSessionShell({ presenters: presenters.createPiSessionPresenters(adapter), engine: { backend: adapter, cwd }, presentation: { terminal: new terminalModule.TestPresentationTerminal(), startup: { quiet: true } } });
           shell.root.editor.setText("preserved draft");
           state.onCancel = () => shell.root.handleInput("\u001b");
           state.onMissingCwd = () => setImmediate(() => shell.root.handleInput(entry.condition === "missing-cwd-declined" ? "\u001b" : "\r"));
           await changeBindings();
           if (entry.condition === "reload-bindings") await shell.runWorkflow({ command: "reload", argument: "" });
-          if (entry.prefixStatus) shell.root.appendWorkflowStatus(entry.prefixStatus);
+          if (entry.prefixStatus) shell.root.workflow.appendStatus(entry.prefixStatus);
           if (entry.command === "tree") shell.showTreeSelector(entry.argument);
           else await shell.runWorkflow({ command: entry.command, argument: entry.argument ?? "", ...(entry.selection === undefined ? {} : { selection: entry.selection }), ...(entry.command === "import" && entry.argument ? { confirmed: entry.condition !== "declined" } : {}) });
         }
@@ -268,7 +268,7 @@ for (const theme of ["dark", "light"]) {
           if (surfaceOpen) {
             if (owner) surfaceRows = owner.editorContainer.render(width);
             else {
-              const layout = ownedRoot.pinnedLayoutRoot(shell.root.layoutParts());
+              const layout = ownedRoot.pinnedLayoutRoot(shell.root.layoutParts(), ownedTheme.PI_THEME_SOURCE);
               const dock = layout.type === "stack" ? layout.children[1]?.node : undefined;
               const input = dock?.type === "stack" ? dock.children[3]?.node : undefined;
               if (input?.type !== "component") throw new Error("Missing semantic input region");

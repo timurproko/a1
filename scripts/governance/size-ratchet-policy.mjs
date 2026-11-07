@@ -1,5 +1,5 @@
 import { readFile, readdir } from "node:fs/promises";
-import { extname, join } from "node:path";
+import { join } from "node:path";
 
 // Rationale: god objects grew because nothing measured them. The ratchet records every unit above a
 // threshold and lets its counts only shrink, so growth needs a reviewed baseline edit. The scan masks
@@ -14,8 +14,6 @@ const TS_METHOD = new RegExp(`^\\s*${TS_MODIFIERS}(?:(?:get|set)\\s+)?\\*?\\s*(#
 const TS_FIELD = new RegExp(`^\\s*${TS_MODIFIERS}(#?[\\w$]+)\\s*[?!]?\\s*[:=;]`);
 const TS_CLASS = /^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+([\w$]+)/;
 const TS_FUNCTION = /^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s*\*?\s*([\w$]+)/;
-const RUST_FN = /^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:const\s+)?(?:async\s+)?(?:unsafe\s+)?(?:extern\s+"[^"]*"\s+)?fn\s+(\w+)/;
-const RUST_SCOPE = /^\s*(?:pub(?:\s*\([^)]*\))?\s+)?(?:unsafe\s+)?(impl|trait|mod)\b(.*)$/;
 const REGEX_PRECEDING_WORDS = new Set(["return", "typeof", "case", "do", "else", "in", "of", "new", "delete", "void", "throw", "yield", "await", "instanceof"]);
 
 /** Replaces string, comment, and regular-expression contents with spaces, keeping line breaks and delimiters. */
@@ -121,99 +119,12 @@ export function maskTypeScript(source) {
   return out.join("");
 }
 
-/** Replaces Rust string, character, and comment contents with spaces, keeping line breaks and delimiters. */
-export function maskRust(source) {
-  const out = source.split("");
-  const blank = (from, to) => { for (let i = from; i < to; i++) if (out[i] !== "\n") out[i] = " "; };
-  let i = 0;
-  while (i < source.length) {
-    const c = source[i];
-    const next = source[i + 1];
-    if (c === "/" && next === "/") {
-      const end = source.indexOf("\n", i);
-      const stop = end < 0 ? source.length : end;
-      blank(i, stop);
-      i = stop;
-      continue;
-    }
-    if (c === "/" && next === "*") {
-      let depth = 1;
-      let j = i + 2;
-      while (j < source.length && depth > 0) {
-        if (source[j] === "/" && source[j + 1] === "*") { depth++; j += 2; }
-        else if (source[j] === "*" && source[j + 1] === "/") { depth--; j += 2; }
-        else j++;
-      }
-      if (depth > 0) throw new Error("unterminated block comment");
-      blank(i, j);
-      i = j;
-      continue;
-    }
-    const raw = /^b?r(#*)"/.exec(source.slice(i, i + 64));
-    if (raw && (i === 0 || !/[\w]/.test(source[i - 1]))) {
-      const terminator = `"${raw[1]}`;
-      const start = i + raw[0].length;
-      const end = source.indexOf(terminator, start);
-      if (end < 0) throw new Error("unterminated raw string literal");
-      blank(start, end);
-      i = end + terminator.length;
-      continue;
-    }
-    if (c === "\"") {
-      let j = i + 1;
-      while (j < source.length && source[j] !== "\"") j += source[j] === "\\" ? 2 : 1;
-      if (j >= source.length) throw new Error("unterminated string literal");
-      blank(i + 1, j);
-      i = j + 1;
-      continue;
-    }
-    if (c === "'") {
-      if (next === "\\") {
-        const end = source.indexOf("'", i + 3);
-        if (end < 0) throw new Error("unterminated character literal");
-        blank(i + 1, end);
-        i = end + 1;
-        continue;
-      }
-      const codePoint = source.codePointAt(i + 1);
-      const width = codePoint !== undefined && codePoint > 0xffff ? 2 : 1;
-      if (codePoint !== undefined && source[i + 1 + width] === "'") {
-        blank(i + 1, i + 1 + width);
-        i += 2 + width;
-        continue;
-      }
-    }
-    i++;
-  }
-  return out.join("");
-}
-
-function rustScopeName(kind, rest) {
-  if (kind === "mod" || kind === "trait") return /^\s*(\w+)/.exec(rest)?.[1] ?? null;
-  let body = rest.trimStart();
-  if (body.startsWith("<")) {
-    let depth = 0;
-    let j = 0;
-    for (; j < body.length; j++) {
-      if (body[j] === "<") depth++;
-      else if (body[j] === ">" && --depth === 0) break;
-    }
-    body = body.slice(j + 1);
-  }
-  const forIndex = body.search(/\sfor\s/);
-  if (forIndex >= 0) body = body.slice(forIndex + 5);
-  const path = /^\s*(?:dyn\s+)?([\w:]+)/.exec(body)?.[1];
-  return path ? path.split("::").at(-1) : null;
-}
-
 /**
- * Measures one masked source. Returns the classes (TypeScript only) with method and field counts and
- * every function or method with its inclusive line count, keyed `<path>::<Scope>.<name>` for
- * TypeScript and `<path>::<Type>::<name>` for Rust; a repeated key gains `#2`, `#3`, ...
+ * Measures one masked source. Returns the classes with method and field counts and every function
+ * or method with its inclusive line count, keyed `<path>::<Scope>.<name>`; a repeated key gains `#2`, `#3`, ...
  */
 export function measureSource(path, source) {
-  const rust = path.endsWith(".rs");
-  const masked = rust ? maskRust(source) : maskTypeScript(source);
+  const masked = maskTypeScript(source);
   const lines = masked.split("\n");
   const classes = [];
   const functions = [];
@@ -227,24 +138,12 @@ export function measureSource(path, source) {
   let depth = 0;
   let parenDepth = 0;
   let pending = null;
-  let testAttribute = false;
   const excluded = () => scopes.some(scope => scope.excluded);
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
     const enclosing = scopes.at(-1);
     if (!pending && parenDepth === 0) {
-      if (rust) {
-        if (/^\s*#\[cfg\(test\)\]/.test(line)) testAttribute = true;
-        const scopeMatch = RUST_SCOPE.exec(line);
-        const fnMatch = RUST_FN.exec(line);
-        if (fnMatch) {
-          pending = { kind: "function", name: fnMatch[1], start: index, depth, excluded: testAttribute };
-          testAttribute = false;
-        } else if (scopeMatch) {
-          pending = { kind: scopeMatch[1], name: rustScopeName(scopeMatch[1], scopeMatch[2]), start: index, depth, excluded: testAttribute };
-          testAttribute = false;
-        } else if (/\S/.test(line) && !/^\s*#/.test(line)) testAttribute = false;
-      } else if (enclosing?.kind === "class" && depth === enclosing.depth + 1) {
+      if (enclosing?.kind === "class" && depth === enclosing.depth + 1) {
         const method = TS_METHOD.exec(line);
         const field = method ? null : TS_FIELD.exec(line);
         if (method && !/^\s*(?:if|for|while|switch|return|catch)\b/.test(line)) {
@@ -277,7 +176,7 @@ export function measureSource(path, source) {
           const owner = scopes.filter(entry => entry.kind !== "function" && entry.name).map(entry => entry.name).at(-1);
           if (scope.kind === "class") classes.push({ key: uniqueKey(`${path}::${scope.name}`), methods: scope.methods, fields: scope.fields });
           else if (scope.kind === "function") {
-            const name = owner ? (rust ? `${owner}::${scope.name}` : `${owner}.${scope.name}`) : scope.name;
+            const name = owner ? `${owner}.${scope.name}` : scope.name;
             functions.push({ key: uniqueKey(`${path}::${name}`), lines: index - scope.start + 1 });
           }
         }
@@ -306,13 +205,9 @@ async function sourceFiles(root, directory, accept, skip) {
   return files;
 }
 
-/** Lists the measured sources: production TypeScript under `src/` and Rust under `native/<crate>/src/`, never vendored code. */
+/** Lists the measured sources: production TypeScript under `src/`, never vendored code. */
 export async function sizeRatchetSources(root) {
-  const typescript = await sourceFiles(root, "src", path => /\.(?:ts|tsx|mts)$/.test(path) && !path.endsWith(".d.ts"), path => TYPESCRIPT_VENDORED.test(`${path}/`));
-  const crates = (await readdir(join(root, "native"), { withFileTypes: true }).catch(() => [])).filter(entry => entry.isDirectory()).map(entry => entry.name).sort();
-  const native = [];
-  for (const crate of crates) native.push(...await sourceFiles(root, `native/${crate}/src`, path => extname(path) === ".rs", (_path, entry) => entry.isDirectory() && entry.name === "vendor"));
-  return [...typescript, ...native];
+  return sourceFiles(root, "src", path => /\.(?:ts|tsx|mts)$/.test(path) && !path.endsWith(".d.ts"), path => TYPESCRIPT_VENDORED.test(`${path}/`));
 }
 
 /** Measures every source and keeps the units above any threshold. */

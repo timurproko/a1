@@ -66,6 +66,8 @@ The old environment registry included `fixture` and `inputAcknowledgement`, but 
 
 `certificationTarball`, `internalPackaging`, `nativePi`, `piParityIntentionalMutation`, `protocolVersion`, `structuredFlowLimits`, `terminalArgumentsJson`, and `terminalExecutable` had no active runtime consumer in the reviewed tree. They are removed from the current environment authority, not renamed into new settings. Rejection patterns and immutable historical evidence remain factual.
 
+The release store (`src/foundation/release/release-state.ts`, persisted as `release-state.json`) keeps the schema id `a1-release-cohort-v1` and the identity key `releaseCohortSchema`. "Cohort" is a legacy name from the retired supervisor era; the id is unchanged because every installed release state carries it, and renaming it would make existing installations unreadable.
+
 ## Negotiated handoff and protected state
 
 An update is performed by the release that is already installed, so the contract is negotiated rather than cut over. `neutral-launch-v1` is the only contract this build **writes** for its own releases, and the superseded `A1_RELEASE_*`/`A1_IMMUTABLE_WARMUP` keys are still **read** when an older launcher starts this build, and still **written** when this build starts a retained release that declares no contract. An installation therefore stays launchable across the cutover in both directions, and no user is asked to stop processes and reinstall by hand.

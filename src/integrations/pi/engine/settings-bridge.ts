@@ -609,7 +609,7 @@ function modelThinkingLevels(settings: SettingsManager): Operation {
 }
 
 /** The engine keys overrides as `provider/modelId`; the model id may itself contain slashes. */
-export function splitModelKey(key: string): [provider: string, modelId: string] {
+function splitModelKey(key: string): [provider: string, modelId: string] {
   const at = key.indexOf("/");
   return [key.slice(0, at), key.slice(at + 1)];
 }

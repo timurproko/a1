@@ -4,8 +4,8 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it, vi } from "vitest";
-import { CHILD_DIAGNOSTIC_LIMIT, renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
-import { SHARED_PROGRESS_ACCENT_ANSI } from "../../../src/foundation/release/progress-palette.generated.js";
+import { renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
+import { SHARED_PROGRESS_ACCENT_ANSI } from "../../../src/contracts/presentation/index.js";
 import { earlyAccentPalette } from "../../../src/foundation/release/early-accent.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import {
@@ -24,7 +24,7 @@ import {
   type UpdateTransactionJournal,
   type UpdateTransactionPhase,
 } from "../../../src/foundation/release/index.js";
-import { acquireUpdateExecutionLease, UPDATE_EXECUTION_LEASE_FILENAME } from "../../../src/foundation/release/update-execution-lease.js";
+import { acquireUpdateExecutionLease } from "../../../src/foundation/release/update-execution-lease.js";
 import { UpdateTransactionStore } from "../../../src/foundation/release/update-transaction.js";
 
 interface Invocation {
@@ -465,7 +465,7 @@ describe("A1 self-update orchestration", () => {
     const durable = new UpdateTransactionStore(dataDir);
     await durable.begin({ channel: "next", targetVersion: "0.2.7-dev.835", packageRoot: harness.packageRoot, priorActiveReleaseId: null });
     await durable.advance("active-reference-committed");
-    await writeFile(resolve(dataDir, UPDATE_EXECUTION_LEASE_FILENAME), JSON.stringify({
+    await writeFile(resolve(dataDir, "update-execution.json"), JSON.stringify({
       schema: 1, ownerId: "dead-automatic-worker", pid: 2_000_000_000, pidStartIdentity: "gone",
       packageRoot: harness.packageRoot, channel: "next", targetVersion: "0.2.7-dev.835", mode: "automatic",
       acquiredAt: new Date(0).toISOString(),
@@ -485,7 +485,7 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stderr.join("")).not.toContain("already in progress");
     // Invariant: the settled transaction and the dead lease are gone, so nothing blocks the next update.
     await expect(durable.read()).resolves.toBeNull();
-    await expect(readFile(resolve(dataDir, UPDATE_EXECUTION_LEASE_FILENAME), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readFile(resolve(dataDir, "update-execution.json"), "utf8")).rejects.toMatchObject({ code: "ENOENT" });
     await rm(dataDir, { recursive: true, force: true });
   });
   it("prints the shortened no-change message when the target is already active", async () => {
@@ -1206,9 +1206,9 @@ describe("update child processes", () => {
   });
 
   it("bounds the diagnostics it keeps to the tail of what the child wrote", async () => {
-    const result = await runner(...script(`process.stderr.write('a'.repeat(${CHILD_DIAGNOSTIC_LIMIT}) + 'tail'); process.exit(1)`));
+    const result = await runner(...script(`process.stderr.write('a'.repeat(${8_000}) + 'tail'); process.exit(1)`));
 
-    expect(result.stderr).toHaveLength(CHILD_DIAGNOSTIC_LIMIT);
+    expect(result.stderr).toHaveLength(8_000);
     expect(result.stderr?.endsWith("tail")).toBe(true);
   });
 });

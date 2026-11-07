@@ -1,10 +1,10 @@
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 
 export const MAX_SOURCE_IMAGE_BYTES = 20 * 1024 * 1024;
-export const MAX_SOURCE_PIXELS = 40_000_000;
-export const MAX_SOURCE_DIMENSION = 32_768;
+const MAX_SOURCE_PIXELS = 40_000_000;
+const MAX_SOURCE_DIMENSION = 32_768;
 export const IMAGE_PREPARATION_MS = 15_000;
-export interface ImageSourceInfo {
+interface ImageSourceInfo {
   readonly width: number;
   readonly height: number;
   readonly mimeType: string;

@@ -6,7 +6,6 @@ import {
   type OwnedUiCommand,
   type OwnedUiDiagnostics,
   type OwnedUiExtensionPort,
-  type OwnedUiImageAttachment,
   type OwnedUiPromptSuggestionGeneratorPort,
   type OwnedUiPromptSuggestionReasoning,
   type OwnedUiPromptSuggestionRequest,
@@ -47,7 +46,7 @@ import { PiWorkflowContexts } from "./workflow-contexts.js";
 import { PiWorkflowRunner } from "./workflow-runner.js";
 import { defaultWorkflowHost } from "./workflow-support.js";
 import { EngineViewState } from "./view-state.js";
-import { createEnginePorts, type PiEngineAdapterPorts, type PiSessionPresentationSource } from "./ports.js";
+import { createEnginePorts, type PiEngineAdapterPorts, type PiEngineAnnouncements, type PiSessionPresentationSource } from "./ports.js";
 
 export type { OwnedPiExtensionResourceSummary, OwnedPiExtensionSourceSummary, OwnedPiResourceSummary } from "./resource-catalog.js";
 export type { PiEngineRuntimeFactory, PiEngineRuntimeFactoryInput } from "./session-runtime.js";
@@ -269,15 +268,13 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   get settings(): OwnedUiSessionSettingsPort { return this.#ports.settings; }
   get catalog(): OwnedUiSessionCatalogPort { return this.#ports.catalog; }
   get extensions(): OwnedUiExtensionPort { return this.#ports.extensions; }
+  /** Pinned Pi's changelog since the profile's last seen version and extension package updates; the host announces each once per process. */
+  get announcements(): PiEngineAnnouncements { return this.#ports.announcements; }
   /** The Pi objects behind pinned selectors and renderers, for the session presenters owner only. */
   presentationSource(): PiSessionPresentationSource { return this.#ports.presentation; }
 
   setWorkflowInteractionHost(interaction: PiWorkflowInteractionHost): void {
     this.#workflowInteraction = interaction;
-  }
-
-  #resolveTranscriptImage(assetId: string): OwnedUiImageAttachment | null {
-    return this.#projection.assets.resolve(assetId);
   }
 
   // Rationale: the startup check's newer release becomes pinned Pi's `Update Available` notice; it arrives
@@ -313,16 +310,6 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     this.#emitEvent({ type: "session-lifecycle", lifecycle: "ready", reason: null });
     this.#emitView();
     return this.view();
-  }
-
-  /** Announce pinned Pi's changelog since the profile's last seen version; the host calls this once per process. */
-  announceStartupChangelog(): Promise<void> {
-    return this.#engine.announceChangelog();
-  }
-
-  /** Probe extension packages for updates and announce them; the host calls this once per process. */
-  announcePackageUpdates(): Promise<void> {
-    return this.#engine.announcePackageUpdates();
   }
 
   onEvent(listener: (event: OwnedUiEvent) => void): () => void {
@@ -476,7 +463,7 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
       clearQueuedWorkflows: () => this.clearQueuedWorkflows(),
       setWorkflowInteractionHost: interaction => { this.setWorkflowInteractionHost(interaction); },
       announceReleaseUpdate: release => { this.#announceReleaseUpdate(release); },
-      resolveTranscriptImage: assetId => this.#resolveTranscriptImage(assetId),
+      resolveTranscriptImage: assetId => this.#projection.assets.resolve(assetId),
       extensionRunner: () => this.#requireWorkflowSession().extensionRunner,
     });
   }

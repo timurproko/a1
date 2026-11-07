@@ -3,6 +3,7 @@ import {
   assertPromptImages,
   ImageAttachmentError,
 } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiShellComponents } from "../../contracts/owned-ui/index.js";
 import type {
   OwnedUiCommand,
   OwnedUiCommandResult,
@@ -12,20 +13,20 @@ import type {
   PromptHistoryImageSidecarPort,
   PromptHistoryKind,
 } from "../../contracts/owned-ui/index.js";
-import { renderPiShellStatusText } from "../../integrations/pi/components/shell-presenters-info.js";
 import type { PromptHistoryController } from "./prompt-history-controller.js";
 import type { SessionConcern } from "./session-concern.js";
 import type { OwnedUiSessionShellRoot } from "./session-shell-root.js";
 import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 
-export interface PromptSubmissionPorts {
+interface PromptSubmissionPorts {
   readonly backend: Pick<OwnedUiSessionBackend, "session" | "identity" | "workflows">;
   readonly root: Pick<OwnedUiSessionShellRoot,
     | "editor" | "hasPendingPastes" | "waitForPromptPastes" | "setExtensionWidget" | "prepareHistoryText"
     | "imageChipAttachmentsFromEditor" | "preparePromptSubmission" | "omitUnsentPromptImages"
-    | "resumeViewportFollowing" | "beginImageSubmissionStatus" | "appendWorkflowResult">;
+    | "resumeViewportFollowing" | "beginImageSubmissionStatus" | "workflow">;
   readonly terminal: Pick<OwnedUiPresenterTerminal, "requestRender">;
   readonly cwd: string;
+  readonly statusText: OwnedUiShellComponents["info"]["statusText"];
   promptHistory(): PromptHistoryController | null;
   imageSidecar(): PromptHistoryImageSidecarPort | undefined;
   disposed(): boolean;
@@ -123,7 +124,7 @@ export class PromptSubmission implements SessionConcern {
   reportError(error?: unknown, message?: string): void {
     // Security: arbitrary provider/extension error messages can contain the entire request.
     try {
-      this.#ports.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: message
+      this.#ports.root.workflow.appendResult({ command: "debug", outcome: "failed", message: message
         ?? (error instanceof ImageAttachmentError ? error.message : "Submission failed. Check the prompt and try again.") },
       error instanceof ImageAttachmentError ? error.code : undefined);
       this.#ports.terminal.requestRender();
@@ -162,7 +163,7 @@ export class PromptSubmission implements SessionConcern {
   #showWaiting(): void {
     const count = this.#waiting.size;
     this.#ports.root.setExtensionWidget("owned-image-preparation", count === 0 ? null : {
-      render: width => [...renderPiShellStatusText(`Waiting for images (${count} submission${count === 1 ? "" : "s"}) — Esc cancels; dequeue restores`, width)],
+      render: width => [...this.#ports.statusText(`Waiting for images (${count} submission${count === 1 ? "" : "s"}) — Esc cancels; dequeue restores`, width)],
       invalidate: () => {},
     }, "aboveEditor");
     this.#ports.terminal.requestRender();
@@ -259,12 +260,12 @@ export class PromptSubmission implements SessionConcern {
         message: result.cancelled ? "Bash command cancelled" : `Bash exited ${result.exitCode ?? 0}: ${command}`,
         ...(result.output ? { detail: result.output } : {}),
       };
-      this.#ports.root.appendWorkflowResult(workflow);
+      this.#ports.root.workflow.appendResult(workflow);
       this.#ports.terminal.requestRender();
       return workflow.outcome === "failed" ? rejected(workflow.message) : { outcome: "completed", diagnostic: null };
     } catch (error) {
       const message = `Bash command failed: ${error instanceof Error ? error.message : String(error)}`;
-      this.#ports.root.appendWorkflowResult({ command: "debug", outcome: "failed", message });
+      this.#ports.root.workflow.appendResult({ command: "debug", outcome: "failed", message });
       this.#ports.terminal.requestRender();
       return rejected(message);
     }

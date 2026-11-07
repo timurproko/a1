@@ -29,9 +29,9 @@ describe("release-gated startup budgets", () => {
     })).toThrow(/ui-modules-loaded 5500ms.*module graph: 42 files, 12345 evaluated bytes.*pi-public 30\/10000/);
     expect(() => assertStartupPerformanceBudget({
       profileId: "a1",
-      launchKind: "no-live-supervisor",
+      launchKind: "restart",
       events: [event("command-invoked", 0), event("ui-modules-loaded", 5_500), event("first-input-ready-render", 6_000)],
-    })).toThrow(/no-live-supervisor/);
+    })).toThrow(/restart/);
     expect(() => assertStartupPerformanceBudget({
       profileId: "pi", launchKind: "post-update", events: [event("first-input-ready-render", 2_000)],
     })).not.toThrow();
@@ -39,7 +39,7 @@ describe("release-gated startup budgets", () => {
       profileId: "pi", launchKind: "warm", events: [event("first-input-ready-render", 2_001)],
     })).toThrow(/2001ms exceeds 2000ms/);
     expect(() => assertStartupPerformanceBudget({
-      profileId: "pi", launchKind: "no-live-supervisor", events: [event("first-input-ready-render", 2_501)],
+      profileId: "pi", launchKind: "restart", events: [event("first-input-ready-render", 2_501)],
     })).toThrow(/2501ms exceeds 2500ms/);
   });
 
@@ -80,8 +80,8 @@ describe("release-gated startup budgets", () => {
 
   it("resolves the declared budget for every launch kind", () => {
     expect(resolveStartupBudgetMs("post-update")).toBe(2_000);
-    expect(resolveStartupBudgetMs("no-live-supervisor")).toBe(2_500);
+    expect(resolveStartupBudgetMs("restart")).toBe(2_500);
     expect(resolveStartupBudgetMs("warm")).toBe(2_000);
-    expect(resolveStartupBudgetMs("warm", { postUpdateMs: 1, noSupervisorMs: 2, warmMs: 3 })).toBe(3);
+    expect(resolveStartupBudgetMs("warm", { postUpdateMs: 1, restartMs: 2, warmMs: 3 })).toBe(3);
   });
 });

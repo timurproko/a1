@@ -44,7 +44,7 @@ export class PiCapabilityCompatibilityError extends Error {
   }
 }
 
-export interface PiUpgradeConformanceReport {
+interface PiUpgradeConformanceReport {
   readonly schema: "pi-engine-conformance-v1";
   readonly packageName: "@earendil-works/pi-coding-agent";
   readonly packageVersion: string;

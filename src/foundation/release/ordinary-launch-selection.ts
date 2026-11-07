@@ -12,7 +12,7 @@ interface ApprovedOrdinaryLaunchRelease extends OrdinaryLaunchRelease {
 /**
  * Ordinary launch has no rollback authority: it may advance to its installed package, but an
  * older package installation must follow a newer approved active release instead of moving the
- * shared selector backward. Explicit update/rollback uses CohortStateStore.activate directly.
+ * shared selector backward. Explicit update/rollback uses ReleaseStateStore.activate directly.
  */
 export function selectOrdinaryLaunchReleaseId(
   candidate: OrdinaryLaunchRelease,

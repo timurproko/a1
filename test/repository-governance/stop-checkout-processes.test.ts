@@ -12,15 +12,15 @@ import { resolveDevelopmentLaunchEnvironment } from "../../src/features/launch/d
 describe("stopping a checkout's running A1", () => {
   const root = process.platform === "win32" ? "E:\\Git\\a1\\.worktrees\\polish" : "/work/a1/.worktrees/polish";
   const join = (...parts: string[]) => parts.join(process.platform === "win32" ? "\\" : "/");
-  const ownProcess = (pid: number) => ({ pid, commandLine: `node ${join(root, "dist", "foundation", "resident-tabs", "host-entry.js")} --resident-role-child holder` });
-  const foreignProcess = (pid: number) => ({ pid, commandLine: `node ${join(root + "-other", "dist", "foundation", "host-entry.js")}` });
+  const ownProcess = (pid: number) => ({ pid, commandLine: `node ${join(root, "dist", "app", "session-shell", "paste-helper.js")}` });
+  const foreignProcess = (pid: number) => ({ pid, commandLine: `node ${join(root + "-other", "dist", "app", "session-shell", "paste-helper.js")}` });
   const sleep = vi.fn(async () => undefined);
 
   it("selects only processes running this checkout's dist or bin code", () => {
     const processes = [
-      { pid: 1, commandLine: `node ${join(root, "dist", "foundation", "resident-tabs", "host-entry.js")} --resident-role server` },
-      { pid: 2, commandLine: `"\\\\?\\C:\\node.exe" "\\\\?\\${join(root, "bin", "ui.js")}" --tab` },
-      { pid: 3, commandLine: `node ${join(root + "-other", "dist", "foundation", "host-entry.js")}` },
+      { pid: 1, commandLine: `node ${join(root, "dist", "app", "session-shell", "paste-helper.js")}` },
+      { pid: 2, commandLine: `"\\\\?\\C:\\node.exe" "\\\\?\\${join(root, "bin", "ui.js")}" --session demo` },
+      { pid: 3, commandLine: `node ${join(root + "-other", "dist", "app", "session-shell", "paste-helper.js")}` },
       { pid: 4, commandLine: `node ${join(root, "scripts", "clean.mjs")}` },
       { pid: 5, commandLine: `node ${join(root, "node_modules", "vitest", "vitest.mjs")}` },
       { pid: 6, commandLine: null },

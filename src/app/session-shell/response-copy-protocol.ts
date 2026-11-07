@@ -5,8 +5,8 @@ export const COPY_CLEANUP_MS = 250;
 export const MAX_COPY_BYTES = 16 * 1024 * 1024;
 export const MAX_COPY_CONTROL_BYTES = 64 * 1024;
 export const COPY_CHUNK_UNITS = 16_384;
-export type CopyOutcome = "delivered" | "submitted-unverified" | "failed" | "timed-out" | "superseded" | "canceled";
-export type CopyFailure = "size" | "unavailable" | "denied" | "transport" | "unsafe";
+type CopyOutcome = "delivered" | "submitted-unverified" | "failed" | "timed-out" | "superseded" | "canceled";
+type CopyFailure = "size" | "unavailable" | "denied" | "transport" | "unsafe";
 export interface CopyResult { readonly outcome: CopyOutcome; readonly failure?: CopyFailure }
 /** Payload-free observations; callers must not attach transcript/clipboard content. */
 export interface ResponseCopyEvent {

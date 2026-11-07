@@ -34,7 +34,7 @@ function reason(occurrence) {
   if (occurrence.classes.includes("historical-records")) return "exact historical evidence record";
   if (occurrence.classes.includes("explicit-obsolete-package-fixtures")) return "explicit obsolete-package rejection or deprecation fixture";
   if (occurrence.path.startsWith("openspec/changes/centralize-a1-product-identity/")) return "identity migration specification or closure task";
-  if (occurrence.path === "docs/architecture/toolchain.md" || occurrence.path.endsWith("product-identity-documentation.test.ts")) {
+  if (occurrence.path === "docs/architecture/toolchain.md") {
     return "documented hard-cut or deprecation assertion";
   }
   if (occurrence.path.startsWith("test/")) return "explicit legacy rejection fixture";

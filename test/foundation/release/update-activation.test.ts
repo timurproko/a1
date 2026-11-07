@@ -4,12 +4,12 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { certifyMaterializedRelease } from "../../../src/foundation/release/bootstrap.js";
-import { CohortStateStore } from "../../../src/foundation/release/cohort-state.js";
+import { ReleaseStateStore } from "../../../src/foundation/release/release-state.js";
 import { materializeRelease, type MaterializedRelease } from "../../../src/foundation/release/release-store.js";
 import { createUpdateLifecycleCoordinator } from "../../../src/foundation/release/update.js";
 import { warmMaterializedRelease } from "../../../src/foundation/release/warmup.js";
 
-// Invariant: use durable cohort state, but substitute expensive package preparation and child
+// Invariant: use durable release state, but substitute expensive package preparation and child
 // startup so every activation failure boundary can be exercised without a real installation.
 vi.mock("../../../src/foundation/release/bootstrap.js", async importOriginal => ({
   ...await importOriginal<typeof import("../../../src/foundation/release/bootstrap.js")>(),
@@ -33,7 +33,7 @@ describe("update candidate activation", () => {
     roots.push(root);
     const previous = release(root, "1.0.0", "a");
     const target = release(root, "1.1.0", "b");
-    const store = new CohortStateStore(root);
+    const store = new ReleaseStateStore(root);
     await store.recordCandidate(previous);
     await store.approve(previous.releaseId, "previous-certification.json");
     await store.activate(previous.releaseId);
@@ -68,7 +68,7 @@ describe("update candidate activation", () => {
     const root = await mkdtemp(resolve(tmpdir(), "a1-update-target-active-"));
     roots.push(root);
     const previous = release(root, "1.0.0", "a");
-    const store = new CohortStateStore(root);
+    const store = new ReleaseStateStore(root);
     await store.recordCandidate(previous);
     const coordinator = createUpdateLifecycleCoordinator({ [PRODUCT_IDENTITY.environment.dataDir]: root });
     await expect(coordinator.targetIsActive("1.0.0")).resolves.toBe(false);

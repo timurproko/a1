@@ -27,7 +27,7 @@ export type PiEmittedEvent =
   | Omit<Extract<OwnedUiEvent, { type: "diagnostic" }>, "sessionId" | "sequence">;
 
 /** A command outcome held back during an overload so its command can still settle after recovery. */
-export interface ReservedCommandOutcome {
+interface ReservedCommandOutcome {
   readonly outcome: Extract<OwnedUiEvent, { type: "command-outcome" }>["outcome"];
   readonly diagnostic: Extract<OwnedUiEvent, { type: "command-outcome" }>["diagnostic"];
 }

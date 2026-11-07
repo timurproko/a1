@@ -9,8 +9,7 @@ import type { UiAccentColor } from "../../src/contracts/owned-ui/index.js";
 
 const repository = fileURLToPath(new URL("../..", import.meta.url));
 const targets = [
-  resolve(repository, "src/foundation/release/progress-palette.generated.ts"),
-  resolve(repository, "src/ui/settings/progress-palette.generated.ts"),
+  resolve(repository, "src/contracts/presentation/progress-palette.generated.ts"),
   resolve(repository, "packages/a1-install/bin/progress-palette.js"),
 ] as const;
 const pinned = await readPinnedPiIdentity(repository) as { readonly version: string; readonly commit: string };

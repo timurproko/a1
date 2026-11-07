@@ -2,56 +2,17 @@ import type { PiTuiTerminalPort } from "./contracts.js";
 
 export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@1.5.0:tui-alt-screen-one-write-v1";
 
-export interface PiTuiDamageFrameDescriptor {
-  /**
-   * Frame ids are compared only within one presentation epoch; absent means the current epoch. A
-   * presenter switch starts a new epoch, because each presenter numbers its own frames.
-   */
-  readonly epoch?: number;
-  readonly frameId: number;
-  readonly width: number;
-  readonly height: number;
-  readonly transcript: { readonly rowStart: number; readonly rowEnd: number } | null;
-  readonly dock: { readonly rowStart: number; readonly rowEnd: number } | null;
-  /**
-   * Visible rows owned by the block that is currently streaming. A live block repaints
-   * every row it owns when it reflows, so the allowed damage follows the declared tail
-   * instead of assuming a one-row tail.
-   */
-  readonly liveTailRows?: number;
-  readonly verticalShiftRows: number;
-  readonly safeVerticalShift: boolean;
-  readonly cause: string;
-}
+import type {
+  TerminalDamageDecision,
+  TerminalDamageDecisionReason,
+  TerminalDamageFrameDescriptor,
+  TerminalDamageFrameSafety,
+} from "../../../contracts/presentation/index.js";
 
-export interface PiTuiDamageFrameSafety {
-  readonly overlayActive: boolean;
-  readonly selectionActive: boolean;
-  readonly replacementSurfaceActive: boolean;
-}
-
-export type PiTuiDamageDecisionReason =
-  | "transformed"
-  | "suppressed-redundant-clear"
-  | "hyperlink-cleanup"
-  | "pending-hyperlink-cleanup"
-  | "not-armed"
-  | "unsafe-frame"
-  | "stale-frame"
-  | "unsupported-region-scroll"
-  | "geometry-mismatch"
-  | "grammar-mismatch"
-  | "unsafe-terminal-content"
-  | "incomplete-prior-frame"
-  | "excessive-real-damage";
-
-export interface PiTuiDamageDecision {
-  readonly frameId: number | null;
-  readonly transformed: boolean;
-  readonly reason: PiTuiDamageDecisionReason;
-  readonly shiftRows: number;
-  readonly paintedRows: readonly number[];
-}
+export type PiTuiDamageFrameDescriptor = TerminalDamageFrameDescriptor;
+export type PiTuiDamageFrameSafety = TerminalDamageFrameSafety;
+export type PiTuiDamageDecisionReason = TerminalDamageDecisionReason;
+export type PiTuiDamageDecision = TerminalDamageDecision;
 
 export interface DamageAwareTerminalOptions {
   readonly regionalScroll: boolean;

@@ -17,15 +17,15 @@ afterEach(() => {
 });
 
 describe("shared settings watch", () => {
-  it("propagates live scope changes to running solo processes in both directions", async () => {
+  it("propagates live scope changes between running processes in both directions", async () => {
     const settingsTab = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
-    const soloOne = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
-    const soloTwo = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    const firstProcess = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
+    const secondProcess = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     const scopes: [string[], string[]] = [[], []];
-    soloOne.onChange(current => scopes[0].push(current.value("promptHistoryScope")));
-    soloTwo.onChange(current => scopes[1].push(current.value("promptHistoryScope")));
-    const stopOne = watchSharedSettings(soloOne);
-    const stopTwo = watchSharedSettings(soloTwo);
+    firstProcess.onChange(current => scopes[0].push(current.value("promptHistoryScope")));
+    secondProcess.onChange(current => scopes[1].push(current.value("promptHistoryScope")));
+    const stopOne = watchSharedSettings(firstProcess);
+    const stopTwo = watchSharedSettings(secondProcess);
     try {
       await settingsTab.change("a1", "promptHistoryScope", "shared");
       await vi.waitFor(() => expect(scopes).toEqual([["shared"], ["shared"]]), { timeout: 5_000, interval: 50 });

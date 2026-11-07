@@ -55,7 +55,7 @@ export interface OwnedUiCompositionOptions {
   /** A1 settings profile; comparison paths omit it. */
   readonly profileId?: string;
   /** `off` withholds A1-specific surfaces from comparison profiles. */
-  readonly ownedSurfaces?: "on" | "off";
+  readonly productMode?: "bare" | "comparison";
   readonly projectTrustPrompt?: PiProjectTrustPreflightPrompt;
   /** Explicit local diagnostic destination; ignored by comparison/settings-free compositions. */
   readonly suggestionDiagnosticsPath?: string;
@@ -81,9 +81,9 @@ export async function composeOwnedUiApplication(options: OwnedUiCompositionOptio
 
 export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiComposition> {
   const cwd = options.cwd ?? process.cwd();
-  const ownedSurfaces = options.ownedSurfaces !== "off";
+  const productMode = options.productMode ?? "bare", bare = productMode === "bare";
   const sessionRuntimes = new SessionRuntimeRegistry({
-    runtimeId: ownedSurfaces ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined,
+    runtimeId: bare ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined,
     inspectProcess: options.inspectProcess,
   });
   const productPaths = resolveProductPaths();
@@ -99,13 +99,13 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   // Invariant: process-wide engine state has one owner. The host installs the HTTP dispatcher, applies
   // the theme singletons, and announces startup notices once; every session is created through it.
   const host = await (options.createEngineHost ?? (async hostOptions => createPiEngineHost(hostOptions)))({
-    productMode: ownedSurfaces ? "bare" : "comparison",
+    productMode,
     availableThemes: () => getAvailablePiThemes().map(theme => theme.name),
-    announceStartupChangelog: !ownedSurfaces,
+    announceStartupChangelog: !bare,
     theme: {
-      base: ownedSurfaces ? "dark" : "engine-configured",
-      accentColor: settings !== null && ownedSurfaces ? settings.value("accentColor") : "purple",
-      packageBorderProjection: ownedSurfaces,
+      base: bare ? "dark" : "engine-configured",
+      accentColor: settings !== null && bare ? settings.value("accentColor") : "purple",
+      packageBorderProjection: bare,
       apply: { base: applyConfiguredPiTheme, accentColor: setPiAccentColor, packageBorderProjection: setPiPackageBorderProjectionEnabled },
     },
     ...(projectTrustPrompt === undefined ? {} : { projectTrustPrompt }),
@@ -114,7 +114,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   try {
     backend = await host.create({
       cwd,
-      ...(ownedSurfaces ? { repositoryContextReader: sessionRuntimes.readerFor(undefined) } : {}),
+      ...(bare ? { repositoryContextReader: sessionRuntimes.readerFor(undefined) } : {}),
       ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
       ...(options.sessionSelection === undefined ? {} : { sessionSelection: options.sessionSelection }),
       ...(sessionForkPrompt === undefined ? {} : { sessionForkPrompt }),
@@ -124,13 +124,13 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     throw error;
   }
   const releaseNote = await StartupReleaseNote.load({
-    ownedSurfaces,
+    productMode,
     configDir: productPaths.configDir,
     ...(options.releaseNotes === undefined ? {} : { releaseNotes: options.releaseNotes }),
     ...(options.packageVersion === undefined ? {} : { packageVersion: options.packageVersion }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
   });
-  const unsubscribeAccentChange = settings === null || !ownedSurfaces
+  const unsubscribeAccentChange = settings === null || !bare
     ? () => {}
     : settings.onChange(current => {
       const accent = current.value("accentColor");
@@ -138,13 +138,13 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     });
   // Rationale: separate A1 processes share one settings document; a live scope change saved in
   // one reaches the others only by rereading that document.
-  const unwatchSharedSettings = settings === null || !ownedSurfaces
+  const unwatchSharedSettings = settings === null || !bare
     ? () => {}
     : watchSharedSettings(settings);
   const unsubscribeAccent = (): void => { unwatchSharedSettings(); unsubscribeAccentChange(); };
 
   // Invariant: the Settings search and agent prompt borrow the same resolved Pi keybindings.
-  const keybindingsHost = createPiKeybindingsHost({ profile: ownedSurfaces ? "a1" : "pi", agentDir: backend.identity.agentDir });
+  const keybindingsHost = createPiKeybindingsHost({ profile: bare ? "a1" : "pi", agentDir: backend.identity.agentDir });
   const keybindings = keybindingsHost;
   // Rationale: Routes open only after shell construction.
   const references: OwnedReferenceProviders = {
@@ -160,41 +160,41 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
     },
     session: () => import("./session-info-reference.js").then(m => m.loadSessionInfoReference(backend)),
   };
-  const routeHost = settings === null || !ownedSurfaces ? null
+  const routeHost = settings === null || !bare ? null
     : createOwnedRouteHost(settings, references, settingsRouteOptions(keybindings, backend.identity.agentDir, cwd));
-  const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !ownedSurfaces ? null : {
+  const viewportSettings: OwnedUiViewportSettingsPort | null = settings === null || !bare ? null : {
     snapshot: () => viewportSettingsSnapshot(settings),
     onChange: listener => settings.onChange(() => listener(viewportSettingsSnapshot(settings))),
   };
-  const backgroundSettings: OwnedUiBackgroundSettingsPort | null = settings === null || !ownedSurfaces ? null : {
+  const backgroundSettings: OwnedUiBackgroundSettingsPort | null = settings === null || !bare ? null : {
     snapshot: () => settings.value("backgroundStyle"),
     // Rationale: one manager notification also recomputes an accent-derived canvas after accentColor changes.
     onChange: listener => settings.onChange(current => listener(current.value("backgroundStyle"))),
   };
   const diagnosticDestination = options.suggestionDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.suggestionDiagnostics];
-  const suggestionDiagnostics = settings !== null && ownedSurfaces && diagnosticDestination?.trim()
+  const suggestionDiagnostics = settings !== null && bare && diagnosticDestination?.trim()
     ? await import("../features/prompt-suggestions/diagnostics.js").then(module => new module.SuggestionDiagnosticCapture({ enabled: true, destination: diagnosticDestination })) : null;
-  const promptSuggestions = settings === null || !ownedSurfaces ? null : {
+  const promptSuggestions = settings === null || !bare ? null : {
     ...(suggestionDiagnostics === null ? {} : { diagnostics: suggestionDiagnostics }),
     generator: backend,
     enabled: () => settings.value("promptSuggestions"),
     onChange: (listener: (enabled: boolean) => void) => settings.onChange(() => listener(settings.value("promptSuggestions"))),
   };
-  const promptImages = settings === null || !ownedSurfaces ? null : {
+  const promptImages = settings === null || !bare ? null : {
     limit: () => settings.value("promptImageLimit"),
     onChange: (listener: () => void) => settings.onChange(listener),
   };
-  const skills = settings === null || !ownedSurfaces ? null : {
+  const skills = settings === null || !bare ? null : {
     presentation: () => settings.value("skillsPresentation"),
     // Rationale: one listener covers both the A1 presentation choice and the engine skill-command toggle.
     onChange: (listener: () => void) => settings.onChange(() => listener()),
   };
-  const promptHistory = createPromptHistoryConfiguration(settings, backend, ownedSurfaces);
+  const promptHistory = createPromptHistoryConfiguration(settings, backend, bare);
   const clipboardDestination = options.clipboardDiagnosticsPath ?? process.env[PRODUCT_IDENTITY.environment.clipboardDiagnostics];
-  const clipboardDiagnostics = settings !== null && ownedSurfaces && clipboardDestination?.trim()
+  const clipboardDiagnostics = settings !== null && bare && clipboardDestination?.trim()
     ? new ClipboardDiagnosticCapture(clipboardDestination) : null;
   // Invariant: process-wide services are created once here and borrowed by every session shell.
-  const clipboardServices = ownedSurfaces ? createOwnedUiClipboardServices() : null;
+  const clipboardServices = bare ? createOwnedUiClipboardServices() : null;
   let createdTerminalHost: OwnedUiTerminalHost | undefined;
   let terminalHost: OwnedUiTerminalHost;
   let presenter: OwnedUiSessionPresenter;
@@ -206,14 +206,14 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
         cwd: backend.identity.cwd,
         ...(routeHost === null ? {} : { routeHost }),
         ...(releaseNote.startupRoute === undefined ? {} : { startupRoute: releaseNote.startupRoute }),
-        ...(ownedSurfaces ? { sessionLayout: "custom-viewport" as const } : {}),
+        ...(bare ? { sessionLayout: "custom-viewport" as const } : {}),
       },
       presentation: {
         ...(options.terminal === undefined ? {} : { terminal: createPiTerminalBridge(options.terminal) }),
         ...(clipboardDiagnostics === null ? {} : { input: { onEvent: event => clipboardDiagnostics.runtime(event) } }),
         ...(viewportSettings === null ? {} : { viewportSettings }),
         ...(backgroundSettings === null ? {} : { backgroundSettings }),
-        ...(settings === null || !ownedSurfaces ? {} : {
+        ...(settings === null || !bare ? {} : {
           quitOutro: { snapshot: () => quitOutroSettingsSnapshot(settings), interactive: process.stdout.isTTY === true },
         }),
       },
@@ -249,7 +249,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const releaseUpdates = deferStartupReleaseUpdateObservation({
     backend,
     configDir: productPaths.configDir,
-    mode: settings === null || !ownedSurfaces ? "auto" : settings.value("updateCheck"),
+    mode: settings === null || !bare ? "auto" : settings.value("updateCheck"),
     packageVersion: releaseNote.packageVersion, readPackageVersion,
     checkForNewerRelease: options.checkForNewerRelease,
   });
@@ -290,10 +290,10 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   return { application, settings };
 }
 
-function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null, backend: ComposedSessionBackend, ownedSurfaces: boolean) {
+function createPromptHistoryConfiguration(settings: OwnedSettingsManager | null, backend: ComposedSessionBackend, bare: boolean) {
   const limit = settings?.value("promptHistoryMaxItems") ?? 100;
   const scope = settings?.value("promptHistoryScope") ?? "unique";
-  const enabled = settings !== null && ownedSurfaces && settings.value("promptHistoryEnabled");
+  const enabled = settings !== null && bare && settings.value("promptHistoryEnabled");
   const sessionId = enabled ? backend.identity.currentHistorySessionId() : null;
   if (settings === null || !enabled || (scope === "unique" && sessionId === null)) return null;
   const dataDir = resolvePromptHistoryDataDir();

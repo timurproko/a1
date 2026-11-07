@@ -6,10 +6,9 @@
  * terminal cannot delay restoration past the configured clamp.
  */
 import { displayWidth, truncateToWidth } from "../../ui/components/index.js";
-import { rebaseTerminalDefaultBackground } from "../../integrations/pi/tui-runtime/index.js";
 import { createQuitOutroPlan, type QuitOutroEffect } from "./quit-outro-effects.js";
 
-export interface QuitOutroFrame {
+interface QuitOutroFrame {
   /** Row content as presented, truncated to `columns`; index 0 is the top row. */
   readonly lines: readonly string[];
   readonly columns: number;
@@ -18,7 +17,7 @@ export interface QuitOutroFrame {
   readonly rowWidths: readonly number[];
 }
 
-export interface QuitOutroPlayback {
+interface QuitOutroPlayback {
   write(data: string): void;
   /** Monotonic clock seam; defaults to `Date.now`. */
   now?(): number;
@@ -27,16 +26,22 @@ export interface QuitOutroPlayback {
   /** Plan seed; defaults to a time- and geometry-derived value. */
   readonly seed?: number;
   /** Active bare-A1 canvas; omitted preserves transparent playback bytes. */
-  readonly canvasBackgroundAnsi?: string;
+  readonly canvas?: QuitOutroCanvas;
 }
 
-export const QUIT_OUTRO_MIN_MS = 300;
-export const QUIT_OUTRO_MAX_MS = 2000;
+/** A painted canvas: its background sequence and how to rebase a row's default background onto it. */
+export interface QuitOutroCanvas {
+  readonly ansi: string;
+  readonly rebase: (content: string, backgroundAnsi: string) => string;
+}
+
+const QUIT_OUTRO_MIN_MS = 300;
+const QUIT_OUTRO_MAX_MS = 2000;
 /** Wall-clock allowance beyond the clamped duration before playback abandons remaining ticks. */
-export const QUIT_OUTRO_GUARD_MS = 500;
+const QUIT_OUTRO_GUARD_MS = 500;
 const FRAME_MS = 1000 / 30;
 /** Tick ceiling for a clock that stops advancing: the longest playback plus its guard at 30 fps. */
-export const QUIT_OUTRO_MAX_TICKS = Math.ceil((QUIT_OUTRO_MAX_MS + QUIT_OUTRO_GUARD_MS) / FRAME_MS) + 1;
+const QUIT_OUTRO_MAX_TICKS = Math.ceil((QUIT_OUTRO_MAX_MS + QUIT_OUTRO_GUARD_MS) / FRAME_MS) + 1;
 
 const SYNC_BEGIN = "\x1b[?2026h";
 const SYNC_END = "\x1b[?2026l";
@@ -45,7 +50,7 @@ const CLEAR_SCREEN = "\x1b[2J";
 const HOME = "\x1b[H";
 const HIDE_CURSOR = "\x1b[?25l";
 
-export function clampQuitOutroDuration(durationMs: number): number {
+function clampQuitOutroDuration(durationMs: number): number {
   if (!Number.isFinite(durationMs)) return QUIT_OUTRO_MIN_MS;
   return Math.max(QUIT_OUTRO_MIN_MS, Math.min(QUIT_OUTRO_MAX_MS, Math.floor(durationMs)));
 }
@@ -69,8 +74,8 @@ export function captureQuitOutroFrame(presented: readonly string[], columns: num
 }
 
 /** The clear-and-repaint block that seeds the animation surface with the captured frame. */
-export function createQuitOutroSurfaceFrame(frame: QuitOutroFrame, canvasBackgroundAnsi?: string): string {
-  if (canvasBackgroundAnsi === undefined) {
+function createQuitOutroSurfaceFrame(frame: QuitOutroFrame, canvas?: QuitOutroCanvas): string {
+  if (canvas === undefined) {
     let output = `${SYNC_BEGIN}${HIDE_CURSOR}${CLEAR_SCREEN}${HOME}${RESET}`;
     for (let row = 0; row < frame.rows; row++) {
       const line = frame.lines[row] ?? "";
@@ -78,12 +83,13 @@ export function createQuitOutroSurfaceFrame(frame: QuitOutroFrame, canvasBackgro
     }
     return `${output}${SYNC_END}`;
   }
+  const canvasBackgroundAnsi = canvas.ansi;
   let output = `${SYNC_BEGIN}${HIDE_CURSOR}${RESET}${canvasBackgroundAnsi}${CLEAR_SCREEN}${HOME}`;
   for (let row = 0; row < frame.rows; row++) {
     const line = frame.lines[row] ?? "";
     if (frame.rowWidths[row]! > 0) {
       output += `${cursorAt(row, 0)}${canvasBackgroundAnsi}`
-        + `${rebaseTerminalDefaultBackground(line, canvasBackgroundAnsi)}${RESET}${canvasBackgroundAnsi}`;
+        + `${canvas.rebase(line, canvasBackgroundAnsi)}${RESET}${canvasBackgroundAnsi}`;
     }
   }
   return `${output}${RESET}${SYNC_END}`;
@@ -110,8 +116,8 @@ export async function playQuitOutro(
   let clearIndex = 0;
   let ticks = 0;
 
-  const canvas = playback.canvasBackgroundAnsi;
-  playback.write(createQuitOutroSurfaceFrame(frame, canvas));
+  playback.write(createQuitOutroSurfaceFrame(frame, playback.canvas));
+  const canvas = playback.canvas?.ansi;
   const startedAt = now();
   for (;;) {
     ticks += 1;

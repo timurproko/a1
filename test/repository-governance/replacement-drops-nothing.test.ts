@@ -43,7 +43,7 @@ describe(`the ${SETTINGS_ROUTE} screen, which supersedes the pinned selector`, (
     });
     const reported = (await engine.listSettings()).map(descriptor => descriptor.key);
 
-    const session = new OwnedSettingsManager({ configDir: root, profileId: "parity", declarations: [], migrations: [], agent: engine });
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "parity", declarations: [], agent: engine });
     await session.load();
 
     const reachable = new Set(
@@ -58,7 +58,7 @@ describe(`the ${SETTINGS_ROUTE} screen, which supersedes the pinned selector`, (
       themes: () => ["dark", "light"],
       models: () => [{ key: "openai/gpt-5", label: "gpt-5 [openai]", name: "GPT-5", description: "global default", levels: ["off", "low", "high"] }],
     });
-    const session = new OwnedSettingsManager({ configDir: root, profileId: "parity", declarations: [], migrations: [], agent: engine });
+    const session = new OwnedSettingsManager({ configDir: root, profileId: "parity", declarations: [], agent: engine });
     await session.load();
 
     const screen = new SettingsApp(session, {
