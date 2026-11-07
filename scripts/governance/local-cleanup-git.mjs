@@ -41,11 +41,13 @@ async function removeTree(path, code, reported, { deadline = Infinity, now = Dat
   if (await exists(path)) fail(code, { paths: [reported] });
 }
 /** Remove a link entry without recursively traversing its target; Windows directory junctions require rmdir. */
-async function removeLinkEntry(path, reported, { deadline = Infinity, now = Date.now } = {}) {
+export async function removeLinkEntry(path, reported, { deadline = Infinity, now = Date.now, validate = async () => {} } = {}) {
   for (let attempt = 1; ; attempt++) {
+    await validate();
     try { await unlink(path); break; }
     catch (error) {
       if (["EPERM", "EISDIR"].includes(error.code)) {
+        await validate();
         try { await rmdir(path); break; } catch (directoryError) { error = directoryError; }
       }
       const wait = REMOVAL_BACKOFF_MS * attempt;
@@ -195,7 +197,7 @@ export async function statusBlockers(git, path, disposable, { ignored = true } =
 export async function inspectWorktree(identity, entry, {
   git = gitRunner(), cwd = process.cwd(), deadline = Infinity, now = Date.now,
   ordinaryEntryLimit = ORDINARY_CONTENT_ENTRY_LIMIT, generatedEntryLimit = GENERATED_CONTENT_ENTRY_LIMIT,
-  accepted = async () => false,
+  accepted = async () => false, remediationLink = null,
 } = {}) {
   const actual = await captureWorktree(identity, entry.path, git);
   if (["path", "filesystem", "ref"].some(key => actual[key] !== entry[key])) fail("worktree-identity-changed");
@@ -221,6 +223,7 @@ export async function inspectWorktree(identity, entry, {
   let ordinaryVisited = 0, generatedVisited = 0;
   const generated = path => disposableRootFor(path, entry.disposable) !== null;
   const containedLinks = [];
+  let selectedLink = null;
   const visit = path => {
     if (generated(path)) {
       if (++generatedVisited > generatedEntryLimit) fail("content-inspection-budget");
@@ -241,9 +244,13 @@ export async function inspectWorktree(identity, entry, {
         if (kind === "root" && !repositoryDisposablePaths.has(root)) fail("content-link", { paths: [path] });
         let target;
         try { target = await canonical(linkPath); } catch { fail("content-link", { paths: [path] }); }
-        if (kind === "descendant" && !inside(await canonical(rootPath), target)) fail("content-link", { paths: [path] });
+        const selected = path === remediationLink && kind === "descendant" && repositoryDisposablePaths.has(root);
+        if (kind === "descendant" && !inside(await canonical(rootPath), target) && !selected) fail("content-link", { paths: [path] });
         if (inside(target, linkPath)) fail("content-link-cycle", { paths: [path] });
-        containedLinks.push({ path, root, kind, filesystem: fingerprint(await lstat(linkPath)), target });
+        const evidence = { path, root, kind, filesystem: fingerprint(await lstat(linkPath)), target };
+        // Security: selected remediation evidence never enters the purge-approved containedLinks list.
+        if (selected) selectedLink = evidence;
+        else containedLinks.push(evidence);
         continue;
       }
       if (item.isDirectory()) await walk(join(directory, item.name), `${path}/`);
@@ -251,7 +258,7 @@ export async function inspectWorktree(identity, entry, {
     }
   }
   await walk(entry.path);
-  return { clean: true, head: actual.head, containedLinks };
+  return { clean: true, head: actual.head, containedLinks, ...(remediationLink === null ? {} : { selectedLink }) };
 }
 
 /** Remove only the entry's declared disposable roots or files, after inspection has bounded them, so Git deletes tracked content alone. */

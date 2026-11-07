@@ -1,0 +1,26 @@
+## 1. Branch-only rejected-candidate discard
+
+- [x] 1.1 Add mutually exclusive path/branch CLI selectors and a real branch-scoped journal identity while preserving existing worktree registrations.
+- [x] 1.2 Reuse closed-unmerged evidence and expected-head remote/local deletion, adding no-checkout, no-live-registration, no-other-open-PR, drift, ref-recreation, and concurrency guards.
+- [x] 1.3 Add focused fixtures for successful branch-only discard, absent refs, repeated/interrupted operations, malformed arguments/journals, protection, ownership, checkouts, and changing live evidence.
+
+## 2. Explicit disposable-link remediation
+
+- [x] 2.1 Add exact-candidate unlink-disposable-link arguments, explicit link-only confirmation, released eligible delivery binding, and path/ref resource locking.
+- [x] 2.2 Inspect one named ignored descendant link with real parent paths, fingerprint and target revalidation, normal content blockers, and bounded non-recursive removal without target traversal.
+- [x] 2.3 Add symlink/junction target-sentinel, identity/target/ancestor drift, protected/unsafe path, dirty/owned candidate, multiple-link, locked-link, budget, and concurrent-operation regressions; preserve default external-link refusal tests.
+
+## 3. Policy and delivery consistency
+
+- [x] 3.1 Document both explicit operations and their exact authority without changing automatic sweep, protected-ref, archived-delivery, or default purge policy.
+- [x] 3.2 Keep repository instructions, CLI help, local-cleanup specifications, and journal/report semantics coherent with the delivered behavior.
+
+## 4. Focused validation
+
+- [x] 4.1 Run TypeScript checking, focused cleanup tests, strict OpenSpec validation, and the delivery body check; disposition every observed gap before the final Implementation checkbox.
+
+## 5. CI guidance and comment repair
+
+- [x] 5.1 Classify retained implementation comments by their actual security, rationale, or invariant intent and remove redundant narration without changing cleanup behavior.
+- [x] 5.2 Condense the delivery skill below its existing 600-word bound while keeping detailed cleanup safeguards in the linked runbook and policy context.
+- [x] 5.3 Run the failed delivery-guidance tests, full code-documentation gate, TypeScript checking, and maintenance regressions without changing assertions or thresholds.

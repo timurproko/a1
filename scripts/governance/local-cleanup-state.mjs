@@ -198,6 +198,7 @@ export function createStateStore(identity, { replace = rename } = {}) {
   }
   async function acquireResources(resources, now = Date.now) {
     const normalizeResource = value => {
+      if (value.startsWith("ref:") && process.platform === "win32") return value.toLowerCase();
       if (!value.startsWith("path:")) return value;
       const path = resolve(value.slice("path:".length)).replaceAll("\\", "/");
       return `path:${process.platform === "win32" ? path.toLowerCase() : path}`;
