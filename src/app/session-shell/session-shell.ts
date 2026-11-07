@@ -316,7 +316,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         prompt: request => this.#login.requestInput(request),
         notify: event => this.#login.notify(event),
         publish: message => {
-          this.root.appendWorkflowMessage(message);
+          this.root.workflow.appendMessage(message);
           this.#terminal.requestRender();
         },
         finishLogin: () => this.#login.finish(),
@@ -461,7 +461,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     void delivery?.then(({ outcome }) => {
       if (count === undefined || this.#disposed || !this.#terminal.running || intent !== this.#copyIntentSequence
         || outcome !== "delivered" && outcome !== "submitted-unverified") return;
-      this.root.showCopyAcknowledgement(copyAcknowledgementText(count));
+      this.root.chrome.showCopyAcknowledgement(copyAcknowledgementText(count));
     });
   }
 
@@ -589,7 +589,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   async cycleModel(direction: "forward" | "backward"): Promise<OwnedUiCommandResult> {
     const result = await this.backend.workflows.cycleModelWorkflow(direction);
-    this.root.appendWorkflowResult(result);
+    this.root.workflow.appendResult(result);
     this.#terminal.requestRender();
     return workflowAdapterResult(result);
   }
@@ -619,8 +619,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       setInputSurface: surface => this.root.setInputSurface(surface),
       requestRender: () => this.#terminal.requestRender(),
       viewport: () => this.#terminal.viewport(),
-      appendWorkflowStatus: text => this.root.appendWorkflowStatus(text),
-      appendWorkflowResult: result => this.root.appendWorkflowResult(result),
+      appendWorkflowStatus: text => this.root.workflow.appendStatus(text),
+      appendWorkflowResult: result => this.root.workflow.appendResult(result),
       runWorkflow: request => this.runWorkflow(request),
       // Invariant: the custom bare-A1 surface holds frames while optional selectors load and is permanently
       // fullscreen; the pinned comparison profiles render immediately and keep Pi's TUI mode switch.
@@ -689,7 +689,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   showForkSelector(): void {
     const options = this.backend.catalog.pinnedForkOptions();
     if (options.length === 0) {
-      this.root.appendWorkflowResult({ command: "fork", outcome: "completed", message: "No messages to fork from", messageKind: "status" });
+      this.root.workflow.appendResult({ command: "fork", outcome: "completed", message: "No messages to fork from", messageKind: "status" });
       this.#terminal.requestRender();
       return;
     }
@@ -707,7 +707,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     try {
       options = await this.backend.catalog.pinnedLogoutOptions();
     } catch (error) {
-      this.root.appendWorkflowResult({
+      this.root.workflow.appendResult({
         command: "logout",
         outcome: "failed",
         message: `Could not read stored credentials: ${error instanceof Error ? error.message : String(error)}`,
@@ -716,7 +716,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       return;
     }
     if (options.length === 0) {
-      this.root.appendWorkflowStatus("No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.");
+      this.root.workflow.appendStatus("No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.");
       this.#terminal.requestRender();
       return;
     }
@@ -777,7 +777,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   showLoginProviderSelector(authType?: "oauth" | "api_key", initialSearchInput?: string): void {
     const options = this.backend.catalog.pinnedLoginOptions(authType);
     if (options.length === 0) {
-      this.root.appendWorkflowStatus(authType === "oauth" ? "No account providers available." : authType === "api_key" ? "No API key providers available." : "No login providers available.");
+      this.root.workflow.appendStatus(authType === "oauth" ? "No account providers available." : authType === "api_key" ? "No API key providers available." : "No login providers available.");
       this.#terminal.requestRender();
       return;
     }
@@ -839,7 +839,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         return this.runWorkflow({ ...request, argument: value });
       }).catch(error => {
         if (this.#disposed) return;
-        this.root.appendWorkflowResult({ command: "name", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
+        this.root.workflow.appendResult({ command: "name", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
         this.#terminal.requestRender();
       });
       return { outcome: "completed", diagnostic: null };
@@ -861,7 +861,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     if (request.command === "reload") {
       const blocked = this.backend.workflows.reloadBlockedResult();
       if (blocked) {
-        this.root.appendWorkflowResult(blocked);
+        this.root.workflow.appendResult(blocked);
         this.#terminal.requestRender();
         return workflowAdapterResult(blocked);
       }
@@ -900,7 +900,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     }
     if (result.outcome === "requires-selection" && request.command === "model") {
       if (result.messages !== undefined) {
-        for (const message of result.messages) this.root.appendWorkflowMessage(message);
+        for (const message of result.messages) this.root.workflow.appendMessage(message);
       }
       this.showModelSelector((result.detail ?? request.argument.trim()) || undefined);
       return { outcome: "completed", diagnostic: null };
@@ -919,7 +919,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       });
     }
     if (result.outcome === "requires-selection" || result.outcome === "requires-confirmation") {
-      this.root.appendWorkflowResult({ command: request.command, outcome: "failed", message: `Owned controller missing for ${request.command}` });
+      this.root.workflow.appendResult({ command: request.command, outcome: "failed", message: `Owned controller missing for ${request.command}` });
       this.#terminal.requestRender();
       return { outcome: "failed", diagnostic: `Owned controller missing for ${request.command}` };
     }
@@ -933,9 +933,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.root.resumeViewportFollowing();
     }
     if (shareDialog !== undefined && this.#customViewport && result.outcome === "completed" && result.detail !== undefined) {
-      this.root.appendWorkflowStatus(shareDialog.renderShellShareResult(result.message, result.detail, this.#presenters.theme.current(), url => this.#presenters.components.text.hyperlink(url)));
+      this.root.workflow.appendStatus(shareDialog.renderShellShareResult(result.message, result.detail, this.#presenters.theme.current(), url => this.#presenters.components.text.hyperlink(url)));
     } else {
-      this.root.appendWorkflowResult(result);
+      this.root.workflow.appendResult(result);
     }
     this.#terminal.requestRender();
     return workflowAdapterResult(result);
@@ -958,10 +958,10 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         try {
           this.backend.catalog.persistProjectTrust(selection.updates);
           close();
-          this.root.appendWorkflowStatus(`Saved trust decision: ${selection.trusted ? "trusted" : "untrusted"}. Restart pi for this to take effect.`);
+          this.root.workflow.appendStatus(`Saved trust decision: ${selection.trusted ? "trusted" : "untrusted"}. Restart pi for this to take effect.`);
         } catch (error) {
           close();
-          this.root.appendWorkflowResult({ command: "trust", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
+          this.root.workflow.appendResult({ command: "trust", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
         }
         this.#terminal.requestRender();
       },
@@ -1025,7 +1025,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         customViewport: this.#customViewport,
         exitMode: this.backend.identity.disposed ? this.#fullscreenExitOutput : this.backend.settings.snapshot().fullscreenExitOutput,
         resume: this.backend.identity.currentSessionResumeMetadata(),
-        transcript: () => this.root.exitTranscript(terminal.columns),
+        transcript: () => this.root.transcript.exitTranscript(terminal.columns),
       });
     });
     attempt(() => this.#unbindClipboardWriter());
@@ -1049,7 +1049,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   // Invariant: incremental block updates notify listeners with the same complete view contract.
   #syncBlock(block: OwnedUiSessionViewModel["transcript"][number]): OwnedUiSessionViewModel {
-    this.root.applyTranscriptBlock(block);
+    this.root.transcript.apply(block);
     if (this.#customViewport && block.status === "live" && isCoalescedStreamBlock(block.kind)) {
       this.#streamPresentation.request();
     } else if (this.#streamPresentation.pending) {
@@ -1132,7 +1132,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     if (!replaced && scope === undefined) return;
     if (replaced) {
       this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
-      this.root.resetTranscript();
+      this.root.transcript.reset();
     }
     const binding = this.#historyBinding;
     if (binding?.options.forSession !== undefined || binding?.options.forScope !== undefined) {
@@ -1208,7 +1208,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const diagnostic = view.diagnostics.find(candidate => candidate.code === "project-trust");
     if (diagnostic === undefined || !this.#terminal.running) return;
     this.#startupTrustHandled = true;
-    this.root.appendWorkflowMessage({ kind: "warning", message: diagnostic.message });
+    this.root.workflow.appendMessage({ kind: "warning", message: diagnostic.message });
   }
 
   openOwnedRoute(route: string): void {
@@ -1221,7 +1221,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     }
     const result = this.#dialogs.openRoute(route);
     if (result.outcome !== "completed" && result.diagnostic !== null) {
-      this.root.appendWorkflowMessage({ kind: "warning", message: result.diagnostic });
+      this.root.workflow.appendMessage({ kind: "warning", message: result.diagnostic });
     }
   }
 
@@ -1277,7 +1277,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const skill = this.#presenters.components.skills.findByArgument(skills, token);
     if (skill === undefined) {
       const message = "Unknown skill: " + token;
-      this.root.appendWorkflowMessage({ kind: "error", message });
+      this.root.workflow.appendMessage({ kind: "error", message });
       this.#terminal.requestRender();
       return { outcome: "failed", diagnostic: message };
     }

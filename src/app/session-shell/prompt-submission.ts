@@ -23,7 +23,7 @@ interface PromptSubmissionPorts {
   readonly root: Pick<OwnedUiSessionShellRoot,
     | "editor" | "hasPendingPastes" | "waitForPromptPastes" | "setExtensionWidget" | "prepareHistoryText"
     | "imageChipAttachmentsFromEditor" | "preparePromptSubmission" | "omitUnsentPromptImages"
-    | "resumeViewportFollowing" | "beginImageSubmissionStatus" | "appendWorkflowResult">;
+    | "resumeViewportFollowing" | "beginImageSubmissionStatus" | "workflow">;
   readonly terminal: Pick<OwnedUiPresenterTerminal, "requestRender">;
   readonly cwd: string;
   readonly statusText: OwnedUiShellComponents["info"]["statusText"];
@@ -124,7 +124,7 @@ export class PromptSubmission implements SessionConcern {
   reportError(error?: unknown, message?: string): void {
     // Security: arbitrary provider/extension error messages can contain the entire request.
     try {
-      this.#ports.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: message
+      this.#ports.root.workflow.appendResult({ command: "debug", outcome: "failed", message: message
         ?? (error instanceof ImageAttachmentError ? error.message : "Submission failed. Check the prompt and try again.") },
       error instanceof ImageAttachmentError ? error.code : undefined);
       this.#ports.terminal.requestRender();
@@ -260,12 +260,12 @@ export class PromptSubmission implements SessionConcern {
         message: result.cancelled ? "Bash command cancelled" : `Bash exited ${result.exitCode ?? 0}: ${command}`,
         ...(result.output ? { detail: result.output } : {}),
       };
-      this.#ports.root.appendWorkflowResult(workflow);
+      this.#ports.root.workflow.appendResult(workflow);
       this.#ports.terminal.requestRender();
       return workflow.outcome === "failed" ? rejected(workflow.message) : { outcome: "completed", diagnostic: null };
     } catch (error) {
       const message = `Bash command failed: ${error instanceof Error ? error.message : String(error)}`;
-      this.#ports.root.appendWorkflowResult({ command: "debug", outcome: "failed", message });
+      this.#ports.root.workflow.appendResult({ command: "debug", outcome: "failed", message });
       this.#ports.terminal.requestRender();
       return rejected(message);
     }

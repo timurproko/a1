@@ -40,7 +40,7 @@ function harness(overrides: { routeHost?: UiRouteHost | null; startupRoute?: { r
     }),
     requestRender: vi.fn(),
   };
-  const root = { dismissNotice: vi.fn(), setInputSurface: vi.fn(), usesDefaultInputSurface: () => defaultSurface };
+  const root = { chrome: { dismissNotice: vi.fn() }, setInputSurface: vi.fn(), usesDefaultInputSurface: () => defaultSurface };
   const routeHost = overrides.routeHost === undefined
     ? { open: (route: string) => ({ id: `${route}-surface` }), claims: (name: string) => name === "settings" } as unknown as UiRouteHost
     : overrides.routeHost;
@@ -71,7 +71,7 @@ describe("SessionDialogCoordinator", () => {
     coordinator.showSelector("Pick", [], () => {});
     const onClosed = vi.fn();
     expect(coordinator.openRoute("settings", undefined, onClosed)).toEqual({ outcome: "completed", diagnostic: null });
-    expect(root.dismissNotice).toHaveBeenCalledOnce();
+    expect(root.chrome.dismissNotice).toHaveBeenCalledOnce();
     expect(hidden).toEqual(["selector"]);
     routes[0]!.exit();
     expect(exit).toHaveBeenCalledOnce();

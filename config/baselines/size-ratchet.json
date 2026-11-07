@@ -15,7 +15,7 @@
       "fields": 13
     },
     "src/app/session-shell/session-shell-root.ts::OwnedUiSessionShellRoot": {
-      "methods": 85,
+      "methods": 76,
       "fields": 32
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter": {

@@ -1,6 +1,5 @@
 import type { OwnedUiShellComponents, OwnedUiShellHotkeysPresentation, OwnedUiShellSubmittedPromptComposer, OwnedUiShellClipboardContent, OwnedUiShellComponentPort, OwnedUiShellEditorPort, OwnedUiShellHeaderOptions, OwnedUiShellHeaderPort, OwnedUiShellHistoryEditor, OwnedUiShellImageAssetResolver, OwnedUiShellKeybindingsHost, OwnedUiShellLoadedResourcesPort, OwnedUiShellQueuedInputPort, OwnedUiShellResourceEntry, OwnedUiShellStatusPort, OwnedUiShellTranscriptComponentPort, OwnedUiShellViewComponentPort } from "../../contracts/owned-ui/index.js";
 import type { TerminalComponentPort, TerminalInputCoordinationScheduler, TerminalInputDiagnosticsEvent, TerminalInputSurfaceKind, TerminalLayoutNode, TerminalPointerSurface, TerminalPort } from "../../contracts/presentation/index.js";
-import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type { ShellPresentationPorts, ThemeSource } from "../../contracts/presentation/index.js";
 import type {
   OwnedUiBackgroundSettingsPort,
@@ -11,8 +10,6 @@ import type {
   OwnedUiSessionPresenters,
   OwnedUiSessionViewModel,
   OwnedUiTranscriptRendererPort,
-  OwnedUiWorkflowMessage,
-  OwnedUiWorkflowResult,
   OwnedUiViewportSettings,
   OwnedUiViewportSettingsPort,
   OwnedUiQuitOutroSettingsPort,
@@ -237,7 +234,8 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   readonly header: OwnedUiShellHeaderPort;
   readonly resources: OwnedUiShellLoadedResourcesPort;
   readonly #cwd: string;
-  readonly #document: TranscriptDocument;
+  /** The transcript's semantic rows, caches, and engine-backed block renderers. */
+  readonly transcript: TranscriptDocument;
   readonly #themeUnsubscribe: () => void;
   #view: OwnedUiSessionViewModel;
   readonly #status: OwnedUiShellStatusPort;
@@ -259,11 +257,13 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   #showImages = true;
   #imageWidthCells = 80;
   #outputPad: 0 | 1 = 1;
-  readonly #workflowOutput: WorkflowOutput;
+  /** Workflow results, messages, and status lines appended to the transcript. */
+  readonly workflow: WorkflowOutput;
   readonly #input: InputSurfaceSwitch;
   readonly #layout: ShellLayout;
   readonly #extensions = new ExtensionSurface();
-  readonly #dockChrome: DockChrome;
+  /** The dock's notices, copy acknowledgement, and release banner. */
+  readonly chrome: DockChrome;
   #imageSubmissionsSending = 0;
 
   constructor(
@@ -288,7 +288,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       ...(handlers.promptImageLimit === undefined ? {} : { imageLimit: handlers.promptImageLimit }) });
     this.#submittedPromptComposer = this.#customViewport ? this.#createSubmittedPromptComposer(handlers.presentation.theme) : undefined;
     this.#cwd = cwd;
-    this.#document = this.#createDocument(cwd, handlers.presentation.theme, handlers.components);
+    this.transcript = this.#createDocument(cwd, handlers.presentation.theme, handlers.components);
     this.#extensionRenderers = extensionRenderers;
     this.#imageAssets = imageAssets;
     this.#componentRuntime = handlers;
@@ -328,15 +328,15 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       ...(handlers.pasteDiagnostics === undefined ? {} : { pasteDiagnostics: handlers.pasteDiagnostics }),
       nextPasteDiagnosticRequest: () => --this.#pasteDiagnosticId,
     });
-    this.#dockChrome = new DockChrome({ theme: handlers.presentation.theme, outputPad: handlers.presentation.pinnedOutputPad, components: handlers.components,
+    this.chrome = new DockChrome({ theme: handlers.presentation.theme, outputPad: handlers.presentation.pinnedOutputPad, components: handlers.components,
       invalidateChrome: () => this.#invalidateChrome(),
       requestRender: () => this.#componentRuntime.requestRender(),
       viewport: this.#viewportController,
     });
-    this.#workflowOutput = new WorkflowOutput({
+    this.workflow = new WorkflowOutput({
       customViewport: this.#customViewport, components: handlers.components,
-      document: this.#document,
-      dock: this.#dockChrome,
+      document: this.transcript,
+      dock: this.chrome,
       transcriptLength: () => this.#view.transcript.length,
       outputPad: () => this.#outputPad,
       hotkeysPresentation: () => this.hotkeysPresentation(),
@@ -353,7 +353,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     for (const block of view.transcript) {
       if (block.kind === "user") this.editor.addToHistory(block.text);
     }
-    this.#document.sync(view.transcript);
+    this.transcript.sync(view.transcript);
     // Invariant: rendered rows expire when
     // their active theme changes.
     this.#themeUnsubscribe = handlers.presentation.theme.onChange(() => {
@@ -387,12 +387,12 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       input: this.#input,
       editor: this.editor,
       promptChips: this.#promptChips,
-      dockChrome: this.#dockChrome,
+      dockChrome: this.chrome,
       theme,
       ...(onFrame === undefined ? {} : { onFrame }),
       rows: () => this.#componentRuntime.getRows(),
       dock: width => this.#renderDockLayout(width),
-      document: width => this.#document.layout(width),
+      document: width => this.transcript.layout(width),
       queued: width => this.#renderQueued(width),
       liveStatus: width => this.#renderStatus(width),
       diagnostics: () => this.#view.diagnostics,
@@ -414,7 +414,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
 
   setEditorPaddingX(padding: number): void {
     this.editor.setPaddingX(padding);
-    this.#document.invalidate("editor-padding");
+    this.transcript.invalidate("editor-padding");
   }
 
   setAutocompleteMaxVisible(maxVisible: number): void {
@@ -425,21 +425,21 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     if (this.#outputPad === padding) return;
     this.#outputPad = padding;
     this.#status.setOutputPad(padding);
-    for (const component of this.#document.components()) component.setOutputPad(padding);
+    for (const component of this.transcript.components()) component.setOutputPad(padding);
     this.#invalidateTranscriptPresentation();
   }
 
   setHideThinkingBlock(hidden: boolean): void {
     if (this.#thinkingVisible === !hidden) return;
     this.#thinkingVisible = !hidden;
-    for (const component of this.#document.components()) component.setHideThinkingBlock(hidden);
+    for (const component of this.transcript.components()) component.setHideThinkingBlock(hidden);
     this.#invalidateTranscriptPresentation();
   }
 
   setMermaidRenderingMode(mode: "off" | "final" | "streaming"): void {
     if (this.#mermaidRenderingMode === mode) return;
     this.#mermaidRenderingMode = mode;
-    for (const component of this.#document.components()) component.setMermaidRenderingMode(mode);
+    for (const component of this.transcript.components()) component.setMermaidRenderingMode(mode);
     this.#invalidateTranscriptPresentation();
   }
 
@@ -447,7 +447,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     if (this.#showImages === showImages && this.#imageWidthCells === imageWidthCells) return;
     this.#showImages = showImages;
     this.#imageWidthCells = imageWidthCells;
-    for (const component of this.#document.components()) component.setImagePresentation(showImages, imageWidthCells);
+    for (const component of this.transcript.components()) component.setImagePresentation(showImages, imageWidthCells);
     this.#invalidateTranscriptPresentation();
   }
 
@@ -472,8 +472,8 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   }
 
   reconcilePromptImageLimitNotice(text: string = this.editor.getText()): boolean {
-    if (this.#dockChrome.notice?.errorCode !== "image-count" || !this.#promptChips.imageLimitState(text).corrected) return false;
-    this.dismissNotice();
+    if (this.chrome.notice?.errorCode !== "image-count" || !this.#promptChips.imageLimitState(text).corrected) return false;
+    this.chrome.dismissNotice();
     return true;
   }
 
@@ -523,13 +523,13 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     const becameReady = this.#view.lifecycle !== "ready" && view.lifecycle === "ready";
     if (view.diagnostics.length !== this.#view.diagnostics.length
       || view.diagnostics.some((diagnostic, index) => diagnostic.sequence !== this.#view.diagnostics[index]?.sequence)) {
-      this.#document.invalidate("diagnostics");
+      this.transcript.invalidate("diagnostics");
     }
     const promptAccepted = this.#view.lifecycle !== "busy" && view.lifecycle === "busy";
     this.#view = view;
     // Invariant: the idle new-session confirmation yields to the first truthful live status;
     // ordinary dock notices deliberately remain visible below Working during a run.
-    if (promptAccepted && this.#dockChrome.notice?.kind === "new-session") this.#dockChrome.forgetNotice();
+    if (promptAccepted && this.chrome.notice?.kind === "new-session") this.chrome.forgetNotice();
     if (promptAccepted && this.#imageSubmissionsSending > 0) {
       this.#imageSubmissionsSending = 0;
       this.#syncWorkingOverride();
@@ -537,7 +537,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     this.#status.update(view);
     this.#footer.update(this.#extensions.withStatuses(view));
     this.#queued.update(view.editor.queuedSubmissions);
-    this.#document.sync(view.transcript);
+    this.transcript.sync(view.transcript);
     this.editor.setSubmitEnabled(view.lifecycle !== "stopping" && view.lifecycle !== "stopped" && view.lifecycle !== "failed");
     this.editor.setThinkingLevel(view.thinkingLevel);
     // Performance: semantic updates already invalidate affected transcript blocks. Chrome is a separate authority.
@@ -545,26 +545,17 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     if (becameReady) this.#onPromptSuggestionEligibilityChanged?.();
   }
 
-  /**
-   * Applies one block: its component is created or updated in place and the order grows
-   * only when the block is new. A streamed chunk costs one component update rather than a
-   * walk of the whole transcript.
-   */
-  applyTranscriptBlock(block: OwnedUiSessionViewModel["transcript"][number]): void {
-    this.#document.apply(block);
-  }
-
   #mountTranscript(block: OwnedUiSessionViewModel["transcript"][number]): OwnedUiShellTranscriptComponentPort {
     // Invariant: the notice answers the reader's last command, so only their next prompt or
     // shell command retires it; assistant, tool, and compaction blocks streaming in keep it.
-    if (block.kind === "user" || block.kind === "bash") this.dismissNotice();
+    if (block.kind === "user" || block.kind === "bash") this.chrome.dismissNotice();
     const created = this.#componentRuntime.components.transcript.component(
       block, this.#cwd, this.#extensionRenderers, this.#submittedPromptComposer,
       this.#outputPad, !this.#thinkingVisible, this.#mermaidRenderingMode,
       this.#showImages, this.#imageWidthCells, this.#imageAssets,
       { ...this.#componentRuntime, changed: () => {
-        if (this.#document.component(block.id) !== created) return;
-        this.#document.blockChanged(block.id);
+        if (this.transcript.component(block.id) !== created) return;
+        this.transcript.blockChanged(block.id);
         this.#layout.invalidate();
         this.#input.clearDockInputCandidate();
         this.#componentRuntime.requestRender();
@@ -613,7 +604,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
 
   setViewportConfig(config: OwnedUiViewportSettings): void {
     if (this.#viewportController.setConfig(config)) {
-      this.#document.invalidate("viewport-config");
+      this.transcript.invalidate("viewport-config");
       this.#layout.invalidate();
     }
   }
@@ -622,21 +613,12 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     this.#viewportController.setCopyOnSelect(enabled);
   }
 
-  showCopyAcknowledgement(message: string): void {
-    this.#dockChrome.showCopyAcknowledgement(message);
-  }
-
   resumeViewportFollowing(): void {
     this.#viewportController.resumeFollowing();
   }
 
   noteCompletedAssistantMessage(): void {
     this.#viewportController.noteCompletedAssistantMessage();
-  }
-
-  /** A new session binding owns new mounts even when it reuses semantic invocation ids. */
-  resetTranscript(): void {
-    this.#document.reset();
   }
 
   resetViewport(): void {
@@ -663,7 +645,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   #renderDockLayout(width: number): DockLayout {
     const queued = this.#customViewport ? [] : this.#renderQueued(width);
     const statusRows = this.#customViewport ? this.#status.renderDock(width) : this.#renderStatus(width);
-    const noticeRows = this.#dockChrome.renderNotice(width, this.#outputPad);
+    const noticeRows = this.chrome.renderNotice(width, this.#outputPad);
     const transientRows = [...queued, ...statusRows, ...noticeRows];
     const messageStart = queued.length;
     const copyableMessageRows = Array.from(
@@ -687,10 +669,6 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     };
   }
 
-  dismissNotice(): void {
-    this.#dockChrome.dismissNotice();
-  }
-
   #renderQueued(width: number): readonly string[] {
     return this.#view.editor.queuedSubmissions.length === 0 ? [] : this.#queued.render(width);
   }
@@ -709,27 +687,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   }
 
   #renderDocument(width: number): readonly string[] {
-    return this.#document.layout(width).rows;
-  }
-
-  transcriptComponent(id: string): OwnedUiShellTranscriptComponentPort | undefined {
-    return this.#document.component(id);
-  }
-
-  exitTranscript(width: number): string {
-    return this.#document.exitTranscript(width);
-  }
-
-  appendWorkflowStatus(message: string): void {
-    this.#workflowOutput.appendStatus(message);
-  }
-
-  appendWorkflowMessage(message: OwnedUiWorkflowMessage, errorCode?: ImageAttachmentError["code"]): void {
-    this.#workflowOutput.appendMessage(message, errorCode);
-  }
-
-  appendWorkflowResult(result: OwnedUiWorkflowResult, errorCode?: ImageAttachmentError["code"]): void {
-    this.#workflowOutput.appendResult(result, errorCode);
+    return this.transcript.layout(width).rows;
   }
 
   toggleThinkingVisibility(): void {
@@ -751,7 +709,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
 
   setExtensionHeader(component: OwnedUiShellComponentPort | null): void {
     this.#extensions.replaceHeader(component);
-    this.#document.invalidate("extension-header");
+    this.transcript.invalidate("extension-header");
     this.invalidate();
   }
 
@@ -802,9 +760,9 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   }
 
   resetWorkflowPresentation(): void {
-    this.#dockChrome.forgetNotice();
-    this.#dockChrome.clearCopyAcknowledgement(false);
-    this.#workflowOutput.reset();
+    this.chrome.forgetNotice();
+    this.chrome.clearCopyAcknowledgement(false);
+    this.workflow.reset();
     this.invalidate();
   }
 
@@ -813,16 +771,16 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     this.#syncWorkingOverride();
     this.#footer.update(this.#extensions.withStatuses(this.#view));
     // Invariant: an extension renderer may have drawn transcript blocks that are now unrendered by it.
-    this.#document.invalidate("extension-renderers");
+    this.transcript.invalidate("extension-renderers");
     this.invalidate();
   }
 
   addExtensionNotification(message: string, type: "info" | "warning" | "error"): void {
     if (type === "info") {
-      this.appendWorkflowStatus(message);
+      this.workflow.appendStatus(message);
       return;
     }
-    this.appendWorkflowMessage({ kind: type, message });
+    this.workflow.appendMessage({ kind: type, message });
   }
 
   extensionFooterData(): unknown {
@@ -847,7 +805,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   }
 
   transcriptRenderCount(): number {
-    return this.#document.renderCount;
+    return this.transcript.renderCount;
   }
 
   setFooterLevel(visible: boolean): void { this.#footerLevel = visible; }
@@ -865,7 +823,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   }
 
   invalidate(): void {
-    this.#document.invalidate("repaint");
+    this.transcript.invalidate("repaint");
     this.#invalidateChrome();
   }
 
@@ -886,12 +844,12 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   }
 
   dispose(): void {
-    this.#dockChrome.clearCopyAcknowledgement(false);
+    this.chrome.clearCopyAcknowledgement(false);
     this.clearViewportPointerState();
     this.#themeUnsubscribe();
     this.header.dispose?.();
     this.resources.dispose?.();
-    this.#document.dispose();
+    this.transcript.dispose();
     this.#layout.invalidate();
     this.#input.dispose();
     this.#extensions.dispose();
@@ -902,7 +860,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   }
 
   #invalidateTranscriptPresentation(): void {
-    this.#document.invalidate("block-presentation");
+    this.transcript.invalidate("block-presentation");
     this.invalidate();
   }
 
@@ -921,9 +879,9 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     this.#toolsExpanded = expanded;
     this.header.setExpanded(expanded);
     this.resources.setExpanded(expanded);
-    for (const component of this.#document.components()) component.setExpanded(expanded);
+    for (const component of this.transcript.components()) component.setExpanded(expanded);
     // Invariant: expansion changes what a block draws without changing its revision.
-    this.#document.invalidate("tools-expanded");
+    this.transcript.invalidate("tools-expanded");
     this.invalidate();
   }
 }

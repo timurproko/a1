@@ -58,7 +58,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
               : command === "debug"
                 ? { command, outcome: "completed" as const, message: "✓ Debug log written", detail: "D:/debug.log" }
                 : { command, outcome: "completed" as const, message: `route:${command}` };
-      shell.root.appendWorkflowResult(result);
+      shell.root.workflow.appendResult(result);
       for (const width of [44, 100]) {
         const frame = stripTerminalSequences(shell.root.render(width).join("\n"));
         expect(frame, `${command}@${width}`).not.toContain("{\n  \"");
@@ -286,7 +286,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
         "https://gist.github.com/example/id",
       ]);
 
-      shell.root.appendWorkflowStatus("ordinary status");
+      shell.root.workflow.appendStatus("ordinary status");
       const ordinaryRow = shell.root.render(100).find(row => stripTerminalSequences(row).includes("ordinary status"));
       expect(ordinaryRow).toBeDefined();
       expect(readVisibleHyperlinks(ordinaryRow!).ranges).toEqual([]);
@@ -432,8 +432,8 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
   it("rebinds extension UI and clears stale command presentation before reload status", async () => {
     const { engine, shell } = await fixture();
     expect(engine.session.calls.filter(call => call === "bindExtensions")).toHaveLength(1);
-    shell.root.appendWorkflowStatus("stale extension command status");
-    shell.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: "stale extension command error" });
+    shell.root.workflow.appendStatus("stale extension command status");
+    shell.root.workflow.appendResult({ command: "debug", outcome: "failed", message: "stale extension command error" });
     expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("stale extension command");
     await shell.runWorkflow({ command: "reload", argument: "" });
     expect(engine.session.calls.filter(call => call === "bindExtensions")).toHaveLength(2);
@@ -488,9 +488,9 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     engine.session.emit({ type: "agent_end", messages: [] });
     engine.session.emit({ type: "agent_settled" });
     await adapter.flushEvents();
-    shell.root.appendWorkflowStatus("first informational message");
-    shell.root.appendWorkflowResult({ command: "import", outcome: "failed", message: "Usage: /import <path.jsonl>" });
-    shell.root.appendWorkflowStatus("latest informational message");
+    shell.root.workflow.appendStatus("first informational message");
+    shell.root.workflow.appendResult({ command: "import", outcome: "failed", message: "Usage: /import <path.jsonl>" });
+    shell.root.workflow.appendStatus("latest informational message");
     rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
     const first = rows.findIndex(row => row.includes("first informational message"));
     const error = rows.findIndex(row => row.includes("Error: Usage: /import <path.jsonl>"));
@@ -511,7 +511,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       const plainRows = () => shell.root.render(80).map(row => stripTerminalSequences(row).trimEnd());
       const rowOf = (rows: readonly string[], text: string) => rows.findIndex(row => row.includes(text));
 
-      shell.root.appendWorkflowStatus("Switched to GPT-5.6 Sol (thinking: high)");
+      shell.root.workflow.appendStatus("Switched to GPT-5.6 Sol (thinking: high)");
       let rows = plainRows();
       const notice = rowOf(rows, "Switched to GPT-5.6 Sol (thinking: high)");
       const border = rows.findIndex((row, index) => index > notice && /^─+$/.test(row));
@@ -525,7 +525,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(descriptor?.dock?.rowStart).toBeLessThanOrEqual(notice + 1);
       expect(descriptor?.nextDocumentRange.end).toBe(0);
 
-      shell.root.appendWorkflowStatus("Thinking level: medium");
+      shell.root.workflow.appendStatus("Thinking level: medium");
       rows = plainRows();
       expect(rowOf(rows, "Switched to")).toBe(-1);
       expect(rowOf(rows, "Thinking level: medium")).toBe(notice);
@@ -537,7 +537,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       rows = plainRows();
       expect(rowOf(rows, "Thinking level: medium")).toBeGreaterThan(rowOf(rows, "Working…"));
 
-      shell.root.appendWorkflowStatus("Switched to GPT-6 Astra (thinking: high)");
+      shell.root.workflow.appendStatus("Switched to GPT-6 Astra (thinking: high)");
       rows = plainRows();
       const working = rowOf(rows, "Working…");
       let astra = rowOf(rows, "Switched to GPT-6 Astra");
@@ -574,13 +574,13 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(rowOf(rows, "next prompt")).toBeGreaterThan(-1);
       expect(rowOf(rows, "Switched to GPT-6 Astra")).toBe(-1);
 
-      shell.root.appendWorkflowStatus("Copied selected message to clipboard");
-      shell.root.appendWorkflowResult({ command: "import", outcome: "failed", message: "Usage: /import <path.jsonl>" });
+      shell.root.workflow.appendStatus("Copied selected message to clipboard");
+      shell.root.workflow.appendResult({ command: "import", outcome: "failed", message: "Usage: /import <path.jsonl>" });
       rows = plainRows();
       expect(rowOf(rows, "Copied selected message")).toBe(-1);
       expect(rowOf(rows, "Error: Usage: /import <path.jsonl>")).toBeGreaterThan(-1);
 
-      shell.root.appendWorkflowStatus("Model selection saved to settings");
+      shell.root.workflow.appendStatus("Model selection saved to settings");
       shell.runtime.renderNow();
       expect(rowOf(plainRows(), "Model selection saved to settings")).toBeGreaterThan(-1);
       // Performance: a notice changes the dock height once; keyboard input beside it keeps dock-only reuse.
@@ -712,7 +712,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
     try {
       terminal.resize(100, 20);
       const exportFailure = "Failed to export session: Nothing to export yet - start a conversation first";
-      shell.root.appendWorkflowResult({ command: "export", outcome: "failed", message: exportFailure });
+      shell.root.workflow.appendResult({ command: "export", outcome: "failed", message: exportFailure });
       let rawRows = shell.root.render(100);
       let rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
       let notice = rows.findIndex(row => row.includes(`Error: ${exportFailure}`));
@@ -725,7 +725,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(rawRows[notice]).toContain(piTheme().fg("error", `Error: ${exportFailure}`));
       expect(shell.root.viewportFrameDescriptor()?.nextDocumentRange.end).toBe(0);
 
-      shell.root.appendWorkflowMessage({ kind: "warning", message: "Use a destination with write access" });
+      shell.root.workflow.appendMessage({ kind: "warning", message: "Use a destination with write access" });
       rawRows = shell.root.render(100);
       rows = rawRows.map(row => stripTerminalSequences(row).trimEnd());
       expect(rows.some(row => row.includes(exportFailure))).toBe(false);
@@ -740,7 +740,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       expect(rows.some(row => row.includes("Use a destination"))).toBe(false);
       expect(rows.some(row => row.includes("Error: Extension export failed"))).toBe(true);
 
-      shell.root.appendWorkflowStatus("Model selection saved to settings");
+      shell.root.workflow.appendStatus("Model selection saved to settings");
       rows = shell.root.render(100).map(row => stripTerminalSequences(row).trimEnd());
       expect(rows.some(row => row.includes("Extension export failed"))).toBe(false);
       expect(rows.some(row => row.includes("Model selection saved to settings"))).toBe(true);
@@ -797,7 +797,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("renders /session with pinned structured groups, styles, and indentation instead of JSON", async () => {
     const { shell } = await fixture();
-    shell.root.appendWorkflowResult({
+    shell.root.workflow.appendResult({
       command: "session",
       outcome: "completed",
       message: "Session Info",
@@ -837,7 +837,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("renders explicit ordered partial-success messages without prefix inference", async () => {
     const { shell } = await fixture();
-    shell.root.appendWorkflowResult({
+    shell.root.workflow.appendResult({
       command: "login",
       outcome: "completed",
       message: "Saved API key for OpenAI Codex",
@@ -846,13 +846,13 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
         { kind: "error", message: "Saved API key for OpenAI Codex, but no models are available for that provider. Use /model to select a model." },
       ],
     });
-    shell.root.appendWorkflowResult({
+    shell.root.workflow.appendResult({
       command: "name",
       outcome: "failed",
       message: "Usage: /name <name>",
       messageKind: "warning",
     });
-    shell.root.appendWorkflowResult({ command: "fork", outcome: "cancelled", message: "Fork cancelled", messageKind: "silent" });
+    shell.root.workflow.appendResult({ command: "fork", outcome: "cancelled", message: "Fork cancelled", messageKind: "silent" });
 
     const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
     expect(frame.indexOf("Saved API key for OpenAI Codex. Credentials saved")).toBeLessThan(frame.indexOf("Error: Saved API key"));
@@ -863,18 +863,18 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("renders changelog, errors, and reload through pinned route-specific presentation", async () => {
     const { shell } = await fixture();
-    shell.root.appendWorkflowResult({
+    shell.root.workflow.appendResult({
       command: "changelog",
       outcome: "completed",
       message: "What's New",
       detail: "# Changelog\n\n## 0.84.2\n\n- **Fixed selection rendering**",
     });
-    shell.root.appendWorkflowResult({
+    shell.root.workflow.appendResult({
       command: "export",
       outcome: "failed",
       message: "Failed to export session: Nothing to export yet - start a conversation first",
     });
-    shell.root.appendWorkflowResult({
+    shell.root.workflow.appendResult({
       command: "reload",
       outcome: "completed",
       message: "Reloaded keybindings, extensions, skills, prompts, themes, and context files",
@@ -893,9 +893,9 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
 
   it("uses specialized hidden-command presenters without exposing raw debug objects", async () => {
     const { shell } = await fixture();
-    shell.root.appendWorkflowResult({ command: "debug", outcome: "completed", message: "✓ Debug log written", detail: "D:/agent/pi-debug.log" });
-    shell.root.appendWorkflowResult({ command: "arminsayshi", outcome: "completed", message: "Armin says hi" });
-    shell.root.appendWorkflowResult({ command: "dementedelves", outcome: "completed", message: "Demented elves announcement" });
+    shell.root.workflow.appendResult({ command: "debug", outcome: "completed", message: "✓ Debug log written", detail: "D:/agent/pi-debug.log" });
+    shell.root.workflow.appendResult({ command: "arminsayshi", outcome: "completed", message: "Armin says hi" });
+    shell.root.workflow.appendResult({ command: "dementedelves", outcome: "completed", message: "Demented elves announcement" });
     const plain = stripTerminalSequences(shell.root.render(100).join("\n"));
     expect(plain).toContain("✓ Debug log written");
     expect(plain).toContain("D:/agent/pi-debug.log");

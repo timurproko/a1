@@ -241,7 +241,7 @@ for (const theme of ["dark", "light"]) {
           state.onMissingCwd = () => setImmediate(() => shell.root.handleInput(entry.condition === "missing-cwd-declined" ? "\u001b" : "\r"));
           await changeBindings();
           if (entry.condition === "reload-bindings") await shell.runWorkflow({ command: "reload", argument: "" });
-          if (entry.prefixStatus) shell.root.appendWorkflowStatus(entry.prefixStatus);
+          if (entry.prefixStatus) shell.root.workflow.appendStatus(entry.prefixStatus);
           if (entry.command === "tree") shell.showTreeSelector(entry.argument);
           else await shell.runWorkflow({ command: entry.command, argument: entry.argument ?? "", ...(entry.selection === undefined ? {} : { selection: entry.selection }), ...(entry.command === "import" && entry.argument ? { confirmed: entry.condition !== "declined" } : {}) });
         }

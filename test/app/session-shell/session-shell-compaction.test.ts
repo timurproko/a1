@@ -47,7 +47,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
         const source = adapter.view().transcript.find(block => block.kind === "compaction")!;
         expect(source.payload).toMatchObject({ role: "compactionSummary", tokensBefore: 281483 });
         expect(adapter.view().transcript.slice(0, 3).map(block => block.kind)).toEqual(["compaction", "assistant", "user"]);
-        const rows = shell.root.transcriptComponent(source.id)!.render(80).map(stripTerminalSequences);
+        const rows = shell.root.transcript.component(source.id)!.render(80).map(stripTerminalSequences);
         expect(rows[0]).toContain("Compacted from 281,483 tokens");
         expect(rows.join("\n")).toContain("Synthetic retained detail 24.");
         expect(rows.join("\n")).not.toContain("END OF FULL COMPACTION SUMMARY");
@@ -62,7 +62,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
     try {
       const original = adapter.view().transcript.find(block => block.kind === "compaction")!;
       expect(original).toMatchObject({ text: compaction().summary, payload: { role: "compactionSummary", tokensBefore: 281483, timestamp: time } });
-      const source = shell.root.transcriptComponent(original.id)!;
+      const source = shell.root.transcript.component(original.id)!;
       expect(stripTerminalSequences(source.render(80).join("\n"))).toContain("summary-23 alpha beta");
       const next = { ...compaction(300001, "Fresh **summary** content."), timestamp: time + 2 };
       messages.push(next);
@@ -71,7 +71,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
       const latest = adapter.view().transcript.filter(block => block.kind === "compaction").at(-1)!;
       expect(latest.id).not.toBe(original.id);
       expect(latest).toMatchObject({ text: next.summary, payload: { tokensBefore: 300001, timestamp: next.timestamp } });
-      expect(stripTerminalSequences(shell.root.transcriptComponent(latest.id)!.render(80).join("\n"))).toContain("Compacted from 300,001 tokens");
+      expect(stripTerminalSequences(shell.root.transcript.component(latest.id)!.render(80).join("\n"))).toContain("Compacted from 300,001 tokens");
       engine.session.emit({ type: "agent_settled", messages });
       await adapter.flushEvents();
       expect(adapter.view().transcript.filter(block => block.kind === "compaction").map(block => block.text)).toEqual([compaction().summary, next.summary]);
@@ -102,9 +102,9 @@ describe("prompt-style compaction in the real engine and shell", () => {
       expect(shell.root.render(80)[0]).not.toContain("\u001b[2m");
       expect(frame.filter(row => row.includes("Compacted from 281,483 tokens"))).toHaveLength(1);
       expect(shell.root.viewportPresentationEvidence().maxScroll).toBe(firstExtent);
-      const whilePinned = shell.root.exitTranscript(80);
+      const whilePinned = shell.root.transcript.exitTranscript(80);
       await key("\u000f");
-      expect(shell.root.exitTranscript(80)).toBe(whilePinned);
+      expect(shell.root.transcript.exitTranscript(80)).toBe(whilePinned);
       terminal.input("\u001b[<0;5;1M");
       terminal.input("\u001b[<0;5;1m");
       frame = rows();
@@ -345,7 +345,7 @@ describe("prompt-style compaction in the real engine and shell", () => {
         terminal.input("\u001b[1;5H");
         const rows = shell.root.render(80);
         const source = adapter.view().transcript.find(block => block.kind === "compaction")!;
-        const renderer = shell.root.transcriptComponent(source.id)!;
+        const renderer = shell.root.transcript.component(source.id)!;
         const spy = vi.spyOn(renderer, "render");
         const linkRow = rows.find(row => stripTerminalSequences(row).includes("web"))!;
         const linkText = stripTerminalSequences(linkRow);
@@ -391,19 +391,19 @@ describe("prompt-style compaction in the real engine and shell", () => {
       const { engine, adapter, terminal, shell } = await fixture([compaction(), branch, reply("tail")], [], custom);
       try {
         terminal.resize(80, 16);
-        const before = shell.root.exitTranscript(80);
+        const before = shell.root.transcript.exitTranscript(80);
         if (!custom) {
           expect(before).toContain("ctrl+o");
           expect(before).not.toContain("summary-23 alpha beta");
         }
         const branchBlock = adapter.view().transcript.find(block => (block.payload as { role?: string }).role === "branchSummary")!;
-        expect(stripTerminalSequences(shell.root.transcriptComponent(branchBlock.id)!.render(80).join("\n"))).toContain("ctrl+o");
+        expect(stripTerminalSequences(shell.root.transcript.component(branchBlock.id)!.render(80).join("\n"))).toContain("ctrl+o");
         engine.session.emit({ type: "compaction_start", reason: "manual" });
         await adapter.flushEvents();
         expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("Compacting");
         engine.session.emit({ type: "compaction_end", reason: "manual", result: {}, aborted: false, willRetry: false });
         await adapter.flushEvents();
-        expect(shell.root.exitTranscript(80)).toBe(before);
+        expect(shell.root.transcript.exitTranscript(80)).toBe(before);
         expect(adapter.view().transcript.filter(block => block.kind === "compaction")).toHaveLength(2);
       } finally { await shell.dispose(); }
     }

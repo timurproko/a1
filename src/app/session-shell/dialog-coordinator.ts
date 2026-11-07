@@ -12,7 +12,7 @@ const STARTUP_ROUTE_RETRY_MS = 25;
 
 interface SessionDialogPorts {
   readonly terminal: Pick<OwnedUiPresenterTerminal, "running" | "hasOverlay" | "showOverlay" | "openRoute" | "requestRender">;
-  readonly root: Pick<OwnedUiSessionShellRoot, "dismissNotice" | "setInputSurface" | "usesDefaultInputSurface">;
+  readonly root: Pick<OwnedUiSessionShellRoot, "chrome" | "setInputSurface" | "usesDefaultInputSurface">;
   readonly routeHost: UiRouteHost | null;
   readonly dialogs: Pick<OwnedUiShellComponents["dialogs"], "dialog" | "selector">;
   readonly disposed: () => boolean;
@@ -95,7 +95,7 @@ export class SessionDialogCoordinator {
     if (surface === null) return { outcome: "failed", diagnostic: `route is unavailable: ${route}` };
     if (!this.#ports.terminal.running) return { outcome: "failed", diagnostic: "runtime is not active" };
 
-    this.#ports.root.dismissNotice();
+    this.#ports.root.chrome.dismissNotice();
     this.#handle?.hide();
     this.#source = "route";
     const handle = this.#ports.terminal.openRoute(surface, {

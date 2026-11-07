@@ -98,7 +98,7 @@ describe("bottom-control composition provenance", () => {
       const before = f.root.transcriptRenderCount();
       f.root.handleInput("x");
       // Invariant: this block is visible in the detached frame and its new text has the same height.
-      f.root.applyTranscriptBlock({ ...f.view.transcript[16]!, text: "NEW CONTENT", revision: 2 });
+      f.root.transcript.apply({ ...f.view.transcript[16]!, text: "NEW CONTENT", revision: 2 });
       const rows = f.render();
       expect(rows.some(row => stripAnsi(row).includes("NEW CONTENT"))).toBe(true);
       expect(f.root.transcriptRenderCount()).toBe(before + 1);
