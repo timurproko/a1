@@ -1,3 +1,4 @@
+import type { OwnedUiShellComponents } from "./shell-components.js";
 /**
  * Presenters for the selectors and transcript renderers whose inputs are engine objects. The shell opens them
  * through this port and never holds those objects; the Pi session presenters owner implements it.
@@ -76,6 +77,8 @@ export interface OwnedUiTranscriptRendererPort {
 }
 
 export interface OwnedUiSessionPresenters {
+  /** The vendor components and text helpers the shell renders with. */
+  readonly components: OwnedUiShellComponents;
   transcriptRenderers(): OwnedUiTranscriptRendererPort;
   openModelSelector(host: OwnedUiDialogHost, initialSearchInput?: string): void;
   openSessionSelector(host: OwnedUiDialogHost, onExit: () => void): Promise<void>;

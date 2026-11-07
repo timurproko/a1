@@ -85,7 +85,7 @@ async function shellFixture(options: {
     workflowHost: { copyText: async () => {}, runCommand: async () => ({ stdout: "", stderr: "" }), readChangelog },
   });
   // Invariant: the engine host announces the changelog once per process; the fixture stands in for it.
-  if (options.lastVersion !== undefined) await adapter.announceStartupChangelog();
+  if (options.lastVersion !== undefined) await adapter.announcements.startupChangelog();
   const terminal = new TestPresentationTerminal();
   const routes = options.routes === undefined ? routeHost() : options.routes;
   const shell = new OwnedUiSessionShell({
@@ -162,7 +162,7 @@ describe("bare A1 reference command screens", () => {
   it("dismisses a stale dock notice when the session reference screen opens", async () => {
     const { shell, terminal, routes } = await shellFixture({ customViewport: true });
     shell.start();
-    shell.root.appendWorkflowMessage({ kind: "warning", message: "stale route notice" });
+    shell.root.workflow.appendMessage({ kind: "warning", message: "stale route notice" });
     expect(feed(shell)).toContain("stale route notice");
 
     shell.root.editor.setText("/session");
@@ -315,7 +315,7 @@ describe("owned screens decode legacy and kitty keys alike", () => {
   async function changelogRoutes() {
     const root = mkdtempSync(path.join(tmpdir(), "a1-kitty-keys-"));
     roots.push(root);
-    const settings = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: [], migrations: [], agent: null });
+    const settings = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: [], agent: null });
     await settings.load();
     const rows = Array.from({ length: 40 }, (_row, index) => `row ${String(index + 1).padStart(2, "0")}`);
     const real = createOwnedRouteHost(settings, {

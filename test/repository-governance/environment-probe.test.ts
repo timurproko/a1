@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { posix, resolve, win32 } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { locateExecutable, probeVersion, PROBE_TIMEOUT_MS } from "../../scripts/development/environment-probe.mjs";
@@ -78,14 +77,5 @@ describe("build prerequisite executable probes", () => {
 
   it("can probe a real executable without external dependencies", () => {
     expect(probeVersion("node", { locate: () => process.execPath })).toEqual({ status: "ok", version: process.versions.node });
-  });
-});
-
-describe("CI native toolchains", () => {
-  it.each(["ci.yml", "publish.yml", "full-regression-shared.yml"])("provisions no Rust, Zig, or native build cache in %s", file => {
-    const source = readFileSync(`.github/workflows/${file}`, "utf8");
-    for (const forbidden of ["prepare-ci-rust", "setup-zig", "rust-cache", "rustup", "cargo ", "build:process-guardian", "build:terminal-host"]) {
-      expect(source, `${file} contains ${forbidden}`).not.toContain(forbidden);
-    }
   });
 });

@@ -1,3 +1,4 @@
+import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiWorkflowResult } from "../../../src/contracts/owned-ui/index.js";
 import { WorkflowOutput } from "../../../src/app/session-shell/workflow-output.js";
@@ -19,7 +20,7 @@ function harness(customViewport: boolean) {
   const dock = { setNotice: vi.fn(), dismissNotice: vi.fn() };
   const invalidate = vi.fn();
   const output = new WorkflowOutput({
-    customViewport,
+    customViewport, components: PI_SHELL_COMPONENTS,
     document: document as never,
     dock: dock as never,
     transcriptLength: () => transcriptLength,

@@ -1,8 +1,10 @@
+import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import { describe, expect, it, vi } from "vitest";
 
 const dialogs = vi.hoisted(() => [] as Record<string, ReturnType<typeof vi.fn>>[]);
 const selectors = vi.hoisted(() => [] as { choose(label: string): void; cancel(): void }[]);
-vi.mock("../../../src/integrations/pi/components/shell-selectors-dialogs.js", () => ({
+vi.mock("../../../src/integrations/pi/components/shell-selectors-dialogs.js", async importOriginal => ({
+  ...await importOriginal<object>(),
   createPiShellLoginDialog: (_runtime: unknown, _provider: string, done: (success: boolean) => void) => {
     const dialog = {
       done,
@@ -30,6 +32,7 @@ function harness() {
     root: { setInputSurface: vi.fn((surface: unknown) => surfaces.push(surface)) } as never,
     programStatus: { setBlocked: vi.fn((_kind: string, value: unknown) => blocked.push(value)) } as never,
     syncProgress,
+    dialogs: PI_SHELL_COMPONENTS.dialogs,
   });
   return { login, surfaces, blocked, syncProgress };
 }

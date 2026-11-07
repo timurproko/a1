@@ -1,3 +1,5 @@
+import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/session-presenters/presentation.js";
+import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
 import { applyPiTheme, piTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
@@ -24,6 +26,7 @@ function fixture(length = 20) {
   const geometry = { columns: 60, rows: 16 };
   let onFrame: (() => void) | undefined;
   const root = new OwnedUiSessionShellRoot(view, "D:/work", {
+    presentation: PI_SHELL_PRESENTATION, components: PI_SHELL_COMPONENTS,
     getColumns: () => geometry.columns, getRows: () => geometry.rows,
     requestRender: force => renders.push(force), onViewportFrame: () => onFrame?.(),
     onSubmit() {}, onInterrupt() {}, onExit() {}, onModelSelect() {}, onThinkingCycle() {},
@@ -95,7 +98,7 @@ describe("bottom-control composition provenance", () => {
       const before = f.root.transcriptRenderCount();
       f.root.handleInput("x");
       // Invariant: this block is visible in the detached frame and its new text has the same height.
-      f.root.applyTranscriptBlock({ ...f.view.transcript[16]!, text: "NEW CONTENT", revision: 2 });
+      f.root.transcript.apply({ ...f.view.transcript[16]!, text: "NEW CONTENT", revision: 2 });
       const rows = f.render();
       expect(rows.some(row => stripAnsi(row).includes("NEW CONTENT"))).toBe(true);
       expect(f.root.transcriptRenderCount()).toBe(before + 1);

@@ -175,7 +175,7 @@ describe("transcript content retention across renderer boundaries", () => {
         result: { content: [{ type: "text", text: "SETTLED_OUTPUT" }] }, isError: false });
     const result = backend.view().transcript.find(block => block.id === "tool-call-1")!;
     shell.root.update(backend.view());
-    shell.root.applyTranscriptBlock({ ...result, revision: result.revision + 20, kind: "tool-call", status: "live",
+    shell.root.transcript.apply({ ...result, revision: result.revision + 20, kind: "tool-call", status: "live",
       toolState: { argsComplete: true, execution: "running" }, text: "OBSOLETE_OUTPUT", payload: { partialResult: true } });
     expect(textRows(shell.root.render(80))).toContain("SETTLED_OUTPUT");
     expect(textRows(shell.root.render(80))).not.toContain("OBSOLETE_OUTPUT");
@@ -270,7 +270,7 @@ describe("transcript content retention across renderer boundaries", () => {
     expect(result.toolRendering?.arguments).toEqual(args);
     expect(result.toolRendering?.result?.details).toBeUndefined();
     expect(result.toolRendering?.unavailable).toContain("Tool details unavailable");
-    expect(textRows(shell.root.transcriptComponent(result.id)!.render(80))).toContain("HISTORY_RESULT");
+    expect(textRows(shell.root.transcript.component(result.id)!.render(80))).toContain("HISTORY_RESULT");
   });
 
   it("preserves the pinned renderer error fallback", async () => {
@@ -289,7 +289,7 @@ describe("transcript content retention across renderer boundaries", () => {
     await emit({ type: "message_end", message: assistantCall("png", "unknown", {}) });
     await emit({ type: "tool_execution_end", toolCallId: "png", toolName: "unknown", args: {},
       result: { content: [{ type: "image", data, mimeType: "image/png" }] }, isError: false });
-    const component = shell.root.transcriptComponent("tool-png")!;
+    const component = shell.root.transcript.component("tool-png")!;
     const rows = component.render(80).join("\n");
     expect(rows.match(/\u001b_Ga=T/g)).toHaveLength(1);
     component.setImagePresentation(false, 80);
@@ -319,7 +319,7 @@ describe("transcript content retention across renderer boundaries", () => {
     requested.mockClear();
     reference.updateResult(result);
     await emit({ type: "tool_execution_end", toolCallId: "edit", toolName: "edit", args, result, isError: false });
-    const component = shell.root.transcriptComponent("tool-edit")!;
+    const component = shell.root.transcript.component("tool-edit")!;
     expect(textRows(component.render(100))).toContain("AUTHORITATIVE_FINAL_DIFF");
     await vi.waitFor(() => expect(requested).toHaveBeenCalled());
     await vi.waitFor(() => expect(component.presentationRevision).toBeGreaterThan(0));
@@ -336,7 +336,7 @@ describe("transcript content retention across renderer boundaries", () => {
       const args = { path, edits: [{ oldText: "old", newText: "PREVIEW_NOT_FINAL" }] };
       const { emit, shell } = await fixture();
       await emit({ type: "message_end", message: assistantCall("edit-preview", "edit", args) });
-      const component = shell.root.transcriptComponent("tool-edit-preview")!;
+      const component = shell.root.transcript.component("tool-edit-preview")!;
       await vi.waitFor(() => expect(textRows(component.render(100))).toContain("PREVIEW_NOT_FINAL"));
       const result = { content: [{ type: "text" as const, text: "Success" }],
         details: { diff: "-1 old\n+1 AUTHORITATIVE_FINAL_DIFF", firstChangedLine: 1 }, isError: false };
@@ -360,13 +360,13 @@ describe("transcript content retention across renderer boundaries", () => {
       }, renderResult,
     }]]) });
     await emit({ type: "message_end", message: assistantCall("images", "images", {}) });
-    const mounted = shell.root.transcriptComponent("tool-images");
+    const mounted = shell.root.transcript.component("tool-images");
     for (const data of ["AQID", "BAUG"]) {
       const content = [{ type: "image", data, mimeType: "image/png" }];
       await emit({ type: "tool_execution_update", toolCallId: "images", toolName: "images", partialResult: { content } });
       expect(renderResult).toHaveBeenLastCalledWith(expect.objectContaining({ content }), expect.anything(), expect.anything(), expect.anything());
       expect(backend.view().transcript.at(-1)?.imageReferences).toHaveLength(1);
-      expect(shell.root.transcriptComponent("tool-images")).toBe(mounted);
+      expect(shell.root.transcript.component("tool-images")).toBe(mounted);
       expect(states.size).toBe(1);
     }
   });
@@ -382,7 +382,7 @@ describe("transcript content retention across renderer boundaries", () => {
       }]]) });
     await emit({ type: "tool_execution_end", toolCallId: "async", toolName: "async", args: {}, result: { content: [] }, isError: false });
     await vi.waitFor(() => expect(textRows(terminal.writes.map(write => write.data))).toContain(label));
-    const stable = vi.spyOn(shell.root.transcriptComponent(backend.view().transcript[0]!.id)!, "render");
+    const stable = vi.spyOn(shell.root.transcript.component(backend.view().transcript[0]!.id)!, "render");
     const request = vi.spyOn(shell.runtime, "requestRender");
     const offset = terminal.writes.length;
     const revision = backend.view().transcript.at(-1)!.revision;
@@ -404,7 +404,7 @@ describe("transcript content retention across renderer boundaries", () => {
     }]]) });
     await emit({ type: "tool_execution_end", toolCallId: "async", toolName: "async", args: {}, result: { content: [] }, isError: false });
     const obsoleteMount = invalidate;
-    shell.root.transcriptComponent("tool-async")!.setOutputPad(0);
+    shell.root.transcript.component("tool-async")!.setOutputPad(0);
     const request = vi.spyOn(shell.runtime, "requestRender");
     obsoleteMount();
     expect(request).not.toHaveBeenCalled();
@@ -441,12 +441,12 @@ describe("transcript content retention across renderer boundaries", () => {
     const { emit, shell, backend } = await fixture();
     setCapabilities({ ...getCapabilities(), images: null });
     await emit({ type: "message_end", message: assistantCall("image", "unknown-image-tool", {}) });
-    const mounted = shell.root.transcriptComponent("tool-image");
+    const mounted = shell.root.transcript.component("tool-image");
     await emit({ type: "message_end", message: {
       role: "toolResult", timestamp: 25, toolCallId: "image", toolName: "unknown-image-tool", isError: false,
       content: [{ type: "image", mimeType: "image/png", data: "AQID" }],
     } });
-    expect(shell.root.transcriptComponent("tool-image")).toBe(mounted);
+    expect(shell.root.transcript.component("tool-image")).toBe(mounted);
     expect(backend.view().transcript.find(block => block.id === "tool-image")?.imageReferences).toHaveLength(1);
     expect(textRows(shell.root.render(80))).not.toMatch(/\[Image/);
   });

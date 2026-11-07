@@ -1,6 +1,6 @@
+import type { OwnedUiShellEditorPort } from "../../contracts/owned-ui/index.js";
 import { randomUUID } from "node:crypto";
 import { PROMPT_HISTORY_MAX_TEXT_BYTES, type PromptHistoryKind, type PromptHistoryPort, type PromptHistorySnapshot } from "../../contracts/owned-ui/index.js";
-import type { PiShellEditorPort } from "../../integrations/pi/components/index.js";
 
 /** Merges bounded recall snapshots; the editor alone owns browsing, draft, cursor, and undo state. */
 export class PromptHistoryController {
@@ -17,7 +17,7 @@ export class PromptHistoryController {
   #closePromise: Promise<boolean> | undefined;
 
   readonly options: {
-    editor: PiShellEditorPort;
+    editor: OwnedUiShellEditorPort;
     store: PromptHistoryPort;
     limit: number;
     fallback: readonly string[];
@@ -29,7 +29,7 @@ export class PromptHistoryController {
     rehydrate?: (text: string) => string;
   };
   constructor(options: {
-    editor: PiShellEditorPort;
+    editor: OwnedUiShellEditorPort;
     store: PromptHistoryPort;
     limit: number;
     fallback: readonly string[];

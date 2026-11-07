@@ -1,9 +1,7 @@
 export type CodeDocumentationSourceRole =
   | "first-party-production"
   | "first-party-tooling"
-  | "first-party-native"
   | "synchronized"
-  | "vendored"
   | "generated"
   | "ignored"
   | "unmatched";

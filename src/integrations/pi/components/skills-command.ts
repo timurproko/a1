@@ -3,9 +3,9 @@ import type { PiShellAutocompleteCommand } from "./shell-shared-facade.js";
 
 /** The collapsed bare-A1 replacement for the per-skill command listing. */
 export const SKILLS_COMMAND_NAME = "skills";
-export const SKILLS_COMMAND_DESCRIPTION = "Browse, search, and apply a skill";
+const SKILLS_COMMAND_DESCRIPTION = "Browse, search, and apply a skill";
 /** Pi's own command prefix; the engine expands `/skill:<name>` regardless of how the menu presents it. */
-export const SKILL_COMMAND_PREFIX = "skill:";
+const SKILL_COMMAND_PREFIX = "skill:";
 const SKILLS_TUNNEL_PREFIX = `${SKILLS_COMMAND_NAME}:`;
 /** The tunnel form follows v2: a name without whitespace right after the colon. */
 const SKILLS_TUNNEL_INPUT = /^\/skills:(\S*)$/u;
@@ -25,7 +25,7 @@ export interface PiShellCollapsedSkillCommands {
 }
 
 /** One line of description, as the v2 extension shows it beside a row. */
-export function oneLineSkillDescription(description: string): string {
+function oneLineSkillDescription(description: string): string {
   return description.replace(/\s+/gu, " ").trim();
 }
 
@@ -102,13 +102,13 @@ export function rewriteSkillsTunnelSubmission(text: string): string {
 }
 
 /** The tunnel query when single-line content before the cursor is exactly `/skills:<query>`. */
-export function skillsTunnelQuery(lines: readonly string[], cursorLine: number, cursorCol: number): string | null {
+function skillsTunnelQuery(lines: readonly string[], cursorLine: number, cursorCol: number): string | null {
   if (cursorLine !== 0 || lines.length !== 1) return null;
   const match = SKILLS_TUNNEL_INPUT.exec((lines[0] ?? "").slice(0, cursorCol));
   return match === null ? null : match[1] ?? "";
 }
 
-export function skillsTunnelItems(skills: readonly PiShellSkillSummary[], query: string): AutocompleteItem[] {
+function skillsTunnelItems(skills: readonly PiShellSkillSummary[], query: string): AutocompleteItem[] {
   return skills.filter(skill => skillMatchesQuery(skill, query)).map(skill => ({
     value: `${SKILLS_TUNNEL_PREFIX}${skill.name}`,
     label: `${SKILLS_TUNNEL_PREFIX}${skill.name}`,

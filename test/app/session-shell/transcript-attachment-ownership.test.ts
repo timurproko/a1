@@ -103,13 +103,13 @@ describe("transcript attachment ownership", () => {
     const value = await fixture();
     await value.emit(update("mounted", "AQID"));
     const original = assetId(value, "mounted");
-    const mounted = value.shell.root.transcriptComponent("tool-mounted")!;
+    const mounted = value.shell.root.transcript.component("tool-mounted")!;
     value.session.emit(update("mounted", "BAUG"));
     expect(value.backend.extensions.resolveTranscriptImage(original)).toBeNull();
     mounted.setOutputPad(0);
     expect(mounted.render(80).join("\n")).not.toContain("Image unavailable");
     await value.backend.session.flushEvents();
-    expect(value.shell.root.transcriptComponent("tool-mounted")).toBe(mounted);
+    expect(value.shell.root.transcript.component("tool-mounted")).toBe(mounted);
   });
 
   it("uses bounded recovery rather than deleting sources when history replacement cannot seal the queue", async () => {

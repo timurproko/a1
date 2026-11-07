@@ -6,7 +6,7 @@ import { basename, dirname, resolve } from "node:path";
 import { valid as validSemver } from "semver";
 import { readLaunchContext } from "../launch-context/index.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
-import { CohortStateStore, type CohortState } from "./cohort-state.js";
+import { ReleaseStateStore, type ReleaseState } from "./release-state.js";
 import { processIsAlive } from "./process-liveness.js";
 import { isNewerRelease, releaseChannelOf, type AvailableRelease, type ReleaseChannel } from "./latest-release.js";
 import { readCertifiedReleaseManifest, resolveReleaseEntryPoint } from "./release-store.js";
@@ -14,13 +14,13 @@ import { acquireUpdateExecutionLease, readUpdateExecutionOwner } from "./update-
 import { UpdateTransactionStore } from "./update-transaction.js";
 import { runSelfUpdate, UPDATE_ALREADY_RUNNING_EXIT_CODE, type UpdateOutput } from "./update.js";
 
-export const AUTOMATIC_UPDATE_STATE_SCHEMA = 1;
-export const AUTOMATIC_UPDATE_RETRY_MS = 24 * 60 * 60_000;
+const AUTOMATIC_UPDATE_STATE_SCHEMA = 1;
+const AUTOMATIC_UPDATE_RETRY_MS = 24 * 60 * 60_000;
 const AUTOMATIC_UPDATE_STATE_FILENAME = "automatic-update.json";
 const MAX_STATE_BYTES = 16_384;
 const OBSERVER_POLL_MS = 250;
 const WORKER_START_GRACE_MS = 5_000;
-export const ACTIVE_RELEASE_FALLBACK_MS = 5_000;
+const ACTIVE_RELEASE_FALLBACK_MS = 5_000;
 
 export interface AutomaticUpdateState {
   readonly schema: typeof AUTOMATIC_UPDATE_STATE_SCHEMA;
@@ -33,7 +33,7 @@ export interface AutomaticUpdateState {
   readonly failure: string | null;
 }
 
-export class AutomaticUpdateStateStore {
+class AutomaticUpdateStateStore {
   readonly path: string;
   constructor(dataDir: string) { this.path = resolve(dataDir, AUTOMATIC_UPDATE_STATE_FILENAME); }
 
@@ -69,7 +69,7 @@ export class AutomaticUpdateStateStore {
   }
 }
 
-export interface ActiveReleaseObservationOptions {
+interface ActiveReleaseObservationOptions {
   readonly runningVersion: string;
   readonly environment?: NodeJS.ProcessEnv;
   readonly signal?: AbortSignal;
@@ -78,7 +78,7 @@ export interface ActiveReleaseObservationOptions {
 }
 
 /** Read the approved active release only when this process executes an older release on that channel. */
-export async function readNewerActiveRelease(
+async function readNewerActiveRelease(
   runningVersion: string,
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<string | null> {
@@ -95,7 +95,7 @@ export async function readNewerActiveRelease(
 export function observeNewerActiveRelease(options: ActiveReleaseObservationOptions): () => void {
   if (releaseChannelOf(options.runningVersion) === null || options.signal?.aborted) return () => {};
   const paths = resolveProductPaths(options.environment ?? process.env);
-  const store = new CohortStateStore(paths.dataDir);
+  const store = new ReleaseStateStore(paths.dataDir);
   let closed = false;
   let checking = false;
   let requested = false;
@@ -141,7 +141,7 @@ export function observeNewerActiveRelease(options: ActiveReleaseObservationOptio
   return stop;
 }
 
-export interface AutomaticUpdateRequestOptions {
+interface AutomaticUpdateRequestOptions {
   readonly release: AvailableRelease;
   readonly runningVersion: string;
   readonly environment?: NodeJS.ProcessEnv;
@@ -149,7 +149,7 @@ export interface AutomaticUpdateRequestOptions {
   readonly now?: () => number;
   readonly spawnWorker?: (entry: string, arguments_: readonly string[], environment: NodeJS.ProcessEnv) => Promise<void>;
   readonly sleep?: (durationMs: number) => Promise<void>;
-  /** Focused-test seams; production resolves both from the certified launch cohort. */
+  /** Focused-test seams; production resolves both from the certified launch release. */
   readonly worker?: { readonly entry: string; readonly packageRoot: string };
   readonly activeVersion?: () => Promise<string | null>;
 }
@@ -193,8 +193,8 @@ export async function requestAutomaticUpdate(options: AutomaticUpdateRequestOpti
   let worker = options.worker;
   if (worker === undefined) {
     const launch = readLaunchContext(environment, "release");
-    const cohort = await new CohortStateStore(paths.dataDir).read();
-    const record = launch.releaseId === undefined ? undefined : cohort.releases[launch.releaseId];
+    const releaseState = await new ReleaseStateStore(paths.dataDir).read();
+    const record = launch.releaseId === undefined ? undefined : releaseState.releases[launch.releaseId];
     if (!record || record.approval !== "approved" || record.releaseRoot !== launch.releaseRoot
       || record.contentDigest !== launch.releaseDigest) return null;
     const selected = await readCertifiedReleaseManifest(record, resolve(paths.dataDir, "releases"));
@@ -243,8 +243,8 @@ export async function runAutomaticUpdateWorker(argv: readonly string[], environm
   let verified = false;
   try {
     const launch = readLaunchContext(environment, "release");
-    const cohort = await new CohortStateStore(paths.dataDir).read();
-    const record = launch.releaseId === undefined ? undefined : cohort.releases[launch.releaseId];
+    const releaseState = await new ReleaseStateStore(paths.dataDir).read();
+    const record = launch.releaseId === undefined ? undefined : releaseState.releases[launch.releaseId];
     if (record?.approval === "approved" && samePath(record.releaseRoot, launch.releaseRoot ?? "")
       && record.contentDigest === launch.releaseDigest) {
       const selected = await readCertifiedReleaseManifest(record, resolve(paths.dataDir, "releases"));
@@ -337,7 +337,7 @@ async function activeNewerVersion(dataDir: string, runningVersion: string, targe
 }
 
 function activeNewerPackageVersion(
-  active: CohortState["releases"][string] | null,
+  active: ReleaseState["releases"][string] | null,
   runningVersion: string,
   channel: ReleaseChannel,
   minimum?: string,
@@ -348,11 +348,11 @@ function activeNewerPackageVersion(
     ? active.packageVersion : null;
 }
 
-async function activeRelease(dataDir: string): Promise<CohortState["releases"][string] | null> {
-  const cohort = await new CohortStateStore(dataDir).read();
-  const activeId = cohort.references.active;
+async function activeRelease(dataDir: string): Promise<ReleaseState["releases"][string] | null> {
+  const releaseState = await new ReleaseStateStore(dataDir).read();
+  const activeId = releaseState.references.active;
   if (activeId === null) return null;
-  const active = cohort.releases[activeId];
+  const active = releaseState.releases[activeId];
   return active?.approval === "approved" ? active : null;
 }
 

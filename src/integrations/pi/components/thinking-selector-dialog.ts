@@ -2,7 +2,7 @@ import { ThinkingSelectorComponent } from "../startup-public.js";
 import { OwnedThinkingSelectorComponent, type ThinkingSelectorLevel } from "./upstream/components/thinking-selector.js";
 import { componentPort, ensureTheme, type PiShellComponentPort } from "./shell-shared-facade.js";
 
-export interface PiShellThinkingSelectorPresentation {
+interface PiShellThinkingSelectorPresentation {
   readonly profile: "bare";
   readonly cycleBinding: string | readonly string[];
 }

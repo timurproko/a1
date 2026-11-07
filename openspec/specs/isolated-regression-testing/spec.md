@@ -35,32 +35,6 @@ Automated scenarios SHALL isolate application state, release and update state, r
 - **AND** the original failure SHALL remain visible without leaking executor capacity, owned processes, or fixture state into a later scenario
 - **AND** assertions about configured executor capacity SHALL NOT be reduced to accommodate leaked state
 
-### Requirement: Physical-host automation is isolated from the user's desktop
-Any automation that launches, focuses, drives, resizes, captures, or closes a terminal window, injects operating-system input, changes interactive desktop state, or cleans up terminal processes SHALL execute only inside a dedicated disposable worker or virtual machine with an exclusive test desktop and no user-owned applications. Isolation SHALL be verified before process launch, and cleanup SHALL target only exact recorded process/start identities.
-
-#### Scenario: Safe isolation is unavailable
-- **WHEN** a physical-host scenario cannot prove dedicated worker and exclusive-desktop ownership
-- **THEN** it SHALL return a blocked or skipped verdict without launching a terminal, injecting input, or changing the desktop
-
-#### Scenario: Development workstation is active
-- **WHEN** an agent invokes a physical gate from a workstation containing the user's applications
-- **THEN** that workstation MAY only submit a non-interactive job to an already isolated worker and SHALL NOT host the automated terminal workload
-
-#### Scenario: Physical cleanup runs
-- **WHEN** an isolated physical scenario finishes or times out
-- **THEN** cleanup SHALL stop only its exact recorded process tree and SHALL leave every pre-existing or unverified process untouched
-
-### Requirement: Transparent validation is manual-first
-After non-desktop structural, lifecycle, and integration gates pass, A1 SHALL provide an exact candidate and checklist for the user to launch, interact with, and close manually. The checkpoint SHALL NOT automate terminal launch, focus, input, resize, closure, or workstation process cleanup.
-
-#### Scenario: Candidate becomes manually testable
-- **WHEN** transparent implementation and non-desktop checks are complete
-- **THEN** A1 SHALL provide exact build/install/launch steps and checks for rendering, input, selection, mouse, resize, exit, and parent-shell usability without starting it automatically
-
-#### Scenario: Manual regression is reported
-- **WHEN** the user reports a failure
-- **THEN** A1 SHALL preserve the finding, correct it, and repeat affected non-desktop and manual checks
-
 ### Requirement: Uncertified development previews are explicit
 A preview published under npm tag `next` SHALL pass the fast tier, architecture
 checks, and exact packed-candidate gates (package content, clean install, dependency
@@ -86,38 +60,6 @@ Domain, release-store, update-transaction, package identity, dependency-policy, 
 #### Scenario: A terminal implementation is removed
 - **WHEN** obsolete renderer, mode, input, or simulator code is deleted
 - **THEN** architecture-independent tests SHALL continue validating their owned contracts without importing retired modules
-
-### Requirement: Stable transparent acceptance uses independent physical evidence
-Claims of certified terminal parity or platform support SHALL rest on comparing
-transparent rendering, character presentation, input identity, selection, clipboard,
-scrollback, mouse, resize, modes, latency, exit, and restoration against direct
-execution through actual supported host-terminal behavior. A test encoder, emulator,
-or A1 terminal model SHALL NOT be the sole oracle.
-
-Physical evidence governs what A1 may claim, not whether a version may be published.
-Where no physical evidence exists for a platform, that platform SHALL remain
-uncertified and A1 SHALL NOT represent it as supported — and a release MAY still
-publish, because withholding releases for evidence no machine produces protects
-nobody.
-
-#### Scenario: Physical certification is attempted
-- **WHEN** direct and transparent workloads are compared on a supported platform
-- **THEN** evidence SHALL originate from isolated native host actions, child effects, physical observations, exact process identity, and exact packaged bytes
-
-#### Scenario: One generic workload fails
-- **WHEN** Native Pi passes but another application-independent workload exposes a terminal difference
-- **THEN** the capability and platform SHALL remain uncertified
-
-#### Scenario: No physical worker exists
-- **WHEN** a platform has no physical evidence at all
-- **THEN** that platform SHALL remain uncertified and unclaimed, and publication SHALL NOT be blocked on it
-
-### Requirement: Raw relay is not an implicit transparent fallback
-A raw PTY relay SHALL NOT replace selected direct attachment unless a future change establishes a mandatory PTY-ownership constraint and independently proves complete physical parity.
-
-#### Scenario: No mandatory PTY constraint exists
-- **WHEN** direct attachment satisfies the selected single-foreground lifecycle
-- **THEN** A1 SHALL not add a raw relay, parser, input translation, or shadow terminal authority
 
 ### Requirement: Packaged candidates validate exact publication artifacts
 Every publication SHALL pack once, SHALL bind the packed bytes to the source commit

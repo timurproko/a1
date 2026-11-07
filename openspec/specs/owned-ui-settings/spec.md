@@ -85,21 +85,6 @@ A1 SHALL treat a global settings file or product object it cannot read, parse, o
 - **WHEN** the shared settings location cannot be written
 - **THEN** the session SHALL continue with resolved values, the failed change outcome SHALL remain authoritative, the optimistic change SHALL roll back, and the surface SHALL NOT claim the change was saved or replace shortcut hints
 
-### Requirement: Stored settings migrate forward on read
-The embedded product object SHALL carry no schema version. A1 SHALL migrate recognizable legacy keys or value shapes through ordered, idempotent compatibility transforms, preserve the user's intent, and persist the normalized non-default form on the next accepted change. A transform SHALL be selected by the legacy shape it recognizes, SHALL leave current or unknown data unchanged, and SHALL fail safely when the shape is ambiguous.
-
-#### Scenario: Read an older supported version
-- **WHEN** stored product data contains a recognized legacy key or value shape
-- **THEN** the normalized value SHALL apply and the resolved set SHALL match what the user last chose
-
-#### Scenario: Migrate a renamed setting
-- **WHEN** a compatibility transform recognizes a renamed or restructured setting the user had changed
-- **THEN** the user's value SHALL appear under the current declaration rather than reverting to the default
-
-#### Scenario: Migration cannot complete
-- **WHEN** legacy product data is ambiguous or a required compatibility transform fails
-- **THEN** A1 SHALL resolve safe declared defaults for affected settings, report the condition, and preserve the original properties
-
 ### Requirement: A changed setting applies to the running session
 A1 SHALL apply a changed setting at the application boundary declared by its resolved entry and SHALL keep effective values consistent across every surface that reads them. Each presented setting SHALL declare one of `live`, `next-session`, `next-start`, or `current-exit`. A live setting SHALL take effect before the change reports success. A deferred setting SHALL store the selected value while the running owner retains its previous value until the declared boundary. A setting unavailable in the active product mode or environment SHALL be omitted from the settings UI without an unavailable placeholder row. These rules SHALL apply equally to A1 settings and settings supplied through the engine settings port.
 
@@ -277,62 +262,6 @@ SHALL be presented whole, rather than narrowed to the settings whose own names r
 - **WHEN** the filter matches no section name
 - **THEN** only the settings whose own names match SHALL be shown
 
-### Requirement: The custom viewport exposes grouped appearance, style, and speed settings
-A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` as live-applicable A1 settings grouped under a `Scroll` settings section. The visible row labels SHALL be `Scrollbar mode`, `Scrollbar style`, and `Speed`, without a redundant `A1` section or `(default)` suffix. `scrollbarAppearance` SHALL allow exactly `auto`, `always`, and `hidden`, with `auto` as its default. `scrollbarStyle` SHALL allow exactly `thin` and `thick`, with `thin` as its default. `scrollbarSpeed` SHALL allow exactly `normal`, `fast`, and `high`, in that order, with `normal` as its default. The settings SHALL be stored and resolved through the existing profile-local A1 settings document and SHALL NOT be read from or written to agent settings.
-
-#### Scenario: Resolve defaults
-- **WHEN** the active A1 profile has no stored scrollbar values
-- **THEN** `scrollbarAppearance` SHALL resolve to `auto`
-- **AND** `scrollbarStyle` SHALL resolve to `thin`
-- **AND** `scrollbarSpeed` SHALL resolve to `normal`
-
-#### Scenario: Migrate the former appearance value
-- **WHEN** a version-two settings document stores `scrollbarAppearance` as `hover`
-- **THEN** migration SHALL store and resolve it as `auto`
-
-#### Scenario: Change appearance live
-- **WHEN** the reader changes `scrollbarAppearance` to an allowed value
-- **THEN** the running bare-A1 viewport SHALL apply that appearance without restart
-- **AND** every surface reading the setting in that session SHALL observe the same value
-
-#### Scenario: Change style live
-- **WHEN** the reader changes `scrollbarStyle` to an allowed value
-- **THEN** the running bare-A1 viewport SHALL apply that style without restart
-- **AND** its scroll position and follow state SHALL remain unchanged
-
-#### Scenario: Change speed live
-- **WHEN** the reader changes `scrollbarSpeed` to `normal`
-- **THEN** each transcript wheel event SHALL move three document rows
-- **WHEN** the reader changes it to `fast`
-- **THEN** each transcript wheel event SHALL move six document rows without restart
-- **AND** selection edge auto-scroll SHALL run twice as fast as `normal`
-- **WHEN** the reader changes it to `high`
-- **THEN** each transcript wheel event SHALL move nine document rows without restart
-- **AND** selection edge auto-scroll SHALL run at the combined `normal` plus `fast` rate
-
-#### Scenario: Persist viewport settings
-- **WHEN** any scrollbar setting is accepted and A1 is restarted with the same profile
-- **THEN** the accepted value SHALL be restored from that profile's A1 settings document
-- **AND** the same value SHALL survive a fresh repository-local launch instance and rebuilt development candidate
-- **AND** future A1-owned settings sections SHALL use the same declaration, resolution, migration, and atomic-store system
-- **AND** no Pi or agent settings document SHALL be changed by that write
-
-#### Scenario: Inspect the Scroll settings section
-- **WHEN** the owned settings screen is presented
-- **THEN** it SHALL offer the declared mode, style, and speed values under `Scroll`
-- **AND** those controls SHALL be labeled `Scrollbar mode`, `Scrollbar style`, and `Speed`
-
-#### Scenario: Point at and change settings
-- **WHEN** the owned settings screen is open in fullscreen mode
-- **THEN** pointer motion over a value SHALL show its hover state
-- **AND** clicking an enumerated value SHALL open its dropdown
-- **AND** clicking a numeric minus or plus control SHALL apply that step
-- **AND** all other settings-screen pointer reports SHALL be consumed without starting terminal text selection
-
-#### Scenario: Use the pinned comparison profile
-- **WHEN** `a1 pi` presents its pinned interface
-- **THEN** A1's stored scrollbar appearance, style, and speed SHALL NOT modify that interface's scrollbar or wheel behavior
-
 ### Requirement: The settings list scrollbar follows the shared scrollbar settings
 The owned settings screen SHALL present its list scrollbar through the shared scrollbar presentation policy using the currently effective `scrollbarAppearance` and `scrollbarStyle`, including an accepted live value pending source reflection, rather than drawing a rail whenever the list overflows. Under `always` the rail SHALL be drawn whenever the list overflows. Under `auto` the rail SHALL be drawn while the list scrolls and for the transcript's linger afterwards, or while the pointer is over the rail or dragging its thumb, and SHALL fade on its own once the linger passes. Under `hidden` no rail SHALL be drawn and no rail column SHALL be reserved. Under `auto` and `always` the rail column SHALL remain reserved while the list fits, so revealing the rail does not reflow the rows. `thick`, a hovered thumb, and a dragged thumb SHALL use the shared thick glyph.
 
@@ -403,35 +332,8 @@ The owned settings screen SHALL jump to the first setting on `Ctrl+Home` and to 
 - **WHEN** a terminal delivers the xterm modifier or rxvt Ctrl encoding of `Ctrl+Home` or `Ctrl+End`
 - **THEN** the settings screen SHALL perform the same boundary jump
 
-### Requirement: Appearance settings own the exit-animation toggle
-A1 SHALL declare `quitAnimation` as a boolean defaulting to `true`, labeled `Quit animation`, in the `Appearance` section immediately after `Background`; `Generic` SHALL remain the first section and contain `Update check`. `quitAnimation` SHALL be the only owned setting governing the quit outro: no `Quit` section, `quitEffect`, or `quitEffectDurationMs` SHALL be declared, and the outro SHALL always play the `fall` effect for 800 ms when the switch is `true`. It SHALL use existing shared settings controls, profile-local A1 settings persistence, validation, and migration, and SHALL declare a live application boundary: the value stored when the session quits SHALL govern that quit. A settings document from a version that stored `quitEffect` or `quitEffectDurationMs` SHALL migrate with those keys removed. No Pi settings document SHALL be used, and `a1 pi` SHALL neither expose nor apply this setting.
-
-#### Scenario: Resolve the default
-- **WHEN** the active A1 profile has no stored `quitAnimation` value
-- **THEN** `quitAnimation` SHALL resolve to `true`
-
-#### Scenario: Inspect the Generic settings section
-- **WHEN** the owned settings screen is presented
-- **THEN** its first section SHALL be `Generic`
-- **AND** `Appearance` SHALL offer `Accent color`, `Background`, and then `quitAnimation` as an on/off choice labeled `Quit animation`
-- **AND** no `Quit` section, `Effect` row, or `Duration` row SHALL be presented
-
-#### Scenario: Migrate stored effect and duration values away
-- **WHEN** a settings document from the previous version stores `quitEffect` or `quitEffectDurationMs`
-- **THEN** migration SHALL remove those keys and advance the version without altering other stored values
-- **AND** the next quit SHALL play the `fall` effect for 800 ms when `quitAnimation` is `true`
-
-#### Scenario: Migrate a disabled effect into the toggle
-- **WHEN** a settings document from version 5 stores `quitEffect` as `off`
-- **THEN** migration SHALL store `quitAnimation` as `false` and remove `quitEffect`
-- **AND** the next quit SHALL leave the terminal without animating
-
-#### Scenario: Reject an invalid value
-- **WHEN** a stored `quitAnimation` value is not a boolean
-- **THEN** existing settings validation SHALL reject that value and resolve `true` without blocking startup
-
 ### Requirement: The skills presentation setting is an Agent-section owned choice
-Bare A1 SHALL expose the persisted A1 setting `skillsPresentation`, labeled `Skills`, exactly once in the owned settings screen's existing `Agent` section, immediately after `Prompt suggestions` and after every engine-provided Agent entry. Its allowed values SHALL be `collapse` and `expand`, its default SHALL be `collapse`, and its application boundary SHALL be `live`. Its description SHALL state that `collapse` offers one `/skills` command with a searchable dialog and the `/skills:` shortcut while `expand` lists every `/skill:<name>` command directly. The setting SHALL keep its A1-owned backend, persistence key, and profile-local storage; it SHALL NOT be written to Pi settings storage or presented as an engine descriptor. Introducing it SHALL advance the stored settings version with a forward migration that leaves existing values unchanged, so a profile without the key resolves to `collapse`.
+Bare A1 SHALL expose the persisted A1 setting `skillsPresentation`, labeled `Skills`, exactly once in the owned settings screen's existing `Agent` section, immediately after `Prompt suggestions` and after every engine-provided Agent entry. Its allowed values SHALL be `collapse` and `expand`, its default SHALL be `collapse`, and its application boundary SHALL be `live`. Its description SHALL state that `collapse` offers one `/skills` command with a searchable dialog and the `/skills:` shortcut while `expand` lists every `/skill:<name>` command directly. The setting SHALL keep its A1-owned backend, persistence key, and profile-local storage; it SHALL NOT be written to Pi settings storage or presented as an engine descriptor. A profile without the key SHALL resolve to `collapse`.
 
 The screen SHALL still contain only one Agent section, preserving the relative order and capability filtering of engine-provided settings and the existing `Prompt suggestions` control. The owned control SHALL remain visible and editable when engine settings are absent, unreadable, or not writable. Other A1 controls and the `a1 pi` comparison SHALL retain their existing grouping and behavior.
 
@@ -441,8 +343,8 @@ The screen SHALL still contain only one Agent section, preserving the relative o
 - **AND** no second Agent section, duplicate control, or empty A1 section SHALL be rendered
 
 #### Scenario: Resolve the default
-- **WHEN** a profile stores no `skillsPresentation` value, including a profile written before the setting existed
-- **THEN** the setting SHALL resolve to `collapse` after migration without rewriting any other stored value
+- **WHEN** a profile stores no `skillsPresentation` value
+- **THEN** the setting SHALL resolve to `collapse` without rewriting any other stored value
 
 #### Scenario: Change the presentation
 - **WHEN** the user changes `Skills` between `collapse` and `expand`
@@ -537,41 +439,6 @@ Bare A1 SHALL NOT expose or bind Pi's `fullscreenWheelScrollLines` setting becau
 - **WHEN** the reader uses the `a1 pi` comparison profile
 - **THEN** its pinned settings presentation SHALL retain `Fullscreen copy on select` and `Fullscreen wheel scrolling`
 - **AND** their fullscreen behavior SHALL remain owned by pinned Pi without a bare-A1 label override or duplicate setting
-
-### Requirement: The prompt image limit is an Agent-section owned setting
-
-Bare A1 SHALL expose the persisted A1 setting `promptImageLimit`, labeled `Prompt image limit`, exactly once in the owned settings screen's existing `Agent` section after `Prompt suggestions` and `Skills`. It SHALL accept every integer from 1 through 16, default to 8, and declare live application. The value SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage or presented as an engine descriptor. Introducing it SHALL advance the stored settings version with a forward migration that preserves existing and unknown values, so a profile without the key resolves to 8.
-
-The setting SHALL remain visible and editable when engine settings are absent, unreadable, or not writable. `a1 pi` SHALL neither expose nor apply this A1-owned setting and SHALL retain its existing eight-image prompt policy.
-
-#### Scenario: Present the Agent section
-- **WHEN** bare A1 opens the owned settings screen
-- **THEN** the existing Agent section SHALL contain one `Prompt image limit` numeric entry after `Prompt suggestions` and `Skills`
-- **AND** it SHALL offer values from 1 through 16 without creating another Agent section
-
-#### Scenario: Resolve an older profile
-- **WHEN** a profile written before `promptImageLimit` is loaded
-- **THEN** migration SHALL preserve its existing and unknown settings values
-- **AND** `promptImageLimit` SHALL resolve to 8
-
-#### Scenario: Change the limit live
-- **WHEN** the user changes `Prompt image limit` to an allowed value
-- **THEN** the value SHALL be persisted in the A1 settings document
-- **AND** subsequent image admission and prompt validation in the running bare-A1 session SHALL use that value without restart or reload
-- **AND** no Pi settings document SHALL change
-
-#### Scenario: Reject an invalid stored limit
-- **WHEN** the stored `promptImageLimit` is not an integer from 1 through 16
-- **THEN** existing settings validation SHALL reject that value and resolve 8 without blocking startup
-
-#### Scenario: Engine settings cannot be presented
-- **WHEN** the engine is absent, reading its settings fails, or it advertises no settings write capability
-- **THEN** `Prompt image limit` SHALL remain visible and editable in the single Agent section through its A1 backend
-
-#### Scenario: Use the comparison profile
-- **WHEN** the user opens or runs `a1 pi`
-- **THEN** its pinned settings presentation SHALL contain no A1 `Prompt image limit` entry
-- **AND** its prompt image count policy SHALL remain eight
 
 ### Requirement: Pending setting values remain visually stable
 
@@ -739,50 +606,6 @@ The owned Settings screen SHALL keep its standing shortcut guidance visible afte
 - **WHEN** a setting change or undo restoration fails
 - **THEN** the Settings screen SHALL replace the standing shortcut guidance with the failure notice
 
-### Requirement: The UI accent is a live Appearance setting
-
-Bare A1 SHALL expose one persisted A1 setting `accentColor`, labeled `Accent color`, in an `Appearance` section after `Generic`, followed by the `Background` and `Quit animation` settings. It SHALL offer `blue`, `purple`, `cyan`, `green`, `orange`, and `pink` in that order, SHALL default to `blue`, and SHALL declare live application. Every displayed value SHALL name an explicit A1 palette color and receive the same semantic-family projection behavior. The setting SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage or presented as an engine descriptor.
-
-Existing compatibility transforms SHALL preserve existing and unknown values, including an earlier stored `default` accent value which SHALL still migrate to `purple`. A missing, malformed, or unsupported stored value SHALL resolve to `blue` without blocking startup. Explicit stored `purple` and all other named choices SHALL retain their values. The setting SHALL remain visible and editable when engine settings are absent or unavailable. `a1 pi` SHALL neither expose nor apply it.
-
-#### Scenario: Present the Appearance section
-- **WHEN** bare A1 opens the owned settings screen
-- **THEN** one `Appearance` section after `Generic` SHALL contain `Accent color`, `Background`, and `Quit animation` in that order
-- **AND** the accent value menu SHALL offer `blue`, `purple`, `cyan`, `green`, `orange`, and `pink` in order
-- **AND** each accent choice SHALL show a square preview of its effective accent while the current-value check remains in the standard text color
-
-#### Scenario: Resolve an older or invalid profile
-- **WHEN** a profile predates `accentColor`, omits it, or stores a value outside the declared choices
-- **THEN** migration and validation SHALL preserve every other existing and unknown value
-- **AND** an earlier `default` accent value SHALL become `purple`
-- **AND** an omitted or invalid `accentColor` SHALL resolve to `blue` without blocking startup
-
-#### Scenario: Keep an explicit earlier choice
-- **WHEN** a profile stores a valid named accent, including `purple`
-- **THEN** that value SHALL remain the effective accent across restart and update
-
-#### Scenario: Change the accent live
-- **WHEN** the reader selects another accent color
-- **THEN** the A1 profile SHALL persist that value
-- **AND** the active bare-A1 interface SHALL repaint with the selected semantic accent before the change reports success
-- **AND** an accent-derived canvas SHALL repaint from that same selected accent
-- **AND** keyboard-shortcut key spans SHALL use the same derived secondary tone as active filters
-- **AND** no Pi settings document SHALL change
-
-#### Scenario: Select the initial purple palette
-- **WHEN** the reader explicitly selects `purple`
-- **THEN** the active interface SHALL project A1's purple palette across the same semantic family as every other choice
-- **AND** every family tone SHALL be derived from the selected primary purple by the same transform used for every named or future custom accent
-- **AND** dialog bars SHALL use its darker neighboring-hue border tone rather than the base Pi border
-- **AND** secondary headings and active dialog-filter values SHALL use its brighter complementary palette variation, with blue and purple using stronger sector-derived hue separation
-- **AND** filled scope/default state markers SHALL match the neutral item text color
-- **AND** selected rows SHALL use a half-strength, low-chroma background tint closer to the terminal background
-
-#### Scenario: Use the comparison profile
-- **WHEN** the reader starts or configures `a1 pi`
-- **THEN** no A1 `Accent color` or `Background` entry SHALL be presented
-- **AND** Pi's configured theme, accent, and background behavior SHALL remain unchanged
-
 ### Requirement: The fullscreen background is a live Appearance setting
 
 Bare A1 SHALL expose one persisted A1 setting `backgroundStyle`, labeled `Background`, in the existing `Appearance` section immediately after `Accent color` and before `Quit animation`. It SHALL offer exactly `transparent`, `accent`, and `dark` in that order, SHALL default to `transparent`, and SHALL declare live application. The setting SHALL use profile-local A1 settings persistence and SHALL NOT be written to Pi settings storage or presented as an engine descriptor.
@@ -890,27 +713,6 @@ The reserved root key SHALL equal the validated product command identity (`a1` f
 #### Scenario: Store only deviations
 - **WHEN** all declared A1 settings equal their defaults and the product object has no preserved unknown property
 - **THEN** the shared file SHALL omit the product object entirely
-
-### Requirement: Former standalone A1 settings remain a non-destructive fallback
-When the shared global agent settings document has no product object, A1 SHALL read the former standalone profile document as a compatibility fallback, including its historical version metadata internally during import. A shared product object SHALL always win. The fallback file SHALL remain unchanged, and the next accepted A1 change SHALL write only normalized non-default values and unknown keys into the flat shared object. If neither source exists, defaults SHALL apply.
-
-#### Scenario: Read settings written before consolidation
-- **WHEN** the shared file has no product object and the former standalone A1 settings document exists
-- **THEN** A1 SHALL resolve accepted values from the former document without modifying either file during startup
-
-#### Scenario: Prefer the shared product section
-- **WHEN** both a shared product object and a former standalone document exist
-- **THEN** A1 SHALL use only the shared product object, even when their values differ
-
-#### Scenario: Persist after compatibility fallback
-- **WHEN** A1 resolved a former standalone document and the user accepts an A1-owned setting change
-- **THEN** A1 SHALL atomically write normalized non-default values and preserved unknown keys directly into the shared product object
-- **AND** it SHALL leave the former document unchanged
-
-#### Scenario: Do not bypass an unreadable shared section
-- **WHEN** the shared product object exists but cannot be interpreted
-- **THEN** A1 SHALL apply the existing unreadable-settings behavior to that object
-- **AND** it SHALL NOT resurrect values from the former standalone document
 
 ### Requirement: Settings text inputs omit prompt markers
 The owned full-screen Settings search input SHALL render no chevron or ASCII greater-than prompt marker. Its top and bottom rules, content inset, placeholder, block caret, filtering, navigation, and cancellation behavior SHALL remain unchanged. Settings-owned standard dialog searches, including the per-model Thinking Level selector's step-one model search, SHALL instead use the shared exact ASCII `> ` standard-dialog marker with the `>` in the active semantic accent role. Non-search structured text entries SHALL retain their established presentation.
@@ -1027,42 +829,6 @@ The pinned `a1 pi` comparison profile SHALL retain its existing model selector a
 - **THEN** its pinned model selector SHALL retain its existing current-model and select-as-default actions
 - **AND** the owned `Default model` Settings configurator SHALL NOT replace or modify that selector
 
-### Requirement: The update mode is a two-choice Generic-section owned setting
-Bare A1 SHALL keep the persisted key `updateCheck`, present it as `Update` first in `Generic`, and offer exactly `Auto` (default) and `No`. `Auto` SHALL check the executing release's channel after first paint and on a bounded cadence, install verified updates silently, and surface only the `Update installed, restart to update` status; `No` SHALL skip the check. The value SHALL stay in the profile-local A1 settings document, take effect at the next launch, and be absent from `a1 pi`.
-
-#### Scenario: Resolve an older profile
-- **WHEN** an older profile stores `updateCheck: true`, `updateCheck: "notify"`, `updateCheck: false`, or omits the key
-- **THEN** migration SHALL resolve those cases to `Auto`, `Auto`, `No`, and `Auto` respectively while preserving other existing and unknown values
-
-#### Scenario: Present the Generic section
-- **WHEN** bare A1 opens the owned settings screen
-- **THEN** the `Generic` section SHALL offer `Update` first with choices `Auto` and `No`
-- **AND** its description SHALL say that Auto installs silently and asks for a restart, and that No leaves updates manual
-
-#### Scenario: Disable the check
-- **WHEN** the user selects `No` and restarts bare A1
-- **THEN** A1 SHALL neither read the release cache, contact the registry, start an automatic worker, nor observe automatic-update state for the startup flow
-
-#### Scenario: Use the automatic default
-- **WHEN** the profile has no explicit `Update` choice
-- **THEN** bare A1 SHALL resolve `Auto` and silently install an eligible newer release when discovered, even if it was published after the session started
-
-#### Scenario: Reject an invalid value
-- **WHEN** a stored `updateCheck` value is not `auto` or `no` after migration
-- **THEN** existing settings validation SHALL reject that value and resolve `Auto` without blocking startup
-
-#### Scenario: Use the comparison profile
-- **WHEN** the user opens or runs `a1 pi`
-- **THEN** its pinned settings presentation SHALL contain no A1 `Update` entry
-
-#### Scenario: Choices shrink without a version bump
-- **WHEN** the stored settings document predates the two-choice `Update`
-- **THEN** the stored settings version SHALL be unchanged and unknown values SHALL be preserved
-
-#### Scenario: The session stays open
-- **WHEN** an `Auto` session remains open past the fifteen-minute cache window
-- **THEN** the next check SHALL fetch the channel head again and install a newer release silently without a restart
-
 ### Requirement: The in-shell settings screen renders the section model
 A1 SHALL present its settings as an A1-owned application rendering the grouped section model rather than deriving its own view of where a value lives. In bare `a1` it SHALL be reachable through `/settings`. The screen SHALL show every section with its entries, keep the current section's header visible while its entries are on screen, and let the user move between entries, jump between sections, filter, change a value, and close using its declared keyboard interactions. Pointer input SHALL follow the existing screen contracts. The screen SHALL be built from the shared component layer rather than drawing a list, menu, dialog, control, input row, or status line of its own. A change SHALL be routed by the entry's backend, and a change that could not be stored or written SHALL be reported rather than displayed as saved. An entry the model reports as not editable SHALL state why rather than accepting input. While the settings module is still loading, the screen SHALL render blank rows rather than a loading placeholder; only a failed module load SHALL print its failure message. Closing Settings SHALL restore the previous surface.
 
@@ -1172,3 +938,178 @@ A1 SHALL declare `promptHistoryEnabled` as a boolean defaulting to true, `prompt
 - **WHEN** different A1 profiles store different history settings or the Pi comparison starts
 - **THEN** each bare-A1 launch SHALL apply only its own profile's values
 - **AND** the Pi comparison and `~/.pi/agent` SHALL remain untouched
+
+### Requirement: The Scroll section exposes scrollbar mode, style, and speed settings
+A1 SHALL declare `scrollbarAppearance`, `scrollbarStyle`, and `scrollbarSpeed` as live-applicable A1 settings grouped under a `Scroll` settings section. The visible row labels SHALL be `Scrollbar mode`, `Scrollbar style`, and `Speed`, without a redundant `A1` section or `(default)` suffix. `scrollbarAppearance` SHALL allow exactly `auto`, `always`, and `hidden`, with `auto` as its default. `scrollbarStyle` SHALL allow exactly `thin` and `thick`, with `thin` as its default. `scrollbarSpeed` SHALL allow exactly `normal`, `fast`, and `high`, in that order, with `normal` as its default. The settings SHALL be stored and resolved through the existing profile-local A1 settings document and SHALL NOT be read from or written to agent settings.
+
+#### Scenario: Resolve defaults
+- **WHEN** the active A1 profile has no stored scrollbar values
+- **THEN** `scrollbarAppearance` SHALL resolve to `auto`
+- **AND** `scrollbarStyle` SHALL resolve to `thin`
+- **AND** `scrollbarSpeed` SHALL resolve to `normal`
+
+#### Scenario: Change appearance live
+- **WHEN** the reader changes `scrollbarAppearance` to an allowed value
+- **THEN** the running bare-A1 viewport SHALL apply that appearance without restart
+- **AND** every surface reading the setting in that session SHALL observe the same value
+
+#### Scenario: Change style live
+- **WHEN** the reader changes `scrollbarStyle` to an allowed value
+- **THEN** the running bare-A1 viewport SHALL apply that style without restart
+- **AND** its scroll position and follow state SHALL remain unchanged
+
+#### Scenario: Change speed live
+- **WHEN** the reader changes `scrollbarSpeed` to `normal`
+- **THEN** each transcript wheel event SHALL move three document rows
+- **WHEN** the reader changes it to `fast`
+- **THEN** each transcript wheel event SHALL move six document rows without restart
+- **AND** selection edge auto-scroll SHALL run twice as fast as `normal`
+- **WHEN** the reader changes it to `high`
+- **THEN** each transcript wheel event SHALL move nine document rows without restart
+- **AND** selection edge auto-scroll SHALL run at the combined `normal` plus `fast` rate
+
+#### Scenario: Persist viewport settings
+- **WHEN** any scrollbar setting is accepted and A1 is restarted with the same profile
+- **THEN** the accepted value SHALL be restored from that profile's A1 settings document
+- **AND** the same value SHALL survive a fresh repository-local launch instance and rebuilt development candidate
+- **AND** future A1-owned settings sections SHALL use the same declaration, resolution, and atomic-store system
+- **AND** no Pi or agent settings document SHALL be changed by that write
+
+#### Scenario: Inspect the Scroll settings section
+- **WHEN** the owned settings screen is presented
+- **THEN** it SHALL offer the declared mode, style, and speed values under `Scroll`
+- **AND** those controls SHALL be labeled `Scrollbar mode`, `Scrollbar style`, and `Speed`
+
+#### Scenario: Point at and change settings
+- **WHEN** the owned settings screen is open in fullscreen mode
+- **THEN** pointer motion over a value SHALL show its hover state
+- **AND** clicking an enumerated value SHALL open its dropdown
+- **AND** clicking a numeric minus or plus control SHALL apply that step
+- **AND** all other settings-screen pointer reports SHALL be consumed without starting terminal text selection
+
+#### Scenario: Use the pinned comparison profile
+- **WHEN** `a1 pi` presents its pinned interface
+- **THEN** A1's stored scrollbar appearance, style, and speed SHALL NOT modify that interface's scrollbar or wheel behavior
+
+### Requirement: Appearance settings own the quit-animation toggle
+A1 SHALL declare `quitAnimation` as a boolean defaulting to `true`, labeled `Quit animation`, in the `Appearance` section immediately after `Background`; `Generic` SHALL remain the first section and contain `Update check`. `quitAnimation` SHALL be the only owned setting governing the quit outro: no `Quit` section, `quitEffect`, or `quitEffectDurationMs` SHALL be declared, and the outro SHALL always play the `fall` effect for 800 ms when the switch is `true`. It SHALL use existing shared settings controls, profile-local A1 settings persistence, and validation, and SHALL declare a live application boundary: the value stored when the session quits SHALL govern that quit. No Pi settings document SHALL be used, and `a1 pi` SHALL neither expose nor apply this setting.
+
+#### Scenario: Resolve the default
+- **WHEN** the active A1 profile has no stored `quitAnimation` value
+- **THEN** `quitAnimation` SHALL resolve to `true`
+
+#### Scenario: Inspect the Generic settings section
+- **WHEN** the owned settings screen is presented
+- **THEN** its first section SHALL be `Generic`
+- **AND** `Appearance` SHALL offer `Accent color`, `Background`, and then `quitAnimation` as an on/off choice labeled `Quit animation`
+- **AND** no `Quit` section, `Effect` row, or `Duration` row SHALL be presented
+
+#### Scenario: Reject an invalid value
+- **WHEN** a stored `quitAnimation` value is not a boolean
+- **THEN** existing settings validation SHALL reject that value and resolve `true` without blocking startup
+
+### Requirement: The prompt image limit is an owned Agent setting
+
+Bare A1 SHALL expose the persisted A1 setting `promptImageLimit`, labeled `Prompt image limit`, exactly once in the owned settings screen's existing `Agent` section after `Prompt suggestions` and `Skills`. It SHALL accept every integer from 1 through 16, default to 8, and declare live application. The value SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage or presented as an engine descriptor. A profile without the key SHALL resolve to 8.
+
+The setting SHALL remain visible and editable when engine settings are absent, unreadable, or not writable. `a1 pi` SHALL neither expose nor apply this A1-owned setting and SHALL retain its existing eight-image prompt policy.
+
+#### Scenario: Present the Agent section
+- **WHEN** bare A1 opens the owned settings screen
+- **THEN** the existing Agent section SHALL contain one `Prompt image limit` numeric entry after `Prompt suggestions` and `Skills`
+- **AND** it SHALL offer values from 1 through 16 without creating another Agent section
+
+#### Scenario: Resolve a profile without the setting
+- **WHEN** a profile that stores no `promptImageLimit` is loaded
+- **THEN** its other stored and unknown settings values SHALL be preserved
+- **AND** `promptImageLimit` SHALL resolve to 8
+
+#### Scenario: Change the limit live
+- **WHEN** the user changes `Prompt image limit` to an allowed value
+- **THEN** the value SHALL be persisted in the A1 settings document
+- **AND** subsequent image admission and prompt validation in the running bare-A1 session SHALL use that value without restart or reload
+- **AND** no Pi settings document SHALL change
+
+#### Scenario: Reject an invalid stored limit
+- **WHEN** the stored `promptImageLimit` is not an integer from 1 through 16
+- **THEN** existing settings validation SHALL reject that value and resolve 8 without blocking startup
+
+#### Scenario: Engine settings cannot be presented
+- **WHEN** the engine is absent, reading its settings fails, or it advertises no settings write capability
+- **THEN** `Prompt image limit` SHALL remain visible and editable in the single Agent section through its A1 backend
+
+#### Scenario: Use the comparison profile
+- **WHEN** the user opens or runs `a1 pi`
+- **THEN** its pinned settings presentation SHALL contain no A1 `Prompt image limit` entry
+- **AND** its prompt image count policy SHALL remain eight
+
+### Requirement: The accent color is a live Appearance setting
+
+Bare A1 SHALL expose one persisted A1 setting `accentColor`, labeled `Accent color`, in an `Appearance` section after `Generic`, followed by the `Background` and `Quit animation` settings. It SHALL offer `blue`, `purple`, `cyan`, `green`, `orange`, and `pink` in that order, SHALL default to `blue`, and SHALL declare live application. Every displayed value SHALL name an explicit A1 palette color and receive the same semantic-family projection behavior. The setting SHALL be stored in the profile-local A1 settings document and SHALL NOT be written to Pi settings storage or presented as an engine descriptor.
+
+Resolution SHALL preserve existing and unknown values. A missing, malformed, or unsupported stored value SHALL resolve to `blue` without blocking startup. Explicit stored `purple` and all other named choices SHALL retain their values. The setting SHALL remain visible and editable when engine settings are absent or unavailable. `a1 pi` SHALL neither expose nor apply it.
+
+#### Scenario: Present the Appearance section
+- **WHEN** bare A1 opens the owned settings screen
+- **THEN** one `Appearance` section after `Generic` SHALL contain `Accent color`, `Background`, and `Quit animation` in that order
+- **AND** the accent value menu SHALL offer `blue`, `purple`, `cyan`, `green`, `orange`, and `pink` in order
+- **AND** each accent choice SHALL show a square preview of its effective accent while the current-value check remains in the standard text color
+
+#### Scenario: Resolve a missing or invalid value
+- **WHEN** a profile omits `accentColor` or stores a value outside the declared choices
+- **THEN** validation SHALL preserve every other existing and unknown value
+- **AND** the omitted or invalid `accentColor` SHALL resolve to `blue` without blocking startup
+
+#### Scenario: Keep an explicit earlier choice
+- **WHEN** a profile stores a valid named accent, including `purple`
+- **THEN** that value SHALL remain the effective accent across restart and update
+
+#### Scenario: Change the accent live
+- **WHEN** the reader selects another accent color
+- **THEN** the A1 profile SHALL persist that value
+- **AND** the active bare-A1 interface SHALL repaint with the selected semantic accent before the change reports success
+- **AND** an accent-derived canvas SHALL repaint from that same selected accent
+- **AND** keyboard-shortcut key spans SHALL use the same derived secondary tone as active filters
+- **AND** no Pi settings document SHALL change
+
+#### Scenario: Select the initial purple palette
+- **WHEN** the reader explicitly selects `purple`
+- **THEN** the active interface SHALL project A1's purple palette across the same semantic family as every other choice
+- **AND** every family tone SHALL be derived from the selected primary purple by the same transform used for every named or future custom accent
+- **AND** dialog bars SHALL use its darker neighboring-hue border tone rather than the base Pi border
+- **AND** secondary headings and active dialog-filter values SHALL use its brighter complementary palette variation, with blue and purple using stronger sector-derived hue separation
+- **AND** filled scope/default state markers SHALL match the neutral item text color
+- **AND** selected rows SHALL use a half-strength, low-chroma background tint closer to the terminal background
+
+#### Scenario: Use the comparison profile
+- **WHEN** the reader starts or configures `a1 pi`
+- **THEN** no A1 `Accent color` or `Background` entry SHALL be presented
+- **AND** Pi's configured theme, accent, and background behavior SHALL remain unchanged
+
+### Requirement: The update mode is a two-choice Generic setting
+Bare A1 SHALL keep the persisted key `updateCheck`, present it as `Update` first in `Generic`, and offer exactly `Auto` (default) and `Manual`. `Auto` SHALL check the executing release's channel after first paint and on a bounded cadence, install verified updates silently, and surface only the `Update installed, restart to update` status; `Manual` SHALL skip the check and leave updating to `a1 update`. The value SHALL stay in the profile-local A1 settings document, take effect at the next launch, and be absent from `a1 pi`.
+
+#### Scenario: Present the Generic section
+- **WHEN** bare A1 opens the owned settings screen
+- **THEN** the `Generic` section SHALL offer `Update` first with choices `Auto` and `Manual`
+- **AND** its description SHALL say that Auto installs silently and asks for a restart, and that No leaves updates manual
+
+#### Scenario: Disable the check
+- **WHEN** the user selects `Manual` and restarts bare A1
+- **THEN** A1 SHALL neither read the release cache, contact the registry, start an automatic worker, nor observe automatic-update state for the startup flow
+
+#### Scenario: Use the automatic default
+- **WHEN** the profile has no explicit `Update` choice
+- **THEN** bare A1 SHALL resolve `Auto` and silently install an eligible newer release when discovered, even if it was published after the session started
+
+#### Scenario: Reject an invalid value
+- **WHEN** a stored `updateCheck` value is not `auto` or `manual`
+- **THEN** existing settings validation SHALL reject that value and resolve `Auto` without blocking startup
+
+#### Scenario: Use the comparison profile
+- **WHEN** the user opens or runs `a1 pi`
+- **THEN** its pinned settings presentation SHALL contain no A1 `Update` entry
+
+#### Scenario: The session stays open
+- **WHEN** an `Auto` session remains open past the fifteen-minute cache window
+- **THEN** the next check SHALL fetch the channel head again and install a newer release silently without a restart

@@ -1,5 +1,5 @@
+import type { OwnedUiShellClipboardContent } from "../../contracts/owned-ui/index.js";
 import { execFile } from "node:child_process";
-import type { PiShellClipboardContent } from "../../integrations/pi/components/shell-shared-facade.js";
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import { assertSourceBytes } from "./image-source.js";
@@ -8,7 +8,7 @@ const MAX_CLIPBOARD_BYTES = 16 * 1024 * 1024;
 
 type NativeClipboard = typeof import("@mariozechner/clipboard");
 
-export interface SystemClipboardImageReader {
+interface SystemClipboardImageReader {
   hasImage(): boolean;
   getImageBinary?(): Promise<readonly number[]>;
   getImageBase64?(): Promise<string>;
@@ -17,17 +17,12 @@ export interface SystemClipboardImageReader {
 let nativeClipboardPromise: Promise<NativeClipboard | null> | undefined;
 let pendingClipboardWrite: Promise<void> = Promise.resolve();
 
-/** Load the native adapter during shell startup so the first paste is warm. */
-export function preloadSystemClipboard(): void {
-  if (process.platform === "win32" || process.platform === "darwin") void nativeClipboard();
-}
-
 /**
  * Reads plain text through platform clipboard commands without importing Pi's
  * private clipboard module. Failures are deliberately non-fatal: a denied or
  * unavailable clipboard simply makes the paste action a no-op.
  */
-export async function readSystemClipboardContent(signal?: AbortSignal, strict = false): Promise<PiShellClipboardContent | null> {
+export async function readSystemClipboardContent(signal?: AbortSignal, strict = false): Promise<OwnedUiShellClipboardContent | null> {
   await pendingClipboardWrite;
   const native = await nativeClipboard();
   if (native !== null) {
@@ -47,7 +42,7 @@ export async function readSystemClipboardContent(signal?: AbortSignal, strict = 
   return text === null ? null : { kind: "text", text };
 }
 
-export async function readSystemClipboardImage(
+async function readSystemClipboardImage(
   reader: SystemClipboardImageReader,
 ): Promise<{ readonly data: string; readonly mimeType: string } | null> {
   if (!reader.hasImage()) return null;
@@ -82,7 +77,7 @@ export async function readSystemClipboardImage(
   return null;
 }
 
-export async function readSystemClipboardText(signal?: AbortSignal, strict = false): Promise<string | null> {
+async function readSystemClipboardText(signal?: AbortSignal, strict = false): Promise<string | null> {
   // Concurrency: Ctrl+C/Ctrl+X and Ctrl+V can arrive in adjacent input turns. Serialize the
   // read behind our native write so paste never observes the previous value.
   await pendingClipboardWrite;

@@ -1,9 +1,9 @@
+import type { OwnedUiShellComponentPort } from "../../contracts/owned-ui/index.js";
 import { heldNativeHyperlinkStyle } from "../../ui/components/spans.js";
 import type {
   TranscriptPromptAnchor,
   TranscriptViewportFrameInput,
 } from "../../ui/components/transcript-viewport.js";
-import type { PiShellComponentPort } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { DockLayout, ShellLayout, ShellLayoutPorts } from "./shell-layout.js";
 
 interface VisibleViewportSnapshot {
@@ -13,7 +13,7 @@ interface VisibleViewportSnapshot {
   readonly transientSignature: string;
   readonly promptAnchors: readonly TranscriptPromptAnchor[];
   readonly dockLength: number;
-  readonly inputSurface: PiShellComponentPort;
+  readonly inputSurface: OwnedUiShellComponentPort;
   readonly viewportRevision: number;
   readonly selectionRevision: number;
   readonly pointerPosition: TranscriptViewportFrameInput["pointerPosition"];

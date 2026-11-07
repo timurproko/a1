@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  canonicalizeClipboardImage,
-  canonicalizeStandardBase64,
-} from "../../../src/app/session-shell/clipboard-image.js";
+import { canonicalizeClipboardImage } from "../../../src/app/session-shell/clipboard-image.js";
 
 describe("clipboard image base64", () => {
   it.each([
@@ -12,7 +9,7 @@ describe("clipboard image base64", () => {
     ["f", "Zg==", "Zg=="],
     ["fo", "Zm8=", "Zm8="],
   ])("canonicalizes the %s payload from %s", (plain, input, expected) => {
-    const canonical = canonicalizeStandardBase64(input);
+    const canonical = canonicalizeClipboardImage({ data: input, mimeType: "image/png" })?.data;
     expect(canonical).toBe(expected);
     expect(Buffer.from(canonical ?? "", "base64")).toEqual(Buffer.from(plain));
   });
@@ -30,7 +27,7 @@ describe("clipboard image base64", () => {
     "data:image/png;base64,Zg==",
     "Zh==",
   ])("rejects malformed or non-canonical standard base64 %j", value => {
-    expect(canonicalizeStandardBase64(value)).toBeNull();
+    expect(canonicalizeClipboardImage({ data: value, mimeType: "image/png" })).toBeNull();
   });
 
   it("preserves the MIME type and is idempotent", () => {

@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { ClipboardPath, PreparedPasteText } from "./paste-types.js";
 
-export const PATH_CHIP_PRESENTATION_UNITS = 4096;
+const PATH_CHIP_PRESENTATION_UNITS = 4096;
 const IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|gif|bmp|tiff?)$/iu;
 
 /** Normalizes a path for host-filesystem identity comparisons. */
@@ -30,7 +30,7 @@ export function* pathChipLabelCandidates(fullPath: string): Iterable<string> {
 }
 
 /** Formats one path label with the established folder/file/image-file icon. */
-export function pathChipTag(item: ClipboardPath, label = basePathLabel(item.fullPath)): string {
+function pathChipTag(item: ClipboardPath, label = basePathLabel(item.fullPath)): string {
   const icon = item.kind === "folder" ? "📁" : IMAGE_EXTENSION.test(item.fullPath) ? "🖼 " : "📄";
   return `[${icon} ${label}]`;
 }
@@ -41,7 +41,7 @@ export function* pathChipTagCandidates(item: ClipboardPath): Iterable<string> {
 }
 
 /** Returns the conservative UTF-16 presentation cost for one path occurrence. */
-export function pathChipPresentationUnits(item: ClipboardPath): number {
+function pathChipPresentationUnits(item: ClipboardPath): number {
   return pathChipTag(item, displayPath(path.normalize(item.fullPath.trim()))).length;
 }
 

@@ -63,7 +63,6 @@ try {
 }
 
 const prefix = "src/integrations/pi/components/";
-const barrelPath = `${prefix}shell-components.ts`;
 const modules = [
   "shell-shared-facade.ts",
   "shell-editor-autocomplete.ts",
@@ -73,10 +72,6 @@ const modules = [
   "shell-footer-status.ts",
   "shell-extension-ui.ts",
 ];
-const barrel = production[barrelPath];
-if (barrel === undefined || barrel.trim().split(/\r?\n/).some(line => !/^export \* from "\.\/shell-[a-z-]+\.js";$/.test(line))) {
-  errors.push(`${barrelPath}: monolithic shell recomposition or missing bounded barrel`);
-}
 for (const module of modules) {
   const path = `${prefix}${module}`;
   const source = production[path];

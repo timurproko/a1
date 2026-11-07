@@ -498,10 +498,10 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     await adapter.flushEvents();
     const streamingId = shell.view().transcript.find(block => block.kind === "assistant")?.id;
     expect(streamingId).toBeDefined();
-    const persistentComponent = shell.root.transcriptComponent(streamingId!);
+    const persistentComponent = shell.root.transcript.component(streamingId!);
     engine.session.emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: " complete" } });
     await adapter.flushEvents();
-    expect(shell.root.transcriptComponent(streamingId!)).toBe(persistentComponent);
+    expect(shell.root.transcript.component(streamingId!)).toBe(persistentComponent);
     shell.runtime.renderNow();
     const rows = shell.root.render(60).join("\n");
     expect(rows).toContain("Streaming answer");
@@ -536,7 +536,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
     } },
   ])("fully disposes the owned presentation after $route", async ({ exit }) => {
     const { engine, shell, terminal } = await fixture([], [], true);
-    const appendWorkflowResult = vi.spyOn(shell.root, "appendWorkflowResult");
+    const appendWorkflowResult = vi.spyOn(shell.root.workflow, "appendResult");
     try {
       await expect(exit(shell)).resolves.toEqual({ outcome: "completed", diagnostic: null });
       await expect(shell.waitUntilStopped()).resolves.toBeUndefined();
@@ -593,7 +593,7 @@ describe("OwnedUiSessionShell lifecycle, quit, and restoration", () => {
   it("ignores engine events once disposal has begun", async () => {
     const { engine, adapter, shell } = await fixture([], [], true);
     const update = vi.spyOn(shell.root, "update");
-    const applyBlock = vi.spyOn(shell.root, "applyTranscriptBlock");
+    const applyBlock = vi.spyOn(shell.root.transcript, "apply");
     const requestRender = vi.spyOn(shell.runtime, "requestRender");
     let disposal: Promise<void> | undefined;
     let presented = 0;

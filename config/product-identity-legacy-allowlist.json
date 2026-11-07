@@ -1,6 +1,6 @@
 {
   "schema": "a1-legacy-identity-allowlist-v1",
-  "generatedAt": "2026-11-07T09:55:09.712Z",
+  "generatedAt": "2026-11-07T13:02:59.866Z",
   "inventorySchema": "a1-legacy-identity-inventory-v1",
   "occurrences": [
     {
@@ -166,12 +166,6 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/cohort-state.test.ts:126:76",
-      "value": "addone",
-      "fingerprint": "fddfb435b630e3f4cf3883576618867d54e2bbff57899032f8c953e5a6c4845a",
-      "reason": "explicit legacy rejection fixture"
-    },
-    {
       "id": "test/foundation/release/package-install.integration.test.ts:48:70",
       "value": "addone",
       "fingerprint": "7c0940d3038bcbb45f14b43c7487b2e0773255ac39995bd32a5f0a30594b33c3",
@@ -184,9 +178,15 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:50:32",
+      "id": "test/foundation/release/package-surface.test.ts:48:32",
       "value": "addone",
-      "fingerprint": "fd15b741c7a1cd88fae2d75d0bfd6ad8a813fa6b7428d00f0c722027a307dbec",
+      "fingerprint": "a1f165a53f8faa2e62bc82de45485fdfde44ccc01dfaace04d76346c46d8570f",
+      "reason": "explicit legacy rejection fixture"
+    },
+    {
+      "id": "test/foundation/release/release-state.test.ts:126:76",
+      "value": "addone",
+      "fingerprint": "4236773d220f3d7f9c36f5c3bb941da89f0d286edc0da459178d7001cd8a1227",
       "reason": "explicit legacy rejection fixture"
     },
     {
@@ -232,34 +232,10 @@
       "reason": "explicit legacy rejection fixture"
     },
     {
-      "id": "test/repository-governance/docs-sensitive-governance.test.ts:24:59",
+      "id": "test/repository-governance/docs-sensitive-governance.test.ts:15:59",
       "value": "AddOne",
-      "fingerprint": "f4dfb5d7bf79a0c13649aa498467fcb3846afaed36cf6806950078a521815ce8",
+      "fingerprint": "44c4a5a90bc721a26115e94851a13bbe47df81672c6f163976e031c4b9a424ff",
       "reason": "explicit legacy rejection fixture"
-    },
-    {
-      "id": "test/repository-governance/product-identity-documentation.test.ts:11:67",
-      "value": "ADDONE",
-      "fingerprint": "59081b7a49e56779f54a86f9c58dc7e6f8e2e0ffc3d61b9c3fad083f07a951f1",
-      "reason": "documented hard-cut or deprecation assertion"
-    },
-    {
-      "id": "test/repository-governance/product-identity-documentation.test.ts:12:47",
-      "value": "AddOne",
-      "fingerprint": "77f2a04cafc8206ed6dd88a144e448666da897c6ba0f72a4b5a116354a89d8d7",
-      "reason": "documented hard-cut or deprecation assertion"
-    },
-    {
-      "id": "test/repository-governance/product-identity-documentation.test.ts:13:42",
-      "value": "addone",
-      "fingerprint": "009b6a16a7e4ec97b3128b237a5af876c53595261c5fe69e8b283e7cf786aeaa",
-      "reason": "documented hard-cut or deprecation assertion"
-    },
-    {
-      "id": "test/repository-governance/product-identity-documentation.test.ts:16:47",
-      "value": "addone",
-      "fingerprint": "23f07813c6cdc4f46a7b61a449c6bdb079b20074065e67ada312a71e4d1933d3",
-      "reason": "explicit obsolete-package rejection or deprecation fixture"
     },
     {
       "id": "test/repository-governance/product-identity-inventory.test.ts:35:12",
@@ -306,7 +282,7 @@
     {
       "id": "test/repository-governance/product-identity-inventory.test.ts:39:50",
       "value": "addone",
-      "fingerprint": "1de32788e59046a1ff9365927c9b66aa3bf14ce3cad9125362d4b7a3d3d7fca5",
+      "fingerprint": "29f8f5a19a54d2655dcb7a44d2f2632a8a8c741c571a8f3de17ed6b94a053972",
       "reason": "explicit legacy rejection fixture"
     },
     {

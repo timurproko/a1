@@ -8,7 +8,7 @@ export type OwnedPiResourceSummary = OwnedUiResourceSummary;
 export type OwnedPiExtensionSourceSummary = OwnedUiExtensionSourceSummary;
 export type OwnedPiExtensionResourceSummary = OwnedUiExtensionResourceSummary;
 
-export interface PiResourceCatalogPorts {
+interface PiResourceCatalogPorts {
   session(): AgentSession | undefined;
   runtime(): AgentSessionRuntime | undefined;
 }

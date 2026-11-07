@@ -11,17 +11,36 @@ import {
   type KeybindingsConfig,
   type TUI,
 } from "@earendil-works/pi-tui";
-import type {
-  OwnedUiImageAttachment,
-  OwnedUiSessionViewModel,
-  OwnedUiThinkingLevel,
-  OwnedUiTranscriptBlock,
-  SuggestionDecision,
-} from "../../../contracts/owned-ui/index.js";
 import type { HistoryEditorConstructor } from "./history-editor-loader.js";
-import type { PiShellPromptInputPresentation } from "./prompt-input-port.js";
-import type { EditorRecallPort } from "./editor-interaction.js";
-import type { PresentationComponentPort } from "../../../contracts/presentation/index.js";
+import type {
+  OwnedUiShellAutocompleteCommand,
+  OwnedUiShellClipboardContent,
+  OwnedUiShellComponentPort,
+  OwnedUiShellEditorBodyGeometry,
+  OwnedUiShellEditorOptions,
+  OwnedUiShellKeybindings,
+  OwnedUiShellEditorPointerEvent,
+  OwnedUiShellEditorPort,
+  OwnedUiShellEditorTextRange,
+  OwnedUiShellExtensionRendererResolver,
+  OwnedUiShellHeaderOptions,
+  OwnedUiShellHeaderPort,
+  OwnedUiShellImageAssetResolver,
+  OwnedUiShellLoadedResourcesPort,
+  OwnedUiShellPasteReservation,
+  OwnedUiShellProgressPresentationMode,
+  OwnedUiShellProgressStatusPresentation,
+  OwnedUiShellQueuedInputPort,
+  OwnedUiShellResourceEntry,
+  OwnedUiShellResourceSection,
+  OwnedUiShellSelectorOption,
+  OwnedUiShellSelectorOptions,
+  OwnedUiShellStartupNotice,
+  OwnedUiShellStatusPlacement,
+  OwnedUiShellStatusPort,
+  OwnedUiShellTranscriptComponentPort,
+  OwnedUiShellViewComponentPort,
+} from "../../../contracts/owned-ui/index.js";
 import {
   KeybindingsManager,
 } from "./upstream/adjacent/core/keybindings.js";
@@ -33,7 +52,7 @@ import {
 /** Terminal-cell width authority used by Pi-rendered component rows. */
 export const piShellVisibleWidth = visibleWidth;
 export const piShellTruncateToWidth = (text: string, width: number): string => truncateToWidth(text, width, "");
-export const INSTALLED_UPDATE_STATUS_TEXT = "Update installed, restart to update";
+const INSTALLED_UPDATE_STATUS_TEXT = "Update installed, restart to update";
 
 /** Shared green restart notice for the pinned status and bare-A1 prompt overlay. */
 export function renderPiShellInstalledUpdateStatus(width: number): string {
@@ -45,246 +64,44 @@ export function renderPiShellInstalledUpdateStatus(width: number): string {
 /** A clickable URL in pinned Pi's grammar: an OSC 8 link where the terminal supports one, the plain URL otherwise. */
 export const piShellHyperlink = (url: string, text: string = url): string => hyperlink(url, text);
 
-export interface PiShellComponentPort extends PresentationComponentPort {}
+export type PiShellComponentPort = OwnedUiShellComponentPort;
+export type PiShellClipboardContent = OwnedUiShellClipboardContent;
+export type PiShellEditorTextRange = OwnedUiShellEditorTextRange;
+export type PiShellEditorPointerEvent = OwnedUiShellEditorPointerEvent;
+export type PiShellEditorBodyGeometry = OwnedUiShellEditorBodyGeometry;
+export type PiShellEditorPort = OwnedUiShellEditorPort;
+export type PiShellAutocompleteCommand = OwnedUiShellAutocompleteCommand;
+export type PiShellViewComponentPort = OwnedUiShellViewComponentPort;
+export type PiShellStatusPlacement = OwnedUiShellStatusPlacement;
+export type PiShellProgressPresentationMode = OwnedUiShellProgressPresentationMode;
+export type PiShellProgressStatusPresentation = OwnedUiShellProgressStatusPresentation;
+export type PiShellStatusPort = OwnedUiShellStatusPort;
+export type PiShellQueuedInputPort = OwnedUiShellQueuedInputPort;
+export type PiShellHeaderPort = OwnedUiShellHeaderPort;
+export type PiShellResourceSection = OwnedUiShellResourceSection;
+export type PiShellResourceEntry = OwnedUiShellResourceEntry;
+export type PiShellLoadedResourcesPort = OwnedUiShellLoadedResourcesPort;
+export type PiShellImageAssetResolver = OwnedUiShellImageAssetResolver;
+export type PiShellExtensionRendererResolver = OwnedUiShellExtensionRendererResolver;
+export type PiShellTranscriptComponentPort = OwnedUiShellTranscriptComponentPort;
+export type PiShellStartupNotice = OwnedUiShellStartupNotice;
+export type PiShellHeaderOptions = OwnedUiShellHeaderOptions;
+export type PiShellPasteReservation = OwnedUiShellPasteReservation;
+export type PiShellSelectorOption = OwnedUiShellSelectorOption;
+export type PiShellSelectorOptions = OwnedUiShellSelectorOptions;
 
-export type PiShellClipboardContent =
-  | { readonly kind: "text"; readonly text: string }
-  | { readonly kind: "image"; readonly data: string; readonly mimeType: string };
-
-export interface PiShellEditorTextRange {
-  readonly start: number;
-  readonly end: number;
+/**
+ * Restores Pi's keybinding type to bindings the shell carried through the neutral contract. They were read from
+ * Pi's keybinding manager in the first place, so the narrowing loses nothing.
+ */
+export function piKeybindings(bindings: OwnedUiShellKeybindings | undefined): KeybindingsConfig | undefined {
+  return bindings as KeybindingsConfig | undefined;
 }
 
-export interface PiShellEditorPointerEvent {
-  readonly kind: "press" | "motion" | "release";
-  readonly button: number;
-  readonly column: number;
-  /** One-based row relative to the top border of the editor body, excluding its menu. */
-  readonly row: number;
-}
-
-export interface PiShellEditorBodyGeometry {
-  /** Zero-based body offset in the most recently rendered component rows. */
-  readonly rowOffset: number;
-  /** Border-inclusive body height, excluding autocomplete. */
-  readonly rowCount: number;
-}
-
-export interface PiShellEditorPort extends PiShellComponentPort {
-  /** Present only for the owned above-prompt autocomplete presentation. */
-  bodyGeometry?(): PiShellEditorBodyGeometry;
-  readonly recall?: EditorRecallPort;
-  readonly historyReplacement?: typeof import("../../../contracts/owned-ui/index.js").PROMPT_HISTORY_EDITOR_REPLACEMENT;
-  /** Restores the shared manager if anything replaced pi-tui's registry; a no-op when it is already active. */
-  activateKeybindings(): void;
-  keybindingConfig(): KeybindingsConfig;
-  reloadKeybindings(): void;
-  /** Uses Pi's terminal decoder rather than assuming one terminal escape spelling. */
-  matchesTerminalKey(data: string, key: "home" | "end" | "pageUp" | "pageDown" | "ctrl+home" | "ctrl+end" | "alt+home" | "ctrl+v"): boolean;
-  getText(): string;
-  setText(text: string): void;
-  insertText(text: string): void;
-  addToHistory(text: string): void;
-  setSubmitEnabled(enabled: boolean): void;
-  setSubmitHandler(handler: (text: string) => void): void;
-  setInterruptHandler(handler: () => void): void;
-  setAutocompleteCommands(commands: readonly PiShellAutocompleteCommand[]): void;
-  setPaddingX(padding: number): void;
-  setAutocompleteMaxVisible(maxVisible: number): void;
-  addAutocompleteProvider(factory: unknown): void;
-  setThinkingLevel(level: OwnedUiThinkingLevel): void;
-  setPromptSuggestion(text: string | null): void;
-  canPresentPromptSuggestion(): boolean;
-  promptSuggestionBlockReason?(): SuggestionDecision;
-  hasSelection(): boolean;
-  /** Exact expanded semantic editor selection without mutating or collapsing it. */
-  selectedText?(): string | undefined;
-  ownsPointer(): boolean;
-  handlePointer(event: PiShellEditorPointerEvent): boolean;
-  pasteClipboard(): boolean;
-  cancelPendingPastes?(): void;
-}
-
-export interface PiShellAutocompleteCommand {
-  readonly name: string;
-  readonly description?: string;
-  readonly argumentHint?: string;
-  readonly argumentOptions?: readonly PiShellSelectorOption[];
-  /** Built-in entries decorate the active profile's catalog; everything else is a discovered resource. */
-  readonly source?: "builtin" | "prompt" | "skill" | "extension";
-}
-
-export interface PiShellViewComponentPort extends PiShellComponentPort {
-  update(view: OwnedUiSessionViewModel): void;
-}
-
-export type PiShellStatusPlacement = "live" | "dock" | "hidden";
-export type PiShellProgressPresentationMode = "pinned" | "custom-viewport";
-
-export interface PiShellProgressStatusPresentation {
-  readonly text: (message: string, mode: PiShellProgressPresentationMode) => string;
-  readonly frame: (
-    message: string,
-    phase: number,
-    styles: { readonly muted: (text: string) => string; readonly highlight: (text: string) => string },
-  ) => string;
-}
-
-export interface PiShellStatusPort extends PiShellViewComponentPort {
-  /** `active` owns a live operation before the engine lifecycle itself becomes busy. */
-  setWorkingOverride(message: string | undefined, active?: boolean): void;
-  setOutputPad(padding: 0 | 1): void;
-  /** Bare A1 shows engine-measured progress beside the working word; the pinned route keeps the bare word. */
-  setProgressPresentation(presentation: PiShellProgressPresentationMode): void;
-  /** Semantic row placement; callers must not inspect rendered text. */
-  placement(): PiShellStatusPlacement;
-  renderDock(width: number): readonly string[];
-  renderLive(width: number): readonly string[];
-}
-
-export interface PiShellQueuedInputPort extends PiShellComponentPort {
-  update(submissions: readonly string[]): void;
-}
-
-export interface PiShellHeaderPort extends PiShellComponentPort {
-  readonly expanded: boolean;
-  setExpanded(expanded: boolean): void;
-}
-
-export type PiShellResourceSection = "Context" | "Skills" | "Prompts" | "Extensions" | "Themes";
-
-export interface PiShellResourceEntry {
-  readonly section: PiShellResourceSection;
-  readonly label: string;
-  readonly sourcePath: string | null;
-  readonly diagnostic?: string | null;
-}
-
-export interface PiShellLoadedResourcesPort extends PiShellComponentPort {
-  setExpanded(expanded: boolean): void;
-}
-
-export interface PiShellImageAssetResolver {
-  resolve(assetId: string): OwnedUiImageAttachment | null;
-}
-
-export interface PiShellExtensionRendererResolver {
-  getMessageRenderer(customType: string): unknown;
-  getToolRenderers(toolName: string): unknown;
-  getShortcuts?(bindings: KeybindingsConfig): readonly { readonly key: string; readonly description: string }[];
-}
-
-export interface PiShellTranscriptComponentPort extends PiShellComponentPort {
-  readonly id: string;
-  readonly revision: number;
-  readonly presentationRevision?: number;
-  update(block: OwnedUiTranscriptBlock): void;
-  setExpanded(expanded: boolean): void;
-  setOutputPad(padding: 0 | 1): void;
-  setHideThinkingBlock(hidden: boolean): void;
-  setMermaidRenderingMode(mode: "off" | "final" | "streaming"): void;
-  setImagePresentation(showImages: boolean, imageWidthCells: number): void;
-}
-
-export interface PiShellStartupNotice {
-  readonly kind: "info" | "warning" | "error";
-  readonly message: string;
-}
-
-export interface PiShellHeaderOptions {
-  readonly getKeybindings?: () => KeybindingsConfig;
-  readonly quiet?: boolean;
-  readonly expanded?: boolean;
-  readonly notices?: readonly PiShellStartupNotice[];
-  readonly resources?: readonly PiShellResourceEntry[];
-}
-
-/** An owned paste reserves its edit immediately and acknowledges completion only after insertion. */
-export interface PiShellPasteReservation {
-  readonly marker: string;
-  readonly result: Promise<string>;
-  complete?(): void;
-  isCurrent?(): boolean;
-}
-
-export interface PiShellEditorOptions {
-  readonly persistentHistory?: boolean;
-  /** Configures the shared interactive input for a caller narrower than the agent prompt. */
-  readonly inputCapabilities?: {
-    readonly singleLine?: boolean;
-    readonly paste?: boolean;
-    readonly autocomplete?: boolean;
-    readonly placeholder?: string;
-  };
+/** The editor factory's options with the opaque history editor and keybindings narrowed to their Pi types. */
+export interface PiShellEditorOptions extends Omit<OwnedUiShellEditorOptions, "historyEditor" | "keybindings"> {
   readonly historyEditor?: HistoryEditorConstructor;
-  /** Bare A1 adds ergonomic aliases while comparison profiles retain Pi defaults. */
-  readonly keybindingProfile?: "pi" | "a1";
-  /** The process's shared keybindings; its profile must match `keybindingProfile`. */
   readonly keybindings?: PiKeybindingsHost;
-  readonly getColumns: () => number;
-  readonly getRows: () => number;
-  readonly requestRender: () => void;
-  readonly onSubmit: (text: string) => void;
-  readonly onChange?: (text: string) => void;
-  readonly onInterrupt?: () => void;
-  readonly onClear?: () => void;
-  readonly onExit?: () => void;
-  readonly onSuspend?: () => void;
-  readonly onExternalEditor?: () => void;
-  readonly onPasteImage?: () => void;
-  readonly onExtensionShortcut?: (data: string) => boolean;
-  readonly onModelSelect?: () => void;
-  readonly onModelCycle?: ((direction: "forward" | "backward") => void) | undefined;
-  readonly onThinkingCycle?: (() => void) | undefined;
-  readonly onThinkingToggle?: (() => void) | undefined;
-  readonly onToolsExpand?: (() => void) | undefined;
-  readonly onMessageCopy?: (() => void) | undefined;
-  readonly onFollowUp?: (() => void) | undefined;
-  readonly onDequeue?: (() => void) | undefined;
-  readonly onPromptSuggestionAccepted?: (text: string) => void;
-  readonly onCopyText?: (text: string, cut: boolean) => void;
-  readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
-  readonly beginClipboardPaste?: () => PiShellPasteReservation;
-  readonly beginTextPaste?: (text: string) => PiShellPasteReservation;
-  readonly deferTextPaste?: (text: string) => boolean;
-  readonly onPasteRejected?: (error: unknown) => void;
-  readonly onPasteInput?: (bytes: number, phase: "framing" | "inserting" | "settled") => void;
-  readonly editorHiddenRanges?: (line: string) => readonly PiShellEditorTextRange[];
-  readonly transformPastedContent?: (content: PiShellClipboardContent) => string;
-  readonly editorAtomicRanges?: (line: string) => readonly PiShellEditorTextRange[];
-  readonly expandCopiedEditorText?: (text: string) => string;
-  readonly paintEditorSelection?: (line: string, from: number, to: number, atomic: boolean) => string;
-  /** Row indices restart at zero for each complete owned editor decoration pass. */
-  readonly decorateEditorRow?: (row: string, width: number, rowIndex: number) => string;
-  readonly cwd?: string;
-  readonly agentDir?: string;
-  readonly autocompleteCommands?: readonly PiShellAutocompleteCommand[];
-  /**
-   * Bare A1's skills presentation, read at every command-list installation. `collapse` replaces the
-   * `skill:<name>` entries with one `skills` command and its tunnel; absent or `expand` keeps the
-   * pinned per-skill entries. Comparison profiles ignore it.
-   */
-  readonly skillsPresentation?: () => "collapse" | "expand";
-  readonly promptPresentation?: {
-    readonly input: PiShellPromptInputPresentation;
-    readonly styleSuggestion: (text: string) => string;
-    readonly styleSuggestionCaret: (text: string) => string;
-  };
-}
-
-export interface PiShellSelectorOption {
-  readonly id: string;
-  readonly label: string;
-  readonly description?: string;
-}
-
-export interface PiShellSelectorOptions {
-  readonly title?: string;
-  readonly options: readonly PiShellSelectorOption[];
-  readonly maxVisible?: number;
-  readonly onSelect?: (id: string) => void;
-  readonly onCancel?: () => void;
 }
 
 // Provenance: pinned from packages/coding-agent/src/core/slash-commands.ts at 914cf14.

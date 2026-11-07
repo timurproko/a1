@@ -5,7 +5,6 @@ export type LegacyIdentityClass =
   | "paths"
   | "schemas"
   | "artifacts"
-  | "native-names"
   | "tests"
   | "current-docs-specs"
   | "historical-records"

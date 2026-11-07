@@ -13,7 +13,6 @@ import {
   skillMatchesQuery,
   skillPrompt,
   skillsFromCommands,
-  skillsTunnelQuery,
 } from "../../../../src/integrations/pi/components/skills-command.js";
 import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
 import { cellBackgroundAt, cellStyle } from "../../../support/ansi-cell-style.js";
@@ -108,14 +107,22 @@ describe("skills command helpers", () => {
     }
   });
 
-  it("recognizes the tunnel query only on a single top-level line before the cursor", () => {
-    expect(skillsTunnelQuery(["/skills:"], 0, 8)).toBe("");
-    expect(skillsTunnelQuery(["/skills:fra"], 0, 11)).toBe("fra");
-    expect(skillsTunnelQuery(["/skills:framer rest"], 0, 14)).toBe("framer");
-    expect(skillsTunnelQuery(["/skills:framer rest"], 0, 19)).toBeNull();
-    expect(skillsTunnelQuery(["/skills"], 0, 7)).toBeNull();
-    expect(skillsTunnelQuery(["/skills:", "second"], 0, 8)).toBeNull();
-    expect(skillsTunnelQuery(["hello", "/skills:"], 1, 8)).toBeNull();
+  it.each([
+    [["/skills:"], 0, 8, "skills"],
+    [["/skills:fra"], 0, 11, "skills"],
+    [["/skills:framer rest"], 0, 14, "skills"],
+    [["/skills:framer rest"], 0, 19, "base"],
+    [["/skills"], 0, 7, "base"],
+    [["/skills:", "second"], 0, 8, "base"],
+    [["hello", "/skills:"], 1, 8, "base"],
+  ] as const)("answers %j at %i:%i from the %s provider", async (lines, cursorLine, cursorCol, answeredBy) => {
+    const base: AutocompleteProvider = {
+      getSuggestions: async () => ({ prefix: "", items: [{ value: "base", label: "base" }] }),
+      applyCompletion: (current, line, col) => ({ lines: current, cursorLine: line, cursorCol: col }),
+    };
+    const provider = createSkillsTunnelProvider(base, skillsFromCommands(COMMANDS));
+    const result = await provider.getSuggestions([...lines], cursorLine, cursorCol, { signal: new AbortController().signal });
+    expect(result?.items.some(item => item.value === "base") ? "base" : "skills").toBe(answeredBy);
   });
 
   it("wraps a provider so only the tunnel form is answered locally and everything else is delegated", async () => {

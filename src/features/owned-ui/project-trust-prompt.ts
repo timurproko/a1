@@ -2,7 +2,7 @@ import type { Readable, Writable } from "node:stream";
 import { EMERGENCY_TERMINAL_RESET } from "../../foundation/terminal-cleanup/terminal-reset.js";
 import { preTrustPalette, preTrustTerminalAppearance, preTrustTerminalColorMode, readPreTrustAccent } from "../../ui/settings/early-accent.js";
 
-export type OwnedProjectTrustChoiceId =
+type OwnedProjectTrustChoiceId =
   | "trust"
   | "trust-parent"
   | "trust-session"
@@ -26,7 +26,7 @@ interface RawTtyInput extends Readable {
 export interface ConsoleProjectTrustPromptOptions {
   readonly input?: RawTtyInput;
   readonly output?: Writable & { readonly isTTY?: boolean; readonly columns?: number; readonly rows?: number };
-  readonly presentation?: "bare" | "comparison";
+  readonly productMode?: "bare" | "comparison";
   readonly environment?: NodeJS.ProcessEnv;
 }
 
@@ -67,7 +67,7 @@ export function createConsoleProjectTrustPrompt(
       throw new Error("an interactive terminal is unavailable");
     }
     if (choices.length === 0) throw new Error("project trust choices are unavailable");
-    const comparison = options.presentation === "comparison";
+    const comparison = options.productMode === "comparison";
     const renderBareDialog = comparison ? undefined : (await import("./project-trust-dialog.js")).renderProjectTrustDialog;
     const palette = comparison ? null : trustPaletteOptions(options.environment ?? process.env);
 

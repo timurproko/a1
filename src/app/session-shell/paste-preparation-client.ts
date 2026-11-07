@@ -1,5 +1,5 @@
+import type { OwnedUiShellClipboardContent } from "../../contracts/owned-ui/index.js";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
-import type { PiShellClipboardContent } from "../../integrations/pi/components/index.js";
 import { createPasteHelperPool, startPasteExecutor, type PasteExecutorJob } from "./paste-executor.js";
 import type { HelperPool } from "./helper-pool.js";
 import { PASTE_READ_MS, PASTE_REQUESTS, PASTE_STOP_MS, PASTE_TOTAL_MS, type PasteEvent, type PasteSource, type PreparedPaste } from "./paste-protocol.js";
@@ -98,7 +98,7 @@ export class PastePreparationClient {
       void (async () => {
         try {
           if (controller.signal.aborted) return;
-          let content: PiShellClipboardContent | undefined;
+          let content: OwnedUiShellClipboardContent | undefined;
           if (source.kind !== "text" && source.before) {
             emit("predecessor");
             if (!await source.before(controller.signal)) throw new ImageAttachmentError("paste-write-failed");

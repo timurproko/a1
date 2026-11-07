@@ -235,7 +235,7 @@ function isDocumentationOnlyPath(path) {
 
 export function isDocumentationPolicyPath(path) {
   const role = classifyCodeDocumentationSource(path);
-  return role === "first-party-production" || role === "first-party-tooling" || role === "first-party-native" || role === "synchronized";
+  return role === "first-party-production" || role === "first-party-tooling" || role === "synchronized";
 }
 
 function isFullRenderingPath(path) {

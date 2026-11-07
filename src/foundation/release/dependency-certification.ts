@@ -4,7 +4,7 @@ import { basename, dirname, resolve } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { immutablePlatformPolicy } from "./immutable-platform.js";
 
-export const DEPENDENCY_CERTIFICATIONS_DIRECTORY = "dependency-certifications";
+const DEPENDENCY_CERTIFICATIONS_DIRECTORY = "dependency-certifications";
 
 type LayerIdentity = { readonly layerId: string; readonly contentDigest: string };
 

@@ -8,13 +8,13 @@ import type { OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js"
 import type { AgentJsonValue, AgentSettingOwner } from "../../../contracts/agent-engine/index.js";
 import { PINNED_PI_SETTINGS_CALLBACKS, type PiPinnedSettingsCallback, type PiPinnedSettingsSnapshot, type PiWorkflowResult } from "./workflows.js";
 
-export interface PiEngineSettingsOptions {
+interface PiEngineSettingsOptions {
   /** Themes installed on this machine, when the component adapter that owns the theme unit supplies them. */
   readonly availableThemes: (() => readonly string[]) | null;
   readonly productMode: "bare" | "comparison";
 }
 
-export interface PiEngineSettingsPorts {
+interface PiEngineSettingsPorts {
   runtime(): AgentSessionRuntime | undefined;
   /** The bound session, or a thrown "not running" error before one exists. */
   requireSession(): AgentSession;

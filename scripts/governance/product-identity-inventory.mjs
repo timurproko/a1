@@ -9,7 +9,6 @@ export const LEGACY_IDENTITY_CLASSES = Object.freeze([
   "paths",
   "schemas",
   "artifacts",
-  "native-names",
   "tests",
   "current-docs-specs",
   "historical-records",
@@ -19,9 +18,9 @@ export const LEGACY_IDENTITY_CLASSES = Object.freeze([
 const INVENTORY_PATH = "config/product-identity-legacy-inventory.json";
 const HISTORICAL_INVENTORY_PATH = "openspec/changes/centralize-a1-product-identity/evidence/legacy-identity-inventory.json";
 const ROOT_FILES = Object.freeze(["package.json", "package-lock.json", "README.md"]);
-const ROOT_DIRECTORIES = Object.freeze(["src", "bin", "scripts", "test", "native", ".github", "docs", "openspec/specs", "openspec/changes"]);
-const EXCLUDED_DIRECTORY_NAMES = new Set(["node_modules", "dist", "target", "target-check", "vendor"]);
-const TEXT_EXTENSIONS = new Set([".json", ".md", ".mjs", ".cjs", ".mts", ".js", ".ts", ".tsx", ".yaml", ".yml", ".toml", ".lock", ".rs", ".txt"]);
+const ROOT_DIRECTORIES = Object.freeze(["src", "bin", "scripts", "test", ".github", "docs", "openspec/specs", "openspec/changes"]);
+const EXCLUDED_DIRECTORY_NAMES = new Set(["node_modules", "dist"]);
+const TEXT_EXTENSIONS = new Set([".json", ".md", ".mjs", ".cjs", ".mts", ".js", ".ts", ".tsx", ".yaml", ".yml", ".txt"]);
 const LEGACY_TOKEN = ["add", "one"].join("");
 const LEGACY_PATTERN = new RegExp(LEGACY_TOKEN, "gi");
 
@@ -131,11 +130,10 @@ function classify({ path, locationKind, value, context }) {
   if (value === value.toUpperCase() && new RegExp(`${LEGACY_TOKEN}_[a-z0-9_]+`, "i").test(context)) classes.add("environment-keys");
   if (/schema|protocol|frame|namespace|codec|message type|storage version/.test(lowerContext)) classes.add("schemas");
   if (/diagnostic|error|failed|failure|could not|cannot|invalid|unexpected|usage|message|report/.test(lowerContext)) classes.add("diagnostics");
-  if (lowerPath.startsWith("native/") || /crate|cargo|rust|native host|terminal-host/.test(lowerContext)) classes.add("native-names");
   if (lowerPath.startsWith("test/") || /(?:^|\/)fixtures?(?:\/|$)/.test(lowerPath)) classes.add("tests");
   if (lowerPath === "readme.md" || lowerPath.startsWith("docs/") || lowerPath.startsWith("openspec/specs/")
     || (lowerPath.startsWith("openspec/changes/") && /\.(?:md|ya?ml|json)$/.test(lowerPath))) classes.add("current-docs-specs");
-  if (locationKind === "path" || /artifact|executable|binary|\bbin\b|tarball|manifest|filename|file name|crate/.test(lowerContext)) classes.add("artifacts");
+  if (locationKind === "path" || /artifact|executable|binary|\bbin\b|tarball|manifest|filename|file name/.test(lowerContext)) classes.add("artifacts");
   if (/path|director|folder|socket|pipe|endpoint|temp|runtime root|data root|config root/.test(lowerContext)
     || new RegExp(`[\\\\/].*${LEGACY_TOKEN}|${LEGACY_TOKEN}.*[\\\\/]`).test(lowerContext)) classes.add("paths");
   if (isCode && !classes.has("historical-records")) classes.add("runtime-symbols");

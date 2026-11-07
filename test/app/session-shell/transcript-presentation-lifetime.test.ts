@@ -95,8 +95,8 @@ describe("asynchronous transcript presentation lifetime", () => {
   it("coalesces notifications without eagerly rendering history or recursing into renderer invalidation", async () => {
     const value = await fixture();
     const history = value.backend.session.view().transcript[0]!;
-    const stable = vi.spyOn(value.shell.root.transcriptComponent(history.id)!, "render");
-    const dirty = vi.spyOn(value.shell.root.transcriptComponent("tool-async")!, "render");
+    const stable = vi.spyOn(value.shell.root.transcript.component(history.id)!, "render");
+    const dirty = vi.spyOn(value.shell.root.transcript.component("tool-async")!, "render");
     const request = vi.spyOn(value.shell.runtime, "requestRender");
     value.notifyInRenderer();
     for (let n = 0; n < 100; n++) value.callback()();
@@ -114,9 +114,9 @@ describe("asynchronous transcript presentation lifetime", () => {
       content: [{ type: "text", text: Array.from({ length: 30 }, (_, n) => `LATER_${n}`).join("\n\n") }] } });
     value.shell.runtime.renderNow();
     expect(plain(value.shell.root.render(80))).not.toContain("BEFORE_ASYNC");
-    const dirty = vi.spyOn(value.shell.root.transcriptComponent("tool-async")!, "render");
+    const dirty = vi.spyOn(value.shell.root.transcript.component("tool-async")!, "render");
     const stable = value.backend.session.view().transcript.filter(block => block.id !== "tool-async")
-      .map(block => vi.spyOn(value.shell.root.transcriptComponent(block.id)!, "render"));
+      .map(block => vi.spyOn(value.shell.root.transcript.component(block.id)!, "render"));
     value.change("CURRENT_OFFSCREEN");
     expect(dirty).not.toHaveBeenCalled();
     expect(stable.every(spy => spy.mock.calls.length === 0)).toBe(true);
@@ -186,7 +186,7 @@ describe("asynchronous transcript presentation lifetime", () => {
     const old = value.callback();
     value.session.messages = [{ role: "user", timestamp: 50, content: "AUTHORITATIVE_REPLACEMENT" }];
     await value.emit({ type: "agent_settled" });
-    expect(value.shell.root.transcriptComponent("tool-async")).toBeUndefined();
+    expect(value.shell.root.transcript.component("tool-async")).toBeUndefined();
     const request = vi.spyOn(value.shell.runtime, "requestRender");
     old();
     expect(request).not.toHaveBeenCalled();

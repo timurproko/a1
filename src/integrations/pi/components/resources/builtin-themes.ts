@@ -152,7 +152,7 @@ export const BUILTIN_THEME_RESOURCES = Object.freeze({
   },
 } as const);
 
-export type BuiltinThemeName = keyof typeof BUILTIN_THEME_RESOURCES;
+type BuiltinThemeName = keyof typeof BUILTIN_THEME_RESOURCES;
 
 export function isBuiltinThemeName(name: string): name is BuiltinThemeName {
   return Object.hasOwn(BUILTIN_THEME_RESOURCES, name);

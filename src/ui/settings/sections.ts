@@ -106,7 +106,7 @@ export function buildOwnedUiSettingsSections(
 }
 
 /** The enabled parts a flagged A1 setting's comma-separated value names, as the record its dialog edits. */
-export function flagRecord(flags: readonly { readonly key: string }[], value: unknown): Record<string, boolean> {
+function flagRecord(flags: readonly { readonly key: string }[], value: unknown): Record<string, boolean> {
   const enabled = new Set(typeof value === "string" ? value.split(",") : []);
   return Object.fromEntries(flags.map(flag => [flag.key, enabled.has(flag.key)]));
 }

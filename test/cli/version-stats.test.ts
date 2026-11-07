@@ -214,7 +214,7 @@ describe("version stats", () => {
   it("keeps version execution dependency-light and outside interactive runtime owners", async () => {
     const source = await readFile(resolve("src/cli/version-stats.ts"), "utf8");
     expect(source).not.toMatch(/features\/|foundation\//);
-    expect(source).not.toMatch(/runBootstrap|runOwnedUi|runTransparentForeground|CohortStateStore/);
+    expect(source).not.toMatch(/runBootstrap|runOwnedUi|runTransparentForeground|ReleaseStateStore/);
   });
 });
 

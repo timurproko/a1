@@ -218,7 +218,7 @@ class ProcessPiEngineHost implements PiEngineHost {
   async #announceOnce(adapter: PiEngineAdapter): Promise<void> {
     if (this.#announced) return;
     this.#announced = true;
-    if (this.#options.announceStartupChangelog !== false) await adapter.announceStartupChangelog();
-    void adapter.announcePackageUpdates();
+    if (this.#options.announceStartupChangelog !== false) await adapter.announcements.startupChangelog();
+    void adapter.announcements.packageUpdates();
   }
 }

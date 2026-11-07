@@ -9,6 +9,7 @@ const NAMING_THEME: UiTheme = Object.freeze({
   highlight: (text: string) => `<highlight>${text}</highlight>`,
   disabled: (text: string) => `<disabled>${text}</disabled>`,
   panel: (text: string) => `<panel>${text}</panel>`,
+  background: (_token: string, text: string) => text,
 });
 
 const row: ListViewRow = { key: "theme", label: "Theme", value: "light" };

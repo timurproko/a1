@@ -37,12 +37,10 @@ describe("code documentation source roles", () => {
     ["bin/cli.js", "first-party-tooling"],
     ["packages/a1-install/bin/a1-install.js", "first-party-tooling"],
     ["vitest.config.ts", "first-party-tooling"],
-    ["native/process-guardian/src/main.rs", "first-party-native"],
     ["src/integrations/pi/components/upstream/component.ts", "synchronized"],
-    ["native/terminal-host/vendor/lib/source.zig", "vendored"],
     ["src/integrations/pi/components/resources/builtin-themes.ts", "generated"],
     ["dist/cli.js", "ignored"],
-    ["native/process-guardian/target/debug/build.rs", "ignored"],
+    ["node_modules/pkg/index.js", "ignored"],
   ])("classifies %s as %s", (path, role) => {
     expect(classifyCodeDocumentationSource(path)).toBe(role);
     expect(classifyCodeDocumentationSource(path.replaceAll("/", "\\"))).toBe(role);
@@ -50,19 +48,16 @@ describe("code documentation source roles", () => {
 
   it("does not turn similar path names into broad exclusions", () => {
     expect(classifyCodeDocumentationSource("src/integrations/pi/components/upstreamish/component.ts")).toBe("first-party-production");
-    expect(classifyCodeDocumentationSource("native/terminal-host/vendorish/source.rs")).toBe("first-party-native");
     expect(classifyCodeDocumentationSource("other/source.ts")).toBe("unmatched");
   });
 
-  it("loads normalized tracked code without reading ignored and vendored content", async () => {
+  it("loads normalized tracked code without reading ignored content", async () => {
     const repository = await mkdtemp(join(tmpdir(), "a1-code-documentation-"));
     await execFileAsync("git", ["init"], { cwd: repository });
     for (const [path, source] of Object.entries({
       "src/a.ts": "export const a = 1;",
       "test/a.test.ts": "export const test = true;",
-      "native/a.rs": "fn main() {}",
-      "native/terminal-host/vendor/lib/a.zig": "const a = 1;",
-      "target/generated.rs": "fn generated() {}",
+      "dist/generated.js": "export const generated = 1;",
       "notes.txt": "ignored",
     })) {
       await mkdir(join(repository, path, ".."), { recursive: true });
@@ -72,10 +67,8 @@ describe("code documentation source roles", () => {
 
     const sources = await loadTrackedCodeDocumentationSources(repository);
     expect(sources.map(value => [value.path, value.role, value.source === null])).toEqual([
-      ["native/a.rs", "first-party-native", false],
-      ["native/terminal-host/vendor/lib/a.zig", "vendored", true],
+      ["dist/generated.js", "ignored", true],
       ["src/a.ts", "first-party-production", false],
-      ["target/generated.rs", "ignored", true],
       ["test/a.test.ts", "first-party-tooling", false],
     ]);
   });
@@ -214,21 +207,6 @@ describe("implementation comment hygiene", () => {
       CODE_DOCUMENTATION_RULES.trackedFollowUp,
       CODE_DOCUMENTATION_RULES.suppressionReason,
     ]));
-  });
-
-  it("parses native comments without treating ordinary and raw strings as comments", () => {
-    const accepted = inspect({
-      "native/tool/src/main.rs": [
-        "fn main() {",
-        "    let url = \"https://example.test\";",
-        "    let raw = r#\"// not a comment\"#;",
-        "    // Platform: the host receives this value from the operating system.",
-        "    /// Public native contract uses the language's documentation form.",
-        "}",
-      ].join("\n"),
-    });
-    expect(accepted).toEqual([]);
-    expect(rules({ "native/tool/src/main.rs": "fn main() { // explain the call\n}" })).toContain(CODE_DOCUMENTATION_RULES.implementationIntent);
   });
 
   it("formats sorted actionable failures and a clean command result", () => {

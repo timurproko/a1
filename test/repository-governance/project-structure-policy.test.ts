@@ -6,8 +6,7 @@ import {
   inspectProjectStructureImports,
   PROJECT_OWNERS,
   projectOwnerForPath,
-  testOwnerForPath,
-} from "../../scripts/governance/project-structure-policy.mjs";
+  testOwnerForPath, inspectExportConsumers } from "../../scripts/governance/project-structure-policy.mjs";
 
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
@@ -113,10 +112,9 @@ describe("project structure ownership policy", () => {
     ]);
   });
 
-  it("keeps the application layer on the declared session backend port", () => {
+  it("keeps the application layer on the contracts instead of any Pi adapter", () => {
     expect(inspectLayerBoundaries({
       "src/app/session-shell/session-shell.ts": "import type { OwnedUiSessionBackend } from '../../contracts/owned-ui/index.js';",
-      "src/app/session-shell/exit-notice.ts": "import { workflowCommandNames } from '../../integrations/pi/engine/workflows.js';",
       "src/composition/owned-ui.ts": "import { createPiEngineAdapter, type PiEngineAdapter, type PiSessionPresentationSource } from '../integrations/pi/engine/adapter.js';",
     })).toEqual([]);
     expect(inspectLayerBoundaries({
@@ -124,11 +122,13 @@ describe("project structure ownership policy", () => {
       "src/app/session-shell/session-shell.ts": "import { PiEngineAdapter } from '../../integrations/pi/engine/index.js';",
       "src/app/session-shell/quit-outro.ts": "import type { PiSessionPresentationSource } from '../../integrations/pi/engine/index.js';",
       "src/app/session-shell/exit-notice.ts": "let backend: import('../../integrations/pi/engine/adapter.js').PiEngineAdapter;",
+      "src/app/session-shell/shell-host.ts": "import { PI_TERMINAL_RUNTIME } from '../../integrations/pi/tui-runtime/runtime-factory.js';",
     })).toEqual([
-      "src/app/session-shell/session-shell-root.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
-      "src/app/session-shell/session-shell.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
-      "src/app/session-shell/quit-outro.ts: the application layer opens Pi selectors through OwnedUiSessionPresenters, not the engine's presentation source",
-      "src/app/session-shell/exit-notice.ts: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class",
+      "src/app/session-shell/session-shell-root.ts: the application layer reaches Pi only through the owned-UI and presentation contracts ('../../integrations/pi/engine/adapter.js')",
+      "src/app/session-shell/session-shell.ts: the application layer reaches Pi only through the owned-UI and presentation contracts ('../../integrations/pi/engine/index.js')",
+      "src/app/session-shell/quit-outro.ts: the application layer reaches Pi only through the owned-UI and presentation contracts ('../../integrations/pi/engine/index.js')",
+      "src/app/session-shell/exit-notice.ts: the application layer reaches Pi only through the owned-UI and presentation contracts ('../../integrations/pi/engine/adapter.js')",
+      "src/app/session-shell/shell-host.ts: the application layer reaches Pi only through the owned-UI and presentation contracts ('../../integrations/pi/tui-runtime/runtime-factory.js')",
     ]);
   });
 
@@ -224,4 +224,21 @@ describe("project structure ownership policy", () => {
       `${path}: feature may not import concrete Pi adapter '../../integrations/pi/engine/index.js'; inject a vendor-neutral A1 port`,
     ]);
   });
+
+  it("requires a production consumer for every exported value outside entries and copied upstream code", () => {
+    const files = {
+      "src/features/launch/flags.ts": "export const LIVE = 1;\nexport const DEAD = 2;\nexport const TESTED_ONLY = 3;\nexport interface Shape { readonly value: number }\n",
+      "src/features/launch/run.ts": "import { LIVE } from './flags.js';\nexport function run(): number { return LIVE; }\n",
+      "src/features/launch/index.ts": "export { run } from './run.js';\nexport const ENTRY_ONLY = 4;\n",
+      "src/features/launch/script-read.ts": "export function scripted(): void {}\n",
+      "src/integrations/pi/components/upstream/vendor.ts": "export function vendored(): void {}\n",
+      "src/features/launch/declared-entry.ts": "export function main(): void {}\n",
+    };
+    const consumers = { "scripts/tool.mjs": "import { scripted } from '../dist/features/launch/script-read.js';\n" };
+    expect(inspectExportConsumers(files, consumers, ["src/features/launch/declared-entry.ts"])).toEqual([
+      "src/features/launch/flags.ts: export 'DEAD' has no production consumer; make it private or delete it",
+      "src/features/launch/flags.ts: export 'TESTED_ONLY' has no production consumer; make it private or delete it",
+    ]);
+  });
+
 });

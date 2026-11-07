@@ -1,6 +1,6 @@
+import type { OwnedUiShellClipboardContent } from "../../contracts/owned-ui/index.js";
 import { Worker } from "node:worker_threads";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
-import type { PiShellClipboardContent } from "../../integrations/pi/components/index.js";
 import { readSystemClipboardContent } from "./system-clipboard.js";
 import { MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
 import { preparePasteText, type PreparedPasteText } from "./paste-text-preparation.js";
@@ -9,7 +9,7 @@ import { PASTE_CHUNK_UNITS, PASTE_TEXT_BYTES, pasteFragments, type PasteHelperIn
 const abort = new AbortController();
 let header: Extract<PasteHelperInput, { kind: "begin" }> | undefined;
 let fragments: string[] = [], bytes = 0;
-let image: Extract<PiShellClipboardContent, { kind: "image" }> | undefined;
+let image: Extract<OwnedUiShellClipboardContent, { kind: "image" }> | undefined;
 let output: Generator<PasteHelperOutput> | undefined;
 let finished = false;
 function send(message: PasteHelperOutput): void { process.send?.(message); }
@@ -49,7 +49,7 @@ async function classifyText(text: string): Promise<PreparedPasteText> {
   });
 }
 
-function imagePreparation(source: Extract<PiShellClipboardContent, { kind: "image" }>): Promise<PreparedPaste> {
+function imagePreparation(source: Extract<OwnedUiShellClipboardContent, { kind: "image" }>): Promise<PreparedPaste> {
   const worker = workerFor("image-worker", { kind: "prepare", source });
   return new Promise((resolve, reject) => {
     let done = false;
@@ -110,7 +110,7 @@ async function receive(message: PasteHelperInput): Promise<void> {
     if (bytes > (header.source === "text" ? PASTE_TEXT_BYTES : Math.ceil(MAX_SOURCE_IMAGE_BYTES / 3) * 4 + 4)) throw new ImageAttachmentError(header.source === "text" ? "paste-size" : "image-source-size");
     fragments.push(message.data); send({ kind: "ready" });
   } else if (message?.kind === "finish" && header) {
-    const content: PiShellClipboardContent | null = header.source === "native" ? await readSystemClipboardContent(abort.signal, true)
+    const content: OwnedUiShellClipboardContent | null = header.source === "native" ? await readSystemClipboardContent(abort.signal, true)
       : header.source === "image" ? { kind: "image", mimeType: header.mimeType ?? "", data: fragments.join("") }
       : { kind: "text", text: fragments.join("") };
     fragments = [];

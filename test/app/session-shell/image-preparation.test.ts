@@ -5,8 +5,7 @@ import { screenshotPng, withPngOrientation } from "../../fixtures/image-sources.
 import { ImagePreparationClient, runImageWorker } from "../../../src/app/session-shell/image-preparation-client.js";
 import { sourceImageInfo, assertSourceBytes, MAX_SOURCE_IMAGE_BYTES } from "../../../src/app/session-shell/image-source.js";
 import { prepareImage, type PreparedImage } from "../../../src/app/session-shell/image-preparation.js";
-import { readSystemClipboardImage } from "../../../src/app/session-shell/system-clipboard.js";
-import { canonicalizeStandardBase64 } from "../../../src/app/session-shell/clipboard-image.js";
+import { canonicalizeClipboardImage } from "../../../src/app/session-shell/clipboard-image.js";
 
 const prepare = (bytes: Uint8Array, limits = {}, mimeType = "image/png"): Promise<PreparedImage> => runImageWorker({
   kind: "prepare", source: { data: Buffer.from(bytes).toString("base64"), mimeType }, limits,
@@ -17,7 +16,7 @@ describe("large screenshot preparation", () => {
     const bytes = screenshotPng();
     expect(bytes.toString("base64").length).toBeGreaterThan(8 * 1024 * 1024);
     expect(bytes.length).toBeLessThan(MAX_SOURCE_IMAGE_BYTES);
-    const image = await readSystemClipboardImage({ hasImage: () => true, getImageBase64: async () => bytes.toString("base64") });
+    const image = canonicalizeClipboardImage({ data: bytes.toString("base64"), mimeType: "image/png" }, true);
     expect(image?.mimeType).toBe("image/png");
     expect(Buffer.from(image?.data ?? "", "base64").equals(bytes)).toBe(true);
   });
@@ -130,9 +129,9 @@ describe("large screenshot preparation", () => {
     for (const length of [MAX_SOURCE_IMAGE_BYTES - 1, MAX_SOURCE_IMAGE_BYTES]) expect(() => assertSourceBytes(length)).not.toThrow();
     expect(() => assertSourceBytes(MAX_SOURCE_IMAGE_BYTES + 1)).toThrow("20 MiB");
     const boundary = Buffer.alloc(MAX_SOURCE_IMAGE_BYTES).toString("base64");
-    expect(canonicalizeStandardBase64(boundary, true)?.length).toBe(boundary.length);
-    expect(canonicalizeStandardBase64(boundary.replace(/=+$/, ""), true)).toBe(boundary);
-    expect(() => canonicalizeStandardBase64(`${boundary}AAAA`, true)).toThrow("20 MiB");
+    expect(canonicalizeClipboardImage({ data: boundary, mimeType: "image/png" }, true)?.data.length).toBe(boundary.length);
+    expect(canonicalizeClipboardImage({ data: boundary.replace(/=+$/, ""), mimeType: "image/png" }, true)?.data).toBe(boundary);
+    expect(() => canonicalizeClipboardImage({ data: `${boundary}AAAA`, mimeType: "image/png" }, true)).toThrow("20 MiB");
   });
 
   it.each([[8000, 4999, true], [8000, 5000, true], [8000, 5001, false], [32768, 1, true], [32769, 1, false]])("preflights %ix%i before decoding (eligible=%s)", (width, height, valid) => {

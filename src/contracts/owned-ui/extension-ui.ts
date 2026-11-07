@@ -289,7 +289,7 @@ export interface OwnedUiExtensionOverlayHandle {
   getBounds(): OwnedUiExtensionOverlayBounds | undefined;
 }
 
-export interface OwnedUiExtensionOverlayBounds {
+interface OwnedUiExtensionOverlayBounds {
   readonly row: number;
   readonly col: number;
   readonly width: number;

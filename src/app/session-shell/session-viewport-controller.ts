@@ -1,17 +1,17 @@
-import { samePointerSurfaces } from "../../integrations/pi/tui-runtime/overlay-geometry.js";
-import type { PiTuiPointerSurface } from "../../integrations/pi/tui-runtime/contracts.js";
+import type { OwnedUiShellEditorPort } from "../../contracts/owned-ui/index.js";
+import type { TerminalPointerSurface } from "../../contracts/presentation/index.js";
+import { samePointerSurfaces } from "../../contracts/presentation/index.js";
 import type { OwnedUiViewportSettings } from "../../contracts/owned-ui/index.js";
 import { TranscriptViewport, type TranscriptViewportFrame, type TranscriptViewportFrameInput } from "../../ui/components/transcript-viewport.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
 import { routeMouseInput } from "../../ui/components/mouse.js";
 import { scrollForTrackPage, scrollForThumbRow, scrollbarSelectionRows, scrollbarWheelRows } from "../../ui/components/scrollbar.js";
 import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
-import type { PiShellEditorPort } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { PasteEvent } from "./paste-protocol.js";
 
-export interface SessionViewportControllerOptions {
+interface SessionViewportControllerOptions {
   readonly enabled: boolean;
-  readonly editor: PiShellEditorPort;
+  readonly editor: OwnedUiShellEditorPort;
   readonly requestRender: (force?: boolean) => void;
   readonly requestHyperlinkCleanup?: (rows?: readonly number[]) => void;
   /** Whether mutable editor URL chips need targeted link-cell cleanup on deletion. */
@@ -47,7 +47,7 @@ export interface SessionViewportInputResult {
  */
 export class SessionViewportController {
   readonly #enabled: boolean;
-  readonly #editor: PiShellEditorPort;
+  readonly #editor: OwnedUiShellEditorPort;
   readonly #requestRender: (force?: boolean) => void;
   readonly #hasEditorLinks: () => boolean;
   readonly #requestHyperlinkCleanup: (rows?: readonly number[]) => void;
@@ -61,10 +61,10 @@ export class SessionViewportController {
     scrollbarSpeed: "normal",
   };
   #dragGrabOffset: number | null = null;
-  #inputSurface: PiTuiPointerSurface | undefined;
+  #inputSurface: TerminalPointerSurface | undefined;
   #inputSurfacePending = false;
-  #overlays: readonly PiTuiPointerSurface[] | null = [];
-  #pointerOwner: PiTuiPointerSurface | "viewport" | "drain" | undefined;
+  #overlays: readonly TerminalPointerSurface[] | null = [];
+  #pointerOwner: TerminalPointerSurface | "viewport" | "drain" | undefined;
   // Invariant: a right-click editor gesture remains owned by the dock.
   #dockPointerSuppressed = false;
   // Invariant: a gesture begun on an explicit control remains owned by that control.
@@ -157,7 +157,7 @@ export class SessionViewportController {
     this.#cancelGesture();
   }
 
-  setInputSurfaceFrame(surface: PiTuiPointerSurface | undefined): void {
+  setInputSurfaceFrame(surface: TerminalPointerSurface | undefined): void {
     if (!samePointerSurfaces(this.#inputSurface === undefined ? [] : [this.#inputSurface], surface === undefined ? [] : [surface])) {
       this.#cancelGesture();
     }
@@ -165,7 +165,7 @@ export class SessionViewportController {
     this.#inputSurfacePending = false;
   }
 
-  setOverlaySurfaces(surfaces: readonly PiTuiPointerSurface[] | null): void {
+  setOverlaySurfaces(surfaces: readonly TerminalPointerSurface[] | null): void {
     if (surfaces === this.#overlays || surfaces !== null && this.#overlays !== null && samePointerSurfaces(surfaces, this.#overlays)) return;
     this.#cancelGesture();
     this.#overlays = surfaces;
@@ -615,8 +615,8 @@ export class SessionViewportController {
     return completedCopy === undefined ? routed : { ...routed, copySelection: completedCopy };
   }
 
-  #modalAt(column: number, row: number): PiTuiPointerSurface | undefined {
-    const contains = (surface: PiTuiPointerSurface) => column >= surface.columnStart && column <= surface.columnEnd
+  #modalAt(column: number, row: number): TerminalPointerSurface | undefined {
+    const contains = (surface: TerminalPointerSurface) => column >= surface.columnStart && column <= surface.columnEnd
       && row >= surface.rowStart && row <= surface.rowEnd;
     const overlay = this.#overlays?.findLast(contains);
     return overlay ?? (this.#inputSurface !== undefined && contains(this.#inputSurface) ? this.#inputSurface : undefined);
@@ -695,6 +695,6 @@ export class SessionViewportController {
 const SELECTION_AUTO_SCROLL_INTERVAL_MS = 30;
 const EDITOR_LINK_DELETION_INPUTS = new Set(["\b", "\u007f", "\u001b[3~"]);
 // Platform: Windows Terminal may consume Shift+Arrow for native selection. Ctrl+Arrow matches
-// solo A1's Windows binding while retaining Shift+Arrow whenever the terminal delivers it.
+// A1's Windows binding while retaining Shift+Arrow whenever the terminal delivers it.
 const PROMPT_UP_INPUTS = new Set(["\u001b[1;2A", "\u001b[1;5A"]);
 const PROMPT_DOWN_INPUTS = new Set(["\u001b[1;2B", "\u001b[1;5B"]);

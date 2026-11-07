@@ -38,7 +38,6 @@ export function preflightSteps(selection) {
   if (selection.openspecTouched) {
     steps.push({ id: "openspec-strict", executable: "npx", arguments: ["--yes", PREFLIGHT_OPENSPEC, "validate", "--all", "--strict", "--no-interactive"] });
   }
-  steps.push({ id: "delivery-guidance", executable: "npx", arguments: ["vitest", "run", "test/repository-governance/change-delivery-guidance.test.ts"] });
   if (ordinary) {
     // Invariant: the same scopes and selected tests the "PR core and affected unit owners" job runs.
     steps.push({ id: "changed-tests", executable: "node", arguments: ["scripts/release/run-validation-tier.mjs", "pr-core-tests", "pr-selected-tests"], environment: {

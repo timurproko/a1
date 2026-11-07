@@ -3,8 +3,8 @@ import { assertPromptHistorySubmission, PROMPT_HISTORY_MAX_ENTRY_BYTES, PROMPT_H
 import type { HistoryWorkerRequest } from "./worker.js";
 import { resolvePromptHistoryPath, type PromptHistoryScope } from "./paths.js";
 
-export type HistoryRecoveryState = "starting" | "ready" | "recovering" | "blocked-storage" | "closing" | "closed";
-export interface HistoryClock {
+type HistoryRecoveryState = "starting" | "ready" | "recovering" | "blocked-storage" | "closing" | "closed";
+interface HistoryClock {
   now(): number;
   setTimeout(callback: () => void, milliseconds: number): ReturnType<typeof setTimeout>;
   clearTimeout(timer: ReturnType<typeof setTimeout> | undefined): void;

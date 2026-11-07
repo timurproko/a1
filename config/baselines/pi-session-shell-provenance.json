@@ -45,7 +45,7 @@
         1012
       ],
       "localFile": "src/app/session-shell/session-shell.ts",
-      "adapterFile": "src/integrations/pi/components/shell-components.ts",
+      "adapterFile": "src/integrations/pi/components/index.ts",
       "behavior": "persistent startup/header/transcript/status/editor/footer composition, session-event subscription, selector/dialog focus, shutdown and terminal restoration",
       "copiedFiles": [],
       "copiedLines": false,
@@ -72,7 +72,7 @@
           758
         ]
       ],
-      "localFile": "src/integrations/pi/components/shell-components.ts",
+      "localFile": "src/integrations/pi/components/index.ts",
       "behavior": "complete advertised built-in command autocomplete, vanilla descriptions and argument hints",
       "copiedFiles": [],
       "copiedLines": false,
@@ -125,7 +125,7 @@
         60,
         245
       ],
-      "localFile": "src/integrations/pi/components/shell-components.ts",
+      "localFile": "src/integrations/pi/components/index.ts",
       "behavior": "vanilla two-row cwd/context/model/thinking footer over AddOne-owned view state",
       "copiedFiles": [],
       "copiedLines": false,

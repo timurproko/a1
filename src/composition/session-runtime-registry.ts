@@ -1,6 +1,6 @@
 import type { ProcessIdentity } from "../foundation/lifecycle/model.js";
 
-export interface SessionRuntimeRegistryOptions {
+interface SessionRuntimeRegistryOptions {
   /** Absent outside claim-owning runtimes. */
   readonly runtimeId: string | undefined;
   /** Process liveness inspection; absent SDK seams cannot claim. */

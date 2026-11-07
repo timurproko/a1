@@ -1,5 +1,5 @@
 /** Aggregate explicit URL-chip metadata allowance for one owned editor decoration pass. */
-export const EDITOR_HYPERLINK_METADATA_BYTES = 64 * 1024;
+const EDITOR_HYPERLINK_METADATA_BYTES = 64 * 1024;
 const CLOSE_BYTES = 7;
 const PAIR_BYTES = CLOSE_BYTES * 2;
 

@@ -30,6 +30,12 @@ const owned = producer === "owned"
 const ownedTheme = producer === "owned"
   ? await import(pathToFileURL(join(repository, "src/integrations/pi/components/theme.ts")).href)
   : undefined;
+const ownedComponents = producer === "owned"
+  ? await import(pathToFileURL(join(repository, "test/support/pi-shell-components.ts")).href)
+  : undefined;
+const ownedPresentation = producer === "owned"
+  ? await import(pathToFileURL(join(repository, "src/integrations/pi/session-presenters/presentation.ts")).href)
+  : undefined;
 const results = [];
 for (const mode of modes) {
 setCapabilities({ ...getCapabilities(), trueColor: mode === "truecolor", hyperlinks: false });
@@ -61,6 +67,7 @@ for (const theme of ["dark", "light"]) {
         }
       }
       const root = owned ? new owned.OwnedUiSessionShellRoot(view, home, {
+        presentation: ownedPresentation.PI_SHELL_PRESENTATION, components: ownedComponents.PI_SHELL_COMPONENTS,
         getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {},
         onInterrupt() {}, onExit() {}, onModelSelect() {}, onThinkingCycle() {},
       }, { quiet: true }, agentDir) : undefined;
@@ -79,18 +86,18 @@ for (const theme of ["dark", "light"]) {
             else if (step.kind === "debug") owner.handleDebugCommand();
             else if (step.kind === "content") chatContainer.addChild(new Text(pinnedTheme.theme.fg("dim", step.text), padding, 0));
           } else {
-            if (["status", "error", "warning"].includes(step.kind)) root.appendWorkflowMessage({ kind: step.kind, message: step.text });
-            else if (step.kind === "new") root.appendWorkflowResult({ command: "new", outcome: "completed", message: "✓ New session started", messageKind: "accent" });
+            if (["status", "error", "warning"].includes(step.kind)) root.workflow.appendMessage({ kind: step.kind, message: step.text });
+            else if (step.kind === "new") root.workflow.appendResult({ command: "new", outcome: "completed", message: "✓ New session started", messageKind: "accent" });
             else if (step.kind === "name") {
               const previous = name;
               if (step.text) name = normalizedName ?? step.text;
-              root.appendWorkflowResult({
+              root.workflow.appendResult({
                 command: "name", outcome: name ? "completed" : "failed",
                 message: step.text ? `Session name set: ${name}` : previous ? `Session name: ${previous}` : "Usage: /name <name>",
                 ...(name ? {} : { messageKind: "warning" }),
                 ...(step.text && normalizedName !== undefined ? { detail: `Session name was normalized from ${JSON.stringify(step.text)} to ${JSON.stringify(normalizedName)}` } : {}),
               });
-            } else if (step.kind === "debug") root.appendWorkflowResult({ command: "debug", outcome: "completed", message: "✓ Debug log written", detail: join(agentDir, "pi-debug.log") });
+            } else if (step.kind === "debug") root.workflow.appendResult({ command: "debug", outcome: "completed", message: "✓ Debug log written", detail: join(agentDir, "pi-debug.log") });
             else if (step.kind === "content") {
               view = { ...view, revision: view.revision + 1, transcript: [...view.transcript, { id: `content-${index}`, kind: "system", status: "finalized", revision: 1, title: null, text: step.text, payload: {} }] };
               root.update(view);
@@ -104,7 +111,7 @@ for (const theme of ["dark", "light"]) {
             let rows;
             if (pinned) rows = chatContainer.render(width);
             else {
-              const layout = owned.pinnedLayoutRoot(root.layoutParts());
+              const layout = owned.pinnedLayoutRoot(root.layoutParts(), ownedTheme.PI_THEME_SOURCE);
               const transcript = layout.type === "stack" ? layout.children[0]?.node : undefined;
               if (transcript?.type !== "scroll" || transcript.id !== "transcript" || transcript.child.type !== "component") throw new Error("Missing semantic transcript region");
               rows = transcript.child.component.render(width);

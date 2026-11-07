@@ -114,7 +114,7 @@ export type {
   TextSelectionPoint,
   TextSelectionPressInput,
 } from "./text-selection.js";
-export { PLAIN_THEME } from "./theme.js";
-export type { UiTheme, UiThemeToken } from "./theme.js";
+export { PLAIN_THEME, PLAIN_THEME_SOURCE } from "./theme.js";
+export type { ThemeSource, UiTheme, UiThemeBackground, UiThemeToken } from "./theme.js";
 export { menuRowAt, renderValueMenu, valueMenuFrame } from "./value-menu.js";
 export type { ValueMenuAnchor, ValueMenuFrame, ValueMenuLayout, ValueMenuState } from "./value-menu.js";

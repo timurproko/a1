@@ -22,7 +22,7 @@ interface StartupModuleGraph {
 }
 const startupMeasurements: Array<{
   profileId: "a1" | "pi";
-  launchKind: "post-update" | "no-live-supervisor" | "warm";
+  launchKind: "post-update" | "restart" | "warm";
   elapsedMs: number;
   budgetMs: number;
   releaseId: string | null;
@@ -57,8 +57,8 @@ afterAll(async () => {
 }, 15_000);
 
 describe("fresh first-attempt startup of the exact candidate", () => {
-  it.runIf(process.platform === "win32")("gates post-update, no-live-supervisor, and warm startup for both exact packaged profiles", async () => {
-    const { certifyMaterializedRelease, CohortStateStore, materializeRelease, warmMaterializedRelease } = await import("../../../src/foundation/release/index.js");
+  it.runIf(process.platform === "win32")("gates post-update, restart, and warm startup for both exact packaged profiles", async () => {
+    const { certifyMaterializedRelease, ReleaseStateStore, materializeRelease, warmMaterializedRelease } = await import("../../../src/foundation/release/index.js");
     const { PRODUCT_IDENTITY } = await import("../../../src/product-identity.js");
     const { cliCapabilities } = await import("../../../src/cli/index.js");
     await phases.run("defender-prerequisite", () => expectWindowsDefenderProtection());
@@ -89,7 +89,7 @@ describe("fresh first-attempt startup of the exact candidate", () => {
       expect(environment.NODE_COMPILE_CACHE).toBeUndefined();
     });
     const release = await phases.run("startup-materialization", () => materializeRelease(packageRoot, dataDir));
-    const state = new CohortStateStore(dataDir);
+    const state = new ReleaseStateStore(dataDir);
     await phases.run("startup-record-candidate", () => state.recordCandidate(release));
     await phases.run("startup-certification", async () => {
       await state.approve(release.releaseId, await certifyMaterializedRelease(release, dataDir));
@@ -102,9 +102,9 @@ describe("fresh first-attempt startup of the exact candidate", () => {
         await recordStartupMeasurement(profileId, "post-update", postUpdate, startupModuleGraph);
         await gateStartupBudget({ profileId, launchKind: "post-update", events: postUpdate, moduleGraph: startupModuleGraph });
 
-        const restarted = await captureReadyLaunch(packageRoot, environment, profileId, "no-live-supervisor");
-        await recordStartupMeasurement(profileId, "no-live-supervisor", restarted, startupModuleGraph);
-        await gateStartupBudget({ profileId, launchKind: "no-live-supervisor", events: restarted, moduleGraph: startupModuleGraph });
+        const restarted = await captureReadyLaunch(packageRoot, environment, profileId, "restart");
+        await recordStartupMeasurement(profileId, "restart", restarted, startupModuleGraph);
+        await gateStartupBudget({ profileId, launchKind: "restart", events: restarted, moduleGraph: startupModuleGraph });
         const observedPhases = restarted.map(event => event.phase);
         expect(observedPhases).toEqual(expect.arrayContaining(["durable-validation-start", "durable-validation-complete"]));
         const validationStart = restarted.find(event => event.phase === "durable-validation-start")!;
@@ -148,7 +148,7 @@ async function gateStartupBudget(
 
 async function recordStartupMeasurement(
   profileId: "a1" | "pi",
-  launchKind: "post-update" | "no-live-supervisor" | "warm",
+  launchKind: "post-update" | "restart" | "warm",
   events: readonly { phase: string; elapsedMs: number; releaseId: string | null; dependencyLayerIds: readonly string[] }[],
   moduleGraph: StartupModuleGraph,
 ): Promise<void> {
@@ -198,7 +198,7 @@ async function captureReadyLaunch(
   packageRoot: string,
   environment: NodeJS.ProcessEnv,
   profileId: "a1" | "pi",
-  launchKind: "post-update" | "no-live-supervisor" | "warm",
+  launchKind: "post-update" | "restart" | "warm",
 ) {
   const { parseStartupTrace } = await import("../../../src/foundation/startup/index.js");
   const { PRODUCT_IDENTITY } = await import("../../../src/product-identity.js");

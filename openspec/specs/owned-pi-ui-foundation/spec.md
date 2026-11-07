@@ -3811,7 +3811,7 @@ With `Update: No` the shell SHALL show no release-update UI. In `Auto` it SHALL 
 - **THEN** A1 status SHALL use its compact region and extension availability SHALL retain its transcript presentation without an added A1 banner
 
 #### Scenario: No newer release
-- **WHEN** discovery is skipped, `No` is selected, or no newer release exists
+- **WHEN** discovery is skipped, `Manual` is selected, or no newer release exists
 - **THEN** no A1 update status or popup SHALL render
 
 #### Scenario: Explicit update completes in another terminal

@@ -40,6 +40,12 @@ export interface PiSessionPresentationSource {
   applyPinnedSettingValue(callback: PiPinnedSettingsCallback, value: unknown): Promise<PiWorkflowResult>;
 }
 
+/** Startup announcements the host makes once per process: pinned Pi's changelog and extension package updates. */
+export interface PiEngineAnnouncements {
+  startupChangelog(): Promise<void>;
+  packageUpdates(): Promise<void>;
+}
+
 export interface PiEngineAdapterPorts {
   readonly identity: OwnedUiSessionIdentityPort;
   readonly session: OwnedUiSessionPort;
@@ -48,13 +54,14 @@ export interface PiEngineAdapterPorts {
   readonly catalog: OwnedUiSessionCatalogPort;
   readonly extensions: OwnedUiExtensionPort;
   readonly presentation: PiSessionPresentationSource;
+  readonly announcements: PiEngineAnnouncements;
 }
 
 /** The adapter's collaborators and its own session operations, which every port member reaches at call time. */
 export interface EnginePortParts {
   readonly sessionId: string;
   readonly agentDir: string;
-  readonly engine: Pick<PiEngineRuntime, "cwd" | "generation" | "bindingGeneration" | "currentSessionResumeMetadata" | "currentSessionFile" | "session">;
+  readonly engine: Pick<PiEngineRuntime, "cwd" | "generation" | "bindingGeneration" | "currentSessionResumeMetadata" | "currentSessionFile" | "session" | "announceChangelog" | "announcePackageUpdates">;
   readonly contexts: PiWorkflowContexts;
   readonly workflows: PiWorkflowRunner;
   readonly settings: PiEngineSettings;
@@ -137,6 +144,10 @@ export function createEnginePorts(parts: EnginePortParts): PiEngineAdapterPorts 
       unbindExtensionUi: () => extensions.unbind(),
       bindClipboardWriter: writer => workflows.bindClipboardWriter(writer),
       announceReleaseUpdate: release => { parts.announceReleaseUpdate(release); },
+    },
+    announcements: {
+      startupChangelog: () => engine.announceChangelog(),
+      packageUpdates: () => engine.announcePackageUpdates(),
     },
     presentation: {
       pinnedModelSelectorContext: () => contexts.pinnedModelSelectorContext(),

@@ -1,5 +1,5 @@
+import type { TerminalInputDiagnosticsEvent } from "../../contracts/presentation/index.js";
 import { writeFile } from "node:fs/promises";
-import type { PiTuiInputDiagnosticsEvent } from "../../integrations/pi/tui-runtime/contracts.js";
 import type { ResponseCopyEvent } from "./response-copy-protocol.js";
 import type { PasteEvent } from "./paste-protocol.js";
 
@@ -26,7 +26,7 @@ export class ClipboardDiagnosticCapture {
   }
   copy(event: ResponseCopyEvent): void { this.#record("copy", event); }
   paste(event: PasteEvent): void { this.#record("paste", event); }
-  runtime(event: PiTuiInputDiagnosticsEvent): void {
+  runtime(event: TerminalInputDiagnosticsEvent): void {
     this.#record("runtime", { phase: event.phase, atMs: event.atMs, request: event.revision, pending: event.pendingDepth });
   }
   #record(source: string, event: { phase: string; atMs: number; request?: number; pending?: number; bytes?: number; elapsedMs?: number; transport?: string; outcome?: string; sourceUnits?: number }): void {
