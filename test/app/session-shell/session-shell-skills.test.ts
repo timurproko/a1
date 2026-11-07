@@ -134,6 +134,40 @@ describe("OwnedUiSessionShell skills command", () => {
     } finally { await shell.dispose(); }
   });
 
+  it("opens the Commands dialog with Ctrl+/, runs a plain command, and stages one that takes arguments", async () => {
+    const { shell, terminal, frame } = await skillsFixture();
+    try {
+      terminal.input("\u001f");
+      await vi.waitFor(() => expect(shell.root.usesDefaultInputSurface()).toBe(false));
+      const shown = frame();
+      expect(shown).toContain("Commands");
+      expect(shown).toContain("Type search  ↑↓ navigate  Enter select  Esc close");
+      terminal.input("\u001b");
+      await settle();
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(shell.root.editor.getText()).toBe("");
+
+      terminal.input("\u001f");
+      await vi.waitFor(() => expect(shell.root.usesDefaultInputSurface()).toBe(false));
+      terminal.input("hotkeys");
+      await settle();
+      expect(frame()).toContain("→ /hotkeys");
+      terminal.input("\r");
+      await vi.waitFor(() => expect(frame()).toMatch(/Key\s+│\s+Action/u));
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
+
+      terminal.input("\u001f");
+      await vi.waitFor(() => expect(shell.root.usesDefaultInputSurface()).toBe(false));
+      terminal.input("skills");
+      await settle();
+      expect(frame()).toContain("→ /skills");
+      terminal.input("\r");
+      await settle();
+      expect(shell.root.usesDefaultInputSurface()).toBe(true);
+      expect(shell.root.editor.getText()).toBe("/skills ");
+    } finally { await shell.dispose(); }
+  });
+
   it("renders No skills yet when no skill is discovered", async () => {
     const { shell, terminal, frame } = await skillsFixture("collapse", engine => withSkills(engine, []));
     try {

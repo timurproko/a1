@@ -34,6 +34,7 @@ import {
   createPiShellLoginDialog,
   createPiShellReloadBox,
   createPiShellSelector,
+  createPiShellCommandsSelector,
   createPiShellSkillsSelector,
   createPiShellTrustSelector,
   createPiShellUserMessageSelector,
@@ -94,6 +95,7 @@ export function createPiShellComponents(loadLazySelectors: () => Promise<OwnedUi
       authProviderSelector: createPiShellAuthProviderSelector,
       loginDialog: createPiShellLoginDialog,
       skillsSelector: createPiShellSkillsSelector,
+      commandsSelector: createPiShellCommandsSelector,
       trustSelector: createPiShellTrustSelector,
       userMessageSelector: createPiShellUserMessageSelector,
       async shareProgress(runtime, message, style) {

@@ -69,6 +69,8 @@ export interface OwnedUiShellEditorPort extends OwnedUiShellComponentPort {
   setSubmitHandler(handler: (text: string) => void): void;
   setInterruptHandler(handler: () => void): void;
   setAutocompleteCommands(commands: readonly OwnedUiShellAutocompleteCommand[]): void;
+  /** The slash commands the menu offers now, in menu order: the profile's built-ins, then discovered resources. */
+  commandCatalog(): readonly OwnedUiShellAutocompleteCommand[];
   setPaddingX(padding: number): void;
   setAutocompleteMaxVisible(maxVisible: number): void;
   addAutocompleteProvider(factory: unknown): void;
@@ -214,6 +216,8 @@ export interface OwnedUiShellEditorOptions {
   readonly onPasteImage?: () => void;
   readonly onExtensionShortcut?: (data: string) => boolean;
   readonly onModelSelect?: () => void;
+  /** The command-menu shortcut; without it the shortcut opens the inline slash menu. */
+  readonly onCommandMenu?: () => void;
   readonly onModelCycle?: ((direction: "forward" | "backward") => void) | undefined;
   readonly onThinkingCycle?: (() => void) | undefined;
   readonly onThinkingToggle?: (() => void) | undefined;
@@ -525,6 +529,8 @@ export interface OwnedUiShellComponents {
     authProviderSelector(mode: "login" | "logout", providers: readonly OwnedUiShellAuthProviderOption[], onSelect: (id: string) => void, onCancel: () => void, initialSearchInput?: string): OwnedUiShellComponentPort;
     loginDialog(runtime: OwnedUiShellRuntime, providerId: string, onComplete: (success: boolean, message?: string) => void, providerName?: string, title?: string): OwnedUiShellLoginDialogPort;
     skillsSelector(options: { readonly skills: readonly OwnedUiShellSkillSummary[]; readonly onSelect: (name: string) => void; readonly onCancel: () => void }): OwnedUiShellComponentPort;
+    /** The searchable Commands dialog over every slash command; it shares the Skills dialog's look. */
+    commandsSelector(options: { readonly skills: readonly OwnedUiShellSkillSummary[]; readonly onSelect: (name: string) => void; readonly onCancel: () => void }): OwnedUiShellComponentPort;
     trustSelector(options: OwnedUiShellTrustSelectorOptions): OwnedUiShellComponentPort;
     userMessageSelector(messages: readonly OwnedUiShellSelectorOption[], onSelect: (id: string) => void, onCancel: () => void, initialSelectedId?: string): OwnedUiShellComponentPort;
     /** The cancellable share progress surface: a bordered dialog or a plain loader; loads its module on first use. */

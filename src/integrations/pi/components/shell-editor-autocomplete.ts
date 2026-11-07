@@ -108,7 +108,7 @@ export function createPiShellEditor(options: OwnedUiShellEditorOptions): PiShell
   }
   const scrollInfo: { emitted: boolean; counter: string | undefined } = { emitted: false, counter: undefined };
   const selectListTheme = getPiSelectListTheme();
-  const autocomplete = { provider: emptyAutocompleteProvider(), skills: [] as readonly PiShellSkillSummary[] };
+  const autocomplete = { provider: emptyAutocompleteProvider(), skills: [] as readonly PiShellSkillSummary[], catalog: [] as readonly PiShellAutocompleteCommand[] };
   const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? (options as PiShellEditorOptions).historyEditor! : OwnedEditor;
   const editor: ShellEditorInstance = new EditorClass(tui, {
     borderColor: (value: string) => inputPresentation === undefined ? piTheme().fg("borderMuted", value) : inputPresentation.styleRule(value),
@@ -200,7 +200,7 @@ export function createPiShellEditor(options: OwnedUiShellEditorOptions): PiShell
     editor.onCtrlD = options.onExit;
     editor.onAction("app.exit", options.onExit);
   }
-  if (options.onSuspend !== undefined) editor.onAction("app.suspend", options.onSuspend);
+  for (const [action, handler] of [["app.suspend", options.onSuspend], ["owned.editor.commands", options.onCommandMenu]] as const) if (handler !== undefined) editor.onAction(action, handler);
   if (options.onExternalEditor !== undefined) editor.onAction("app.editor.external", options.onExternalEditor);
   if (options.onPasteImage !== undefined) {
     editor.onPasteImage = options.onPasteImage;
@@ -293,7 +293,7 @@ export function createPiShellEditor(options: OwnedUiShellEditorOptions): PiShell
     },
     setSubmitHandler: handler => { submitHandler = handler; },
     setInterruptHandler: handler => { interruptHandler = handler; },
-    setAutocompleteCommands,
+    setAutocompleteCommands, commandCatalog: () => autocomplete.catalog,
     setPaddingX(padding) {
       editor.setPaddingX(padding);
       editor.invalidate();
@@ -342,12 +342,13 @@ export function createPiShellEditor(options: OwnedUiShellEditorOptions): PiShell
 function autocompleteCommandSetter(
   options: OwnedUiShellEditorOptions,
   editor: ShellEditorInstance,
-  state: { provider: AutocompleteProvider; skills: readonly PiShellSkillSummary[] },
+  state: { provider: AutocompleteProvider; skills: readonly PiShellSkillSummary[]; catalog: readonly PiShellAutocompleteCommand[] },
   enabled: boolean,
 ): (installed: readonly PiShellAutocompleteCommand[]) => void {
   const builtInCatalog = options.keybindingProfile === "a1" ? OWNED_BUILTIN_SLASH_COMMANDS : PINNED_PI_BUILTIN_SLASH_COMMANDS;
   return installed => {
     if (!enabled) {
+      state.catalog = [];
       state.provider = emptyAutocompleteProvider();
       editor.setAutocompleteProvider(state.provider);
       return;
@@ -369,6 +370,7 @@ function autocompleteCommandSetter(
       .filter(command => command.name !== collapsed.collapsedCommand?.name && command.source !== "builtin" && !builtInNames.has(command.name))
       .map(command => autocompleteCommand(command));
     const catalog = [...builtIns, ...resources];
+    state.catalog = catalog;
     const combined = new CombinedAutocompleteProvider(catalog, options.cwd ?? process.cwd());
     const tunnelAware = state.skills.length === 0 ? combined : createSkillsTunnelProvider(combined, state.skills);
     state.provider = options.keybindingProfile === "a1" ? createDelimiterReadyCommandProvider(tunnelAware, catalog) : tunnelAware;

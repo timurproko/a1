@@ -208,6 +208,8 @@ interface OwnedUiSessionShellRootHandlers {
   readonly onClear?: () => void;
   readonly onExit: () => void;
   readonly onModelSelect: () => void;
+  /** Opens the Commands dialog; absent leaves the shortcut on the inline slash menu. */
+  readonly onCommandMenu?: () => void;
   readonly onModelCycle?: (direction: "forward" | "backward") => void;
   readonly onThinkingCycle: () => void;
   readonly onThinkingToggle?: () => void;

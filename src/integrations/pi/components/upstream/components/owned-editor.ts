@@ -147,7 +147,9 @@ return class extends Base {
       : undefined;
     if (data === ":" && this.#completeCommandTunnel()) return;
     if (this.keybindings.matches(data, "owned.editor.commands")) {
-      this.#toggleCommandMenu();
+      const openDialog = this.actionHandlers.get("owned.editor.commands");
+      if (openDialog !== undefined) openDialog();
+      else this.#toggleCommandMenu();
       return;
     }
     if (this.#promptSuggestion !== null
