@@ -99,6 +99,32 @@ node scripts/governance/local-worktree-cleanup.mjs discard \
 
 An open, merged, reopened, forked, protected, reserved, advanced, dirty, active, linked, nested, replaced, current, or unverifiable candidate remains blocking. Remote deletion followed by a Windows lock or later local blocker is reported as `partial`; the journal preserves the remaining worktree/local ref for the same exact confirmed command to inspect and resume. The command never scans by age or name, adopts another session's checkout, enables queue/watch, or turns PR close events into automatic discard authority.
 
+### Closed-unmerged branch without a checkout
+
+Use the same explicitly confirmed `discard` operation with `--branch` instead of `--path` when the checkout is already gone and no live cleanup registration owns the ref. The selectors are mutually exclusive:
+
+```bash
+cd /d/Git/a1 && node scripts/governance/local-worktree-cleanup.mjs discard --repo D:/Git/a1 --branch feature/rejected-example --change rejected-example --pr 123 --confirm-closed-unmerged
+```
+
+Branch mode verifies the named same-repository PR is still closed-unmerged into `develop`, its implementation association matches the requested change, no other open PR uses the branch, no Git worktree has it checked out, and no nonterminal registration owns the ref. Protected/reserved refs, advanced local or remote tips, malformed evidence, conflicting journals, and scoped lock contention block. It never creates a checkout, invents a filesystem identity, deletes a directory, or adopts a worktree.
+
+A branch-scoped `branch-discard-<ref-digest>.json` journal beside the ordinary cleanup state pins the repository, exact ref, change, PR, expected head, and deletion step without changing existing worktree records. After local preflight, the command journals intent, revalidates live evidence, expected-head deletes only the remote ref, verifies remote absence, and compare-and-deletes the unchanged local ref. Absent refs support resumption. Repeated completed requests report `already-discarded` only while both refs remain absent; a recreated ref is retained as `discard-ref-recreated`. Command reports, not the worktree-only registration list, describe this branch-scoped state. Sweep and queue never invoke branch-only discard.
+
+## Explicit disposable-link remediation
+
+Ordinary completion and sweep still refuse external descendant links. For one released, eligible merged candidate, a separately confirmed `unlink-disposable-link` operation can remove one explicitly named ignored descendant link beneath a central disposable root without admitting its external target into purge:
+
+```bash
+cd /d/Git/a1 && node scripts/governance/local-worktree-cleanup.mjs unlink-disposable-link --repo D:/Git/a1 --path D:/Git/a1/.worktrees/example-task --change example-task --pr 123 --link .artifacts/agent/shared-node-modules --confirm-link-only
+```
+
+The command requires the existing released registration, exact candidate/change/PR, accepted HEAD ancestry, eligible merged/archive evidence, absent remote topic ref, and clean local content except for that one named link. Invoke it from primary, with no known conflicting editor, using integrated repository policy. Owned, current, replaced, dirty, ineligible, unregistered, or resource-busy candidates remain blocked. Other unsafe links remain blockers; no wildcard or bulk-link option exists.
+
+Only a relative slash-separated path strictly below a central disposable root is accepted. The path must be ignored and untracked, its parents must be real non-link directories inside the canonical worktree, and its final entry must be a resolvable symlink or junction with a target outside that worktree. Internally targeted links remain on the ordinary generated-content path and are rejected by this no-target-enumeration operation. Escapes, root substitutions, ordinary files/directories, cycles, Git-metadata targets, identity/target/parent drift, and locked links block. The command revalidates candidate authority, full local content, ancestor identities, link fingerprint, and target before every bounded non-recursive unlink attempt, including Windows junction fallback. It never enumerates, traverses, modifies, or removes the target.
+
+An `unlinked` report records the candidate and removed link identity without target contents. The worktree and its released registration remain intact; a later ordinary `complete` or sweep must independently repeat every normal gate. The operation enables nothing, deletes no ref, does not grant ongoing link-removal authority, and cannot repair locked leftover directories. A missing selected link reports a named blocker rather than fabricating prior success.
+
 ## Explicit redundant no-PR retirement
 
 A non-empty unregistered checkout is never adopted by sweep, preview, queue/watch, branch pruning, age, or ancestry. After the maintainer explicitly authorizes one exact redundant checkout, use the repository-owned operation from the primary checkout:
@@ -170,7 +196,7 @@ Registration binds the repository, exact directory/filesystem identity, candidat
 
 A CI/base/older-ancestor checkout does not qualify automatically. Version 3 has no local acceptance/archive checkout to register. No local archive checkout is required when a legacy archive was generated entirely on GitHub. Legacy version-1/version-2 linkage remains supported, but individually reviewing and registering a legacy checkout is explicit adoption, not a bulk sweep.
 
-Low-level `register` keeps an explicit disposable allowlist for legacy and diagnostic use. The standard `complete` command supplies the central repository policy automatically; agents do not choose flags for normal completed-delivery cleanup. Neither route permits discarding tracked, staged, unstaged, untracked, unknown ignored, unapproved linked, special, or actual nested repository/submodule content. The sole link exception is the guarded exact-root or contained descendant behavior above. Declaring or centrally recognizing a generated directory does not bypass ignored-path, identity, type, or traversal checks.
+Low-level `register` keeps an explicit disposable allowlist for legacy and diagnostic use. The standard `complete` command supplies the central repository policy automatically; agents do not choose flags for normal completed-delivery cleanup. Neither route permits discarding tracked, staged, unstaged, untracked, unknown ignored, unapproved linked, special, or actual nested repository/submodule content. Automatic purge admits only the guarded exact-root or contained descendant behavior above. Separately confirmed named-link remediation removes only its exact link entry and never widens purge authority. Declaring or centrally recognizing a generated directory does not bypass ignored-path, identity, type, or traversal checks.
 
 Before handing a completed checkout to cleanup, stop its development processes, leave its directory, and release it using the returned ID and current generation:
 
@@ -214,6 +240,7 @@ State, journals, stop controls, and execution reports live in `<git-common-dir>/
 - `blocked`: ownership, content, path, provenance, authentication, or identity needs attention.
 - `unmanaged`: no local registration; no automatic adoption. Reason `empty-directory-recent` marks an all-empty folder still inside its ten-minute grace, and in preview `empty-directory` marks one an execution pass would remove.
 - `removed`: worktree and eligible local-ref operations were verified.
+- `unlinked`: only the explicitly named disposable link entry was removed; its target, worktree, and released registration were preserved.
 - `already-absent`: a completed journal's path/ref are still absent.
 - `retired`: either evidence was unverifiable but nothing remained to delete and the merged PR registration completed with `retired-nothing-left`, or an exact confirmed `retire-redundant` operation safely removed its no-PR checkout and local ref.
 - `forgotten`: the maintainer explicitly closed an all-absent entry with `forget`.
