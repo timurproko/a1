@@ -102,6 +102,19 @@ export async function verifyDiscardEvidence(reader, entry) {
     expectedSha: pull.head.sha, actualSha, remoteRefPresent: true };
 }
 
+/** Ref-only discard also refuses a second open PR using the same branch, regardless of its base. */
+export async function verifyBranchDiscardEvidence(reader, entry) {
+  const evidence = await verifyDiscardEvidence(reader, entry);
+  if (evidence.disposition !== "eligible") return evidence;
+  const branch = entry.ref.slice("refs/heads/".length);
+  const pulls = await reader.pages(`/pulls?state=open&head=${encodeURIComponent(`${reader.repository.split("/")[0]}:${branch}`)}`, 1000);
+  if (!Array.isArray(pulls) || pulls.some(pull => pull.state !== "open" || pull.head?.repo?.full_name !== reader.repository || pull.head?.ref !== branch)) {
+    fail("discard-open-pr-evidence");
+  }
+  if (pulls.length) fail("discard-branch-open-pr");
+  return await verifyDiscardEvidence(reader, entry);
+}
+
 /** True when `sha` is `head` or one of its ancestors on GitHub; unknown commits and divergence are false, budgets still throw. */
 export async function acceptedHead(reader, sha, head) {
   if (!SHA.test(sha ?? "") || !SHA.test(head ?? "")) return false;

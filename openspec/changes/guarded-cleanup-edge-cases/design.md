@@ -22,7 +22,7 @@ Reject a branch checked out in any Git worktree, a live registration for that re
 
 Add `unlink-disposable-link` with the exact worktree path, change, PR, relative `--link`, and `--confirm-link-only`. Require an existing released candidate, matching registered identity/accepted ancestry, ordinary eligible merged delivery evidence and absent remote topic ref, no current/foreign owner, and clean local content apart from this one explicitly named link. Lock the candidate path and ref using the same scopes as completion and sweep.
 
-The named path must be ignored, untracked, strictly below a central-policy disposable root, and reached through real non-link parent directories inside the canonical worktree. Require a resolvable symlink or junction; reject absolute/escaping paths, root aliases, ordinary files/directories, cycles, Git-metadata targets, unapproved roots, additional unsafe links, and changed identity or target. Record the link's lexical path, filesystem identity, and canonical target, then revalidate immediately before the existing bounded non-recursive link-removal primitive. Never enumerate, recursively delete, or mutate the target. Produce an audit report and leave the worktree and its release state intact; a later ordinary completion/sweep must repeat all normal checks. Do not add automatic external-link admission or queue authorization.
+The named path must be ignored, untracked, strictly below a central-policy disposable root, and reached through real non-link parent directories inside the canonical worktree. Require a resolvable symlink or junction whose target is outside the verified worktree; reject absolute/escaping paths, root aliases, ordinary files/directories, cycles, Git-metadata targets, unapproved roots, additional unsafe links, and changed identity or target. Internal targets retain their existing ordinary cleanup path and are refused by this remediation command before full-tree inspection, preserving its no-target-enumeration guarantee. Record the link's lexical path, filesystem identity, and canonical target, then revalidate immediately before the existing bounded non-recursive link-removal primitive. Never enumerate, recursively delete, or mutate the target. Produce an audit report and leave the worktree and its release state intact; a later ordinary completion/sweep must repeat all normal checks. Do not add automatic external-link admission or queue authorization.
 
 ### Scope and policy integration
 
@@ -38,6 +38,12 @@ Document branch-only discard and link-only remediation as explicit maintenance o
 ## Validation strategy
 
 After plan approval, use focused dependency-free cleanup node tests and their Vitest wrapper, TypeScript checking, strict OpenSpec change validation, and targeted CLI argument tests. Fixtures cover local-only/remote-only/both-ref candidates, checked-out/registered/protected/open/reopened/advanced branches, interrupted deletion, target preservation, link replacement and ancestor drift, unsafe paths, additional blockers, budgets, and concurrent operations. No full-regression selection or broad local test run is needed for this ordinary change.
+
+## Implementation and focused observations
+
+Branch-only state uses a separate validated ref-scoped journal beside existing worktree state, preserving all existing registration schemas. Windows ref-scoped locks are case-folded to exclude casing aliases. Named-link evidence is kept out of the ordinary purge-approved link list; the unlink primitive reruns candidate, content, ancestor, and target validation on every attempt and Windows junction fallback.
+
+Focused local checks passed: 35 new maintenance regressions (including a real hermetic bare-remote CLI deletion), the complete cleanup Vitest wrapper over all four dependency-free node-test files, `npm run typecheck`, `npm run check:architecture`, `npm run check:docs-governance`, and strict OpenSpec change validation. An early ancestor-replacement fixture initially reached the generic unsafe-link blocker; validation ordering was tightened so ancestor drift is checked before full-tree inspection, and all focused regressions passed afterward. No real candidate was discarded or unlinked using this unintegrated policy.
 
 ## Known gaps
 

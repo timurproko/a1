@@ -44,7 +44,7 @@ The operation SHALL own remote exact-ref deletion and unchanged local-ref deleti
 ### Requirement: External disposable links have explicit target-preserving remediation
 The repository SHALL provide an exact-candidate `unlink-disposable-link` operation accepting the primary repository, exact worktree path, change, PR, relative link path, and explicit link-only confirmation. It SHALL require an existing released registration, matching worktree identity and accepted head ancestry, ordinary eligible merged-delivery evidence, absent remote topic ref, no conflicting editing or cleanup ownership, and normal local content checks except for the one explicitly named link. It SHALL share candidate path/ref resource locks with ordinary cleanup and SHALL NOT enable queue/watch or acquire authority over other links or candidates.
 
-The selected path SHALL be an ignored untracked symlink or junction strictly below an exact central-policy disposable root, reached through unchanged real non-link parent directories inside the verified canonical worktree. Absolute paths, lexical escapes, root substitutions, unapproved roots, ordinary files or directories, cycles, Git-metadata targets, unrelated unsafe links, unknown ignored content, dirty candidates, and unresolved or ambiguous identities SHALL block mutation. Ordinary automatic cleanup and purge SHALL continue to refuse external descendant links.
+The selected path SHALL be an ignored untracked symlink or junction strictly below an exact central-policy disposable root, reached through unchanged real non-link parent directories inside the verified canonical worktree. Its canonical target SHALL remain outside that worktree; internal targets SHALL remain on the ordinary generated-content inspection path and SHALL be refused by the no-target-enumeration remediation operation. Absolute paths, lexical escapes, root substitutions, unapproved roots, ordinary files or directories, cycles, Git-metadata targets, unrelated unsafe links, unknown ignored content, dirty candidates, and unresolved or ambiguous identities SHALL block mutation. Ordinary automatic cleanup and purge SHALL continue to refuse external descendant links.
 
 The operation SHALL record and immediately revalidate the exact lexical path, link filesystem identity, canonical target, and real ancestor identities before bounded non-recursive link-only removal. It SHALL NOT traverse, enumerate, recursively remove, or mutate the link target, and SHALL preserve the worktree and its released cleanup authority for a subsequent ordinary completion. Failure, replacement, drift, lock contention, or an exhausted budget SHALL retain remaining resources and report a named blocker. Reports SHALL identify the exact candidate and link without exposing target contents. A fresh completion or sweep SHALL repeat all ordinary evidence and content gates before removing the worktree.
 
@@ -67,6 +67,10 @@ The operation SHALL record and immediately revalidate the exact lexical path, li
 #### Scenario: Candidate is dirty or owned elsewhere
 - **WHEN** the worktree contains unrelated local content or another unsafe link, remains owned by another editor/cleanup registration, is current, or lacks eligible merged delivery evidence
 - **THEN** remediation SHALL remove nothing and preserve every candidate's ownership and content
+
+#### Scenario: Named link targets the same worktree
+- **WHEN** the selected descendant link resolves inside the verified worktree
+- **THEN** remediation SHALL refuse it before normal inspection could enumerate that target and leave it to ordinary generated-content cleanup
 
 #### Scenario: Non-recursive unlink is blocked
 - **WHEN** the selected symlink or junction cannot be removed within its bounded retry budget
