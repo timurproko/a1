@@ -166,103 +166,6 @@ A pointer report that changes the visible control's pointed-at state SHALL make 
 - **AND** otherwise neither the control nor its hit region SHALL be present
 - **AND** no label or arrow SHALL wrap, exceed terminal width, or reserve an extra row
 
-### Requirement: Submitted prompts carry their source timestamp
-A submitted user prompt SHALL render its source timestamp as local time in the active owned `timeFormat`: zero-padded 24-hour `HH:mm` for `20:00`, or 12-hour `h:mm AM`/`h:mm PM` with uppercase suffix for `8:00 PM`. It SHALL be right-aligned on the prompt's first row when the row has enough width for the prompt prefix, useful prompt content, a separating margin, and the timestamp. Continuation rows SHALL align beneath the prompt text rather than beneath the prompt prefix. The timestamp is transcript metadata; the live input surface SHALL NOT gain a clock or timestamp from this milestone.
-
-Whenever it is rendered, the timestamp SHALL use the grey metadata foreground at normal intensity. Its foreground and intensity SHALL remain unchanged when the source prompt is normal, hovered, quiet/dimmed, text-selected, or otherwise repainted; selection MAY still change the timestamp background together with the selected range. Prompt-body styling SHALL remain independent of this timestamp rule.
-
-#### Scenario: Render a submitted prompt
-- **WHEN** a user transcript block has a valid source timestamp and sufficient width
-- **THEN** its first row SHALL show that timestamp right-aligned in the active owned time format
-- **AND** the timestamp SHALL use the grey metadata foreground at normal intensity
-- **AND** the prompt text SHALL remain complete across its wrapped rows
-
-#### Scenario: Change the format while the prompt is visible
-- **WHEN** the user changes `Time format` while a submitted prompt timestamp is visible
-- **THEN** the prompt timestamp SHALL repaint in the accepted format without restarting the session
-- **AND** its source instant, metadata style, alignment, and prompt content SHALL remain unchanged
-
-#### Scenario: Select a submitted-prompt timestamp
-- **WHEN** transcript text selection includes some or all timestamp cells
-- **THEN** those timestamp glyphs SHALL retain the same foreground and intensity used before selection
-- **AND** the selection background SHALL remain visible on the selected cells
-
-#### Scenario: Render the first prompt at the document beginning
-- **WHEN** the first submitted prompt is naturally visible at the transcript beginning
-- **THEN** one blank breathing row SHALL appear immediately above it
-- **AND** that breathing row SHALL scroll away rather than becoming part of the sticky prompt
-
-#### Scenario: Render a multiline prompt
-- **WHEN** a submitted prompt wraps or contains multiple lines
-- **THEN** every continuation row SHALL align under the first row's prompt text
-- **AND** the timestamp SHALL appear only on the first row
-
-#### Scenario: Render at an insufficient width
-- **WHEN** showing the timestamp would leave no useful width for prompt content
-- **THEN** the timestamp SHALL be omitted for that frame
-- **AND** the prompt content SHALL remain available and no row SHALL exceed the viewport width
-
-#### Scenario: Render the live editor
-- **WHEN** the reader is typing but has not submitted the prompt
-- **THEN** the active input surface SHALL retain its existing presentation without a timestamp
-
-### Requirement: The governing submitted prompt remains pinned while scrolling
-When the first row of the most recent submitted user prompt or completed compaction summary at or before the viewport start has scrolled above the viewport, a copy of that first row SHALL occupy the viewport's first row without adding to the document's row count. The copy SHALL preserve the prompt-style prefix, content, background, and timestamp from the source row. It SHALL remain prominent while any continuation row of that block is visible and SHALL use the quiet theme role after the complete block is above the viewport. Activating it SHALL return the viewport to the source block. Completed compactions SHALL participate as navigation/context anchors, not as submitted user messages.
-
-The pinned timestamp SHALL use the same normal-intensity grey metadata foreground as the naturally visible timestamp in every prominent, hovered, and quiet/dimmed presentation. Hover highlighting and quiet dimming SHALL continue to affect the rest of the row, but SHALL NOT change the timestamp's foreground or intensity. This rule SHALL also apply to completed compaction blocks using submitted-prompt pinning. Timestamp value, alignment, width-dependent omission, backgrounds, and body styling SHALL remain unchanged.
-
-#### Scenario: Scroll within a multiline prompt
-- **WHEN** the prompt's first row is above the viewport but one of its continuation rows remains visible
-- **THEN** the prompt's first row SHALL be pinned at the top with its timestamp
-- **AND** it SHALL retain its prominent presentation
-- **AND** without hover its timestamp SHALL use the same grey metadata foreground and normal intensity as the naturally visible source timestamp
-
-#### Scenario: Scroll beyond the complete prompt
-- **WHEN** the prompt and all of its continuation rows are above the viewport while later rows are visible
-- **THEN** the same prompt row SHALL remain pinned using the quiet presentation
-- **AND** quiet dimming SHALL leave the timestamp foreground and intensity unchanged
-
-#### Scenario: Activate the pinned prompt
-- **WHEN** the reader activates the pinned prompt row
-- **THEN** the viewport SHALL scroll so the source prompt begins at the top
-- **AND** follow-end SHALL remain disabled unless that target is also the transcript end
-
-#### Scenario: Jump through previous prompts by keyboard
-- **WHEN** the reader presses `Alt+Home` while the custom transcript owns input
-- **THEN** the viewport SHALL jump to the source of its governing pinned prompt or completed compaction
-- **AND** each repeated press SHALL jump to the preceding semantic submitted prompt or completed compaction in transcript order
-- **AND** reaching the earliest anchor SHALL scroll to the document beginning so its one opening breathing row is visible above it
-- **AND** further presses SHALL keep that document-opening position
-
-#### Scenario: Prompt first row is naturally visible
-- **WHEN** the governing prompt's source first row is already the viewport's first row
-- **THEN** no duplicate sticky row SHALL be added
-
-#### Scenario: Pin a completed compaction while its summary remains visible
-- **WHEN** a completed compaction header scrolls above the viewport while summary continuation rows remain visible and its pinned row is not hovered
-- **THEN** its pinned timestamp SHALL use the same grey metadata foreground and normal intensity as an ordinary prompt timestamp
-
-#### Scenario: Hover and leave the prominent pinned row
-- **WHEN** the pointer enters and then leaves a prominent pinned prompt or compaction row
-- **THEN** existing explicit hover highlighting SHALL remain available
-- **AND** the timestamp foreground and intensity SHALL remain identical before, during, and after hover
-- **AND** leaving the row SHALL restore the non-hovered body presentation without waiting for another scroll
-
-#### Scenario: Revisit the prominent state
-- **WHEN** reverse scrolling, resize, or scrollbar appearance leaves a non-hovered pinned row prominent with a fitting timestamp
-- **THEN** its timestamp SHALL retain the grey metadata foreground at normal intensity without color leakage into adjacent text
-
-#### Scenario: Pin and activate a compaction
-- **WHEN** the reader scrolls past the first row of a completed compaction
-- **THEN** its pinned row SHALL show `Compacted from 281,483 tokens` for a token count of 281483 with its original timestamp, using the same layout and prominent/quiet rules as ordinary pinned prompts
-- **AND** activating the row SHALL return to the compaction's full inline source block without opening a modal or toggling expansion
-- **AND** follow-end SHALL remain disabled unless that target is also the transcript end
-- **AND** a naturally visible source header SHALL NOT also produce a duplicate sticky row
-
-#### Scenario: A later prompt or compaction becomes governing
-- **WHEN** another submitted prompt or completed compaction becomes the most recent anchor at or before the viewport start
-- **THEN** it SHALL replace the previous pinned context rather than stack another pinned row
-
 ### Requirement: Viewport pointer handling preserves unrelated input
 The viewport SHALL claim wheel events addressed to exposed transcript content and pointer events addressed to its exposed scrollbar, scroll-to-bottom control, pinned prompt, or transcript selection, whether the ordinary editor or any modal surface has focus. It SHALL leave unrelated keyboard and pointer input to the focused surface. Modal ownership SHALL be resolved from visible surface geometry and an active gesture's owner rather than from the presence of a modal alone. A selector, dialog, overlay, or replacement input SHALL retain events beginning within its own visible bounds; covered transcript cells SHALL NOT accept new background interactions. Engine events SHALL be delivered cooperatively so terminal input receives an event-loop turn between transcript updates.
 
@@ -330,7 +233,7 @@ The viewport SHALL claim wheel events addressed to exposed transcript content an
 - **THEN** its transient pointer state SHALL be cleared and the terminal SHALL be restored
 
 ### Requirement: The custom viewport is scoped to bare A1
-The custom session viewport SHALL be a declared A1 layout customization enabled for bare `a1`. The `a1 pi` profiles SHALL continue to present the pinned comparison layout without the A1 scrollbar settings, scroll-to-bottom control, timestamped A1 prompt bar, or sticky A1 prompt row.
+The custom session viewport SHALL be a declared A1 layout customization enabled for bare `a1`. The `a1 pi` profiles SHALL continue to present the pinned comparison layout without the A1 scrollbar settings, scroll-to-bottom control, A1 prompt bar, or sticky A1 prompt row. Neither profile SHALL render a timestamp on submitted prompts.
 
 #### Scenario: Launch bare A1
 - **WHEN** the user starts bare `a1`
@@ -973,7 +876,7 @@ Bare A1 SHALL render each completed compaction summary with ordinary submitted-p
 
 #### Scenario: Resize or reload a compaction
 - **WHEN** the terminal is resized or the same completed compaction is reloaded
-- **THEN** its timestamp SHALL retain the original event time and use ordinary prompt formatting and insufficient-width omission rules
+- **THEN** its header SHALL keep ordinary prompt formatting without a timestamp
 - **AND** its rows SHALL stay within the viewport width, preserving access to the summary
 
 ### Requirement: Completed compactions participate in ordinary prompt navigation
@@ -1736,7 +1639,7 @@ A selection that originates in the dock SHALL retain its existing dock/editor in
 
 Bare A1 SHALL treat each canonical text-paste, image, file, folder, and URL chip label in submitted user-prompt text as one visual wrapping unit whenever the complete label fits within the prompt's full content width, whether authored whitespace separates the chip or it directly touches other text. When the remaining columns on a row cannot contain a fitting chip, the complete chip SHALL begin on the next continuation row rather than split internally.
 
-If one chip is wider than the complete available content width, bare A1 SHALL truncate its visual label with `…` on one width-bounded row rather than split it. Atomic wrapping SHALL be presentation-only: source text, Markdown styling outside chips, hyperlinks, timestamps, sticky-prompt behavior, stored/model-facing content, attachment behavior, and live editor semantics SHALL remain unchanged. Ordinary bracketed text that is not canonical chip syntax SHALL retain normal Markdown wrapping, and the `a1 pi` comparison route SHALL retain pinned rendering.
+If one chip is wider than the complete available content width, bare A1 SHALL truncate its visual label with `…` on one width-bounded row rather than split it. Atomic wrapping SHALL be presentation-only: source text, Markdown styling outside chips, hyperlinks, sticky-prompt behavior, stored/model-facing content, attachment behavior, and live editor semantics SHALL remain unchanged. Ordinary bracketed text that is not canonical chip syntax SHALL retain normal Markdown wrapping, and the `a1 pi` comparison route SHALL retain pinned rendering.
 
 #### Scenario: Move a fitting screenshot chip to the next row
 
@@ -1758,9 +1661,9 @@ If one chip is wider than the complete available content width, bare A1 SHALL tr
 
 #### Scenario: Preserve submitted-prompt presentation and content
 
-- **WHEN** a submitted prompt contains chips together with Markdown, a URL hyperlink, a source timestamp, sticky-row presentation, transcript selection, or directly touching prose
+- **WHEN** a submitted prompt contains chips together with Markdown, a URL hyperlink, sticky-row presentation, transcript selection, or directly touching prose
 - **THEN** every fitting chip and its surrounding source SHALL retain exact visible characters and authored spacing, while only an oversized chip label MAY use the declared ellipsis
-- **AND** styling, hyperlinks, timestamp placement, sticky behavior, stored content, and model-facing content SHALL remain unchanged
+- **AND** styling, hyperlinks, sticky behavior, stored content, and model-facing content SHALL remain unchanged
 
 #### Scenario: Preserve ordinary bracketed text and comparison rendering
 
@@ -1857,14 +1760,6 @@ Repeated references to the same platform-normalized path SHALL reuse its establi
 - **THEN** it SHALL expand to the exact full path associated with that chip
 - **AND** its icon and atomic editing behavior SHALL match the corresponding non-conflicting path-chip kind
 
-### Requirement: Fullscreen viewport annotations do not change terminal coordinates
-The custom viewport SHALL remove its internal upstream OSC 133 A/B/C prompt-zone annotations from final painted rows, including dock-only updates, while retaining semantic prompt anchors independently. Row styling, padding, rail composition, and PTY cursor compaction SHALL NOT turn those annotations into cursor movement or fresh lines. This requirement SHALL NOT change genuine shell OSC 133 interpretation in the terminal backend.
-
-#### Scenario: Compose an annotated row through a resident PTY
-- **WHEN** styling and rail composition place prompt-zone annotations inside a fullscreen row instead of at its prefix
-- **THEN** the final emitted row SHALL contain the intended visible cells but no internal A/B/C zone commands
-- **AND** the resident parser SHALL preserve the same content and dock rows as solo mode without duplicate prior controls
-
 ### Requirement: Scrollbar track keeps fixed horizontal and vertical bounds
 The viewport SHALL paint every scrollbar track and thumb cell in its one reserved gutter column, leave its top boundary row clear, and continue the track through the final transcript row. It SHALL NOT add an extra bottom gap beyond the shell-owned dock spacing or paint rail glyphs in the dock. Scrolling, editor/dock height changes, and transient control movement SHALL NOT shift a rail cell horizontally or retain it outside those bounds.
 
@@ -1902,3 +1797,59 @@ A scroll-to-bottom control and each bottom-aligned live-status row SHALL have ex
 - **WHEN** live status appears, changes height or text, settles, or disappears while transcript or dock geometry also changes
 - **THEN** the resulting frame SHALL contain only the current bottom-aligned status rows
 - **AND** an earlier `Working` row SHALL NOT survive as a duplicate or stale painted line
+
+### Requirement: The governing submitted prompt remains pinned while scrolling without a timestamp
+When the governing submitted prompt's or completed compaction's first row scrolls above the viewport, a copy of that row SHALL occupy the viewport's first row with its prefix, content, and background and no timestamp. It SHALL stay prominent while any continuation row of that block is visible and SHALL use the quiet theme role once the whole block is above the viewport. Activating it SHALL return the viewport to the source block.
+
+#### Scenario: Pinned row adds no document row
+- **WHEN** a pinned copy of the governing first row is shown
+- **THEN** the document's row count SHALL be unchanged and the copy SHALL render no timestamp
+
+#### Scenario: Scroll within a multiline prompt
+- **WHEN** the prompt's first row is above the viewport but one of its continuation rows remains visible
+- **THEN** the prompt's first row SHALL be pinned at the top
+- **AND** it SHALL retain its prominent presentation
+
+#### Scenario: Scroll beyond the complete prompt
+- **WHEN** the prompt and all of its continuation rows are above the viewport while later rows are visible
+- **THEN** the same prompt row SHALL remain pinned using the quiet presentation
+
+#### Scenario: Activate the pinned prompt
+- **WHEN** the reader activates the pinned prompt row
+- **THEN** the viewport SHALL scroll so the source prompt begins at the top
+- **AND** follow-end SHALL remain disabled unless that target is also the transcript end
+
+#### Scenario: Jump through previous prompts by keyboard
+- **WHEN** the reader presses `Alt+Home` while the custom transcript owns input
+- **THEN** the viewport SHALL jump to the source of its governing pinned prompt or completed compaction
+- **AND** each repeated press SHALL jump to the preceding semantic submitted prompt or completed compaction in transcript order
+- **AND** reaching the earliest anchor SHALL scroll to the document beginning so its one opening breathing row is visible above it
+- **AND** further presses SHALL keep that document-opening position
+
+#### Scenario: Prompt first row is naturally visible
+- **WHEN** the governing prompt's source first row is already the viewport's first row
+- **THEN** no duplicate sticky row SHALL be added
+
+#### Scenario: Hover and leave the prominent pinned row
+- **WHEN** the pointer enters and then leaves a prominent pinned prompt or compaction row
+- **THEN** existing explicit hover highlighting SHALL remain available
+- **AND** leaving the row SHALL restore the non-hovered body presentation without waiting for another scroll
+
+#### Scenario: Pin and activate a compaction
+- **WHEN** the reader scrolls past the first row of a completed compaction
+- **THEN** its pinned row SHALL show `Compacted from 281,483 tokens` for a token count of 281483, using the same layout and prominent/quiet rules as ordinary pinned prompts
+- **AND** activating the row SHALL return to the compaction's full inline source block without opening a modal or toggling expansion
+- **AND** follow-end SHALL remain disabled unless that target is also the transcript end
+- **AND** a naturally visible source header SHALL NOT also produce a duplicate sticky row
+
+#### Scenario: A later prompt or compaction becomes governing
+- **WHEN** another submitted prompt or completed compaction becomes the most recent anchor at or before the viewport start
+- **THEN** it SHALL replace the previous pinned context rather than stack another pinned row
+
+### Requirement: Fullscreen viewport annotations never reach the emitted terminal rows
+The custom viewport SHALL remove its internal upstream OSC 133 A/B/C prompt-zone annotations from final painted rows, including dock-only updates, while retaining semantic prompt anchors independently. Row styling, padding, rail composition, and PTY cursor compaction SHALL NOT turn those annotations into cursor movement or fresh lines. This requirement SHALL NOT change genuine shell OSC 133 interpretation in the terminal backend.
+
+#### Scenario: Compose an annotated row
+- **WHEN** styling and rail composition place prompt-zone annotations inside a fullscreen row instead of at its prefix
+- **THEN** the final emitted row SHALL contain the intended visible cells but no internal A/B/C zone commands
+- **AND** a terminal parser reading the emitted bytes SHALL observe the same content and dock rows without duplicate prior controls
