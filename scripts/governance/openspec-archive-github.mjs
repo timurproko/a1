@@ -1,6 +1,6 @@
 import { loadPullRequestAcceptance } from "./openspec-acceptance-github.mjs";
 import { snapshotOpenSpec } from "./openspec-archive-staging.mjs";
-import { archiveFailure, assertMergedImplementation, inspectTasks, parseImplementation, parseAcceptance, selectAcceptance, SHA } from "./openspec-archive-policy.mjs";
+import { archiveFailure, assertMergedImplementation, inspectTasks, parseImplementation, parseAcceptance, retiredCapability, selectAcceptance, SHA } from "./openspec-archive-policy.mjs";
 import { parseImplementationAcceptanceScenarios } from "./openspec-acceptance-checklist.mjs";
 import { assertManualAcceptanceMerge, assertVersion3AcceptanceMerge, digest, requireAcceptance } from "./openspec-acceptance-policy.mjs";
 import { parseAssociationRepair } from "./openspec-association-repair.mjs";
@@ -89,7 +89,14 @@ export async function inspectVersion3DeliverySnapshot(reader, pull, implementati
     const match = /^specs\/(.+)\/spec\.md$/.exec(suffix);
     return match ? [match[1]] : [];
   }))];
-  const specEntries = await snapshotBytes(snapshot, capabilities.map(capability => `openspec/specs/${capability}/spec.md`));
+  const metadata = (await snapshot.blob(`${implementation.archive}.openspec.yaml`))?.toString();
+  const retired = new Set();
+  for (const capability of capabilities) {
+    if (await snapshot.blob(`openspec/specs/${capability}/spec.md`)) continue;
+    if (retiredCapability(metadata, (await snapshot.blob(`${implementation.archive}specs/${capability}/spec.md`))?.toString())) retired.add(capability);
+  }
+  // Invariant: a capability the change retires has no canonical spec; every other one must still exist.
+  const specEntries = await snapshotBytes(snapshot, capabilities.filter(capability => !retired.has(capability)).map(capability => `openspec/specs/${capability}/spec.md`));
   const scenarios = parseImplementationAcceptanceScenarios(pull.body ?? "", 3, { allowLegacyVersion3Phase });
   const verified = verifyConditionalAcceptance(manifest, { implementation, repository: reader.repository, sourcePr: pull.number,
     archiveEntries, specEntries, evidenceEntries, tasksBytes, scenarios, knownGaps: manifest.knownGaps });
