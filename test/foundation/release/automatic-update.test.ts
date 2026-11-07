@@ -13,7 +13,7 @@ import {
   type AutomaticUpdateState,
 } from "../../../src/foundation/release/automatic-update.js";
 import { acquireUpdateExecutionLease } from "../../../src/foundation/release/update-execution-lease.js";
-import { CohortStateStore, emptyState } from "../../../src/foundation/release/cohort-state.js";
+import { ReleaseStateStore, emptyState } from "../../../src/foundation/release/release-state.js";
 import { UpdateTransactionStore } from "../../../src/foundation/release/update-transaction.js";
 
 const roots: string[] = [];
@@ -36,7 +36,7 @@ async function harness() {
 
 async function setActiveRelease(dataDir: string, version: string, approval: "approved" | "candidate" = "approved") {
   const releaseId = `release-${"a".repeat(20)}`;
-  await new CohortStateStore(dataDir).update(current => ({
+  await new ReleaseStateStore(dataDir).update(current => ({
     ...current,
     releases: {
       [releaseId]: {
@@ -198,11 +198,11 @@ describe("automatic update coordination", () => {
     expect(spawnWorker).not.toHaveBeenCalled();
   });
 
-  it("does not claim a different channel's approved active cohort satisfies the target", async () => {
+  it("does not claim a different channel's approved active release satisfies the target", async () => {
     const { dataDir, environment } = await harness();
     const id = `1.2.4-dev.2-${"a".repeat(20)}`;
-    const cohort = new CohortStateStore(dataDir);
-    await writeFile(cohort.path, JSON.stringify({ ...emptyState(), releases: { [id]: {
+    const releaseState = new ReleaseStateStore(dataDir);
+    await writeFile(releaseState.path, JSON.stringify({ ...emptyState(), releases: { [id]: {
       releaseId: id, releaseRoot: resolve(dataDir, "releases", id), packageVersion: "1.2.4-dev.2",
       launchContract: "neutral-launch-v1", contentDigest: "a".repeat(64), approval: "approved",
       materializedAt: new Date(0).toISOString(), certifiedAt: new Date(0).toISOString(), diagnosticsPath: resolve(dataDir, "diagnostics.json"),

@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PRIVATE_LAUNCH_CONTRACT, readLaunchContext } from "../../../src/foundation/launch-context/index.js";
-import { CohortStateStore, certifyMaterializedRelease, materializeRelease, runBootstrap, warmMaterializedRelease, type MaterializedRelease } from "../../../src/foundation/release/index.js";
+import { ReleaseStateStore, certifyMaterializedRelease, materializeRelease, runBootstrap, warmMaterializedRelease, type MaterializedRelease } from "../../../src/foundation/release/index.js";
 import { readUpdateRecoveryCapsule } from "../../../src/foundation/release/update-recovery.js";
 
 const roots: string[] = [];
@@ -40,7 +40,7 @@ describe("private-contract negotiation across an upgrade", () => {
     const value = await fixture(PRIVATE_LAUNCH_CONTRACT);
     const release = await materializeRelease(value.packageRoot, value.dataDir);
     expect(release.launchContract).toBe(PRIVATE_LAUNCH_CONTRACT);
-    const store = new CohortStateStore(value.dataDir);
+    const store = new ReleaseStateStore(value.dataDir);
     await store.recordCandidate(release);
     await store.approve(release.releaseId, await certifyMaterializedRelease(release, value.dataDir));
     await store.activate(release.releaseId);
@@ -76,7 +76,7 @@ describe("private-contract negotiation across an upgrade", () => {
     const release = await materializeRelease(value.packageRoot, value.dataDir);
     const { launchContract: _contract, ...retained } = release;
     await expect(warmMaterializedRelease(retained, {}, 5_000)).resolves.toBeUndefined();
-    const store = new CohortStateStore(value.dataDir);
+    const store = new ReleaseStateStore(value.dataDir);
     await store.recordCandidate(retained);
     await store.approve(retained.releaseId, "fixture-certification");
     await expect(store.activate(retained.releaseId)).resolves.toMatchObject({ references: expect.objectContaining({ active: retained.releaseId }) });
@@ -87,7 +87,7 @@ describe("private-contract negotiation across an upgrade", () => {
     const value = await fixture(PRIVATE_LAUNCH_CONTRACT);
     const release = await materializeRelease(value.packageRoot, value.dataDir);
     const { launchContract: _contract, ...unsupported } = release;
-    const store = new CohortStateStore(value.dataDir);
+    const store = new ReleaseStateStore(value.dataDir);
     await store.recordCandidate(unsupported);
     const snapshot = await store.read();
     await writeFile(store.path, JSON.stringify({ ...snapshot, references: { ...snapshot.references, active: unsupported.releaseId } }));
@@ -123,7 +123,7 @@ describe("private-contract negotiation across an upgrade", () => {
   it("repairs a missing certified file before reusing an approved release", async () => {
     const value = await fixture(PRIVATE_LAUNCH_CONTRACT);
     const release = await materializeRelease(value.packageRoot, value.dataDir);
-    const state = new CohortStateStore(value.dataDir);
+    const state = new ReleaseStateStore(value.dataDir);
     await state.recordCandidate(release);
     await state.approve(release.releaseId, await certifyMaterializedRelease(release, value.dataDir));
     await state.activate(release.releaseId);

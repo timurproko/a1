@@ -10,7 +10,7 @@ const nonTimingScenarios = [
   "drains a production-shaped historical backlog through the exact packaged private worker",
   "leaves durable scheduled evidence when the exact private entry cannot import its runtime",
 ];
-const startupScenario = "gates post-update, no-live-supervisor, and warm startup for both exact packaged profiles";
+const startupScenario = "gates post-update, restart, and warm startup for both exact packaged profiles";
 
 describe("exact-package startup and non-timing ownership", () => {
   it("retains all seven scenarios under exactly one successor file", async () => {
@@ -56,7 +56,7 @@ describe("exact-package startup and non-timing ownership", () => {
     expect(startup).toContain('const profiles = developmentComparison ? (["a1", "pi"] as const) : (["a1"] as const)');
     expect(startup).toContain("for (const profileId of profiles)");
     expect(startup).toContain('expect(refused, "stable a1 pi must exit quietly without launching").toEqual({ exitCode: 0, stdout: "", stderr: "", traced: false })');
-    for (const kind of ["post-update", "no-live-supervisor", "warm"]) {
+    for (const kind of ["post-update", "restart", "warm"]) {
       expect(startup.match(new RegExp(`gateStartupBudget\\(\\{ profileId, launchKind: "${kind}"`, "g")), kind).toHaveLength(1);
       expect(startup).toContain(`recordStartupMeasurement(profileId, "${kind}"`);
     }

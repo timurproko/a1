@@ -1,7 +1,7 @@
 export const STARTUP_EVIDENCE_SCHEMA: string;
 export const TREND_WINDOW: number;
 
-export interface StartupMeasurement { readonly profileId: "a1" | "pi"; readonly launchKind: "post-update" | "no-live-supervisor" | "warm"; readonly elapsedMs: number; readonly budgetMs: number }
+export interface StartupMeasurement { readonly profileId: "a1" | "pi"; readonly launchKind: "post-update" | "restart" | "warm"; readonly elapsedMs: number; readonly budgetMs: number }
 export interface StartupEvidence { readonly schema: string; readonly enforcement?: string; readonly measurements: readonly StartupMeasurement[]; readonly budgetViolations?: readonly unknown[] }
 export interface StartupTrendRun { readonly runId: number | string; readonly number?: number | null; readonly headSha?: string | null; readonly url?: string | null; readonly lanes: readonly { readonly lane: string; readonly evidence: unknown }[] }
 export interface StartupTrendSample { readonly runId: number | string; readonly number: number | null; readonly headSha: string | null; readonly url: string | null; readonly elapsedMs: number; readonly budgetMs: number; readonly overrun: boolean }

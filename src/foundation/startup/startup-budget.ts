@@ -2,7 +2,7 @@ import type { StartupTraceEvent } from "./startup-runtime.js";
 
 export interface StartupPerformanceEvidence {
   readonly profileId: "a1" | "pi";
-  readonly launchKind: "post-update" | "no-live-supervisor" | "warm";
+  readonly launchKind: "post-update" | "restart" | "warm";
   readonly events: readonly StartupTraceEvent[];
   readonly moduleGraph?: {
     readonly loadedFiles: number;
@@ -13,27 +13,27 @@ export interface StartupPerformanceEvidence {
 
 export interface StartupBudgetViolation {
   readonly profileId: "a1" | "pi";
-  readonly launchKind: "post-update" | "no-live-supervisor" | "warm";
+  readonly launchKind: "post-update" | "restart" | "warm";
   readonly elapsedMs: number;
   readonly budgetMs: number;
   readonly dominantPhases: readonly { readonly phase: string; readonly durationMs: number }[];
   readonly moduleGraph?: StartupPerformanceEvidence["moduleGraph"];
 }
 
-const STARTUP_PERFORMANCE_BUDGETS = { postUpdateMs: 2_000, noSupervisorMs: 2_500, warmMs: 2_000 } as const;
+const STARTUP_PERFORMANCE_BUDGETS = { postUpdateMs: 2_000, restartMs: 2_500, warmMs: 2_000 } as const;
 
 /** Resolve the declared budget for one launch kind so measurement and reporting never restate the numbers. */
 export function resolveStartupBudgetMs(
   launchKind: StartupPerformanceEvidence["launchKind"],
-  budgets: { readonly postUpdateMs: number; readonly noSupervisorMs: number; readonly warmMs: number } = STARTUP_PERFORMANCE_BUDGETS,
+  budgets: { readonly postUpdateMs: number; readonly restartMs: number; readonly warmMs: number } = STARTUP_PERFORMANCE_BUDGETS,
 ): number {
-  return launchKind === "warm" ? budgets.warmMs : launchKind === "no-live-supervisor" ? budgets.noSupervisorMs : budgets.postUpdateMs;
+  return launchKind === "warm" ? budgets.warmMs : launchKind === "restart" ? budgets.restartMs : budgets.postUpdateMs;
 }
 
 /** Compare measured startup evidence with its budget without deciding whether the channel enforces it. */
 export function evaluateStartupPerformanceBudget(
   evidence: StartupPerformanceEvidence,
-  budgets: { readonly postUpdateMs: number; readonly noSupervisorMs: number; readonly warmMs: number } = STARTUP_PERFORMANCE_BUDGETS,
+  budgets: { readonly postUpdateMs: number; readonly restartMs: number; readonly warmMs: number } = STARTUP_PERFORMANCE_BUDGETS,
 ): StartupBudgetViolation | null {
   const events = [...evidence.events].sort((left, right) => left.elapsedMs - right.elapsedMs);
   const ready = events.findLast(event => event.phase === "first-input-ready-render");
@@ -67,7 +67,7 @@ export function formatStartupBudgetViolation(violation: StartupBudgetViolation):
 /** Enforce the startup budget in a channel that fails on an overrun. */
 export function assertStartupPerformanceBudget(
   evidence: StartupPerformanceEvidence,
-  budgets?: { readonly postUpdateMs: number; readonly noSupervisorMs: number; readonly warmMs: number },
+  budgets?: { readonly postUpdateMs: number; readonly restartMs: number; readonly warmMs: number },
 ): void {
   const violation = evaluateStartupPerformanceBudget(evidence, budgets);
   if (violation) throw new Error(formatStartupBudgetViolation(violation));

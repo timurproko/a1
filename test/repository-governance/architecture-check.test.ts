@@ -8,7 +8,7 @@ const policyPath = resolve("scripts/governance/check-architecture.mjs");
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
-// Fixture cases for the architecture gate; CI runs the gate against the real tree as its own step.
+// Rationale: these are fixture cases only; CI runs the gate against the real tree as its own step.
 describe("architecture gate", () => {
   it("ignores detached agent worktrees and local build outputs", async () => {
     const root = await fixture({

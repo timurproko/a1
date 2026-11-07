@@ -154,7 +154,7 @@ describe("real fullscreen child content geometry", () => {
       f.terminal.screen.dispose();
     }
   });
-  it.each([24, 30, 34])("preserves the solo grid at outer height %i with exactly one reserved strip row", async outerRows => {
+  it.each([24, 30, 34])("preserves the session grid at outer height %i with exactly one reserved strip row", async outerRows => {
     setPiAccentColor("purple");
     applyPiTheme("dark", false, "truecolor");
     const f = fixture(outerRows - 1);

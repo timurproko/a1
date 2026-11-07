@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { selectOrdinaryLaunchReleaseId } from "../../../src/foundation/release/index.js";
-import { emptyState, type CohortState } from "../../../src/foundation/release/index.js";
+import { emptyState, type ReleaseState } from "../../../src/foundation/release/index.js";
 import type { MaterializedRelease } from "../../../src/foundation/release/index.js";
 
 describe("ordinary launch activation", () => {
@@ -21,7 +21,7 @@ describe("ordinary launch activation", () => {
   });
 });
 
-function stateWith(old: MaterializedRelease, candidate: MaterializedRelease): CohortState {
+function stateWith(old: MaterializedRelease, candidate: MaterializedRelease): ReleaseState {
   return {
     ...emptyState(),
     releases: {

@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CohortStateStore } from "../../../src/foundation/release/index.js";
+import { ReleaseStateStore } from "../../../src/foundation/release/index.js";
 
 vi.mock("node:fs/promises", async importOriginal => ({ ...await importOriginal<typeof fs>() }));
 const roots: string[] = [];
@@ -15,7 +15,7 @@ afterEach(async () => {
 
 /** Fail the first lock-file open with `code`, as Windows does while another holder is still deleting it. */
 async function storeWithLockFailure(code: string, target: NodeJS.Platform) {
-  const root = await fs.mkdtemp(resolve(tmpdir(), "a1-cohort-lock-"));
+  const root = await fs.mkdtemp(resolve(tmpdir(), "a1-release-state-lock-"));
   roots.push(root);
   Object.defineProperty(process, "platform", { ...platform, value: target });
   const open = fs.open;
@@ -27,10 +27,10 @@ async function storeWithLockFailure(code: string, target: NodeJS.Platform) {
     }
     return await open(path, ...rest);
   });
-  return { store: new CohortStateStore(root), injected: () => injected };
+  return { store: new ReleaseStateStore(root), injected: () => injected };
 }
 
-describe("cohort state lock contention", () => {
+describe("release state lock contention", () => {
   it.each(["EPERM", "EACCES"])("retries a Windows %s from a lock file that is still being released", async code => {
     const { store, injected } = await storeWithLockFailure(code, "win32");
 

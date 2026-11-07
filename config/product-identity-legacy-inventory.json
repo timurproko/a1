@@ -9,7 +9,6 @@
       "bin",
       "scripts",
       "test",
-      "native",
       ".github",
       "docs",
       "openspec/specs",
@@ -17,10 +16,7 @@
     ],
     "excludedDirectoryNames": [
       "dist",
-      "node_modules",
-      "target",
-      "target-check",
-      "vendor"
+      "node_modules"
     ],
     "excludedPaths": [
       "openspec/changes/archive",
@@ -36,7 +32,6 @@
     "paths",
     "schemas",
     "artifacts",
-    "native-names",
     "tests",
     "current-docs-specs",
     "historical-records",
@@ -56,7 +51,6 @@
       "paths": 39,
       "schemas": 8,
       "artifacts": 11,
-      "native-names": 1,
       "tests": 40,
       "current-docs-specs": 12,
       "historical-records": 0,
@@ -510,23 +504,6 @@
       ]
     },
     {
-      "id": "test/foundation/release/cohort-state.test.ts:126:76",
-      "path": "test/foundation/release/cohort-state.test.ts",
-      "locationKind": "content",
-      "line": 126,
-      "column": 76,
-      "value": "addone",
-      "context": "await writeFile(store.path, JSON.stringify({ ...emptyState(), schema: \"addone-release-cohort-v1\" }));",
-      "matchedCase": "lower",
-      "primaryClass": "runtime-symbols",
-      "classes": [
-        "runtime-symbols",
-        "paths",
-        "schemas",
-        "tests"
-      ]
-    },
-    {
       "id": "test/foundation/release/package-install.integration.test.ts:48:70",
       "path": "test/foundation/release/package-install.integration.test.ts",
       "locationKind": "content",
@@ -559,10 +536,10 @@
       ]
     },
     {
-      "id": "test/foundation/release/package-surface.test.ts:50:32",
+      "id": "test/foundation/release/package-surface.test.ts:48:32",
       "path": "test/foundation/release/package-surface.test.ts",
       "locationKind": "content",
-      "line": 50,
+      "line": 48,
       "column": 32,
       "value": "addone",
       "context": "expect(paths.some(path => /addone/i.test(path))).toBe(false);",
@@ -571,6 +548,23 @@
       "classes": [
         "runtime-symbols",
         "paths",
+        "tests"
+      ]
+    },
+    {
+      "id": "test/foundation/release/release-state.test.ts:126:76",
+      "path": "test/foundation/release/release-state.test.ts",
+      "locationKind": "content",
+      "line": 126,
+      "column": 76,
+      "value": "addone",
+      "context": "await writeFile(store.path, JSON.stringify({ ...emptyState(), schema: \"addone-release-cohort-v1\" }));",
+      "matchedCase": "lower",
+      "primaryClass": "runtime-symbols",
+      "classes": [
+        "runtime-symbols",
+        "paths",
+        "schemas",
         "tests"
       ]
     },
@@ -831,7 +825,6 @@
       "classes": [
         "runtime-symbols",
         "paths",
-        "native-names",
         "tests"
       ]
     },
@@ -911,5 +904,5 @@
       ]
     }
   ],
-  "generatedAt": "2026-11-07T12:43:30.397Z"
+  "generatedAt": "2026-11-07T13:02:59.795Z"
 }

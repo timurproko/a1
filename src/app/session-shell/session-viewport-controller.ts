@@ -695,6 +695,6 @@ export class SessionViewportController {
 const SELECTION_AUTO_SCROLL_INTERVAL_MS = 30;
 const EDITOR_LINK_DELETION_INPUTS = new Set(["\b", "\u007f", "\u001b[3~"]);
 // Platform: Windows Terminal may consume Shift+Arrow for native selection. Ctrl+Arrow matches
-// solo A1's Windows binding while retaining Shift+Arrow whenever the terminal delivers it.
+// A1's Windows binding while retaining Shift+Arrow whenever the terminal delivers it.
 const PROMPT_UP_INPUTS = new Set(["\u001b[1;2A", "\u001b[1;5A"]);
 const PROMPT_DOWN_INPUTS = new Set(["\u001b[1;2B", "\u001b[1;5B"]);

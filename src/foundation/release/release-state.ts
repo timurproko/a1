@@ -5,7 +5,7 @@ import type { MaterializedRelease } from "./release-store.js";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 
-export const RELEASE_COHORT_SCHEMA = PRODUCT_IDENTITY.protocol.releaseCohortSchema;
+export const RELEASE_STATE_SCHEMA = PRODUCT_IDENTITY.protocol.releaseCohortSchema;
 const RELEASE_ID_PATTERN = /^[0-9A-Za-z.+_-]+-[a-f0-9]{20}$/;
 /** How long a release stays on disk after its approval, so processes started from it keep their files. */
 export const RELEASE_RETENTION_MS = 7 * 24 * 60 * 60 * 1_000;
@@ -85,8 +85,8 @@ export interface ReleaseCleanupState {
   readonly workerRuns: readonly ReleaseCleanupWorkerRun[];
 }
 
-export interface CohortState {
-  readonly schema: typeof RELEASE_COHORT_SCHEMA;
+export interface ReleaseState {
+  readonly schema: typeof RELEASE_STATE_SCHEMA;
   readonly revision: number;
   readonly releases: Readonly<Record<string, ReleaseRecord>>;
   readonly references: ReleaseReferences;
@@ -116,7 +116,7 @@ export interface OrphanReleaseDisposition {
 }
 
 export interface ReleaseRetentionReconciliation {
-  readonly state: CohortState;
+  readonly state: ReleaseState;
   readonly plan: ProtectedReleasePlan;
   readonly detachedReleaseIds: readonly string[];
 }
@@ -128,7 +128,7 @@ export interface ReleaseRetentionReconciliation {
  * Nothing asks which processes are running: a session that outlives the window and two updates
  * can lose its release files, which is the documented trade-off.
  */
-export function planProtectedReleases(state: CohortState, inputs: ProtectedReleaseInputs = {}): ProtectedReleasePlan {
+export function planProtectedReleases(state: ReleaseState, inputs: ProtectedReleaseInputs = {}): ProtectedReleasePlan {
   const protectedIds = new Set<string>();
   for (const id of [state.references.active, state.references.pending, state.references.approved, state.references.rollback]) {
     if (id !== null) protectedIds.add(id);
@@ -163,15 +163,15 @@ export function withinRetention(release: ReleaseRecord, now: number, retentionMs
   return Number.isFinite(at) && now - at < retentionMs;
 }
 
-/** Serializes validated cohort-state revisions under a lock and commits each update atomically. */
-export class CohortStateStore {
+/** Serializes validated release-state revisions under a lock and commits each update atomically. */
+export class ReleaseStateStore {
   readonly path: string;
 
   constructor(dataDir: string) {
     this.path = resolve(dataDir, "release-state.json");
   }
 
-  async read(): Promise<CohortState> {
+  async read(): Promise<ReleaseState> {
     try {
       const state = normalizeState(JSON.parse(await readFile(this.path, "utf8")));
       validateState(state);
@@ -182,7 +182,7 @@ export class CohortStateStore {
     }
   }
 
-  async update(operation: (current: CohortState) => CohortState | Promise<CohortState>): Promise<CohortState> {
+  async update(operation: (current: ReleaseState) => ReleaseState | Promise<ReleaseState>): Promise<ReleaseState> {
     await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
     const lockPath = `${this.path}.lock`;
     const lock = await acquireLock(lockPath);
@@ -190,7 +190,7 @@ export class CohortStateStore {
       const current = await this.read();
       const next = await operation(current);
       validateTransition(current, next);
-      const committed: CohortState = { ...next, revision: current.revision + 1 };
+      const committed: ReleaseState = { ...next, revision: current.revision + 1 };
       const temporary = `${this.path}.${process.pid}.${randomUUID()}.tmp`;
       const file = await open(temporary, "wx", 0o600);
       try {
@@ -207,7 +207,7 @@ export class CohortStateStore {
     }
   }
 
-  async recordCandidate(release: MaterializedRelease): Promise<CohortState> {
+  async recordCandidate(release: MaterializedRelease): Promise<ReleaseState> {
     return await this.update(current => {
       const existing = current.releases[release.releaseId];
       const record: ReleaseRecord = existing ?? {
@@ -232,7 +232,7 @@ export class CohortStateStore {
     });
   }
 
-  async approve(releaseId: string, diagnosticsPath: string): Promise<CohortState> {
+  async approve(releaseId: string, diagnosticsPath: string): Promise<ReleaseState> {
     return await this.update(current => {
       const release = requiredRelease(current, releaseId);
       return {
@@ -243,7 +243,7 @@ export class CohortStateStore {
     });
   }
 
-  async activate(releaseId: string): Promise<CohortState> {
+  async activate(releaseId: string): Promise<ReleaseState> {
     return await this.update(current => {
       const release = requiredRelease(current, releaseId);
       if (release.approval !== "approved") throw new Error(`cannot activate unverified release ${releaseId}`);
@@ -262,7 +262,7 @@ export class CohortStateStore {
   }
 
   /** Atomically advances ordinary launch without allowing an older installation to roll active state back. */
-  async activateForLaunch(releaseId: string, replaceUnlaunchableActiveId?: string): Promise<CohortState> {
+  async activateForLaunch(releaseId: string, replaceUnlaunchableActiveId?: string): Promise<ReleaseState> {
     return await this.update(current => {
       const release = requiredRelease(current, releaseId);
       if (release.approval !== "approved") throw new Error(`cannot activate unverified release ${releaseId}`);
@@ -293,7 +293,7 @@ export class CohortStateStore {
     });
   }
 
-  async rollback(): Promise<CohortState> {
+  async rollback(): Promise<ReleaseState> {
     return await this.update(current => {
       const rollbackId = current.references.rollback;
       if (!rollbackId) throw new Error("no rollback release is recorded");
@@ -314,7 +314,7 @@ export class CohortStateStore {
 
   /** Atomically replace legacy retention history and detach every currently collectible record. */
   async reconcileRetention(
-    resolveInputs: (current: CohortState) => ProtectedReleaseInputs | Promise<ProtectedReleaseInputs>,
+    resolveInputs: (current: ReleaseState) => ProtectedReleaseInputs | Promise<ProtectedReleaseInputs>,
     orphans: readonly OrphanReleaseDisposition[] = [],
   ): Promise<ReleaseRetentionReconciliation> {
     let plan: ProtectedReleasePlan | null = null;
@@ -346,7 +346,7 @@ export class CohortStateStore {
     return { state, plan, detachedReleaseIds };
   }
 
-  async markCleanupTrash(releaseId: string, trashPath: string): Promise<CohortState> {
+  async markCleanupTrash(releaseId: string, trashPath: string): Promise<ReleaseState> {
     return await this.update(current => {
       const disposition = current.cleanup.pending[releaseId];
       if (!disposition) throw new Error(`release ${releaseId} has no cleanup disposition`);
@@ -354,7 +354,7 @@ export class CohortStateStore {
     });
   }
 
-  async recordCleanupFailure(releaseId: string, stage: string, error: unknown): Promise<CohortState> {
+  async recordCleanupFailure(releaseId: string, stage: string, error: unknown): Promise<ReleaseState> {
     return await this.update(current => {
       const attemptedAt = new Date().toISOString();
       const message = boundedError(error);
@@ -374,7 +374,7 @@ export class CohortStateStore {
     });
   }
 
-  async completeCleanup(releaseId: string): Promise<CohortState> {
+  async completeCleanup(releaseId: string): Promise<ReleaseState> {
     return await this.update(current => {
       const pending = { ...current.cleanup.pending };
       delete pending[releaseId];
@@ -382,7 +382,7 @@ export class CohortStateStore {
     });
   }
 
-  async recordCleanupWorkerScheduled(runId: string): Promise<CohortState> {
+  async recordCleanupWorkerScheduled(runId: string): Promise<ReleaseState> {
     return await this.update(current => {
       const scheduledAt = new Date().toISOString();
       const run: ReleaseCleanupWorkerRun = {
@@ -402,7 +402,7 @@ export class CohortStateStore {
     });
   }
 
-  async recordCleanupWorkerStarted(runId: string, pid: number): Promise<CohortState> {
+  async recordCleanupWorkerStarted(runId: string, pid: number): Promise<ReleaseState> {
     return await this.update(current => replaceCleanupWorkerRun(current, runId, existing => ({
       ...(existing ?? cleanupWorkerRun(runId, Object.keys(current.cleanup.pending).length)),
       status: "running",
@@ -413,7 +413,7 @@ export class CohortStateStore {
     })));
   }
 
-  async recordCleanupWorkerProgress(runId: string, summary: ReleaseCleanupWorkerSummary): Promise<CohortState> {
+  async recordCleanupWorkerProgress(runId: string, summary: ReleaseCleanupWorkerSummary): Promise<ReleaseState> {
     return await this.update(current => replaceCleanupWorkerRun(current, runId, existing => ({
       ...(existing ?? cleanupWorkerRun(runId, summary.remaining)),
       status: "running",
@@ -428,7 +428,7 @@ export class CohortStateStore {
     status: Exclude<ReleaseCleanupWorkerStatus, "scheduled" | "running">,
     summary: ReleaseCleanupWorkerSummary,
     error: unknown = null,
-  ): Promise<CohortState> {
+  ): Promise<ReleaseState> {
     return await this.update(current => replaceCleanupWorkerRun(current, runId, existing => ({
       ...(existing ?? cleanupWorkerRun(runId, summary.remaining)),
       status,
@@ -442,9 +442,9 @@ export class CohortStateStore {
 
 }
 
-export function emptyState(): CohortState {
+export function emptyState(): ReleaseState {
   return {
-    schema: RELEASE_COHORT_SCHEMA,
+    schema: RELEASE_STATE_SCHEMA,
     revision: 0,
     releases: {},
     references: { active: null, pending: null, approved: null, rollback: null, retention: [] },
@@ -455,7 +455,7 @@ export function emptyState(): CohortState {
 function cleanupDisposition(release: ReleaseRecord, stage: ReleaseCleanupStage, trashPath: string | null): ReleaseCleanupDisposition {
   return { release, stage, trashPath, attempts: 0, lastAttemptAt: null, lastError: null };
 }
-function replaceCleanup(current: CohortState, releaseId: string, disposition: ReleaseCleanupDisposition): CohortState {
+function replaceCleanup(current: ReleaseState, releaseId: string, disposition: ReleaseCleanupDisposition): ReleaseState {
   return { ...current, cleanup: { ...current.cleanup, pending: { ...current.cleanup.pending, [releaseId]: disposition } } };
 }
 function cleanupWorkerRun(runId: string, remaining: number): ReleaseCleanupWorkerRun {
@@ -474,17 +474,17 @@ function cleanupWorkerRun(runId: string, remaining: number): ReleaseCleanupWorke
   };
 }
 function replaceCleanupWorkerRun(
-  current: CohortState,
+  current: ReleaseState,
   runId: string,
   operation: (existing: ReleaseCleanupWorkerRun | undefined) => ReleaseCleanupWorkerRun,
-): CohortState {
+): ReleaseState {
   const existing = current.cleanup.workerRuns.find(run => run.runId === runId);
   const workerRuns = existing
     ? current.cleanup.workerRuns.map(run => run.runId === runId ? operation(run) : run)
     : [...current.cleanup.workerRuns, operation(undefined)];
   return { ...current, cleanup: { ...current.cleanup, workerRuns: workerRuns.slice(-16) } };
 }
-function requiredRelease(state: CohortState, releaseId: string): ReleaseRecord {
+function requiredRelease(state: ReleaseState, releaseId: string): ReleaseRecord {
   const release = state.releases[releaseId];
   if (!release) throw new Error(`unknown release ${releaseId}`);
   return release;
@@ -534,25 +534,25 @@ async function reclaimAbandonedLock(path: string): Promise<boolean> {
     return false;
   }
 }
-function normalizeState(value: unknown): CohortState {
-  if (!value || typeof value !== "object") return value as CohortState;
+function normalizeState(value: unknown): ReleaseState {
+  if (!value || typeof value !== "object") return value as ReleaseState;
   // Compatibility: state written while supervisors coordinated activation carries an
   // `activation` record that nothing reads any more; it is dropped on the next write.
-  const { activation: _activation, ...state } = value as Partial<CohortState> & { activation?: unknown };
+  const { activation: _activation, ...state } = value as Partial<ReleaseState> & { activation?: unknown };
   const cleanup = state.cleanup;
   return {
     ...state,
     cleanup: cleanup
       ? { ...cleanup, workerRuns: cleanup.workerRuns ?? [] }
       : { pending: {}, diagnostics: [], workerRuns: [] },
-  } as CohortState;
+  } as ReleaseState;
 }
-function validateState(state: CohortState): void {
-  if (!state || state.schema !== RELEASE_COHORT_SCHEMA || !Number.isSafeInteger(state.revision) || state.revision < 0
+function validateState(state: ReleaseState): void {
+  if (!state || state.schema !== RELEASE_STATE_SCHEMA || !Number.isSafeInteger(state.revision) || state.revision < 0
     || !state.releases || typeof state.releases !== "object" || !state.references || !Array.isArray(state.references.retention)
     || !state.cleanup || typeof state.cleanup.pending !== "object" || !Array.isArray(state.cleanup.diagnostics)
     || !Array.isArray(state.cleanup.workerRuns)) {
-    throw new Error("invalid release cohort state");
+    throw new Error("invalid release state");
   }
   for (const run of state.cleanup.workerRuns) {
     if (!run || typeof run.runId !== "string" || run.runId.length === 0
@@ -581,10 +581,10 @@ function validateReleaseRecord(releaseId: string, release: ReleaseRecord): void 
     throw new Error(`invalid release record for ${releaseId}`);
   }
 }
-function validateTransition(current: CohortState, next: CohortState): void {
+function validateTransition(current: ReleaseState, next: ReleaseState): void {
   validateState(next);
-  if (next.schema !== current.schema) throw new Error("release cohort schema cannot change during a state update");
-  if (next.revision !== current.revision) throw new Error("release cohort revision is controlled by the state store");
+  if (next.schema !== current.schema) throw new Error("release schema cannot change during a state update");
+  if (next.revision !== current.revision) throw new Error("release revision is controlled by the state store");
 }
 function boundedError(error: unknown): string {
   return (error instanceof Error ? error.message : String(error)).replace(/[\r\n]+/g, " ").slice(0, 1_000);

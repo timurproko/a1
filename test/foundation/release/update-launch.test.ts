@@ -6,7 +6,7 @@ import { basename, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import { runBootstrap } from "../../../src/foundation/release/bootstrap.js";
-import { CohortStateStore } from "../../../src/foundation/release/cohort-state.js";
+import { ReleaseStateStore } from "../../../src/foundation/release/release-state.js";
 import { selectUpdateLaunchRelease } from "../../../src/foundation/release/update-launch.js";
 import { UpdateTransactionStore, type UpdateTransactionPhase } from "../../../src/foundation/release/update-transaction.js";
 import { materializeRelease, readCertifiedReleaseManifest, type MaterializedRelease } from "../../../src/foundation/release/release-store.js";
@@ -41,7 +41,7 @@ vi.mock("../../../src/foundation/release/release-store.js", async importOriginal
 
 let root: string;
 let environment: NodeJS.ProcessEnv;
-let store: CohortStateStore;
+let store: ReleaseStateStore;
 let journal: UpdateTransactionStore;
 let previous: MaterializedRelease;
 let target: MaterializedRelease;
@@ -55,7 +55,7 @@ beforeEach(async () => {
   };
   previous = release("1.0.0", "a");
   target = release("1.1.0", "b");
-  store = new CohortStateStore(root);
+  store = new ReleaseStateStore(root);
   journal = new UpdateTransactionStore(root);
   for (const value of [previous, target]) {
     await store.recordCandidate(value);

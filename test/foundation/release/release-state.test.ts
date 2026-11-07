@@ -2,17 +2,17 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { CohortStateStore, emptyState, planProtectedReleases, RELEASE_COHORT_SCHEMA, withinRetention } from "../../../src/foundation/release/index.js";
-import type { CohortState, MaterializedRelease } from "../../../src/foundation/release/index.js";
+import { ReleaseStateStore, emptyState, planProtectedReleases, RELEASE_STATE_SCHEMA, withinRetention } from "../../../src/foundation/release/index.js";
+import type { ReleaseState, MaterializedRelease } from "../../../src/foundation/release/index.js";
 
 const roots: string[] = [];
 afterEach(async () => Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))));
 
 describe("atomic release references", () => {
   it("persists candidate, approval, and initial activation", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-state-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-state-"));
     roots.push(root);
-    const store = new CohortStateStore(root);
+    const store = new ReleaseStateStore(root);
     const first = release("1.0.0", "1");
 
     const candidate = await store.recordCandidate(first);
@@ -31,9 +31,9 @@ describe("atomic release references", () => {
   });
 
   it("certifies a replacement candidate without changing the active release", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-replacement-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-state-replacement-"));
     roots.push(root);
-    const store = new CohortStateStore(root);
+    const store = new ReleaseStateStore(root);
     const first = release("1.0.0", "1");
     const second = release("1.1.0", "2");
     const seed = approvedState(first, first);
@@ -55,9 +55,9 @@ describe("atomic release references", () => {
   });
 
   it("replaces the active release without appending activation history", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-activate-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-state-activate-"));
     roots.push(root);
-    const store = new CohortStateStore(root);
+    const store = new ReleaseStateStore(root);
     const first = release("1.0.0", "1");
     const second = release("1.1.0", "2");
     // Performance: seed already-certified releases; the preceding test exercises their durable setup.
@@ -81,9 +81,9 @@ describe("atomic release references", () => {
   });
 
   it("keeps ordinary launch monotonic while explicit activation can select an older target", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-monotonic-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-state-monotonic-"));
     roots.push(root);
-    const store = new CohortStateStore(root);
+    const store = new ReleaseStateStore(root);
     const older = release("1.0.0", "1");
     const active = release("1.1.0", "2");
     const newer = release("1.2.0", "3");
@@ -103,9 +103,9 @@ describe("atomic release references", () => {
   });
 
   it("rolls back only to a retained approved release", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-rollback-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-state-rollback-"));
     roots.push(root);
-    const store = new CohortStateStore(root);
+    const store = new ReleaseStateStore(root);
     const first = release("1.0.0", "4");
     const second = release("1.1.0", "5");
     // Performance: rollback tests start from an independent committed snapshot, not six setup commits.
@@ -119,20 +119,20 @@ describe("atomic release references", () => {
     expect(await store.read()).toEqual(rolledBack);
   });
 
-  it("rejects a legacy release cohort schema without migration", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-legacy-schema-"));
+  it("rejects a legacy release schema without migration", async () => {
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-state-legacy-schema-"));
     roots.push(root);
-    const store = new CohortStateStore(root);
+    const store = new ReleaseStateStore(root);
     await writeFile(store.path, JSON.stringify({ ...emptyState(), schema: "addone-release-cohort-v1" }));
 
-    expect(RELEASE_COHORT_SCHEMA).toBe("a1-release-cohort-v1");
-    await expect(store.read()).rejects.toThrow(/invalid release cohort state/);
+    expect(RELEASE_STATE_SCHEMA).toBe("a1-release-cohort-v1");
+    await expect(store.read()).rejects.toThrow(/invalid release state/);
   });
 
   it("reconciles a large legacy retention list to age-based retention", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-migration-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-state-migration-"));
     roots.push(root);
-    const store = new CohortStateStore(root);
+    const store = new ReleaseStateStore(root);
     const releases = Array.from({ length: 40 }, (_, index) => release(`1.0.${index}`, String(index + 1)));
     const active = releases[39]!;
     const rollback = releases[38]!;
@@ -144,7 +144,7 @@ describe("atomic release references", () => {
     // Performance: seed the legacy snapshot once instead of replaying 121 durable updates;
     // candidate, approval, and activation transitions have dedicated coverage above.
     const legacyState = {
-      schema: RELEASE_COHORT_SCHEMA,
+      schema: RELEASE_STATE_SCHEMA,
       revision: 121,
       releases: Object.fromEntries(releases.map(candidate => [candidate.releaseId, {
         releaseId: candidate.releaseId,
@@ -163,7 +163,7 @@ describe("atomic release references", () => {
         rollback: rollback.releaseId,
         retention: releases.map(candidate => candidate.releaseId),
       },
-    } satisfies Omit<CohortState, "cleanup">;
+    } satisfies Omit<ReleaseState, "cleanup">;
     // Compatibility: the supervisor-era activation record is accepted and dropped on write.
     await writeFile(store.path, JSON.stringify({ ...legacyState, activation: { state: "idle", reason: null, blockerGenerationIds: [], updatedAt: timestamp } }));
 
@@ -206,7 +206,7 @@ describe("atomic release references", () => {
       [rejected, "rejected", at(day)],
       [own, "approved", at(90 * day)],
     ] as const;
-    const state: CohortState = {
+    const state: ReleaseState = {
       ...emptyState(),
       releases: Object.fromEntries(records.map(([value, approval, certifiedAt]) => [value.releaseId, {
         releaseId: value.releaseId,
@@ -232,9 +232,9 @@ describe("atomic release references", () => {
   });
 
   it("stamps approval time when a release is approved", async () => {
-    const root = await mkdtemp(resolve(tmpdir(), "a1-cohort-approval-"));
+    const root = await mkdtemp(resolve(tmpdir(), "a1-release-state-approval-"));
     roots.push(root);
-    const store = new CohortStateStore(root);
+    const store = new ReleaseStateStore(root);
     const candidate = release("2.0.0", "3");
     await store.recordCandidate(candidate);
     const before = Date.now();
@@ -245,7 +245,7 @@ describe("atomic release references", () => {
   });
 });
 
-function approvedState(first: MaterializedRelease, second: MaterializedRelease): CohortState {
+function approvedState(first: MaterializedRelease, second: MaterializedRelease): ReleaseState {
   const timestamp = new Date(0).toISOString();
   return {
     ...emptyState(),

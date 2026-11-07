@@ -195,7 +195,7 @@
       "criticalTests": [
         "test/foundation/release/release.test.ts",
         "test/foundation/release/update-transaction.test.ts",
-        "test/foundation/release/cohort-state.test.ts",
+        "test/foundation/release/release-state.test.ts",
         "test/foundation/release/predecessor-command.test.ts",
         "test/foundation/release/predecessor-fixture.test.ts"
       ],
