@@ -102,7 +102,7 @@ export function rewriteSkillsTunnelSubmission(text: string): string {
 }
 
 /** The tunnel query when single-line content before the cursor is exactly `/skills:<query>`. */
-export function skillsTunnelQuery(lines: readonly string[], cursorLine: number, cursorCol: number): string | null {
+function skillsTunnelQuery(lines: readonly string[], cursorLine: number, cursorCol: number): string | null {
   if (cursorLine !== 0 || lines.length !== 1) return null;
   const match = SKILLS_TUNNEL_INPUT.exec((lines[0] ?? "").slice(0, cursorCol));
   return match === null ? null : match[1] ?? "";

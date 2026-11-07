@@ -42,7 +42,7 @@ export async function readSystemClipboardContent(signal?: AbortSignal, strict = 
   return text === null ? null : { kind: "text", text };
 }
 
-export async function readSystemClipboardImage(
+async function readSystemClipboardImage(
   reader: SystemClipboardImageReader,
 ): Promise<{ readonly data: string; readonly mimeType: string } | null> {
   if (!reader.hasImage()) return null;

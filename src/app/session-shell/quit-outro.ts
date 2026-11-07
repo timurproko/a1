@@ -50,7 +50,7 @@ const CLEAR_SCREEN = "\x1b[2J";
 const HOME = "\x1b[H";
 const HIDE_CURSOR = "\x1b[?25l";
 
-export function clampQuitOutroDuration(durationMs: number): number {
+function clampQuitOutroDuration(durationMs: number): number {
   if (!Number.isFinite(durationMs)) return QUIT_OUTRO_MIN_MS;
   return Math.max(QUIT_OUTRO_MIN_MS, Math.min(QUIT_OUTRO_MAX_MS, Math.floor(durationMs)));
 }
@@ -74,7 +74,7 @@ export function captureQuitOutroFrame(presented: readonly string[], columns: num
 }
 
 /** The clear-and-repaint block that seeds the animation surface with the captured frame. */
-export function createQuitOutroSurfaceFrame(frame: QuitOutroFrame, canvas?: QuitOutroCanvas): string {
+function createQuitOutroSurfaceFrame(frame: QuitOutroFrame, canvas?: QuitOutroCanvas): string {
   if (canvas === undefined) {
     let output = `${SYNC_BEGIN}${HIDE_CURSOR}${CLEAR_SCREEN}${HOME}${RESET}`;
     for (let row = 0; row < frame.rows; row++) {

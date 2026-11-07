@@ -7,7 +7,6 @@ import {
   adoptPiModalSearchInput,
   PiModalFrame,
   PiModalHeader,
-  PiModalSearchInput,
 } from "../../../../src/integrations/pi/components/modal-frame.js";
 import { piTheme } from "../../../../src/integrations/pi/components/theme.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
@@ -89,7 +88,8 @@ describe("shared bare-A1 modal header", () => {
     const presentation = adoptPiModalSearchInput(frame, input);
     const rendered = frame.render(20)[0]!;
 
-    expect(presentation).toBeInstanceOf(PiModalSearchInput);
+    expect(frame.children).toContain(presentation);
+    expect(frame.children).not.toContain(input);
     expect(stripTerminalSequences(rendered).trimEnd()).toBe("> model");
     expect(cellStyle(rendered, ">")).toEqual(cellStyle(piTheme().fg("accent", ">"), ">"));
     expect(rendered).toContain(`${piTheme().fg("accent", ">")} `);

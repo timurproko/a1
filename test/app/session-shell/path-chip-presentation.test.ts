@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import path from "node:path";
-import { pathChipLabelCandidates, pathChipPresentationUnits, pathChipTag, pathChipTagCandidates, preparePathPresentation } from "../../../src/app/session-shell/path-chip-presentation.js";
+import { pathChipLabelCandidates, pathChipTagCandidates, preparePathPresentation } from "../../../src/app/session-shell/path-chip-presentation.js";
 import type { ClipboardPath } from "../../../src/app/session-shell/paste-text-preparation.js";
 import { PromptChipStore } from "../../../src/app/session-shell/prompt-chips.js";
 import { startPasteExecutor } from "../../../src/app/session-shell/paste-executor.js";
@@ -12,6 +12,10 @@ vi.mock("../../../src/app/session-shell/paste-executor.js", () => ({
 }));
 afterEach(() => { vi.clearAllMocks(); });
 const file = (name: string): ClipboardPath => ({ kind: "file", fullPath: `/generated/${name}` });
+/** The tag a path chip shows: its shortest unique label, the basename. */
+const pathChipTag = (item: ClipboardPath): string => [...pathChipTagCandidates(item)][0]!;
+/** What a chip costs against the paste budget: its tag at the full rooted path. */
+const pathChipPresentationUnits = (item: ClipboardPath): number => [...pathChipTagCandidates(item)].at(-1)!.length;
 const nextImmediate = () => new Promise<void>(resolve => setImmediate(resolve));
 
 describe("bounded path-chip presentation", () => {

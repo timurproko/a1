@@ -50,7 +50,7 @@ function platformClipboardCommands(): readonly { readonly command: string; reado
  * Platform: on POSIX the writer is detached into its own process group, as pinned Pi 1.4 does, so a writer
  * that daemonizes to keep serving the clipboard is not stopped when Ctrl+Z sends SIGTSTP to the shell's group.
  */
-export function platformClipboardWriteOptions(signal: AbortSignal, platform: NodeJS.Platform = process.platform) {
+function platformClipboardWriteOptions(signal: AbortSignal, platform: NodeJS.Platform = process.platform) {
   return {
     signal,
     windowsHide: true,

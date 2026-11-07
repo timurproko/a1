@@ -49,7 +49,7 @@ const DEFAULT_IMPORTS: PiShellLazySelectorImports = {
 };
 
 /** Builds one idempotent selector loader; fulfilled, in-flight, and rejected imports remain shared. */
-export function createPiShellLazySelectorLoader(imports: PiShellLazySelectorImports = DEFAULT_IMPORTS): PiShellLazySelectorLoader {
+function createPiShellLazySelectorLoader(imports: PiShellLazySelectorImports = DEFAULT_IMPORTS): PiShellLazySelectorLoader {
   let thinkingSelectorModule: Promise<ThinkingSelectorModule> | undefined;
   let treeSelectorModule: Promise<TreeSelectorModule> | undefined;
   const loadThinkingSelector = () => thinkingSelectorModule ??= imports.thinking();

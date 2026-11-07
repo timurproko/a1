@@ -23,7 +23,7 @@ export function renderPiModalSearchInput(input: Input, width: number): string[] 
 }
 
 /** Keeps Pi Input behavior and geometry while owning only its standard dialog-search presentation. */
-export class PiModalSearchInput implements Component, Focusable {
+class PiModalSearchInput implements Component, Focusable {
   readonly #input: Input;
 
   constructor(input: Input) {
@@ -38,7 +38,7 @@ export class PiModalSearchInput implements Component, Focusable {
 }
 
 /** Replaces one explicitly identified direct Input child with the standard search presentation. */
-export function adoptPiModalSearchInput(container: Container, input: Component): PiModalSearchInput {
+export function adoptPiModalSearchInput(container: Container, input: Component): Component & Focusable {
   if (!(input instanceof Input)) throw new TypeError("modal search component is not an Input");
   const index = container.children.indexOf(input);
   if (index === -1) throw new TypeError("modal search Input is not a direct child");
@@ -48,7 +48,7 @@ export function adoptPiModalSearchInput(container: Container, input: Component):
 }
 
 /** Adds one standard dialog-search presentation while callers retain the Input controller. */
-export function addPiModalSearchInput(container: Container, input: Input): PiModalSearchInput {
+export function addPiModalSearchInput(container: Container, input: Input): Component & Focusable {
   const presentation = new PiModalSearchInput(input);
   container.addChild(presentation);
   return presentation;

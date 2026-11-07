@@ -22,7 +22,7 @@ interface ArmedExitNotice {
   clear(): void;
 }
 
-export function uncleanExitNoticeLines(resume: SessionResumeCommandMetadata | null): string[] {
+function uncleanExitNoticeLines(resume: SessionResumeCommandMetadata | null): string[] {
   return [
     `${PRODUCT_IDENTITY.displayName} was stopped unexpectedly.`,
     ...(resume === null ? [] : [`To resume this session: ${formatSessionResumeCommand(resume)}`]),

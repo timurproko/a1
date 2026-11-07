@@ -18,7 +18,7 @@ export function suggestionModelKey(view: Pick<OwnedUiSessionViewModel, "activeMo
  * Why a completed response cannot seed a suggestion, checked in order; `prepareBlockReason` is asked
  * only when the response itself qualifies.
  */
-export function responseSuggestionDecision(event: ResponseEvent, prepareBlockReason: () => SuggestionDecision): SuggestionDecision {
+function responseSuggestionDecision(event: ResponseEvent, prepareBlockReason: () => SuggestionDecision): SuggestionDecision {
   if (!event.successful) return "failed-response";
   if (event.toolContinuation || event.stopReason === "toolUse") return "tool-continuation";
   if (event.stopReason !== "stop") return "incomplete-response";

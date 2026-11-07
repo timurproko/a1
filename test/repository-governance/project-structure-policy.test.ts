@@ -6,8 +6,7 @@ import {
   inspectProjectStructureImports,
   PROJECT_OWNERS,
   projectOwnerForPath,
-  testOwnerForPath,
-} from "../../scripts/governance/project-structure-policy.mjs";
+  testOwnerForPath, inspectExportConsumers } from "../../scripts/governance/project-structure-policy.mjs";
 
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
@@ -225,4 +224,21 @@ describe("project structure ownership policy", () => {
       `${path}: feature may not import concrete Pi adapter '../../integrations/pi/engine/index.js'; inject a vendor-neutral A1 port`,
     ]);
   });
+
+  it("requires a production consumer for every exported value outside entries and copied upstream code", () => {
+    const files = {
+      "src/features/launch/flags.ts": "export const LIVE = 1;\nexport const DEAD = 2;\nexport const TESTED_ONLY = 3;\nexport interface Shape { readonly value: number }\n",
+      "src/features/launch/run.ts": "import { LIVE } from './flags.js';\nexport function run(): number { return LIVE; }\n",
+      "src/features/launch/index.ts": "export { run } from './run.js';\nexport const ENTRY_ONLY = 4;\n",
+      "src/features/launch/script-read.ts": "export function scripted(): void {}\n",
+      "src/integrations/pi/components/upstream/vendor.ts": "export function vendored(): void {}\n",
+      "src/features/launch/declared-entry.ts": "export function main(): void {}\n",
+    };
+    const consumers = { "scripts/tool.mjs": "import { scripted } from '../dist/features/launch/script-read.js';\n" };
+    expect(inspectExportConsumers(files, consumers, ["src/features/launch/declared-entry.ts"])).toEqual([
+      "src/features/launch/flags.ts: export 'DEAD' has no production consumer; make it private or delete it",
+      "src/features/launch/flags.ts: export 'TESTED_ONLY' has no production consumer; make it private or delete it",
+    ]);
+  });
+
 });
