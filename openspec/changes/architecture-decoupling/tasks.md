@@ -26,10 +26,14 @@
 
 ## 3. Profile capabilities are resolved once
 
+- Note (awaiting maintainer decision): implementation mapping found that `productMode` is already chosen once in composition and handed to the engine host, where it decides vendor-specific behaviour inside the Pi engine adapter. The duplication is four spellings of one decision at the app boundary (`ownedSurfaces`, `productMode`, `sessionLayout`, and the trust prompt's `presentation`), not branching in fifteen independent places. The proposed refinement is to keep `productMode` as the engine host's input and collapse the four spellings into one value, instead of building and threading a `ProductSurfaces` record.
+
 - [ ] 3.1 Add a `ProductSurfaces` record to `src/contracts/owned-ui` with fields for owned surfaces, startup changelog, theme base, prompt image limit, collapsed skills, and repository context; composition builds it once in `owned-ui.ts`.
 - [ ] 3.2 Replace the `ownedSurfaces` and `productMode` branches in `settings-bridge.ts`, `resource-catalog.ts`, `settings-port.ts`, `runtime-selection.ts`, `engine/adapter.ts`, `startup-route.ts`, `engine/workflows.ts`, `engine/host.ts`, `project-trust-prompt.ts`, `settings-bindings.ts`, and `engine/ports.ts` with reads of the record's fields; verify with existing comparison-profile tests and one test that a comparison record withholds every owned surface.
 
 ## 4. The shell depends on neutral presentation ports
+
+- Note (awaiting maintainer decision): after section 2 the app layer still has 63 import edges from 26 files into the Pi adapters, about 100 distinct symbols: roughly 40 component factories and renderers and 45 port and runtime types. `shell-host.ts` constructs `PiTuiRuntimeAdapter` and `DamageAwareTerminalAdapter` directly, so it is a Pi TUI runtime host rather than application code. The proposed refinement is to move the terminal host into the TUI runtime adapter, move the neutral port types (`PiShell*Port`, `PiTui*`) into the contracts, and carry the remaining factories on `ShellPresentationPorts`, which section 2 already created and `createPiSessionPresenters` already supplies.
 
 - [ ] 4.1 Define `ShellPresentationPorts` in `src/contracts/owned-ui` covering theme source, editor factory, dialog factory, selector factory, program status reporter, input classification, hyperlink, width helpers, and workflow command names, using neutral types in place of `PiShell*` and `PiTui*` types; verify the contract imports nothing outside contracts.
 - [ ] 4.2 Implement the ports in `src/integrations/pi/session-presenters` from the existing component and TUI adapters; dissolve `shell-shared-facade.ts` by moving each export to its owning module or behind the ports; verify the implementation with the existing component tests redirected to the new owners.
@@ -48,6 +52,7 @@
 
 - [ ] 6.1 Add a rule to `project-structure-policy.mjs` that an exported symbol under `src/` must have an importer under `src/`, `bin/`, or `scripts/`, excluding owner public entries, declared entry modules, and `upstream/`; add a fixture case for a dead export and a test-only export.
 - [ ] 6.2 Delete the 146 unused exports and make the 71 test-only exports private; rewrite the affected tests against the owner's public entry or observable behaviour, deleting a test when a stronger test already covers the same contract; verify typecheck and the architecture check.
+  - Note (partly done): 129 exports with no reference anywhere outside their module are now private, and the four the compiler then found unused (`preloadSystemClipboard`, `PiCancellableOperationFrame`, `sessionInfoOptions`, `PiCacheWarmingPresentation`) are deleted. The remainder of the original count were owner public entries, which the rule exempts. The 71 test-only exports are not yet private; their tests need rewriting against public entries, which overlaps the section 5 splits.
 - [ ] 6.3 Merge the 15 `session-shell*.test.ts` files into one file per concern matching section 5, moving cases verbatim with the shared fixture kept as one module; name the parts that inherit the resource-sensitive partition in `config/validation-suites.json`; verify the merged suites report the same passing case count as the originals.
 
 ## 7. Pre-pivot residue is removed
