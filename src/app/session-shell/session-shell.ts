@@ -1,4 +1,4 @@
-import type { OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiEvent, OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
 import type { TerminalComponentPort, TerminalInputListenerResult, TerminalInputSurfaceKind, TerminalOverlayHandle, TerminalPointerSurface } from "../../contracts/presentation/index.js";
 import { ShellClipboard } from "./shell-clipboard.js";
 import type { CopyResult } from "./response-copy-protocol.js";
@@ -20,7 +20,6 @@ import type {
   OwnedUiCommand,
   OwnedUiCommandResult,
   OwnedUiDialogHost,
-  OwnedUiPromptSuggestionIdentity,
   OwnedUiSessionBackend,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
@@ -28,7 +27,6 @@ import type {
   OwnedUiWorkflowRequest,
   OwnedUiWorkflowResult,
   OwnedUiWorkflowRoute,
-  SuggestionDecision,
 } from "../../contracts/owned-ui/index.js";
 import { copyAcknowledgementText, type SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
 import { ShellPromptSuggestions } from "./shell-prompt-suggestions.js";
@@ -260,18 +258,14 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       });
       this.#submission = this.#createSubmission(cwd);
       this.#reloadPresentation = reloadPresentation;
-      const presentationInterval = streamPresentationOptions?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS;
-      this.#streamPresentation = streamPresentationOptions?.scheduler === undefined
-        ? new StreamPresentationCoalescer(() => this.#terminal.requestRender(), presentationInterval)
-        : new StreamPresentationCoalescer(
-            () => this.#terminal.requestRender(),
-            presentationInterval,
-            streamPresentationOptions.scheduler,
-          );
+      this.#streamPresentation = new StreamPresentationCoalescer(() => this.#terminal.requestRender(),
+        streamPresentationOptions?.intervalMs ?? STREAM_PRESENTATION_INTERVAL_MS, streamPresentationOptions?.scheduler);
       constructed.push(() => this.#streamPresentation.dispose());
       this.#promptSuggestions = new ShellPromptSuggestions(this.#customViewport ? options.suggestions : undefined, promptSuggestionSurface(
         this.root,
-        identity => this.#promptSuggestionPresentationBlockReason(identity),
+        identity => suggestionPresentationBlockReason(identity,
+          { disposed: this.#disposed, view: this.view(), sessionGeneration: this.backend.identity.sessionGeneration },
+          () => this.root.promptSuggestionPresentationBlockReason()),
         () => this.#terminal.requestRender(),
       ), this.backend.session.view());
       constructed.push(() => this.#promptSuggestions?.dispose());
@@ -328,43 +322,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         finishLogin: () => this.#login.finish(),
       });
       this.#installAutocompleteCommands();
-      this.#unsubscribe = this.backend.session.onEvent(event => {
-        // Invariant: once disposal begins no event touches the view; only the stop still settles the shell.
-        if (this.#disposed) {
-          if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#stop.settleAfter(() => this.dispose());
-          return;
-        }
-        // Performance: a streamed chunk names one block, and touching only that block is what keeps the
-        // cost of a chunk the same in a long session as in a new one. Everything else
-        // resynchronizes the view, which is cheap next to re-reading the transcript.
-        if (event.type === "agent-run-started") {
-          this.#promptSuggestions?.invalidate();
-          this.root.resumeViewportFollowing();
-        }
-        if (event.type === "assistant-message-completed" && !event.successful) {
-          this.#programStatus.setErrorMessage(this.view().status.diagnostics.at(-1));
-        }
-        if (event.type === "agent-run-started" || event.type === "assistant-message-completed" || event.type === "agent-run-settled") {
-          this.#programStatus.handleEvent(event);
-        }
-        if (event.type === "assistant-message-completed") {
-          this.root.noteCompletedAssistantMessage();
-          this.#promptSuggestions?.route(event, () => this.root.promptSuggestionPrepareBlockReason());
-        }
-        const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
-        const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.identity.sessionGeneration
-          ? this.#syncBlock(event.block)
-          : semanticOnly ? this.view() : this.#syncView();
-        this.#syncTerminalProgress(view);
-        this.#promptSuggestions?.noteView(view, this.backend.identity.sessionGeneration !== this.#sessionGeneration);
-        if (event.type === "status" && /^(Retrying|Compacting)/.test(event.status.workingMessage ?? "")) {
-          this.#promptSuggestions?.invalidate();
-        }
-        if (event.type === "agent-run-settled") {
-          this.#promptSuggestions?.route(event, () => this.root.promptSuggestionPrepareBlockReason());
-        }
-        if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#stop.settleAfter(() => this.dispose());
-      });
+      this.#unsubscribe = this.backend.session.onEvent(event => this.#onSessionEvent(event));
       constructed.push(this.#unsubscribe);
       this.#unbindClipboardWriter = this.#clipboard.responseCopy === null ? () => {}
         : this.backend.extensions.bindClipboardWriter(text => this.#clipboard.writeForExtension(text));
@@ -460,6 +418,44 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     return routed.data.length === 0 ? { consume: true } : { data: routed.data };
   }
 
+  #onSessionEvent(event: OwnedUiEvent): void {
+    // Invariant: once disposal begins no event touches the view; only the stop still settles the shell.
+    if (this.#disposed) {
+      if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#stop.settleAfter(() => this.dispose());
+      return;
+    }
+    // Performance: a streamed chunk names one block, and touching only that block is what keeps the
+    // cost of a chunk the same in a long session as in a new one. Everything else
+    // resynchronizes the view, which is cheap next to re-reading the transcript.
+    if (event.type === "agent-run-started") {
+      this.#promptSuggestions?.invalidate();
+      this.root.resumeViewportFollowing();
+    }
+    if (event.type === "assistant-message-completed" && !event.successful) {
+      this.#programStatus.setErrorMessage(this.view().status.diagnostics.at(-1));
+    }
+    if (event.type === "agent-run-started" || event.type === "assistant-message-completed" || event.type === "agent-run-settled") {
+      this.#programStatus.handleEvent(event);
+    }
+    if (event.type === "assistant-message-completed") {
+      this.root.noteCompletedAssistantMessage();
+      this.#promptSuggestions?.route(event, () => this.root.promptSuggestionPrepareBlockReason());
+    }
+    const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
+    const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.identity.sessionGeneration
+      ? this.#syncBlock(event.block)
+      : semanticOnly ? this.view() : this.#syncView();
+    this.#syncTerminalProgress(view);
+    this.#promptSuggestions?.noteView(view, this.backend.identity.sessionGeneration !== this.#sessionGeneration);
+    if (event.type === "status" && /^(Retrying|Compacting)/.test(event.status.workingMessage ?? "")) {
+      this.#promptSuggestions?.invalidate();
+    }
+    if (event.type === "agent-run-settled") {
+      this.#promptSuggestions?.route(event, () => this.root.promptSuggestionPrepareBlockReason());
+    }
+    if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#stop.settleAfter(() => this.dispose());
+  }
+
   #trackCopy(delivery: Promise<CopyResult> | undefined, count?: number): void {
     const intent = ++this.#copyIntentSequence;
     void delivery?.then(({ outcome }) => {
@@ -467,14 +463,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         || outcome !== "delivered" && outcome !== "submitted-unverified") return;
       this.root.showCopyAcknowledgement(copyAcknowledgementText(count));
     });
-  }
-
-  #promptSuggestionPresentationBlockReason(identity: OwnedUiPromptSuggestionIdentity): SuggestionDecision {
-    return suggestionPresentationBlockReason(
-      identity,
-      { disposed: this.#disposed, view: this.view(), sessionGeneration: this.backend.identity.sessionGeneration },
-      () => this.root.promptSuggestionPresentationBlockReason(),
-    );
   }
 
   start(): void {
