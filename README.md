@@ -73,7 +73,7 @@ Show all commands:
 a1 help
 ```
 
-Show the current and latest versions:
+Show the current version and the latest Develop and Release versions, from either installed channel:
 
 ```text
 a1 version

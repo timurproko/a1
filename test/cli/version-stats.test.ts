@@ -46,26 +46,63 @@ describe("version stats", () => {
     } });
     expect(unrecorded.stdout.join("")).toBe("Current: 1.1.0-dev.1217 (#842)\nDevelop: 1.1.0-dev.835\nRelease: 1.1.4\n");
     expect(unrecorded.stderr).toEqual([]);
-
-    // Invariant: a stable build never carries a pull request, even when its manifest records one.
-    const stable = await createHarness("1.1.4", { publication: { pullRequest: 842 } });
-    await runVersionStats({ ...stable.options, runner: async () => ({ code: 0, stdout: JSON.stringify({ latest: "1.1.4", next: "1.1.0-dev.1218" }) }) });
-    expect(stable.stdout.join("")).toBe("Current: 1.1.4\nRelease: 1.1.4\n");
   });
 
-  it("unwraps the one-element array npm 12 emits for dist-tags --json", async () => {
-    const harness = await createHarness();
+  it("shows the development head's recorded pull request from a stable installation", async () => {
+    const harness = await createHarness("1.1.4", { publication: { pullRequest: 842 } });
+    const calls: Array<readonly string[]> = [];
+    const code = await runVersionStats({ ...harness.options, runner: async (_command, arguments_) => {
+      calls.push(arguments_);
+      if (arguments_[2] === "dist-tags") return { code: 0, stdout: JSON.stringify({ latest: "1.1.4", next: "1.2.0-dev.1218" }) };
+      return { code: 0, stdout: "[828]" };
+    } });
+
+    expect(code).toBe(0);
+    expect(harness.stdout.join("")).toBe("Current: 1.1.4\nDevelop: 1.2.0-dev.1218 (#828)\nRelease: 1.1.4\n");
+    expect(harness.stderr).toEqual([]);
+    expect(calls).toEqual([
+      ["view", "@timurproko/a1", "dist-tags", "--json"],
+      ["view", "@timurproko/a1@1.2.0-dev.1218", "publication.pullRequest", "--json"],
+    ]);
+  });
+
+  it.each(["", "null", "0", '"828"', "not-json"])("omits unavailable or invalid preview attribution on stable for %j", async stdout => {
+    const harness = await createHarness("1.1.4");
+    const code = await runVersionStats({ ...harness.options, runner: async (_command, arguments_) => {
+      if (arguments_[2] === "dist-tags") return { code: 0, stdout: JSON.stringify({ latest: "1.1.4", next: "1.2.0-dev.1218" }) };
+      return { code: 0, stdout };
+    } });
+
+    expect(code).toBe(0);
+    expect(harness.stdout.join("")).toBe("Current: 1.1.4\nDevelop: 1.2.0-dev.1218\nRelease: 1.1.4\n");
+    expect(harness.stderr).toEqual([]);
+  });
+
+  it("silently omits preview attribution when its lookup throws on stable", async () => {
+    const harness = await createHarness("1.1.4");
+    const code = await runVersionStats({ ...harness.options, runner: async (_command, arguments_) => {
+      if (arguments_[2] === "dist-tags") return { code: 0, stdout: JSON.stringify({ latest: "1.1.4", next: "1.2.0-dev.1218" }) };
+      throw new Error("metadata unavailable");
+    } });
+
+    expect(code).toBe(0);
+    expect(harness.stdout.join("")).toBe("Current: 1.1.4\nDevelop: 1.2.0-dev.1218\nRelease: 1.1.4\n");
+    expect(harness.stderr).toEqual([]);
+  });
+
+  it.each(["1.1.0", "1.1.0-dev.2"])("unwraps npm 12 dist-tags output from %s", async installed => {
+    const harness = await createHarness(installed);
     const code = await runVersionStats({
       ...harness.options,
       runner: async () => ({ code: 0, stdout: JSON.stringify([{ latest: "1.1.4", next: "1.2.0-dev.3" }]) }),
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
+    expect(harness.stdout.join("")).toBe(`Current: ${installed}\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n`);
     expect(harness.stderr).toEqual([]);
   });
 
-  it("reports current and release versions for a stable release without the preview channel", async () => {
+  it("reports current and both channel versions for a stable release", async () => {
     const harness = await createHarness("1.1.0");
     const code = await runVersionStats({
       ...harness.options,
@@ -73,7 +110,7 @@ describe("version stats", () => {
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nRelease: 1.1.4\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
     expect(harness.stderr).toEqual([]);
   });
 
@@ -86,20 +123,25 @@ describe("version stats", () => {
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nRelease: unavailable\n");
+    expect(harness.stdout.join("")).toBe("Current: 1.1.0\nDevelop: unavailable\nRelease: unavailable\n");
     expect(harness.stderr).toHaveLength(1);
     expect(harness.stderr[0]).toContain("a1 could not resolve npm dist-tags");
   });
 
-  it("treats an absent optional development tag as normally unavailable", async () => {
-    const harness = await createHarness();
+  it.each(["1.1.0", "1.1.0-dev.2"])("treats an absent development tag as normally unavailable from %s", async installed => {
+    const harness = await createHarness(installed);
+    const calls: Array<readonly string[]> = [];
     const code = await runVersionStats({
       ...harness.options,
-      runner: async () => ({ code: 0, stdout: JSON.stringify({ latest: "1.1.4" }) }),
+      runner: async (_command, arguments_) => {
+        calls.push(arguments_);
+        return { code: 0, stdout: JSON.stringify({ latest: "1.1.4" }) };
+      },
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: unavailable\nRelease: 1.1.4\n");
+    expect(calls).toEqual([["view", "@timurproko/a1", "dist-tags", "--json"]]);
+    expect(harness.stdout.join("")).toBe(`Current: ${installed}\nDevelop: unavailable\nRelease: 1.1.4\n`);
     expect(harness.stderr).toEqual([]);
   });
 
@@ -136,8 +178,8 @@ describe("version stats", () => {
     expect(harness.stderr[0]).toContain(expected);
   });
 
-  it("falls back to the public registry when npm output is unparseable", async () => {
-    const harness = await createHarness();
+  it.each(["1.1.0", "1.1.0-dev.2"])("falls back to the public registry when npm output is unparseable from %s", async installed => {
+    const harness = await createHarness(installed);
     const urls: string[] = [];
     const code = await runVersionStats({
       ...harness.options,
@@ -149,7 +191,7 @@ describe("version stats", () => {
     });
 
     expect(code).toBe(0);
-    expect(harness.stdout.join("")).toBe("Current: 1.1.0-dev.2\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n");
+    expect(harness.stdout.join("")).toBe(`Current: ${installed}\nDevelop: 1.2.0-dev.3\nRelease: 1.1.4\n`);
     expect(harness.stderr).toEqual([]);
     expect(urls).toEqual(["https://registry.npmjs.org/-/package/%40timurproko%2Fa1/dist-tags"]);
   });

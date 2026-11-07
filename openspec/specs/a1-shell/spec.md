@@ -58,18 +58,25 @@ registry, start the supervisor, install anything, or print migration guidance.
 - **THEN** A1 SHALL exit successfully without output or side effects
 
 ### Requirement: Version output follows the Pi command convention
-The installed application SHALL expose `a1 version` as the preferred version command and SHALL retain equivalent `a1 --version` and `a1 -v` compatibility forms. None of those forms SHALL start or mutate the interactive runtime, supervisor, storage, release cohort, or update transaction. A stable release SHALL report `Current` and `Release` in that order. A development build SHALL report `Current`, `Develop`, and `Release` in that order. Both SHALL discover authoritative package dist-tags as one coherent result; an absent development tag SHALL be unavailable without a diagnostic, while discovery failure SHALL make every remote field unavailable with one concise `A1` diagnostic, keep the `Current` line, and exit successfully.
+The installed application SHALL expose `a1 version` as the preferred version command and SHALL retain equivalent `a1 --version` and `a1 -v` compatibility forms. None of those forms SHALL start or mutate the interactive runtime, supervisor, storage, release cohort, or update transaction. Stable releases and development builds SHALL both report `Current`, `Develop`, and `Release` in that order. Both SHALL discover authoritative package dist-tags as one coherent result; an absent development tag SHALL be unavailable without a diagnostic, while discovery failure SHALL make every remote field unavailable with one concise `A1` diagnostic, keep the `Current` line, and exit successfully.
 
-A development build SHALL append the recorded pull request to its `Current` line as ` (#<number>)` when its installed manifest records one, and to its `Develop` line when the development head's published manifest records one and that manifest can be read within the discovery budget. A missing or unreadable record SHALL leave the bare version on that line without a diagnostic. Stable lines SHALL NOT carry a pull request.
+A development build SHALL append the recorded pull request to its `Current` line as ` (#<number>)` when its installed manifest records one. Both stable releases and development builds SHALL append the recorded pull request to their `Develop` line when the development head's published manifest records one and that manifest can be read within the discovery budget. A missing or unreadable record SHALL leave the bare version on that line without a diagnostic. Stable `Current` lines and `Release` lines SHALL NOT carry a pull request.
 
 #### Scenario: Stable release version
-- **WHEN** the user runs `a1 version`, `a1 --version`, or `a1 -v` from stable release `0.3.0` and the `latest` dist-tag is `0.3.1`
-- **THEN** every form SHALL print `Current: 0.3.0` followed by `Release: 0.3.1`
-- **AND** it SHALL NOT print a `Develop` line
+- **WHEN** the user runs `a1 version`, `a1 --version`, or `a1 -v` from stable release `0.3.0`, the `next` dist-tag is `0.4.0-dev.123`, and the `latest` dist-tag is `0.3.1`
+- **THEN** every form SHALL print `Current: 0.3.0`, `Develop: 0.4.0-dev.123`, and `Release: 0.3.1` in that order, appending the development head's recorded pull request when available
 
 #### Scenario: Stable release version without registry access
 - **WHEN** the user runs `a1 version` from a stable release and dist-tag discovery fails
-- **THEN** A1 SHALL print `Current: <installed version>` and `Release: unavailable`, emit one concise `A1` diagnostic, and exit successfully
+- **THEN** A1 SHALL print `Current: <installed version>`, `Develop: unavailable`, and `Release: unavailable`, emit one concise `A1` diagnostic, and exit successfully
+
+#### Scenario: Stable release with a recorded development head
+- **WHEN** the user runs `a1 version` from stable release `0.3.0` whose installed manifest records pull request 100 and the `next` dist-tag is `0.4.0-dev.123` whose manifest records pull request 123
+- **THEN** A1 SHALL print `Current: 0.3.0` without pull-request attribution, `Develop: 0.4.0-dev.123 (#123)`, and the `Release` line
+
+#### Scenario: Development tag is absent
+- **WHEN** a stable release or development build discovers a valid `latest` dist-tag but no `next` dist-tag
+- **THEN** A1 SHALL print its Current line, `Develop: unavailable`, and the resolved Release line without a diagnostic
 
 #### Scenario: Development build versions
 - **WHEN** the user runs `a1 version`, `a1 --version`, or `a1 -v` from a development build
@@ -80,7 +87,7 @@ A development build SHALL append the recorded pull request to its `Current` line
 - **THEN** A1 SHALL print `Current: 0.2.7-dev.1217 (#842)`, `Develop: 0.2.7-dev.1218 (#828)`, and the `Release` line
 
 #### Scenario: Development build without a recorded pull request
-- **WHEN** the installed or head manifest records no pull request, or the head manifest cannot be read
+- **WHEN** the installed development manifest or development head manifest records no pull request, or the head manifest cannot be read from either installed channel
 - **THEN** that line SHALL print the bare version and A1 SHALL emit no diagnostic for the missing record
 
 #### Scenario: Old subcommand notation
