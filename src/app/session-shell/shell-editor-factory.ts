@@ -1,3 +1,4 @@
+import type { OwnedUiShellEditorOptions, OwnedUiShellEditorPort } from "../../contracts/owned-ui/index.js";
 import type { ThemeSource } from "../../contracts/presentation/index.js";
 import { caretCell } from "../../ui/components/line-input.js";
 import { PromptInput } from "../../ui/components/prompt-input.js";
@@ -5,19 +6,14 @@ import { backgroundSgrSpan, hyperlinkSgrSpan } from "../../ui/components/spans.j
 import { faint, stripAnsi } from "../../ui/components/text.js";
 import { paintTextSelection } from "../../ui/components/text-selection.js";
 import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
-import {
-  piShellTruncateToWidth,
-  piShellVisibleWidth,
-  type PiShellEditorOptions,
-  type PiShellEditorPort,
-} from "../../integrations/pi/components/shell-shared-facade.js";
+import { piShellTruncateToWidth, piShellVisibleWidth } from "../../integrations/pi/components/shell-shared-facade.js";
 import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
 import { canPreparePasteInline } from "./paste-text-preparation.js";
 import type { PasteEvent, PasteSource } from "./paste-protocol.js";
 import type { PromptChipStore } from "./prompt-chips.js";
 
 /** The shell callbacks the editor is wired to; the editor receives the whole object as its own options. */
-type ShellEditorHandlers = Omit<PiShellEditorOptions, "onChange" | "onToolsExpand" | "keybindingProfile"> & {
+type ShellEditorHandlers = Omit<OwnedUiShellEditorOptions, "onChange" | "onToolsExpand" | "keybindingProfile"> & {
   readonly requestRender: (force?: boolean) => void;
   readonly onEditorChange?: (text: string) => void;
   readonly captureClipboardPaste?: () => PasteSource;
@@ -42,10 +38,10 @@ interface ShellEditorPorts {
  * Builds the session's prompt editor: chip-aware paste, selection, and hyperlink decoration over
  * the Pi editor, plus bare A1's prompt presentation and terminal paste diagnostics.
  */
-export function createShellEditor(ports: ShellEditorPorts): PiShellEditorPort {
+export function createShellEditor(ports: ShellEditorPorts): OwnedUiShellEditorPort {
   const { handlers, customViewport, promptChips } = ports;
   let terminalPasteDiagnosticRequest: number | undefined;
-  const editor: PiShellEditorPort = createPiShellEditor({
+  const editor: OwnedUiShellEditorPort = createPiShellEditor({
     ...handlers,
     keybindingProfile: customViewport ? "a1" : "pi",
     ...(handlers.keybindings === undefined ? {} : { keybindings: handlers.keybindings }),
@@ -80,7 +76,7 @@ export function createShellEditor(ports: ShellEditorPorts): PiShellEditorPort {
       beginTextPaste: text => promptChips.beginPaste(
         editor.getText(), { kind: "text", text }, error => handlers.onPasteRejected?.(error),
       ),
-    } satisfies Partial<PiShellEditorOptions> : {}),
+    } satisfies Partial<OwnedUiShellEditorOptions> : {}),
     editorAtomicRanges: line => promptChips.atomicRanges(line),
     editorHiddenRanges: line => promptChips.hiddenRanges(line),
     decorateEditorRow: editorRowDecorator(promptChips, ports.editorPointerSelecting),

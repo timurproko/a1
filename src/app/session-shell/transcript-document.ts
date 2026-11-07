@@ -1,3 +1,4 @@
+import type { OwnedUiShellTranscriptComponentPort } from "../../contracts/owned-ui/index.js";
 import { acceptsTranscriptUpdate } from "../../contracts/owned-ui/index.js";
 import type { OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
 import type { ThemeSource } from "../../contracts/presentation/index.js";
@@ -14,7 +15,6 @@ import {
   renderPiShellStartupDiagnostic,
   renderPiShellTranscriptBlock,
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
-import type { PiShellTranscriptComponentPort } from "../../integrations/pi/components/shell-shared-facade.js";
 
 type TranscriptBlock = OwnedUiSessionViewModel["transcript"][number];
 
@@ -59,7 +59,7 @@ interface TranscriptDocumentOptions {
   readonly customViewport: boolean;
   readonly cwd: string;
   /** Creates the component for a newly seen block; its change callback should call `blockChanged`. */
-  mount(block: TranscriptBlock): PiShellTranscriptComponentPort;
+  mount(block: TranscriptBlock): OwnedUiShellTranscriptComponentPort;
   readonly chrome: TranscriptDocumentChrome;
 }
 
@@ -69,7 +69,7 @@ interface TranscriptDocumentOptions {
  */
 export class TranscriptDocument {
   readonly #options: TranscriptDocumentOptions;
-  readonly #components = new Map<string, PiShellTranscriptComponentPort>();
+  readonly #components = new Map<string, OwnedUiShellTranscriptComponentPort>();
   readonly #blocks = new Map<string, TranscriptBlock>();
   readonly #anchors = new Map<string, number>();
   #order: string[] = [];
@@ -93,11 +93,11 @@ export class TranscriptDocument {
     return this.#order.at(-1);
   }
 
-  component(id: string): PiShellTranscriptComponentPort | undefined {
+  component(id: string): OwnedUiShellTranscriptComponentPort | undefined {
     return this.#components.get(id);
   }
 
-  components(): IterableIterator<PiShellTranscriptComponentPort> {
+  components(): IterableIterator<OwnedUiShellTranscriptComponentPort> {
     return this.#components.values();
   }
 
@@ -166,7 +166,7 @@ export class TranscriptDocument {
   }
 
   /** Appends workflow output anchored after the transcript's first `anchor` blocks. */
-  appendAnchored(id: string, component: PiShellTranscriptComponentPort, anchor: number): void {
+  appendAnchored(id: string, component: OwnedUiShellTranscriptComponentPort, anchor: number): void {
     if (!id.startsWith(WORKFLOW_STATUS_PREFIX)) throw new TypeError(`anchored output id must start with ${WORKFLOW_STATUS_PREFIX}`);
     this.#components.set(id, component);
     this.#anchors.set(id, anchor);

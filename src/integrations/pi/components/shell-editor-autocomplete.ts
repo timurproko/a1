@@ -4,7 +4,7 @@ import {
   visibleWidth,
   type AutocompleteProvider,
 } from "@earendil-works/pi-tui";
-import { PROMPT_HISTORY_EDITOR_REPLACEMENT, type OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
+import { PROMPT_HISTORY_EDITOR_REPLACEMENT, type OwnedUiShellEditorOptions, type OwnedUiThinkingLevel } from "../../../contracts/owned-ui/index.js";
 import { OwnedEditor, type ShellEditorInstance } from "./upstream/components/owned-editor.js";
 import {
   OwnedEditorUxInterception,
@@ -90,14 +90,14 @@ export const OWNED_BUILTIN_SLASH_COMMANDS = PINNED_PI_BUILTIN_SLASH_COMMANDS.fla
   return [command];
 });
 
-export function createPiShellEditor(options: PiShellEditorOptions): PiShellEditorPort {
+export function createPiShellEditor(options: OwnedUiShellEditorOptions): PiShellEditorPort {
   ensureTheme();
   const tui = createTuiFacade(options);
   const inputPresentation = options.keybindingProfile === "a1" ? options.promptPresentation?.input : undefined;
   const inputCapabilities = options.inputCapabilities ?? {};
   const autocompleteEnabled = inputCapabilities.autocomplete !== false;
   // Invariant: the process shares one manager; a standalone editor gets its own host for its profile.
-  const host = options.keybindings ?? createPiKeybindingsHost({
+  const host = (options as PiShellEditorOptions).keybindings ?? createPiKeybindingsHost({
     profile: options.keybindingProfile ?? "pi",
     ...(options.agentDir === undefined ? {} : { agentDir: options.agentDir }),
   });
@@ -109,7 +109,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
   const scrollInfo: { emitted: boolean; counter: string | undefined } = { emitted: false, counter: undefined };
   const selectListTheme = getPiSelectListTheme();
   const autocomplete = { provider: emptyAutocompleteProvider(), skills: [] as readonly PiShellSkillSummary[] };
-  const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? options.historyEditor! : OwnedEditor;
+  const EditorClass = options.keybindingProfile === "a1" && options.persistentHistory === true ? (options as PiShellEditorOptions).historyEditor! : OwnedEditor;
   const editor: ShellEditorInstance = new EditorClass(tui, {
     borderColor: (value: string) => inputPresentation === undefined ? piTheme().fg("borderMuted", value) : inputPresentation.styleRule(value),
     selectList: options.keybindingProfile !== "a1" ? selectListTheme : {
@@ -340,7 +340,7 @@ export function createPiShellEditor(options: PiShellEditorOptions): PiShellEdito
 
 
 function autocompleteCommandSetter(
-  options: PiShellEditorOptions,
+  options: OwnedUiShellEditorOptions,
   editor: ShellEditorInstance,
   state: { provider: AutocompleteProvider; skills: readonly PiShellSkillSummary[] },
   enabled: boolean,

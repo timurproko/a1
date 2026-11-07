@@ -1,3 +1,4 @@
+import type { OwnedUiShellEditorPort } from "../../contracts/owned-ui/index.js";
 import type { TerminalPointerSurface } from "../../contracts/presentation/index.js";
 import { samePointerSurfaces } from "../../integrations/pi/tui-runtime/overlay-geometry.js";
 import type { OwnedUiViewportSettings } from "../../contracts/owned-ui/index.js";
@@ -6,12 +7,11 @@ import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js
 import { routeMouseInput } from "../../ui/components/mouse.js";
 import { scrollForTrackPage, scrollForThumbRow, scrollbarSelectionRows, scrollbarWheelRows } from "../../ui/components/scrollbar.js";
 import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.js";
-import type { PiShellEditorPort } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { PasteEvent } from "./paste-protocol.js";
 
 interface SessionViewportControllerOptions {
   readonly enabled: boolean;
-  readonly editor: PiShellEditorPort;
+  readonly editor: OwnedUiShellEditorPort;
   readonly requestRender: (force?: boolean) => void;
   readonly requestHyperlinkCleanup?: (rows?: readonly number[]) => void;
   /** Whether mutable editor URL chips need targeted link-cell cleanup on deletion. */
@@ -47,7 +47,7 @@ export interface SessionViewportInputResult {
  */
 export class SessionViewportController {
   readonly #enabled: boolean;
-  readonly #editor: PiShellEditorPort;
+  readonly #editor: OwnedUiShellEditorPort;
   readonly #requestRender: (force?: boolean) => void;
   readonly #hasEditorLinks: () => boolean;
   readonly #requestHyperlinkCleanup: (rows?: readonly number[]) => void;

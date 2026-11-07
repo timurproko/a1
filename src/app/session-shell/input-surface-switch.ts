@@ -1,5 +1,5 @@
+import type { OwnedUiShellComponentPort, OwnedUiShellEditorPort } from "../../contracts/owned-ui/index.js";
 import type { TerminalInputSurfaceKind, TerminalRuntimeFactory } from "../../contracts/presentation/index.js";
-import type { PiShellComponentPort, PiShellEditorPort } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { SessionViewportController } from "./session-viewport-controller.js";
 
 interface InputSurfaceSwitchPorts {
@@ -17,21 +17,21 @@ interface InputSurfaceSwitchPorts {
  * dock-only repaint; that receipt-time evidence never authorizes reuse by itself.
  */
 export class InputSurfaceSwitch {
-  readonly #editor: PiShellEditorPort;
+  readonly #editor: OwnedUiShellEditorPort;
   readonly #ports: InputSurfaceSwitchPorts;
-  #surface: PiShellComponentPort;
+  #surface: OwnedUiShellComponentPort;
   #coordination: TerminalInputSurfaceKind = "editor";
   #dockInputCandidate = false;
   // Invariant: receipt-time eligibility is evidence, never authorization for composition-time reuse.
   #dockInputRevision: number | undefined;
 
-  constructor(editor: PiShellEditorPort, ports: InputSurfaceSwitchPorts) {
+  constructor(editor: OwnedUiShellEditorPort, ports: InputSurfaceSwitchPorts) {
     this.#editor = editor;
     this.#ports = ports;
     this.#surface = editor;
   }
 
-  get surface(): PiShellComponentPort {
+  get surface(): OwnedUiShellComponentPort {
     return this.#surface;
   }
 
@@ -55,7 +55,7 @@ export class InputSurfaceSwitch {
    * Shows `component` in the dock, or the editor for null. Returns false when the surface is
    * unchanged, in which case only its coordination kind is updated.
    */
-  set(component: PiShellComponentPort | null, disposePrevious: boolean, coordination: Exclude<TerminalInputSurfaceKind, "editor">): boolean {
+  set(component: OwnedUiShellComponentPort | null, disposePrevious: boolean, coordination: Exclude<TerminalInputSurfaceKind, "editor">): boolean {
     const next = component ?? this.#editor;
     const nextCoordination = next === this.#editor ? "editor" : coordination;
     if (next === this.#surface) {

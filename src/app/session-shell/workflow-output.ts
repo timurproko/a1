@@ -1,3 +1,4 @@
+import type { OwnedUiShellTranscriptComponentPort } from "../../contracts/owned-ui/index.js";
 import type { ImageAttachmentError, OwnedUiWorkflowMessage, OwnedUiWorkflowResult } from "../../contracts/owned-ui/index.js";
 import {
   createPiShellArmin,
@@ -11,7 +12,7 @@ import {
   renderPiShellStatusText,
   type PiShellHotkeysPresentation,
 } from "../../integrations/pi/components/shell-presenters-info.js";
-import { piShellHyperlink, type PiShellTranscriptComponentPort } from "../../integrations/pi/components/shell-shared-facade.js";
+import { piShellHyperlink } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { DockChrome } from "./dock-chrome.js";
 import type { TranscriptDocument } from "./transcript-document.js";
 
@@ -182,7 +183,7 @@ export class WorkflowOutput {
     this.#ports.dock.dismissNotice();
     this.#sequence += 1;
     const id = `workflow-status-${this.#sequence}`;
-    const component: PiShellTranscriptComponentPort = {
+    const component: OwnedUiShellTranscriptComponentPort = {
       id,
       revision: 1,
       render,

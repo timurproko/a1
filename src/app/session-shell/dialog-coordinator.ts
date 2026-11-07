@@ -1,8 +1,8 @@
+import type { OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
 import type { TerminalOverlayHandle } from "../../contracts/presentation/index.js";
 import type { OwnedUiCommandResult, OwnedUiDialog } from "../../contracts/owned-ui/index.js";
 import type { UiRouteHost, UiRouteInput } from "../../ui/apps/contracts.js";
 import { createPiShellDialog, createPiShellSelector } from "../../integrations/pi/components/shell-selectors-dialogs.js";
-import type { PiShellSelectorOption } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 import type { OwnedUiSessionShellOptions, OwnedUiSessionShellRoot } from "./session-shell-root.js";
 
@@ -49,7 +49,7 @@ export class SessionDialogCoordinator {
 
   showSelector(
     title: string,
-    options: readonly PiShellSelectorOption[],
+    options: readonly OwnedUiShellSelectorOption[],
     onSelect: (id: string) => void,
     onCancel?: () => void,
   ): TerminalOverlayHandle {

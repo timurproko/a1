@@ -1,3 +1,4 @@
+import type { OwnedUiShellClipboardContent, OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
 import type { TerminalComponentPort, TerminalInputListenerResult, TerminalInputSurfaceKind, TerminalOverlayHandle, TerminalPointerSurface } from "../../contracts/presentation/index.js";
 import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
 import { createResponseCopyExecutor, responseCopyDestination, type OwnedResponseCopyExecutor } from "./response-copy-transport.js";
@@ -58,10 +59,6 @@ import {
   createPiShellUserMessageSelector,
 } from "../../integrations/pi/components/shell-selectors-dialogs.js";
 import type { PiShellHotkeysPresentation } from "../../integrations/pi/components/shell-presenters-info.js";
-import type {
-  PiShellClipboardContent,
-  PiShellSelectorOption,
-} from "../../integrations/pi/components/shell-shared-facade.js";
 import type { TerminalDamageDecision, TerminalRuntimePort } from "../../contracts/presentation/index.js";
 import {
   OwnedUiTerminalHost,
@@ -220,7 +217,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         ...(responseCopy?.onEvent === undefined ? {} : { onEvent: responseCopy.onEvent }),
       }) : null;
       constructed.push(() => { this.#responseCopy?.dispose(); this.#copyExecutor?.dispose(); });
-      const readClipboard =async (signal: AbortSignal): Promise<PiShellClipboardContent | null> => {
+      const readClipboard =async (signal: AbortSignal): Promise<OwnedUiShellClipboardContent | null> => {
         if (signal.aborted) throw new ImageAttachmentError("image-canceled");
         if (clipboard === undefined) return runImageWorker({ kind: "clipboard" }, signal);
         try {
@@ -731,7 +728,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   showSelector(
     title: string,
-    options: readonly PiShellSelectorOption[],
+    options: readonly OwnedUiShellSelectorOption[],
     onSelect: (id: string) => void,
     onCancel?: () => void,
   ): TerminalOverlayHandle {

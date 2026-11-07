@@ -1,5 +1,5 @@
+import type { OwnedUiShellClipboardContent } from "../../contracts/owned-ui/index.js";
 import { fork, type ChildProcess, type ForkOptions, type SpawnOptions } from "node:child_process";
-import type { PiShellClipboardContent } from "../../integrations/pi/components/shell-shared-facade.js";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import { MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
 import { PASTE_CHUNK_UNITS, PASTE_REQUESTS, PASTE_STOP_MS, PASTE_TEXT_BYTES, pasteFragments, type PasteHelperInput, type PasteHelperOutput, type PreparedPaste, type PasteEvent } from "./paste-protocol.js";
@@ -48,7 +48,7 @@ export function createPasteHelperPool(helper?: URL, idleMs?: number): HelperPool
 }
 
 /** Streams bounded fragments through a killable child; native/codec/filesystem work never runs on the UI thread. */
-export function startPasteExecutor(content: PiShellClipboardContent | undefined, signal: AbortSignal, phase: PastePhase = () => {}, helper?: URL, pool?: HelperPool): PasteExecutorJob {
+export function startPasteExecutor(content: OwnedUiShellClipboardContent | undefined, signal: AbortSignal, phase: PastePhase = () => {}, helper?: URL, pool?: HelperPool): PasteExecutorJob {
   const tooLarge = content?.kind === "text" && content.text.length > PASTE_TEXT_BYTES;
   if (signal.aborted || live.size >= PASTE_REQUESTS || tooLarge) {
     const result = Promise.reject(new ImageAttachmentError(signal.aborted ? "image-canceled" : tooLarge ? "paste-size" : "paste-busy"));
@@ -171,7 +171,7 @@ export function startPasteExecutor(content: PiShellClipboardContent | undefined,
   return { result, stopped: exit, cancel };
 }
 
-function* sourceMessages(content: PiShellClipboardContent | undefined): Generator<PasteHelperInput> {
+function* sourceMessages(content: OwnedUiShellClipboardContent | undefined): Generator<PasteHelperInput> {
   yield { kind: "begin", source: content?.kind ?? "native", ...(content?.kind === "image" ? { mimeType: content.mimeType } : {}) };
   if (content !== undefined) {
     const data = content.kind === "text" ? content.text : content.data;

@@ -1,3 +1,5 @@
+import type { OwnedUiShellKeybindings } from "../../../contracts/owned-ui/index.js";
+import { piKeybindings } from "./shell-shared-facade.js";
 import { rawKeyHint, VERSION } from "../startup-public.js";
 import {
   Spacer,
@@ -16,7 +18,7 @@ import {
   supportsPiLogo,
 } from "./upstream/components/pi-logo.js";
 import { ThemedText } from "./upstream/components/themed-text.js";
-import { KeybindingsManager, type KeybindingsConfig } from "./upstream/adjacent/core/keybindings.js";
+import { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { StatusIndicator, WorkingStatusIndicator } from "./upstream/components/status-indicator.js";
 import { protectPiPromptChipPresentation } from "./prompt-chip-presentation.js";
 import {
@@ -186,7 +188,7 @@ export function createPiShellFooter(view: OwnedUiSessionViewModel, cwd: string, 
 export function createPiQueuedInputStatus(
   submissions: readonly string[],
   presentation: "pinned" | "custom-viewport" = "pinned",
-  getKeybindings?: () => KeybindingsConfig,
+  getKeybindings?: () => OwnedUiShellKeybindings,
 ): PiShellQueuedInputPort {
   let renderedText = queuedInputText(submissions, presentation, getKeybindings?.());
   let chipWrapping: PromptChipWrapProtection = { text: renderedText, restore: value => value };
@@ -338,7 +340,7 @@ function queuedTextContentWidth(width: number): number {
 function queuedInputText(
   submissions: readonly string[],
   presentation: "pinned" | "custom-viewport",
-  bindings?: KeybindingsConfig,
+  bindings?: OwnedUiShellKeybindings,
 ): string {
   if (submissions.length === 0) return "";
   const theme = piTheme();
@@ -346,7 +348,7 @@ function queuedInputText(
     return submissions.map(submission => theme.fg("muted", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`)).join("\n");
   }
   const messages = submissions.map(submission => theme.fg("dim", `Steering: ${submission.replaceAll("\n", " ⏎ ")}`));
-  const keys = KeybindingsManager.fromOwnedBindings(bindings).getKeys("app.message.dequeue");
+  const keys = KeybindingsManager.fromOwnedBindings(piKeybindings(bindings)).getKeys("app.message.dequeue");
   const label = keys.length === 0 ? "Unbound" : keys.map(displayKeybinding).join("/");
   const dequeueHint = theme.fg("dim", `↳ ${label} to edit all queued messages`);
   // Compatibility: the custom viewport matches Pi's interactive queue presentation while the
@@ -375,8 +377,8 @@ function compactHeaderText(): string {
   return `${headerWithLogo(instructions)}\n${compactOnboarding}\n\n${onboarding}`;
 }
 
-function expandedHeaderText(bindings?: KeybindingsConfig): string {
-  const keys = bindings === undefined ? undefined : KeybindingsManager.fromOwnedBindings(bindings);
+function expandedHeaderText(bindings?: OwnedUiShellKeybindings): string {
+  const keys = bindings === undefined ? undefined : KeybindingsManager.fromOwnedBindings(piKeybindings(bindings));
   const instructions = [
     rawKeyHint("escape", "to interrupt"),
     rawKeyHint("ctrl+c", "to clear"),

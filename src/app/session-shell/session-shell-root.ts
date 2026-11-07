@@ -1,3 +1,4 @@
+import type { OwnedUiShellClipboardContent, OwnedUiShellComponentPort, OwnedUiShellEditorPort, OwnedUiShellHeaderOptions, OwnedUiShellHeaderPort, OwnedUiShellHistoryEditor, OwnedUiShellImageAssetResolver, OwnedUiShellKeybindingsHost, OwnedUiShellLoadedResourcesPort, OwnedUiShellQueuedInputPort, OwnedUiShellResourceEntry, OwnedUiShellStatusPort, OwnedUiShellTranscriptComponentPort, OwnedUiShellViewComponentPort } from "../../contracts/owned-ui/index.js";
 import type { TerminalComponentPort, TerminalInputCoordinationScheduler, TerminalInputDiagnosticsEvent, TerminalInputSurfaceKind, TerminalLayoutNode, TerminalPointerSurface, TerminalPort } from "../../contracts/presentation/index.js";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type { ShellPresentationPorts, ThemeSource } from "../../contracts/presentation/index.js";
@@ -45,22 +46,7 @@ import {
   createPiShellTranscriptComponent,
   type PiShellSubmittedPromptComposer,
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
-import {
-  piShellTruncateToWidth,
-  type PiShellClipboardContent,
-  type PiShellComponentPort,
-  type PiKeybindingsHost,
-  type PiShellEditorPort,
-  type PiShellHeaderOptions,
-  type PiShellHeaderPort,
-  type PiShellImageAssetResolver,
-  type PiShellLoadedResourcesPort,
-  type PiShellQueuedInputPort,
-  type PiShellResourceEntry,
-  type PiShellStatusPort,
-  type PiShellTranscriptComponentPort,
-  type PiShellViewComponentPort,
-} from "../../integrations/pi/components/shell-shared-facade.js";
+import { piShellTruncateToWidth } from "../../integrations/pi/components/shell-shared-facade.js";
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
 import type { OwnedUiClipboardServices } from "./clipboard-services.js";
@@ -79,7 +65,7 @@ import { transcriptLinkColor, TranscriptDocument } from "./transcript-document.j
 import type { StreamPresentationScheduler } from "./stream-presentation-coalescer.js";
 
 type OwnedUiTerminalPort = TerminalPort;
-type OwnedUiStartupOptions = PiShellHeaderOptions;
+type OwnedUiStartupOptions = OwnedUiShellHeaderOptions;
 
 interface OwnedUiClipboardPort {
   readText(signal?: AbortSignal): Promise<string | null>;
@@ -161,7 +147,7 @@ export interface OwnedUiShellHistoryOptions {
   readonly forScope?: (scope: "unique" | "shared", sessionId: string | null) => Pick<OwnedUiShellHistoryOptions, "store" | "imageSidecar"> | null;
   readonly onScopeChange?: (listener: (scope: "unique" | "shared") => void) => () => void;
   readonly limit: number;
-  readonly editor: import("../../integrations/pi/components/index.js").HistoryEditorConstructor;
+  readonly editor: OwnedUiShellHistoryEditor;
   /** Optional per-profile filesystem sidecar for image chip payloads. When present, submit
    * writes each referenced attachment and recall reads them back to rehydrate live chips.
    * When absent, image chips silently strip on recall, matching the missing-sidecar path. */
@@ -209,7 +195,7 @@ export interface OwnedUiShellSkillsOptions {
 export interface OwnedUiShellSharedServices {
   readonly clipboard?: OwnedUiClipboardServices;
   /** Must match the shell's layout: the owned-input profile for the custom viewport, Pi's otherwise. */
-  readonly keybindings?: PiKeybindingsHost;
+  readonly keybindings?: OwnedUiShellKeybindingsHost;
 }
 
 /** What composes an owned session shell, grouped by the collaborator that provides each part. */
@@ -238,7 +224,7 @@ interface OwnedUiSessionShellRootHandlers {
   readonly requestHyperlinkCleanup?: (rows?: readonly number[]) => void;
   readonly enableDockInputReuse?: boolean;
   readonly persistentHistory?: boolean;
-  readonly historyEditor?: import("../../integrations/pi/components/index.js").HistoryEditorConstructor;
+  readonly historyEditor?: OwnedUiShellHistoryEditor;
   readonly onSubmit: (text: string) => void;
   readonly onPasteRejected?: (error: unknown) => void;
   readonly onInterrupt: () => void;
@@ -256,29 +242,29 @@ interface OwnedUiSessionShellRootHandlers {
   readonly onInputSurfaceChanged?: () => void;
   readonly onPromptSuggestionEligibilityChanged?: () => void;
   readonly onCopyText?: (text: string, cut: boolean) => void;
-  readonly readClipboardContent?: (signal?: AbortSignal) => Promise<PiShellClipboardContent | null>;
+  readonly readClipboardContent?: (signal?: AbortSignal) => Promise<OwnedUiShellClipboardContent | null>;
   readonly captureClipboardPaste?: () => PasteSource;
   readonly pasteDiagnostics?: (event: PasteEvent) => void;
   readonly pastePreparation?: Omit<PastePreparationClientOptions, "onEvent">;
-  readonly keybindings?: PiKeybindingsHost;
+  readonly keybindings?: OwnedUiShellKeybindingsHost;
   readonly promptImageLimit?: () => number;
   readonly skillsPresentation?: () => "collapse" | "expand";
 }
 
 /** Composes session state into the owned transcript, viewport, editor, and dock. */
 export class OwnedUiSessionShellRoot implements TerminalComponentPort {
-  readonly editor: PiShellEditorPort;
-  readonly header: PiShellHeaderPort;
-  readonly resources: PiShellLoadedResourcesPort;
+  readonly editor: OwnedUiShellEditorPort;
+  readonly header: OwnedUiShellHeaderPort;
+  readonly resources: OwnedUiShellLoadedResourcesPort;
   readonly #cwd: string;
   readonly #document: TranscriptDocument;
   readonly #themeUnsubscribe: () => void;
   #view: OwnedUiSessionViewModel;
-  readonly #status: PiShellStatusPort;
-  readonly #footer: PiShellViewComponentPort;
-  readonly #queued: PiShellQueuedInputPort;
+  readonly #status: OwnedUiShellStatusPort;
+  readonly #footer: OwnedUiShellViewComponentPort;
+  readonly #queued: OwnedUiShellQueuedInputPort;
   readonly #extensionRenderers: OwnedUiTranscriptRendererPort;
-  readonly #imageAssets: PiShellImageAssetResolver | undefined;
+  readonly #imageAssets: OwnedUiShellImageAssetResolver | undefined;
   readonly #promptChips: PromptChipStore;
   #pasteDiagnosticId = 0;
   readonly #customViewport: boolean;
@@ -308,7 +294,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     view: OwnedUiSessionViewModel,
     cwd: string,
     handlers: OwnedUiSessionShellRootHandlers,
-    startup: PiShellHeaderOptions = {},
+    startup: OwnedUiShellHeaderOptions = {},
     agentDir?: string,
     extensionRenderers: OwnedUiTranscriptRendererPort = {
       getMessageRenderer: () => undefined,
@@ -316,7 +302,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       getShortcuts: () => [],
     },
     sessionLayout: "pinned" | "custom-viewport" = "pinned",
-    imageAssets?: PiShellImageAssetResolver,
+    imageAssets?: OwnedUiShellImageAssetResolver,
   ) {
     this.#view = view;
     this.#customViewport = sessionLayout === "custom-viewport";
@@ -592,7 +578,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     this.#document.apply(block);
   }
 
-  #mountTranscript(block: OwnedUiSessionViewModel["transcript"][number]): PiShellTranscriptComponentPort {
+  #mountTranscript(block: OwnedUiSessionViewModel["transcript"][number]): OwnedUiShellTranscriptComponentPort {
     // Invariant: the notice answers the reader's last command, so only their next prompt or
     // shell command retires it; assistant, tool, and compaction blocks streaming in keep it.
     if (block.kind === "user" || block.kind === "bash") this.dismissNotice();
@@ -750,7 +736,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     return this.#document.layout(width).rows;
   }
 
-  transcriptComponent(id: string): PiShellTranscriptComponentPort | undefined {
+  transcriptComponent(id: string): OwnedUiShellTranscriptComponentPort | undefined {
     return this.#document.component(id);
   }
 
@@ -782,18 +768,18 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     this.#setToolsExpanded(expanded);
   }
 
-  setExtensionWidget(key: string, component: PiShellComponentPort | null, placement: "aboveEditor" | "belowEditor"): void {
+  setExtensionWidget(key: string, component: OwnedUiShellComponentPort | null, placement: "aboveEditor" | "belowEditor"): void {
     this.#extensions.placeWidget(key, component, placement);
     this.invalidate();
   }
 
-  setExtensionHeader(component: PiShellComponentPort | null): void {
+  setExtensionHeader(component: OwnedUiShellComponentPort | null): void {
     this.#extensions.replaceHeader(component);
     this.#document.invalidate("extension-header");
     this.invalidate();
   }
 
-  setExtensionFooter(component: PiShellComponentPort | null): void {
+  setExtensionFooter(component: OwnedUiShellComponentPort | null): void {
     this.#extensions.replaceFooter(component);
     this.invalidate();
   }
@@ -891,7 +877,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   setFooterLevel(visible: boolean): void { this.#footerLevel = visible; }
 
   setInputSurface(
-    component: PiShellComponentPort | null,
+    component: OwnedUiShellComponentPort | null,
     disposePrevious = true,
     coordination: Exclude<TerminalInputSurfaceKind, "editor"> = "owned",
   ): void {
@@ -1038,8 +1024,8 @@ function layoutPort(
   };
 }
 
-export function shellResourceEntries(backend: OwnedUiSessionBackend): readonly PiShellResourceEntry[] {
-  const resources: PiShellResourceEntry[] = backend.extensions.nonVisualResources().map(resource => ({
+export function shellResourceEntries(backend: OwnedUiSessionBackend): readonly OwnedUiShellResourceEntry[] {
+  const resources: OwnedUiShellResourceEntry[] = backend.extensions.nonVisualResources().map(resource => ({
     section: resource.kind === "skill"
       ? "Skills"
       : resource.kind === "prompt-template"

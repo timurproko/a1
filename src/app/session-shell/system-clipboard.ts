@@ -1,5 +1,5 @@
+import type { OwnedUiShellClipboardContent } from "../../contracts/owned-ui/index.js";
 import { execFile } from "node:child_process";
-import type { PiShellClipboardContent } from "../../integrations/pi/components/shell-shared-facade.js";
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import { assertSourceBytes } from "./image-source.js";
@@ -22,7 +22,7 @@ let pendingClipboardWrite: Promise<void> = Promise.resolve();
  * private clipboard module. Failures are deliberately non-fatal: a denied or
  * unavailable clipboard simply makes the paste action a no-op.
  */
-export async function readSystemClipboardContent(signal?: AbortSignal, strict = false): Promise<PiShellClipboardContent | null> {
+export async function readSystemClipboardContent(signal?: AbortSignal, strict = false): Promise<OwnedUiShellClipboardContent | null> {
   await pendingClipboardWrite;
   const native = await nativeClipboard();
   if (native !== null) {
