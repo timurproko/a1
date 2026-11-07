@@ -47,7 +47,7 @@
       "fields": 12
     },
     "src/integrations/pi/engine/adapter.ts::PiEngineAdapter": {
-      "methods": 42,
+      "methods": 40,
       "fields": 21
     },
     "src/integrations/pi/engine/session-runtime.ts::PiEngineRuntime": {

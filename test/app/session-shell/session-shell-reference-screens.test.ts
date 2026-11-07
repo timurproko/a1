@@ -85,7 +85,7 @@ async function shellFixture(options: {
     workflowHost: { copyText: async () => {}, runCommand: async () => ({ stdout: "", stderr: "" }), readChangelog },
   });
   // Invariant: the engine host announces the changelog once per process; the fixture stands in for it.
-  if (options.lastVersion !== undefined) await adapter.announceStartupChangelog();
+  if (options.lastVersion !== undefined) await adapter.announcements.startupChangelog();
   const terminal = new TestPresentationTerminal();
   const routes = options.routes === undefined ? routeHost() : options.routes;
   const shell = new OwnedUiSessionShell({
