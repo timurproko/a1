@@ -120,6 +120,9 @@ export function inspectWorkflowSource(path, source) {
   }
   if ((source.includes('channel = "next"')) || (path.endsWith("develop.yml") && source.includes("channel: develop"))) authority.push("npm-next");
   if (source.includes('channel = "latest"')) authority.push("npm-latest");
+  // Security: npm publication uses trusted publishing (OIDC) only; a long-lived registry token in any workflow
+  // becomes an authority the reviewed definition never lists, so it surfaces as drift.
+  if (/\bNPM_TOKEN\b|NODE_AUTH_TOKEN:\s*\$\{\{\s*secrets\./.test(source)) authority.push("npm-token-publication");
   if (source.includes("ref=refs/tags/")) authority.push("release-tag");
   if (source.includes("gh release create")
     || (source.includes('releases/$RELEASE_ID') && source.includes("draft: false"))) authority.push("github-release");

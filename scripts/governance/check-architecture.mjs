@@ -1,10 +1,9 @@
 import { readFile, readdir } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
-import { inspectLayerBoundaries, inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
+import { inspectExportConsumers, inspectLayerBoundaries, inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
 import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
 import { inspectBaselinePaths } from "./baseline-paths-policy.mjs";
 import { inspectModuleGraph } from "./module-graph-policy.mjs";
-import { PRINTABLE_HELPER_PATH, isExactPrintableHelper, readPinnedKeySource } from "./history-editor-source-policy.mjs";
 import { inspectStartupReachability, validateStartupReachabilityBaseline } from "./startup-graph-policy.mjs";
 import { inspectSizeRatchet, measureSizeRatchet } from "./size-ratchet-policy.mjs";
 
@@ -45,7 +44,7 @@ for (const file of await walk(sourceRoot)) {
     // decides which copy loads, so the specifier belongs to the same adapter boundary as Pi.
     const isPi = !specifier.startsWith(".") && /(?:^|[#/])(?:pi-agent|pi-ai|pi-coding-agent|pi-tui|@mariozechner\/pi-|@oh-my-pi\/pi-)/.test(specifier);
     const piAdapterPath = path === "src/integrations/pi/startup-public.ts"
-      || /^src\/(?:integrations\/pi\/(?:engine|components|tui-runtime)|drivers\/pi|profiles\/pi)\//.test(path);
+      || /^src\/integrations\/pi\/(?:engine|components|tui-runtime)\//.test(path);
     if (/@oh-my-pi\//.test(specifier)) {
       errors.push(`${path}: oh-my-pi fork package import '${specifier}' is forbidden`);
     }
@@ -76,14 +75,8 @@ for (const file of await walk(sourceRoot)) {
   if (/\bglobalThis\s*[.[]/.test(source)) {
     errors.push(`${path}: durable globalThis state is forbidden`);
   }
-  if (/^src\/(?:domain\/model|protocol\/messages)\.ts$/.test(path) && /["']terminal-output["']/.test(source)) {
-    errors.push(`${path}: raw child terminal output is forbidden in the UI-facing control contract`);
-  }
-  if (path.startsWith("src/ui/") && /\.write\(\s*(?:bytes|chunk|data)\s*\)/.test(source)) {
-    errors.push(`${path}: UI may render virtual terminal state but may not relay opaque child bytes`);
-  }
 
-    if (/^(?:src\/features\/owned-ui|src\/foundation\/owned-ui-contracts|src\/app\/session-shell|src\/integrations\/pi\/(?:engine|components|tui-runtime))\//.test(path)) {
+  if (/^(?:src\/features\/owned-ui|src\/app\/session-shell|src\/integrations\/pi\/(?:engine|components|tui-runtime))\//.test(path)) {
     const ownedUiForbidden = [
       { pattern: /\b(?:InteractiveMode|TuiAltScreen|TuiMainScreen|ProcessTerminal)\b.*prototype|prototype\s*\.(?:render|start|stop|handle[A-Za-z]+)\s*=/, label: "stock Pi interactive prototype mutation" },
       { pattern: /\b(?:previousLines|previousWidth|previousHeight|cursorRow|hardwareCursorRow|maxLinesRendered|previousViewportTop)\b/, label: "private Pi renderer-state inspection" },
@@ -98,68 +91,6 @@ for (const file of await walk(sourceRoot)) {
       && path !== "src/contracts/owned-ui/extension-ui.ts"
       && /\b(?:ExtensionUIContext|setEditorComponent|setWidget|setFooter|onTerminalInput)\b/.test(source)) {
       errors.push(`${path}: owned UI depends on stock Pi extension UI context`);
-    }
-  }
-
-  if (/^(?:src\/drivers\/terminal|src\/host-terminal|src\/presentation|src\/test-harness)(?:\/|$)/.test(path)
-    || /^(?:src\/terminal-input|src\/windows-console-mode|src\/ui\/host-(?:terminal-renderer|frame-writer))\.ts$/.test(path)) {
-    errors.push(`${path}: retired terminal module remains in production sources`);
-  }
-
-  if (path.startsWith("src/features/launch/")) {
-    const explicitModeForbidden = [
-      { pattern: /(?:structured-agent-runtime|features\/workspace|features\/owned-ui)/i, label: "composed infrastructure dependency" },
-    ];
-    for (const { pattern, label } of explicitModeForbidden) {
-      if (pattern.test(source)) errors.push(`${path}: launch profile code contains forbidden ${label}`);
-    }
-  }
-
-  const retiredMechanisms = [
-    { pattern: /\b(?:PtyTerminalDriver|ResidentTerminalState|OutputTransactionAssembler|TerminalRenderTransaction)\b/, label: "retired terminal rendering authority" },
-    { pattern: /\b(?:TerminalModeTracker|TerminalResponse(?:Router|Handler)?|interceptTerminalQuer(?:y|ies)|parseTerminal(?:Mode|Query))\b/, label: "custom terminal mode/query parser" },
-    { pattern: /\b(?:SemanticTerminalInput|encode(?:Kitty|ModifyOtherKeys|Win32|TerminalKey)|ReadConsoleInputW|windowsRecordReader)\b|\?\s*9001|modifyOtherKeys/i, label: "custom terminal input parser/encoder" },
-    { pattern: /\b(?:sourceFrame|frameCadence|quiescence(?:Ms|Timer|Deadline)?|adaptiveFrame|cadenceWindow)\b/i, label: "cadence-derived frame inference" },
-  ];
-  for (const { pattern, label } of retiredMechanisms) {
-    if (!pattern.test(source)) continue;
-    // Provenance: only the exact approved editor-local source subset is exempt, never an arbitrary parser at this path.
-    if (label === "custom terminal input parser/encoder" && path === PRINTABLE_HELPER_PATH
-      && isExactPrintableHelper(source, await readPinnedKeySource())) continue;
-    errors.push(`${path}: ${label} is forbidden`);
-  }
-
-  if (path.startsWith("src/foundation/transparent-terminal/")) {
-    const transparentForbidden = [
-      { pattern: /(?:node-pty|@xterm|conpty|portable-pty|wezterm)/i, label: "PTY or terminal emulator dependency" },
-      { pattern: /(?:process\.(?:stdin|stdout|stderr)|\.on\(\s*["']data|\.pipe\(|TextDecoder|StringDecoder)/, label: "terminal input/output read or relay" },
-      { pattern: /(?:setRawMode|ReadConsoleInputW|SendInput|WriteConsole|SetConsoleMode|tcsetpgrp|termios)/i, label: "terminal input or mode mediation" },
-      { pattern: /(?:framebuffer|render|repaint|damage|cell|cursor|escape(?:Sequence)?|terminalQuery)/i, label: "terminal parsing or display reconstruction" },
-    ];
-    for (const { pattern, label } of transparentForbidden) {
-      if (pattern.test(source)) errors.push(`${path}: transparent boundary contains forbidden ${label}`);
-    }
-    if (/native-launcher\.ts$/.test(path) && !/stdio:\s*["']inherit["']/.test(source)) {
-      errors.push(`${path}: transparent native launcher must inherit physical standard handles`);
-    }
-    if (/native-launcher\.ts$/.test(path) && !/shell:\s*false/.test(source)) {
-      errors.push(`${path}: transparent native launcher must disable shell execution`);
-    }
-  }
-
-  if (isTerminalBoundary(path)) {
-    const identityPatterns = [
-      { pattern: /native[\s_-]*pi|A1_NATIVE_PI|PI_CODING_AGENT|PI_CONFIG|--tui-mode|\b(?:Claude|Codex)\b/i, label: "CLI identity or CLI-named configuration" },
-      { pattern: /(?:if|switch)\s*\([^\n]*(?:executable|arguments?)\b/i, label: "executable or argument inspection" },
-      { pattern: /process\.env(?:\.|\[)(?:["']?)?(?:PI_|CLAUDE_|CODEX_)/i, label: "CLI-named environment inspection" },
-      { pattern: /(?:if|switch)\s*\([^\n]*(?:output|text|content|chunk|data)[^\n]*(?:includes|match|test)\s*\(/i, label: "visible-content rendering branch" },
-      { pattern: /(?:conpty|windows|unix)[A-Za-z]*(?:Pi|Claude|Codex|Cli)[A-Za-z]*Fallback/i, label: "CLI-specific input-mode fallback" },
-      { pattern: /(?:mode|query)[A-Za-z]*(?:Regex|Regexp|Parser|Tracker|Interceptor|Responder)|(?:parse|intercept|respond)[A-Za-z]*(?:Mode|Query)/i, label: "custom mode/query parser" },
-      { pattern: /(?:key|input)[A-Za-z]*(?:Encoder|Translator)|(?:encode|translate)[A-Za-z]*(?:Key|Input)/i, label: "custom input encoder" },
-      { pattern: /(?:cadence|quiescence|adaptive)[A-Za-z]*(?:Frame|Flush|Delay|Timer|Window)|(?:frame|flush)[A-Za-z]*(?:Cadence|Quiescence)/i, label: "cadence inference" },
-    ];
-    for (const { pattern, label } of identityPatterns) {
-      if (pattern.test(source)) errors.push(`${path}: terminal boundary contains forbidden ${label}`);
     }
   }
 }
@@ -188,6 +119,12 @@ if (rootArgument < 0) {
     errors.push(`architecture allowlist is missing or invalid: ${error instanceof Error ? error.message : String(error)}`);
   }
   if (architectureAllowlist !== null) errors.push(...await inspectModuleGraph(root, architectureAllowlist, sourceFiles));
+  // Invariant: an export is live only when production code, a shipped entry, or a maintenance script reads it.
+  const consumers = {};
+  for (const directory of ["bin", "scripts"]) {
+    for (const file of await walk(resolve(root, directory)).catch(() => [])) consumers[relative(root, file).split(sep).join("/")] = await readFile(file, "utf8");
+  }
+  errors.push(...inspectExportConsumers(sourceFiles, consumers, architectureAllowlist?.entryModules ?? []));
   try {
     const sizeBaseline = JSON.parse(await readFile(resolve(root, "config", "baselines", "size-ratchet.json"), "utf8"));
     errors.push(...inspectSizeRatchet(await measureSizeRatchet(root), sizeBaseline));
@@ -196,8 +133,7 @@ if (rootArgument < 0) {
   }
 }
 await inspectRepositoryStructure();
-await inspectReleasePolicy();
-await inspectTerminalParityBoundary();
+await inspectPackageManifest();
 await inspectFileNames();
 inspectOwnedShellModules();
 errors.push(...startupReachability.errors);
@@ -212,9 +148,6 @@ if (errors.length > 0) {
 
 function inspectOwnedShellModules() {
   const prefix = "src/integrations/pi/components/";
-  const barrelPath = `${prefix}shell-components.ts`;
-  const barrel = sourceFiles[barrelPath];
-  if (barrel === undefined) return;
   const modules = [
     "shell-shared-facade.ts",
     "shell-editor-autocomplete.ts",
@@ -224,10 +157,7 @@ function inspectOwnedShellModules() {
     "shell-footer-status.ts",
     "shell-extension-ui.ts",
   ];
-  const barrelLines = barrel.trim().split(/\r?\n/);
-  if (barrelLines.length > modules.length || barrelLines.some(line => !/^export \* from "\.\/shell-[a-z-]+\.js";$/.test(line))) {
-    errors.push(`${barrelPath}: shell barrel must contain only bounded responsibility-module exports`);
-  }
+  if (!modules.some(module => sourceFiles[`${prefix}${module}`] !== undefined)) return;
   for (const module of modules) {
     const path = `${prefix}${module}`;
     const source = sourceFiles[path];
@@ -240,10 +170,6 @@ function inspectOwnedShellModules() {
     const siblingImport = source.match(/(?:from\s+|import\s+)["']\.\/(shell-(?!shared-facade)[a-z-]+)\.js["']/);
     if (siblingImport) errors.push(`${path}: responsibility modules may depend only on shell-shared-facade, not ${siblingImport[1]}`);
   }
-}
-
-function isTerminalBoundary(path) {
-  return /^src\//.test(path) && /(?:^|\/)(?:terminal|pty|console|transparent|composed|foreground(?:-terminal)?)(?:[-/_.]|$)/i.test(path);
 }
 
 async function inspectRepositoryStructure() {
@@ -260,12 +186,6 @@ async function inspectRepositoryStructure() {
     if (nestedAuthority.test(path) && !["package.json", "package-lock.json", "packages/a1-install/package.json"].includes(path)) errors.push(`${path}: nested package manifest or lockfile is forbidden`);
     if (path.startsWith("test/") && /\.test\.ts$/.test(path) && !testOwnerForPath(path)) errors.push(`${path}: test has no declared owner`);
   }
-
-  const staleMarkers = /(?:during (?:the )?redesign|terminal redesign|milestone branch|will be added later|temporary lifecycle-only)/i;
-  for (const path of paths.filter(path => path === "README.md" || path.startsWith("docs/"))) {
-    const source = await readFile(resolve(root, path), "utf8");
-    if (staleMarkers.test(source)) errors.push(`${path}: stale redesign marker is forbidden in current documentation`);
-  }
 }
 
 async function walkRepository(directory, prefix = "") {
@@ -280,12 +200,7 @@ async function walkRepository(directory, prefix = "") {
   return paths;
 }
 
-async function inspectTerminalParityBoundary() {
-  const productionPattern = /(?:pi-terminal-parity|TerminalParitySession|cell(?:Grid)?Capture|terminalCheckpointCapture)/i;
-  for (const [path, source] of Object.entries(sourceFiles)) {
-    if (productionPattern.test(source)) errors.push(`${path}: terminal parity PTY/process/cell capture is test-only`);
-  }
-
+async function inspectPackageManifest() {
   let manifest;
   try {
     manifest = JSON.parse(await readFile(resolve(root, "package.json"), "utf8"));
@@ -293,36 +208,13 @@ async function inspectTerminalParityBoundary() {
     if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
     return;
   }
-  // Security: terminal capture belongs to tests alone: a pseudo-terminal or cell reader
-  // shipped in the product would be a second way to draw the screen.
-  for (const dependency of ["node-pty", "@xterm/headless"]) {
-    if (manifest.dependencies?.[dependency]) errors.push(`package.json: terminal capture dependency '${dependency}' must be development-only`);
+  // Security: a terminal emulator belongs to tests alone; shipped in the product it would be a
+  // second way to draw the screen.
+  for (const dependency of Object.keys(manifest.dependencies ?? {})) {
+    if (terminalEmulationImport.test(dependency)) errors.push(`package.json: terminal emulator dependency '${dependency}' must be development-only`);
   }
   if ((manifest.files ?? []).some(path => path === "scripts" || path.startsWith("scripts/"))) {
     errors.push("package.json: test-only scripts must not be published");
-  }
-}
-
-async function inspectReleasePolicy() {
-  const manifestPath = resolve(root, "package.json");
-  let manifestSource = "";
-  try {
-    manifestSource = await readFile(manifestPath, "utf8");
-  } catch (error) {
-    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-  }
-  const releaseFiles = ["scripts/release/prepack-gate.mjs", "scripts/release/run-release-gates.mjs"];
-  const values = [["package.json", manifestSource]];
-  for (const path of releaseFiles) {
-    try {
-      values.push([path, await readFile(resolve(root, path), "utf8")]);
-    } catch (error) {
-      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
-    }
-  }
-  const obsoleteGate = /test:scenario|test\/scenarios|walking-skeleton|conversation-stability|packaged-(?:real-pi|extension|multi-cli)|A1_CERTIFICATION_TARBALL|A1_INTERNAL_PACKAGING|simulation-first certification|generic-terminal-(?:corpus|parity)/i;
-  for (const [path, source] of values) {
-    if (obsoleteGate.test(source)) errors.push(`${path}: obsolete retired-pipeline release gate is forbidden`);
   }
 }
 

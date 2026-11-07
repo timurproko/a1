@@ -4,7 +4,7 @@ import { deliverExitNotice, restoreAfterOwnedExit } from "../terminal-cleanup/in
 import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { selectOrdinaryLaunchReleaseId } from "./ordinary-launch-selection.js";
-import { CohortStateStore, type CohortState } from "./cohort-state.js";
+import { ReleaseStateStore, type ReleaseState } from "./release-state.js";
 import { assertLaunchProfileId, resolveProductPaths, sessionSelectionArguments, type SessionSelection, type LaunchProfileId } from "../lifecycle/index.js";
 import { UpdateTransactionStore } from "./update-transaction.js";
 import { selectUpdateLaunchRelease } from "./update-launch.js";
@@ -52,7 +52,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
     output.write(`${PRODUCT_TEXT.diagnostic("active release changed repeatedly during startup; launch could not converge")}\n`);
     return 1;
   };
-  const stateStore = new CohortStateStore(paths.dataDir);
+  const stateStore = new ReleaseStateStore(paths.dataDir);
   let state = await stateStore.read();
   const launchDuringUpdate = async (): Promise<number | null> => {
     // Concurrency: read the journal before touching npm's mutable tree, including package.json.
@@ -65,7 +65,7 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
   };
   const duringUpdate = await launchDuringUpdate();
   if (duringUpdate !== null) return duringUpdate;
-  // Performance: reconciliation is serialized by cohort state, but launch never awaits a physical
+  // Performance: reconciliation is serialized by the release state lock, but launch never awaits a physical
   // backlog. The scheduler commits a plan and starts a detached bounded worker.
   const scheduleMaintenance = options.scheduleMaintenance ?? scheduleReleaseCleanup;
   void scheduleMaintenance(paths.dataDir, paths).catch(() => {});
@@ -155,13 +155,13 @@ async function runBootstrapAttempt(options: BootstrapOptions, retriesRemaining: 
 }
 
 /**
- * Start the retained active cohort when the installed payload cannot be taken. The
+ * Start the retained active release when the installed payload cannot be taken. The
  * release already carries certified evidence, so this reuses it rather than
  * certifying anything new, and reports no selection when there is nothing safe
  * to fall back to.
  */
 async function launchRetainedActive(
-  state: CohortState,
+  state: ReleaseState,
   paths: ReturnType<typeof resolveProductPaths>,
   launch: (release: MaterializedRelease) => Promise<number>,
   excludedReleaseId?: string,

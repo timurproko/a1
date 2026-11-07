@@ -7,9 +7,9 @@ import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 /** Published release channels: stable `X.Y.Z` on dist-tag `latest`, development `X.Y.Z-dev.N` on `next`. */
 export type ReleaseChannel = "stable" | "development";
-export type StartupUpdateMode = "auto" | "no";
+export type StartupUpdateMode = "auto" | "manual";
 
-export interface DistTagVersions {
+interface DistTagVersions {
   readonly release: string | null;
   readonly develop: string | null;
   readonly error: string | null;
@@ -26,7 +26,7 @@ export interface AvailableRelease {
   readonly changelogUrl: string | null;
 }
 
-export const DEFAULT_NPM_REGISTRY = "https://registry.npmjs.org";
+const DEFAULT_NPM_REGISTRY = "https://registry.npmjs.org";
 export const UPDATE_CHECK_INTERVAL_MS = 15 * 60_000;
 const STARTUP_FETCH_TIMEOUT_MS = 3_000;
 const CACHE_FILENAME = "update-check.json";
@@ -40,7 +40,7 @@ export interface PublishedVersion {
   readonly pullRequest: number | null;
 }
 
-export interface PublishedVersions {
+interface PublishedVersions {
   readonly versions: readonly PublishedVersion[];
   readonly error: string | null;
 }
@@ -64,12 +64,12 @@ export function isNewerRelease(candidate: string, current: string): boolean {
   return left !== null && right !== null && gt(left, right);
 }
 
-export function distTagsUrl(registry: string = DEFAULT_NPM_REGISTRY): string {
+function distTagsUrl(registry: string = DEFAULT_NPM_REGISTRY): string {
   return `${registry.replace(/\/+$/u, "")}/-/package/${encodeURIComponent(PRODUCT_TEXT.packageName)}/dist-tags`;
 }
 
 /** Read `latest` (required) and `next` (optional) from a dist-tags object. */
-export function parseDistTags(metadata: unknown, source: string): DistTagVersions {
+function parseDistTags(metadata: unknown, source: string): DistTagVersions {
   if (typeof metadata !== "object" || metadata === null || Array.isArray(metadata)) {
     return unavailableDistTags(`${source} returned a non-object dist-tags value`);
   }
@@ -83,7 +83,7 @@ export function parseDistTags(metadata: unknown, source: string): DistTagVersion
   }
 }
 
-export async function queryRegistryDistTags(fetcher: RegistryFetcher, registry?: string): Promise<DistTagVersions> {
+async function queryRegistryDistTags(fetcher: RegistryFetcher, registry?: string): Promise<DistTagVersions> {
   try {
     const response = await fetcher(distTagsUrl(registry));
     if (!response.ok) return unavailableDistTags(`registry responded with status ${response.status}`);
@@ -93,12 +93,12 @@ export async function queryRegistryDistTags(fetcher: RegistryFetcher, registry?:
   }
 }
 
-export function packageDocumentUrl(registry: string = DEFAULT_NPM_REGISTRY): string {
+function packageDocumentUrl(registry: string = DEFAULT_NPM_REGISTRY): string {
   return `${registry.replace(/\/+$/u, "")}/${encodeURIComponent(PRODUCT_TEXT.packageName)}`;
 }
 
 /** The pull request a published or installed manifest records under `publication.pullRequest`, when valid. */
-export function recordedPullRequest(manifest: unknown): number | null {
+function recordedPullRequest(manifest: unknown): number | null {
   if (typeof manifest !== "object" || manifest === null) return null;
   const publication = (manifest as { publication?: unknown }).publication;
   if (typeof publication !== "object" || publication === null) return null;
@@ -123,7 +123,7 @@ export async function queryPublishedVersions(fetcher: RegistryFetcher, registry?
   }
 }
 
-export function parsePublishedVersions(document: unknown): PublishedVersions {
+function parsePublishedVersions(document: unknown): PublishedVersions {
   if (typeof document !== "object" || document === null || Array.isArray(document)) {
     return { versions: [], error: "registry returned a non-object package document" };
   }
@@ -142,7 +142,7 @@ export async function invalidateReleaseCheckCache(configDir: string): Promise<vo
   await withCacheLock(configDir, async () => { await rm(join(configDir, CACHE_FILENAME), { force: true }); });
 }
 
-export function unavailableDistTags(error: string): DistTagVersions {
+function unavailableDistTags(error: string): DistTagVersions {
   return { release: null, develop: null, error };
 }
 
@@ -173,7 +173,7 @@ export function startupReleaseCheckSkipReason(options: StartupReleaseCheckOption
   if (truthy(environment[PRODUCT_IDENTITY.environment.skipVersionCheck])) return "disabled-by-environment";
   if (truthy(environment.CI)) return "ci";
   if (!options.interactive) return "not-interactive";
-  if (options.settingMode === "no") return "disabled-by-setting";
+  if (options.settingMode === "manual") return "disabled-by-setting";
   if (releaseChannelOf(options.runningVersion) === null) return "unpublished-version";
   return null;
 }
@@ -214,7 +214,7 @@ export async function checkForNewerRelease(options: StartupReleaseCheckOptions):
   }
 }
 
-export function availableRelease(channel: ReleaseChannel, version: string): AvailableRelease {
+function availableRelease(channel: ReleaseChannel, version: string): AvailableRelease {
   return {
     channel,
     version,

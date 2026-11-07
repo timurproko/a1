@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import { assertAgentSettingDescriptor } from "../../contracts/agent-engine/index.js";
 import type {
@@ -9,7 +8,6 @@ import type {
 } from "../../contracts/agent-engine/index.js";
 import {
   OWNED_SETTING_DECLARATIONS,
-  OWNED_UI_SETTINGS_VERSION,
   OWNED_UI_SETTING_DECLARATIONS,
   type OwnedSettingId,
   type OwnedSettingValueOf,
@@ -17,12 +15,6 @@ import {
   type OwnedUiSettingValue,
 } from "./declarations.js";
 import {
-  OWNED_UI_SETTINGS_MIGRATIONS,
-  normalizeOwnedUiSettingsValues,
-  type OwnedUiSettingsMigration,
-} from "./migrations.js";
-import {
-  parseOwnedUiSettingsDocument,
   resolveOwnedUiSettings,
   type OwnedUiSettingsResolution,
 } from "./resolution.js";
@@ -50,10 +42,7 @@ export interface OwnedSettingsManagerOptions {
   readonly profileId: string;
   /** Product namespace; defaults to profileId for generic and hermetic consumers. */
   readonly namespace?: string;
-  /** Former product configuration root, consulted only while the namespace is absent. */
-  readonly legacyConfigDir?: string;
   readonly declarations?: readonly OwnedUiSettingDeclaration[];
-  readonly migrations?: readonly OwnedUiSettingsMigration[];
   readonly agent?: AgentSettingsPort | null;
   readonly agentProvider?: () => AgentSettingsPort | null;
   readonly hiddenOwnedSettingIds?: readonly string[];
@@ -88,10 +77,8 @@ interface WriteOutcome {
  */
 export class OwnedSettingsManager {
   readonly #file: string;
-  readonly #legacyFile: string | null;
   readonly #namespace: string;
   readonly #declarations: readonly OwnedUiSettingDeclaration[];
-  readonly #migrations: readonly OwnedUiSettingsMigration[];
   readonly #agent: AgentSettingsPort | null;
   readonly #agentProvider: (() => AgentSettingsPort | null) | null;
   readonly #listeners = new Set<OwnedUiSettingsListener>();
@@ -110,12 +97,8 @@ export class OwnedSettingsManager {
     const profileDir = options.profileDir ?? options.configDir;
     if (profileDir === undefined) throw new Error("owned UI settings require a profile directory");
     this.#file = path.join(path.resolve(profileDir), "settings.json");
-    this.#legacyFile = options.legacyConfigDir === undefined
-      ? null
-      : path.join(path.resolve(options.legacyConfigDir), "settings", `${options.profileId}.json`);
     this.#namespace = options.namespace ?? options.profileId;
     this.#declarations = options.declarations ?? OWNED_UI_SETTING_DECLARATIONS;
-    this.#migrations = options.migrations ?? OWNED_UI_SETTINGS_MIGRATIONS;
     this.#agent = options.agent ?? null;
     this.#agentProvider = options.agentProvider ?? null;
     this.#hiddenOwnedSettingIds = new Set(options.hiddenOwnedSettingIds ?? []);
@@ -145,17 +128,9 @@ export class OwnedSettingsManager {
       if (Buffer.byteLength(JSON.stringify(shared.value), "utf8") > MAX_DOCUMENT_BYTES) {
         return this.#resolveNamespace(null, `${this.#file} contains a ${this.#namespace} namespace exceeding the ${MAX_DOCUMENT_BYTES}-byte settings limit`);
       }
-      return this.#resolveCompatibleNamespace(shared.value);
+      return this.#resolveNamespace(shared.value);
     }
-    if (shared.status === "invalid") return this.#resolveNamespace(null, shared.detail);
-    return this.#readLegacy();
-  }
-
-  #resolveCompatibleNamespace(values: Readonly<Record<string, unknown>>): OwnedUiSettingsResolution {
-    const compatibility = normalizeOwnedUiSettingsValues(values);
-    return compatibility.values === null
-      ? this.#resolveNamespace(null, compatibility.failure ?? "product settings compatibility failed")
-      : this.#resolveNamespace(compatibility.values);
+    return this.#resolveNamespace(null, shared.status === "invalid" ? shared.detail : undefined);
   }
 
   #resolveNamespace(
@@ -164,36 +139,8 @@ export class OwnedSettingsManager {
   ): OwnedUiSettingsResolution {
     return resolveOwnedUiSettings({
       declarations: this.#declarations,
-      migrations: [],
-      document: values === null ? null : { version: OWNED_UI_SETTINGS_VERSION, values },
+      values,
       ...(unreadableDetail === undefined ? {} : { unreadableDetail }),
-      currentVersion: OWNED_UI_SETTINGS_VERSION,
-    });
-  }
-
-  #readLegacy(): OwnedUiSettingsResolution {
-    if (this.#legacyFile === null) return this.#resolveNamespace(null);
-    let raw: string | null = null;
-    let unreadable: string | null = null;
-    try {
-      raw = readFileSync(this.#legacyFile, "utf8");
-    } catch (error) {
-      if (!isMissing(error)) unreadable = `${this.#legacyFile} could not be read: ${describe(error)}`;
-    }
-    if (raw !== null && Buffer.byteLength(raw, "utf8") > MAX_DOCUMENT_BYTES) {
-      unreadable = `${this.#legacyFile} exceeds the ${MAX_DOCUMENT_BYTES}-byte settings limit and was ignored`;
-      raw = null;
-    }
-    const document = raw === null ? null : parseOwnedUiSettingsDocument(raw);
-    if (raw !== null && document === null && unreadable === null) {
-      unreadable = `${this.#legacyFile} is not a valid settings document and was ignored`;
-    }
-    return resolveOwnedUiSettings({
-      declarations: this.#declarations,
-      migrations: this.#migrations,
-      document,
-      ...(unreadable === null ? {} : { unreadableDetail: unreadable }),
-      currentVersion: OWNED_UI_SETTINGS_VERSION,
     });
   }
 
@@ -315,13 +262,7 @@ export class OwnedSettingsManager {
 
     try {
       updateProfileSettingsNamespace(this.#file, this.#namespace, current => {
-        let latest = this.#readLegacy();
-        if (current !== null) {
-          const compatibility = normalizeOwnedUiSettingsValues(current);
-          if (compatibility.values === null) throw new Error(compatibility.failure ?? "product settings compatibility failed");
-          latest = this.#resolveNamespace(compatibility.values);
-        }
-        const next = compactValues(latest);
+        const next = compactValues(this.#resolveNamespace(current));
         if (value === declaration.defaultValue) delete next[id];
         else next[id] = value;
         return Object.keys(next).length === 0 ? null : next;
@@ -432,10 +373,6 @@ function compactValues(resolution: OwnedUiSettingsResolution): Record<string, un
     if (setting.value !== setting.declaration.defaultValue) values[setting.declaration.id] = setting.value;
   }
   return values;
-}
-
-function isMissing(error: unknown): boolean {
-  return typeof error === "object" && error !== null && (error as { code?: string }).code === "ENOENT";
 }
 
 function describe(error: unknown): string {

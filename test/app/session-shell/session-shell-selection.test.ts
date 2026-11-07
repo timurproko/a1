@@ -366,11 +366,11 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       writeText: async value => { copied.push(value); },
     });
     const cases = [
-      { text: "selectable status", show: () => shell.root.appendWorkflowStatus("selectable status") },
-      { text: "selectable warning", show: () => shell.root.appendWorkflowMessage({ kind: "warning", message: "selectable warning" }) },
-      { text: "selectable error", show: () => shell.root.appendWorkflowMessage({ kind: "error", message: "selectable error" }) },
-      { text: "selectable result", show: () => shell.root.appendWorkflowResult({ command: "reload", outcome: "completed", message: "selectable result" }) },
-      { text: "selectable notice", show: () => shell.root.appendWorkflowResult({ command: "new", outcome: "completed", message: "selectable notice" }) },
+      { text: "selectable status", show: () => shell.root.workflow.appendStatus("selectable status") },
+      { text: "selectable warning", show: () => shell.root.workflow.appendMessage({ kind: "warning", message: "selectable warning" }) },
+      { text: "selectable error", show: () => shell.root.workflow.appendMessage({ kind: "error", message: "selectable error" }) },
+      { text: "selectable result", show: () => shell.root.workflow.appendResult({ command: "reload", outcome: "completed", message: "selectable result" }) },
+      { text: "selectable notice", show: () => shell.root.workflow.appendResult({ command: "new", outcome: "completed", message: "selectable notice" }) },
     ] as const;
     try {
       terminal.resize(60, 14);
@@ -537,8 +537,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const beforeRows = shell.root.render(60).map(stripTerminalSequences);
       const beforeDescriptor = shell.root.viewportFrameDescriptor()!;
       const beforeRule = beforeRows.findIndex(value => value.trim().match(/^─+$/u));
-      shell.root.showCopyAcknowledgement("Copied 5 chars to clipboard");
-      shell.root.showCopyAcknowledgement("Copied 12 chars to clipboard");
+      shell.root.chrome.showCopyAcknowledgement("Copied 5 chars to clipboard");
+      shell.root.chrome.showCopyAcknowledgement("Copied 12 chars to clipboard");
       const rows = shell.root.render(60);
       const plain = rows.map(stripTerminalSequences);
       const matches = plain.filter(row => row.includes("chars to clipboard"));
@@ -599,11 +599,11 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       expect(busy.filter(row => row.includes(notice))).toHaveLength(1);
 
       vi.useFakeTimers();
-      shell.root.showCopyAcknowledgement("Copied 5 chars to clipboard");
+      shell.root.chrome.showCopyAcknowledgement("Copied 5 chars to clipboard");
       expect(plain()[noticeRow]).toContain("Copied 5 chars to clipboard");
       expect(plain().join("\n")).not.toContain(notice);
       vi.advanceTimersByTime(600);
-      shell.root.showCopyAcknowledgement("Copied 12 chars to clipboard");
+      shell.root.chrome.showCopyAcknowledgement("Copied 12 chars to clipboard");
       vi.advanceTimersByTime(600);
       expect(plain()[noticeRow]).toContain("Copied 12 chars to clipboard");
       vi.advanceTimersByTime(400);
@@ -1140,7 +1140,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     try {
       // Rationale: the bare profile appends a Models dialog section, so the viewport must hold the whole table.
       terminal.resize(160, 120);
-      shell.root.appendWorkflowResult({ command: "hotkeys", outcome: "completed", message: "" });
+      shell.root.workflow.appendResult({ command: "hotkeys", outcome: "completed", message: "" });
       const text = stripTerminalSequences(shell.root.render(160).join("\n"));
       expect(text.includes("Start of content")).toBe(custom);
       expect(text.includes("Start of prompt line")).toBe(custom);

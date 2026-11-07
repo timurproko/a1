@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  CohortStateStore,
+  ReleaseStateStore,
   materializeRelease,
   runBoundedReleaseCleanup,
   runReleaseCleanupWorker,
@@ -499,11 +499,11 @@ async function releaseFixture(count: number) {
     await writeFile(resolve(packageRoot, "dist", "app.js"), `export default ${index};`);
     releases.push(await materializeRelease(packageRoot, dataDir));
   }
-  return { root, dataDir, releases, store: new CohortStateStore(dataDir) };
+  return { root, dataDir, releases, store: new ReleaseStateStore(dataDir) };
 }
 
 /** Approve and activate each release in turn, with approvals old enough to be outside retention. */
-async function activateAll(store: CohortStateStore, releases: readonly MaterializedRelease[]): Promise<void> {
+async function activateAll(store: ReleaseStateStore, releases: readonly MaterializedRelease[]): Promise<void> {
   for (const release of releases) {
     await store.recordCandidate(release);
     const certification = resolve(release.releaseRoot, "..", "..", `certification-${release.releaseId}.json`);
@@ -515,7 +515,7 @@ async function activateAll(store: CohortStateStore, releases: readonly Materiali
   await approvedAt(store, Object.fromEntries(releases.map(release => [release.releaseId, old])));
 }
 
-async function approvedAt(store: CohortStateStore, approvals: Readonly<Record<string, number>>): Promise<void> {
+async function approvedAt(store: ReleaseStateStore, approvals: Readonly<Record<string, number>>): Promise<void> {
   await store.update(state => ({
     ...state,
     releases: Object.fromEntries(Object.entries(state.releases).map(([releaseId, record]) => [releaseId,

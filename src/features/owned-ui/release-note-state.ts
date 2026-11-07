@@ -15,7 +15,7 @@ export interface ReleaseNoteClaim {
   release(): Promise<void>;
 }
 
-export interface ReleaseNoteStateOptions {
+interface ReleaseNoteStateOptions {
   readonly configDir: string;
   readonly profileId: string;
   readonly version: string;

@@ -474,7 +474,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
       detail: "Selected branch prompt",
     }));
 
-    shell.root.appendWorkflowStatus("Tree dialog spacing");
+    shell.root.workflow.appendStatus("Tree dialog spacing");
     await shell.submit("/tree");
     const treeRows = shell.root.render(100);
     const plainTreeRows = treeRows.map(stripTerminalSequences);

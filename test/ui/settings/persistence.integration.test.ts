@@ -1,10 +1,9 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  OWNED_UI_SETTINGS_VERSION,
   OwnedSettingsManager,
   settingValue,
   type OwnedUiSettingDeclaration,
@@ -32,7 +31,7 @@ const DECLARATIONS: readonly OwnedUiSettingDeclaration[] = [
 let root: string;
 
 function store(profileId = "a1"): OwnedSettingsManager {
-  return new OwnedSettingsManager({ configDir: root, profileId, declarations: DECLARATIONS, migrations: [] });
+  return new OwnedSettingsManager({ configDir: root, profileId, declarations: DECLARATIONS });
 }
 
 async function write(target: OwnedSettingsManager, id: string, value: string | number | boolean): Promise<{ stored: boolean; failure: string | null }> {
@@ -85,14 +84,14 @@ describe("owned settings persistence", () => {
     const installDir = path.join(root, "installation");
     mkdirSync(path.join(installDir, "release-a"), { recursive: true });
     const first = new OwnedSettingsManager({
-      profileDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE, declarations: DECLARATIONS, migrations: [],
+      profileDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE, declarations: DECLARATIONS,
     });
     expect((await write(first, "density", "compact")).stored).toBe(true);
 
     rmSync(installDir, { recursive: true, force: true });
     mkdirSync(path.join(installDir, "release-b"), { recursive: true });
     const restarted = new OwnedSettingsManager({
-      profileDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE, declarations: DECLARATIONS, migrations: [],
+      profileDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE, declarations: DECLARATIONS,
     });
     expect(settingValue(restarted.read(), "density")).toBe("compact");
     expect(restarted.file.startsWith(installDir)).toBe(false);
@@ -148,49 +147,6 @@ describe("owned settings persistence", () => {
     const written = JSON.parse(readFileSync(file, "utf8")) as Record<string, Record<string, unknown>>;
     expect(written[PRODUCT_NAMESPACE]?.["futureSetting"]).toBe("keep me");
     expect(written[PRODUCT_NAMESPACE]?.["density"]).toBe("compact");
-  });
-
-  it("imports the former standalone document lazily and leaves it unchanged", async () => {
-    const profileDir = path.join(root, "profile");
-    const legacyDir = path.join(root, "legacy");
-    const legacyFile = path.join(legacyDir, "settings", `${PRODUCT_NAMESPACE}.json`);
-    mkdirSync(path.dirname(legacyFile), { recursive: true });
-    const legacyRaw = JSON.stringify({ version: OWNED_UI_SETTINGS_VERSION, values: { density: "compact", futureSetting: "keep me" } });
-    writeFileSync(legacyFile, legacyRaw);
-    const target = new OwnedSettingsManager({
-      profileDir, legacyConfigDir: legacyDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE,
-      declarations: DECLARATIONS, migrations: [],
-    });
-
-    expect(settingValue(target.read(), "density")).toBe("compact");
-    expect(existsSync(target.file)).toBe(false);
-    expect((await write(target, "density", "comfortable")).stored).toBe(true);
-    expect(readFileSync(legacyFile, "utf8")).toBe(legacyRaw);
-    expect(JSON.parse(readFileSync(target.file, "utf8"))).toEqual({ [PRODUCT_NAMESPACE]: { futureSetting: "keep me" } });
-  });
-
-  it("prefers a shared product object over the former standalone document", () => {
-    const profileDir = path.join(root, "profile");
-    const legacyDir = path.join(root, "legacy");
-    mkdirSync(profileDir, { recursive: true });
-    mkdirSync(path.join(legacyDir, "settings"), { recursive: true });
-    writeFileSync(path.join(profileDir, "settings.json"), JSON.stringify({ [PRODUCT_NAMESPACE]: { density: "comfortable" } }));
-    writeFileSync(path.join(legacyDir, "settings", `${PRODUCT_NAMESPACE}.json`), JSON.stringify({ version: OWNED_UI_SETTINGS_VERSION, values: { density: "compact" } }));
-    const target = new OwnedSettingsManager({
-      profileDir, legacyConfigDir: legacyDir, namespace: PRODUCT_NAMESPACE, profileId: PRODUCT_NAMESPACE,
-      declarations: DECLARATIONS, migrations: [],
-    });
-    expect(settingValue(target.read(), "density")).toBe("comfortable");
-  });
-
-  it("refuses an ambiguous compatibility shape without modifying the file", async () => {
-    const file = path.join(root, "settings.json");
-    const raw = JSON.stringify({ theme: "dark", [PRODUCT_NAMESPACE]: { quitEffect: "off", quitAnimation: true, future: "keep" } });
-    writeFileSync(file, raw);
-    const target = store();
-    expect(target.read().notices[0]?.detail).toContain("conflicts");
-    expect((await write(target, "density", "compact")).stored).toBe(false);
-    expect(readFileSync(file, "utf8")).toBe(raw);
   });
 
   it("treats an unparseable file as absent, reports it, and preserves the file", () => {

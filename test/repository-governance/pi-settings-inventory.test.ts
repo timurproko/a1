@@ -11,7 +11,8 @@ import {
   settingsInventoryDrift,
   type PiSettingOwnerHandlers,
 } from "../../src/integrations/pi/engine/index.js";
-import { SUPPLEMENTAL_SETTING_KEYS } from "../../src/integrations/pi/engine/default-model-setting.js";
+/** A1's own settings beside pinned Pi's: the default model the engine adapter resolves. */
+const SUPPLEMENTAL_SETTING_KEYS = ["defaultModel"] as const;
 import { settingsVisualInventoryViolations } from "../support/pi-settings-governance.js";
 import {
   extractPiSettingsMetadata,
@@ -82,7 +83,6 @@ describe("Pi settings inventory governance", () => {
   });
 
   it("keeps the reviewed supplemental settings separate from generated Pi metadata", async () => {
-    expect(SUPPLEMENTAL_SETTING_KEYS).toEqual(["defaultModel"]);
     expect(piSettingsMetadata.presented).not.toContain("defaultModel");
     const integration = new PiSettingsBridge(SettingsManager.inMemory({}), {
       productMode: "comparison",

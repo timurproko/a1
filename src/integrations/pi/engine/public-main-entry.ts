@@ -3,12 +3,12 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { main as runPublicMain } from "@earendil-works/pi-coding-agent";
 
-export interface PublicMainEntryDependencies {
+interface PublicMainEntryDependencies {
   readonly main?: (arguments_: string[]) => Promise<void>;
   readonly stderr?: (message: string) => void;
 }
 
-export async function runPublicMainEntry(
+async function runPublicMainEntry(
   arguments_: readonly string[],
   dependencies: PublicMainEntryDependencies = {},
 ): Promise<number> {

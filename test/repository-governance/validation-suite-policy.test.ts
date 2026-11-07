@@ -123,7 +123,7 @@ describe("validation suite ownership", () => {
       "test/foundation/lifecycle/session-repository-context.test.ts",
       "test/repository-governance/code-documentation.test.ts",
       "test/repository-governance/local-cleanup.test.ts",
-      "test/foundation/release/cohort-state.test.ts",
+      "test/foundation/release/release-state.test.ts",
       "test/foundation/release/release-gc.test.ts",
       "test/features/prompt-history/concurrency.integration.test.ts",
       "test/features/prompt-history/store.test.ts",

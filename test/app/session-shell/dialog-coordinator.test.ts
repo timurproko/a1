@@ -1,9 +1,11 @@
+import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiDialog } from "../../../src/contracts/owned-ui/index.js";
 import type { UiRouteHost } from "../../../src/ui/apps/contracts.js";
 
 const created = vi.hoisted(() => [] as { kind: string; onSelect: (value?: string) => void; onCancel: () => void }[]);
-vi.mock("../../../src/integrations/pi/components/shell-selectors-dialogs.js", () => ({
+vi.mock("../../../src/integrations/pi/components/shell-selectors-dialogs.js", async importOriginal => ({
+  ...await importOriginal<object>(),
   createPiShellSelector: (options: { onSelect: (id: string) => void; onCancel: () => void }) => {
     const component = { kind: "selector", onSelect: options.onSelect, onCancel: options.onCancel };
     created.push(component as never);
@@ -38,7 +40,7 @@ function harness(overrides: { routeHost?: UiRouteHost | null; startupRoute?: { r
     }),
     requestRender: vi.fn(),
   };
-  const root = { dismissNotice: vi.fn(), setInputSurface: vi.fn(), usesDefaultInputSurface: () => defaultSurface };
+  const root = { chrome: { dismissNotice: vi.fn() }, setInputSurface: vi.fn(), usesDefaultInputSurface: () => defaultSurface };
   const routeHost = overrides.routeHost === undefined
     ? { open: (route: string) => ({ id: `${route}-surface` }), claims: (name: string) => name === "settings" } as unknown as UiRouteHost
     : overrides.routeHost;
@@ -48,6 +50,7 @@ function harness(overrides: { routeHost?: UiRouteHost | null; startupRoute?: { r
     terminal: terminal as never,
     root: root as never,
     routeHost,
+    dialogs: PI_SHELL_COMPONENTS.dialogs,
     disposed: () => false,
     exit,
     routeClosed,
@@ -68,7 +71,7 @@ describe("SessionDialogCoordinator", () => {
     coordinator.showSelector("Pick", [], () => {});
     const onClosed = vi.fn();
     expect(coordinator.openRoute("settings", undefined, onClosed)).toEqual({ outcome: "completed", diagnostic: null });
-    expect(root.dismissNotice).toHaveBeenCalledOnce();
+    expect(root.chrome.dismissNotice).toHaveBeenCalledOnce();
     expect(hidden).toEqual(["selector"]);
     routes[0]!.exit();
     expect(exit).toHaveBeenCalledOnce();

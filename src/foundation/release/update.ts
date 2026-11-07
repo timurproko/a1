@@ -6,14 +6,14 @@ import { valid as validSemver } from "semver";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import type { UpdateChannel } from "./types.js";
 import { earlyAccentPalette, earlyTerminalAppearance, earlyTerminalColorMode, resolveEarlyAccentColor } from "./early-accent.js";
-import { SHARED_PROGRESS_ACCENT_ANSI } from "./progress-palette.generated.js";
+import { SHARED_PROGRESS_ACCENT_ANSI } from "../../contracts/presentation/index.js";
 import {
   createRegistryFetcher, invalidateReleaseCheckCache, isNewerRelease, queryPublishedVersions, releaseChannelOf,
   type PublishedVersion, type RegistryFetcher,
 } from "./latest-release.js";
 import { certifyMaterializedRelease } from "./bootstrap.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
-import { CohortStateStore } from "./cohort-state.js";
+import { ReleaseStateStore } from "./release-state.js";
 import { materializeRelease, readMaterializedRelease } from "./release-store.js";
 import { scheduleReleaseCleanup } from "./release-gc.js";
 import {
@@ -199,7 +199,7 @@ const defaultOutput: UpdateOutput = {
 };
 
 /** Bound on the child diagnostics an update keeps: enough for npm's failure reason, never a log. */
-export const CHILD_DIAGNOSTIC_LIMIT = 8_000;
+const CHILD_DIAGNOSTIC_LIMIT = 8_000;
 
 export function createNpmProcessRunner(platform: NodeJS.Platform = process.platform): UpdateProcessRunner {
   return async (command, arguments_, request) => await new Promise((resolvePromise, rejectPromise) => {
@@ -227,7 +227,7 @@ export function createUpdateLifecycleCoordinator(
   patience: UpdateUnlockPatience = {},
 ): UpdateLifecycleCoordinator {
   const paths = resolveProductPaths(environment);
-  const stateStore = new CohortStateStore(paths.dataDir);
+  const stateStore = new ReleaseStateStore(paths.dataDir);
   return {
     async targetIsActive(targetVersion) {
       const state = await stateStore.read(), activeId = state.references.active;
@@ -718,17 +718,17 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     }
     // Rationale: the bar first appears only after every non-mutating replacement prerequisite passes.
     progress.set(3, 15);
-    const cohortStore = new CohortStateStore(paths.dataDir);
-    let cohortState = await cohortStore.read();
-    let priorActiveReleaseId = cohortState.references.active;
-    if (options.runner === undefined && (priorActiveReleaseId === null || cohortState.releases[priorActiveReleaseId]?.approval !== "approved")) {
+    const releaseStateStore = new ReleaseStateStore(paths.dataDir);
+    let currentReleaseState = await releaseStateStore.read();
+    let priorActiveReleaseId = currentReleaseState.references.active;
+    if (options.runner === undefined && (priorActiveReleaseId === null || currentReleaseState.releases[priorActiveReleaseId]?.approval !== "approved")) {
       // Invariant: protected replacement needs an immutable launch authority that npm cannot rename.
       const recoveryRelease = await materializeRelease(packageRoot, paths.dataDir);
-      await cohortStore.recordCandidate(recoveryRelease);
+      await releaseStateStore.recordCandidate(recoveryRelease);
       const diagnostics = await certifyMaterializedRelease(recoveryRelease, paths.dataDir);
-      await cohortStore.approve(recoveryRelease.releaseId, diagnostics);
-      await cohortStore.activate(recoveryRelease.releaseId);
-      cohortState = await cohortStore.read();
+      await releaseStateStore.approve(recoveryRelease.releaseId, diagnostics);
+      await releaseStateStore.activate(recoveryRelease.releaseId);
+      currentReleaseState = await releaseStateStore.read();
       priorActiveReleaseId = recoveryRelease.releaseId;
     }
     transaction = await transactionStore.begin({
@@ -746,7 +746,7 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
     if (phaseBefore(transaction.phase, "package-installed")) {
       if (options.packageReplacement || options.runner === undefined) {
         const priorReleaseId = transaction.priorActiveReleaseId ?? priorActiveReleaseId;
-        const recordedPrior = priorReleaseId === null ? undefined : cohortState.releases[priorReleaseId];
+        const recordedPrior = priorReleaseId === null ? undefined : currentReleaseState.releases[priorReleaseId];
         if ((!recordedPrior || recordedPrior.approval !== "approved") && !options.packageReplacement) {
           throw new Error(PRODUCT_TEXT.diagnostic("cannot protect package replacement because no approved prior release is available"));
         }
@@ -881,7 +881,7 @@ function reportChildDiagnostics(output: UpdateOutput, result: { readonly stdout:
 }
 async function rollbackPriorRelease(dataDir: string, priorReleaseId: string | null): Promise<string> {
   if (!priorReleaseId) return "no prior release was available for rollback";
-  const stateStore = new CohortStateStore(dataDir);
+  const stateStore = new ReleaseStateStore(dataDir);
   const state = await stateStore.read();
   const prior = state.releases[priorReleaseId];
   if (!prior || prior.approval !== "approved") return "prior release is not a verified rollback candidate";

@@ -3,7 +3,7 @@ import { formatCacheWarmingStatus, type PiShellSessionInfoPresentation } from ".
 import { ensureTheme, formatSessionTokens } from "./shell-shared-facade.js";
 import { piTheme } from "./theme.js";
 
-export interface PiShellSessionInfoReferenceDocument {
+interface PiShellSessionInfoReferenceDocument {
   readonly preamble: readonly string[];
   readonly sections: readonly { readonly title: string; readonly rows: readonly string[] }[];
 }

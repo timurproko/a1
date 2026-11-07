@@ -138,22 +138,6 @@
       "semantics": "Developer shell selection; retain pending exposure review"
     },
     {
-      "role": "paneId",
-      "key": "A1_PANE_ID",
-      "exposure": "integration",
-      "owner": "src/product-identity.json",
-      "evidence": "docs/architecture/internal-naming.md",
-      "semantics": "Reserved compatibility identity; the resident host does not currently emit it"
-    },
-    {
-      "role": "terminalSessionId",
-      "key": "A1_TERMINAL_SESSION_ID",
-      "exposure": "integration",
-      "owner": "src/product-identity.json",
-      "evidence": "docs/architecture/internal-naming.md",
-      "semantics": "Reserved compatibility identity; the resident host does not currently emit it"
-    },
-    {
       "role": "sessionRuntimeId",
       "key": "A1_SESSION_RUNTIME_ID",
       "exposure": "integration",

@@ -1,10 +1,10 @@
+import type { OwnedUiShellEditorPort } from "../../contracts/owned-ui/index.js";
 import type { OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
 import type {
   TranscriptViewportFrame,
   TranscriptViewportFrameInput,
   TranscriptViewportTheme,
 } from "../../ui/components/transcript-viewport.js";
-import type { PiShellEditorPort } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { DockChrome } from "./dock-chrome.js";
 import type { InputSurfaceSwitch } from "./input-surface-switch.js";
 import type { PromptChipStore } from "./prompt-chips.js";
@@ -26,7 +26,7 @@ export interface DockLayout {
 export interface ShellLayoutPorts {
   readonly viewport: SessionViewportController;
   readonly input: InputSurfaceSwitch;
-  readonly editor: Pick<PiShellEditorPort, "getText">;
+  readonly editor: Pick<OwnedUiShellEditorPort, "getText">;
   readonly promptChips: Pick<PromptChipStore, "atomicRanges">;
   readonly dockChrome: Pick<DockChrome, "renderPromptOverlay" | "renderReleaseBanner" | "locateReleaseClose">;
   readonly theme: TranscriptViewportTheme;

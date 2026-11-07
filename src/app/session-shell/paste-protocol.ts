@@ -1,5 +1,5 @@
+import type { OwnedUiShellClipboardContent } from "../../contracts/owned-ui/index.js";
 import { MAX_CLIPBOARD_TEXT_BYTES } from "../../contracts/owned-ui/index.js";
-import type { PiShellClipboardContent } from "../../integrations/pi/components/index.js";
 import type { PreparedPasteText, ClipboardPath } from "./paste-text-preparation.js";
 import type { PreparedImage } from "./image-preparation.js";
 
@@ -13,7 +13,7 @@ export type PreparedPaste = PreparedPasteText | ({ readonly kind: "image" } & Pr
 /** The predecessor is captured at admission; a later copy cannot change what this paste waits for. */
 export type PasteSource =
   | { readonly kind: "native"; readonly before?: (signal: AbortSignal) => Promise<boolean> }
-  | { readonly kind: "provided"; readonly read: (signal: AbortSignal) => Promise<PiShellClipboardContent | null>; readonly before?: (signal: AbortSignal) => Promise<boolean> }
+  | { readonly kind: "provided"; readonly read: (signal: AbortSignal) => Promise<OwnedUiShellClipboardContent | null>; readonly before?: (signal: AbortSignal) => Promise<boolean> }
   | { readonly kind: "text"; readonly text: string };
 export interface PasteEvent {
   readonly request: number;

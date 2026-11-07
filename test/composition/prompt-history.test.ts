@@ -14,7 +14,8 @@ type ShellOptions = { history?: { store: PromptHistoryService; imageSidecar?: { 
 const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, scope: "unique" as "unique" | "shared", sessionId: "pi-one", loadEditor: vi.fn() }));
 
 // Rationale: test composition/storage without starting a terminal, provider, or Pi runtime.
-vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({
+vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
+  ...await importOriginal<object>(),
   applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {},
 }));
 vi.mock("../../src/integrations/pi/components/history-editor-loader.js", () => ({ loadHistoryEditor: observed.loadEditor }));
@@ -65,7 +66,7 @@ afterEach(async () => {
   rmSync(root, { recursive: true, force: true });
 });
 
-async function compose(options: { profileId?: string; ownedSurfaces?: "off" } = { profileId: "a1" }) {
+async function compose(options: { profileId?: string; productMode?: "comparison" } = { profileId: "a1" }) {
   return composeOwnedUi({
     ...options,
     cwd: root,
@@ -212,7 +213,7 @@ describe("owned history storage composition", () => {
     const assertOldUntouched = seedOldStore();
     const resolveRoot = vi.spyOn(launch, "resolvePromptHistoryDataDir");
     if (mode === "disabled") observed.enabled = false;
-    await compose(mode === "settings-free" ? {} : { profileId: "a1", ...(mode === "comparison" ? { ownedSurfaces: "off" as const } : {}) });
+    await compose(mode === "settings-free" ? {} : { profileId: "a1", ...(mode === "comparison" ? { productMode: "comparison" as const } : {}) });
     expect(resolveRoot).not.toHaveBeenCalled();
     expect(observed.shells.at(-1)!.history).toBeUndefined();
     expect(observed.loadEditor).not.toHaveBeenCalled();

@@ -22,6 +22,7 @@ export type {
   PiTuiViewport,
 } from "./contracts.js";
 export { samePointerSurfaces } from "./overlay-geometry.js";
+export { PI_TERMINAL_RUNTIME } from "./runtime-factory.js";
 export {
   DamageAwareTerminalAdapter,
   PINNED_PI_TUI_DAMAGE_GRAMMAR,

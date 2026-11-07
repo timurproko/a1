@@ -1,7 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
-import { DEVELOPMENT_VALIDATION_MATRIX } from "../../scripts/release/validation-matrix.mjs";
 import { createTierPlan } from "../../scripts/release/validation-tier.mjs";
 
 const nonTimingScenarios = [
@@ -12,7 +10,7 @@ const nonTimingScenarios = [
   "drains a production-shaped historical backlog through the exact packaged private worker",
   "leaves durable scheduled evidence when the exact private entry cannot import its runtime",
 ];
-const startupScenario = "gates post-update, no-live-supervisor, and warm startup for both exact packaged profiles";
+const startupScenario = "gates post-update, restart, and warm startup for both exact packaged profiles";
 
 describe("exact-package startup and non-timing ownership", () => {
   it("retains all seven scenarios under exactly one successor file", async () => {
@@ -58,7 +56,7 @@ describe("exact-package startup and non-timing ownership", () => {
     expect(startup).toContain('const profiles = developmentComparison ? (["a1", "pi"] as const) : (["a1"] as const)');
     expect(startup).toContain("for (const profileId of profiles)");
     expect(startup).toContain('expect(refused, "stable a1 pi must exit quietly without launching").toEqual({ exitCode: 0, stdout: "", stderr: "", traced: false })');
-    for (const kind of ["post-update", "no-live-supervisor", "warm"]) {
+    for (const kind of ["post-update", "restart", "warm"]) {
       expect(startup.match(new RegExp(`gateStartupBudget\\(\\{ profileId, launchKind: "${kind}"`, "g")), kind).toHaveLength(1);
       expect(startup).toContain(`recordStartupMeasurement(profileId, "${kind}"`);
     }
@@ -115,15 +113,4 @@ describe("exact-package startup and non-timing ownership", () => {
     }
   });
 
-  it("schedules startup and non-timing package owners on separate fresh Node 22 runners", async () => {
-    const workflow = parse(await readFile(".github/workflows/ci.yml", "utf8"));
-    const entries = DEVELOPMENT_VALIDATION_MATRIX as ReadonlyArray<{ group: string; os: string; platform: string; node: number; defender: boolean }>;
-    expect(entries.filter(entry => ["startup", "package"].includes(entry.group))).toEqual([
-      expect.objectContaining({ group: "package", os: "windows-2025", platform: "win32", node: 22, defender: false }),
-      expect.objectContaining({ group: "startup", os: "windows-2025", platform: "win32", node: 22, defender: true }),
-    ]);
-    const run = workflow.jobs.modular.steps.find((step: { name?: string }) => step.name === "Run exact selected scopes");
-    expect(run.env).toMatchObject({ VALIDATION_SELECTION_JSON: "${{ steps.job-selection.outputs.scopes_json }}", VALIDATION_BUILD_READY: "${{ matrix.build && '1' || '0' }}" });
-    expect(run.run).toContain("outcome-${{ matrix.group }}-${{ matrix.platform }}-node${{ matrix.node }}-attempt-${{ github.run_attempt }}.json");
-  });
 });

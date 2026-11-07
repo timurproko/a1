@@ -13,7 +13,7 @@ import {
 
 export type OwnedPiVisualExtensionSupport = OwnedUiVisualExtensionSupport;
 
-export interface PiExtensionUiBindingPorts {
+interface PiExtensionUiBindingPorts {
   session(): AgentSession | undefined;
   diagnostic(severity: OwnedUiDiagnostics["severity"], code: string, message: string, recoverable: boolean): void;
   emitView(): void;

@@ -6,11 +6,11 @@ import { processIsAlive } from "./process-liveness.js";
 import type { UpdateChannel } from "./types.js";
 import { UpdateTransactionStore, type UpdateTransaction } from "./update-transaction.js";
 
-export const UPDATE_EXECUTION_LEASE_FILENAME = "update-execution.json";
+const UPDATE_EXECUTION_LEASE_FILENAME = "update-execution.json";
 const LEASE_SCHEMA = 1;
 const MAX_LEASE_BYTES = 8_192;
 
-export type UpdateExecutionMode = "manual" | "automatic";
+type UpdateExecutionMode = "manual" | "automatic";
 
 export interface UpdateExecutionOwner {
   readonly schema: typeof LEASE_SCHEMA;
@@ -24,7 +24,7 @@ export interface UpdateExecutionOwner {
   readonly acquiredAt: string;
 }
 
-export type UpdateExecutionLeaseResult =
+type UpdateExecutionLeaseResult =
   | { readonly status: "acquired"; readonly owner: UpdateExecutionOwner; release(): Promise<void> }
   | { readonly status: "busy"; readonly owner: UpdateExecutionOwner }
   /** A dead owner whose active transaction names another target; only a manual update may settle it. */

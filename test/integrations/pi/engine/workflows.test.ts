@@ -329,7 +329,7 @@ describe("pinned Pi command and input workflows", () => {
     const update = await fixture(host({ readChangelog }), runtime => runtime.settingsValues.set("LastChangelogVersion", "0.84.1"));
     // Invariant: startup announces nothing by itself; the engine host asks once per process.
     expect(readChangelog).not.toHaveBeenCalled();
-    await update.adapter.announceStartupChangelog();
+    await update.adapter.announcements.startupChangelog();
     expect(readChangelog).toHaveBeenCalledWith("0.84.1");
     expect(update.adapter.view().diagnostics).toContainEqual(expect.objectContaining({ code: "changelog-expanded", message: "## 0.84.2\nNew release fixture" }));
     await update.adapter.dispose();
@@ -339,7 +339,7 @@ describe("pinned Pi command and input workflows", () => {
       runtime.settingsValues.set("LastChangelogVersion", "0.84.1");
       Object.defineProperty(runtime.session, "messages", { value: [{ role: "user", content: "resumed fixture", timestamp: 1 }] });
     });
-    await resumed.adapter.announceStartupChangelog();
+    await resumed.adapter.announcements.startupChangelog();
     expect(readChangelog).not.toHaveBeenCalled();
     await resumed.adapter.dispose();
   });

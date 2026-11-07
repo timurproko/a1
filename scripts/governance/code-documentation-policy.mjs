@@ -33,13 +33,11 @@ export const IMPLEMENTATION_INTENTS = Object.freeze([
 ]);
 
 const SCRIPT_EXTENSIONS = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs"]);
-const NATIVE_EXTENSIONS = new Set([".rs", ".zig", ".c", ".h"]);
 const GENERATED_PATHS = new Set([
   "src/integrations/pi/components/resources/builtin-themes.ts",
 ]);
 const SYNCHRONIZED_PREFIXES = ["src/integrations/pi/components/upstream/"];
-const VENDORED_PREFIXES = ["native/terminal-host/vendor/"];
-const IGNORED_SEGMENTS = new Set(["node_modules", "dist", "target", ".artifacts", ".builds", ".worktrees", ".zig-cache", "zig-out"]);
+const IGNORED_SEGMENTS = new Set(["node_modules", "dist", ".artifacts", ".builds", ".worktrees"]);
 const TRACKED_REFERENCE = /(?:#\d+|https?:\/\/\S+|\b[A-Z][A-Z0-9]+-\d+\b)/u;
 const INTENT_PREFIX = new RegExp(`^(?:${IMPLEMENTATION_INTENTS.join("|")}):\\s+`, "u");
 const COMMENTED_CODE = /^(?:(?:const|let|var|class|function|import|export)\s+[A-Za-z_$]|(?:if|for|while|switch|catch)\s*\(|return\s+[^.?!]+;?$|[A-Za-z_$][\w$.[\]]*\s*=\s*[^=])/u;
@@ -54,11 +52,9 @@ export function classifyCodeDocumentationSource(rawPath) {
   const path = normalizeCodeDocumentationPath(rawPath);
   const segments = path.split("/");
   if (segments.some(segment => IGNORED_SEGMENTS.has(segment))) return "ignored";
-  if (VENDORED_PREFIXES.some(prefix => path.startsWith(prefix))) return "vendored";
   if (SYNCHRONIZED_PREFIXES.some(prefix => path.startsWith(prefix))) return "synchronized";
   if (GENERATED_PATHS.has(path)) return "generated";
   const extension = extname(path);
-  if (path.startsWith("native/") && NATIVE_EXTENSIONS.has(extension)) return "first-party-native";
   if (path.startsWith("src/") && SCRIPT_EXTENSIONS.has(extension)) return "first-party-production";
   if ((path.startsWith("test/") || path.startsWith("scripts/") || path.startsWith("bin/") || path.startsWith("packages/a1-install/")) && SCRIPT_EXTENSIONS.has(extension)) {
     return "first-party-tooling";
@@ -81,7 +77,7 @@ export async function loadCodeDocumentationSources(repository, requestedPaths) {
     if (!path || path.startsWith("../") || path.includes("/../") || resolve(root, path) === root) throw new TypeError(`invalid documentation source path: ${path}`);
     const role = classifyCodeDocumentationSource(path);
     if (role === "unmatched" && !isCodePath(path)) continue;
-    if (role === "ignored" || role === "vendored") {
+    if (role === "ignored") {
       sources.push({ path, role, source: null });
       continue;
     }
@@ -131,8 +127,6 @@ export function inspectCodeDocumentation({ sources, owners = {}, synchronizedDes
       const sourceFile = programContext.sourceFileByPath.get(record.path)
         ?? ts.createSourceFile(record.path, record.source, ts.ScriptTarget.Latest, true, scriptKind(record.path));
       inspectScriptSource(record, sourceFile, diagnostics);
-    } else if (record.role === "first-party-native") {
-      inspectNativeSource(record, diagnostics);
     }
   }
 
@@ -262,13 +256,6 @@ function inspectScriptSource(record, sourceFile, diagnostics) {
   }
 }
 
-function inspectNativeSource(record, diagnostics) {
-  const sourceFile = ts.createSourceFile(record.path, record.source, ts.ScriptTarget.Latest, true, ts.ScriptKind.Unknown);
-  for (const comment of groupLineComments(scanNativeComments(record.source), record.source)) {
-    inspectComment(record, sourceFile, comment, diagnostics);
-  }
-}
-
 function inspectComment(record, sourceFile, comment, diagnostics) {
   const body = commentBody(comment.text);
   const location = locationOf(sourceFile, comment.start);
@@ -278,7 +265,6 @@ function inspectComment(record, sourceFile, comment, diagnostics) {
     }
     return;
   }
-  if (record.role === "first-party-native" && /^\/\/[\//!]/u.test(comment.text)) return;
   if (!body) return;
   if (/\b(?:TODO|FIXME)\b/iu.test(body)) {
     if (!TRACKED_REFERENCE.test(body)) {
@@ -326,39 +312,6 @@ function scanScriptComments(source, sourceFile) {
   }
 }
 
-function scanNativeComments(source) {
-  const comments = [];
-  let index = 0;
-  while (index < source.length) {
-    const raw = rawStringAt(source, index);
-    if (raw) { index = raw; continue; }
-    const character = source[index];
-    if (character === '"') { index = quotedEnd(source, index, '"'); continue; }
-    if (character === "'" && isCharacterLiteral(source, index)) { index = quotedEnd(source, index, "'"); continue; }
-    if (source.startsWith("//", index)) {
-      const end = source.indexOf("\n", index);
-      const actualEnd = end < 0 ? source.length : end;
-      comments.push({ start: index, end: actualEnd, text: source.slice(index, actualEnd), line: true });
-      index = actualEnd;
-      continue;
-    }
-    if (source.startsWith("/*", index)) {
-      let depth = 1;
-      let end = index + 2;
-      while (end < source.length && depth > 0) {
-        if (source.startsWith("/*", end)) { depth += 1; end += 2; }
-        else if (source.startsWith("*/", end)) { depth -= 1; end += 2; }
-        else end += 1;
-      }
-      comments.push({ start: index, end, text: source.slice(index, end), line: false });
-      index = end;
-      continue;
-    }
-    index += 1;
-  }
-  return comments;
-}
-
 function groupLineComments(comments, source) {
   const grouped = [];
   for (const comment of comments) {
@@ -385,31 +338,6 @@ function commentBody(text) {
     .replace(/^\s*\*\s?/gmu, "")
     .replace(/\s+/gu, " ")
     .trim();
-}
-
-function rawStringAt(source, index) {
-  const match = /^(?:br|rb|r)(#+)?"/u.exec(source.slice(index));
-  if (!match) return 0;
-  const hashes = match[1] ?? "";
-  const close = `"${hashes}`;
-  const end = source.indexOf(close, index + match[0].length);
-  return end < 0 ? source.length : end + close.length;
-}
-
-function quotedEnd(source, index, quote) {
-  let at = index + 1;
-  while (at < source.length) {
-    if (source[at] === "\\") at += 2;
-    else if (source[at] === quote) return at + 1;
-    else at += 1;
-  }
-  return source.length;
-}
-
-function isCharacterLiteral(source, index) {
-  const next = source[index + 1];
-  if (next === "\\") return source[index + 3] === "'" || source[index + 4] === "'";
-  return next !== undefined && source[index + 2] === "'";
 }
 
 function isPrivateOrProtectedMember(node) {
@@ -461,12 +389,12 @@ function scriptKind(path) {
 }
 
 function isFirstParty(role) {
-  return role === "first-party-production" || role === "first-party-tooling" || role === "first-party-native";
+  return role === "first-party-production" || role === "first-party-tooling";
 }
 
 function isCodePath(path) {
   const extension = extname(path);
-  return SCRIPT_EXTENSIONS.has(extension) || NATIVE_EXTENSIONS.has(extension);
+  return SCRIPT_EXTENSIONS.has(extension);
 }
 
 function normalizeAbsolute(path) {

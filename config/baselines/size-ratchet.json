@@ -15,12 +15,12 @@
       "fields": 13
     },
     "src/app/session-shell/session-shell-root.ts::OwnedUiSessionShellRoot": {
-      "methods": 85,
+      "methods": 76,
       "fields": 32
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter": {
-      "methods": 77,
-      "fields": 52
+      "methods": 76,
+      "fields": 44
     },
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController": {
       "methods": 34,
@@ -31,8 +31,8 @@
       "fields": 13
     },
     "src/features/owned-ui/settings-app.ts::SettingsApp": {
-      "methods": 42,
-      "fields": 28
+      "methods": 33,
+      "fields": 19
     },
     "src/features/prompt-history/service.ts::PromptHistoryService": {
       "methods": 21,
@@ -47,7 +47,7 @@
       "fields": 12
     },
     "src/integrations/pi/engine/adapter.ts::PiEngineAdapter": {
-      "methods": 42,
+      "methods": 40,
       "fields": 21
     },
     "src/integrations/pi/engine/session-runtime.ts::PiEngineRuntime": {
@@ -59,8 +59,8 @@
       "fields": 2
     },
     "src/integrations/pi/tui-runtime/adapter.ts::PiTuiRuntimeAdapter": {
-      "methods": 56,
-      "fields": 26
+      "methods": 54,
+      "fields": 24
     },
     "src/integrations/pi/tui-runtime/damage-aware-terminal.ts::DamageAwareTerminalAdapter": {
       "methods": 35,
@@ -69,21 +69,14 @@
     "src/ui/components/transcript-viewport.ts::TranscriptViewport": {
       "methods": 36,
       "fields": 34
-    },
-    "src/ui/settings/manager.ts::OwnedSettingsManager": {
-      "methods": 21,
-      "fields": 15
     }
   },
   "functions": {
     "src/app/session-shell/paste-executor.ts::startPasteExecutor": {
       "lines": 122
     },
-    "src/app/session-shell/session-shell-root.ts::OwnedUiSessionShellRoot.constructor": {
-      "lines": 128
-    },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.constructor": {
-      "lines": 320
+      "lines": 202
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.runWorkflow": {
       "lines": 109
@@ -96,9 +89,6 @@
     },
     "src/features/owned-ui/project-trust-prompt.ts::createConsoleProjectTrustPrompt": {
       "lines": 150
-    },
-    "src/features/owned-ui/settings-app.ts::SettingsApp.render": {
-      "lines": 108
     },
     "src/foundation/release/bootstrap.ts::runBootstrapAttempt": {
       "lines": 121
@@ -132,9 +122,6 @@
     },
     "src/ui/components/transcript-viewport.ts::TranscriptViewport.compose": {
       "lines": 348
-    },
-    "src/ui/settings/resolution.ts::resolveOwnedUiSettings": {
-      "lines": 102
     }
   }
 }

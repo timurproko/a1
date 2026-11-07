@@ -269,7 +269,7 @@ describe("Pi engine adapter", () => {
       },
     });
     expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(false);
-    await adapter.announcePackageUpdates();
+    await adapter.announcements.packageUpdates();
     await vi.waitFor(() => {
       expect(adapter.view().diagnostics.some(diagnostic => diagnostic.code === "package-updates")).toBe(true);
     });

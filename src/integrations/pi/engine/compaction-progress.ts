@@ -1,7 +1,7 @@
 import type { AgentSession } from "../startup-public.js";
 
 /** Expected summary size for a first compaction, when no previous summary on the branch can serve as the estimate. */
-export const DEFAULT_EXPECTED_COMPACTION_SUMMARY_CHARS = 4000;
+const DEFAULT_EXPECTED_COMPACTION_SUMMARY_CHARS = 4000;
 
 /** Character-based estimates stay below terminal stream completion. */
 const MAX_STREAMING_PERCENT = 99;
@@ -10,7 +10,7 @@ const COMPLETE_PERCENT = 100;
 type StreamFunction = AgentSession["agent"]["streamFunction"];
 
 /** The public session surface compaction progress reads: the agent's stream function and the branch entries. */
-export interface CompactionProgressSession {
+interface CompactionProgressSession {
   readonly agent?: { streamFunction?: unknown } | undefined;
   readonly sessionManager?: { getBranch?(): readonly unknown[] } | undefined;
 }

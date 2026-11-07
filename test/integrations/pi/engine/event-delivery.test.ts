@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OwnedUiEvent, OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
 import { PiEventDelivery, type PiEventDeliveryPorts } from "../../../../src/integrations/pi/engine/event-delivery.js";
-import { MAX_PENDING_EVENTS } from "../../../../src/integrations/pi/engine/pending-delivery.js";
 
 function harness(overrides: Partial<PiEventDeliveryPorts> = {}) {
   const blocks = new Map<string, OwnedUiTranscriptBlock>();
@@ -90,7 +89,7 @@ describe("PiEventDelivery", () => {
   it("enters one overload on saturation, reserves pending command outcomes, and replays them to the reconciliation in arrival order", async () => {
     const { delivery, received, state, releaseCancellation } = harness();
     state.pending.add("first").add("second");
-    for (let index = 0; index < MAX_PENDING_EVENTS; index += 1) delivery.emit({ type: "status", status: status(String(index)) });
+    for (let index = 0; index < 1024; index += 1) delivery.emit({ type: "status", status: status(String(index)) });
     expect(delivery.overloaded).toBe(false);
     delivery.emit({ type: "command-outcome", correlationId: "first", outcome: "cancelled", diagnostic: null });
     expect(delivery.overloaded).toBe(true);
@@ -106,7 +105,7 @@ describe("PiEventDelivery", () => {
     expect(state.reconciliations).toEqual([true]);
     expect(delivery.takeReservedOutcomes()).toEqual([]);
     expect(delivery.overloaded).toBe(false);
-    expect(received.filter(event => event.type === "status")).toHaveLength(MAX_PENDING_EVENTS);
+    expect(received.filter(event => event.type === "status")).toHaveLength(1024);
     expect(received.some(event => event.type === "status" && event.status.title === "dropped")).toBe(false);
   });
 
@@ -120,7 +119,7 @@ describe("PiEventDelivery", () => {
       },
     });
     state.pending.add("a").add("b");
-    for (let index = 0; index < MAX_PENDING_EVENTS; index += 1) delivery.emit({ type: "status", status: status(String(index)) });
+    for (let index = 0; index < 1024; index += 1) delivery.emit({ type: "status", status: status(String(index)) });
     delivery.emit({ type: "command-outcome", correlationId: "b", outcome: "failed", diagnostic: null });
     delivery.emit({ type: "command-outcome", correlationId: "a", outcome: "cancelled", diagnostic: null });
     await delivery.settle();

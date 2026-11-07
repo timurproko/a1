@@ -112,6 +112,18 @@ describe("declarative GitHub repository governance", () => {
     expect(unscoped.authority).not.toContain("unconsumed-release-tag-rollback");
   });
 
+  it("reports a registry-token publisher as authority the reviewed definition does not list", async () => {
+    const source = await readFile(".github/workflows/publish.yml", "utf8");
+    const path = ".github/workflows/publish.yml";
+    expect(inspectWorkflowSource(path, source).authority).not.toContain("npm-token-publication");
+    for (const drifted of [
+      `${source}\n      - run: npm publish\n        env:\n          NODE_AUTH_TOKEN: \${{ secrets.REGISTRY }}\n`,
+      `${source}\n      - run: echo "//registry.npmjs.org/:_authToken=$NPM_TOKEN" > .npmrc\n`,
+    ]) {
+      expect(inspectWorkflowSource(path, drifted).authority).toContain("npm-token-publication");
+    }
+  });
+
   it("requires every third-party action reference to use an immutable commit", async () => {
     for (const name of await readdir(".github/workflows")) {
       const source = await readFile(`.github/workflows/${name}`, "utf8");

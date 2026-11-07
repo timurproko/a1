@@ -29,7 +29,7 @@ import {
   SHARED_PROGRESS_ACCENT_ANSI as INSTALLER_PROGRESS_ACCENT_ANSI,
 } from "../../../packages/a1-install/bin/a1-install.js";
 import { renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
-import { SHARED_PROGRESS_ACCENT_ANSI as UPDATE_PROGRESS_ACCENT_ANSI } from "../../../src/foundation/release/progress-palette.generated.js";
+import { SHARED_PROGRESS_ACCENT_ANSI as UPDATE_PROGRESS_ACCENT_ANSI } from "../../../src/contracts/presentation/index.js";
 import { earlyAccentPalette, resolveEarlyAccentColor } from "../../../src/foundation/release/early-accent.js";
 import { preTrustPalette, readPreTrustAccent } from "../../../src/ui/settings/early-accent.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";

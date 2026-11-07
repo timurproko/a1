@@ -6,7 +6,6 @@ import {
   type OwnedUiAuthenticationProviderOption,
   type OwnedUiAuthenticationProviderStatus,
   type OwnedUiBashWorkflowResult,
-  type OwnedUiCacheWarmingPresentation,
   type OwnedUiHiddenWorkflowCommandName,
   type OwnedUiModelsCommandName,
   type OwnedUiModelsContext,
@@ -53,8 +52,8 @@ export type PiWorkflowCommandName = OwnedUiWorkflowCommandName;
 export type PiHiddenWorkflowCommandName = OwnedUiHiddenWorkflowCommandName;
 
 export const OWNED_MODELS_COMMAND_NAME = OWNED_UI_MODELS_COMMAND_NAME;
-export type OwnedModelsCommandName = OwnedUiModelsCommandName;
-export type OwnedWorkflowCommandName = Exclude<PiWorkflowCommandName, "model" | "scoped-models"> | OwnedModelsCommandName;
+type OwnedModelsCommandName = OwnedUiModelsCommandName;
+type OwnedWorkflowCommandName = Exclude<PiWorkflowCommandName, "model" | "scoped-models"> | OwnedModelsCommandName;
 
 /** Bare A1's advertised catalog: `models` replaces the pinned pair and is followed by `thinking`. */
 export const OWNED_WORKFLOW_COMMAND_NAMES: readonly OwnedWorkflowCommandName[] = Object.freeze(
@@ -128,7 +127,6 @@ export type PiAuthenticationProviderOption = OwnedUiAuthenticationProviderOption
 export type PiWorkflowRequest = OwnedUiWorkflowRequest;
 export type PiWorkflowOutcome = OwnedUiWorkflowOutcome;
 export type PiSessionInfoPresentation = OwnedUiSessionInfoPresentation;
-export type PiCacheWarmingPresentation = OwnedUiCacheWarmingPresentation;
 export type PiWorkflowPresentation = OwnedUiWorkflowPresentation;
 export type PiWorkflowMessageKind = OwnedUiWorkflowMessageKind;
 export type PiWorkflowMessage = OwnedUiWorkflowMessage;
@@ -170,7 +168,7 @@ export interface PiTreeSelectorContext {
  * Progress a session listing reports. `partialSessions` carries what the pinned manager has
  * loaded so far, so the selector can show results before the listing finishes.
  */
-export type PiSessionListProgress = (
+type PiSessionListProgress = (
   loaded: number,
   total: number,
   partialSessions?: readonly SessionInfo[],

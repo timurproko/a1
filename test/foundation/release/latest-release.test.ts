@@ -4,16 +4,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   UPDATE_CHECK_INTERVAL_MS,
-  availableRelease,
   checkForNewerRelease,
-  distTagsUrl,
   invalidateReleaseCheckCache,
   isNewerRelease,
-  packageDocumentUrl,
-  parseDistTags,
-  parsePublishedVersions,
   queryPublishedVersions,
-  recordedPullRequest,
   releaseChannelOf,
   startupReleaseCheckSkipReason,
   type RegistryFetcher,
@@ -49,53 +43,54 @@ describe("release channel and comparison", () => {
     expect(isNewerRelease(candidate, current)).toBe(expected);
   });
 
-  it("names the channel's update command and links only stable releases", () => {
-    expect(availableRelease("stable", "0.3.1")).toEqual({
+  it("names the channel's update command and links only stable releases", async () => {
+    const stable = await createHarness({ runningVersion: "0.3.0" });
+    await expect(checkForNewerRelease(stable.options)).resolves.toEqual({
       channel: "stable", version: "0.3.1", command: "a1 update",
       changelogUrl: "https://github.com/timurproko/a1/releases/tag/v0.3.1",
     });
-    expect(availableRelease("development", "0.3.1-dev.652")).toEqual({
+    const development = await createHarness({ runningVersion: "0.3.1-dev.640" });
+    await expect(checkForNewerRelease(development.options)).resolves.toEqual({
       channel: "development", version: "0.3.1-dev.652", command: "a1 update --develop", changelogUrl: null,
     });
   });
 
-  it("parses dist-tags and builds registry URLs", () => {
-    expect(parseDistTags({ latest: "1.0.0", next: "1.1.0-dev.2" }, "registry")).toEqual({ release: "1.0.0", develop: "1.1.0-dev.2", error: null });
-    expect(parseDistTags({ latest: "1.0.0" }, "registry")).toEqual({ release: "1.0.0", develop: null, error: null });
-    expect(parseDistTags({ next: "1.1.0-dev.2" }, "registry").error).toMatch(/registry latest/);
-    expect(parseDistTags([], "registry").error).toMatch(/non-object/);
-    expect(distTagsUrl()).toBe("https://registry.npmjs.org/-/package/%40timurproko%2Fa1/dist-tags");
-    expect(distTagsUrl("https://mirror.example/npm/")).toBe("https://mirror.example/npm/-/package/%40timurproko%2Fa1/dist-tags");
+  it.each([
+    ["a non-object", []],
+    ["no latest tag", { next: "1.1.0-dev.2" }],
+  ])("reports nothing when the registry's dist-tags are %s", async (_label, tags) => {
+    const harness = await createHarness({ runningVersion: "0.3.0", fetcher: async () => ({ ok: true, status: 200, text: async () => JSON.stringify(tags) }) });
+    await expect(checkForNewerRelease(harness.options)).resolves.toBeNull();
   });
 
   it("reads every published version with the pull request its manifest records", async () => {
-    expect(packageDocumentUrl()).toBe("https://registry.npmjs.org/%40timurproko%2Fa1");
-    expect(packageDocumentUrl("https://mirror.example/npm/")).toBe("https://mirror.example/npm/%40timurproko%2Fa1");
-    expect(recordedPullRequest({ publication: { pullRequest: 828 } })).toBe(828);
-    expect(recordedPullRequest({ publication: { pullRequest: "828" } })).toBeNull();
-    expect(recordedPullRequest({ publication: { pullRequest: 0 } })).toBeNull();
-    expect(recordedPullRequest({})).toBeNull();
-    expect(recordedPullRequest(null)).toBeNull();
-
     const document = {
       name: "@timurproko/a1",
       versions: {
         "0.2.7-dev.835": { version: "0.2.7-dev.835" },
+        "0.2.7-dev.900": { publication: { pullRequest: "828" } },
+        "0.2.7-dev.901": { publication: { pullRequest: 0 } },
+        "0.2.7-dev.902": null,
         "0.2.7-dev.1218": { version: "0.2.7-dev.1218", publication: { pullRequest: 828, source: "a".repeat(40) } },
         "not a version": {},
       },
     };
-    expect(parsePublishedVersions(document)).toEqual({
-      versions: [{ version: "0.2.7-dev.835", pullRequest: null }, { version: "0.2.7-dev.1218", pullRequest: 828 }],
+    const urls: string[] = [];
+    const respond = (body: unknown): RegistryFetcher => async url => { urls.push(url); return { ok: true, status: 200, text: async () => JSON.stringify(body) }; };
+    await expect(queryPublishedVersions(respond(document))).resolves.toEqual({
+      versions: [
+        { version: "0.2.7-dev.835", pullRequest: null },
+        { version: "0.2.7-dev.900", pullRequest: null },
+        { version: "0.2.7-dev.901", pullRequest: null },
+        { version: "0.2.7-dev.902", pullRequest: null },
+        { version: "0.2.7-dev.1218", pullRequest: 828 },
+      ],
       error: null,
     });
-    expect(parsePublishedVersions([]).error).toMatch(/non-object/);
-    expect(parsePublishedVersions({ versions: [] }).error).toMatch(/lists no versions/);
-
-    const urls: string[] = [];
-    const fetcher: RegistryFetcher = async url => { urls.push(url); return { ok: true, status: 200, text: async () => JSON.stringify(document) }; };
-    await expect(queryPublishedVersions(fetcher, "https://mirror.example/npm")).resolves.toMatchObject({ error: null });
-    expect(urls).toEqual(["https://mirror.example/npm/%40timurproko%2Fa1"]);
+    await expect(queryPublishedVersions(respond(document), "https://mirror.example/npm/")).resolves.toMatchObject({ error: null });
+    expect(urls).toEqual(["https://registry.npmjs.org/%40timurproko%2Fa1", "https://mirror.example/npm/%40timurproko%2Fa1"]);
+    await expect(queryPublishedVersions(respond([]))).resolves.toMatchObject({ versions: [], error: expect.stringMatching(/non-object/) });
+    await expect(queryPublishedVersions(respond({ versions: [] }))).resolves.toMatchObject({ versions: [], error: expect.stringMatching(/lists no versions/) });
     await expect(queryPublishedVersions(async () => ({ ok: false, status: 503, text: async () => "" }))).resolves.toEqual({ versions: [], error: "registry responded with status 503" });
     await expect(queryPublishedVersions(async () => { throw new Error("offline"); })).resolves.toEqual({ versions: [], error: "offline" });
   });
@@ -230,7 +225,7 @@ describe("startup release check", () => {
     ["disabled-by-environment", { environment: { A1_SKIP_VERSION_CHECK: "true" } }],
     ["ci", { environment: { CI: "1" } }],
     ["not-interactive", { interactive: false }],
-    ["disabled-by-setting", { settingMode: "no" }],
+    ["disabled-by-setting", { settingMode: "manual" }],
     ["unpublished-version", { runningVersion: "0.3.1-dev" }],
   ] as const)("skips before touching cache or network when %s", async (reason, overrides) => {
     const harness = await createHarness({ runningVersion: "0.3.0", ...overrides });

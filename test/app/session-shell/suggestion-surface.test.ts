@@ -1,8 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import type { OwnedUiEvent, OwnedUiPromptSuggestionIdentity } from "../../../src/contracts/owned-ui/index.js";
+import type { OwnedUiEvent, OwnedUiPromptSuggestionIdentity, SuggestionDecision } from "../../../src/contracts/owned-ui/index.js";
 import {
   promptSuggestionSurface,
-  responseSuggestionDecision,
   routeResponseToSuggestions,
   suggestionModelKey,
   suggestionPresentationBlockReason,
@@ -10,6 +9,13 @@ import {
 
 type ResponseEvent = Extract<OwnedUiEvent, { readonly type: "assistant-message-completed" | "agent-run-settled" }>;
 const model = { providerId: "anthropic", modelId: "claude", displayName: "Claude" };
+
+/** The decision a routed response hands the controller. */
+function responseSuggestionDecision(event: ResponseEvent, prepare: () => SuggestionDecision): SuggestionDecision | undefined {
+  const consider = vi.fn();
+  routeResponseToSuggestions({ skip: vi.fn(), consider, settle: vi.fn() }, event, prepare);
+  return consider.mock.calls[0]?.[1] as SuggestionDecision | undefined;
+}
 
 function response(overrides: Partial<ResponseEvent> = {}): ResponseEvent {
   return {

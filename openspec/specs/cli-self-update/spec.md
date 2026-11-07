@@ -756,7 +756,7 @@ Automatic self-update SHALL run without opening, focusing, flashing, or closing 
 ### Requirement: Restart-readiness observation is independent of release discovery
 Every interactive published A1 process SHALL compare its executing immutable release with the locally recorded approved active release on a bounded short cadence. This local comparison SHALL not require a registry request, a successful dist-tag lookup, ownership of the automatic-update worker, or evidence that the process launched the active release. When the active release is valid semver, belongs to the executing release's channel, and is newer, the process SHALL report restart readiness and stop polling after that result. Unreadable, malformed, unapproved, same-version, older, source-checkout, and cross-channel state SHALL not produce restart readiness.
 
-The local comparison SHALL remain available when update discovery is `No`, when registry lookup fails, and when network-oriented version checks are disabled, because it reads only already-committed local release state and starts no update. Disposal SHALL cancel the local observer.
+The local comparison SHALL remain available when update discovery is `Manual`, when registry lookup fails, and when network-oriented version checks are disabled, because it reads only already-committed local release state and starts no update. Disposal SHALL cancel the local observer.
 
 #### Scenario: Another process activates the update
 - **WHEN** one process activates an approved same-channel release newer than several still-running A1 processes
@@ -769,7 +769,7 @@ The local comparison SHALL remain available when update discovery is `No`, when 
 - **AND** the failed discovery SHALL start no additional update
 
 #### Scenario: Update discovery is disabled
-- **WHEN** a published older process uses `No`, or a network version-check opt-out applies, while a newer same-channel approved release is already active locally
+- **WHEN** a published older process uses `Manual`, or a network version-check opt-out applies, while a newer same-channel approved release is already active locally
 - **THEN** the process SHALL report restart readiness without reading the release cache or contacting the registry
 
 #### Scenario: Local state does not prove staleness
@@ -805,7 +805,7 @@ Release retention SHALL need no supervisor, cohort registry, or live-instance in
 - **THEN** retention SHALL keep that release and continue
 
 ### Requirement: Interactive startup checks for a newer release in Auto mode
-When an interactive profile starts from a published build and the `Update` mode is not `No`, A1 SHALL discover whether a newer release exists on the executing release's channel, comparing valid semver only, after the first usable frame and never for noninteractive commands. `Auto` SHALL request a silent exact-target background update and show no availability notice; `No` SHALL skip the check entirely. Lookup, parse, or cache failure SHALL produce no UI diagnostic.
+When an interactive profile starts from a published build and the `Update` mode is not `Manual`, A1 SHALL discover whether a newer release exists on the executing release's channel, comparing valid semver only, after the first usable frame and never for noninteractive commands. `Auto` SHALL request a silent exact-target background update and show no availability notice; `Manual` SHALL skip the check entirely. Lookup, parse, or cache failure SHALL produce no UI diagnostic.
 
 #### Scenario: A newer stable release exists
 - **WHEN** a stable `0.3.0` build runs interactively in `Auto` mode and the `latest` dist-tag advances to `0.3.1`
@@ -834,7 +834,7 @@ When an interactive profile starts from a published build and the `Update` mode 
 - **THEN** A1 SHALL start no update, show no notice, retain any previous cache content, and retry on a later bounded check rather than treating the failed lookup as a successful fresh result
 
 #### Scenario: The check is disabled
-- **WHEN** any environment opt-out holds or bare A1 selects `No`
+- **WHEN** any environment opt-out holds or bare A1 selects `Manual`
 - **THEN** A1 SHALL neither read the release cache, contact the registry, start an automatic-update worker, nor observe automatic-update state for this check
 
 #### Scenario: Auto is the default

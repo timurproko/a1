@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PRODUCT_IDENTITY } from "../../../../src/product-identity.js";
-import { parsePullRequest, readPullRequest } from "../../../../src/integrations/pi/engine/repository-pr.js";
+import { readPullRequest } from "../../../../src/integrations/pi/engine/repository-pr.js";
 import {
-  parseGitHubPullRequests,
-  parseGitHubRepositoryRemote,
   readPullRequestFromGitHub,
 } from "../../../../src/integrations/pi/engine/repository-pr-rest.js";
 
@@ -33,9 +31,20 @@ const response = (value: unknown, status = 200): Response => new Response(JSON.s
   headers: { "content-type": "application/json" },
 });
 
+/** The branch pull request a GitHub CLI payload yields, read through the development preview path. */
+const fromCliPayload = (stdout: string) => readPullRequest("ignored", BRANCH, new AbortController().signal,
+  { [PRODUCT_IDENTITY.environment.prFooterPreview]: stdout });
+
+/** The branch pull request the REST fallback yields for an origin remote and a response body. */
+function fromRest(remote: string, body: unknown = [restPull()]) {
+  const fetcher = vi.fn(async (_input: string | URL, _init?: RequestInit): Promise<Response> => response(body));
+  const result = readPullRequestFromGitHub("repo", BRANCH, new AbortController().signal, {}, { readOriginUrl: async () => remote, fetch: fetcher });
+  return { fetcher, result };
+}
+
 describe("branch pull request metadata", () => {
-  it.each(["OPEN", "MERGED"])("accepts an exact %s branch association and canonical GitHub URL", state => {
-    expect(parsePullRequest(payload({ state }), BRANCH)).toEqual({
+  it.each(["OPEN", "MERGED"])("accepts an exact %s branch association and canonical GitHub URL", async state => {
+    await expect(fromCliPayload(payload({ state }))).resolves.toEqual({
       number: 540,
       url: "https://github.com/timurproko/a1/pull/540",
     });
@@ -63,16 +72,18 @@ describe("branch pull request metadata", () => {
     ["non-GitHub host", payload({ url: "https://example.com/timurproko/a1/pull/540" })],
     ["URL credentials", payload({ url: "https://user@github.com/timurproko/a1/pull/540" })],
     ["URL query", payload({ url: "https://github.com/timurproko/a1/pull/540?diff=split" })],
-  ])("rejects %s from GitHub CLI", (_label, stdout) => {
-    expect(parsePullRequest(stdout, BRANCH)).toBeNull();
+  ])("rejects %s from GitHub CLI", async (_label, stdout) => {
+    await expect(fromCliPayload(stdout)).resolves.toBeNull();
   });
 
   it.each([
     "https://github.com/timurproko/a1.git",
     "ssh://git@github.com/timurproko/a1.git",
     "git@github.com:timurproko/a1.git",
-  ])("parses supported GitHub remote %s", remote => {
-    expect(parseGitHubRepositoryRemote(remote)).toEqual(REPOSITORY);
+  ])("queries the repository of supported GitHub remote %s", async remote => {
+    const { fetcher, result } = fromRest(remote);
+    await expect(result).resolves.toEqual({ number: 540, url: "https://github.com/timurproko/a1/pull/540" });
+    expect(new URL(fetcher.mock.calls[0]![0]).pathname).toBe(`/repos/${REPOSITORY.owner}/${REPOSITORY.repository}/pulls`);
   });
 
   it.each([
@@ -85,15 +96,17 @@ describe("branch pull request metadata", () => {
     "git@github.com:bad_owner/a1.git",
     "git@github.com:timurproko/../a1.git",
     "git@github.com:timurproko/a1.git\nhttps://github.com/other/repo",
-  ])("rejects unsafe or ambiguous remote %s", remote => {
-    expect(parseGitHubRepositoryRemote(remote)).toBeNull();
+  ])("rejects unsafe or ambiguous remote %s without a request", async remote => {
+    const { fetcher, result } = fromRest(remote);
+    await expect(result).resolves.toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
   });
 
   it.each([
     ["open", restPull()],
     ["merged", restPull({ state: "closed", merged_at: "2026-09-25T10:00:00Z" })],
-  ])("accepts one exact %s REST association", (_state, pull) => {
-    expect(parseGitHubPullRequests([pull], REPOSITORY, BRANCH)).toEqual({
+  ])("accepts one exact %s REST association", async (_state, pull) => {
+    await expect(fromRest("git@github.com:timurproko/a1.git", [pull]).result).resolves.toEqual({
       number: 540,
       url: "https://github.com/timurproko/a1/pull/540",
     });
@@ -110,8 +123,8 @@ describe("branch pull request metadata", () => {
     ["unsafe URL", [restPull({ html_url: "https://example.com/timurproko/a1/pull/540" })]],
     ["wrong URL repository", [restPull({ html_url: "https://github.com/other/a1/pull/540" })]],
     ["ambiguous response", [restPull(), restPull({ number: 541, html_url: "https://github.com/timurproko/a1/pull/541" })]],
-  ])("rejects REST %s", (_label, value) => {
-    expect(parseGitHubPullRequests(value, REPOSITORY, BRANCH)).toBeNull();
+  ])("rejects REST %s", async (_label, value) => {
+    await expect(fromRest("git@github.com:timurproko/a1.git", value).result).resolves.toBeNull();
   });
 
   it("prefers a valid GitHub CLI result without calling REST", async () => {

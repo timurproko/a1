@@ -31,7 +31,7 @@ describe("startup descriptor", () => {
     expect(descriptor.entries).toEqual(STARTUP_EAGER_ENTRIES);
     expect(descriptor.generatedArtifact).toEqual({ path: manifest.output.path, sha256: manifest.output.sha256 });
     expect(ui).toContain("descriptor.loadDeclaredStartupGraph()");
-    expect(ui).toContain('createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" })');
+    expect(ui).toContain("createConsoleProjectTrustPrompt({ productMode })");
     expect(warmup).toContain("descriptor.loadDeclaredStartupGraph()");
     expect(ui).not.toContain('import("../dist/features/launch/runtime-selection.js")');
     expect(warmup).not.toContain('import("../dist/features/launch/runtime-selection.js")');

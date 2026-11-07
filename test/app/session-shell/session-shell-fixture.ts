@@ -308,7 +308,8 @@ export async function fixture(
   const engine = new Runtime(messages);
   configureEngine?.(engine);
   engine.extensionResources = extensions;
-  const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", createRuntime: async () => engine as unknown as AgentSessionRuntime });
+  // Invariant: composition always pairs the pinned layout with the comparison mode and the custom viewport with bare A1.
+  const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell", settingsProductMode: customViewport ? "bare" : "comparison", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const terminal = new TestPresentationTerminal();
   const shell = new OwnedUiSessionShell({
     presenters: createPiSessionPresenters(adapter, lazySelectors === undefined ? {} : { lazySelectors }),
@@ -331,7 +332,7 @@ export async function fixture(
       ...(clipboard === undefined ? {} : { clipboard }),
       ...(pasteDiagnostics === undefined ? {} : { paste: pasteDiagnostics }),
       ...(pastePreparation === "forked" ? {} : { pastePreparation }),
-      ...(lazySelectors === undefined ? {} : { lazySelectors }),
+
       responseCopy: responseCopy === "forked" ? {} : responseCopy ?? { execute: (snapshot, phase) => {
       const text = snapshot.rows.map((row, index) => selectionCopyRowText(snapshot, row, index)).join("\n");
       phase("extracted", Buffer.byteLength(text), "injected");
@@ -361,7 +362,7 @@ export async function secondPresenter(
   customViewport = true,
 ) {
   const engine = new Runtime(messages);
-  const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell-second", createRuntime: async () => engine as unknown as AgentSessionRuntime });
+  const adapter = await createPiEngineAdapter({ cwd: "D:/work", sessionId: "owned-shell-second", settingsProductMode: customViewport ? "bare" : "comparison", createRuntime: async () => engine as unknown as AgentSessionRuntime });
   const presenter = new OwnedUiSessionPresenter(shell.terminalHost, {
     presenters: createPiSessionPresenters(adapter),
     engine: { backend: adapter, cwd: "D:/work", ...(customViewport ? { sessionLayout: "custom-viewport" as const } : {}) },

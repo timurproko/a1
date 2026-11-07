@@ -15,6 +15,7 @@ export function inspectProjectStructureImports(
   startupModules?: ReadonlySet<string>,
 ): string[];
 export function inspectLayerBoundaries(files: Readonly<Record<string, string>>): string[];
+export function inspectExportConsumers(files: Readonly<Record<string, string>>, consumers?: Readonly<Record<string, string>>, exemptModules?: readonly string[]): string[];
 export function inspectPiFeatureBoundaryImports(files: Readonly<Record<string, string>>): string[];
 export function projectOwnerForPath(path: string): ProjectOwner | null;
 export function testOwnerForPath(path: string): string | null;

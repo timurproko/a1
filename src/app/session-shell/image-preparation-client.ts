@@ -1,11 +1,11 @@
+import type { OwnedUiShellClipboardContent } from "../../contracts/owned-ui/index.js";
 import { Worker } from "node:worker_threads";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
-import type { PiShellClipboardContent } from "../../integrations/pi/components/index.js";
 import type { ImagePreparationLimits, PreparedImage } from "./image-preparation.js";
 import type { ImageWorkerRequest } from "./image-worker.js";
 import { IMAGE_PREPARATION_MS, MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
 
-export type PreparedClipboardContent =
+type PreparedClipboardContent =
   | { readonly kind: "text"; readonly text: string }
   | ({ readonly kind: "image" } & PreparedImage)
   | null;
@@ -26,7 +26,7 @@ export class ImagePreparationClient {
   #converting = false;
   #disposed = false;
 
-  start(read?: (signal: AbortSignal) => Promise<PiShellClipboardContent | null>, limits: ImagePreparationLimits = {}): ImagePasteJob {
+  start(read?: (signal: AbortSignal) => Promise<OwnedUiShellClipboardContent | null>, limits: ImagePreparationLimits = {}): ImagePasteJob {
     const controller = new AbortController();
     if (this.#disposed || this.#active.size >= 8) {
       const result = Promise.reject(new ImageAttachmentError(this.#disposed ? "image-canceled" : "image-busy"));
@@ -41,7 +41,7 @@ export class ImagePreparationClient {
       setImmediate(() => {
         if (controller.signal.aborted) return;
         const acquire = read === undefined
-          ? runImageWorker<PiShellClipboardContent | null>({ kind: "clipboard" }, controller.signal)
+          ? runImageWorker<OwnedUiShellClipboardContent | null>({ kind: "clipboard" }, controller.signal)
           : Promise.resolve().then(() => read(controller.signal));
         void acquire.then(content => {
           if (controller.signal.aborted) return;

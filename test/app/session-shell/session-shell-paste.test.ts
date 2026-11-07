@@ -1004,7 +1004,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       terminal.input("\u0016");
       await vi.waitFor(() => expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("A prompt is limited to 1 image"));
       const rejected = shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu)!.find(tag => tag !== ready)!;
-      shell.root.appendWorkflowResult({ command: "debug", outcome: "failed", message: "newer unrelated error" });
+      shell.root.workflow.appendResult({ command: "debug", outcome: "failed", message: "newer unrelated error" });
       shell.root.editor.setText(shell.root.editor.getText().replace(rejected, ""));
       await nextImmediate();
       expect(stripTerminalSequences(shell.root.render(80).join("\n"))).toContain("newer unrelated error");

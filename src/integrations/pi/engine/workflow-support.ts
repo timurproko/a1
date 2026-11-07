@@ -103,7 +103,7 @@ export function pinnedSessionInfoPresentation(
 }
 
 /** The engine reports warming as a mode plus, once it has acted, the decision that produced the state. */
-export function pinnedCacheWarming(mode: unknown, status: unknown): PiSessionInfoPresentation["cacheWarming"] {
+function pinnedCacheWarming(mode: unknown, status: unknown): PiSessionInfoPresentation["cacheWarming"] {
   const resolved = stringValue(mode) ?? "off";
   if (!isRecord(status)) return { mode: resolved };
   const state = stringProperty(status, "state");
@@ -131,7 +131,7 @@ export function pinnedCacheWarming(mode: unknown, status: unknown): PiSessionInf
     },
   };
 }
-export function pinnedUsageCostBreakdown(entries: readonly unknown[]): PiSessionInfoPresentation["usageBreakdown"] {
+function pinnedUsageCostBreakdown(entries: readonly unknown[]): PiSessionInfoPresentation["usageBreakdown"] {
   const totals = new Map<string, { cost: number; tokens: number }>();
   for (const entry of entries) {
     if (!isRecord(entry)) continue;
@@ -164,7 +164,7 @@ export function pinnedUsageCostBreakdown(entries: readonly unknown[]): PiSession
     .sort((a, b) => b.cost - a.cost);
 }
 
-export function pinnedCacheWaste(
+function pinnedCacheWaste(
   entries: readonly unknown[],
   modelRuntime: PiServicesApi["modelRuntime"],
 ): PiSessionInfoPresentation["cacheWaste"] {
@@ -360,20 +360,6 @@ export function workflowOptions(value: unknown, idKey: string, labelKey: string)
   });
 }
 
-export function sessionInfoOptions(value: readonly unknown[]): readonly PiWorkflowOption[] {
-  return value.filter(isRecord).flatMap(info => {
-    const path = stringProperty(info, "path");
-    if (!path) return [];
-    const modified = info.modified instanceof Date ? info.modified.toISOString() : stringProperty(info, "modified") ?? "unknown time";
-    const messageCount = typeof info.messageCount === "number" ? info.messageCount : 0;
-    return [{
-      id: path,
-      label: stringProperty(info, "name") ?? stringProperty(info, "firstMessage") ?? stringProperty(info, "id") ?? path,
-      description: `${messageCount} messages · ${modified}`,
-    }];
-  });
-}
-
 export function pathArgument(value: string): string | undefined {
   if (!value) return undefined;
   const quote = value[0];
@@ -431,7 +417,7 @@ export function resolveConfiguredModelIds(
   return resolved;
 }
 
-export function wildcardMatcher(pattern: string): RegExp {
+function wildcardMatcher(pattern: string): RegExp {
   let source = "";
   for (const character of pattern) {
     if (character === "*") source += ".*";

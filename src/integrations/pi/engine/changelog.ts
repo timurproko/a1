@@ -6,8 +6,8 @@ import type ChangelogResource from "./resources/changelog.json";
 type Release = { readonly version: readonly number[]; readonly markdown: string };
 const REPOSITORY = "https://github.com/earendil-works/pi";
 
-export async function readPinnedCommandChangelog(sinceVersion?: string): Promise<string> {
-  const path = new URL("./resources/changelog.json", import.meta.url);
+/** Pinned Pi's changelog since `sinceVersion` (all of it when absent), read from the owned data resource. */
+export async function readPinnedCommandChangelog(sinceVersion?: string, path: URL = new URL("./resources/changelog.json", import.meta.url)): Promise<string> {
   if (!existsSync(path)) return sinceVersion === undefined ? "No changelog entries found." : "";
   try {
     const resource: unknown = JSON.parse(await readFile(path, "utf8"));
@@ -21,7 +21,7 @@ export async function readPinnedCommandChangelog(sinceVersion?: string): Promise
   }
 }
 
-export function formatPinnedCommandChangelog(content: string, sinceVersion?: string): string {
+function formatPinnedCommandChangelog(content: string, sinceVersion?: string): string {
   // Provenance: behavior follows Pi 0.84.2 utils/changelog.ts at 914cf1472e715297caa30db4b9535d534a9eb718.
   // Runtime reads only the owned data resource; maintenance tooling verifies its pinned provenance.
   let releases = content.split(/(?=^## )/m).flatMap((section): Release[] => {

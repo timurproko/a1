@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  CohortStateStore,
+  ReleaseStateStore,
   dependencyLayerCertificationPath,
   discoverReleasePayload,
   generateDependencyRuntimePayload,
@@ -151,7 +151,7 @@ describe("certified immutable dependency layers", () => {
     const release = await materializeRelease(await fixturePackage(root, "package", "1.0.0", "product", "dependency"), dataDir);
     const reference = release.dependencyLayers![0]!;
     const layerRoot = resolve(dataDir, "dependency-layers", reference.layerId);
-    const store = new CohortStateStore(dataDir);
+    const store = new ReleaseStateStore(dataDir);
     await store.recordCandidate(release);
     await store.approve(release.releaseId, resolve(dataDir, `certification-${release.releaseId}.json`));
     await store.activate(release.releaseId);

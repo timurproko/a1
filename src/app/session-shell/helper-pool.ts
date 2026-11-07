@@ -1,15 +1,15 @@
 import type { ChildProcess } from "node:child_process";
 
 /** How long an unused spare helper may idle before it is stopped so a background session holds no extra process. */
-export const HELPER_SPARE_IDLE_MS = 5 * 60_000;
+const HELPER_SPARE_IDLE_MS = 5 * 60_000;
 
-export interface SpareHelper {
+interface SpareHelper {
   readonly child: ChildProcess;
   /** Whether the helper already announced itself; the taker must then send the first request itself. */
   readonly ready: boolean;
 }
 
-export interface HelperPoolOptions {
+interface HelperPoolOptions {
   readonly fork: () => ChildProcess;
   /** Stops a spare that is no longer wanted; the paste helper needs its process group killed on POSIX. */
   readonly stop: (child: ChildProcess) => void;

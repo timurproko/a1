@@ -66,7 +66,7 @@
     {
       "id": "governance-documentation", "owner": "governance",
       "paths": ["scripts/governance/check-docs-governance.mjs", "scripts/governance/check-code-documentation.mjs", "scripts/governance/code-documentation-policy.mjs", "scripts/governance/code-documentation-policy.d.mts"],
-      "testPaths": ["test/repository-governance/docs-sensitive-governance.test.ts", "test/repository-governance/code-documentation*", "test/repository-governance/change-delivery-guidance.test.ts"],
+      "testPaths": ["test/repository-governance/docs-sensitive-governance.test.ts", "test/repository-governance/code-documentation*"],
       "integrationOwners": []
     },
     {
@@ -195,7 +195,7 @@
       "criticalTests": [
         "test/foundation/release/release.test.ts",
         "test/foundation/release/update-transaction.test.ts",
-        "test/foundation/release/cohort-state.test.ts",
+        "test/foundation/release/release-state.test.ts",
         "test/foundation/release/predecessor-command.test.ts",
         "test/foundation/release/predecessor-fixture.test.ts"
       ],
@@ -223,7 +223,7 @@
         "test/app/session-shell/"
       ],
       "criticalTests": [
-        "test/integrations/pi/components/components.test.ts",
+        "test/integrations/pi/components/conformance.test.ts",
         "test/integrations/pi/engine/command-dispatch.test.ts",
         "test/app/session-shell/session-shell.test.ts"
       ],
@@ -265,8 +265,7 @@
       ],
       "criticalTests": [
         "test/repository-governance/validation-suite-policy.test.ts",
-        "test/repository-governance/development-validation-baseline.test.ts",
-        "test/repository-governance/change-delivery-guidance.test.ts"
+        "test/repository-governance/development-validation-baseline.test.ts"
       ],
       "integrationOwners": []
     },

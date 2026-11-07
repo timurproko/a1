@@ -38,14 +38,14 @@ export interface PiEngineRuntimeFactoryInput {
 export type PiEngineRuntimeFactory = (input: PiEngineRuntimeFactoryInput) => Promise<AgentSessionRuntime>;
 
 export type PiEnginePackageUpdateProbe = (settingsManager: AgentSessionServices["settingsManager"]) => Promise<readonly string[]>;
-export interface PiRepositoryContextSelection {
+interface PiRepositoryContextSelection {
   readonly cwd: string;
   readonly branch: string;
 }
 export type PiRepositoryContextReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<PiRepositoryContextSelection | null>;
-export type PiGitBranchReader = (cwd: string, signal: AbortSignal) => Promise<string | null>;
+type PiGitBranchReader = (cwd: string, signal: AbortSignal) => Promise<string | null>;
 
-export interface PiEngineRuntimeOptions {
+interface PiEngineRuntimeOptions {
   readonly cwd: string;
   readonly agentDir: string;
   readonly sessionId: string;

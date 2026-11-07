@@ -1,20 +1,9 @@
+import type { OwnedUiShellComponents, OwnedUiShellTranscriptComponentPort } from "../../contracts/owned-ui/index.js";
 import { acceptsTranscriptUpdate } from "../../contracts/owned-ui/index.js";
 import type { OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
+import type { ThemeSource } from "../../contracts/presentation/index.js";
 import { nativeHyperlinkStyle } from "../../ui/components/spans.js";
 import type { TranscriptPromptAnchor } from "../../ui/components/transcript-viewport.js";
-import {
-  createPiShellChangelog,
-  createPiShellCollapsedChangelog,
-  renderPiShellPackageUpdateNotice,
-  renderPiShellReleaseUpdateNotice,
-} from "../../integrations/pi/components/shell-presenters-info.js";
-import {
-  isPiPromptStyleCompaction,
-  renderPiShellStartupDiagnostic,
-  renderPiShellTranscriptBlock,
-} from "../../integrations/pi/components/shell-presenters-transcript.js";
-import { piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
-import type { PiShellTranscriptComponentPort } from "../../integrations/pi/components/shell-shared-facade.js";
 
 type TranscriptBlock = OwnedUiSessionViewModel["transcript"][number];
 
@@ -43,7 +32,7 @@ const LAYOUT_ONLY: ReadonlySet<TranscriptInvalidation> = new Set(["editor-paddin
 const WORKFLOW_STATUS_PREFIX = "workflow-status-";
 
 /** What the document reads from the shell around it on every uncached layout. */
-export interface TranscriptDocumentChrome {
+interface TranscriptDocumentChrome {
   diagnostics(): OwnedUiSessionViewModel["diagnostics"];
   /** The extension header's rows when one is set, else the built-in header's rows for this layout. */
   headerRows(width: number): readonly string[];
@@ -54,11 +43,13 @@ export interface TranscriptDocumentChrome {
   thinkingVisible(): boolean;
 }
 
-export interface TranscriptDocumentOptions {
+interface TranscriptDocumentOptions {
+  readonly theme: ThemeSource;
+  readonly components: Pick<OwnedUiShellComponents, "info" | "transcript">;
   readonly customViewport: boolean;
   readonly cwd: string;
   /** Creates the component for a newly seen block; its change callback should call `blockChanged`. */
-  mount(block: TranscriptBlock): PiShellTranscriptComponentPort;
+  mount(block: TranscriptBlock): OwnedUiShellTranscriptComponentPort;
   readonly chrome: TranscriptDocumentChrome;
 }
 
@@ -68,7 +59,7 @@ export interface TranscriptDocumentOptions {
  */
 export class TranscriptDocument {
   readonly #options: TranscriptDocumentOptions;
-  readonly #components = new Map<string, PiShellTranscriptComponentPort>();
+  readonly #components = new Map<string, OwnedUiShellTranscriptComponentPort>();
   readonly #blocks = new Map<string, TranscriptBlock>();
   readonly #anchors = new Map<string, number>();
   #order: string[] = [];
@@ -76,9 +67,11 @@ export class TranscriptDocument {
   // Performance: document layouts are shared by wheel, rail, jump, and selection frames.
   readonly #layouts = new Map<number, TranscriptDocumentLayout>();
   #renders = 0;
+  readonly #linkColor: (text: string, target: string) => string;
 
   constructor(options: TranscriptDocumentOptions) {
     this.#options = options;
+    this.#linkColor = transcriptLinkColor(options.theme);
   }
 
   /** Block component renders since construction, for rendering evidence. */
@@ -90,11 +83,11 @@ export class TranscriptDocument {
     return this.#order.at(-1);
   }
 
-  component(id: string): PiShellTranscriptComponentPort | undefined {
+  component(id: string): OwnedUiShellTranscriptComponentPort | undefined {
     return this.#components.get(id);
   }
 
-  components(): IterableIterator<PiShellTranscriptComponentPort> {
+  components(): IterableIterator<OwnedUiShellTranscriptComponentPort> {
     return this.#components.values();
   }
 
@@ -163,7 +156,7 @@ export class TranscriptDocument {
   }
 
   /** Appends workflow output anchored after the transcript's first `anchor` blocks. */
-  appendAnchored(id: string, component: PiShellTranscriptComponentPort, anchor: number): void {
+  appendAnchored(id: string, component: OwnedUiShellTranscriptComponentPort, anchor: number): void {
     if (!id.startsWith(WORKFLOW_STATUS_PREFIX)) throw new TypeError(`anchored output id must start with ${WORKFLOW_STATUS_PREFIX}`);
     this.#components.set(id, component);
     this.#anchors.set(id, anchor);
@@ -226,7 +219,7 @@ export class TranscriptDocument {
       // bare A1 presents them in its prompt-adjacent notice dock instead.
       .filter(diagnostic => diagnostic.code === "engine-startup"
         || !customViewport && diagnostic.code === "project-trust")
-      .flatMap(diagnostic => renderPiShellStartupDiagnostic(diagnostic, width));
+      .flatMap(diagnostic => this.#options.components.transcript.renderStartupDiagnostic(diagnostic, width));
     const resourceRows = [...chrome.resourceRows(width)];
     if (resourceRows.at(-1) === "") resourceRows.pop();
     const rows: string[] = [
@@ -244,7 +237,7 @@ export class TranscriptDocument {
       const block = this.#blocks.get(id);
       if (!thinkingVisible && block?.kind === "thinking") continue;
       const promptLike = block !== undefined
-        && (block.kind === "user" || customViewport && isPiPromptStyleCompaction(block));
+        && (block.kind === "user" || customViewport && this.#options.components.transcript.isPromptStyleCompaction(block));
       // Invariant: the custom viewport has already removed its rail gutter from this width.
       // Prompt-like and ordinary blocks therefore share one right content edge.
       const blockWidth = width;
@@ -291,11 +284,11 @@ export class TranscriptDocument {
       .filter(diagnostic => !customViewport && diagnostic.code === "release-update")
       .flatMap(diagnostic => {
         const release = parseReleaseUpdateDiagnostic(diagnostic.message);
-        return release === null ? [] : renderPiShellReleaseUpdateNotice(release, width);
+        return release === null ? [] : this.#options.components.info.releaseUpdateNotice(release, width);
       }));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code === "package-updates")
-      .flatMap(diagnostic => renderPiShellPackageUpdateNotice(
+      .flatMap(diagnostic => this.#options.components.info.packageUpdateNotice(
         diagnostic.message.split("\n").filter(line => line.startsWith("- ")).map(line => line.slice(2)),
         width,
       )));
@@ -306,8 +299,8 @@ export class TranscriptDocument {
       .flatMap(diagnostic => customViewport
         ? []
         : diagnostic.code === "changelog-collapsed"
-          ? createPiShellCollapsedChangelog().render(width)
-          : createPiShellChangelog(diagnostic.message).render(width)));
+          ? this.#options.components.info.collapsedChangelog().render(width)
+          : this.#options.components.info.changelog(diagnostic.message).render(width)));
     rows.push(...diagnostics
       .filter(diagnostic => diagnostic.code !== "engine-startup" && diagnostic.code !== "project-trust"
         && diagnostic.code !== "release-update" && diagnostic.code !== "release-update-installed"
@@ -316,7 +309,7 @@ export class TranscriptDocument {
         && diagnostic.code !== "changelog-expanded")
       .slice(-3)
       .flatMap(diagnostic =>
-        renderPiShellTranscriptBlock({
+        this.#options.components.transcript.renderBlock({
           id: `diagnostic-${diagnostic.sequence}`,
           kind: diagnostic.severity === "error" ? "error" : "system",
           status: "finalized",
@@ -335,7 +328,7 @@ export class TranscriptDocument {
     for (const id of this.#order) {
       const block = this.#blocks.get(id);
       if (block === undefined || (!thinkingVisible && block.kind === "thinking")) continue;
-      if (rows.length > 0 && (block.kind === "user" || this.#options.customViewport && isPiPromptStyleCompaction(block))) rows.push("");
+      if (rows.length > 0 && (block.kind === "user" || this.#options.customViewport && this.#options.components.transcript.isPromptStyleCompaction(block))) rows.push("");
       rows.push(...this.#blockRows(id, block, width).map(sanitizeExitTranscriptRow));
     }
     while (rows.at(-1) === "") rows.pop();
@@ -350,7 +343,7 @@ export class TranscriptDocument {
       this.#renders += 1;
       const rows = component.render(width);
       if (!this.#options.customViewport || block?.kind === "user") return rows;
-      return rows.map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor));
+      return rows.map(row => nativeHyperlinkStyle(row, this.#linkColor));
     };
     if (block === undefined || block.status !== "finalized") return render();
 
@@ -389,7 +382,7 @@ function sanitizeExitTranscriptRow(row: string): string {
 }
 
 /** Web URLs use link blue; file targets retain A1's cyan interactive accent. */
-export function nativeTranscriptLinkColor(text: string, target: string): string {
-  return piTheme().fg(/^file:/iu.test(target) ? "accent" : "mdLink", text);
+export function transcriptLinkColor(theme: ThemeSource): (text: string, target: string) => string {
+  return (text, target) => theme.current().fg(/^file:/iu.test(target) ? "accent" : "mdLink", text);
 }
 

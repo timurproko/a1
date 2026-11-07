@@ -32,7 +32,7 @@ function userPresentation(content: unknown): OwnedUiTranscriptBlock["userPresent
   return { visibleText: lines.join("\n") };
 }
 
-export interface PiTranscriptProjectionPorts {
+interface PiTranscriptProjectionPorts {
   /** Pinned Pi's current retry attempt, which words an aborted declaration's failure text. */
   retryAttempt(): number;
   /** Called once per stored block change, in order, so the adapter can deliver it. */

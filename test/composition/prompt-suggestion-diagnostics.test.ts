@@ -9,7 +9,8 @@ import type { OwnedUiSessionShellOptions } from "../../src/app/session-shell/ind
 
 const observed = vi.hoisted(() => ({ options: undefined as OwnedUiSessionShellOptions | undefined }));
 // Rationale: isolate launch composition from provider discovery and terminal ownership.
-vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({ applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
+vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
+  ...await importOriginal<object>(), applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
 vi.mock("../../src/integrations/pi/engine/host.js", () => ({ createPiEngineHost: vi.fn() }));
 vi.mock("../../src/integrations/pi/tui-runtime/presentation-adapter.js", () => ({ createPiTerminalBridge: vi.fn() }));
 vi.mock("../../src/composition/settings-route-host.js", () => ({ createOwnedRouteHost: () => null }));
@@ -33,7 +34,7 @@ vi.mock("../../src/app/session-shell/session-shell.js", () => ({
 }));
 afterEach(() => { observed.options = undefined; vi.unstubAllEnvs(); });
 
-async function compose(options: { ownedSurfaces?: "off"; profileId?: string; suggestionDiagnosticsPath?: string }) {
+async function compose(options: { productMode?: "comparison"; profileId?: string; suggestionDiagnosticsPath?: string }) {
   return composeOwnedUi({ ...options, createEngineHost: async () => ({ create: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never });
 }
 
@@ -57,7 +58,7 @@ describe("suggestion diagnostic launch composition", () => {
 
   it.each(["unset", "blank", "comparison", "settings-free"])("withholds diagnostic capture in %s mode", async mode => {
     vi.stubEnv(PRODUCT_IDENTITY.environment.suggestionDiagnostics, mode === "unset" ? undefined : mode === "blank" ? " " : "unused-snapshot.json");
-    const composed = await compose({ ...(mode === "settings-free" ? {} : { profileId: "a1" }), ...(mode === "comparison" ? { ownedSurfaces: "off" as const } : {}) });
+    const composed = await compose({ ...(mode === "settings-free" ? {} : { profileId: "a1" }), ...(mode === "comparison" ? { productMode: "comparison" as const } : {}) });
     expect(observed.options?.suggestions?.diagnostics).toBeUndefined();
     if (mode === "comparison" || mode === "settings-free") {
       expect(observed.options?.suggestions).toBeUndefined();

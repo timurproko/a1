@@ -1,10 +1,10 @@
 import type { OwnedUiEvent } from "../../../contracts/owned-ui/index.js";
 
-export const MAX_PENDING_EVENTS = 1024;
-export const MAX_PENDING_EVENT_BYTES = 8 * 1024 * 1024;
+const MAX_PENDING_EVENTS = 1024;
+const MAX_PENDING_EVENT_BYTES = 8 * 1024 * 1024;
 
 /** Actual shell semantics: only live complete block state has no independent side effect. */
-export function replaceableEventKey(event: OwnedUiEvent): string | null {
+function replaceableEventKey(event: OwnedUiEvent): string | null {
   switch (event.type) {
     case "transcript-block": return event.block.status === "live" && !(typeof event.block.payload === "object" && event.block.payload !== null && "isError" in event.block.payload && event.block.payload.isError === true) ? event.block.id : null;
     case "session-view": // Invariant: may clear compaction work, replace editor/session state, or preempt presentation.

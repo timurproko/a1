@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  CohortStateStore, certifyMaterializedRelease, dependencyLayerCertificationPath,
+  ReleaseStateStore, certifyMaterializedRelease, dependencyLayerCertificationPath,
   legacyDependencyLayerCertificationPath, materializeRelease, readCertifiedDependencyLayer,
   readRestartCertifiedRelease, restartSealDigest, runBoundedReleaseCleanup,
 } from "../../../src/foundation/release/index.js";
@@ -300,7 +300,7 @@ async function certifiedFixture() {
   await fs.writeFile(resolve(packageRoot, "node_modules", "fixture-dependency", "index.js"), "dependency");
   const release = await materializeRelease(packageRoot, dataDir);
   const diagnosticsPath = await certifyMaterializedRelease(release, dataDir);
-  const store = new CohortStateStore(dataDir);
+  const store = new ReleaseStateStore(dataDir);
   await store.recordCandidate(release);
   await store.approve(release.releaseId, diagnosticsPath);
   await store.activate(release.releaseId);

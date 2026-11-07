@@ -1,12 +1,19 @@
 import { describe, expect, it } from "vitest";
 import type { OwnedUiEvent, OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
-import { MAX_PENDING_EVENT_BYTES, PendingEngineDelivery, replaceableEventKey } from "../../../../src/integrations/pi/engine/pending-delivery.js";
+import { PendingEngineDelivery } from "../../../../src/integrations/pi/engine/pending-delivery.js";
 
 const base = { sessionId: "test", sequence: 1 };
 function block(id: string, text: string, sequence: number, status: OwnedUiTranscriptBlock["status"] = "live"): OwnedUiEvent {
   return { ...base, sequence, type: "transcript-block", block: { id, text, status, revision: sequence, kind: "assistant", title: null, payload: null } };
 }
 function barrier(sequence: number): OwnedUiEvent { return { ...base, sequence, type: "command-outcome", correlationId: String(sequence), outcome: "completed", diagnostic: null }; }
+/** Whether the later of two queued events replaces the earlier one. */
+function coalesces(first: OwnedUiEvent, second: OwnedUiEvent): boolean {
+  const queue = new PendingEngineDelivery();
+  queue.push(first, 1);
+  queue.push(second, 1);
+  return queue.size === 1;
+}
 function drain(queue: PendingEngineDelivery): OwnedUiEvent[] {
   const events: OwnedUiEvent[] = [];
   while (queue.size) events.push(queue.shift()!.event);
@@ -22,13 +29,14 @@ describe("semantic pending engine delivery", () => {
       diagnostic: false, dialog: false, overlay: false, customization: false,
     };
     for (const [type, replaceable] of Object.entries(kinds)) {
-      const event = type === "transcript-block" ? block("a", "a", 1) : { ...base, type } as OwnedUiEvent;
-      expect(replaceableEventKey(event) !== null, type).toBe(replaceable);
+      const event = (sequence: number) => type === "transcript-block" ? block("a", "a", sequence) : { ...base, sequence, type } as OwnedUiEvent;
+      expect(coalesces(event(1), event(2)), type).toBe(replaceable);
     }
-    expect(replaceableEventKey(block("a", "final", 1, "finalized"))).toBeNull();
-    expect(replaceableEventKey({ ...base, type: "transcript-block", block: {
-      id: "tool", text: "error", revision: 1, status: "live", kind: "tool-call", title: null, payload: { isError: true },
-    } })).toBeNull();
+    expect(coalesces(block("a", "final", 1, "finalized"), block("a", "final", 2, "finalized"))).toBe(false);
+    const failedTool = (sequence: number): OwnedUiEvent => ({ ...base, sequence, type: "transcript-block", block: {
+      id: "tool", text: "error", revision: sequence, status: "live", kind: "tool-call", title: null, payload: { isError: true },
+    } });
+    expect(coalesces(failedTool(1), failedTool(2))).toBe(false);
   });
 
   it("matches an uncoalesced reference at every barrier through a 16,384 update / 32 block burst", () => {
@@ -58,7 +66,7 @@ describe("semantic pending engine delivery", () => {
     expect(queue.diagnostics()).toMatchObject({ pending: 0, bytes: 0, protected: 0 });
     expect(queue.diagnostics().superseded).toBeGreaterThan(16_000);
     expect(queue.diagnostics().peakNodes).toBeLessThanOrEqual(1024);
-    expect(queue.diagnostics().peakBytes).toBeLessThanOrEqual(MAX_PENDING_EVENT_BYTES);
+    expect(queue.diagnostics().peakBytes).toBeLessThanOrEqual((8 * 1024 * 1024));
   });
 
   it("appends replacement at its source position and never crosses a protected barrier", () => {
@@ -77,7 +85,7 @@ describe("semantic pending engine delivery", () => {
     current = block("a", "later", 3);
     expect((queue.shift()!.event as Extract<OwnedUiEvent, { type: "transcript-block" }>).block.text).toHaveLength(100_000);
     drain(queue);
-    current = block("a", "x".repeat(MAX_PENDING_EVENT_BYTES), 4);
+    current = block("a", "x".repeat((8 * 1024 * 1024)), 4);
     expect(queue.push(current, 1, () => current)).toBe(true);
     expect(queue.push(barrier(5), 1)).toBe(false);
     expect(queue.diagnostics().bytes).toBe(128);

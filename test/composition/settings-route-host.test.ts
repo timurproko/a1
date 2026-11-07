@@ -32,7 +32,7 @@ describe("owned settings route opening", () => {
     const root = mkdtempSync(path.join(tmpdir(), "a1-settings-open-"));
     roots.push(root);
     const session = new OwnedSettingsManager({
-      configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [],
+      configDir: root, profileId: "a1", declarations: DECLARATIONS,
       agent: null,
     });
     await session.load();
@@ -67,7 +67,7 @@ describe("owned settings route theme", () => {
     const root = mkdtempSync(path.join(tmpdir(), "a1-settings-menu-theme-"));
     roots.push(root);
     const session = new OwnedSettingsManager({
-      configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [],
+      configDir: root, profileId: "a1", declarations: DECLARATIONS,
       agent: null,
     });
     await session.load();
@@ -125,7 +125,7 @@ async function settled(surface: { render(width: number, height: number): readonl
 async function manager(): Promise<OwnedSettingsManager> {
   const root = mkdtempSync(path.join(tmpdir(), "a1-reference-route-"));
   roots.push(root);
-  const session = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [], agent: null });
+  const session = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, agent: null });
   await session.load();
   return session;
 }

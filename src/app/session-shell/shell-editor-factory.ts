@@ -1,30 +1,26 @@
+import type { OwnedUiShellComponents, OwnedUiShellEditorOptions, OwnedUiShellEditorPort } from "../../contracts/owned-ui/index.js";
+import type { ThemeSource } from "../../contracts/presentation/index.js";
 import { caretCell } from "../../ui/components/line-input.js";
 import { PromptInput } from "../../ui/components/prompt-input.js";
 import { backgroundSgrSpan, hyperlinkSgrSpan } from "../../ui/components/spans.js";
 import { faint, stripAnsi } from "../../ui/components/text.js";
 import { paintTextSelection } from "../../ui/components/text-selection.js";
-import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
-import { piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
-import {
-  piShellTruncateToWidth,
-  piShellVisibleWidth,
-  type PiShellEditorOptions,
-  type PiShellEditorPort,
-} from "../../integrations/pi/components/shell-shared-facade.js";
 import { EditorHyperlinkBudget } from "./editor-hyperlink-budget.js";
 import { canPreparePasteInline } from "./paste-text-preparation.js";
 import type { PasteEvent, PasteSource } from "./paste-protocol.js";
 import type { PromptChipStore } from "./prompt-chips.js";
 
 /** The shell callbacks the editor is wired to; the editor receives the whole object as its own options. */
-export type ShellEditorHandlers = Omit<PiShellEditorOptions, "onChange" | "onToolsExpand" | "keybindingProfile"> & {
+type ShellEditorHandlers = Omit<OwnedUiShellEditorOptions, "onChange" | "onToolsExpand" | "keybindingProfile"> & {
   readonly requestRender: (force?: boolean) => void;
   readonly onEditorChange?: (text: string) => void;
   readonly captureClipboardPaste?: () => PasteSource;
   readonly pasteDiagnostics?: (event: PasteEvent) => void;
 };
 
-export interface ShellEditorPorts {
+interface ShellEditorPorts {
+  readonly theme: ThemeSource;
+  readonly components: Pick<OwnedUiShellComponents, "editor" | "text">;
   readonly handlers: ShellEditorHandlers;
   readonly customViewport: boolean;
   readonly cwd: string;
@@ -41,16 +37,17 @@ export interface ShellEditorPorts {
  * Builds the session's prompt editor: chip-aware paste, selection, and hyperlink decoration over
  * the Pi editor, plus bare A1's prompt presentation and terminal paste diagnostics.
  */
-export function createShellEditor(ports: ShellEditorPorts): PiShellEditorPort {
+export function createShellEditor(ports: ShellEditorPorts): OwnedUiShellEditorPort {
   const { handlers, customViewport, promptChips } = ports;
   let terminalPasteDiagnosticRequest: number | undefined;
-  const editor: PiShellEditorPort = createPiShellEditor({
+  const { visibleWidth, truncateToWidth } = ports.components.text;
+  const editor: OwnedUiShellEditorPort = ports.components.editor.create({
     ...handlers,
     keybindingProfile: customViewport ? "a1" : "pi",
     ...(handlers.keybindings === undefined ? {} : { keybindings: handlers.keybindings }),
     paintEditorSelection: (line, from, to, atomic) => atomic
-      ? backgroundSgrSpan(line, from, to, "\u001b[7m", "\u001b[27m", piShellVisibleWidth)
-      : paintTextSelection(line, from, to, piShellVisibleWidth, true),
+      ? backgroundSgrSpan(line, from, to, "\u001b[7m", "\u001b[27m", visibleWidth)
+      : paintTextSelection(line, from, to, visibleWidth, true),
     transformPastedContent: content => {
       try {
         return promptChips.transformPastedContent(content, editor.getText());
@@ -79,10 +76,10 @@ export function createShellEditor(ports: ShellEditorPorts): PiShellEditorPort {
       beginTextPaste: text => promptChips.beginPaste(
         editor.getText(), { kind: "text", text }, error => handlers.onPasteRejected?.(error),
       ),
-    } satisfies Partial<PiShellEditorOptions> : {}),
+    } satisfies Partial<OwnedUiShellEditorOptions> : {}),
     editorAtomicRanges: line => promptChips.atomicRanges(line),
     editorHiddenRanges: line => promptChips.hiddenRanges(line),
-    decorateEditorRow: editorRowDecorator(promptChips, ports.editorPointerSelecting),
+    decorateEditorRow: editorRowDecorator(promptChips, ports.editorPointerSelecting, visibleWidth),
 
     expandCopiedEditorText: text => promptChips.expandCopiedText(text),
     cwd: ports.cwd,
@@ -90,9 +87,9 @@ export function createShellEditor(ports: ShellEditorPorts): PiShellEditorPort {
     onToolsExpand: () => ports.toggleToolsExpanded(),
     ...(customViewport ? {
       promptPresentation: {
-        input: new PromptInput({ fg: (token, text) => piTheme().fg(token, text) }, {
-          measure: piShellVisibleWidth,
-          truncate: piShellTruncateToWidth,
+        input: new PromptInput({ fg: (token, text) => ports.theme.current().fg(token, text) }, {
+          measure: visibleWidth,
+          truncate: truncateToWidth,
         }),
         styleSuggestion: faint,
         styleSuggestionCaret: caretCell,
@@ -115,6 +112,7 @@ export function createShellEditor(ports: ShellEditorPorts): PiShellEditorPort {
 function editorRowDecorator(
   promptChips: PromptChipStore,
   editorPointerSelecting: () => boolean,
+  visibleWidth: (text: string) => number,
 ): (row: string, width: number, rowIndex: number) => string {
   const editorHyperlinks = new EditorHyperlinkBudget();
   return (row, width, rowIndex) => {
@@ -122,15 +120,15 @@ function editorRowDecorator(
     const plain = stripAnsi(row);
     const dimmed = promptChips.unsentRanges(plain).reduce((result, range) => backgroundSgrSpan(
       result,
-      piShellVisibleWidth(plain.slice(0, range.start)),
-      piShellVisibleWidth(plain.slice(0, range.end)),
+      visibleWidth(plain.slice(0, range.start)),
+      visibleWidth(plain.slice(0, range.end)),
       "\u001b[2m",
       "\u001b[22m",
-      piShellVisibleWidth,
+      visibleWidth,
     ), row);
     const ranges = promptChips.hyperlinkRanges(plain);
     if (ranges.length === 0 || !editorHyperlinks.takeCleanup()) return dimmed;
-    const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - piShellVisibleWidth(dimmed)))}`;
+    const linkResetAndTail = `\u001b]8;;\u001b\\\u001b[24m${" ".repeat(Math.max(0, width - visibleWidth(dimmed)))}`;
     // Platform: VS15 is zero-column and default-ignorable. It breaks Windows Terminal's
     // plain-text URL detector only in the held-button paint; semantic text stays exact.
     const selecting = editorPointerSelecting();
@@ -140,18 +138,18 @@ function editorRowDecorator(
     const decorated = selecting
       ? ranges.reduce((result, range) => backgroundSgrSpan(
           result,
-          piShellVisibleWidth(plain.slice(0, range.start)),
-          piShellVisibleWidth(plain.slice(0, range.end)),
+          visibleWidth(plain.slice(0, range.start)),
+          visibleWidth(plain.slice(0, range.end)),
           "\u001b[4:4m",
           "\u001b[24m",
-          piShellVisibleWidth,
+          visibleWidth,
         ), paintRow)
       : ranges.filter(range => editorHyperlinks.take(range.target)).reduce((result, range) => hyperlinkSgrSpan(
           result,
-          piShellVisibleWidth(plain.slice(0, range.start)),
-          piShellVisibleWidth(plain.slice(0, range.end)),
+          visibleWidth(plain.slice(0, range.start)),
+          visibleWidth(plain.slice(0, range.end)),
           range.target,
-          piShellVisibleWidth,
+          visibleWidth,
         ), dimmed);
     // Platform: Windows Terminal can retain stale native dotted-link cells when a mutable
     // prompt replaces a longer URL. Explicit non-link spaces overwrite that tail.

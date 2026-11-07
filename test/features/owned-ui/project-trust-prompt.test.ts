@@ -193,7 +193,7 @@ describe("bounded project trust terminal preflight", () => {
   it("retains the comparison profile's top-left startup presentation", async () => {
     const output = new TtyOutput();
     const prompt = createConsoleProjectTrustPrompt({
-      input: new TtyInput("\u001b"), output, presentation: "comparison",
+      input: new TtyInput("\u001b"), output, productMode: "comparison",
     });
     await prompt(request());
     const frame = frames(output.text).find(part => part.includes("Trust project folder?"))!;

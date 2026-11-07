@@ -45,8 +45,6 @@ describe("exact packed npm command surface", () => {
     ]));
     // Invariant: the package ships no native code; the release store loads none.
     expect(paths.filter(path => path.startsWith("dist/native/") || path.endsWith(".node"))).toEqual([]);
-    expect(paths).not.toEqual(expect.arrayContaining(["bin/supervisor.js"]));
-    expect(paths).not.toEqual(expect.arrayContaining(["bin/guardian.js"]));
     expect(paths.some(path => /addone/i.test(path))).toBe(false);
     expect(paths.some(path => path.startsWith("scripts/") || path.endsWith(".map"))).toBe(false);
     expect(paths).toEqual(expect.arrayContaining([

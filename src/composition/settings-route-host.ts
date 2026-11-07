@@ -1,11 +1,12 @@
 import { CHANGELOG_ROUTE, HOTKEYS_ROUTE, HOTKEYS_TITLE } from "../features/owned-ui/reference-routes.js";
 import { SETTINGS_APP_ID, SETTINGS_ROUTE } from "../features/owned-ui/settings-route.js";
-import { piTheme, renderPiAccentPreview } from "../integrations/pi/components/upstream/theme/theme.js";
+import { piTheme } from "../integrations/pi/components/upstream/theme/theme.js";
+import { piUiTheme } from "../integrations/pi/components/theme.js";
 import type { ReferenceDocumentProvider } from "../features/owned-ui/reference-screen-app.js";
 import type { OwnedSettingsManager } from "../ui/settings/manager.js";
 import type { UiApp, UiRouteHost, UiRouteInput, UiRouteSurface } from "../ui/apps/contracts.js";
 import { faint } from "../ui/components/text.js";
-import type { UiTheme, UiThemeToken } from "../ui/components/theme.js";
+import type { UiTheme } from "../ui/components/theme.js";
 import type { PiKeybindingsHost } from "../integrations/pi/components/shell-shared-facade.js";
 
 export type OwnedReferenceRows = NonNullable<ReferenceDocumentProvider["rows"]>;
@@ -181,13 +182,5 @@ async function hostApp(
 }
 
 function pinnedTheme(panel: (text: string) => string): UiTheme {
-  return {
-    fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
-    bold: (text: string) => piTheme().bold(text),
-    plain: (text: string) => text,
-    accentPreview: (color: string, text: string) => renderPiAccentPreview(color, text),
-    disabled: (text: string) => faint(piTheme().fg("dim", text)),
-    highlight: (text: string) => piTheme().bg("selectedBg", text),
-    panel,
-  };
+  return piUiTheme({ panel, disabled: text => faint(piTheme().fg("dim", text)) });
 }

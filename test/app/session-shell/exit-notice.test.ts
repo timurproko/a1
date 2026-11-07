@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { armExitNotice, uncleanExitNoticeLines, type ExitNoticeSource } from "../../../src/app/session-shell/exit-notice.js";
+import { armExitNotice, type ExitNoticeSource } from "../../../src/app/session-shell/exit-notice.js";
 import type { SessionResumeCommandMetadata } from "../../../src/app/session-shell/session-shell.js";
 
 const roots: string[] = [];
@@ -59,11 +59,12 @@ describe("unclean-exit notice", () => {
     expect(source.listenerCount).toBe(0);
   });
 
-  it("names the resume command only once the session is persisted", () => {
-    expect(uncleanExitNoticeLines(null)).toEqual(["a1 was stopped unexpectedly."]);
-    expect(uncleanExitNoticeLines({ sessionId: "01a1", sessionDir: "/s dir", usesDefaultSessionDir: false })).toEqual([
-      "a1 was stopped unexpectedly.",
-      "To resume this session: a1 --session-dir '/s dir' --session 01a1",
-    ]);
+  it("names a custom session directory in the resume command", async () => {
+    const path = await noticePath();
+    const source = fakeSource();
+    source.resume = { sessionId: "01a1", sessionDir: "/s dir", usesDefaultSessionDir: false };
+    const notice = armExitNotice(source, path);
+    await expect(readFile(path, "utf8")).resolves.toBe("a1 was stopped unexpectedly.\nTo resume this session: a1 --session-dir '/s dir' --session 01a1\n");
+    notice.clear();
   });
 });

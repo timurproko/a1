@@ -32,7 +32,7 @@ Each production source file SHALL belong to one named foundation area or feature
 - **AND** evidence that current documentation or governance still references SHALL move to a scanned documentation path rather than into the archive
 
 ### Requirement: Features are cohesive and expose one public entry
-Each product feature SHALL own its implementation, tests, settings contract, and feature documentation under a recognizable feature name. Cross-feature production imports SHALL use the provider's public entry or an explicit foundation contract; consumers SHALL NOT deep-import another feature's private internals. Every owner's public entry SHALL list its exports by name rather than re-export whole modules, so the contract is readable in one place. Only the composition root MAY reach past a provider's public entry, with one further case: a module on the eager startup path MAY import a leaf of a provider whose public entry is a prohibited startup entry, because loading that barrel would pull the provider's whole graph into startup. The interactive session shell SHALL be an application-layer owner under `src/app` that composes the contracts, the vendor-neutral UI foundations, the Pi adapters, and the feature owners, and only composition SHALL import it. Three layer boundaries SHALL hold regardless of the owner dependency graph: contracts import nothing outside their own contract, vendor-neutral UI components import only contracts, and only the Pi adapters and the shipped entry scripts import the pinned Pi packages.
+Each product feature SHALL own its implementation, tests, settings contract, and feature documentation under a recognizable feature name. Cross-feature production imports SHALL use the provider's public entry or an explicit foundation contract; consumers SHALL NOT deep-import another feature's private internals. Every owner's public entry SHALL list its exports by name rather than re-export whole modules, so the contract is readable in one place. Only the composition root MAY reach past a provider's public entry, with one further case: a module on the eager startup path MAY import a leaf of a provider whose public entry is a prohibited startup entry, because loading that barrel would pull the provider's whole graph into startup. The interactive session shell SHALL be an application-layer owner under `src/app` that composes the contracts, the vendor-neutral UI foundations, and the feature owners, and only composition SHALL import it; the shell SHALL receive vendor presentation through ports that composition injects and SHALL NOT import the Pi adapters. Three layer boundaries SHALL hold regardless of the owner dependency graph: contracts import nothing outside their own contract, vendor-neutral UI components import only contracts, and only the Pi adapters and the shipped entry scripts import the pinned Pi packages.
 
 #### Scenario: New feature is introduced
 - **WHEN** a feature adds multiple implementation files or owns settings
@@ -53,6 +53,10 @@ Each product feature SHALL own its implementation, tests, settings contract, and
 #### Scenario: A layer boundary is crossed
 - **WHEN** a contract imports anything outside its own contract, a UI component imports anything but a contract, or a module outside the Pi adapters imports a pinned Pi package
 - **THEN** the architecture check SHALL reject the import even when the owner dependency graph would allow the owners involved
+
+#### Scenario: The shell imports a Pi adapter
+- **WHEN** a module under `src/app` imports any module under `src/integrations/pi`
+- **THEN** the architecture check SHALL reject the import and name the module, with no exemption for the session shell
 
 ### Requirement: Foundation areas remain product-agnostic
 Shared lifecycle, launch-context, release, session-writer-lock, startup, and terminal-cleanup foundations SHALL not import product features or select behavior from Pi identity, extension identity, executable text, arguments, or visible terminal content. A generic `core`, `common`, `utils`, or `misc` area SHALL NOT become an unowned dumping ground.
@@ -77,7 +81,7 @@ A1 SHALL use one repository-level package manifest, lockfile, and dependency ins
 - **THEN** it SHALL write to an ignored runtime/artifact location outside tracked feature source and repository policy SHALL reject accidental inclusion
 
 ### Requirement: Tests prove current contracts without duplicating implementation
-Every retained test SHALL identify a current contract and the smallest independent boundary capable of proving it. Tests SHALL NOT be retained for deleted behavior, historical bug names alone, private implementation shape, duplicated assertions already covered at a stronger boundary, or self-modelled terminal behavior. A validation tier SHALL NOT perform an equivalent complete-repository documentation scan twice or reproduce an equivalent rendering producer/mode/workload matrix solely because separate test files consume different assertions; one authoritative captured result SHALL support all applicable assertions at that boundary.
+Every retained test SHALL identify a current contract and the smallest independent boundary capable of proving it. Tests SHALL NOT be retained for deleted behavior, historical bug names alone, private implementation shape, duplicated assertions already covered at a stronger boundary, or self-modelled terminal behavior. A validation tier SHALL NOT perform an equivalent complete-repository documentation scan twice or reproduce an equivalent rendering producer/mode/workload matrix solely because separate test files consume different assertions; one authoritative captured result SHALL support all applicable assertions at that boundary. A governance test SHALL prove its gate with a violating fixture and a conforming fixture and SHALL NOT assert the wording of documentation, workflow definitions, or project configuration; an invariant about such a file SHALL live in the governance script that owns it. Governance tests SHALL compare repository text with line endings normalised so they pass on every supported checkout.
 
 #### Scenario: Multiple tests prove the same contract
 - **WHEN** two tests exercise the same cause and observable outcome without distinct boundary risk
@@ -98,6 +102,15 @@ Every retained test SHALL identify a current contract and the smallest independe
 #### Scenario: Rendering assertions share one workload result
 - **WHEN** semantic parity, terminal paint, determinism, and damage budgets require the same rendering producer/mode/workload matrix
 - **THEN** the gate SHALL capture that matrix once and SHALL evaluate every applicable assertion from the shared evidence
+
+#### Scenario: A test asserts documentation wording
+- **WHEN** a test under the governance owner asserts that a Markdown document, workflow file, or project configuration contains a sentence
+- **THEN** the baseline audit SHALL remove the test
+- **AND** any invariant it carried SHALL be checked by the owning governance script with a fixture case
+
+#### Scenario: A checkout uses platform line endings
+- **WHEN** governance tests run on a checkout whose text files carry carriage returns
+- **THEN** every retained governance test SHALL pass without modification
 
 ### Requirement: Documentation governance is incremental during development and complete nightly
 Pull-request and local development documentation governance SHALL inspect policy-relevant files that are modified, newly added, or renamed to a new path in the current change. It MAY resolve bounded ownership, export, and dependency metadata needed to determine the changed file's policy obligations, but SHALL NOT scan every unchanged source file as a development prerequisite. A deletion without a modified or new destination SHALL require no documentation-content check. The ordinary fast tier SHALL execute one authoritative changed-file documentation check plus focused fixture-based policy tests, not a second complete-repository baseline scan.
@@ -377,13 +390,19 @@ The architecture gate SHALL measure every TypeScript class under `src/` by metho
 - **THEN** the change SHALL lower the recorded count to the new value
 - **AND** the gate SHALL pass with the lowered entry
 
-### Requirement: Transparent and single-agent scope remain explicit
-The transparent baseline SHALL support one direct full-viewport foreground terminal session and SHALL NOT claim A1-managed arbitrary-CLI tabs, resident terminal surfaces, input routing among internal panes, or visual reconnection. Bare `a1` SHALL remain one directly attached single-agent owned UI per terminal. Multi-agent tabs, resident terminal hosts, split layouts, structured or message-based agent workers, and arbitrary interactive CLI tabs SHALL NOT be reintroduced, and SHALL NOT be reserved as an extension point, without a new approved change that defines their architecture and certification rather than modifying transparent mode or reviving raw relay experiments implicitly.
+### Requirement: Production exports have production consumers
+Every value exported from a production module under `src/` SHALL have an importer under `src/`, `bin/`, or `scripts/` that names it. A value exported only so a test can reach it SHALL instead be private, and the test SHALL prove the behaviour through the owner's public entry or an observable result. The architecture gate SHALL fail naming each export that has no production consumer.
 
-#### Scenario: Product planning requests multiple agents or CLI tabs
-- **WHEN** a feature needs several agents, inactive interactive CLIs, or switchable terminal surfaces inside A1
-- **THEN** planning SHALL introduce a separate approved change for that architecture rather than modifying transparent mode, the single-agent launch, or reactivating raw relay experiments implicitly
+#### Scenario: An export loses its last production consumer
+- **WHEN** a change removes the last production import of an exported symbol
+- **THEN** the architecture gate SHALL fail and name the module and symbol
+- **AND** the change SHALL remove the export or make it private
 
-#### Scenario: Single-agent planning continues
-- **WHEN** an owned UI milestone is planned or implemented
-- **THEN** it SHALL target the single directly attached bare-`a1` process and preserve `a1 pi` as the prerelease Pi comparison
+#### Scenario: An export is an entry, a vendored source, or a type
+- **WHEN** the value is listed by an owner's public entry, a declared entry module, or the product identity entry, lives in a vendored source, or is a type an exported signature names
+- **THEN** the architecture gate SHALL NOT require a production consumer for it
+
+#### Scenario: A test needs an internal value
+- **WHEN** a test would import a constant or helper that production code does not export for its own use
+- **THEN** the test SHALL assert the observable behaviour that value produces instead
+- **AND** the production module SHALL NOT gain an export for the test

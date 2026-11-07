@@ -4,13 +4,13 @@ import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, type
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  CohortStateStore,
-  type CohortState,
+  ReleaseStateStore,
+  type ReleaseState,
   type OrphanReleaseDisposition,
   type ProtectedReleaseInputs,
   type ReleaseCleanupDisposition,
   type ReleaseRecord,
-} from "./cohort-state.js";
+} from "./release-state.js";
 import type { ProductPaths } from "../lifecycle/index.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
 import { RELEASE_MANIFEST_FILENAME } from "./release-store.js";
@@ -91,15 +91,15 @@ interface DiscoveredCleanupInputs {
 }
 
 /**
- * Reconcile age-based retention under the cohort-state lock and durably detach obsolete releases.
+ * Reconcile age-based retention under the release-state lock and durably detach obsolete releases.
  * This operation intentionally reads only manifests and directory metadata, never payload bytes.
  */
 export async function prepareReleaseCleanup(
   dataDir: string,
   _paths?: ProductPaths,
   options: ReleaseCleanupOptions = {},
-): Promise<{ readonly store: CohortStateStore; readonly discovered: DiscoveredCleanupInputs }> {
-  const store = new CohortStateStore(dataDir);
+): Promise<{ readonly store: ReleaseStateStore; readonly discovered: DiscoveredCleanupInputs }> {
+  const store = new ReleaseStateStore(dataDir);
   const discovered = await discoverCleanupInputs(dataDir, store, options);
   const transactionStore = options.transactionStore ?? new UpdateTransactionStore(dataDir);
   await store.reconcileRetention(async () => await protectionInputs(transactionStore, options), discovered.orphans);
@@ -233,7 +233,7 @@ export async function runReleaseCleanupWorker(
   workerOptions: ReleaseCleanupWorkerOptions = {},
 ): Promise<ReleaseCleanupResult> {
   const paths = resolveProductPaths(environment);
-  const store = new CohortStateStore(paths.dataDir);
+  const store = new ReleaseStateStore(paths.dataDir);
   const runId = environment[WORKER_RUN_ID_ENV] ?? randomUUID();
   const now = workerOptions.now ?? Date.now;
   const sleep = workerOptions.sleep ?? (async durationMs => await new Promise(resolvePromise => setTimeout(resolvePromise, durationMs)));
@@ -307,7 +307,7 @@ export async function runReleaseCleanupWorker(
 }
 
 async function collectDisposition(
-  store: CohortStateStore,
+  store: ReleaseStateStore,
   dataDir: string,
   disposition: ReleaseCleanupDisposition,
   options: ReleaseCleanupOptions,
@@ -351,7 +351,7 @@ async function collectDisposition(
   }
 }
 
-function isProtectedDetachedRelease(state: CohortState, inputs: ProtectedReleaseInputs, releaseId: string): boolean {
+function isProtectedDetachedRelease(state: ReleaseState, inputs: ProtectedReleaseInputs, releaseId: string): boolean {
   const selected = [state.references.active, state.references.pending, state.references.approved, state.references.rollback]
     .some(reference => reference === releaseId);
   // Concurrency: a launch may have recorded the same release again after it was detached.
@@ -389,7 +389,7 @@ function transactionReference(transaction: UpdateTransaction | null) {
 
 async function discoverCleanupInputs(
   dataDir: string,
-  store: CohortStateStore,
+  store: ReleaseStateStore,
   options: ReleaseCleanupOptions,
 ): Promise<DiscoveredCleanupInputs> {
   const releaseRoot = resolve(dataDir, "releases");
@@ -496,7 +496,7 @@ async function assertReleaseDirectory(path: string, parent: string, release: Rel
   }
 }
 
-async function removeCertificationEvidence(dataDir: string, release: ReleaseRecord, store: CohortStateStore): Promise<void> {
+async function removeCertificationEvidence(dataDir: string, release: ReleaseRecord, store: ReleaseStateStore): Promise<void> {
   if (release.diagnosticsPath === null) return;
   // Security: the persisted path is historical metadata, not deletion authority. Derive the
   // only permitted target from validated identity so Windows casing changes cannot strand it.
@@ -567,7 +567,7 @@ async function removeAbandonedArtifact(dataDir: string, path: string, operations
 }
 
 async function collectUnreferencedDependencyLayers(
-  store: CohortStateStore,
+  store: ReleaseStateStore,
   dataDir: string,
   maxItems: number,
   options: ReleaseCleanupOptions,
@@ -650,7 +650,7 @@ async function collectUnreferencedDependencyLayers(
 }
 
 async function collectDependencyCertificationRecords(
-  store: CohortStateStore,
+  store: ReleaseStateStore,
   dataDir: string,
   protection: DependencyCertificationProtection,
   maxItems: number,
@@ -698,7 +698,7 @@ async function collectDependencyCertificationRecords(
   return { attempted, completed };
 }
 
-async function protectedCompileCachePaths(dataDir: string, state: CohortState): Promise<readonly string[]> {
+async function protectedCompileCachePaths(dataDir: string, state: ReleaseState): Promise<readonly string[]> {
   const paths: string[] = [];
   for (const release of Object.values(state.releases)) {
     try {
@@ -733,7 +733,7 @@ function sortCleanupDispositions(dispositions: readonly ReleaseCleanupDispositio
     || left.release.releaseId.localeCompare(right.release.releaseId));
 }
 
-function sortArtifacts(artifacts: readonly string[], state: CohortState): string[] {
+function sortArtifacts(artifacts: readonly string[], state: ReleaseState): string[] {
   const attempts = new Map<string, number>();
   for (const diagnostic of state.cleanup.diagnostics) {
     attempts.set(diagnostic.releaseId, (attempts.get(diagnostic.releaseId) ?? 0) + 1);

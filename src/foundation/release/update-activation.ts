@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PRODUCT_TEXT } from "../../product-identity.js";
 import { certifyMaterializedRelease } from "./bootstrap.js";
-import { CohortStateStore } from "./cohort-state.js";
+import { ReleaseStateStore } from "./release-state.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
 import { materializeRelease } from "./release-store.js";
 import { warmMaterializedRelease } from "./warmup.js";
@@ -62,7 +62,7 @@ export type UpdateActivationEvent =
  * its activation entry, and what an updater runs in-process for a tree older than the contract.
  */
 export async function activateInstalledRelease(request: UpdateActivationRequest, callbacks: UpdateActivationCallbacks): Promise<void> {
-  const stateStore = new CohortStateStore(request.dataDir);
+  const stateStore = new ReleaseStateStore(request.dataDir);
   let total = 0;
   let completed = 0;
   const candidate = await materializeRelease(request.packageRoot, request.dataDir, {

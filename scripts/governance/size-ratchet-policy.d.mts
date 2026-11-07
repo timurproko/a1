@@ -16,7 +16,6 @@ export interface SizeBaseline {
 export const SIZE_RATCHET_SCHEMA: "a1-size-ratchet-v1";
 export const SIZE_THRESHOLDS: Readonly<SizeThresholds>;
 export function maskTypeScript(source: string): string;
-export function maskRust(source: string): string;
 export function measureSource(path: string, source: string): {
   classes: Array<{ key: string } & ClassCounts>;
   functions: Array<{ key: string } & FunctionCounts>;

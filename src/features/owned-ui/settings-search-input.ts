@@ -1,6 +1,6 @@
 import type { UiTheme } from "../../ui/components/index.js";
 
-export interface SettingsSearchPointerEvent {
+interface SettingsSearchPointerEvent {
   readonly kind: "press" | "motion" | "release";
   readonly button: number;
   readonly column: number;

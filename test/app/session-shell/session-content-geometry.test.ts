@@ -1,3 +1,5 @@
+import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/session-presenters/presentation.js";
+import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import HeadlessXterm from "@xterm/headless";
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
@@ -61,6 +63,7 @@ function fixture(childRows: number) {
   let runtime: PiTuiRuntimeAdapter | undefined;
   let composed: readonly string[] = [];
   const root = new OwnedUiSessionShellRoot(view, "D:/synthetic", {
+    presentation: PI_SHELL_PRESENTATION, components: PI_SHELL_COMPONENTS,
     getColumns: () => terminal.columns, getRows: () => terminal.rows,
     requestRender: force => runtime?.requestRender(force),
     onViewportFrame: () => {
@@ -108,7 +111,7 @@ function transition(f: ReturnType<typeof fixture>, index: number): void {
     case 3: f.root.update({ ...f.view, lifecycle: "busy", status: { ...f.view.status, workingMessage: "Working" } }); break;
     case 4: f.terminal.input?.("\u001b[<65;1;10M"); break;
     case 5: f.root.update({ ...f.view, lifecycle: "ready" }); break;
-    case 6: f.root.applyTranscriptBlock({ ...f.view.transcript[25]!, revision: index + 2, text: "changed content\n\nmore output" }); break;
+    case 6: f.root.transcript.apply({ ...f.view.transcript[25]!, revision: index + 2, text: "changed content\n\nmore output" }); break;
     case 7: f.terminal.input?.("\u001b[1;5F"); break;
   }
 }
@@ -125,7 +128,7 @@ describe("real fullscreen child content geometry", () => {
     });
     try {
       f.runtime.start();
-      f.root.applyTranscriptBlock(block(1));
+      f.root.transcript.apply(block(1));
       await assertCurrentGrid(f);
       const before = f.root.viewportPresentationEvidence().scrollTop;
       f.terminal.input!("\u001b[<64;1;10M");
@@ -134,13 +137,13 @@ describe("real fullscreen child content geometry", () => {
       expect(f.composed().join("")).toContain("Jump to bottom");
       for (let index = 1; index <= 64; index++) {
         text += `${index}. Личност: Как би описал характера си? Ще ти задам въпроси.\n\n`;
-        f.root.applyTranscriptBlock(block(index + 1));
+        f.root.transcript.apply(block(index + 1));
         if (index % 4 === 0) f.terminal.input!("\u001b[<64;1;10M");
         if (index % 6 === 0) f.terminal.input!("\u001b[<65;1;10M");
         f.root.editor.setText(index % 3 === 0 ? "one\ntwo\nthree" : "");
         await assertCurrentGrid(f);
       }
-      f.root.applyTranscriptBlock(block(66, true));
+      f.root.transcript.apply(block(66, true));
       f.root.noteCompletedAssistantMessage();
       await assertCurrentGrid(f);
       expect(f.composed().join("")).toContain("1 new message");
@@ -154,7 +157,7 @@ describe("real fullscreen child content geometry", () => {
       f.terminal.screen.dispose();
     }
   });
-  it.each([24, 30, 34])("preserves the solo grid at outer height %i with exactly one reserved strip row", async outerRows => {
+  it.each([24, 30, 34])("preserves the session grid at outer height %i with exactly one reserved strip row", async outerRows => {
     setPiAccentColor("purple");
     applyPiTheme("dark", false, "truecolor");
     const f = fixture(outerRows - 1);

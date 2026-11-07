@@ -4,7 +4,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { getPackageDir } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
-import { formatPinnedCommandChangelog, readPinnedCommandChangelog } from "../../../../src/integrations/pi/engine/changelog.js";
+import { readPinnedCommandChangelog } from "../../../../src/integrations/pi/engine/changelog.js";
 
 interface Entry { readonly major: number; readonly minor: number; readonly patch: number; readonly content: string }
 interface PinnedChangelog {
@@ -34,14 +34,21 @@ describe("published changelog command data", () => {
       const path = join(directory, "CHANGELOG.md");
       await writeFile(path, text);
       const entries = pinned.parseChangelog(path);
+      const resource = async (markdown: string) => {
+        const file = join(directory, `changelog-${Math.random().toString(36).slice(2)}.json`);
+        await writeFile(file, JSON.stringify({ data: markdown }));
+        return pathToFileURL(file);
+      };
+      const synthetic = await resource(text);
+      const empty = await resource("# No releases");
       for (const since of [undefined, "3.1.0", "3.2.1", "2.0.0", "", "invalid"]) {
-        expect(formatPinnedCommandChangelog(text, since), String(since)).toBe(expected(entries, since));
+        await expect(readPinnedCommandChangelog(since, synthetic), String(since)).resolves.toBe(expected(entries, since));
       }
-      const complete = formatPinnedCommandChangelog(text);
+      const complete = await readPinnedCommandChangelog(undefined, synthetic);
       expect(complete.indexOf("oldest release")).toBeLessThan(complete.indexOf("older release"));
       expect(complete.indexOf("older release")).toBeLessThan(complete.indexOf("synthetic release"));
-      expect(formatPinnedCommandChangelog("# No releases")).toBe("No changelog entries found.");
-      expect(formatPinnedCommandChangelog("# No releases", "1.0.0")).toBe("");
+      await expect(readPinnedCommandChangelog(undefined, empty)).resolves.toBe("No changelog entries found.");
+      await expect(readPinnedCommandChangelog("1.0.0", empty)).resolves.toBe("");
     } finally { await rm(directory, { recursive: true, force: true }); }
   });
 

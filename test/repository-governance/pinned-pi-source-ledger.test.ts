@@ -110,7 +110,6 @@ describe("pinned Pi source ledger governance", () => {
     expect(owned.filter((record: Record<string, unknown>) => record.upgradeStrategy === "keep-owned").map((record: Record<string, unknown>) => record.localDestination).sort()).toEqual([
       "src/integrations/pi/components/upstream/components/owned-editor.ts",
       "src/integrations/pi/components/upstream/history/text-helpers.ts",
-      "src/integrations/pi/components/upstream/theme/theme-controller.ts",
       "src/integrations/pi/components/upstream/theme/theme.ts",
     ]);
     for (const record of ledger.records) if (record.classification !== "owned-presentation") expect(record.upgradeStrategy, record.id).toBeUndefined();

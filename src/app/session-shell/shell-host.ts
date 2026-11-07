@@ -1,3 +1,4 @@
+import type { TerminalComponentPort, TerminalInputListener, TerminalInputListenerResult, TerminalInputSurfaceKind, TerminalOverlayHandle, TerminalOverlayOptions, TerminalOverlayUnfocusOptions, TerminalPointerSurface, TerminalPort, TerminalPreInputListener, TerminalRuntimeOptions } from "../../contracts/presentation/index.js";
 import type {
   OwnedUiBackgroundSettingsPort,
   OwnedUiPresenterHost,
@@ -5,31 +6,20 @@ import type {
   OwnedUiTerminalHost as OwnedUiTerminalHostContract,
 } from "../../contracts/owned-ui/index.js";
 import type { UiRouteSurface } from "../../ui/apps/contracts.js";
+import type {
+  ShellPresentationPorts,
+  TerminalDamageDecision,
+  TerminalDamageFrameDescriptor,
+  TerminalDamageFrameSafety,
+  TerminalDamagePort,
+  TerminalProgramStatus,
+  TerminalRuntimeFactory,
+  TerminalRuntimePort,
+  TerminalWheelScrollLines,
+} from "../../contracts/presentation/index.js";
 import type { QuitOutroEffect } from "./quit-outro-effects.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
-import { piCanvasBackgroundAnsi } from "../../integrations/pi/components/theme.js";
-import {
-  DamageAwareTerminalAdapter,
-  type PiTuiDamageDecision,
-  type PiTuiDamageFrameDescriptor,
-  type PiTuiDamageFrameSafety,
-} from "../../integrations/pi/tui-runtime/damage-aware-terminal.js";
-import { PiTuiRuntimeAdapter, legacyKeyInput } from "../../integrations/pi/tui-runtime/adapter.js";
-import { classifyPiTuiInput } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
-import type { PiTuiInputSurfaceKind } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
-import type {
-  PiTuiComponentPort,
-  PiTuiInputListener,
-  PiTuiInputListenerResult,
-  PiTuiOverlayHandle,
-  PiTuiOverlayOptions,
-  PiTuiOverlayUnfocusOptions,
-  PiTuiPointerSurface,
-  PiTuiPreInputListener,
-  PiTuiRuntimeAdapterOptions,
-  PiTuiTerminalPort,
-} from "../../integrations/pi/tui-runtime/contracts.js";
 import {
   pinnedLayoutRoot,
   type OwnedUiSessionShellOptions,
@@ -38,17 +28,17 @@ import {
   type PinnedLayoutParts,
 } from "./session-shell-root.js";
 
-type ProgramStatus = Parameters<PiTuiRuntimeAdapter["setProgramStatus"]>[0];
-type WheelScrollLines = Parameters<PiTuiRuntimeAdapter["setWheelScrollLines"]>[0];
+type ProgramStatus = TerminalProgramStatus;
+type WheelScrollLines = TerminalWheelScrollLines;
 
 /** What the terminal host needs from a presenter beyond the neutral contract: the Pi runtime's per-session seams. */
 export interface OwnedUiHostedPresenter extends OwnedUiSessionPresenter {
-  inputCoordinationSurface(): PiTuiInputSurfaceKind;
-  setOverlaySurfaces(surfaces: readonly PiTuiPointerSurface[] | null): void;
+  inputCoordinationSurface(): TerminalInputSurfaceKind;
+  setOverlaySurfaces(surfaces: readonly TerminalPointerSurface[] | null): void;
   noteImmediatePresentation(): void;
   /** The bare-A1 viewport's pre-input routing; returns what the runtime's pre-input listener returns. */
-  handleViewportInput(data: string): PiTuiInputListenerResult | undefined;
-  layoutPart(part: PinnedLayoutPart): PiTuiComponentPort;
+  handleViewportInput(data: string): TerminalInputListenerResult | undefined;
+  layoutPart(part: PinnedLayoutPart): TerminalComponentPort;
   /** Called after the host makes this presenter active, to republish its terminal-wide state. */
   activated(): void;
   /**
@@ -78,9 +68,9 @@ export interface OwnedUiPresenterTerminal extends OwnedUiPresenterHost {
   writeControl(data: string): void;
   hasOverlay(): boolean;
   hasFocusedOverlay(): boolean;
-  showOverlay(component: PiTuiComponentPort, options?: PiTuiOverlayOptions): PiTuiOverlayHandle;
-  addInputListener(listener: PiTuiInputListener): () => void;
-  armFrame(descriptor: PiTuiDamageFrameDescriptor, safety: PiTuiDamageFrameSafety): void;
+  showOverlay(component: TerminalComponentPort, options?: TerminalOverlayOptions): TerminalOverlayHandle;
+  addInputListener(listener: TerminalInputListener): () => void;
+  armFrame(descriptor: TerminalDamageFrameDescriptor, safety: TerminalDamageFrameSafety): void;
   requestHyperlinkCleanup(rows?: readonly number[]): void;
   openRoute(surface: UiRouteSurface, callbacks: OwnedUiRouteCallbacks): { hide(): void };
   beginPresentationHold(): () => void;
@@ -93,7 +83,7 @@ export interface OwnedUiPresenterTerminal extends OwnedUiPresenterHost {
   setWheelScrollLines(lines: WheelScrollLines): void;
 }
 
-export interface OwnedUiRouteCallbacks {
+interface OwnedUiRouteCallbacks {
   /** The route, or the interrupt chord over it, asked to leave A1. */
   exit(): void;
   /** The route closed itself; `rendered` is true when it was ever painted. */
@@ -101,12 +91,13 @@ export interface OwnedUiRouteCallbacks {
 }
 
 export interface OwnedUiTerminalHostOptions {
+  readonly presentation: ShellPresentationPorts;
   /** Bare A1 owns a bounded custom viewport; comparison profiles keep the pinned layout. */
   readonly layout: "pinned" | "custom-viewport";
   readonly mode: "regular" | "fullscreen";
   readonly hardwareCursor: boolean;
   readonly wheelScrollLines?: WheelScrollLines;
-  readonly terminal?: PiTuiTerminalPort;
+  readonly terminal?: TerminalPort;
   readonly input?: OwnedUiShellPresentationOptions["input"];
   readonly backgroundSettings?: OwnedUiBackgroundSettingsPort;
   readonly quitOutro?: OwnedUiShellPresentationOptions["quitOutro"];
@@ -132,6 +123,7 @@ export function sessionTerminalHostOptions(options: OwnedUiSessionShellOptions):
   const customViewport = sessionLayout === "custom-viewport";
   const settings = backend.settings.snapshot();
   return {
+    presentation: options.presenters,
     layout: customViewport ? "custom-viewport" : "pinned",
     // Invariant: bare A1 owns a bounded viewport and therefore always runs on the alternate
     // fullscreen surface. The pinned comparison profiles still honor Pi's mode.
@@ -151,14 +143,15 @@ export function sessionTerminalHostOptions(options: OwnedUiSessionShellOptions):
  * delegates to it, and a presenter switch starts a new presentation epoch so its first frame paints in full.
  */
 export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiHostedPresenter> {
-  readonly runtime: PiTuiRuntimeAdapter;
+  readonly runtime: TerminalRuntimePort;
   readonly #customViewport: boolean;
-  readonly #damageTerminal: DamageAwareTerminalAdapter | null;
+  readonly #runtimeFactory: TerminalRuntimeFactory;
+  readonly #damageTerminal: TerminalDamagePort | null;
   readonly #quitOutro: OwnedUiTerminalHostOptions["quitOutro"];
   readonly #presenters = new Set<OwnedUiHostedPresenter>();
   readonly #overlays = new Map<OwnedUiHostedPresenter, Set<PresenterOverlay>>();
-  readonly #removeViewportPreInput: () => void;
-  readonly #unsubscribeBackground: () => void;
+  // Invariant: one release removes both the viewport pre-input listener and the background subscription.
+  readonly #release: () => void;
   #active: OwnedUiHostedPresenter | null = null;
   #focused = false;
   #pointerReporting = false;
@@ -167,10 +160,11 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
 
   constructor(options: OwnedUiTerminalHostOptions) {
     this.#customViewport = options.layout === "custom-viewport";
+    this.#runtimeFactory = options.presentation.terminalRuntime;
     this.#quitOutro = options.quitOutro;
     const input = options.input;
-    let damageTerminal: DamageAwareTerminalAdapter | undefined;
-    const surface: PiTuiComponentPort = {
+    let damageTerminal: TerminalDamagePort | undefined;
+    const surface: TerminalComponentPort = {
       render: width => this.#active?.render(width) ?? [],
       handleInput: data => this.#active?.handleInput(data),
       invalidate: () => this.#active?.invalidate(),
@@ -179,7 +173,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
         this.#active?.setFocused(focused);
       },
     };
-    const runtimeOptions: PiTuiRuntimeAdapterOptions = {
+    const runtimeOptions: TerminalRuntimeOptions = {
       root: surface,
       mode: options.mode,
       ...(this.#customViewport ? {
@@ -188,8 +182,8 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
         mouse: false,
         consumeUnhandledMouse: true,
         onOverlayGeometry: surfaces => this.#active?.setOverlaySurfaces(surfaces),
-        decorateTerminal: (terminal: PiTuiTerminalPort) => {
-          damageTerminal = new DamageAwareTerminalAdapter(terminal, {
+        decorateTerminal: (terminal: TerminalPort) => {
+          damageTerminal = this.#runtimeFactory.createDamageTerminal(terminal, {
             regionalScroll: process.env.TERM !== "dumb",
             inspectHyperlinks: readVisibleHyperlinks,
             onResize: () => this.#active?.noteImmediatePresentation(),
@@ -199,7 +193,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
         },
         ...(input?.coordination === false ? {} : {
           inputCoordination: {
-            classify: (data: string, focusedOverlay) => classifyPiTuiInput(
+            classify: (data: string, focusedOverlay) => this.#runtimeFactory.classifyInput(
               data,
               focusedOverlay ?? this.#active?.inputCoordinationSurface() ?? "opaque",
             ),
@@ -207,7 +201,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
             ...(input?.scheduler === undefined ? {} : { scheduler: input.scheduler }),
           },
         }),
-      } : { layoutRoot: pinnedLayoutRoot(this.#delegatingLayoutParts()) }),
+      } : { layoutRoot: pinnedLayoutRoot(this.#delegatingLayoutParts(), options.presentation.theme) }),
       ...(input?.onEvent === undefined ? {} : {
         inputDiagnostics: {
           onEvent: input.onEvent,
@@ -218,19 +212,20 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
       hardwareCursor: options.hardwareCursor,
       ...(options.wheelScrollLines === undefined ? {} : { wheelScrollLines: options.wheelScrollLines }),
     };
-    this.runtime = new PiTuiRuntimeAdapter(runtimeOptions);
+    this.runtime = this.#runtimeFactory.createRuntime(runtimeOptions);
     this.#damageTerminal = damageTerminal ?? null;
     const background = this.#customViewport ? options.backgroundSettings : undefined;
-    if (background !== undefined) this.#damageTerminal?.setCanvasBackground(piCanvasBackgroundAnsi(background.snapshot()));
-    this.#unsubscribeBackground = background === undefined || this.#damageTerminal === null ? () => {} : background.onChange(style => {
-      if (this.#damageTerminal?.setCanvasBackground(piCanvasBackgroundAnsi(style))) this.runtime.requestRender(true);
+    if (background !== undefined) this.#damageTerminal?.setCanvasBackground(options.presentation.canvasBackground(background.snapshot()));
+    const unsubscribeBackground = background === undefined || this.#damageTerminal === null ? () => {} : background.onChange(style => {
+      if (this.#damageTerminal?.setCanvasBackground(options.presentation.canvasBackground(style))) this.runtime.requestRender(true);
     });
-    this.#removeViewportPreInput = this.#customViewport
+    const removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => this.#active?.handleViewportInput(data))
       : () => {};
+    this.#release = () => { removeViewportPreInput(); unsubscribeBackground(); };
   }
 
-  get damagePresentationDecision(): PiTuiDamageDecision | null {
+  get damagePresentationDecision(): TerminalDamageDecision | null {
     return this.#damageTerminal?.lastDecision ?? null;
   }
 
@@ -306,8 +301,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     // Invariant: the outro frame is what the terminal shows now, before any cleanup writes.
     const outroFrame = this.#captureQuitOutroFrame();
     attempt(() => this.#setPointerReporting(false, true));
-    attempt(() => this.#removeViewportPreInput());
-    attempt(() => this.#unsubscribeBackground());
+    attempt(() => this.#release());
     const terminal = { mode: this.runtime.mode, columns: this.runtime.viewport().columns };
     const active = this.#active;
     const releases: OwnedUiPresenterRelease[] = [];
@@ -377,7 +371,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     };
   }
 
-  #showOverlay(presenter: OwnedUiHostedPresenter, component: PiTuiComponentPort, options?: PiTuiOverlayOptions): PiTuiOverlayHandle {
+  #showOverlay(presenter: OwnedUiHostedPresenter, component: TerminalComponentPort, options?: TerminalOverlayOptions): TerminalOverlayHandle {
     const owned = this.#overlays.get(presenter) ?? new Set<PresenterOverlay>();
     this.#overlays.set(presenter, owned);
     const overlay = new PresenterOverlay(
@@ -392,7 +386,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
 
   // Invariant: the pinned layout is mounted once; each region renders whichever presenter is active.
   #delegatingLayoutParts(): PinnedLayoutParts {
-    const part = (name: PinnedLayoutPart): PiTuiComponentPort => ({
+    const part = (name: PinnedLayoutPart): TerminalComponentPort => ({
       render: width => this.#active?.layoutPart(name).render(width) ?? [],
       invalidate: () => this.#active?.layoutPart(name).invalidate(),
       handleInput: data => this.#active?.layoutPart(name).handleInput?.(data),
@@ -429,7 +423,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     let armedAt = 0;
     let rendered = false;
     let closed = false;
-    let overlay: PiTuiOverlayHandle | undefined;
+    let overlay: TerminalOverlayHandle | undefined;
     let removeSurfacePreInput = () => {};
     let removeInterruptWatch = () => {};
     const closeSurface = (notify: boolean) => {
@@ -443,7 +437,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     };
     removeInterruptWatch = runtime.addInputListener(data => {
       // Compatibility: a kitty-keyboard child reports Ctrl+C as a CSI-u sequence rather than the byte.
-      if (!attached() || !data.includes(INTERRUPT) && legacyKeyInput(data) !== INTERRUPT) return undefined;
+      if (!attached() || !data.includes(INTERRUPT) && this.#runtimeFactory.legacyKeyInput(data) !== INTERRUPT) return undefined;
       // Protocol: route hosts decide whether one interrupt closes their app. Raw-input forwarding
       // is required because Pi handles Ctrl+C before the fullscreen overlay receives normal input.
       const consumedBySurface = surface.handleInput(INTERRUPT);
@@ -474,7 +468,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     // components see pointer input. Route every mouse report to the owned screen
     // at the pre-input boundary so dropdowns, value hover, and numeric +/- work,
     // and consume even unhandled reports so settings content is never selected.
-    const routeMouse: PiTuiPreInputListener = data => {
+    const routeMouse: TerminalPreInputListener = data => {
       if (!attached()) return undefined;
       const { events, rest } = parseMouseInput(data);
       if (events.length === 0) return undefined;
@@ -485,7 +479,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     };
     removeSurfacePreInput = runtime.addPreInputListener(routeMouse);
     const rows = () => Math.max(1, runtime.viewport().rows);
-    const component: PiTuiComponentPort = {
+    const component: TerminalComponentPort = {
       render: (width: number) => {
         const frame = [...surface.render(Math.max(1, width), rows())];
         rendered = true;
@@ -495,7 +489,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
         const { events, rest } = parseMouseInput(data);
         for (const event of events) surface.handleMouse(event);
         // Invariant: owned screens see legacy key bytes whether the terminal reports legacy or kitty keys.
-        const key = rest.length > 0 ? legacyKeyInput(rest) : "";
+        const key = rest.length > 0 ? this.#runtimeFactory.legacyKeyInput(rest) : "";
         if (key.length > 0) surface.handleInput(key);
         if (surface.isClosed()) {
           closeSurface(true);
@@ -558,7 +552,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
         write: data => this.runtime.writeControl(data),
         ...(capture.settings.canvasBackgroundAnsi === null
           ? {}
-          : { canvasBackgroundAnsi: capture.settings.canvasBackgroundAnsi }),
+          : { canvas: { ansi: capture.settings.canvasBackgroundAnsi, rebase: this.#runtimeFactory.rebaseDefaultBackground } }),
         ...(outro.now === undefined ? {} : { now: outro.now }),
         ...(outro.sleep === undefined ? {} : { sleep: outro.sleep }),
         ...(outro.seed === undefined ? {} : { seed: outro.seed }),
@@ -570,14 +564,14 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
 }
 
 /** An overlay that stays hidden while its presenter is not the active one, whatever the presenter asked for. */
-class PresenterOverlay implements PiTuiOverlayHandle {
+class PresenterOverlay implements TerminalOverlayHandle {
   #requestedHidden = false;
   #hidden = false;
 
-  readonly #handle: PiTuiOverlayHandle;
+  readonly #handle: TerminalOverlayHandle;
   readonly #attached: () => boolean;
   readonly #forget: () => void;
-  constructor(handle: PiTuiOverlayHandle, attached: () => boolean, forget: () => void) {
+  constructor(handle: TerminalOverlayHandle, attached: () => boolean, forget: () => void) {
     this.#handle = handle;
     this.#attached = attached;
     this.#forget = forget;
@@ -604,7 +598,7 @@ class PresenterOverlay implements PiTuiOverlayHandle {
     return this.#hidden || this.#handle.isHidden();
   }
 
-  getBounds(): ReturnType<PiTuiOverlayHandle["getBounds"]> {
+  getBounds(): ReturnType<TerminalOverlayHandle["getBounds"]> {
     return this.#handle.getBounds();
   }
 
@@ -612,7 +606,7 @@ class PresenterOverlay implements PiTuiOverlayHandle {
     if (this.#attached()) this.#handle.focus();
   }
 
-  unfocus(options?: PiTuiOverlayUnfocusOptions): void {
+  unfocus(options?: TerminalOverlayUnfocusOptions): void {
     this.#handle.unfocus(options);
   }
 

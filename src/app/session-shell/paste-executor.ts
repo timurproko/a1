@@ -1,5 +1,5 @@
+import type { OwnedUiShellClipboardContent } from "../../contracts/owned-ui/index.js";
 import { fork, type ChildProcess, type ForkOptions, type SpawnOptions } from "node:child_process";
-import type { PiShellClipboardContent } from "../../integrations/pi/components/shell-shared-facade.js";
 import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import { MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
 import { PASTE_CHUNK_UNITS, PASTE_REQUESTS, PASTE_STOP_MS, PASTE_TEXT_BYTES, pasteFragments, type PasteHelperInput, type PasteHelperOutput, type PreparedPaste, type PasteEvent } from "./paste-protocol.js";
@@ -7,7 +7,7 @@ import type { ClipboardPath } from "./paste-text-preparation.js";
 import { HelperPool } from "./helper-pool.js";
 
 export interface PasteExecutorJob { readonly result: Promise<PreparedPaste>; readonly stopped: Promise<void>; cancel(): void }
-export type PastePhase = (phase: PasteEvent["phase"], bytes?: number) => void;
+type PastePhase = (phase: PasteEvent["phase"], bytes?: number) => void;
 const live = new Set<ChildProcess>();
 const conversionQueue: ChildProcess[] = [];
 let converting: ChildProcess | undefined;
@@ -22,7 +22,7 @@ function permitConversion(): void {
 }
 
 /** Forks one paste helper: no inherited descriptors, JSON IPC only, and its own process group on POSIX. */
-export function forkPasteHelper(helper?: URL): ChildProcess {
+function forkPasteHelper(helper?: URL): ChildProcess {
   const source = new URL(import.meta.url).pathname.endsWith(".ts");
   const entry = helper ?? new URL(source ? "./paste-helper.ts" : "./paste-helper.js", import.meta.url);
   const options: ForkOptions & Pick<SpawnOptions, "windowsHide"> = {
@@ -34,7 +34,7 @@ export function forkPasteHelper(helper?: URL): ChildProcess {
 }
 
 /** Kills a paste helper and everything it spawned, then lets the parent exit without waiting for it. */
-export function stopPasteHelper(child: ChildProcess): void {
+function stopPasteHelper(child: ChildProcess): void {
   // Concurrency: POSIX command fallbacks share this isolated process group; kill descendants too.
   if (process.platform !== "win32" && child.pid !== undefined) {
     try { process.kill(-child.pid, "SIGKILL"); } catch { child.kill("SIGKILL"); }
@@ -48,7 +48,7 @@ export function createPasteHelperPool(helper?: URL, idleMs?: number): HelperPool
 }
 
 /** Streams bounded fragments through a killable child; native/codec/filesystem work never runs on the UI thread. */
-export function startPasteExecutor(content: PiShellClipboardContent | undefined, signal: AbortSignal, phase: PastePhase = () => {}, helper?: URL, pool?: HelperPool): PasteExecutorJob {
+export function startPasteExecutor(content: OwnedUiShellClipboardContent | undefined, signal: AbortSignal, phase: PastePhase = () => {}, helper?: URL, pool?: HelperPool): PasteExecutorJob {
   const tooLarge = content?.kind === "text" && content.text.length > PASTE_TEXT_BYTES;
   if (signal.aborted || live.size >= PASTE_REQUESTS || tooLarge) {
     const result = Promise.reject(new ImageAttachmentError(signal.aborted ? "image-canceled" : tooLarge ? "paste-size" : "paste-busy"));
@@ -171,7 +171,7 @@ export function startPasteExecutor(content: PiShellClipboardContent | undefined,
   return { result, stopped: exit, cancel };
 }
 
-function* sourceMessages(content: PiShellClipboardContent | undefined): Generator<PasteHelperInput> {
+function* sourceMessages(content: OwnedUiShellClipboardContent | undefined): Generator<PasteHelperInput> {
   yield { kind: "begin", source: content?.kind ?? "native", ...(content?.kind === "image" ? { mimeType: content.mimeType } : {}) };
   if (content !== undefined) {
     const data = content.kind === "text" ? content.text : content.data;

@@ -34,7 +34,7 @@ describe("Pi production boundary freeze", () => {
     ],
     [
       "ambient Pi oracle",
-      "src/foundation/transparent-terminal/fixture.ts",
+      "src/foundation/lifecycle/fixture.ts",
       "const executable = options.executable ?? 'pi';",
       "explicit vanilla oracle resolves ambient 'pi'",
     ],

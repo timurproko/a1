@@ -28,6 +28,7 @@ function ownedTheme(): UiTheme {
     highlight: text => piTheme().bg("selectedBg", text),
     disabled: text => `\u001b[2m${piTheme().fg("dim", text)}\u001b[22m`,
     panel: text => text,
+    background: (token, text) => piTheme().bg(token, text),
   };
 }
 

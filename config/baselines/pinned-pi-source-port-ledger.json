@@ -39,8 +39,8 @@
     "assets": 4,
     "classifications": {
       "public-api-reuse": 66,
-      "owned-presentation": 32,
-      "host-adaptation": 33
+      "owned-presentation": 31,
+      "host-adaptation": 34
     },
     "requiredBehaviorIds": 29,
     "coveredBehaviorIds": 29,
@@ -94,7 +94,7 @@
       "lines": 254,
       "sha256": "65540b4788ab6a905d199abdaf50e8367222d9619205baf3d2055ec100d8a5fb",
       "classification": "host-adaptation",
-      "localDestination": "src/integrations/pi/components/shell-components.ts",
+      "localDestination": "src/integrations/pi/components/index.ts",
       "implementationStatus": "adapter-present-conformance-passed",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
       "modifications": "Split startup UI authority across the A1 shell/component adapter while preserving pinned first-time setup, startup notices, resources, and preflight behavior without constructing the stock CLI root.",
@@ -3464,27 +3464,12 @@
       "sourceMap": "modes/interactive/theme/theme-controller.js.map",
       "lines": 254,
       "sha256": "b1ac907ac1ed5e1fbb754d93b42795605ca093cecdcfa3c661b3ed66f48a0d7f",
-      "classification": "owned-presentation",
-      "localDestination": "src/integrations/pi/components/upstream/theme/theme-controller.ts",
-      "implementationStatus": "source-synchronized-port",
+      "classification": "host-adaptation",
+      "localDestination": "src/integrations/pi/components/upstream/theme/theme.ts",
+      "implementationStatus": "declined-not-adopted",
       "attribution": "MIT; preserve upstream repository, commit, license, and local modifications when copied or adapted.",
-      "modifications": "Source-synchronized controller port: renamed owner class, injected dependency-free settings/runtime ports, remapped private theme helpers to the public-backed A1 theme adapter, and added explicit disposal.",
-      "upgradeStrategy": "keep-owned",
-      "localSha256": "b0ebe43e498c8d9374af7abdcc6213be1f33f69b2a91a109c915c1364bf3b185",
-      "approvedDeviations": [
-        {
-          "id": "theme-controller-owned-boundaries",
-          "reason": "Replace private SettingsManager/theme-module coupling with public theme APIs and A1-owned runtime/settings ports.",
-          "upstreamBehavior": "Theme initialization, auto detection, preview, switching, render invalidation, and terminal color-scheme synchronization remain ordered as pinned.",
-          "acceptanceTest": "test/integrations/pi/components/pinned-theme-parity.test.ts"
-        },
-        {
-          "id": "theme-controller-explicit-disposal",
-          "reason": "A1 lifecycle ownership requires explicit listener disposal instead of relying on stock InteractiveMode teardown.",
-          "upstreamBehavior": "The terminal color-scheme listener and automatic notifications are released when the owned shell stops.",
-          "acceptanceTest": "test/integrations/pi/components/pinned-theme-parity.test.ts"
-        }
-      ],
+      "modifications": "Declined the interactive theme controller; A1 applies its configured theme once at startup through the owned theme adapter, and the copied controller had no production importer, so it was deleted.",
+      "approvedDeviations": [],
       "behaviorCategories": [
         "startup-composition",
         "stateful-components",

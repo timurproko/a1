@@ -1,5 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
-import { createPiShellLazySelectorLoader } from "../../../../src/integrations/pi/components/lazy-selectors.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const thinkingOptions = {
   currentLevel: "medium" as const,
@@ -8,30 +7,32 @@ const thinkingOptions = {
   onCancel: () => {},
 };
 
+async function loadSelectors() {
+  return (await import("../../../../src/integrations/pi/components/lazy-selectors.js")).piShellLazySelectors;
+}
+
+afterEach(() => {
+  vi.doUnmock("../../../../src/integrations/pi/components/thinking-selector-dialog.js");
+  vi.resetModules();
+});
+
 describe("lazy selector modules", () => {
-  it("shares fulfilled and in-flight preparation across callers", async () => {
-    const thinking = vi.fn(() => import("../../../../src/integrations/pi/components/thinking-selector-dialog.js"));
-    const tree = vi.fn(() => import("../../../../src/integrations/pi/components/upstream/components/tree-selector.js"));
-    const loader = createPiShellLazySelectorLoader({ thinking, tree });
-
-    await Promise.all([loader.prepare(), loader.prepare(), loader.prepare()]);
-    await loader.prepare();
-    const component = await loader.createThinking(thinkingOptions);
-
+  it("prepares idempotently across concurrent callers and then builds the selector", async () => {
+    const selectors = await loadSelectors();
+    await Promise.all([selectors.prepare(), selectors.prepare(), selectors.prepare()]);
+    await selectors.prepare();
+    const component = await selectors.createThinking(thinkingOptions);
     expect(component.render(80).join("\n")).toContain("Thinking Level");
-    expect(thinking).toHaveBeenCalledTimes(1);
-    expect(tree).toHaveBeenCalledTimes(1);
   });
 
-  it("observes background rejection and reuses it for explicit route recovery", async () => {
+  it("observes a background module failure and reuses it each time the route opens", async () => {
     const failure = new Error("selector module failed");
-    const thinking = vi.fn(async () => { throw failure; });
-    const tree = vi.fn(() => import("../../../../src/integrations/pi/components/upstream/components/tree-selector.js"));
-    const loader = createPiShellLazySelectorLoader({ thinking, tree });
-
-    await expect(loader.prepare()).resolves.toBeUndefined();
-    await expect(loader.createThinking(thinkingOptions)).rejects.toBe(failure);
-    expect(thinking).toHaveBeenCalledTimes(1);
-    expect(tree).toHaveBeenCalledTimes(1);
+    vi.resetModules();
+    vi.doMock("../../../../src/integrations/pi/components/thinking-selector-dialog.js", () => { throw failure; });
+    const selectors = await loadSelectors();
+    await expect(selectors.prepare()).resolves.toBeUndefined();
+    const first = await selectors.createThinking(thinkingOptions).then(() => null, (error: unknown) => error);
+    expect(first).toBeInstanceOf(Error);
+    await expect(selectors.createThinking(thinkingOptions)).rejects.toBe(first);
   });
 });

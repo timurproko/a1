@@ -535,7 +535,7 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
     terminal.input(`\u001b[<35;${firstColumn};${firstRowIndex + 1}M`);
     shell.runtime.renderNow();
     const redrawsBeforeShift = shell.runtime.fullRedraws;
-    shell.root.appendWorkflowStatus("shift link away ".repeat(300));
+    shell.root.workflow.appendStatus("shift link away ".repeat(300));
     shell.runtime.requestRender();
     shell.runtime.renderNow();
     shell.runtime.renderNow();

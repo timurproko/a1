@@ -1,0 +1,11 @@
+# Every text file is checked out with LF on every platform, so hash ledgers,
+# generated baselines, and text comparisons agree across checkouts.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.tgz binary

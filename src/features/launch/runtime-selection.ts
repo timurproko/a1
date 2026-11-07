@@ -9,11 +9,11 @@ export type OwnedUiProfileId = LaunchProfileId;
 export interface InteractiveRuntimeSelection {
   readonly kind: "owned-ui";
   readonly profileId: OwnedUiProfileId;
-  readonly ownedSurfaces: "on" | "off";
+  readonly productMode: "bare" | "comparison";
 }
 
 export interface InteractiveRuntimeRunners {
-  readonly ownedUi: (profileId: OwnedUiProfileId, ownedSurfaces: "on" | "off") => Promise<number>;
+  readonly ownedUi: (profileId: OwnedUiProfileId, productMode: "bare" | "comparison") => Promise<number>;
 }
 
 export function selectInteractiveRuntime(profileId: string): InteractiveRuntimeSelection {
@@ -21,7 +21,7 @@ export function selectInteractiveRuntime(profileId: string): InteractiveRuntimeS
   return Object.freeze({
     kind: "owned-ui",
     profileId,
-    ownedSurfaces: profileId === "a1" ? "on" : "off",
+    productMode: profileId === "a1" ? "bare" : "comparison",
   });
 }
 
@@ -30,5 +30,5 @@ export async function runSelectedInteractiveRuntime(
   runners: InteractiveRuntimeRunners,
 ): Promise<number> {
   const selection = selectInteractiveRuntime(profileId);
-  return await runners.ownedUi(selection.profileId, selection.ownedSurfaces);
+  return await runners.ownedUi(selection.profileId, selection.productMode);
 }

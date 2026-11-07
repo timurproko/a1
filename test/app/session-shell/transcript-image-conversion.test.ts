@@ -62,18 +62,18 @@ describe("transcript image conversion lifetime", () => {
   it("replaces a converted JPEG with current PNG bytes on the same invocation", async () => {
     const value = await fixture();
     await value.emit(update([image(255, "image/jpeg")]));
-    const mounted = value.shell.root.transcriptComponent("tool-image")!;
+    const mounted = value.shell.root.transcript.component("tool-image")!;
     await vi.waitFor(() => expect(kittyData(mounted.render(80))).toHaveLength(1));
     const replacement = image(0, "image/png");
     await value.emit(update([replacement]));
-    expect(value.shell.root.transcriptComponent("tool-image")).toBe(mounted);
+    expect(value.shell.root.transcript.component("tool-image")).toBe(mounted);
     expect(kittyData(mounted.render(80))).toEqual([replacement.data]);
   });
 
   it("matches a fresh independent pinned renderer after JPEG replacement", async () => {
     const value = await fixture();
     await value.emit(update([image(255, "image/jpeg")]));
-    const mounted = value.shell.root.transcriptComponent("tool-image")!;
+    const mounted = value.shell.root.transcript.component("tool-image")!;
     await vi.waitFor(() => expect(kittyData(mounted.render(80))).toHaveLength(1));
     const replacement = image(0, "image/jpeg");
     const reference = pinned();
@@ -91,7 +91,7 @@ describe("transcript image conversion lifetime", () => {
     const reference = pinned();
     reference.updateResult({ content, isError: false }, true);
     await value.emit(update(content));
-    const mounted = value.shell.root.transcriptComponent("tool-image")!;
+    const mounted = value.shell.root.transcript.component("tool-image")!;
     await vi.waitFor(() => {
       expect(kittyData(reference.render(80))).toHaveLength(1);
       expect(kittyData(mounted.render(80))).toEqual(kittyData(reference.render(80)));
@@ -103,7 +103,7 @@ describe("transcript image conversion lifetime", () => {
     setCapabilities({ ...getCapabilities(), images: protocol });
     const content = [image(255, "image/jpeg")];
     await value.emit(update(content));
-    const mounted = value.shell.root.transcriptComponent("tool-image")!;
+    const mounted = value.shell.root.transcript.component("tool-image")!;
     const reference = pinned();
     reference.markExecutionStarted(); reference.setArgsComplete();
     reference.updateResult({ content, isError: false }, true);
@@ -124,7 +124,7 @@ describe("transcript image conversion lifetime", () => {
     const content = [image(255, "image/jpeg")];
     await value.emit({ type: "tool_execution_end", toolCallId: "image", toolName: "unknown", isError: false, result: { content } });
     const revision = value.backend.session.view().transcript.at(-1)!.revision;
-    await vi.waitFor(() => expect(value.shell.root.transcriptComponent("tool-image")!.presentationRevision).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(value.shell.root.transcript.component("tool-image")!.presentationRevision).toBeGreaterThan(0));
     await vi.waitFor(() => expect(kittyData(value.terminal.writes.map(write => write.data)).length).toBeGreaterThan(0));
     expect(value.backend.session.view().transcript.at(-1)!.revision).toBe(revision);
   });
@@ -133,7 +133,7 @@ describe("transcript image conversion lifetime", () => {
     const value = await fixture();
     await value.emit({ type: "tool_execution_end", toolCallId: "image", toolName: "unknown", isError: false,
       result: { content: [{ type: "text", text: "UNAFFECTED_RESULT" }, { type: "image", mimeType: "image/jpeg", data: "AQID" }] } });
-    const mounted = value.shell.root.transcriptComponent("tool-image")!;
+    const mounted = value.shell.root.transcript.component("tool-image")!;
     await vi.waitFor(() => {
       const text = mounted.render(80).map(stripAnsi).join("\n");
       expect(text).toContain("UNAFFECTED_RESULT");

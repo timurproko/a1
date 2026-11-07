@@ -1,8 +1,5 @@
+import type { OwnedUiShellClipboardContent, OwnedUiShellEditorTextRange } from "../../contracts/owned-ui/index.js";
 import { randomBytes } from "node:crypto";
-import type {
-  PiShellClipboardContent,
-  PiShellEditorTextRange,
-} from "../../integrations/pi/components/shell-shared-facade.js";
 import { canonicalizeClipboardImage } from "./clipboard-image.js";
 import {
   assertImageEncodedSize,
@@ -20,7 +17,7 @@ import type { ClipboardPath } from "./paste-types.js";
 import { PastePreparationClient, type PastePreparationClientOptions, type PreparedPasteJob } from "./paste-preparation-client.js";
 import type { PasteEvent, PasteSource, PreparedPaste } from "./paste-protocol.js";
 
-export interface PromptImageAttachment {
+interface PromptImageAttachment {
   readonly type: "image";
   readonly data: string;
   readonly mimeType: string;
@@ -99,7 +96,7 @@ export class PromptChipStore {
 
   beginPaste(
     currentText: string,
-    read: ((signal: AbortSignal) => Promise<PiShellClipboardContent | null>) | PasteSource,
+    read: ((signal: AbortSignal) => Promise<OwnedUiShellClipboardContent | null>) | PasteSource,
     onError: (error: unknown) => void,
     onImage: () => void = () => {},
   ): { marker: string; result: Promise<string>; complete?(): void; isCurrent?(): boolean } {
@@ -274,7 +271,7 @@ export class PromptChipStore {
     return tag;
   }
 
-  transformPastedContent(content: PiShellClipboardContent, currentText = ""): string {
+  transformPastedContent(content: OwnedUiShellClipboardContent, currentText = ""): string {
     if (content.kind === "image") {
       assertImageEncodedSize(content.data);
       const image = canonicalizeClipboardImage(content);
@@ -331,8 +328,8 @@ export class PromptChipStore {
   }
 
   /** Hide provisional clipboard identities until the read identifies an actual image. */
-  hiddenRanges(line: string): readonly PiShellEditorTextRange[] {
-    const ranges: PiShellEditorTextRange[] = [];
+  hiddenRanges(line: string): readonly OwnedUiShellEditorTextRange[] {
+    const ranges: OwnedUiShellEditorTextRange[] = [];
     for (const entry of this.#pending.values()) {
       if (entry.kind === "image") continue;
       let from = 0;
@@ -344,13 +341,13 @@ export class PromptChipStore {
     return ranges.sort((left, right) => left.start - right.start);
   }
 
-  atomicRanges(line: string): readonly PiShellEditorTextRange[] {
+  atomicRanges(line: string): readonly OwnedUiShellEditorTextRange[] {
     return canonicalPromptChipMatches(line)
       .filter(match => !match.text.startsWith("[paste #") || this.#chips.has(match.text))
       .map(match => ({ start: match.start, end: match.end }));
   }
 
-  unsentRanges(line: string): readonly PiShellEditorTextRange[] {
+  unsentRanges(line: string): readonly OwnedUiShellEditorTextRange[] {
     return canonicalPromptChipMatches(line)
       .filter(match => this.#countRejectedImages.has(match.text))
       .map(match => ({ start: match.start, end: match.end }));

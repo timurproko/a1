@@ -1,6 +1,5 @@
 import type { OwnedUiBackgroundStyle, UiAccentColor } from "../../contracts/owned-ui/index.js";
 
-export const OWNED_UI_SETTINGS_VERSION = 21;
 const UI_ACCENT_COLOR_CHOICES = Object.freeze([
   "blue", "purple", "cyan", "green", "orange", "pink",
 ] as const satisfies readonly UiAccentColor[]);
@@ -37,10 +36,10 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     id: "updateCheck",
     label: "Update",
     section: GENERIC_SECTION,
-    description: "Auto checks the running channel every 15 minutes while open and installs verified updates silently, then shows Update installed, restart to update; the next start runs it. No leaves updates manual. Applies on next start.",
+    description: "Auto checks the running channel every 15 minutes while open and installs verified updates silently, then shows Update installed, restart to update; the next start runs it. Manual leaves updating to you (a1 update). Applies on next start.",
     application: "restart",
     defaultValue: "auto",
-    allowedValues: Object.freeze(["auto", "no"] as const),
+    allowedValues: Object.freeze(["auto", "manual"] as const),
   }),
   accentColor: Object.freeze({
     id: "accentColor",

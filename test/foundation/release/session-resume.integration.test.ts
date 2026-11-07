@@ -7,7 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { readPinnedPiIdentity } from "../../../scripts/governance/pinned-pi-identity.mjs";
 import { resolveProductPaths } from "../../../src/foundation/lifecycle/index.js";
 import {
-  CohortStateStore,
+  ReleaseStateStore,
   certifyMaterializedRelease,
   materializeRelease,
 } from "../../../src/foundation/release/index.js";
@@ -223,7 +223,7 @@ async function prepareExactCandidate(): Promise<void> {
   candidatePreparation ??= phases.run("prepare-candidate-release", async () => {
     const paths = resolveProductPaths(environment);
     const release = await materializeRelease(extracted.packageRoot, paths.dataDir);
-    const state = new CohortStateStore(paths.dataDir);
+    const state = new ReleaseStateStore(paths.dataDir);
     await state.recordCandidate(release);
     const diagnosticsPath = await certifyMaterializedRelease(release, paths.dataDir);
     await state.approve(release.releaseId, diagnosticsPath);

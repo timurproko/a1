@@ -6,7 +6,6 @@ import {
   SIZE_RATCHET_SCHEMA,
   SIZE_THRESHOLDS,
   inspectSizeRatchet,
-  maskRust,
   maskTypeScript,
   measureSizeRatchet,
   measureSource,
@@ -52,41 +51,19 @@ describe("size ratchet scanner", () => {
     expect(measureSource("src/shape.ts", source).classes).toEqual([{ key: "src/shape.ts::Shape", methods: 3, fields: 1 }]);
   });
 
-  it("ignores braces inside Rust strings, raw strings, characters, and nested comments, and keeps lifetimes", () => {
-    const source = [
-      "/* outer /* { */ } */",
-      "struct Holder<'a> { name: &'a str }",
-      "impl<'a> Display for Holder<'a> {",
-      "    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {",
-      "        let open = '{';",
-      "        let close = b'}';",
-      "        write!(f, \"{}}}\", r#\"}\"{\"#)",
-      "    }",
-      "}",
-      "#[cfg(test)]",
-      "mod tests {",
-      "    fn hidden() {}",
-      "}",
-    ].join("\n");
-    expect(maskRust(source)).not.toContain("'{'");
-    expect(measureSource("native/crate/src/lib.rs", source).functions).toEqual([{ key: "native/crate/src/lib.rs::Holder::fmt", lines: 5 }]);
-  });
-
   it("measures inclusive function lines, skips bodiless declarations, and disambiguates repeated names", () => {
     const source = [
-      "trait Shape { fn area(&self) -> u32; }",
-      "#[cfg(windows)]",
-      "fn probe() -> bool {",
-      "    true",
+      "export function area(): number;",
+      "export function probe(): boolean {",
+      "  return true;",
       "}",
-      "#[cfg(not(windows))]",
-      "fn probe() -> bool {",
-      "    false",
+      "export function probe(): boolean {",
+      "  return false;",
       "}",
     ].join("\n");
-    expect(measureSource("native/crate/src/lib.rs", source).functions).toEqual([
-      { key: "native/crate/src/lib.rs::probe", lines: 3 },
-      { key: "native/crate/src/lib.rs::probe#2", lines: 3 },
+    expect(measureSource("src/shape.ts", source).functions).toEqual([
+      { key: "src/shape.ts::probe", lines: 3 },
+      { key: "src/shape.ts::probe#2", lines: 3 },
     ]);
   });
 
@@ -101,7 +78,7 @@ describe("size ratchet gate", () => {
     roots.push(root);
     await put(root, "src/wide.ts", typescriptClass(22, 2));
     await put(root, "src/integrations/pi/components/upstream/vendored.ts", typescriptClass(40, 40));
-    await put(root, "native/crate/src/lib.rs", `pub fn long() {\n    let mut value = 0;\n${body(110)}\n}\n`);
+    await put(root, "src/long.ts", `export function long(): number {\n  let value = 0;\n${body(110)}\n}\n`);
     return root;
   }
 
@@ -109,7 +86,7 @@ describe("size ratchet gate", () => {
     const measured = await measureSizeRatchet(await fixture());
     expect(measured).toEqual({
       classes: { "src/wide.ts::Wide": { methods: 22, fields: 2 } },
-      functions: { "native/crate/src/lib.rs::long": { lines: 113 } },
+      functions: { "src/long.ts::long": { lines: 113 } },
       errors: [],
     });
   });
@@ -121,7 +98,7 @@ describe("size ratchet gate", () => {
 
   it("fails when a recorded count grows", async () => {
     const measured = await measureSizeRatchet(await fixture());
-    const recorded = baseline({ "src/wide.ts::Wide": { methods: 21, fields: 2 } }, { "native/crate/src/lib.rs::long": { lines: 113 } });
+    const recorded = baseline({ "src/wide.ts::Wide": { methods: 21, fields: 2 } }, { "src/long.ts::long": { lines: 113 } });
     expect(inspectSizeRatchet(measured, recorded)).toEqual(["src/wide.ts::Wide: methods grew from 21 to 22; the size ratchet only allows shrinking"]);
   });
 
@@ -129,7 +106,7 @@ describe("size ratchet gate", () => {
     const measured = await measureSizeRatchet(await fixture());
     const recorded = baseline({ "src/wide.ts::Wide": { methods: 22, fields: 2 } });
     expect(inspectSizeRatchet(measured, recorded)).toEqual([
-      "native/crate/src/lib.rs::long: new oversized function (lines 113) exceeds the size thresholds; split it",
+      "src/long.ts::long: new oversized function (lines 113) exceeds the size thresholds; split it",
     ]);
   });
 
@@ -137,7 +114,7 @@ describe("size ratchet gate", () => {
     const measured = await measureSizeRatchet(await fixture());
     const recorded = baseline(
       { "src/wide.ts::Wide": { methods: 30, fields: 2 }, "src/gone.ts::Gone": { methods: 25, fields: 0 } },
-      { "native/crate/src/lib.rs::long": { lines: 113 } },
+      { "src/long.ts::long": { lines: 113 } },
     );
     expect(inspectSizeRatchet(measured, recorded)).toEqual([
       "src/wide.ts::Wide: methods shrank to 22; lower the entry with node scripts/governance/update-size-ratchet.mjs",

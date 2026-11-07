@@ -157,8 +157,6 @@
           "kind": "class",
           "hash": "044a0140649e748f272f2d98168da538ed26919f3efd9a4e2a2e1beb2baac40a",
           "consumers": [
-            "src/integrations/pi/components/components.ts",
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -924,7 +922,6 @@
           "kind": "class",
           "hash": "28f38c59e96228d11c6f911c2af92d8163694cc860f21317b41efd6dcf1989cf",
           "consumers": [
-            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/models-dialog.ts",
             "src/integrations/pi/components/share-operation-dialog.ts",
             "src/integrations/pi/components/shell-presenters-info.ts",
@@ -1131,7 +1128,6 @@
           "kind": "class",
           "hash": "b4a845b4055a50486312a5b2e4b073b9c494d00d77921ed5e46163c1baba2361",
           "consumers": [
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -1445,7 +1441,6 @@
           "kind": "function",
           "hash": "84347baa11a434652cc7aeabc49b81ab1e9a0b9480b776948d7ce9becbdff747",
           "consumers": [
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -1635,7 +1630,6 @@
           "kind": "class",
           "hash": "d7750e65219348610964f65c32b082b5facdb046b23ff981f130e5e7e857297c",
           "consumers": [
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -1851,7 +1845,6 @@
           "kind": "class",
           "hash": "4c1f0e018c76f2bc2fa7c5f9ba517998732759f45694ebc01c0773514505d671",
           "consumers": [
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -2580,7 +2573,6 @@
           "kind": "class",
           "hash": "fa4401952bd0b01c86b15ef0a0c5c14fec8f94a241de988cfc35a626791ed1d9",
           "consumers": [
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -2654,7 +2646,6 @@
           "hash": "0cbe982cb8c91a30e212cb043a6d54ecb95d50756e68ad8ba1cf5a62723c248c",
           "consumers": [
             "src/integrations/pi/components/upstream/components/mermaid.ts",
-            "src/integrations/pi/components/upstream/theme/theme-controller.ts",
             "src/integrations/pi/components/upstream/theme/theme.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -2684,7 +2675,6 @@
           "kind": "class",
           "hash": "e0cef6f2e5cc79b42ffbdd2b27befe82e0440518419ab08c5be8adc6fcbb10da",
           "consumers": [
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -2718,7 +2708,6 @@
           "kind": "class",
           "hash": "3ddede1ee2ec9090e36c87de575f83d2b260ae52e1cf1679514c8ee0ebe7b4e0",
           "consumers": [
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/thinking-selector-dialog.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -2754,8 +2743,6 @@
           "kind": "class",
           "hash": "39ce2e731dc33fdbb961f4334f6a0a2ed8cb19a3c8adcdc2275315790ac96e8e",
           "consumers": [
-            "src/integrations/pi/components/components.ts",
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/startup-public.ts"
           ]
         },
@@ -2958,8 +2945,6 @@
           "kind": "class",
           "hash": "9f602843e29ca32cda614b0579bc1171767179eeea77be3c3041e712b08f64e4",
           "consumers": [
-            "src/integrations/pi/components/components.ts",
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/shell-presenters-transcript.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -2969,7 +2954,6 @@
           "kind": "class",
           "hash": "8f64d2218a94df3886c738701c0a73d87969f0ced64face6599a41b6adaf8d9e",
           "consumers": [
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/shell-selectors-dialogs.ts",
             "src/integrations/pi/startup-public.ts"
           ]
@@ -2979,7 +2963,6 @@
           "kind": "const",
           "hash": "68977ce8019809d393ded6c635ec1728b4b1797fa8926929d138a755c6f8b5f3",
           "consumers": [
-            "src/integrations/pi/components/conformance.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/engine/conformance.ts",
             "src/integrations/pi/engine/session-runtime.ts",
@@ -3135,7 +3118,6 @@
           "kind": "class",
           "hash": "9b99c0d166f012df02fbfeb5b19c4b07459daa57770e502d6497fbf100ecac82",
           "consumers": [
-            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/share-operation-dialog.ts"
           ]
         },
@@ -3674,7 +3656,6 @@
           "kind": "type",
           "hash": "172b842c86a11a1f11628e0f6b9006b9edc658edadfae95c7300960a913dc100",
           "consumers": [
-            "src/integrations/pi/components/shell-presenters-info.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/adjacent/core/keybindings.ts"
           ]
@@ -3907,8 +3888,7 @@
           "hash": "03dab00d02f38af98cfbf13fbe6ee26fd14cfc0b209cc2a278d82b22442139a6",
           "consumers": [
             "src/integrations/pi/components/upstream/program-status-reporter.ts",
-            "src/integrations/pi/tui-runtime/adapter.ts",
-            "src/integrations/pi/tui-runtime/contracts.ts"
+            "src/integrations/pi/tui-runtime/adapter.ts"
           ]
         },
         {
@@ -4319,7 +4299,6 @@
           "hash": "52d2d32c396d513b18cde72f1e45718baae8d489e7fce12e86a2169281f9631e",
           "consumers": [
             "src/integrations/pi/components/history-editor-loader.ts",
-            "src/integrations/pi/components/modal-frame.ts",
             "src/integrations/pi/components/shell-footer-status.ts",
             "src/integrations/pi/components/shell-shared-facade.ts",
             "src/integrations/pi/components/upstream/components/countdown-timer.ts",
@@ -4468,8 +4447,7 @@
           "kind": "type",
           "hash": "7ad2df3118c95062c50a2af9fadba0dcd141a23d94ff6882e8981c0f2ff001d1",
           "consumers": [
-            "src/integrations/pi/tui-runtime/adapter.ts",
-            "src/integrations/pi/tui-runtime/contracts.ts"
+            "src/integrations/pi/tui-runtime/adapter.ts"
           ]
         },
         {

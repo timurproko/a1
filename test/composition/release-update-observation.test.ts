@@ -11,7 +11,7 @@ vi.mock("../../src/foundation/release/automatic-update.js", () => ({
 const active: { stop(): void }[] = [];
 afterEach(() => { for (const observer of active.splice(0)) observer.stop(); automatic.request.mockReset(); });
 const release: AvailableRelease = { version: "0.3.1", channel: "stable", command: "a1 update", changelogUrl: null };
-function setup(mode: "auto" | "no", packageVersion = "0.3.0") {
+function setup(mode: "auto" | "manual", packageVersion = "0.3.0") {
   const announced = vi.fn();
   const checks: StartupReleaseCheckOptions[] = [];
   const options = {
@@ -63,8 +63,8 @@ describe("update readiness", () => {
     await new Promise(resolve => setImmediate(resolve));
     expect(fixture.announced).not.toHaveBeenCalled();
   });
-  it("leaves updates manual in No", async () => {
-    const fixture = setup("no"); fixture.observer.start();
+  it("leaves updates to the user in Manual", async () => {
+    const fixture = setup("manual"); fixture.observer.start();
     await vi.waitFor(() => expect(fixture.checks).toHaveLength(1));
     await new Promise(resolve => setImmediate(resolve));
     expect(automatic.request).not.toHaveBeenCalled();

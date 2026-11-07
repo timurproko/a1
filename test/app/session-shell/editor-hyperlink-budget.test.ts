@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { EditorHyperlinkBudget, EDITOR_HYPERLINK_METADATA_BYTES } from "../../../src/app/session-shell/editor-hyperlink-budget.js";
+import { EditorHyperlinkBudget } from "../../../src/app/session-shell/editor-hyperlink-budget.js";
 
 import { PromptChipStore } from "../../../src/app/session-shell/prompt-chips.js";
 
@@ -10,18 +10,18 @@ describe("owned editor hyperlink metadata budget", () => {
   it("accounts exact opening, closing, and cleanup bytes before construction", () => {
     const budget = new EditorHyperlinkBudget();
     expect(budget.takeCleanup()).toBe(true);
-    expect(budget.take("x".repeat(EDITOR_HYPERLINK_METADATA_BYTES - framingBytes))).toBe(true);
+    expect(budget.take("x".repeat((64 * 1024) - framingBytes))).toBe(true);
     expect(budget.takeCleanup()).toBe(false);
     expect(budget.take("x")).toBe(false);
     budget.reset();
     expect(budget.takeCleanup()).toBe(true);
-    expect(budget.take("x".repeat(EDITOR_HYPERLINK_METADATA_BYTES - framingBytes + 1))).toBe(false);
+    expect(budget.take("x".repeat((64 * 1024) - framingBytes + 1))).toBe(false);
     expect(budget.take("https://example.com/")).toBe(true);
   });
 
   it("uses UTF-8 byte limits for multibyte and replacement-surrogate targets", () => {
     const budget = new EditorHyperlinkBudget();
-    const available = EDITOR_HYPERLINK_METADATA_BYTES - framingBytes;
+    const available = (64 * 1024) - framingBytes;
     const target = "界".repeat(Math.floor(available / 3)) + "a".repeat(available % 3);
     expect(budget.takeCleanup()).toBe(true);
     expect(budget.take(target + "\ud800")).toBe(false);

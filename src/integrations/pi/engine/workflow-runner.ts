@@ -42,7 +42,7 @@ type PiWorkflowModel = ReturnType<PiRuntimeApi["services"]["modelRuntime"]["getA
 /** How many workflows and engine commands may be admitted together before new work is rejected. */
 const MAX_PENDING_WORK = 32;
 
-export interface PiWorkflowRunnerOptions {
+interface PiWorkflowRunnerOptions {
   readonly agentDir: string;
   readonly host: PiWorkflowHost;
   readonly contexts: PiWorkflowContexts;

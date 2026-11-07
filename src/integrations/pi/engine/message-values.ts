@@ -40,7 +40,7 @@ export function sameBlockContent(left: OwnedUiTranscriptBlock, right: OwnedUiTra
     && sameValue(left.imageReferences ?? [], right.imageReferences ?? []);
 }
 
-export function sameValue(left: unknown, right: unknown): boolean {
+function sameValue(left: unknown, right: unknown): boolean {
   if (left === right) return true;
   if (typeof left !== typeof right || left === null || right === null) return false;
   if (Array.isArray(left) || Array.isArray(right)) {

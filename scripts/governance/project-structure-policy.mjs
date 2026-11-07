@@ -7,7 +7,7 @@ export const PROJECT_OWNERS = Object.freeze({
   composition: owner("composition", "entry", "src/composition", "test/composition", ["agent-engine-contracts", "presentation-contracts", "owned-ui-contracts", "owned-ui-settings", "lifecycle", "release", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "pi-session-presenters", "session-shell", "ui-apps", "ui-components", "owned-ui", "prompt-history", "prompt-suggestions", "launch"]),
   "session-shell": owner("session-shell", "app", "src/app/session-shell", "test/app/session-shell", [
     "owned-ui-contracts", "agent-engine-contracts", "presentation-contracts", "ui-components", "ui-apps", "owned-ui-settings",
-    "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter", "terminal-cleanup", "owned-ui", "prompt-history", "prompt-suggestions", "launch",
+    "terminal-cleanup", "owned-ui", "prompt-history", "prompt-suggestions", "launch",
   ]),
   launch: owner("launch", "feature", "src/features/launch", "test/features/launch", ["lifecycle"]),
   "owned-ui": owner("owned-ui", "feature", "src/features/owned-ui", "test/features/owned-ui", [
@@ -20,18 +20,18 @@ export const PROJECT_OWNERS = Object.freeze({
   "session-writer-lock": owner("session-writer-lock", "foundation", "src/foundation/session-writer-lock", "test/foundation/session-writer-lock", ["product-identity"]),
   startup: owner("startup", "foundation", "src/foundation/startup", "test/foundation/startup", ["launch-context"]),
   lifecycle: owner("lifecycle", "foundation", "src/foundation/lifecycle", "test/foundation/lifecycle", []),
-  release: owner("release", "foundation", "src/foundation/release", "test/foundation/release", ["lifecycle", "startup", "terminal-cleanup", "launch-context"]),
+  release: owner("release", "foundation", "src/foundation/release", "test/foundation/release", ["lifecycle", "startup", "terminal-cleanup", "launch-context", "presentation-contracts"]),
   "owned-ui-contracts": owner("owned-ui-contracts", "foundation", "src/contracts/owned-ui", "test/contracts/owned-ui", []),
   "ui-components": owner("ui-components", "foundation", "src/ui/components", "test/ui/components", ["presentation-contracts"]),
   "ui-apps": owner("ui-apps", "foundation", "src/ui/apps", "test/ui/apps", ["ui-components"]),
-  "owned-ui-settings": owner("owned-ui-settings", "foundation", "src/ui/settings", "test/ui/settings", ["agent-engine-contracts", "owned-ui-contracts"]),
+  "owned-ui-settings": owner("owned-ui-settings", "foundation", "src/ui/settings", "test/ui/settings", ["agent-engine-contracts", "owned-ui-contracts", "presentation-contracts"]),
   "agent-engine-contracts": owner("agent-engine-contracts", "foundation", "src/contracts/agent-engine", "test/contracts/agent-engine", []),
   "presentation-contracts": owner("presentation-contracts", "foundation", "src/contracts/presentation", "test/contracts/presentation", []),
   "pi-engine-adapter": owner("pi-engine-adapter", "foundation", "src/integrations/pi/engine", "test/integrations/pi/engine", ["owned-ui-contracts", "agent-engine-contracts", "startup", "session-writer-lock"]),
   "pi-component-adapter": owner("pi-component-adapter", "foundation", "src/integrations/pi/components", "test/integrations/pi/components", ["owned-ui-contracts", "presentation-contracts"]),
   "pi-tui-runtime-adapter": owner("pi-tui-runtime-adapter", "foundation", "src/integrations/pi/tui-runtime", "test/integrations/pi/tui-runtime", ["presentation-contracts", "terminal-cleanup"]),
   "pi-session-presenters": owner("pi-session-presenters", "foundation", "src/integrations/pi/session-presenters", "test/integrations/pi/session-presenters", [
-    "owned-ui-contracts", "pi-engine-adapter", "pi-component-adapter",
+    "owned-ui-contracts", "presentation-contracts", "pi-engine-adapter", "pi-component-adapter", "pi-tui-runtime-adapter",
   ]),
 });
 
@@ -145,14 +145,9 @@ export function inspectLayerBoundaries(files) {
         errors.push(`${path}: ui/components import only contracts ('${specifier}')`);
       } else if (/^@earendil-works\//.test(specifier) && !path.startsWith("src/integrations/pi/")) {
         errors.push(`${path}: only the Pi adapters import '${specifier}'`);
-      } else if (path.startsWith("src/app/") && /\bPiEngineAdapter\b/.test(record.clause ?? "")) {
-        errors.push(`${path}: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class`);
-      } else if (path.startsWith("src/app/") && /\bPiSessionPresentationSource\b/.test(record.clause ?? "")) {
-        errors.push(`${path}: the application layer opens Pi selectors through OwnedUiSessionPresenters, not the engine's presentation source`);
+      } else if (path.startsWith("src/app/") && relativeTarget?.startsWith("src/integrations/pi/")) {
+        errors.push(`${path}: the application layer reaches Pi only through the owned-UI and presentation contracts ('${specifier}')`);
       }
-    }
-    if (path.startsWith("src/app/") && /\bimport\s*\(\s*["'][^"']+["']\s*\)\s*\.\s*PiEngineAdapter\b/.test(source)) {
-      errors.push(`${path}: the application layer depends on OwnedUiSessionBackend, not the PiEngineAdapter class`);
     }
   }
   return errors;
@@ -185,6 +180,41 @@ function importRecords(source) {
     records.push({ clause: null, specifier: match[2], statement: match[0] });
   }
   return records;
+}
+
+/**
+ * Every exported value under `src/` has a production consumer: a file under `src/`, `bin/`, or `scripts/`
+ * that names it and imports its module. Owner public entries (`index.ts`), declared entry modules, and copied
+ * upstream sources are exempt. Types are exempt because exported signatures must name them; a value only tests
+ * read belongs private, with the tests on the public entry.
+ */
+export function inspectExportConsumers(files, consumers = {}, exemptModules = []) {
+  const exempt = new Set(exemptModules);
+  const errors = [];
+  const sources = Object.entries(files).map(([path, source]) => [normalize(path), source]);
+  const others = [...sources, ...Object.entries(consumers).map(([path, source]) => [normalize(path), source])];
+  for (const [path, source] of sources) {
+    if (!/^src\/.+\.ts$/.test(path) || path.endsWith(".d.ts") || path.endsWith("/index.ts") || path.includes("/upstream/") || path === "src/product-identity.ts" || exempt.has(path)) continue;
+    const stem = path.slice("src/".length, -".ts".length);
+    const names = new Set([...source.matchAll(/^export\s+(?:declare\s+)?(?:async\s+)?(?:const|function|class|enum|let|abstract\s+class)\s+([A-Za-z_$][\w$]*)/gm)].map(match => match[1]));
+    if (names.size === 0) continue;
+    const importers = others.filter(([other, text]) => other !== path && refersTo(other, text, path, stem));
+    for (const name of names) {
+      const word = new RegExp(`\\b${name.replace(/\$/g, "\\$")}\\b`);
+      if (!importers.some(([, text]) => word.test(text))) {
+        errors.push(`${path}: export '${name}' has no production consumer; make it private or delete it`);
+      }
+    }
+  }
+  return errors;
+}
+
+function refersTo(importer, text, target, stem) {
+  if (!importer.startsWith("src/")) return text.includes(`${stem}.js`) || text.includes(`${stem}.ts`);
+  for (const match of text.matchAll(/(?:from\s+|import\s*\(\s*|export\s+\*\s+from\s+)(["'])(\.\.?\/[^"']+)\1/g)) {
+    if (resolveTypeScriptImport(importer, match[2]) === target) return true;
+  }
+  return false;
 }
 
 function resolveTypeScriptImport(importer, specifier) {

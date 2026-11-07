@@ -72,7 +72,6 @@ async function fixture(
     "shell-extension-ui.ts",
   ];
   const files: Record<string, string> = {
-    [`${prefix}shell-components.ts`]: modules.map(module => `export * from \"./${module.replace(/\.ts$/, ".js")}\";`).join("\n"),
     ...Object.fromEntries(modules.map(module => [`${prefix}${module}`, "export {};\n"])),
     ...overrides,
   };
@@ -81,7 +80,7 @@ async function fixture(
     records: [{
       id: "fixture",
       implementationStatus: "owned-port-present",
-      localDestination: `${prefix}shell-components.ts`,
+      localDestination: `${prefix}index.ts`,
       ...ledgerOverride,
     }],
   };

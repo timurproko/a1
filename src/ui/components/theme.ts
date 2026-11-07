@@ -1,23 +1,6 @@
-export type UiThemeToken = "accent" | "mdHeading" | "text" | "muted" | "dim" | "border" | "error" | "success";
+import type { ThemeSource, UiTheme, UiThemeBackground, UiThemeToken } from "../../contracts/presentation/index.js";
 
-export interface UiTheme {
-  fg(token: UiThemeToken, text: string): string;
-  bold(text: string): string;
-  /**
-   * The terminal's own foreground, left unpainted. What a list's own text is:
-   * a theme built for a light background would otherwise write near-black rows
-   * into a dark terminal, which is how the engine leaves its lists too.
-   */
-  plain(text: string): string;
-  /** Optional palette preview used by controls that choose the active accent. */
-  accentPreview?(color: string, text: string): string | null;
-  /** Selection background for an active list item or floating-surface row. */
-  highlight(text: string): string;
-  /** A control that is present but cannot act: quieter than quiet text. */
-  disabled(text: string): string;
-  /** Background for a floating surface, so it reads as above the content. */
-  panel(text: string): string;
-}
+export type { ThemeSource, UiTheme, UiThemeBackground, UiThemeToken };
 
 /** Renders every token as plain text. What tests assert against. */
 export const PLAIN_THEME: UiTheme = Object.freeze({
@@ -27,4 +10,11 @@ export const PLAIN_THEME: UiTheme = Object.freeze({
   highlight: (text: string) => text,
   disabled: (text: string) => text,
   panel: (text: string) => text,
+  background: (_token: UiThemeBackground, text: string) => text,
+});
+
+/** A theme source that never changes and paints nothing. */
+export const PLAIN_THEME_SOURCE: ThemeSource = Object.freeze({
+  current: () => PLAIN_THEME,
+  onChange: () => () => {},
 });

@@ -18,7 +18,7 @@ describe("local preflight", () => {
     expect(packageJson.scripts.preflight).toBe("node scripts/development/run-preflight.mjs");
     expect(preflightSteps(selection()).map(step => step.id)).toEqual([
       "build", "build-receipt", "typecheck", "architecture", "code-documentation-changed", "release-documentation", "naming-changed",
-      "docs-governance", "openspec-strict", "delivery-guidance", "changed-tests",
+      "docs-governance", "openspec-strict", "changed-tests",
     ]);
   });
 
@@ -39,7 +39,7 @@ describe("local preflight", () => {
   });
 
   it("runs each governance script with the arguments its workflow job uses, against the local selection", () => {
-    const local = preflightSteps(selection()).filter(step => step.executable !== "npm" && !["build-receipt", "delivery-guidance", "changed-tests"].includes(step.id));
+    const local = preflightSteps(selection()).filter(step => step.executable !== "npm" && !["build-receipt", "changed-tests"].includes(step.id));
     for (const step of local) {
       const command = [step.executable === "npx" ? "npx" : "node", ...step.arguments].join(" ")
         .replace(PREFLIGHT_SELECTION, ".artifacts/validation/impact.json")
@@ -62,7 +62,7 @@ describe("local preflight", () => {
 
   it("skips code gates for documentation-only changes and never builds the native host", () => {
     const docs = preflightSteps(selection({ docsOnly: true, naming: { required: false }, openspecTouched: false }));
-    expect(docs.map(step => step.id)).toEqual(["release-documentation", "docs-governance", "delivery-guidance"]);
+    expect(docs.map(step => step.id)).toEqual(["release-documentation", "docs-governance"]);
     for (const step of preflightSteps(selection())) expect(step.arguments.join(" ")).not.toMatch(/terminal-host|cargo|resident-chaos/u);
   });
 });

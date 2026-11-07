@@ -18,7 +18,7 @@ export function quoteCommandArgument(value: string): string {
   return `'${value.replaceAll("'", `'\\''`)}'`;
 }
 
-export interface ExitTextInput {
+interface ExitTextInput {
   readonly terminalMode: "regular" | "fullscreen";
   readonly customViewport: boolean;
   readonly exitMode: "transcript" | "resume-hint";

@@ -2,12 +2,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  UPDATE_EXECUTION_LEASE_FILENAME,
-  acquireUpdateExecutionLease,
-  readUpdateExecutionOwner,
-  reclaimDeadLease,
-} from "../../../src/foundation/release/update-execution-lease.js";
+import { acquireUpdateExecutionLease, readUpdateExecutionOwner, reclaimDeadLease } from "../../../src/foundation/release/update-execution-lease.js";
 import { UpdateTransactionStore } from "../../../src/foundation/release/update-transaction.js";
 
 const roots: string[] = [];
@@ -61,7 +56,7 @@ describe("update execution lease", () => {
 
   it("recovers a dead stale owner before acquiring", async () => {
     const dataDir = await root();
-    await writeFile(join(dataDir, UPDATE_EXECUTION_LEASE_FILENAME), JSON.stringify({
+    await writeFile(join(dataDir, "update-execution.json"), JSON.stringify({
       schema: 1,
       ownerId: "dead-owner",
       pid: 2_000_000_000,
@@ -77,7 +72,7 @@ describe("update execution lease", () => {
     expect(acquired.status).toBe("acquired");
     if (acquired.status !== "acquired") return;
     expect(acquired.owner.ownerId).not.toBe("dead-owner");
-    expect(JSON.parse(await readFile(join(dataDir, UPDATE_EXECUTION_LEASE_FILENAME), "utf8"))).toMatchObject({ ownerId: acquired.owner.ownerId });
+    expect(JSON.parse(await readFile(join(dataDir, "update-execution.json"), "utf8"))).toMatchObject({ ownerId: acquired.owner.ownerId });
     await acquired.release();
   });
 
@@ -91,7 +86,7 @@ describe("update execution lease", () => {
       packageRoot: ownerInput.packageRoot,
       priorActiveReleaseId: null,
     });
-    const path = join(dataDir, UPDATE_EXECUTION_LEASE_FILENAME);
+    const path = join(dataDir, "update-execution.json");
     const recorded = {
       schema: 1,
       ownerId: "dead-owner",
@@ -133,7 +128,7 @@ describe("update execution lease", () => {
 
   it("fails closed without replacing malformed ownership state", async () => {
     const dataDir = await root();
-    const path = join(dataDir, UPDATE_EXECUTION_LEASE_FILENAME);
+    const path = join(dataDir, "update-execution.json");
     await writeFile(path, "{not-json");
     await expect(acquireUpdateExecutionLease(input(dataDir))).rejects.toThrow();
     expect(await readFile(path, "utf8")).toBe("{not-json");
@@ -141,7 +136,7 @@ describe("update execution lease", () => {
 
   it("conservatively retains a live pid even when its recorded start identity differs", async () => {
     const dataDir = await root();
-    await writeFile(join(dataDir, UPDATE_EXECUTION_LEASE_FILENAME), JSON.stringify({
+    await writeFile(join(dataDir, "update-execution.json"), JSON.stringify({
       schema: 1,
       ownerId: "live-owner",
       pid: process.pid,

@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { OWNED_UI_SETTINGS_VERSION, OwnedSettingsManager, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
+import { OwnedSettingsManager, type OwnedUiSettingDeclaration } from "../../../src/ui/settings/index.js";
 import type { AgentJsonValue, AgentSettingDescriptor, AgentSettingsPort } from "../../../src/contracts/agent-engine/index.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 
@@ -78,7 +78,7 @@ function settingDescriptor(key: string, valueType: AgentSettingDescriptor["value
 let root: string;
 
 function session(agent: AgentSettingsPort | null): OwnedSettingsManager {
-  return new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [], agent });
+  return new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, agent });
 }
 
 beforeEach(() => {
@@ -132,7 +132,7 @@ describe("owned settings manager", () => {
       const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", agent: state === "absent" ? null : port });
       await target.load();
       expect(readFileSync(seed.file, "utf8")).toBe(before);
-      expect(target.resolution).toMatchObject({ version: OWNED_UI_SETTINGS_VERSION, migrated: false, notices: [] });
+      expect(target.resolution).toMatchObject({ notices: [] });
       const group = target.sections().find(section => section.id === "agent");
       const entry = group?.entries.find(candidate => candidate.id === "promptSuggestions");
       expect(group).toMatchObject({ unavailableReason: null, readOnlyReason: null });
@@ -260,24 +260,6 @@ describe("owned settings manager", () => {
     expect(manager.value("promptHistoryMaxItems")).toBe(20);
   });
 
-  it("normalizes recognizable flat legacy shapes on the next accepted change", async () => {
-    const namespace = "profile";
-    writeFileSync(path.join(root, "settings.json"), JSON.stringify({
-      theme: "dark",
-      [namespace]: { scrollbarSpeed: "high", accentColor: "default", futureSetting: "keep" },
-    }));
-    const target = new OwnedSettingsManager({ configDir: root, profileId: namespace });
-    expect(target.value("scrollbarSpeed")).toBe("high");
-    expect(target.value("accentColor")).toBe("purple");
-    expect((await target.change("a1", "promptSuggestions", false)).status).toBe("applied");
-    expect(JSON.parse(readFileSync(target.file, "utf8"))).toEqual({
-      theme: "dark",
-      [namespace]: {
-        futureSetting: "keep", scrollbarSpeed: "high", accentColor: "purple", promptSuggestions: false,
-      },
-    });
-  });
-
   it("types each declared getter by its declaration and falls back to the declared default", async () => {
     const target = new OwnedSettingsManager({ configDir: root, profileId: "a1" });
     const speed: "normal" | "fast" | "high" = target.value("scrollbarSpeed");
@@ -320,7 +302,6 @@ describe("owned settings manager", () => {
       configDir: root,
       profileId: "a1",
       declarations: DECLARATIONS,
-      migrations: [],
       agent,
       hiddenAgentSettingIds: ["fullscreenWheelScrollLines"],
       agentSettingLabelOverrides: { fullscreenCopyOnSelect: "Copy on select" },
@@ -349,7 +330,7 @@ describe("owned settings manager", () => {
         ];
       },
     };
-    const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, migrations: [], agent });
+    const target = new OwnedSettingsManager({ configDir: root, profileId: "a1", declarations: DECLARATIONS, agent });
     await target.load();
 
     const entries = target.sections().flatMap(section => section.entries);

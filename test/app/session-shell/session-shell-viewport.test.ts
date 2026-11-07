@@ -571,7 +571,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       message.content[0]!.text = "complete final content";
       engine.session.emit({ type: "message_end", message });
       shell.root.update(adapter.view());
-      shell.root.applyTranscriptBlock(partial);
+      shell.root.transcript.apply(partial);
       shell.runtime.renderNow();
       expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain("complete final content");
       expect(stripTerminalSequences(shell.root.render(100).join("\n"))).not.toContain("obsolete partial");
