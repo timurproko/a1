@@ -10,6 +10,8 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 ## Evidence
 
 - Focused local reproduction on the candidate base: `npx vitest run test/repository-governance/validation-receipt-workflows.test.ts` failed only the terminal-host candidate assertion because the expected packing condition omitted `steps.release-terminal-host.outputs.cache-hit != 'true'`.
+- The repaired receipt test requires candidate compilation on a cache miss, reuse on a cache hit, and native-artifact verification after either path but before the build receipt. The focused file passes all 6 tests; `npm run typecheck` and strict OpenSpec validation also pass.
+- Pre-finalization observation: the generated repair remains draft, so policy correctly defers Development validation and PR Full regression. The immutable failed-run provenance selects PR Full regression after finalization; the failed core owners and orchestration lane remain recorded below. Known gaps: none.
 
 - Run [Full regression #86](https://github.com/timurproko/a1/actions/runs/42333115612) (attempt 1, schedule) on `fdbfdda` at 2026-11-07T03:14:58Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-containment`, `update-performance`, `update-predecessor`) failed on macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 (core shard), windows-2025-node24 (core shard) with exit 1.

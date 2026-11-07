@@ -33,11 +33,13 @@ describe("workflow prerequisite receipts", () => {
 
   // Rationale: a candidate packed without the release terminal host makes every packaged launch fall
   // back to the direct UI, so #750's packaged suites passed on pull requests and failed at publication.
-  it("builds the release terminal host into every packed candidate before recording the build", async () => {
+  it("provides the release terminal host to every packed candidate before recording the build", async () => {
     const ci = parse(await readFile(".github/workflows/ci.yml", "utf8")).jobs.modular;
     const full = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8")).jobs;
+    const packed = "steps.job-selection.outputs.packs_candidate == 'true'";
+    const cacheMiss = `${packed} && steps.release-terminal-host.outputs.cache-hit != 'true'`;
     for (const [job, install, condition] of [
-      [ci, "Install exact dependencies and build", "steps.job-selection.outputs.packs_candidate == 'true'"],
+      [ci, "Install exact dependencies and build", cacheMiss],
       [full["windows-shard"], "Install dependencies and build once", "matrix.shard == 'package' || matrix.shard == 'predecessor'"],
       [full["full-regression"], "Install dependencies and build once", undefined],
     ] as const) {
@@ -50,6 +52,15 @@ describe("workflow prerequisite receipts", () => {
         : "terminal-host-release");
       expect(build.index).toBeLessThan(step(job, "Record verified install-time build").index);
     }
+    const reuse = step(ci, "Reuse the restored release terminal host");
+    const verify = step(ci, "Verify the candidate's release terminal host");
+    expect(reuse.value.if).toBe(`${packed} && steps.release-terminal-host.outputs.cache-hit == 'true'`);
+    expect(reuse.value.run).toBe("node scripts/development/build-terminal-host.mjs --reuse");
+    expect(verify.value.if).toBe(packed);
+    expect(verify.value.run).toBe("node scripts/release/verify-native-artifacts.mjs --local");
+    expect(step(ci, "Build the release terminal host into the candidate").index).toBeLessThan(verify.index);
+    expect(reuse.index).toBeLessThan(verify.index);
+    expect(verify.index).toBeLessThan(step(ci, "Record verified install-time build").index);
     // Performance: Windows/Linux validation shares the release cache saved by publication and
     // Full regression; Development's macOS SDK intentionally has its own cache namespace.
     const publish = parse(await readFile(".github/workflows/publish.yml", "utf8")).jobs.terminal_hosts;
