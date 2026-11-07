@@ -34,9 +34,9 @@ The maintainer integration decision accepts these scenarios:
     "Startup graph: 187 to 192 files and 1,767,444 to 1,754,711 source bytes; the added files are the injected Pi component factory, the neutral component and clipboard/suggestion concern modules.",
     "Known Windows failures that also fail on `develop` are unchanged: two quit-outro lifecycle cases, three link cases, one paste case, event-frame parity, one shell-components case, and the rendering budget gate."
   ],
-  "archiveDigest": "74892572ddfd63e488c3bb514d7d61cb2d504c4abf1a973f5a2ec5d68163cede",
+  "archiveDigest": "0144cc6b689a47da05ba22ba5cab252a597125c0ef3d2540de9a9f5a37c46497",
   "specDigest": "0f1c80ed5d7122f86e574907c2200e92b98e5c0c1fa6e8e0e03f606eac249222",
-  "tasksDigest": "ef53480d27013da33a04a7e5599907f880ae8eff17ea5904717a1456485ff2da",
+  "tasksDigest": "22565f57e988fcef226c0cf11bbf1a7e975765ed4d3bde8f6bfdda68a194f525",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
