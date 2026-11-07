@@ -1,3 +1,13 @@
+## ADDED Requirements
+
+### Requirement: A1 runs one agent per launch without resident tabs
+Bare `a1` SHALL run one owned single-agent UI per launch and SHALL NOT offer resident tabs, a tab strip, utility tabs, or tab maintenance commands.
+
+#### Scenario: Tab commands are not offered
+- **WHEN** the user runs `a1 tabs` or `a1 solo`
+- **THEN** A1 SHALL exit without starting a UI or contacting any host
+- **AND** help and usage SHALL list neither word
+
 ## REMOVED Requirements
 
 ### Requirement: Bare A1 runs one resident tab when opted in
