@@ -63,6 +63,87 @@ When local release observation shows an approved active release newer than the e
 - **WHEN** another process activated the newer release
 - **THEN** the status SHALL NOT claim or imply that this process or its user launched the active release
 
+### Requirement: Graceful user quit ends the single-agent process and returns control to the parent shell
+The owned interactive UI SHALL treat `/quit` and the second `Ctrl+C` in the existing clear/exit chord as complete graceful-exit requests. Each route SHALL stop the agent session, dispose the owned presentation, restore all terminal modes and screen state owned by A1, terminate the interactive A1 process successfully, and return control to the invoking shell without requiring another signal or keystroke. The built-in quit command's autocomplete description SHALL be exactly `Quit`.
+
+#### Scenario: Quit with the slash command
+- **WHEN** the user submits `/quit` from an active owned interactive session
+- **THEN** A1 SHALL complete graceful shutdown, restore the terminal, exit successfully, and make the invoking shell prompt available
+- **AND** no inactive or blank A1 fullscreen surface SHALL remain
+
+#### Scenario: Quit with the clear/exit chord
+- **WHEN** the user presses `Ctrl+C` twice within the existing clear/exit interval
+- **THEN** the second press SHALL complete the same graceful shutdown, terminal restoration, successful process exit, and parent-shell return as `/quit`
+
+#### Scenario: Quit the comparison profile
+- **WHEN** the user submits `/quit` or presses `Ctrl+C` twice in `a1 pi`
+- **THEN** `a1 pi` SHALL stop its single agent session and return control to the parent shell in the same way
+
+#### Scenario: An extension retains an event-loop handle
+- **WHEN** owned UI cleanup has completed but a loaded extension leaves a server, timer, or comparable event-loop handle active
+- **THEN** the interactive A1 executable SHALL preserve completed terminal restoration and configured exit output
+- **AND** it SHALL still terminate successfully and return control to the parent shell
+
+#### Scenario: Repository-local quit returns promptly
+- **WHEN** a user quits an interactive A1 session launched through the supported repository-local development command
+- **THEN** development-only cache persistence SHALL NOT introduce a visible post-restoration pause before the parent-shell prompt appears
+- **AND** production compile-cache behavior and completed owned cleanup SHALL remain unchanged
+
+#### Scenario: Describe the quit command
+- **WHEN** slash-command autocomplete presents the built-in `quit` command
+- **THEN** its description SHALL be `Quit`
+- **AND** the description SHALL NOT include `Pi`, `A1`, or another product qualifier
+
+## MODIFIED Requirements
+
+### Requirement: Customization remains disabled above the 1:1 baseline until acceptance
+A1-specific themes, components, commands, and layouts SHALL remain disabled until the complete pinned built-in and extension UI baseline passes source coverage, independent parity, real-prompt integration, and fresh manual acceptance. After acceptance, customization SHALL resolve through versioned A1-owned slots without mutating the baseline implementation or installed Pi code.
+
+#### Scenario: Request customization before parity
+- **WHEN** an A1-specific visual or layout customization is requested before 1:1 acceptance
+- **THEN** the capability SHALL remain unavailable
+
+#### Scenario: Apply customization after parity
+- **WHEN** the accepted baseline receives a supported A1 customization
+- **THEN** the customization SHALL resolve through an owned slot and preserve ordinary built-in and extension session behavior
+
+#### Scenario: Reject customization while architecture debt remains
+- **WHEN** any source-ledger record names an absent planned destination or stale review status, any visible route can fall back to a generic workflow presenter, any prompt-adjacent row is changed by rendered-string substitution, or production Pi adapters rely on reflection or unchecked type escapes
+- **THEN** the customization prerequisite SHALL fail even when visible vanilla parity has been manually accepted
+
+#### Scenario: Validate the customization-ready vanilla baseline
+- **WHEN** architecture-debt closure runs
+- **THEN** every pinned source unit SHALL identify a real public reuse, host adapter, or present owned port; every approved deviation SHALL remain explicit; engine and component boundaries SHALL use validated typed façades; and shell composition SHALL be split into bounded responsibility modules
+- **AND** the untouched-Pi terminal producer, full tests, real integration, packaging, and the accepted manual-baseline invariants SHALL remain unchanged
+
+### Requirement: The declared bare-A1 viewport customizes layout without replacing shell behavior
+After the pinned shell baseline and customization prerequisite are accepted, bare A1 SHALL apply the custom session viewport as a declared layout customization over the owned shell's existing engine, transcript components, input surfaces, status/footer components, extension bridge, commands, selectors, dialogs, and lifecycle. The customization SHALL own viewport composition and navigation but SHALL NOT patch installed Pi code, inspect private Pi renderer state, infer transcript semantics from rendered terminal text, or introduce a second agent or terminal authority.
+
+The viewport's intentional differences SHALL be limited to its declared capability: a bounded transcript above a pinned dock, A1 scrollbar presentation, detached/follow navigation, the scroll-to-bottom control, and sticky submitted prompts. Correct text or behavior from an existing shell surface SHALL NOT be reimplemented as viewport-specific status, editor, workflow, or extension behavior.
+
+#### Scenario: Compose the custom viewport
+- **WHEN** bare A1 starts after the customization prerequisite is satisfied
+- **THEN** the viewport SHALL compose the accepted owned-shell surfaces through their existing public A1 boundaries
+- **AND** the docked status, input, footer, commands, modal surfaces, and extension contributions SHALL keep their existing behavior
+
+#### Scenario: Open a pinned workflow from the custom viewport
+- **WHEN** the reader invokes a command, selector, dialog, authentication flow, session flow, or extension interaction not declared as replaced
+- **THEN** its controller, result, cancellation, focus restoration, and lifecycle SHALL remain the accepted pinned-shell behavior
+
+#### Scenario: Compare an explicit profile
+- **WHEN** `a1 pi` is started
+- **THEN** the declared viewport layout customization SHALL be absent
+- **AND** those profiles SHALL remain suitable for observing the pinned presentation without A1 viewport rows, controls, pinned prompts, or scrollbar settings
+
+#### Scenario: Upgrade the pinned integration
+- **WHEN** the pinned Pi or Pi TUI version changes
+- **THEN** the viewport SHALL continue to depend only on documented public runtime/component contracts and A1-owned ports
+- **AND** an unabsorbed input, layout, or component-boundary change SHALL fail conformance rather than being handled through a private-field or prototype workaround
+
+#### Scenario: Viewport customization is not yet accepted
+- **WHEN** its implementation, focused regression evidence, or user-controlled manual acceptance is incomplete or contradicted
+- **THEN** the custom viewport milestone SHALL remain unaccepted
+
 ## REMOVED Requirements
 
 ### Requirement: Updated client preserves live Agent interaction without migration UI
@@ -79,3 +160,8 @@ When local release observation shows an approved active release newer than the e
 **Reason**: Resident and solo process classes no longer exist; the behavior applies to every owned process.
 
 **Migration**: None.
+
+### Requirement: Graceful user quit returns control to the parent shell
+**Reason**: Restated under a new name without its resident-tab, supervisor, launch-guardian, containment, native-host, or timestamp scenarios, which no longer describe the single-agent product.
+
+**Migration**: See the ADDED requirement "Graceful user quit ends the single-agent process and returns control to the parent shell".

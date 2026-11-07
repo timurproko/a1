@@ -42,6 +42,19 @@ Builds SHALL support `a1 --session <path|id>` with an optional `--session-dir <d
 - **WHEN** `a1 --session <id>` selects a session held by another live A1 process
 - **THEN** A1 SHALL preserve the existing safe conflict behavior without starting a second writer
 
+## MODIFIED Requirements
+
+### Requirement: Installed-entry evidence proves the resume path
+Automated regression evidence SHALL exercise normal A1's public installed entry and production launch transport against fresh disposable sessions persisted through that build's pinned public Pi APIs, not only an internal UI entry or a formatted string. Evidence SHALL cover a create/persist → exit → resume lifecycle for uncompacted and supported compacted history, record the Pi version, and compare context with direct same-pin reopening plus independent expected conversation markers/order. Unsupported synthetic retained-tail behavior SHALL NOT be a prerequisite for this CLI parity evidence or be reported as certified by it. Evidence SHALL cover default and custom directories, argument quoting, restored session identity/context, negative target resolution, and independent invocations. Tests SHALL isolate home/profile/release state and SHALL NOT depend on personal session files, credentials, network model calls, or an already-running user A1 process.
+
+#### Scenario: Execute the emitted hint through the installed entry
+- **WHEN** a newly created isolated session is persisted using the pin, exits normal A1, and its emitted command is executed through the packaged A1 entry
+- **THEN** the resulting UI SHALL restore that session's identity and conversation context through the real launch chain
+
+#### Scenario: Windows custom-directory round trip
+- **WHEN** the emitted command selects a custom directory containing spaces and an apostrophe in Windows Git Bash
+- **THEN** A1 SHALL receive the original directory as one argument and restore the intended session without shell evaluation inside its launch chain
+
 ## REMOVED Requirements
 
 ### Requirement: An exited solo session advertises solo resume

@@ -137,6 +137,13 @@ Explicit update SHALL print progress and exactly one result line for success and
 - **WHEN** the selected channel head equals the installed version
 - **THEN** the terminal SHALL show one result line and no diagnostics
 
+### Requirement: Update runs apart from interactive sessions
+The update subcommand SHALL complete or fail without launching the TUI, launching an agent, or attaching to a running A1 session.
+
+#### Scenario: Update is requested
+- **WHEN** the user invokes the update subcommand
+- **THEN** only the npm update workflow and its release activation run, and no interactive A1 process is started
+
 ## MODIFIED Requirements
 
 ### Requirement: Restart-readiness observation is independent of release discovery
@@ -174,6 +181,321 @@ The normal update status SHALL show the existing green `Update installed, restar
 - **WHEN** an automatic attempt is still running or has failed
 - **THEN** normal status SHALL display neither internal terminology nor a false installed/restart-ready notice
 - **AND** bounded diagnostic evidence SHALL retain the failure reason while safe automatic recovery continues
+
+### Requirement: Self-update is limited to the managed global installation
+A1 SHALL verify through npm's global package-root resolution that the running package occupies the exact `@timurproko/a1` package location in an npm-managed global installation before replacing it. The installation MAY use npm's active default prefix or a different prefix whose inferred global root active npm independently confirms and whose complete platform launcher set targets that package. On Unix a launcher targets the package when it is a regular executable file naming the package's `bin/cli.js` entry or a symbolic link whose canonical target is exactly that package's canonical `bin/cli.js`; update recovery SHALL apply the same rule when deciding whether an installed target is callable. A1 SHALL pin replacement to the confirmed prefix that owns the running package. It SHALL refuse automatic replacement when running from a local checkout, npm link, malformed package layout, unconfirmed root, or a different package-manager context.
+
+#### Scenario: Running package is globally managed by npm
+- **WHEN** the running A1 package exactly occupies its canonical package location beneath npm's canonical active global package root
+- **THEN** A1 may perform the global update against that root
+
+#### Scenario: Running package is managed under a confirmed non-default npm prefix
+- **WHEN** the running A1 package exactly occupies the canonical package location under another global root, active npm confirms that root for its inferred prefix, and the prefix's complete launcher set targets that package
+- **THEN** A1 SHALL update the invoked installation in place using that explicit prefix
+- **AND** SHALL NOT create or select an installation under the active default prefix merely because the defaults differ
+
+#### Scenario: A per-user installation has an npm symlink launcher
+- **WHEN** A1 runs from `~/.local/lib/node_modules/@timurproko/a1`, active npm confirms `~/.local` as the inferred prefix, and `~/.local/bin/a1` is the symbolic link npm created to that package's `bin/cli.js`
+- **THEN** A1 SHALL treat the installation as managed and update it in place with `--prefix ~/.local`
+- **AND** a launcher symlink resolving to any other target SHALL leave the installation unmanaged
+
+#### Scenario: Running package is not managed by global npm
+- **WHEN** the running package path does not have npm's exact global package layout or active npm does not confirm the inferred root
+- **THEN** A1 exits unsuccessfully and prints the manual npm installation command without modifying any package, launcher, release, or update transaction
+
+#### Scenario: Running package is linked or checked out locally
+- **WHEN** the running A1 package canonicalizes to a local checkout, npm link target, or another package-manager context
+- **THEN** A1 exits unsuccessfully and prints the manual npm installation command without modifying any installation
+
+### Requirement: Sole public command exposes self-update
+A1 SHALL recognize `update` as a non-interactive subcommand through the sole public
+`a1` executable. `a1 update` SHALL select the channel of the running release: the
+stable release when the running version has no prerelease part, and the current
+development preview when it is a `-dev.N` build. `a1 update --release` SHALL select
+the stable release. `a1 update --develop` SHALL select the current development
+preview, and one optional value after `--develop` SHALL select either a positive
+numbered preview or a full numbered preview version.
+
+`a1 update --models` and `a1 pi update --models` SHALL be equivalent model-catalog
+refresh commands against the A1 profile and SHALL NOT self-update A1 or its pinned
+Pi runtime. `--models` SHALL NOT combine with `--release`, `--develop`, or a preview value.
+
+#### Scenario: Update through a1
+- **WHEN** the user invokes `a1 update` while a stable release runs
+- **THEN** A1 SHALL run the stable self-update workflow
+
+#### Scenario: Update a development build
+- **WHEN** the user invokes `a1 update` while a `-dev.N` build runs
+- **THEN** A1 SHALL run the development-channel self-update workflow and SHALL NOT install the stable release
+
+#### Scenario: Move to the stable release explicitly
+- **WHEN** the user invokes `a1 update --release`
+- **THEN** A1 SHALL run the stable self-update workflow from either channel
+
+#### Scenario: Update in Pi's spelling
+- **WHEN** the user invokes the removed `a1 update self` form
+- **THEN** A1 SHALL return successfully and silently without registry or update work
+
+#### Scenario: Update installed packages
+- **WHEN** the user invokes `a1 pi update --extensions`
+- **THEN** A1 SHALL update the packages configured in the A1 profile and SHALL NOT self-update
+
+#### Scenario: Update one package
+- **WHEN** the user invokes `a1 pi update <source>` for a configured package source
+- **THEN** A1 SHALL update that package alone and SHALL NOT self-update
+
+#### Scenario: Refresh model catalogs
+- **WHEN** the user invokes `a1 update --models`
+- **THEN** A1 SHALL refresh the model catalogs of the A1 profile and SHALL NOT self-update
+
+#### Scenario: Pinned Pi is targeted
+- **WHEN** the user invokes `a1 update pi`
+- **THEN** A1 SHALL fail before update work and explain that Pi is pinned to the certified A1 release
+
+#### Scenario: Update current development A1
+- **WHEN** the user invokes `a1 update --develop`
+- **THEN** A1 SHALL run the development-channel self-update workflow
+
+#### Scenario: Update one numbered development preview
+- **WHEN** the user invokes `a1 update --develop 107`
+- **THEN** A1 SHALL resolve the unique published preview ending in `-dev.107` and install it
+
+#### Scenario: Update one exact development preview
+- **WHEN** the user invokes `a1 update --develop 0.1.8-dev.107`
+- **THEN** A1 SHALL validate and install that exact published preview
+
+#### Scenario: Refresh models in top-level notation
+- **WHEN** the user invokes `a1 update --models`
+- **THEN** A1 SHALL refresh A1's model catalogs without self-update
+
+#### Scenario: Refresh models in Pi-compatible notation
+- **WHEN** the user invokes `a1 pi update --models`
+- **THEN** A1 SHALL perform the same model refresh as `a1 update --models`
+
+#### Scenario: Update selectors conflict
+- **WHEN** `--release`, `--develop`, its optional preview value, or `--models` are combined outside the declared grammar
+- **THEN** A1 SHALL fail before registry, package, release, or runtime work
+
+### Requirement: Update does not end a working session
+The update subcommand SHALL complete while other A1 sessions are working, and SHALL NOT ask them
+to stop or wait for them to finish. A session already running SHALL keep the release it started
+on and SHALL be unaffected in its transcript, its terminal, and the agent turn in progress. The
+release the update successfully installs and activates SHALL be what every subsequent ordinary
+launch starts on, including when sessions on older retained releases remain live or concurrent launches observe
+the activation handoff.
+
+Where a running session cannot be preserved because it runs from the package being replaced, the
+update SHALL say which session it is ending and why, before ending it.
+
+#### Scenario: A session is working when an update runs
+- **WHEN** the user updates in one terminal while an agent turn streams in another
+- **THEN** the update SHALL install and report success
+- **AND** the working session SHALL continue its turn, keep its transcript, and keep accepting
+  input
+
+#### Scenario: The next launch after an update
+- **WHEN** a new session starts after an update, while an older session is still working
+- **THEN** the new session SHALL start on the installed release without release-coordination diagnostics
+- **AND** the older session SHALL remain on the release it started on
+
+#### Scenario: Several launches overlap successful activation
+- **WHEN** interactive launches overlap the successful activation of an installed release
+- **THEN** each new invocation SHALL converge within a bounded interval on an eligible active release
+- **AND** no invocation SHALL require closure of a retained session, machine restart, process discovery, or state deletion
+
+#### Scenario: A session must be ended to replace the package
+- **WHEN** the running session cannot be preserved because it runs from the package being replaced
+- **THEN** the update SHALL report that it is ending that session and why before doing so
+
+### Requirement: Model refresh command transcripts match pinned Pi
+For equivalent profile contents and refresh results, `a1 update --models` and `a1 pi update --models` SHALL emit identical transcripts matching the repository's pinned Pi `update --models` command. Parity SHALL include wording, punctuation, line breaks, stdout/stderr destination, terminal-aware ANSI styling, and exit status. A1 SHALL NOT append its profile root, prepend product branding, or add an advisory to these summaries. A1 self-update and development-preview output SHALL remain outside this model-refresh contract.
+
+#### Scenario: Model refresh succeeds
+- **WHEN** either alias completes model-catalog refresh successfully
+- **THEN** stdout SHALL contain exactly green `Model catalogs refreshed` followed by one newline, stderr SHALL be empty, and the exit status SHALL be zero
+- **AND** there SHALL be no period, checkmark, product prefix, path suffix, or additional blank line
+
+#### Scenario: Model refresh times out
+- **WHEN** the refresh reaches its pinned timeout and reports an aborted result
+- **THEN** stderr SHALL contain red `Error: Model catalog refresh timed out.` followed by one newline and the exit status SHALL be one
+- **AND** stdout SHALL NOT contain a success summary
+
+#### Scenario: Provider catalogs fail to refresh
+- **WHEN** refresh returns one or more provider errors
+- **THEN** stderr SHALL contain red `Error: Could not refresh model catalogs: <details>` followed by one newline, with each detail formatted as `<provider>: <message>` in pinned order and joined by `; `
+- **AND** the command SHALL exit with status one without reporting success
+
+#### Scenario: Model refresh throws another error
+- **WHEN** model-runtime creation or refresh throws
+- **THEN** the command SHALL use pinned Pi's `Error: <message>` formatting and `Unknown model catalog refresh error` fallback for a non-Error thrown value
+- **AND** it SHALL preserve the displayed error message rather than whitespace-normalizing or truncating it independently
+
+#### Scenario: Color is disabled or output is redirected
+- **WHEN** both producers run with equivalent terminal and color-control settings
+- **THEN** A1 SHALL follow pinned Pi's color-enablement behavior, including plain text without escape sequences when color is disabled
+- **AND** changing color availability SHALL NOT change wording, streams, or newline count
+
+#### Scenario: Refresh remains profile-local and non-interactive
+- **WHEN** either model-refresh alias runs
+- **THEN** it SHALL use only A1's selected profile and SHALL NOT update packages, update either executable, launch the UI, or start a background runtime
+
+### Requirement: Successful update initiates bounded release cleanup
+Before reporting a completed update, A1 SHALL durably commit the protected release set and a restart-safe cleanup disposition for obsolete releases. Potentially long physical deletion MAY continue after that commit, but the update SHALL start background maintenance that continues ordinary eligible work to completion without requiring another user command. Update and later maintenance entry points SHALL resume interrupted or temporarily blocked cleanup without requiring manual state or directory deletion, and SHALL retain bounded evidence of worker progress, continuation, and top-level failure.
+
+#### Scenario: Update activates a new release
+- **WHEN** the new release is certified and active
+- **THEN** the update SHALL commit retention of the active, rollback, in-flight candidate, transaction-prior, and recently approved or materialized releases
+- **AND** SHALL initiate collection of every other known release
+
+#### Scenario: Historical append-only state exists
+- **WHEN** the first cleanup-aware update reads a valid older release state whose retention list contains every previously activated release
+- **THEN** A1 SHALL migrate it to the bounded protected set without deleting the active, rollback, or a recently approved release
+
+#### Scenario: Physical deletion is slow
+- **WHEN** removing an obsolete release tree would materially delay return to the invoking shell
+- **THEN** A1 SHALL preserve the committed cleanup disposition and continue deletion through bounded background maintenance rather than retaining the release indefinitely
+
+#### Scenario: Backlog exceeds one maintenance allowance
+- **WHEN** a successful update leaves more eligible obsolete content than one bounded maintenance batch can process
+- **THEN** background maintenance SHALL continue or arrange its own continuation until the eligible backlog is drained without requiring another launch or update
+
+#### Scenario: Preparation consumes the batch allowance
+- **WHEN** discovery, ownership checks, or durable state preparation consume the nominal duration of a non-empty maintenance batch
+- **THEN** the background worker SHALL still attempt eligible cleanup work and SHALL NOT repeatedly exit with zero progress
+
+#### Scenario: Cleanup cannot delete one release
+- **WHEN** an obsolete contained release cannot be moved or deleted because of a transient filesystem failure
+- **THEN** the successful activation SHALL remain authoritative, A1 SHALL retain actionable cleanup diagnostics, other eligible items SHALL remain able to progress, and bounded maintenance SHALL retry safely
+
+#### Scenario: Detached worker fails unexpectedly
+- **WHEN** a scheduled cleanup worker exits before recording successful completion
+- **THEN** A1 SHALL retain every incomplete disposition, record bounded worker failure or incomplete-run evidence, and resume safely through its continuation or the next maintenance entry point
+
+### Requirement: Private runtime execution uses one supported launch contract
+Launch, warmup, update activation, retained-release execution, rollback, and recovery SHALL use the single current neutral private environment contract. Pre-cutover runtimes, updaters, rollback targets, and recovery capsules are outside this contract. The implementation SHALL NOT supply legacy private aliases, translate obsolete private input, negotiate an older encoding, rewrite historical runtime payloads, or provide migration helpers to make those components executable.
+
+Runtime-target eligibility SHALL be established from verified target metadata before execution or activation; a missing or different private-contract identity SHALL make a target ineligible. Package-version ordering alone SHALL NOT establish eligibility. An unsupported retained or recovery target SHALL NOT be silently executed as a fallback. When no safe current-contract selection is available, the operation SHALL stop with an actionable diagnostic rather than changing encoding or deleting state.
+
+#### Scenario: A current-contract target is activated
+- **WHEN** a verified installed candidate uses the current private contract
+- **THEN** its warmup and launch SHALL receive the required neutral launch context and satisfy the existing readiness and verification requirements
+
+#### Scenario: A pre-cutover retained target is selected
+- **WHEN** a launch candidate lacks the current private-contract identity
+- **THEN** that target SHALL be rejected before its entry point is executed or its activation is committed
+- **AND** the implementation SHALL NOT select a legacy key writer to make it launchable
+
+#### Scenario: An old active reference blocks launch
+- **WHEN** stale runtime references prevent a safe current-contract launch selection
+- **THEN** launch SHALL report the unsupported state and required cutover action without executing or automatically migrating the old runtime
+
+#### Scenario: No supported rollback target exists
+- **WHEN** activation fails and all available rollback candidates are outside the current private contract
+- **THEN** rollback SHALL report that no eligible target is available
+- **AND** it SHALL NOT execute a pre-cutover target or silently declare rollback successful
+
+### Requirement: The initial private-contract cutover protects user data
+The first installation adopting the neutral private contract SHALL be a deliberate clean cutover, not a supported old-to-new self-update or migration path. Its handoff SHALL instruct the maintainer to stop existing application and worker processes and install the accepted new package directly through npm. It SHALL NOT rely on an old `a1 update` command or old recovery launcher completing the cutover.
+
+Any required reset SHALL be restricted to individually identified disposable runtime/release state after affected processes stop. The handoff SHALL identify exact resolved paths and their purpose and require separate explicit confirmation before removal. The application SHALL NOT automatically delete or convert existing state to resolve an unsupported contract. Whole configuration/data-root deletion SHALL NOT be used as a shortcut when user and disposable data coexist.
+
+The public command, package identity, supported user-facing environment settings, user-directory resolution, settings, credentials, session data, prompt history, and `.a1` user data SHALL remain unchanged by this cutover. No user-data relocation or format migration is authorized. Returning to a pre-cutover build is a separate deliberate manual installation/reset, not a supported in-application rollback route.
+
+#### Scenario: The maintainer installs the first new-contract build
+- **WHEN** installation instructions are delivered for the initial cutover
+- **THEN** they SHALL name the accepted package version, direct npm installation command, and stop-process prerequisite
+- **AND** they SHALL distinguish this one-time path from subsequent supported `a1 update` operations
+
+#### Scenario: Disposable-state reset is necessary
+- **WHEN** unsupported runtime/release records must be reset before the new installation can run
+- **THEN** the exact disposable paths and their purpose SHALL be presented for separate confirmation
+- **AND** no application-driven migration or automatic deletion SHALL occur
+
+#### Scenario: Disposable and user data share a root
+- **WHEN** a reset candidate is located beneath a root that also stores settings, sessions, or history
+- **THEN** the reset SHALL exclude those user-data paths and SHALL NOT remove the whole root
+
+#### Scenario: Old recovery state is encountered
+- **WHEN** a pre-cutover recovery capsule would otherwise resume package replacement or launch an old runtime
+- **THEN** the new implementation SHALL reject that recovery path and provide the manual cutover guidance
+- **AND** it SHALL NOT translate the capsule or activate an obsolete runtime
+
+### Requirement: Current-contract lifecycle behavior retains its safety guarantees
+After the clean cutover, different release versions using the same private contract SHALL support normal launch, comparison launch, update activation, retained-session continuity, rollback, and interrupted-update recovery under the existing lifecycle rules. The naming refactor SHALL NOT weaken immutable-root verification, content certification, ownership checks, public-setting validation, or existing startup/update budgets.
+
+Owned outgoing context SHALL be reconstructed from the verified selected target and current launch intent rather than stale inherited private values. Required fields SHALL form a coherent current context, and invalid or missing fields SHALL fail before use without falling back to another release or default path. Platform-specific casing SHALL NOT permit ambiguous duplicate private keys. Diagnostics SHALL identify the logical setting without dumping unrelated environment values.
+
+Acceptance SHALL include executable tests for current-contract lifecycle operations, rejection of obsolete-only private input and unsupported targets, and preservation of protected user data. Successful pre-cutover interoperability tests are not required and SHALL NOT be replaced with compatibility behavior merely to make historical fixtures pass.
+
+#### Scenario: A supported session remains active during update
+- **WHEN** an update installs another release using the current private contract while a retained session on that contract is working
+- **THEN** the session SHALL retain its release, transcript, and input
+- **AND** subsequent launches SHALL select the appropriate installed release
+
+#### Scenario: Rollback or recovery uses the current contract
+- **WHEN** rollback selects a verified current-contract release or interrupted replacement resumes through current-contract recovery state
+- **THEN** the operation SHALL retain its existing verification, readiness, and launcher-availability guarantees
+
+#### Scenario: A new-contract launch inherits stale private values
+- **WHEN** a launcher selects a verified target while inheriting context from another session
+- **THEN** it SHALL reconstruct the owned outgoing context from the selected target and current intent
+- **AND** unrelated public and third-party settings SHALL remain unchanged
+
+#### Scenario: Required current context is absent or ambiguous
+- **WHEN** a private entry lacks required neutral fields or receives conflicting case-equivalent private keys
+- **THEN** it SHALL fail validation before using that context
+- **AND** obsolete branded keys SHALL NOT satisfy the missing fields
+
+#### Scenario: Acceptance is reviewed
+- **WHEN** the clean-cutover implementation is proposed for acceptance
+- **THEN** evidence SHALL cover current-contract packaged launch/update/rollback/recovery, unsupported-input and target rejection, protected user-data sentinels, public overrides, supported platforms, and unchanged budgets
+
+### Requirement: Update progress uses the shared semantic accent
+When A1 shows self-update progress in a color-capable terminal, the completed segment SHALL use the active global A1 profile's selected semantic Accent color, or the blue default if no valid choice can be read. Self-update and fresh installation SHALL consume byte-equivalent release-owned forms of the same named A1 palette contract, and palette synchronization SHALL regenerate and validate them when the named A1 palette changes. The remaining segment SHALL retain its muted track color, and the percentage text SHALL retain its existing neutral treatment. Resolving the color SHALL NOT require starting an interactive agent, background runtime, or project resource pipeline.
+
+The color source change SHALL NOT alter the progress bar's glyphs, width, percentage calculation, monotonic movement, or cleanup behavior.
+
+#### Scenario: An update is in progress
+- **WHEN** A1 renders a partially completed self-update progress bar for a profile with a saved accent
+- **THEN** the completed segment SHALL render with that profile's selected semantic accent
+- **AND** the remaining segment SHALL render in its muted track color
+- **AND** the visible bar geometry and percentage SHALL remain unchanged
+
+#### Scenario: Progress reaches either boundary
+- **WHEN** A1 renders zero or complete self-update progress
+- **THEN** it SHALL preserve the same selected-accent and muted-track contract for every segment that is present
+- **AND** it SHALL reset terminal foreground styling after the percentage text
+
+#### Scenario: No valid preference is available
+- **WHEN** a self-update runs without a readable valid accent in the effective global profile
+- **THEN** the completed segment SHALL use the shared blue default without failing the update
+
+#### Scenario: The pinned Pi accent changes
+- **WHEN** a Pi pin upgrade changes the named A1 palette projection or a named A1 palette entry changes
+- **THEN** synchronization SHALL regenerate the shared progress palette from that owned presentation
+- **AND** conformance SHALL fail if either progress renderer or either committed generated palette form remains on an older color
+
+### Requirement: The installed release activates itself
+An update is performed by the release that is already installed against a tree newer than it, so the updater SHALL NOT assume the layout of the tree it has just installed. The package manifest SHALL declare the activation contracts the tree serves in `updateActivationContracts`, and a tree serving `activate-v1` SHALL ship `bin/activate.js`. After the global installation succeeds, an updater that finds a contract it serves SHALL start that entry with the data directory and the target version and SHALL relay the entry's line-delimited progress events (`materializing`, `phase`, `warmup`, `completed`, `failed`) into its own transaction journal and progress display; the entry SHALL activate the tree it ships in with that tree's own release code. The updater SHALL resolve no path inside the installed tree other than `package.json` and the declared entry.
+
+A tree that declares no contract the updater serves SHALL be activated in-process with the layout that tree had, so an updater older than the contract and an installation of an older preview both remain supported. A delegated activation SHALL succeed only when the entry exits successfully after reporting `completed`; a `failed` event, an unsuccessful exit, an exit without a verdict, or an event the updater cannot interpret SHALL fail the update with the entry's own bounded reason under the existing rollback rules. The entry's stderr SHALL be captured and bounded, never shared with the terminal.
+
+#### Scenario: The installed tree serves the contract
+- **WHEN** the newly installed manifest lists `activate-v1` and the updater serves it
+- **THEN** the updater starts the tree's `bin/activate.js` and advances its journal phases and progress display from the events that entry reports
+- **AND** the updater runs none of the materialization, certification, or warmup steps itself
+
+#### Scenario: The installed tree predates the contract
+- **WHEN** the newly installed manifest declares no `updateActivationContracts`, or only contracts the updater does not serve
+- **THEN** the updater activates the tree in-process exactly as it did before the contract existed
+
+#### Scenario: The tree's own activation fails
+- **WHEN** the entry reports `failed`, exits unsuccessfully, or exits without reporting `completed`
+- **THEN** the update fails with the entry's own reason or its exit status and bounded stderr, and the prior release is restored under the existing rollback rules
+
+#### Scenario: The tree changes its own layout
+- **WHEN** a later release renames or removes an entry its activation uses
+- **THEN** every installed updater that serves the contract still activates it, because the layout is read only by the tree's own entry
 
 ## REMOVED Requirements
 
@@ -221,3 +543,8 @@ The normal update status SHALL show the existing green `Update installed, restar
 **Reason**: Native host-command diagnostics and deferred-activation outcomes no longer exist.
 
 **Migration**: None.
+
+### Requirement: Update is isolated from the interactive runtime
+**Reason**: Restated under a new name without its resident-tab, supervisor, launch-guardian, containment, native-host, or timestamp scenarios, which no longer describe the single-agent product.
+
+**Migration**: See the ADDED requirement "Update runs apart from interactive sessions".

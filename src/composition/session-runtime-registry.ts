@@ -3,7 +3,7 @@ import type { ProcessIdentity } from "../foundation/lifecycle/model.js";
 export interface SessionRuntimeRegistryOptions {
   /** Absent outside claim-owning runtimes. */
   readonly runtimeId: string | undefined;
-  /** Exact native inspection; absent SDK seams cannot claim. */
+  /** Process liveness inspection; absent SDK seams cannot claim. */
   readonly inspectProcess: ((pid: number) => Promise<ProcessIdentity | null>) | undefined;
   readonly refreshMs?: number;
 }

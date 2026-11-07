@@ -53,19 +53,19 @@ The installer needs Node.js 22.19 or later. When npm's global folder is not writ
 
 ## Launch
 
-Launch A1 (profile: `~/.a1/agent`):
+Launch A1, one agent in this terminal (profile: `~/.a1/agent`):
 
 ```text
 a1
 ```
 
-Launch A1 in single agent mode:
+Resume a saved session:
 
 ```text
-a1 solo
+a1 --session <id>
 ```
 
-When a solo session exits, its printed `a1 solo --session <id>` command resumes that same conversation in solo mode; a custom session store is included in the printed command. Resident tabs are different: they keep running after detach, and bare `a1` returns to them.
+When a session exits, A1 prints the `a1 --session <id>` command that resumes it; a custom session store is included in the printed command. Closing the terminal ends the agent, as it does for Pi.
 
 Show all commands:
 
@@ -83,30 +83,6 @@ Vanilla Pi oracle (`~/.pi/agent`):
 
 ```text
 a1 pi
-```
-
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
-
-## Tabs
-
-Tabs keep running after their terminal closes. List them, or stop one; its session stays resumable:
-
-```text
-a1 tabs
-a1 tabs stop <id>
-```
-
-Stop every tab and the resident host when you are finished with them (not required to run `a1 solo`):
-
-```text
-a1 tabs host stop
-```
-
-Show host health, or write a redacted diagnostic bundle:
-
-```text
-a1 tabs host status
-a1 tabs doctor
 ```
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
@@ -157,17 +133,16 @@ npm x -y -- @timurproko/a1-install
 
 The **Update** setting controls release discovery:
 
-- **Auto** (default) checks the running release's stable or development channel at startup and every 15 minutes while open. It silently installs a verified update, then shows `Update installed, restart to update` above the editor; existing sessions keep running until restarted.
-- **Notify** checks at startup (at most daily), keeps the `Update Available` notice, and leaves installation manual.
+- **Auto** (default) checks the running release's stable or development channel at startup and every 15 minutes while open. It silently installs a verified update, then shows `Update installed, restart to update` above the editor; existing sessions keep running on their release, and the next `a1` starts the new one.
 - **No** performs no update check; updates remain available through the commands above.
 
-`A1_SKIP_VERSION_CHECK=1` disables both Auto and Notify discovery. Manual stable, development, and exact-version update commands remain available in every mode.
+`A1_SKIP_VERSION_CHECK=1` disables Auto discovery. Manual stable, development, and exact-version update commands remain available in every mode.
 
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/separator-dark.svg"><img src="docs/assets/readme/separator.svg" alt="" width="280"></picture></p>
 
 ## Uninstall
 
-Remove A1 from this machine. It stops running tabs and asks before deleting your sessions and settings in `~/.a1`:
+Remove A1 from this machine. It asks before deleting your sessions and settings in `~/.a1`:
 
 ```text
 a1 uninstall
@@ -217,7 +192,7 @@ a1 update npm:pi-mcp-adapter
 
 ## Develop
 
-A source build needs Node.js, npm, git, and Rustup. Windows additionally needs Visual Studio or Visual Studio Build Tools with the **Desktop development with C++** workload, MSVC x64/x86 tools, and a Windows SDK; Visual Studio Code is not required. A1 discovers installed Rustup and Visual Studio tools and initializes them for build children, so Git Bash and ordinary PowerShell do not need manual `PATH` or developer-shell setup. It never installs these tools or accepts their licenses automatically.
+A source build needs Node.js, npm, and git. The product is pure TypeScript; there is no native toolchain to install.
 
 Install exact locked dependencies:
 
@@ -225,7 +200,7 @@ Install exact locked dependencies:
 npm ci
 ```
 
-Compile TypeScript and the native addons into `dist`:
+Compile TypeScript into `dist`:
 
 ```text
 npm run build
@@ -255,7 +230,7 @@ Complete non-physical suite:
 npm run test:full
 ```
 
-Report Node, npm, git, Rust, dependency, and Windows C++ readiness. Missing Windows tools are listed in setup order; after installing them, rerun the same build command:
+Report Node, npm, git, GitHub CLI, and dependency readiness; after fixing anything it lists, rerun the same build command:
 
 ```text
 npm run doctor

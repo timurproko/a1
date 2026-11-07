@@ -14,7 +14,7 @@ The nightly publication workflow runs `full-release`, including `naming-full`, a
 - Parser fixtures: `test/repository-governance/naming-inspection.test.ts`.
 - Git selection fixtures: `test/repository-governance/naming-selection.test.ts`.
 
-TypeScript/JavaScript and Python use syntax trees. Rust uses a token-aware scanner. Workflow environment maps, embedded Node scripts, JSON environment definitions, and supported shell assignments are inspected. Dependencies, immutable vendor files, generated output, and other worktrees are excluded; owned test helpers and locally adapted source ports are not. Unsupported owned inputs fail explicitly. Python inspection uses a bundled development-only grammar, not an installed Python interpreter.
+TypeScript/JavaScript and Python use syntax trees. Workflow environment maps, embedded Node scripts, JSON environment definitions, and supported shell assignments are inspected. Dependencies, immutable vendor files, generated output, and other worktrees are excluded; owned test helpers and locally adapted source ports are not. Unsupported owned inputs fail explicitly. Python inspection uses a bundled development-only grammar, not an installed Python interpreter.
 
 The exact externally branded key/member authority is `config/internal-naming-policy.json`. It records each setting's owner, evidence, exposure, and value semantics. Arbitrary uppercase properties are not public environment settings. No compatibility-alias exposure category is allowed. Test snippets and negative-test input data are not declarations or supported aliases.
 
@@ -24,14 +24,12 @@ The exact externally branded key/member authority is `config/internal-naming-pol
 
 | Keys | Producer / consumer and exposure |
 | --- | --- |
-| `A1_CONFIG_DIR`, `A1_DATA_DIR`, `A1_RUNTIME_DIR`, `A1_DATABASE_PATH`, `A1_ENDPOINT` | User/shell configuration consumed by `src/foundation/lifecycle/paths.ts`; documented public overrides, unchanged. |
+| `A1_CONFIG_DIR`, `A1_DATA_DIR`, `A1_RUNTIME_DIR` | User/shell configuration consumed by `src/foundation/lifecycle/paths.ts`; documented public overrides, unchanged. |
 | `A1_PROFILE_HOME` | Caller-supplied profile-home override consumed by `src/features/launch/profile-paths.ts`; exact existing exposure-review entry. |
 | `A1_STARTUP_TRACE` | Caller-supplied diagnostic path and trace context in `src/foundation/startup/startup-runtime.ts`; exact existing exposure-review entry. |
 | `A1_DEV_INSTANCE_ID`, `A1_DEV_ROOT` | Caller-supplied development overrides consumed by `src/features/launch/development-launch.ts`; exact existing exposure-review entries. |
-| `A1_PROCESS_GUARDIAN_PATH` | Explicit executable override in `src/foundation/process-containment/native-guardian-containment.ts`, also configured by CI; exact existing exposure-review entry. |
-| `A1_PROBE_TRACE` | Opt-in diagnostics read by native terminal-host code; exact existing exposure-review entry. |
+| `A1_PROBE_TRACE` | Opt-in diagnostics name retained in the product identity manifest; exact existing exposure-review entry. |
 | `A1_BUILD_VERBOSE`, `A1_DEV_SHELL` | Developer invocation controls in the build helper and development launcher; exact existing exposure-review entries. |
-| `A1_PANE_ID`, `A1_TERMINAL_SESSION_ID` | Reserved compatibility identities retained in the product identity manifest; the resident host does not currently emit them. |
 
 Pending review preserves a possible external interface, not an obsolete private alias. Once a setting is established as private, it cannot keep its branded spelling through that category.
 
@@ -39,19 +37,14 @@ Pending review preserves a possible external interface, not an obsolete private 
 
 | Keys | Producer / consumer and value semantics |
 | --- | --- |
-| `LAUNCH_CONTEXT_RELEASE_ROOT`, `LAUNCH_CONTEXT_RELEASE_ID`, `LAUNCH_CONTEXT_RELEASE_DIGEST`, `LAUNCH_CONTEXT_RELEASE_LAYERS` | Release bootstrap writes the selected verified immutable identity; supervision, guardian, and startup/cache readers consume it. Layers are comma-separated and can be empty. |
-| `LAUNCH_CONTEXT_PROFILE` | Bootstrap or the development launcher writes the selected `a1`/`pi` profile; guardian and UI entries consume it. |
+| `LAUNCH_CONTEXT_RELEASE_ROOT`, `LAUNCH_CONTEXT_RELEASE_ID`, `LAUNCH_CONTEXT_RELEASE_DIGEST`, `LAUNCH_CONTEXT_RELEASE_LAYERS` | Release bootstrap writes the selected verified immutable identity; the UI entry and startup/cache readers consume it. Layers are comma-separated and can be empty. |
+| `LAUNCH_CONTEXT_PROFILE` | Bootstrap or the development launcher writes the selected `a1`/`pi` profile; the UI entry consumes it. |
 | `LAUNCH_CONTEXT_WARMUP` | Release warmup writes exactly `1`; the private warmup entry requires it together with release context. |
 | `RELEASE_CLEANUP_HOLDS`, `RELEASE_CLEANUP_RUN_ID` | Cleanup scheduler/worker handoff in `src/foundation/release/release-gc.ts`; serialized holds and a worker run identity. |
 | `SOURCE_LEDGER_PATH`, `SOURCE_LEDGER_SCAN_ROOT`, `SOURCE_LEDGER_PORT_ROOT` | Source-ledger governance fixture overrides; produced by its tests and consumed by `check-pinned-pi-source-ledger.mjs`. |
 | `RELEASE_RUNNER_LABEL` | Release/full-regression workflows supply certification-runner provenance to `run-release-gates.mjs`. |
-| `TERMINAL_FIXTURE_INPUT`, `TERMINAL_FIXTURE_TOKEN` | Native terminal probe producer/consumer in `native/terminal-host/src/main.rs`; expected input and fixture token. |
-| `TERMINAL_HOST_LOCAL_BUILD` | Developer shell sets exactly `1`; `native/terminal-host/build.rs` then permits a Windows build outside CI. |
-| `TERMINAL_HOST_EXPORT_VT` | Native validation lanes in `.github/workflows/ci.yml` name a directory; `build.rs` copies the linked terminal library, headers, and manifest there for upload. |
-| `TERMINAL_HOST_PREBUILT_VT` | Developer shell names a fetched library directory; with `TERMINAL_HOST_LOCAL_BUILD=1` and no `CI`, `build.rs` verifies its manifest and links it instead of running Zig. |
 | `DOCS_AUTO_MERGE_POLL_ATTEMPTS`, `DOCS_AUTO_MERGE_POLL_MS` | Documentation automation polling controls, produced by governance tests and consumed by `manage-documentation-auto-merge.mjs`. |
 | `VALIDATION_JOB_STARTED_MS`, `RENDERING_JOB_STARTED_MS` | CI timing handoffs within `.github/workflows/ci.yml`; epoch milliseconds. |
-| `RUN_PROCESS_CONTAINMENT_INTEGRATION` | CI enables the real containment fixture with exactly `1`; platform containment tests consume it. |
 | `PACKAGE_MESSAGE_SCENARIO` | Package-message worker parent/child JSON scenario handoff. |
 | `RECOVERY_TEST_CANCEL_AFTER`, `RECOVERY_TEST_REMOVAL_MARKER` | Recovery test parent/fake-npm handoff; mutation index and disposable sentinel path. |
 
@@ -61,12 +54,12 @@ The private launch contract is `neutral-launch-v1`, declared by the package's `p
 
 These names are already neutral; their definitions and consumers remain the authority for their existing behavior:
 
-- Development aggregate: `CHANGES_RESULT`, `DOCS_RESULT`, `DOCUMENTATION_RESULT`, `DOCUMENTATION_REQUIRED`, `VALIDATE_RESULT`, `CONTAINMENT_RESULT`, `STARTUP_RESULT`, `RENDERING_RESULT`, `RENDERING_TIER`, `DOCS_ONLY`, `VERSION_ONLY`, `OPENSPEC_TOUCHED`, `SELECTED_HEAD`, `EXPECTED_HEAD`, `EVENT_BASE_SHA`, `EVENT_HEAD_SHA`. The workflow produces these and `require-development-validation.mjs` or the selector consumes them.
+- Development aggregate: `CHANGES_RESULT`, `DOCS_RESULT`, `DOCUMENTATION_RESULT`, `DOCUMENTATION_REQUIRED`, `VALIDATE_RESULT`, `STARTUP_RESULT`, `RENDERING_RESULT`, `RENDERING_TIER`, `DOCS_ONLY`, `VERSION_ONLY`, `OPENSPEC_TOUCHED`, `SELECTED_HEAD`, `EXPECTED_HEAD`, `EVENT_BASE_SHA`, `EVENT_HEAD_SHA`. The workflow produces these and `require-development-validation.mjs` or the selector consumes them.
 - Naming aggregate: `NAMING_RESULT`, `NAMING_REQUIRED`, `NAMING_HEAD`, produced by CI and consumed by the same required aggregate.
 - Validation: `VALIDATION_BUILD_READY`, `VALIDATION_CANDIDATE_TARBALL`, `VALIDATION_DOCUMENTATION_FULL_READY`, `VALIDATION_SELECTION_JSON`, `STARTUP_PERFORMANCE_RESULT`, owned by validation orchestration and exact-package fixtures.
 - Publication workflow-local handoffs: `BUILD`, `EVENT_NAME`, `EXISTS`, `EXPECTED_INTEGRITY`, `EXPECTED_REGISTRY_INTEGRITY`, `EXPECTED_REGISTRY_SHASUM`, `EXPECTED_SHASUM`, `MODE`, `PACKAGE`, `PLAN`, `PUBLISH`, `PULLS_PATH`, `PULL_REQUEST`, `REGISTRY_TARBALL`, `RELEASE_CHANNEL`, `RELEASE_VERSION`, `REQUESTED_CHANNEL`, `REQUESTED_SHA`, `SOURCE_SHA`, `VALIDATE`, `VERSION`, `WORK`, defined and consumed in `.github/workflows/publish.yml`.
-- Isolated fixture controls: `PROMPT_SUGGESTION_AGENT_DIR`, `RUN_PROMPT_SUGGESTION_PROVIDER_TEST`, `TEST_SUPERVISOR_SECRET`, owned by their specific provider/supervisor tests.
-- Host/tool integration: `CARGO`, `ZIG`, `PATH`, `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, XDG directory variables, `TERM`, `COLORTERM`, `TERM_PROGRAM`, `WT_SESSION`, `EXEPATH`, `MINGW_PREFIX`, `MSYSTEM`, and third-party `PI_*`, `GITHUB_*`, `GH_TOKEN`, and npm variables. Their external spellings and caller values are not private product naming targets. The forwarding of an arbitrary user's environment is distinct from defining an owned setting.
+- Isolated fixture controls: `PROMPT_SUGGESTION_AGENT_DIR`, `RUN_PROMPT_SUGGESTION_PROVIDER_TEST`, owned by their specific provider tests.
+- Host/tool integration: `PATH`, `HOME`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, XDG directory variables, `TERM`, `COLORTERM`, `TERM_PROGRAM`, `WT_SESSION`, `EXEPATH`, `MINGW_PREFIX`, `MSYSTEM`, and third-party `PI_*`, `GITHUB_*`, `GH_TOKEN`, and npm variables. Their external spellings and caller values are not private product naming targets. The forwarding of an arbitrary user's environment is distinct from defining an owned setting.
 
 ### Removed or reclassified registry entries
 
@@ -78,9 +71,9 @@ The old environment registry included `fixture` and `inputAcknowledgement`, but 
 
 An update is performed by the release that is already installed, so the contract is negotiated rather than cut over. `neutral-launch-v1` is the only contract this build **writes** for its own releases, and the superseded `A1_RELEASE_*`/`A1_IMMUTABLE_WARMUP` keys are still **read** when an older launcher starts this build, and still **written** when this build starts a retained release that declares no contract. An installation therefore stays launchable across the cutover in both directions, and no user is asked to stop processes and reinstall by hand.
 
-Metadata that predates contract declaration is stale, never fatal. A pre-cutover active record does not stop a launch: it is ignored, the installed payload is materialized, and ordinary cohort selection activates it. A launch that cannot take the installed payload at all — an installation being replaced right now — starts the retained active release instead of failing, and leaves activation to the next launch. What still requires `neutral-launch-v1` outright is narrow and never blocks a launch: the installed package's own manifest must declare it, and an update recovery capsule is never translated.
+Metadata that predates contract declaration is stale, never fatal. A pre-cutover active record does not stop a launch: it is ignored, the installed payload is materialized, and ordinary active-release selection activates it. A launch that cannot take the installed payload at all — an installation being replaced right now — starts the retained active release instead of failing, and leaves activation to the next launch. What still requires `neutral-launch-v1` outright is narrow and never blocks a launch: the installed package's own manifest must declare it, and an update recovery capsule is never translated.
 
-Activation after the global installation is handed over the same way. The package manifest declares `updateActivationContracts` (`activate-v1`) and ships `bin/activate.js`; an updater that serves a declared contract starts that entry with the data directory and the target version and relays its line-delimited progress events (`materializing`, `phase`, `warmup`, `completed`, `failed`) into its own journal and progress bar, while the entry materializes, certifies, warms, and supervises the tree it ships in with that tree's own code. The updater resolves nothing inside the installed tree but `package.json` and that entry; `test/repository-governance/update-activation-contract.test.ts` pins this. A tree that declares no contract the updater serves is activated in-process with the layout it had, which keeps an updater older than the contract and a downgrade to an older preview working.
+Activation after the global installation is handed over the same way. The package manifest declares `updateActivationContracts` (`activate-v1`) and ships `bin/activate.js`; an updater that serves a declared contract starts that entry with the data directory and the target version and relays its line-delimited progress events (`materializing`, `phase`, `warmup`, `completed`, `failed`) into its own journal and progress bar, while the entry materializes, certifies, and warms the tree it ships in with that tree's own code. The updater resolves nothing inside the installed tree but `package.json` and that entry; `test/repository-governance/update-activation-contract.test.ts` pins this. A tree that declares no contract the updater serves is activated in-process with the layout it had, which keeps an updater older than the contract and a downgrade to an older preview working.
 
 `test/foundation/release/update-predecessor.integration.test.ts` is the gate for this. It installs each of the most recent published releases and drives the candidate through **that release's own** materialization and warmup, because a fixture built from the candidate would only prove the candidate agrees with itself. On Windows it also drives the newest predecessor's protected package replacement from a user-style A1 prefix with npm beside a separate Node installation, then exercises the explicit `0.2.2` installer-context bridge. Candidate-only recovery success therefore cannot hide a target-side fix that its installed predecessor cannot reach. No reset or migration runs automatically. If disposable state blocks installation, inspect its resolved paths and obtain separate approval before removal.
 

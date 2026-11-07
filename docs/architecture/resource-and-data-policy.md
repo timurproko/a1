@@ -1,32 +1,21 @@
-# Multi-agent resource and data policy
+# Resource and data policy
 
-This policy is mandatory for the multi-agent workspace. It prevents one adapter, terminal pane, recovery record, or proof artifact from exhausting the workspace and prevents accidental persistence of credentials or terminal streams.
+This policy bounds what one A1 process may queue, retain, or persist, and prevents accidental persistence of credentials or terminal content. A1 runs one agent per directly attached process; it keeps no control store, workspace registry, or terminal model of its own.
 
 ## Resource budgets
 
-Budgets are minimum defaults, not promises of capacity. An implementation may lower them per agent, adapter, pane, host, or platform, but may not silently remove a limit.
+Budgets are minimum defaults, not promises of capacity. An implementation may lower them per feature or platform, but may not silently remove a limit.
 
 | Resource | Default budget | Required outcome on breach |
 |---|---:|---|
-| Structured event payload | 64 KiB | Reject only that event and preserve diagnostics |
-| Structured snapshot payload | 1 MiB | Reject resynchronization and mark the agent degraded |
-| Structured attachment payload | 2 MiB | Reject only that attachment |
-| Queued structured events per agent | 256 | Apply negotiated pause, rejection, compaction, or disconnect |
-| Concurrent structured commands per agent | 4 | Reject or queue deterministically with a capability explanation |
-| Reconnect replay per adapter | 1,024 events | Stop replay, request a snapshot if available, or mark discontinuity |
-| Native-host control message | 1 MiB | Close the incompatible protocol channel without touching panes |
-| Native topology nodes per tab | 1,024 | Reject the topology mutation atomically |
-| Terminal sessions per host | 64 | Reject additional sessions as unsupported capacity |
-| Terminal launch arguments | 1,024 | Reject that launch request |
-| Terminal environment entries | 512 | Reject that launch request |
-| Retained terminal model per pane | Host-defined, always bounded | Apply documented compaction, backpressure, pause, or termination |
-| Scrollback per pane | Host-defined, always bounded | Compact from oldest data first without cross-pane mutation |
-| Proof evidence file | 16 MiB | Reject and request summarized evidence |
 | Diagnostic payload | 256 KiB | Redact, truncate, and retain enough evidence for the failed operation |
+| Fatal-exit records | 10 records of 16 KiB each | Drop the oldest record; never retain prompt or input content |
+| Evidence file | 16 MiB | Reject and request summarized evidence |
 | Packaged release-note resource | 1 MiB total; 128 KiB per note | Reject the damaged resource and retain the note as unacknowledged |
 | Release-note acknowledgement/claim | 4 KiB per profile; one claim; one-hour stale bound | Ignore malformed acknowledgement, recover stale claim, and never acknowledge implicitly |
+| Session writer lock | one writer per session file; 10-second stale bound | Refuse a second writer and offer a fork; reclaim a stale lock after the bound |
 
-Every asynchronous consumer must implement a finite queue or window. Backpressure must isolate the offending agent/pane and must not block unrelated identities.
+Every asynchronous consumer must implement a finite queue or window. Backpressure must isolate the offending operation and must not block unrelated sessions or processes.
 
 Stable release-note preparation generates Pi-style Markdown with a
 `## [version] - YYYY-MM-DD` heading and applicable categorized `###` sections. Human
@@ -40,13 +29,11 @@ and total catalog limits apply when the snapshot is combined with committed hist
 
 | Class | Examples | Storage policy |
 |---|---|---|
-| Workspace metadata | IDs, names, lifecycle, capability versions, topology revisions, recovery references | May persist in the control store |
+| Release and update state | Immutable release records, update transaction journal, retention timestamps | May persist in A1's data directory; never stores session content or credentials |
 | Release-note state | Last acknowledged stable A1 version and opaque bounded claim token/time | May persist atomically in profile-isolated A1 configuration; never stores note text or Pi settings |
-| Structured payloads | Messages, tool calls, snapshots, attachments | Bound and process; arbitrary payload persistence remains unsupported |
-| User-authored prompt recall | Canonical interactive input and bounded provenance | May persist only through the profile-isolated prompt-history policy below, never in the control store |
-| Terminal content | PTY bytes, scrollback, selection, rendered cells | Never persist in A1's control store or diagnostics |
-| Host topology metadata | Window/tab/pane/session IDs, layout shape, dimensions, revision | May persist; not terminal content |
-| Native proof evidence | Artifact hashes, source revisions, workloads, latency/resource measurements, paint diagnostics | May persist in versioned evidence files without terminal content |
+| Session worktree claims | Runtime and agent identity, process ID, canonical worktree path | May persist under A1 state; not terminal content |
+| User-authored prompt recall | Canonical interactive input and bounded provenance | May persist only through the profile-isolated prompt-history policy below |
+| Terminal content | Terminal bytes, scrollback, selection, rendered cells | Never persist in A1 state or diagnostics |
 | Environment values | `PATH`, profile overrides, arbitrary launch environment | Do not persist; treat as potentially sensitive |
 | Credentials and tokens | API keys, OAuth tokens, cookies, auth files, passwords | Never copy, log, or persist outside the owning agent/profile |
 | Authentication state | Pi profile auth, provider sessions, platform keychains | Owned only by the selected agent/profile |
@@ -81,12 +68,10 @@ retention, failure semantics, profile identity, and stopped-instance removal.
 
 ## Required architectural outcomes
 
-- Structured/RPC semantics must not be inferred from ANSI text, terminal timing, or visual content.
-- Native-host protocol code must not carry PTY bytes, per-event child input, rendered cells, cell grids, framebuffers, or screen buffers.
-- `a1 pi` must not import, initialize, launch, or connect to composed terminal-host infrastructure.
-- Transparent direct attachment must remain independent of composed infrastructure and must not relay terminal data.
-- Recovery records store identity and bounded references, not terminal streams, authentication material, or arbitrary environment values.
-- A failed in-terminal 2×2 proof cannot be waived to merge composed infrastructure.
-- Proof automation must not launch, focus, drive, resize, or close terminal applications on an active workstation.
+- Agent semantics must not be inferred from ANSI text, terminal timing, or visual content.
+- No module may own a pseudoterminal, emulate a terminal, or relay terminal bytes between the user's terminal and the UI.
+- `a1 pi` uses the same directly attached pipeline with A1 surfaces withheld and never persists A1-owned state into the Pi profile.
+- Persisted records store identity and bounded references, not terminal streams, authentication material, or arbitrary environment values.
+- Test automation must not launch, focus, drive, resize, or close terminal applications on an active workstation.
 
 The executable repository policy tests cover these invariants alongside the architecture checker.

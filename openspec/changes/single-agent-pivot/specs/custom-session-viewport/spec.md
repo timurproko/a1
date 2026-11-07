@@ -48,6 +48,14 @@ When the governing submitted prompt's or completed compaction's first row scroll
 - **WHEN** another submitted prompt or completed compaction becomes the most recent anchor at or before the viewport start
 - **THEN** it SHALL replace the previous pinned context rather than stack another pinned row
 
+### Requirement: Fullscreen viewport annotations never reach the emitted terminal rows
+The custom viewport SHALL remove its internal upstream OSC 133 A/B/C prompt-zone annotations from final painted rows, including dock-only updates, while retaining semantic prompt anchors independently. Row styling, padding, rail composition, and PTY cursor compaction SHALL NOT turn those annotations into cursor movement or fresh lines. This requirement SHALL NOT change genuine shell OSC 133 interpretation in the terminal backend.
+
+#### Scenario: Compose an annotated row
+- **WHEN** styling and rail composition place prompt-zone annotations inside a fullscreen row instead of at its prefix
+- **THEN** the final emitted row SHALL contain the intended visible cells but no internal A/B/C zone commands
+- **AND** a terminal parser reading the emitted bytes SHALL observe the same content and dock rows without duplicate prior controls
+
 ## MODIFIED Requirements
 
 ### Requirement: The custom viewport is scoped to bare A1
@@ -131,3 +139,8 @@ If one chip is wider than the complete available content width, bare A1 SHALL tr
 **Reason**: Replaced by "The governing submitted prompt remains pinned while scrolling without a timestamp", which drops every timestamp clause.
 
 **Migration**: None.
+
+### Requirement: Fullscreen viewport annotations do not change terminal coordinates
+**Reason**: Restated under a new name without its resident-tab, supervisor, launch-guardian, containment, native-host, or timestamp scenarios, which no longer describe the single-agent product.
+
+**Migration**: See the ADDED requirement "Fullscreen viewport annotations never reach the emitted terminal rows".
