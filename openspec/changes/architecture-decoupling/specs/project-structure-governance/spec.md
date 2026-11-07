@@ -13,6 +13,13 @@ Every symbol exported from a production module under `src/` SHALL have an import
 - **THEN** the test SHALL assert the observable behaviour that value produces instead
 - **AND** the production module SHALL NOT gain an export for the test
 
+## REMOVED Requirements
+
+### Requirement: Transparent and single-agent scope remain explicit
+**Reason**: The transparent terminal baseline has no production owner since the single-agent pivot, so a requirement scoping it describes nothing in the tree. The single-agent launch scope it also stated is already required by `a1-shell` ("Interactive launch forms use the owned Pi UI pipeline directly") and `launch-profiles`.
+
+**Migration**: None.
+
 ## MODIFIED Requirements
 
 ### Requirement: Features are cohesive and expose one public entry

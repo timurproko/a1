@@ -20,6 +20,7 @@ This change makes the architecture match its own documentation, splits the class
 - **Profile capabilities are resolved once.** Composition turns the bare/comparison decision into one `ProductSurfaces` record (owned surfaces, startup changelog, theme base, prompt limits, collapsed skills, repository context) and passes it as data. No module outside composition reads `ownedSurfaces` or `productMode`.
 - **The session shell is split by concern.** Clipboard and copy transport construction moves to composition. The presenter keeps coordination only; transcript, dock, workflow output, and extension surface each own their state behind the existing `SessionConcern` lifecycle. `OwnedUiSessionShellRoot` becomes a thin root over those components. `SettingsApp` is split into list state, key dispatch, undo, and rendering. `PiTuiRuntimeAdapter` and `PiEngineAdapter` lose the methods that only forwarded to a collaborator. Every touched ratchet entry shrinks or disappears.
 - **Dead and test-only exports go.** The 146 unused exports are removed; the 71 test-only exports become module-private and their tests reach behaviour through the owner's public entry. The 15 session-shell test files are merged into one file per concern that mirrors the split above, moving cases verbatim and keeping the resource-sensitive partition correct.
+- **Pre-pivot residue is removed.** The single-agent pivot deleted the resident-tab, native terminal-host, supervisor, and launch-guardian code but left its outline behind: five hollow capability specs (`multi-agent-tabs`, `resident-terminal-host`, `resident-tab-reliability`, `agent-supervision`, `launch-instance-lifecycle`) plus the `terminal-agent-runtime` transparent-terminal spec and four transparent or physical-host requirements in `isolated-regression-testing`; about 100 lines of architecture-gate rules that reject class names, directories, and cadence inference that no longer exist, with a 223-line test for them; the unused `node-pty` devDependency; the direct-versus-resident `interaction-parity` matrix; Rust and Zig handling in the size ratchet, documentation policy, identity inventory, and cleanup scripts; a settings migration chain that introduces and then retires tab-bar, time-format, and update-notify settings; and supervisor-era names (`cohort`, `no-live-supervisor`, `supervisor-verified`, "resident host" identities) in release, startup, and naming-policy files. The specs, guards, dependency, scripts, and fixtures are deleted; the gate keeps only the three-line "no PTY or terminal emulator under `src/`" rule; the migration chain collapses to its end state; and the names are reconciled, with the persisted `a1-release-cohort-v1` schema id kept and documented as a legacy identifier.
 - **Unchanged.** The pinned Pi version, the ledger and upstream sync, the three Pi adapters' responsibilities, the owned UI's behaviour, the validation tiers, the delivery workflow, and every user-visible feature.
 
 ## Capabilities
@@ -31,11 +32,13 @@ This change makes the architecture match its own documentation, splits the class
 ### Modified Capabilities
 
 - `owned-ux-architecture`: the application layer reaches vendor presentation only through neutral ports; one theme contract is consumed outside the vendor boundary; profile capabilities are resolved once in composition.
-- `project-structure-governance`: the shell's layer rule loses its Pi-adapter exemption; governance tests prove gates through fixtures rather than prose; a production export needs a production consumer.
+- `project-structure-governance`: the shell's layer rule loses its Pi-adapter exemption; governance tests prove gates through fixtures rather than prose; a production export needs a production consumer; the transparent-baseline scope requirement is removed.
+- `isolated-regression-testing`: the physical-host automation, transparent manual-first, transparent physical-evidence, and raw-relay requirements are removed.
 
 ### Removed Capabilities
 
-- None.
+- `terminal-agent-runtime`: the transparent terminal capability has no production owner since the pivot.
+- `multi-agent-tabs`, `resident-terminal-host`, `resident-tab-reliability`, `agent-supervision`, `launch-instance-lifecycle`: the single-requirement stubs left by the pivot are removed; the one "SHALL NOT" each carried is already stated by `a1-shell` and `launch-profiles`.
 
 ## Impact
 
@@ -44,5 +47,6 @@ This change makes the architecture match its own documentation, splits the class
 - **Application:** every file under `src/app/session-shell` that imports `integrations/pi` changes to the ports; the presenter, root, and settings app are split.
 - **Composition:** `owned-ui.ts` builds `ProductSurfaces`, the presentation ports, and the clipboard transports.
 - **Governance:** `project-structure-policy.mjs` loses the shell exemption and gains the production-consumer export rule; `size-ratchet.json` shrinks.
+- **Residue:** six capability spec directories are deleted and two specs lose their transparent requirements; `check-architecture.mjs` loses its retired-mechanism, transparent-boundary, terminal-identity, and parity-boundary rules; `node-pty` leaves `package.json`; `scripts/development/interaction-parity` is deleted; Rust and Zig handling leaves `size-ratchet-policy.mjs`, `code-documentation-policy.mjs`, `product-identity-inventory.mjs`, and the local-cleanup scripts; `migrations.ts` collapses to its end state; `startup-budget.ts`, `update-transaction.ts`, `cohort-state.ts`, and `internal-naming-policy.json` lose supervisor-era names.
 - **Tests:** `test/repository-governance` drops to roughly one file per script; `test/app/session-shell` is reorganised per concern; test-only seams are removed.
 - **Users:** no visible change. The package shrinks slightly and CI runs faster.

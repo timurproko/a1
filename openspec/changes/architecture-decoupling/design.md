@@ -27,6 +27,7 @@ The repository documents a layered architecture: contracts at the bottom, vendor
 - No class under `src/` that this change touches remains above the ratchet thresholds unless its entry shrinks and the remaining size is explained in the design.
 - Governance tests prove each gate with a fixture, run on every operating system, and total under 3,000 lines.
 - Every exported production symbol has a production consumer or is removed.
+- No spec, gate rule, dependency, script, migration step, or identifier exists only because of the resident-tab, native terminal-host, supervisor, or transparent-terminal architecture.
 - The whole fast tier is faster than before; no behaviour the owned UI shows today changes.
 
 **Non-Goals**
@@ -77,11 +78,25 @@ A new rule in `project-structure-policy.mjs` fails when an exported symbol under
 
 The 15 `session-shell*.test.ts` files are merged into files named for the concerns of decision 5 (`presenter`, `transcript`, `dock`, `workflow-output`, `extension-surface`, `clipboard`, `paste`, `selection`, `viewport`, `lifecycle`). Cases move unchanged; the shared fixture stays one module. Files that fork helpers stay in the resource-sensitive partition, and `config/validation-suites.json` names the parts that inherit that cost. The audit after the merge reports the same passing case count as before.
 
+### 8. Remove the pivot's outline, not just its code
+
+The single-agent pivot deleted the resident-tab, terminal-host, supervisor, and guardian implementations but left the shape of them behind. A scan of the tree (excluding archives and vendored code) finds the residue in five groups:
+
+- **Specs.** `multi-agent-tabs`, `resident-terminal-host`, `resident-tab-reliability`, `agent-supervision`, and `launch-instance-lifecycle` are 14-line stubs with one negative requirement each; `terminal-agent-runtime` (8 requirements) specifies a transparent terminal that has no production owner; `isolated-regression-testing` carries four transparent or physical-host requirements and `project-structure-governance` a transparent-baseline scope requirement. These are deleted. The single-agent statements they carried already live in `a1-shell` and `launch-profiles`.
+- **Guards for deleted code.** `check-architecture.mjs` rejects `src/foundation/transparent-terminal/`, `src/drivers/terminal`, `src/host-terminal`, named retired classes (`PtyTerminalDriver`, `TerminalModeTracker`, `SemanticTerminalInput`), cadence inference, CLI identity in "terminal boundary" paths, and terminal-parity capture, and `terminal-architecture-policy.test.ts` tests those rules. All of it reduces to the one rule that still protects a live invariant: no module under `src/` imports `node-pty`, a terminal emulator, or spawns a pseudoterminal. Governance tests that assert the absence of `rustup`, `setup-zig`, `cargo`, `build:terminal-host`, or `bin/supervisor.js` go with the prose tests in decision 1.
+- **Dependencies and scripts.** `node-pty` has no importer. `scripts/development/interaction-parity` compares direct and resident interaction and is consumed only by one parity-oracle test and its recorder, so both go. `size-ratchet-policy.mjs` loses `maskRust`, `rustScopeName`, and the `native/<crate>/src/` root; `code-documentation-policy.mjs` loses `.rs`/`.zig`/`.c`/`.h` classification; `product-identity-inventory.mjs` loses the native-names class; `local-cleanup-git.mjs` and `local-cleanup-state.mjs` lose the Cargo target roots and their tests.
+- **Compatibility shims.** `migrations.ts` has 19 steps, 8 of which introduce and then retire tab-bar, time-format, and update-notify settings. They collapse into one step that maps any pre-pivot document to the current shape; the existing migration tests prove the same end state from the same starting documents. `LEGACY_FINAL_PHASE = "supervisor-verified"` in `update-transaction.ts` stays as a one-line reader for old transaction files and gains a comment naming it legacy.
+- **Names.** `cohort-state.ts` is the release store; it is renamed `release-state.ts` with `ReleaseStateStore`, while the persisted schema id `a1-release-cohort-v1` is kept and documented as a legacy identifier because changing it would invalidate installed state. The `no-live-supervisor` launch kind becomes `cold`, with the CI startup evidence key and trend script updated together. `internal-naming-policy.json` entries described as "the resident host does not currently emit it" are removed with their identities, and `product-identity-legacy-inventory.json` is regenerated so no entry points at a deleted file. Comments that say "solo", "utility tab", or "terminal host" in the resident sense are rewritten.
+
+Alternative considered: leave the stubs and guards as documentation of what must not come back. Rejected because the Git history and the archived pivot change already record that, and every guard is code the next reader must understand and the gate must run.
+
 ## Risks / Trade-offs
 
 - **Churn in the shell.** Twenty-six files change imports. Mitigation: the ports contract lands first with the Pi implementation and the shell switches file by file; the architecture gate's new rule is enabled last, once the edge count is zero.
 - **Lost invariants from deleted governance tests.** Mitigation: each deleted file is reviewed for a rule not already in a script; such rules are listed in the task that moves them, and the fixture test gains a case.
 - **Size ratchet friction.** Splitting classes creates new classes that may themselves exceed thresholds mid-series. Mitigation: ratchet entries are updated per commit with `update-size-ratchet.mjs`; a new class above threshold is split further rather than recorded.
+- **Collapsing migrations.** An older profile document must still land on the current shape. Mitigation: the existing migration tests keep their pre-pivot starting documents and assert the same end state against the collapsed chain before the old steps are deleted.
+- **Renaming the release store.** Installed state carries `a1-release-cohort-v1`. Mitigation: only the module and class are renamed; the schema id is unchanged and documented as legacy in `internal-naming.md`.
 - **Behaviour drift during the settings split.** Mitigation: the existing `settings-app.test.ts` (68 cases) runs unchanged against the composed `SettingsApp` before its cases are redistributed.
 
 ## Migration Plan
@@ -95,6 +110,7 @@ Order of landing within the one PR, each step green on typecheck and its own tes
 5. Clipboard services to composition; presenter and root splits.
 6. `SettingsApp`, `PiTuiRuntimeAdapter`, `PiEngineAdapter` splits.
 7. Dead-export rule and removals; session-shell test merge.
+8. Pre-pivot residue: specs, guards, `node-pty`, interaction-parity, Rust handling, migration collapse, renames.
 
 No data, settings, or release migration is involved; the package's behaviour and surface are unchanged.
 
