@@ -148,15 +148,15 @@ Resolution SHALL preserve existing and unknown values. A missing, malformed, or 
 - **AND** Pi's configured theme, accent, and background behavior SHALL remain unchanged
 
 ### Requirement: The update mode is a two-choice Generic setting
-Bare A1 SHALL keep the persisted key `updateCheck`, present it as `Update` first in `Generic`, and offer exactly `Auto` (default) and `No`. `Auto` SHALL check the executing release's channel after first paint and on a bounded cadence, install verified updates silently, and surface only the `Update installed, restart to update` status; `No` SHALL skip the check. The value SHALL stay in the profile-local A1 settings document, take effect at the next launch, and be absent from `a1 pi`.
+Bare A1 SHALL keep the persisted key `updateCheck`, present it as `Update` first in `Generic`, and offer exactly `Auto` (default) and `Manual`. `Auto` SHALL check the executing release's channel after first paint and on a bounded cadence, install verified updates silently, and surface only the `Update installed, restart to update` status; `Manual` SHALL skip the check and leave updating to `a1 update`. The value SHALL stay in the profile-local A1 settings document, take effect at the next launch, and be absent from `a1 pi`.
 
 #### Scenario: Present the Generic section
 - **WHEN** bare A1 opens the owned settings screen
-- **THEN** the `Generic` section SHALL offer `Update` first with choices `Auto` and `No`
+- **THEN** the `Generic` section SHALL offer `Update` first with choices `Auto` and `Manual`
 - **AND** its description SHALL say that Auto installs silently and asks for a restart, and that No leaves updates manual
 
 #### Scenario: Disable the check
-- **WHEN** the user selects `No` and restarts bare A1
+- **WHEN** the user selects `Manual` and restarts bare A1
 - **THEN** A1 SHALL neither read the release cache, contact the registry, start an automatic worker, nor observe automatic-update state for the startup flow
 
 #### Scenario: Use the automatic default
@@ -164,7 +164,7 @@ Bare A1 SHALL keep the persisted key `updateCheck`, present it as `Update` first
 - **THEN** bare A1 SHALL resolve `Auto` and silently install an eligible newer release when discovered, even if it was published after the session started
 
 #### Scenario: Reject an invalid value
-- **WHEN** a stored `updateCheck` value is not `auto` or `no`
+- **WHEN** a stored `updateCheck` value is not `auto` or `manual`
 - **THEN** existing settings validation SHALL reject that value and resolve `Auto` without blocking startup
 
 #### Scenario: Use the comparison profile

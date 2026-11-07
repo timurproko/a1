@@ -625,19 +625,19 @@ describe("the settings screen", () => {
     const choices = screen(target).join("\n");
     expect(choices).toMatch(/\bauto\b/u);
     expect(choices).not.toMatch(/\bnotify\b/u);
-    expect(choices).toMatch(/\bno\b/u);
-    expect(choices).not.toMatch(/\b(?:Auto|Notify|No)\b/u);
+    expect(choices).toMatch(/\bmanual\b/u);
+    expect(choices).not.toMatch(/\b(?:Auto|Notify|Manual|no)\b/u);
     target.onInput?.(ESC, HOST);
 
     target.onInput?.(`${ESC}[C`, HOST);
     let row = find(target, "Update");
-    expect(row).toMatch(/Update\s+no\b/u);
+    expect(row).toMatch(/Update\s+manual\b/u);
     expect(row).not.toContain("effective");
     expect(row).not.toContain("next start");
 
     await settleChanges();
     row = find(target, "Update");
-    expect(row).toMatch(/Update\s+no\b/u);
+    expect(row).toMatch(/Update\s+manual\b/u);
     expect(row).not.toContain("effective");
     expect(row).not.toContain("next start");
     expect(find(target, "Type search")).not.toBe("");
@@ -646,7 +646,7 @@ describe("the settings screen", () => {
     const reopened = settingsApp(session);
     selectRow(reopened, "Update");
     row = find(reopened, "Update");
-    expect(row).toMatch(/Update\s+no\b/u);
+    expect(row).toMatch(/Update\s+manual\b/u);
     expect(row).not.toContain("effective");
     expect(row).not.toContain("next start");
 

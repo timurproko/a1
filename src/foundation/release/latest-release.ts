@@ -7,7 +7,7 @@ import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 
 /** Published release channels: stable `X.Y.Z` on dist-tag `latest`, development `X.Y.Z-dev.N` on `next`. */
 export type ReleaseChannel = "stable" | "development";
-export type StartupUpdateMode = "auto" | "no";
+export type StartupUpdateMode = "auto" | "manual";
 
 interface DistTagVersions {
   readonly release: string | null;
@@ -173,7 +173,7 @@ export function startupReleaseCheckSkipReason(options: StartupReleaseCheckOption
   if (truthy(environment[PRODUCT_IDENTITY.environment.skipVersionCheck])) return "disabled-by-environment";
   if (truthy(environment.CI)) return "ci";
   if (!options.interactive) return "not-interactive";
-  if (options.settingMode === "no") return "disabled-by-setting";
+  if (options.settingMode === "manual") return "disabled-by-setting";
   if (releaseChannelOf(options.runningVersion) === null) return "unpublished-version";
   return null;
 }

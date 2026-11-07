@@ -225,7 +225,7 @@ describe("startup release check", () => {
     ["disabled-by-environment", { environment: { A1_SKIP_VERSION_CHECK: "true" } }],
     ["ci", { environment: { CI: "1" } }],
     ["not-interactive", { interactive: false }],
-    ["disabled-by-setting", { settingMode: "no" }],
+    ["disabled-by-setting", { settingMode: "manual" }],
     ["unpublished-version", { runningVersion: "0.3.1-dev" }],
   ] as const)("skips before touching cache or network when %s", async (reason, overrides) => {
     const harness = await createHarness({ runningVersion: "0.3.0", ...overrides });

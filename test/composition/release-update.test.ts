@@ -271,11 +271,11 @@ describe("startup release check composition", () => {
   });
 
   it("passes the no mode to the check and does not announce", async () => {
-    observed.updateCheck = "no";
+    observed.updateCheck = "manual";
     const { composed, announced, checks } = await compose({ profileId: "a1" });
     composed.application.start();
     await vi.waitFor(() => { expect(checks).toHaveLength(1); });
-    expect(checks[0]!.settingMode).toBe("no");
+    expect(checks[0]!.settingMode).toBe("manual");
     expect(announced).toEqual([]);
     expect(observed.automaticRequests).toEqual([]);
     await composed.application.dispose();
@@ -292,7 +292,7 @@ describe("startup release check composition", () => {
   });
 
   it("uses auto when a comparison profile has no A1 setting", async () => {
-    observed.updateCheck = "no";
+    observed.updateCheck = "manual";
     const { composed, announced, checks } = await compose({ profileId: "a1", productMode: "comparison" });
     composed.application.start();
     await vi.waitFor(() => { expect(announced).toEqual([{ status: "installed", version: "0.3.1" }]); });
@@ -355,7 +355,7 @@ describe("startup release check composition", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it.each(["auto", "no"] as const)("announces a locally active newer release once in %s mode without registry help", async mode => {
+  it.each(["auto", "manual"] as const)("announces a locally active newer release once in %s mode without registry help", async mode => {
     observed.updateCheck = mode;
     observed.automaticInstalled = null;
     const { composed, announced, checks } = await compose({ profileId: "a1", packageVersion: "0.3.0", release: null });
@@ -377,7 +377,7 @@ describe("startup release check composition", () => {
     const make = (announced: unknown[]) => createStartupReleaseUpdateObservation({
       backend: backendFixture(announced) as never,
       configDir: "synthetic",
-      mode: "no",
+      mode: "manual",
       packageVersion: "0.3.0",
       readPackageVersion: async () => "0.3.0",
       checkForNewerRelease: async () => { checks += 1; return null; },
