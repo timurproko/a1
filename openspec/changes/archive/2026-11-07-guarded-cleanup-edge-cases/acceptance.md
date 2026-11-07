@@ -24,9 +24,9 @@ The maintainer integration decision accepts these scenarios:
     "Explicit named-link remediation removes only the selected external disposable link while preserving its target and released worktree.",
     "Link or parent drift, dirty content, unrelated unsafe links, and ownership conflicts block remediation without widening ordinary sweep authority."
   ],
-  "archiveDigest": "ea3fa6081750857fc3a31f9269d2e121386a4781c5bb7e40570a94cb565ddb3e",
+  "archiveDigest": "e224f099e8e302be2778642c8004dd31b1c9ec66ef950a6e12990dff8b1547c1",
   "specDigest": "bd15ff8674761208c4989acb367fa64c024fd0df1663429f61579263ade30582",
-  "tasksDigest": "e6b5d2498226ce97f11081098bbe6d88d62290b0e5637c549ded270fb1e9d2f9",
+  "tasksDigest": "7107d35d16e4cde54940929fa056e573d03d4b1fb2da8a5690a4020a17af8263",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "knownGaps": []
 }
