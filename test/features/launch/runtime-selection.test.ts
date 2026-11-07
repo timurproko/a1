@@ -3,11 +3,11 @@ import { runSelectedInteractiveRuntime, selectInteractiveRuntime } from "../../.
 
 describe("interactive runtime selection", () => {
   it("enables product surfaces for bare A1", () => {
-    expect(selectInteractiveRuntime("a1")).toEqual({ kind: "owned-ui", profileId: "a1", ownedSurfaces: "on" });
+    expect(selectInteractiveRuntime("a1")).toEqual({ kind: "owned-ui", profileId: "a1", productMode: "bare" });
   });
 
   it("withholds product surfaces for the Pi comparison", () => {
-    expect(selectInteractiveRuntime("pi")).toEqual({ kind: "owned-ui", profileId: "pi", ownedSurfaces: "off" });
+    expect(selectInteractiveRuntime("pi")).toEqual({ kind: "owned-ui", profileId: "pi", productMode: "comparison" });
   });
 
   it("rejects an invalid profile", () => {
@@ -15,11 +15,11 @@ describe("interactive runtime selection", () => {
   });
 
   it.each([
-    ["a1", "on"],
-    ["pi", "off"],
-  ] as const)("starts the owned runtime for %s", async (profileId, ownedSurfaces) => {
+    ["a1", "bare"],
+    ["pi", "comparison"],
+  ] as const)("starts the owned runtime for %s", async (profileId, productMode) => {
     const ownedUi = vi.fn(async () => 23);
     await expect(runSelectedInteractiveRuntime(profileId, { ownedUi })).resolves.toBe(23);
-    expect(ownedUi).toHaveBeenCalledWith(profileId, ownedSurfaces);
+    expect(ownedUi).toHaveBeenCalledWith(profileId, productMode);
   });
 });

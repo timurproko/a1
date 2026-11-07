@@ -110,7 +110,7 @@ const STABLE: AvailableRelease = { channel: "stable", version: "0.3.1", command:
 const DEVELOPMENT: AvailableRelease = { channel: "development", version: "0.3.1-dev.652", command: "a1 update --develop", changelogUrl: null };
 
 async function compose(options: {
-  ownedSurfaces?: "off";
+  productMode?: "comparison";
   profileId?: string;
   packageVersion?: string;
   release?: AvailableRelease | null;
@@ -124,7 +124,7 @@ async function compose(options: {
   const host = { options: null as PiEngineHostOptions | null, accentCalls: [] as string[], disposed: 0 };
   const backend = backendFixture(announced);
   const composed = await composeOwnedUi({
-    ...(options.ownedSurfaces === undefined ? {} : { ownedSurfaces: options.ownedSurfaces }),
+    ...(options.productMode === undefined ? {} : { productMode: options.productMode }),
     ...(options.profileId === undefined ? {} : { profileId: options.profileId }),
     packageVersion: options.packageVersion ?? "0.3.0",
     releaseNotes: (options.releaseNotes ?? { current: () => null, completeMarkdown: "" }) as never,
@@ -199,7 +199,7 @@ describe("owned accent composition", () => {
 
   it("keeps the A1 facade on purple while comparison follows Pi's configured theme and changelog", async () => {
     observed.accentColor = "pink";
-    const { composed, host } = await compose({ profileId: "a1", ownedSurfaces: "off", release: null });
+    const { composed, host } = await compose({ profileId: "a1", productMode: "comparison", release: null });
     expect(host.options).toMatchObject({ productMode: "comparison", announceStartupChangelog: true });
     expect(host.options!.theme).toMatchObject({ base: "engine-configured", accentColor: "purple", packageBorderProjection: false });
     await composed.application.dispose();
@@ -293,7 +293,7 @@ describe("startup release check composition", () => {
 
   it("uses auto when a comparison profile has no A1 setting", async () => {
     observed.updateCheck = "no";
-    const { composed, announced, checks } = await compose({ profileId: "a1", ownedSurfaces: "off" });
+    const { composed, announced, checks } = await compose({ profileId: "a1", productMode: "comparison" });
     composed.application.start();
     await vi.waitFor(() => { expect(announced).toEqual([{ status: "installed", version: "0.3.1" }]); });
     expect(checks[0]!.settingMode).toBe("auto");

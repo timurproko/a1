@@ -63,12 +63,12 @@ const assertPiTuiIdentity = () => identity.assertSinglePiTuiModuleAtLaunch(
   completeRun(Promise.resolve().then(async () => {
     if (sessionSelection && profile !== "a1") throw new Error("session selection requires the normal A1 profile");
     return runSelectedInteractiveRuntime(profile, {
-      ownedUi: async (profileId, ownedSurfaces) => {
+      ownedUi: async (profileId, productMode) => {
         const { application, settings } = await composeOwnedUi({
           cwd: process.cwd(),
           profileId,
-          ownedSurfaces,
-          projectTrustPrompt: createConsoleProjectTrustPrompt({ presentation: profile === "a1" ? "bare" : "comparison" }),
+          productMode,
+          projectTrustPrompt: createConsoleProjectTrustPrompt({ productMode }),
           sessionForkPrompt: createConsoleSessionForkPrompt(),
           ...(sessionSelection === undefined ? {} : { sessionSelection }),
         });

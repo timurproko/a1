@@ -49,7 +49,7 @@ afterEach(() => {
   observed.options = undefined; observed.captures = []; observed.writes = []; observed.failure = "";
   vi.useRealTimers(); vi.unstubAllEnvs();
 });
-async function compose(options: { ownedSurfaces?: "off"; profileId?: string; clipboardDiagnosticsPath?: string }) {
+async function compose(options: { productMode?: "comparison"; profileId?: string; clipboardDiagnosticsPath?: string }) {
   return composeOwnedUi({ ...options, createEngineHost: async () => ({ create: async () => ({ identity: { cwd: process.cwd(), agentDir: "synthetic-agent" }, settings: { configuredTheme: () => "dark" } }), setAccentColor() {}, dispose: async () => {} }) as never });
 }
 
@@ -76,7 +76,7 @@ describe("clipboard diagnostic launch composition", () => {
 
   it.each(["unset", "blank", "comparison", "settings-free"])("withholds diagnostics in %s mode", async mode => {
     vi.stubEnv(PRODUCT_IDENTITY.environment.clipboardDiagnostics, mode === "unset" ? undefined : mode === "blank" ? " " : "unused.json");
-    const composed = await compose({ ...(mode === "settings-free" ? {} : { profileId: "a1" }), ...(mode === "comparison" ? { ownedSurfaces: "off" as const } : {}) });
+    const composed = await compose({ ...(mode === "settings-free" ? {} : { profileId: "a1" }), ...(mode === "comparison" ? { productMode: "comparison" as const } : {}) });
     expect(observed.captures).toHaveLength(0);
     expect(observed.options?.diagnostics).toBeUndefined();
     expect(observed.options?.presentation?.input).toBeUndefined();

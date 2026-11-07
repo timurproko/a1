@@ -7,7 +7,7 @@ import type { StartupReleaseUpdateObservationOptions } from "./release-update-ob
 type StartupRoute = NonNullable<OwnedUiShellEngineOptions["startupRoute"]>;
 
 interface StartupReleaseNoteOptions {
-  readonly ownedSurfaces: boolean;
+  readonly productMode: "bare" | "comparison";
   /** Deterministic catalog and version seams for composition tests. */
   readonly releaseNotes?: ReleaseNoteCatalog;
   readonly packageVersion?: string;
@@ -62,13 +62,13 @@ export class StartupReleaseNote {
   static async load(options: StartupReleaseNoteOptions): Promise<StartupReleaseNote> {
     let catalog: ReleaseNoteCatalog | null = null;
     let failure: unknown;
-    if (options.ownedSurfaces) {
+    if (options.productMode === "bare") {
       try {
         catalog = options.releaseNotes
           ?? await import("../features/owned-ui/release-notes.js").then(module => module.readPackagedReleaseNotes());
       } catch (error) { failure = error; }
     }
-    const packageVersion = options.ownedSurfaces ? options.packageVersion ?? await readPackageVersion() : null;
+    const packageVersion = options.productMode === "bare" ? options.packageVersion ?? await readPackageVersion() : null;
     const current = packageVersion === null ? null : catalog?.current(packageVersion) ?? null;
     const profileId = options.profileId;
     const claim = current === null || profileId === undefined

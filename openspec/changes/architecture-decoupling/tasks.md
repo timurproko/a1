@@ -28,8 +28,9 @@
 
 - Note: refined with maintainer approval. `productMode` (`bare` or `comparison`) is already chosen once in composition and is the engine host's single input; the duplication was four spellings of that one decision at the app boundary.
 
-- [ ] 3.1 Replace `ownedSurfaces` (`"on" | "off"` in `features/launch/runtime-selection.ts`, a boolean in `composition/owned-ui.ts` and `composition/startup-route.ts`) and the trust prompt's `presentation` option with `productMode: OwnedUiSessionProductMode`, so the decision has one name and one type from launch selection to the engine host.
-- [ ] 3.2 Make the session shell read the product mode from `backend.settings.productMode` instead of re-deriving it from the session layout; the layout stays a presentation choice composition derives from the mode.
+- [x] 3.1 Replace `ownedSurfaces` (`"on" | "off"` in `features/launch/runtime-selection.ts`, a boolean in `composition/owned-ui.ts` and `composition/startup-route.ts`) and the trust prompt's `presentation` option with `productMode: OwnedUiSessionProductMode`, so the decision has one name and one type from launch selection to the engine host.
+- [x] 3.2 Make the session shell read the product mode from `backend.settings.productMode` instead of re-deriving it from the session layout; the layout stays a presentation choice composition derives from the mode.
+  - Note: the shell also gated the thinking-selector presentation on the layout; it now reads the mode too. Test fixtures that built a pinned shell over a `bare` engine now pair the pinned layout with `comparison`, as composition always does, including the command-outcome parity worker.
 
 ## 4. The shell depends on neutral presentation ports
 

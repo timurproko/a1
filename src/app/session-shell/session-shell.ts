@@ -793,7 +793,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         onCancel: close,
         onSelectAsDefault: level => this.backend.settings.setDefaultThinkingLevel(level),
         defaultLevel: snapshot.defaultThinkingLevel,
-        ...(this.#customViewport ? {
+        ...(this.backend.settings.productMode === "bare" ? {
           presentation: {
             profile: "bare" as const,
             cycleBinding: this.root.editor.keybindingConfig()["app.thinking.cycle"] ?? [],
@@ -1119,7 +1119,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   // Invariant: bare A1 routes `models`; the comparison profile keeps the pinned `model`/`scoped-models` pair. Hidden routes are shared.
   #isWorkflowRoute(value: string): value is OwnedUiWorkflowRoute {
-    return (workflowCommandNames(this.#customViewport ? "bare" : "comparison") as readonly string[]).includes(value)
+    return (workflowCommandNames(this.backend.settings.productMode) as readonly string[]).includes(value)
       || (OWNED_UI_HIDDEN_COMMAND_NAMES as readonly string[]).includes(value);
   }
 

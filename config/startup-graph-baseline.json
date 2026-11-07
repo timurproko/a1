@@ -2,7 +2,7 @@
   "schema": "a1-startup-graph-baseline-v1",
   "ownedReachability": {
     "maximumFiles": 186,
-    "maximumSourceBytes": 1750591,
+    "maximumSourceBytes": 1750428,
     "optionalModules": [
       "src/features/owned-ui/settings-app.ts",
       "src/composition/settings-search-input.ts",
