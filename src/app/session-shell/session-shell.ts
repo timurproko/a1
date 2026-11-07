@@ -1,8 +1,7 @@
-import type { OwnedUiShellClipboardContent, OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
+import type { OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
 import type { TerminalComponentPort, TerminalInputListenerResult, TerminalInputSurfaceKind, TerminalOverlayHandle, TerminalPointerSurface } from "../../contracts/presentation/index.js";
-import { ResponseCopyCoordinator } from "./response-copy-coordinator.js";
-import { createResponseCopyExecutor, responseCopyDestination, type OwnedResponseCopyExecutor } from "./response-copy-transport.js";
-import { MAX_COPY_CONTROL_BYTES, type CopyResult } from "./response-copy-protocol.js";
+import { ShellClipboard } from "./shell-clipboard.js";
+import type { CopyResult } from "./response-copy-protocol.js";
 import { PromptHistoryController } from "./prompt-history-controller.js";
 import { SessionDialogCoordinator } from "./dialog-coordinator.js";
 import { LoginInteraction } from "./login-interaction.js";
@@ -19,7 +18,6 @@ import {
 } from "./suggestion-surface.js";
 import { CLEAR_EXIT_INTERVAL_MS, boundedCleanup } from "../../foundation/terminal-cleanup/terminal-reset.js";
 import { OWNED_UI_HIDDEN_COMMAND_NAMES } from "../../contracts/owned-ui/index.js";
-import { ImageAttachmentError } from "../../contracts/owned-ui/index.js";
 import type {
   OwnedUiCommand,
   OwnedUiCommandResult,
@@ -53,15 +51,10 @@ import {
 } from "./shell-host.js";
 
 
-import { runImageWorker } from "./image-preparation-client.js";
-import type { ClipboardImageData } from "./clipboard-image.js";
 import {
   STREAM_PRESENTATION_INTERVAL_MS,
   StreamPresentationCoalescer,
 } from "./stream-presentation-coalescer.js";
-import {
-  writeSystemClipboardText,
-} from "./system-clipboard.js";
 import {
   OwnedUiSessionShellRoot,
   shellResourceEntries,
@@ -127,13 +120,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   #shutdownPromise: Promise<OwnedUiCommandResult> | undefined;
   #disposePromise: Promise<void> | undefined;
   #layoutParts: PinnedLayoutParts | undefined;
-  #pendingClipboardWrite: Promise<void> = Promise.resolve();
   // Invariant: translated startup diagnostics create at most one dock notice per kind per shell.
   #startupTrustHandled = false;
   readonly #customViewport: boolean;
-  readonly #responseCopy: ResponseCopyCoordinator | null;
+  readonly #clipboard: ShellClipboard;
   // Rationale: only an executor this shell created owns a spare copy helper worth warming and disposing.
-  #copyExecutor: OwnedResponseCopyExecutor | undefined;
   #copyIntentSequence = 0;
   readonly #unbindClipboardWriter: () => void;
   readonly #reloadPresentation: OwnedUiShellPresentationOptions["reload"];
@@ -178,41 +169,18 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     // throw releases them in reverse, so a shell that never finished constructing holds nothing.
     const constructed: (() => void)[] = [() => host.disconnect(this)];
     try {
-      this.#responseCopy = this.#customViewport ? new ResponseCopyCoordinator({
-        execute: responseCopy?.execute ?? (this.#copyExecutor = createResponseCopyExecutor({
-          ...(sharedClipboard === undefined ? {} : { pool: sharedClipboard.copy }),
-          ...(terminal === undefined && clipboard === undefined ? {} : { destination: "terminal" }),
-          ...(clipboard?.writeText === undefined ? {} : { writeText: (text, signal) => clipboard!.writeText!(text, signal) }),
-          // Invariant: the owned host is the route contract. Pseudoterminal children must not infer
-          // clipboard reachability from Node's view of stdout, and inactive presenters are fenced here.
-          terminal: { submit: async (control, signal) => {
-            if (signal.aborted || this.#disposed || !this.#terminal.running || !this.#terminal.attached) throw new Error("Copy canceled");
-            // Performance: never grow the real terminal's pending buffer with another clipboard payload.
-            if (terminal === undefined && process.stdout.writableLength + control.length > MAX_COPY_CONTROL_BYTES) {
-              throw new Error("Clipboard terminal is busy");
-            }
-            this.#terminal.writeControl(control);
-          } },
-        })),
-        ...(responseCopy?.onEvent === undefined ? {} : { onEvent: responseCopy.onEvent }),
-      }) : null;
-      constructed.push(() => { this.#responseCopy?.dispose(); this.#copyExecutor?.dispose(); });
-      const readClipboard =async (signal: AbortSignal): Promise<OwnedUiShellClipboardContent | null> => {
-        if (signal.aborted) throw new ImageAttachmentError("image-canceled");
-        if (clipboard === undefined) return runImageWorker({ kind: "clipboard" }, signal);
-        try {
-          const image = await clipboard.readImage?.(signal);
-          if (image !== null && image !== undefined) {
-            const canonical = await runImageWorker<ClipboardImageData | null>({ kind: "canonicalize", source: image }, signal);
-            if (canonical !== null) return { kind: "image", ...canonical };
-          }
-        } catch (error) {
-          if (error instanceof ImageAttachmentError) throw error;
-          // Compatibility: an unavailable image reader can still provide text.
-        }
-        const text = await clipboard.readText(signal);
-        return text === null ? null : { kind: "text", text };
-      };
+      this.#clipboard = new ShellClipboard({
+        ownedCopy: this.#customViewport, substituteTerminal: terminal !== undefined,
+        ...(sharedClipboard === undefined ? {} : { shared: sharedClipboard }),
+        ...(clipboard === undefined ? {} : { clipboard }),
+        ...(responseCopy === undefined ? {} : { responseCopy }),
+        ...(pastePreparation === undefined ? {} : { pastePreparation }),
+        disposed: () => this.#disposed,
+        terminalAttached: () => this.#terminal.running && this.#terminal.attached,
+        writeControl: control => this.#terminal.writeControl(control),
+      });
+      constructed.push(() => this.#clipboard.dispose());
+      const pastePreparationOptions = this.#clipboard.pastePreparation();
       this.root = new OwnedUiSessionShellRoot(this.backend.session.view(), cwd, { presentation: options.presenters, components: options.presenters.components,
         getColumns: () => this.#terminal.viewport().columns,
         getRows: () => this.#terminal.viewport().rows,
@@ -260,35 +228,13 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
           this.#promptHistory?.synchronize();
         },
         onCopyText: (text, cut) => {
-          if (this.#responseCopy !== null) {
-            this.#trackCopy(this.#responseCopy.submitText(text), cut ? undefined : text.length);
-            return;
-          }
-          const write = () => {
-            if (this.#disposed) return Promise.resolve();
-            this.#terminal.writeControl(`\u001b]52;c;${Buffer.from(text, "utf8").toString("base64")}\u0007`);
-            return clipboard === undefined ? writeSystemClipboardText(text)
-              : clipboard.writeText?.(text) ?? Promise.resolve();
-          };
-          // Compatibility: comparison profiles retain their existing clipboard path.
-          this.#pendingClipboardWrite = write().catch(() => {});
+          const delivery = this.#clipboard.copyText(text);
+          if (delivery !== undefined) this.#trackCopy(delivery, cut ? undefined : text.length);
         },
-        readClipboardContent: async (signal = new AbortController().signal) => {
-          await this.#pendingClipboardWrite;
-          return readClipboard(signal);
-        },
-        captureClipboardPaste: () => {
-          const before = this.#responseCopy?.capturePasteBarrier() ?? (async () => true);
-          if (clipboard !== undefined) return { kind: "provided", read: readClipboard, before };
-          if (responseCopyDestination(process.env) === "terminal") return {
-            kind: "provided", before, read: async () => { throw new ImageAttachmentError("paste-unavailable"); },
-          };
-          return { kind: "native", before };
-        },
+        readClipboardContent: signal => this.#clipboard.readContent(signal),
+        captureClipboardPaste: () => this.#clipboard.capturePaste(),
         ...(pasteDiagnostics === undefined ? {} : { pasteDiagnostics: pasteDiagnostics }),
-        ...(pastePreparation === undefined && sharedClipboard === undefined ? {} : {
-          pastePreparation: { ...pastePreparation, ...(sharedClipboard === undefined ? {} : { pool: sharedClipboard.paste }) },
-        }),
+        ...(pastePreparationOptions === undefined ? {} : { pastePreparation: pastePreparationOptions }),
         ...(sharedKeybindings === undefined ? {} : { keybindings: sharedKeybindings }),
         ...(this.#promptImages === null ? {} : { promptImageLimit: this.#promptImages.limit }),
         skillsPresentation: () => this.#skills?.presentation() ?? "expand",
@@ -454,12 +400,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         if (event.type === "session-lifecycle" && event.lifecycle === "stopped") this.#stop.settleAfter(() => this.dispose());
       });
       constructed.push(this.#unsubscribe);
-      this.#unbindClipboardWriter =this.#responseCopy === null ? () => {} : this.backend.extensions.bindClipboardWriter(async text => {
-        const result = await this.#responseCopy!.submitText(text);
-        if (result.outcome === "delivered") return true;
-        if (result.outcome === "submitted-unverified") return false;
-        throw new Error(result.outcome === "timed-out" ? "Clipboard delivery timed out" : "Clipboard delivery could not be completed");
-      });
+      this.#unbindClipboardWriter = this.#clipboard.responseCopy === null ? () => {}
+        : this.backend.extensions.bindClipboardWriter(text => this.#clipboard.writeForExtension(text));
       constructed.push(this.#unbindClipboardWriter);
       if (this.backend.session.view().lifecycle === "stopped") this.#stop.resolve();
     } catch (error) {
@@ -545,7 +487,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.root.usesDefaultInputSurface() && !this.#terminal.hasFocusedOverlay());
     if (routed.copySelection !== undefined) {
       const snapshot = routed.copySelection;
-      this.#trackCopy(this.#responseCopy?.submit(snapshot, this.#pendingClipboardWrite), copyCharacters(snapshot));
+      this.#trackCopy(this.#clipboard.copySelection(snapshot), copyCharacters(snapshot));
     }
     if (routed.copyLastMessage) void this.runWorkflow({ command: "copy", argument: "" });
     if (!routed.consumed) return routed.data === data ? undefined : { data: routed.data };
@@ -583,7 +525,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#dialogs.presentStartupRoute();
       void this.#presenters.components.dialogs.lazySelectors().then(selectors => selectors.prepare()).catch(() => {});
       this.root.warmPastePreparation();
-      this.#copyExecutor?.warm();
+      this.#clipboard.warm();
     });
   }
 
@@ -1112,8 +1054,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     // Invariant: events stop first, so nothing re-enters the view during history close, outro, or restoration.
     attempt(() => this.#unsubscribe());
     this.#copyIntentSequence += 1;
-    this.#responseCopy?.dispose();
-    this.#copyExecutor?.dispose();
+    this.#clipboard.dispose();
     this.#submission.cancelWaiting();
     let pasteCleanup = Promise.resolve();
     let historyCleanup = Promise.resolve(true);
@@ -1217,7 +1158,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   // Invariant: the order is the reset order on session replacement; copy intent before pastes before the input surface.
   #createConcerns(): SessionConcerns {
     return new SessionConcerns([
-      { onSessionReplaced: () => { this.#copyIntentSequence += 1; this.#responseCopy?.reset(); } },
+      { onSessionReplaced: () => { this.#copyIntentSequence += 1; this.#clipboard.reset(); } },
       this.#submission,
       { onSessionReplaced: () => this.root.resetPendingPastes() },
       { onSessionReplaced: () => this.#promptSuggestions?.invalidate() },

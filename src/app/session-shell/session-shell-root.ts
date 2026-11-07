@@ -36,6 +36,7 @@ import type {
 import { PromptChipStore, type PreparedPrompt } from "./prompt-chips.js";
 import type { PastePreparationClientOptions } from "./paste-preparation-client.js";
 import type { OwnedUiClipboardServices } from "./clipboard-services.js";
+import type { OwnedUiClipboardPort } from "./shell-clipboard.js";
 import { SessionViewportController, type SessionViewportInputResult } from "./session-viewport-controller.js";
 import type { ResponseCopyExecutor } from "./response-copy-transport.js";
 import type { ResponseCopyEvent } from "./response-copy-protocol.js";
@@ -52,12 +53,6 @@ import type { StreamPresentationScheduler } from "./stream-presentation-coalesce
 
 type OwnedUiTerminalPort = TerminalPort;
 type OwnedUiStartupOptions = OwnedUiShellHeaderOptions;
-
-interface OwnedUiClipboardPort {
-  readText(signal?: AbortSignal): Promise<string | null>;
-  readImage?(signal?: AbortSignal): Promise<{ readonly data: string; readonly mimeType: string } | null>;
-  writeText?(text: string, signal?: AbortSignal): Promise<void>;
-}
 
 /** The engine session the shell presents and the composition's decisions about it. */
 export interface OwnedUiShellEngineOptions {
