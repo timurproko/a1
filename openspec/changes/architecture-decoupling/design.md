@@ -55,13 +55,15 @@ The shell today reaches into the adapters for a dozen concrete things. The contr
 
 Alternative considered: keep direct imports but restrict them to types. Rejected because type-only coupling still ties the shell's vocabulary to Pi and does not stop the next value import.
 
+Refinement approved during implementation: measuring after the theme work showed about 100 distinct Pi symbols across 26 files, and that `shell-host.ts` constructs the Pi TUI runtime and damage-aware terminal directly. The terminal host therefore moves into `src/integrations/pi/tui-runtime` behind a neutral terminal-host contract; the neutral port and value types move into `src/contracts/presentation`; and the remaining factories ride on `ShellPresentationPorts`, which lives in `src/contracts/presentation` (UI components may import only that contract) and which `createPiSessionPresenters` already returns.
+
 ### 3. One theme contract
 
 `src/ui/components/theme.ts` already defines `UiTheme` with roles. It gains the few roles the shell paints that are missing (canvas background, hyperlink, status levels) and a `ThemeSource` port with `current()` and `onChange()`. The Pi component adapter implements `ThemeSource` from `piTheme`. `integrations/pi/components/theme.ts` stops re-exporting the vendored theme and keeps only Pi-facing helpers. The two identical `progress-palette.generated.ts` files become one under `src/ui/settings`, generated once, with `foundation/release` receiving the palette through its existing options rather than importing UI.
 
-### 4. Profile capabilities are data
+### 4. The product mode has one name
 
-Composition computes `ProductSurfaces` once from `ownedSurfaces`: `{ owned, startupChangelog, themeBase, promptImageLimit, collapsedSkills, repositoryContext }`. Engine host options, the settings bridge, the resource catalog, the shell, and the trust prompt receive the field they need. The 15 branch sites become reads of a field; `productMode` survives only as the engine host's own input, computed from the record.
+Refinement approved during implementation: `productMode` (`bare` or `comparison`) is already decided once and is the engine host's single input, which the Pi engine adapter legitimately interprets for vendor-specific behaviour. The duplication was four spellings of the same decision at the app boundary: `ownedSurfaces` as `"on" | "off"` in launch selection and as a boolean in composition and the startup route, the trust prompt's `presentation`, and the shell re-deriving the mode from its layout. All of them become `productMode` with one type, and the shell reads it from the backend's settings port. A `ProductSurfaces` record was rejected because it would add an abstraction threaded through eight engine classes without removing a decision.
 
 ### 5. Split along the seams the code already names
 
@@ -109,7 +111,7 @@ Order of landing within the one PR, each step green on typecheck and its own tes
 
 1. Governance test reduction and line-ending normalisation (no production change).
 2. Theme contract and palette de-duplication.
-3. `ProductSurfaces` record.
+3. One name for the product mode.
 4. `ShellPresentationPorts` contract, Pi implementation, composition injection; shell files switch to the ports; policy rule enabled.
 5. Clipboard services to composition; presenter and root splits.
 6. `SettingsApp`, `PiTuiRuntimeAdapter`, `PiEngineAdapter` splits.

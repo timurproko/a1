@@ -1,17 +1,17 @@
 ## ADDED Requirements
 
-### Requirement: Profile capabilities are resolved once in composition
-The composition root SHALL resolve the launch profile into one capabilities record that names each product surface and behaviour the profile enables or withholds. Every module that behaves differently per profile SHALL receive the field it needs from that record as data. No module outside composition SHALL read the profile identifier, a product-mode string, or an owned-surfaces flag to decide behaviour.
+### Requirement: The product mode is decided once and has one name
+Launch selection SHALL decide the product mode once, as `bare` for the full A1 surface or `comparison` for the pinned Pi comparison, and every layer SHALL carry that decision under the one name `productMode` and one type. Composition SHALL pass it to the engine host and derive the session layout from it. No module SHALL re-derive the mode from the session layout, the profile identifier, or a surface flag.
 
-#### Scenario: A comparison profile is composed
-- **WHEN** composition builds the application for the comparison profile
-- **THEN** it SHALL build one capabilities record that withholds every owned surface
-- **AND** the engine host, settings bridge, resource catalog, shell, and trust prompt SHALL each receive their field from that record
+#### Scenario: A comparison launch is composed
+- **WHEN** `a1 pi` is launched
+- **THEN** launch selection, composition, the engine host, the trust prompt, and the session shell SHALL each see `productMode: "comparison"`
+- **AND** the session layout SHALL be the pinned layout composition derived from that mode
 
-#### Scenario: A new profile-dependent behaviour is added
-- **WHEN** a change makes a surface depend on the launch profile
-- **THEN** it SHALL add a field to the capabilities record and read that field
-- **AND** it SHALL NOT branch on the profile identifier or product mode
+#### Scenario: The shell needs the product mode
+- **WHEN** the session shell behaves differently for the comparison profile, such as choosing workflow command names
+- **THEN** it SHALL read the mode from the session backend's settings port
+- **AND** it SHALL NOT infer the mode from whether the custom viewport is active
 
 ## MODIFIED Requirements
 
