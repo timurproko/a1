@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
-import { inspectLayerBoundaries, inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
+import { inspectExportConsumers, inspectLayerBoundaries, inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
 import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
 import { inspectBaselinePaths } from "./baseline-paths-policy.mjs";
 import { inspectModuleGraph } from "./module-graph-policy.mjs";
@@ -119,6 +119,12 @@ if (rootArgument < 0) {
     errors.push(`architecture allowlist is missing or invalid: ${error instanceof Error ? error.message : String(error)}`);
   }
   if (architectureAllowlist !== null) errors.push(...await inspectModuleGraph(root, architectureAllowlist, sourceFiles));
+  // Invariant: an export is live only when production code, a shipped entry, or a maintenance script reads it.
+  const consumers = {};
+  for (const directory of ["bin", "scripts"]) {
+    for (const file of await walk(resolve(root, directory)).catch(() => [])) consumers[relative(root, file).split(sep).join("/")] = await readFile(file, "utf8");
+  }
+  errors.push(...inspectExportConsumers(sourceFiles, consumers, architectureAllowlist?.entryModules ?? []));
   try {
     const sizeBaseline = JSON.parse(await readFile(resolve(root, "config", "baselines", "size-ratchet.json"), "utf8"));
     errors.push(...inspectSizeRatchet(await measureSizeRatchet(root), sizeBaseline));

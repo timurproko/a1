@@ -182,6 +182,41 @@ function importRecords(source) {
   return records;
 }
 
+/**
+ * Every exported value under `src/` has a production consumer: a file under `src/`, `bin/`, or `scripts/`
+ * that names it and imports its module. Owner public entries (`index.ts`), declared entry modules, and copied
+ * upstream sources are exempt. Types are exempt because exported signatures must name them; a value only tests
+ * read belongs private, with the tests on the public entry.
+ */
+export function inspectExportConsumers(files, consumers = {}, exemptModules = []) {
+  const exempt = new Set(exemptModules);
+  const errors = [];
+  const sources = Object.entries(files).map(([path, source]) => [normalize(path), source]);
+  const others = [...sources, ...Object.entries(consumers).map(([path, source]) => [normalize(path), source])];
+  for (const [path, source] of sources) {
+    if (!/^src\/.+\.ts$/.test(path) || path.endsWith(".d.ts") || path.endsWith("/index.ts") || path.includes("/upstream/") || path === "src/product-identity.ts" || exempt.has(path)) continue;
+    const stem = path.slice("src/".length, -".ts".length);
+    const names = new Set([...source.matchAll(/^export\s+(?:declare\s+)?(?:async\s+)?(?:const|function|class|enum|let|abstract\s+class)\s+([A-Za-z_$][\w$]*)/gm)].map(match => match[1]));
+    if (names.size === 0) continue;
+    const importers = others.filter(([other, text]) => other !== path && refersTo(other, text, path, stem));
+    for (const name of names) {
+      const word = new RegExp(`\\b${name.replace(/\$/g, "\\$")}\\b`);
+      if (!importers.some(([, text]) => word.test(text))) {
+        errors.push(`${path}: export '${name}' has no production consumer; make it private or delete it`);
+      }
+    }
+  }
+  return errors;
+}
+
+function refersTo(importer, text, target, stem) {
+  if (!importer.startsWith("src/")) return text.includes(`${stem}.js`) || text.includes(`${stem}.ts`);
+  for (const match of text.matchAll(/(?:from\s+|import\s*\(\s*|export\s+\*\s+from\s+)(["'])(\.\.?\/[^"']+)\1/g)) {
+    if (resolveTypeScriptImport(importer, match[2]) === target) return true;
+  }
+  return false;
+}
+
 function resolveTypeScriptImport(importer, specifier) {
   const resolved = normalize(posix.normalize(posix.join(dirname(importer), specifier)));
   if (resolved.endsWith(".js")) return `${resolved.slice(0, -3)}.ts`;
