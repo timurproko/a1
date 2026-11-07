@@ -225,6 +225,17 @@ export function archivePaths(change, date, capabilities) {
   };
 }
 
+/**
+ * Whether a change retires a capability: its metadata declares `retire_capabilities: true` and its delta for the
+ * capability only removes requirements. Archiving such a change deletes the capability's canonical spec.
+ */
+export function retiredCapability(metadataText, deltaText) {
+  if (typeof metadataText !== "string" || typeof deltaText !== "string") return false;
+  if (!/^retire_capabilities:[ \t]*true[ \t]*\r?$/m.test(metadataText)) return false;
+  const sections = [...deltaText.matchAll(/^##[ \t]+(ADDED|MODIFIED|REMOVED|RENAMED)[ \t]+Requirements[ \t]*\r?$/gm)].map(match => match[1]);
+  return sections.length > 0 && sections.every(section => section === "REMOVED");
+}
+
 export function assertArchiveDiff(files, paths) {
   requireValue(Array.isArray(files) && files.length > 0 && files.length <= 1000, "archive-diff");
   for (const file of files) {

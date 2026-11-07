@@ -1,10 +1,12 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { prepareSinglePrDelivery, replaceImplementationMetadata } from "../../scripts/governance/openspec-delivery-finalization.mjs";
 import { parseConditionalAcceptance } from "../../scripts/governance/openspec-delivery-policy.mjs";
+import { inspectVersion3DeliverySnapshot } from "../../scripts/governance/openspec-archive-github.mjs";
+import { parseImplementation } from "../../scripts/governance/openspec-archive-policy.mjs";
 
 const roots: string[] = [];
 const requirement = (text: string) => `### Requirement: Example behavior\nThe system SHALL ${text}.\n\n#### Scenario: Example\n- **WHEN** an example is evaluated\n- **THEN** it SHALL ${text}\n`;
@@ -13,7 +15,7 @@ const proposal = `## Why\n\nImprove example behavior.\n\n## What Changes\n\n- Im
 const scenarios = ["Using the example preserves the updated observable behavior."];
 const body = (metadata: unknown = { version: 3, change: "example" }) => `## Proposal\n\nDeliver the example behavior through one atomic OpenSpec pull request.\n\n## Implementation\n\n- [x] Implement the example behavior and preserve its expected observable result.\n- [x] Record focused governance evidence for the completed example behavior.\n\n## Acceptance\n\n- ${scenarios[0]}\n\n## Automation\n\n<details>\n<summary>Used by CI to link this PR to its OpenSpec change</summary>\n\n\`\`\`openspec-implementation\n${JSON.stringify(metadata)}\n\`\`\`\n\n</details>\n`;
 
-async function fixture({ incomplete = false } = {}) {
+async function fixture({ incomplete = false, retire = false, declareRetirement = true } = {}) {
   const root = await mkdtemp(join(tmpdir(), "a1-delivery-finalization-"));
   roots.push(root);
   const files: Record<string, string> = {
@@ -25,6 +27,11 @@ async function fixture({ incomplete = false } = {}) {
     "openspec/changes/example/tasks.md": `## 1. Work\n\n- [${incomplete ? " " : "x"}] 1.1 Implement and verify example behavior.\n`,
     "openspec/changes/example/specs/example/spec.md": `## MODIFIED Requirements\n\n${requirement("preserve updated behavior")}`,
     "openspec/changes/example/implementation-evidence.md": "# Evidence\n\nFocused fixture passed.\n",
+    ...(retire ? {
+      "openspec/specs/legacy/spec.md": spec(requirement("keep the legacy behavior")),
+      "openspec/changes/example/.openspec.yaml": `schema: spec-driven\ncreated: 2026-09-15\n${declareRetirement ? "retire_capabilities: true\n" : ""}`,
+      "openspec/changes/example/specs/legacy/spec.md": "## REMOVED Requirements\n\n### Requirement: Example behavior\n**Reason**: The legacy behavior is gone.\n\n**Migration**: None.\n",
+    } : {}),
   };
   await mkdir(join(root, "openspec/changes/archive"), { recursive: true });
   for (const [path, value] of Object.entries(files)) {
@@ -34,6 +41,38 @@ async function fixture({ incomplete = false } = {}) {
   return root;
 }
 afterEach(async () => { await Promise.all(roots.splice(0).map(root => rm(root, { recursive: true, force: true }))); });
+
+/** A GitHub reader serving one tree: the fixture's `openspec` files with their real git blob identities. */
+async function treeReader(root: string) {
+  const blobs = new Map<string, Buffer>();
+  const tree: { path: string; mode: string; type: string; sha: string }[] = [];
+  async function walk(rel: string): Promise<void> {
+    for (const entry of await readdir(join(root, rel), { withFileTypes: true })) {
+      const path = `${rel}/${entry.name}`;
+      if (entry.isDirectory()) await walk(path);
+      else {
+        const data = await readFile(join(root, path));
+        const sha = createHash("sha1").update(`blob ${data.length}\0`).update(data).digest("hex");
+        blobs.set(sha, data);
+        tree.push({ path, mode: "100644", type: "blob", sha });
+      }
+    }
+  }
+  await walk("openspec");
+  const prefix = "/repos/owner/repo";
+  return {
+    repository: "owner/repo", prefix,
+    // Invariant: snapshot verification reads only the tree and its blobs.
+    pages: async () => { throw new Error("unused"); },
+    ancestor: async () => { throw new Error("unused"); },
+    async get(url: string) {
+      if (url === `${prefix}/git/trees/${"c".repeat(40)}?recursive=1`) return { truncated: false, tree };
+      const data = blobs.get(url.slice(`${prefix}/git/blobs/`.length));
+      if (data === undefined) throw new Error(`unexpected request ${url}`);
+      return { encoding: "base64", size: data.length, content: data.toString("base64") };
+    },
+  };
+}
 
 describe("in-branch OpenSpec delivery finalization", () => {
   it("prepares and writes one deterministic synchronized archive without remote mutation", async () => {
@@ -96,6 +135,54 @@ describe("in-branch OpenSpec delivery finalization", () => {
     expect(await prepareSinglePrDelivery({ ...options, body: finalBody, specBaseSha: "b".repeat(40), targetSpecs: advanced }))
       .toMatchObject({ disposition: "already-finalized" });
   }, 60_000);
+
+  it("finalizes a change that retires a capability and verifies it again without that spec", async () => {
+    const root = await fixture({ retire: true });
+    const bodyPath = join(root, "body.md");
+    await writeFile(bodyPath, body());
+    const options = { root, change: "example", repository: "owner/repo", sourcePr: 42, body: body(), specBaseSha: "a".repeat(40),
+      date: "2026-09-15", bodyPath, toolRoot: resolve("node_modules/@fission-ai/openspec") };
+    const written = await prepareSinglePrDelivery({ ...options, write: true });
+    expect(written.disposition).toBe("finalized");
+    expect(written.changes.some(change => change.filename === "openspec/specs/legacy/spec.md")).toBe(true);
+    await expect(readFile(join(root, "openspec/specs/legacy/spec.md"), "utf8")).rejects.toThrow();
+    expect(await readFile(join(root, "openspec/specs/example/spec.md"), "utf8")).toContain("updated behavior");
+    const repeated = await prepareSinglePrDelivery({ ...options, body: await readFile(bodyPath, "utf8") });
+    expect(repeated).toMatchObject({ disposition: "already-finalized", changes: [] });
+  }, 30_000);
+
+  it("verifies a merged retiring delivery from the repository tree and still refuses an unretired missing spec", async () => {
+    const root = await fixture({ retire: true });
+    const bodyPath = join(root, "body.md");
+    await writeFile(bodyPath, body());
+    await prepareSinglePrDelivery({ root, change: "example", repository: "owner/repo", sourcePr: 42, body: body(), specBaseSha: "a".repeat(40),
+      date: "2026-09-15", bodyPath, toolRoot: resolve("node_modules/@fission-ai/openspec"), write: true });
+    const finalBody = await readFile(bodyPath, "utf8");
+    const pull = { number: 42, base: { sha: "a".repeat(40) }, body: finalBody };
+    const implementation = parseImplementation(finalBody);
+    const verified = await inspectVersion3DeliverySnapshot(await treeReader(root), pull, implementation, "c".repeat(40));
+    expect(verified.specEntries.map(([path]: [string, Buffer]) => path)).toEqual(["openspec/specs/example/spec.md"]);
+
+    await rm(join(root, "openspec/specs/example/spec.md"));
+    await expect(inspectVersion3DeliverySnapshot(await treeReader(root), pull, implementation, "c".repeat(40)))
+      .rejects.toThrow("delivery-content-missing");
+  }, 30_000);
+
+  it("still refuses a missing spec the change does not retire", async () => {
+    const undeclared = await fixture({ retire: true, declareRetirement: false });
+    await expect(prepareSinglePrDelivery({ root: undeclared, change: "example", repository: "owner/repo", sourcePr: 42, body: body(),
+      specBaseSha: "a".repeat(40), date: "2026-09-15", toolRoot: resolve("node_modules/@fission-ai/openspec") }))
+      .rejects.toThrow("openspec-operation");
+
+    const root = await fixture();
+    const bodyPath = join(root, "body.md");
+    await writeFile(bodyPath, body());
+    const options = { root, change: "example", repository: "owner/repo", sourcePr: 42, body: body(), specBaseSha: "a".repeat(40),
+      date: "2026-09-15", bodyPath, toolRoot: resolve("node_modules/@fission-ai/openspec") };
+    await prepareSinglePrDelivery({ ...options, write: true });
+    await rm(join(root, "openspec/specs/example/spec.md"));
+    await expect(prepareSinglePrDelivery({ ...options, body: await readFile(bodyPath, "utf8") })).rejects.toThrow("delivery-spec-missing");
+  }, 30_000);
 
   it("refuses to finalize an active head whose canonical specs already differ from the target", async () => {
     const root = await fixture();

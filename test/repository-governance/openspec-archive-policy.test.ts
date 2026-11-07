@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ARCHIVE_TASKS, archivePaths, assertArchiveDiff, assertMergedImplementation, assertRepositoryPath,
-  completePreparationTask, inspectTasks, metadataBlock, parseAcceptance, parseImplementation, selectAcceptance,
+  completePreparationTask, inspectTasks, metadataBlock, parseAcceptance, parseImplementation, retiredCapability, selectAcceptance,
 } from "../../scripts/governance/openspec-archive-policy.mjs";
 
 const headSha = "a".repeat(40);
@@ -185,5 +185,21 @@ describe("archive mutation scope", () => {
       expect(() => assertArchiveDiff([{ filename, status: "modified" }], paths)).toThrow("archive-diff-scope");
       expect(() => assertArchiveDiff([{ filename: `${paths.archive}tasks.md`, previous_filename: filename, status: "renamed" }], paths)).toThrow("archive-diff-scope");
     }
+  });
+});
+
+describe("capability retirement", () => {
+  const removed = "## REMOVED Requirements\n\n### Requirement: Old\n**Reason**: Gone.\n\n**Migration**: None.\n";
+  it.each([
+    ["a declared retirement whose delta only removes", "schema: spec-driven\nretire_capabilities: true\n", removed, true],
+    ["CRLF metadata and delta", "schema: spec-driven\r\nretire_capabilities: true\r\n", removed.replaceAll("\n", "\r\n"), true],
+    ["metadata without the declaration", "schema: spec-driven\n", removed, false],
+    ["a declaration set to false", "retire_capabilities: false\n", removed, false],
+    ["a delta that also adds", "retire_capabilities: true\n", `${removed}\n## ADDED Requirements\n\n### Requirement: New\nThe system SHALL work.\n`, false],
+    ["a delta that modifies", "retire_capabilities: true\n", "## MODIFIED Requirements\n\n### Requirement: Old\nThe system SHALL work.\n", false],
+    ["a delta without requirement sections", "retire_capabilities: true\n", "# Notes\n", false],
+    ["absent metadata", undefined, removed, false],
+  ])("treats %s as retired: %s", (_label, metadata, delta, retired) => {
+    expect(retiredCapability(metadata, delta)).toBe(retired);
   });
 });

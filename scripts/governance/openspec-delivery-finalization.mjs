@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { cp, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, unlink, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
-import { archiveFailure, archivePaths, assertArchiveDiff, assertRepositoryPath, inspectTasks, parseImplementation, SHA } from "./openspec-archive-policy.mjs";
+import { archiveFailure, archivePaths, assertArchiveDiff, assertRepositoryPath, inspectTasks, parseImplementation, retiredCapability, SHA } from "./openspec-archive-policy.mjs";
 import { parseImplementationAcceptanceScenarios } from "./openspec-acceptance-checklist.mjs";
 import { conditionalAcceptanceBytes, deliveryContentDigest, parseConditionalAcceptance,
   verifyConditionalAcceptance } from "./openspec-delivery-policy.mjs";
@@ -60,6 +60,21 @@ export function replaceImplementationMetadata(body, metadata) {
   return [...lines.slice(0, start), ...replacement, ...lines.slice(end + 1)].join("\n");
 }
 
+/**
+ * The canonical spec of every capability an archived change has a delta for. A capability the change retires has
+ * none and contributes nothing; any other missing spec blocks the delivery.
+ */
+function deliverySpecEntries(entries, archive, capabilities) {
+  const metadata = entries.get(`${archive}.openspec.yaml`)?.toString();
+  return capabilities.flatMap(capability => {
+    const path = `openspec/specs/${capability}/spec.md`;
+    const bytes = entries.get(path);
+    if (bytes) return [[path, bytes]];
+    if (retiredCapability(metadata, entries.get(`${archive}specs/${capability}/spec.md`)?.toString())) return [];
+    throw archiveFailure("delivery-spec-missing", capability);
+  });
+}
+
 function artifactEntries(entries, prefix, except = new Set()) {
   return [...entries].filter(([path]) => path.startsWith(prefix) && !except.has(path));
 }
@@ -79,12 +94,7 @@ async function verifyPrepared({ root, body, repository, sourcePr, specBaseSha, k
     const match = new RegExp(`^${implementation.archive.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}specs/(.+)/spec\\.md$`).exec(path);
     return match ? [match[1]] : [];
   });
-  const specEntries = deltaCapabilities.map(capability => {
-    const path = `openspec/specs/${capability}/spec.md`;
-    const bytes = entries.get(path);
-    if (!bytes) throw archiveFailure("delivery-spec-missing", capability);
-    return [path, bytes];
-  });
+  const specEntries = deliverySpecEntries(entries, implementation.archive, deltaCapabilities);
   return { implementation, manifest, ...verifyConditionalAcceptance(manifest, { implementation, repository, sourcePr,
     archiveEntries, specEntries, evidenceEntries, tasksBytes, scenarios: parseImplementationAcceptanceScenarios(body, 3), knownGaps }) };
 }
@@ -206,11 +216,7 @@ export async function prepareSinglePrDelivery({ root, change, repository, source
     if (!tasksBytes) throw archiveFailure("delivery-tasks-missing");
     inspectTasks(tasksBytes.toString());
     const evidenceEntries = archiveEntries.filter(([path]) => /(?:^|\/)(?:evidence\/|implementation-evidence\.md$)/.test(path));
-    const specEntries = paths.specs.map(path => {
-      const bytes = staged.get(path);
-      if (!bytes) throw archiveFailure("delivery-spec-missing", path);
-      return [path, bytes];
-    });
+    const specEntries = deliverySpecEntries(staged, paths.archive, capabilities);
     const manifest = { version: 3, repository, change, sourcePr, archive: paths.archive,
       acceptanceManifest: `${paths.archive}acceptance.md`, finalizedDate: date, specBaseSha, acceptanceScenarios: scenarios,
       archiveDigest: deliveryContentDigest(archiveEntries), specDigest: deliveryContentDigest(specEntries),
