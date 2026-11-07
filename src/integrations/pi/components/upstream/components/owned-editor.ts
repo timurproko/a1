@@ -146,10 +146,6 @@ return class extends Base {
       ? retainedAutocomplete(this)
       : undefined;
     if (data === ":" && this.#completeCommandTunnel()) return;
-    if (this.keybindings.matches(data, "owned.editor.commands")) {
-      this.#toggleCommandMenu();
-      return;
-    }
     if (this.#promptSuggestion !== null
       && !this.isShowingAutocomplete()
       && this.canPresentPromptSuggestion()
@@ -200,20 +196,6 @@ return class extends Base {
     }
     super.handleInput(data);
     if (tabbedCommand !== undefined) this.#retainCompletedCommandMenu(tabbedCommand);
-  }
-
-  /**
-   * Open the slash-command menu on an empty prompt, or close a bare one it opened. A prompt that already
-   * holds other text is left alone rather than rewritten.
-   */
-  #toggleCommandMenu(): void {
-    if (this.isTopLevelCommandSearch() && this.getText() === "/") {
-      this.setText("");
-      return;
-    }
-    if (this.getText().length > 0) return;
-    this.setText("/");
-    triggerAutocomplete(this);
   }
 
   /** Keep the current menu visible while refreshing it for the exact completed command. */

@@ -13,18 +13,6 @@ Launch selection SHALL decide the product mode once, as `bare` for the full A1 s
 - **THEN** it SHALL read the mode from the session backend's settings port
 - **AND** it SHALL NOT infer the mode from whether the custom viewport is active
 
-### Requirement: Ctrl+/ opens the command menu
-In bare A1, `Ctrl+/` SHALL open the slash-command menu on an empty prompt and close a bare menu it opened, whether the terminal sends the legacy control byte or a Kitty key sequence; a prompt holding other text SHALL be left unchanged. Because legacy terminals send `Ctrl+/` as the `Ctrl+-` byte, bare A1 SHALL undo prompt edits with `Ctrl+Z` rather than `Ctrl+-`, and `/hotkeys` SHALL list the shortcut.
-
-#### Scenario: The prompt is empty
-- **WHEN** the user presses `Ctrl+/` with an empty prompt
-- **THEN** the prompt SHALL show `/` with the command menu open
-- **AND** pressing `Ctrl+/` again SHALL close the menu and empty the prompt
-
-#### Scenario: The prompt holds a draft
-- **WHEN** the user presses `Ctrl+/` while the prompt holds other text
-- **THEN** the draft SHALL stay unchanged and `Ctrl+Z` SHALL still undo the last edit
-
 ## MODIFIED Requirements
 
 ### Requirement: Vendor knowledge stays behind the vendor boundary
