@@ -31,7 +31,7 @@ const ownedTheme = producer === "owned"
   ? await import(pathToFileURL(join(repository, "src/integrations/pi/components/theme.ts")).href)
   : undefined;
 const ownedComponents = producer === "owned"
-  ? await import(pathToFileURL(join(repository, "src/integrations/pi/session-presenters/components.ts")).href)
+  ? await import(pathToFileURL(join(repository, "test/support/pi-shell-components.ts")).href)
   : undefined;
 const ownedPresentation = producer === "owned"
   ? await import(pathToFileURL(join(repository, "src/integrations/pi/session-presenters/presentation.ts")).href)

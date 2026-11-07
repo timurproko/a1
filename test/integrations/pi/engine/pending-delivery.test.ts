@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { OwnedUiEvent, OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
-import { MAX_PENDING_EVENT_BYTES, PendingEngineDelivery, replaceableEventKey } from "../../../../src/integrations/pi/engine/pending-delivery.js";
+import { PendingEngineDelivery, replaceableEventKey } from "../../../../src/integrations/pi/engine/pending-delivery.js";
 
 const base = { sessionId: "test", sequence: 1 };
 function block(id: string, text: string, sequence: number, status: OwnedUiTranscriptBlock["status"] = "live"): OwnedUiEvent {
@@ -58,7 +58,7 @@ describe("semantic pending engine delivery", () => {
     expect(queue.diagnostics()).toMatchObject({ pending: 0, bytes: 0, protected: 0 });
     expect(queue.diagnostics().superseded).toBeGreaterThan(16_000);
     expect(queue.diagnostics().peakNodes).toBeLessThanOrEqual(1024);
-    expect(queue.diagnostics().peakBytes).toBeLessThanOrEqual(MAX_PENDING_EVENT_BYTES);
+    expect(queue.diagnostics().peakBytes).toBeLessThanOrEqual((8 * 1024 * 1024));
   });
 
   it("appends replacement at its source position and never crosses a protected barrier", () => {
@@ -77,7 +77,7 @@ describe("semantic pending engine delivery", () => {
     current = block("a", "later", 3);
     expect((queue.shift()!.event as Extract<OwnedUiEvent, { type: "transcript-block" }>).block.text).toHaveLength(100_000);
     drain(queue);
-    current = block("a", "x".repeat(MAX_PENDING_EVENT_BYTES), 4);
+    current = block("a", "x".repeat((8 * 1024 * 1024)), 4);
     expect(queue.push(current, 1, () => current)).toBe(true);
     expect(queue.push(barrier(5), 1)).toBe(false);
     expect(queue.diagnostics().bytes).toBe(128);

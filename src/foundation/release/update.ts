@@ -199,7 +199,7 @@ const defaultOutput: UpdateOutput = {
 };
 
 /** Bound on the child diagnostics an update keeps: enough for npm's failure reason, never a log. */
-export const CHILD_DIAGNOSTIC_LIMIT = 8_000;
+const CHILD_DIAGNOSTIC_LIMIT = 8_000;
 
 export function createNpmProcessRunner(platform: NodeJS.Platform = process.platform): UpdateProcessRunner {
   return async (command, arguments_, request) => await new Promise((resolvePromise, rejectPromise) => {

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
 import type { TranscriptViewportFrame } from "../../../src/ui/components/transcript-viewport.js";
 import { DockChrome } from "../../../src/app/session-shell/dock-chrome.js";
-import { PI_SHELL_COMPONENTS } from "../../../src/integrations/pi/session-presenters/components.js";
+import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import { piTheme } from "../../../src/integrations/pi/components/index.js";
 import { cellStyle } from "../../support/ansi-cell-style.js";
 

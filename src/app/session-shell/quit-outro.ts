@@ -35,13 +35,13 @@ export interface QuitOutroCanvas {
   readonly rebase: (content: string, backgroundAnsi: string) => string;
 }
 
-export const QUIT_OUTRO_MIN_MS = 300;
-export const QUIT_OUTRO_MAX_MS = 2000;
+const QUIT_OUTRO_MIN_MS = 300;
+const QUIT_OUTRO_MAX_MS = 2000;
 /** Wall-clock allowance beyond the clamped duration before playback abandons remaining ticks. */
-export const QUIT_OUTRO_GUARD_MS = 500;
+const QUIT_OUTRO_GUARD_MS = 500;
 const FRAME_MS = 1000 / 30;
 /** Tick ceiling for a clock that stops advancing: the longest playback plus its guard at 30 fps. */
-export const QUIT_OUTRO_MAX_TICKS = Math.ceil((QUIT_OUTRO_MAX_MS + QUIT_OUTRO_GUARD_MS) / FRAME_MS) + 1;
+const QUIT_OUTRO_MAX_TICKS = Math.ceil((QUIT_OUTRO_MAX_MS + QUIT_OUTRO_GUARD_MS) / FRAME_MS) + 1;
 
 const SYNC_BEGIN = "\x1b[?2026h";
 const SYNC_END = "\x1b[?2026l";

@@ -1,21 +1,7 @@
 import { PI_TERMINAL_RUNTIME } from "../../../src/integrations/pi/tui-runtime/runtime-factory.js";
 import { describe, expect, it } from "vitest";
-import {
-  QUIT_OUTRO_EFFECTS,
-  createQuitOutroPlan,
-  isQuitOutroEffect,
-  type QuitOutroCell,
-} from "../../../src/app/session-shell/quit-outro-effects.js";
-import {
-  QUIT_OUTRO_GUARD_MS,
-  QUIT_OUTRO_MAX_MS,
-  QUIT_OUTRO_MAX_TICKS,
-  QUIT_OUTRO_MIN_MS,
-  captureQuitOutroFrame,
-  clampQuitOutroDuration,
-  createQuitOutroSurfaceFrame,
-  playQuitOutro,
-} from "../../../src/app/session-shell/quit-outro.js";
+import { createQuitOutroPlan, type QuitOutroCell } from "../../../src/app/session-shell/quit-outro-effects.js";
+import { captureQuitOutroFrame, clampQuitOutroDuration, createQuitOutroSurfaceFrame, playQuitOutro } from "../../../src/app/session-shell/quit-outro.js";
 
 const SYNC_BEGIN = "\x1b[?2026h";
 const SYNC_END = "\x1b[?2026l";
@@ -34,13 +20,7 @@ function withinBounds(cells: readonly QuitOutroCell[], rowWidths: readonly numbe
 }
 
 describe("quit outro effects", () => {
-  it("names exactly the four prototype effects", () => {
-    expect([...QUIT_OUTRO_EFFECTS]).toEqual(["fall", "dissolve", "starburst", "waves"]);
-    expect(isQuitOutroEffect("off")).toBe(false);
-    expect(isQuitOutroEffect("fall")).toBe(true);
-  });
-
-  it.each(QUIT_OUTRO_EFFECTS)("plans %s deterministically inside the captured bounds", effect => {
+  it.each((["fall", "dissolve", "starburst", "waves"] as const))("plans %s deterministically inside the captured bounds", effect => {
     for (const rowWidths of GEOMETRIES) {
       const first = createQuitOutroPlan(effect, rowWidths, 42);
       const second = createQuitOutroPlan(effect, rowWidths, 42);
@@ -103,14 +83,14 @@ describe("quit outro capture", () => {
 
 describe("quit outro playback", () => {
   it("clamps the duration into the supported range", () => {
-    expect(clampQuitOutroDuration(0)).toBe(QUIT_OUTRO_MIN_MS);
-    expect(clampQuitOutroDuration(299)).toBe(QUIT_OUTRO_MIN_MS);
+    expect(clampQuitOutroDuration(0)).toBe(300);
+    expect(clampQuitOutroDuration(299)).toBe(300);
     expect(clampQuitOutroDuration(800.9)).toBe(800);
-    expect(clampQuitOutroDuration(5000)).toBe(QUIT_OUTRO_MAX_MS);
-    expect(clampQuitOutroDuration(Number.NaN)).toBe(QUIT_OUTRO_MIN_MS);
+    expect(clampQuitOutroDuration(5000)).toBe(2000);
+    expect(clampQuitOutroDuration(Number.NaN)).toBe(300);
   });
 
-  it.each(QUIT_OUTRO_EFFECTS)("plays %s as synchronized ticks that end with a blank screen", async effect => {
+  it.each((["fall", "dissolve", "starburst", "waves"] as const))("plays %s as synchronized ticks that end with a blank screen", async effect => {
     const frame = captureQuitOutroFrame(["one two three", "four", "", "five six"], 14, 4)!;
     const writes: string[] = [];
     let clock = 0;
@@ -162,7 +142,7 @@ describe("quit outro playback", () => {
       sleep: async () => { clock += 0; },
       seed: 3,
     });
-    expect(writes.length).toBe(QUIT_OUTRO_MAX_TICKS + 1);
+    expect(writes.length).toBe(76 + 1);
     expect(writes.at(-1)).toContain("\x1b[2J\x1b[H");
 
     const stalled: string[] = [];
@@ -173,7 +153,7 @@ describe("quit outro playback", () => {
       sleep: async () => {},
       seed: 3,
     });
-    expect(stalledClock).toBeLessThanOrEqual(300 + QUIT_OUTRO_GUARD_MS + 250);
+    expect(stalledClock).toBeLessThanOrEqual(300 + 500 + 250);
     expect(stalled.at(-1)).toContain("\x1b[2J\x1b[H");
   });
 

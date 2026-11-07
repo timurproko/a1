@@ -25,12 +25,8 @@ interface QuitOutroPlan {
   readonly clears: readonly QuitOutroCell[];
 }
 
-export const QUIT_OUTRO_EFFECTS = Object.freeze(["fall", "dissolve", "starburst", "waves"] as const);
+const QUIT_OUTRO_EFFECTS = Object.freeze(["fall", "dissolve", "starburst", "waves"] as const);
 export type QuitOutroEffect = (typeof QUIT_OUTRO_EFFECTS)[number];
-
-export function isQuitOutroEffect(value: unknown): value is QuitOutroEffect {
-  return typeof value === "string" && (QUIT_OUTRO_EFFECTS as readonly string[]).includes(value);
-}
 
 const WHITE = "\x1b[38;2;238;238;238m";
 const DUST_GLYPHS = [".", "·", "'", ":", "+", "°"] as const;

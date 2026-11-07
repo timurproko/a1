@@ -119,9 +119,3 @@ export function createPiShellComponents(loadLazySelectors: () => Promise<OwnedUi
     },
   };
 }
-
-let defaultLazySelectors: Promise<OwnedUiShellLazySelectorLoader> | undefined;
-
-/** The component record with the vendor selectors loaded on first use; composition builds its own per presenters. */
-export const PI_SHELL_COMPONENTS: OwnedUiShellComponents = createPiShellComponents(() =>
-  defaultLazySelectors ??= import("../components/lazy-selectors.js").then(module => module.piShellLazySelectors));

@@ -6,7 +6,7 @@ import { processIsAlive } from "./process-liveness.js";
 import type { UpdateChannel } from "./types.js";
 import { UpdateTransactionStore, type UpdateTransaction } from "./update-transaction.js";
 
-export const UPDATE_EXECUTION_LEASE_FILENAME = "update-execution.json";
+const UPDATE_EXECUTION_LEASE_FILENAME = "update-execution.json";
 const LEASE_SCHEMA = 1;
 const MAX_LEASE_BYTES = 8_192;
 

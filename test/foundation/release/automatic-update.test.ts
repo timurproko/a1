@@ -2,16 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  AUTOMATIC_UPDATE_RETRY_MS,
-  AUTOMATIC_UPDATE_STATE_SCHEMA,
-  AutomaticUpdateStateStore,
-  observeNewerActiveRelease,
-  readNewerActiveRelease,
-  requestAutomaticUpdate,
-  runAutomaticUpdateWorker,
-  type AutomaticUpdateState,
-} from "../../../src/foundation/release/automatic-update.js";
+import { AutomaticUpdateStateStore, observeNewerActiveRelease, readNewerActiveRelease, requestAutomaticUpdate, runAutomaticUpdateWorker, type AutomaticUpdateState } from "../../../src/foundation/release/automatic-update.js";
 import { acquireUpdateExecutionLease } from "../../../src/foundation/release/update-execution-lease.js";
 import { ReleaseStateStore, emptyState } from "../../../src/foundation/release/release-state.js";
 import { UpdateTransactionStore } from "../../../src/foundation/release/update-transaction.js";
@@ -57,7 +48,7 @@ async function setActiveRelease(dataDir: string, version: string, approval: "app
 /** A record written while activation could wait on resident tabs; it no longer means anything. */
 function legacyBlockedState(now: number): Record<string, unknown> {
   return {
-    schema: AUTOMATIC_UPDATE_STATE_SCHEMA,
+    schema: 1,
     channel: "stable",
     targetVersion: release.version,
     status: "blocked",
@@ -70,7 +61,7 @@ function legacyBlockedState(now: number): Record<string, unknown> {
 
 function failedState(now: number): AutomaticUpdateState {
   return {
-    schema: AUTOMATIC_UPDATE_STATE_SCHEMA,
+    schema: 1,
     channel: "stable",
     targetVersion: release.version,
     status: "failed",
@@ -252,7 +243,7 @@ describe("automatic update coordination", () => {
       sleep: async () => undefined,
     };
 
-    await expect(requestAutomaticUpdate({ ...common, now: () => now + AUTOMATIC_UPDATE_RETRY_MS - 1 })).resolves.toBeNull();
+    await expect(requestAutomaticUpdate({ ...common, now: () => now + (24 * 60 * 60_000) - 1 })).resolves.toBeNull();
     await expect(requestAutomaticUpdate({
       ...common,
       release: { ...release, version: "1.2.3" },
@@ -269,7 +260,7 @@ describe("automatic update coordination", () => {
     })).resolves.toBeNull();
     expect(spawnWorker).toHaveBeenCalledTimes(1);
 
-    let clock = now + AUTOMATIC_UPDATE_RETRY_MS;
+    let clock = now + (24 * 60 * 60_000);
     await expect(requestAutomaticUpdate({ ...common, now: () => clock, sleep: async () => { clock += 5_001; } })).resolves.toBeNull();
     expect(spawnWorker).toHaveBeenCalledTimes(2);
   });

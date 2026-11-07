@@ -1,7 +1,7 @@
 import type { OwnedUiEvent } from "../../../contracts/owned-ui/index.js";
 
-export const MAX_PENDING_EVENTS = 1024;
-export const MAX_PENDING_EVENT_BYTES = 8 * 1024 * 1024;
+const MAX_PENDING_EVENTS = 1024;
+const MAX_PENDING_EVENT_BYTES = 8 * 1024 * 1024;
 
 /** Actual shell semantics: only live complete block state has no independent side effect. */
 export function replaceableEventKey(event: OwnedUiEvent): string | null {

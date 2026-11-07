@@ -1,4 +1,4 @@
-import { PI_SHELL_COMPONENTS } from "../../../src/integrations/pi/session-presenters/components.js";
+import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import { PI_THEME_SOURCE } from "../../../src/integrations/pi/components/theme.js";
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";

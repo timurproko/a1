@@ -14,8 +14,8 @@ import { acquireUpdateExecutionLease, readUpdateExecutionOwner } from "./update-
 import { UpdateTransactionStore } from "./update-transaction.js";
 import { runSelfUpdate, UPDATE_ALREADY_RUNNING_EXIT_CODE, type UpdateOutput } from "./update.js";
 
-export const AUTOMATIC_UPDATE_STATE_SCHEMA = 1;
-export const AUTOMATIC_UPDATE_RETRY_MS = 24 * 60 * 60_000;
+const AUTOMATIC_UPDATE_STATE_SCHEMA = 1;
+const AUTOMATIC_UPDATE_RETRY_MS = 24 * 60 * 60_000;
 const AUTOMATIC_UPDATE_STATE_FILENAME = "automatic-update.json";
 const MAX_STATE_BYTES = 16_384;
 const OBSERVER_POLL_MS = 250;

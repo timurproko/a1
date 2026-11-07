@@ -1,5 +1,5 @@
 import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/session-presenters/presentation.js";
-import { PI_SHELL_COMPONENTS } from "../../../src/integrations/pi/session-presenters/components.js";
+import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
 import { applyPiTheme, piTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";

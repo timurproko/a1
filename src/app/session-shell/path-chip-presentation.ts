@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { ClipboardPath, PreparedPasteText } from "./paste-types.js";
 
-export const PATH_CHIP_PRESENTATION_UNITS = 4096;
+const PATH_CHIP_PRESENTATION_UNITS = 4096;
 const IMAGE_EXTENSION = /\.(?:jpe?g|png|webp|gif|bmp|tiff?)$/iu;
 
 /** Normalizes a path for host-filesystem identity comparisons. */

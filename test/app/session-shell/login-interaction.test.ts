@@ -1,4 +1,4 @@
-import { PI_SHELL_COMPONENTS } from "../../../src/integrations/pi/session-presenters/components.js";
+import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import { describe, expect, it, vi } from "vitest";
 
 const dialogs = vi.hoisted(() => [] as Record<string, ReturnType<typeof vi.fn>>[]);

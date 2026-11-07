@@ -1,4 +1,4 @@
-import { PI_SHELL_COMPONENTS } from "../../../src/integrations/pi/session-presenters/components.js";
+import { PI_SHELL_COMPONENTS } from "../../support/pi-shell-components.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiDialog } from "../../../src/contracts/owned-ui/index.js";
 import type { UiRouteHost } from "../../../src/ui/apps/contracts.js";
