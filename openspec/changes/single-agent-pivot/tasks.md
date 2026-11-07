@@ -32,7 +32,7 @@
 
 ## 5. Settings and UI cleanup
 
-- [ ] 5.1 Delete the Tab Bar section and the `tabsPosition`, `tabBarPlusMenu`, `tabBarRightItems`, `tabBarBackgroundStyle`, and `tabsAutoName` declarations, their dialogs in `settings-app.ts`, the resident launch settings reader, and the `plusMenu`/`rightItems` flag helpers; migration deletes those keys when the document is next saved; `timeFormat` keeps its position and names only submitted-prompt timestamps; verify settings declaration, migration, and screen tests.
+- [ ] 5.1 Delete the Tab Bar section and the `tabsPosition`, `tabBarPlusMenu`, `tabBarRightItems`, `tabBarBackgroundStyle`, and `tabsAutoName` declarations, their dialogs in `settings-app.ts`, the resident launch settings reader, and the `plusMenu`/`rightItems` flag helpers; migration deletes those keys and `timeFormat` when the document is next saved; delete the `timeFormat` declaration, `OwnedUiTimeFormat`, and the submitted-prompt, pinned-row, and compaction-header timestamp rendering in `transcript-document.ts`, `session-shell-root.ts`, and `session-viewport-controller.ts`, including the timestamp exclusion in prompt copy; verify settings declaration, migration, screen, transcript, pinned-row, and copy tests.
 - [ ] 5.2 Remove the shared-settings watcher rationale and `tabsAutoName` reads from `src/composition/owned-ui.ts`, and the resident name deviation from `session-footer.ts`; verify composition tests.
 - [ ] 5.3 Remove `uninstall`'s resident-host and supervisor stop steps and its `A1_TAB_ID` guard; the command removes releases, runtime state, caches, and (on confirmation) user data; verify uninstall tests.
 

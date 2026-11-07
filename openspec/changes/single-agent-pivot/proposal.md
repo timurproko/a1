@@ -10,6 +10,7 @@ This change makes that oracle the product. Bare `a1` becomes the direct single-a
 
 - **One launch form.** Bare `a1` and `a1 --session <path|id>` start the direct single-agent owned UI. The `solo` word and the `a1 tabs …` maintenance family leave the grammar, help, and resume hints; an exited session prints `a1 --session <id>`. Prerelease `a1 pi` stays as the development comparison surface.
 - **No resident tabs.** The tab strip, Tab Bar settings section, Alt tab shortcuts, utility (Settings/Changelog) tabs, tab bridge, tab auto-naming, prompt journal and draft-checkpoint recovery, controller boundary, and every multiplexing or multi-agent path are removed. Settings, Changelog, Hotkeys, and Session info remain in-shell routes.
+- **No clocks.** The tab bar's Time and Version widgets go with the tab bar. Submitted-prompt timestamps (naturally visible, pinned, and on compaction headers) and the `Time format` setting are removed too; the transcript shows no wall-clock anywhere.
 - **No native code.** The `native/terminal-host` crate (with vendored libghostty-vt, the Zig and Rust toolchains, proof/provenance/certification tooling, native CI lanes, and publish artifacts) and the `native/process-guardian` crate are removed. The session writer guard is reimplemented in Node with the already-pinned `proper-lockfile` dependency. The published package becomes pure JavaScript.
 - **One process per launch.** The detached per-release supervisor, launch guardian, exit watcher, control SQLite store, control protocol, cohort coordination, and launch-instance containment are removed. `bin/cli.js` verifies the active immutable release and runs its UI entry as one directly attached child with inherited stdio; terminal restoration and the unclean-exit notice stay in-process with a bounded fallback in the launcher. Closing the terminal ends the agent, as upstream Pi behaves.
 - **Two update modes.** The `Update` setting offers `Auto` (default) and `No`. `Auto` keeps the existing silent background install on the running channel and shows only the existing `Update installed, restart to update` status; a restart launches the new release. `Notify`, the update-available popup, resident continuity inspection and activation blocking, the `client-connected` status, and the prepared/blocked wording are removed. Stored `notify` migrates to `auto`. Immutable release retention becomes age-based instead of live-instance-based.
@@ -31,7 +32,8 @@ This change makes that oracle the product. Bare `a1` becomes the direct single-a
 - `cli-session-resume`: one session grammar; the resume hint is `a1 --session <id>`.
 - `cli-self-update`: `Auto`/`No` modes, no continuity inspection or activation blocking, age-based release retention, quiet outcomes without native host diagnostics.
 - `cli-uninstall`: no resident hosts or supervisors to stop.
-- `owned-ui-settings`: `Update` offers `Auto` and `No`; the Tab Bar section and resident settings are removed; `Time format` applies to prompt timestamps only.
+- `owned-ui-settings`: `Update` offers `Auto` and `No`; the Tab Bar section, resident settings, and `Time format` are removed.
+- `custom-session-viewport`: submitted prompts, pinned rows, and compaction headers carry no timestamp.
 - `owned-pi-ui-foundation`: the restart-ready status is the only update UI; no popup, blocked status, or resident reconnect semantics.
 - `continuous-integration`: no native build, certification, chaos, fidelity, parity, or cross-compilation lanes.
 

@@ -36,42 +36,6 @@ Bare A1 SHALL keep the persisted key `updateCheck`, present it as `Update` first
 - **WHEN** an `Auto` session remains open past the fifteen-minute cache window
 - **THEN** the next check SHALL fetch the channel head again and install a newer release silently without a restart
 
-## MODIFIED Requirements
-
-### Requirement: Time format is a live Generic-section owned setting
-Bare A1 SHALL declare the persisted A1 setting `timeFormat`, labeled `Time format`, in `Generic` directly after `Update`. It SHALL allow exactly `20:00` and `8:00 PM`, default to `8:00 PM`, and apply live to every A1-owned wall-clock label, which after this change means the submitted-prompt timestamps. Twelve-hour output SHALL use uppercase `AM` or `PM`. The setting SHALL use profile-local A1 persistence; `a1 pi` SHALL neither expose nor apply it.
-
-#### Scenario: Resolve a profile without the setting
-- **WHEN** a profile predates `timeFormat` or omits it
-- **THEN** migration SHALL preserve all existing and unknown values
-- **AND** `timeFormat` SHALL resolve to `8:00 PM`
-
-#### Scenario: Present time-format choices
-- **WHEN** bare A1 opens the owned Settings screen
-- **THEN** `Time format` SHALL appear directly after `Update` in `Generic`
-- **AND** its current value and menu choices SHALL use current local-time examples in `20:00` and `8:00 PM` form
-- **AND** every twelve-hour example SHALL use uppercase `AM` or `PM`
-
-#### Scenario: Change time format live
-- **WHEN** the user selects the other time format
-- **THEN** the accepted value SHALL be stored in the profile-local A1 settings document
-- **AND** the active bare-A1 submitted-prompt timestamps SHALL use that format without a restart
-- **AND** no Pi-owned settings value SHALL change
-
-#### Scenario: Reject an invalid time format
-- **WHEN** a stored `timeFormat` value is not `20:00` or `8:00 PM`
-- **THEN** existing settings validation SHALL reject it and resolve `8:00 PM` without blocking startup
-
-#### Scenario: Use twelve-hour boundaries
-- **WHEN** A1 formats local midnight, noon, or an afternoon time with `8:00 PM`
-- **THEN** it SHALL render `12` for the midnight and noon hour
-- **AND** it SHALL use uppercase `AM` before noon and uppercase `PM` from noon onward
-
-#### Scenario: Use the comparison profile
-- **WHEN** the reader starts or configures `a1 pi`
-- **THEN** no A1 `Time format` entry SHALL be presented
-- **AND** the pinned comparison presentation SHALL retain its own timestamp behavior
-
 ## REMOVED Requirements
 
 ### Requirement: Resident tabs are an opt-in setting
@@ -108,3 +72,8 @@ Bare A1 SHALL declare the persisted A1 setting `timeFormat`, labeled `Time forma
 **Reason**: The `Notify` choice is removed.
 
 **Migration**: Stored `notify` migrates to `auto`.
+
+### Requirement: Time format is a live Generic-section owned setting
+**Reason**: Submitted-prompt timestamps are removed and the tab bar clock goes with the tab bar, so nothing consumes a time format.
+
+**Migration**: The `timeFormat` key is deleted on next save.
