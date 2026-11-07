@@ -1,12 +1,16 @@
 ## ADDED Requirements
 
 ### Requirement: Production exports have production consumers
-Every symbol exported from a production module under `src/` SHALL have an importer under `src/`, `bin/`, or `scripts/`, except symbols listed by an owner's public entry, declared entry modules, and vendored sources. A symbol exported only so a test can reach it SHALL instead be private, and the test SHALL prove the behaviour through the owner's public entry or an observable result. The architecture gate SHALL fail naming each export that has no production consumer.
+Every value exported from a production module under `src/` SHALL have an importer under `src/`, `bin/`, or `scripts/` that names it. A value exported only so a test can reach it SHALL instead be private, and the test SHALL prove the behaviour through the owner's public entry or an observable result. The architecture gate SHALL fail naming each export that has no production consumer.
 
 #### Scenario: An export loses its last production consumer
 - **WHEN** a change removes the last production import of an exported symbol
 - **THEN** the architecture gate SHALL fail and name the module and symbol
 - **AND** the change SHALL remove the export or make it private
+
+#### Scenario: An export is an entry, a vendored source, or a type
+- **WHEN** the value is listed by an owner's public entry, a declared entry module, or the product identity entry, lives in a vendored source, or is a type an exported signature names
+- **THEN** the architecture gate SHALL NOT require a production consumer for it
 
 #### Scenario: A test needs an internal value
 - **WHEN** a test would import a constant or helper that production code does not export for its own use

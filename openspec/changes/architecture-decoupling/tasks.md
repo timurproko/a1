@@ -84,4 +84,5 @@
 
 ## 8. Documentation and baselines
 
-- [ ] 8.1 Update `docs/architecture/boundaries.md`, `docs/architecture/project-structure.md`, and the `owned-ux-architecture` and `project-structure-governance` specs to the delivered structure; shrink `config/baselines/size-ratchet.json` with `update-size-ratchet.mjs`; record the before/after figures from the design in the PR acceptance list.
+- [x] 8.1 Update `docs/architecture/boundaries.md`, `docs/architecture/project-structure.md`, and the `owned-ux-architecture` and `project-structure-governance` specs to the delivered structure; shrink `config/baselines/size-ratchet.json` with `update-size-ratchet.mjs`; record the before/after figures from the design in the PR acceptance list.
+  - Note: the export requirement names values, with the delivered exemptions; the docs describe the shell concerns, the render root's parts, the composition-injected presenters, and the export rule. The size-ratchet figures are in the PR acceptance list.
