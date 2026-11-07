@@ -37,15 +37,12 @@ export async function runVersionStats(options: VersionStatsOptions): Promise<num
     return 1;
   }
 
-  // Rationale: unlike Pi, stable builds also show the release channel head so users can see they are
-  // behind without starting a session. Only development builds show the preview channel, and only
-  // they carry the pull request a preview's manifest records; a missing record is silently omitted.
+  // Rationale: both installed channels show the same remote heads without starting a session;
+  // only development versions carry preview pull-request attribution, when their manifests record it.
   const remote = await queryDistTags(runner, options.fetcher ?? defaultRegistryFetcher);
   const developmentBuild = prerelease(installed) !== null;
-  const headPullRequest = developmentBuild && remote.develop !== null ? await queryRecordedPullRequest(runner, remote.develop) : null;
-  const develop = developmentBuild
-    ? `Develop: ${remote.develop === null ? "unavailable" : withPullRequest(remote.develop, headPullRequest)}\n`
-    : "";
+  const headPullRequest = remote.develop !== null ? await queryRecordedPullRequest(runner, remote.develop) : null;
+  const develop = `Develop: ${remote.develop === null ? "unavailable" : withPullRequest(remote.develop, headPullRequest)}\n`;
   output.stdout(`Current: ${withPullRequest(installed, developmentBuild ? installedPullRequest : null)}\n${develop}Release: ${remote.release ?? "unavailable"}\n`);
   if (remote.error) output.stderr(`${PRODUCT_TEXT.diagnostic(`could not resolve npm dist-tags: ${remote.error}`)}\n`);
   return 0;
