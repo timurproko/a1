@@ -189,6 +189,7 @@ const NAMING_THEME: UiTheme = Object.freeze({
   highlight: (text: string) => `<highlight>${text}</highlight>`,
   disabled: (text: string) => `<disabled>${text}</disabled>`,
   panel: (text: string) => `<panel>${text}</panel>`,
+  background: (_token: string, text: string) => text,
 });
 const NAMING_HOST: AppHostServices = { ...HOST, theme: NAMING_THEME };
 const SUCCESS_MARKER = "\u001b[32m ✓\u001b[39m";
@@ -205,6 +206,7 @@ const PANEL_THEME: UiTheme = Object.freeze({
   highlight: (text: string) => text,
   disabled: (text: string) => text,
   panel: (text: string) => `${MENU_BACKGROUND}${text}\u001b[49m`,
+  background: (_token: string, text: string) => text,
 });
 const PANEL_HOST: AppHostServices = { ...HOST, theme: PANEL_THEME };
 const BOLD_NAMING_HOST: AppHostServices = {

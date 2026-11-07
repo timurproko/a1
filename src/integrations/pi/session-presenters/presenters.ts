@@ -4,6 +4,7 @@ import type {
   OwnedUiSessionPresenters,
   OwnedUiTranscriptRendererPort,
 } from "../../../contracts/owned-ui/index.js";
+import type { ShellPresentationPorts } from "../../../contracts/presentation/index.js";
 import type { PiSessionPresentationSource } from "../engine/adapter.js";
 import type { PiShellLazySelectorLoader } from "../components/lazy-selectors.js";
 import {
@@ -16,6 +17,7 @@ import {
   type PiShellScopedModelsSelectorPort,
   type PiShellSettingsSelectorOptions,
 } from "../components/shell-selectors-dialogs.js";
+import { PI_SHELL_PRESENTATION } from "../components/theme.js";
 
 const MODEL_REFRESH_TIMEOUT_MS = 15_000;
 const MODEL_REFRESH_TIMED_OUT = "Model refresh timed out; showing cached models.";
@@ -34,7 +36,7 @@ export interface PiSessionPresentersOptions {
  * Builds the selectors and transcript renderers whose inputs are Pi engine objects. This owner is the one place
  * that sees both the engine adapter and the Pi components, so the shell only ever holds the neutral port.
  */
-export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, options: PiSessionPresentersOptions = {}): OwnedUiSessionPresenters {
+export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, options: PiSessionPresentersOptions = {}): OwnedUiSessionPresenters & ShellPresentationPorts {
   const source = () => adapter.presentationSource();
   let lazySelectors = options.lazySelectors;
   let lazySelectorsPromise: Promise<PiShellLazySelectorLoader> | undefined;
@@ -53,7 +55,7 @@ export function createPiSessionPresenters(adapter: PiSessionPresenterBackend, op
     getShortcuts: bindings => source().pinnedShortcutDescriptions(bindings as Parameters<PiSessionPresentationSource["pinnedShortcutDescriptions"]>[0]),
   };
 
-  return {
+  return { ...PI_SHELL_PRESENTATION,
     transcriptRenderers: () => renderers,
 
     openModelSelector(host, initialSearchInput) {

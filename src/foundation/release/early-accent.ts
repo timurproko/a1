@@ -2,7 +2,7 @@ import { readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
-import { SHARED_PROGRESS_PALETTE } from "./progress-palette.generated.js";
+import { SHARED_PROGRESS_PALETTE } from "../../contracts/presentation/index.js";
 
 const MAX_SETTINGS_BYTES = 256 * 1024;
 type UiAccentColor = "blue" | "purple" | "cyan" | "green" | "orange" | "pink";

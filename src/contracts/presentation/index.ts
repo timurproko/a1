@@ -1,3 +1,6 @@
+export type { CanvasBackgroundStyle, ShellPresentationPorts, ThemeSource, UiTheme, UiThemeBackground, UiThemeToken } from "./theme.js";
+export { SHARED_PROGRESS_ACCENT_ANSI, SHARED_PROGRESS_PALETTE } from "./progress-palette.generated.js";
+
 export type PresentationRuntimeState = "idle" | "running" | "stopping" | "stopped" | "failed";
 
 export interface SemanticShortcutHint {

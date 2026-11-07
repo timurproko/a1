@@ -3,12 +3,53 @@ import {
   displayShortcutKeyLabel,
   renderSemanticShortcutHints,
   type SemanticShortcutHint,
+  type ShellPresentationPorts,
+  type ThemeSource,
+  type UiTheme,
+  type UiThemeBackground,
+  type UiThemeToken,
 } from "../../../contracts/presentation/index.js";
 import { stripTerminalSequences, truncateToWidth, type MarkdownTheme, type SelectListTheme } from "@earendil-works/pi-tui";
 import { getMarkdownTheme } from "../startup-public.js";
-import { piTheme } from "./upstream/theme/theme.js";
+import { onPiThemeChange, piCanvasBackgroundAnsi, piTheme, PINNED_PI_LAYOUT, renderPiAccentPreview } from "./upstream/theme/theme.js";
 
-export * from "./upstream/theme/theme.js";
+export {
+  PINNED_PI_LAYOUT,
+  applyPiTheme,
+  applyPiThemeInstance,
+  currentPiThemeName,
+  ensurePiTheme,
+  getAvailablePiThemes,
+  loadPiTheme,
+  piCanvasBackgroundAnsi,
+  piTheme,
+  setPiAccentColor,
+  setPiPackageBorderProjectionEnabled,
+} from "./upstream/theme/theme.js";
+
+type Paint = (text: string) => string;
+
+/** The live Pi theme in neutral roles; `panel` and `disabled` default to plain and dim. */
+export function piUiTheme(options: { readonly panel?: Paint; readonly disabled?: Paint } = {}): UiTheme {
+  return {
+    fg: (token: UiThemeToken, text: string) => piTheme().fg(token, text),
+    bold: text => piTheme().bold(text),
+    plain: text => text,
+    accentPreview: (color, text) => renderPiAccentPreview(color, text),
+    disabled: options.disabled ?? (text => piTheme().fg("dim", text)),
+    highlight: text => piTheme().bg("selectedBg", text),
+    panel: options.panel ?? (text => text),
+    background: (token: UiThemeBackground, text: string) => piTheme().bg(token, text),
+  };
+}
+
+const PI_UI_THEME = Object.freeze(piUiTheme());
+export const PI_THEME_SOURCE: ThemeSource = Object.freeze({ current: () => PI_UI_THEME, onChange: (listener: () => void) => onPiThemeChange(listener) });
+export const PI_SHELL_PRESENTATION: ShellPresentationPorts = Object.freeze({
+  theme: PI_THEME_SOURCE,
+  canvasBackground: (style: Parameters<ShellPresentationPorts["canvasBackground"]>[0]) => piCanvasBackgroundAnsi(style),
+  pinnedOutputPad: PINNED_PI_LAYOUT.outputPad,
+});
 
 export type PiModalShortcutHint = SemanticShortcutHint;
 export { DIALOG_CLOSE_SHORTCUT_HINT, displayShortcutKeyLabel };

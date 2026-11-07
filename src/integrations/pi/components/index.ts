@@ -122,7 +122,6 @@ export {
   detectPiTerminalThemeForAuto,
   ensurePiTheme,
   getAvailablePiThemes,
-  getPiSelectListTheme,
   loadPiTheme,
   onPiThemeChange,
   parsePiAutoThemeSetting,
@@ -132,8 +131,10 @@ export {
   setPiAccentColor,
   setPiPackageBorderProjectionEnabled,
   stopPiThemeWatcher,
-} from "./theme.js";
-export type { PiAccentProjection, PiColorMode, PiTerminalTheme, PiTerminalThemeDetection, PiTerminalThemeDetector, PiThemeBackground, PiThemeResult } from "./theme.js";
+} from "./upstream/theme/theme.js";
+export type { PiAccentProjection, PiColorMode, PiTerminalTheme, PiTerminalThemeDetection, PiTerminalThemeDetector, PiThemeBackground, PiThemeResult } from "./upstream/theme/theme.js";
+export { PI_SHELL_PRESENTATION, PI_THEME_SOURCE, getPiSelectListTheme, piUiTheme } from "./theme.js";
+
 export { OwnedPiThemeController } from "./upstream/theme/theme-controller.js";
 export type { PiThemeRuntimePort, PiThemeSettingsPort } from "./upstream/theme/theme-controller.js";
 export {

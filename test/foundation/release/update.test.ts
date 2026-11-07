@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 import { stripVTControlCharacters } from "node:util";
 import { describe, expect, it, vi } from "vitest";
 import { CHILD_DIAGNOSTIC_LIMIT, renderUpdateProgressBar } from "../../../src/foundation/release/update.js";
-import { SHARED_PROGRESS_ACCENT_ANSI } from "../../../src/foundation/release/progress-palette.generated.js";
+import { SHARED_PROGRESS_ACCENT_ANSI } from "../../../src/contracts/presentation/index.js";
 import { earlyAccentPalette } from "../../../src/foundation/release/early-accent.js";
 import { PRODUCT_IDENTITY } from "../../../src/product-identity.js";
 import {

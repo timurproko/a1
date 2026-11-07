@@ -14,7 +14,8 @@ type ShellOptions = { history?: { store: PromptHistoryService; imageSidecar?: { 
 const observed = vi.hoisted(() => ({ shells: [] as ShellOptions[], enabled: true, scope: "unique" as "unique" | "shared", sessionId: "pi-one", loadEditor: vi.fn() }));
 
 // Rationale: test composition/storage without starting a terminal, provider, or Pi runtime.
-vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", () => ({
+vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
+  ...await importOriginal<object>(),
   applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {},
 }));
 vi.mock("../../src/integrations/pi/components/history-editor-loader.js", () => ({ loadHistoryEditor: observed.loadEditor }));

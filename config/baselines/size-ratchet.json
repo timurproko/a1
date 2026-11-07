@@ -79,9 +79,6 @@
     "src/app/session-shell/paste-executor.ts::startPasteExecutor": {
       "lines": 122
     },
-    "src/app/session-shell/session-shell-root.ts::OwnedUiSessionShellRoot.constructor": {
-      "lines": 128
-    },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.constructor": {
       "lines": 320
     },

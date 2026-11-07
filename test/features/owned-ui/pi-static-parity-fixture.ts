@@ -1,3 +1,4 @@
+import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/components/theme.js";
 import type { OwnedUiSessionViewModel, OwnedUiTranscriptBlock } from "../../../src/contracts/owned-ui/index.js";
 import { applyPiTheme, createPiShellDialog, createPiShellSelector } from "../../../src/integrations/pi/components/index.js";
 import { OwnedUiSessionShellRoot } from "../../../src/app/session-shell/index.js";
@@ -31,6 +32,7 @@ export function buildStaticParityCases(): readonly StaticParityCase[] {
     applyPiTheme("dark", false, STATIC_PARITY_COLOR_MODE);
     const view = staticView();
     const root = new OwnedUiSessionShellRoot(view, "D:/work", {
+      presentation: PI_SHELL_PRESENTATION,
       getColumns: () => 72,
       getRows: () => 30,
       requestRender() {},

@@ -143,7 +143,7 @@ for (const theme of ["dark", "light"]) {
       let focused;
       let progressRows;
       const ownedDocument = width => {
-        const layout = ownedRoot.pinnedLayoutRoot(shell.root.layoutParts());
+        const layout = ownedRoot.pinnedLayoutRoot(shell.root.layoutParts(), ownedTheme.PI_THEME_SOURCE);
         const transcript = layout.type === "stack" ? layout.children[0]?.node : undefined;
         if (transcript?.type !== "scroll" || transcript.id !== "transcript" || transcript.child.type !== "component") throw new Error("Missing semantic transcript region");
         return transcript.child.component.render(width);
@@ -268,7 +268,7 @@ for (const theme of ["dark", "light"]) {
           if (surfaceOpen) {
             if (owner) surfaceRows = owner.editorContainer.render(width);
             else {
-              const layout = ownedRoot.pinnedLayoutRoot(shell.root.layoutParts());
+              const layout = ownedRoot.pinnedLayoutRoot(shell.root.layoutParts(), ownedTheme.PI_THEME_SOURCE);
               const dock = layout.type === "stack" ? layout.children[1]?.node : undefined;
               const input = dock?.type === "stack" ? dock.children[3]?.node : undefined;
               if (input?.type !== "component") throw new Error("Missing semantic input region");

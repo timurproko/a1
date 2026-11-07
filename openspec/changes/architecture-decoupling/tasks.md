@@ -15,10 +15,14 @@
 
 ## 2. One theme contract
 
-- [ ] 2.1 Extend `src/ui/components/theme.ts` with the roles the shell paints today (canvas background, hyperlink, status levels, selection) and a `ThemeSource` port exposing `current()` and `onChange()`; verify with a declarations test on the role set.
-- [ ] 2.2 Implement `ThemeSource` in `src/integrations/pi/components` from `piTheme` and `onPiThemeChange`; stop `integrations/pi/components/theme.ts` re-exporting the vendored theme whole and keep only Pi-facing helpers; verify the theme mapping with a test per role.
-- [ ] 2.3 Replace every `upstream/theme/theme.ts` and `piTheme` import in `src/app`, `src/composition`, and `src/features` with the `ThemeSource` port supplied through options; verify the architecture check rejects a new direct import.
-- [ ] 2.4 Collapse the two identical `progress-palette.generated.ts` modules into one generated module in a contracts leaf; `foundation/release` and `ui/settings` import it from there; update the generator script and verify the generated file is reproducible.
+- [x] 2.1 Extend `src/ui/components/theme.ts` with the roles the shell paints today (canvas background, hyperlink, status levels, selection) and a `ThemeSource` port exposing `current()` and `onChange()`; verify with a declarations test on the role set.
+  - Note: the contract lives in `src/contracts/presentation/theme.ts`, because UI components may import only that contract and contracts may not import each other; `ui/components/theme.ts` re-exports it with `PLAIN_THEME` and `PLAIN_THEME_SOURCE`. `UiTheme` gains `mdLink`, `scrollbarTrack`, `scrollbarThumb`, and a `background` painter for `selectedBg`/`toolPendingBg`. The type checker is the role-set test.
+- [x] 2.2 Implement `ThemeSource` in `src/integrations/pi/components` from `piTheme` and `onPiThemeChange`; stop `integrations/pi/components/theme.ts` re-exporting the vendored theme whole and keep only Pi-facing helpers; verify the theme mapping with a test per role.
+  - Note: `piUiTheme()` and `PI_THEME_SOURCE` replace the hand-built theme in `settings-route-host.ts`; the `export *` became a named list. `ShellPresentationPorts` carries the theme, the canvas background, and the pinned output pad, implemented once as `PI_SHELL_PRESENTATION` and returned by `createPiSessionPresenters`, so every existing shell construction keeps working unchanged.
+- [x] 2.3 Replace every `upstream/theme/theme.ts` and `piTheme` import in `src/app`, `src/composition`, and `src/features` with the `ThemeSource` port supplied through options; verify the architecture check rejects a new direct import.
+  - Note: no file under `src/app`, `src/features`, or `src/ui` imports a Pi theme module; composition keeps its imports as the dependency-injection root. The architecture rule that rejects any `src/app` import of the Pi adapters lands with 4.4, once the remaining non-theme imports are gone. Moving the root's handler type to `OwnedUiSessionShellRootHandlers` took its constructor below the size threshold, so its ratchet entry is removed.
+- [x] 2.4 Collapse the two identical `progress-palette.generated.ts` modules into one generated module in a contracts leaf; `foundation/release` and `ui/settings` import it from there; update the generator script and verify the generated file is reproducible.
+  - Note: the palette is `src/contracts/presentation/progress-palette.generated.ts`; the installer package keeps its own copy because it must stay self-contained. The two `early-accent.ts` modules stay separate: one reads pre-trust settings for the trust prompt, the other serves the dependency-light update path.
 
 ## 3. Profile capabilities are resolved once
 

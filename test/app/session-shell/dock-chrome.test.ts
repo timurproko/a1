@@ -1,3 +1,4 @@
+import { PI_THEME_SOURCE } from "../../../src/integrations/pi/components/theme.js";
 import { stripTerminalSequences } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
@@ -11,6 +12,8 @@ afterEach(() => { vi.useRealTimers(); });
 function harness() {
   let tailControl: { activate(): void } | undefined;
   const ports = {
+    theme: PI_THEME_SOURCE,
+    outputPad: 1,
     invalidateChrome: vi.fn(),
     requestRender: vi.fn(),
     viewport: {

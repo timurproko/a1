@@ -38,6 +38,7 @@ const NAMING_THEME: UiTheme = Object.freeze({
   highlight: (text: string) => text,
   disabled: (text: string) => text,
   panel: (text: string) => text,
+  background: (_token: string, text: string) => text,
 });
 
 function settings(overrides: Partial<OwnedUiViewportSettings> = {}): () => OwnedUiViewportSettings {

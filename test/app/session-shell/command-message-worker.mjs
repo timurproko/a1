@@ -61,6 +61,7 @@ for (const theme of ["dark", "light"]) {
         }
       }
       const root = owned ? new owned.OwnedUiSessionShellRoot(view, home, {
+        presentation: ownedTheme.PI_SHELL_PRESENTATION,
         getColumns: () => 80, getRows: () => 24, requestRender() {}, onSubmit() {},
         onInterrupt() {}, onExit() {}, onModelSelect() {}, onThinkingCycle() {},
       }, { quiet: true }, agentDir) : undefined;
@@ -104,7 +105,7 @@ for (const theme of ["dark", "light"]) {
             let rows;
             if (pinned) rows = chatContainer.render(width);
             else {
-              const layout = owned.pinnedLayoutRoot(root.layoutParts());
+              const layout = owned.pinnedLayoutRoot(root.layoutParts(), ownedTheme.PI_THEME_SOURCE);
               const transcript = layout.type === "stack" ? layout.children[0]?.node : undefined;
               if (transcript?.type !== "scroll" || transcript.id !== "transcript" || transcript.child.type !== "component") throw new Error("Missing semantic transcript region");
               rows = transcript.child.component.render(width);

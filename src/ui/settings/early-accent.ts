@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import type { UiAccentColor } from "../../contracts/owned-ui/index.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
-import { SHARED_PROGRESS_PALETTE } from "./progress-palette.generated.js";
+import { SHARED_PROGRESS_PALETTE } from "../../contracts/presentation/index.js";
 
 type Appearance = "dark" | "light";
 type ColorMode = "truecolor" | "256color";

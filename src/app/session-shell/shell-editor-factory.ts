@@ -1,10 +1,10 @@
+import type { ThemeSource } from "../../contracts/presentation/index.js";
 import { caretCell } from "../../ui/components/line-input.js";
 import { PromptInput } from "../../ui/components/prompt-input.js";
 import { backgroundSgrSpan, hyperlinkSgrSpan } from "../../ui/components/spans.js";
 import { faint, stripAnsi } from "../../ui/components/text.js";
 import { paintTextSelection } from "../../ui/components/text-selection.js";
 import { createPiShellEditor } from "../../integrations/pi/components/shell-editor-autocomplete.js";
-import { piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import {
   piShellTruncateToWidth,
   piShellVisibleWidth,
@@ -25,6 +25,7 @@ export type ShellEditorHandlers = Omit<PiShellEditorOptions, "onChange" | "onToo
 };
 
 export interface ShellEditorPorts {
+  readonly theme: ThemeSource;
   readonly handlers: ShellEditorHandlers;
   readonly customViewport: boolean;
   readonly cwd: string;
@@ -90,7 +91,7 @@ export function createShellEditor(ports: ShellEditorPorts): PiShellEditorPort {
     onToolsExpand: () => ports.toggleToolsExpanded(),
     ...(customViewport ? {
       promptPresentation: {
-        input: new PromptInput({ fg: (token, text) => piTheme().fg(token, text) }, {
+        input: new PromptInput({ fg: (token, text) => ports.theme.current().fg(token, text) }, {
           measure: piShellVisibleWidth,
           truncate: piShellTruncateToWidth,
         }),

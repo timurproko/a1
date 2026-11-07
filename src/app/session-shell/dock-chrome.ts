@@ -1,4 +1,5 @@
 import type { ImageAttachmentError, OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
+import type { ThemeSource } from "../../contracts/presentation/index.js";
 import { COPY_ACKNOWLEDGEMENT_DURATION_MS } from "../../ui/components/selection-copy.js";
 import type { TranscriptViewportFrame } from "../../ui/components/transcript-viewport.js";
 import {
@@ -7,7 +8,6 @@ import {
   renderPiShellStatusText,
   type PiShellReleaseUpdateBanner,
 } from "../../integrations/pi/components/shell-presenters-info.js";
-import { PINNED_PI_LAYOUT, piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import { piShellTruncateToWidth, renderPiShellInstalledUpdateStatus } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { SessionViewportController, TailControlRegion } from "./session-viewport-controller.js";
 import { parseReleaseUpdateDiagnostic } from "./transcript-document.js";
@@ -20,6 +20,9 @@ export interface DockNotice {
 }
 
 export interface DockChromePorts {
+  readonly theme: ThemeSource;
+  /** Columns the pinned layout pads command output with. */
+  readonly outputPad: 0 | 1;
   /** Chrome changed; the root invalidates its chrome components. */
   readonly invalidateChrome: () => void;
   readonly requestRender: () => void;
@@ -68,7 +71,7 @@ export class DockChrome {
     if (notice === undefined) return [];
     if (notice.kind === "status") {
       // Compatibility: Pi pads its status text by one cell regardless of the output pad setting.
-      return ["", ...renderPiShellStatusText(notice.message, width, PINNED_PI_LAYOUT.outputPad)];
+      return ["", ...renderPiShellStatusText(notice.message, width, this.#ports.outputPad)];
     }
     return renderPiShellCommandMessage({
       kind: notice.kind === "new-session" ? "accent" : notice.kind,
@@ -103,7 +106,7 @@ export class DockChrome {
 
   renderCopyAcknowledgement(width: number): string | undefined {
     if (this.#copyAcknowledgement === undefined || width <= 0) return undefined;
-    return piTheme().fg("accent", piShellTruncateToWidth(this.#copyAcknowledgement, width));
+    return this.#ports.theme.current().fg("accent", piShellTruncateToWidth(this.#copyAcknowledgement, width));
   }
 
   renderPromptOverlay(diagnostics: OwnedUiSessionViewModel["diagnostics"], width: number): string | undefined {

@@ -6,7 +6,7 @@ import { valid as validSemver } from "semver";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import type { UpdateChannel } from "./types.js";
 import { earlyAccentPalette, earlyTerminalAppearance, earlyTerminalColorMode, resolveEarlyAccentColor } from "./early-accent.js";
-import { SHARED_PROGRESS_ACCENT_ANSI } from "./progress-palette.generated.js";
+import { SHARED_PROGRESS_ACCENT_ANSI } from "../../contracts/presentation/index.js";
 import {
   createRegistryFetcher, invalidateReleaseCheckCache, isNewerRelease, queryPublishedVersions, releaseChannelOf,
   type PublishedVersion, type RegistryFetcher,

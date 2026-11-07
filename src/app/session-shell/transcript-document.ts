@@ -1,5 +1,6 @@
 import { acceptsTranscriptUpdate } from "../../contracts/owned-ui/index.js";
 import type { OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
+import type { ThemeSource } from "../../contracts/presentation/index.js";
 import { nativeHyperlinkStyle } from "../../ui/components/spans.js";
 import type { TranscriptPromptAnchor } from "../../ui/components/transcript-viewport.js";
 import {
@@ -13,7 +14,6 @@ import {
   renderPiShellStartupDiagnostic,
   renderPiShellTranscriptBlock,
 } from "../../integrations/pi/components/shell-presenters-transcript.js";
-import { piTheme } from "../../integrations/pi/components/upstream/theme/theme.js";
 import type { PiShellTranscriptComponentPort } from "../../integrations/pi/components/shell-shared-facade.js";
 
 type TranscriptBlock = OwnedUiSessionViewModel["transcript"][number];
@@ -55,6 +55,7 @@ export interface TranscriptDocumentChrome {
 }
 
 export interface TranscriptDocumentOptions {
+  readonly theme: ThemeSource;
   readonly customViewport: boolean;
   readonly cwd: string;
   /** Creates the component for a newly seen block; its change callback should call `blockChanged`. */
@@ -76,9 +77,11 @@ export class TranscriptDocument {
   // Performance: document layouts are shared by wheel, rail, jump, and selection frames.
   readonly #layouts = new Map<number, TranscriptDocumentLayout>();
   #renders = 0;
+  readonly #linkColor: (text: string, target: string) => string;
 
   constructor(options: TranscriptDocumentOptions) {
     this.#options = options;
+    this.#linkColor = transcriptLinkColor(options.theme);
   }
 
   /** Block component renders since construction, for rendering evidence. */
@@ -350,7 +353,7 @@ export class TranscriptDocument {
       this.#renders += 1;
       const rows = component.render(width);
       if (!this.#options.customViewport || block?.kind === "user") return rows;
-      return rows.map(row => nativeHyperlinkStyle(row, nativeTranscriptLinkColor));
+      return rows.map(row => nativeHyperlinkStyle(row, this.#linkColor));
     };
     if (block === undefined || block.status !== "finalized") return render();
 
@@ -389,7 +392,7 @@ function sanitizeExitTranscriptRow(row: string): string {
 }
 
 /** Web URLs use link blue; file targets retain A1's cyan interactive accent. */
-export function nativeTranscriptLinkColor(text: string, target: string): string {
-  return piTheme().fg(/^file:/iu.test(target) ? "accent" : "mdLink", text);
+export function transcriptLinkColor(theme: ThemeSource): (text: string, target: string) => string {
+  return (text, target) => theme.current().fg(/^file:/iu.test(target) ? "accent" : "mdLink", text);
 }
 

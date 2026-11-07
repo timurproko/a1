@@ -18,6 +18,7 @@ const PLAIN_THEME: UiTheme = {
   highlight: text => text,
   disabled: text => text,
   panel: text => text,
+  background: (_token, text) => text,
 };
 
 const NAMING_THEME: UiTheme = {

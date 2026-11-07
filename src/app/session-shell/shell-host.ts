@@ -5,10 +5,10 @@ import type {
   OwnedUiTerminalHost as OwnedUiTerminalHostContract,
 } from "../../contracts/owned-ui/index.js";
 import type { UiRouteSurface } from "../../ui/apps/contracts.js";
+import type { ShellPresentationPorts } from "../../contracts/presentation/index.js";
 import type { QuitOutroEffect } from "./quit-outro-effects.js";
 import { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput } from "../../ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../ui/components/visible-hyperlinks.js";
-import { piCanvasBackgroundAnsi } from "../../integrations/pi/components/theme.js";
 import {
   DamageAwareTerminalAdapter,
   type PiTuiDamageDecision,
@@ -101,6 +101,7 @@ export interface OwnedUiRouteCallbacks {
 }
 
 export interface OwnedUiTerminalHostOptions {
+  readonly presentation: ShellPresentationPorts;
   /** Bare A1 owns a bounded custom viewport; comparison profiles keep the pinned layout. */
   readonly layout: "pinned" | "custom-viewport";
   readonly mode: "regular" | "fullscreen";
@@ -132,6 +133,7 @@ export function sessionTerminalHostOptions(options: OwnedUiSessionShellOptions):
   const customViewport = sessionLayout === "custom-viewport";
   const settings = backend.settings.snapshot();
   return {
+    presentation: options.presenters,
     layout: customViewport ? "custom-viewport" : "pinned",
     // Invariant: bare A1 owns a bounded viewport and therefore always runs on the alternate
     // fullscreen surface. The pinned comparison profiles still honor Pi's mode.
@@ -207,7 +209,7 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
             ...(input?.scheduler === undefined ? {} : { scheduler: input.scheduler }),
           },
         }),
-      } : { layoutRoot: pinnedLayoutRoot(this.#delegatingLayoutParts()) }),
+      } : { layoutRoot: pinnedLayoutRoot(this.#delegatingLayoutParts(), options.presentation.theme) }),
       ...(input?.onEvent === undefined ? {} : {
         inputDiagnostics: {
           onEvent: input.onEvent,
@@ -221,9 +223,9 @@ export class OwnedUiTerminalHost implements OwnedUiTerminalHostContract<OwnedUiH
     this.runtime = new PiTuiRuntimeAdapter(runtimeOptions);
     this.#damageTerminal = damageTerminal ?? null;
     const background = this.#customViewport ? options.backgroundSettings : undefined;
-    if (background !== undefined) this.#damageTerminal?.setCanvasBackground(piCanvasBackgroundAnsi(background.snapshot()));
+    if (background !== undefined) this.#damageTerminal?.setCanvasBackground(options.presentation.canvasBackground(background.snapshot()));
     this.#unsubscribeBackground = background === undefined || this.#damageTerminal === null ? () => {} : background.onChange(style => {
-      if (this.#damageTerminal?.setCanvasBackground(piCanvasBackgroundAnsi(style))) this.runtime.requestRender(true);
+      if (this.#damageTerminal?.setCanvasBackground(options.presentation.canvasBackground(style))) this.runtime.requestRender(true);
     });
     this.#removeViewportPreInput = this.#customViewport
       ? this.runtime.addPreInputListener(data => this.#active?.handleViewportInput(data))

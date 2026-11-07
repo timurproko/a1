@@ -1,3 +1,4 @@
+import { PI_SHELL_PRESENTATION } from "../../../src/integrations/pi/components/theme.js";
 import { describe, expect, it } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
 import { applyPiTheme, piTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
@@ -24,6 +25,7 @@ function fixture(length = 20) {
   const geometry = { columns: 60, rows: 16 };
   let onFrame: (() => void) | undefined;
   const root = new OwnedUiSessionShellRoot(view, "D:/work", {
+    presentation: PI_SHELL_PRESENTATION,
     getColumns: () => geometry.columns, getRows: () => geometry.rows,
     requestRender: force => renders.push(force), onViewportFrame: () => onFrame?.(),
     onSubmit() {}, onInterrupt() {}, onExit() {}, onModelSelect() {}, onThinkingCycle() {},

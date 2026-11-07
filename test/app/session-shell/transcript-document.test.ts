@@ -1,3 +1,4 @@
+import { PI_THEME_SOURCE } from "../../../src/integrations/pi/components/theme.js";
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiSessionViewModel } from "../../../src/contracts/owned-ui/index.js";
 import type { PiShellTranscriptComponentPort } from "../../../src/integrations/pi/components/shell-shared-facade.js";
@@ -39,6 +40,7 @@ function harness(options: {
 } = {}) {
   const mounted = new Map<string, ReturnType<typeof fakeComponent>>();
   const document = new TranscriptDocument({
+    theme: PI_THEME_SOURCE,
     customViewport: options.customViewport ?? false,
     cwd: "/w",
     mount: next => {

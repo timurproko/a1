@@ -243,7 +243,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         const text = await clipboard.readText(signal);
         return text === null ? null : { kind: "text", text };
       };
-      this.root = new OwnedUiSessionShellRoot(this.backend.session.view(), cwd, {
+      this.root = new OwnedUiSessionShellRoot(this.backend.session.view(), cwd, { presentation: options.presenters,
         getColumns: () => this.#terminal.viewport().columns,
         getRows: () => this.#terminal.viewport().rows,
         requestRender: force => this.#terminal.requestRender(force),
