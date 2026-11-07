@@ -3,8 +3,7 @@
   "entryModules": [
     "src/integrations/pi/engine/conformance.ts",
     "src/integrations/pi/engine/public-main-entry.ts",
-    "src/app/session-shell/paste-text-worker.ts",
-    "src/foundation/resident-tabs/host-entry.ts"
+    "src/app/session-shell/paste-text-worker.ts"
   ],
   "importCycles": [],
   "unreachableModules": []

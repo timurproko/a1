@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Report whether this machine can build the repository, and say exactly what to install when it cannot.
- * Runs first in the build chain so a fresh clone fails with a named cause instead of a resolver or
- * Cargo error, and runs standalone as `npm run doctor`. It imports nothing outside `node:` builtins
+ * Runs first in the build chain so a fresh clone fails with a named cause instead of a resolver
+ * error, and runs standalone as `npm run doctor`. It imports nothing outside `node:` builtins
  * because the condition it most needs to diagnose is an absent `node_modules`.
  */
 import { existsSync, readFileSync } from "node:fs";
@@ -10,11 +10,9 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { advisories, blockingFailures, evaluatePrerequisites, formatFailures, formatReport } from "./environment-prerequisites.mjs";
 import { locateExecutable, probeVersion } from "./environment-probe.mjs";
-import { resolveNativeBuildEnvironment } from "./native-build-environment.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const resolved = resolveNativeBuildEnvironment();
-const environment = resolved.environment;
+const environment = process.env;
 const verbose = process.argv.includes("--report") || environment.A1_BUILD_VERBOSE === "1";
 
 const probes = {};
@@ -63,13 +61,6 @@ const checks = evaluatePrerequisites({
   npm: npmVersion(),
   git: probe("git"),
   githubCli: probe("gh"),
-  cargo: probe("cargo", environment.CARGO ?? "cargo"),
-  rustc: probe("rustc", environment.RUSTC ?? "rustc"),
-  cargoSource: resolved.cargo.source,
-  rustcSource: resolved.rustc.source,
-  cargoResolution: resolved.cargo.status,
-  rustcResolution: resolved.rustc.status,
-  msvc: resolved.msvc,
   dependencies: inspectDependencies(manifest),
   probes,
 });

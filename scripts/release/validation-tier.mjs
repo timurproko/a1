@@ -714,7 +714,7 @@ async function validateValidationSuites(suites, repository) {
       throw new Error(`invalid resource-sensitive test path: ${test}`);
     }
     if (excluded.has(test)) throw new Error(`resource-sensitive test overlaps fast exclusion: ${test}`);
-    const incompatibleOwners = (explicitOwners.get(test) ?? []).filter(owner => !["image-compatibility", "history-compatibility", "unix-containment"].includes(owner));
+    const incompatibleOwners = (explicitOwners.get(test) ?? []).filter(owner => !["image-compatibility", "history-compatibility", "unix-release"].includes(owner));
     if (incompatibleOwners.length > 0) throw new Error(`resource-sensitive test overlaps explicit scope ${incompatibleOwners.join(", ")}: ${test}`);
     try {
       if (!(await stat(resolve(repository, test))).isFile()) throw new Error("not a file");

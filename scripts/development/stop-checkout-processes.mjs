@@ -85,13 +85,12 @@ const defaultSleep = async durationMs => await new Promise(resolveDelay => setTi
 /**
  * Stops every process running this checkout's code and keeps going until none is left.
  *
- * Rationale: a local rebuild replaces `dist/`, and on Windows a running resident host keeps the
- * native addon locked, so `clean` fails with EPERM; a development launch that ends must not leave
- * its instance behind either. A development checkout's own running A1 is disposable test state.
- * Its resident roles restart one another (a holder requests a replacement server, the server
- * restarts holders), so one pass over a snapshot of pids does not converge: every pass lists
- * again and terminates what it finds until a pass finds nothing or the bound is reached. CI and
- * other checkouts are never touched.
+ * Rationale: a local rebuild replaces `dist/`, and on Windows a running instance keeps files under
+ * it open, so `clean` fails with EPERM; a development launch that ends must not leave its instance
+ * behind either. A development checkout's own running A1 is disposable test state. A process can
+ * start a child between the listing and the stop, so one pass over a snapshot of pids does not
+ * converge: every pass lists again and terminates what it finds until a pass finds nothing or the
+ * bound is reached. CI and other checkouts are never touched.
  *
  * @returns {Promise<{ stopped: number[], survivors: number[] }>} the pids terminated across all
  * passes and the pids still running this checkout's code when the stop gave up.

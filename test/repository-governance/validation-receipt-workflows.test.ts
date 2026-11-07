@@ -20,40 +20,30 @@ describe("workflow prerequisite receipts", () => {
     expect(receipt.value.if).toContain("matrix.build");
     expect(receipt.value.run).toBe("node scripts/release/record-validation-prerequisite.mjs build");
     expect(run.value.env.VALIDATION_BUILD_RECEIPT).toContain(".artifacts/validation/receipts/build.json");
-    expect(step(job, "Cache process guardian build").index).toBeLessThan(receipt.index);
+    expect(job.steps.some((candidate: any) => /rust-cache|setup-zig/u.test(candidate.uses ?? ""))).toBe(false);
     expect(DEVELOPMENT_VALIDATION_MATRIX.find(entry => entry.group === "startup")).toMatchObject({ node: 22, build: true, defender: true });
   });
 
   it("verifies the build immediately before packing and then binds the exact package receipt", async () => {
     const source = await readFile("scripts/release/prepare-validation-package.mjs", "utf8");
     expect(source.indexOf('phases.run("verify-build-receipt"')).toBeLessThan(source.indexOf('phases.runSync("npm-pack"'));
-    expect(source.indexOf('phases.run("verify-local-native-artifacts"')).toBeLessThan(source.indexOf('phases.runSync("npm-pack"'));
+    expect(source).not.toContain("verify-native-artifacts");
     expect(source.indexOf('phases.runSync("npm-pack"')).toBeLessThan(source.indexOf('phases.run("package-receipt"'));
   });
 
-  // Rationale: a candidate packed without the release terminal host makes every packaged launch fall
-  // back to the direct UI, so #750's packaged suites passed on pull requests and failed at publication.
-  it("builds the release terminal host into every packed candidate before recording the build", async () => {
+  it("packs every candidate from the installed build alone, with no native artifact step between them", async () => {
     const ci = parse(await readFile(".github/workflows/ci.yml", "utf8")).jobs.modular;
     const full = parse(await readFile(".github/workflows/full-regression-shared.yml", "utf8")).jobs;
-    for (const [job, install, condition] of [
-      [ci, "Install exact dependencies and build", "steps.job-selection.outputs.packs_candidate == 'true'"],
-      [full["windows-shard"], "Install dependencies and build once", "matrix.shard == 'package' || matrix.shard == 'predecessor'"],
-      [full["full-regression"], "Install dependencies and build once", undefined],
+    for (const [job, install] of [
+      [ci, "Install exact dependencies and build"],
+      [full["windows-shard"], "Install dependencies and build once"],
+      [full["full-regression"], "Install dependencies and build once"],
     ] as const) {
-      const build = step(job, "Build the release terminal host into the candidate");
-      expect(build.value.run).toBe("npm run build:terminal-host");
-      expect(build.value.if).toBe(condition);
-      expect(step(job, install).index).toBeLessThan(step(job, "Set up Zig for the release terminal host").index);
-      expect(step(job, "Cache release terminal host build").value.with["shared-key"]).toBe(job === ci
-        ? "terminal-host-release${{ runner.os == 'macOS' && format('-{0}-xcode-26.0.1', matrix.os) || '' }}"
-        : "terminal-host-release");
-      expect(build.index).toBeLessThan(step(job, "Record verified install-time build").index);
+      const installed = step(job, install).index;
+      const recorded = step(job, "Record verified install-time build").index;
+      expect(installed).toBeLessThan(recorded);
+      expect(job.steps.slice(installed, recorded).map((candidate: any) => candidate.name)).toEqual([install]);
     }
-    // Performance: Windows/Linux validation shares the release cache saved by publication and
-    // Full regression; Development's macOS SDK intentionally has its own cache namespace.
-    const publish = parse(await readFile(".github/workflows/publish.yml", "utf8")).jobs.terminal_hosts;
-    expect(step(publish, "Cache terminal host build").value.with).toEqual({ "shared-key": "terminal-host-release", workspaces: "native/terminal-host" });
   });
 
   it("binds full-regression build and package receipts before the complete plan", async () => {

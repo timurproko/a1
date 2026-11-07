@@ -3,15 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   advisories,
   blockingFailures,
-  CARGO_RANGE,
   evaluatePrerequisites,
   formatFailures,
   formatReport,
   parseVersion,
   satisfiesRange,
 } from "../../scripts/development/environment-prerequisites.mjs";
-
-const readyMsvc = { status: "ready", source: "discovered", compiler: "cl.exe", linker: "link.exe", ready: true };
 
 const ready = {
   platform: "linux",
@@ -21,8 +18,6 @@ const ready = {
   npm: "11.13.0",
   git: "2.53.0",
   githubCli: "2.63.0",
-  cargo: "1.90.0",
-  rustc: "1.90.0",
   dependencies: { present: true, declared: 21, missing: [], mismatched: [] },
 };
 
@@ -81,68 +76,20 @@ describe("build environment prerequisites", () => {
     expect(check?.detail).toBe("7 declared dependencies are not installed: a, b, c, d, e, and 2 more");
   });
 
-  it.each([
-    ["win32", "winget install Rustlang.Rustup"],
-    ["darwin", "https://sh.rustup.rs"],
-    ["linux", "https://sh.rustup.rs"],
-  ])("offers the %s install command when cargo is absent", (platform, remedy) => {
-    const check = checkFor({ platform, cargo: null }, "cargo");
-    expect(check).toMatchObject({ satisfied: false, severity: "required" });
-    expect(check?.detail).toContain("native addons");
-    expect(check?.remedy).toContain(remedy);
+  it("blocks when git is absent", () => {
+    expect(checkFor({ git: null }, "git")).toMatchObject({ satisfied: false, severity: "required" });
   });
 
-  it("blocks on a Cargo older than the declared contract", () => {
-    const check = checkFor({ cargo: "1.84.0" }, "cargo");
-    expect(check).toMatchObject({ satisfied: false, severity: "required", detail: `cargo 1.84.0 is older than the required ${CARGO_RANGE}`, remedy: "rustup update stable" });
-  });
-
-  it.each([["rustc", { rustc: null }], ["git", { git: null }]])("blocks when %s is absent", (id, observation) => {
-    expect(checkFor(observation, id)).toMatchObject({ satisfied: false, severity: "required" });
-  });
-
-  it("repairs a half-installed Rust toolchain with rustup rather than a fresh install", () => {
-    expect(checkFor({ rustc: null }, "rustc")).toMatchObject({ remedy: "rustup toolchain install stable" });
-  });
-
-  it("points a machine with no Rust at one toolchain install for both tools", () => {
-    const checks = evaluatePrerequisites({ ...ready, platform: "win32", cargo: null, rustc: null, msvc: readyMsvc });
-    const remedies = blockingFailures(checks).filter(check => ["cargo", "rustc"].includes(check.id)).map(check => check.remedy);
-    expect(new Set(remedies).size).toBe(1);
-    expect(remedies[0]).toContain("winget install Rustlang.Rustup");
-  });
-
-  it("reports automatically initialized Rust and Microsoft tools as ready", () => {
-    const checks = evaluatePrerequisites({
-      ...ready, platform: "win32", cargoSource: "rustup", rustcSource: "rustup", msvc: readyMsvc,
-    });
-    expect(checks.find(check => check.id === "cargo")?.detail).toContain("canonical Rustup location");
-    expect(checks.find(check => check.id === "msvc")?.detail).toContain("initialized automatically");
-    expect(blockingFailures(checks)).toEqual([]);
-  });
-
-  it.each([
-    ["missing-workload", "Desktop development with C++ workload"],
-    ["missing-installation", "Visual Studio Code is not the required compiler"],
-    ["probe-failed", "Visual Studio discovery failed"],
-    ["initialization-failed", "could not be initialized"],
-  ])("blocks before compilation when MSVC is %s", (status, detail) => {
-    const check = checkFor({ platform: "win32", msvc: { status, source: "vswhere", probeStatus: "timeout" } }, "msvc");
-    expect(check).toMatchObject({ satisfied: false, severity: "required" });
-    expect(check?.detail).toContain(detail);
-    expect(check?.remedy).toContain("npm run build");
-    expect(JSON.stringify(check)).not.toContain("must-not-appear-in-diagnostics");
-  });
-
-  it("fails an invalid explicit Rust override by name", () => {
-    expect(checkFor({ cargo: null, cargoResolution: "invalid-override" }, "cargo")).toMatchObject({
-      detail: "the explicit CARGO executable does not exist or cannot be resolved",
-      remedy: "fix or remove CARGO, then rerun `npm run build`",
-    });
+  it("asks for no native compiler toolchain on any platform", () => {
+    for (const platform of ["win32", "darwin", "linux"]) {
+      const checks = evaluatePrerequisites({ ...ready, platform });
+      expect(checks.map(check => check.id)).toEqual(["dependencies", "git", "gh", "node", "npm"]);
+      expect(blockingFailures(checks)).toEqual([]);
+    }
   });
 
   it("reports an absent GitHub CLI without blocking the build that does not need it", () => {
-    const checks = evaluatePrerequisites({ ...ready, platform: "win32", githubCli: null, msvc: readyMsvc });
+    const checks = evaluatePrerequisites({ ...ready, platform: "win32", githubCli: null });
     expect(blockingFailures(checks)).toEqual([]);
     expect(advisories(checks)).toMatchObject([{ id: "gh", remedy: "winget install GitHub.cli, then run gh auth login" }]);
   });
@@ -163,21 +110,19 @@ describe("build environment prerequisites", () => {
     expect(checkFor({ npm: null }, "npm")).toMatchObject({ satisfied: true });
   });
 
-  it("states every unmet blocker and the ordered Windows setup sequence", () => {
-    const checks = evaluatePrerequisites({ ...ready, cargo: null, node: "v26.1.0", platform: "win32", msvc: { status: "missing-workload", source: "vswhere" } });
+  it("states every unmet blocker and points at the full report", () => {
+    const checks = evaluatePrerequisites({ ...ready, git: null, node: "v26.1.0", platform: "win32" });
     const failures = formatFailures(checks);
-    expect(failures).toContain("Rust toolchain: cargo was not found");
-    expect(failures).toContain("fix: install Rustup with `winget install Rustlang.Rustup`");
-    expect(failures).toContain("Windows native setup order:");
-    expect(failures).toContain("3. Rerun `npm run build` from the same shell.");
+    expect(failures).toContain("Git: git is not on PATH");
+    expect(failures).toContain("fix: winget install Git.Git");
     expect(failures).toContain("npm run doctor");
     expect(failures).not.toContain("outside the declared engine contract");
   });
 
   it("summarises blocking and advisory counts separately", () => {
-    const report = formatReport(evaluatePrerequisites({ ...ready, cargo: null, node: "v20.11.0" }), "@scope/pkg");
+    const report = formatReport(evaluatePrerequisites({ ...ready, git: null, node: "v20.11.0" }), "@scope/pkg");
     expect(report).toContain("1 blocking prerequisite unmet, 1 advisory.");
-    expect(report).toContain("FAIL  Rust toolchain");
+    expect(report).toContain("FAIL  Git");
     expect(report).toContain("warn  Node.js");
   });
 });
@@ -194,7 +139,6 @@ describe("environment prerequisite wiring", () => {
     for (const path of [
       "scripts/development/check-environment.mjs",
       "scripts/development/environment-prerequisites.mjs",
-      "scripts/development/native-build-environment.mjs",
       "scripts/development/run-build.mjs",
     ]) {
       const source = await readFile(path, "utf8");

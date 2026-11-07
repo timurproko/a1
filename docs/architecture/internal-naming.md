@@ -28,7 +28,6 @@ The exact externally branded key/member authority is `config/internal-naming-pol
 | `A1_PROFILE_HOME` | Caller-supplied profile-home override consumed by `src/features/launch/profile-paths.ts`; exact existing exposure-review entry. |
 | `A1_STARTUP_TRACE` | Caller-supplied diagnostic path and trace context in `src/foundation/startup/startup-runtime.ts`; exact existing exposure-review entry. |
 | `A1_DEV_INSTANCE_ID`, `A1_DEV_ROOT` | Caller-supplied development overrides consumed by `src/features/launch/development-launch.ts`; exact existing exposure-review entries. |
-| `A1_PROBE_TRACE` | Opt-in diagnostics name retained in the product identity manifest; exact existing exposure-review entry. |
 | `A1_BUILD_VERBOSE`, `A1_DEV_SHELL` | Developer invocation controls in the build helper and development launcher; exact existing exposure-review entries. |
 
 Pending review preserves a possible external interface, not an obsolete private alias. Once a setting is established as private, it cannot keep its branded spelling through that category.

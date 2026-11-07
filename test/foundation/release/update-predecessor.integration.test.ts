@@ -55,7 +55,6 @@ describe("update from every recent published release", () => {
         A1_DATA_DIR: resolve(sandbox, "data"),
         A1_RUNTIME_DIR: resolve(sandbox, "runtime"),
         A1_CONFIG_DIR: resolve(sandbox, "config"),
-        A1_DATABASE_PATH: resolve(sandbox, "control.sqlite3"),
       };
       // Protocol: the predecessor copies the candidate payload and then imports the candidate's own
       // startup graph in a child process, exactly as `a1 update` does.
@@ -214,7 +213,6 @@ async function exerciseProtectedReplacement(
     A1_DATA_DIR: dataDir,
     A1_RUNTIME_DIR: resolve(root, "runtime"),
     A1_CONFIG_DIR: resolve(root, "config"),
-    A1_DATABASE_PATH: resolve(root, "control.sqlite3"),
   };
   const materialized = await release.materializeRelease(packageRoot, dataDir);
   await release.warmMaterializedRelease(materialized, activationEnvironment, 120_000);

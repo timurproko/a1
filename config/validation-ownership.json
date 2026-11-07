@@ -60,7 +60,7 @@
     {
       "id": "pi-repository-commands", "owner": "pi",
       "paths": ["src/integrations/pi/engine/repository-pr.ts", "src/integrations/pi/engine/repository-pr-rest.ts"],
-      "testPaths": ["test/integrations/pi/engine/repository-pr.test.ts", "test/app/session-shell/session-shell-resident-footer.test.ts"],
+      "testPaths": ["test/integrations/pi/engine/repository-pr.test.ts"],
       "integrationOwners": ["pi-release-resume"]
     },
     {
@@ -105,7 +105,6 @@
         "launch-startup",
         "release-package-update",
         "pi",
-        "native-containment",
         "image-history",
         "governance",
         "shared-product"
@@ -160,10 +159,8 @@
       "paths": [
         "src/features/launch/",
         "src/foundation/launch-context/",
-        "src/foundation/launch-guardian/",
         "src/foundation/lifecycle/",
         "src/foundation/startup/",
-        "src/foundation/supervision/",
         "src/foundation/terminal-cleanup/",
         "scripts/development/",
         "scripts/dev"
@@ -171,16 +168,13 @@
       "testPaths": [
         "test/features/launch/",
         "test/foundation/launch-context/",
-        "test/foundation/launch-guardian/",
         "test/foundation/lifecycle/",
         "test/foundation/startup/",
-        "test/foundation/supervision/",
         "test/foundation/terminal-cleanup/"
       ],
       "criticalTests": [
         "test/features/launch/runtime-selection.test.ts",
-        "test/foundation/lifecycle/launch-instance.test.ts",
-        "test/foundation/supervision/supervisor-release-exit.test.ts"
+        "test/foundation/lifecycle/session-claim-lock.test.ts"
       ],
       "integrationOwners": [
         "launch-integration",
@@ -240,44 +234,6 @@
       ]
     },
     {
-      "id": "native-containment",
-      "paths": [
-        "native/process-guardian/",
-        "src/foundation/process-containment/",
-        "src/foundation/protocol/"
-      ],
-      "testPaths": [
-        "test/foundation/process-containment/",
-        "test/foundation/protocol/"
-      ],
-      "criticalTests": [
-        "test/foundation/process-containment/contracts.test.ts",
-        "test/foundation/protocol/protocol.test.ts"
-      ],
-      "integrationOwners": [
-        "unix-containment"
-      ]
-    },
-    {
-      "id": "terminal-host",
-      "paths": [
-        "native/terminal-host/",
-        "src/foundation/resident-tabs/",
-        "src/features/resident-tab/"
-      ],
-      "testPaths": [
-        "test/foundation/resident-tabs/",
-        "test/features/resident-tab/"
-      ],
-      "criticalTests": [
-        "test/foundation/resident-tabs/resident-tabs.test.ts"
-      ],
-      "integrationOwners": [
-        "terminal-host",
-        "resident-chaos"
-      ]
-    },
-    {
       "id": "image-history",
       "paths": [
         "src/features/prompt-history/"
@@ -318,14 +274,12 @@
       "id": "shared-product",
       "paths": [
         "src/cli/",
-        "src/composition/",
-        "src/foundation/storage/"
+        "src/composition/"
       ],
       "testPaths": [
         "test/cli/",
         "test/composition/",
-        "test/contracts/",
-        "test/foundation/storage/"
+        "test/contracts/"
       ],
       "criticalTests": [
         "test/cli/capabilities.test.ts",

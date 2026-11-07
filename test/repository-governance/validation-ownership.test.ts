@@ -21,7 +21,6 @@ describe("bounded PR-core ownership", () => {
     ["launch/startup", "src/features/launch/runtime-selection.ts", "launch-startup"],
     ["release/package/update", "src/foundation/release/bootstrap.ts", "release-package-update"],
     ["Pi", "src/integrations/pi/engine/agent-engine.ts", "pi"],
-    ["native containment", "native/process-guardian/src/main.rs", "native-containment"],
     ["image/history", "src/features/prompt-history/service.ts", "image-history"],
     ["governance", "scripts/governance/check-architecture.mjs", "governance"],
     ["shared product", "src/composition/workspace.ts", "shared-product"],
@@ -106,7 +105,7 @@ describe("bounded PR-core ownership", () => {
     expect(replay.mode).toBe("impact");
     expect(replay.owners.filter(owner => owner.selected).map(owner => owner.owner)).toEqual(["release-package-update", "pi"]);
     expect(replay.tests.length).toBeLessThan(authority.ledger.filter((entry: any) => entry.fastOwner === "fast-remainder").length / 2);
-    expect(replay.integrationOwners).not.toContain("unix-containment");
+    expect(replay.integrationOwners).not.toContain("unix-release");
     expect(replay.integrationOwners).not.toContain("launch-integration");
   });
 

@@ -3,7 +3,7 @@ import {
   updateSessionRepositoryContext,
   type SessionContextRequest,
 } from "../features/launch/index.js";
-import { inspectLiveProcess } from "../foundation/lifecycle/process-liveness.js";
+import { inspectLiveProcess } from "../foundation/lifecycle/index.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../product-identity.js";
 
 export type { SessionContextRequest } from "../features/launch/index.js";

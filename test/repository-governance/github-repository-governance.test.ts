@@ -99,7 +99,7 @@ describe("declarative GitHub repository governance", () => {
       triggers: ["workflow_dispatch"], trustedSource: "default-branch", authority: ["npm-next"],
     });
     expect(inspected.find(workflow => workflow.name === "Publish")).toMatchObject({
-      triggers: ["schedule", "workflow_call"], trustedSource: "authoritative-develop", environments: ["npm-publish"], artifactRetentionDays: [1, 30],
+      triggers: ["schedule", "workflow_call"], trustedSource: "authoritative-develop", environments: ["npm-publish"], artifactRetentionDays: [30],
       authority: expect.arrayContaining(["master-fast-forward", "npm-latest"]),
     });
   });

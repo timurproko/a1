@@ -42,7 +42,7 @@ beforeAll(async () => {
     HOME: home, USERPROFILE: home, A1_PROFILE_HOME: home,
     XDG_CONFIG_HOME: resolve(home, ".config"),
     A1_DATA_DIR: resolve(extracted.root, "data"), A1_RUNTIME_DIR: resolve(extracted.root, "runtime"),
-    A1_CONFIG_DIR: resolve(extracted.root, "config"), A1_DATABASE_PATH: resolve(extracted.root, "data", "control.sqlite3"),
+    A1_CONFIG_DIR: resolve(extracted.root, "config"),
     PI_SESSION_ID: "stale-parent-id", PI_SESSION_FILE: "stale-parent.jsonl",
   });
   await writeFile(resolve(agent, "auth.json"), JSON.stringify({ openai: { type: "api_key", key: "offline-fixture-never-sent" } }));

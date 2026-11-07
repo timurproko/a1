@@ -3,62 +3,34 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertIntegrationSelection } from "./integration-selection.mjs";
 
-const WINDOWS = { os: "windows-2025", platform: "win32", architecture: "x64", addon: "process-guardian.node" };
-const LINUX = { os: "ubuntu-24.04", platform: "linux", architecture: "x64", addon: "process-guardian.node" };
+const WINDOWS = { os: "windows-2025", platform: "win32", architecture: "x64" };
+const LINUX = { os: "ubuntu-24.04", platform: "linux", architecture: "x64" };
 // Rationale: pin Development to the current GA Apple Silicon image independently of the
 // macOS 15 Full/publication baseline; repeated macOS 15 allocation failures ran no tests.
-const DARWIN = { os: "macos-26", platform: "darwin", architecture: "arm64", addon: "process-guardian.node" };
-
-/**
- * Partitions of the serialized terminal-host role-fixture suite, each on its own runner. The suite ran
- * 706 to 775 seconds on every platform as one job; three partitions keep every test and cut the lane's
- * critical path to about a third of that.
- */
-export const TERMINAL_HOST_TEST_PARTITIONS = 3;
-
-function terminalHostPartitions(target, platformLabel) {
-  return Array.from({ length: TERMINAL_HOST_TEST_PARTITIONS }, (_value, offset) => {
-    const index = offset + 1;
-    return {
-      group: "terminal-host", label: `Native terminal host tests (${platformLabel}, ${index}/${TERMINAL_HOST_TEST_PARTITIONS})`, ...target, node: 24,
-      build: false, guardian: false, defender: false, partition: `${index}/${TERMINAL_HOST_TEST_PARTITIONS}`, partitionSlug: `${index}of${TERMINAL_HOST_TEST_PARTITIONS}`,
-    };
-  });
-}
+const DARWIN = { os: "macos-26", platform: "darwin", architecture: "arm64" };
 
 /** Every Development modular job GitHub may schedule; the workflow takes its matrix from the active subset. */
 export const DEVELOPMENT_VALIDATION_MATRIX = Object.freeze([
-  { group: "core", label: "PR core and affected unit owners", ...WINDOWS, node: 24, build: true, guardian: true, defender: false },
-  { group: "resource", label: "Resource-sensitive fast partition", ...WINDOWS, node: 24, build: true, guardian: false, defender: false },
-  { group: "pi", label: "Pi release and resume integration", ...WINDOWS, node: 24, build: true, guardian: false, defender: false },
-  { group: "promoted", label: "Changed full-only integration owners", ...WINDOWS, node: 24, build: true, guardian: false, defender: false },
-  { group: "package", label: "Exact-package contracts", ...WINDOWS, node: 22, build: true, guardian: false, defender: false },
-  { group: "startup", label: "First-attempt startup budget", ...WINDOWS, node: 22, build: true, guardian: false, defender: true },
-  { group: "compatibility", label: "Image and history compatibility", ...WINDOWS, node: 22, build: true, guardian: false, defender: false },
-  { group: "containment", label: "Unix integration (Linux)", ...LINUX, node: 24, build: true, guardian: true, defender: false },
-  { group: "containment", label: "Unix integration (macOS)", ...DARWIN, node: 24, build: true, guardian: true, defender: false },
-  { group: "terminal-host", label: "Native terminal host (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostAddon: "terminal-host.node" },
-  { group: "terminal-host", label: "Native terminal host (Linux x64)", ...LINUX, node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostAddon: "terminal-host.node" },
-  { group: "terminal-host", label: "Native terminal host (macOS arm64)", ...DARWIN, node: 24, build: true, guardian: false, defender: false, terminalHost: true, terminalHostAddon: "terminal-host.node" },
-  ...terminalHostPartitions(WINDOWS, "Windows x64"),
-  ...terminalHostPartitions(LINUX, "Linux x64"),
-  ...terminalHostPartitions(DARWIN, "macOS arm64"),
-  { group: "resident-chaos", label: "Resident tabs chaos (Windows x64)", ...WINDOWS, node: 24, build: true, guardian: false, defender: false, chaos: true },
-  { group: "resident-chaos", label: "Resident tabs chaos (Linux x64)", ...LINUX, node: 24, build: true, guardian: false, defender: false, chaos: true },
-  { group: "resident-chaos", label: "Resident tabs chaos (macOS arm64)", ...DARWIN, node: 24, build: true, guardian: false, defender: false, chaos: true },
+  { group: "core", label: "PR core and affected unit owners", ...WINDOWS, node: 24, build: true, defender: false },
+  { group: "resource", label: "Resource-sensitive fast partition", ...WINDOWS, node: 24, build: true, defender: false },
+  { group: "pi", label: "Pi release and resume integration", ...WINDOWS, node: 24, build: true, defender: false },
+  { group: "promoted", label: "Changed full-only integration owners", ...WINDOWS, node: 24, build: true, defender: false },
+  { group: "package", label: "Exact-package contracts", ...WINDOWS, node: 22, build: true, defender: false },
+  { group: "startup", label: "First-attempt startup budget", ...WINDOWS, node: 22, build: true, defender: true },
+  { group: "compatibility", label: "Image and history compatibility", ...WINDOWS, node: 22, build: true, defender: false },
+  { group: "unix", label: "Unix integration (Linux)", ...LINUX, node: 24, build: true, defender: false },
+  { group: "unix", label: "Unix integration (macOS)", ...DARWIN, node: 24, build: true, defender: false },
 ].map(entry => Object.freeze(entry)));
 
 /** Map an integration owner to the modular job that executes it on a platform. */
 export function validationJobGroup(owner, platform) {
   if (owner === "pi-release-resume") return "pi";
-  if (owner === "update-predecessor") return platform === "win32" ? "promoted" : "containment";
+  if (owner === "update-predecessor") return platform === "win32" ? "promoted" : "unix";
   if (["launch-integration", "update-performance"].includes(owner)) return "promoted";
   if (owner === "package-contracts") return "package";
   if (owner === "startup") return "startup";
-  if (["image-compatibility", "history-compatibility"].includes(owner)) return platform === "win32" ? "compatibility" : "containment";
-  if (owner === "unix-containment") return "containment";
-  if (owner === "terminal-host") return "terminal-host";
-  if (owner === "resident-chaos") return "resident-chaos";
+  if (["image-compatibility", "history-compatibility"].includes(owner)) return platform === "win32" ? "compatibility" : "unix";
+  if (owner === "unix-release") return "unix";
   throw new Error(`unknown validation owner: ${owner}`);
 }
 

@@ -1,7 +1,6 @@
 import ts from "typescript";
 import { parser as pythonParser } from "@lezer/python";
 import { parseDocument, isMap, isSeq, isScalar } from "yaml";
-import { inspectRustNames } from "./naming-rust.mjs";
 import { namingSourceRole } from "./naming-source-policy.mjs";
 
 /** Inspect decoded code names, not comments or source text embedded as ordinary test data. */
@@ -211,7 +210,6 @@ export function inspectPythonNames(path, source, policy) {
 export function inspectNamingSource(path, source, policy) {
   const role = namingSourceRole(path);
   if (role === "script") return inspectScriptNames(path, source, policy);
-  if (role === "rust") return inspectRustNames(path, source, policy);
   if (role === "python") return inspectPythonNames(path, source, policy);
   if (role === "configuration") return inspectConfigurationNames(path, source, policy);
   if (role === "shell") return inspectShellNames(path, source, policy);

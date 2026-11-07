@@ -55,20 +55,6 @@ describe("internal naming syntax policy", () => {
     expect(inspectTypeScript("src/unrelated.ts", source).internal).not.toEqual([]);
   });
 
-  it.each([
-    'const a1_value: i32 = 1;', 'fn runa1task() {}', 'struct A1Thing {}', "fn run<'a1>(value: &'a1 str) {}",
-    'fn run() { let r#a1value = 1; }', 'fn run() { std::env::var("A1_PRIVATE_ROOT"); }',
-  ])("rejects branded Rust names and keys: %s", source => {
-    expect(inspect(source, "rs").internal.length).toBeGreaterThan(0);
-  });
-
-  it("handles Rust strings, nested comments, characters, raw literals, lifetimes, and macros", () => {
-    const source = `/* outside /* a1_inside */ */ fn run<'a>(value: &'a str) { let text = r###"A1 ordinary text"###; let char = 'a'; let code = 0xa1; println!("A1 output"); }`;
-    expect(inspect(source, "rs").internal).toEqual([]);
-    expect(inspect('fn run() { let text = r#"unterminated;', "rs").internal.some(value => value.rule === "NAME002")).toBe(true);
-    expect(inspect("fn run() {", "rs").internal.some(value => value.rule === "NAME002")).toBe(true);
-  });
-
   it("parses the owned Python helper language without an external interpreter", () => {
     expect(inspect('class A1Worker:\n  def run(self):\n    return 1\n', "py").internal).not.toEqual([]);
     expect(inspect('text = "A1 normal output"\n# a1_comment\n', "py").internal).toEqual([]);
@@ -95,8 +81,8 @@ describe("internal naming syntax policy", () => {
   it("never excludes owned ports or helpers as if they were vendor code", () => {
     expect(namingSourceRole("src/integrations/pi/components/upstream/local.ts")).toBe("script");
     expect(namingSourceRole("test/fixtures/worker.ts")).toBe("script");
-    expect(namingSourceRole("native/terminal-host/vendor/library/file.rs")).toBe("vendor");
-    expect(namingSourceRole("native/terminal-host/target/file.rs")).toBe("generated");
+    expect(namingSourceRole("src/integrations/pi/components/vendor/file.ts")).toBe("script");
+    expect(namingSourceRole("src/generated/file.rs")).toBe("unsupported");
     expect(namingSourceRole("src/example.unknown")).toBe("unsupported");
   });
 

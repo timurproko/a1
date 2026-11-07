@@ -2,7 +2,7 @@ import rawIdentity from "./product-identity.json" with { type: "json" };
 
 const ENVIRONMENT_KEYS = [
   "clipboardDiagnostics", "configDir", "dataDir", "developmentHistoryDataDir", "developmentInstanceId", "developmentRoot", "exitNoticePath",
-  "probeTrace", "prFooterPreview", "profileHome", "runtimeDir", "sessionRuntimeId", "skipVersionCheck", "startupTrace", "suggestionDiagnostics",
+  "prFooterPreview", "profileHome", "runtimeDir", "sessionRuntimeId", "skipVersionCheck", "startupTrace", "suggestionDiagnostics",
 ] as const;
 const FILESYSTEM_KEYS = ["slug", "windowsDirectory", "unixDirectory", "temporaryPrefix"] as const;
 const STATE_KEYS = ["windowsControlDirectory", "unixControlDirectory", "developmentDirectory", "piAgentProfile", "piVanillaProfile", "sessionRepositoryDirectory", "sessionWorktreeClaimDirectory"] as const;

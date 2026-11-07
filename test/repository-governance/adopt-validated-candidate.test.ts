@@ -94,7 +94,7 @@ function applicationEntries(note: string | null, older = [olderNote]) {
     entry("package/package.json", JSON.stringify({ name: "@timurproko/a1", version, bin: { fixture: "dist/cli.js" } })),
     entry("package/dist/cli.js", "#!/usr/bin/env node\n", 0o755),
     entry(RELEASE_NOTES_ENTRY, `${JSON.stringify({ schema: "a1-release-notes-v1", releases }, null, 2)}\n`),
-    entry("package/dist/native/linux-x64/process-guardian", Buffer.alloc(1300, 7), 0o755),
+    entry("package/bin/ui.js", Buffer.alloc(1300, 7), 0o755),
   ];
 }
 
