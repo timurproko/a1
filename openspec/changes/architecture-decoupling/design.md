@@ -55,7 +55,7 @@ The shell today reaches into the adapters for a dozen concrete things. The contr
 
 Alternative considered: keep direct imports but restrict them to types. Rejected because type-only coupling still ties the shell's vocabulary to Pi and does not stop the next value import.
 
-Refinement approved during implementation: measuring after the theme work showed about 100 distinct Pi symbols across 26 files, and that `shell-host.ts` constructs the Pi TUI runtime and damage-aware terminal directly. The terminal host therefore moves into `src/integrations/pi/tui-runtime` behind a neutral terminal-host contract; the neutral port and value types move into `src/contracts/presentation`; and the remaining factories ride on `ShellPresentationPorts`, which lives in `src/contracts/presentation` (UI components may import only that contract) and which `createPiSessionPresenters` already returns.
+Refinement approved during implementation: measuring after the theme work showed about 100 distinct Pi symbols across 26 files, and that `shell-host.ts` constructs the Pi TUI runtime and damage-aware terminal directly. The neutral port and value types move into `src/contracts/presentation` and `src/contracts/owned-ui`. A second refinement, approved after measuring, keeps the terminal host in the application layer: it drives the runtime through the neutral `TerminalRuntimeFactory` port, so it holds no Pi import. The remaining factories are grouped as `OwnedUiShellComponents` and ride on `OwnedUiSessionPresenters.components` beside the `ShellPresentationPorts` fields that `createPiSessionPresenters` already returns.
 
 ### 3. One theme contract
 
@@ -112,7 +112,7 @@ Order of landing within the one PR, each step green on typecheck and its own tes
 1. Governance test reduction and line-ending normalisation (no production change).
 2. Theme contract and palette de-duplication.
 3. One name for the product mode.
-4. `ShellPresentationPorts` contract, Pi implementation, composition injection; shell files switch to the ports; policy rule enabled.
+4. Presentation and shell component contracts, Pi implementation, composition injection; shell files switch to the ports; policy rule enabled.
 5. Clipboard services to composition; presenter and root splits.
 6. `SettingsApp`, `PiTuiRuntimeAdapter`, `PiEngineAdapter` splits.
 7. Dead-export rule and removals; session-shell test merge.
