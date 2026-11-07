@@ -1015,3 +1015,15 @@ When a finalized version-3 pull request is returned to draft with every Implemen
 - **WHEN** the body fence names the head as finalized but the tree lacks that archive or holds the active change again
 - **THEN** trusted automation SHALL leave the pull request draft
 - **AND** the finalization run SHALL fail with the stable reason `draft-finalization-redraft-form`
+
+### Requirement: Finalization accepts a declared capability retirement
+A capability is retired by a change only when the change metadata declares `retire_capabilities: true` and the change's delta for it only removes requirements. Finalization and post-merge verification SHALL accept the absence of a retired capability's canonical spec and SHALL exclude it from the spec digest; any other missing spec SHALL still block the delivery.
+
+#### Scenario: A change retires a capability
+- **WHEN** a change declaring `retire_capabilities: true` removes every requirement of a capability and archiving deletes its canonical spec
+- **THEN** finalization SHALL archive the change and record a spec digest that excludes the retired capability
+- **AND** post-merge verification SHALL accept the delivery
+
+#### Scenario: A spec is missing without a retirement
+- **WHEN** a capability's canonical spec is absent but the change does not declare retirement, or its delta adds, modifies, or renames requirements
+- **THEN** finalization SHALL stop with `delivery-spec-missing` and the PR SHALL stay draft
