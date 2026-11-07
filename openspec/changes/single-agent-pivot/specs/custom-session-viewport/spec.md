@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: The governing submitted prompt remains pinned while scrolling without a timestamp
-When the first row of the governing submitted prompt or completed compaction has scrolled above the viewport, a copy of that first row SHALL occupy the viewport's first row, preserving the prompt-style prefix, content, and background and carrying no timestamp. It SHALL remain prominent while any continuation row of that block is visible and SHALL use the quiet theme role once the complete block is above the viewport. Activating it SHALL return the viewport to the source block. Completed compactions are navigation anchors, not user messages.
+When the governing submitted prompt's or completed compaction's first row scrolls above the viewport, a copy of that row SHALL occupy the viewport's first row with its prefix, content, and background and no timestamp. It SHALL stay prominent while any continuation row of that block is visible and SHALL use the quiet theme role once the whole block is above the viewport. Activating it SHALL return the viewport to the source block.
 
 #### Scenario: Pinned row adds no document row
 - **WHEN** a pinned copy of the governing first row is shown
