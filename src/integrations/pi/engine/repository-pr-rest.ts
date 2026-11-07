@@ -5,7 +5,7 @@ interface PiPullRequestIdentity {
   readonly url: string;
 }
 
-export interface PiGitHubRepositoryIdentity {
+interface PiGitHubRepositoryIdentity {
   readonly owner: string;
   readonly repository: string;
 }
@@ -13,7 +13,7 @@ export interface PiGitHubRepositoryIdentity {
 type PiGitHubFetch = (input: string | URL, init?: RequestInit) => Promise<Response>;
 type PiCommandReader = (cwd: string, signal: AbortSignal) => Promise<string | null>;
 
-export interface PiPullRequestRestDependencies {
+interface PiPullRequestRestDependencies {
   readonly readOriginUrl?: PiCommandReader;
   readonly fetch?: PiGitHubFetch;
 }

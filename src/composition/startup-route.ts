@@ -6,7 +6,7 @@ import type { StartupReleaseUpdateObservationOptions } from "./release-update-ob
 
 type StartupRoute = NonNullable<OwnedUiShellEngineOptions["startupRoute"]>;
 
-export interface StartupReleaseNoteOptions {
+interface StartupReleaseNoteOptions {
   readonly ownedSurfaces: boolean;
   /** Deterministic catalog and version seams for composition tests. */
   readonly releaseNotes?: ReleaseNoteCatalog;

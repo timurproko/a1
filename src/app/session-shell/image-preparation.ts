@@ -15,8 +15,8 @@ export interface PreparedImage {
   readonly height: number;
   readonly transformed: boolean;
 }
-export const IMAGE_TARGET_BASE64_BYTES = 4.5 * 1024 * 1024;
-export const IMAGE_TARGET_DECODED_BYTES = 5 * 1024 * 1024;
+const IMAGE_TARGET_BASE64_BYTES = 4.5 * 1024 * 1024;
+const IMAGE_TARGET_DECODED_BYTES = 5 * 1024 * 1024;
 
 export async function prepareImage(
   source: { readonly data: string; readonly mimeType: string },

@@ -1,6 +1,6 @@
 import type { Editor } from "@earendil-works/pi-tui";
 
-export interface EditorInteractionState {
+interface EditorInteractionState {
   lines: string[];
   cursorLine: number;
   cursorCol: number;

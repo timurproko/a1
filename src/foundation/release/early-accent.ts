@@ -6,8 +6,8 @@ import { SHARED_PROGRESS_PALETTE } from "../../contracts/presentation/index.js";
 
 const MAX_SETTINGS_BYTES = 256 * 1024;
 type UiAccentColor = "blue" | "purple" | "cyan" | "green" | "orange" | "pink";
-export type EarlyAccentAppearance = "dark" | "light";
-export type EarlyAccentMode = "truecolor" | "256color";
+type EarlyAccentAppearance = "dark" | "light";
+type EarlyAccentMode = "truecolor" | "256color";
 
 /** Read only global profile data, never project settings or the interactive resource pipeline. */
 export function resolveEarlyAccentColor(

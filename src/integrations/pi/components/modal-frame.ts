@@ -1,18 +1,15 @@
 import {
-  CancellableLoader,
   Container,
   Input,
   Spacer,
   Text,
   type Component,
   type Focusable,
-  type TUI,
   type TuiMouseEvent,
   type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
 import { DIALOG_CONTENT_PADDING_X, dialogFrameGeometry, insetDialogContent } from "../../../contracts/presentation/index.js";
-import { DynamicBorder } from "../startup-public.js";
-import { DIALOG_CLOSE_SHORTCUT_HINT, paintPiBorder, piTheme, renderPiModalShortcutHints } from "./theme.js";
+import { DIALOG_CLOSE_SHORTCUT_HINT, piTheme, renderPiModalShortcutHints } from "./theme.js";
 
 export const PI_MODAL_CONTENT_PADDING_X = DIALOG_CONTENT_PADDING_X;
 
@@ -62,26 +59,6 @@ export function addPiModalSelectFooter(container: Container): void {
   container.children.splice(container.children.length - 1, 0, new Text(renderPiModalShortcutHints([
     { key: "↑↓", action: "navigate" }, { key: "enter", action: "select" }, DIALOG_CLOSE_SHORTCUT_HINT,
   ]), 0, 0));
-}
-
-/** Owned cancellable operation frame with the canonical dialog close guidance. */
-export class PiCancellableOperationFrame extends Container {
-  readonly #loader: CancellableLoader;
-  constructor(tui: TUI, message: string) {
-    super();
-    const theme = piTheme();
-    this.#loader = new CancellableLoader(tui, text => theme.fg("accent", text), text => theme.fg("muted", text), message);
-    this.addChild(new DynamicBorder(paintPiBorder));
-    this.addChild(this.#loader);
-    this.addChild(new Spacer(1));
-    this.addChild(new Text(renderPiModalShortcutHints([DIALOG_CLOSE_SHORTCUT_HINT]), 0, 0));
-    this.addChild(new Spacer(1));
-    this.addChild(new DynamicBorder(paintPiBorder));
-    adoptPiModalFrame(this, { topIndex: 0, bottomIndex: this.children.length - 1 });
-  }
-  get signal(): AbortSignal { return this.#loader.signal; }
-  handleInput(data: string): void { this.#loader.handleInput(data); }
-  dispose(): void { this.#loader.dispose(); }
 }
 
 /** The semantic top rule/title pair used while a modal assembles its frame. */
@@ -159,7 +136,7 @@ export function addPiModalHeader(container: Container, rule: Component, title: C
   return header;
 }
 
-export interface PiModalFrameAdoption {
+interface PiModalFrameAdoption {
   readonly topIndex: number;
   readonly bottomIndex: number;
   readonly header?: PiModalHeader;

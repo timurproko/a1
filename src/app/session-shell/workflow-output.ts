@@ -15,7 +15,7 @@ import { piShellHyperlink, type PiShellTranscriptComponentPort } from "../../int
 import type { DockChrome } from "./dock-chrome.js";
 import type { TranscriptDocument } from "./transcript-document.js";
 
-export interface WorkflowOutputPorts {
+interface WorkflowOutputPorts {
   readonly customViewport: boolean;
   readonly document: Pick<TranscriptDocument, "lastId" | "anchorOf" | "invalidate" | "appendAnchored" | "removeAnchored">;
   readonly dock: Pick<DockChrome, "setNotice" | "dismissNotice">;

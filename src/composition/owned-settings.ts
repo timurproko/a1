@@ -5,7 +5,7 @@ import { resolveProductPaths } from "../foundation/lifecycle/paths.js";
 import { PRODUCT_IDENTITY } from "../product-identity.js";
 import { OwnedSettingsManager } from "../ui/settings/manager.js";
 
-export interface OwnedSettingsManagerFactoryOptions {
+interface OwnedSettingsManagerFactoryOptions {
   readonly profileId: string;
   readonly agent?: AgentSettingsPort | null;
   readonly agentProvider?: () => AgentSettingsPort | null;

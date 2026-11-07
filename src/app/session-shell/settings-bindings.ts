@@ -9,7 +9,7 @@ import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 import type { OwnedUiSessionShellRoot } from "./session-shell-root.js";
 
 /** What the session's live setting effects reach: terminal modes, root presentation, and the presenter's progress flag. */
-export interface SessionSettingsTargets {
+interface SessionSettingsTargets {
   readonly terminal: Pick<OwnedUiPresenterTerminal, "setHardwareCursor" | "setClearOnShrink" | "setWheelScrollLines">;
   readonly root: Pick<OwnedUiSessionShellRoot,
     | "setEditorPaddingX" | "setAutocompleteMaxVisible" | "setOutputPad" | "setHideThinkingBlock"

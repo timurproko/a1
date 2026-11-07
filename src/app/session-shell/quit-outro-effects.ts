@@ -18,7 +18,7 @@ export interface QuitOutroCell {
   readonly color: string;
 }
 
-export interface QuitOutroPlan {
+interface QuitOutroPlan {
   /** Sorted by `start`. */
   readonly sparkles: readonly QuitOutroCell[];
   /** Sorted by `end`. */

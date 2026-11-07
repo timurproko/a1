@@ -18,7 +18,7 @@ export interface ExitNoticeSource {
   };
 }
 
-export interface ArmedExitNotice {
+interface ArmedExitNotice {
   clear(): void;
 }
 

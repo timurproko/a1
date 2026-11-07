@@ -8,7 +8,7 @@ const MAX_CLIPBOARD_BYTES = 16 * 1024 * 1024;
 
 type NativeClipboard = typeof import("@mariozechner/clipboard");
 
-export interface SystemClipboardImageReader {
+interface SystemClipboardImageReader {
   hasImage(): boolean;
   getImageBinary?(): Promise<readonly number[]>;
   getImageBase64?(): Promise<string>;
@@ -16,11 +16,6 @@ export interface SystemClipboardImageReader {
 
 let nativeClipboardPromise: Promise<NativeClipboard | null> | undefined;
 let pendingClipboardWrite: Promise<void> = Promise.resolve();
-
-/** Load the native adapter during shell startup so the first paste is warm. */
-export function preloadSystemClipboard(): void {
-  if (process.platform === "win32" || process.platform === "darwin") void nativeClipboard();
-}
 
 /**
  * Reads plain text through platform clipboard commands without importing Pi's
@@ -82,7 +77,7 @@ export async function readSystemClipboardImage(
   return null;
 }
 
-export async function readSystemClipboardText(signal?: AbortSignal, strict = false): Promise<string | null> {
+async function readSystemClipboardText(signal?: AbortSignal, strict = false): Promise<string | null> {
   // Concurrency: Ctrl+C/Ctrl+X and Ctrl+V can arrive in adjacent input turns. Serialize the
   // read behind our native write so paste never observes the previous value.
   await pendingClipboardWrite;

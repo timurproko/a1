@@ -20,7 +20,7 @@ const AUTOMATIC_UPDATE_STATE_FILENAME = "automatic-update.json";
 const MAX_STATE_BYTES = 16_384;
 const OBSERVER_POLL_MS = 250;
 const WORKER_START_GRACE_MS = 5_000;
-export const ACTIVE_RELEASE_FALLBACK_MS = 5_000;
+const ACTIVE_RELEASE_FALLBACK_MS = 5_000;
 
 export interface AutomaticUpdateState {
   readonly schema: typeof AUTOMATIC_UPDATE_STATE_SCHEMA;
@@ -69,7 +69,7 @@ export class AutomaticUpdateStateStore {
   }
 }
 
-export interface ActiveReleaseObservationOptions {
+interface ActiveReleaseObservationOptions {
   readonly runningVersion: string;
   readonly environment?: NodeJS.ProcessEnv;
   readonly signal?: AbortSignal;
@@ -141,7 +141,7 @@ export function observeNewerActiveRelease(options: ActiveReleaseObservationOptio
   return stop;
 }
 
-export interface AutomaticUpdateRequestOptions {
+interface AutomaticUpdateRequestOptions {
   readonly release: AvailableRelease;
   readonly runningVersion: string;
   readonly environment?: NodeJS.ProcessEnv;

@@ -1,7 +1,7 @@
 import type { OwnedUiSessionViewModel } from "../../contracts/owned-ui/index.js";
 import type { PiShellComponentPort } from "../../integrations/pi/components/shell-shared-facade.js";
 
-export type ExtensionWidgetPlacement = "aboveEditor" | "belowEditor";
+type ExtensionWidgetPlacement = "aboveEditor" | "belowEditor";
 
 /**
  * What extensions draw into the shell: a header that replaces the built-in one, a footer, widgets

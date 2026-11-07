@@ -88,10 +88,10 @@ import { ViewportLayout } from "./viewport-layout.js";
 import { transcriptLinkColor, TranscriptDocument } from "./transcript-document.js";
 import type { StreamPresentationScheduler } from "./stream-presentation-coalescer.js";
 
-export type OwnedUiTerminalPort = PiTuiTerminalPort;
+type OwnedUiTerminalPort = PiTuiTerminalPort;
 type OwnedUiStartupOptions = PiShellHeaderOptions;
 
-export interface OwnedUiClipboardPort {
+interface OwnedUiClipboardPort {
   readText(signal?: AbortSignal): Promise<string | null>;
   readImage?(signal?: AbortSignal): Promise<{ readonly data: string; readonly mimeType: string } | null>;
   writeText?(text: string, signal?: AbortSignal): Promise<void>;
@@ -239,7 +239,7 @@ export interface OwnedUiSessionShellOptions {
 }
 
 /** What the render root needs from its presenter: terminal size and render requests, the theme, and input callbacks. */
-export interface OwnedUiSessionShellRootHandlers {
+interface OwnedUiSessionShellRootHandlers {
   readonly presentation: ShellPresentationPorts;
   readonly getColumns: () => number;
   readonly getRows: () => number;

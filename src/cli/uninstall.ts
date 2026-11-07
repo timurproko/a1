@@ -7,14 +7,14 @@ import { resolveProductPaths } from "../foundation/lifecycle/index.js";
 import { npmPrefixForGlobalRoot, resolveNpmCli } from "../foundation/release/index.js";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../product-identity.js";
 
-export interface UninstallRequest {
+interface UninstallRequest {
   /** Skips the program-removal question; user data is still kept unless `purge` is set. */
   readonly yes: boolean;
   /** Also removes sessions, settings, sign-ins, and prompt history. */
   readonly purge: boolean;
 }
 
-export interface UninstallOutput {
+interface UninstallOutput {
   readonly stdout: (message: string) => void;
   readonly stderr: (message: string) => void;
 }

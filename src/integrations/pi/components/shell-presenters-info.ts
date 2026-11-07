@@ -18,7 +18,7 @@ export interface PiShellSessionInfoPresentation {
   readonly cacheWarming: PiShellCacheWarmingPresentation;
 }
 
-export interface PiShellCacheWarmingPresentation {
+interface PiShellCacheWarmingPresentation {
   readonly mode: string;
   readonly status?: {
     readonly state: "inactive" | "scheduled" | "refreshing";

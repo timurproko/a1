@@ -9,7 +9,7 @@ import type { SelectionCopySnapshot } from "../../ui/components/selection-copy.j
 import type { PiShellEditorPort } from "../../integrations/pi/components/shell-shared-facade.js";
 import type { PasteEvent } from "./paste-protocol.js";
 
-export interface SessionViewportControllerOptions {
+interface SessionViewportControllerOptions {
   readonly enabled: boolean;
   readonly editor: PiShellEditorPort;
   readonly requestRender: (force?: boolean) => void;

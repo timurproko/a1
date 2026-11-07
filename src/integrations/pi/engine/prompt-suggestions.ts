@@ -13,14 +13,14 @@ import {
 } from "../../../contracts/owned-ui/index.js";
 
 /** The run position a suggestion request must still match to be answered. */
-export interface PiPromptSuggestionIdentity {
+interface PiPromptSuggestionIdentity {
   readonly sessionId: string;
   readonly sessionGeneration: number;
   readonly runSequence: number;
   readonly responseSequence: number;
 }
 
-export interface PiPromptSuggestionPorts {
+interface PiPromptSuggestionPorts {
   session(): AgentSession | undefined;
   runtime(): AgentSessionRuntime | undefined;
   activeModel(): OwnedUiModelInfo | null;

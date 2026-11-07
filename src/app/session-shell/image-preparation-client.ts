@@ -5,7 +5,7 @@ import type { ImagePreparationLimits, PreparedImage } from "./image-preparation.
 import type { ImageWorkerRequest } from "./image-worker.js";
 import { IMAGE_PREPARATION_MS, MAX_SOURCE_IMAGE_BYTES } from "./image-source.js";
 
-export type PreparedClipboardContent =
+type PreparedClipboardContent =
   | { readonly kind: "text"; readonly text: string }
   | ({ readonly kind: "image" } & PreparedImage)
   | null;

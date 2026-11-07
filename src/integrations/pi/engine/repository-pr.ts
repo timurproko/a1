@@ -20,7 +20,7 @@ type PiPullRequestRestProbe = (
   environment: NodeJS.ProcessEnv,
 ) => Promise<PiPullRequestIdentity | null>;
 
-export interface PiPullRequestDiscoveryDependencies {
+interface PiPullRequestDiscoveryDependencies {
   readonly executeGh?: PiCommandReader;
   readonly restProbe?: PiPullRequestRestProbe;
 }

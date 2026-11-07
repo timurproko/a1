@@ -43,7 +43,7 @@ const LAYOUT_ONLY: ReadonlySet<TranscriptInvalidation> = new Set(["editor-paddin
 const WORKFLOW_STATUS_PREFIX = "workflow-status-";
 
 /** What the document reads from the shell around it on every uncached layout. */
-export interface TranscriptDocumentChrome {
+interface TranscriptDocumentChrome {
   diagnostics(): OwnedUiSessionViewModel["diagnostics"];
   /** The extension header's rows when one is set, else the built-in header's rows for this layout. */
   headerRows(width: number): readonly string[];
@@ -54,7 +54,7 @@ export interface TranscriptDocumentChrome {
   thinkingVisible(): boolean;
 }
 
-export interface TranscriptDocumentOptions {
+interface TranscriptDocumentOptions {
   readonly theme: ThemeSource;
   readonly customViewport: boolean;
   readonly cwd: string;

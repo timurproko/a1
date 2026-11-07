@@ -14,7 +14,7 @@ import { caretCell } from "../ui/components/line-input.js";
 import { paintTextSelection } from "../ui/components/text-selection.js";
 import { PromptInput } from "../ui/components/prompt-input.js";
 
-export interface SettingsSearchInputFactoryOptions {
+interface SettingsSearchInputFactoryOptions {
   readonly keybindings?: PiKeybindingsHost;
   readonly agentDir?: string;
   readonly cwd?: string;

@@ -9,7 +9,7 @@ import { displayWidth, truncateToWidth } from "../../ui/components/index.js";
 import { rebaseTerminalDefaultBackground } from "../../integrations/pi/tui-runtime/index.js";
 import { createQuitOutroPlan, type QuitOutroEffect } from "./quit-outro-effects.js";
 
-export interface QuitOutroFrame {
+interface QuitOutroFrame {
   /** Row content as presented, truncated to `columns`; index 0 is the top row. */
   readonly lines: readonly string[];
   readonly columns: number;
@@ -18,7 +18,7 @@ export interface QuitOutroFrame {
   readonly rowWidths: readonly number[];
 }
 
-export interface QuitOutroPlayback {
+interface QuitOutroPlayback {
   write(data: string): void;
   /** Monotonic clock seam; defaults to `Date.now`. */
   now?(): number;

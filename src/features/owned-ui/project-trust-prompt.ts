@@ -2,7 +2,7 @@ import type { Readable, Writable } from "node:stream";
 import { EMERGENCY_TERMINAL_RESET } from "../../foundation/terminal-cleanup/terminal-reset.js";
 import { preTrustPalette, preTrustTerminalAppearance, preTrustTerminalColorMode, readPreTrustAccent } from "../../ui/settings/early-accent.js";
 
-export type OwnedProjectTrustChoiceId =
+type OwnedProjectTrustChoiceId =
   | "trust"
   | "trust-parent"
   | "trust-session"

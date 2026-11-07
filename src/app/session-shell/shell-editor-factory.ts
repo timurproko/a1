@@ -17,14 +17,14 @@ import type { PasteEvent, PasteSource } from "./paste-protocol.js";
 import type { PromptChipStore } from "./prompt-chips.js";
 
 /** The shell callbacks the editor is wired to; the editor receives the whole object as its own options. */
-export type ShellEditorHandlers = Omit<PiShellEditorOptions, "onChange" | "onToolsExpand" | "keybindingProfile"> & {
+type ShellEditorHandlers = Omit<PiShellEditorOptions, "onChange" | "onToolsExpand" | "keybindingProfile"> & {
   readonly requestRender: (force?: boolean) => void;
   readonly onEditorChange?: (text: string) => void;
   readonly captureClipboardPaste?: () => PasteSource;
   readonly pasteDiagnostics?: (event: PasteEvent) => void;
 };
 
-export interface ShellEditorPorts {
+interface ShellEditorPorts {
   readonly theme: ThemeSource;
   readonly handlers: ShellEditorHandlers;
   readonly customViewport: boolean;

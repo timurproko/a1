@@ -9,7 +9,7 @@ import type { PiWorkflowInteractionHost, PiWorkflowMessage, PiWorkflowRequest, P
 type PiSessionApi = AgentSession;
 type PiRuntimeApi = AgentSessionRuntime;
 
-export interface PiProviderAuthenticationPorts {
+interface PiProviderAuthenticationPorts {
   runtime(): PiRuntimeApi | undefined;
   requireSession(): PiSessionApi;
   disposed(): boolean;

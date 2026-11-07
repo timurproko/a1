@@ -1,4 +1,4 @@
-export interface PiShellPromptInputGeometry {
+interface PiShellPromptInputGeometry {
   readonly prefixWidth: number;
   readonly innerWidth: number;
   readonly paddingX: number;
@@ -6,7 +6,7 @@ export interface PiShellPromptInputGeometry {
   readonly layoutWidth: number;
 }
 
-export interface PiShellPromptInputBody {
+interface PiShellPromptInputBody {
   readonly rows: readonly string[];
   readonly topRule?: string | undefined;
   readonly bottomRule?: string | undefined;

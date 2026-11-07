@@ -2,7 +2,7 @@ import type { PiShellComponentPort, PiShellEditorPort } from "../../integrations
 import { classifyPiTuiInput, type PiTuiInputSurfaceKind } from "../../integrations/pi/tui-runtime/input-presentation-coordinator.js";
 import type { SessionViewportController } from "./session-viewport-controller.js";
 
-export interface InputSurfaceSwitchPorts {
+interface InputSurfaceSwitchPorts {
   /** Whether keystrokes that cannot change the transcript may repaint the dock alone. */
   readonly dockInputReuse: boolean;
   readonly viewport: Pick<SessionViewportController, "invalidateInputSurface" | "presentationRevision">;

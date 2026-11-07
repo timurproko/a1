@@ -49,7 +49,7 @@ export function routeResponseToSuggestions(
   else controller?.settle(known, decision);
 }
 
-export interface SuggestionPresentationState {
+interface SuggestionPresentationState {
   readonly disposed: boolean;
   readonly view: Pick<OwnedUiSessionViewModel, "sessionId" | "activeModel">;
   readonly sessionGeneration: number;

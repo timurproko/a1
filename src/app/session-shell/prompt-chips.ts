@@ -20,7 +20,7 @@ import type { ClipboardPath } from "./paste-types.js";
 import { PastePreparationClient, type PastePreparationClientOptions, type PreparedPasteJob } from "./paste-preparation-client.js";
 import type { PasteEvent, PasteSource, PreparedPaste } from "./paste-protocol.js";
 
-export interface PromptImageAttachment {
+interface PromptImageAttachment {
   readonly type: "image";
   readonly data: string;
   readonly mimeType: string;

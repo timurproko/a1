@@ -6,7 +6,7 @@ interface DefaultModelChoice {
   readonly name: string;
 }
 
-export const DEFAULT_MODEL_SETTING_KEY = "defaultModel";
+const DEFAULT_MODEL_SETTING_KEY = "defaultModel";
 export const SUPPLEMENTAL_SETTING_KEYS = [DEFAULT_MODEL_SETTING_KEY] as const;
 const UNSET = "not set";
 

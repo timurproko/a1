@@ -7,7 +7,7 @@ import type { ClipboardPath } from "./paste-text-preparation.js";
 import { HelperPool } from "./helper-pool.js";
 
 export interface PasteExecutorJob { readonly result: Promise<PreparedPaste>; readonly stopped: Promise<void>; cancel(): void }
-export type PastePhase = (phase: PasteEvent["phase"], bytes?: number) => void;
+type PastePhase = (phase: PasteEvent["phase"], bytes?: number) => void;
 const live = new Set<ChildProcess>();
 const conversionQueue: ChildProcess[] = [];
 let converting: ChildProcess | undefined;
@@ -22,7 +22,7 @@ function permitConversion(): void {
 }
 
 /** Forks one paste helper: no inherited descriptors, JSON IPC only, and its own process group on POSIX. */
-export function forkPasteHelper(helper?: URL): ChildProcess {
+function forkPasteHelper(helper?: URL): ChildProcess {
   const source = new URL(import.meta.url).pathname.endsWith(".ts");
   const entry = helper ?? new URL(source ? "./paste-helper.ts" : "./paste-helper.js", import.meta.url);
   const options: ForkOptions & Pick<SpawnOptions, "windowsHide"> = {
@@ -34,7 +34,7 @@ export function forkPasteHelper(helper?: URL): ChildProcess {
 }
 
 /** Kills a paste helper and everything it spawned, then lets the parent exit without waiting for it. */
-export function stopPasteHelper(child: ChildProcess): void {
+function stopPasteHelper(child: ChildProcess): void {
   // Concurrency: POSIX command fallbacks share this isolated process group; kill descendants too.
   if (process.platform !== "win32" && child.pid !== undefined) {
     try { process.kill(-child.pid, "SIGKILL"); } catch { child.kill("SIGKILL"); }

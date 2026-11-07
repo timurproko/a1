@@ -21,7 +21,7 @@ import type {
 type PiSessionApi = AgentSession;
 type PiRuntimeApi = AgentSessionRuntime;
 
-export interface PiWorkflowContextPorts {
+interface PiWorkflowContextPorts {
   /** The working directory the runtime settled on; it can change when a session is resumed elsewhere. */
   cwd(): string;
   session(): PiSessionApi | undefined;

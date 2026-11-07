@@ -119,7 +119,7 @@ export function samePointerSurfaces(a: readonly PresentationPointerSurface[], b:
  * The runtime still owns layout and painting. Independent terminal-cell tests certify
  * this option-to-hit-region projection against its compositor, including clipping.
  */
-export function overlayPointerSurface(
+function overlayPointerSurface(
   component: PresentationComponentPort,
   options: PiTuiOverlayOptions | undefined,
   width: number,

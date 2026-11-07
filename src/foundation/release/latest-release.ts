@@ -9,7 +9,7 @@ import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 export type ReleaseChannel = "stable" | "development";
 export type StartupUpdateMode = "auto" | "no";
 
-export interface DistTagVersions {
+interface DistTagVersions {
   readonly release: string | null;
   readonly develop: string | null;
   readonly error: string | null;
@@ -26,7 +26,7 @@ export interface AvailableRelease {
   readonly changelogUrl: string | null;
 }
 
-export const DEFAULT_NPM_REGISTRY = "https://registry.npmjs.org";
+const DEFAULT_NPM_REGISTRY = "https://registry.npmjs.org";
 export const UPDATE_CHECK_INTERVAL_MS = 15 * 60_000;
 const STARTUP_FETCH_TIMEOUT_MS = 3_000;
 const CACHE_FILENAME = "update-check.json";
@@ -40,7 +40,7 @@ export interface PublishedVersion {
   readonly pullRequest: number | null;
 }
 
-export interface PublishedVersions {
+interface PublishedVersions {
   readonly versions: readonly PublishedVersion[];
   readonly error: string | null;
 }
@@ -83,7 +83,7 @@ export function parseDistTags(metadata: unknown, source: string): DistTagVersion
   }
 }
 
-export async function queryRegistryDistTags(fetcher: RegistryFetcher, registry?: string): Promise<DistTagVersions> {
+async function queryRegistryDistTags(fetcher: RegistryFetcher, registry?: string): Promise<DistTagVersions> {
   try {
     const response = await fetcher(distTagsUrl(registry));
     if (!response.ok) return unavailableDistTags(`registry responded with status ${response.status}`);
@@ -142,7 +142,7 @@ export async function invalidateReleaseCheckCache(configDir: string): Promise<vo
   await withCacheLock(configDir, async () => { await rm(join(configDir, CACHE_FILENAME), { force: true }); });
 }
 
-export function unavailableDistTags(error: string): DistTagVersions {
+function unavailableDistTags(error: string): DistTagVersions {
   return { release: null, develop: null, error };
 }
 

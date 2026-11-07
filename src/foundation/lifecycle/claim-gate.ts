@@ -1,6 +1,6 @@
 import lockfile from "proper-lockfile";
 
-export interface ClaimGateHandle { release(): void }
+interface ClaimGateHandle { release(): void }
 
 /** A stalled mutation loses the gate after this bound instead of holding it until the process ends. */
 const CLAIM_GATE_STALE_MS = 10_000;

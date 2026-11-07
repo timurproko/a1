@@ -13,7 +13,7 @@ import type { SessionConcern } from "./session-concern.js";
 import type { OwnedUiSessionShellRoot } from "./session-shell-root.js";
 import { componentRuntime, type OwnedUiPresenterTerminal } from "./shell-host.js";
 
-export interface LoginInteractionPorts {
+interface LoginInteractionPorts {
   readonly terminal: Pick<OwnedUiPresenterTerminal, "viewport" | "requestRender">;
   readonly root: Pick<OwnedUiSessionShellRoot, "setInputSurface">;
   readonly programStatus: Pick<ProgramStatusReporter, "setBlocked">;

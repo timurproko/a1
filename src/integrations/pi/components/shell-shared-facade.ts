@@ -33,7 +33,7 @@ import {
 /** Terminal-cell width authority used by Pi-rendered component rows. */
 export const piShellVisibleWidth = visibleWidth;
 export const piShellTruncateToWidth = (text: string, width: number): string => truncateToWidth(text, width, "");
-export const INSTALLED_UPDATE_STATUS_TEXT = "Update installed, restart to update";
+const INSTALLED_UPDATE_STATUS_TEXT = "Update installed, restart to update";
 
 /** Shared green restart notice for the pinned status and bare-A1 prompt overlay. */
 export function renderPiShellInstalledUpdateStatus(width: number): string {

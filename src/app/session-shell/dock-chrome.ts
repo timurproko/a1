@@ -13,13 +13,13 @@ import type { SessionViewportController, TailControlRegion } from "./session-vie
 import { parseReleaseUpdateDiagnostic } from "./transcript-document.js";
 
 // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.
-export interface DockNotice {
+interface DockNotice {
   readonly kind: "status" | "warning" | "error" | "new-session";
   readonly message: string;
   readonly errorCode?: ImageAttachmentError["code"];
 }
 
-export interface DockChromePorts {
+interface DockChromePorts {
   readonly theme: ThemeSource;
   /** Columns the pinned layout pads command output with. */
   readonly outputPad: 0 | 1;

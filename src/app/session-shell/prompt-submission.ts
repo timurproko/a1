@@ -18,7 +18,7 @@ import type { SessionConcern } from "./session-concern.js";
 import type { OwnedUiSessionShellRoot } from "./session-shell-root.js";
 import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 
-export interface PromptSubmissionPorts {
+interface PromptSubmissionPorts {
   readonly backend: Pick<OwnedUiSessionBackend, "session" | "identity" | "workflows">;
   readonly root: Pick<OwnedUiSessionShellRoot,
     | "editor" | "hasPendingPastes" | "waitForPromptPastes" | "setExtensionWidget" | "prepareHistoryText"

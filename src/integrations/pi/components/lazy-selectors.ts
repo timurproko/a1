@@ -7,7 +7,7 @@ import type { FilterMode } from "./upstream/components/tree-selector.js";
 type ThinkingSelectorModule = typeof import("./thinking-selector-dialog.js");
 type TreeSelectorModule = typeof import("./upstream/components/tree-selector.js");
 
-export interface PiShellLazyThinkingSelectorOptions {
+interface PiShellLazyThinkingSelectorOptions {
   readonly currentLevel: ThinkingSelectorLevel;
   readonly availableLevels: readonly ThinkingSelectorLevel[];
   readonly onSelect: (level: ThinkingSelectorLevel) => void;
@@ -20,7 +20,7 @@ export interface PiShellLazyThinkingSelectorOptions {
   };
 }
 
-export interface PiShellLazyTreeSelectorOptions {
+interface PiShellLazyTreeSelectorOptions {
   readonly tree: readonly unknown[];
   readonly currentLeafId: string | null;
   readonly terminalHeight: number;
@@ -38,7 +38,7 @@ export interface PiShellLazySelectorLoader {
   createTree(options: PiShellLazyTreeSelectorOptions): Promise<PiShellComponentPort>;
 }
 
-export interface PiShellLazySelectorImports {
+interface PiShellLazySelectorImports {
   readonly thinking: () => Promise<ThinkingSelectorModule>;
   readonly tree: () => Promise<TreeSelectorModule>;
 }

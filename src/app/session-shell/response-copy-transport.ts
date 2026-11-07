@@ -21,7 +21,7 @@ export interface OwnedResponseCopyExecutor extends ResponseCopyExecutor {
   dispose(): void;
   readonly warmed: boolean;
 }
-export interface ResponseCopyTerminal {
+interface ResponseCopyTerminal {
   readonly maxBytes?: number;
   /** A supported non-blocking submission boundary, not clipboard acknowledgment. */
   submit(control: string, signal: AbortSignal): Promise<void>;

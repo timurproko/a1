@@ -93,7 +93,7 @@ export interface OwnedUiPresenterTerminal extends OwnedUiPresenterHost {
   setWheelScrollLines(lines: WheelScrollLines): void;
 }
 
-export interface OwnedUiRouteCallbacks {
+interface OwnedUiRouteCallbacks {
   /** The route, or the interrupt chord over it, asked to leave A1. */
   exit(): void;
   /** The route closed itself; `rendered` is true when it was ever painted. */

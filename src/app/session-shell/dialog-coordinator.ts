@@ -11,7 +11,7 @@ type StartupRoute = NonNullable<OwnedUiSessionShellOptions["engine"]["startupRou
 const OVERLAY_OPTIONS = { width: "70%", maxHeight: "80%", anchor: "center", inputCoordination: "owned" } as const;
 const STARTUP_ROUTE_RETRY_MS = 25;
 
-export interface SessionDialogPorts {
+interface SessionDialogPorts {
   readonly terminal: Pick<OwnedUiPresenterTerminal, "running" | "hasOverlay" | "showOverlay" | "openRoute" | "requestRender">;
   readonly root: Pick<OwnedUiSessionShellRoot, "dismissNotice" | "setInputSurface" | "usesDefaultInputSurface">;
   readonly routeHost: UiRouteHost | null;
