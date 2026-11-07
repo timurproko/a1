@@ -1,7 +1,7 @@
 ## 1. Reproduce
 
-- [ ] 1.1 Reproduce the failure locally or on a dispatched Full regression of the failed head and record the exact failing test or command.
-- [ ] 1.2 Identify the introducing commit among the suspect range, or record that the failure is environmental.
+- [x] 1.1 Reproduce the failure locally or on a dispatched Full regression of the failed head and record the exact failing test or command.
+- [x] 1.2 Identify the introducing commit among the suspect range, or record that the failure is environmental.
 
 ## 2. Fix
 

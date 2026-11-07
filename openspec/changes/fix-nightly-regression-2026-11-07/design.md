@@ -4,9 +4,12 @@ Opened by the nightly regression triage from the failed run's evidence artifacts
 
 ## Decisions
 
-- To be written by the maintainer once the cause is known: what failed, why, and the smallest change that fixes it without reducing validation.
+- The failure is deterministic rather than environmental. Commit `39d7362` added exact-input terminal-host cache reuse to Development validation, but left `validation-receipt-workflows.test.ts` expecting every candidate to compile the host unconditionally.
+- Preserve the cache behavior and repair the stale prerequisite-receipt assertion so it requires a compile on cache misses while retaining the existing build-before-receipt invariant.
 
 ## Evidence
+
+- Focused local reproduction on the candidate base: `npx vitest run test/repository-governance/validation-receipt-workflows.test.ts` failed only the terminal-host candidate assertion because the expected packing condition omitted `steps.release-terminal-host.outputs.cache-hit != 'true'`.
 
 - Run [Full regression #86](https://github.com/timurproko/a1/actions/runs/42333115612) (attempt 1, schedule) on `fdbfdda` at 2026-11-07T03:14:58Z:
   - `vitest-full-without-isolated` (`architecture`, `dependency-policy`, `dist-integration`, `documentation-full`, `fast-remainder`, `fast-resource-sensitive`, `history-compatibility`, `image-compatibility`, `launch-integration`, `naming-full`, `package-contracts`, `package-smoke`, `package-startup`, `pi-engine-conformance`, `release-update`, `rendering-stability`, `typecheck`, `unix-containment`, `update-performance`, `update-predecessor`) failed on macos-15-node24, ubuntu-24.04-node24, windows-2025-node22 (core shard), windows-2025-node24 (core shard) with exit 1.
