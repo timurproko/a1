@@ -48,8 +48,8 @@ The four largest input and drawing units each carry several concerns in one body
 ## Impact
 
 - `src/app/session-shell/session-viewport-controller.ts`, new `viewport-pointer.ts`.
-- `src/ui/components/transcript-viewport.ts`, new `transcript-viewport-frame.ts`.
+- `src/ui/components/transcript-viewport.ts`, new `transcript-viewport-frame.ts`, and new `transcript-viewport-types.ts`, which holds the viewport's public types so the frame module can use them without an import cycle.
 - `src/integrations/pi/components/owned-editor-ux.ts`, new `bracketed-paste.ts`.
 - `src/features/owned-ui/settings-app.ts`, new `settings-model-dialog.ts`.
-- The size ratchet drops `handlePreInput`, `compose` and `handleInput` from the long-function list and lowers the four class entries.
-- The startup graph gains up to four files, and its source bytes stay about the same.
+- The size ratchet drops `handlePreInput`, `compose` and `handleInput` from the long-function list and lowers the `SessionViewportController`, `TranscriptViewport` and `SettingsApp` entries. `PromptSelectionInterceptor` stays at its recorded size, because the word-left handler replaces the helper it absorbs.
+- The startup graph gains three files and about 10 KB of source; the types module is type-only and adds nothing at runtime.

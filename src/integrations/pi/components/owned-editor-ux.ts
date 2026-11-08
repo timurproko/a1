@@ -900,10 +900,8 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     return this.options.atomicRanges(line).find(range => position.col >= range.start && position.col < range.end);
   }
 
-  /**
-   * Word-left that steps over an atomic chip as one word, stops on a path boundary, and otherwise
-   * lands on the separator before the word, as pinned Pi's prompt editor does.
-   */
+  // Compatibility: word-left steps over an atomic chip as one word, stops on a path boundary, and
+  // otherwise lands on the separator before the word, as pinned Pi's prompt editor does.
   #moveWordLeft(next: () => void): void {
     const before = this.#cursor();
     const startedWithAtomicFocus = this.#atomicFocus() !== undefined;

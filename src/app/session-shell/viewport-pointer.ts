@@ -204,7 +204,7 @@ export class ViewportPointerGestures {
     }
   }
 
-  /** Every report updates the pointer position, the hover of the bottom and tail controls, and the hovered link. */
+  // Rationale: every report updates the pointer position, the hover of the bottom and tail controls, and the hovered link.
   #track(event: PaneMouseEvent, target: PointerTarget, outcome: ViewportPointerOutcome): void {
     const hits = target.frame.hits;
     const tailControl = target.tailControl;

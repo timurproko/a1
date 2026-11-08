@@ -23,15 +23,15 @@
       "fields": 42
     },
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController": {
-      "methods": 34,
-      "fields": 29
+      "methods": 33,
+      "fields": 22
     },
     "src/app/session-shell/shell-host.ts::OwnedUiTerminalHost": {
       "methods": 21,
       "fields": 13
     },
     "src/features/owned-ui/settings-app.ts::SettingsApp": {
-      "methods": 33,
+      "methods": 29,
       "fields": 19
     },
     "src/features/prompt-history/service.ts::PromptHistoryService": {
@@ -68,7 +68,7 @@
     },
     "src/ui/components/transcript-viewport.ts::TranscriptViewport": {
       "methods": 36,
-      "fields": 34
+      "fields": 29
     }
   },
   "functions": {
@@ -81,9 +81,6 @@
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.runWorkflow": {
       "lines": 109
     },
-    "src/app/session-shell/session-viewport-controller.ts::SessionViewportController.handlePreInput": {
-      "lines": 316
-    },
     "src/composition/owned-ui.ts::composeOwnedUi": {
       "lines": 182
     },
@@ -95,9 +92,6 @@
     },
     "src/foundation/release/update.ts::runSelfUpdate": {
       "lines": 197
-    },
-    "src/integrations/pi/components/owned-editor-ux.ts::PromptSelectionInterceptor.handleInput": {
-      "lines": 109
     },
     "src/integrations/pi/components/shell-editor-autocomplete.ts::createPiShellEditor": {
       "lines": 247
@@ -116,9 +110,6 @@
     },
     "src/integrations/pi/session-presenters/presenters.ts::createPiSessionPresenters": {
       "lines": 273
-    },
-    "src/ui/components/transcript-viewport.ts::TranscriptViewport.compose": {
-      "lines": 348
     }
   }
 }

@@ -7,7 +7,7 @@ import type {
   TranscriptViewportFrameInput,
   TranscriptViewportHitRegions,
   TranscriptViewportTheme,
-} from "./transcript-viewport.js";
+} from "./transcript-viewport-types.js";
 
 const CONTROL_STYLE_RESET = "\u001b]8;;\u001b\\\u001b[0m";
 // Protocol: upstream OSC 133 zones are layout annotations, not fullscreen cursor commands.
