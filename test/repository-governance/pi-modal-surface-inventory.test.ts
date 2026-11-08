@@ -44,6 +44,7 @@ const CANONICAL_CLOSE_HINT_SOURCES = [
   "src/features/owned-ui/project-trust-dialog.ts",
   "src/features/owned-ui/reference-screen-app.ts",
   "src/features/owned-ui/settings-app.ts",
+  "src/features/owned-ui/settings-model-dialog.ts",
   ...SHARED_HINT_SOURCES,
 ];
 
@@ -212,8 +213,10 @@ describe("pinned Pi modal transition graph", () => {
     const settings = await readFile("src/features/owned-ui/settings-app.ts", "utf8");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(DIALOG_SCOPE)");
     expect(settings).toContain("SETTINGS_SHORTCUTS.hintEntries(SCOPE)");
-    expect(settings).toContain('title: "Default Model"');
     expect(settings).toContain("isDefaultModelEntry");
+    const modelDialog = await readFile("src/features/owned-ui/settings-model-dialog.ts", "utf8");
+    expect(modelDialog).toContain('title: "Default Model"');
+    expect(modelDialog).toContain("MODEL_SHORTCUTS.hintEntries(MODEL_LEVEL_SCOPE)");
     const dialogPanel = await readFile("src/ui/components/dialog-panel.ts", "utf8");
     expect(dialogPanel).toContain("dialogPanelLayout(width, theme)");
     expect(dialogPanel).toContain("renderShortcutHintsWithClose(state.hint, theme, layout.contentWidth)");

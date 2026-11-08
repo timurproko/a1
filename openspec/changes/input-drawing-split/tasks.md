@@ -14,7 +14,7 @@
 
 ## 4. Settings model dialog
 
-- [ ] 4.1 Move the model and thinking-level dialog's keys, filtering, level options and lines into `settings-model-dialog.ts`.
+- [x] 4.1 Move the model and thinking-level dialog's keys, filtering, level options and lines into `settings-model-dialog.ts`.
 
 ## 5. Baselines
 
