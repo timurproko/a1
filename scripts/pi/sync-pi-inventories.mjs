@@ -10,11 +10,12 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { syncInventories } from "./sync-pi-inventories-core.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 const repository = fileURLToPath(new URL("../..", import.meta.url));
 const checkOnly = process.argv.includes("--check");
-const commitArgument = argumentValue("--commit");
-const reportPath = argumentValue("--report");
+const commitArgument = optionValue("--commit");
+const reportPath = optionValue("--report");
 const baselineRoot = join(repository, "config", "baselines");
 const codingAgentRoot = join(repository, "node_modules", "@earendil-works", "pi-coding-agent");
 const packageRoots = {
@@ -62,10 +63,6 @@ if (checkOnly) {
 }
 if (reportPath !== undefined) await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 
-function argumentValue(flag) {
-  const index = process.argv.indexOf(flag);
-  return index === -1 ? undefined : process.argv[index + 1];
-}
 
 async function readJson(name) {
   return JSON.parse(await readFile(join(baselineRoot, name), "utf8"));

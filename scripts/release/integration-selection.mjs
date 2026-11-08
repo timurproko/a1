@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { canonicalDigest, canonicalJson } from "../canonical-digest.mjs";
 
 const MAX_OWNERS = 64;
 const MAX_SCOPES = 64;
@@ -29,7 +29,7 @@ export function createIntegrationSelection({ base, head, ownership, mode = "cons
   }
   const value = {
     schema: "a1-integration-selection-v2", base, head, mode, exemption,
-    ownershipId: digest(normalizedOwnership(ownership)),
+    ownershipId: canonicalDigest(normalizedOwnership(ownership)),
     owners: normalizedOwnership(ownership).owners.map(owner => ({
       owner: owner.id, cadence: owner.cadence, scopes: owner.scopes, targets: owner.targets,
       selected: byId.get(owner.id).selected, reasons: byId.get(owner.id).reasons,
@@ -37,7 +37,7 @@ export function createIntegrationSelection({ base, head, ownership, mode = "cons
   };
   const authority = { base, head, ownership, exemption };
   assertPayload({ ...value, selectionId: "" }, authority);
-  value.selectionId = digest(value);
+  value.selectionId = canonicalDigest(value);
   return assertIntegrationSelection(value, authority);
 }
 
@@ -45,7 +45,7 @@ export function createIntegrationSelection({ base, head, ownership, mode = "cons
 export function assertIntegrationSelection(value, authority) {
   assertPayload(value, authority);
   const { selectionId, ...payload } = value;
-  if (typeof selectionId !== "string" || !/^[0-9a-f]{64}$/u.test(selectionId) || selectionId !== digest(payload)) throw new TypeError("integration selection identity mismatch");
+  if (typeof selectionId !== "string" || !/^[0-9a-f]{64}$/u.test(selectionId) || selectionId !== canonicalDigest(payload)) throw new TypeError("integration selection identity mismatch");
   return value;
 }
 
@@ -56,7 +56,7 @@ function assertPayload(value, authority) {
   if (value.base !== authority.base || value.head !== authority.head) throw new TypeError("integration selection base/head mismatch");
   assertOwnership(authority.ownership);
   const ownership = normalizedOwnership(authority.ownership);
-  if (value.ownershipId !== digest(ownership)) throw new TypeError("integration ownership identity mismatch");
+  if (value.ownershipId !== canonicalDigest(ownership)) throw new TypeError("integration ownership identity mismatch");
   if (!["impact", "conservative", "exempt"].includes(value.mode)) throw new TypeError("unsupported integration selection mode");
   if (value.mode === "exempt") {
     if (!["docs-only", "version-only"].includes(value.exemption) || value.exemption !== authority.exemption) throw new TypeError("integration exemption lacks authority");
@@ -131,7 +131,7 @@ function normalizedOwnership(ownership) {
   return {
     schema: ownership.schema,
     owners: ownership.owners.map(owner => ({
-      ...owner, scopes: [...owner.scopes].sort(), targets: owner.targets.map(target => ({ ...target })).sort((left, right) => canonical(left) < canonical(right) ? -1 : canonical(left) > canonical(right) ? 1 : 0),
+      ...owner, scopes: [...owner.scopes].sort(), targets: owner.targets.map(target => ({ ...target })).sort((left, right) => canonicalJson(left) < canonicalJson(right) ? -1 : canonicalJson(left) > canonicalJson(right) ? 1 : 0),
     })).sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
   };
 }
@@ -155,12 +155,4 @@ function commit(value) {
   return typeof value === "string" && /^[0-9a-f]{40}$/u.test(value);
 }
 
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value !== null && typeof value === "object") return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
-  return JSON.stringify(value);
-}
 
-function digest(value) {
-  return createHash("sha256").update(canonical(value)).digest("hex");
-}

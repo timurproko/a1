@@ -12,11 +12,6 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/index.js";
 
-function deferred<T>(): { promise: Promise<T>; resolve(value: T): void } {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>(accept => { resolve = accept; });
-  return { promise, resolve };
-}
 
 function controlledSummaryStream(): {
   stream: unknown;
@@ -119,8 +114,8 @@ describe("pinned AgentSession compaction progress", () => {
         noTools: "all",
       });
 
-      const authStarted = deferred<void>();
-      const releaseAuth = deferred<void>();
+      const authStarted = Promise.withResolvers<void>();
+      const releaseAuth = Promise.withResolvers<void>();
       const authRuntime = modelRuntime as unknown as { getAuth(...args: unknown[]): Promise<unknown> };
       const originalGetAuth = authRuntime.getAuth.bind(modelRuntime);
       authRuntime.getAuth = async (...args: unknown[]) => {
@@ -140,7 +135,7 @@ describe("pinned AgentSession compaction progress", () => {
         timestamp: 4,
       };
       const summaryStream = controlledSummaryStream();
-      const streamStarted = deferred<void>();
+      const streamStarted = Promise.withResolvers<void>();
       const streamFunction = vi.fn(async () => {
         streamStarted.resolve(undefined);
         return summaryStream.stream;

@@ -23,12 +23,6 @@ import { cellStyle } from "../../support/ansi-cell-style.js";
 import { firstVisibleTextColumn } from "../../support/dialog-alignment.js";
 import { fixture, nextImmediate } from "./session-shell-fixture.js";
 
-function deferred<T = void>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((onResolve, onReject) => { resolve = onResolve; reject = onReject; });
-  return { promise, resolve, reject };
-}
 
 function fixtureWithLazySelectors(lazySelectors: PiShellLazySelectorLoader) {
   return fixture([], [], true, undefined, undefined, undefined, undefined, undefined, undefined,
@@ -147,7 +141,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
   });
 
   it("presents thinking only after its pending lazy selector is ready", async () => {
-    const gate = deferred();
+    const gate = Promise.withResolvers<void>();
     const lazySelectors: PiShellLazySelectorLoader = {
       prepare: async () => {},
       createThinking: async options => {
@@ -177,7 +171,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
   });
 
   it("presents the tree atomically from slash and double-Escape entry", async () => {
-    let gate = deferred();
+    let gate = Promise.withResolvers<void>();
     const lazySelectors: PiShellLazySelectorLoader = {
       prepare: async () => {},
       createThinking: options => piShellLazySelectors.createThinking(options),
@@ -221,7 +215,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     expect(terminal.writes.slice(writesBeforeOpen).join("")).toContain("Session Tree");
 
     terminal.input("\x1b");
-    gate = deferred();
+    gate = Promise.withResolvers<void>();
     shell.runtime.renderNow(true);
     writesBeforeOpen = terminal.writes.length;
     await shell.interrupt(1_000);
@@ -240,7 +234,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
   });
 
   it("releases the atomic selector presentation and restores input after a lazy-load failure", async () => {
-    const gate = deferred();
+    const gate = Promise.withResolvers<void>();
     const lazySelectors: PiShellLazySelectorLoader = {
       prepare: async () => {},
       createThinking: async () => {

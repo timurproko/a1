@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { chmod, lstat, mkdir, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
-import { dirname, posix, relative, resolve, sep } from "node:path";
+import { dirname, posix, resolve, sep } from "node:path";
 import { mapWithConcurrency } from "./concurrency.js";
 import { assertImmutableFileMode } from "./immutable-platform.js";
 import { readDependencyCertification, writeDependencyCertification as writeLayerCertification, type ReadDependencyCertificationOptions } from "./dependency-certification.js";
@@ -9,6 +9,7 @@ import { digestManifestFiles, releaseFileIdentity, resolveWithin, type ReleaseFi
 import type { DependencyLayerReference } from "./types.js";
 export type { DependencyLayerReference } from "./types.js";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
+import { isDirectChild } from "./managed-path.js";
 
 const LAYER_IO_CONCURRENCY = 32;
 export const DEPENDENCY_LAYER_SCHEMA = PRODUCT_IDENTITY.evidence.dependencyLayerSchema;
@@ -543,6 +544,5 @@ function isKnownRuntimePath(path: string): boolean {
 function isJavaScriptModule(path: string): boolean { return /\.(?:js|mjs|cjs)$/.test(path); }
 
 function assertDirectChild(parent: string, child: string): void {
-  const path = relative(parent, child);
-  if (path.length === 0 || path === ".." || path.startsWith(`..${sep}`) || path.includes(sep)) throw new Error(`dependency layer escapes managed storage: ${child}`);
+  if (!isDirectChild(parent, child)) throw new Error(`dependency layer escapes managed storage: ${child}`);
 }

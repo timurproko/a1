@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
-import { copyFile, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import {
   assertValidationImpact,
   classifyRenderingImpact,
@@ -34,6 +34,7 @@ async function commit(repository: string, message: string) {
 
 async function fixtureRepository() {
   const repository = await mkdtemp(join(tmpdir(), "a1-validation-impact-"));
+  onTestFinished(() => rm(repository, { recursive: true, force: true }));
   await git(repository, "init");
   await git(repository, "config", "user.email", "fixture@example.test");
   await git(repository, "config", "user.name", "Fixture");

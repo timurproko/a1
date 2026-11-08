@@ -39,7 +39,6 @@ import type {
   TerminalViewport,
 } from "../../../contracts/presentation/index.js";
 
-type PiTuiTerminal = TerminalPort & { setProgramStatus(status: ProgramStatus): void };
 
 // Protocol: the legacy bytes owned screens and their key tables compare against.
 const LEGACY_KEY_BYTES: Readonly<Record<string, string>> = {
@@ -652,6 +651,37 @@ export class PiTuiRuntimeAdapter {
   }
 }
 
+/** The terminal Pi's TUI drives: the neutral port with program status always present. */
+type PiTuiTerminal = TerminalPort & { setProgramStatus(status: ProgramStatus): void };
+
+/** The terminal members a decorator may replace; the size getters always read the inner terminal. */
+type TerminalOverrides = Partial<Omit<PiTuiTerminal, "columns" | "rows" | "kittyProtocolActive" | "restoreOnExit">>;
+
+/**
+ * Forwards every terminal member to `terminal` unless `overrides` replaces it.
+ * Invariant: the size and keyboard getters stay live; spreading the inner terminal would freeze them.
+ */
+function forwardingTerminal(terminal: TerminalPort, overrides: TerminalOverrides = {}): PiTuiTerminal {
+  return {
+    get columns() { return terminal.columns; },
+    get rows() { return terminal.rows; },
+    get kittyProtocolActive() { return terminal.kittyProtocolActive; },
+    start: overrides.start ?? ((onInput, onResize) => terminal.start(onInput, onResize)),
+    stop: overrides.stop ?? (() => terminal.stop()),
+    drainInput: overrides.drainInput ?? ((maxMs, idleMs) => terminal.drainInput(maxMs, idleMs)),
+    write: overrides.write ?? (data => terminal.write(data)),
+    moveBy: overrides.moveBy ?? (lines => terminal.moveBy(lines)),
+    hideCursor: overrides.hideCursor ?? (() => terminal.hideCursor()),
+    showCursor: overrides.showCursor ?? (() => terminal.showCursor()),
+    clearLine: overrides.clearLine ?? (() => terminal.clearLine()),
+    clearFromCursor: overrides.clearFromCursor ?? (() => terminal.clearFromCursor()),
+    clearScreen: overrides.clearScreen ?? (() => terminal.clearScreen()),
+    setTitle: overrides.setTitle ?? (title => terminal.setTitle(title)),
+    setProgress: overrides.setProgress ?? (active => terminal.setProgress(active)),
+    setProgramStatus: overrides.setProgramStatus ?? (status => terminal.setProgramStatus?.(status)),
+  };
+}
+
 function coordinatedInputTerminal(
   terminal: TerminalPort,
   coordinator: InputPresentationCoordinator,
@@ -659,10 +689,7 @@ function coordinatedInputTerminal(
   frameMouse: boolean,
 ): PiTuiTerminal {
   const mouse = frameMouse ? new MouseReportInput(data => coordinator.accept(data)) : undefined;
-  return {
-    get columns() { return terminal.columns; },
-    get rows() { return terminal.rows; },
-    get kittyProtocolActive() { return terminal.kittyProtocolActive; },
+  return forwardingTerminal(terminal, {
     start(onInput, onResize) {
       setSink(onInput);
       terminal.start(data => mouse === undefined ? coordinator.accept(data) : mouse.accept(data), () => {
@@ -677,31 +704,14 @@ function coordinatedInputTerminal(
       setSink(undefined);
       terminal.stop();
     },
-    drainInput: (maxMs, idleMs) => terminal.drainInput(maxMs, idleMs),
-    write: data => terminal.write(data),
-    moveBy: lines => terminal.moveBy(lines),
-    hideCursor: () => terminal.hideCursor(),
-    showCursor: () => terminal.showCursor(),
-    clearLine: () => terminal.clearLine(),
-    clearFromCursor: () => terminal.clearFromCursor(),
-    clearScreen: () => terminal.clearScreen(),
-    setTitle: title => terminal.setTitle(title),
-    setProgress: active => terminal.setProgress(active),
-    setProgramStatus: status => terminal.setProgramStatus?.(status),
-  };
+  });
 }
 
 function diagnosticTerminal(
   terminal: TerminalPort,
   trace: (phase: "write-start" | "write-end") => void,
 ): PiTuiTerminal {
-  return {
-    get columns() { return terminal.columns; },
-    get rows() { return terminal.rows; },
-    get kittyProtocolActive() { return terminal.kittyProtocolActive; },
-    start: (onInput, onResize) => terminal.start(onInput, onResize),
-    stop: () => terminal.stop(),
-    drainInput: (maxMs, idleMs) => terminal.drainInput(maxMs, idleMs),
+  return forwardingTerminal(terminal, {
     write(data) {
       trace("write-start");
       try {
@@ -710,26 +720,11 @@ function diagnosticTerminal(
         trace("write-end");
       }
     },
-    moveBy: lines => terminal.moveBy(lines),
-    hideCursor: () => terminal.hideCursor(),
-    showCursor: () => terminal.showCursor(),
-    clearLine: () => terminal.clearLine(),
-    clearFromCursor: () => terminal.clearFromCursor(),
-    clearScreen: () => terminal.clearScreen(),
-    setTitle: title => terminal.setTitle(title),
-    setProgress: active => terminal.setProgress(active),
-    setProgramStatus: status => terminal.setProgramStatus?.(status),
-  };
+  });
 }
 
 function frozenGateTerminal(terminal: TerminalPort, frozen: () => boolean): PiTuiTerminal {
-  return {
-    get columns() { return terminal.columns; },
-    get rows() { return terminal.rows; },
-    get kittyProtocolActive() { return terminal.kittyProtocolActive; },
-    start: (onInput, onResize) => terminal.start(onInput, onResize),
-    stop: () => terminal.stop(),
-    drainInput: (maxMs, idleMs) => terminal.drainInput(maxMs, idleMs),
+  return forwardingTerminal(terminal, {
     write: data => { if (!frozen()) terminal.write(data); },
     moveBy: lines => { if (!frozen()) terminal.moveBy(lines); },
     hideCursor: () => { if (!frozen()) terminal.hideCursor(); },
@@ -737,18 +732,12 @@ function frozenGateTerminal(terminal: TerminalPort, frozen: () => boolean): PiTu
     clearLine: () => { if (!frozen()) terminal.clearLine(); },
     clearFromCursor: () => { if (!frozen()) terminal.clearFromCursor(); },
     clearScreen: () => { if (!frozen()) terminal.clearScreen(); },
-    setTitle: title => terminal.setTitle(title),
-    setProgress: active => terminal.setProgress(active),
-    setProgramStatus: status => terminal.setProgramStatus?.(status),
-  };
+  });
 }
 
 function preInputTerminal(terminal: TerminalPort, route: (data: string) => string, frameMouse: boolean): PiTuiTerminal {
   let mouse: MouseReportInput | undefined;
-  return {
-    get columns() { return terminal.columns; },
-    get rows() { return terminal.rows; },
-    get kittyProtocolActive() { return terminal.kittyProtocolActive; },
+  return forwardingTerminal(terminal, {
     start(onInput, onResize) {
       const deliver = (data: string) => {
         const routed = route(data);
@@ -761,18 +750,7 @@ function preInputTerminal(terminal: TerminalPort, route: (data: string) => strin
       });
     },
     stop: () => { mouse?.reset(); terminal.stop(); },
-    drainInput: (maxMs, idleMs) => terminal.drainInput(maxMs, idleMs),
-    write: data => terminal.write(data),
-    moveBy: lines => terminal.moveBy(lines),
-    hideCursor: () => terminal.hideCursor(),
-    showCursor: () => terminal.showCursor(),
-    clearLine: () => terminal.clearLine(),
-    clearFromCursor: () => terminal.clearFromCursor(),
-    clearScreen: () => terminal.clearScreen(),
-    setTitle: title => terminal.setTitle(title),
-    setProgress: active => terminal.setProgress(active),
-    setProgramStatus: status => terminal.setProgramStatus?.(status),
-  };
+  });
 }
 
 function toOverlayOptions(options: TerminalOverlayOptions | undefined): OverlayOptions | undefined {

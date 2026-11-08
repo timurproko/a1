@@ -7,6 +7,7 @@ import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
 import { processIsAlive } from "./process-liveness.js";
 import { PRIVATE_LAUNCH_CONTRACT, assertCurrentLaunchContract } from "../launch-context/index.js";
 import type { UpdateTransaction, UpdateRecoveryState } from "./update-transaction.js";
+import { isDirectChild, samePath } from "./managed-path.js";
 
 export const UPDATE_RECOVERY_SCHEMA = "a1-update-recovery-v1" as const;
 const WORKER_TIMEOUT_MS = 15 * 60 * 1_000;
@@ -468,9 +469,6 @@ async function writeDurableJson(path: string, value: unknown): Promise<void> {
 }
 
 async function readJson<T>(path: string): Promise<T> { return JSON.parse(await readFile(path, "utf8")) as T; }
-function samePath(left: string, right: string): boolean {
-  return process.platform === "win32" ? resolve(left).toLowerCase() === resolve(right).toLowerCase() : resolve(left) === resolve(right);
-}
 function sameSegment(left: string, right: string, platform: NodeJS.Platform): boolean {
   return platform === "win32" ? left.toLowerCase() === right.toLowerCase() : left === right;
 }
@@ -481,11 +479,7 @@ function containedBy(parent: string, child: string): boolean {
   const fromParent = relative(parent, child);
   return fromParent.length > 0 && fromParent !== ".." && !fromParent.startsWith(`..${sep}`) && !isAbsolute(fromParent);
 }
+
 function assertDirectChild(parent: string, child: string): void {
-  const expectedParent = resolve(parent);
-  const actualParent = dirname(resolve(child));
-  const matches = process.platform === "win32"
-    ? actualParent.toLowerCase() === expectedParent.toLowerCase()
-    : actualParent === expectedParent;
-  if (!matches) throw new Error(`update recovery path is outside its managed root: ${child}`);
+  if (!isDirectChild(parent, child)) throw new Error(`update recovery path is outside its managed root: ${child}`);
 }

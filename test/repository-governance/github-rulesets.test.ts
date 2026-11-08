@@ -88,7 +88,7 @@ describe("reviewable GitHub rulesets", () => {
   it("keeps API inspection read-only unless an exact apply confirmation is supplied", async () => {
     const source = await readFile("scripts/governance/check-github-repository-governance.mjs", "utf8");
     expect(source).toContain('process.argv.includes("--apply")');
-    expect(source).toContain('valueAfter("--confirm") !== "apply-a1-github-governance"');
+    expect(source).toContain('optionValue("--confirm") !== "apply-a1-github-governance"');
     expect(source).toContain("compareRepositoryGovernance(definition, live)");
     expect(source).toContain('mutationPerformed: mutations.length > 0');
   });

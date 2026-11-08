@@ -4,6 +4,7 @@ import { lstat, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs
 import { tmpdir } from "node:os";
 import { dirname, relative, resolve, sep } from "node:path";
 import { readPackedManifest } from "../governance/candidate-evidence.mjs";
+import { canonicalDigest, canonicalJson } from "../canonical-digest.mjs";
 
 export const EXACT_PACKAGE_PREPARATION_SCHEMA = "a1-exact-package-preparation-v1";
 export const EXACT_PACKAGE_INSTALL_POLICY = "npm-global-ignore-scripts-prefer-offline-v1";
@@ -68,7 +69,7 @@ export async function prepareExactPackageInstallation(options = {}) {
       preparation: { count: 1, durationMs, phases: { installMs, installedIdentityMs } },
       consumers,
     };
-    const receipt = { ...payload, receiptId: digest(payload) };
+    const receipt = { ...payload, receiptId: canonicalDigest(payload) };
     await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
     return { root, prefix, packageRoot, receiptPath, receipt, durationMs };
   } catch (error) {
@@ -92,23 +93,23 @@ export async function verifyExactPackagePreparation(options = {}) {
   if (!inside(prefix, receipt.install.packageRoot)) throw new Error("exact-package installed package escapes its prefix");
 
   const consumers = validateConsumers(JSON.parse(environment[EXACT_PACKAGE_PREPARATION_ENV.consumers] ?? "null"));
-  if (canonical(receipt.consumers) !== canonical(consumers)) throw new Error("exact-package preparation consumers contradict the receipt");
+  if (canonicalJson(receipt.consumers) !== canonicalJson(consumers)) throw new Error("exact-package preparation consumers contradict the receipt");
   const consumer = options.consumer ?? environment[EXACT_PACKAGE_PREPARATION_ENV.consumer];
   if (!ALLOWED_CONSUMERS.has(consumer) || !consumers.includes(consumer)) throw new Error("exact-package preparation consumer is not authorized");
 
   const lane = laneIdentity(environment, options.identity);
-  if (canonical(receipt.lane) !== canonical(lane)) throw new Error("exact-package preparation belongs to another validation lane");
+  if (canonicalJson(receipt.lane) !== canonicalJson(lane)) throw new Error("exact-package preparation belongs to another validation lane");
   if (receipt.install.policy !== EXACT_PACKAGE_INSTALL_POLICY) throw new Error("exact-package preparation install policy is incompatible");
 
   const candidatePath = boundedAbsolute(options.candidatePath ?? environment.VALIDATION_CANDIDATE_TARBALL, "candidate path");
   const bytes = await readFile(candidatePath);
   const manifest = readPackedManifest(bytes);
   const candidate = { sha256: sha256(bytes), size: bytes.length, name: manifest.name, version: manifest.version };
-  if (canonical(receipt.candidate) !== canonical(candidate)) throw new Error("exact-package preparation candidate identity is stale or contradictory");
+  if (canonicalJson(receipt.candidate) !== canonicalJson(candidate)) throw new Error("exact-package preparation candidate identity is stale or contradictory");
   const expectedPackageRoot = installedPackageRoot(prefix, manifest.name, lane.platform);
   if (receipt.install.packageRoot !== expectedPackageRoot) throw new Error("exact-package preparation package path is contradictory");
   const installedIdentity = await installedPackageIdentity(expectedPackageRoot);
-  if (canonical(receipt.install.installedIdentity) !== canonical(installedIdentity)) throw new Error("exact-package installed bytes changed after preparation");
+  if (canonicalJson(receipt.install.installedIdentity) !== canonicalJson(installedIdentity)) throw new Error("exact-package installed bytes changed after preparation");
 
   return { receipt, root, prefix, packageRoot: expectedPackageRoot, receiptPath, durationMs: receipt.preparation.durationMs };
 }
@@ -145,7 +146,7 @@ async function installedPackageIdentity(packageRoot) {
   files.sort((left, right) => left.path.localeCompare(right.path));
   // Performance: hash each payload buffer immediately and discard it. The same walk also reads
   // the manifest, avoiding a duplicate read without caching or skipping any consumer verification.
-  return { name: manifest.name, version: manifest.version, files: files.length, bytes, sha256: digest(files) };
+  return { name: manifest.name, version: manifest.version, files: files.length, bytes, sha256: canonicalDigest(files) };
 
   async function visit(path) {
     const relativePath = relative(packageRoot, path).split(sep).join("/");
@@ -172,7 +173,7 @@ function assertReceipt(receipt) {
   if (!receipt || receipt.schema !== EXACT_PACKAGE_PREPARATION_SCHEMA || receipt.authority !== "validation-runner"
     || typeof receipt.receiptId !== "string" || !/^[0-9a-f]{64}$/u.test(receipt.receiptId)) throw new Error("exact-package preparation receipt is malformed");
   const { receiptId, ...payload } = receipt;
-  if (receiptId !== digest(payload)) throw new Error("exact-package preparation receipt identity is invalid");
+  if (receiptId !== canonicalDigest(payload)) throw new Error("exact-package preparation receipt identity is invalid");
   validateConsumers(receipt.consumers);
   if (receipt.preparation?.count !== 1
     || !Number.isSafeInteger(receipt.preparation?.durationMs) || receipt.preparation.durationMs < 0) throw new Error("exact-package preparation count is invalid");
@@ -262,10 +263,4 @@ function runCommand(command, arguments_, cwd, environment) {
   });
 }
 
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value !== null && typeof value === "object") return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
-  return JSON.stringify(value);
-}
 function sha256(bytes) { return createHash("sha256").update(bytes).digest("hex"); }
-function digest(value) { return sha256(canonical(value)); }
