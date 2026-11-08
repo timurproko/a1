@@ -183,13 +183,20 @@ describe("launch selection across update completion", () => {
       return child as ReturnType<typeof spawn>;
     });
 
-    const first = bootstrap();
-    const second = bootstrap();
+    // Concurrency: either launch may reach spawn first, so launches are tracked by what settles,
+    // never by the position of the child they recorded.
+    const settled: { readonly launch: number; readonly code: number }[] = [];
+    const launches = [bootstrap(), bootstrap()];
+    launches.forEach((launch, index) => { void launch.then(code => { settled.push({ launch: index, code }); }); });
     await vi.waitFor(() => expect(children).toHaveLength(2), { timeout: 15_000 });
+
     children[1]!.emit("close", 3, null);
-    await expect(second).resolves.toBe(3);
+    await vi.waitFor(() => expect(settled).toHaveLength(1));
+    expect(settled[0]!.code).toBe(3);
     children[0]!.emit("close", 0, null);
-    await expect(first).resolves.toBe(0);
+    await Promise.all(launches);
+    expect(settled).toHaveLength(2);
+    expect(settled[1]).toEqual({ launch: 1 - settled[0]!.launch, code: 0 });
     expect(new Set(noticePaths).size).toBe(2);
     expect(vi.mocked(spawn).mock.calls.map(call => readLaunchContext((call[2] as { env: NodeJS.ProcessEnv }).env).releaseId))
       .toEqual([target.releaseId, target.releaseId]);

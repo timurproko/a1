@@ -1,13 +1,14 @@
 ## ADDED Requirements
 
-### Requirement: Test teardown tolerates a closing Windows handle
-A test that owns a temporary directory SHALL remove it with bounded retries, so a file handle that pinned dependencies are still closing does not fail a test whose assertions passed. The retries SHALL apply only to removing the test's own temporary storage, never to a test's assertions, and a handle that stays open past the bound SHALL still fail the test.
+### Requirement: Concurrency tests do not assume an unspecified order
+A test of concurrent operations SHALL assert each operation's outcome without depending on which operation reaches a shared boundary first, unless the product guarantees that order. Test temporary-directory teardown SHALL remove the test's own storage with bounded retries, so a closing Windows handle does not fail a test whose assertions passed, and SHALL NOT retry the test's assertions.
+
+#### Scenario: Two launches reach spawn in either order
+- **WHEN** two concurrent launches are started and either one records its UI child first
+- **THEN** closing one recorded child SHALL settle exactly one launch, with that child's exit code
+- **AND** the other launch SHALL settle only when its own child closes, with that child's exit code
 
 #### Scenario: A handle is still closing at teardown on Windows
 - **WHEN** a test's assertions have passed and its temporary directory is briefly locked by a closing handle
 - **THEN** teardown SHALL retry the removal and the test SHALL pass
-
-#### Scenario: A release-coordination test contends for storage
-- **WHEN** a test that commits release state and runs concurrent bootstraps passes alone but times out in the parallel worker pool
-- **THEN** it SHALL run in the resource-sensitive class with its evidence recorded
-- **AND** its timeout and assertions SHALL remain unchanged
+- **AND** a handle that stays open past the bound SHALL still fail the test

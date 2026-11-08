@@ -1,9 +1,9 @@
 # Tasks
 
-## 1. Resource-sensitive classification
+## 1. Concurrent launch test
 
-- [ ] 1.1 Add `test/foundation/release/update-launch.test.ts` to `fast-resource-sensitive` in `config/validation-suites.json` and to the list pinned in `validation-suite-policy.test.ts`.
+- [x] 1.1 Rewrite "runs two concurrent launches independently" so it closes one recorded child at a time and asserts that exactly one launch settles with that child's exit code, without assuming which launch reached `spawn` first.
 
 ## 2. Teardown
 
-- [ ] 2.1 Remove the compaction-progress test's temporary directory with `maxRetries: 10, retryDelay: 100`.
+- [x] 2.1 Remove the compaction-progress test's temporary directory with `maxRetries: 10, retryDelay: 100`.

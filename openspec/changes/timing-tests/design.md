@@ -2,20 +2,20 @@
 
 ## Context
 
-The `isolated-regression-testing` spec gives contention timeouts one remedy: a test that passes independently but times out while sharing the parallel runner may join the declared resource-sensitive class, with its evidence recorded. It forbids larger per-test bounds and retries of semantic failures.
+The concurrent-launch failure first looked like storage contention, because it appeared only under load and ended at the 5-second timeout. Isolating it showed otherwise. The test passes alone with `it.only` even under load, and in the full file under load the failing runs always log `first settled 3`: the first bootstrap had received the exit code meant for the second. The failure is an ordering assumption that load makes visible, so moving the test into the serial resource-sensitive class would only make the flip rarer.
 
 ## Decisions
 
-- **Classify, do not extend.**
-  - Evidence: alone, the concurrent-launch test body takes 68 ms; in `npm test` on Windows it timed out at 5.05 s in the parallel remainder.
-  - Cause: six `fsync`ed release-state commits in setup plus two bootstraps contending for the same lock, all on storage shared with the parallel pool.
-  - The test is appended to `fast-resource-sensitive`, after the other release-state members, and the policy test's pinned list follows.
-  - Its isolated duration is far below the five-second optimisation threshold, so serial execution is sufficient.
+- **Assert what independence means, not an order.**
+  - Two launches are independent when closing one launch's UI child settles exactly that launch with that child's exit code and leaves the other running.
+  - The test records which launch settles, and with what code, after each child closes, instead of naming launches by position.
+  - Both launches still receive distinct exit-notice paths and select the target release.
 - **Retry teardown, not assertions.**
-  - Only the final `rm` of the test's own temporary directory gains `maxRetries: 10, retryDelay: 100`, matching `prompt-history/concurrency.integration.test.ts` and the parity tests.
+  - Only the final `rm` of the compaction test's own temporary directory gains `maxRetries: 10, retryDelay: 100`, matching `prompt-history/concurrency.integration.test.ts` and the parity tests.
   - A failure before teardown still fails the test on its first attempt.
+- **No classification change.** The concurrent-launch test takes milliseconds and does not need serial execution once it stops depending on spawn order.
 
 ## Risks
 
-- **The resource-sensitive partition gets slower.** Mitigation: the added file takes well under a second alone, and the partition is already serial.
+- **The rewritten test could pass while one launch steals the other's child.** Mitigation: it asserts that exactly one launch settles after the first close, with that close's code, and that the other settles only after the second close, with the second code.
 - **A real handle leak could be masked.** Mitigation: the retries are bounded to about one second, so a handle that never closes still fails the test.
