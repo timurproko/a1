@@ -2,7 +2,7 @@
 
 ## 1. Selectors
 
-- [ ] 1.1 Move the workflow selectors, the dialog host and the tree-summary follow-up into `SessionSelectors` (`session-selectors.ts`), implementing `WorkflowSelectors` with typed ports and one private present-in-dock method. Expose it as `presenter.selectors` and pass it to the workflow router; repoint the tests.
+- [x] 1.1 Move the workflow selectors, the dialog host and the tree-summary follow-up into `SessionSelectors` (`session-selectors.ts`), implementing `WorkflowSelectors` with typed ports and one private present-in-dock method. Expose it as `presenter.selectors` and pass it to the workflow router; repoint the tests.
 
 ## 2. Prompt history
 

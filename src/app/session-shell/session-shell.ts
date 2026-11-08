@@ -9,6 +9,7 @@ import { PromptSubmission } from "./prompt-submission.js";
 import { SessionConcerns } from "./session-concern.js";
 import { composeExitText, SessionStopLatch } from "./session-lifecycle.js";
 import { openWorkflowSelector } from "./workflow-router.js";
+import { SessionSelectors } from "./session-selectors.js";
 import { bindSessionSettings, bindShellSettings } from "./settings-bindings.js";
 import {
   promptSuggestionSurface,
@@ -19,7 +20,6 @@ import { OWNED_UI_HIDDEN_COMMAND_NAMES } from "../../contracts/owned-ui/index.js
 import type {
   OwnedUiCommand,
   OwnedUiCommandResult,
-  OwnedUiDialogHost,
   OwnedUiSessionBackend,
   OwnedUiSessionViewModel,
   OwnedUiThinkingLevel,
@@ -88,7 +88,7 @@ export { formatSessionResumeCommand, quoteCommandArgument, type SessionResumeCom
 export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly backend: OwnedUiSessionBackend;
   readonly #presenters: OwnedUiSessionShellOptions["presenters"];
-  readonly #dialogHost: OwnedUiDialogHost;
+  readonly selectors: SessionSelectors;
   readonly root: OwnedUiSessionShellRoot;
   readonly #host: OwnedUiTerminalHost;
   readonly #terminal: OwnedUiPresenterTerminal;
@@ -149,8 +149,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#inputCoordination = inputPresentation?.coordination !== false;
     this.#host = host;
     this.#terminal = host.connect(this);
-    // Invariant: the host's optional members follow the layout, so it is built only once the layout is known.
-    this.#dialogHost = this.#createDialogHost();
     // Invariant: owned prompt limits and collapsed skills are bare-A1 replacements; comparison profiles keep pinned behavior.
     this.#promptImages = this.#customViewport ? options.promptImages ?? null : null;
     this.#skills = this.#customViewport ? options.skills ?? null : null;
@@ -188,7 +186,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         onInterrupt: () => { void this.interrupt(); },
         onClear: () => { void this.clearOrExit(); },
         onExit: () => { void this.shutdown(); },
-        onModelSelect: () => this.#customViewport ? this.showModelsDialog() : this.showModelSelector(),
+        onModelSelect: () => this.#customViewport ? this.selectors.showModelsDialog() : this.selectors.showModelSelector(),
         onModelCycle: direction => { void this.cycleModel(direction); },
         onThinkingCycle: () => { void this.cycleThinkingLevel(); },
         onThinkingToggle: () => {
@@ -246,6 +244,20 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         ...(startupRoute === undefined ? {} : { startupRoute }),
       });
       constructed.push(() => this.#dialogs.dispose());
+      this.selectors = new SessionSelectors({
+        root: this.root,
+        terminal: this.#terminal,
+        dialogs: this.#dialogs,
+        presenters: options.presenters,
+        backend: this.backend,
+        customViewport: this.#customViewport,
+        disposed: () => this.#disposed,
+        runWorkflow: request => this.runWorkflow(request),
+        sendSlashPrompt: (text, typed) => this.#submission.sendSlashPrompt(text, typed),
+        reportError: () => this.#submission.reportError(),
+        input: (title, placeholder, inputOptions) => this.#extensionBridge.input(title, placeholder, inputOptions),
+        shutdown: () => { void this.shutdown(); },
+      });
       const initialPiSettings = this.backend.settings.snapshot();
       this.#programStatus = options.presenters.components.chrome.programStatusReporter(
         status => this.#terminal.setProgramStatus(status),
@@ -518,8 +530,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     if (action === "none") return { outcome: "rejected", diagnostic: "nothing to interrupt" };
     if (now - this.#lastEscapeTime < 500) {
       this.#lastEscapeTime = 0;
-      if (action === "tree") await this.showTreeSelector();
-      else this.showForkSelector();
+      if (action === "tree") await this.selectors.showTreeSelector();
+      else this.selectors.showForkSelector();
       return { outcome: "completed", diagnostic: null };
     }
     this.#lastEscapeTime = now;
@@ -567,196 +579,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     onCancel?: () => void,
   ): TerminalOverlayHandle {
     return this.#dialogs.showSelector(title, options, onSelect, onCancel);
-  }
-
-  // Rationale: presenters see the shell only as a dialog host; selectors open in the input dock and run choices as workflows.
-  #createDialogHost(): OwnedUiDialogHost {
-    const isDisposed = () => this.#disposed;
-    return {
-      get disposed() { return isDisposed(); },
-      setInputSurface: surface => this.root.setInputSurface(surface),
-      requestRender: () => this.#terminal.requestRender(),
-      viewport: () => this.#terminal.viewport(),
-      appendWorkflowStatus: text => this.root.workflow.appendStatus(text),
-      appendWorkflowResult: result => this.root.workflow.appendResult(result),
-      runWorkflow: request => this.runWorkflow(request),
-      // Invariant: the custom bare-A1 surface holds frames while optional selectors load and is permanently
-      // fullscreen; the pinned comparison profiles render immediately and keep Pi's TUI mode switch.
-      ...(this.#customViewport
-        ? { beginPresentationHold: () => this.#terminal.beginPresentationHold() }
-        : { switchTuiMode: mode => this.#terminal.switchMode(mode) }),
-    };
-  }
-
-  async showThinkingSelector(): Promise<void> {
-    const snapshot = this.backend.settings.snapshot();
-    const close = () => {
-      this.root.setFooterLevel(true);
-      this.root.setInputSurface(null);
-      this.#terminal.requestRender();
-    };
-    const select = (level: string) => {
-      close();
-      void this.runWorkflow({ command: "thinking", argument: "", selection: level });
-    };
-    const releasePresentation = this.#customViewport ? this.#terminal.beginPresentationHold() : undefined;
-    try {
-      const selectors = await this.#presenters.components.dialogs.lazySelectors();
-      const component = await selectors.createThinking({
-        currentLevel: snapshot.thinkingLevel,
-        availableLevels: snapshot.availableThinkingLevels,
-        onSelect: select,
-        onCancel: close,
-        onSelectAsDefault: level => this.backend.settings.setDefaultThinkingLevel(level),
-        defaultLevel: snapshot.defaultThinkingLevel,
-        ...(this.backend.settings.productMode === "bare" ? {
-          presentation: {
-            profile: "bare" as const,
-            cycleBinding: this.root.editor.keybindingConfig()["app.thinking.cycle"] ?? [],
-          },
-        } : {}),
-      });
-      if (this.#disposed) return;
-      this.root.setFooterLevel(false);
-      this.root.setInputSurface(component);
-      this.#terminal.requestRender();
-    } finally {
-      releasePresentation?.();
-    }
-  }
-
-  /** The Skills dialog: a replacement input like the model selector, applying the chosen skill through the prompt path. */
-  showSkillsSelector(skills: readonly OwnedUiShellSkillSummary[] = this.#skillSummaries()): void {
-    const close = this.#dialogs.closeInputSurface;
-    const component = this.#presenters.components.dialogs.skillsSelector({
-      skills,
-      onSelect: name => {
-        close();
-        void this.#submission.sendSlashPrompt(this.#presenters.components.skills.prompt(name), this.#presenters.components.skills.prompt(name)).catch(() => this.#submission.reportError());
-      },
-      onCancel: close,
-    });
-    this.root.setInputSurface(component);
-    this.#terminal.requestRender();
-  }
-
-  showModelSelector(initialSearchInput?: string): void {
-    this.#presenters.openModelSelector(this.#dialogHost, initialSearchInput);
-  }
-
-  showForkSelector(): void {
-    const options = this.backend.catalog.pinnedForkOptions();
-    if (options.length === 0) {
-      this.root.workflow.appendResult({ command: "fork", outcome: "completed", message: "No messages to fork from", messageKind: "status" });
-      this.#terminal.requestRender();
-      return;
-    }
-    const close = this.#dialogs.closeInputSurface;
-    const component = this.#presenters.components.dialogs.userMessageSelector(options, selection => {
-      close();
-      void this.runWorkflow({ command: "fork", argument: "", selection });
-    }, close);
-    this.root.setInputSurface(component);
-    this.#terminal.requestRender();
-  }
-
-  async showLogoutSelector(): Promise<void> {
-    let options;
-    try {
-      options = await this.backend.catalog.pinnedLogoutOptions();
-    } catch (error) {
-      this.root.workflow.appendResult({
-        command: "logout",
-        outcome: "failed",
-        message: `Could not read stored credentials: ${error instanceof Error ? error.message : String(error)}`,
-      });
-      this.#terminal.requestRender();
-      return;
-    }
-    if (options.length === 0) {
-      this.root.workflow.appendStatus("No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.");
-      this.#terminal.requestRender();
-      return;
-    }
-    const close = this.#dialogs.closeInputSurface;
-    const component = this.#presenters.components.dialogs.authProviderSelector("logout", options, selection => {
-      close();
-      void this.runWorkflow({ command: "logout", argument: "", selection });
-    }, close);
-    this.root.setInputSurface(component);
-    this.#terminal.requestRender();
-  }
-
-  showLoginMethodSelector(providerReference: string): void {
-    const method = this.backend.catalog.pinnedLoginMethodOptions(providerReference);
-    if (method.options.length === 0) {
-      this.showLoginProviderSelector(undefined, providerReference);
-      return;
-    }
-    if (method.options.length === 1) {
-      const selection = method.options[0]?.id;
-      if (selection) void this.runWorkflow({ command: "login", argument: "", selection });
-      return;
-    }
-    const close = this.#dialogs.closeInputSurface;
-    const labels = method.options.map(option => option.label);
-    const component = this.#presenters.components.dialogs.extensionSelector(method.title, labels, label => {
-      const selection = method.options.find(option => option.label === label)?.id;
-      if (!selection) return;
-      close();
-      void this.runWorkflow({ command: "login", argument: "", selection });
-    }, close);
-    this.root.setInputSurface(component);
-    this.#terminal.requestRender();
-  }
-
-  showTreeSelector(initialSelectedId?: string): Promise<void> {
-    return this.#presenters.openTreeSelector(this.#dialogHost, (entryId, skipSummaryPrompt) => {
-      void this.#completeTreeSelection(entryId, skipSummaryPrompt);
-    }, initialSelectedId);
-  }
-
-  showLoginAuthTypeSelector(): void {
-    const close = this.#dialogs.closeInputSurface;
-    const labels = ["Sign in with an account", "Sign in with an API key"];
-    const component = this.#presenters.components.dialogs.extensionSelector(
-      "Select authentication method:",
-      labels,
-      label => {
-        close();
-        this.showLoginProviderSelector(label === labels[0] ? "oauth" : "api_key");
-      },
-      close,
-    );
-    this.root.setInputSurface(component);
-    this.#terminal.requestRender();
-  }
-
-  showLoginProviderSelector(authType?: "oauth" | "api_key", initialSearchInput?: string): void {
-    const options = this.backend.catalog.pinnedLoginOptions(authType);
-    if (options.length === 0) {
-      this.root.workflow.appendStatus(authType === "oauth" ? "No account providers available." : authType === "api_key" ? "No API key providers available." : "No login providers available.");
-      this.#terminal.requestRender();
-      return;
-    }
-    const close = this.#dialogs.closeInputSurface;
-    const component = this.#presenters.components.dialogs.authProviderSelector("login", options, id => {
-      close();
-      void this.runWorkflow({ command: "login", argument: "", selection: id });
-    }, () => {
-      close();
-      if (authType !== undefined) this.showLoginAuthTypeSelector();
-    }, initialSearchInput);
-    this.root.setInputSurface(component);
-    this.#terminal.requestRender();
-  }
-
-  showSessionSelector(): Promise<void> {
-    return this.#presenters.openSessionSelector(this.#dialogHost, () => { void this.shutdown(); });
-  }
-
-  showSettingsSelector(): void {
-    this.#presenters.openSettingsSelector(this.#dialogHost);
   }
 
   shutdown(): Promise<OwnedUiCommandResult> {
@@ -814,7 +636,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         return { outcome: "completed", diagnostic: null };
       }
     }
-    const selected = openWorkflowSelector(request, this);
+    const selected = openWorkflowSelector(request, this.selectors);
     if (selected !== undefined) return selected;
     if (request.command === "reload") {
       const blocked = this.backend.workflows.reloadBlockedResult();
@@ -860,7 +682,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       if (result.messages !== undefined) {
         for (const message of result.messages) this.root.workflow.appendMessage(message);
       }
-      this.showModelSelector((result.detail ?? request.argument.trim()) || undefined);
+      this.selectors.showModelSelector((result.detail ?? request.argument.trim()) || undefined);
       return { outcome: "completed", diagnostic: null };
     }
     if (result.outcome === "requires-confirmation" && request.command === "resume") {
@@ -907,41 +729,10 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     await sleep(remaining);
   }
 
-  showTrustSelector(): void {
-    const context = this.backend.catalog.pinnedProjectTrustContext();
-    const close = this.#dialogs.closeInputSurface;
-    const component = this.#presenters.components.dialogs.trustSelector({
-      ...context,
-      onSelect: selection => {
-        try {
-          this.backend.catalog.persistProjectTrust(selection.updates);
-          close();
-          this.root.workflow.appendStatus(`Saved trust decision: ${selection.trusted ? "trusted" : "untrusted"}. Restart pi for this to take effect.`);
-        } catch (error) {
-          close();
-          this.root.workflow.appendResult({ command: "trust", outcome: "failed", message: error instanceof Error ? error.message : String(error) });
-        }
-        this.#terminal.requestRender();
-      },
-      onCancel: close,
-    });
-    this.root.setInputSurface(component);
-    this.#terminal.requestRender();
-  }
-
-  showScopedModelsSelector(): void {
-    this.#presenters.openScopedModelsSelector(this.#dialogHost);
-  }
-
   // Invariant: bare A1 routes `models`; the comparison profile keeps the pinned `model`/`scoped-models` pair. Hidden routes are shared.
   #isWorkflowRoute(value: string): value is OwnedUiWorkflowRoute {
     return (this.#presenters.components.workflows.commandNames(this.backend.settings.productMode) as readonly string[]).includes(value)
       || (OWNED_UI_HIDDEN_COMMAND_NAMES as readonly string[]).includes(value);
-  }
-
-  /** The bare-A1 unified Models dialog: switch on Enter, scope on Space, persist on Ctrl+S, all through the engine. */
-  showModelsDialog(initialQuery?: string): void {
-    this.#presenters.openModelsDialog(this.#dialogHost, initialQuery);
   }
 
   // Invariant: one teardown per presenter, starting on a microtask so never inside the event listener that
@@ -1225,7 +1016,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const skills = this.#skillSummaries();
     const trimmed = argument.trim();
     if (trimmed.length === 0) {
-      this.showSkillsSelector(skills);
+      this.selectors.showSkillsSelector(skills);
       return { outcome: "completed", diagnostic: null };
     }
     const separator = trimmed.search(/\s/u);
@@ -1238,50 +1029,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       return { outcome: "failed", diagnostic: message };
     }
     return this.#submission.sendSlashPrompt(this.#presenters.components.skills.prompt(skill.name, separator < 0 ? "" : trimmed.slice(separator + 1)), text);
-  }
-
-  #treeSummary(): Promise<string | undefined> {
-    return new Promise(resolve => {
-      this.root.setInputSurface(this.#presenters.components.dialogs.extensionSelector(
-        "Summarize Branch?",
-        ["No summary", "Summarize", "Summarize with custom prompt"],
-        resolve,
-        () => resolve(undefined),
-      ), true, "opaque");
-      this.#terminal.requestRender();
-    });
-  }
-
-  async #completeTreeSelection(entryId: string, skipSummaryPrompt: boolean): Promise<void> {
-    let summarize = false;
-    let customInstructions: string | undefined;
-    if (!skipSummaryPrompt) {
-      while (true) {
-        const choice = await this.#treeSummary();
-        if (choice === undefined) {
-          await this.showTreeSelector(entryId);
-          return;
-        }
-        summarize = choice !== "No summary";
-        if (choice === "Summarize with custom prompt") {
-          customInstructions = await this.#extensionBridge.input("Custom Summarization Instructions", "", { retainSurfaceOnSettle: true });
-          if (customInstructions === undefined) continue;
-        }
-        break;
-      }
-    }
-    this.root.setInputSurface(null);
-    this.#terminal.requestRender();
-    const result = await this.runWorkflow({
-      command: "tree",
-      argument: "",
-      selection: entryId,
-      treeSummary: {
-        summarize,
-        ...(customInstructions === undefined ? {} : { customInstructions }),
-      },
-    });
-    if (result.diagnostic === "Branch summarization cancelled") await this.showTreeSelector(entryId);
   }
 
   #simple(type: "abort"): OwnedUiCommand {
