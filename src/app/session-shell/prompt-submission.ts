@@ -21,9 +21,8 @@ import type { OwnedUiPresenterTerminal } from "./shell-host.js";
 interface PromptSubmissionPorts {
   readonly backend: Pick<OwnedUiSessionBackend, "session" | "identity" | "workflows">;
   readonly root: Pick<OwnedUiSessionShellRoot,
-    | "editor" | "hasPendingPastes" | "waitForPromptPastes" | "setExtensionWidget" | "prepareHistoryText"
-    | "imageChipAttachmentsFromEditor" | "preparePromptSubmission" | "omitUnsentPromptImages"
-    | "resumeViewportFollowing" | "beginImageSubmissionStatus" | "workflow">;
+    | "editor" | "promptChips" | "viewport" | "waitForPromptPastes" | "setExtensionWidget"
+    | "beginImageSubmissionStatus" | "workflow">;
   readonly terminal: Pick<OwnedUiPresenterTerminal, "requestRender">;
   readonly cwd: string;
   readonly statusText: OwnedUiShellComponents["info"]["statusText"];
@@ -89,7 +88,7 @@ export class PromptSubmission implements SessionConcern {
   /** Sends slash text the shell does not own as engine prompt input; history keeps what was typed. */
   sendSlashPrompt(text: string, typed: string = text): Promise<OwnedUiCommandResult> {
     this.#rememberInput(typed, "slash");
-    this.#ports.root.resumeViewportFollowing();
+    this.#ports.root.viewport.resumeFollowing();
     return this.execute({
       type: this.#ports.lifecycle() === "busy" ? "steer" : "prompt",
       correlationId: this.#ports.correlation("prompt-command"),
@@ -143,7 +142,7 @@ export class PromptSubmission implements SessionConcern {
     const { root, backend } = this.#ports;
     const previous = this.#waiting.get(draft);
     if (previous !== undefined) return previous.result;
-    if (!root.hasPendingPastes(draft)) return this.#guard(draft, action);
+    if (!root.promptChips.hasPending(draft)) return this.#guard(draft, action);
     const controller = new AbortController();
     const generation = backend.identity.sessionGeneration;
     const result = this.#guard(draft, async () => {
@@ -196,7 +195,7 @@ export class PromptSubmission implements SessionConcern {
     root.editor.addToHistory(text);
     const history = this.#ports.promptHistory();
     if (history === null) return;
-    const reusable = root.prepareHistoryText(text);
+    const reusable = root.promptChips.prepareHistoryText(text);
     if (reusable.length === 0) {
       history.rememberRecovery(text);
       return;
@@ -206,7 +205,7 @@ export class PromptSubmission implements SessionConcern {
     // recall path treats an absent sidecar the same as a corrupt one.
     const sidecar = this.#ports.imageSidecar();
     if (sidecar !== undefined) {
-      for (const record of root.imageChipAttachmentsFromEditor(text)) {
+      for (const record of root.promptChips.imageChipAttachments(text)) {
         sidecar.write(record.id, { tag: record.tag, data: record.image.data, mimeType: record.image.mimeType, savedAt: new Date().toISOString() });
       }
     }
@@ -219,7 +218,7 @@ export class PromptSubmission implements SessionConcern {
     if (!displayInput) return { outcome: "completed", diagnostic: null };
     if (displayInput.startsWith("/")) return this.#ports.slashCommand(displayInput);
     const { root, backend } = this.#ports;
-    const prepared = root.preparePromptSubmission(displayInput);
+    const prepared = root.promptChips.prepareSubmission(displayInput);
     assertPromptImages(prepared.images);
     const input = prepared.text.trim();
     if (input.startsWith("!")) {
@@ -229,8 +228,8 @@ export class PromptSubmission implements SessionConcern {
     // Compatibility: match interactive Pi: input during compaction is queued steering; the engine
     // shows it in the pending rows and delivers it when compaction ends.
     const type = this.#ports.lifecycle() === "busy" ? "steer" as const : "prompt" as const;
-    this.#rememberInput(root.omitUnsentPromptImages(displayInput).trim(), type);
-    root.resumeViewportFollowing();
+    this.#rememberInput(root.promptChips.omitUnsentImages(displayInput).trim(), type);
+    root.viewport.resumeFollowing();
     const command = {
       type,
       correlationId: this.#ports.correlation(type),
@@ -275,12 +274,12 @@ export class PromptSubmission implements SessionConcern {
     const { root, backend } = this.#ports;
     const displayInput = draft.trim();
     if (!displayInput) return rejected("nothing to queue");
-    const prepared = root.preparePromptSubmission(displayInput);
+    const prepared = root.promptChips.prepareSubmission(displayInput);
     assertPromptImages(prepared.images);
     const text = prepared.text.trim();
     this.#rememberInput(displayInput, "follow-up");
     if (root.editor.getText() === draft) root.editor.setText("");
-    root.resumeViewportFollowing();
+    root.viewport.resumeFollowing();
     return this.execute({
       type: "follow-up",
       correlationId: this.#ports.correlation("follow-up"),

@@ -46,7 +46,7 @@ function harness(productMode: "bare" | "comparison" = "bare", failOwner?: OwnedU
       setHideThinkingBlock: record("hideThinking"),
       setMermaidRenderingMode: record("mermaid"),
       setImagePresentation: record("images"),
-      setFullscreenCopyOnSelect: record("copyOnSelect"),
+      viewport: { setCopyOnSelect: record("copyOnSelect") },
     },
     setTerminalProgress: record("progress"),
   };

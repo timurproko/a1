@@ -106,8 +106,8 @@ describe("bare-A1 unified Models dialog", () => {
       expect(text).toContain("Space scope  Ctrl+S save  Esc close");
       shell.root.handleInput(ESCAPE);
 
-      const open = vi.spyOn(shell, "showModelsDialog");
-      const pinned = vi.spyOn(shell, "showModelSelector");
+      const open = vi.spyOn(shell.selectors, "showModelsDialog");
+      const pinned = vi.spyOn(shell.selectors, "showModelSelector");
       shell.root.editor.reloadKeybindings();
       await shell.runWorkflow({ command: "models", argument: "" });
       expect(open).toHaveBeenCalledWith(undefined);
@@ -130,8 +130,8 @@ describe("bare-A1 unified Models dialog", () => {
     shell.start();
     shell.runtime.renderNow();
     try {
-      const open = vi.spyOn(shell, "showModelsDialog");
-      const pinned = vi.spyOn(shell, "showModelSelector");
+      const open = vi.spyOn(shell.selectors, "showModelsDialog");
+      const pinned = vi.spyOn(shell.selectors, "showModelSelector");
       expect(shell.root.editor.keybindingConfig()["app.model.select"]).toEqual("ctrl+m");
       terminal.input("\u001b[109;5u");
       await vi.waitFor(() => expect(open).toHaveBeenCalledOnce());
