@@ -129,7 +129,7 @@ describe("OwnedUiSessionShell commands, notices, and presentation", () => {
       engine.session.emit({ type: "compaction_start", reason: "manual" });
       await adapter.flushEvents();
       const attachment = { type: "image" as const, data: "invalid!", mimeType: "image/png" };
-      const preparation = vi.spyOn(shell.root, "preparePromptSubmission").mockReturnValueOnce({ text: "bad later", images: [attachment] });
+      const preparation = vi.spyOn(shell.root.promptChips, "prepareSubmission").mockReturnValueOnce({ text: "bad later", images: [attachment] });
       if (type === "follow-up") { shell.root.editor.setText("bad later"); await shell.queueFollowUp(); }
       else await shell.submit("bad later");
       preparation.mockRestore();

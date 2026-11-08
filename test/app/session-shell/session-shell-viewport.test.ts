@@ -193,7 +193,7 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       release({ data: screenshotPng(32, 32).toString("base64"), mimeType: "image/png" });
       await nextImmediate(); await nextImmediate();
       expect(shell.root.editor.getText()).toBe("newer draft");
-      expect(shell.root.preparePromptSubmission("newer draft").images).toEqual([]);
+      expect(shell.root.promptChips.prepareSubmission("newer draft").images).toEqual([]);
       if (boundary === "dispose") {
         expect(terminal.active).toBe(false);
         expect(terminal.writes).toHaveLength(writes);
@@ -216,9 +216,9 @@ describe("OwnedUiSessionShell viewport and streaming", () => {
       await engine.session.followUp("queued follow");
       shell.restoreQueuedInput();
       if (mode === "waiting") { release(payload); await pending; }
-      await vi.waitFor(() => expect(shell.root.hasPendingPastes(draft)).toBe(false));
+      await vi.waitFor(() => expect(shell.root.promptChips.hasPending(draft)).toBe(false));
       expect(engine.session.promptOptions).toHaveLength(0);
-      const restored = shell.root.preparePromptSubmission(shell.root.editor.getText()).text;
+      const restored = shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).text;
       expect(restored).toBe(mode === "waiting" ? `${payload}\nqueued steer\nqueued follow` : `queued steer\n${payload}\nqueued follow`);
       if (mode === "compaction") {
         engine.session.isCompacting = false;

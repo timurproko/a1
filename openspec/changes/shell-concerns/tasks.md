@@ -10,7 +10,7 @@
 
 ## 3. Root
 
-- [ ] 3.1 Expose `promptChips` and `viewport` on the root, delete the fourteen pure forwarding methods, repoint production and test callers, and move the resource-label functions to `resource-labels.ts`.
+- [x] 3.1 Expose `promptChips` and `viewport` on the root, delete the thirteen pure forwarding methods (`handleViewportPreInput` stays, because it defaults from root state), repoint production and test callers, and move the resource-label functions to `resource-labels.ts`.
 
 ## 4. Composition
 

@@ -14,7 +14,7 @@ The owned-UX spec says the session presenter is a coordinator over focused conce
   - Its binding state (`#promptHistory`, `#historyBinding`) lives in presenter fields.
 - **The root forwards instead of composing.**
   - Seven root methods only pass a call to the prompt chip store.
-  - Seven more only pass a call to the viewport controller.
+  - Six more only pass a call to the viewport controller.
   - About 150 lines of resource-label functions that have nothing to do with rendering sit at the bottom of `session-shell-root.ts`.
 - **Composition repeats its bare-profile test.** `composeOwnedUi` checks `settings === null || !bare` ten times, and its failure path and `dispose` release the same resources in two hand-written lists.
 
@@ -31,7 +31,7 @@ The owned-UX spec says the session presenter is a coordinator over focused conce
   - One `userTexts` helper reads the transcript.
   - The presenter calls `start`, `synchronize`, `rebind` and `close`.
 - **Root.** The root exposes the prompt chip store as `promptChips` and the viewport controller as `viewport`, alongside the `transcript`, `workflow` and `chrome` it already exposes.
-  - The fourteen pure forwarding methods are deleted and callers use the component.
+  - The thirteen pure forwarding methods are deleted and callers use the component.
   - Root methods that add behaviour, such as waiting for pastes against the current editor text or resetting pastes in the editor, stay.
   - The resource-label functions move to `resource-labels.ts`.
 - **Composition.**

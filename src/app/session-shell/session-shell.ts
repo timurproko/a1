@@ -3,6 +3,7 @@ import type { TerminalComponentPort, TerminalInputListenerResult, TerminalInputS
 import { ShellClipboard } from "./shell-clipboard.js";
 import type { CopyResult } from "./response-copy-protocol.js";
 import { SessionPromptHistory } from "./session-prompt-history.js";
+import { shellResourceEntries } from "./resource-labels.js";
 import { SessionDialogCoordinator } from "./dialog-coordinator.js";
 import { LoginInteraction } from "./login-interaction.js";
 import { PromptSubmission } from "./prompt-submission.js";
@@ -53,7 +54,6 @@ import {
 } from "./stream-presentation-coalescer.js";
 import {
   OwnedUiSessionShellRoot,
-  shellResourceEntries,
   type OwnedUiSessionShellOptions,
   type OwnedUiShellPresentationOptions,
   type OwnedUiShellPromptImagesOptions,
@@ -307,7 +307,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         this.#history = new SessionPromptHistory(promptHistory, {
           editor: this.root.editor,
           usesDefaultInputSurface: () => this.root.usesDefaultInputSurface(),
-          rehydrate: (text, resolveImage) => this.root.rehydrateHistoryText(text, resolveImage),
+          rehydrate: (text, resolveImage) => this.root.promptChips.rehydrateHistoryText(text, resolveImage),
           requestRender: () => this.#terminal.requestRender(),
           transcript: () => this.view().transcript,
           currentHistorySessionId: () => this.backend.identity.currentHistorySessionId(),
@@ -372,7 +372,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   setOverlaySurfaces(surfaces: readonly TerminalPointerSurface[] | null): void {
-    this.root.setViewportOverlaySurfaces(surfaces);
+    this.root.viewport.setOverlaySurfaces(surfaces);
   }
 
   noteImmediatePresentation(): void {
@@ -436,7 +436,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     // resynchronizes the view, which is cheap next to re-reading the transcript.
     if (event.type === "agent-run-started") {
       this.#promptSuggestions?.invalidate();
-      this.root.resumeViewportFollowing();
+      this.root.viewport.resumeFollowing();
     }
     if (event.type === "assistant-message-completed" && !event.successful) {
       this.#programStatus.setErrorMessage(this.view().status.diagnostics.at(-1));
@@ -445,7 +445,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#programStatus.handleEvent(event);
     }
     if (event.type === "assistant-message-completed") {
-      this.root.noteCompletedAssistantMessage();
+      this.root.viewport.noteCompletedAssistantMessage();
       this.#promptSuggestions?.route(event, () => this.root.promptSuggestionPrepareBlockReason());
     }
     const semanticOnly = event.type === "agent-run-started" || event.type === "assistant-message-completed";
@@ -485,7 +485,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       if (this.#disposed || !this.#customViewport) return;
       this.#dialogs.presentStartupRoute();
       void this.#presenters.components.dialogs.lazySelectors().then(selectors => selectors.prepare()).catch(() => {});
-      this.root.warmPastePreparation();
+      this.root.promptChips.warm();
       this.#clipboard.warm();
     });
   }
@@ -706,7 +706,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     }
     if (request.command === "tree" && result.outcome === "completed") {
       if (result.detail && !this.root.editor.getText().trim()) this.root.editor.setText(result.detail);
-      this.root.resumeViewportFollowing();
+      this.root.viewport.resumeFollowing();
     }
     if (shareDialog !== undefined && this.#customViewport && result.outcome === "completed" && result.detail !== undefined) {
       this.root.workflow.appendStatus(shareDialog.renderShellShareResult(result.message, result.detail, this.#presenters.theme.current(), url => this.#presenters.components.text.hyperlink(url)));
@@ -759,7 +759,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     let historyCleanup = Promise.resolve(true);
     attempt(() => { historyCleanup = this.#history?.close() ?? Promise.resolve(true); });
     attempt(() => { pasteCleanup = this.root.disposePendingPastes(); });
-    attempt(() => this.root.clearViewportPointerState());
+    attempt(() => this.root.viewport.clearPointerState());
     attempt(() => this.#streamPresentation.dispose());
     attempt(() => this.#promptSuggestions?.dispose());
     attempt(() => this.#unbindShellSettings());
@@ -862,7 +862,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#login,
       { onSessionReplaced: () => this.#extensionBridge.reset() },
       // Invariant: a replaced session takes its transient viewport and owned-route state with it.
-      { onSessionReplaced: () => this.root.resetViewport() },
+      { onSessionReplaced: () => this.root.viewport.reset() },
       this.#dialogs,
       { onSessionReplaced: () => this.root.setInputSurface(null) },
       { onSessionReplaced: () => this.root.resetExtensionUi() },

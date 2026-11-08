@@ -727,7 +727,7 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
       shell.root.setOutputPad(0);
       shell.root.setViewportConfig({ scrollbarAppearance: "auto", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
       // Rationale: keep this rail fixture on explicit copy so transient acknowledgement chrome does not change its rows.
-      shell.root.setFullscreenCopyOnSelect(false);
+      shell.root.viewport.setCopyOnSelect(false);
       shell.runtime.renderNow();
       const source = shell.root.render(width).map(row => stripTerminalSequences(row));
       const sourceRows = source.flatMap((row, index) => row.trimEnd().endsWith("Z") ? [index] : []);

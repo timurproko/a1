@@ -1,10 +1,8 @@
-import type { OwnedUiShellComponents, OwnedUiShellHotkeysPresentation, OwnedUiShellSubmittedPromptComposer, OwnedUiShellClipboardContent, OwnedUiShellComponentPort, OwnedUiShellEditorPort, OwnedUiShellHeaderOptions, OwnedUiShellHeaderPort, OwnedUiShellHistoryEditor, OwnedUiShellImageAssetResolver, OwnedUiShellKeybindingsHost, OwnedUiShellLoadedResourcesPort, OwnedUiShellQueuedInputPort, OwnedUiShellResourceEntry, OwnedUiShellStatusPort, OwnedUiShellTranscriptComponentPort, OwnedUiShellViewComponentPort } from "../../contracts/owned-ui/index.js";
-import type { TerminalComponentPort, TerminalInputCoordinationScheduler, TerminalInputDiagnosticsEvent, TerminalInputSurfaceKind, TerminalLayoutNode, TerminalPointerSurface, TerminalPort } from "../../contracts/presentation/index.js";
+import type { OwnedUiShellComponents, OwnedUiShellHotkeysPresentation, OwnedUiShellSubmittedPromptComposer, OwnedUiShellClipboardContent, OwnedUiShellComponentPort, OwnedUiShellEditorPort, OwnedUiShellHeaderOptions, OwnedUiShellHeaderPort, OwnedUiShellHistoryEditor, OwnedUiShellImageAssetResolver, OwnedUiShellKeybindingsHost, OwnedUiShellLoadedResourcesPort, OwnedUiShellQueuedInputPort, OwnedUiShellStatusPort, OwnedUiShellTranscriptComponentPort, OwnedUiShellViewComponentPort } from "../../contracts/owned-ui/index.js";
+import type { TerminalComponentPort, TerminalInputCoordinationScheduler, TerminalInputDiagnosticsEvent, TerminalInputSurfaceKind, TerminalLayoutNode, TerminalPort } from "../../contracts/presentation/index.js";
 import type { ShellPresentationPorts, ThemeSource } from "../../contracts/presentation/index.js";
 import type {
   OwnedUiBackgroundSettingsPort,
-  OwnedUiExtensionResourceSummary,
-  OwnedUiExtensionSourceSummary,
   OwnedUiPromptSuggestionGeneratorPort,
   OwnedUiSessionBackend,
   OwnedUiSessionPresenters,
@@ -243,11 +241,11 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   readonly #queued: OwnedUiShellQueuedInputPort;
   readonly #extensionRenderers: OwnedUiTranscriptRendererPort;
   readonly #imageAssets: OwnedUiShellImageAssetResolver | undefined;
-  readonly #promptChips: PromptChipStore;
+  readonly promptChips: PromptChipStore;
   #pasteDiagnosticId = 0;
   readonly #customViewport: boolean;
   readonly #submittedPromptComposer: OwnedUiShellSubmittedPromptComposer | undefined;
-  readonly #viewportController: SessionViewportController;
+  readonly viewport: SessionViewportController;
   readonly #onPromptSuggestionEligibilityChanged: (() => void) | undefined;
   readonly #componentRuntime: Pick<OwnedUiSessionShellRootHandlers, "getColumns" | "getRows" | "requestRender" | "components">;
   #toolsExpanded = false;
@@ -282,7 +280,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   ) {
     this.#view = view;
     this.#customViewport = sessionLayout === "custom-viewport";
-    this.#promptChips = new PromptChipStore({ isolated: this.#customViewport,
+    this.promptChips = new PromptChipStore({ isolated: this.#customViewport,
       ...(handlers.pasteDiagnostics === undefined ? {} : { onEvent: handlers.pasteDiagnostics }),
       ...(handlers.pastePreparation === undefined ? {} : { preparation: handlers.pastePreparation }),
       ...(handlers.promptImageLimit === undefined ? {} : { imageLimit: handlers.promptImageLimit }) });
@@ -309,8 +307,8 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       customViewport: this.#customViewport,
       cwd,
       ...(agentDir === undefined ? {} : { agentDir }),
-      promptChips: this.#promptChips,
-      editorPointerSelecting: () => this.#viewportController.editorPointerSelecting,
+      promptChips: this.promptChips,
+      editorPointerSelecting: () => this.viewport.editorPointerSelecting,
       nextPasteDiagnosticRequest: () => --this.#pasteDiagnosticId,
       toggleToolsExpanded: () => this.#setToolsExpanded(!this.#toolsExpanded),
     });
@@ -319,19 +317,19 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
       this.#customViewport ? "custom-viewport" : "pinned",
       this.#customViewport ? () => this.editor.keybindingConfig() : undefined,
     );
-    this.#viewportController = new SessionViewportController({
+    this.viewport = new SessionViewportController({
       enabled: this.#customViewport,
       editor: this.editor,
       requestRender: force => this.#componentRuntime.requestRender(force),
       requestHyperlinkCleanup: rows => handlers.requestHyperlinkCleanup?.(rows),
-      hasEditorLinks: () => this.#promptChips.hyperlinkRanges(this.editor.getText()).length > 0,
+      hasEditorLinks: () => this.promptChips.hyperlinkRanges(this.editor.getText()).length > 0,
       ...(handlers.pasteDiagnostics === undefined ? {} : { pasteDiagnostics: handlers.pasteDiagnostics }),
       nextPasteDiagnosticRequest: () => --this.#pasteDiagnosticId,
     });
     this.chrome = new DockChrome({ theme: handlers.presentation.theme, outputPad: handlers.presentation.pinnedOutputPad, components: handlers.components,
       invalidateChrome: () => this.#invalidateChrome(),
       requestRender: () => this.#componentRuntime.requestRender(),
-      viewport: this.#viewportController,
+      viewport: this.viewport,
     });
     this.workflow = new WorkflowOutput({
       customViewport: this.#customViewport, components: handlers.components,
@@ -346,7 +344,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     this.editor.setThinkingLevel(view.thinkingLevel);
     this.#input = new InputSurfaceSwitch(this.editor, {
       dockInputReuse: this.#customViewport && (handlers.enableDockInputReuse ?? true), classifyInput: handlers.presentation.terminalRuntime.classifyInput,
-      viewport: this.#viewportController,
+      viewport: this.viewport,
       ...(handlers.onInputSurfaceChanged === undefined ? {} : { onChanged: handlers.onInputSurfaceChanged }),
     });
     this.#layout = this.#createLayout(handlers.onViewportFrame, createViewportTheme(handlers.presentation.theme));
@@ -383,10 +381,10 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   // Invariant: one layout per root; the render path never consults the layout mode again.
   #createLayout(onFrame: ((frame: TranscriptViewportFrame) => void) | undefined, theme: TranscriptViewportTheme): ShellLayout {
     const ports: ShellLayoutPorts = {
-      viewport: this.#viewportController,
+      viewport: this.viewport,
       input: this.#input,
       editor: this.editor,
-      promptChips: this.#promptChips,
+      promptChips: this.promptChips,
       dockChrome: this.chrome,
       theme,
       ...(onFrame === undefined ? {} : { onFrame }),
@@ -451,49 +449,24 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     this.#invalidateTranscriptPresentation();
   }
 
-  prepareHistoryText(text: string): string {
-    return this.#promptChips.prepareHistoryText(text);
-  }
-
-  omitUnsentPromptImages(text: string): string {
-    return this.#promptChips.omitUnsentImages(text);
-  }
-
-  rehydrateHistoryText(text: string, resolveImage: (id: string) => import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarAttachment | null): string {
-    return this.#promptChips.rehydrateHistoryText(text, resolveImage);
-  }
-
-  imageChipAttachmentsFromEditor(text: string): { readonly id: string; readonly tag: string; readonly image: { readonly type: "image"; readonly data: string; readonly mimeType: string } }[] {
-    return this.#promptChips.imageChipAttachments(text);
-  }
-
-  preparePromptSubmission(text: string): PreparedPrompt {
-    return this.#promptChips.prepareSubmission(text);
-  }
-
   reconcilePromptImageLimitNotice(text: string = this.editor.getText()): boolean {
-    if (this.chrome.notice?.errorCode !== "image-count" || !this.#promptChips.imageLimitState(text).corrected) return false;
+    if (this.chrome.notice?.errorCode !== "image-count" || !this.promptChips.imageLimitState(text).corrected) return false;
     this.chrome.dismissNotice();
     return true;
   }
 
-  hasPendingPastes(text: string): boolean { return this.#promptChips.hasPending(text); }
-
   waitForPromptPastes(text: string, signal: AbortSignal): Promise<PreparedPrompt> {
-    return this.#promptChips.waitForPastes(text, signal, () => this.editor.getText());
+    return this.promptChips.waitForPastes(text, signal, () => this.editor.getText());
   }
 
   resetPendingPastes(): void {
     this.editor.cancelPendingPastes?.();
-    this.editor.setText(this.#promptChips.resetPastes(this.editor.getText()));
+    this.editor.setText(this.promptChips.resetPastes(this.editor.getText()));
   }
-
-  /** Forks the spare paste helper so the first paste of the session takes a live child. */
-  warmPastePreparation(): void { this.#promptChips.warm(); }
 
   disposePendingPastes(): Promise<void> {
     this.resetPendingPastes();
-    return this.#promptChips.dispose();
+    return this.promptChips.dispose();
   }
 
   promptSuggestionPrepareBlockReason(): SuggestionDecision {
@@ -502,7 +475,6 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     if (this.editor.getText().length > 0) return "draft";
     return null;
   }
-
 
   promptSuggestionPresentationBlockReason(): SuggestionDecision {
     const reason = this.promptSuggestionPrepareBlockReason();
@@ -569,19 +541,19 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
   }
 
   viewportFrameDescriptor(): TranscriptViewportFrameDescriptor | null {
-    return this.#viewportController.frame?.descriptor ?? null;
+    return this.viewport.frame?.descriptor ?? null;
   }
 
   /** Read-only, payload-free evidence; observing a pending frame must never render or repair it. */
   viewportPresentationEvidence() {
-    const frame = this.#viewportController.frame;
+    const frame = this.viewport.frame;
     const snapshot = this.#layout.composed();
     return {
       candidate: this.#input.dockInputCandidate,
       candidateRevision: this.#input.dockInputCandidate ? this.#input.dockInputRevision ?? null : null,
-      currentRevision: this.#viewportController.presentationRevision,
+      currentRevision: this.viewport.presentationRevision,
       composedRevision: snapshot?.viewportRevision ?? null,
-      currentPointer: this.#viewportController.pointerPosition ?? null,
+      currentPointer: this.viewport.pointerPosition ?? null,
       composedPointer: snapshot?.pointerPosition ?? null,
       frameId: frame?.descriptor.frameId ?? null,
       bottom: frame?.hits.bottom ?? null,
@@ -594,51 +566,27 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
 
   /** Visible non-persistent Steering, alignment, and Working rows, for rendering evidence. */
   viewportTransientTailRowCount(): number {
-    return this.#viewportController.frame?.hits.transientTail.length ?? 0;
+    return this.viewport.frame?.hits.transientTail.length ?? 0;
   }
 
   hasActiveSelection(): boolean {
-    return this.#viewportController.hasSelection || this.editor.hasSelection();
+    return this.viewport.hasSelection || this.editor.hasSelection();
   }
 
   setViewportConfig(config: OwnedUiViewportSettings): void {
-    if (this.#viewportController.setConfig(config)) {
+    if (this.viewport.setConfig(config)) {
       this.transcript.invalidate("viewport-config");
       this.#layout.invalidate();
     }
   }
 
-  setFullscreenCopyOnSelect(enabled: boolean): void {
-    this.#viewportController.setCopyOnSelect(enabled);
-  }
-
-  resumeViewportFollowing(): void {
-    this.#viewportController.resumeFollowing();
-  }
-
-  noteCompletedAssistantMessage(): void {
-    this.#viewportController.noteCompletedAssistantMessage();
-  }
-
-  resetViewport(): void {
-    this.#viewportController.reset();
-  }
-
-  clearViewportPointerState(): void {
-    this.#viewportController.clearPointerState();
-  }
-
-  setViewportOverlaySurfaces(surfaces: readonly TerminalPointerSurface[] | null): void {
-    this.#viewportController.setOverlaySurfaces(surfaces);
-  }
-
   viewportInputGeometryReady(width: number, height: number): boolean {
-    const frame = this.#viewportController.frame;
-    return this.#viewportController.inputGeometryReady && frame?.descriptor.width === width && frame.descriptor.height === height;
+    const frame = this.viewport.frame;
+    return this.viewport.inputGeometryReady && frame?.descriptor.width === width && frame.descriptor.height === height;
   }
 
   handleViewportPreInput(data: string, allowWheel = true, now = Date.now(), editorActive = this.usesDefaultInputSurface()): SessionViewportInputResult {
-    return this.#viewportController.handlePreInput(data, allowWheel, now, editorActive);
+    return this.viewport.handlePreInput(data, allowWheel, now, editorActive);
   }
 
   #renderDockLayout(width: number): DockLayout {
@@ -844,7 +792,7 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
 
   dispose(): void {
     this.chrome.clearCopyAcknowledgement(false);
-    this.clearViewportPointerState();
+    this.viewport.clearPointerState();
     this.#themeUnsubscribe();
     this.header.dispose?.();
     this.resources.dispose?.();
@@ -957,156 +905,6 @@ function layoutPort(
   };
 }
 
-export function shellResourceEntries(backend: OwnedUiSessionBackend): readonly OwnedUiShellResourceEntry[] {
-  const resources: OwnedUiShellResourceEntry[] = backend.extensions.nonVisualResources().map(resource => ({
-    section: resource.kind === "skill"
-      ? "Skills"
-      : resource.kind === "prompt-template"
-        ? "Prompts"
-        : resource.kind === "theme"
-          ? "Themes"
-          : "Context",
-    label: resource.kind === "prompt-template"
-      ? `/${resource.label}`
-      : resource.kind === "agent-context" || resource.kind === "system-prompt"
-        ? compactResourceLabel(resource.sourcePath ?? resource.label)
-        : resource.label,
-    sourcePath: resource.sourcePath,
-    diagnostic: resource.diagnostic,
-  }));
-  const extensions = backend.extensions.extensionResources().filter(extension => !extension.hidden);
-  const loadedExtensions = extensions.filter(extension => extension.diagnostic === null);
-  const extensionLabels = compactExtensionLabels(loadedExtensions);
-  for (const extension of extensions) {
-    const labelIndex = loadedExtensions.indexOf(extension);
-    resources.push({
-      section: "Extensions",
-      label: extensionLabels[labelIndex] ?? compactResourceLabel(extension.sourcePath ?? extension.resolvedPath ?? "extension"),
-      sourcePath: extension.sourcePath ?? extension.resolvedPath,
-      diagnostic: extension.diagnostic,
-    });
-  }
-  return resources;
-}
-
-function compactResourceLabel(path: string): string {
-  const segments = compactPathSegments(path);
-  const leaf = segments.at(-1) ?? path;
-  if ((leaf === "index.ts" || leaf === "index.js") && segments.length > 1) return segments.at(-2) ?? leaf;
-  return leaf;
-}
-
-/**
- * Pinned from InteractiveMode's compact extension-label helpers at Pi commit
- * 914cf1472e715297caa30db4b9535d534a9eb718. The source metadata crosses an
- * A1-owned boundary first; the owned shell never inspects Pi's private root.
- */
-function compactExtensionLabels(extensions: readonly OwnedUiExtensionResourceSummary[]): readonly string[] {
-  const localExtensions = extensions
-    .filter(extension => !isPackageExtensionSource(extension.sourceInfo))
-    .map(extension => {
-      const path = extension.sourcePath ?? extension.resolvedPath ?? "extension";
-      const segments = compactPathSegments(path);
-      if (segments.length > 1 && (segments.at(-1) === "index.ts" || segments.at(-1) === "index.js")) segments.pop();
-      return { extension, segments };
-    });
-
-  return extensions.map(extension => {
-    const resourcePath = extension.sourcePath ?? extension.resolvedPath ?? "extension";
-    if (isPackageExtensionSource(extension.sourceInfo)) {
-      return compactPackageExtensionLabel(resourcePath, extension.sourceInfo);
-    }
-    const localIndex = localExtensions.findIndex(item => item.extension === extension);
-    const segments = localExtensions[localIndex]?.segments;
-    if (!segments || segments.length === 0) return compactResourceLabel(resourcePath);
-    for (let count = 1; count <= segments.length; count += 1) {
-      const candidate = segments.slice(-count).join("/");
-      if (localExtensions.every((item, itemIndex) => itemIndex === localIndex || item.segments.slice(-count).join("/") !== candidate)) {
-        return candidate;
-      }
-    }
-    return segments.join("/");
-  });
-}
-
-function compactPackageExtensionLabel(resourcePath: string, sourceInfo: OwnedUiExtensionSourceSummary): string {
-  const sourceLabel = compactPackageSourceLabel(sourceInfo.source);
-  if (!sourceLabel) return compactResourceLabel(resourcePath);
-  const shortPath = shortPackagePath(resourcePath, sourceInfo).replaceAll("\\", "/");
-  const packagePath = shortPath.startsWith("extensions/") ? shortPath.slice("extensions/".length) : shortPath;
-  const slash = packagePath.lastIndexOf("/");
-  const fileName = slash < 0 ? packagePath : packagePath.slice(slash + 1);
-  const directory = slash < 0 ? "" : packagePath.slice(0, slash);
-  const extension = fileName.lastIndexOf(".");
-  const name = extension <= 0 ? fileName : fileName.slice(0, extension);
-  if (name === "index") return !directory || directory === "." ? sourceLabel : `${sourceLabel}:${directory}`;
-  return `${sourceLabel}:${packagePath}`;
-}
-
-function compactPackageSourceLabel(source: string): string {
-  if (source.startsWith("npm:")) return source.slice("npm:".length) || source;
-  if (!source.startsWith("git:")) return source;
-  const gitSource = source.slice("git:".length).trim();
-  let repositoryPath: string | undefined;
-  const scpLike = gitSource.match(/^git@[^:]+:(.+)$/);
-  if (scpLike?.[1]) {
-    repositoryPath = scpLike[1];
-  } else if (/^[a-z]+:\/\//i.test(gitSource)) {
-    try {
-      repositoryPath = new URL(gitSource).pathname.replace(/^\/+/, "");
-    } catch {
-      return source;
-    }
-  } else {
-    const slash = gitSource.indexOf("/");
-    if (slash >= 0) repositoryPath = gitSource.slice(slash + 1);
-  }
-  if (!repositoryPath) return source;
-  const ref = repositoryPath.indexOf("@");
-  const withoutRef = ref < 0 ? repositoryPath : repositoryPath.slice(0, ref);
-  return withoutRef.replace(/\.git$/, "") || source;
-}
-
-function shortPackagePath(resourcePath: string, sourceInfo: OwnedUiExtensionSourceSummary): string {
-  const fullPath = normalizeResourcePath(resourcePath);
-  const baseDir = sourceInfo.baseDir === null ? undefined : normalizeResourcePath(sourceInfo.baseDir).replace(/\/$/, "");
-  if (baseDir) {
-    const npmRoot = baseDir.match(/^(.*\/node_modules)\/(@?[^/]+(?:\/[^/]+)?)$/);
-    if (npmRoot?.[1] && fullPath.startsWith(`${npmRoot[1]}/`)) return relativeResourcePath(baseDir, fullPath);
-    if (fullPath === baseDir) return ".";
-    if (fullPath.startsWith(`${baseDir}/`)) return fullPath.slice(baseDir.length + 1);
-  }
-  const npmMatch = fullPath.match(/node_modules\/(@?[^/]+(?:\/[^/]+)?)\/(.*)/);
-  if (npmMatch?.[2] && sourceInfo.source.startsWith("npm:")) return npmMatch[2];
-  const gitMatch = fullPath.match(/git\/[^/]+\/[^/]+\/(.*)/);
-  if (gitMatch?.[1] && sourceInfo.source.startsWith("git:")) return gitMatch[1];
-  return resourcePath;
-}
-
-function relativeResourcePath(from: string, to: string): string {
-  const fromSegments = from.split("/").filter(Boolean);
-  const toSegments = to.split("/").filter(Boolean);
-  let common = 0;
-  while (common < fromSegments.length && common < toSegments.length
-    && fromSegments[common]?.toLowerCase() === toSegments[common]?.toLowerCase()) common += 1;
-  return [...fromSegments.slice(common).map(() => ".."), ...toSegments.slice(common)].join("/") || ".";
-}
-
-function compactPathSegments(path: string): string[] {
-  return normalizeResourcePath(path).split("/").filter(segment => segment.length > 0 && segment !== "~");
-}
-
-function normalizeResourcePath(path: string): string {
-  return path.replaceAll("\\", "/");
-}
-
-function isPackageExtensionSource(sourceInfo: OwnedUiExtensionSourceSummary | null): sourceInfo is OwnedUiExtensionSourceSummary {
-  const source = sourceInfo?.source ?? "";
-  return source.startsWith("npm:") || source.startsWith("git:");
-}
-
-// Performance: one painter set per root keeps identities stable, so the neutral viewport retains row-level
-// selection variants while each callback still resolves the live theme.
 function createViewportTheme(source: ThemeSource): TranscriptViewportTheme {
   return {
   track: text => `${SCROLLBAR_CELL_RESET}${source.current().fg("dim", text)}`,

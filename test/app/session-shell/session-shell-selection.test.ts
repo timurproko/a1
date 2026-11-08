@@ -375,8 +375,8 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     try {
       terminal.resize(60, 14);
       for (const [index, value] of cases.entries()) {
-        shell.root.clearViewportPointerState();
-        shell.root.setFullscreenCopyOnSelect(index === 0);
+        shell.root.viewport.clearPointerState();
+        shell.root.viewport.setCopyOnSelect(index === 0);
         value.show();
         shell.runtime.renderNow(true);
         const rows = shell.root.render(60).map(stripTerminalSequences);
@@ -498,7 +498,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     });
     try {
       terminal.resize(60, 12);
-      shell.root.setFullscreenCopyOnSelect(true);
+      shell.root.viewport.setCopyOnSelect(true);
       const drag = (word: string) => {
         shell.runtime.renderNow();
         const rows = shell.root.render(60).map(stripTerminalSequences);
@@ -774,7 +774,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     try {
       Object.assign(engine.session, { getLastAssistantText: () => answer });
       terminal.resize(60, 12);
-      shell.root.setFullscreenCopyOnSelect(false);
+      shell.root.viewport.setCopyOnSelect(false);
       shell.runtime.renderNow();
       const rows = shell.root.render(60).map(stripTerminalSequences);
       const row = rows.findIndex(line => line.includes(answer)) + 1;
@@ -806,7 +806,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     try {
       terminal.resize(60, 14);
       shell.root.editor.setText("draft input");
-      shell.root.setFullscreenCopyOnSelect(false);
+      shell.root.viewport.setCopyOnSelect(false);
       shell.runtime.renderNow();
       const rows = shell.root.render(60).map(stripTerminalSequences);
       const promptRow = rows.findIndex(row => row.startsWith(" ❯ ask me")) + 1;
@@ -835,7 +835,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       terminal.input("\u0003");
       await vi.waitFor(() => expect(copied.at(-1)).toBe("draft"));
 
-      shell.root.setFullscreenCopyOnSelect(true);
+      shell.root.viewport.setCopyOnSelect(true);
       const footerFrame = shell.root.render(60).map(stripTerminalSequences);
       const statusRow = footerFrame.findIndex(row => row.includes("D:/work")) + 1;
       const statusColumn = footerFrame[statusRow - 1]!.indexOf("D:/work") + 1;
@@ -861,7 +861,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     const { terminal, shell, engine } = await fixture(messages, [], true);
     try {
       terminal.resize(60, 14);
-      shell.root.setFullscreenCopyOnSelect(false);
+      shell.root.viewport.setCopyOnSelect(false);
       shell.runtime.renderNow();
       const initial = shell.root.render(60).map(stripTerminalSequences);
       const sourceRow = initial.findIndex(row => row.includes("surface-anchor-18"));
@@ -1390,7 +1390,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
       const { terminal, shell, engine } = await fixture(messages, [], true);
       try {
         terminal.resize(60, 12);
-        shell.root.setFullscreenCopyOnSelect(false);
+        shell.root.viewport.setCopyOnSelect(false);
         engine.session.emit({ type: "agent_start" });
         await shell.backend.session.flushEvents();
         shell.runtime.renderNow();
@@ -1441,7 +1441,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     const { terminal, shell, engine } = await fixture(messages, [], true);
     try {
       terminal.resize(60, 12);
-      shell.root.setFullscreenCopyOnSelect(false);
+      shell.root.viewport.setCopyOnSelect(false);
       engine.session.emit({ type: "agent_start" });
       await shell.backend.session.flushEvents();
       shell.runtime.renderNow();
@@ -1479,7 +1479,7 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     const { terminal, shell, engine } = await fixture(messages, [], true);
     try {
       terminal.resize(60, 14);
-      shell.root.setFullscreenCopyOnSelect(false);
+      shell.root.viewport.setCopyOnSelect(false);
       engine.session.emit({ type: "agent_start" });
       engine.session.emit({
         type: "message_start",
