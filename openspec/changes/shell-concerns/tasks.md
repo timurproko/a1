@@ -6,7 +6,7 @@
 
 ## 2. Prompt history
 
-- [ ] 2.1 Move the history binding, controller construction and rebinding into `SessionPromptHistory` (`session-prompt-history.ts`) with one controller factory and one `userTexts` helper; the presenter calls `start`, `synchronize`, `rebind` and `close`.
+- [x] 2.1 Move the history binding, controller construction and rebinding into `SessionPromptHistory` (`session-prompt-history.ts`) with one controller factory and one `userTexts` helper; the presenter calls `start`, `synchronize`, `rebind` and `close`.
 
 ## 3. Root
 

@@ -2,7 +2,7 @@ import type { OwnedUiEvent, OwnedUiShellSelectorOption } from "../../contracts/o
 import type { TerminalComponentPort, TerminalInputListenerResult, TerminalInputSurfaceKind, TerminalOverlayHandle, TerminalPointerSurface } from "../../contracts/presentation/index.js";
 import { ShellClipboard } from "./shell-clipboard.js";
 import type { CopyResult } from "./response-copy-protocol.js";
-import { PromptHistoryController } from "./prompt-history-controller.js";
+import { SessionPromptHistory } from "./session-prompt-history.js";
 import { SessionDialogCoordinator } from "./dialog-coordinator.js";
 import { LoginInteraction } from "./login-interaction.js";
 import { PromptSubmission } from "./prompt-submission.js";
@@ -56,7 +56,6 @@ import {
   shellResourceEntries,
   type OwnedUiSessionShellOptions,
   type OwnedUiShellPresentationOptions,
-  type OwnedUiShellHistoryOptions,
   type OwnedUiShellPromptImagesOptions,
   type OwnedUiShellSkillsOptions,
   type PinnedLayoutPart,
@@ -100,8 +99,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #promptImages: OwnedUiShellPromptImagesOptions | null;
   readonly #skills: OwnedUiShellSkillsOptions | null;
   #installedCommandSignature = "";
-  #promptHistory: PromptHistoryController | null = null;
-  #historyBinding: { options: OwnedUiShellHistoryOptions; scope: "unique" | "shared"; sessionId: string | undefined; imageSidecar: import("../../contracts/owned-ui/index.js").PromptHistoryImageSidecarPort | undefined } | undefined;
+  #history: SessionPromptHistory | null = null;
   readonly #extensionBridge: OwnedUiShellExtensionUiBridge;
   readonly #stop = new SessionStopLatch();
   readonly #dialogs: SessionDialogCoordinator;
@@ -212,7 +210,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         },
         onInputSurfaceChanged: () => {
           this.#promptSuggestions?.invalidate();
-          this.#promptHistory?.synchronize();
+          this.#history?.synchronize();
         },
         onCopyText: (text, cut) => {
           const delivery = this.#clipboard.copyText(text);
@@ -306,17 +304,15 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       }, { customViewport: this.#customViewport });
       constructed.push(this.#unbindSessionSettings);
       if (this.#customViewport && promptHistory !== undefined) {
-        this.#historyBinding = { options: promptHistory, scope: promptHistory.scope ?? "unique", sessionId: promptHistory.sessionId, imageSidecar: promptHistory.imageSidecar };
-        this.#promptHistory = new PromptHistoryController({
+        this.#history = new SessionPromptHistory(promptHistory, {
           editor: this.root.editor,
-          store: promptHistory.store,
-          limit: promptHistory.limit,
-          fallback: this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []),
-          active: () => this.root.usesDefaultInputSurface(),
-          render: () => this.#terminal.requestRender(),
-          rehydrate: value => this.root.rehydrateHistoryText(value, id => this.#historyBinding?.imageSidecar?.readAttachment(id) ?? null),
+          usesDefaultInputSurface: () => this.root.usesDefaultInputSurface(),
+          rehydrate: (text, resolveImage) => this.root.rehydrateHistoryText(text, resolveImage),
+          requestRender: () => this.#terminal.requestRender(),
+          transcript: () => this.view().transcript,
+          currentHistorySessionId: () => this.backend.identity.currentHistorySessionId(),
         });
-        constructed.push(() => { void this.#promptHistory?.close().catch(() => false); });
+        constructed.push(() => { void this.#history?.close().catch(() => false); });
       }
       this.#extensionBridge = this.#createExtensionBridge();
       constructed.push(() => this.#extensionBridge.dispose());
@@ -480,7 +476,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     if (this.#started) return;
     this.#started = true;
     this.#terminal.start();
-    this.#promptHistory?.start();
+    this.#history?.start();
     this.#syncTerminalProgress(this.view());
     void this.backend.extensions.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
@@ -761,7 +757,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#submission.cancelWaiting();
     let pasteCleanup = Promise.resolve();
     let historyCleanup = Promise.resolve(true);
-    attempt(() => { historyCleanup = this.#promptHistory?.close() ?? Promise.resolve(true); });
+    attempt(() => { historyCleanup = this.#history?.close() ?? Promise.resolve(true); });
     attempt(() => { pasteCleanup = this.root.disposePendingPastes(); });
     attempt(() => this.root.clearViewportPointerState());
     attempt(() => this.#streamPresentation.dispose());
@@ -843,8 +839,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       root: this.root,
       terminal: this.#terminal,
       cwd, statusText: this.#presenters.components.info.statusText,
-      promptHistory: () => this.#promptHistory,
-      imageSidecar: () => this.#historyBinding?.imageSidecar,
+      promptHistory: () => this.#history?.controller ?? null,
+      imageSidecar: () => this.#history?.imageSidecar,
       disposed: () => this.#disposed,
       correlation: prefix => this.#correlation(prefix),
       lifecycle: () => this.view().lifecycle,
@@ -882,44 +878,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#sessionBindingGeneration = this.backend.identity.sessionBindingGeneration;
       this.root.transcript.reset();
     }
-    const binding = this.#historyBinding;
-    if (binding?.options.forSession !== undefined || binding?.options.forScope !== undefined) {
-      const sessionId = this.backend.identity.currentHistorySessionId();
-      const selectedScope = scope ?? binding.scope;
-      if (selectedScope !== binding.scope || sessionId !== binding.sessionId) {
-        if (!replaced) this.root.editor.recall?.restoreDraft?.();
-        const previous = this.#promptHistory;
-        this.#promptHistory = null;
-        binding.imageSidecar = undefined;
-        binding.scope = selectedScope;
-        binding.sessionId = sessionId ?? undefined;
-        void previous?.close().catch(() => false);
-        const destination = binding.options.forScope !== undefined
-          ? binding.options.forScope(selectedScope, sessionId)
-          : sessionId === null ? null : binding.options.forSession!(sessionId);
-        if (destination !== null) {
-          binding.imageSidecar = destination.imageSidecar;
-          const controller = new PromptHistoryController({
-            editor: this.root.editor,
-            store: destination.store,
-            limit: binding.options.limit,
-            fallback: replaced ? this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []) : [],
-            active: () => this.root.usesDefaultInputSurface(),
-            render: () => this.#terminal.requestRender(),
-            rehydrate: value => this.root.rehydrateHistoryText(value, id => this.#historyBinding?.imageSidecar?.readAttachment(id) ?? null),
-          });
-          this.#promptHistory = controller;
-          if (this.#started) controller.start();
-        } else {
-          // Security: missing identity must not reopen Shared or retain another session's recall.
-          const fallback = replaced ? this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []).reverse() : [];
-          this.root.editor.recall?.reset();
-          this.root.editor.recall?.replace(fallback);
-        }
-        return;
-      }
-    }
-    if (replaced) this.#promptHistory?.reset(this.view().transcript.flatMap(block => block.kind === "user" ? [block.text] : []));
+    this.#history?.rebind(replaced, scope);
   }
 
   #syncTerminalProgress(view: OwnedUiSessionViewModel): void {
