@@ -14,7 +14,7 @@
 
 ## 4. Composition
 
-- [ ] 4.1 Compute the bare-profile settings once in `composeOwnedUi`, build the bare-only ports in one function, and release resources through one ordered list on failure and on dispose.
+- [x] 4.1 Compute the bare-profile settings once in `composeOwnedUi`, build the bare-only ports in one function, and release resources through one ordered list on failure and on dispose.
 
 ## 5. Baselines
 
