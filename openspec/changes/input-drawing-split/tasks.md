@@ -6,7 +6,7 @@
 
 ## 2. Frame composition
 
-- [ ] 2.1 Split `TranscriptViewport.compose` into named phases, with tail layout, the floating control, the descriptor and the hit regions as module functions and the four row caches in `ViewportRowCaches` (`transcript-viewport-frame.ts`).
+- [x] 2.1 Split `TranscriptViewport.compose` into named phases, with tail layout, the floating control, the descriptor and the hit regions as module functions and the four row caches in `ViewportRowCaches` (`transcript-viewport-frame.ts`).
 
 ## 3. Editor paste framing
 
