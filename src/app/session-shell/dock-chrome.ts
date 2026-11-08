@@ -2,7 +2,8 @@ import type { ImageAttachmentError, OwnedUiSessionViewModel, OwnedUiShellCompone
 import type { ThemeSource } from "../../contracts/presentation/index.js";
 import { COPY_ACKNOWLEDGEMENT_DURATION_MS } from "../../ui/components/selection-copy.js";
 import type { TranscriptViewportFrame } from "../../ui/components/transcript-viewport.js";
-import type { SessionViewportController, TailControlRegion } from "./session-viewport-controller.js";
+import type { SessionViewportController } from "./session-viewport-controller.js";
+import type { TailControlRegion } from "./viewport-pointer.js";
 import { parseReleaseUpdateDiagnostic } from "./transcript-document.js";
 
 // Invariant: the notice is dock chrome, never transcript content; the custom viewport alone uses it.

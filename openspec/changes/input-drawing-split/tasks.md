@@ -2,7 +2,7 @@
 
 ## 1. Viewport pointer gestures
 
-- [ ] 1.1 Move the gesture latches and the motion, wheel, press and release handling into `ViewportPointerGestures` (`viewport-pointer.ts`); `handlePreInput` keeps the keyboard shortcuts and combines per-report outcomes.
+- [x] 1.1 Move the gesture latches and the motion, wheel, press and release handling into `ViewportPointerGestures` (`viewport-pointer.ts`); `handlePreInput` keeps the keyboard shortcuts and combines per-report outcomes.
 
 ## 2. Frame composition
 
