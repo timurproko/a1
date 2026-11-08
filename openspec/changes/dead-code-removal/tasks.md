@@ -12,7 +12,7 @@
 
 ## 3. Owned-UI validation exports
 
-- [ ] 3.1 Export only the validators production calls from `validation.ts` and the contracts entry; make the others private or delete them; move their test cases onto the exported validators.
+- [x] 3.1 Export only the validators production calls from `validation.ts` and the contracts entry; make the others private or delete them; move their test cases onto the exported validators.
 
 ## 4. Scripts
 

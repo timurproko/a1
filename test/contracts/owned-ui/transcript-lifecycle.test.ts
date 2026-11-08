@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { acceptsTranscriptUpdate, assertOwnedUiTranscriptBlock, type OwnedUiToolState, type OwnedUiTranscriptBlock } from "../../../src/contracts/owned-ui/index.js";
+import { assertTranscriptBlock } from "../../support/owned-ui-contract-fixtures.js";
+import { acceptsTranscriptUpdate, type OwnedUiToolState, type OwnedUiTranscriptBlock } from "../../../src/contracts/owned-ui/index.js";
 
 function block(execution: OwnedUiToolState["execution"], argsComplete: boolean, revision: number): OwnedUiTranscriptBlock {
   const live = execution === "pending" || execution === "running";
@@ -12,10 +13,10 @@ describe("owned user presentation", () => {
     title: "User", text: "stored", payload: null });
 
   it("accepts display-only text only on user blocks", () => {
-    expect(() => assertOwnedUiTranscriptBlock({ ...user(), userPresentation: {
+    expect(() => assertTranscriptBlock({ ...user(), userPresentation: {
       visibleText: "visible",
     } })).not.toThrow();
-    expect(() => assertOwnedUiTranscriptBlock({ ...user(), kind: "assistant", userPresentation: {
+    expect(() => assertTranscriptBlock({ ...user(), kind: "assistant", userPresentation: {
       visibleText: "visible",
     } })).toThrow("requires a user block");
   });
@@ -25,11 +26,11 @@ describe("owned tool lifecycle", () => {
   it("validates argument completion independently of execution completion", () => {
     for (const state of [block("pending", false, 1), block("pending", true, 2), block("running", true, 3),
       block("succeeded", true, 4), block("failed", true, 4), block("aborted", false, 4)]) {
-      expect(() => assertOwnedUiTranscriptBlock(state)).not.toThrow();
+      expect(() => assertTranscriptBlock(state)).not.toThrow();
     }
-    expect(() => assertOwnedUiTranscriptBlock({ ...block("pending", true, 2), status: "finalized" })).toThrow("finality");
-    expect(() => assertOwnedUiTranscriptBlock({ ...block("succeeded", true, 4), status: "live" })).toThrow("finality");
-    expect(() => assertOwnedUiTranscriptBlock({ ...block("succeeded", true, 4), kind: "assistant" })).toThrow("requires a tool");
+    expect(() => assertTranscriptBlock({ ...block("pending", true, 2), status: "finalized" })).toThrow("finality");
+    expect(() => assertTranscriptBlock({ ...block("succeeded", true, 4), status: "live" })).toThrow("finality");
+    expect(() => assertTranscriptBlock({ ...block("succeeded", true, 4), kind: "assistant" })).toThrow("requires a tool");
   });
 
   it("allows later phases while rejecting stale revisions and phase regressions", () => {

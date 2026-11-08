@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { assertOwnedUiTranscriptBlock, type OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
+import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
+import { assertTranscriptBlock } from "../../../support/owned-ui-contract-fixtures.js";
 import { toolRenderingInput } from "../../../../src/integrations/pi/engine/tool-rendering.js";
 
 const payload = { toolCallId: "test", toolName: "test", isError: false };
@@ -26,7 +27,7 @@ describe("bounded authoritative tool rendering data", () => {
     ]);
     values[0]!.index = -1;
     expect(result.toolRendering.result?.details).not.toEqual({ values, deep });
-    expect(() => assertOwnedUiTranscriptBlock(block(result))).not.toThrow();
+    expect(() => assertTranscriptBlock(block(result))).not.toThrow();
   });
 
   it.each(["x".repeat(70 * 1024), { invalid: () => {} }, 1n, Number.NaN])("shows a bounded fallback for unsupported/oversized metadata", details => {
@@ -35,7 +36,7 @@ describe("bounded authoritative tool rendering data", () => {
     expect(result.toolRendering.arguments).toEqual({ path: "valid" });
     expect(result.toolRendering.unavailable).toContain("Tool details unavailable");
     expect(result.toolRendering.result?.details).toBeUndefined();
-    expect(() => assertOwnedUiTranscriptBlock(block(result))).not.toThrow();
+    expect(() => assertTranscriptBlock(block(result))).not.toThrow();
   });
 
   it("rejects cycles without losing supported output", () => {
@@ -44,7 +45,7 @@ describe("bounded authoritative tool rendering data", () => {
     expect(result.toolRendering.unavailable).toContain("Tool arguments unavailable");
     expect(result.toolRendering.unavailable).toContain("Tool details unavailable");
     expect(result.text).toBe("KEEP_RESULT");
-    expect(() => assertOwnedUiTranscriptBlock(block(result))).not.toThrow();
+    expect(() => assertTranscriptBlock(block(result))).not.toThrow();
   });
 
   it("keeps the combined diagnostic/rendering metadata within the existing 64 KiB budget", () => {
@@ -54,7 +55,7 @@ describe("bounded authoritative tool rendering data", () => {
       payload: largePayload, image: () => undefined });
     expect(result.toolRendering.result?.details).toBeUndefined();
     expect(result.toolRendering.arguments).toEqual({ value: "a".repeat(25 * 1024) });
-    expect(() => assertOwnedUiTranscriptBlock({ ...block(result), payload: largePayload })).not.toThrow();
+    expect(() => assertTranscriptBlock({ ...block(result), payload: largePayload })).not.toThrow();
   });
 
   it("does not serialize accumulated text or the raw result on partial or final conversion", () => {
@@ -76,14 +77,14 @@ describe("bounded authoritative tool rendering data", () => {
     expect(result.text).toBe("KEEP_SMALL_RESULT");
     expect(result.toolRendering.unavailable).toContain("Tool text unavailable");
     expect(result.toolRendering.result?.details).toEqual({ outcome: "success" });
-    expect(() => assertOwnedUiTranscriptBlock(block(result))).not.toThrow();
+    expect(() => assertTranscriptBlock(block(result))).not.toThrow();
   });
 
   it("enforces the combined UTF-8 text budget including content separators", () => {
     const result = prepare({}, { content: [{ type: "text", text: "x".repeat(256 * 1024) }, { type: "text", text: "" }] });
     expect(result.text.length).toBe(256 * 1024);
     expect(result.toolRendering.unavailable).toContain("Tool text unavailable");
-    expect(() => assertOwnedUiTranscriptBlock(block(result))).not.toThrow();
+    expect(() => assertTranscriptBlock(block(result))).not.toThrow();
   });
 
   it("declares excessive content boundaries while keeping their supported text", () => {
@@ -94,7 +95,7 @@ describe("bounded authoritative tool rendering data", () => {
       const result = prepare({}, { content: texts.map(text => ({ type: "text", text })) });
       expect(result.text).toBe(texts.join("\n"));
       expect(result.toolRendering.unavailable).toContain("Tool content boundaries unavailable");
-      expect(() => assertOwnedUiTranscriptBlock(block(result))).not.toThrow();
+      expect(() => assertTranscriptBlock(block(result))).not.toThrow();
       for (const [input] of stringify.mock.calls) {
         const encoded = (input as { toolRendering?: { result?: { content: unknown[] } } } | null)?.toolRendering?.result?.content;
         if (encoded !== undefined) expect(Buffer.byteLength(encode(encoded))).toBeLessThanOrEqual(64 * 1024);
@@ -105,18 +106,18 @@ describe("bounded authoritative tool rendering data", () => {
   it.each([null, {}, 17])("declares malformed result content instead of silently omitting it", result => {
     const prepared = prepare({}, result);
     expect(prepared.toolRendering.unavailable).toContain("malformed result");
-    expect(() => assertOwnedUiTranscriptBlock(block(prepared))).not.toThrow();
+    expect(() => assertTranscriptBlock(block(prepared))).not.toThrow();
   });
 
   it("validates references and charges renderer fields to the payload budget", () => {
     const value = block(prepare({}, { content: [{ type: "text", text: "abc" }] }));
-    expect(() => assertOwnedUiTranscriptBlock({ ...value, toolRendering: { arguments: {}, result: {
+    expect(() => assertTranscriptBlock({ ...value, toolRendering: { arguments: {}, result: {
       content: [{ type: "text", start: 0, end: 4 }],
     } } })).toThrow("text end");
-    expect(() => assertOwnedUiTranscriptBlock({ ...value, toolRendering: { arguments: {}, result: {
+    expect(() => assertTranscriptBlock({ ...value, toolRendering: { arguments: {}, result: {
       content: [{ type: "image", imageIndex: 0 }],
     } } })).toThrow("image index");
-    expect(() => assertOwnedUiTranscriptBlock({ ...value, kind: "assistant" })).toThrow("requires a tool block");
-    expect(() => assertOwnedUiTranscriptBlock({ ...value, toolRendering: { arguments: "x".repeat(64 * 1024) } })).toThrow("byte limit");
+    expect(() => assertTranscriptBlock({ ...value, kind: "assistant" })).toThrow("requires a tool block");
+    expect(() => assertTranscriptBlock({ ...value, toolRendering: { arguments: "x".repeat(64 * 1024) } })).toThrow("byte limit");
   });
 });
