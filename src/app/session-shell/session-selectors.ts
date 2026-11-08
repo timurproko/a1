@@ -101,8 +101,7 @@ export class SessionSelectors implements WorkflowSelectors {
       });
       if (this.#ports.disposed()) return;
       this.#root.setFooterLevel(false);
-      this.#root.setInputSurface(component);
-      this.#terminal.requestRender();
+      this.#present(component);
     } finally {
       releasePresentation?.();
     }
@@ -119,8 +118,7 @@ export class SessionSelectors implements WorkflowSelectors {
       },
       onCancel: close,
     });
-    this.#root.setInputSurface(component);
-    this.#terminal.requestRender();
+    this.#present(component);
   }
 
   showModelSelector(initialSearchInput?: string): void {
@@ -139,8 +137,7 @@ export class SessionSelectors implements WorkflowSelectors {
       close();
       void this.#ports.runWorkflow({ command: "fork", argument: "", selection });
     }, close);
-    this.#root.setInputSurface(component);
-    this.#terminal.requestRender();
+    this.#present(component);
   }
 
   async showLogoutSelector(): Promise<void> {
@@ -166,8 +163,7 @@ export class SessionSelectors implements WorkflowSelectors {
       close();
       void this.#ports.runWorkflow({ command: "logout", argument: "", selection });
     }, close);
-    this.#root.setInputSurface(component);
-    this.#terminal.requestRender();
+    this.#present(component);
   }
 
   showLoginMethodSelector(providerReference: string): void {
@@ -189,8 +185,7 @@ export class SessionSelectors implements WorkflowSelectors {
       close();
       void this.#ports.runWorkflow({ command: "login", argument: "", selection });
     }, close);
-    this.#root.setInputSurface(component);
-    this.#terminal.requestRender();
+    this.#present(component);
   }
 
   showTreeSelector(initialSelectedId?: string): Promise<void> {
@@ -211,8 +206,7 @@ export class SessionSelectors implements WorkflowSelectors {
       },
       close,
     );
-    this.#root.setInputSurface(component);
-    this.#terminal.requestRender();
+    this.#present(component);
   }
 
   showLoginProviderSelector(authType?: "oauth" | "api_key", initialSearchInput?: string): void {
@@ -230,8 +224,7 @@ export class SessionSelectors implements WorkflowSelectors {
       close();
       if (authType !== undefined) this.showLoginAuthTypeSelector();
     }, initialSearchInput);
-    this.#root.setInputSurface(component);
-    this.#terminal.requestRender();
+    this.#present(component);
   }
 
   showSessionSelector(): Promise<void> {
@@ -260,8 +253,7 @@ export class SessionSelectors implements WorkflowSelectors {
       },
       onCancel: close,
     });
-    this.#root.setInputSurface(component);
-    this.#terminal.requestRender();
+    this.#present(component);
   }
 
   showScopedModelsSelector(): void {
@@ -315,5 +307,11 @@ export class SessionSelectors implements WorkflowSelectors {
       },
     });
     if (result.diagnostic === "Branch summarization cancelled") await this.showTreeSelector(entryId);
+  }
+
+  // Invariant: a selector replaces the editor in the input dock and paints in the same frame.
+  #present(component: Parameters<SessionSelectorPorts["root"]["setInputSurface"]>[0]): void {
+    this.#root.setInputSurface(component);
+    this.#terminal.requestRender();
   }
 }
