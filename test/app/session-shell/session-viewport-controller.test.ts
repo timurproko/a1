@@ -181,6 +181,25 @@ describe("session viewport interaction controller", () => {
     } finally { target.clearPointerState(); }
   });
 
+  it("keeps a rail-origin drag latched to the rail when it crosses the transcript and is released over the editor", () => {
+    const handlePointer = vi.fn(() => true);
+    const target = new SessionViewportController({ enabled: true, editor: editor({ handlePointer }), requestRender() {} });
+    try {
+      target.setConfig({ scrollbarAppearance: "always", scrollbarStyle: "thin", scrollbarSpeed: "normal" });
+      const source = { documentRows: Array.from({ length: 30 }, (_row, index) => `row-${index}`), dockRows: ["prompt"], promptAnchors: [], width: 40, height: 8 };
+      const rail = target.compose(source).hits.rail!;
+      target.setEditorPointerFrame({ rowStart: 8, rowEnd: 8 });
+      const thumbRow = rail.rowStart + rail.geometry.thumbTop;
+      target.handlePreInput(`\u001b[<0;40;${thumbRow}M\u001b[<32;5;3M\u001b[<32;5;8M\u001b[<0;5;8m`, true, 1000);
+      expect(handlePointer).not.toHaveBeenCalled();
+      expect(target.hasSelection).toBe(false);
+      const released = target.compose(source).scrollTop;
+      target.handlePreInput("\u001b[<32;5;2M", true, 1100);
+      expect(target.compose(source).scrollTop).toBe(released);
+      expect(handlePointer).not.toHaveBeenCalled();
+    } finally { target.clearPointerState(); }
+  });
+
   it("admits the real first Ctrl+V once and records keyboard and right-click routing without payloads", () => {
     const order: string[] = [];
     const phases: Array<{ request: number; phase: string }> = [];

@@ -1,14 +1,25 @@
 import { MAX_COPY_SOURCE_UNITS, selectionCopyLineContent, type SelectionCopySnapshot } from "./selection-copy.js";
+import type {
+  TranscriptPromptAnchor,
+  TranscriptViewportConfig,
+  TranscriptViewportTheme,
+  TranscriptViewportFrameInput,
+  TranscriptViewportFrameDescriptor,
+  TranscriptViewportFrame,
+} from "./transcript-viewport-types.js";
+import { faint, truncateToWidth, stripAnsi } from "./text.js";
 import {
-  isThumbRow,
-  scrollbarGeometry,
-  scrollbarPresentation,
-  type ScrollbarAppearance,
-  type ScrollbarGeometry,
-  type ScrollbarStyle,
-} from "./scrollbar.js";
-import { overlaySpan } from "./spans.js";
-import { faint, truncateToWidth, displayWidth, stripAnsi } from "./text.js";
+  alignTailRows,
+  frameDescriptor,
+  hitRegions,
+  layoutScrollbar,
+  maskSelectionRows,
+  placeBottomControl,
+  sameRectangle,
+  VIEWPORT_PROMPT_ZONES,
+  ViewportRowCaches,
+  type FrameRowPaint,
+} from "./transcript-viewport-frame.js";
 import {
   extendTextSelection,
   orderedTextSelection,
@@ -25,144 +36,16 @@ import {
   type TextSelectionPoint,
 } from "./text-selection.js";
 
-export interface TranscriptPromptAnchor {
-  readonly id: string;
-  readonly firstRow: number;
-  readonly lastRow: number;
-  /** The source first row, including its submitted-prompt styling. */
-  readonly sourceRow: string;
-  /** Optional source-styled row used only while prominent and not hovered. */
-  readonly prominentSourceRow?: string;
-}
+export type {
+  TranscriptPromptAnchor,
+  TranscriptViewportConfig,
+  TranscriptViewportTheme,
+  TranscriptViewportFrameInput,
+  TranscriptViewportHitRegions,
+  TranscriptViewportFrameDescriptor,
+  TranscriptViewportFrame,
+} from "./transcript-viewport-types.js";
 
-export interface TranscriptViewportConfig {
-  readonly scrollbarAppearance: ScrollbarAppearance;
-  readonly scrollbarStyle: ScrollbarStyle;
-}
-
-export interface TranscriptViewportTheme {
-  readonly track: (text: string) => string;
-  readonly thumb: (text: string, active: boolean) => string;
-  readonly sticky: (text: string, hovered: boolean) => string;
-  readonly quietSticky: (text: string) => string;
-  readonly bottomControl: (text: string, hovered: boolean) => string;
-  readonly selection: (line: string, from: number, to: number) => string;
-}
-
-export interface TranscriptViewportFrameInput {
-  readonly documentRows: readonly string[];
-  /** Optional paint-only transform; semantic selection and copying keep documentRows exact. */
-  readonly paintDocumentRow?: (row: string) => string;
-  /** Leading persistent document rows; later transient rows remain selectable visible-frame content. */
-  readonly selectableDocumentRowCount?: number;
-  /**
-   * First document row owned by the block that is currently streaming, if any. Rows from
-   * here to the end of the selectable document reflow together whenever that block
-   * re-renders, so the frame can declare how much damage is legitimately its own.
-   */
-  readonly liveTailStartRow?: number;
-  /** Final transient rows to bottom-align with unused viewport space while content fits. */
-  readonly bottomAlignedTailRowCount?: number;
-  readonly dockRows: readonly string[];
-  /** Zero-based dock rows admitted to frame copying, classified before dock composition. */
-  readonly copyableDockRows?: readonly {
-    readonly row: number;
-    readonly prompt?: "first" | "continuation";
-  }[];
-  readonly promptAnchors: readonly TranscriptPromptAnchor[];
-  readonly width: number;
-  readonly height: number;
-  /**
-   * Optional zero-based terminal row for the floating bottom control. The shell
-   * supplies a stable anchor above its editor group so transient status and
-   * notification rows cannot make the control jump vertically.
-   */
-  readonly bottomControlRow?: number;
-  /** Latest reported one-based terminal coordinates; bottom hover uses this frame's hit region. */
-  readonly pointerPosition?: { readonly column: number; readonly row: number };
-  /** Base-frame cells hidden by modal/replacement surfaces and therefore excluded from visual copy. */
-  readonly coveredCells?: readonly {
-    readonly row: number;
-    readonly columnStart: number;
-    readonly columnEnd: number;
-  }[];
-  /** Transient paint-only text that must not participate in frame allocation or copying. */
-  readonly frameOverlay?: {
-    /** One-based terminal row. */
-    readonly row: number;
-    readonly text: string;
-  };
-  readonly now?: number;
-  readonly theme?: TranscriptViewportTheme;
-}
-
-export interface TranscriptViewportHitRegions {
-  readonly viewportHeight: number;
-  readonly rail: {
-    readonly column: number;
-    /** One-based terminal row. The one-row top inset is intentionally excluded. */
-    readonly rowStart: number;
-    readonly trackHeight: number;
-    readonly geometry: ScrollbarGeometry;
-  } | null;
-  readonly sticky: { readonly row: number; readonly target: number; readonly width: number } | null;
-  readonly bottom: { readonly row: number; readonly columnStart: number; readonly columnEnd: number } | null;
-  /** Transient non-persistent document-tail rows currently visible in the viewport. */
-  readonly transientTail: readonly number[];
-}
-
-export interface TranscriptViewportFrameDescriptor {
-  readonly frameId: number;
-  readonly width: number;
-  readonly height: number;
-  readonly transcript: { readonly rowStart: number; readonly rowEnd: number } | null;
-  readonly dock: { readonly rowStart: number; readonly rowEnd: number } | null;
-  readonly previousDocumentRange: { readonly start: number; readonly end: number } | null;
-  readonly nextDocumentRange: { readonly start: number; readonly end: number };
-  readonly previousFollowingEnd: boolean | null;
-  readonly followingEnd: boolean;
-  /** Complete non-persistent suffix, including pending steering, alignment, and status rows. */
-  readonly transientRowCount: number;
-  /** Flexible rows inserted before the bottom-aligned live status while content fits. */
-  readonly transientAlignmentGapRows: number;
-  /** Bottom-aligned transient rows. */
-  readonly bottomAlignedTailRowCount: number;
-  /** Visible rows owned by the currently streaming transcript block. */
-  readonly liveTailRows: number;
-  readonly verticalShiftRows: number;
-  readonly safeVerticalShift: boolean;
-  /** Monotonic interaction revision used to reject stale selection evidence. */
-  readonly selectionRevision: number;
-  /** One-based terminal rows whose source or normalized selection range changed. */
-  readonly selectionDamagedRows: readonly number[];
-  readonly cause: "initial" | "steady" | "dock-input" | "follow-shift" | "detached" | "geometry-change";
-}
-
-export interface TranscriptViewportFrame {
-  readonly rows: readonly string[];
-  readonly contentWidth: number;
-  readonly scrollTop: number;
-  readonly maxScroll: number;
-  readonly followingEnd: boolean;
-  readonly hits: TranscriptViewportHitRegions;
-  readonly descriptor: TranscriptViewportFrameDescriptor;
-  /** Deterministic evidence for bounded selection-only row composition. */
-  readonly selectionDamage: {
-    readonly revision: number;
-    readonly recomputedRows: readonly number[];
-    readonly reusedRows: readonly number[];
-    readonly cacheEntries: number;
-  };
-}
-
-const CONTROL_STYLE_RESET = "\u001b]8;;\u001b\\\u001b[0m";
-// Protocol: upstream OSC 133 zones are layout annotations, not fullscreen cursor commands.
-// Styling/padding can move them away from the row prefix Pi strips; 133;A then advances a real
-// terminal parser to a fresh line. The custom viewport owns prompt anchors separately.
-const VIEWPORT_PROMPT_ZONES = /\u001b\]133;[ABC](?:\u0007|\u001b\\)/gu;
-// Invariant: scrollbar chrome closes source links and decoration without clearing
-// the row surface painted beneath its dedicated, non-semantic gutter.
-const GUTTER_DECORATION_RESET = "\u001b]8;;\u001b\\\u001b[22;23;24;25;27;28;29;39;54;55m";
 const IDENTITY_ROW = (row: string): string => row;
 
 type DocumentSelectionRowAnchor = {
@@ -252,12 +135,7 @@ export class TranscriptViewport {
   #copyableSelection = false;
   // Invariant: exact unselected rows cover the latest visible base frame and dock.
   #selectionRows: readonly string[] = [];
-  readonly #paintedRowCache = new Map<string, string>();
-  readonly #baseRowCache = new Map<string, string>();
-  readonly #selectedRowCache = new Map<string, string>();
-  readonly #finalRowCache = new Map<string, string>();
-  readonly #functionIds = new WeakMap<Function, number>();
-  #nextFunctionId = 1;
+  readonly #rowCaches = new ViewportRowCaches();
   #previousVisibleStates: readonly string[] = [];
   #documentRows: readonly string[] = [];
   #selectableDocumentRowCount = 0;
@@ -561,10 +439,7 @@ export class TranscriptViewport {
     this.#selectionRows = [];
     this.#selectionRowAnchors = [];
     this.#selectionClick = undefined;
-    this.#paintedRowCache.clear();
-    this.#baseRowCache.clear();
-    this.#selectedRowCache.clear();
-    this.#finalRowCache.clear();
+    this.#rowCaches.clear();
     this.#previousVisibleStates = [];
     this.#documentRows = [];
     this.#selectableDocumentRowCount = 0;
@@ -593,51 +468,19 @@ export class TranscriptViewport {
     const dock = input.dockRows.length > height ? input.dockRows.slice(-height) : [...input.dockRows];
     this.#copyableDockRows = copyableDockRowsBySuffix(input.dockRows, input.copyableDockRows);
     const viewportHeight = Math.max(0, height - dock.length);
-    const bottomAlignedTailRowCount = clamp(
-      input.bottomAlignedTailRowCount ?? 0,
-      0,
-      input.documentRows.length,
-    );
-    const transientAlignmentGapRows = bottomAlignedTailRowCount > 0
-      ? Math.max(0, viewportHeight - input.documentRows.length)
-      : 0;
-    const tailStart = input.documentRows.length - bottomAlignedTailRowCount;
-    const documentRows = transientAlignmentGapRows === 0
-      ? input.documentRows
-      : [
-          ...input.documentRows.slice(0, tailStart),
-          ...Array.from({ length: transientAlignmentGapRows }, () => ""),
-          ...input.documentRows.slice(tailStart),
-        ];
+    const { documentRows, bottomAlignedTailRowCount, transientAlignmentGapRows } = alignTailRows(input.documentRows, input.bottomAlignedTailRowCount, viewportHeight);
     this.#maxScroll = Math.max(0, documentRows.length - viewportHeight);
     if (this.#followingEnd) this.#scrollTop = this.#maxScroll;
     else this.#scrollTop = clamp(this.#scrollTop, 0, this.#maxScroll);
     if (this.#scrollTop >= this.#maxScroll) this.#followingEnd = true;
     if (this.#followingEnd) this.#newMessages = 0;
-
-    const geometry = scrollbarGeometry({
-      contentLength: documentRows.length,
-      viewportHeight,
-      scroll: this.#scrollTop,
-      // Invariant: the rail keeps its top gap; the shell owns the spacing above the dock.
-      trackHeight: Math.max(0, viewportHeight - 1),
-    });
-    const presentation = scrollbarPresentation({
-      geometry,
-      appearance: this.#config.scrollbarAppearance,
-      style: this.#config.scrollbarStyle,
-      hovered: this.#railHovered,
-      dragging: this.#railDragging,
-      activeUntil: this.#activeUntil,
-      now: input.now ?? Date.now(),
+    const { geometry, presentation } = layoutScrollbar({
+      contentLength: documentRows.length, viewportHeight, scroll: this.#scrollTop, config: this.#config,
+      hovered: this.#railHovered, dragging: this.#railDragging, activeUntil: this.#activeUntil, now: input.now ?? Date.now(),
     });
     const contentWidth = presentation.reservesSpace ? Math.max(1, width - 1) : width;
     this.#documentRows = documentRows;
-    this.#selectableDocumentRowCount = clamp(
-      input.selectableDocumentRowCount ?? input.documentRows.length,
-      0,
-      input.documentRows.length,
-    );
+    this.#selectableDocumentRowCount = clamp(input.selectableDocumentRowCount ?? input.documentRows.length, 0, input.documentRows.length);
     this.#liveTailStartRow = input.liveTailStartRow === undefined || !Number.isSafeInteger(input.liveTailStartRow)
       ? undefined
       : clamp(input.liveTailStartRow, 0, this.#selectableDocumentRowCount);
@@ -647,273 +490,57 @@ export class TranscriptViewport {
     // use contentWidth and leave the gutter outside semantic selection.
     this.#selectionWidth = width;
     this.#viewportHeight = viewportHeight;
-    const paintDocumentRow = input.paintDocumentRow ?? IDENTITY_ROW;
     const cacheLimit = Math.max(32, viewportHeight * 6);
-    trimCache(this.#paintedRowCache, cacheLimit);
-    trimCache(this.#baseRowCache, cacheLimit);
-    trimCache(this.#selectedRowCache, cacheLimit);
-    trimCache(this.#finalRowCache, cacheLimit);
-    const paintId = this.#functionId(paintDocumentRow);
-    const paintRecomputedRows = new Set<number>();
-    const visibleSource = documentRows.slice(this.#scrollTop, this.#scrollTop + viewportHeight);
-    while (visibleSource.length < viewportHeight) visibleSource.push("");
-    const visible = visibleSource.map((row, index) => {
-      const painted = cachedString(this.#paintedRowCache, `${paintId}\u0000${row}`, cacheLimit, () => paintDocumentRow(row));
-      if (!painted.reused) paintRecomputedRows.add(index);
-      return painted.value;
-    });
-
-    const governing = governingPrompt(input.promptAnchors, this.#scrollTop);
-    const stickyActive = governing !== null && governing.firstRow < this.#scrollTop;
-    if (stickyActive && visible.length > 0) {
-      const quiet = this.#scrollTop > governing.lastRow;
-      // Compatibility: only non-hovered prominent rows may retain source metadata roles.
-      // Quiet and hover keep the established full-row styling; anchors without a
-      // variant retain their existing presentation in every state.
-      const sourceRow = !quiet && !this.#stickyHovered
-        ? governing.prominentSourceRow ?? governing.sourceRow
-        : governing.sourceRow;
-      const source = cachedString(
-        this.#paintedRowCache,
-        `${paintId}\u0000${sourceRow}`,
-        cacheLimit,
-        () => paintDocumentRow(sourceRow),
-      );
-      if (!source.reused) paintRecomputedRows.add(0);
-      const sticky = theme.sticky(source.value, this.#stickyHovered);
-      visible[0] = quiet && !this.#stickyHovered ? theme.quietSticky(sticky) : sticky;
-      visibleSource[0] = sourceRow;
-    }
-
-    this.#selectionRows = [
-      ...visibleSource.map(row => truncateToWidth(row, contentWidth)),
-      ...dock,
-    ].slice(0, height);
-    const visibleAnchors: SelectionRowAnchor[] = Array.from({ length: viewportHeight }, (_value, row) => {
-      const documentRow = this.#scrollTop + row;
-      return documentRow < documentRows.length
-        ? viewportSelectionAnchor(
-            documentRow,
-            documentRows[documentRow] ?? "",
-            this.#selectableDocumentRowCount,
-            documentRows.length,
-          )
-        : { kind: "screen", row, source: this.#selectionRows[row] ?? "" };
-    });
-    this.#firstSelectableRow = stickyActive && viewportHeight > 0 ? 1 : 0;
+    this.#rowCaches.trim(cacheLimit);
+    const { visible, visibleSource, paintRecomputedRows, governing } = this.#paintVisibleRows(input, theme, cacheLimit);
+    this.#selectionRows = [...visibleSource.map(row => truncateToWidth(row, contentWidth)), ...dock].slice(0, height);
+    this.#firstSelectableRow = governing !== null && viewportHeight > 0 ? 1 : 0;
     this.#selectionRowAnchors = [
-      ...visibleAnchors,
+      ...visibleSelectionAnchors(documentRows, this.#scrollTop, viewportHeight, this.#selectableDocumentRowCount, this.#selectionRows),
       ...dock.map((_row, index): SelectionRowAnchor => ({ kind: "dock", fromBottom: dock.length - index - 1 })),
     ].slice(0, height);
     this.#projectSelection(documentRows, dock, height);
-    const selectionPainterId = this.#functionId(theme.selection);
     // Concurrency: a painter may synchronously route input in tests or host integrations.
     // Label this frame with the exact selection snapshot it began composing.
     const composingSelectionRevision = this.#selectionRevision;
     const orderedSelection = this.#visibleSelection();
+    const frameRows = [...visible, ...dock].slice(0, height);
+    const control = placeBottomControl({
+      detached: this.#maxScroll > 0 && !this.#followingEnd, newMessages: this.#newMessages, contentWidth, viewportHeight,
+      frameRowCount: frameRows.length, anchorRow: input.bottomControlRow, pointer: input.pointerPosition, theme,
+    });
+    this.#selectionRows = maskSelectionRows(this.#selectionRows, width, control, input.coveredCells);
+    this.#updateCopyableSelection();
+    const rowPaint: FrameRowPaint = {
+      width, contentWidth, viewportHeight, cacheLimit, theme, selectionPainterId: this.#rowCaches.functionId(theme.selection),
+      geometry, presentation, railActive: this.#railHovered || this.#railDragging, overlay: input.frameOverlay, control,
+    };
     const recomputedRows: number[] = [];
     const reusedRows: number[] = [];
     const selectionDamagedRows: number[] = [];
     const visibleStates: string[] = [];
-    const frameRows = [...visible, ...dock].slice(0, height);
-    const selectionRows = [...this.#selectionRows];
-    let bottomHit: TranscriptViewportHitRegions["bottom"] = null;
-    let control: { readonly row: number; readonly left: number; readonly text: string } | undefined;
-    if (this.#maxScroll > 0 && !this.#followingEnd && frameRows.length > 0) {
-      const genericLabel = " Jump to bottom (Ctrl+End) ↓ ";
-      const countedLabel = this.#newMessages > 0
-        ? ` ${this.#newMessages} new message${this.#newMessages === 1 ? "" : "s"} (Ctrl+End) ↓ `
-        : genericLabel;
-      const label = displayWidth(countedLabel) <= contentWidth ? countedLabel : genericLabel;
-      const labelWidth = displayWidth(label);
-      if (labelWidth <= contentWidth) {
-        const fallbackRow = Math.max(0, viewportHeight - 1);
-        const row = clamp(input.bottomControlRow ?? fallbackRow, 0, frameRows.length - 1);
-        const left = Math.floor((contentWidth - labelWidth) / 2);
-        bottomHit = { row: row + 1, columnStart: left + 1, columnEnd: left + labelWidth };
-        // Invariant: appearance and hit testing share current geometry, even when no mouse moves.
-        const pointer = input.pointerPosition;
-        const bottomHovered = pointer !== undefined && pointer.row === bottomHit.row
-          && pointer.column >= bottomHit.columnStart && pointer.column <= bottomHit.columnEnd;
-        control = { row, left, text: `${CONTROL_STYLE_RESET}${theme.bottomControl(label, bottomHovered)}` };
-        // Invariant: the control floats above selection; copy restores the text beneath it.
-        selectionRows[row] = overlaySpan(
-          padRowPreservingBackground(selectionRows[row] ?? "", width),
-          left,
-          left + labelWidth,
-          " ".repeat(labelWidth),
-        );
-      }
-    }
-    for (const covered of input.coveredCells ?? []) {
-      const row = covered.row - 1;
-      if (row < 0 || row >= selectionRows.length) continue;
-      const from = clamp(covered.columnStart - 1, 0, width);
-      const to = clamp(covered.columnEnd, from, width);
-      selectionRows[row] = overlaySpan(
-        padRowPreservingBackground(selectionRows[row] ?? "", width),
-        from,
-        to,
-        " ".repeat(to - from),
-      );
-    }
-    this.#selectionRows = selectionRows;
-    this.#updateCopyableSelection();
     for (let row = 0; row < frameRows.length; row += 1) {
-      const painted = frameRows[row] ?? "";
-      const rowSelectionWidth = row < viewportHeight ? contentWidth : width;
-      const range = selectionRangeForLine(orderedSelection, row, this.#selectionRows.length, rowSelectionWidth);
-      // Invariant: the reserved rail gutter is not a semantic selection or copy cell,
-      // but a range that reaches the content boundary paints through it so the rail
-      // floats above one continuous selection surface.
-      const paintRange = range !== null && row < viewportHeight
-        && contentWidth < width && range.to === contentWidth
-        ? { from: range.from, to: width }
-        : range;
-      const padded = row < viewportHeight || paintRange !== null;
-      const base = cachedString(
-        this.#baseRowCache,
-        `${width}\u0000${contentWidth}\u0000${row < viewportHeight}\u0000${padded}\u0000${painted}`,
-        cacheLimit,
-        () => row < viewportHeight
-          ? padViewportRowWithGutter(painted, contentWidth, width)
-          : padded ? padRowPreservingBackground(painted, width) : painted,
-      );
-      let rowRecomputed = row < viewportHeight && paintRecomputedRows.has(row) || !base.reused;
-      const rangeKey = paintRange === null ? "-" : `${paintRange.from}:${paintRange.to}`;
-      const selected = paintRange === null
-        ? { value: base.value, reused: true }
-        : cachedString(
-            this.#selectedRowCache,
-            `${selectionPainterId}\u0000${rangeKey}\u0000${base.value}`,
-            cacheLimit,
-            () => theme.selection(base.value, paintRange.from, paintRange.to),
-          );
-      rowRecomputed ||= !selected.reused;
-
-      // Invariant: paint the rail after selection over the gutter's continued row
-      // background. Source content and selection still end at the preceding cell.
-      let railCell = "";
-      if (row > 0 && row < viewportHeight && presentation.visible && geometry !== null) {
-        const trackRow = row - 1;
-        const thumb = isThumbRow(geometry, trackRow);
-        const glyph = thumb ? presentation.thumbGlyph : presentation.trackGlyph;
-        railCell = thumb ? theme.thumb(glyph, this.#railHovered || this.#railDragging) : theme.track(glyph);
-      }
-      const overlayLimit = row < viewportHeight ? contentWidth : width;
-      const overlayText = input.frameOverlay?.row === row + 1
-        ? truncateToWidth(input.frameOverlay.text, overlayLimit)
-        : "";
-      const overlayWidth = displayWidth(overlayText);
-      const rowControl = control?.row === row && bottomHit !== null
-        ? { left: control.left, right: bottomHit.columnEnd, text: control.text }
-        : null;
-      const final = cachedString(
-        this.#finalRowCache,
-        `${width}\u0000${railCell}\u0000${overlayText}\u0000${rowControl?.text ?? ""}\u0000${selected.value}`,
-        cacheLimit,
-        () => {
-          const withRail = railCell.length === 0 ? selected.value : overlaySpan(
-            selected.value,
-            width - 1,
-            width,
-            `${GUTTER_DECORATION_RESET}${railCell}`,
-            { inheritStartStyle: true },
-          );
-          // Invariant: floating control styling is applied only after the row and
-          // gutter surfaces are resolved, so its inline background cannot leak.
-          const withControl = rowControl === null ? withRail : overlaySpan(
-            withRail,
-            rowControl.left,
-            rowControl.right,
-            rowControl.text,
-          );
-          return overlayWidth === 0 ? withControl : overlaySpan(
-            padRowPreservingBackground(withControl, width),
-            overlayLimit - overlayWidth,
-            overlayLimit,
-            `${GUTTER_DECORATION_RESET}${overlayText}`,
-            { inheritStartStyle: true },
-          );
-        },
-      );
-      rowRecomputed ||= !final.reused;
-      frameRows[row] = final.value.replace(VIEWPORT_PROMPT_ZONES, "");
-      (rowRecomputed ? recomputedRows : reusedRows).push(row + 1);
-
-      const state = `${width}\u0000${row}\u0000${painted}\u0000${rangeKey}\u0000${range === null ? "" : selectionPainterId}\u0000${railCell}\u0000${overlayText}\u0000${rowControl?.text ?? ""}`;
-      visibleStates.push(state);
-      if (this.#previousVisibleStates[row] !== state) selectionDamagedRows.push(row + 1);
+      const range = selectionRangeForLine(orderedSelection, row, this.#selectionRows.length, row < viewportHeight ? contentWidth : width);
+      const painted = this.#rowCaches.paintRow(rowPaint, row, frameRows[row] ?? "", range, paintRecomputedRows.has(row));
+      frameRows[row] = painted.text;
+      (painted.recomputed ? recomputedRows : reusedRows).push(row + 1);
+      visibleStates.push(painted.state);
+      if (this.#previousVisibleStates[row] !== painted.state) selectionDamagedRows.push(row + 1);
     }
     this.#previousVisibleStates = visibleStates;
-
-    const nextDocumentRange = {
-      start: this.#scrollTop,
-      end: Math.min(documentRows.length, this.#scrollTop + viewportHeight),
-    };
-    const previousDocumentRange = previousDescriptor?.nextDocumentRange ?? null;
-    const sameGeometry = previousDescriptor !== null
-      && previousDescriptor.width === width
-      && previousDescriptor.height === height
-      && sameRectangle(previousDescriptor.transcript, viewportHeight === 0 ? null : { rowStart: 1, rowEnd: viewportHeight })
-      && sameRectangle(previousDescriptor.dock, dock.length === 0 ? null : { rowStart: viewportHeight + 1, rowEnd: height });
-    const verticalShiftRows = previousDocumentRange === null ? 0 : nextDocumentRange.start - previousDocumentRange.start;
-    const safeVerticalShift = sameGeometry
-      && previousDescriptor?.followingEnd === true
-      && this.#followingEnd
-      && this.#selection === undefined
-      && verticalShiftRows > 0
-      && verticalShiftRows < viewportHeight;
-    const descriptor: TranscriptViewportFrameDescriptor = {
-      frameId: ++this.#frameId,
-      width,
-      height,
-      transcript: viewportHeight === 0 ? null : { rowStart: 1, rowEnd: viewportHeight },
-      dock: dock.length === 0 ? null : { rowStart: viewportHeight + 1, rowEnd: height },
-      previousDocumentRange,
-      nextDocumentRange,
-      previousFollowingEnd: previousDescriptor?.followingEnd ?? null,
-      followingEnd: this.#followingEnd,
-      transientRowCount: Math.max(0, documentRows.length - this.#selectableDocumentRowCount),
-      transientAlignmentGapRows,
-      bottomAlignedTailRowCount,
-      liveTailRows: visibleLiveTailRows(
-        input.liveTailStartRow,
-        this.#selectableDocumentRowCount,
-        this.#scrollTop,
-        viewportHeight,
-      ),
-      verticalShiftRows,
-      safeVerticalShift,
-      selectionRevision: composingSelectionRevision,
-      selectionDamagedRows,
-      cause: previousDescriptor === null
-        ? "initial"
-        : !sameGeometry
-          ? "geometry-change"
-          : !this.#followingEnd
-            ? "detached"
-            : safeVerticalShift
-              ? "follow-shift"
-              : "steady",
-    };
+    const descriptor = frameDescriptor({
+      frameId: ++this.#frameId, previous: previousDescriptor, width, height, viewportHeight, dockRowCount: dock.length,
+      documentRowCount: documentRows.length, selectableDocumentRowCount: this.#selectableDocumentRowCount,
+      scrollTop: this.#scrollTop, followingEnd: this.#followingEnd, selecting: this.#selection !== undefined,
+      transientAlignmentGapRows, bottomAlignedTailRowCount, liveTailStartRow: input.liveTailStartRow,
+      selectionRevision: composingSelectionRevision, selectionDamagedRows,
+    });
     assertTranscriptViewportFrameDescriptor(descriptor);
-
-    const hits: TranscriptViewportHitRegions = {
-      viewportHeight,
-      rail: geometry === null || this.#config.scrollbarAppearance === "hidden" ? null : {
-        column: width,
-        rowStart: 2,
-        trackHeight: Math.max(0, viewportHeight - 1),
-        geometry,
-      },
-      sticky: stickyActive ? { row: 1, target: governing.firstRow, width: contentWidth } : null,
-      bottom: bottomHit,
-      transientTail: Array.from(
-        { length: Math.max(0, Math.min(documentRows.length, this.#scrollTop + viewportHeight) - Math.max(this.#scrollTop, this.#selectableDocumentRowCount)) },
-        (_row, index) => Math.max(this.#scrollTop, this.#selectableDocumentRowCount) - this.#scrollTop + index + 1,
-      ),
-    };
+    const hits = hitRegions({
+      width, contentWidth, viewportHeight, documentRowCount: documentRows.length,
+      selectableDocumentRowCount: this.#selectableDocumentRowCount, scrollTop: this.#scrollTop, geometry,
+      railHidden: this.#config.scrollbarAppearance === "hidden", stickyTarget: governing?.firstRow ?? null, bottom: control?.hit ?? null,
+    });
     const frame: TranscriptViewportFrame = {
       rows: frameRows,
       contentWidth,
@@ -922,16 +549,48 @@ export class TranscriptViewport {
       followingEnd: this.#followingEnd,
       hits,
       descriptor,
-      selectionDamage: {
-        revision: composingSelectionRevision,
-        recomputedRows,
-        reusedRows,
-        cacheEntries: this.#paintedRowCache.size + this.#baseRowCache.size
-          + this.#selectedRowCache.size + this.#finalRowCache.size,
-      },
+      selectionDamage: { revision: composingSelectionRevision, recomputedRows, reusedRows, cacheEntries: this.#rowCaches.entries },
     };
     this.#frame = frame;
     return frame;
+  }
+
+  // Rationale: the visible document rows go through the paint transform, with the governing prompt
+  // pinned as a sticky header once its first row has scrolled away. `governing` is that header's
+  // anchor, or null while the prompt's first row is still on screen.
+  #paintVisibleRows(input: TranscriptViewportFrameInput, theme: TranscriptViewportTheme, cacheLimit: number): {
+    readonly visible: string[];
+    readonly visibleSource: string[];
+    readonly paintRecomputedRows: ReadonlySet<number>;
+    readonly governing: TranscriptPromptAnchor | null;
+  } {
+    const paintDocumentRow = input.paintDocumentRow ?? IDENTITY_ROW;
+    const paintId = this.#rowCaches.functionId(paintDocumentRow);
+    const paintRecomputedRows = new Set<number>();
+    const visibleSource = this.#documentRows.slice(this.#scrollTop, this.#scrollTop + this.#viewportHeight);
+    while (visibleSource.length < this.#viewportHeight) visibleSource.push("");
+    const visible = visibleSource.map((row, index) => {
+      const painted = this.#rowCaches.painted(paintId, row, cacheLimit, paintDocumentRow);
+      if (!painted.reused) paintRecomputedRows.add(index);
+      return painted.value;
+    });
+    const governing = governingPrompt(input.promptAnchors, this.#scrollTop);
+    const stickyActive = governing !== null && governing.firstRow < this.#scrollTop;
+    if (!stickyActive) return { visible, visibleSource, paintRecomputedRows, governing: null };
+    if (visible.length === 0) return { visible, visibleSource, paintRecomputedRows, governing };
+    const quiet = this.#scrollTop > governing.lastRow;
+    // Compatibility: only non-hovered prominent rows may retain source metadata roles.
+    // Quiet and hover keep the established full-row styling; anchors without a
+    // variant retain their existing presentation in every state.
+    const sourceRow = !quiet && !this.#stickyHovered
+      ? governing.prominentSourceRow ?? governing.sourceRow
+      : governing.sourceRow;
+    const source = this.#rowCaches.painted(paintId, sourceRow, cacheLimit, paintDocumentRow);
+    if (!source.reused) paintRecomputedRows.add(0);
+    const sticky = theme.sticky(source.value, this.#stickyHovered);
+    visible[0] = quiet && !this.#stickyHovered ? theme.quietSticky(sticky) : sticky;
+    visibleSource[0] = sourceRow;
+    return { visible, visibleSource, paintRecomputedRows, governing };
   }
 
   /** Reuses an established transcript frame when only same-height dock rows changed. */
@@ -981,14 +640,6 @@ export class TranscriptViewport {
     return frame;
   }
 
-  #functionId(value: Function): number {
-    const existing = this.#functionIds.get(value);
-    if (existing !== undefined) return existing;
-    const id = this.#nextFunctionId;
-    this.#nextFunctionId += 1;
-    this.#functionIds.set(value, id);
-    return id;
-  }
 
   #selectionAnchorAt(line: number): SelectionRowAnchor | undefined {
     if (line < 0 || line >= this.#selectionRows.length) return undefined;
@@ -1237,43 +888,19 @@ function selectionRangeForLine(
   return boundedTo > boundedFrom ? { from: boundedFrom, to: boundedTo } : null;
 }
 
-function cachedString(
-  cache: Map<string, string>,
-  key: string,
-  limit: number,
-  create: () => string,
-): { readonly value: string; readonly reused: boolean } {
-  const existing = cache.get(key);
-  if (existing !== undefined) {
-    cache.delete(key);
-    cache.set(key, existing);
-    return { value: existing, reused: true };
-  }
-  const value = create();
-  cache.set(key, value);
-  while (cache.size > limit) cache.delete(cache.keys().next().value!);
-  return { value, reused: false };
-}
-
-function trimCache(cache: Map<string, string>, limit: number): void {
-  while (cache.size > limit) cache.delete(cache.keys().next().value!);
-}
-
-/**
- * Rows of the streaming block that the visible window actually shows. Gap insertion happens
- * after the selectable document, so live-block indices need no adjustment here.
- */
-function visibleLiveTailRows(
-  liveTailStartRow: number | undefined,
-  selectableDocumentRowCount: number,
+function visibleSelectionAnchors(
+  documentRows: readonly string[],
   scrollTop: number,
   viewportHeight: number,
-): number {
-  if (liveTailStartRow === undefined || !Number.isSafeInteger(liveTailStartRow)) return 0;
-  const start = clamp(liveTailStartRow, 0, selectableDocumentRowCount);
-  const visibleStart = Math.max(start, scrollTop);
-  const visibleEnd = Math.min(selectableDocumentRowCount, scrollTop + viewportHeight);
-  return Math.max(0, visibleEnd - visibleStart);
+  selectableDocumentRowCount: number,
+  selectionRows: readonly string[],
+): SelectionRowAnchor[] {
+  return Array.from({ length: viewportHeight }, (_value, row) => {
+    const documentRow = scrollTop + row;
+    return documentRow < documentRows.length
+      ? viewportSelectionAnchor(documentRow, documentRows[documentRow] ?? "", selectableDocumentRowCount, documentRows.length)
+      : { kind: "screen", row, source: selectionRows[row] ?? "" };
+  });
 }
 
 function governingPrompt(anchors: readonly TranscriptPromptAnchor[], scrollTop: number): TranscriptPromptAnchor | null {
@@ -1283,39 +910,6 @@ function governingPrompt(anchors: readonly TranscriptPromptAnchor[], scrollTop: 
     result = anchor;
   }
   return result;
-}
-
-function padViewportRowWithGutter(line: string, contentWidth: number, frameWidth: number): string {
-  const boundedContentWidth = Math.min(Math.max(1, contentWidth), frameWidth);
-  const content = padRowPreservingBackground(line, boundedContentWidth);
-  const gutterWidth = frameWidth - boundedContentWidth;
-  if (gutterWidth === 0) return content;
-  // Invariant: render no source glyph beyond contentWidth, but reuse the established
-  // row-padding background before stripping source foreground, links, and emphasis.
-  const gutterStyle = explicitBackgroundPaddingStyle(line);
-  return `${content}${GUTTER_DECORATION_RESET}${gutterStyle?.on ?? ""}${" ".repeat(gutterWidth)}${gutterStyle?.off ?? ""}`;
-}
-
-function explicitBackgroundPaddingStyle(line: string): { readonly on: string; readonly off: string } | null {
-  const background = /\u001b\[(?:4[0-8]|10[0-7]|48;(?:2;\d+;\d+;\d+|5;\d+))m/.exec(line)?.[0];
-  return background === undefined ? null : { on: background, off: "\u001b[49m" };
-}
-
-function rowPaddingStyle(line: string): { readonly on: string; readonly off: string } | null {
-  const background = explicitBackgroundPaddingStyle(line);
-  if (background !== null) return background;
-  const reverse = /\u001b\[(?:7(?:;[0-9]+)*|[0-9;]*;7(?:;[0-9]+)*)m/.exec(line)?.[0];
-  return reverse === undefined ? null : { on: reverse, off: "\u001b[27m" };
-}
-
-function padRowPreservingBackground(line: string, width: number): string {
-  const shown = displayWidth(line) > width ? truncateToWidth(line, width) : line;
-  const padding = Math.max(0, width - displayWidth(shown));
-  if (padding === 0) return shown;
-  const style = rowPaddingStyle(line);
-  return style === null
-    ? shown + " ".repeat(padding)
-    : `${shown}${style.on}${" ".repeat(padding)}${style.off}`;
 }
 
 export function assertTranscriptViewportFrameDescriptor(descriptor: TranscriptViewportFrameDescriptor): void {
@@ -1381,13 +975,6 @@ function assertDocumentRange(range: { readonly start: number; readonly end: numb
   if (!Number.isSafeInteger(range.start) || !Number.isSafeInteger(range.end) || range.start < 0 || range.end < range.start) {
     throw new TypeError(`viewport frame descriptor ${label} document range is invalid`);
   }
-}
-
-function sameRectangle(
-  left: TranscriptViewportFrameDescriptor["transcript"],
-  right: TranscriptViewportFrameDescriptor["transcript"],
-): boolean {
-  return left === null ? right === null : right !== null && left.rowStart === right.rowStart && left.rowEnd === right.rowEnd;
 }
 
 function copyableDockRowsBySuffix(
