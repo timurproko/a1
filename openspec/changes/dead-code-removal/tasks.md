@@ -16,4 +16,4 @@
 
 ## 4. Scripts
 
-- [ ] 4.1 Delete the four unreferenced scripts and add an architecture-gate rule, with a fixture test, that fails on any `scripts/**/*.mjs` nothing references.
+- [x] 4.1 Delete the four unreferenced scripts and add an architecture-gate rule, with a fixture test, that fails on any `scripts/**/*.mjs` nothing references.
