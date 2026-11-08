@@ -15,4 +15,4 @@
 
 ## 4. Baselines
 
-- [ ] 4.1 Lower the size ratchet entries and re-pin the startup graph.
+- [x] 4.1 Lower the size ratchet entries and re-pin the startup graph.
