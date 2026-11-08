@@ -10,7 +10,7 @@
 
 ## 3. Editor paste framing
 
-- [ ] 3.1 Move bracketed-paste assembly into `BracketedPasteFramer` (`bracketed-paste.ts`), use it from the interceptor and the paste-disabled path, delete the module `WeakMap`, and bring `handleInput` under the long-function threshold.
+- [x] 3.1 Move bracketed-paste assembly into `BracketedPasteFramer` (`bracketed-paste.ts`), use it from the interceptor and the paste-disabled path, delete the module `WeakMap`, and bring `handleInput` under the long-function threshold.
 
 ## 4. Settings model dialog
 
