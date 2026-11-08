@@ -18,4 +18,4 @@
 
 ## 5. Baselines
 
-- [ ] 5.1 Lower the size ratchet entries and re-pin the startup graph file count.
+- [x] 5.1 Lower the size ratchet entries and re-pin the startup graph file count.

@@ -55,6 +55,7 @@ import {
 import {
   OwnedUiSessionShellRoot,
   type OwnedUiSessionShellOptions,
+  type OwnedUiShellHistoryOptions,
   type OwnedUiShellPresentationOptions,
   type OwnedUiShellPromptImagesOptions,
   type OwnedUiShellSkillsOptions,
@@ -242,20 +243,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         ...(startupRoute === undefined ? {} : { startupRoute }),
       });
       constructed.push(() => this.#dialogs.dispose());
-      this.selectors = new SessionSelectors({
-        root: this.root,
-        terminal: this.#terminal,
-        dialogs: this.#dialogs,
-        presenters: options.presenters,
-        backend: this.backend,
-        customViewport: this.#customViewport,
-        disposed: () => this.#disposed,
-        runWorkflow: request => this.runWorkflow(request),
-        sendSlashPrompt: (text, typed) => this.#submission.sendSlashPrompt(text, typed),
-        reportError: () => this.#submission.reportError(),
-        input: (title, placeholder, inputOptions) => this.#extensionBridge.input(title, placeholder, inputOptions),
-        shutdown: () => { void this.shutdown(); },
-      });
+      this.selectors = this.#createSelectors(options.presenters);
       const initialPiSettings = this.backend.settings.snapshot();
       this.#programStatus = options.presenters.components.chrome.programStatusReporter(
         status => this.#terminal.setProgramStatus(status),
@@ -304,14 +292,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       }, { customViewport: this.#customViewport });
       constructed.push(this.#unbindSessionSettings);
       if (this.#customViewport && promptHistory !== undefined) {
-        this.#history = new SessionPromptHistory(promptHistory, {
-          editor: this.root.editor,
-          usesDefaultInputSurface: () => this.root.usesDefaultInputSurface(),
-          rehydrate: (text, resolveImage) => this.root.promptChips.rehydrateHistoryText(text, resolveImage),
-          requestRender: () => this.#terminal.requestRender(),
-          transcript: () => this.view().transcript,
-          currentHistorySessionId: () => this.backend.identity.currentHistorySessionId(),
-        });
+        this.#history = this.#createHistory(promptHistory);
         constructed.push(() => { void this.#history?.close().catch(() => false); });
       }
       this.#extensionBridge = this.#createExtensionBridge();
@@ -830,6 +811,34 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       getFooterData: () => this.root.extensionFooterData(),
       getToolsExpanded: () => this.root.toolsExpanded,
       setToolsExpanded: expanded => this.root.setToolsExpanded(expanded),
+    });
+  }
+
+  #createSelectors(presenters: OwnedUiSessionShellOptions["presenters"]): SessionSelectors {
+    return new SessionSelectors({
+      root: this.root,
+      terminal: this.#terminal,
+      dialogs: this.#dialogs,
+      presenters,
+      backend: this.backend,
+      customViewport: this.#customViewport,
+      disposed: () => this.#disposed,
+      runWorkflow: request => this.runWorkflow(request),
+      sendSlashPrompt: (text, typed) => this.#submission.sendSlashPrompt(text, typed),
+      reportError: () => this.#submission.reportError(),
+      input: (title, placeholder, inputOptions) => this.#extensionBridge.input(title, placeholder, inputOptions),
+      shutdown: () => { void this.shutdown(); },
+    });
+  }
+
+  #createHistory(promptHistory: OwnedUiShellHistoryOptions): SessionPromptHistory {
+    return new SessionPromptHistory(promptHistory, {
+      editor: this.root.editor,
+      usesDefaultInputSurface: () => this.root.usesDefaultInputSurface(),
+      rehydrate: (text, resolveImage) => this.root.promptChips.rehydrateHistoryText(text, resolveImage),
+      requestRender: () => this.#terminal.requestRender(),
+      transcript: () => this.view().transcript,
+      currentHistorySessionId: () => this.backend.identity.currentHistorySessionId(),
     });
   }
 
