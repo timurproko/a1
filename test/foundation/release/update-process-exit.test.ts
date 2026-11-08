@@ -9,8 +9,15 @@ const execFileAsync = promisify(execFile);
 describe("self-update process settlement", () => {
   it("returns to the invoking process after verified activation without an interrupt", async () => {
     const updateModule = pathToFileURL(resolve("src/foundation/release/index.ts")).href;
+    const installerModule = pathToFileURL(resolve("test/support/update-installer-fake.ts")).href;
     const script = `
       const { runSelfUpdate, UPDATE_JOURNAL_SCHEMA } = await import(${JSON.stringify(updateModule)});
+      const { fakeUpdateInstaller } = await import(${JSON.stringify(installerModule)});
+      const runner = async (_command, args) => args[0] === "view"
+        ? { code: 0, stdout: "1.0.1\\n" }
+        : args[0] === "root"
+          ? { code: 0, stdout: globalRoot + "\\n" }
+          : { code: 0, stdout: "installed" };
       const globalRoot = ${JSON.stringify(process.platform === "win32" ? resolve("fixture-prefix", "node_modules") : resolve("fixture-prefix", "lib", "node_modules"))};
       const packageRoot = ${JSON.stringify(resolve(process.platform === "win32" ? resolve("fixture-prefix", "node_modules") : resolve("fixture-prefix", "lib", "node_modules"), "@timurproko", "a1"))};
       let transaction = null;
@@ -28,11 +35,8 @@ describe("self-update process settlement", () => {
           readFile: async () => JSON.stringify({ name: "@timurproko/a1", version: "1.0.0" }),
           realpath: async path => path,
         },
-        runner: async (_command, args) => args[0] === "view"
-          ? { code: 0, stdout: "1.0.1\\n" }
-          : args[0] === "root"
-            ? { code: 0, stdout: globalRoot + "\\n" }
-            : { code: 0, stdout: "installed" },
+        runner,
+        installer: fakeUpdateInstaller(() => runner),
         lifecycle: {
           targetIsActive: async () => false,
           shutdownVerifiedOwners: async () => ({ priorActiveVersion: "1.0.0" }),
