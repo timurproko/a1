@@ -5,6 +5,7 @@ import { arch, platform } from "node:os";
 import { dirname, relative, resolve, sep } from "node:path";
 import { promisify } from "node:util";
 import { readPackedEntries, readPackedManifest } from "../governance/candidate-evidence.mjs";
+import { canonicalDigest, canonicalJson } from "../canonical-digest.mjs";
 
 const exec = promisify(execFile);
 const BUILD_INPUTS = ["package.json", "package-lock.json", "tsconfig.json", "tsconfig.build.json", "src", "bin", "scripts/clean.mjs", "scripts/release/generate-runtime-payload-inventory.mjs"];
@@ -21,7 +22,7 @@ export async function recordBuildReceipt(options = {}) {
 export async function verifyBuildReceipt(path, options = {}) {
   const receipt = await readReceipt(path, "a1-validation-build-receipt-v1");
   const current = await buildReceipt(resolve(options.repository ?? process.cwd()), options);
-  if (canonical(receipt) !== canonical(current)) throw new Error("validation build receipt or artifacts do not match current inputs");
+  if (canonicalJson(receipt) !== canonicalJson(current)) throw new Error("validation build receipt or artifacts do not match current inputs");
   return receipt;
 }
 
@@ -35,7 +36,7 @@ export async function recordPackageReceipt(candidatePath, options = {}) {
 export async function verifyPackageReceipt(receiptPath, candidatePath, options = {}) {
   const receipt = await readReceipt(receiptPath, "a1-validation-package-receipt-v1");
   const current = await packageReceipt(resolve(options.repository ?? process.cwd()), resolve(candidatePath), options);
-  if (canonical(receipt) !== canonical(current)) throw new Error("validation package receipt or candidate does not match current inputs");
+  if (canonicalJson(receipt) !== canonicalJson(current)) throw new Error("validation package receipt or candidate does not match current inputs");
   return receipt;
 }
 
@@ -47,7 +48,7 @@ async function buildReceipt(repository, options) {
   const inputs = await inventory(repository, BUILD_INPUTS);
   const artifacts = await inventory(repository, ["dist"]);
   const payload = { schema: "a1-validation-build-receipt-v1", head, toolchain, inputs, artifacts };
-  return { ...payload, receiptId: digest(payload) };
+  return { ...payload, receiptId: canonicalDigest(payload) };
 }
 
 async function packageReceipt(repository, candidatePath, options) {
@@ -82,7 +83,7 @@ async function packageReceipt(repository, candidatePath, options) {
     producer: options.producer ?? { platform: platform(), architecture: arch(), node: process.version }, buildReceiptId, sourceIdentity,
     candidate: { path: candidateRelativePath, sha256: createHash("sha256").update(bytes).digest("hex"), size: bytes.length,
       name: manifest.name, version: manifest.version, bin: manifest.bin ?? null, entries: packageInventory } };
-  return { ...payload, receiptId: digest(payload) };
+  return { ...payload, receiptId: canonicalDigest(payload) };
 }
 
 async function inventory(repository, roots) {
@@ -111,7 +112,7 @@ function summarize(files) {
     if (bytes > MAX_BYTES) throw new Error("validation receipt bytes exceed bounds");
     return { path: file.path, size: file.bytes.length, sha256: createHash("sha256").update(file.bytes).digest("hex") };
   });
-  const identity = digest(entries);
+  const identity = canonicalDigest(entries);
   return { files: entries.length, bytes, sha256: identity, entries };
 }
 
@@ -129,7 +130,7 @@ async function readReceipt(path, schema) {
   const value = JSON.parse(await readFile(resolve(path), "utf8"));
   if (!value || value.schema !== schema || typeof value.receiptId !== "string") throw new Error("validation prerequisite receipt is malformed");
   const { receiptId, ...payload } = value;
-  if (receiptId !== digest(payload)) throw new Error("validation prerequisite receipt identity is invalid");
+  if (receiptId !== canonicalDigest(payload)) throw new Error("validation prerequisite receipt identity is invalid");
   return value;
 }
 async function persist(path, receipt) {
@@ -137,9 +138,3 @@ async function persist(path, receipt) {
   await mkdir(dirname(output), { recursive: true });
   await writeFile(output, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
 }
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value !== null && typeof value === "object") return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
-  return JSON.stringify(value);
-}
-function digest(value) { return createHash("sha256").update(canonical(value)).digest("hex"); }

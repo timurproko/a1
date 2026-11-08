@@ -3,10 +3,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { compareRepositoryGovernance, inspectLocalWorkflows, validateRepositoryGovernanceDefinition } from "./github-repository-governance.mjs";
 import { planRulesetChanges } from "./github-rulesets.mjs";
+import { optionValue } from "../cli-options.mjs";
 
-const definitionPath = resolve(valueAfter("--definition") ?? "config/github-repository-governance.json");
+const definitionPath = resolve(optionValue("--definition") ?? "config/github-repository-governance.json");
 const definition = validateRepositoryGovernanceDefinition(JSON.parse(await readFile(definitionPath, "utf8")));
-const repository = valueAfter("--repository") ?? definition.repository;
+const repository = optionValue("--repository") ?? definition.repository;
 if (repository !== definition.repository) throw new Error(`definition is bound to ${definition.repository}, not ${repository}`);
 const api = createApi(repository, resolveToken());
 let live = await loadLive(api, definition);
@@ -14,7 +15,7 @@ let report = compareRepositoryGovernance(definition, live);
 report.api = { repository, fetchedAt: new Date().toISOString() };
 
 if (process.argv.includes("--apply")) {
-  if (valueAfter("--confirm") !== "apply-a1-github-governance") throw new Error("--apply requires --confirm apply-a1-github-governance");
+  if (optionValue("--confirm") !== "apply-a1-github-governance") throw new Error("--apply requires --confirm apply-a1-github-governance");
   const mutablePrefixes = ["repositorySettings", "actions", "environments", "labels", "rulesets"];
   const unsupported = report.differences.filter(difference => !mutablePrefixes.some(prefix => difference.path === prefix || difference.path.startsWith(`${prefix}.`) || difference.path.startsWith(`${prefix}[`)));
   if (unsupported.length > 0) throw new Error(`reviewed drift requires code or an explicit policy decision: ${unsupported.map(value => value.path).join(", ")}`);
@@ -67,7 +68,7 @@ if (process.argv.includes("--apply")) {
   report = { ...verification, mode: "apply", mutationPerformed: mutations.length > 0, mutations, api: { repository, fetchedAt: new Date().toISOString() } };
 }
 
-const output = valueAfter("--output");
+const output = optionValue("--output");
 if (output) {
   const path = resolve(output);
   await mkdir(dirname(path), { recursive: true });
@@ -159,4 +160,3 @@ function resolveToken() {
   try { return execFileSync("gh", ["auth", "token"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); }
   catch { throw new Error("GitHub governance inspection requires GH_TOKEN, GITHUB_TOKEN, or authenticated gh"); }
 }
-function valueAfter(name) { const index = process.argv.indexOf(name); return index >= 0 ? process.argv[index + 1] : undefined; }

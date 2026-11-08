@@ -10,7 +10,7 @@
 
 ## 3. Script helpers
 
-- [ ] 3.1 Add `scripts/cli-options.mjs` (`optionValue`) and `scripts/canonical-digest.mjs` (`canonicalJson`, `canonicalDigest`) with a unit test, and replace the `valueAfter`, `argumentValue`, `canonical` and `digest` copies.
+- [x] 3.1 Add `scripts/cli-options.mjs` (`optionValue`) and `scripts/canonical-digest.mjs` (`canonicalJson`, `canonicalDigest`) with a unit test, and replace the `valueAfter`, `argumentValue`, `canonical` and `digest` copies.
 
 ## 4. Test helpers
 

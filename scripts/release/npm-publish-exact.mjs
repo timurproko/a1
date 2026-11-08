@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { readPackedManifest } from "../governance/candidate-evidence.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 const REGISTRY = "https://registry.npmjs.org";
 const MAX_CAPTURE_BYTES = 1024 * 1024;
@@ -133,18 +134,13 @@ export async function publishExactPackage({
   throw new Error(`npm publication did not complete for ${identity.name}@${identity.version}`);
 }
 
-function argumentValue(arguments_, name) {
-  const index = arguments_.indexOf(name);
-  if (index < 0 || index + 1 >= arguments_.length) throw new Error(`${name} is required`);
-  return arguments_[index + 1];
-}
 
 async function main(arguments_ = process.argv.slice(2)) {
-  const tarball = argumentValue(arguments_, "--tarball");
+  const tarball = optionValue("--tarball", { required: true, argv: arguments_ });
   const bytes = await readFile(tarball);
   const manifest = readPackedManifest(bytes);
-  const integrity = argumentValue(arguments_, "--integrity");
-  const shasum = argumentValue(arguments_, "--shasum");
+  const integrity = optionValue("--integrity", { required: true, argv: arguments_ });
+  const shasum = optionValue("--shasum", { required: true, argv: arguments_ });
   if (`sha512-${createHash("sha512").update(bytes).digest("base64")}` !== integrity
     || createHash("sha1").update(bytes).digest("hex") !== shasum) {
     throw new Error("exact npm publication tarball differs from the validated package identity");
@@ -153,7 +149,7 @@ async function main(arguments_ = process.argv.slice(2)) {
     tarball,
     name: manifest?.name,
     version: manifest?.version,
-    channel: argumentValue(arguments_, "--channel"),
+    channel: optionValue("--channel", { required: true, argv: arguments_ }),
     integrity,
     shasum,
   });

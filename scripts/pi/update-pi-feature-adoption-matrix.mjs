@@ -13,6 +13,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { refreshMatrix, upstreamFeatureRows } from "./pi-feature-adoption-matrix.mjs";
 import { extractPiSettingsMetadata } from "./pi-settings-metadata.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 // Rationale: features published before the foundation pin were adopted with the foundation; the
 // matrix tracks the ones that arrived afterwards.
@@ -21,10 +22,10 @@ const DEFAULT_CHANGELOG_SINCE = "0.84.2";
 const repository = fileURLToPath(new URL("../..", import.meta.url));
 const checkOnly = process.argv.includes("--check");
 const matrixPath = join(repository, "config", "baselines", "pi-feature-adoption-matrix.json");
-const outputPath = resolve(argumentValue("--output") ?? matrixPath);
-const packagesRoot = resolve(argumentValue("--packages-root") ?? join(repository, "node_modules"));
-const baselinePath = resolve(argumentValue("--baseline") ?? join(repository, "config", "baselines", "pinned-pi-interactive-baseline.json"));
-const reportPath = argumentValue("--report");
+const outputPath = resolve(optionValue("--output") ?? matrixPath);
+const packagesRoot = resolve(optionValue("--packages-root") ?? join(repository, "node_modules"));
+const baselinePath = resolve(optionValue("--baseline") ?? join(repository, "config", "baselines", "pinned-pi-interactive-baseline.json"));
+const reportPath = optionValue("--report");
 
 const previous = await readFile(matrixPath, "utf8").then(JSON.parse, () => null);
 const upstreamRows = await collectUpstreamRows({ packagesRoot, baselinePath, changelogSince: previous?.changelogSince ?? DEFAULT_CHANGELOG_SINCE });
@@ -66,7 +67,3 @@ export async function collectUpstreamRows({ packagesRoot, baselinePath, changelo
   });
 }
 
-function argumentValue(flag) {
-  const index = process.argv.indexOf(flag);
-  return index === -1 ? undefined : process.argv[index + 1];
-}
