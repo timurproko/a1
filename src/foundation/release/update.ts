@@ -11,11 +11,8 @@ import {
   createRegistryFetcher, invalidateReleaseCheckCache, isNewerRelease, queryPublishedVersions, releaseChannelOf,
   type PublishedVersion, type RegistryFetcher,
 } from "./latest-release.js";
-import { certifyMaterializedRelease } from "./bootstrap.js";
-import { resolveProductPaths } from "../lifecycle/index.js";
+import { resolveProductPaths, type ProductPaths } from "../lifecycle/index.js";
 import { ReleaseStateStore } from "./release-state.js";
-import { materializeRelease, readMaterializedRelease } from "./release-store.js";
-import { scheduleReleaseCleanup } from "./release-gc.js";
 import {
   UPDATE_ACTIVATION_CONTRACT,
   activateInstalledRelease,
@@ -30,13 +27,21 @@ import { acquireUpdateExecutionLease, reclaimDeadLease, type UpdateExecutionOwne
 import {
   npmPrefixForGlobalRoot,
   removeUpdateRecoveryCapsule,
-  resolveNpmCli,
-  runProtectedPackageReplacement,
   updateLauncherPaths,
-  updateNpmInstallArguments,
-  type ProtectedPackageReplacementResult,
 } from "./update-recovery.js";
 import { errorMessage, samePath } from "./managed-path.js";
+import {
+  createProtectedUpdateInstaller,
+  type UpdateInstaller,
+  type UpdatePriorReleaseProtection,
+} from "./update-installer.js";
+
+export type {
+  UpdateInstaller,
+  UpdatePackageReplacementInput,
+  UpdatePriorRelease,
+  UpdatePriorReleaseProtection,
+} from "./update-installer.js";
 
 export const PRODUCT_PACKAGE = PRODUCT_TEXT.packageName;
 export type { UpdateChannel } from "./types.js";
@@ -109,12 +114,8 @@ export interface SelfUpdateOptions {
   fetcher?: RegistryFetcher;
   lifecycle?: UpdateLifecycleCoordinator;
   transactionStore?: UpdateTransactionJournal;
-  /** Test seam for protected global package replacement. */
-  packageReplacement?: (input: UpdatePackageReplacementInput) => Promise<ProtectedPackageReplacementResult>;
-  /** Test seam for proving replacement-authority preflight ordering. */
-  npmCliResolver?: typeof resolveNpmCli;
-  /** Test or embedding seam for post-activation release maintenance. */
-  maintenance?: () => Promise<void>;
+  /** The npm and release-storage steps; defaults to protected replacement of the managed package. */
+  installer?: UpdateInstaller;
   progress?: boolean;
   onPhaseTiming?: (event: UpdatePhaseTimingEvent) => void;
   now?: () => number;
@@ -141,19 +142,6 @@ export interface UpdateTransactionJournal {
   recordActiveError?(error: string): Promise<UpdateTransaction>;
   finish(status: "completed" | "rolled-back" | "failed", error?: string | null): Promise<UpdateTransaction>;
   clearCompleted(): Promise<void>;
-}
-
-export interface UpdatePackageReplacementInput {
-  readonly dataDir: string;
-  readonly globalRoot: string;
-  readonly npmCliRoot: string;
-  readonly npmCli?: string;
-  readonly packageRoot: string;
-  readonly transaction: UpdateTransaction;
-  readonly priorRelease: { readonly releaseId: string; readonly releaseRoot: string; readonly contentDigest: string };
-  readonly output: UpdateOutput;
-  readonly environment: NodeJS.ProcessEnv;
-  readonly onRecoveryState: (state: UpdateRecoveryState) => Promise<void>;
 }
 
 const defaultFileSystem: UpdateFileSystem = {
@@ -601,6 +589,7 @@ async function withUpdateExecutionLease(
   input: Parameters<typeof acquireUpdateExecutionLease>[0],
   options: SelfUpdateOptions,
   output: UpdateOutput,
+  installer: UpdateInstaller,
   operation: () => Promise<number>,
 ): Promise<number> {
   let lease = await acquireUpdateExecutionLease(input);
@@ -609,7 +598,7 @@ async function withUpdateExecutionLease(
     // back to the release that ran before it, so this request proceeds as an ordinary update of its
     // own target instead of reporting a dead attempt as in progress.
     const interrupted = lease.owner.targetVersion;
-    const rollback = await rollbackPriorRelease(input.dataDir, lease.transaction.priorActiveReleaseId)
+    const rollback = await installer.rollback(lease.transaction.priorActiveReleaseId)
       .catch(error => `rollback failed: ${errorMessage(error)}`);
     const store = new UpdateTransactionStore(input.dataDir);
     await store.finish("rolled-back", `interrupted ${interrupted} update settled by ${input.targetVersion}; ${rollback}`);
@@ -651,13 +640,50 @@ async function readRunningPackageVersion(
 }
 
 export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number> {
+  const plan = await planSelfUpdate(options);
+  if (typeof plan === "number") return plan;
+  return await withUpdateExecutionLease({
+    dataDir: plan.paths.dataDir,
+    packageRoot: plan.installation.packageRoot,
+    channel: plan.channel,
+    targetVersion: plan.targetVersion,
+    mode: plan.mode,
+  }, options, plan.output, plan.installer, async () => await runUpdateTransaction(plan));
+}
+
+type MeasurePhase = <Value>(phase: UpdateMeasuredPhase, operation: () => Promise<Value>) => Promise<Value>;
+
+/** Everything an update decided before taking the execution lease. */
+interface UpdatePlan {
+  readonly output: UpdateOutput;
+  readonly channel: UpdateChannel;
+  readonly targetVersion: string;
+  readonly progress: UpdateProgress;
+  readonly installation: ManagedNpmInstallation;
+  readonly paths: ProductPaths;
+  readonly lifecycle: UpdateLifecycleCoordinator;
+  readonly transactionStore: UpdateTransactionJournal;
+  readonly installer: UpdateInstaller;
+  readonly mode: "manual" | "automatic";
+  readonly measure: MeasurePhase;
+  readonly now: () => number;
+  readonly onPhaseTiming: ((event: UpdatePhaseTimingEvent) => void) | undefined;
+}
+
+/** The transaction the update is advancing; protected replacement and activation move it on. */
+interface UpdateRun {
+  transaction: UpdateTransaction | null;
+}
+
+/** Resolve the running version, the target and the managed installation, or the exit code that ends the update. */
+async function planSelfUpdate(options: SelfUpdateOptions): Promise<UpdatePlan | number> {
   const fileSystem = options.fileSystem ?? defaultFileSystem;
   const output = options.output ?? defaultOutput;
   const runner = options.runner ?? createNpmProcessRunner();
   const channel = options.channel ?? "stable";
   const distTag = UPDATE_DIST_TAGS[channel];
   const now = options.now ?? (() => performance.now());
-  const measure = async <Value>(phase: UpdateMeasuredPhase, operation: () => Promise<Value>): Promise<Value> => {
+  const measure: MeasurePhase = async (phase, operation) => {
     const startedAt = now();
     try { return await operation(); }
     finally { options.onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - startedAt) }); }
@@ -689,163 +715,155 @@ export async function runSelfUpdate(options: SelfUpdateOptions): Promise<number>
 
   const managed = await measure("global-root", async () => await resolveManagedNpmInstallation(options.packageRoot, fileSystem, runner, output));
   if (managed.installation === null) return managed.exitCode;
-  const { packageRoot, globalRoot, npmCliRoot } = managed.installation;
 
   const paths = resolveProductPaths(environment);
-  const lifecycle = options.lifecycle ?? createUpdateLifecycleCoordinator(environment, fileSystem, output);
-  const transactionStore = options.transactionStore ?? new UpdateTransactionStore(paths.dataDir);
-  const mode = options.mode ?? "manual";
-  const maintenance = options.maintenance ?? (options.lifecycle
-    ? async () => {}
-    : async () => await scheduleReleaseCleanup(paths.dataDir, paths));
-  return await withUpdateExecutionLease({ dataDir: paths.dataDir, packageRoot, channel, targetVersion, mode }, options, output, async () => {
-    let transaction = await transactionStore.read();
-    let npmCli: string | undefined;
-    try {
-      if ((!transaction || transaction.status === "completed") && await lifecycle.targetIsActive(targetVersion)) {
-      await maintenance();
+  return {
+    output,
+    channel,
+    targetVersion,
+    progress,
+    installation: managed.installation,
+    paths,
+    lifecycle: options.lifecycle ?? createUpdateLifecycleCoordinator(environment, fileSystem, output),
+    transactionStore: options.transactionStore ?? new UpdateTransactionStore(paths.dataDir),
+    installer: options.installer ?? createProtectedUpdateInstaller(paths, environment),
+    mode: options.mode ?? "manual",
+    measure,
+    now,
+    onPhaseTiming: options.onPhaseTiming,
+  };
+}
+
+async function runUpdateTransaction(plan: UpdatePlan): Promise<number> {
+  const { output, progress, installer, lifecycle, transactionStore, targetVersion } = plan;
+  const { packageRoot, npmCliRoot } = plan.installation;
+  const run: UpdateRun = { transaction: await transactionStore.read() };
+  try {
+    if ((!run.transaction || run.transaction.status === "completed") && await lifecycle.targetIsActive(targetVersion)) {
+      await installer.maintenance();
       await transactionStore.clearCompleted();
       output.stdout(`${PRODUCT_TEXT.commandName} is up to date — no update needed.\n`);
       return 0;
     }
-    const preflightRequired = options.npmCliResolver !== undefined
-      || options.packageReplacement === undefined && options.runner === undefined;
-    if (preflightRequired) {
-      try {
-        npmCli = await (options.npmCliResolver ?? resolveNpmCli)(npmCliRoot, environment);
-      } catch (error) {
-        throw new UpdatePreflightFailure(errorMessage(error));
-      }
+    let npmCli: string | undefined;
+    try {
+      npmCli = await installer.preflight(npmCliRoot);
+    } catch (error) {
+      throw new UpdatePreflightFailure(errorMessage(error));
     }
     // Rationale: the bar first appears only after every non-mutating replacement prerequisite passes.
     progress.set(3, 15);
-    const releaseStateStore = new ReleaseStateStore(paths.dataDir);
-    let currentReleaseState = await releaseStateStore.read();
-    let priorActiveReleaseId = currentReleaseState.references.active;
-    if (options.runner === undefined && (priorActiveReleaseId === null || currentReleaseState.releases[priorActiveReleaseId]?.approval !== "approved")) {
-      // Invariant: protected replacement needs an immutable launch authority that npm cannot rename.
-      const recoveryRelease = await materializeRelease(packageRoot, paths.dataDir);
-      await releaseStateStore.recordCandidate(recoveryRelease);
-      const diagnostics = await certifyMaterializedRelease(recoveryRelease, paths.dataDir);
-      await releaseStateStore.approve(recoveryRelease.releaseId, diagnostics);
-      await releaseStateStore.activate(recoveryRelease.releaseId);
-      currentReleaseState = await releaseStateStore.read();
-      priorActiveReleaseId = recoveryRelease.releaseId;
-    }
-    transaction = await transactionStore.begin({
-      channel,
+    const protection = await installer.protectPriorRelease(packageRoot);
+    run.transaction = await transactionStore.begin({
+      channel: plan.channel,
       targetVersion,
       packageRoot,
-      priorActiveReleaseId,
+      priorActiveReleaseId: protection.priorActiveReleaseId,
     });
-    if (phaseBefore(transaction.phase, "ownership-released")) {
-      await measure("ownership-release", async () => { await lifecycle.verifyPackageUnlocked(packageRoot); });
-      transaction = await transactionStore.advance("ownership-released");
+    if (phaseBefore(run.transaction.phase, "ownership-released")) {
+      await plan.measure("ownership-release", async () => { await lifecycle.verifyPackageUnlocked(packageRoot); });
+      run.transaction = await transactionStore.advance("ownership-released");
     }
     progress.set(15, 70);
-
-    if (phaseBefore(transaction.phase, "package-installed")) {
-      if (options.packageReplacement || options.runner === undefined) {
-        const priorReleaseId = transaction.priorActiveReleaseId ?? priorActiveReleaseId;
-        const recordedPrior = priorReleaseId === null ? undefined : currentReleaseState.releases[priorReleaseId];
-        if ((!recordedPrior || recordedPrior.approval !== "approved") && !options.packageReplacement) {
-          throw new Error(PRODUCT_TEXT.diagnostic("cannot protect package replacement because no approved prior release is available"));
-        }
-        const priorRelease = recordedPrior ?? {
-          releaseId: priorReleaseId ?? "injected-prior-release",
-          releaseRoot: packageRoot,
-          contentDigest: "0".repeat(64),
-        };
-        const replacementTransaction = transaction;
-        const replacement = await measure("npm-install", async () => await (options.packageReplacement ?? runProtectedPackageReplacement)({
-          dataDir: paths.dataDir,
-          globalRoot,
-          npmCliRoot,
-          ...(npmCli === undefined ? {} : { npmCli }),
-          packageRoot,
-          transaction: replacementTransaction,
-          priorRelease,
-          output,
-          environment,
-          onRecoveryState: async recovery => {
-            if (transactionStore.setRecovery) transaction = await transactionStore.setRecovery(recovery) ?? transaction;
-          },
-        }));
-        // Rationale: npm's own text explains a failed replacement and says nothing about a
-        // successful one, so it reaches the terminal only when the installation did not happen.
-        if (replacement.outcome !== "installed") reportChildDiagnostics(output, replacement);
-        if (replacement.outcome === "installed") transaction = await transactionStore.advance("package-installed");
-        if (replacement.cancelled) {
-          progress.clear();
-          output.stderr(`${PRODUCT_TEXT.diagnostic("update cancelled safely; the launcher is available and the transaction can be resumed.")}\n`);
-          return 130;
-        }
-        if (replacement.outcome !== "installed") {
-          throw new UpdateFailure(unsuccessfulCode(replacement.npmExitCode), `npm exited with status ${formatExitCode(replacement.npmExitCode)}`);
-        }
-      } else {
-        const installation = await measure("npm-install", async () => await runNpm(
-          runner,
-          updateNpmInstallArguments(globalRoot, targetVersion),
-          true,
-          output,
-          "start the global npm installation",
-          false,
-        ));
-        if (installation.result === null) throw new UpdateFailure(installation.exitCode, "npm process failed");
-        if (installation.result.code !== 0) {
-          reportChildDiagnostics(output, installation.result);
-          throw new UpdateFailure(unsuccessfulCode(installation.result.code), `npm exited with status ${formatExitCode(installation.result.code)}`);
-        }
-        transaction = await transactionStore.advance("package-installed");
-      }
+    if (phaseBefore(run.transaction.phase, "package-installed")) {
+      const cancelled = await replaceUpdatePackage(plan, run, protection, npmCli);
+      if (cancelled !== null) return cancelled;
     }
+    return await activateUpdate(plan, run);
+  } catch (error) {
+    return await settleUpdateFailure(plan, run.transaction, error);
+  }
+}
 
-    progress.set(70, MATERIALIZE_PROGRESS.from);
-    let activationPhaseStartedAt = now();
-    const recordActivationPhase = async (phase: UpdateActivationPhase) => {
-      options.onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - activationPhaseStartedAt) });
-      transaction = await transactionStore.advance(phase);
-      progress.set(ACTIVATION_PROGRESS[phase].at, ACTIVATION_PROGRESS[phase].creepTo);
-      activationPhaseStartedAt = now();
-    };
-    await lifecycle.activateInstalled(packageRoot, targetVersion, recordActivationPhase,
-      ({ completed, total }) => progress.set(MATERIALIZE_PROGRESS.from
-        + (MATERIALIZE_PROGRESS.to - MATERIALIZE_PROGRESS.from) * (total > 0 ? Math.min(1, completed / total) : 0)),
-      state => {
-        if (state === "started") { activationPhaseStartedAt = now(); progress.set(98, 99); }
-        else {
-          options.onPhaseTiming?.({ phase: "warmup", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
-          activationPhaseStartedAt = now(); progress.set(99);
-        }
-      });
-    const transactionStartedAt = now();
-    if (transaction.recovery?.capsulePath) await removeUpdateRecoveryCapsule(paths.dataDir, transaction.transactionId);
-    // Invariant: successful output follows the durable cleanup disposition. Slow recursive
-    // removal belongs to the detached worker started by this maintenance coordinator.
-    await maintenance();
-    // Concurrency: this is the launch cutover. No failure-prone update work follows success.
-    await transactionStore.finish("completed");
-    await Promise.all([transactionStore.clearCompleted(), invalidateReleaseCheckCache(paths.configDir)]).catch(() => undefined);
-    options.onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
-    progress.finish();
-    output.stdout(`${PRODUCT_TEXT.commandName} updated successfully to ${targetVersion}\n`);
-    return 0;
-    } catch (error) {
-      progress.clear();
-      const message = errorMessage(error);
-      if (error instanceof UpdatePreflightFailure) {
-        output.stderr(`${PRODUCT_TEXT.diagnostic(`update could not start safely: ${message}. Nothing was changed. Retry with npm x -y -- ${PRODUCT_PACKAGE}-install`)}\n`);
-        return 1;
+/** Replace the package under protection; returns an exit code when the user cancelled, null once installed. */
+async function replaceUpdatePackage(
+  plan: UpdatePlan,
+  run: UpdateRun,
+  protection: UpdatePriorReleaseProtection,
+  npmCli: string | undefined,
+): Promise<number | null> {
+  const { output, progress, transactionStore } = plan;
+  const transaction = run.transaction!;
+  const priorRelease = protection.approvedRelease(transaction.priorActiveReleaseId ?? protection.priorActiveReleaseId);
+  if (priorRelease === undefined) {
+    throw new Error(PRODUCT_TEXT.diagnostic("cannot protect package replacement because no approved prior release is available"));
+  }
+  const replacement = await plan.measure("npm-install", async () => await plan.installer.replacePackage({
+    globalRoot: plan.installation.globalRoot,
+    npmCliRoot: plan.installation.npmCliRoot,
+    ...(npmCli === undefined ? {} : { npmCli }),
+    packageRoot: plan.installation.packageRoot,
+    transaction,
+    priorRelease,
+    output,
+    onRecoveryState: async recovery => {
+      if (transactionStore.setRecovery) run.transaction = await transactionStore.setRecovery(recovery) ?? run.transaction;
+    },
+  }));
+  // Rationale: npm's own text explains a failed replacement and says nothing about a
+  // successful one, so it reaches the terminal only when the installation did not happen.
+  if (replacement.outcome !== "installed") reportChildDiagnostics(output, replacement);
+  if (replacement.outcome === "installed") run.transaction = await transactionStore.advance("package-installed");
+  if (replacement.cancelled) {
+    progress.clear();
+    output.stderr(`${PRODUCT_TEXT.diagnostic("update cancelled safely; the launcher is available and the transaction can be resumed.")}\n`);
+    return 130;
+  }
+  if (replacement.outcome !== "installed") {
+    throw new UpdateFailure(unsuccessfulCode(replacement.npmExitCode), `npm exited with status ${formatExitCode(replacement.npmExitCode)}`);
+  }
+  return null;
+}
+
+/** Activate the installed package, commit maintenance, and only then report success. */
+async function activateUpdate(plan: UpdatePlan, run: UpdateRun): Promise<number> {
+  const { output, progress, transactionStore, now, onPhaseTiming, paths } = plan;
+  progress.set(70, MATERIALIZE_PROGRESS.from);
+  let activationPhaseStartedAt = now();
+  const recordActivationPhase = async (phase: UpdateActivationPhase) => {
+    onPhaseTiming?.({ phase, durationMs: Math.max(0, now() - activationPhaseStartedAt) });
+    run.transaction = await transactionStore.advance(phase);
+    progress.set(ACTIVATION_PROGRESS[phase].at, ACTIVATION_PROGRESS[phase].creepTo);
+    activationPhaseStartedAt = now();
+  };
+  await plan.lifecycle.activateInstalled(plan.installation.packageRoot, plan.targetVersion, recordActivationPhase,
+    ({ completed, total }) => progress.set(MATERIALIZE_PROGRESS.from
+      + (MATERIALIZE_PROGRESS.to - MATERIALIZE_PROGRESS.from) * (total > 0 ? Math.min(1, completed / total) : 0)),
+    state => {
+      if (state === "started") { activationPhaseStartedAt = now(); progress.set(98, 99); }
+      else {
+        onPhaseTiming?.({ phase: "warmup", durationMs: Math.max(0, now() - activationPhaseStartedAt) });
+        activationPhaseStartedAt = now(); progress.set(99);
       }
-      const rollback = options.lifecycle
-        ? "previous test lifecycle retained"
-        : await rollbackPriorRelease(paths.dataDir, transaction?.priorActiveReleaseId ?? null).catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
-      if (transaction) await transactionStore.finish(rollback === "rolled back" ? "rolled-back" : "failed", `${message}; ${rollback}`);
-      output.stderr(updateFailureLine(message, rollback, transactionStore.path));
-      return error instanceof UpdateFailure ? error.exitCode : 1;
-    }
-  });
+    });
+  const transactionStartedAt = now();
+  const transaction = run.transaction;
+  if (transaction?.recovery?.capsulePath) await removeUpdateRecoveryCapsule(paths.dataDir, transaction.transactionId);
+  // Invariant: successful output follows the durable cleanup disposition. Slow recursive
+  // removal belongs to the detached worker started by this maintenance coordinator.
+  await plan.installer.maintenance();
+  // Concurrency: this is the launch cutover. No failure-prone update work follows success.
+  await transactionStore.finish("completed");
+  await Promise.all([transactionStore.clearCompleted(), invalidateReleaseCheckCache(paths.configDir)]).catch(() => undefined);
+  onPhaseTiming?.({ phase: "transaction-complete", durationMs: Math.max(0, now() - transactionStartedAt) });
+  progress.finish();
+  output.stdout(`${PRODUCT_TEXT.commandName} updated successfully to ${plan.targetVersion}\n`);
+  return 0;
+}
+
+async function settleUpdateFailure(plan: UpdatePlan, transaction: UpdateTransaction | null, error: unknown): Promise<number> {
+  const { output, transactionStore } = plan;
+  plan.progress.clear();
+  const message = errorMessage(error);
+  if (error instanceof UpdatePreflightFailure) {
+    output.stderr(`${PRODUCT_TEXT.diagnostic(`update could not start safely: ${message}. Nothing was changed. Retry with npm x -y -- ${PRODUCT_PACKAGE}-install`)}\n`);
+    return 1;
+  }
+  const rollback = await plan.installer.rollback(transaction?.priorActiveReleaseId ?? null)
+    .catch(rollbackError => `rollback failed: ${errorMessage(rollbackError)}`);
+  if (transaction) await transactionStore.finish(rollback === "rolled back" ? "rolled-back" : "failed", `${message}; ${rollback}`);
+  output.stderr(updateFailureLine(message, rollback, transactionStore.path));
+  return error instanceof UpdateFailure ? error.exitCode : 1;
 }
 
 export function assertUpdatePerformanceBudget(
@@ -880,21 +898,6 @@ function reportChildDiagnostics(output: UpdateOutput, result: { readonly stdout:
   output.stderr(`${text}\n`);
   return true;
 }
-async function rollbackPriorRelease(dataDir: string, priorReleaseId: string | null): Promise<string> {
-  if (!priorReleaseId) return "no prior release was available for rollback";
-  const stateStore = new ReleaseStateStore(dataDir);
-  const state = await stateStore.read();
-  const prior = state.releases[priorReleaseId];
-  if (!prior || prior.approval !== "approved") return "prior release is not a verified rollback candidate";
-  if (state.references.active !== priorReleaseId) {
-    if (state.references.rollback === priorReleaseId) await stateStore.rollback();
-    else throw new Error(`prior release ${priorReleaseId} is not the recorded rollback release`);
-  }
-  // Invariant: rollback selects only a prior release whose retained content still verifies.
-  await readMaterializedRelease(prior.releaseRoot);
-  return "rolled back";
-}
-
 /** One reason and one next step; routine rollback detail stays in the journal. */
 function updateFailureLine(message: string, rollback: string, journalPath: string): string {
   const note = rollback.startsWith("rollback failed") ? ` (${rollback})` : "";
