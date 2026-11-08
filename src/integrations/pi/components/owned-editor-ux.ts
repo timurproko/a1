@@ -7,6 +7,7 @@ import {
 import type { SelectionEditor as Editor } from "./editor-interaction.js";
 import type { KeybindingsManager } from "./upstream/adjacent/core/keybindings.js";
 import { promptPathWordRanges } from "./path-word-ranges.js";
+import { BracketedPasteFramer, PASTE_START } from "./bracketed-paste.js";
 import type {
   PiShellClipboardContent,
   PiShellEditorTextRange,
@@ -198,7 +199,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
       reservedCursor: Position; revision: number;
     } | undefined;
   } = { generation: 0, preview: undefined };
-  #terminalPaste: { parts: string[]; piece: string; tail: string; bytes: number; oversized: boolean } | undefined;
+  readonly #paste: BracketedPasteFramer;
   #wordDirection: WordDirection | undefined;
   #geometry: {
     width: number;
@@ -223,12 +224,13 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     this.editor = editor;
     this.keybindings = keybindings;
     this.options = options;
+    this.#paste = new BracketedPasteFramer(options.beginTextPaste === undefined ? undefined : MAX_CLIPBOARD_TEXT_BYTES);
     installAtomicSegmentation(editor, options.atomicRanges, () => this.#wordDirection);
   }
 
   handleInput(data: string, next: (data?: string) => void): void {
     this.#pasteState.preview = undefined;
-    if (this.options.pasteEnabled === false ? discardTerminalPaste(this, data, value => this.handleInput(value, next)) : this.#handleTerminalPaste(data, next)) return;
+    if (this.options.pasteEnabled === false ? this.#paste.discard(data, value => this.handleInput(value, next)) : this.#handleTerminalPaste(data, next)) return;
     if (this.keybindings.matches(data, "owned.editor.selectAll")) {
       this.#selectAll();
       return;
@@ -309,23 +311,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     }
 
     if (this.keybindings.matches(data, "tui.editor.cursorWordLeft")) {
-      const before = this.#cursor();
-      const startedWithAtomicFocus = this.#atomicFocus() !== undefined;
-      this.#delegateWord(-1, next);
-      let after = this.#cursor();
-      const landedAtomic = this.#atomicRangeAt(after);
-      if (!startedWithAtomicFocus && landedAtomic?.start === after.col && after.col > 0) {
-        const line = editorState(this.editor).lines[after.line] ?? "";
-        const previous = [...GRAPHEMES.segment(line.slice(0, after.col))].at(-1);
-        if (previous !== undefined && !/^\s+$/u.test(previous.segment)) {
-          this.#delegateWord(-1, next);
-          after = this.#cursor();
-        }
-      }
-      const line = editorState(this.editor).lines[after.line] ?? "";
-      const landedPath = promptPathWordRanges(line).some(range => range.start === after.col);
-      if (!samePosition(before, after) && !landedPath) this.#moveOntoPreviousSeparator();
-      this.#requestRender();
+      this.#moveWordLeft(next);
       return;
     }
 
@@ -438,15 +424,15 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     this.#pointerSelecting = false;
     this.#lastClick = undefined;
     this.#redoStack = [];
-    DISABLED_TERMINAL_PASTES.delete(this);
+    // Invariant: reset forgets a paste being dropped, but a paste being inserted still completes.
+    if (this.options.pasteEnabled === false) this.#paste.clear();
     this.#selectionRevision += 1;
   }
 
   cancelPendingPastes(): void {
     this.#pasteState.generation += 1;
     this.#pasteState.preview = undefined;
-    this.#terminalPaste = undefined;
-    DISABLED_TERMINAL_PASTES.delete(this);
+    this.#paste.clear();
   }
 
   hasSelection(): boolean {
@@ -613,56 +599,32 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
   }
 
   #handleTerminalPaste(data: string, next: (data?: string) => void): boolean {
-    const start = data.indexOf("\x1b[200~");
-    if (this.#terminalPaste === undefined) {
+    if (!this.#paste.open) {
+      const start = data.indexOf(PASTE_START);
       if (start < 0) return false;
       if (start > 0) {
         const before = data.slice(0, start);
         this.handleInput(before, (replacement = before) => next(replacement));
       }
-      this.#terminalPaste = { parts: [], piece: "", tail: "", bytes: 0, oversized: false };
-      data = data.slice(start + 6);
+      data = data.slice(start);
     }
-    // Protocol: inspect only the new fragment plus a delimiter-sized suffix, not the whole growing body.
-    const pending = this.#terminalPaste;
-    const fragment = pending.tail + data;
-    const end = fragment.indexOf("\x1b[201~");
-    const append = (part: string) => {
-      if (pending.oversized || part.length === 0) return;
-      if (this.options.beginTextPaste !== undefined) {
-        pending.bytes += Buffer.byteLength(part);
-        if (pending.bytes > MAX_CLIPBOARD_TEXT_BYTES) {
-          pending.oversized = true; pending.parts = []; pending.piece = ""; return;
-        }
-      }
-      // Performance: bound fragment metadata even if a terminal supplies one character per input chunk.
-      pending.piece += part;
-      if (pending.piece.length >= 16_384) { pending.parts.push(pending.piece); pending.piece = ""; }
-    };
-    if (end < 0) {
-      let cut = Math.max(0, fragment.length - 5);
-      if (cut > 0 && /[\uD800-\uDBFF]/u.test(fragment[cut - 1]!) && /[\uDC00-\uDFFF]/u.test(fragment[cut]!)) cut--;
-      append(fragment.slice(0, cut));
-      pending.tail = fragment.slice(cut);
-      return true;
-    }
-    append(fragment.slice(0, end));
-    const remaining = fragment.slice(end + 6);
-    this.#terminalPaste = undefined;
-    if (pending.oversized) {
-      this.options.onPasteInput?.(pending.bytes, "framing");
+    const pasted = this.#paste.feed(data);
+    if (pasted === undefined) return true;
+    const { remaining, bytes } = pasted;
+    if (pasted.oversized) {
+      this.options.onPasteInput?.(bytes, "framing");
       this.options.onPasteRejected?.(new ImageAttachmentError("paste-size"));
       if (remaining.length > 0) this.handleInput(remaining, (replacement = remaining) => next(replacement));
       return true;
     }
-    const text = pending.parts.join("") + pending.piece;
+    const text = pasted.text;
     const deferred = text.length > 0 && this.options.beginTextPaste !== undefined && (this.options.deferTextPaste?.(text) ?? true);
-    this.options.onPasteInput?.(pending.bytes, "framing");
+    this.options.onPasteInput?.(bytes, "framing");
     if (text.length > 0) this.#redoStack = [];
     if (text.length === 0) this.pasteClipboard();
     else if (deferred) this.#pasteFromClipboard(text);
     else {
-      this.options.onPasteInput?.(pending.bytes, "inserting");
+      this.options.onPasteInput?.(bytes, "inserting");
       const transformed = this.options.transformPastedContent({ kind: "text", text });
       if (transformed === text && this.#orderedSelection() === undefined) next(`\x1b[200~${text}\x1b[201~`);
       else {
@@ -671,7 +633,7 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
         this.#redoStack = [];
         this.#requestRender();
       }
-      this.options.onPasteInput?.(pending.bytes, "settled");
+      this.options.onPasteInput?.(bytes, "settled");
     }
     if (remaining.length > 0) this.handleInput(remaining, (replacement = remaining) => next(replacement));
     return true;
@@ -938,12 +900,30 @@ class PromptSelectionInterceptor implements OwnedEditorUxInterceptor {
     return this.options.atomicRanges(line).find(range => position.col >= range.start && position.col < range.end);
   }
 
-  #moveOntoPreviousSeparator(): void {
-    const cursor = this.#cursor();
-    if (cursor.col === 0) return;
-    const line = editorState(this.editor).lines[cursor.line] ?? "";
-    const previous = [...GRAPHEMES.segment(line.slice(0, cursor.col))].at(-1);
-    if (previous !== undefined && /^\s+$/u.test(previous.segment)) this.#moveCursor(-1);
+  // Compatibility: word-left steps over an atomic chip as one word, stops on a path boundary, and
+  // otherwise lands on the separator before the word, as pinned Pi's prompt editor does.
+  #moveWordLeft(next: () => void): void {
+    const before = this.#cursor();
+    const startedWithAtomicFocus = this.#atomicFocus() !== undefined;
+    this.#delegateWord(-1, next);
+    let after = this.#cursor();
+    const landedAtomic = this.#atomicRangeAt(after);
+    if (!startedWithAtomicFocus && landedAtomic?.start === after.col && after.col > 0) {
+      const line = editorState(this.editor).lines[after.line] ?? "";
+      const previous = [...GRAPHEMES.segment(line.slice(0, after.col))].at(-1);
+      if (previous !== undefined && !/^\s+$/u.test(previous.segment)) {
+        this.#delegateWord(-1, next);
+        after = this.#cursor();
+      }
+    }
+    const line = editorState(this.editor).lines[after.line] ?? "";
+    const landedPath = promptPathWordRanges(line).some(range => range.start === after.col);
+    if (!samePosition(before, after) && !landedPath && after.col > 0) {
+      // Invariant: move onto the separator before the word, never past the line start.
+      const previous = [...GRAPHEMES.segment(line.slice(0, after.col))].at(-1);
+      if (previous !== undefined && /^\s+$/u.test(previous.segment)) this.#moveCursor(-1);
+    }
+    this.#requestRender();
   }
 
   #snapshot(): EditorSnapshot {
@@ -1086,73 +1066,6 @@ function isEditorSegment(value: unknown): value is EditorSegment {
   const index = Reflect.get(value, "index");
   const input = Reflect.get(value, "input");
   return typeof segment === "string" && typeof index === "number" && typeof input === "string";
-}
-
-interface DisabledTerminalPasteState {
-  startTail: string;
-  bodyTail: string | null;
-}
-
-const DISABLED_TERMINAL_PASTES = new WeakMap<object, DisabledTerminalPasteState>();
-
-function discardTerminalPaste(owner: object, data: string, forward: (data: string) => void): boolean {
-  const startMarker = "\x1b[200~";
-  const endMarker = "\x1b[201~";
-  const state = DISABLED_TERMINAL_PASTES.get(owner) ?? { startTail: "", bodyTail: null };
-  if (state.bodyTail !== null) {
-    const framed = state.bodyTail + data;
-    const end = framed.indexOf(endMarker);
-    if (end < 0) {
-      state.bodyTail = delimiterTail(framed, endMarker);
-      DISABLED_TERMINAL_PASTES.set(owner, state);
-      return true;
-    }
-    DISABLED_TERMINAL_PASTES.delete(owner);
-    const remaining = framed.slice(end + endMarker.length);
-    if (remaining.length > 0) forward(remaining);
-    return true;
-  }
-
-  const hadStartTail = state.startTail.length > 0;
-  const candidate = state.startTail + data;
-  state.startTail = "";
-  const start = candidate.indexOf(startMarker);
-  if (start >= 0) {
-    if (start > 0) forward(candidate.slice(0, start));
-    const framed = candidate.slice(start + startMarker.length);
-    const end = framed.indexOf(endMarker);
-    if (end < 0) {
-      state.bodyTail = delimiterTail(framed, endMarker);
-      DISABLED_TERMINAL_PASTES.set(owner, state);
-    } else {
-      DISABLED_TERMINAL_PASTES.delete(owner);
-      const remaining = framed.slice(end + endMarker.length);
-      if (remaining.length > 0) forward(remaining);
-    }
-    return true;
-  }
-
-  const partial = delimiterTail(candidate, startMarker);
-  // Compatibility: standalone Escape still cancels; marker fragments stay pending.
-  if (partial.length > 1) {
-    const before = candidate.slice(0, candidate.length - partial.length);
-    if (before.length > 0) forward(before);
-    state.startTail = partial;
-    DISABLED_TERMINAL_PASTES.set(owner, state);
-    return true;
-  }
-  DISABLED_TERMINAL_PASTES.delete(owner);
-  if (hadStartTail) { forward(candidate); return true; }
-  return false;
-}
-
-function delimiterTail(text: string, delimiter: string): string {
-  const limit = Math.min(text.length, delimiter.length - 1);
-  for (let length = limit; length > 0; length -= 1) {
-    const suffix = text.slice(text.length - length);
-    if (delimiter.startsWith(suffix)) return suffix;
-  }
-  return "";
 }
 
 export function editorInsertedText(data: string): string | undefined {
