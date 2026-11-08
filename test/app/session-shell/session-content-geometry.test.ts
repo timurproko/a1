@@ -7,10 +7,10 @@ import { OwnedUiSessionShellRoot } from "../../../src/app/session-shell/session-
 import { applyPiTheme, setPiAccentColor } from "../../../src/integrations/pi/components/index.js";
 import { PiTuiRuntimeAdapter } from "../../../src/integrations/pi/tui-runtime/adapter.js";
 import { DamageAwareTerminalAdapter } from "../../../src/integrations/pi/tui-runtime/damage-aware-terminal.js";
-import type { PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/contracts.js";
+import type { TerminalPort } from "../../../src/contracts/presentation/index.js";
 import { readVisibleHyperlinks, stripAnsi } from "../../../src/ui/components/index.js";
 
-class ContentTerminal implements PiTuiTerminalPort {
+class ContentTerminal implements TerminalPort {
   readonly kittyProtocolActive = false;
   readonly writes: string[] = [];
   readonly pending: Promise<void>[] = [];

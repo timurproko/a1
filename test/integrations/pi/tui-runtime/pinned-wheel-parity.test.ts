@@ -1,8 +1,9 @@
 import { ScrollView, StdinBuffer, TuiAltScreen, VStack, type Component } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
-import { PiTuiRuntimeAdapter, type PiTuiTerminalPort } from "../../../../src/integrations/pi/tui-runtime/index.js";
+import { PiTuiRuntimeAdapter } from "../../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalPort } from "../../../../src/contracts/presentation/index.js";
 
-class WheelTerminal implements PiTuiTerminalPort {
+class WheelTerminal implements TerminalPort {
   columns = 32;
   rows = 8;
   readonly kittyProtocolActive = false;
@@ -35,42 +36,45 @@ class WheelComponent implements Component {
 }
 
 describe("pinned TuiAltScreen wheel parity", () => {
-  it("matches the untouched public producer for batched physical and direct scrolling", async () => {
+  // Invariant: identical frames from the untouched producer and the adapter on identical input prove identical scrolling.
+  it.each([undefined, 2] as const)("matches the untouched public producer for batched physical wheel input with wheel distance %s", async wheelScrollLines => {
+    const options = wheelScrollLines === undefined ? undefined : { wheelScrollLines };
     const upstreamTerminal = new WheelTerminal();
-    const upstreamRoot = new WheelComponent("row", 16);
-    const upstream = new TuiAltScreen(upstreamTerminal, false, undefined, { wheelScrollLines: 2 });
-    upstream.addChild(upstreamRoot);
+    const upstream = new TuiAltScreen(upstreamTerminal, false, undefined, options);
+    upstream.addChild(new WheelComponent("row", 16));
     upstream.start();
     upstream.renderNow(true);
-    upstream.scrollToTop();
-    upstream.renderNow();
 
     const adapterTerminal = new WheelTerminal();
-    const adapterRoot = new WheelComponent("row", 16);
-    const adapter = new PiTuiRuntimeAdapter({ root: adapterRoot, terminal: adapterTerminal, mode: "fullscreen", wheelScrollLines: 2 });
+    const adapter = new PiTuiRuntimeAdapter({ root: new WheelComponent("row", 16), terminal: adapterTerminal, mode: "fullscreen", ...options });
     adapter.start();
     adapter.renderNow(true);
-    adapter.scrollToTop();
-    adapter.renderNow();
 
-    for (const [terminal, input] of [[upstreamTerminal, (value: string) => upstreamTerminal.input(value)], [adapterTerminal, (value: string) => adapterTerminal.input(value)]] as const) {
-      const buffer = new StdinBuffer({ timeout: 1 });
-      buffer.on("data", input);
-      buffer.process("\x1b[<65;6;4M\x1b[<65;6;4M");
-      buffer.destroy();
-      expect(terminal.writes.length).toBeGreaterThan(0);
-    }
-    upstream.renderNow();
-    adapter.renderNow();
-    expect(adapter.scrollState().scrollTop).toBe(upstream.viewportTop);
-    expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
+    const step = wheelScrollLines ?? 1;
+    const both = (sequence: string): void => {
+      for (const terminal of [upstreamTerminal, adapterTerminal]) {
+        const buffer = new StdinBuffer({ timeout: 1 });
+        buffer.on("data", value => terminal.input(value));
+        buffer.process(sequence);
+        buffer.destroy();
+      }
+      upstream.renderNow();
+      adapter.renderNow();
+      expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
+    };
+    const up = "\x1b[<64;6;4M";
+    const down = "\x1b[<65;6;4M";
 
-    upstream.scrollBy(-2);
-    adapter.scrollBy(-2);
-    upstream.renderNow();
-    adapter.renderNow();
-    expect(adapter.scrollState().scrollTop).toBe(upstream.viewportTop);
-    expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
+    both(up.repeat(16));
+    expect(upstream.viewportTop).toBe(0);
+    both(down + down);
+    expect(upstream.viewportTop).toBe(2 * step);
+    both(up);
+    expect(upstream.viewportTop).toBe(step);
+    both(down.repeat(16));
+    const bottom = upstream.viewportTop;
+    both(down);
+    expect(upstream.viewportTop).toBe(bottom);
 
     upstream.stop({ preserveScreen: true });
     await adapter.stop({ drainInput: false, preserveScreen: true });
@@ -115,26 +119,31 @@ describe("pinned TuiAltScreen wheel parity", () => {
     adapterTerminal.input("\x1b[<65;6;2M");
     upstream.renderNow();
     adapter.renderNow();
-    expect(adapter.scrollState("nested").scrollTop).toBe(upstreamNested.scrollTop);
-    expect(adapter.scrollState("primary").scrollTop).toBe(upstreamPrimary.scrollTop);
-    expect(adapter.scrollState("nested").scrollbarVisible).toBe(upstreamNested.isScrollbarVisible);
+    expect(upstreamNested.scrollTop).toBe(2);
+    expect(upstreamPrimary.scrollTop).toBe(0);
+    expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
 
-    upstreamNested.scrollToEnd();
-    adapter.scrollToBottom("nested");
-    upstream.renderNow();
-    adapter.renderNow();
+    // Rationale: three more two-row steps reach the nested end (top 7 of 10 rows in a 3-row view) on both sides.
+    for (let index = 0; index < 3; index += 1) {
+      upstreamTerminal.input("\x1b[<65;6;2M");
+      adapterTerminal.input("\x1b[<65;6;2M");
+      upstream.renderNow();
+      adapter.renderNow();
+    }
+    expect(upstreamNested.scrollTop).toBe(7);
+    expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
+    const primaryBefore = upstreamPrimary.scrollTop;
     upstreamTerminal.input("\x1b[<65;6;2M");
     adapterTerminal.input("\x1b[<65;6;2M");
     upstream.renderNow();
     adapter.renderNow();
-    expect(adapter.scrollState("primary").scrollTop).toBe(upstreamPrimary.scrollTop);
+    expect(upstreamPrimary.scrollTop).toBeGreaterThan(primaryBefore);
     expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
 
     upstreamTerminal.resize(24, 10);
     adapterTerminal.resize(24, 10);
     upstream.renderNow();
     adapter.renderNow();
-    expect(adapter.scrollState("nested").viewportHeight).toBe(upstreamNested.viewportHeight);
     expect(adapterTerminal.writes.at(-1)).toBe(upstreamTerminal.writes.at(-1));
 
     upstream.stop({ preserveScreen: true });

@@ -1,7 +1,7 @@
-import type { PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalPort } from "../../../src/contracts/presentation/index.js";
 
 /** Records real terminal-port deliveries without a physical desktop or provider. */
-export class RecordingTerminal implements PiTuiTerminalPort {
+export class RecordingTerminal implements TerminalPort {
   readonly kittyProtocolActive = false;
   readonly writes: Array<{ data: string; atMs: number }> = [];
   active = false;

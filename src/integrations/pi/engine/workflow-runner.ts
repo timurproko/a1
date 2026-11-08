@@ -201,10 +201,6 @@ export class PiWorkflowRunner {
     }
   }
 
-  abortBashWorkflow(): void {
-    this.#requireSession().abortBash?.();
-  }
-
   async executeBashWorkflow(command: string, excludeFromContext: boolean): Promise<PiBashWorkflowResult> {
     const session = this.#requireSession();
     const result = await requireCapability(session.executeBash, "executeBash").call(session, command, undefined, { excludeFromContext });

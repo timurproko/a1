@@ -70,7 +70,6 @@ class WorkflowSession {
     this.calls.push(`bash:${command}:${options.excludeFromContext}`);
     return { output: "bash output", exitCode: 0, cancelled: false, truncated: false };
   }
-  abortBash(): void { this.calls.push("abortBash"); }
   clearQueue(): unknown { return { steering: ["steer"], followUp: ["follow"] }; }
   readonly state = { systemPrompt: "System prompt", tools: [{ name: "read", description: "Read files", parameters: { type: "object" } }] };
   exportToJsonl(path?: string): string {
@@ -522,7 +521,6 @@ describe("pinned Pi command and input workflows", () => {
     runtime.session.cycleResult = undefined;
     await expect(adapter.workflows.cycleModelWorkflow("forward")).resolves.toMatchObject({ outcome: "completed", message: "Only one model available" });
     expect(adapter.clearQueuedWorkflows()).toEqual(["steer", "follow"]);
-    adapter.abortBashWorkflow();
     await expect(adapter.executeWorkflow({ command: "copy", argument: "" })).resolves.toMatchObject({ outcome: "failed", message: "clipboard denied" });
     runtime.session.reloadFails = true;
     await expect(adapter.executeWorkflow({ command: "reload", argument: "" })).resolves.toMatchObject({ outcome: "failed", message: "Reload failed: reload exploded" });

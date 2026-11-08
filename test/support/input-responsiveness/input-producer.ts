@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import type { PiTuiInputDiagnosticsEvent } from "../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalInputDiagnosticsEvent } from "../../../src/contracts/presentation/index.js";
 import type { RenderingProducerId } from "../rendering/rendering-producer.js";
 import type { InputCheckpointFrames } from "./input-frame-evidence.js";
 import { assertInputFrameEvidence } from "./input-frame-validation.js";
@@ -50,7 +50,7 @@ export interface InputProducerResult {
   readonly processId: number;
   readonly workloadId: string;
   readonly variant: "candidate" | "baseline";
-  readonly phases: readonly PiTuiInputDiagnosticsEvent[];
+  readonly phases: readonly TerminalInputDiagnosticsEvent[];
   readonly writes: readonly { readonly data: string; readonly atMs: number }[];
   readonly checkpoints: readonly InputProducerCheckpoint[];
   readonly restored: boolean;

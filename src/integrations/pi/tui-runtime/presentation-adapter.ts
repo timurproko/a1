@@ -7,7 +7,7 @@ import type {
   PresentationTerminalPort,
 } from "../../../contracts/presentation/index.js";
 import { PiTuiRuntimeAdapter } from "./adapter.js";
-import type { PiTuiTerminalPort } from "./contracts.js";
+import type { TerminalPort } from "../../../contracts/presentation/index.js";
 
 export function createPiPresentationRuntime(root: PresentationComponentPort, terminal: PresentationTerminalPort): PresentationRuntimePort {
   return new PresentationRuntimeAdapter(root, terminal);
@@ -39,7 +39,7 @@ class PresentationRuntimeAdapter implements PresentationRuntimePort {
   async stop(): Promise<void> { await this.#runtime.stop(); }
 }
 
-export function createPiTerminalBridge(terminal: PresentationTerminalPort): PiTuiTerminalPort {
+export function createPiTerminalBridge(terminal: PresentationTerminalPort): TerminalPort {
   return {
     get columns() { return terminal.columns; },
     get rows() { return terminal.rows; },
