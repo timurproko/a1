@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { OwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
-import { assertOwnedUiTranscriptBlock } from "../../../../src/contracts/owned-ui/index.js";
+import { assertTranscriptBlock } from "../../../support/owned-ui-contract-fixtures.js";
 import { TranscriptImageAssets } from "../../../../src/integrations/pi/engine/transcript-image-assets.js";
 import { toolRenderingInput } from "../../../../src/integrations/pi/engine/tool-rendering.js";
 
@@ -65,7 +65,7 @@ describe("bounded transcript image assets", () => {
     expect(rendering.toolRendering.unavailable).toContain("Image unavailable");
     expect(rendering.toolRendering.unavailable).toContain("unsupported content part");
     expect(rendering.text).toBe("KEEP_RESULT");
-    expect(() => assertOwnedUiTranscriptBlock({ id: "tool", kind: "tool-result", status: "finalized", revision: 1,
+    expect(() => assertTranscriptBlock({ id: "tool", kind: "tool-result", status: "finalized", revision: 1,
       title: "tool", toolState: { argsComplete: true, execution: "succeeded" }, payload, ...rendering })).not.toThrow();
   });
 });

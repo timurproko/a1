@@ -1,4 +1,4 @@
-import type { PiTuiInputDiagnosticsEvent } from "../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalInputDiagnosticsEvent } from "../../../src/contracts/presentation/index.js";
 import type { TranscriptViewportFrameDescriptor } from "../../../src/ui/components/transcript-viewport.js";
 import type { InputCheckpointFrames, InputCompositionFrame } from "./input-frame-evidence.js";
 import { isInputNonFrameControl } from "./input-frame-validation.js";
@@ -21,7 +21,7 @@ export class InputFrameRecorder {
   readonly observe: () => Observation;
   constructor(observe: () => Observation) { this.observe = observe; this.#renderStart = observe().renders; }
 
-  trace(event: PiTuiInputDiagnosticsEvent): void {
+  trace(event: TerminalInputDiagnosticsEvent): void {
     if (event.phase === "composition-start") {
       if (this.#pending) throw new Error("nested input frame composition");
       this.#pending = { observation: this.observe(), revision: event.appliedRevision };

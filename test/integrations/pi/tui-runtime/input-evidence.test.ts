@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PiTuiInputDiagnosticsEvent } from "../../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalInputDiagnosticsEvent } from "../../../../src/contracts/presentation/index.js";
 import { analyzeInputPhaseEvidence } from "../../../support/input-responsiveness/input-phase-evidence.js";
 import {
   INPUT_RESPONSIVENESS_WORKLOADS,
@@ -8,12 +8,12 @@ import {
 } from "../../../support/input-responsiveness/input-workloads.js";
 
 function event(
-  phase: PiTuiInputDiagnosticsEvent["phase"],
+  phase: TerminalInputDiagnosticsEvent["phase"],
   revision: number,
   atMs: number,
   pendingDepth = 0,
   pendingPresentationDepth: 0 | 1 = pendingDepth > 0 ? 1 : 0,
-): PiTuiInputDiagnosticsEvent {
+): TerminalInputDiagnosticsEvent {
   return {
     phase,
     revision,

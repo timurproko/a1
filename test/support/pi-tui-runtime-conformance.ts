@@ -1,4 +1,5 @@
-import { PiTuiRuntimeAdapter, PiTuiRuntimeError, type PiTuiComponentPort, type PiTuiTerminalPort } from "../../src/integrations/pi/tui-runtime/index.js";
+import { PiTuiRuntimeAdapter, PiTuiRuntimeError } from "../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalComponentPort, TerminalPort } from "../../src/contracts/presentation/index.js";
 
 export interface PiTuiRuntimeConformanceOptions {
   readonly packageVersion: string;
@@ -81,7 +82,7 @@ export async function runPiTuiRuntimeConformance(options: PiTuiRuntimeConformanc
   }
 }
 
-class ConformanceComponent implements PiTuiComponentPort {
+class ConformanceComponent implements TerminalComponentPort {
   readonly inputs: string[] = [];
   readonly focusChanges: boolean[] = [];
   readonly widths: number[] = [];
@@ -110,7 +111,7 @@ class ConformanceComponent implements PiTuiComponentPort {
   }
 }
 
-class ConformanceTerminal implements PiTuiTerminalPort {
+class ConformanceTerminal implements TerminalPort {
   columns = 40;
   rows = 6;
   readonly kittyProtocolActive = false;

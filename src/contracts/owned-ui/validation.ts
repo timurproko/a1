@@ -5,12 +5,10 @@ import {
   type OwnedUiDiagnostics,
   type OwnedUiDialog,
   type OwnedUiEditorState,
-  type OwnedUiEvent,
   type OwnedUiOverlay,
   type OwnedUiPromptSuggestionIdentity,
   type OwnedUiPromptSuggestionRequest,
   type OwnedUiPromptSuggestionResult,
-  type OwnedUiPromptSuggestionState,
   type OwnedUiSessionViewModel,
   type OwnedUiSnapshot,
   type OwnedUiStatusView,
@@ -66,7 +64,6 @@ const SLOT_IDS = new Set([
   "overlay",
   "layout",
 ]);
-const OUTCOMES = new Set(["accepted", "rejected", "completed", "failed", "timed-out", "cancelled"]);
 const FOCUSED_REGIONS = new Set(["transcript", "editor", "dialog", "overlay", "status"]);
 const DIALOG_KINDS = new Set(["choice", "editor", "settings", "confirmation"]);
 const OVERLAY_PLACEMENTS = new Set(["bottom", "center"]);
@@ -118,79 +115,7 @@ export function assertOwnedUiCommand(command: OwnedUiCommand): void {
   }
 }
 
-export function assertOwnedUiEvent(event: OwnedUiEvent): void {
-  assertId(event.sessionId, "owned-UI event session id");
-  assertNonNegativeInteger(event.sequence, "owned-UI event sequence");
-  switch (event.type) {
-    case "session-lifecycle":
-      assertEnum(event.lifecycle, LIFECYCLES, "owned-UI lifecycle");
-      assertOptionalText(event.reason, "owned-UI lifecycle reason", MAX_MESSAGE_LENGTH);
-      return;
-    case "session-view":
-      assertOwnedUiSessionViewModel(event.view);
-      assertViewSession(event.view, event.sessionId);
-      return;
-    case "transcript-block":
-      assertOwnedUiTranscriptBlock(event.block);
-      return;
-    case "assistant-message-completed":
-      assertNonNegativeInteger(event.sessionGeneration, "owned-UI assistant response session generation");
-      assertNonNegativeInteger(event.runSequence, "owned-UI assistant response run sequence");
-      assertNonNegativeInteger(event.responseSequence, "owned-UI assistant response sequence");
-      assertNonNegativeInteger(event.assistantMessageCount, "owned-UI assistant response count");
-      if (event.model !== null) assertOwnedUiModelInfo(event.model);
-      if (typeof event.successful !== "boolean") throw new TypeError("owned-UI assistant response success state is invalid");
-      assertOptionalText(event.stopReason, "owned-UI assistant response stop reason", MAX_LABEL_LENGTH);
-      if (typeof event.toolContinuation !== "boolean") throw new TypeError("owned-UI assistant response tool-continuation state is invalid");
-      return;
-    case "agent-run-started":
-      return;
-    case "agent-run-settled":
-      assertNonNegativeInteger(event.sessionGeneration, "owned-UI settlement session generation");
-      assertNonNegativeInteger(event.runSequence, "owned-UI settlement run sequence");
-      assertNonNegativeInteger(event.responseSequence, "owned-UI settlement response sequence");
-      assertNonNegativeInteger(event.assistantMessageCount, "owned-UI settlement assistant message count");
-      if (event.model !== null) assertOwnedUiModelInfo(event.model);
-      if (typeof event.successful !== "boolean") throw new TypeError("owned-UI settlement success state is invalid");
-      if (event.stopReason === undefined) throw new TypeError("owned-UI settlement stop reason is missing");
-      assertOptionalText(event.stopReason, "owned-UI settlement stop reason", MAX_LABEL_LENGTH);
-      if (typeof event.toolContinuation !== "boolean") throw new TypeError("owned-UI settlement tool-continuation state is invalid");
-      if (typeof event.aborted !== "boolean") throw new TypeError("owned-UI settlement aborted state is invalid");
-      return;
-    case "editor-state":
-      assertOwnedUiEditorState(event.editor);
-      return;
-    case "status":
-      assertOwnedUiStatusView(event.status);
-      return;
-    case "dialog":
-      if (event.dialog !== null) assertOwnedUiDialog(event.dialog);
-      return;
-    case "overlay":
-      if (event.overlay !== null) assertOwnedUiOverlay(event.overlay);
-      return;
-    case "command-outcome":
-      assertId(event.correlationId, "owned-UI outcome correlation id");
-      assertEnum(event.outcome, OUTCOMES, "owned-UI command outcome");
-      assertOptionalText(event.diagnostic, "owned-UI command diagnostic", MAX_MESSAGE_LENGTH);
-      return;
-    case "customization":
-      assertCollection(event.customizations, "owned-UI customizations", MAX_CUSTOMIZATIONS);
-      assertUniqueCustomizations(event.customizations);
-      for (const customization of event.customizations) assertOwnedUiCustomization(customization);
-      return;
-    case "terminal-surface":
-      assertOwnedUiTerminalSurface(event.surface);
-      return;
-    case "diagnostic":
-      assertOwnedUiDiagnostics(event.diagnostic);
-      return;
-    default:
-      throw new TypeError("owned-UI event type is unknown");
-  }
-}
-
-export function assertOwnedUiPromptSuggestionIdentity(identity: OwnedUiPromptSuggestionIdentity): void {
+function assertOwnedUiPromptSuggestionIdentity(identity: OwnedUiPromptSuggestionIdentity): void {
   assertId(identity.sessionId, "prompt-suggestion session id");
   assertNonNegativeInteger(identity.sessionGeneration, "prompt-suggestion session generation");
   assertNonNegativeInteger(identity.runSequence, "prompt-suggestion run sequence");
@@ -217,19 +142,7 @@ export function assertOwnedUiPromptSuggestionResult(result: OwnedUiPromptSuggest
   }
 }
 
-export function assertOwnedUiPromptSuggestionState(state: OwnedUiPromptSuggestionState): void {
-  if (state.status === "idle") return;
-  if (state.status !== "generating" && state.status !== "prepared" && state.status !== "available") {
-    throw new TypeError("prompt-suggestion state is invalid");
-  }
-  assertOwnedUiPromptSuggestionIdentity(state.identity);
-  if (state.status === "generating" && typeof state.settled !== "boolean") {
-    throw new TypeError("prompt-suggestion settlement state is invalid");
-  }
-  if (state.status === "prepared" || state.status === "available") assertPromptSuggestionText(state.text, false);
-}
-
-export function assertOwnedUiSessionViewModel(view: OwnedUiSessionViewModel): void {
+function assertOwnedUiSessionViewModel(view: OwnedUiSessionViewModel): void {
   if (view.contractVersion !== OWNED_UI_CONTRACT_VERSION) {
     throw new TypeError("unsupported owned-UI contract version");
   }
@@ -280,7 +193,7 @@ export function assertOwnedUiSnapshot(snapshot: OwnedUiSnapshot): void {
   assertJsonBytes(snapshot, "owned-UI snapshot", MAX_SESSION_VIEW_BYTES);
 }
 
-export function assertOwnedUiCustomization(customization: OwnedUiCustomization): void {
+function assertOwnedUiCustomization(customization: OwnedUiCustomization): void {
   assertId(customization.id, "owned-UI customization id");
   assertEnum(customization.slot, SLOT_IDS, "owned-UI customization slot");
   assertIntegerInRange(customization.version, 1, Number.MAX_SAFE_INTEGER, "owned-UI customization version");
@@ -289,7 +202,7 @@ export function assertOwnedUiCustomization(customization: OwnedUiCustomization):
   assertJsonObject(customization.payload, "owned-UI customization payload", MAX_PAYLOAD_BYTES);
 }
 
-export function assertOwnedUiTranscriptBlock(block: OwnedUiTranscriptBlock): void {
+function assertOwnedUiTranscriptBlock(block: OwnedUiTranscriptBlock): void {
   assertId(block.id, "owned-UI transcript block id");
   assertEnum(block.kind, BLOCK_KINDS, "owned-UI transcript block kind");
   assertEnum(block.status, BLOCK_STATUSES, "owned-UI transcript block status");
@@ -340,7 +253,7 @@ export function assertOwnedUiTranscriptBlock(block: OwnedUiTranscriptBlock): voi
   }
 }
 
-export function assertOwnedUiEditorState(editor: OwnedUiEditorState): void {
+function assertOwnedUiEditorState(editor: OwnedUiEditorState): void {
   assertPossiblyEmptyText(editor.text, "owned-UI editor text", MAX_TEXT_BYTES);
   assertCollection(editor.queuedSubmissions, "owned-UI queued submissions", MAX_QUEUE);
   let queuedBytes = 0;
@@ -358,7 +271,7 @@ export function assertOwnedUiEditorState(editor: OwnedUiEditorState): void {
   }
 }
 
-export function assertOwnedUiStatusView(status: OwnedUiStatusView): void {
+function assertOwnedUiStatusView(status: OwnedUiStatusView): void {
   assertBoundedText(status.title, "owned-UI status title", MAX_LABEL_LENGTH);
   assertOptionalText(status.workingMessage, "owned-UI working message", MAX_MESSAGE_LENGTH);
   if (status.workingProgress !== undefined && status.workingProgress !== null) {
@@ -426,14 +339,14 @@ export function assertOwnedUiStatusView(status: OwnedUiStatusView): void {
   }
 }
 
-export function assertOwnedUiTerminalSurface(surface: OwnedUiTerminalSurface): void {
+function assertOwnedUiTerminalSurface(surface: OwnedUiTerminalSurface): void {
   assertIntegerInRange(surface.columns, 20, 500, "owned-UI terminal columns");
   assertIntegerInRange(surface.rows, 8, 300, "owned-UI terminal rows");
   assertEnum(surface.focusedRegion, FOCUSED_REGIONS, "owned-UI focused region");
   if (typeof surface.hardwareCursor !== "boolean") throw new TypeError("owned-UI hardware-cursor state is invalid");
 }
 
-export function assertOwnedUiDiagnostics(diagnostic: OwnedUiDiagnostics): void {
+function assertOwnedUiDiagnostics(diagnostic: OwnedUiDiagnostics): void {
   assertNonNegativeInteger(diagnostic.sequence, "owned-UI diagnostic sequence");
   assertId(diagnostic.code, "owned-UI diagnostic code");
   assertEnum(diagnostic.severity, SEVERITIES, "owned-UI diagnostic severity");

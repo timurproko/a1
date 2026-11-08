@@ -329,10 +329,6 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     }
   }
 
-  abortBashWorkflow(): void {
-    this.#workflows.abortBashWorkflow();
-  }
-
   async executeWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
     const result = await this.#workflows.executeWorkflow(request);
     if (request.command === "tree" && result.outcome === "completed" && request.selection !== undefined) {

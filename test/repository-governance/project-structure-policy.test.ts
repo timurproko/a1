@@ -6,7 +6,7 @@ import {
   inspectProjectStructureImports,
   PROJECT_OWNERS,
   projectOwnerForPath,
-  testOwnerForPath, inspectExportConsumers } from "../../scripts/governance/project-structure-policy.mjs";
+  testOwnerForPath, inspectExportConsumers, inspectScriptReferences } from "../../scripts/governance/project-structure-policy.mjs";
 
 describe("project structure ownership policy", () => {
   it("declares every production and test owner with one public entry", () => {
@@ -238,6 +238,30 @@ describe("project structure ownership policy", () => {
     expect(inspectExportConsumers(files, consumers, ["src/features/launch/declared-entry.ts"])).toEqual([
       "src/features/launch/flags.ts: export 'DEAD' has no production consumer; make it private or delete it",
       "src/features/launch/flags.ts: export 'TESTED_ONLY' has no production consumer; make it private or delete it",
+    ]);
+  });
+
+  it("fails on a script that no manifest, document, or other code names", () => {
+    const scripts = [
+      "scripts/governance/run-gate.mjs",
+      "scripts/governance/gate-helpers.mjs",
+      "scripts/release/documented.mjs",
+      "scripts/release/tested.mjs",
+      "scripts/development/fixture.mjs",
+      "scripts/release/self-only.mjs",
+      "scripts/release/archived-only.mjs",
+    ];
+    const referrers = {
+      "package.json": '{ "scripts": { "gate": "node scripts/governance/run-gate.mjs" } }',
+      "scripts/governance/run-gate.mjs": 'import { helper } from "./gate-helpers.mjs";',
+      "docs/release.md": "Run `node scripts/release/documented.mjs` by hand.",
+      "test/release/tested.test.ts": 'import "../../scripts/release/tested.mjs";',
+      "scripts/preview": 'node "$(dirname "$0")/development/fixture.mjs"',
+      "scripts/release/self-only.mjs": "// usage: node scripts/release/self-only.mjs",
+    };
+    expect(inspectScriptReferences(scripts, referrers)).toEqual([
+      "scripts/release/archived-only.mjs: script has no reference; document how it runs or delete it",
+      "scripts/release/self-only.mjs: script has no reference; document how it runs or delete it",
     ]);
   });
 

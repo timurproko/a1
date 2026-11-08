@@ -503,7 +503,6 @@ export class OwnedUiSessionShellRoot implements TerminalComponentPort {
     return null;
   }
 
-  canPreparePromptSuggestion(): boolean { return this.promptSuggestionPrepareBlockReason() === null; }
 
   promptSuggestionPresentationBlockReason(): SuggestionDecision {
     const reason = this.promptSuggestionPrepareBlockReason();

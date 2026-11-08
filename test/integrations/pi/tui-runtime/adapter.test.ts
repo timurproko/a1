@@ -1,15 +1,8 @@
-import { StdinBuffer } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vitest";
-import {
-  DamageAwareTerminalAdapter,
-  PiTuiRuntimeAdapter,
-  PiTuiRuntimeError,
-  classifyPiTuiInput,
-  type PiTuiComponentPort,
-  type PiTuiTerminalPort,
-} from "../../../../src/integrations/pi/tui-runtime/index.js";
+import { DamageAwareTerminalAdapter, PiTuiRuntimeAdapter, PiTuiRuntimeError, classifyPiTuiInput } from "../../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalComponentPort, TerminalPort } from "../../../../src/contracts/presentation/index.js";
 
-class TestComponent implements PiTuiComponentPort {
+class TestComponent implements TerminalComponentPort {
   readonly inputs: string[] = [];
   readonly focus: boolean[] = [];
   invalidations = 0;
@@ -42,7 +35,7 @@ class TestComponent implements PiTuiComponentPort {
   }
 }
 
-class TestTerminal implements PiTuiTerminalPort {
+class TestTerminal implements TerminalPort {
   columns = 30;
   rows = 6;
   kittyProtocolActive = false;
@@ -142,8 +135,6 @@ describe("PiTuiRuntimeAdapter", () => {
     runtime.setHardwareCursor(true);
     runtime.setClearOnShrink(false);
     runtime.setTerminalProgress(true);
-    expect(runtime.getHardwareCursor()).toBe(true);
-    expect(runtime.getClearOnShrink()).toBe(false);
     expect(terminal.writes).toContain("progress:true");
 
     terminal.input("root");
@@ -190,9 +181,7 @@ describe("PiTuiRuntimeAdapter", () => {
     const runtime = new PiTuiRuntimeAdapter({ root, terminal, mode: "fullscreen", mouse: false });
     runtime.start();
     runtime.renderNow(true);
-    expect(runtime.presentationFrozen).toBe(false);
     runtime.freezePresentation();
-    expect(runtime.presentationFrozen).toBe(true);
     const before = terminal.writes.length;
     root.lines = ["frozen", "after"];
     runtime.renderNow(true);
@@ -203,7 +192,6 @@ describe("PiTuiRuntimeAdapter", () => {
     expect(terminal.writes.at(-1)).toBe("\x1b[?1003l");
     await runtime.stop({ drainInput: false, preserveScreen: true });
     expect(runtime.state).toBe("stopped");
-    expect(runtime.presentationFrozen).toBe(false);
     const afterControl = terminal.writes.slice(before + 1).join("");
     expect(afterControl).toContain("\x1b[?1049l");
     expect(afterControl).not.toContain("after");
@@ -540,57 +528,7 @@ describe("PiTuiRuntimeAdapter", () => {
     await runtime.stop({ drainInput: false, preserveScreen: true });
   });
 
-  it("preserves the pinned one-row fullscreen wheel default", async () => {
-    const terminal = new TestTerminal();
-    terminal.rows = 5;
-    const root = new TestComponent(Array.from({ length: 12 }, (_, index) => `row-${index}`));
-    const runtime = new PiTuiRuntimeAdapter({ root, terminal, mode: "fullscreen" });
-    runtime.start();
-    runtime.renderNow(true);
-    runtime.scrollToTop();
-    terminal.input("\x1b[<65;5;3M");
-    runtime.renderNow();
-    expect(runtime.scrollState().scrollTop).toBe(1);
-    await runtime.stop({ drainInput: false, preserveScreen: true });
-  });
-
-  it("matches pinned physical-wheel batching, configured distance, direct scrolling, and boundaries", async () => {
-    const terminal = new TestTerminal();
-    terminal.rows = 5;
-    const root = new TestComponent(Array.from({ length: 12 }, (_, index) => `row-${index}`));
-    const runtime = new PiTuiRuntimeAdapter({ root, terminal, mode: "fullscreen", wheelScrollLines: 2 });
-    runtime.start();
-    runtime.renderNow(true);
-    runtime.scrollToTop();
-    runtime.renderNow();
-    expect(runtime.scrollState().scrollTop).toBe(0);
-
-    const stdin = new StdinBuffer({ timeout: 1 });
-    stdin.on("data", sequence => terminal.input(sequence));
-    stdin.process("\x1b[<65;5;3M\x1b[<65;5;3M");
-    runtime.renderNow();
-    expect(runtime.scrollState().scrollTop).toBe(4);
-    expect(root.inputs).toEqual([]);
-
-    runtime.scrollBy(-2);
-    runtime.renderNow();
-    expect(runtime.scrollState().scrollTop).toBe(2);
-    runtime.scrollToBottom();
-    runtime.renderNow();
-    const bottom = runtime.scrollState().scrollTop;
-    terminal.input("\x1b[<65;5;3M");
-    runtime.renderNow();
-    expect(runtime.scrollState().scrollTop).toBe(bottom);
-    runtime.scrollToTop();
-    terminal.input("\x1b[<64;5;3M");
-    runtime.renderNow();
-    expect(runtime.scrollState().scrollTop).toBe(0);
-
-    stdin.destroy();
-    await runtime.stop({ drainInput: false, preserveScreen: true });
-  });
-
-  it.each(["contain", "chain"] as const)("routes nested wheel overscroll with pinned %s semantics and primary fallback", async overscroll => {
+  it.each(["contain", "chain"] as const)("builds nested scroll layouts with pinned %s overscroll, foreground scrollbars, and disposal", async overscroll => {
     const terminal = new TestTerminal();
     terminal.rows = 8;
     const primary = new TestComponent(Array.from({ length: 16 }, (_, index) => `primary-${index}`));
@@ -633,18 +571,9 @@ describe("PiTuiRuntimeAdapter", () => {
     runtime.renderNow(true);
     terminal.input("\x1b[<65;5;2M");
     runtime.renderNow();
-    expect(runtime.scrollState("nested")).toMatchObject({ scrollTop: 2, viewportHeight: 3, scrollbarVisible: true });
-    expect(runtime.scrollState("primary").scrollTop).toBe(0);
-
-    runtime.scrollToBottom("nested");
-    runtime.renderNow();
-    terminal.input("\x1b[<65;5;2M");
-    runtime.renderNow();
-    expect(runtime.scrollState("primary").scrollTop).toBe(2);
 
     terminal.resize(24, 10);
     runtime.renderNow();
-    expect(runtime.scrollState("nested").viewportHeight).toBe(3);
     // Rationale: pinned 0.85.1 draws the scrollbar track and thumb as foreground text (90 and 37) rather than a background.
     expect(terminal.writes.join("")).toContain("\x1b[90m");
     await runtime.stop({ drainInput: false, preserveScreen: true });

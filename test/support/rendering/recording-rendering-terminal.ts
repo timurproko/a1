@@ -1,8 +1,8 @@
-import type { PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalPort } from "../../../src/contracts/presentation/index.js";
 import type { RenderingDamageDecision, RenderingProducerWrite } from "./rendering-producer.js";
 
 /** Records bytes and the fresh damage decision observed at that exact public terminal write. */
-export class RecordingRenderingTerminal implements PiTuiTerminalPort {
+export class RecordingRenderingTerminal implements TerminalPort {
   readonly kittyProtocolActive = false;
   readonly writes: RenderingProducerWrite[] = [];
   #input: ((data: string) => void) | undefined;

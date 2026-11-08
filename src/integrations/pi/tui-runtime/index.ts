@@ -1,26 +1,3 @@
-export type {
-  PiTuiComponentPort,
-  PiTuiInputDiagnosticsEvent,
-  PiTuiInputDiagnosticsPhase,
-  PiTuiInputListener,
-  PiTuiInputListenerResult,
-  PiTuiLayoutEntry,
-  PiTuiLayoutNode,
-  PiTuiOverlayAnchor,
-  PiTuiOverlayHandle,
-  PiTuiOverlayMargin,
-  PiTuiOverlayOptions,
-  PiTuiOverlayUnfocusOptions,
-  PiTuiPointerSurface,
-  PiTuiPreInputListener,
-  PiTuiRuntimeAdapterOptions,
-  PiTuiRuntimeState,
-  PiTuiScrollState,
-  PiTuiSizeValue,
-  PiTuiStopOptions,
-  PiTuiTerminalPort,
-  PiTuiViewport,
-} from "./contracts.js";
 export { samePointerSurfaces } from "./overlay-geometry.js";
 export { PI_TERMINAL_RUNTIME } from "./runtime-factory.js";
 export {

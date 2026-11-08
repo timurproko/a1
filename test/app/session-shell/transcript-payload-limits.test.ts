@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Text } from "@earendil-works/pi-tui";
-import { assertOwnedUiTranscriptBlock } from "../../../src/contracts/owned-ui/index.js";
+import { assertTranscriptBlock } from "../../support/owned-ui-contract-fixtures.js";
 import { assistantCall, transcriptLifecycleFixture } from "../../support/rendering/transcript-lifecycle-fixture.js";
 
 const active: Awaited<ReturnType<typeof transcriptLifecycleFixture>>[] = [];
@@ -40,7 +40,7 @@ describe("renderer payload delivery limits", () => {
     expect(block.toolRendering?.result?.details).toEqual(details);
     expect(block.toolRendering?.unavailable).toBeUndefined();
     expect(block.status).toBe(final ? "finalized" : "live");
-    expect(() => assertOwnedUiTranscriptBlock(block)).not.toThrow();
+    expect(() => assertTranscriptBlock(block)).not.toThrow();
     expect(value.renderResult).toHaveBeenLastCalledWith({ content: result.content, details },
       expect.objectContaining({ isPartial: !final }), expect.anything(), expect.objectContaining({ args }));
     const pressure = value.backend.deliveryDiagnostics();

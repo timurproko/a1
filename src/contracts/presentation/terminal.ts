@@ -30,13 +30,6 @@ export interface TerminalViewport {
   readonly rows: number;
 }
 
-export interface TerminalScrollState {
-  readonly scrollTop: number;
-  readonly viewportHeight: number;
-  readonly followingEnd: boolean;
-  readonly scrollbarVisible: boolean;
-}
-
 export type TerminalPointerSurface = PresentationPointerSurface;
 
 export interface TerminalComponentPort extends PresentationComponentPort {

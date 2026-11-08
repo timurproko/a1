@@ -209,6 +209,26 @@ export function inspectExportConsumers(files, consumers = {}, exemptModules = []
   return errors;
 }
 
+/**
+ * Names each repository script that nothing references. A reference is any `.mjs` path in another
+ * file that resolves to the script from the repository root or from the referring file's directory.
+ * Callers pass only current referrers; archived OpenSpec changes are history, not references.
+ */
+export function inspectScriptReferences(scripts, referrers) {
+  const referenced = new Set();
+  for (const [path, text] of Object.entries(referrers)) {
+    const from = normalize(path);
+    for (const match of text.matchAll(/[\w./-]*\.mjs\b/g)) {
+      const token = match[0];
+      for (const candidate of [normalize(posix.normalize(token)), normalize(posix.normalize(posix.join(dirname(from), token)))]) {
+        if (candidate !== from) referenced.add(candidate);
+      }
+    }
+  }
+  return scripts.map(normalize).filter(script => !referenced.has(script)).sort()
+    .map(script => `${script}: script has no reference; document how it runs or delete it`);
+}
+
 function refersTo(importer, text, target, stem) {
   if (!importer.startsWith("src/")) return text.includes(`${stem}.js`) || text.includes(`${stem}.ts`);
   for (const match of text.matchAll(/(?:from\s+|import\s*\(\s*|export\s+\*\s+from\s+)(["'])(\.\.?\/[^"']+)\1/g)) {

@@ -1,7 +1,7 @@
 import { TuiAltScreen, isFocusable, type Component, type OverlayHandle, type OverlayOptions } from "@earendil-works/pi-tui";
 import type { PresentationComponentPort, PresentationPointerSurface } from "../../../contracts/presentation/index.js";
 import { samePointerSurfaces } from "../../../contracts/presentation/index.js";
-import type { PiTuiOverlayOptions } from "./contracts.js";
+import type { TerminalOverlayOptions } from "../../../contracts/presentation/index.js";
 
 /** Observes public component renders in compositor order, without accessing renderer state. */
 export class OverlayGeometryTracker {
@@ -27,7 +27,7 @@ export class OverlayGeometryTracker {
     this.#pending = [];
   }
 
-  record(component: PresentationComponentPort, options: PiTuiOverlayOptions | undefined, width: number, height: number): void {
+  record(component: PresentationComponentPort, options: TerminalOverlayOptions | undefined, width: number, height: number): void {
     if (this.#pending === undefined) return;
     const region = overlayPointerSurface(component, options, width, height, this.#columns, this.#rows);
     if (region !== undefined) this.#pending.push(region);
@@ -115,7 +115,7 @@ export { samePointerSurfaces };
  */
 function overlayPointerSurface(
   component: PresentationComponentPort,
-  options: PiTuiOverlayOptions | undefined,
+  options: TerminalOverlayOptions | undefined,
   width: number,
   renderedHeight: number,
   columns: number,

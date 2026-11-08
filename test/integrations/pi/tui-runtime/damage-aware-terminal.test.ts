@@ -1,15 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { readPinnedPiIdentity } from "../../../../scripts/governance/pinned-pi-identity.mjs";
 import { readVisibleHyperlinks } from "../../../../src/ui/components/visible-hyperlinks.js";
-import {
-  DamageAwareTerminalAdapter,
-  PINNED_PI_TUI_DAMAGE_GRAMMAR,
-  paintTerminalCanvasFrame,
-  rebaseTerminalDefaultBackground,
-  type PiTuiDamageFrameDescriptor,
-  type PiTuiDamageFrameSafety,
-  type PiTuiTerminalPort,
-} from "../../../../src/integrations/pi/tui-runtime/index.js";
+import { DamageAwareTerminalAdapter, PINNED_PI_TUI_DAMAGE_GRAMMAR, paintTerminalCanvasFrame, rebaseTerminalDefaultBackground, type PiTuiDamageFrameDescriptor, type PiTuiDamageFrameSafety } from "../../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalPort } from "../../../../src/contracts/presentation/index.js";
 import { classifyTerminalPaint, replayTerminalPaint } from "../../../support/rendering/terminal-paint-evidence.js";
 
 const SAFE: PiTuiDamageFrameSafety = {
@@ -19,7 +12,7 @@ const SAFE: PiTuiDamageFrameSafety = {
 };
 const initialRows = ["A", "B", "C", "D", "E", "F", "editor", "footer"];
 
-class RecordingTerminal implements PiTuiTerminalPort {
+class RecordingTerminal implements TerminalPort {
   readonly writes: string[] = [];
   readonly kittyProtocolActive = false;
   columns: number;

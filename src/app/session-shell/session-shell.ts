@@ -95,7 +95,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #submission: PromptSubmission;
   readonly #login: LoginInteraction;
   readonly #concerns: SessionConcerns;
-  readonly #listeners = new Set<(view: OwnedUiSessionViewModel) => void>();
   readonly #unsubscribe: () => void;
   #promptSuggestions: ShellPromptSuggestions | undefined;
   readonly #promptImages: OwnedUiShellPromptImagesOptions | null;
@@ -483,12 +482,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     });
   }
 
-  onView(listener: (view: OwnedUiSessionViewModel) => void): () => void {
-    this.#listeners.add(listener);
-    listener(this.view());
-    return () => this.#listeners.delete(listener);
-  }
-
   waitUntilStopped(): Promise<void> {
     return this.#stop.stopped;
   }
@@ -535,41 +528,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
 
   async abort(): Promise<OwnedUiCommandResult> {
     return this.#submission.execute(this.#simple("abort"));
-  }
-
-  async retry(): Promise<OwnedUiCommandResult> {
-    this.#promptSuggestions?.invalidate();
-    return this.#submission.execute(this.#simple("retry"));
-  }
-
-  async compact(): Promise<OwnedUiCommandResult> {
-    this.#promptSuggestions?.invalidate();
-    return this.#submission.execute(this.#simple("compact"));
-  }
-
-  async newSession(): Promise<OwnedUiCommandResult> {
-    this.#promptSuggestions?.invalidate();
-    return this.#submission.execute(this.#simple("new-session"));
-  }
-
-  async resumeSession(sessionPath: string): Promise<OwnedUiCommandResult> {
-    this.#promptSuggestions?.invalidate();
-    return this.#submission.execute({
-      type: "resume-session",
-      correlationId: this.#correlation("resume"),
-      sessionId: this.backend.identity.sessionId,
-      sessionPath,
-    });
-  }
-
-  async setModel(providerId: string, modelId: string): Promise<OwnedUiCommandResult> {
-    this.#promptSuggestions?.invalidate();
-    return this.#submission.execute({
-      type: "set-model",
-      correlationId: this.#correlation("model"),
-      sessionId: this.backend.identity.sessionId,
-      model: { providerId, modelId, displayName: modelId },
-    });
   }
 
   async setThinkingLevel(thinkingLevel: OwnedUiThinkingLevel): Promise<OwnedUiCommandResult> {
@@ -1058,7 +1016,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       this.#streamPresentation.presentImmediate();
     }
     const view = this.view();
-    for (const listener of this.#listeners) listener(view);
     return view;
   }
 
@@ -1197,7 +1154,6 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#dialogs.syncBackend(view.dialog);
     this.#presentStartupTrustWarning(view);
     this.#terminal.requestRender();
-    for (const listener of this.#listeners) listener(view);
     return view;
   }
 
@@ -1328,7 +1284,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     if (result.diagnostic === "Branch summarization cancelled") await this.showTreeSelector(entryId);
   }
 
-  #simple(type: "abort" | "retry" | "compact" | "shutdown" | "new-session"): OwnedUiCommand {
+  #simple(type: "abort"): OwnedUiCommand {
     return { type, correlationId: this.#correlation(type), sessionId: this.backend.identity.sessionId };
   }
 

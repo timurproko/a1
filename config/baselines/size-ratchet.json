@@ -15,12 +15,12 @@
       "fields": 13
     },
     "src/app/session-shell/session-shell-root.ts::OwnedUiSessionShellRoot": {
-      "methods": 76,
+      "methods": 75,
       "fields": 32
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter": {
-      "methods": 76,
-      "fields": 44
+      "methods": 70,
+      "fields": 43
     },
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController": {
       "methods": 34,
@@ -47,7 +47,7 @@
       "fields": 12
     },
     "src/integrations/pi/engine/adapter.ts::PiEngineAdapter": {
-      "methods": 40,
+      "methods": 39,
       "fields": 21
     },
     "src/integrations/pi/engine/session-runtime.ts::PiEngineRuntime": {
@@ -59,7 +59,7 @@
       "fields": 2
     },
     "src/integrations/pi/tui-runtime/adapter.ts::PiTuiRuntimeAdapter": {
-      "methods": 54,
+      "methods": 43,
       "fields": 24
     },
     "src/integrations/pi/tui-runtime/damage-aware-terminal.ts::DamageAwareTerminalAdapter": {

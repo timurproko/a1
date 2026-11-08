@@ -210,19 +210,9 @@ export type {
 } from "./prompt-history.js";
 export {
   assertOwnedUiCommand,
-  assertOwnedUiCustomization,
-  assertOwnedUiDiagnostics,
-  assertOwnedUiEditorState,
-  assertOwnedUiEvent,
-  assertOwnedUiPromptSuggestionIdentity,
   assertOwnedUiPromptSuggestionRequest,
   assertOwnedUiPromptSuggestionResult,
-  assertOwnedUiPromptSuggestionState,
-  assertOwnedUiSessionViewModel,
   assertOwnedUiSnapshot,
-  assertOwnedUiStatusView,
-  assertOwnedUiTerminalSurface,
-  assertOwnedUiTranscriptBlock,
 } from "./validation.js";
 export type {
   OwnedUiShellAuthProviderOption,

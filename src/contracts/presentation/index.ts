@@ -33,7 +33,6 @@ export type {
   TerminalRuntimeOptions,
   TerminalRuntimePort,
   TerminalRuntimeState,
-  TerminalScrollState,
   TerminalSizeValue,
   TerminalStopOptions,
   TerminalViewport,

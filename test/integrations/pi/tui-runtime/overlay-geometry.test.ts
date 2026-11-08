@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import type { PresentationPointerSurface } from "../../../../src/contracts/presentation/index.js";
-import { PiTuiRuntimeAdapter, type PiTuiOverlayOptions } from "../../../../src/integrations/pi/tui-runtime/index.js";
+import { PiTuiRuntimeAdapter } from "../../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalOverlayOptions } from "../../../../src/contracts/presentation/index.js";
 import { TestPresentationTerminal } from "../../../features/owned-ui/neutral-port-doubles.js";
 import { replayTerminalPaint } from "../../../support/rendering/terminal-paint-evidence.js";
 
-const cases: PiTuiOverlayOptions[] = [
+const cases: TerminalOverlayOptions[] = [
   {},
   ...["center", "top-left", "top-center", "top-right", "left-center", "right-center", "bottom-left", "bottom-center", "bottom-right"]
-    .map(anchor => ({ anchor, width: 11 } as PiTuiOverlayOptions)),
+    .map(anchor => ({ anchor, width: 11 } as TerminalOverlayOptions)),
   { width: "50%", minWidth: 25, maxHeight: "30%", row: "25%", col: "75%", margin: 2 },
   { width: "100%", maxHeight: "100%", anchor: "top-left" },
   { width: 20, row: 2, col: 3, offsetX: 7, offsetY: -1, margin: { top: 1, bottom: 2, left: 2, right: 3 } },
