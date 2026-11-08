@@ -1,25 +1,14 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { isRecord, readModel, readThinkingLevel, requireCapability, stringProperty } from "./message-values.js";
 import type { AgentSession, AgentSessionRuntime } from "../startup-public.js";
 import {
   AUTH_REFRESH_TIMEOUT_MS,
-  commandMissing,
   errorMessage,
   findExactWorkflowModel,
-  isAbortError,
   pathArgument,
   pinnedHotkeySummary,
   pinnedSessionInfoPresentation,
-  RADIUS_AUTH_MIN_VALIDITY_MS,
-  RADIUS_SHARE_GATEWAY,
-  radiusAuthCredential,
-  shareCommandFailureDetail,
-  shareViewerUrl,
-  withRadiusShareTrailingEntry,
   workflowConfirmation,
   workflowResult,
 } from "./workflow-support.js";
@@ -154,51 +143,6 @@ export class PiWorkflowRunner {
     if (this.#clipboardWriter !== undefined) return this.#clipboardWriter(text);
     await this.#host.copyText(text);
     return true;
-  }
-
-  // Protocol: the pinned Radius `/share` route. Undefined means Radius has no provider or credential,
-  // so the caller may fall back to a gist; any other outcome, including an upload failure, is final.
-  async #shareViaRadius(session: PiSessionApi, runtime: PiRuntimeApi, request: PiWorkflowRequest): Promise<PiWorkflowResult | undefined> {
-    const signal = request.signal;
-    const models = runtime.services.modelRuntime;
-    if (models.getProvider?.("radius") === undefined) return undefined;
-    const token = radiusAuthCredential(await models.getAuth("radius", { minOAuthValidityMs: RADIUS_AUTH_MIN_VALIDITY_MS }));
-    if (!token) return undefined;
-    if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-    request.onProgress?.("Uploading to Radius…");
-    const temporary = join(tmpdir(), `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}pi-session-${process.pid}.jsonl`);
-    let body: string;
-    try {
-      requireCapability(session.exportToJsonl, "exportToJsonl").call(session, temporary);
-      body = withRadiusShareTrailingEntry(await readFile(temporary, "utf8"), (session as Partial<Pick<PiSessionApi, "state">>).state ?? {}, randomUUID().slice(0, 8));
-    } catch (error) {
-      return workflowResult(request.command, "failed", `Failed to export session: ${errorMessage(error, "Unknown error")}`);
-    } finally {
-      await rm(temporary, { force: true });
-    }
-    const url = new URL("/v1/artifacts", RADIUS_SHARE_GATEWAY);
-    url.searchParams.set("visibility", "organization");
-    url.searchParams.set("title", "Pi session");
-    try {
-      const response = await (this.#host.fetch ?? fetch)(url, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/x-ndjson" },
-        body,
-        ...(signal === undefined ? {} : { signal }),
-      });
-      const json: unknown = await response.json().catch(() => null);
-      if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-      const artifact = isRecord(json) && isRecord(json.artifact) ? json.artifact : undefined;
-      const shareUrl = artifact === undefined ? undefined : stringProperty(artifact, "canonical_url");
-      if (!response.ok || shareUrl === undefined) {
-        const detail = (isRecord(json) ? stringProperty(json, "error") : undefined) || response.statusText || String(response.status);
-        return workflowResult(request.command, "failed", `Failed to upload Radius artifact: ${detail}`);
-      }
-      return workflowResult(request.command, "completed", `Share URL: ${shareUrl}`);
-    } catch (error) {
-      if (signal?.aborted || isAbortError(error)) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-      return workflowResult(request.command, "failed", `Failed to upload Radius artifact: ${errorMessage(error, "Unknown error")}`);
-    }
   }
 
   async executeBashWorkflow(command: string, excludeFromContext: boolean): Promise<PiBashWorkflowResult> {
@@ -336,293 +280,279 @@ export class PiWorkflowRunner {
     const session = this.#requireSession();
     const runtime = this.#ports.runtime();
     if (!runtime) throw new Error("engine runtime is unavailable");
-    const argument = request.argument.trim();
     const selected = request.selection?.trim();
-    const selection = selected && selected.length > 0 ? selected : undefined;
+    const call: PiWorkflowCall = { request, session, runtime, argument: request.argument.trim(), selection: selected && selected.length > 0 ? selected : undefined };
+    const { command } = request;
+    const { argument, selection } = call;
 
-    switch (request.command) {
-      case "settings": {
-        if (!selection) return workflowResult(request.command, "failed", "Settings requires the owned settings controller");
-        return await this.#ports.applyPinnedSetting(selection);
-      }
-      case "thinking": {
-        const requested = (selection ?? argument).trim();
-        if (!requested) return workflowResult(request.command, "requires-selection", "Select a thinking level", undefined, "silent");
-        const available = (session.getAvailableThinkingLevels?.() ?? []).map(String);
-        // Compatibility: pinned Pi matches the argument case-insensitively and words the failure with the available levels.
-        const level = available.find(candidate => candidate.toLowerCase() === requested.toLowerCase());
-        if (level === undefined) {
-          return workflowResult(request.command, "failed", `Unknown thinking level "${requested}". Available levels: ${available.join(", ")}.`);
-        }
-        try {
-          session.setThinkingLevel(readThinkingLevel(level), { persist: request.persist === true });
-        } catch (error) {
-          return workflowResult(request.command, "failed", error instanceof Error ? error.message : String(error));
-        }
-        this.#ports.setThinkingLevel(readThinkingLevel(session.thinkingLevel));
-        this.#ports.emitView();
-        return workflowResult(request.command, "completed", request.persist === true ? `Default thinking level: ${level}` : `Thinking level: ${level}`);
-      }
-      case "model": {
-        const reference = selection ?? argument;
-        if (!reference) return workflowResult(request.command, "failed", "Model requires the owned model controller");
-        const scopedModels = Array.isArray(session.scopedModels)
-          ? session.scopedModels.map(item => item.model)
-          : [];
-        // Compatibility: pinned Pi searches the session scope when one exists and refreshes catalogs only for an unscoped miss.
-        return this.#selectModel(request, reference, {
-          pool: scopedModels.length > 0 ? scopedModels : [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])],
-          refreshOnMiss: scopedModels.length === 0,
-          persist: request.persist === true,
-          onMiss: "requires-selection",
-        });
-      }
-      case "models": {
-        // Invariant: the bare dialog seeds its query from the argument; only an explicit selection switches the current session.
-        if (!selection) return workflowResult(request.command, "requires-selection", "Select a model", argument || undefined, "silent");
-        return this.#selectModel(request, selection, {
-          pool: [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])],
-          refreshOnMiss: true,
-          persist: false,
-          onMiss: "failed",
-        });
-      }
-      case "scoped-models": {
-        if (!selection) return workflowResult(request.command, "failed", "Scoped models requires the owned scoped-model controller");
-        const [providerId, modelId] = selection.split("/", 2);
-        const model = providerId && modelId ? runtime.services.modelRuntime.getModel(providerId, modelId) : undefined;
-        if (!model) return workflowResult(request.command, "failed", `Model is unavailable: ${selection}`);
-        requireCapability(session.setScopedModels, "setScopedModels").call(session, [{ model }]);
-        return workflowResult(request.command, "completed", `Enabled scoped model ${selection}`);
-      }
-      case "export": {
-        const path = pathArgument(argument);
-        const file = path?.toLowerCase().endsWith(".jsonl")
-          ? requireCapability(session.exportToJsonl, "exportToJsonl").call(session, path)
-          : await requireCapability(session.exportToHtml, "exportToHtml").call(session, path);
-        return workflowResult(request.command, "completed", `Session exported to: ${String(file)}`);
-      }
-      case "import": {
-        const path = pathArgument(argument);
-        if (!path) return workflowResult(request.command, "failed", "Usage: /import <path.jsonl>");
-        if (request.confirmed === undefined) {
-          return workflowConfirmation(request.command, `Replace current session with ${path}?`);
-        }
-        if (!request.confirmed) return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
-        try {
-          const result = await requireCapability(runtime.importFromJsonl, "importFromJsonl").call(runtime, path, request.cwdOverride);
-          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
-          return workflowResult(request.command, "completed", `Session imported from: ${path}`);
-        } catch (error) {
-          const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
-          const fallbackCwd = issue === undefined ? undefined : stringProperty(issue, "fallbackCwd");
-          if (fallbackCwd !== undefined && request.cwdOverride === undefined) {
-            const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
-            return workflowConfirmation(
-              request.command,
-              `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`,
-              fallbackCwd,
-            );
-          }
-          throw error;
-        }
-      }
-      case "share": {
-        const signal = request.signal;
-        if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-        const destination = runtime.services.settingsManager?.getSessionShareDestination?.() ?? "auto";
-        if (destination !== "gist") {
-          const radius = await this.#shareViaRadius(session, runtime, request);
-          if (radius !== undefined) return radius;
-          if (destination === "radius") return workflowResult(request.command, "failed", "Radius authentication is not configured. Run '/login radius' first.");
-        }
-        request.onProgress?.("Creating gist…");
-        try {
-          await this.#host.runCommand("gh", ["auth", "status"], signal === undefined ? undefined : { signal });
-        } catch (error) {
-          if (signal?.aborted || isAbortError(error)) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-          const message = commandMissing(error)
-            ? "GitHub CLI (gh) is not installed. Install it from https://cli.github.com/"
-            : "GitHub CLI is not logged in. Run 'gh auth login' first.";
-          return workflowResult(request.command, "failed", message);
-        }
-        const temporary = join(tmpdir(), `${PRODUCT_IDENTITY.filesystem.temporaryPrefix}pi-session-${process.pid}.html`);
-        try {
-          try {
-            await requireCapability(session.exportToHtml, "exportToHtml").call(session, temporary);
-          } catch (error) {
-            return workflowResult(request.command, "failed", `Failed to export session: ${errorMessage(error, "Unknown error")}`);
-          }
-          if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-          let gist: { readonly stdout: string; readonly stderr: string };
-          try {
-            gist = await this.#host.runCommand("gh", ["gist", "create", "--public=false", temporary], signal === undefined ? undefined : { signal });
-          } catch (error) {
-            if (signal?.aborted || isAbortError(error)) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-            return workflowResult(request.command, "failed", `Failed to create gist: ${shareCommandFailureDetail(error)}`);
-          }
-          if (signal?.aborted) return workflowResult(request.command, "cancelled", "Share cancelled", undefined, "status");
-          const gistUrl = gist.stdout.trim();
-          const gistId = gistUrl.split("/").at(-1);
-          if (!gistId) return workflowResult(request.command, "failed", "Failed to parse gist ID from gh output");
-          return workflowResult(request.command, "completed", `Share URL: ${shareViewerUrl(gistId)}`, gistUrl);
-        } finally {
-          await rm(temporary, { force: true });
-        }
-      }
-      case "copy": {
-        const text = requireCapability(session.getLastAssistantText, "getLastAssistantText").call(session);
-        if (typeof text !== "string" || text.length === 0) return workflowResult(request.command, "completed", "", undefined, "silent");
-        const acknowledged = await this.copyWorkflowText(text);
-        return workflowResult(request.command, "completed", acknowledged ? "Copied last agent message to clipboard" : "Submitted last agent message to clipboard");
-      }
-      case "name": {
-        const manager = session.sessionManager;
-        if (!argument) {
-          const current = manager?.getSessionName();
-          return typeof current === "string"
-            ? workflowResult(request.command, "completed", `Session name: ${current}`)
-            : workflowResult(request.command, "failed", "Usage: /name <name>", undefined, "warning");
-        }
-        requireCapability(session.setSessionName, "setSessionName").call(session, argument);
-        this.#ports.emitView();
-        const actual = sessionNameOr(manager?.getSessionName(), argument);
-        return workflowResult(
-          request.command,
-          "completed",
-          `Session name set: ${actual}`,
-          actual === argument ? undefined : `Session name was normalized from ${JSON.stringify(argument)} to ${JSON.stringify(actual)}`,
-        );
-      }
-      case "session": {
-        const manager = session.sessionManager;
-        const stats = requireCapability(session.getSessionStats, "getSessionStats").call(session);
-        const entries = manager?.getEntries();
-        return {
-          ...workflowResult(request.command, "completed", "Session Info"),
-          presentation: pinnedSessionInfoPresentation(
-            stats,
-            manager?.getSessionName(),
-            Array.isArray(entries) ? entries : [],
-            runtime.services.modelRuntime,
-            {
-              mode: runtime.services.settingsManager?.getCacheWarmingMode?.(),
-              status: (session as { cacheWarmingStatus?: unknown }).cacheWarmingStatus,
-            },
-          ),
-        };
-      }
-      case "changelog": {
-        const changelog = await this.#host.readChangelog();
-        return workflowResult(request.command, "completed", "What's New", changelog);
-      }
-      case "hotkeys":
-        return workflowResult(request.command, "completed", "Keyboard Shortcuts", pinnedHotkeySummary());
-      case "fork": {
-        if (!selection) return workflowResult(request.command, "failed", "Fork requires the owned user-message controller");
-        const result = await requireCapability(runtime.fork, "fork").call(runtime, selection, { position: "before" });
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Fork cancelled", undefined, "silent");
-        return workflowResult(request.command, "completed", "Forked to new session");
-      }
-      case "clone": {
-        const manager = session.sessionManager;
-        const leaf = manager?.getLeafId?.();
-        if (typeof leaf !== "string") return workflowResult(request.command, "completed", "Nothing to clone yet", undefined, "status");
-        const result = await requireCapability(runtime.fork, "fork").call(runtime, leaf, { position: "at" });
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Clone cancelled", undefined, "silent");
-        return workflowResult(request.command, "completed", "Cloned to new session");
-      }
-      case "tree": {
-        if (!selection) return workflowResult(request.command, "failed", "Tree navigation requires the owned tree controller");
-        const navigateTree = requireCapability(session.navigateTree, "navigateTree");
-        const result = request.treeSummary === undefined
-          ? await navigateTree.call(session, selection)
-          : await navigateTree.call(session, selection, {
-              summarize: request.treeSummary.summarize,
-              ...(request.treeSummary.customInstructions === undefined ? {} : { customInstructions: request.treeSummary.customInstructions }),
-            });
-        if (isRecord(result) && result.aborted === true) return workflowResult(request.command, "cancelled", "Branch summarization cancelled", undefined, "status");
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Navigation cancelled", undefined, "status");
-        const editorText = isRecord(result) && typeof result.editorText === "string" ? result.editorText : undefined;
-        return workflowResult(request.command, "completed", "Navigated to selected point", editorText);
-      }
-      case "trust": {
-        if (!selection) return workflowResult(request.command, "failed", "Trust requires the owned trust controller");
-        requireCapability(runtime.services.settingsManager?.setProjectTrusted, "setProjectTrusted").call(runtime.services.settingsManager, selection === "trust");
-        return workflowResult(request.command, "completed", selection === "trust" ? "Project trusted" : "Project trust removed");
-      }
-      case "login":
-        return await this.#authentication.login(request, session, runtime, argument, selection);
-      case "logout":
-        if (!selection) return workflowResult(request.command, "failed", "Logout requires the owned authentication controller");
-        return await this.#authentication.logout(request, runtime, selection);
-      case "new": {
-        const result = await runtime.newSession();
-        if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "New session cancelled", undefined, "silent");
-        return workflowResult(request.command, "completed", "✓ New session started", undefined, "accent");
-      }
-      case "compact": {
-        try {
-          await session.compact(argument || undefined);
-          return workflowResult(request.command, "completed", "Compaction requested", undefined, "silent");
-        } catch (error) {
-          return workflowResult(
-            request.command,
-            "failed",
-            error instanceof Error ? error.message : String(error),
-          );
-        }
-      }
-      case "resume": {
-        if (!selection && !argument) return workflowResult(request.command, "failed", "Resume requires the owned session controller");
-        const sessionPath = selection ?? argument;
-        try {
-          const result = await runtime.switchSession(sessionPath);
-          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "silent");
-          return workflowResult(request.command, "completed", "Resumed session");
-        } catch (error) {
-          const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
-          const fallbackCwd = issue === undefined ? undefined : stringProperty(issue, "fallbackCwd");
-          if (fallbackCwd === undefined) throw error;
-          if (request.confirmed === undefined) {
-            const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
-            return workflowConfirmation(request.command, `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`);
-          }
-          if (!request.confirmed) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "status");
-          const result = await runtime.switchSession(sessionPath, { cwdOverride: fallbackCwd });
-          if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "silent");
-          return workflowResult(request.command, "completed", "Resumed session in current cwd");
-        }
-      }
-      case "reload": {
-        const blocked = this.reloadBlockedResult();
-        if (blocked) return blocked;
-        await requireCapability(session.reload, "reload").call(session);
-        await this.#ports.bindExtensionUiToSession();
-        const message = "Reloaded keybindings, extensions, skills, prompts, themes, and context files";
-        const modelError = runtime.services.modelRuntime.getError?.();
-        return workflowResult(request.command, "completed", message, undefined, "status", modelError ? [
-          { kind: "error", message: `models.json error: ${modelError}` },
-          { kind: "status", message },
-        ] : undefined);
-      }
-      case "quit": {
-        await this.#ports.dispose();
-        return workflowResult(request.command, "completed", "Shutdown complete");
-      }
-      case "debug": {
-        const debugPath = join(this.#agentDir, "pi-debug.log");
-        await mkdir(dirname(debugPath), { recursive: true });
-        await writeFile(debugPath, `${JSON.stringify(this.#ports.snapshot(), null, 2)}\n`, "utf8");
-        return workflowResult(request.command, "completed", "✓ Debug log written", debugPath);
-      }
-      case "arminsayshi":
-        return workflowResult(request.command, "completed", "Armin says hi");
-      case "dementedelves":
-        return workflowResult(request.command, "completed", "Demented elves announcement");
+    switch (command) {
+      case "settings": return selection ? await this.#ports.applyPinnedSetting(selection) : workflowResult(command, "failed", "Settings requires the owned settings controller");
+      case "thinking": return thinkingWorkflow(call, this.#ports);
+      case "model": return this.#modelWorkflow(call);
+      case "models": return this.#modelsWorkflow(call);
+      case "scoped-models": return scopedModelsWorkflow(call);
+      case "export": return exportWorkflow(call);
+      case "import": return importWorkflow(call);
+      case "share": return (await import("./workflow-share.js")).runShareWorkflow({ request, session, runtime, host: this.#host });
+      case "copy": return copyWorkflow(call, text => this.copyWorkflowText(text));
+      case "name": return nameWorkflow(call, this.#ports);
+      case "session": return sessionInfoWorkflow(call);
+      case "changelog": return workflowResult(command, "completed", "What's New", await this.#host.readChangelog());
+      case "hotkeys": return workflowResult(command, "completed", "Keyboard Shortcuts", pinnedHotkeySummary());
+      case "fork": return forkWorkflow(call);
+      case "clone": return cloneWorkflow(call);
+      case "tree": return treeWorkflow(call);
+      case "trust": return trustWorkflow(call);
+      case "login": return await this.#authentication.login(request, session, runtime, argument, selection);
+      case "logout": return selection ? await this.#authentication.logout(request, runtime, selection) : workflowResult(command, "failed", "Logout requires the owned authentication controller");
+      case "new": return newSessionWorkflow(call);
+      case "compact": return compactWorkflow(call);
+      case "resume": return resumeWorkflow(call);
+      case "reload": return this.#reloadWorkflow(call);
+      case "quit": return this.#ports.dispose().then(() => workflowResult(command, "completed", "Shutdown complete"));
+      case "debug": return this.#debugWorkflow(request);
+      case "arminsayshi": return workflowResult(command, "completed", "Armin says hi");
+      case "dementedelves": return workflowResult(command, "completed", "Demented elves announcement");
     }
   }
 
+  #modelWorkflow({ request, session, runtime, argument, selection }: PiWorkflowCall): Promise<PiWorkflowResult> {
+    const reference = selection ?? argument;
+    if (!reference) return Promise.resolve(workflowResult(request.command, "failed", "Model requires the owned model controller"));
+    const scopedModels = Array.isArray(session.scopedModels)
+      ? session.scopedModels.map(item => item.model)
+      : [];
+    // Compatibility: pinned Pi searches the session scope when one exists and refreshes catalogs only for an unscoped miss.
+    return this.#selectModel(request, reference, {
+      pool: scopedModels.length > 0 ? scopedModels : [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])],
+      refreshOnMiss: scopedModels.length === 0,
+      persist: request.persist === true,
+      onMiss: "requires-selection",
+    });
+  }
+
+  #modelsWorkflow({ request, runtime, argument, selection }: PiWorkflowCall): Promise<PiWorkflowResult> {
+    // Invariant: the bare dialog seeds its query from the argument; only an explicit selection switches the current session.
+    if (!selection) return Promise.resolve(workflowResult(request.command, "requires-selection", "Select a model", argument || undefined, "silent"));
+    return this.#selectModel(request, selection, {
+      pool: [...(runtime.services.modelRuntime.getAvailableSnapshot?.() ?? [])],
+      refreshOnMiss: true,
+      persist: false,
+      onMiss: "failed",
+    });
+  }
+
+  async #reloadWorkflow({ request, session, runtime }: PiWorkflowCall): Promise<PiWorkflowResult> {
+    const blocked = this.reloadBlockedResult();
+    if (blocked) return blocked;
+    await requireCapability(session.reload, "reload").call(session);
+    await this.#ports.bindExtensionUiToSession();
+    const message = "Reloaded keybindings, extensions, skills, prompts, themes, and context files";
+    const modelError = runtime.services.modelRuntime.getError?.();
+    return workflowResult(request.command, "completed", message, undefined, "status", modelError ? [
+      { kind: "error", message: `models.json error: ${modelError}` },
+      { kind: "status", message },
+    ] : undefined);
+  }
+
+  async #debugWorkflow(request: PiWorkflowRequest): Promise<PiWorkflowResult> {
+    const debugPath = join(this.#agentDir, "pi-debug.log");
+    await mkdir(dirname(debugPath), { recursive: true });
+    await writeFile(debugPath, `${JSON.stringify(this.#ports.snapshot(), null, 2)}\n`, "utf8");
+    return workflowResult(request.command, "completed", "✓ Debug log written", debugPath);
+  }
+}
+
+/** One admitted workflow request with the session and runtime it runs against and its trimmed inputs. */
+interface PiWorkflowCall {
+  readonly request: PiWorkflowRequest;
+  readonly session: PiSessionApi;
+  readonly runtime: PiRuntimeApi;
+  readonly argument: string;
+  readonly selection: string | undefined;
+}
+
+function thinkingWorkflow(
+  { request, session, argument, selection }: PiWorkflowCall,
+  ports: Pick<PiWorkflowRunnerPorts, "setThinkingLevel" | "emitView">,
+): PiWorkflowResult {
+  const requested = (selection ?? argument).trim();
+  if (!requested) return workflowResult(request.command, "requires-selection", "Select a thinking level", undefined, "silent");
+  const available = (session.getAvailableThinkingLevels?.() ?? []).map(String);
+  // Compatibility: pinned Pi matches the argument case-insensitively and words the failure with the available levels.
+  const level = available.find(candidate => candidate.toLowerCase() === requested.toLowerCase());
+  if (level === undefined) {
+    return workflowResult(request.command, "failed", `Unknown thinking level "${requested}". Available levels: ${available.join(", ")}.`);
+  }
+  try {
+    session.setThinkingLevel(readThinkingLevel(level), { persist: request.persist === true });
+  } catch (error) {
+    return workflowResult(request.command, "failed", error instanceof Error ? error.message : String(error));
+  }
+  ports.setThinkingLevel(readThinkingLevel(session.thinkingLevel));
+  ports.emitView();
+  return workflowResult(request.command, "completed", request.persist === true ? `Default thinking level: ${level}` : `Thinking level: ${level}`);
+}
+
+function scopedModelsWorkflow({ request, session, runtime, selection }: PiWorkflowCall): PiWorkflowResult {
+  if (!selection) return workflowResult(request.command, "failed", "Scoped models requires the owned scoped-model controller");
+  const [providerId, modelId] = selection.split("/", 2);
+  const model = providerId && modelId ? runtime.services.modelRuntime.getModel(providerId, modelId) : undefined;
+  if (!model) return workflowResult(request.command, "failed", `Model is unavailable: ${selection}`);
+  requireCapability(session.setScopedModels, "setScopedModels").call(session, [{ model }]);
+  return workflowResult(request.command, "completed", `Enabled scoped model ${selection}`);
+}
+
+async function exportWorkflow({ request, session, argument }: PiWorkflowCall): Promise<PiWorkflowResult> {
+  const path = pathArgument(argument);
+  const file = path?.toLowerCase().endsWith(".jsonl")
+    ? requireCapability(session.exportToJsonl, "exportToJsonl").call(session, path)
+    : await requireCapability(session.exportToHtml, "exportToHtml").call(session, path);
+  return workflowResult(request.command, "completed", `Session exported to: ${String(file)}`);
+}
+
+async function importWorkflow({ request, runtime, argument }: PiWorkflowCall): Promise<PiWorkflowResult> {
+  const path = pathArgument(argument);
+  if (!path) return workflowResult(request.command, "failed", "Usage: /import <path.jsonl>");
+  if (request.confirmed === undefined) {
+    return workflowConfirmation(request.command, `Replace current session with ${path}?`);
+  }
+  if (!request.confirmed) return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
+  try {
+    const result = await requireCapability(runtime.importFromJsonl, "importFromJsonl").call(runtime, path, request.cwdOverride);
+    if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Import cancelled", undefined, "status");
+    return workflowResult(request.command, "completed", `Session imported from: ${path}`);
+  } catch (error) {
+    const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
+    const fallbackCwd = issue === undefined ? undefined : stringProperty(issue, "fallbackCwd");
+    if (fallbackCwd !== undefined && request.cwdOverride === undefined) {
+      const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
+      return workflowConfirmation(
+        request.command,
+        `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`,
+        fallbackCwd,
+      );
+    }
+    throw error;
+  }
+}
+
+async function copyWorkflow({ request, session }: PiWorkflowCall, copy: (text: string) => Promise<boolean>): Promise<PiWorkflowResult> {
+  const text = requireCapability(session.getLastAssistantText, "getLastAssistantText").call(session);
+  if (typeof text !== "string" || text.length === 0) return workflowResult(request.command, "completed", "", undefined, "silent");
+  const acknowledged = await copy(text);
+  return workflowResult(request.command, "completed", acknowledged ? "Copied last agent message to clipboard" : "Submitted last agent message to clipboard");
+}
+
+function nameWorkflow({ request, session, argument }: PiWorkflowCall, ports: Pick<PiWorkflowRunnerPorts, "emitView">): PiWorkflowResult {
+  const manager = session.sessionManager;
+  if (!argument) {
+    const current = manager?.getSessionName();
+    return typeof current === "string"
+      ? workflowResult(request.command, "completed", `Session name: ${current}`)
+      : workflowResult(request.command, "failed", "Usage: /name <name>", undefined, "warning");
+  }
+  requireCapability(session.setSessionName, "setSessionName").call(session, argument);
+  ports.emitView();
+  const actual = sessionNameOr(manager?.getSessionName(), argument);
+  return workflowResult(
+    request.command,
+    "completed",
+    `Session name set: ${actual}`,
+    actual === argument ? undefined : `Session name was normalized from ${JSON.stringify(argument)} to ${JSON.stringify(actual)}`,
+  );
+}
+
+function sessionInfoWorkflow({ request, session, runtime }: PiWorkflowCall): PiWorkflowResult {
+  const manager = session.sessionManager;
+  const stats = requireCapability(session.getSessionStats, "getSessionStats").call(session);
+  const entries = manager?.getEntries();
+  return {
+    ...workflowResult(request.command, "completed", "Session Info"),
+    presentation: pinnedSessionInfoPresentation(
+      stats,
+      manager?.getSessionName(),
+      Array.isArray(entries) ? entries : [],
+      runtime.services.modelRuntime,
+      {
+        mode: runtime.services.settingsManager?.getCacheWarmingMode?.(),
+        status: (session as { cacheWarmingStatus?: unknown }).cacheWarmingStatus,
+      },
+    ),
+  };
+}
+
+async function forkWorkflow({ request, runtime, selection }: PiWorkflowCall): Promise<PiWorkflowResult> {
+  if (!selection) return workflowResult(request.command, "failed", "Fork requires the owned user-message controller");
+  const result = await requireCapability(runtime.fork, "fork").call(runtime, selection, { position: "before" });
+  if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Fork cancelled", undefined, "silent");
+  return workflowResult(request.command, "completed", "Forked to new session");
+}
+
+async function cloneWorkflow({ request, session, runtime }: PiWorkflowCall): Promise<PiWorkflowResult> {
+  const leaf = session.sessionManager?.getLeafId?.();
+  if (typeof leaf !== "string") return workflowResult(request.command, "completed", "Nothing to clone yet", undefined, "status");
+  const result = await requireCapability(runtime.fork, "fork").call(runtime, leaf, { position: "at" });
+  if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Clone cancelled", undefined, "silent");
+  return workflowResult(request.command, "completed", "Cloned to new session");
+}
+
+async function treeWorkflow({ request, session, selection }: PiWorkflowCall): Promise<PiWorkflowResult> {
+  if (!selection) return workflowResult(request.command, "failed", "Tree navigation requires the owned tree controller");
+  const navigateTree = requireCapability(session.navigateTree, "navigateTree");
+  const result = request.treeSummary === undefined
+    ? await navigateTree.call(session, selection)
+    : await navigateTree.call(session, selection, {
+        summarize: request.treeSummary.summarize,
+        ...(request.treeSummary.customInstructions === undefined ? {} : { customInstructions: request.treeSummary.customInstructions }),
+      });
+  if (isRecord(result) && result.aborted === true) return workflowResult(request.command, "cancelled", "Branch summarization cancelled", undefined, "status");
+  if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Navigation cancelled", undefined, "status");
+  const editorText = isRecord(result) && typeof result.editorText === "string" ? result.editorText : undefined;
+  return workflowResult(request.command, "completed", "Navigated to selected point", editorText);
+}
+
+function trustWorkflow({ request, runtime, selection }: PiWorkflowCall): PiWorkflowResult {
+  if (!selection) return workflowResult(request.command, "failed", "Trust requires the owned trust controller");
+  requireCapability(runtime.services.settingsManager?.setProjectTrusted, "setProjectTrusted").call(runtime.services.settingsManager, selection === "trust");
+  return workflowResult(request.command, "completed", selection === "trust" ? "Project trusted" : "Project trust removed");
+}
+
+async function newSessionWorkflow({ request, runtime }: PiWorkflowCall): Promise<PiWorkflowResult> {
+  const result = await runtime.newSession();
+  if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "New session cancelled", undefined, "silent");
+  return workflowResult(request.command, "completed", "✓ New session started", undefined, "accent");
+}
+
+async function compactWorkflow({ request, session, argument }: PiWorkflowCall): Promise<PiWorkflowResult> {
+  try {
+    await session.compact(argument || undefined);
+    return workflowResult(request.command, "completed", "Compaction requested", undefined, "silent");
+  } catch (error) {
+    return workflowResult(request.command, "failed", error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function resumeWorkflow({ request, runtime, argument, selection }: PiWorkflowCall): Promise<PiWorkflowResult> {
+  if (!selection && !argument) return workflowResult(request.command, "failed", "Resume requires the owned session controller");
+  const sessionPath = selection ?? argument;
+  try {
+    const result = await runtime.switchSession(sessionPath);
+    if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "silent");
+    return workflowResult(request.command, "completed", "Resumed session");
+  } catch (error) {
+    const issue = isRecord(error) && isRecord(error.issue) ? error.issue : undefined;
+    const fallbackCwd = issue === undefined ? undefined : stringProperty(issue, "fallbackCwd");
+    if (fallbackCwd === undefined) throw error;
+    if (request.confirmed === undefined) {
+      const sessionCwd = stringProperty(issue, "sessionCwd") ?? "the session working directory";
+      return workflowConfirmation(request.command, `cwd from session file does not exist\n${sessionCwd}\n\ncontinue in current cwd\n${fallbackCwd}`);
+    }
+    if (!request.confirmed) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "status");
+    const result = await runtime.switchSession(sessionPath, { cwdOverride: fallbackCwd });
+    if (isRecord(result) && result.cancelled === true) return workflowResult(request.command, "cancelled", "Resume cancelled", undefined, "silent");
+    return workflowResult(request.command, "completed", "Resumed session in current cwd");
+  }
 }
 
 /**

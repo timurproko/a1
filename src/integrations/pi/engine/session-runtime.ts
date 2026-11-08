@@ -1,6 +1,4 @@
-import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { promisify } from "node:util";
 import { PRODUCT_IDENTITY } from "../../../product-identity.js";
 import { observeCompactionProgress, type CompactionProgressObserver } from "./compaction-progress.js";
 import { createPiRuntimeIntegration, type PiStartupPhaseMarker } from "./runtime-integration.js";
@@ -10,17 +8,8 @@ import type { PiProjectTrustPreflightPrompt } from "./project-trust-preflight.js
 import type { PiSessionForkPrompt, PiSessionSelection } from "./session-selection.js";
 import type { OwnedUiDiagnostics } from "../../../contracts/owned-ui/index.js";
 import type { PiSessionResumeMetadata, PiWorkflowHost } from "./workflows.js";
-import {
-  readPullRequest,
-  type PiPullRequestIdentity,
-  type PiPullRequestProbe,
-} from "./repository-pr.js";
-
-const execFileAsync = promisify(execFile);
-const PULL_REQUEST_REFRESH_MS = 60_000;
-const REPOSITORY_CONTEXT_POLL_MS = 5_000;
-const GIT_BRANCH_TIMEOUT_MS = 5_000;
-const GIT_BRANCH_MAX_BUFFER_BYTES = 4 * 1024;
+import type { PiPullRequestProbe } from "./repository-pr.js";
+import { RepositoryMetadataPoller, type PiRepositoryContextReader } from "./repository-metadata.js";
 
 export interface PiEngineRuntimeFactoryInput {
   readonly cwd: string;
@@ -38,12 +27,7 @@ export interface PiEngineRuntimeFactoryInput {
 export type PiEngineRuntimeFactory = (input: PiEngineRuntimeFactoryInput) => Promise<AgentSessionRuntime>;
 
 export type PiEnginePackageUpdateProbe = (settingsManager: AgentSessionServices["settingsManager"]) => Promise<readonly string[]>;
-interface PiRepositoryContextSelection {
-  readonly cwd: string;
-  readonly branch: string;
-}
-export type PiRepositoryContextReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<PiRepositoryContextSelection | null>;
-type PiGitBranchReader = (cwd: string, signal: AbortSignal) => Promise<string | null>;
+export type { PiRepositoryContextReader } from "./repository-metadata.js";
 
 interface PiEngineRuntimeOptions {
   readonly cwd: string;
@@ -62,7 +46,7 @@ interface PiEngineRuntimeOptions {
   readonly pullRequestRefreshMs?: number;
   readonly repositoryContextPollMs?: number;
   readonly repositoryContextReader?: PiRepositoryContextReader;
-  readonly gitBranchReader?: PiGitBranchReader;
+  readonly gitBranchReader?: (cwd: string, signal: AbortSignal) => Promise<string | null>;
   readonly host: PiWorkflowHost;
 }
 
@@ -100,11 +84,6 @@ export class PiEngineRuntime {
   readonly #ports: PiEngineRuntimePorts;
   readonly #runtimeFactory: PiEngineRuntimeFactory;
   readonly #checkPackageUpdates: PiEnginePackageUpdateProbe;
-  readonly #pullRequestProbe: PiPullRequestProbe;
-  readonly #pullRequestRefreshMs: number;
-  readonly #repositoryContextPollMs: number;
-  readonly #repositoryContextReader: PiRepositoryContextReader;
-  readonly #gitBranchReader: PiGitBranchReader;
   #cwd: string;
   #runtime: AgentSessionRuntime | undefined;
   #session: AgentSession | undefined;
@@ -113,32 +92,28 @@ export class PiEngineRuntime {
   #sessionBindingGeneration = 0;
   #sessionCommands: PiSessionCommandIntegration | undefined;
   #compactionProgress: CompactionProgressObserver | null = null;
-  #repositoryCwd: string;
-  #gitBranch: string | null = null;
-  #pullRequest: PiPullRequestIdentity | null = null;
-  #repositoryRefreshTimer: ReturnType<typeof setTimeout> | undefined;
-  #repositoryRefreshAbort: AbortController | undefined;
-  #repositoryRefreshTask: Promise<void> | undefined;
-  #repositoryRefreshPending = false;
-  #lastPullRequestProbeAt: number | null = null;
-  #repositoryRefreshEnabled = false;
+  readonly #repository: RepositoryMetadataPoller;
   #disposed = false;
 
   constructor(options: PiEngineRuntimeOptions, ports: PiEngineRuntimePorts) {
     this.#options = options;
     this.#ports = ports;
     this.#cwd = options.cwd;
-    this.#repositoryCwd = options.cwd;
     this.#runtimeFactory = options.createRuntime ?? createDefaultPiRuntime;
     this.#checkPackageUpdates = options.checkPackageUpdates
       ?? (options.createRuntime
         ? async () => []
         : settingsManager => checkDefaultPiPackageUpdates(this.#cwd, options.agentDir, settingsManager));
-    this.#pullRequestProbe = options.pullRequestProbe ?? readPullRequest;
-    this.#pullRequestRefreshMs = options.pullRequestRefreshMs ?? PULL_REQUEST_REFRESH_MS;
-    this.#repositoryContextPollMs = options.repositoryContextPollMs ?? REPOSITORY_CONTEXT_POLL_MS;
-    this.#repositoryContextReader = options.repositoryContextReader ?? (async () => null);
-    this.#gitBranchReader = options.gitBranchReader ?? readGitBranch;
+    this.#repository = new RepositoryMetadataPoller(options, {
+      bindingGeneration: () => this.#sessionBindingGeneration,
+      sessionIdentity: () => {
+        const manager = this.#session?.sessionManager;
+        return { sessionId: manager?.getSessionId?.(), sessionFile: manager?.getSessionFile?.() };
+      },
+      fallbackCwd: () => this.#cwd,
+      disposed: () => this.#disposed || this.#ports.disposed(),
+      changed: () => this.#ports.emitView(),
+    });
   }
 
   get runtime(): AgentSessionRuntime | undefined {
@@ -163,16 +138,9 @@ export class PiEngineRuntime {
     return this.#runtime?.cwd ?? this.#cwd;
   }
 
-  get repositoryCwd(): string {
-    return this.#repositoryCwd;
-  }
-
-  get gitBranch(): string | null {
-    return this.#gitBranch;
-  }
-
-  get pullRequest(): PiPullRequestIdentity | null {
-    return this.#pullRequest;
+  /** The branch and pull request polled for the bound session. */
+  get repository(): RepositoryMetadataPoller {
+    return this.#repository;
   }
 
   get sessionCommands(): PiSessionCommandIntegration | undefined {
@@ -198,7 +166,7 @@ export class PiEngineRuntime {
     });
     this.#runtime = runtime;
     this.#cwd = runtime.cwd ?? this.#cwd;
-    this.#repositoryCwd = this.#cwd;
+    this.#repository.reset();
     this.#ports.started(runtime);
     runtime.setRebindSession(async session => {
       if (this.#ports.rebindBlocked()) return;
@@ -217,8 +185,7 @@ export class PiEngineRuntime {
       );
     }
     this.bindSession(runtime.session);
-    this.#repositoryRefreshEnabled = true;
-    this.#startRepositoryRefresh();
+    this.#repository.start();
     return runtime;
   }
 
@@ -280,9 +247,9 @@ export class PiEngineRuntime {
     // Invariant: the subscription is live before the adapter rebuilds its state so the extension
     // rebind that finishes the rebuild cannot emit an event nobody is listening to.
     this.#subscribe();
-    this.#resetRepositoryRefresh();
+    this.#repository.reset();
     this.#ports.sessionReplaced(session);
-    if (this.#repositoryRefreshEnabled) this.#startRepositoryRefresh();
+    this.#repository.refresh();
   }
 
   /** Stop forwarding the current session's events and open a new generation; overload recovery resumes or abandons it. */
@@ -329,113 +296,13 @@ export class PiEngineRuntime {
   /** Unsubscribe, stop observing compaction, and dispose the runtime; the session reference is kept for final reads. */
   async dispose(): Promise<void> {
     this.#disposed = true;
-    this.#repositoryRefreshEnabled = false;
-    if (this.#repositoryRefreshTimer !== undefined) clearTimeout(this.#repositoryRefreshTimer);
-    this.#repositoryRefreshTimer = undefined;
-    this.#repositoryRefreshPending = false;
-    this.#repositoryRefreshAbort?.abort();
-    const repositoryRefreshTask = this.#repositoryRefreshTask;
+    const repository = this.#repository.dispose();
     this.#unsubscribe?.();
     this.#unsubscribe = undefined;
     this.#compactionProgress?.dispose();
     this.#compactionProgress = null;
-    await repositoryRefreshTask;
+    await repository;
     await this.#runtime?.dispose();
-  }
-
-  #startRepositoryRefresh(): void {
-    if (!this.#repositoryRefreshEnabled || this.#disposed || this.#ports.disposed()) return;
-    if (this.#repositoryRefreshTask !== undefined) {
-      this.#repositoryRefreshPending = true;
-      return;
-    }
-    const task = this.#refreshRepositoryMetadata();
-    this.#repositoryRefreshTask = task;
-    const settled = (): void => {
-      if (this.#repositoryRefreshTask === task) this.#repositoryRefreshTask = undefined;
-      if (!this.#repositoryRefreshPending) return;
-      this.#repositoryRefreshPending = false;
-      this.#startRepositoryRefresh();
-    };
-    void task.then(settled, settled);
-  }
-
-  #resetRepositoryRefresh(): void {
-    if (this.#repositoryRefreshTimer !== undefined) clearTimeout(this.#repositoryRefreshTimer);
-    this.#repositoryRefreshTimer = undefined;
-    this.#repositoryRefreshAbort?.abort();
-    this.#repositoryCwd = this.#cwd;
-    this.#gitBranch = null;
-    this.#pullRequest = null;
-    this.#lastPullRequestProbeAt = null;
-  }
-
-  async #refreshRepositoryMetadata(): Promise<void> {
-    if (this.#repositoryRefreshAbort !== undefined || this.#disposed || this.#ports.disposed()) return;
-    const controller = new AbortController();
-    const generation = this.#sessionBindingGeneration;
-    this.#repositoryRefreshAbort = controller;
-    let associatedContext: PiRepositoryContextSelection | null = null;
-    const manager = this.#session?.sessionManager;
-    const sessionId = manager?.getSessionId?.();
-    const sessionFile = manager?.getSessionFile?.();
-    try {
-      if (typeof sessionId === "string" && sessionId.length > 0 && typeof sessionFile === "string" && sessionFile.length > 0) {
-        try {
-          associatedContext = await this.#repositoryContextReader(sessionId, sessionFile, controller.signal);
-        } catch {
-          associatedContext = null;
-        }
-      }
-      const nextCwd = associatedContext?.cwd ?? this.#cwd;
-      let nextBranch: string | null = associatedContext?.branch ?? null;
-      if (associatedContext === null) {
-        try {
-          nextBranch = await this.#gitBranchReader(nextCwd, controller.signal);
-        } catch {
-          nextBranch = null;
-        }
-      }
-      const metadataChanged = nextCwd !== this.#repositoryCwd || nextBranch !== this.#gitBranch;
-      const remoteDue = metadataChanged || this.#lastPullRequestProbeAt === null
-        || Date.now() - this.#lastPullRequestProbeAt >= this.#pullRequestRefreshMs;
-      if (remoteDue) {
-        let nextPullRequest: PiPullRequestIdentity | null = null;
-        try {
-          nextPullRequest = nextBranch === null
-            ? null
-            : await this.#pullRequestProbe(nextCwd, nextBranch, controller.signal);
-        } catch {
-          nextPullRequest = null;
-        }
-        if (controller.signal.aborted || generation !== this.#sessionBindingGeneration || this.#disposed || this.#ports.disposed()) return;
-        const changed = nextCwd !== this.#repositoryCwd
-          || nextBranch !== this.#gitBranch
-          || !samePullRequest(this.#pullRequest, nextPullRequest);
-        this.#repositoryCwd = nextCwd;
-        this.#gitBranch = nextBranch;
-        this.#pullRequest = nextPullRequest;
-        this.#lastPullRequestProbeAt = Date.now();
-        if (changed) this.#ports.emitView();
-      }
-    } catch {
-      if (!controller.signal.aborted && generation === this.#sessionBindingGeneration && !this.#disposed && !this.#ports.disposed()) {
-        const changed = this.#repositoryCwd !== this.#cwd || this.#gitBranch !== null || this.#pullRequest !== null;
-        this.#repositoryCwd = this.#cwd;
-        this.#gitBranch = null;
-        this.#pullRequest = null;
-        this.#lastPullRequestProbeAt = Date.now();
-        if (changed) this.#ports.emitView();
-      }
-    } finally {
-      if (this.#repositoryRefreshAbort === controller) this.#repositoryRefreshAbort = undefined;
-    }
-    if (controller.signal.aborted || generation !== this.#sessionBindingGeneration || this.#disposed || this.#ports.disposed()) return;
-    this.#repositoryRefreshTimer = setTimeout(() => {
-      this.#repositoryRefreshTimer = undefined;
-      this.#startRepositoryRefresh();
-    }, this.#repositoryContextPollMs);
-    this.#repositoryRefreshTimer.unref?.();
   }
 
   #attachCompactionProgress(session: AgentSession): void {
@@ -507,25 +374,4 @@ async function checkDefaultPiPackageUpdates(
   const packageManager = new DefaultPackageManager({ cwd, agentDir, settingsManager });
   const updates = await packageManager.checkForAvailableUpdates();
   return updates.map(update => update.displayName);
-}
-
-function samePullRequest(left: PiPullRequestIdentity | null, right: PiPullRequestIdentity | null): boolean {
-  return left?.number === right?.number && left?.url === right?.url;
-}
-
-async function readGitBranch(cwd: string, signal: AbortSignal): Promise<string | null> {
-  if (!existsSync(cwd)) return null;
-  try {
-    const { stdout } = await execFileAsync("git", ["branch", "--show-current"], {
-      cwd,
-      windowsHide: true,
-      timeout: GIT_BRANCH_TIMEOUT_MS,
-      maxBuffer: GIT_BRANCH_MAX_BUFFER_BYTES,
-      signal,
-      encoding: "utf8",
-    });
-    return stdout.trim() || null;
-  } catch {
-    return null;
-  }
 }

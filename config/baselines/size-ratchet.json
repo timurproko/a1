@@ -47,12 +47,12 @@
       "fields": 12
     },
     "src/integrations/pi/engine/adapter.ts::PiEngineAdapter": {
-      "methods": 39,
+      "methods": 37,
       "fields": 21
     },
     "src/integrations/pi/engine/session-runtime.ts::PiEngineRuntime": {
-      "methods": 28,
-      "fields": 27
+      "methods": 23,
+      "fields": 14
     },
     "src/integrations/pi/engine/workflow-contexts.ts::PiWorkflowContexts": {
       "methods": 22,
@@ -113,9 +113,6 @@
     },
     "src/integrations/pi/engine/transcript-projection.ts::PiTranscriptProjection.messageBlocks": {
       "lines": 156
-    },
-    "src/integrations/pi/engine/workflow-runner.ts::PiWorkflowRunner.#performWorkflow": {
-      "lines": 290
     },
     "src/integrations/pi/session-presenters/presenters.ts::createPiSessionPresenters": {
       "lines": 273

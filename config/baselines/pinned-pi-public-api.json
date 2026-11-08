@@ -52,9 +52,10 @@
             "src/integrations/pi/engine/session-integration.ts",
             "src/integrations/pi/engine/session-runtime.ts",
             "src/integrations/pi/engine/settings-port.ts",
-            "src/integrations/pi/engine/usage-view.ts",
+            "src/integrations/pi/engine/view-state.ts",
             "src/integrations/pi/engine/workflow-contexts.ts",
-            "src/integrations/pi/engine/workflow-runner.ts"
+            "src/integrations/pi/engine/workflow-runner.ts",
+            "src/integrations/pi/engine/workflow-share.ts"
           ]
         },
         {
@@ -86,9 +87,10 @@
             "src/integrations/pi/engine/runtime-integration.ts",
             "src/integrations/pi/engine/session-runtime.ts",
             "src/integrations/pi/engine/settings-port.ts",
-            "src/integrations/pi/engine/usage-view.ts",
+            "src/integrations/pi/engine/view-state.ts",
             "src/integrations/pi/engine/workflow-contexts.ts",
-            "src/integrations/pi/engine/workflow-runner.ts"
+            "src/integrations/pi/engine/workflow-runner.ts",
+            "src/integrations/pi/engine/workflow-share.ts"
           ]
         },
         {

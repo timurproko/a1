@@ -212,7 +212,7 @@ class ProcessPiEngineHost implements PiEngineHost {
     const theme = this.#options.theme;
     theme.apply.packageBorderProjection(theme.packageBorderProjection);
     theme.apply.accentColor(this.#accentColor);
-    theme.apply.base(theme.base === "dark" ? "dark" : adapter.configuredTheme());
+    theme.apply.base(theme.base === "dark" ? "dark" : adapter.settings.configuredTheme());
   }
 
   async #announceOnce(adapter: PiEngineAdapter): Promise<void> {

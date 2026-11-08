@@ -392,12 +392,10 @@ describe("pinned Pi command and input workflows", () => {
     const snapshot = adapter.settings.snapshot();
     expect(snapshot).not.toHaveProperty("currentModel");
     expect(snapshot).not.toHaveProperty("availableDefaultModels");
-    expect(snapshot).toEqual(Object.fromEntries(Object.entries(adapter.pinnedSettingsSnapshot())
-      .filter(([key]) => key !== "currentModel" && key !== "availableDefaultModels")));
-    expect(adapter.presentationSource().pinnedSettingsModels()).toEqual({
-      currentModel: adapter.pinnedSettingsSnapshot().currentModel,
-      availableDefaultModels: adapter.pinnedSettingsSnapshot().availableDefaultModels,
-    });
+    expect(snapshot.availableThemes.length).toBeGreaterThan(0);
+    const models = adapter.presentationSource().pinnedSettingsModels();
+    expect(Object.keys(models).sort()).toEqual(["availableDefaultModels", "currentModel"]);
+    expect(models.availableDefaultModels.length).toBeGreaterThan(0);
     expect(await adapter.presentationSource().applyPinnedSettingValue("onImageWidthCellsChange", 96)).toMatchObject({ outcome: "completed" });
     expect(runtime.settingsValues.get("ImageWidthCells")).toBe(96);
     await adapter.dispose();
@@ -405,7 +403,7 @@ describe("pinned Pi command and input workflows", () => {
 
   it("opens every selector, completes every pinned settings callback, and preserves cancellation", async () => {
     const { adapter, runtime } = await fixture();
-    expect(adapter.pinnedSettingsSnapshot().availableThemes.length).toBeGreaterThan(0);
+    expect(adapter.settings.snapshot().availableThemes.length).toBeGreaterThan(0);
     expect(adapter.presentationSource().pinnedModelSelectorContext().modelRuntime).toBeDefined();
     expect(adapter.catalog.pinnedScopedModelsContext().models.length).toBeGreaterThan(0);
     expect(adapter.catalog.pinnedForkOptions().length).toBeGreaterThan(0);
@@ -503,7 +501,7 @@ describe("pinned Pi command and input workflows", () => {
 
     await port!.writeSetting("doubleEscapeAction", "none");
     await port!.writeSetting("treeFilterMode", "all");
-    expect(adapter.pinnedSettingsSnapshot().doubleEscapeAction).toBe("none");
+    expect(adapter.settings.snapshot().doubleEscapeAction).toBe("none");
     expect(adapter.presentationSource().pinnedTreeSelectorContext().filterMode).toBe("all");
   });
 

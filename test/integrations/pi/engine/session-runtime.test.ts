@@ -204,13 +204,13 @@ describe("PiEngineRuntime", () => {
     await vi.advanceTimersByTimeAsync(0);
     expect(probe).toHaveBeenCalledTimes(1);
     expect(probe).toHaveBeenLastCalledWith("D:/resolved", "feature/show-pr-id-status-bar", expect.any(AbortSignal));
-    expect(engine.gitBranch).toBeNull();
-    expect(engine.pullRequest).toBeNull();
+    expect(engine.repository.branch).toBeNull();
+    expect(engine.repository.pullRequest).toBeNull();
     // Invariant: repository refresh publishes branch and PR together, never a partial footer.
     pending[0]!.resolve({ number: 540, url: "https://github.com/timurproko/a1/pull/540" });
     await Promise.resolve();
-    expect(engine.pullRequest).toEqual({ number: 540, url: "https://github.com/timurproko/a1/pull/540" });
-    expect(engine.gitBranch).toBe("feature/show-pr-id-status-bar");
+    expect(engine.repository.pullRequest).toEqual({ number: 540, url: "https://github.com/timurproko/a1/pull/540" });
+    expect(engine.repository.branch).toBe("feature/show-pr-id-status-bar");
     expect(calls.at(-1)).toBe("view");
     calls.length = 0;
 
@@ -230,7 +230,7 @@ describe("PiEngineRuntime", () => {
     expect(disposalSettled).toBe(false);
     late.resolve({ number: 541, url: "https://github.com/timurproko/a1/pull/541" });
     await disposal;
-    expect(engine.pullRequest?.number).toBe(540);
+    expect(engine.repository.pullRequest?.number).toBe(540);
     await vi.advanceTimersByTimeAsync(120_000);
     expect(probe).toHaveBeenCalledTimes(3);
   });
@@ -255,31 +255,31 @@ describe("PiEngineRuntime", () => {
       pullRequestProbe: probe,
     });
     await engine.start();
-    await vi.waitFor(() => expect(engine.pullRequest?.number).toBe(551));
-    expect(engine.repositoryCwd).toBe("D:/worktrees/one");
+    await vi.waitFor(() => expect(engine.repository.pullRequest?.number).toBe(551));
+    expect(engine.repository.cwd).toBe("D:/worktrees/one");
     expect(probe).toHaveBeenLastCalledWith("D:/worktrees/one", "fix/one", expect.any(AbortSignal));
 
     associated = { cwd: "D:/worktrees/one", branch: "fix/changed" };
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(engine.pullRequest?.number).toBe(553);
+    expect(engine.repository.pullRequest?.number).toBe(553);
     expect(probe).toHaveBeenLastCalledWith("D:/worktrees/one", "fix/changed", expect.any(AbortSignal));
 
     associated = { cwd: "D:/worktrees/unrelated", branch: "fix/unrelated" };
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(engine.repositoryCwd).toBe("D:/worktrees/unrelated");
-    expect(engine.gitBranch).toBe("fix/unrelated");
-    expect(engine.pullRequest).toBeNull();
+    expect(engine.repository.cwd).toBe("D:/worktrees/unrelated");
+    expect(engine.repository.branch).toBe("fix/unrelated");
+    expect(engine.repository.pullRequest).toBeNull();
 
     associated = null;
     await vi.advanceTimersByTimeAsync(1_000);
-    expect(engine.repositoryCwd).toBe("D:/resolved");
-    expect(engine.gitBranch).toBe("develop");
-    expect(engine.pullRequest?.number).toBe(500);
+    expect(engine.repository.cwd).toBe("D:/resolved");
+    expect(engine.repository.branch).toBe("develop");
+    expect(engine.repository.pullRequest?.number).toBe(500);
 
     const next = new FakeSession("D:/sessions/two.jsonl", "session-two");
     await runtime.rebind!(next);
-    await vi.waitFor(() => expect(engine.pullRequest?.number).toBe(552));
-    expect(engine.repositoryCwd).toBe("D:/worktrees/two");
+    await vi.waitFor(() => expect(engine.repository.pullRequest?.number).toBe(552));
+    expect(engine.repository.cwd).toBe("D:/worktrees/two");
     expect(contextReader).toHaveBeenLastCalledWith("session-two", "D:/sessions/two.jsonl", expect.any(AbortSignal));
     await engine.dispose();
   });
