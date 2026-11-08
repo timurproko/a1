@@ -128,7 +128,7 @@ async function readWorktreeInventory(primary, git) {
 
 export async function discoverRepository(primaryPath, git = gitRunner()) {
   const primary = await canonical(primaryPath);
-  const common = await canonical((await git(primary, ["rev-parse", "--path-format=absolute", "--git-common-dir"])).trim());
+  const common = await canonical(await requiredGitValue(git, primary, ["rev-parse", "--path-format=absolute", "--git-common-dir"]));
   const rows = await readWorktreeInventory(primary, git);
   if (await canonical(rows[0].worktree) !== primary) fail("primary-required");
   // Security: repository identity comes from this repository's literal configuration, not
