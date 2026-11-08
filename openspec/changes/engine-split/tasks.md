@@ -6,8 +6,8 @@
 
 ## 2. Workflow dispatch
 
-- [ ] 2.1 Turn each `#performWorkflow` case into a one-line call to a named private handler or a fixed result.
-- [ ] 2.2 Move the share workflow and its Radius and gist helpers into `workflow-share.ts`, imported dynamically on the first `/share`.
+- [x] 2.1 Turn each `#performWorkflow` case into a one-line call to a named private handler or a fixed result.
+- [x] 2.2 Move the share workflow and its Radius and gist helpers into `workflow-share.ts`, imported dynamically on the first `/share`.
 
 ## 3. View projection
 

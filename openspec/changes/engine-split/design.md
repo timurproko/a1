@@ -11,7 +11,9 @@
   - It keeps the existing guard: a result from an older binding generation, an aborted probe or a disposed engine is dropped.
   - The runtime calls `reset()` when it binds a new session and `start()` after startup and binding, exactly where it calls its private methods today.
 - **Dispatch by named handlers, not a table of closures.**
-  - The handlers need the runner's private state, so they stay private methods.
+  - Each case passes one `PiWorkflowCall` (request, session, runtime, trimmed argument and selection) to its handler.
+  - A handler that needs only the call, plus at most a port or the clipboard writer passed to it, is a module function in `workflow-runner.ts`.
+  - Only the handlers that need runner state (model selection, reload, debug) are private methods, which keeps the runner under the 20-method threshold.
   - The switch remains the one place that maps a command name to its handler, which is the readable part of a switch.
   - The work moves out of the cases.
 - **Share loads on first use.**
