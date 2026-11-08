@@ -4,7 +4,7 @@ import { createPiEngineAdapter } from "../../../../src/integrations/pi/engine/in
 import { createPiSessionPresenters } from "../../../../src/integrations/pi/session-presenters/index.js";
 import { OwnedUiSessionShell } from "../../../../src/app/session-shell/index.js";
 import { applyPiTheme, createPiShellSelector } from "../../../../src/integrations/pi/components/index.js";
-import type { PiTuiInputDiagnosticsEvent } from "../../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalInputDiagnosticsEvent } from "../../../../src/contracts/presentation/index.js";
 import { RecordingTerminal, Runtime } from "../../../support/input-responsiveness/input-runtime-fixture.js";
 import { InputFrameRecorder } from "../../../support/input-responsiveness/input-frame-recorder.js";
 import { inputStableWork } from "../../../support/input-responsiveness/input-frame-work.js";
@@ -36,7 +36,7 @@ async function capture(observe: boolean, order: "stream-first" | "input-first") 
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "performance"] });
   const terminal = new RecordingTerminal(80, 24);
   const schedule = new Schedule();
-  const phases: PiTuiInputDiagnosticsEvent[] = [];
+  const phases: TerminalInputDiagnosticsEvent[] = [];
   let recorder: InputFrameRecorder | undefined;
   const shell = new OwnedUiSessionShell({
     presenters: createPiSessionPresenters(adapter),

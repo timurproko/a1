@@ -1,4 +1,4 @@
-import type { PiTuiInputDiagnosticsEvent } from "../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalInputDiagnosticsEvent } from "../../../src/contracts/presentation/index.js";
 
 export interface InputPhaseEvidence {
   readonly receivedRevisions: readonly number[];
@@ -22,7 +22,7 @@ export interface InputPhaseEvidence {
 
 /** Validates a monotonic phase stream and derives scheduler/backlog evidence. */
 export function analyzeInputPhaseEvidence(
-  events: readonly PiTuiInputDiagnosticsEvent[],
+  events: readonly TerminalInputDiagnosticsEvent[],
   expectedFinalRevision: number,
   options: { readonly requireFinalWrite?: boolean; readonly expectedPresentedRevision?: number } = {},
 ): InputPhaseEvidence {
@@ -38,7 +38,7 @@ export function analyzeInputPhaseEvidence(
   const applied: number[] = [];
   const presented: number[] = [];
   const receiptAt = new Map<number, number>();
-  const starts = new Map<string, PiTuiInputDiagnosticsEvent>();
+  const starts = new Map<string, TerminalInputDiagnosticsEvent>();
   const semanticDurations: number[] = [];
   const compositionDurations: number[] = [];
   const writeDurations: number[] = [];
@@ -138,7 +138,7 @@ export function analyzeInputPhaseEvidence(
   };
 }
 
-function assertEvent(event: PiTuiInputDiagnosticsEvent): void {
+function assertEvent(event: TerminalInputDiagnosticsEvent): void {
   if (!Number.isFinite(event.atMs) || event.atMs < 0) throw new TypeError("input phase timestamp is invalid");
   if (!Number.isSafeInteger(event.revision) || event.revision < 0
     || !Number.isSafeInteger(event.appliedRevision) || event.appliedRevision < 0

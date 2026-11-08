@@ -25,22 +25,21 @@ import {
   InputPresentationCoordinator,
 } from "./input-presentation-coordinator.js";
 import type {
-  PiTuiComponentPort,
-  PiTuiInputListener,
-  PiTuiLayoutNode,
-  PiTuiOverlayHandle,
-  PiTuiOverlayOptions,
-  PiTuiOverlayUnfocusOptions,
-  PiTuiPreInputListener,
-  PiTuiRuntimeAdapterOptions,
-  PiTuiRuntimeState,
-  PiTuiScrollState,
-  PiTuiStopOptions,
-  PiTuiTerminalPort,
-  PiTuiViewport,
-} from "./contracts.js";
+  TerminalComponentPort,
+  TerminalInputListener,
+  TerminalLayoutNode,
+  TerminalOverlayHandle,
+  TerminalOverlayOptions,
+  TerminalOverlayUnfocusOptions,
+  TerminalPreInputListener,
+  TerminalRuntimeOptions,
+  TerminalRuntimeState,
+  TerminalStopOptions,
+  TerminalPort,
+  TerminalViewport,
+} from "../../../contracts/presentation/index.js";
 
-type PiTuiTerminal = PiTuiTerminalPort & { setProgramStatus(status: ProgramStatus): void };
+type PiTuiTerminal = TerminalPort & { setProgramStatus(status: ProgramStatus): void };
 
 // Protocol: the legacy bytes owned screens and their key tables compare against.
 const LEGACY_KEY_BYTES: Readonly<Record<string, string>> = {
@@ -82,10 +81,10 @@ export class PiTuiRuntimeError extends Error {
 class ComponentBridge implements Component, Focusable {
   #focused = false;
 
-  readonly port: PiTuiComponentPort;
+  readonly port: TerminalComponentPort;
   readonly traceComposition: ((phase: "composition-start" | "composition-end") => void) | undefined;
   constructor(
-    port: PiTuiComponentPort,
+    port: TerminalComponentPort,
     traceComposition?: (phase: "composition-start" | "composition-end") => void,
   ) { this.port = port; this.traceComposition = traceComposition; }
 
@@ -127,15 +126,15 @@ class ComponentBridge implements Component, Focusable {
   }
 }
 
-class OverlayHandleBridge implements PiTuiOverlayHandle {
+class OverlayHandleBridge implements TerminalOverlayHandle {
   #disposed = false;
 
   private readonly handle: OverlayHandle;
-  private readonly bridgeFor: (component: PiTuiComponentPort | null) => ComponentBridge | null;
+  private readonly bridgeFor: (component: TerminalComponentPort | null) => ComponentBridge | null;
   private readonly dispose: () => void;
   constructor(
     handle: OverlayHandle,
-    bridgeFor: (component: PiTuiComponentPort | null) => ComponentBridge | null,
+    bridgeFor: (component: TerminalComponentPort | null) => ComponentBridge | null,
     dispose: () => void,
   ) { this.handle = handle; this.bridgeFor = bridgeFor; this.dispose = dispose; }
 
@@ -154,7 +153,7 @@ class OverlayHandleBridge implements PiTuiOverlayHandle {
     return this.#disposed || this.handle.isHidden();
   }
 
-  getBounds(): PiTuiOverlayHandle["getBounds"] extends () => infer R ? R : never {
+  getBounds(): TerminalOverlayHandle["getBounds"] extends () => infer R ? R : never {
     return this.#disposed ? undefined : this.handle.getBounds();
   }
 
@@ -162,7 +161,7 @@ class OverlayHandleBridge implements PiTuiOverlayHandle {
     if (!this.#disposed) this.handle.focus();
   }
 
-  unfocus(options?: PiTuiOverlayUnfocusOptions): void {
+  unfocus(options?: TerminalOverlayUnfocusOptions): void {
     if (this.#disposed) return;
     if (options === undefined) {
       this.handle.unfocus();
@@ -178,32 +177,32 @@ class OverlayHandleBridge implements PiTuiOverlayHandle {
 
 /** Bridges neutral presentation ports to one Pi TUI instance and owns terminal restoration on stop. */
 export class PiTuiRuntimeAdapter {
-  readonly #terminal: PiTuiTerminalPort;
+  readonly #terminal: TerminalPort;
   readonly #tuiTerminal: PiTuiTerminal;
   #tui: TUI;
-  readonly #layoutRoot: PiTuiLayoutNode | undefined;
+  readonly #layoutRoot: TerminalLayoutNode | undefined;
   readonly #tuiOptions: TuiAltScreenOptions;
   readonly #logDirectory: string | undefined;
   readonly #rootBridge: ComponentBridge;
-  readonly #bridges = new WeakMap<PiTuiComponentPort, ComponentBridge>();
-  readonly #mountedComponents = new Set<PiTuiComponentPort>();
-  readonly #scrollViews = new Map<string, ScrollView>();
+  readonly #bridges = new WeakMap<TerminalComponentPort, ComponentBridge>();
+  readonly #mountedComponents = new Set<TerminalComponentPort>();
+  readonly #scrollIds = new Set<string>();
   readonly #overlayGeometry: OverlayGeometryTracker | undefined;
   readonly #overlayDisposers = new Set<() => void>();
   readonly #overlayInputCoordination = new Map<ComponentBridge, "owned" | "opaque">();
-  readonly #inputListeners = new Map<PiTuiInputListener, () => void>();
-  readonly #preInputListeners = new Set<PiTuiPreInputListener>();
+  readonly #inputListeners = new Map<TerminalInputListener, () => void>();
+  readonly #preInputListeners = new Set<TerminalPreInputListener>();
   readonly #consumeUnhandledMouse: boolean;
   readonly #inputCoordinator: InputPresentationCoordinator | undefined;
   #inputSink: ((data: string) => void) | undefined;
-  #state: PiTuiRuntimeState = "idle";
+  #state: TerminalRuntimeState = "idle";
   #stopPromise: Promise<void> | undefined;
   #rootDisposed = false;
   #terminalProgress = false;
   #presentationFrozen = false;
   readonly #presentationHolds = new Set<symbol>();
 
-  constructor(options: PiTuiRuntimeAdapterOptions) {
+  constructor(options: TerminalRuntimeOptions) {
     this.#overlayGeometry = options.onOverlayGeometry === undefined ? undefined : new OverlayGeometryTracker(options.onOverlayGeometry);
     this.#terminal = options.terminal ?? new ProcessTerminal();
     this.#consumeUnhandledMouse = options.consumeUnhandledMouse ?? false;
@@ -265,7 +264,7 @@ export class PiTuiRuntimeAdapter {
     }
   }
 
-  get state(): PiTuiRuntimeState {
+  get state(): TerminalRuntimeState {
     return this.#state;
   }
 
@@ -281,59 +280,11 @@ export class PiTuiRuntimeAdapter {
     return this.#tui.fullRedraws;
   }
 
-  viewport(): PiTuiViewport {
+  viewport(): TerminalViewport {
     return {
       columns: Math.max(1, this.#terminal.columns),
       rows: Math.max(1, this.#terminal.rows),
     };
-  }
-
-  scrollState(id?: string): PiTuiScrollState {
-    if (id === undefined) {
-      if (!(this.#tui instanceof TuiAltScreen)) {
-        throw new Error("Pi TUI application scrolling is available only in fullscreen mode");
-      }
-      return {
-        scrollTop: this.#tui.viewportTop,
-        viewportHeight: this.viewport().rows,
-        followingEnd: this.#tui.isFollowingOutput,
-        scrollbarVisible: false,
-      };
-    }
-    const scrollView = this.#requireScrollView(id);
-    return {
-      scrollTop: scrollView.scrollTop,
-      viewportHeight: scrollView.viewportHeight,
-      followingEnd: scrollView.isFollowingEnd,
-      scrollbarVisible: scrollView.isScrollbarVisible,
-    };
-  }
-
-  scrollBy(lines: number, id?: string): void {
-    this.#assertRunning("scroll");
-    if (id === undefined) this.#requireFullscreen().scrollBy(lines);
-    else {
-      this.#requireScrollView(id).scrollBy(lines);
-      this.#tui.requestRender();
-    }
-  }
-
-  scrollToTop(id?: string): void {
-    this.#assertRunning("scroll");
-    if (id === undefined) this.#requireFullscreen().scrollToTop();
-    else {
-      this.#requireScrollView(id).scrollToStart();
-      this.#tui.requestRender();
-    }
-  }
-
-  scrollToBottom(id?: string): void {
-    this.#assertRunning("scroll");
-    if (id === undefined) this.#requireFullscreen().scrollToBottom();
-    else {
-      this.#requireScrollView(id).scrollToEnd();
-      this.#tui.requestRender();
-    }
   }
 
   start(): void {
@@ -351,13 +302,7 @@ export class PiTuiRuntimeAdapter {
     }
   }
 
-  setFocus(component: PiTuiComponentPort | null): void {
-    this.#assertRunning("focus");
-    if (this.#overlayInputCoordination.size > 0) this.#overlayGeometry?.invalidate();
-    this.#tui.setFocus(this.#bridgeFor(component));
-  }
-
-  showOverlay(component: PiTuiComponentPort, options?: PiTuiOverlayOptions): PiTuiOverlayHandle {
+  showOverlay(component: TerminalComponentPort, options?: TerminalOverlayOptions): TerminalOverlayHandle {
     this.#assertRunning("overlay");
     if (this.#bridges.has(component)) throw new TypeError("Pi TUI component is already mounted");
     const bridge = new ComponentBridge(component);
@@ -408,10 +353,6 @@ export class PiTuiRuntimeAdapter {
     this.#presentationFrozen = true;
   }
 
-  get presentationFrozen(): boolean {
-    return this.#presentationFrozen;
-  }
-
   /**
    * Keeps asynchronous replacement-surface construction atomic at the terminal. Renderers may
    * compose while held, but their writes are dropped until the final forced repaint on release.
@@ -430,13 +371,13 @@ export class PiTuiRuntimeAdapter {
     return this.#presentationHolds.size > 0;
   }
 
-  addPreInputListener(listener: PiTuiPreInputListener): () => void {
+  addPreInputListener(listener: TerminalPreInputListener): () => void {
     if (this.#preInputListeners.has(listener)) throw new TypeError("Pi TUI pre-input listener is already registered");
     this.#preInputListeners.add(listener);
     return () => this.#preInputListeners.delete(listener);
   }
 
-  addInputListener(listener: PiTuiInputListener): () => void {
+  addInputListener(listener: TerminalInputListener): () => void {
     this.#assertRunning("input listener");
     if (this.#inputListeners.has(listener)) throw new TypeError("Pi TUI input listener is already registered");
     this.#inputListeners.set(listener, this.#tui.addInputListener(data => listener(data)));
@@ -459,7 +400,7 @@ export class PiTuiRuntimeAdapter {
       previous.setFocus(null);
       previous.clear();
       if (previous instanceof TuiAltScreen) previous.setLayoutRoot(undefined);
-      this.#scrollViews.clear();
+      this.#scrollIds.clear();
       const next = this.#createTui(mode, hardwareCursor);
       next.setClearOnShrink(clearOnShrink);
       this.#mountTui(next);
@@ -482,10 +423,6 @@ export class PiTuiRuntimeAdapter {
     if (this.active) this.#tui.requestRender();
   }
 
-  getHardwareCursor(): boolean {
-    return this.#tui.getShowHardwareCursor();
-  }
-
   setClearOnShrink(enabled: boolean): void {
     this.#tui.setClearOnShrink(enabled);
   }
@@ -493,10 +430,6 @@ export class PiTuiRuntimeAdapter {
   setWheelScrollLines(lines: WheelScrollLines): void {
     this.#tuiOptions.wheelScrollLines = lines;
     if (this.#tui instanceof TuiAltScreen) this.#tui.setWheelScrollLines(lines);
-  }
-
-  getClearOnShrink(): boolean {
-    return this.#tui.getClearOnShrink();
   }
 
   setTerminalProgress(active: boolean): void {
@@ -511,12 +444,6 @@ export class PiTuiRuntimeAdapter {
 
   setTitle(title: string): void {
     this.#terminal.setTitle(title);
-  }
-
-  /** Shows a bounded fullscreen acknowledgement without changing root layout geometry. */
-  showFlash(message: string, durationMs?: number): void {
-    this.#assertRunning("flash");
-    this.#requireFullscreen().flash(message, durationMs);
   }
 
   writeAfterStop(text: string): void {
@@ -538,7 +465,7 @@ export class PiTuiRuntimeAdapter {
     this.#tui.renderNow(force);
   }
 
-  stop(options: PiTuiStopOptions = {}): Promise<void> {
+  stop(options: TerminalStopOptions = {}): Promise<void> {
     if (this.#stopPromise) return this.#stopPromise;
     if (this.#state === "idle") {
       this.#state = "stopped";
@@ -553,11 +480,11 @@ export class PiTuiRuntimeAdapter {
     return this.#stopPromise;
   }
 
-  async dispose(options: PiTuiStopOptions = {}): Promise<void> {
+  async dispose(options: TerminalStopOptions = {}): Promise<void> {
     await this.stop(options);
   }
 
-  async #stop(options: PiTuiStopOptions): Promise<void> {
+  async #stop(options: TerminalStopOptions): Promise<void> {
     this.#state = "stopping";
     let failure: PiTuiRuntimeError | undefined;
     try { this.#inputCoordinator?.dispose(false); }
@@ -624,14 +551,14 @@ export class PiTuiRuntimeAdapter {
     }
   }
 
-  #bridgeFor(component: PiTuiComponentPort | null): ComponentBridge | null {
+  #bridgeFor(component: TerminalComponentPort | null): ComponentBridge | null {
     if (component === null) return null;
     const bridge = this.#bridges.get(component);
     if (!bridge) throw new TypeError("Pi TUI focus target is not mounted");
     return bridge;
   }
 
-  #mount(component: PiTuiComponentPort): ComponentBridge {
+  #mount(component: TerminalComponentPort): ComponentBridge {
     const existing = this.#bridges.get(component);
     if (existing) return existing;
     const bridge = new ComponentBridge(component);
@@ -640,10 +567,10 @@ export class PiTuiRuntimeAdapter {
     return bridge;
   }
 
-  #buildLayout(node: PiTuiLayoutNode): Component {
+  #buildLayout(node: TerminalLayoutNode): Component {
     if (node.type === "component") return this.#mount(node.component);
     if (node.type === "scroll") {
-      if (this.#scrollViews.has(node.id)) throw new TypeError(`duplicate Pi TUI scroll layout id: ${node.id}`);
+      if (this.#scrollIds.has(node.id)) throw new TypeError(`duplicate Pi TUI scroll layout id: ${node.id}`);
       const options = {
         ...(node.follow === undefined ? {} : { follow: node.follow }),
         ...(node.primary === undefined ? {} : { primary: node.primary }),
@@ -653,9 +580,8 @@ export class PiTuiRuntimeAdapter {
         ...(node.scrollbarThumbStyle === undefined ? {} : { scrollbarThumbStyle: node.scrollbarThumbStyle }),
         ...(node.scrollbarHideDelayMs === undefined ? {} : { scrollbarHideDelayMs: node.scrollbarHideDelayMs }),
       };
-      const scrollView = new ScrollView(this.#buildLayout(node.child), options);
-      this.#scrollViews.set(node.id, scrollView);
-      return scrollView;
+      this.#scrollIds.add(node.id);
+      return new ScrollView(this.#buildLayout(node.child), options);
     }
     const children = node.children.map(entry => ({
       component: this.#buildLayout(entry.node),
@@ -671,20 +597,6 @@ export class PiTuiRuntimeAdapter {
       ...(node.align === undefined ? {} : { align: node.align }),
     };
     return node.direction === "vertical" ? new VStack(children, options) : new HStack(children, options);
-  }
-
-  #requireFullscreen(): TuiAltScreen {
-    if (!(this.#tui instanceof TuiAltScreen)) {
-      throw new Error("Pi TUI application scrolling is available only in fullscreen mode");
-    }
-    return this.#tui;
-  }
-
-  #requireScrollView(id: string): ScrollView {
-    this.#requireFullscreen();
-    const scrollView = this.#scrollViews.get(id);
-    if (!scrollView) throw new TypeError(`unknown Pi TUI scroll layout id: ${id}`);
-    return scrollView;
   }
 
   #assertRunning(operation: string): void {
@@ -741,7 +653,7 @@ export class PiTuiRuntimeAdapter {
 }
 
 function coordinatedInputTerminal(
-  terminal: PiTuiTerminalPort,
+  terminal: TerminalPort,
   coordinator: InputPresentationCoordinator,
   setSink: (sink: ((data: string) => void) | undefined) => void,
   frameMouse: boolean,
@@ -780,7 +692,7 @@ function coordinatedInputTerminal(
 }
 
 function diagnosticTerminal(
-  terminal: PiTuiTerminalPort,
+  terminal: TerminalPort,
   trace: (phase: "write-start" | "write-end") => void,
 ): PiTuiTerminal {
   return {
@@ -810,7 +722,7 @@ function diagnosticTerminal(
   };
 }
 
-function frozenGateTerminal(terminal: PiTuiTerminalPort, frozen: () => boolean): PiTuiTerminal {
+function frozenGateTerminal(terminal: TerminalPort, frozen: () => boolean): PiTuiTerminal {
   return {
     get columns() { return terminal.columns; },
     get rows() { return terminal.rows; },
@@ -831,7 +743,7 @@ function frozenGateTerminal(terminal: PiTuiTerminalPort, frozen: () => boolean):
   };
 }
 
-function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => string, frameMouse: boolean): PiTuiTerminal {
+function preInputTerminal(terminal: TerminalPort, route: (data: string) => string, frameMouse: boolean): PiTuiTerminal {
   let mouse: MouseReportInput | undefined;
   return {
     get columns() { return terminal.columns; },
@@ -863,7 +775,7 @@ function preInputTerminal(terminal: PiTuiTerminalPort, route: (data: string) => 
   };
 }
 
-function toOverlayOptions(options: PiTuiOverlayOptions | undefined): OverlayOptions | undefined {
+function toOverlayOptions(options: TerminalOverlayOptions | undefined): OverlayOptions | undefined {
   if (options === undefined) return undefined;
   const mapped: OverlayOptions = {};
   if (options.width !== undefined) mapped.width = options.width;
@@ -884,7 +796,7 @@ type RuntimePhase = "composition-start" | "composition-end" | "write-start" | "w
 
 /** Reports one runtime phase with the input coordinator's depth and revision at that moment. */
 function runtimePhaseTracer(
-  diagnostics: NonNullable<PiTuiRuntimeAdapterOptions["inputDiagnostics"]>,
+  diagnostics: NonNullable<TerminalRuntimeOptions["inputDiagnostics"]>,
   now: () => number,
   coordinator: () => InputPresentationCoordinator | undefined,
 ): (phase: RuntimePhase) => void {

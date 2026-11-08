@@ -3,7 +3,7 @@ import type { AgentSessionRuntime } from "@earendil-works/pi-coding-agent";
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { applyPiTheme, applyPiThemeInstance, piTheme } from "../../../src/integrations/pi/components/index.js";
-import type { PiTuiTerminalPort } from "../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalPort } from "../../../src/contracts/presentation/index.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
 import { withPiParityColorMode } from "../../support/pi-terminal-capabilities.js";
 
@@ -213,7 +213,7 @@ class ScriptedRuntime {
   async dispose(): Promise<void> {}
 }
 
-class CapturingTerminal implements PiTuiTerminalPort {
+class CapturingTerminal implements TerminalPort {
   readonly kittyProtocolActive = false;
   readonly writes: string[] = [];
   #resize: (() => void) | undefined;

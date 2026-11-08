@@ -5,7 +5,7 @@ import { applyPiTheme, createPiShellSelector } from "../../../src/integrations/p
 import { createPiEngineAdapter } from "../../../src/integrations/pi/engine/index.js";
 import { createPiSessionPresenters } from "../../../src/integrations/pi/session-presenters/index.js";
 import { OwnedUiSessionShell } from "../../../src/app/session-shell/index.js";
-import type { PiTuiInputDiagnosticsEvent } from "../../../src/integrations/pi/tui-runtime/index.js";
+import type { TerminalInputDiagnosticsEvent } from "../../../src/contracts/presentation/index.js";
 import { createPinnedEditorHarness } from "../../integrations/pi/components/pinned-editor-upstream-fixture.js";
 import type {
   InputProducerBatchRequest,
@@ -28,7 +28,7 @@ async function runOwned(request: InputProducerRequest): Promise<InputProducerRes
     createRuntime: async () => runtime as unknown as AgentSessionRuntime,
   });
   const terminal = new RecordingTerminal(request.state.columns, request.state.rows);
-  const phases: PiTuiInputDiagnosticsEvent[] = [];
+  const phases: TerminalInputDiagnosticsEvent[] = [];
   let frameRecorder: InputFrameRecorder | undefined;
   const shell = new OwnedUiSessionShell({
     presenters: createPiSessionPresenters(adapter),
@@ -139,11 +139,11 @@ class PinnedRoot implements Component {
   streamText = "";
   readonly history: readonly string[];
   readonly surface: Component;
-  readonly phases: PiTuiInputDiagnosticsEvent[];
+  readonly phases: TerminalInputDiagnosticsEvent[];
   readonly state: { revision: number; applied: number; pending: number };
   constructor(
     surface: Component,
-    phases: PiTuiInputDiagnosticsEvent[],
+    phases: TerminalInputDiagnosticsEvent[],
     state: { revision: number; applied: number; pending: number },
     historyRows: number,
   ) { this.surface = surface; this.phases = phases; this.state = state; this.history = Array.from({ length: historyRows }, (_, index) => `historical-${index}`); }
@@ -158,7 +158,7 @@ class PinnedRoot implements Component {
     finally { this.state.applied = this.state.revision; this.trace("semantic-end"); }
   }
   invalidate(): void { this.surface.invalidate(); }
-  private trace(phase: PiTuiInputDiagnosticsEvent["phase"]): void {
+  private trace(phase: TerminalInputDiagnosticsEvent["phase"]): void {
     const semantic = phase === "semantic-start" || phase === "semantic-end";
     this.phases.push({
       phase,
@@ -175,7 +175,7 @@ async function runPinned(request: InputProducerRequest): Promise<InputProducerRe
   const workload = requireWorkload(request.workloadId);
   initTheme("dark", false);
   const terminal = new RecordingTerminal(request.state.columns, request.state.rows);
-  const phases: PiTuiInputDiagnosticsEvent[] = [];
+  const phases: TerminalInputDiagnosticsEvent[] = [];
   const state = { revision: 0, applied: 0, pending: 0 };
   const actions: string[] = [];
   let text = "";
@@ -269,7 +269,7 @@ async function runPinned(request: InputProducerRequest): Promise<InputProducerRe
 
 function result(
   request: InputProducerRequest,
-  phases: readonly PiTuiInputDiagnosticsEvent[],
+  phases: readonly TerminalInputDiagnosticsEvent[],
   terminal: RecordingTerminal,
   checkpoints: readonly InputProducerCheckpoint[],
 ): InputProducerResult {

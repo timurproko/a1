@@ -1,4 +1,4 @@
-import type { PiTuiTerminalPort } from "./contracts.js";
+import type { TerminalPort } from "../../../contracts/presentation/index.js";
 
 export const PINNED_PI_TUI_DAMAGE_GRAMMAR = "@earendil-works/pi-tui@1.5.0:tui-alt-screen-one-write-v1";
 
@@ -67,7 +67,7 @@ const SGR_SEQUENCE = /\u001b\[([0-9:;]*)m/gu;
  * viewport metadata authorizes a shift; bytes are inspected only to validate
  * and preserve Pi's complete row paint and cursor syntax.
  */
-export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
+export class DamageAwareTerminalAdapter implements TerminalPort {
   readonly #rows = new Map<number, string>();
   readonly #links = new Map<number, ReturnType<DamageAwareTerminalOptions["inspectHyperlinks"]>>();
   #cleanupRevision = 0;
@@ -90,10 +90,10 @@ export class DamageAwareTerminalAdapter implements PiTuiTerminalPort {
     paintedRows: [],
   };
 
-  readonly inner: PiTuiTerminalPort;
+  readonly inner: TerminalPort;
   readonly options: DamageAwareTerminalOptions;
   constructor(
-    inner: PiTuiTerminalPort,
+    inner: TerminalPort,
     options: DamageAwareTerminalOptions,
   ) { this.inner = inner; this.options = options; }
 

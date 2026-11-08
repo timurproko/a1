@@ -3,7 +3,7 @@ import { closeSync, mkdirSync, mkdtempSync, openSync, writeSync } from "node:fs"
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { DamageAwareTerminalAdapter } from "../../src/integrations/pi/tui-runtime/damage-aware-terminal.js";
-import type { PiTuiTerminalPort } from "../../src/integrations/pi/tui-runtime/contracts.js";
+import type { TerminalPort } from "../../src/contracts/presentation/index.js";
 import { routeMouseInput } from "../../src/ui/components/mouse.js";
 import { readVisibleHyperlinks } from "../../src/ui/components/visible-hyperlinks.js";
 import {
@@ -17,7 +17,7 @@ const ENTER = "\u001b[?1049h\u001b[?7l\u001b[?1000h\u001b[?1006h\u001b[?25l";
 const LEAVE = "\u001b]8;;\u001b\\\u001b[0m\u001b[?1006l\u001b[?1000l\u001b[?7h\u001b[?1049l\u001b[?25h";
 
 /** Standalone protocol probe, not the A1/Pi UI: record the exact bytes sent to the host. */
-class ProbeTerminal implements PiTuiTerminalPort {
+class ProbeTerminal implements TerminalPort {
   readonly kittyProtocolActive = false;
   constructor(
     readonly interactive: boolean,

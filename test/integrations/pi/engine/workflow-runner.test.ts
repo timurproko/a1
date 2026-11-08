@@ -39,7 +39,6 @@ class FakeSession {
     this.calls.push(`bash:${command}:${options.excludeFromContext}`);
     return { output: "ok", exitCode: 0, cancelled: false, truncated: false };
   }
-  abortBash(): void { this.calls.push("abortBash"); }
   async compact(instructions?: string): Promise<void> {
     this.calls.push(`compact:${instructions ?? ""}`);
     if (this.compactError) throw this.compactError;
@@ -204,8 +203,7 @@ describe("PiWorkflowRunner", () => {
     });
     expect(state.views).toBe(views + 1);
     expect(await runner.executeBashWorkflow("ls", true)).toMatchObject({ command: "ls", output: "ok", exitCode: 0, excludeFromContext: true });
-    runner.abortBashWorkflow();
-    expect(session.calls).toEqual(["name:Renamed", "bash:ls:true", "abortBash"]);
+    expect(session.calls).toEqual(["name:Renamed", "bash:ls:true"]);
     session.isStreaming = true;
     expect(runner.reloadBlockedResult()).toMatchObject({ command: "reload", outcome: "failed", messageKind: "warning" });
   });

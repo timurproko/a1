@@ -1,6 +1,6 @@
 import { readFile, readdir } from "node:fs/promises";
 import { extname, relative, resolve, sep } from "node:path";
-import { inspectExportConsumers, inspectLayerBoundaries, inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
+import { inspectExportConsumers, inspectScriptReferences, inspectLayerBoundaries, inspectPiFeatureBoundaryImports, inspectProjectOwnerLayout, inspectProjectStructureImports, projectOwnerForPath, testOwnerForPath } from "./project-structure-policy.mjs";
 import { inspectPiProductionBoundary } from "./pi-api-boundary-policy.mjs";
 import { inspectBaselinePaths } from "./baseline-paths-policy.mjs";
 import { inspectModuleGraph } from "./module-graph-policy.mjs";
@@ -125,6 +125,7 @@ if (rootArgument < 0) {
     for (const file of await walk(resolve(root, directory)).catch(() => [])) consumers[relative(root, file).split(sep).join("/")] = await readFile(file, "utf8");
   }
   errors.push(...inspectExportConsumers(sourceFiles, consumers, architectureAllowlist?.entryModules ?? []));
+  errors.push(...await inspectRepositoryScripts());
   try {
     const sizeBaseline = JSON.parse(await readFile(resolve(root, "config", "baselines", "size-ratchet.json"), "utf8"));
     errors.push(...inspectSizeRatchet(await measureSizeRatchet(root), sizeBaseline));
@@ -170,6 +171,15 @@ function inspectOwnedShellModules() {
     const siblingImport = source.match(/(?:from\s+|import\s+)["']\.\/(shell-(?!shared-facade)[a-z-]+)\.js["']/);
     if (siblingImport) errors.push(`${path}: responsibility modules may depend only on shell-shared-facade, not ${siblingImport[1]}`);
   }
+}
+
+// Invariant: a script lives only while a manifest, workflow, current document, or other code names it.
+async function inspectRepositoryScripts() {
+  const paths = await walkRepository(root);
+  const referrer = /^(?:package\.json|README\.md|AGENTS\.md|scripts\/.+|(?:\.github|docs|openspec\/specs|bin|src|test)\/.+\.(?:json|md|ya?ml|mjs|js|ts|sh))$/;
+  const referrers = {};
+  for (const path of paths.filter(path => referrer.test(path))) referrers[path] = await readFile(resolve(root, path), "utf8");
+  return inspectScriptReferences(paths.filter(path => /^scripts\/.+\.mjs$/.test(path)), referrers);
 }
 
 async function inspectRepositoryStructure() {
