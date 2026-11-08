@@ -90,9 +90,6 @@
     "src/foundation/release/bootstrap.ts::runBootstrapAttempt": {
       "lines": 121
     },
-    "src/foundation/release/update.ts::runSelfUpdate": {
-      "lines": 197
-    },
     "src/integrations/pi/components/shell-editor-autocomplete.ts::createPiShellEditor": {
       "lines": 247
     },

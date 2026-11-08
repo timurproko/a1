@@ -26,6 +26,8 @@ import {
 } from "../../../src/foundation/release/index.js";
 import { acquireUpdateExecutionLease } from "../../../src/foundation/release/update-execution-lease.js";
 import { UpdateTransactionStore } from "../../../src/foundation/release/update-transaction.js";
+import type { UpdateInstaller } from "../../../src/foundation/release/update-installer.js";
+import { fakeUpdateInstaller, replacementResult } from "../../support/update-installer-fake.js";
 
 interface Invocation {
   command: string;
@@ -111,7 +113,7 @@ function createHarness(options: {
     async read() { return transaction; },
     async begin(input) {
       const now = new Date(0).toISOString();
-      transaction = transaction ?? { schema: UPDATE_JOURNAL_SCHEMA, transactionId: "test-update", ...input, priorActiveReleaseId: null, phase: "shutdown-intent", status: "active", error: null, startedAt: now, updatedAt: now };
+      transaction = transaction ?? { schema: UPDATE_JOURNAL_SCHEMA, transactionId: "test-update", ...input, phase: "shutdown-intent", status: "active", error: null, startedAt: now, updatedAt: now };
       return transaction;
     },
     async advance(phase) { if (!transaction) throw new Error("missing test transaction"); transaction = { ...transaction, phase }; return transaction; },
@@ -127,7 +129,7 @@ function createHarness(options: {
     return response;
   };
 
-  return {
+  const harness = {
     environment: { A1_DATA_DIR: resolve(tmpdir(), "a1-update-test-data", String(process.pid)) },
     fileSystem,
     globalRoot,
@@ -140,7 +142,11 @@ function createHarness(options: {
     stderr,
     stdout,
     transactionStore,
+    installer: undefined as unknown as UpdateInstaller,
   };
+  // Invariant: the installer reads the runner at call time, because tests replace it after setup.
+  harness.installer = fakeUpdateInstaller(() => harness.runner);
+  return harness;
 }
 
 const success = (stdout = ""): ProcessResult => ({ code: 0, stdout });
@@ -502,13 +508,15 @@ describe("A1 self-update orchestration", () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
     const begin = vi.spyOn(harness.transactionStore, "begin");
     const finish = vi.spyOn(harness.transactionStore, "finish");
-    const packageReplacement = vi.fn();
+    const packageReplacement = vi.fn<UpdateInstaller["replacePackage"]>();
 
     await expect(runSelfUpdate({
       ...harness,
       progress: true,
-      npmCliResolver: async () => { throw new Error("could not resolve npm's JavaScript entry for protected package replacement"); },
-      packageReplacement,
+      installer: fakeUpdateInstaller(() => harness.runner, {
+        preflight: async () => { throw new Error("could not resolve npm's JavaScript entry for protected package replacement"); },
+        replacePackage: packageReplacement,
+      }),
     })).resolves.toBe(1);
 
     expect(begin).not.toHaveBeenCalled();
@@ -526,30 +534,11 @@ describe("A1 self-update orchestration", () => {
   it("passes preflight npm authority into protected replacement", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
     const npmCli = resolve("fixtures", "active-node", "node_modules", "npm", "bin", "npm-cli.js");
-    const packageReplacement = vi.fn(async () => ({
-      schema: "a1-update-recovery-v1" as const,
-      transactionId: "test-update",
-      outcome: "installed" as const,
-      npmExitCode: 0,
-      cancelled: false,
-      launcherDisposition: "target" as const,
-      stdout: "",
-      stderr: "",
-      completedAt: new Date(0).toISOString(),
-      recovery: {
-        capsulePath: resolve("fixtures", "data", "update-recovery", "test", "capsule.json"),
-        status: "package-installed" as const,
-        guardianPid: 42,
-        guardianStartIdentity: "42:start",
-        cancellationRequested: false,
-        launcherDisposition: "target" as const,
-      },
-    }));
+    const packageReplacement = vi.fn<UpdateInstaller["replacePackage"]>(async () => replacementResult("test-update", 0));
 
     await expect(runSelfUpdate({
       ...harness,
-      npmCliResolver: async () => npmCli,
-      packageReplacement,
+      installer: fakeUpdateInstaller(() => harness.runner, { preflight: async () => npmCli, replacePackage: packageReplacement }),
     })).resolves.toBe(0);
 
     expect(packageReplacement).toHaveBeenCalledWith(expect.objectContaining({ npmCli }));
@@ -561,7 +550,9 @@ describe("A1 self-update orchestration", () => {
 
     await expect(runSelfUpdate({
       ...harness,
-      maintenance: async () => { observations.push(`maintenance:${harness.stdout.join("").includes("updated successfully")}`); },
+      installer: fakeUpdateInstaller(() => harness.runner, {
+        maintenance: async () => { observations.push(`maintenance:${harness.stdout.join("").includes("updated successfully")}`); },
+      }),
     })).resolves.toBe(0);
 
     expect(observations).toEqual(["maintenance:false"]);
@@ -575,10 +566,12 @@ describe("A1 self-update orchestration", () => {
 
     await expect(runSelfUpdate({
       ...harness,
-      maintenance: async () => {
-        observed.push((await harness.transactionStore.read())!.status);
-        expect(finish).not.toHaveBeenCalled();
-      },
+      installer: fakeUpdateInstaller(() => harness.runner, {
+        maintenance: async () => {
+          observed.push((await harness.transactionStore.read())!.status);
+          expect(finish).not.toHaveBeenCalled();
+        },
+      }),
     })).resolves.toBe(0);
 
     expect(observed).toEqual(["active"]);
@@ -588,7 +581,10 @@ describe("A1 self-update orchestration", () => {
   it("does not publish success when maintenance fails after activation", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success(), success()] });
     const finish = vi.spyOn(harness.transactionStore, "finish");
-    await expect(runSelfUpdate({ ...harness, maintenance: async () => { throw new Error("maintenance failed"); } })).resolves.toBe(1);
+    await expect(runSelfUpdate({
+      ...harness,
+      installer: fakeUpdateInstaller(() => harness.runner, { maintenance: async () => { throw new Error("maintenance failed"); } }),
+    })).resolves.toBe(1);
     expect(finish).not.toHaveBeenCalledWith("completed");
     expect((await harness.transactionStore.read())?.status).toBe("failed");
     expect(harness.stdout.join("")).not.toContain("updated successfully");
@@ -620,29 +616,11 @@ describe("A1 self-update orchestration", () => {
     expect((await harness.transactionStore.read())?.status).toBe("completed");
   });
 
-  it("routes production package replacement through the protected coordinator", async () => {
+  it("replaces the package only through the installer's protected replacement", async () => {
     const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
-    const packageReplacement = vi.fn(async () => ({
-      schema: "a1-update-recovery-v1" as const,
-      transactionId: "test-update",
-      outcome: "installed" as const,
-      npmExitCode: 0,
-      cancelled: false,
-      launcherDisposition: "target" as const,
-      stdout: "",
-      stderr: "",
-      completedAt: new Date(0).toISOString(),
-      recovery: {
-        capsulePath: resolve("fixtures", "data", "update-recovery", "test", "capsule.json"),
-        status: "package-installed" as const,
-        guardianPid: 42,
-        guardianStartIdentity: "42:start",
-        cancellationRequested: false,
-        launcherDisposition: "target" as const,
-      },
-    }));
+    const packageReplacement = vi.fn<UpdateInstaller["replacePackage"]>(async () => replacementResult("test-update", 0));
 
-    await expect(runSelfUpdate({ ...harness, packageReplacement })).resolves.toBe(0);
+    await expect(runSelfUpdate({ ...harness, installer: fakeUpdateInstaller(() => harness.runner, { replacePackage: packageReplacement }) })).resolves.toBe(0);
 
     expect(packageReplacement).toHaveBeenCalledOnce();
     expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
@@ -663,17 +641,8 @@ describe("A1 self-update orchestration", () => {
     await expect(runSelfUpdate({
       ...harness,
       progress: true,
-      packageReplacement: async () => ({
-        schema: "a1-update-recovery-v1",
-        transactionId: "test-update",
-        outcome: "recovery-launcher",
-        npmExitCode: null,
-        cancelled: true,
-        launcherDisposition: "recovery",
-        stdout: "",
-        stderr: "",
-        completedAt: new Date(0).toISOString(),
-        recovery,
+      installer: fakeUpdateInstaller(() => harness.runner, {
+        replacePackage: async () => ({ ...replacementResult("test-update", null, "", "", "recovery-launcher", true), recovery }),
       }),
     })).resolves.toBe(130);
 
@@ -681,6 +650,39 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stderr.join("")).toContain("update cancelled safely; the launcher is available");
     expect(harness.stdout.at(-1)).toBe(`${RETURN}${" ".repeat(44)}${RETURN}`);
     expect(harness.invocations.some(call => call.arguments[0] === "install")).toBe(false);
+  });
+
+  it("runs preflight, prior-release protection, replacement and maintenance in that order", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    const steps: string[] = [];
+    const base = fakeUpdateInstaller(() => harness.runner);
+    const installer = fakeUpdateInstaller(() => harness.runner, {
+      preflight: async root => { steps.push("preflight"); return await base.preflight(root); },
+      protectPriorRelease: async root => { steps.push("protect"); return await base.protectPriorRelease(root); },
+      replacePackage: async input => { steps.push("replace"); return await base.replacePackage(input); },
+      maintenance: async () => { steps.push("maintenance"); },
+    });
+
+    await expect(runSelfUpdate({ ...harness, installer })).resolves.toBe(0);
+
+    expect(steps).toEqual(["preflight", "protect", "replace", "maintenance"]);
+  });
+
+  it("rolls back to the prior release when activation fails after replacement", async () => {
+    const harness = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
+    harness.lifecycle.activateInstalled = async () => { throw new Error("activation refused"); };
+    const rollback = vi.fn<UpdateInstaller["rollback"]>(async () => "rolled back");
+    const finish = vi.spyOn(harness.transactionStore, "finish");
+    const installer = fakeUpdateInstaller(() => harness.runner, {
+      protectPriorRelease: async root => ({ ...(await fakeUpdateInstaller(() => harness.runner).protectPriorRelease(root)), priorActiveReleaseId: "prior-release" }),
+      rollback,
+    });
+
+    await expect(runSelfUpdate({ ...harness, installer })).resolves.toBe(1);
+
+    expect(rollback).toHaveBeenCalledWith("prior-release");
+    expect(finish).toHaveBeenCalledWith("rolled-back", "activation refused; rolled back");
+    expect(harness.stdout.join("")).not.toContain("updated successfully");
   });
 
   it("fails safely when the activated startup graph cannot warm", async () => {
@@ -1093,31 +1095,15 @@ describe("A1 self-update orchestration", () => {
   });
 
   it("reports protected replacement text only when nothing was installed", async () => {
-    const result = (outcome: "installed" | "recovery-launcher") => ({
-      schema: "a1-update-recovery-v1" as const,
-      transactionId: "test-update",
-      outcome,
-      npmExitCode: outcome === "installed" ? 0 : 1,
-      cancelled: false,
-      launcherDisposition: outcome === "installed" ? "target" as const : "recovery" as const,
-      stdout: "npm progress line\n",
-      stderr: "npm warn something\n",
-      completedAt: new Date(0).toISOString(),
-      recovery: {
-        capsulePath: resolve("fixtures", "data", "update-recovery", "test", "capsule.json"),
-        status: outcome === "installed" ? "package-installed" as const : "recovery-launcher" as const,
-        guardianPid: 42,
-        guardianStartIdentity: "42:start",
-        cancellationRequested: false,
-        launcherDisposition: outcome === "installed" ? "target" as const : "recovery" as const,
-      },
-    });
+    const result = (outcome: "installed" | "recovery-launcher") => replacementResult(
+      "test-update", outcome === "installed" ? 0 : 1, "npm progress line\n", "npm warn something\n", outcome,
+    );
     const installed = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`), success()] });
-    await expect(runSelfUpdate({ ...installed, packageReplacement: async () => result("installed") })).resolves.toBe(0);
+    await expect(runSelfUpdate({ ...installed, installer: fakeUpdateInstaller(() => installed.runner, { replacePackage: async () => result("installed") }) })).resolves.toBe(0);
     expect(installed.stderr).toEqual([]);
 
     const failed = createHarness({ responses: [success("1.3.0\n"), success(`${resolve("fixtures", "global")}\n`)] });
-    await expect(runSelfUpdate({ ...failed, packageReplacement: async () => result("recovery-launcher") })).resolves.toBe(1);
+    await expect(runSelfUpdate({ ...failed, installer: fakeUpdateInstaller(() => failed.runner, { replacePackage: async () => result("recovery-launcher") }) })).resolves.toBe(1);
     expect(failed.stderr.join("")).toContain("npm progress line\nnpm warn something\n");
     expect(failed.stderr.join("")).toContain("update failed");
   });
@@ -1168,7 +1154,7 @@ describe("A1 self-update orchestration", () => {
     expect(harness.stderr.join("")).toContain("Details:");
   });
 
-  it("reports a spawn failure while starting installation", async () => {
+  it("reports a replacement that could not start as a failed update", async () => {
     const harness = createHarness();
     harness.runner = async (command, arguments_, request) => {
       harness.invocations.push({ command, arguments: arguments_, request });
@@ -1179,8 +1165,8 @@ describe("A1 self-update orchestration", () => {
 
     await expect(runSelfUpdate(harness)).resolves.toBe(1);
 
-    expect(harness.stderr.join("")).toContain("start the global npm installation");
-    expect(harness.stderr.join("")).toContain("permission denied");
+    expect(harness.stderr.join("")).toContain("update failed: permission denied while spawning npm");
+    expect(harness.stderr.join("")).toContain("Run a1 update to retry");
   });
 });
 
