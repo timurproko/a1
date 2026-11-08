@@ -123,7 +123,7 @@ describe("bottom-control composition provenance", () => {
       expect(f.root.viewportPresentationEvidence().followingEnd).toBe(true);
       // Invariant: reverse ordering (hover before keyboard receipt) is also current.
       f.mouse(64); f.root.handleInput("d"); f.hover(f.render(), true);
-      f.root.handleInput("e"); f.root.clearViewportPointerState(); f.hover(f.render(), false);
+      f.root.handleInput("e"); f.root.viewport.clearPointerState(); f.hover(f.render(), false);
       expect(f.root.viewportPresentationEvidence().currentPointer).toBeNull();
     } finally { f.root.dispose(); }
   });
@@ -132,7 +132,7 @@ describe("bottom-control composition provenance", () => {
     const f = fixture();
     try {
       f.mouse(64); f.render();
-      f.root.handleInput("x"); f.root.noteCompletedAssistantMessage();
+      f.root.handleInput("x"); f.root.viewport.noteCompletedAssistantMessage();
       let rows = f.render();
       expect(rows.some(line => stripAnsi(line).includes("1 new message (Ctrl+End) ↓"))).toBe(true);
       f.hover(rows, true);

@@ -107,7 +107,7 @@ function transition(f: ReturnType<typeof fixture>, index: number): void {
   switch (index % 8) {
     case 0: f.terminal.input?.("\u001b[<64;1;10M"); break;
     case 1: f.root.editor.setText("one\ntwo\nthree"); break;
-    case 2: f.root.editor.setText(""); f.root.noteCompletedAssistantMessage(); break;
+    case 2: f.root.editor.setText(""); f.root.viewport.noteCompletedAssistantMessage(); break;
     case 3: f.root.update({ ...f.view, lifecycle: "busy", status: { ...f.view.status, workingMessage: "Working" } }); break;
     case 4: f.terminal.input?.("\u001b[<65;1;10M"); break;
     case 5: f.root.update({ ...f.view, lifecycle: "ready" }); break;
@@ -144,7 +144,7 @@ describe("real fullscreen child content geometry", () => {
         await assertCurrentGrid(f);
       }
       f.root.transcript.apply(block(66, true));
-      f.root.noteCompletedAssistantMessage();
+      f.root.viewport.noteCompletedAssistantMessage();
       await assertCurrentGrid(f);
       expect(f.composed().join("")).toContain("1 new message");
       f.terminal.input!("\u001b[1;5F");

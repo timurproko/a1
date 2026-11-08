@@ -657,12 +657,12 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
     vi.spyOn(adapter.catalog, "pinnedForkOptions").mockReturnValue([]);
     vi.spyOn(adapter.catalog, "pinnedLogoutOptions").mockResolvedValue([]);
 
-    shell.showForkSelector();
+    shell.selectors.showForkSelector();
     const forkFrame = stripTerminalSequences(shell.root.render(100).join("\n"));
     expect(forkFrame).toContain("No messages to fork from");
     expect(forkFrame).not.toContain("Error: No messages to fork from");
 
-    await shell.showLogoutSelector();
+    await shell.selectors.showLogoutSelector();
     const logoutFrame = stripTerminalSequences(shell.root.render(200).join("\n"));
     expect(logoutFrame).toContain("No stored credentials to remove. /logout only removes credentials saved by /login; environment variables and models.json config are unchanged.");
     expect(logoutFrame).not.toContain("No authenticated providers available.");
@@ -744,7 +744,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
   it("cycles levels only in the owned agent input and keeps model selection command-accessible", async () => {
     const { terminal, shell } = await fixture([], [], true);
     const cycle = vi.spyOn(shell, "cycleThinkingLevel");
-    const select = vi.spyOn(shell, "showModelsDialog");
+    const select = vi.spyOn(shell.selectors, "showModelsDialog");
     try {
       shell.root.editor.setText("draft");
       terminal.input("\u001b[Z");
@@ -782,7 +782,7 @@ describe("OwnedUiSessionShell dialogs and workflows", () => {
         { kind: "warning", message: "Could not refresh openai; searching cached models." },
       ],
     });
-    const show = vi.spyOn(shell, "showModelSelector");
+    const show = vi.spyOn(shell.selectors, "showModelSelector");
 
     await shell.runWorkflow({ command: "model", argument: "openai/missing" });
     expect(show).toHaveBeenCalledWith("openai/missing");

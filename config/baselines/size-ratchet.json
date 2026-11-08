@@ -15,12 +15,12 @@
       "fields": 13
     },
     "src/app/session-shell/session-shell-root.ts::OwnedUiSessionShellRoot": {
-      "methods": 75,
+      "methods": 62,
       "fields": 32
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter": {
-      "methods": 70,
-      "fields": 43
+      "methods": 55,
+      "fields": 42
     },
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController": {
       "methods": 34,
@@ -76,7 +76,7 @@
       "lines": 122
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.constructor": {
-      "lines": 202
+      "lines": 192
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter.runWorkflow": {
       "lines": 109
@@ -85,7 +85,7 @@
       "lines": 316
     },
     "src/composition/owned-ui.ts::composeOwnedUi": {
-      "lines": 210
+      "lines": 182
     },
     "src/features/owned-ui/project-trust-prompt.ts::createConsoleProjectTrustPrompt": {
       "lines": 150

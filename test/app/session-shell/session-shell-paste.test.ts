@@ -48,7 +48,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       terminal.input("\u0016");
       const reservation = shell.root.editor.getText();
       expect(reservation).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
-      expect(shell.root.hasPendingPastes(reservation)).toBe(true);
+      expect(shell.root.promptChips.hasPending(reservation)).toBe(true);
       await vi.waitFor(() => expect(readText).toHaveBeenCalledOnce());
       const route = events.filter(event => event.request < 0);
       expect(route.map(event => event.phase)).toEqual(["shortcut-received", "shortcut-matched", "shortcut-admitted"]);
@@ -96,8 +96,8 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       const draft = shell.root.editor.getText();
       expect(draft.endsWith(" after")).toBe(true);
       expect(draft.length).toBeLessThan(80);
-      expect(shell.root.preparePromptSubmission(draft).text === text + " after").toBe(true);
-      expect(shell.root.prepareHistoryText(draft) === text + " after").toBe(true);
+      expect(shell.root.promptChips.prepareSubmission(draft).text === text + " after").toBe(true);
+      expect(shell.root.promptChips.prepareHistoryText(draft) === text + " after").toBe(true);
       shell.runtime.renderNow();
       terminal.input(" typing");
       await nextImmediate();
@@ -186,9 +186,9 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(shell.root.editor.getText()).toContain(" after");
       await vi.waitFor(() => {
         expect(shell.root.editor.getText()).toMatch(kind === "image" ? /^\[📷 screenshot-/u : /^\[paste #/u);
-        expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false);
+        expect(shell.root.promptChips.hasPending(shell.root.editor.getText())).toBe(false);
       }, { timeout: 10_000 });
-      const ready = shell.root.preparePromptSubmission(shell.root.editor.getText());
+      const ready = shell.root.promptChips.prepareSubmission(shell.root.editor.getText());
       if (kind === "image") { expect(ready.images).toHaveLength(1); expect(ready.text).toBe(shell.root.editor.getText()); }
       else expect(ready.text === text + " after").toBe(true);
       shell.runtime.renderNow(); await nextImmediate();
@@ -222,8 +222,8 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       const draft = shell.root.editor.getText();
       const pathFallback = phases.includes("path-fallback");
       const expanded = pathFallback ? text : file.repeat(count);
-      expect(shell.root.preparePromptSubmission(draft).text === expanded + " after").toBe(true);
-      expect(shell.root.prepareHistoryText(draft) === expanded + " after").toBe(true);
+      expect(shell.root.promptChips.prepareSubmission(draft).text === expanded + " after").toBe(true);
+      expect(shell.root.promptChips.prepareHistoryText(draft) === expanded + " after").toBe(true);
       if (count > 2) {
         expect(draft).toMatch(/^\[paste #\d+ (?:\d+ chars|\+\d+ lines)\] after$/u);
         expect(draft.length).toBeLessThan(100);
@@ -244,7 +244,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(shell.root.editor.getText()).toBe(draft.slice(0, -6));
       terminal.input("\x19"); await nextImmediate();
       expect(shell.root.editor.getText()).toBe(draft);
-      expect(shell.root.preparePromptSubmission(draft).text === expanded + " after").toBe(true);
+      expect(shell.root.promptChips.prepareSubmission(draft).text === expanded + " after").toBe(true);
     } finally { clearInterval(heartbeat); await shell.dispose(); await rm(directory, { recursive: true, force: true }); }
   }, 25_000);
 
@@ -259,7 +259,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       terminal.input("\x16");
       await vi.waitFor(() => expect(shell.root.editor.getText()).toBe("[📁 shared][📁 two/shared]"), { timeout: 5_000 });
       expect(shell.root.editor.getText()).not.toMatch(/ #[a-f0-9]+\]/u);
-      expect(shell.root.preparePromptSubmission(shell.root.editor.getText()).text).toBe(first + second);
+      expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).text).toBe(first + second);
       terminal.input("\r");
       await nextImmediate();
       expect(engine.session.calls).toContain(`prompt:${first}${second}`);
@@ -272,8 +272,8 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     const url = "https://example.com/" + "x".repeat(30_000);
     const small = "https://small.example/";
     try {
-      const chip = shell.root.rehydrateHistoryText(url, () => null);
-      const smallChip = shell.root.rehydrateHistoryText(small, () => null);
+      const chip = shell.root.promptChips.rehydrateHistoryText(url, () => null);
+      const smallChip = shell.root.promptChips.rehydrateHistoryText(small, () => null);
       shell.root.editor.setText([chip, chip, chip, smallChip].join(separator));
       for (let pass = 0; pass < 3; pass++) {
         const rows = shell.root.editor.render(separator === "\n" ? 80 : 220);
@@ -284,7 +284,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
         expect(controls.filter(value => value === `\u001b]8;;${small}\u001b\\`)).toHaveLength(1);
         expect(stripTerminalSequences(output)).toContain(smallChip);
       }
-      expect(shell.root.preparePromptSubmission(shell.root.editor.getText()).text === [url, url, url, small].join(separator)).toBe(true);
+      expect(shell.root.promptChips.prepareSubmission(shell.root.editor.getText()).text === [url, url, url, small].join(separator)).toBe(true);
     } finally { await shell.dispose(); }
   });
 
@@ -633,7 +633,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       terminal.input("\u0016");
       const chip = shell.root.editor.getText();
       expect(chip).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
-      expect(shell.root.hasPendingPastes(chip)).toBe(true);
+      expect(shell.root.promptChips.hasPending(chip)).toBe(true);
       shell.runtime.renderNow();
       const frame = stripTerminalSequences(shell.root.render(100).join("\n"));
       expect(frame).not.toContain(chip);
@@ -662,7 +662,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     try {
       terminal.input("\u0016");
       expect(shell.root.editor.getText()).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
-      expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(true);
+      expect(shell.root.promptChips.hasPending(shell.root.editor.getText())).toBe(true);
       await nextImmediate();
       if (action === "delete") { terminal.input("\u0001"); terminal.input("\u007f"); }
       if (action === "cancel") { terminal.input("\r"); await shell.interrupt(); }
@@ -690,11 +690,11 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       terminal.input("\u0016");
       const secondChip = shell.root.editor.getText().slice(firstChip.length);
       terminal.input(" tail");
-      await vi.waitFor(() => expect(shell.root.hasPendingPastes(secondChip)).toBe(false));
+      await vi.waitFor(() => expect(shell.root.promptChips.hasPending(secondChip)).toBe(false));
       expect(shell.root.editor.getText()).toBe(`${firstChip}${secondChip} tail`);
-      expect(shell.root.hasPendingPastes(firstChip)).toBe(true);
+      expect(shell.root.promptChips.hasPending(firstChip)).toBe(true);
       first({ data: firstData, mimeType: "image/png" });
-      await vi.waitFor(() => expect(shell.root.hasPendingPastes(firstChip)).toBe(false));
+      await vi.waitFor(() => expect(shell.root.promptChips.hasPending(firstChip)).toBe(false));
       expect(shell.root.editor.getText()).toBe(`${firstChip}${secondChip} tail`);
       expect(stripTerminalSequences(shell.root.render(100).join("\n"))).toContain(`${firstChip}${secondChip}`);
       terminal.input("!");
@@ -749,7 +749,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(shell.root.editor.getText()).toBe(`${draft}\nqueued steer\nqueued follow`);
       release({ data: screenshotPng(8, 8).toString("base64"), mimeType: "image/png" });
       await pending;
-      await vi.waitFor(() => expect(shell.root.preparePromptSubmission(draft).images).toHaveLength(1));
+      await vi.waitFor(() => expect(shell.root.promptChips.prepareSubmission(draft).images).toHaveLength(1));
       expect(engine.session.promptOptions).toHaveLength(0);
       expect((await shell.submit(shell.root.editor.getText())).outcome).toBe("completed");
       expect(engine.session.promptOptions).toHaveLength(1);
@@ -780,7 +780,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
   it("keeps an invalid image editor submission recoverable instead of rejecting its callback", async () => {
     const { shell, terminal, engine } = await fixture([], [], true);
     try {
-      const preparation = vi.spyOn(shell.root, "preparePromptSubmission").mockReturnValue({
+      const preparation = vi.spyOn(shell.root.promptChips, "prepareSubmission").mockReturnValue({
         text: "inspect screenshot",
         images: [{ type: "image", data: "AAAA".repeat(2 * 1024 * 1024 + 1), mimeType: "image/png" }],
       });
@@ -809,7 +809,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       expect(draft).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
       // Concurrency: await real worker completion; this retry contract is not a one-second cold-start benchmark.
       await shell.root.waitForPromptPastes(draft, new AbortController().signal);
-      expect(shell.root.hasPendingPastes(draft)).toBe(false);
+      expect(shell.root.promptChips.hasPending(draft)).toBe(false);
       expect(shell.root.editor.getText()).toBe(draft);
       vi.spyOn(adapter.session, "execute").mockResolvedValueOnce({ outcome: "rejected", diagnostic: "synthetic rejection" });
       terminal.input("\r");
@@ -912,7 +912,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     const pasteReady = async (count: number) => {
       terminal.input("\u0016");
       await vi.waitFor(() => expect(imageTags()).toHaveLength(count));
-      await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
+      await vi.waitFor(() => expect(shell.root.promptChips.hasPending(shell.root.editor.getText())).toBe(false));
     };
     const notifyLimit = (next: number) => { limit = next; for (const listener of listeners) listener(); };
     const countMessage = "A prompt is limited to 2 images.";
@@ -960,7 +960,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
       const ready = shell.root.editor.getText();
       terminal.input("\u0016");
       await vi.waitFor(() => expect(shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu)).toHaveLength(2));
-      await vi.waitFor(() => expect(shell.root.hasPendingPastes(shell.root.editor.getText())).toBe(false));
+      await vi.waitFor(() => expect(shell.root.promptChips.hasPending(shell.root.editor.getText())).toBe(false));
       const rejected = shell.root.editor.getText().match(/\[📷 screenshot-[^\]]+\]/gu)!.find(tag => tag !== ready)!;
       const draft = `describe ${shell.root.editor.getText()}`;
       shell.root.editor.setText(draft);
@@ -1112,7 +1112,7 @@ describe("OwnedUiSessionShell paste and clipboard", () => {
     terminal.input("\u0016");
     const imageTag = shell.root.editor.getText();
     expect(imageTag).toMatch(/^\[📷 screenshot-[a-f0-9]+\]$/u);
-    await vi.waitFor(() => expect(shell.root.hasPendingPastes(imageTag)).toBe(false));
+    await vi.waitFor(() => expect(shell.root.promptChips.hasPending(imageTag)).toBe(false));
     expect(shell.root.editor.getText()).toBe(imageTag);
     terminal.input("\u001b[D");
     terminal.input("\u0003");

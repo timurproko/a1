@@ -14,7 +14,7 @@ interface SessionSettingsTargets {
   readonly terminal: Pick<OwnedUiPresenterTerminal, "setHardwareCursor" | "setClearOnShrink" | "setWheelScrollLines">;
   readonly root: Pick<OwnedUiSessionShellRoot,
     | "setEditorPaddingX" | "setAutocompleteMaxVisible" | "setOutputPad" | "setHideThinkingBlock"
-    | "setMermaidRenderingMode" | "setImagePresentation" | "setFullscreenCopyOnSelect">;
+    | "setMermaidRenderingMode" | "setImagePresentation" | "viewport">;
   setTerminalProgress(enabled: boolean): void;
 }
 
@@ -95,13 +95,13 @@ function settingBindings(
     { owner: null, key: "imageWidthCells", live: () => {}, seed: presentImages },
     // Invariant: the custom viewport owns copy-on-select; the pinned comparison profile keeps Pi's wheel distance.
     customViewport
-      ? setting("shell", "fullscreenCopyOnSelect", "Fullscreen copy-on-select setting is invalid", isBoolean, value => root.setFullscreenCopyOnSelect(value))
+      ? setting("shell", "fullscreenCopyOnSelect", "Fullscreen copy-on-select setting is invalid", isBoolean, value => root.viewport.setCopyOnSelect(value))
       : setting("shell", "fullscreenWheelScrollLines", "Fullscreen wheel-scroll distance is invalid", isWheelDistance, value => terminal.setWheelScrollLines(value), false),
     ...(customViewport ? [] : [{
       owner: null,
       key: "fullscreenCopyOnSelect" as const,
       live: () => {},
-      seed: (initial: OwnedUiSessionSettingsSnapshot) => root.setFullscreenCopyOnSelect(initial.fullscreenCopyOnSelect),
+      seed: (initial: OwnedUiSessionSettingsSnapshot) => root.viewport.setCopyOnSelect(initial.fullscreenCopyOnSelect),
     }]),
   ];
 }
