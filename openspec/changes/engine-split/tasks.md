@@ -2,7 +2,7 @@
 
 ## 1. Repository polling
 
-- [ ] 1.1 Move branch and pull-request polling, its timer, abort, pending state, probe clock and result into `RepositoryMetadataPoller` (`repository-metadata.ts`) with `start`, `reset`, `dispose` and one change callback; `PiEngineRuntime` starts, resets and disposes it.
+- [x] 1.1 Move branch and pull-request polling, its timer, abort, pending state, probe clock and result into `RepositoryMetadataPoller` (`repository-metadata.ts`) with `start`, `reset`, `dispose` and one change callback; `PiEngineRuntime` starts, resets and disposes it.
 
 ## 2. Workflow dispatch
 

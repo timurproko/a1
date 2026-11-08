@@ -378,9 +378,9 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
         badges: [...this.#state.status.badges],
         usage: this.#state.usage(() => readUsageView(this.#engine.session, this.#engine.runtime, this.#state.activeModel)),
         footer: {
-          branch: this.#engine.gitBranch,
-          repositoryPath: this.#engine.repositoryCwd,
-          pullRequest: this.#engine.pullRequest,
+          branch: this.#engine.repository.branch,
+          repositoryPath: this.#engine.repository.cwd,
+          pullRequest: this.#engine.repository.pullRequest,
           sessionName: this.#engine.session?.sessionManager?.getSessionName() ?? null,
           availableProviderCount: new Set(this.#engine.runtime?.services.modelRuntime.getAvailableSnapshot?.().map(model => model.provider).filter(provider => provider !== undefined) ?? []).size,
           extensionStatuses: [],
