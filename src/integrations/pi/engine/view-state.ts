@@ -14,7 +14,7 @@ import type {
 } from "../../../contracts/owned-ui/index.js";
 
 /** Bounded structured notices; acknowledgements never inspect terminal cells or touch Agent work. */
-export class EngineDiagnostics {
+class EngineDiagnostics {
   readonly #values: OwnedUiDiagnostics[] = [];
   #messages: string[] = [];
   #sequence = 0;
@@ -172,7 +172,7 @@ export class EngineViewState {
 }
 
 /** Token, cost, cache, and context usage summed from the session's entries for the status footer. */
-export function readUsageView(session: AgentSession | undefined, runtime: AgentSessionRuntime | undefined, activeModel: OwnedUiModelInfo | null): OwnedUiUsageView {
+function readUsageView(session: AgentSession | undefined, runtime: AgentSessionRuntime | undefined, activeModel: OwnedUiModelInfo | null): OwnedUiUsageView {
   let input = 0;
   let output = 0;
   let cacheRead = 0;

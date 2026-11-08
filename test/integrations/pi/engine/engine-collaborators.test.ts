@@ -6,7 +6,9 @@ import { PiPromptSuggestions } from "../../../../src/integrations/pi/engine/prom
 import { PiProviderAuthentication } from "../../../../src/integrations/pi/engine/provider-authentication.js";
 import { PiResourceCatalog } from "../../../../src/integrations/pi/engine/resource-catalog.js";
 import { PiEngineSettings } from "../../../../src/integrations/pi/engine/settings-port.js";
-import { readUsageView } from "../../../../src/integrations/pi/engine/view-state.js";
+import { EngineViewState, projectSessionView } from "../../../../src/integrations/pi/engine/view-state.js";
+import type { PiEngineRuntime } from "../../../../src/integrations/pi/engine/session-runtime.js";
+import type { OwnedUiModelInfo } from "../../../../src/contracts/owned-ui/index.js";
 import { PiWorkflowContexts } from "../../../../src/integrations/pi/engine/workflow-contexts.js";
 
 const session = (extra: Record<string, unknown> = {}) => ({
@@ -212,7 +214,14 @@ describe("PiProviderAuthentication", () => {
   });
 });
 
-describe("readUsageView", () => {
+function readUsageView(current: AgentSession | undefined, bound: unknown, activeModel: OwnedUiModelInfo | null) {
+  const state = new EngineViewState();
+  state.activeModel = activeModel;
+  const engine = { session: current, runtime: bound, repository: { branch: null, cwd: "D:/repo", pullRequest: null } } as unknown as PiEngineRuntime;
+  return projectSessionView({ sessionId: "s", state, engine, transcript: [], activeCommandIds: [] }).status.usage;
+}
+
+describe("session view usage", () => {
   it("sums usage across entries and reads context and subscription state from the session and runtime", () => {
     const current = session({
       messages: [{ role: "assistant", usage: { input: 10, output: 5, cacheRead: 2, cacheWrite: 1, cost: { total: 0.5 } } }],
