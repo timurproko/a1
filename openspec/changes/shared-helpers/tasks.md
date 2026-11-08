@@ -2,11 +2,11 @@
 
 ## 1. Terminal forwarding
 
-- [ ] 1.1 Add `tui-runtime/terminal-forwarding.ts` with one forwarding helper and rewrite `coordinatedInputTerminal`, `diagnosticTerminal`, `frozenGateTerminal` and `preInputTerminal` to state only their overrides.
+- [x] 1.1 Add one forwarding helper to `tui-runtime/adapter.ts` (a new module would grow the pinned startup graph) and rewrite `coordinatedInputTerminal`, `diagnosticTerminal`, `frozenGateTerminal` and `preInputTerminal` to state only their overrides.
 
 ## 2. Release containment
 
-- [ ] 2.1 Add `src/foundation/release/managed-path.ts` (`samePath`, `isDirectChild`, `errorMessage`) with a unit test of accepted and rejected paths, and replace the copies in `automatic-update.ts`, `update-execution-lease.ts`, `update-recovery.ts`, `update.ts`, `dependency-layer.ts`, `release-gc.ts`, `restart-certification.ts`, `latest-release.ts` and `update-activation.ts`.
+- [x] 2.1 Add `src/foundation/release/managed-path.ts` (`samePath`, `isDirectChild`, `errorMessage`) with a unit test of accepted and rejected paths, and replace the copies in `automatic-update.ts`, `update-execution-lease.ts`, `update-recovery.ts`, `update.ts`, `dependency-layer.ts`, `release-gc.ts`, `restart-certification.ts`, `latest-release.ts` and `update-activation.ts`.
 
 ## 3. Script helpers
 

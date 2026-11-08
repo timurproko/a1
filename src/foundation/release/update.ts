@@ -36,6 +36,7 @@ import {
   updateNpmInstallArguments,
   type ProtectedPackageReplacementResult,
 } from "./update-recovery.js";
+import { errorMessage, samePath } from "./managed-path.js";
 
 export const PRODUCT_PACKAGE = PRODUCT_TEXT.packageName;
 export type { UpdateChannel } from "./types.js";
@@ -912,9 +913,5 @@ class UpdateFailure extends Error {
 
 class UpdatePreflightFailure extends Error {}
 
-function samePath(left: string, right: string): boolean {
-  return process.platform === "win32" ? resolve(left).toLowerCase() === resolve(right).toLowerCase() : resolve(left) === resolve(right);
-}
 function unsuccessfulCode(code: number | null): number { return code === null || code === 0 ? 1 : code; }
 function formatExitCode(code: number | null): string { return code === null ? "unknown" : String(code); }
-function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }

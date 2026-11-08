@@ -41,7 +41,7 @@ The same small helpers are copied across files, and some copies have already dri
 
 ## Impact
 
-- `src/integrations/pi/tui-runtime/adapter.ts` and a new `terminal-forwarding.ts`.
+- `src/integrations/pi/tui-runtime/adapter.ts`, which holds the helper so the pinned startup graph does not grow.
 - `src/foundation/release/*` and a new `managed-path.ts`, with a unit test.
 - About eighteen scripts, plus new `scripts/cli-options.mjs` and `scripts/canonical-digest.mjs`, with a unit test.
 - Eight test files.

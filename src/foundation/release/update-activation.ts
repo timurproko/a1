@@ -8,6 +8,7 @@ import { ReleaseStateStore } from "./release-state.js";
 import { resolveProductPaths } from "../lifecycle/index.js";
 import { materializeRelease } from "./release-store.js";
 import { warmMaterializedRelease } from "./warmup.js";
+import { errorMessage } from "./managed-path.js";
 
 /**
  * The one activation contract an installed tree can offer the updater that installed it.
@@ -226,4 +227,3 @@ function summarize(text: string): string {
   return lines.length === 0 ? "" : `: ${lines.slice(0, 4).join(" | ")}`;
 }
 
-function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
