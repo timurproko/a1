@@ -23,7 +23,6 @@ import {
   type OwnedUiWorkflowPort,
 } from "../../../contracts/owned-ui/index.js";
 import type {
-  PiPinnedSettingsSnapshot,
   PiWorkflowHost,
   PiWorkflowInteractionHost,
   PiWorkflowRequest,
@@ -41,11 +40,10 @@ import { PiEngineRuntime, type PiEnginePackageUpdateProbe, type PiEngineRuntimeF
 import { detachedEngineHostPorts, type PiEngineHostSessionPorts } from "./host-ports.js";
 import { PiEngineSettings } from "./settings-port.js";
 import { PiSessionEvents } from "./session-events.js";
-import { readUsageView } from "./usage-view.js";
 import { PiWorkflowContexts } from "./workflow-contexts.js";
 import { PiWorkflowRunner } from "./workflow-runner.js";
 import { defaultWorkflowHost } from "./workflow-support.js";
-import { EngineViewState } from "./view-state.js";
+import { EngineViewState, projectSessionView } from "./view-state.js";
 import { createEnginePorts, type PiEngineAdapterPorts, type PiEngineAnnouncements, type PiSessionPresentationSource } from "./ports.js";
 
 export type { OwnedPiExtensionResourceSummary, OwnedPiExtensionSourceSummary, OwnedPiResourceSummary } from "./resource-catalog.js";
@@ -337,21 +335,9 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
     return result;
   }
 
-  /**
-   * The theme the engine is configured with, in the engine's own grammar: a
-   * theme's name, or a `light/dark` pair meaning "follow the terminal".
-   */
-  configuredTheme(): string | undefined {
-    return this.#settings.configuredTheme();
-  }
-
   /** Settings port for the live runtime, or null before the runtime is available. */
   settingsPort(): PiSettingsBridge | null {
     return this.#settings.settingsPort();
-  }
-
-  pinnedSettingsSnapshot(): PiPinnedSettingsSnapshot {
-    return this.#settings.pinnedSettingsSnapshot();
   }
 
   clearQueuedWorkflows(): readonly string[] {
@@ -363,42 +349,13 @@ export class PiEngineAdapter implements OwnedUiSessionBackend, OwnedUiPromptSugg
   }
 
   view(): OwnedUiSessionViewModel {
-    const routed = this.#engine.session?.routedModel;
-    const routedModel = routed === undefined ? null : readModel(routed.model);
-    return {
-      contractVersion: 1,
+    return projectSessionView({
       sessionId: this.#sessionId,
-      revision: this.#state.revision,
-      lifecycle: this.#state.lifecycle,
+      state: this.#state,
+      engine: this.#engine,
       transcript: this.#projection.snapshot(),
-      editor: { ...this.#state.editor, queuedSubmissions: [...this.#state.editor.queuedSubmissions] },
-      status: {
-        ...this.#state.status,
-        diagnostics: [...this.#state.status.diagnostics],
-        badges: [...this.#state.status.badges],
-        usage: this.#state.usage(() => readUsageView(this.#engine.session, this.#engine.runtime, this.#state.activeModel)),
-        footer: {
-          branch: this.#engine.repository.branch,
-          repositoryPath: this.#engine.repository.cwd,
-          pullRequest: this.#engine.repository.pullRequest,
-          sessionName: this.#engine.session?.sessionManager?.getSessionName() ?? null,
-          availableProviderCount: new Set(this.#engine.runtime?.services.modelRuntime.getAvailableSnapshot?.().map(model => model.provider).filter(provider => provider !== undefined) ?? []).size,
-          extensionStatuses: [],
-        },
-      },
-      terminal: { ...this.#state.terminal },
-      activeModel: this.#state.activeModel === null ? null : { ...this.#state.activeModel },
-      routedModel: routedModel === null ? null : {
-        model: routedModel,
-        ...(routed?.thinkingLevel === undefined ? {} : { thinkingLevel: readThinkingLevel(routed.thinkingLevel) }),
-      },
-      thinkingLevel: this.#state.thinkingLevel,
-      activeCommandIds: [...this.#commands.activeCommandIds],
-      dialog: null,
-      overlay: null,
-      customizations: [],
-      diagnostics: this.#state.diagnostics.map(diagnostic => ({ ...diagnostic })),
-    };
+      activeCommandIds: this.#commands.activeCommandIds,
+    });
   }
 
   snapshot(): OwnedUiSnapshot {

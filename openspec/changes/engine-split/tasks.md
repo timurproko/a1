@@ -11,7 +11,7 @@
 
 ## 3. View projection
 
-- [ ] 3.1 Move the session view projection into `view-state.ts`, merge `diagnostics-state.ts` and `usage-view.ts` into it, and delete the adapter's `configuredTheme()` and `pinnedSettingsSnapshot()` in favour of the settings port.
+- [x] 3.1 Move the session view projection into `view-state.ts`, merge `diagnostics-state.ts` and `usage-view.ts` into it, and delete the adapter's `configuredTheme()` and `pinnedSettingsSnapshot()` in favour of the settings port.
 
 ## 4. Baselines
 

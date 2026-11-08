@@ -6,7 +6,7 @@ import { PiPromptSuggestions } from "../../../../src/integrations/pi/engine/prom
 import { PiProviderAuthentication } from "../../../../src/integrations/pi/engine/provider-authentication.js";
 import { PiResourceCatalog } from "../../../../src/integrations/pi/engine/resource-catalog.js";
 import { PiEngineSettings } from "../../../../src/integrations/pi/engine/settings-port.js";
-import { readUsageView } from "../../../../src/integrations/pi/engine/usage-view.js";
+import { readUsageView } from "../../../../src/integrations/pi/engine/view-state.js";
 import { PiWorkflowContexts } from "../../../../src/integrations/pi/engine/workflow-contexts.js";
 
 const session = (extra: Record<string, unknown> = {}) => ({

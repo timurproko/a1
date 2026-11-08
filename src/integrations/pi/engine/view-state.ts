@@ -1,4 +1,6 @@
-import { EngineDiagnostics } from "./diagnostics-state.js";
+import { finiteNumber, isRecord, readModel, readThinkingLevel } from "./message-values.js";
+import type { AgentSession, AgentSessionRuntime } from "../startup-public.js";
+import type { PiEngineRuntime } from "./session-runtime.js";
 import type {
   OwnedUiDiagnostics,
   OwnedUiEditorState,
@@ -7,8 +9,38 @@ import type {
   OwnedUiStatusView,
   OwnedUiTerminalSurface,
   OwnedUiThinkingLevel,
+  OwnedUiTranscriptBlock,
   OwnedUiUsageView,
 } from "../../../contracts/owned-ui/index.js";
+
+/** Bounded structured notices; acknowledgements never inspect terminal cells or touch Agent work. */
+export class EngineDiagnostics {
+  readonly #values: OwnedUiDiagnostics[] = [];
+  #messages: string[] = [];
+  #sequence = 0;
+  get values(): readonly OwnedUiDiagnostics[] { return this.#values; }
+  get messages(): readonly string[] { return this.#messages; }
+  record(severity: OwnedUiDiagnostics["severity"], code: string, message: string, recoverable: boolean): OwnedUiDiagnostics {
+    const diagnostic = { sequence: this.#sequence++, code, severity, message, recoverable };
+    this.#values.push(diagnostic); if (this.#values.length > 100) this.#values.shift();
+    this.#messages = [...this.#messages, message].slice(-8);
+    return diagnostic;
+  }
+  clearCodes(codes: readonly string[]): boolean {
+    const selected = new Set(codes);
+    return this.#remove(diagnostic => selected.has(diagnostic.code));
+  }
+  #remove(predicate: (diagnostic: OwnedUiDiagnostics) => boolean): boolean {
+    const removed = new Set<string>();
+    for (let index = this.#values.length - 1; index >= 0; index--) {
+      const diagnostic = this.#values[index]!;
+      if (predicate(diagnostic)) { removed.add(diagnostic.message); this.#values.splice(index, 1); }
+    }
+    if (removed.size === 0) return false;
+    this.#messages = this.#messages.filter(message => !removed.has(message) || this.#values.some(diagnostic => diagnostic.message === message));
+    return true;
+  }
+}
 
 const DEFAULT_SURFACE: OwnedUiTerminalSurface = {
   columns: 100,
@@ -137,5 +169,107 @@ export class EngineViewState {
     this.#editor = { ...this.#editor, submitEnabled: canResume && !disposed };
     this.#revision += 1;
   }
+}
 
+/** Token, cost, cache, and context usage summed from the session's entries for the status footer. */
+export function readUsageView(session: AgentSession | undefined, runtime: AgentSessionRuntime | undefined, activeModel: OwnedUiModelInfo | null): OwnedUiUsageView {
+  let input = 0;
+  let output = 0;
+  let cacheRead = 0;
+  let cacheWrite = 0;
+  let cost = 0;
+  let latestCacheHitRate: number | null = null;
+  let latestPrompt: OwnedUiUsageView["latestPrompt"] = null;
+  const entries: readonly unknown[] = session?.sessionManager?.getEntries?.()
+    ?? (session?.messages ?? []).map(message => ({ type: "message", message }));
+  for (const entry of entries) {
+    if (!isRecord(entry)) continue;
+    const message = entry.type === "message" && isRecord(entry.message) ? entry.message : undefined;
+    const usage = message !== undefined && isRecord(message.usage)
+      ? message.usage
+      : (entry.type === "usage" || entry.type === "branch_summary" || entry.type === "compaction") && isRecord(entry.usage) ? entry.usage : undefined;
+    if (usage === undefined) continue;
+    input += finiteNumber(usage.input);
+    output += finiteNumber(usage.output);
+    cacheRead += finiteNumber(usage.cacheRead);
+    cacheWrite += finiteNumber(usage.cacheWrite);
+    cost += isRecord(usage.cost) ? finiteNumber(usage.cost.total) : 0;
+    if (message?.role === "assistant") {
+      latestPrompt = {
+        input: finiteNumber(usage.input),
+        cacheRead: finiteNumber(usage.cacheRead),
+        cacheWrite: finiteNumber(usage.cacheWrite),
+      };
+      const promptTokens = latestPrompt.input + latestPrompt.cacheRead + latestPrompt.cacheWrite;
+      latestCacheHitRate = promptTokens > 0 ? (latestPrompt.cacheRead / promptTokens) * 100 : null;
+    }
+  }
+  const context = session?.getContextUsage?.();
+  const providerId = activeModel?.providerId;
+  const usingSubscription = providerId === "kimi-coding"
+    || (providerId !== undefined && runtime?.services.modelRuntime.isUsingSubscription?.(providerId) === true);
+  return {
+    input,
+    output,
+    cacheRead,
+    cacheWrite,
+    cost,
+    latestCacheHitRate,
+    latestPrompt,
+    contextAvailable: context !== undefined,
+    contextTokens: context?.tokens ?? null,
+    contextWindow: context?.contextWindow ?? 0,
+    contextPercent: context?.percent ?? null,
+    usingSubscription,
+    autoCompactEnabled: runtime?.services.settingsManager?.getCompactionEnabled?.() ?? true,
+  };
+}
+
+/** What the session view is projected from: the adapter's view state, the bound engine, the transcript and the running commands. */
+export interface PiSessionViewSource {
+  readonly sessionId: string;
+  readonly state: EngineViewState;
+  readonly engine: PiEngineRuntime;
+  readonly transcript: readonly OwnedUiTranscriptBlock[];
+  readonly activeCommandIds: readonly string[];
+}
+
+/** The owned UI session view model, copied so a published view never aliases adapter state. */
+export function projectSessionView({ sessionId, state, engine, transcript, activeCommandIds }: PiSessionViewSource): OwnedUiSessionViewModel {
+  const routed = engine.session?.routedModel;
+  const routedModel = routed === undefined ? null : readModel(routed.model);
+  return {
+    contractVersion: 1,
+    sessionId,
+    revision: state.revision,
+    lifecycle: state.lifecycle,
+    transcript,
+    editor: { ...state.editor, queuedSubmissions: [...state.editor.queuedSubmissions] },
+    status: {
+      ...state.status,
+      diagnostics: [...state.status.diagnostics],
+      badges: [...state.status.badges],
+      usage: state.usage(() => readUsageView(engine.session, engine.runtime, state.activeModel)),
+      footer: {
+        branch: engine.repository.branch,
+        repositoryPath: engine.repository.cwd,
+        pullRequest: engine.repository.pullRequest,
+        sessionName: engine.session?.sessionManager?.getSessionName() ?? null,
+        availableProviderCount: new Set(engine.runtime?.services.modelRuntime.getAvailableSnapshot?.().map(model => model.provider).filter(provider => provider !== undefined) ?? []).size,
+        extensionStatuses: [],
+      },
+    },
+    terminal: { ...state.terminal },
+    activeModel: state.activeModel === null ? null : { ...state.activeModel },
+    routedModel: routedModel === null ? null : {
+      model: routedModel,
+      ...(routed?.thinkingLevel === undefined ? {} : { thinkingLevel: readThinkingLevel(routed.thinkingLevel) }),
+    },
+    thinkingLevel: state.thinkingLevel,
+    activeCommandIds: [...activeCommandIds],
+    dialog: null,
+    overlay: null,
+    customizations: [],
+    diagnostics: state.diagnostics.map(diagnostic => ({ ...diagnostic })),
+  };
 }
