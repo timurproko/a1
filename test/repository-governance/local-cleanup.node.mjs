@@ -260,6 +260,27 @@ test("standalone documentation evidence uses the ordinary completed-candidate cl
   assert.equal(blocked.results[0].reason, "worktree-content"); assert.equal(await exists(dirty.path), true);
 });
 
+test("repository discovery retries an empty common Git directory and fails closed when it stays empty", async t => {
+  const temporary = await canonical(await mkdtemp(join(tmpdir(), "local-cleanup-")));
+  t.after(() => rm(temporary, { recursive: true, force: true }));
+  const primary = join(temporary, "primary"); await mkdir(primary);
+  await git(primary, "init", "-b", "develop");
+  await writeFile(join(primary, ".git", "config"), "\n[remote \"origin\"]\n\turl = https://github.com/owner/repo.git\n", { flag: "a" });
+  const real = gitRunner();
+  const emptyCommonDir = remaining => async (cwd, args, options) => {
+    if (args.includes("--git-common-dir") && remaining > 0) { remaining -= 1; return "\n"; }
+    return await real(cwd, args, options);
+  };
+  const failsClosed = error => error.cleanupCode === "git-operation-failed";
+  if (process.platform === "win32") {
+    const identity = await discoverRepository(primary, emptyCommonDir(1));
+    assert.equal(identity.common, await canonical(join(primary, ".git")));
+    await assert.rejects(discoverRepository(primary, emptyCommonDir(3)), failsClosed);
+  } else {
+    await assert.rejects(discoverRepository(primary, emptyCommonDir(1)), failsClosed);
+  }
+});
+
 test("complete blocks unknown ignored content and conflicting ownership", async t => {
   let f = await fixture(t, false, false); await writeFile(join(f.path, "secret.txt"), "preserve");
   await mkdir(join(f.path, "node_modules-user")); await writeFile(join(f.path, "node_modules-user", "data"), "preserve-near-match");
