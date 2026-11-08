@@ -194,7 +194,8 @@ describe("pinned AgentSession compaction progress", () => {
         await adapter.dispose();
       }
     } finally {
-      await rm(directory, { recursive: true, force: true });
+      // Platform: a pinned-Pi file handle can still be closing on Windows after dispose.
+      await rm(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     }
   });
 });
