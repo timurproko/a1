@@ -4,8 +4,9 @@ import { evaluateDevelopmentValidationTiming } from "./development-validation-ti
 import { selectIntegrationImpact } from "./integration-impact.mjs";
 import { loadIntegrationOwners } from "./integration-owners.mjs";
 import { loadValidationOwnership, selectValidationOwnership } from "./validation-ownership.mjs";
+import { optionValue } from "../cli-options.mjs";
 
-const output = resolve(valueAfter("--output") ?? ".artifacts/validation/development-validation-replay.json");
+const output = resolve(optionValue("--output") ?? ".artifacts/validation/development-validation-replay.json");
 const validation = await loadValidationOwnership();
 const integrationOwners = await loadIntegrationOwners();
 const baseId = "a".repeat(40), headId = "b".repeat(40);
@@ -59,4 +60,3 @@ await mkdir(dirname(output), { recursive: true });
 await writeFile(output, `${JSON.stringify(report, null, 2)}\n`);
 process.stdout.write(`${JSON.stringify({ output, scenarios: scenarios.length, recordedTargets: timing.recordedPr429.targets, replayTargets: timing.cadenceFilteredReplay.targets })}\n`);
 
-function valueAfter(name) { const index = process.argv.indexOf(name); return index >= 0 ? process.argv[index + 1] : undefined; }

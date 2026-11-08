@@ -3,10 +3,11 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { relative, resolve, sep } from "node:path";
 import { createTierPlan, RESOURCE_SENSITIVE_TIMEOUT_MS } from "./validation-tier.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 const repository = process.cwd();
-const output = resolve(valueAfter("--output") ?? ".artifacts/validation/resource-sensitive-focused.json");
-const repeats = Number(valueAfter("--repeats") ?? "3");
+const output = resolve(optionValue("--output") ?? ".artifacts/validation/resource-sensitive-focused.json");
+const repeats = Number(optionValue("--repeats") ?? "3");
 if (!Number.isInteger(repeats) || repeats < 1 || repeats > 10) throw new Error("--repeats must be an integer from 1 through 10");
 
 const plan = await createTierPlan(["fast"], repository);
@@ -104,10 +105,6 @@ function runNpx(arguments_) {
   });
 }
 
-function valueAfter(name) {
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
 
 function normalizePath(path) {
   return path.split(sep).join("/").replaceAll("\\", "/");

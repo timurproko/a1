@@ -1,9 +1,9 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import { selectNamingImpact } from "../../scripts/governance/naming-source-policy.mjs";
 import { createIntegrationSelection } from "../../scripts/release/integration-selection.mjs";
 import { validationSelectionDigest } from "../../scripts/release/validation-ownership.mjs";
@@ -19,6 +19,7 @@ async function put(root: string, path: string, source: string) {
 
 async function repositoryFixture(source = "export const value = 1;\n") {
   const root = await mkdtemp(join(tmpdir(), "a1-code-doc-command-"));
+  onTestFinished(() => rm(root, { recursive: true, force: true }));
   await execFileAsync("git", ["init"], { cwd: root });
   await put(root, "config/baselines/pinned-pi-source-port-ledger.json", '{"records":[]}\n');
   await put(root, "scripts/changed.mjs", source);

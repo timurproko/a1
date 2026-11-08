@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { gt, prerelease, valid as validSemver } from "semver";
 import lockfile from "proper-lockfile";
 import { PRODUCT_IDENTITY, PRODUCT_TEXT } from "../../product-identity.js";
+import { errorMessage } from "./managed-path.js";
 
 /** Published release channels: stable `X.Y.Z` on dist-tag `latest`, development `X.Y.Z-dev.N` on `next`. */
 export type ReleaseChannel = "stable" | "development";
@@ -297,4 +298,3 @@ function parseVersion(value: unknown, source: string): string {
   return parsed;
 }
 
-function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { spawn } from "node:child_process";
 import { lstat, mkdir, open, readFile, readdir, realpath, rename, rm, stat, type FileHandle } from "node:fs/promises";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ReleaseStateStore,
@@ -23,6 +23,7 @@ import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { collectCompileCaches, startupCompileCachePath } from "../startup/index.js";
 import { readLaunchContext } from "../launch-context/index.js";
 import { processIsAlive } from "./process-liveness.js";
+import { errorMessage, isDirectChild } from "./managed-path.js";
 
 const DEFAULT_CANDIDATE_AGE_MS = 60 * 60 * 1_000;
 const DEFAULT_LIMITS: ReleaseCleanupLimits = { maxItems: 8, maxDurationMs: 2_000, concurrency: 1 };
@@ -712,12 +713,6 @@ async function protectedCompileCachePaths(dataDir: string, state: ReleaseState):
   return paths;
 }
 
-function assertDirectChild(parent: string, child: string): void {
-  const fromParent = relative(parent, child);
-  if (fromParent.length === 0 || fromParent === ".." || fromParent.startsWith(`..${sep}`) || isAbsolute(fromParent) || fromParent.includes(sep)) {
-    throw new Error(`cleanup path is not a direct child of its managed root: ${child}`);
-  }
-}
 
 function normalizeLimits(input: Partial<ReleaseCleanupLimits> | undefined): ReleaseCleanupLimits {
   const limits = { ...DEFAULT_LIMITS, ...input };
@@ -820,4 +815,7 @@ function artifactName(path: string): string { return path.split(sep).at(-1) ?? "
 function certificationReleaseId(path: string): string | null {
   return /^certification-(.+)\.json$/.exec(artifactName(path))?.[1] ?? null;
 }
-function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }
+
+function assertDirectChild(parent: string, child: string): void {
+  if (!isDirectChild(parent, child)) throw new Error(`cleanup path is not a direct child of its managed root: ${child}`);
+}

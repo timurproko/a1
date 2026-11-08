@@ -24,15 +24,16 @@ import { compareVersions, matrixReviewItems } from "./pi-feature-adoption-matrix
 import { collectPiPublicApi, diffPublicApi, publicApiReviewItems, summarizeCompileOutput } from "./pi-public-api.mjs";
 import { carriesProvenanceHeader, splitProvenanceHeader } from "./pinned-pi-source-header.mjs";
 import { MARKER_BLOCKED_STEPS, REFRESH_STEPS, UPGRADE_STEPS, branchName, changeId, renderUpgradeBody, renderUpgradeChange, renderUpgradeComment } from "./pi-upgrade-report.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 const execute = promisify(execFile);
 const repository = fileURLToPath(new URL("../..", import.meta.url));
-const output = resolve(argumentValue("--output") ?? join(repository, ".artifacts", "pi-upgrade"));
-const requestedVersion = argumentValue("--version");
-const requestedCommit = argumentValue("--commit");
+const output = resolve(optionValue("--output") ?? join(repository, ".artifacts", "pi-upgrade"));
+const requestedVersion = optionValue("--version");
+const requestedCommit = optionValue("--commit");
 const skippedVersions = argumentValues("--skip");
 const refresh = process.argv.includes("--refresh");
-const baseRef = argumentValue("--base") ?? "origin/develop";
+const baseRef = optionValue("--base") ?? "origin/develop";
 const PI_PACKAGES = ["@earendil-works/pi-coding-agent", "@earendil-works/pi-tui"];
 const CONFLICT_MARKER = /^(?:<{7} |={7}$|>{7} |\|{7} )/m;
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -358,10 +359,6 @@ function bounded(value) {
   return text.length > 400 ? `${text.slice(0, 397)}...` : text;
 }
 
-function argumentValue(flag) {
-  const index = process.argv.indexOf(flag);
-  return index === -1 ? undefined : process.argv[index + 1];
-}
 
 function argumentValues(flag) {
   const values = [];

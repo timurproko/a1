@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
-import { basename, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, resolve } from "node:path";
 import { PRODUCT_IDENTITY } from "../../product-identity.js";
 import { PRIVATE_LAUNCH_CONTRACT, launchContractTarget } from "../launch-context/index.js";
 import { DEPENDENCY_LAYER_MANIFEST, dependencyLayerCertificationPath, legacyDependencyLayerCertificationPath, readCertifiedDependencyLayer, type DependencyLayerReference } from "./dependency-layer.js";
@@ -9,6 +9,7 @@ import { immutablePlatformPolicy, type ImmutablePlatformPolicy } from "./immutab
 import { PRODUCT_PACKAGE_NAME, type ReleaseFileIdentity } from "./release.js";
 import { RELEASE_MANIFEST_FILENAME, type CertifiedReleaseRecord, type MaterializedRelease } from "./release-store.js";
 import { UpdateTransactionStore } from "./update-transaction.js";
+import { isDirectChild } from "./managed-path.js";
 
 const RESTART_SEAL_VERSION = 1;
 const REQUIRED_LAUNCH_ENTRIES = ["bin/ui.js"] as const;
@@ -289,9 +290,7 @@ async function observedRealpath(path: string, onEvent?: (event: RestartValidatio
 }
 
 function assertDirectChild(parent: string, child: string, expectedName: string, kind: string): void {
-  const fromParent = relative(parent, child);
-  if (isAbsolute(fromParent) || fromParent === ".." || fromParent.startsWith(`..${sep}`) || fromParent.includes(sep)
-    || basename(child) !== expectedName) {
+  if (!isDirectChild(parent, child) || basename(child) !== expectedName) {
     throw new Error(`restart ${kind} is outside its managed store: ${child}`);
   }
 }

@@ -1,9 +1,10 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { loadValidationOwnership } from "./validation-ownership.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 const repository = process.cwd();
-const output = resolve(valueAfter("--output") ?? ".artifacts/validation/ownership-ledger.json");
+const output = resolve(optionValue("--output") ?? ".artifacts/validation/ownership-ledger.json");
 const authority = await loadValidationOwnership(repository);
 const integration = JSON.parse(await readFile(resolve(repository, "config/integration-owners.json"), "utf8"));
 const integrationTests = new Map();
@@ -31,4 +32,3 @@ const report = {
 await mkdir(dirname(output), { recursive: true });
 await writeFile(output, `${JSON.stringify(report, null, 2)}\n`);
 process.stdout.write(`${JSON.stringify({ output, retainedTests: report.retainedTests, policyId: report.policyId })}\n`);
-function valueAfter(name) { const index = process.argv.indexOf(name); return index >= 0 ? process.argv[index + 1] : undefined; }

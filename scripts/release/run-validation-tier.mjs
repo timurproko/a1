@@ -2,19 +2,20 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createFullRegressionShardPlan, createTierPlan, prepareSharedExactPackage, runTierPlan } from "./validation-tier.mjs";
 import { validationOutcomeAuthority } from "./validation-outcome.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 const requested = selectionFromEnvironment() ?? positionalArguments();
 if (requested.length === 0) throw new Error("usage: node scripts/release/run-validation-tier.mjs <tier-or-scope> [...] or set VALIDATION_SELECTION_JSON");
 const additionalTests = testsFromEnvironment();
 const canonicalPlan = await createTierPlan(requested, process.cwd(), { additionalTests });
-const shard = valueAfter("--full-shard");
+const shard = optionValue("--full-shard");
 // Invariant: a shard runs only its partition of the canonical full plan; shared exact-package preparation
 // prepares exactly the consumers the plan it serves owns, so a shard's handoff names that shard's consumers
 // and an unsharded lane's handoff names the canonical ones.
 const plan = shard === undefined ? canonicalPlan : createFullRegressionShardPlan(canonicalPlan, shard);
 
 if (process.argv.includes("--prepare-exact-package")) {
-  const handoffPath = valueAfter("--handoff");
+  const handoffPath = optionValue("--handoff");
   if (!handoffPath) throw new Error("usage: node scripts/release/run-validation-tier.mjs --prepare-exact-package --handoff <path>");
   const handoff = await prepareSharedExactPackage(plan);
   await mkdir(dirname(resolve(handoffPath)), { recursive: true });
@@ -23,9 +24,9 @@ if (process.argv.includes("--prepare-exact-package")) {
 } else if (process.argv.includes("--plan")) {
   process.stdout.write(`${JSON.stringify(plan, null, 2)}\n`);
 } else {
-  const result = await runTierPlan(plan, { exactPackageHandoff: valueAfter("--exact-package-handoff") });
+  const result = await runTierPlan(plan, { exactPackageHandoff: optionValue("--exact-package-handoff") });
   const summary = { passed: result.passed, durationMs: result.completedAt - result.startedAt, outcomes: result.outcomes };
-  const resultPath = valueAfter("--result");
+  const resultPath = optionValue("--result");
   if (resultPath) {
     await mkdir(dirname(resolve(resultPath)), { recursive: true });
     const authority = validationOutcomeAuthority(process.env, requested, plan.selected);
@@ -60,7 +61,3 @@ function positionalArguments() {
   return values;
 }
 
-function valueAfter(name) {
-  const index = process.argv.indexOf(name);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}

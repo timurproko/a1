@@ -34,6 +34,7 @@ import {
   triageKey,
 } from "./regression-triage-report.mjs";
 import { evaluateStartupTrend, isStartupEvidence, renderStartupTrend, TREND_WINDOW } from "./startup-budget-trend.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 const REPORT_SCHEMA = "a1-regression-triage-proposal-v1";
 const COMMIT_SEPARATOR = "\u001f";
@@ -248,7 +249,7 @@ async function finish(result, output, files) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const execute = promisify(execFile);
   const repository = fileURLToPath(new URL("../..", import.meta.url));
-  const runId = argumentValue("--run");
+  const runId = optionValue("--run");
   if (!runId) throw new Error("--run <workflow run id> is required");
   const files = {
     mkdir: path => mkdir(path, { recursive: true }),
@@ -268,7 +269,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   await proposeRegressionFix({
     runId,
     repository,
-    output: resolve(argumentValue("--output") ?? join(repository, ".artifacts", "regression-triage")),
+    output: resolve(optionValue("--output") ?? join(repository, ".artifacts", "regression-triage")),
     gh,
     git,
     files,
@@ -276,7 +277,3 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   });
 }
 
-function argumentValue(flag) {
-  const index = process.argv.indexOf(flag);
-  return index === -1 ? undefined : process.argv[index + 1];
-}

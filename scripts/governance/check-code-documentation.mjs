@@ -11,10 +11,11 @@ import {
 } from "./code-documentation-policy.mjs";
 import { PROJECT_OWNERS } from "./project-structure-policy.mjs";
 import { assertValidationImpact, isDocumentationPolicyPath } from "../release/validation-impact.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 const execFileAsync = promisify(execFile);
-const repository = resolve(valueAfter("--root") ?? fileURLToPath(new URL("../..", import.meta.url)));
-const mode = valueAfter("--mode") ?? "full";
+const repository = resolve(optionValue("--root") ?? fileURLToPath(new URL("../..", import.meta.url)));
+const mode = optionValue("--mode") ?? "full";
 if (mode !== "changed" && mode !== "full") throw new TypeError(`unsupported code documentation mode: ${mode}`);
 const startedAt = Date.now();
 const ledger = JSON.parse(await readFile(resolve(repository, "config/baselines/pinned-pi-source-port-ledger.json"), "utf8"));
@@ -23,7 +24,7 @@ let sources;
 let diagnosticPaths;
 if (mode === "full") sources = await loadTrackedCodeDocumentationSources(repository);
 else {
-  const selectionPath = valueAfter("--selection");
+  const selectionPath = optionValue("--selection");
   if (!selectionPath) throw new TypeError("changed code documentation mode requires --selection");
   const selection = assertValidationImpact(JSON.parse(await readFile(resolve(repository, selectionPath), "utf8")));
   diagnosticPaths = new Set(selection.documentation.paths);
@@ -41,7 +42,7 @@ const result = {
   durationMs: Math.max(0, Date.now() - startedAt),
   diagnostics,
 };
-const resultPath = valueAfter("--result");
+const resultPath = optionValue("--result");
 if (resultPath) {
   const path = resolve(repository, resultPath);
   await mkdir(dirname(path), { recursive: true });
@@ -70,10 +71,3 @@ async function documentationContextPaths(root, changedPaths) {
   return [...context].filter(isDocumentationPolicyPath).sort();
 }
 
-function valueAfter(name) {
-  const index = process.argv.indexOf(name);
-  if (index < 0) return undefined;
-  const value = process.argv[index + 1];
-  if (!value || value.startsWith("--")) throw new TypeError(`${name} requires a value`);
-  return value;
-}

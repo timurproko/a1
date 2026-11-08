@@ -10,13 +10,14 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { collectPiPublicApi, diffPublicApi } from "./pi-public-api.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 const repository = fileURLToPath(new URL("../..", import.meta.url));
 const checkOnly = process.argv.includes("--check");
 const baselinePath = join(repository, "config", "baselines", "pinned-pi-public-api.json");
-const outputPath = resolve(argumentValue("--output") ?? baselinePath);
-const packagesRoot = resolve(argumentValue("--packages-root") ?? join(repository, "node_modules"));
-const sourceRoot = resolve(argumentValue("--source-root") ?? join(repository, "src"));
+const outputPath = resolve(optionValue("--output") ?? baselinePath);
+const packagesRoot = resolve(optionValue("--packages-root") ?? join(repository, "node_modules"));
+const sourceRoot = resolve(optionValue("--source-root") ?? join(repository, "src"));
 
 const next = await collectPiPublicApi({ packagesRoot, sourceRoot });
 const count = next.packages.reduce((total, pkg) => total + pkg.exports.length, 0);
@@ -60,7 +61,3 @@ function consumerDrift(previous, next) {
   return lines;
 }
 
-function argumentValue(flag) {
-  const index = process.argv.indexOf(flag);
-  return index === -1 ? undefined : process.argv[index + 1];
-}

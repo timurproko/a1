@@ -1,6 +1,6 @@
-import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { posix, relative, resolve, sep } from "node:path";
+import { canonicalDigest } from "../canonical-digest.mjs";
 
 const TEST = /\.test\.[cm]?[jt]sx?$/u;
 const OPERATIONAL = /\.(?:[cm]?[jt]s|[jt]sx|json|ya?ml|toml|rs)$/u;
@@ -72,7 +72,7 @@ export async function loadValidationOwnership(repository = process.cwd()) {
     if (rule.testPaths.some(pattern => !tests.some(test => matches(test, pattern)))) throw new TypeError(`refinement has an unowned test pattern: ${rule.id}`);
     if (rule.integrationOwners.some(id => !(integrationRegistry.owners ?? []).some(owner => owner.id === id))) throw new TypeError(`unknown refinement integration: ${rule.id}`);
   }
-  return { policy, suites, tests, ledger, supportGraph, consumerGraph, integrationTests, policyId: digest(policy) };
+  return { policy, suites, tests, ledger, supportGraph, consumerGraph, integrationTests, policyId: canonicalDigest(policy) };
 }
 
 /**
@@ -297,10 +297,4 @@ function collapseReasons(reasons) {
   }
   return [...grouped].map(([code, paths]) => ({ code, paths }));
 }
-function canonical(value) {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value !== null && typeof value === "object") return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
-  return JSON.stringify(value);
-}
-export function validationSelectionDigest(value) { return digest(value); }
-function digest(value) { return createHash("sha256").update(canonical(value)).digest("hex"); }
+export function validationSelectionDigest(value) { return canonicalDigest(value); }

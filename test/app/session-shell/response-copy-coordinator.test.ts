@@ -8,14 +8,13 @@ function snapshot(text = "secret selected text"): SelectionCopySnapshot {
   return { selection: { start: { line: 0, column: 0 }, end: { line: 0, column: Number.MAX_SAFE_INTEGER } },
     revision: 1, rows: [{ text }], sourceUnits: text.length };
 }
-function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 function fixture() {
   vi.useFakeTimers();
-  const executions: { result: ReturnType<typeof deferred<CopyResult>>; stopped: ReturnType<typeof deferred<void>>; cancel: ReturnType<typeof vi.fn>; phase: CopyPhaseObserver; text: string }[] = [];
+  const executions: { result: PromiseWithResolvers<CopyResult>; stopped: PromiseWithResolvers<void>; cancel: ReturnType<typeof vi.fn>; phase: CopyPhaseObserver; text: string }[] = [];
   const events: ResponseCopyEvent[] = [];
   const failures = vi.fn();
   const execute: ResponseCopyExecutor = (source, phase) => {
-    const result = deferred<CopyResult>(), stopped = deferred<void>(), cancel = vi.fn();
+    const result = Promise.withResolvers<CopyResult>(), stopped = Promise.withResolvers<void>(), cancel = vi.fn();
     executions.push({ result, stopped, cancel, phase, text: source.rows[0]!.text });
     return { result: result.promise, stopped: stopped.promise, cancel };
   };
@@ -117,7 +116,7 @@ describe("bounded response-copy coordinator", () => {
 
   it("bounds a prior prompt gate and prevents its late completion from starting a canceled copy", async () => {
     const { coordinator, executions } = fixture();
-    const prompt = deferred<void>();
+    const prompt = Promise.withResolvers<void>();
     const copy = coordinator.submit(snapshot(), prompt.promise);
     await vi.advanceTimersByTimeAsync(COPY_DEADLINE_MS);
     await expect(copy).resolves.toEqual({ outcome: "timed-out" });

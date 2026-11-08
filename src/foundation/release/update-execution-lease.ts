@@ -5,6 +5,7 @@ import lockfile from "proper-lockfile";
 import { processIsAlive } from "./process-liveness.js";
 import type { UpdateChannel } from "./types.js";
 import { UpdateTransactionStore, type UpdateTransaction } from "./update-transaction.js";
+import { samePath } from "./managed-path.js";
 
 const UPDATE_EXECUTION_LEASE_FILENAME = "update-execution.json";
 const LEASE_SCHEMA = 1;
@@ -170,13 +171,6 @@ async function foreignActiveTransaction(
   return matches ? null : transaction;
 }
 
-function samePath(left: string, right: string): boolean {
-  const canonicalLeft = resolve(left);
-  const canonicalRight = resolve(right);
-  return process.platform === "win32"
-    ? canonicalLeft.toLowerCase() === canonicalRight.toLowerCase()
-    : canonicalLeft === canonicalRight;
-}
 
 function currentProcessStartIdentity(): string {
   return `${process.pid}:${Math.floor(Date.now() - process.uptime() * 1_000)}`;

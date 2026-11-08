@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertIntegrationSelection } from "./integration-selection.mjs";
+import { optionValue } from "../cli-options.mjs";
 
 const WINDOWS = { os: "windows-2025", platform: "win32", architecture: "x64" };
 const LINUX = { os: "ubuntu-24.04", platform: "linux", architecture: "x64" };
@@ -62,7 +63,7 @@ export function selectDevelopmentValidationMatrix({ impact, registry, matrix = D
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const impact = JSON.parse(await readFile(resolve(valueAfter("--impact") ?? ".artifacts/validation/impact.json"), "utf8"));
+  const impact = JSON.parse(await readFile(resolve(optionValue("--impact") ?? ".artifacts/validation/impact.json"), "utf8"));
   const registry = JSON.parse(await readFile(resolve("config/integration-owners.json"), "utf8"));
   const { include, inactive } = selectDevelopmentValidationMatrix({ impact, registry });
   process.stdout.write(`${JSON.stringify({ include, inactive })}\n`);
@@ -72,4 +73,3 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     await appendFile(process.env.GITHUB_OUTPUT, `modular_matrix=${JSON.stringify({ include })}\n`);
   }
 }
-function valueAfter(name) { const index = process.argv.indexOf(name); if (index < 0) return undefined; if (!process.argv[index + 1]) throw new Error(`${name} requires a value`); return process.argv[index + 1]; }

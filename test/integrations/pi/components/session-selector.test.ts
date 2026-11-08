@@ -1,10 +1,10 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DynamicBorder, type SessionInfo } from "@earendil-works/pi-coding-agent";
 import { renderFakeCursor } from "@earendil-works/pi-tui";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import { applyPiTheme, createPiShellSessionSelector, piTheme } from "../../../../src/integrations/pi/components/index.js";
 import { cellStyle } from "../../../support/ansi-cell-style.js";
 import { firstVisibleTextColumn } from "../../../support/dialog-alignment.js";
@@ -84,6 +84,7 @@ describe("owned pinned session selector", () => {
   it("preserves scope, search, rename, delete confirmation, current-session protection, and silent cancel", async () => {
     applyPiTheme("dark", false, "truecolor");
     const root = await mkdtemp(join(tmpdir(), "a1-ss-"));
+    onTestFinished(() => rm(root, { recursive: true, force: true }));
     const currentPath = join(root, "current.jsonl");
     const otherPath = join(root, "other.jsonl");
     await Promise.all([writeFile(currentPath, "{}\n"), writeFile(otherPath, "{}\n")]);

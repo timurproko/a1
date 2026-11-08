@@ -13,6 +13,7 @@ import { readCertifiedReleaseManifest, resolveReleaseEntryPoint } from "./releas
 import { acquireUpdateExecutionLease, readUpdateExecutionOwner } from "./update-execution-lease.js";
 import { UpdateTransactionStore } from "./update-transaction.js";
 import { runSelfUpdate, UPDATE_ALREADY_RUNNING_EXIT_CODE, type UpdateOutput } from "./update.js";
+import { errorMessage, samePath } from "./managed-path.js";
 
 const AUTOMATIC_UPDATE_STATE_SCHEMA = 1;
 const AUTOMATIC_UPDATE_RETRY_MS = 24 * 60 * 60_000;
@@ -409,15 +410,7 @@ function validateState(value: AutomaticUpdateState): void {
   }
 }
 
-function samePath(left: string, right: string): boolean {
-  const canonicalLeft = resolve(left);
-  const canonicalRight = resolve(right);
-  return process.platform === "win32"
-    ? canonicalLeft.toLowerCase() === canonicalRight.toLowerCase()
-    : canonicalLeft === canonicalRight;
-}
 
 function hasCode(error: unknown, code: string): boolean {
   return error instanceof Error && "code" in error && error.code === code;
 }
-function errorMessage(error: unknown): string { return error instanceof Error ? error.message : String(error); }

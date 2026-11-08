@@ -1,13 +1,14 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { assertValidationImpact, selectValidationImpact } from "./validation-impact.mjs";
+import { optionValue } from "../cli-options.mjs";
 
-const repository = resolve(valueAfter("--root") ?? process.cwd());
-const output = valueAfter("--output");
+const repository = resolve(optionValue("--root") ?? process.cwd());
+const output = optionValue("--output");
 const selection = assertValidationImpact(await selectValidationImpact({
   repository,
-  base: valueAfter("--base"),
-  head: valueAfter("--head") ?? "HEAD",
+  base: optionValue("--base"),
+  head: optionValue("--head") ?? "HEAD",
   includeWorktree: process.argv.includes("--include-worktree"),
   manualNoComparison: process.argv.includes("--manual-no-comparison"),
   implementationBound: process.argv.includes("--implementation-bound"),
@@ -20,10 +21,3 @@ if (output) {
 }
 process.stdout.write(serialized);
 
-function valueAfter(name) {
-  const index = process.argv.indexOf(name);
-  if (index < 0) return undefined;
-  const value = process.argv[index + 1];
-  if (!value || value.startsWith("--")) throw new Error(`${name} requires a value`);
-  return value;
-}
