@@ -14,4 +14,4 @@
 
 ## 4. Test helpers
 
-- [ ] 4.1 Replace the local `deferred` helpers with `Promise.withResolvers`, and remove the temporary folders that `session-selector`, `code-documentation`, `code-documentation-command` and `validation-impact` tests leave behind.
+- [x] 4.1 Replace the local `deferred` helpers with `Promise.withResolvers`, and remove the temporary folders that `session-selector`, `code-documentation`, `code-documentation-command` and `validation-impact` tests leave behind.

@@ -5,7 +5,6 @@ import { PastePreparationClient } from "../../../src/app/session-shell/paste-pre
 import { PASTE_READ_MS, PASTE_TOTAL_MS, PASTE_STOP_MS, type PasteEvent } from "../../../src/app/session-shell/paste-protocol.js";
 import type { PiShellClipboardContent } from "../../../src/integrations/pi/components/index.js";
 
-function deferred<T>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 vi.mock("../../../src/app/session-shell/paste-executor.js", () => ({
   startPasteExecutor: vi.fn(),
   createPasteHelperPool: () => ({ warm() {}, replenish() {}, take() { return undefined; }, dispose() {}, warmed: false }),
@@ -55,7 +54,7 @@ describe("paste admission and insertion lifetime", () => {
 
   it("expires acquisition at five seconds, suppresses a late result, and permits a fresh independent read", async () => {
     vi.useFakeTimers();
-    const pending = deferred<PiShellClipboardContent | null>(), adopt = vi.fn(() => "stale");
+    const pending = Promise.withResolvers<PiShellClipboardContent | null>(), adopt = vi.fn(() => "stale");
     const client = new PastePreparationClient();
     const old = client.start({ kind: "provided", read: () => pending.promise }, adopt, () => {});
     await vi.advanceTimersByTimeAsync(PASTE_READ_MS - 1);
@@ -73,7 +72,7 @@ describe("paste admission and insertion lifetime", () => {
 
   it("includes predecessor wait in acquisition and does not acquire stale clipboard content after failure", async () => {
     vi.useFakeTimers();
-    const predecessor = deferred<boolean>(), read = vi.fn(async () => null);
+    const predecessor = Promise.withResolvers<boolean>(), read = vi.fn(async () => null);
     const client = new PastePreparationClient();
     const job = client.start({ kind: "provided", before: () => predecessor.promise, read }, () => "", () => {});
     await vi.advanceTimersByTimeAsync(PASTE_READ_MS);
@@ -90,7 +89,7 @@ describe("paste admission and insertion lifetime", () => {
 
   it("keeps the original fifteen-second deadline through slow insertion rather than restarting after read", async () => {
     vi.useFakeTimers();
-    const read = deferred<null>(), insertion = deferred<string>();
+    const read = Promise.withResolvers<null>(), insertion = Promise.withResolvers<string>();
     const client = new PastePreparationClient();
     const job = client.start({ kind: "provided", read: () => read.promise }, () => insertion.promise, () => {});
     await vi.advanceTimersByTimeAsync(4_000); read.resolve(null);
@@ -105,7 +104,7 @@ describe("paste admission and insertion lifetime", () => {
 
   it("rejects a ninth request without superseding eight accepted reads and keeps unconfirmed reads within capacity", async () => {
     vi.useFakeTimers();
-    const events: PasteEvent[] = [], pending = deferred<null>();
+    const events: PasteEvent[] = [], pending = Promise.withResolvers<null>();
     const client = new PastePreparationClient({ onEvent: event => events.push(event) });
     const jobs = Array.from({ length: 8 }, () => client.start({ kind: "provided", read: () => pending.promise }, () => "", () => {}));
     await vi.advanceTimersByTimeAsync(0);

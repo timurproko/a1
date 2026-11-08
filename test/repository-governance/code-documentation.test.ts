@@ -1,10 +1,10 @@
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, onTestFinished } from "vitest";
 import {
   CODE_DOCUMENTATION_RULES,
   classifyCodeDocumentationSource,
@@ -53,6 +53,7 @@ describe("code documentation source roles", () => {
 
   it("loads normalized tracked code without reading ignored content", async () => {
     const repository = await mkdtemp(join(tmpdir(), "a1-code-documentation-"));
+    onTestFinished(() => rm(repository, { recursive: true, force: true }));
     await execFileAsync("git", ["init"], { cwd: repository });
     for (const [path, source] of Object.entries({
       "src/a.ts": "export const a = 1;",
