@@ -117,8 +117,8 @@ describe("code-streaming rendering budgets", () => {
       .toContain("streamed-code-block: stale or missing settled content");
   });
 
-  it("ignores the dedicated gutter rail when checking wrapped settled content", () => {
-    const rows = ["That reads config.json                           │", "once.                                            │"];
+  it.each(["│", "┃", "▐"])("ignores the dedicated %s gutter rail when checking wrapped settled content", glyph => {
+    const rows = [`That reads config.json                           ${glyph}`, `once.                                            ${glyph}`];
     expect(evaluateRenderingBudgets(codeMatrix({ cellFrame: { rows, cursor: { row: 2, column: 6 } } })).passed).toBe(true);
   });
 });

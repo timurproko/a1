@@ -51,7 +51,7 @@ describe("truthful selection beside the scrollbar gutter", () => {
         for (let row = 0; row < height; row++) {
           const line = terminal.buffer.active.getLine(row)!;
           const railColumns = Array.from({ length: width }, (_, column) => column)
-            .filter(column => /[│┃]/u.test(line.getCell(column)!.getChars()));
+            .filter(column => /[┃▐]/u.test(line.getCell(column)!.getChars()));
           expect(railColumns, `row ${row}, dock ${dockHeight}`).toEqual(row > 0 && row < viewportHeight ? [width - 1] : []);
         }
       }
@@ -133,7 +133,7 @@ describe("truthful selection beside the scrollbar gutter", () => {
                           const gutter = terminal.buffer.active.getLine(row)!.getCell(width - 1)!;
                           expect(gutter.isBgDefault()).toBe(!selected && !styled);
                           if (selected || styled) expect(gutter.getBgColor()).toBe(selected ? SELECTED : SOURCE);
-                          expect(visible ? (style === "thick" ? ["┃"] : ["│", "┃"]) : [" "]).toContain(gutter.getChars() || " ");
+                          expect(gutter.getChars() || " ").toBe(visible ? (style === "thick" ? "▐" : "┃") : " ");
                           expect(gutter.isBold()).toBe(0);
                           expect(gutter.isItalic()).toBe(0);
                           expect(gutter.isUnderline()).toBe(0);
@@ -167,7 +167,7 @@ describe("truthful selection beside the scrollbar gutter", () => {
       const gutter = terminal.buffer.active.getLine(1)!.getCell(11)!;
       expect(content.getBgColor()).toBe(included ? SELECTED : SOURCE);
       expect(gutter.getBgColor()).toBe(included ? SELECTED : SOURCE);
-      expect(gutter.getChars()).toBe("│");
+      expect(gutter.getChars()).toBe("┃");
       expect(viewport.selectedText()).toBe(included ? "aaaaaaaaaaZ" : "aaaaaaaaaa");
       expect(hyperlinkTargetAtColumn(compose().rows[1]!, 11)).toBeUndefined();
     } finally { terminal.dispose(); }
@@ -209,9 +209,9 @@ describe("truthful selection beside the scrollbar gutter", () => {
           expect(control.getBgColor()).toBe(hovered ? CONTROL_HOVER : CONTROL);
           expect(gutter.isBgDefault()).toBe(!selected);
           if (selected) expect(gutter.getBgColor()).toBe(SELECTED);
-          expect(gutter.getChars() || " ").toBe(appearance === "always" ? "│" : " ");
+          expect(gutter.getChars() || " ").toBe(appearance === "always" ? "┃" : " ");
           const track = terminal.buffer.active.getLine(hit.row - 2)!.getCell(width - 1)!;
-          expect(track.getChars() || " ").toBe(appearance === "always" ? "│" : " ");
+          expect(track.getChars() || " ").toBe(appearance === "always" ? "┃" : " ");
         } finally { terminal.dispose(); }
       }
     }

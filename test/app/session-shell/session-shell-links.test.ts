@@ -77,10 +77,10 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
     // Invariant: the pinned prompt row shows only the prompt, with no overlaid timestamp.
     expect(detached[0]!.trimEnd()).toMatch(/^ ❯ Question \d+$/);
     expect(detached.some(row => row.includes("Jump to bottom (Ctrl+End) ↓"))).toBe(true);
-    expect(detached[0]).not.toContain("│");
-    expect(detached.slice(1, -4).some(row => row.includes("│"))).toBe(true);
-    expect(detachedRaw.some(row => row.includes(piTheme().fg("accent", "│")))).toBe(true);
-    expect(detachedRaw.every(row => !row.includes(piTheme().fg("text", "│")))).toBe(true);
+    expect(detached[0]).not.toContain("┃");
+    expect(detached.slice(1, -4).some(row => row.includes("┃"))).toBe(true);
+    expect(detachedRaw.some(row => row.includes(piTheme().fg("accent", "┃")))).toBe(true);
+    expect(detachedRaw.every(row => !row.includes(piTheme().fg("text", "┃")))).toBe(true);
 
     const completedReply = {
       role: "assistant",
@@ -761,7 +761,7 @@ describe("OwnedUiSessionShell prompt bar, links, and hover", () => {
               expect(contentCell.getChars()).toBe("Z");
               expect(gutterCell.isBgDefault()).toBe(!selected);
               if (selected) expect(gutterCell.isBgRGB() && gutterCell.getBgColor() === 0x264f78).toBe(true);
-              expect(hovered ? ["│", "┃"] : [" "]).toContain(gutterCell.getChars() || " ");
+              expect(gutterCell.getChars() || " ").toBe(hovered ? (style === "thick" ? "▐" : "┃") : " ");
             }
           }
         }

@@ -1576,15 +1576,15 @@ describe("OwnedUiSessionShell transcript selection and scrolling", () => {
     terminal.input("\u001b[<64;30;3M");
     const hidden = shell.root.render(60).map(row => stripTerminalSequences(row));
     expect(hidden.some(row => row.includes("Jump to bottom"))).toBe(true);
-    expect(hidden.every(row => !row.includes("│") && !row.includes("┃"))).toBe(true);
+    expect(hidden.every(row => !/[│┃▐]/u.test(row))).toBe(true);
 
     current = { scrollbarAppearance: "always", scrollbarStyle: "thick", scrollbarSpeed: "fast" };
     notify?.(current);
     const shownRaw = shell.root.render(60);
     const shown = shownRaw.map(row => stripTerminalSequences(row));
     expect(shown.some(row => row.includes("Jump to bottom"))).toBe(true);
-    expect(shown.slice(1, -4).some(row => row.includes("┃"))).toBe(true);
-    expect(shownRaw.some(row => row.includes(piTheme().fg("accent", "┃")))).toBe(true);
+    expect(shown.slice(1, -4).some(row => row.includes("▐"))).toBe(true);
+    expect(shownRaw.some(row => row.includes(piTheme().fg("accent", "▐")))).toBe(true);
     await shell.dispose();
   });
 
