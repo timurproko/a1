@@ -19,7 +19,7 @@
 ## 4. Pre-ready integration checks
 
 - [x] 4.1 Run typecheck, only the changed owner-level test files, and strict validation of this change; reconcile any failures without weakening assertions and disposition concrete known gaps in the design before the final Implementation checkbox.
-- [ ] 4.2 Reconcile and push current `origin/develop`, add plain PR Acceptance outcomes, and pass the delivery-body final check before checking the final Implementation item; confirm the pushed diff remains scoped to this approved behavior and its tests.
+- [x] 4.2 Reconcile and push current `origin/develop`, add plain PR Acceptance outcomes, and pass the delivery-body final check before checking the final Implementation item; confirm the pushed diff remains scoped to this approved behavior and its tests.
 
 ## Workflow follow-up
 
