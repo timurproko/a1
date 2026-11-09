@@ -11,12 +11,13 @@ import {
   listSessionRepositoryWorktrees,
   registerSessionRepositoryRuntime,
   setSessionRepositoryContext,
+  clearSessionRepositoryContext,
 } from "../../src/foundation/lifecycle/session-repository-context.js";
 import type { ProcessIdentity } from "../../src/foundation/lifecycle/model.js";
 
 type RepositoryContextReader = (sessionId: string, sessionFile: string, signal: AbortSignal) => Promise<unknown>;
 
-const observed = vi.hoisted(() => ({ readers: [] as Array<RepositoryContextReader | undefined> }));
+const observed = vi.hoisted(() => ({ readers: [] as Array<RepositoryContextReader | undefined>, autoName: true }));
 // Rationale: run the real composition, registry, and lifecycle store without provider, terminal, or user-file effects.
 vi.mock("../../src/integrations/pi/components/upstream/theme/theme.js", async importOriginal => ({
   ...await importOriginal<object>(), applyConfiguredPiTheme() {}, getAvailablePiThemes: () => [], setPiAccentColor() {}, setPiPackageBorderProjectionEnabled() {} }));
@@ -27,7 +28,7 @@ vi.mock("../../src/ui/settings/manager.js", () => ({
   OwnedSettingsManager: class {
     get file() { return "synthetic-agent-settings.json"; }
     refresh() { return false; }
-    value(key: string) { return key === "promptHistoryEnabled" ? false : key === "accentColor" ? "purple" : undefined; }
+    value(key: string) { return key === "sessionAutoName" ? observed.autoName : key === "promptHistoryEnabled" ? false : key === "accentColor" ? "purple" : undefined; }
     onChange() { return () => undefined; }
   },
 }));
@@ -60,12 +61,13 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   observed.readers = [];
+  observed.autoName = true;
   vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 });
 
 /** Compose exactly as `bin/ui.js` does, adding only the engine-host and release-check test seams. */
-async function compose(options: Pick<OwnedUiCompositionOptions, "productMode" | "inspectProcess"> = {}) {
+async function compose(options: Pick<OwnedUiCompositionOptions, "productMode" | "inspectProcess"> = {}, extra: object = {}) {
   return await composeOwnedUi({
     cwd: primary,
     profileId: "a1",
@@ -77,7 +79,7 @@ async function compose(options: Pick<OwnedUiCompositionOptions, "productMode" | 
     createEngineHost: async () => ({
       create: async (input: { repositoryContextReader?: RepositoryContextReader }) => {
         observed.readers.push(input.repositoryContextReader);
-        return { identity: { cwd: primary, agentDir: join(root, "agent") }, settings: { configuredTheme: () => "dark" } };
+        return { identity: { cwd: primary, agentDir: join(root, "agent") }, settings: { configuredTheme: () => "dark" }, ...extra };
       },
       setAccentColor() {},
       dispose: async () => {},
@@ -98,6 +100,53 @@ async function runtimeRecords(): Promise<Array<Record<string, unknown>>> {
 }
 
 describe("session runtime composition wiring", () => {
+  function namingBackend(file: string) {
+    let listener: (event: unknown) => void = () => {};
+    let state = { sessionFile: file, binding: 1, name: null as string | null, nameEntryId: null as string | null, source: "unnamed", completedContext: null as string | null };
+    const complete = vi.fn(async (_request: unknown) => "fix-cache");
+    const apply = vi.fn((_expected: unknown, name: string, context: string) => { state = { ...state, name, source: "auto", nameEntryId: name, completedContext: context }; return true; });
+    let promptNumber = 0;
+    return { complete, apply,
+      extra: {
+        identity: { cwd: primary, agentDir: join(root, "agent"), sessionBindingGeneration: 1,
+          currentHistorySessionId: () => sessionId, currentSessionFile: () => file },
+        session: { view: () => ({ transcript: [] }), onEvent: (next: typeof listener) => { listener = next; return () => { listener = () => {}; }; } },
+        naming: { state: () => state, complete, apply },
+      },
+      prompt(text: string) { listener({ type: "agent-run-started" }); listener({ type: "transcript-block", block: { id: `prompt-${++promptNumber}`, kind: "user", text } }); },
+    };
+  }
+
+  it("names the first prompt and regenerates from the next prompt after unseen same-path re-entry", async () => {
+    const file = await sessionFile(sessionId);
+    const backend = namingBackend(file);
+    const composed = await compose({}, backend.extra);
+    try {
+      await observed.readers.at(-1)!(sessionId, file, new AbortController().signal);
+      const worktree = join(root, "naming-task");
+      await execFileAsync("git", ["-C", primary, "worktree", "add", "-b", "feature/naming", worktree]);
+      const identity = { sessionId, sessionFile: file };
+      await setSessionRepositoryContext(identity, worktree, { runtimeId });
+      backend.prompt("Fix the cache");
+      await vi.waitFor(() => expect(backend.apply).toHaveBeenCalledTimes(1), { timeout: 10_000 });
+      await clearSessionRepositoryContext(identity, { runtimeId });
+      await setSessionRepositoryContext(identity, worktree, { runtimeId });
+      expect(backend.complete).toHaveBeenCalledOnce();
+      backend.prompt("Add a search box");
+      await vi.waitFor(() => expect(backend.apply).toHaveBeenCalledTimes(2), { timeout: 10_000 });
+      expect(backend.complete.mock.calls[1]).toEqual([expect.objectContaining({ prompt: expect.stringContaining("Add a search box") })]);
+    } finally { await composed.application.dispose(); }
+  });
+
+  it.each(["comparison", "disabled"])("withholds prompt naming in %s mode", async mode => {
+    const backend = namingBackend(await sessionFile(sessionId));
+    observed.autoName = mode !== "disabled";
+    const composed = await compose({ productMode: mode === "comparison" ? "comparison" : "bare" }, backend.extra);
+    backend.prompt("Fix cache");
+    await new Promise(resolve => setImmediate(resolve));
+    expect(backend.complete).not.toHaveBeenCalled();
+    await composed.application.dispose();
+  });
   it("publishes the primary runtime through the production inspector when the entrypoint injects none", async () => {
     const file = await sessionFile(sessionId);
     const composed = await compose();

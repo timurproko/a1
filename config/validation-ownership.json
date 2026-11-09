@@ -139,17 +139,20 @@
         "src/ui/",
         "src/features/owned-ui/",
         "src/features/prompt-suggestions/",
+        "src/features/session-naming/",
         "src/integrations/pi/tui-runtime/"
       ],
       "testPaths": [
         "test/ui/",
         "test/features/owned-ui/",
         "test/features/prompt-suggestions/",
+        "test/features/session-naming/",
         "test/integrations/pi/tui-runtime/"
       ],
       "criticalTests": [
         "test/ui/components/frame.test.ts",
         "test/features/owned-ui/run.test.ts",
+        "test/features/session-naming/session-naming.test.ts",
         "test/integrations/pi/tui-runtime/input-presentation-coordinator.test.ts"
       ],
       "integrationOwners": []

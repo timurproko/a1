@@ -32,6 +32,21 @@ describe("bounded PR-core ownership", () => {
     expect([...result.tests, ...result.resourceTests]).toEqual(expect.arrayContaining(criticalTests));
   });
 
+  it("owns session naming and retains its tests for feature changes and conservative selection", () => {
+    const test = "test/features/session-naming/session-naming.test.ts";
+    expect(authority.ledger.find((entry: { test: string }) => entry.test === test)).toMatchObject({ owner: "ui-rendering", fastOwner: "fast-remainder" });
+    for (const path of ["src/features/session-naming/controller.ts", "src/features/session-naming/generate.ts", test]) {
+      const result = select([path]);
+      expect(result.mode).toBe("impact");
+      expect(result.unknown).toEqual([]);
+      expect(result.owners.find(owner => owner.owner === "ui-rendering")?.selected).toBe(true);
+      expect(result.tests).toContain(test);
+    }
+    expect(select(["config/validation-ownership.json"]).tests).toContain(test);
+    expect(selectValidationOwnership({ authority: { ...authority, consumerGraph: null },
+      changes: [{ path: "src/features/session-naming/controller.ts", status: "M" }] }).tests).toContain(test);
+  });
+
   it("selects filesystem-heavy release cleanup only in the resource partition", () => {
     const result = select(["src/foundation/release/bootstrap.ts"]);
     expect(result.resourceTests).toContain("test/foundation/release/release-gc.test.ts");

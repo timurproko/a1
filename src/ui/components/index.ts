@@ -38,6 +38,7 @@ export { MOUSE_TRACKING_OFF, MOUSE_TRACKING_ON, parseMouseInput, routeMouseInput
 export type { ParsedMouseInput, RoutedMouseInput } from "./mouse.js";
 export { isInsidePane, toPaneLocalMouse } from "./pane.js";
 export type { Pane, PaneInputResult, PaneMouseEvent } from "./pane.js";
+export { sessionNameFrame } from "./session-name-frame.js";
 export { progressStatusFrame, progressStatusText } from "./progress-status.js";
 export type { ProgressStatusFrameStyles, ProgressStatusMarker } from "./progress-status.js";
 export { FrameCache, RENDER_REVISION_KINDS, RenderRevisionTracker, ZERO_REVISIONS, normalizeRevisions, revisionsEqual } from "./revision.js";

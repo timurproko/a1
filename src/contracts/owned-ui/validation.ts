@@ -321,6 +321,11 @@ function assertOwnedUiStatusView(status: OwnedUiStatusView): void {
   if (status.footer !== undefined) {
     assertOptionalText(status.footer.branch, "owned-UI footer branch", MAX_LABEL_LENGTH);
     assertOptionalText(status.footer.repositoryPath ?? null, "owned-UI footer repository path", MAX_MESSAGE_LENGTH);
+    assertOptionalText(status.footer.repositoryRevision ?? null, "owned-UI footer repository revision", MAX_LABEL_LENGTH);
+    if (status.footer.sessionNameReveal !== undefined) {
+      assertBoundedText(status.footer.sessionNameReveal.id, "owned-UI name reveal id", MAX_LABEL_LENGTH);
+      assertPossiblyEmptyText(status.footer.sessionNameReveal.from, "owned-UI previous session name", MAX_LABEL_LENGTH);
+    }
     if (status.footer.pullRequest !== undefined && status.footer.pullRequest !== null) {
       const pullRequest = status.footer.pullRequest;
       assertIntegerInRange(pullRequest.number, 1, Number.MAX_SAFE_INTEGER, "owned-UI footer pull request number");

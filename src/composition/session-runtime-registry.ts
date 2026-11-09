@@ -35,13 +35,19 @@ export class SessionRuntimeRegistry {
       return await this.#enqueue(async () => {
         const owner = await this.#ownerIdentity();
         if (owner === null || !this.#current(agentId, identity)) return null;
-        const { activateSessionRepositoryContext } = await import("../foundation/lifecycle/session-repository-context.js");
+        const { activateSessionRepositoryContext, withSessionRepositoryObservation } = await import("../foundation/lifecycle/session-repository-context.js");
         if (!this.#current(agentId, identity)) return null;
-        return await activateSessionRepositoryContext(identity, runtimeId, owner, {
+        const options = {
           signal: AbortSignal.any([signal, this.#abort.signal]),
           inspectProcess,
           ...(agentId === undefined ? {} : { agentId }),
-        });
+        };
+        const selected = await activateSessionRepositoryContext(identity, runtimeId, owner, options);
+        if (selected === null) return null;
+        return await withSessionRepositoryObservation(identity, context => {
+          if (context.branch === null) throw new Error("associated branch unavailable");
+          return { cwd: context.cwd, branch: context.branch, revision: context.revision };
+        }, options);
       });
     };
   }

@@ -95,7 +95,7 @@ describe("owned UI settings sections", () => {
     });
     expect(sections.find(section => section.id === "agent")?.entries.map(entry => [entry.backend, entry.id])).toEqual([
       ["agent", "autoCompact"], ["agent", "thinkingLevel"], ["agent", "providerProfile"],
-      ["a1", "promptSuggestions"], ["a1", "skillsPresentation"], ["a1", "promptImageLimit"],
+      ["a1", "sessionAutoName"], ["a1", "promptSuggestions"], ["a1", "skillsPresentation"], ["a1", "promptImageLimit"],
     ]);
     expect(sections.flatMap(section => section.entries).filter(entry => entry.id === "promptSuggestions")).toHaveLength(1);
     expect(sections.flatMap(section => section.entries).filter(entry => entry.id === "skillsPresentation")).toHaveLength(1);
@@ -131,10 +131,11 @@ describe("owned UI settings sections", () => {
     expect(sections.map(section => section.id)).toEqual(["generic", "appearance", "scroll", "history", "agent"]);
     const group = sections.find(section => section.id === "agent");
     expect(group).toMatchObject({ title: "Agent", unavailableReason: null, readOnlyReason: null });
-    expect(group?.entries).toHaveLength(3);
-    expect(group?.entries[0]).toMatchObject({ id: "promptSuggestions", backend: "a1", value: true, editable: true, application: "live" });
-    expect(group?.entries[1]).toMatchObject({ id: "skillsPresentation", backend: "a1", value: "collapse", editable: true, application: "live" });
-    expect(group?.entries[2]).toMatchObject({ id: "promptImageLimit", backend: "a1", value: 8, editable: true, application: "live" });
+    expect(group?.entries).toHaveLength(4);
+    expect(group?.entries[0]).toMatchObject({ id: "sessionAutoName", backend: "a1", value: true, editable: true, application: "live" });
+    expect(group?.entries[1]).toMatchObject({ id: "promptSuggestions", backend: "a1", value: true, editable: true, application: "live" });
+    expect(group?.entries[2]).toMatchObject({ id: "skillsPresentation", backend: "a1", value: "collapse", editable: true, application: "live" });
+    expect(group?.entries[3]).toMatchObject({ id: "promptImageLimit", backend: "a1", value: 8, editable: true, application: "live" });
   });
 
   it("puts declared A1 settings in the A1 section with their origin", () => {

@@ -124,6 +124,15 @@ export const OWNED_SETTING_DECLARATIONS = Object.freeze({
     defaultValue: 100,
     allowedValues: Object.freeze([10, 20, 30, 40, 50, 60, 70, 80, 90, 100] as const),
   }),
+  sessionAutoName: Object.freeze({
+    id: "sessionAutoName",
+    label: "Automatic session name",
+    section: AGENT_SECTION,
+    description: "Name unnamed sessions from the first prompt; regenerate automatic names on the next prompt after a worktree context change. Manual names are preserved.",
+    application: "live",
+    defaultValue: true,
+    allowedValues: Object.freeze([true, false] as const),
+  }),
   promptSuggestions: Object.freeze({
     id: "promptSuggestions",
     label: "Prompt suggestions",
