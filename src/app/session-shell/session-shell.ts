@@ -1,5 +1,6 @@
 import type { OwnedUiEvent, OwnedUiShellSelectorOption } from "../../contracts/owned-ui/index.js";
 import type { TerminalComponentPort, TerminalInputListenerResult, TerminalInputSurfaceKind, TerminalOverlayHandle, TerminalPointerSurface } from "../../contracts/presentation/index.js";
+import { SessionTerminalPresentation } from "./session-terminal-presentation.js";
 import { ShellClipboard } from "./shell-clipboard.js";
 import type { CopyResult } from "./response-copy-protocol.js";
 import { SessionPromptHistory } from "./session-prompt-history.js";
@@ -123,7 +124,11 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   readonly #inputCoordination: boolean;
   readonly #unbindShellSettings: () => void;
   readonly #unbindSessionSettings: () => void;
-  #terminalProgressEnabled = false;
+  readonly #terminalPresentation = new SessionTerminalPresentation({
+    terminal: () => this.#terminal,
+    programStatus: () => this.#programStatus,
+    titleEnabled: () => this.#customViewport && this.#started && !this.#disposed,
+  });
   readonly #programStatus: OwnedUiShellProgramStatusReporter;
   #fullscreenExitOutput: "transcript" | "resume-hint" = "transcript";
   #lastClearTime = 0;
@@ -251,7 +256,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
       );
       this.#login = new LoginInteraction({
         terminal: this.#terminal, root: this.root, programStatus: this.#programStatus, dialogs: options.presenters.components.dialogs,
-        syncProgress: () => this.#syncTerminalProgress(this.view()),
+        syncProgress: () => this.#terminalPresentation.syncProgress(this.view()),
       });
       this.#submission = this.#createSubmission(cwd);
       this.#reloadPresentation = reloadPresentation;
@@ -286,8 +291,8 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
         terminal: this.#terminal,
         root: this.root,
         setTerminalProgress: enabled => {
-          this.#terminalProgressEnabled = enabled;
-          if (this.#terminal.running) this.#syncTerminalProgress(this.view());
+          this.#terminalPresentation.progressEnabled = enabled;
+          if (this.#terminal.running) this.#terminalPresentation.syncProgress(this.view());
         },
       }, { customViewport: this.#customViewport });
       constructed.push(this.#unbindSessionSettings);
@@ -366,7 +371,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
   }
 
   activated(): void {
-    this.#syncTerminalProgress(this.view());
+    const view = this.view();
+    this.#terminalPresentation.syncProgress(view);
+    this.#terminalPresentation.syncTitle(view, true);
   }
 
   handleViewportInput(data: string): TerminalInputListenerResult | undefined {
@@ -433,7 +440,7 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     const view = event.type === "transcript-block" && this.#sessionGeneration === this.backend.identity.sessionGeneration
       ? this.#syncBlock(event.block)
       : semanticOnly ? this.view() : this.#syncView();
-    this.#syncTerminalProgress(view);
+    this.#terminalPresentation.syncProgress(view);
     this.#promptSuggestions?.noteView(view, this.backend.identity.sessionGeneration !== this.#sessionGeneration);
     if (event.type === "status" && /^(Retrying|Compacting)/.test(event.status.workingMessage ?? "")) {
       this.#promptSuggestions?.invalidate();
@@ -457,8 +464,9 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     if (this.#started) return;
     this.#started = true;
     this.#terminal.start();
+    this.#terminalPresentation.syncTitle(this.view());
     this.#history?.start();
-    this.#syncTerminalProgress(this.view());
+    this.#terminalPresentation.syncProgress(this.view());
     void this.backend.extensions.bindExtensionUi(this.#extensionBridge.context, () => { void this.shutdown(); });
     this.#syncView();
     // Performance: the spare clipboard helpers fork after the first frame is out, so startup never waits on them.
@@ -890,26 +898,12 @@ export class OwnedUiSessionPresenter implements OwnedUiHostedPresenter {
     this.#history?.rebind(replaced, scope);
   }
 
-  #syncTerminalProgress(view: OwnedUiSessionViewModel): void {
-    if (!this.#terminal.running) return;
-    this.#terminal.setTerminalProgress(this.#terminalProgressEnabled && view.lifecycle === "busy");
-    if (view.lifecycle === "stopped" || view.lifecycle === "stopping") {
-      this.#programStatus.clear();
-      return;
-    }
-    this.#programStatus.setBlocked("dialog", view.dialog === null ? undefined : {
-      kind: "question",
-      message: view.dialog.title,
-    });
-    if (view.lifecycle === "failed") this.#programStatus.setErrorMessage(view.status.diagnostics.at(-1));
-    this.#programStatus.report();
-  }
-
   #syncView(): OwnedUiSessionViewModel {
     this.#streamPresentation.noteImmediatePresentation();
     const view = this.view();
     if (this.backend.identity.sessionGeneration !== this.#sessionGeneration) this.#concerns.replaceSession();
     this.root.update(view);
+    this.#terminalPresentation.syncTitle(view);
     this.#dialogs.syncBackend(view.dialog);
     this.#presentStartupTrustWarning(view);
     this.#terminal.requestRender();

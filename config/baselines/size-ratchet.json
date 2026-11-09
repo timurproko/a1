@@ -19,7 +19,7 @@
       "fields": 32
     },
     "src/app/session-shell/session-shell.ts::OwnedUiSessionPresenter": {
-      "methods": 55,
+      "methods": 54,
       "fields": 42
     },
     "src/app/session-shell/session-viewport-controller.ts::SessionViewportController": {
@@ -100,7 +100,7 @@
       "lines": 107
     },
     "src/integrations/pi/engine/session-events.ts::PiSessionEvents.#applyPiEvent": {
-      "lines": 149
+      "lines": 148
     },
     "src/integrations/pi/engine/transcript-projection.ts::PiTranscriptProjection.messageBlocks": {
       "lines": 156
