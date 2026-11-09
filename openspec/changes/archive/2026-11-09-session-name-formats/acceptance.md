@@ -22,10 +22,10 @@ The maintainer integration decision accepts these scenarios:
     "Automatic names, context-driven replacements, and prompt fallback use the selected format and retain the 16-character limit and naming safety guards.",
     "Format changes leave existing and manual names untouched, while pending naming results use the latest effective choice without another request."
   ],
-  "archiveDigest": "58f1afb33a96a1cd844f9dfe8db6960dc9cb8eed330d13903a4abbd904ecac4c",
+  "archiveDigest": "2785c78f20d588213d9820d1a3cb1bfbdcf741f596590d7895aeb2327a14f898",
   "specDigest": "a128df5512062a23eebbf8635774acae86ae56b78d02c2f4b6d78459953ce734",
   "tasksDigest": "b37164dab9107d8d6df4d07828ec4f489acee93c3ff886265b2567395798b0aa",
-  "evidenceDigest": "e9571eb6a01604aaaf7e0dd2c8f0fb301ed399780a5fd86265aa66df6850f026",
+  "evidenceDigest": "5ebbd224bc16fa37b55320279fa994c36b099f41181e793c43ea39c47a9e4a79",
   "knownGaps": []
 }
 ```
