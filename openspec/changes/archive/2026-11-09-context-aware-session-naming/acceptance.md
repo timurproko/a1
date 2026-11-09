@@ -22,10 +22,10 @@ The maintainer integration decision accepts these scenarios:
     "Worktree switches and same-path exit/re-entry regenerate automatic names from the next prompt without applying stale results.",
     "Session names follow footer stats and automatic changes reveal in the secondary accent while model alignment and complete terminal titles are preserved."
   ],
-  "archiveDigest": "4d60d3f01d90197bf53aef8d936ff8d144057657f0c4a77cabb79856918bb7f8",
+  "archiveDigest": "10322fa64486cab6194eb1488ba354577ab12efa920461f5db4d398f36aa114f",
   "specDigest": "3f924a1d999c8c92c21997ca2f974d203621cb1d32bb029b62e2b1e7d60fed64",
   "tasksDigest": "f652c4b0a5e358f9db3d7779d595e745d0c86828f8d67c985a809988cb0bb748",
-  "evidenceDigest": "fa70ef1fa1545db5bc45b71152e5026ecd1d4f1fc7aafbc130aac0c9d804f59a",
+  "evidenceDigest": "f0ee8caa45b907573d4b33d90cf3d072546a89bf4beba81433a101743bd58ce1",
   "knownGaps": []
 }
 ```
