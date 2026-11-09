@@ -22,7 +22,7 @@ The maintainer integration decision accepts these scenarios:
     "Screenshot labels, ordinary text, custom renderer content, and original attachments remain intact when images are hidden.",
     "Re-enabling images restores retained attachments in supported terminals, and enabled rendering failures keep their diagnostics."
   ],
-  "archiveDigest": "14cb82870a4a48e0cca4fdbf09e5e8686c9c3a889a1c287e5ad580a04d9c648e",
+  "archiveDigest": "57ce7fe3e228dc309570000c0288c7a7fd9126e54978216e7a8f31048e465937",
   "specDigest": "930ce27f32b09aff45d41a959f2cfba0a7f63073c2258f16f8afe7671c4eeabd",
   "tasksDigest": "0759d97a9a690d507f3ffbb48bb8e6c643d2038afae89c0861147cbd24d5cd77",
   "evidenceDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
