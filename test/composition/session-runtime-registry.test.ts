@@ -70,6 +70,23 @@ describe("SessionRuntimeRegistry", () => {
     await registry.dispose();
   });
 
+  it("arms retries when the first inspection observes no identity and republishes only the current session", async () => {
+    vi.useFakeTimers();
+    const inspect = vi.fn(async () => owner).mockResolvedValueOnce(null as never);
+    const registry = new SessionRuntimeRegistry({ runtimeId: "runtime-1", inspectProcess: inspect, refreshMs: 1_000 });
+    expect(await registry.readerFor(undefined)("s1", "/s1.jsonl", new AbortController().signal)).toBeNull();
+    expect(context.activate).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(context.register.mock.calls.map(call => call[0])).toEqual([{ sessionId: "s1", sessionFile: "/s1.jsonl" }]);
+    await registry.readerFor(undefined)("s2", "/s2.jsonl", new AbortController().signal);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(context.register.mock.calls.slice(1).map(call => call[0])).toEqual([{ sessionId: "s2", sessionFile: "/s2.jsonl" }]);
+    await registry.dispose();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(context.register).toHaveBeenCalledTimes(2);
+    expect(context.release).toHaveBeenCalledWith("runtime-1", owner);
+  });
+
   it("coalesces slow retries and drains them before disposal releases claims", async () => {
     vi.useFakeTimers();
     let finish!: () => void;

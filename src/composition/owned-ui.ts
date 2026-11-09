@@ -75,6 +75,10 @@ export interface OwnedUiComposition {
   readonly settings: OwnedSettingsManager | null;
 }
 
+/** Production default: without an inspector the registry never registers; loaded lazily. */
+const inspectLiveProcessOnDemand = async (pid: number) =>
+  (await import("../foundation/lifecycle/process-liveness.js")).inspectLiveProcess(pid);
+
 export async function composeOwnedUiApplication(options: OwnedUiCompositionOptions = {}): Promise<OwnedUiApplicationPort> {
   return (await composeOwnedUi(options)).application;
 }
@@ -84,7 +88,7 @@ export async function composeOwnedUi(options: OwnedUiCompositionOptions = {}): P
   const productMode = options.productMode ?? "bare", bare = productMode === "bare";
   const sessionRuntimes = new SessionRuntimeRegistry({
     runtimeId: bare ? process.env[PRODUCT_IDENTITY.environment.sessionRuntimeId] : undefined,
-    inspectProcess: options.inspectProcess,
+    inspectProcess: options.inspectProcess ?? inspectLiveProcessOnDemand,
   });
   const productPaths = resolveProductPaths();
   // Rationale: the manager reads the engine's settings port lazily, after the session exists.
