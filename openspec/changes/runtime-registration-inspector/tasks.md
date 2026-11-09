@@ -15,7 +15,7 @@
 ## 3. Pre-ready integration checks
 
 - [x] 3.1 Run typecheck, only the changed composition/registry test files, and strict validation of this change; reconcile failures without weakening assertions and disposition known gaps in the design.
-- [ ] 3.2 Reconcile and push current `origin/develop`, add plain PR Acceptance outcomes, and pass the delivery-body final check before checking the final Implementation item.
+- [x] 3.2 Reconcile and push current `origin/develop`, add plain PR Acceptance outcomes, and pass the delivery-body final check before checking the final Implementation item.
 
 ## Workflow follow-up
 
