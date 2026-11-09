@@ -56,6 +56,7 @@ describe("startup reachability policy", () => {
     const modules = report.modules.map(module => module.path);
     expect(modules).not.toContain("src/composition/release-update-observation.ts");
     expect(modules).not.toContain("src/features/prompt-suggestions/diagnostics.ts");
+    expect(modules).not.toContain("src/features/session-naming/generate.ts");
     expect(report.totals.files).toBeGreaterThan(100);
     expect(report.modules.every(module => ["initial-render", "first-prompt-correctness"].includes(module.classification))).toBe(true);
     expect(report.modules.find(module => module.path === "src/integrations/pi/engine/adapter.ts")?.classification).toBe("first-prompt-correctness");

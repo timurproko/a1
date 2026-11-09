@@ -4,7 +4,7 @@ Keep the existing automatic naming lifecycle and model budgets. Add `sessionName
 
 Normalize provider output and fallback through one bounded word pipeline. Kebab retains the existing lowercase ASCII normalization and 16-character whole-word truncation policy. Readable formats use spaces, lowercase ordinary words, preserve uppercase acronyms and internally capitalized technical spellings, and capitalize the first word (sentence) or every ordinary word (title). The maximum remains 16 characters, including spaces. Ask the model for readable technical spelling for readable formats; normalization remains authoritative.
 
-The controller reads the current format via a callback. Generation snapshots the format for request instructions but reads the latest format when normalizing the result or fallback, so an in-flight choice change applies without another request. Changing format alone neither renames an existing name nor invalidates completed context. All current user-ownership, context, binding, enabled-state, cancellation, and comparison-mode guards remain in force.
+The controller reads the current format via a callback. Generation snapshots the format for request instructions and retains candidate spelling. The controller formats the candidate or fallback under authoritative apply coordination using the latest effective format, so an in-flight choice change applies without another request, even while apply coordination is delayed. Changing format alone neither renames an existing name nor invalidates completed context. All current user-ownership, context, binding, enabled-state, cancellation, and comparison-mode guards remain in force.
 
 ## Validation and gaps
 

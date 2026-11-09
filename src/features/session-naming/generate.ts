@@ -1,19 +1,28 @@
 import type { OwnedUiSessionNameCompletion } from "../../contracts/owned-ui/index.js";
 
-function normalize(value: string): string | null {
-  const name = value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+export type SessionNameFormat = "kebab" | "sentence" | "title";
+
+export function formatSessionName(value: string, format: SessionNameFormat): string | null {
+  const words = (format === "kebab" ? value.toLowerCase() : value).match(/[a-z0-9]+/gi) ?? [];
+  const name = words.map((word, index) => {
+    if (format === "kebab") return word;
+    if (/^[A-Z0-9]+$/.test(word) || /[a-z][A-Z]/.test(word)) return word;
+    const lower = word.toLowerCase();
+    return format === "title" || index === 0 ? lower[0]!.toUpperCase() + lower.slice(1) : lower;
+  }).join(format === "kebab" ? "-" : " ");
   if (!name) return null;
   if (name.length <= 16) return name;
-  const boundary = name.slice(0, 17).lastIndexOf("-");
-  return (boundary >= 4 ? name.slice(0, boundary) : name.slice(0, 16)).replace(/-+$/g, "") || null;
+  const boundary = name.slice(0, 17).lastIndexOf(format === "kebab" ? "-" : " ");
+  return (boundary >= 4 ? name.slice(0, boundary) : name.slice(0, 16)).replace(/[- ]+$/g, "") || null;
 }
 
 /** Two bounded tool-free attempts; cancellation never becomes an automatic fallback. */
-export async function generateSessionName(
+export async function generateSessionNameCandidate(
   prompt: string,
   hints: string,
   complete: (request: OwnedUiSessionNameCompletion) => Promise<string | null>,
   signal: AbortSignal,
+  format: () => SessionNameFormat,
   timeoutMs = 30_000,
 ): Promise<string> {
   for (const maxTokens of [4_096, 32_768]) {
@@ -28,13 +37,14 @@ export async function generateSessionName(
         aborted = () => reject(attempt.reason);
         attempt.addEventListener("abort", aborted, { once: true });
       });
+      const requestedFormat = format();
+      const style = requestedFormat === "kebab" ? "a lowercase hyphenated title" : `a ${requestedFormat === "sentence" ? "sentence case" : "title case"} title with spaces, preserving acronyms and technical spelling`;
       const response = await Promise.race([complete({
-        prompt: `Name this coding task with a lowercase hyphenated title of at most 16 characters. Reply only with the title.\nRepository hints: ${hints.slice(0, 300)}\n<task>\n${prompt.slice(0, 500)}\n</task>`,
+        prompt: `Name this coding task with ${style} of at most 16 characters. Reply only with the title.\nRepository hints: ${hints.slice(0, 300)}\n<task>\n${prompt.slice(0, 500)}\n</task>`,
         maxTokens, signal: attempt,
       }), cancelled]);
       signal.throwIfAborted();
-      const name = response === null ? null : normalize(response);
-      if (name !== null) return name;
+      if (response !== null && formatSessionName(response, format()) !== null) return response;
     } catch {
       signal.throwIfAborted();
     } finally {
@@ -43,5 +53,6 @@ export async function generateSessionName(
     }
   }
   signal.throwIfAborted();
-  return normalize((prompt.toLowerCase().match(/[a-z0-9]+/g) ?? []).slice(0, 3).join("-")) ?? "new-task";
+  const fallback = (prompt.match(/[a-z0-9]+/gi) ?? []).slice(0, 3).join(" ");
+  return fallback || "new task";
 }

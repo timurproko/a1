@@ -1,5 +1,5 @@
 import type { OwnedUiEvent, OwnedUiSessionBackend, OwnedUiSessionNameState, OwnedUiSessionNamingPort } from "../../contracts/owned-ui/index.js";
-import { generateSessionName } from "./generate.js";
+import type { SessionNameFormat } from "./generate.js";
 
 export interface SessionNamingContext {
   readonly cwd: string;
@@ -13,6 +13,7 @@ interface NamingOptions {
   /** Executes the synchronous callback under authoritative repository-context coordination. */
   readonly withContext: <T>(consume: (context: SessionNamingContext) => T, signal: AbortSignal) => Promise<T>;
   readonly enabled: () => boolean;
+  readonly format: () => SessionNameFormat;
 }
 
 interface PromptRun {
@@ -146,12 +147,14 @@ export class SessionNamingController {
     this.#attempted = key;
     const work = new AbortController();
     this.#work = { abort: work, key: repositoryKey };
-    void generateSessionName(prompt, `${context.cwd.split(/[\\/]/).at(-1) ?? ""} (${context.branch ?? "no branch"})`,
-      request => this.#options.naming.complete(request), work.signal).then(name => {
+    void import("./generate.js").then(async ({ formatSessionName, generateSessionNameCandidate }) => {
+      const candidate = await generateSessionNameCandidate(prompt, `${context.cwd.split(/[\\/]/).at(-1) ?? ""} (${context.branch ?? "no branch"})`,
+        request => this.#options.naming.complete(request), work.signal, this.#options.format);
       if (work.signal.aborted || this.#disposed || !this.#options.enabled()) return;
       return this.#options.withContext(current => {
         if (contextKey(current) !== repositoryKey || work.signal.aborted || this.#disposed || !this.#options.enabled()) return false;
-        return this.#options.naming.apply(state, name, key);
+        const name = formatSessionName(candidate, this.#options.format());
+        return name !== null && this.#options.naming.apply(state, name, key);
       }, work.signal);
     }).catch(() => {}).finally(() => { if (this.#work?.abort === work) this.#work = undefined; });
   }
